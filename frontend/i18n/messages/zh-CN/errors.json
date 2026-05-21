@@ -1,0 +1,266 @@
+{
+  "auth": {
+    "authorizationCodeRequired": "缺少授权码。",
+    "emailAliasNotAllowed": "不允许使用邮箱别名。",
+    "emailAlreadyExists": "该邮箱已被使用。",
+    "emailBootstrapNotAllowed": "当前账号不允许初始化邮箱。",
+    "emailDomainNotAllowed": "该邮箱域名不可用。",
+    "emailNotVerified": "邮箱尚未验证。",
+    "emailRegistrationDisabled": "邮箱注册已关闭。",
+    "emailUnchanged": "新邮箱不能与当前邮箱相同。",
+    "emailVerificationDisabled": "邮箱验证已关闭。",
+    "forbidden": "没有权限执行该操作。",
+    "invalidCredentials": "用户名或密码错误。",
+    "invalidCurrentPassword": "当前密码错误。",
+    "invalidEmail": "邮箱地址无效。",
+    "invalidPassword": "密码至少 8 位，且不能为纯数字。",
+    "invalidPkce": "登录校验参数无效，请重新登录。",
+    "invalidRedirectUri": "回调地址无效。",
+    "invalidRefreshToken": "登录状态已失效，请重新登录。",
+    "invalidToken": "登录凭证无效，请重新登录。",
+    "invalidTwoFactorCode": "两步验证码无效。",
+    "lastLoginMethodRequired": "请先设置密码或绑定其他身份源。",
+    "oauthIntentMismatch": "第三方登录流程不匹配，请重新操作。",
+    "oauthStateExpired": "第三方登录状态已过期，请重新登录。",
+    "oauthStateInvalid": "第三方登录状态无效，请重新登录。",
+    "passwordResetRequired": "请先完成密码重置。",
+    "passwordReuseNotAllowed": "新密码不能与初始密码相同。",
+    "providerAccountNotRegistered": "该第三方账号尚未注册。",
+    "providerAlreadyBound": "该身份源已绑定。",
+    "providerAuthUrlNotConfigured": "身份源授权地址未配置。",
+    "providerBindEndpointRequired": "请使用账号绑定入口完成身份源绑定。",
+    "providerCallbackMisconfigured": "身份源回调地址配置不正确。",
+    "providerClientIdRequired": "身份源 Client ID 不能为空。",
+    "providerClientSecretRequired": "身份源 Client Secret 不能为空。",
+    "providerDefaultRoleInvalid": "身份源默认角色无效。",
+    "providerEmailConflict": "该邮箱已属于其他账号。",
+    "providerIdRequired": "身份源 ID 不能为空。",
+    "providerIdentityConflict": "该第三方身份已绑定到其他账号。",
+    "providerInvalid": "第三方登录失败。",
+    "providerLoginDisabled": "第三方登录已关闭。",
+    "providerLogoUrlInvalid": "身份源 Logo 地址无效。",
+    "providerNameRequired": "身份源名称不能为空。",
+    "providerOauthUrlsRequired": "OAuth2 授权地址、Token 地址和用户信息地址不能为空。",
+    "providerOidcIssuerRequired": "OIDC Issuer 或 Discovery 地址不能为空。",
+    "providerOrderInvalid": "身份源 ID 不能重复。",
+    "providerRegistrationDisabled": "第三方注册已关闭。",
+    "providerRegistrationRequiresLogin": "开启第三方注册前需要先开启第三方登录。",
+    "providerSlugRequired": "身份源标识不能为空。",
+    "providerSubjectMissing": "第三方账号缺少唯一身份标识。",
+    "providerTypeInvalid": "身份源类型无效。",
+    "providerUpstreamFailed": "第三方身份源请求失败。",
+    "sessionInvalid": "登录状态已失效，请重新登录。",
+    "superadminRequired": "需要超级管理员权限。",
+    "twoFactorAlreadyEnabled": "两步验证已启用。",
+    "twoFactorChallengeExpired": "二次验证已过期，请重新输入账号密码登录。",
+    "twoFactorExpired": "两步验证已过期，请重新操作。",
+    "twoFactorNotStarted": "两步验证尚未开始。",
+    "unauthorized": "登录状态已失效，请重新登录。",
+    "usernameChangeRequired": "请先完成用户名修改。",
+    "verificationCodeAttemptsExceeded": "验证码尝试次数过多，请重新获取验证码。",
+    "verificationCodeInvalid": "验证码无效或已过期。",
+    "verificationCodeRecent": "验证码刚刚已发送，请稍后再试。"
+  },
+  "billing": {
+    "insufficientBalance": "余额不足。",
+    "insufficientFunds": "余额不足。",
+    "invalidDailyUsageDateRange": "用量日期范围无效。",
+    "invalidDailyUsageDays": "用量天数无效。",
+    "invalidModelPricing": "模型定价无效。",
+    "invalidSubscriptionExpiry": "订阅到期时间无效。",
+    "invalidSubscriptionTier": "订阅等级无效。",
+    "paymentRequired": "需要先完成支付。",
+    "periodCreditExceeded": "周期额度已用尽。",
+    "pricingRequired": "需要先配置模型定价。",
+    "subscriptionExpiryRequired": "需要设置订阅到期时间。"
+  },
+  "config": {
+    "invalidJson": "配置 JSON 无效。"
+  },
+  "conversation": {
+    "invalidId": "对话 ID 无效。",
+    "invalidTitle": "对话标题无效。",
+    "notFound": "对话不存在。"
+  },
+  "conversationRun": {
+    "canceled": "生成已取消。",
+    "streamInterrupted": "生成连接已中断，请重试本条消息。",
+    "streamNotFound": "生成流不存在。"
+  },
+  "conversationShare": {
+    "invalid": "分享对话无效。",
+    "invalidId": "分享 ID 无效。",
+    "notFound": "分享不存在。",
+    "schemaOutdated": "分享数据结构已过期，请重建数据库。"
+  },
+  "contextArtifact": {
+    "invalidId": "上下文产物 ID 无效。",
+    "notFound": "上下文产物不存在。"
+  },
+  "cors": {
+    "originForbidden": "当前来源不允许访问。"
+  },
+  "embedding": {
+    "serviceUnavailable": "向量服务不可用。"
+  },
+  "file": {
+    "embeddingUnavailable": "当前文件暂不支持向量处理。",
+    "extractNotReady": "文件解析尚未完成。",
+    "invalidId": "文件 ID 无效。",
+    "invalidName": "文件名无效。",
+    "invalidReference": "文件引用无效。",
+    "invalidStream": "文件流无效。",
+    "notFound": "文件不存在。",
+    "notReady": "文件尚未准备完成。",
+    "required": "请选择文件。",
+    "tooLarge": "文件过大。",
+    "tooLargeForContext": "文件过大，无法加入完整上下文。",
+    "typeBlocked": "该文件类型不允许上传。"
+  },
+  "identityProvider": {
+    "deleteConflict": "删除该身份源会导致部分用户失去唯一登录方式。"
+  },
+  "internal": {
+    "error": "服务器内部错误，请稍后重试。"
+  },
+  "llm": {
+    "apiKeysRequired": "API Keys 不能为空。",
+    "emptyResponse": "模型返回了空响应。",
+    "invalidAdapter": "模型适配器无效。",
+    "invalidApiKeysConfig": "API Keys 配置无效。",
+    "invalidCompatible": "兼容模式无效。",
+    "invalidHeadersConfig": "请求头配置无效。",
+    "invalidKinds": "模型类型无效。",
+    "invalidPlatformModelName": "平台模型名称无效。",
+    "invalidProtocolDefaultsConfig": "协议默认配置无效。",
+    "modelRouteNotConfigured": "模型路由未配置。",
+    "noActiveApiKey": "没有可用的 API Key。",
+    "platformModelNameExists": "平台模型名称已存在。",
+    "platformModelNameRequired": "平台模型名称不能为空。",
+    "protocolRequired": "协议不能为空。",
+    "remoteModelsUnavailable": "远程模型列表暂不可用。",
+    "routeConflict": "该上游已绑定相同目标模型。",
+    "routesUnavailable": "所有模型路由都不可用。"
+  },
+  "mcp": {
+    "clientUnavailable": "MCP 客户端不可用。",
+    "invalidServerBaseUrl": "MCP 服务地址无效。",
+    "invalidServerHeaders": "MCP 服务请求头配置无效。",
+    "invalidServerName": "MCP 服务名称无效。",
+    "invalidServerStatus": "MCP 服务状态无效。",
+    "invalidToolDescription": "MCP 工具描述无效。",
+    "invalidToolName": "MCP 工具名称无效。",
+    "invalidToolSelection": "MCP 工具选择配置无效。",
+    "invalidToolStatus": "MCP 工具状态无效。",
+    "server": {
+      "invalidId": "MCP 服务 ID 无效。"
+    },
+    "tool": {
+      "invalidId": "MCP 工具 ID 无效。"
+    }
+  },
+  "memory": {
+    "keyRequired": "记忆键不能为空。"
+  },
+  "message": {
+    "feedbackTargetInvalid": "消息反馈目标无效。",
+    "invalidBranch": "消息分支无效。",
+    "invalidFeedback": "消息反馈无效。",
+    "invalidId": "消息 ID 无效。",
+    "notFound": "消息不存在。",
+    "tooManyFiles": "单条消息包含的文件过多。"
+  },
+  "payment": {
+    "checkoutFailed": "创建支付订单失败。",
+    "epayTypeUnsupported": "该易支付类型不受支持。",
+    "invalidEvent": "支付事件无效。",
+    "invalidSignature": "支付签名无效。",
+    "invalidWebhookBody": "支付回调内容无效。",
+    "notificationMismatch": "支付回调与订单不匹配。",
+    "orderNoRequired": "订单号不能为空。",
+    "providerUnavailable": "支付服务不可用。",
+    "returnUrlCrossOrigin": "支付返回地址必须使用已配置的公开站点域名。",
+    "returnUrlInvalid": "支付返回地址无效。",
+    "webhookBodyTooLarge": "支付回调内容过大。",
+    "webhookNotConfigured": "支付回调尚未配置。"
+  },
+  "quota": {
+    "exceeded": "额度已用尽。"
+  },
+  "rateLimit": {
+    "authenticationExceeded": "认证尝试次数过多，请稍后再试。",
+    "exceeded": "请求过于频繁，请稍后再试。",
+    "refreshExceeded": "刷新登录状态次数过多，请稍后再试。"
+  },
+  "request": {
+    "invalid": "请求无效，请检查后重试。",
+    "invalid_": "请求参数无效。",
+    "invalidBody": "请求参数无效，请检查后重试。",
+    "invalidId": "ID 无效。",
+    "invalidQuery": "查询参数无效。",
+    "required": "缺少必填参数。"
+  },
+  "resource": {
+    "conflict": "资源冲突，请刷新后重试。",
+    "notFound": "资源不存在。"
+  },
+  "route": {
+    "notFound": "路由不存在。"
+  },
+  "runtime": {
+    "doclingUnavailable": "Docling 运行时不可用。",
+    "mineruUnavailable": "MinerU 运行时不可用。",
+    "rapidocrUnavailable": "RapidOCR 运行时不可用。",
+    "tesseractUnavailable": "Tesseract 运行时不可用。",
+    "tikaUnavailable": "Tika 运行时不可用。"
+  },
+  "service": {
+    "unavailable": "服务暂不可用，请稍后重试。"
+  },
+  "settings": {
+    "billingPaymentInvalid": "计费支付设置无效。",
+    "embeddingInvalid": "向量设置无效。",
+    "extractInvalid": "文件解析设置无效。",
+    "invalidKey": "设置项无效。",
+    "invalidNamespace": "设置命名空间无效。",
+    "invalidValue": "设置值无效。",
+    "modelOptionPolicyInvalid": "模型参数策略设置无效。",
+    "notFound": "设置项不存在。",
+    "serviceUnavailable": "设置服务不可用。",
+    "smtpInvalid": "SMTP 设置无效。"
+  },
+  "upstream": {
+    "unavailable": "上游服务不可用。"
+  },
+  "user": {
+    "accountDeleteVerificationRequired": "删除账号前需要先验证身份。",
+    "emptyPatch": "请至少修改一个用户字段。",
+    "invalidAvatarUrl": "头像地址无效。",
+    "invalidEmail": "用户邮箱无效。",
+    "invalidLocale": "语言区域无效。",
+    "invalidLocation": "位置信息无效。",
+    "invalidPhone": "手机号无效。",
+    "invalidRole": "用户角色无效。",
+    "invalidStatus": "用户状态无效。",
+    "invalidTimeZone": "时区无效。",
+    "invalidUsername": "用户名需为 3-16 位。",
+    "invalidDisplayName": "显示名称需为 3-16 个字符。",
+    "lastSuperadminRoleProtected": "不能修改最后一个超级管理员的角色。",
+    "selfDeleteNotAllowed": "不能删除当前账号。",
+    "selfRoleChangeNotAllowed": "不能修改自己的角色。",
+    "selfStatusChangeNotAllowed": "不能修改自己的状态。",
+    "superadminAlreadyExists": "超级管理员已存在。",
+    "superadminDeleteProtected": "不能删除超级管理员账号。",
+    "superadminPasswordResetProtected": "不能重置超级管理员密码。",
+    "superadminRoleProtected": "不能修改超级管理员角色。",
+    "superadminStatusProtected": "不能修改超级管理员状态。",
+    "superadminTwoFactorResetProtected": "不能重置超级管理员两步验证。",
+    "usernameAlreadyExists": "该用户名已被占用。",
+    "usernameChangeUsed": "用户名修改次数已用完。",
+    "usernameTaken": "该用户名已被占用。"
+  },
+  "userSettings": {
+    "invalidValue": "用户设置值无效。",
+    "unknownKey": "未知的用户设置项。"
+  }
+}

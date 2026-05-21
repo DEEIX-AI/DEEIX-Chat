@@ -1,0 +1,10 @@
+{
+  "title": "分享对话",
+  "snapshotMessages": "{count} 条快照消息",
+  "continueConversation": "继续对话",
+  "continuing": "正在继续...",
+  "signInToContinue": "登录 DEEIX Chat 继续对话",
+  "notFoundTitle": "分享不可用",
+  "notFoundDescription": "分享不存在、已关闭，或原会话已被删除。",
+  "cloneFailed": "继续对话失败"
+}

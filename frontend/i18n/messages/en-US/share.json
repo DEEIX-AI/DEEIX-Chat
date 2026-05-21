@@ -1,0 +1,10 @@
+{
+  "title": "Shared conversation",
+  "snapshotMessages": "{count} snapshot messages",
+  "continueConversation": "Continue conversation",
+  "continuing": "Continuing...",
+  "signInToContinue": "Sign in to DEEIX Chat to continue",
+  "notFoundTitle": "Share unavailable",
+  "notFoundDescription": "This share does not exist, has been closed, or the original conversation was deleted.",
+  "cloneFailed": "Failed to continue conversation"
+}

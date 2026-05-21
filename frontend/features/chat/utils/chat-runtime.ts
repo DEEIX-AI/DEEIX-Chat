@@ -1,0 +1,144 @@
+import type { ConversationDTO, UpstreamDebugInfo } from "@/shared/api/conversation.types";
+import { resolveLocalizedErrorMessage } from "@/i18n/resolve-error-message";
+
+const DEFAULT_MAX_FILES_PER_MESSAGE = 10;
+const ZH_DETAIL_PREFIX = "\u8be6\u60c5\uff1a";
+const ZH_ERROR_PREFIX = "\u9519\u8bef\uff1a";
+
+export function resolveMaxFilesPerMessage(): number {
+  return DEFAULT_MAX_FILES_PER_MESSAGE;
+}
+
+export function resolveHourByTimeZone(timeZone: string): number {
+  try {
+    const hourText = new Intl.DateTimeFormat("en-US", {
+      hour: "2-digit",
+      hour12: false,
+      hourCycle: "h23",
+      timeZone,
+    }).format(new Date());
+    const hour = Number.parseInt(hourText, 10);
+    if (!Number.isNaN(hour)) {
+      return hour;
+    }
+  } catch {
+    // Fallback to UTC hour.
+  }
+  return new Date().getUTCHours();
+}
+
+export type GreetingPeriod = "morning" | "afternoon" | "evening" | "default";
+
+export function resolveGreetingPeriodByHour(hour: number): GreetingPeriod {
+  if (hour >= 6 && hour < 12) {
+    return "morning";
+  }
+  if (hour >= 12 && hour < 18) {
+    return "afternoon";
+  }
+  if (hour >= 18 && hour < 24) {
+    return "evening";
+  }
+  return "default";
+}
+
+export function resolveErrorMessage(error: unknown, fallback: string): string {
+  return resolveLocalizedErrorMessage(error, fallback);
+}
+
+export function resolveErrorSummary(error: unknown, fallback: string): string {
+  const message = resolveErrorMessage(error, fallback);
+  const details = resolveErrorDetails(error);
+  const { statusCode, reason } = summarizeUpstreamError(message, details, fallback);
+  return [statusCode ? `HTTP ${statusCode}` : "", reason].filter(Boolean).join(": ");
+}
+
+export function summarizeUpstreamError(
+  message: string,
+  details?: UpstreamDebugInfo,
+  fallback = "",
+): { statusCode: number | null; reason: string } {
+  const statusCode = details?.response?.statusCode || extractStatusCode(message);
+  const reason =
+    extractErrorReason(details?.response?.body || extractDetailBody(message)) ||
+    extractMessageReason(message) ||
+    fallback;
+  return { statusCode, reason };
+}
+
+export function resolveErrorDetails(error: unknown): UpstreamDebugInfo | undefined {
+  if (!error || typeof error !== "object" || !("details" in error)) {
+    return undefined;
+  }
+  const details = (error as { details?: unknown }).details;
+  return isUpstreamDebugInfo(details) ? details : undefined;
+}
+
+function extractStatusCode(message: string): number | null {
+  const match = message.match(/HTTP\s*(\d{3})/i);
+  if (!match) {
+    return null;
+  }
+  const statusCode = Number.parseInt(match[1], 10);
+  return Number.isFinite(statusCode) ? statusCode : null;
+}
+
+function extractDetailBody(message: string): string {
+  const detailLine = message.match(/(?:^|\n)Details:\s*([\s\S]*)$/i)?.[1]?.trim();
+  if (detailLine) {
+    return detailLine;
+  }
+  const index = message.indexOf(ZH_DETAIL_PREFIX);
+  return index >= 0 ? message.slice(index + ZH_DETAIL_PREFIX.length).trim() : "";
+}
+
+function extractMessageReason(message: string): string {
+  const lines = message.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const errorLine = lines.find((line) => line.startsWith("Error:") || line.startsWith(ZH_ERROR_PREFIX));
+  if (errorLine) {
+    return errorLine.replace(/^Error:\s*/i, "").replace(ZH_ERROR_PREFIX, "").trim();
+  }
+  return lines.find((line) => !line.startsWith("Details:") && !line.startsWith(ZH_DETAIL_PREFIX)) || "";
+}
+
+function extractErrorReason(body: string): string {
+  const raw = body.trim();
+  if (!raw) {
+    return "";
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") {
+      return "";
+    }
+    const root = parsed as Record<string, unknown>;
+    const error =
+      root.error && typeof root.error === "object"
+        ? (root.error as Record<string, unknown>)
+        : undefined;
+    for (const value of [error?.message, root.message, error?.code, root.code]) {
+      if (typeof value === "string" && value.trim()) {
+        return value.trim();
+      }
+    }
+  } catch {
+    return raw;
+  }
+  return "";
+}
+
+function isUpstreamDebugInfo(value: unknown): value is UpstreamDebugInfo {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const candidate = value as UpstreamDebugInfo;
+  return typeof candidate.request === "object" || typeof candidate.response === "object";
+}
+
+export function toConversationPatch(item: ConversationDTO | null, platformModelName: string): Partial<ConversationDTO> {
+  return {
+    model: platformModelName,
+    updatedAt: new Date().toISOString(),
+    messageCount: (item?.messageCount ?? 0) + 2,
+  };
+}

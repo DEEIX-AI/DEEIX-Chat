@@ -1,0 +1,585 @@
+{
+  "title": "设置",
+  "general": "通用",
+  "account": "账户",
+  "chat": "对话",
+  "subscription": "订阅",
+  "about": "关于",
+  "navigation": "设置导航",
+  "aboutPage": {
+    "title": "关于",
+    "description": "DEEIX Chat 是面向多用户 AI 应用的模型接入与对话运营平台。它将模型目录、多上游路由、参数治理、文件与 RAG、MCP 工具、用量计费、身份安全、审计与运维配置整合到同一套控制面。",
+    "details": "产品信息",
+    "product": "产品",
+    "version": "版本",
+    "console": "控制台",
+    "userConsole": "用户端",
+    "official": "官方",
+    "website": "官网",
+    "repository": "仓库",
+    "social": "X",
+    "blog": "博客",
+    "contact": "联系与支持",
+    "copyright": "© 2026 DEEIX. DEEIX Chat.",
+    "license": "代码遵循 Apache License 2.0 授权。"
+  },
+  "appearance": "外观",
+  "language": "语言",
+  "languageDescription": "选择当前浏览器和账户使用的界面语言。",
+  "generalPage": {
+    "profile": {
+      "avatar": "头像",
+      "avatarAlt": "用户头像",
+      "username": "用户名",
+      "usernamePlaceholder": "设置用户名",
+      "displayName": "显示名称",
+      "displayNamePlaceholder": "界面中显示的名称",
+      "displayNameInvalid": "显示名称需为 3-16 个字符。",
+      "timezone": "时区",
+      "conversationPreferences": "对话偏好",
+      "conversationPreferencesPlaceholder": "偏好的风格、语言习惯、输出格式和常用工作流。"
+    },
+    "username": {
+      "invalid": "用户名需为 3-16 位小写字母、数字、下划线或短横线，且不能使用保留名称。",
+      "alreadyChanged": "用户名只能设置一次。",
+      "taken": "该用户名已被占用。"
+    },
+    "toast": {
+      "initialUsernameRequired": "初始化用户名需要先修改后才能继续。",
+      "setUsernameFailed": "设置用户名失败",
+      "usernameUpdated": "用户名已更新",
+      "profileUpdated": "个人资料已更新",
+      "saveProfileFailed": "保存个人资料失败"
+    },
+    "notifications": {
+      "responseCompletionTitle": "回复完成通知",
+      "responseCompletionDescription": "当模型完成回复时通知你，适合工具调用、研究等耗时较长的任务。",
+      "toggleResponseCompletion": "切换回复完成通知",
+      "unsupportedTitle": "当前浏览器不支持通知",
+      "unsupportedDescription": "请使用支持 Notification API 的桌面浏览器。",
+      "deniedTitle": "通知权限被拒绝",
+      "deniedDescription": "请在浏览器的站点权限设置里允许通知后再开启。",
+      "enabledTitle": "已开启浏览器通知",
+      "enabledDescription": "当回复在后台完成时，你会收到系统通知。",
+      "defaultHelp": "开启后会调用浏览器通知权限，通过系统通知提醒你。",
+      "unsupportedHelp": "当前浏览器不支持系统通知。",
+      "deniedHelp": "浏览器已阻止通知，请在浏览器设置中手动允许。",
+      "grantedHelp": "已启用浏览器通知。开启后，模型回复完成时会弹出提醒。"
+    },
+    "appearance": {
+      "colorMode": "颜色模式",
+      "themePreset": "主题",
+      "chatFont": "对话字体",
+      "chatFontWeight": "对话字重",
+      "preset": {
+        "default": "默认",
+        "azure": "Azure",
+        "cobalt": "Cobalt",
+        "graphite": "Graphite",
+        "lagoon": "Lagoon",
+        "ink": "Ink",
+        "ochre": "Ochre",
+        "sepia": "Sepia"
+      },
+      "theme": {
+        "light": "浅色",
+        "system": "跟随系统",
+        "dark": "深色"
+      },
+      "font": {
+        "default": "默认",
+        "songti": "衬线",
+        "heiti": "无衬线",
+        "mono": "等宽"
+      },
+      "fontWeight": {
+        "regular": "常规",
+        "medium": "中等",
+        "semibold": "半粗",
+        "bold": "粗体"
+      }
+    },
+    "avatarDialog": {
+      "title": "编辑头像",
+      "description": "输入头像 URL，或点击头像区域生成像素风头像。",
+      "avatarURL": "头像 URL",
+      "apply": "应用"
+    }
+  },
+  "profile": "个人资料",
+  "security": "安全",
+  "notifications": "通知",
+  "memory": "AI 偏好记忆",
+  "accountPage": {
+    "title": "账户",
+    "password": "登录密码",
+    "twoFactor": "两步验证",
+    "logoutAllDevices": "登出您的所有在线设备",
+    "deleteAccount": "删除您的账号",
+    "publicID": "用户公开 ID",
+    "copyPublicID": "复制用户公开 ID",
+    "email": {
+      "label": "邮箱",
+      "withAddress": "邮箱（{email}）",
+      "verified": "已验证",
+      "unverified": "未验证"
+    },
+    "actions": {
+      "set": "设置",
+      "update": "更新",
+      "manage": "管理",
+      "generating": "生成中",
+      "logOut": "登出",
+      "loggingOut": "登出中",
+      "deleteAccount": "删除账号",
+      "deleting": "删除中",
+      "bind": "绑定",
+      "cancel": "取消",
+      "verify": "验证"
+    },
+    "identity": {
+      "title": "绑定身份源",
+      "provider": "身份源",
+      "username": "用户名",
+      "email": "邮箱",
+      "linkedAt": "绑定时间",
+      "empty": "当前没有绑定第三方身份源",
+      "unlink": "解绑身份源",
+      "unlinkDisabled": "请先设置密码或绑定其他身份源"
+    },
+    "session": {
+      "title": "活跃会话",
+      "device": "设备",
+      "location": "位置",
+      "createdAt": "创建时间",
+      "updatedAt": "更新时间",
+      "empty": "当前没有可用的活跃会话",
+      "current": "当前会话",
+      "actions": "会话操作",
+      "logoutThisSession": "登出此会话",
+      "unknownDevice": "未知设备",
+      "unknownLocation": "未知地区",
+      "unknownIP": "未知 IP"
+    },
+    "deleteDialog": {
+      "title": "删除账户",
+      "description": "删除账号是永久性的。您将无法恢复您的账号或聊天记录。",
+      "verificationTitle": "验证删除账号",
+      "verificationDescription": {
+        "twoFactor": "输入认证器验证码或恢复码后删除账号。",
+        "email": "发送验证码到已验证邮箱，输入后删除账号。"
+      },
+      "verificationUnavailable": "删除账号需要先验证身份。请先验证邮箱或启用两步验证。"
+    },
+    "securityDialog": {
+      "common": {
+        "cancel": "取消",
+        "save": "保存",
+        "saving": "保存中",
+        "sending": "发送中",
+        "sendCode": "发送",
+        "resendIn": "{seconds}s 后重发",
+        "processing": "处理中",
+        "done": "完成",
+        "verify": "验证",
+        "continue": "继续",
+        "back": "返回",
+        "debugCode": "开发验证码：{code}",
+        "copiedLabel": "{label}已复制",
+        "copyFailed": "复制失败",
+        "copyManually": "请手动选择内容复制。"
+      },
+      "password": {
+        "title": {
+          "required": "首次设置密码",
+          "change": "修改密码",
+          "set": "设置密码"
+        },
+        "description": {
+          "required": "首次启动需要修改初始化密码。完成后当前会话会失效，需要使用新密码重新登录。",
+          "change": "修改后当前登录会话会失效，需要使用新密码重新登录。",
+          "set": "设置后可使用账号密码登录，并作为解绑身份源前的安全凭证。"
+        },
+        "verificationTitle": "验证密码修改",
+        "verificationDescription": {
+          "twoFactor": "输入认证器验证码或恢复码后继续。",
+          "email": "发送验证码到已验证邮箱，输入后继续。"
+        },
+        "labels": {
+          "currentPassword": "当前密码",
+          "newPassword": "新密码",
+          "loginPassword": "登录密码",
+          "twoFactorCode": "两步验证码",
+          "emailCode": "邮箱验证码"
+        },
+        "placeholders": {
+          "password": "至少 8 位，不能为纯数字",
+          "otpOrRecovery": "验证码或恢复码",
+          "sixDigitCode": "6 位验证码"
+        }
+      },
+      "email": {
+        "title": {
+          "set": "设置邮箱",
+          "change": "修改邮箱"
+        },
+        "description": {
+          "bootstrapVerified": "首次设置邮箱需要验证新邮箱所有权。",
+          "saveOnly": "保存后将更新邮箱。",
+          "change": "DEEIX Chat 会根据当前账号安全状态要求必要验证，通过后保存修改。"
+        },
+        "labels": {
+          "newEmail": "新邮箱"
+        }
+      },
+      "verification": {
+        "title": {
+          "emailBootstrap": "验证新邮箱",
+          "emailChange": "验证邮箱修改",
+          "currentEmail": "验证邮箱"
+        },
+        "description": {
+          "emailBootstrap": "发送验证码到新邮箱，输入后保存邮箱。",
+          "emailChange": "完成必要验证后保存邮箱修改。",
+          "currentEmail": "发送验证码到 {email}，输入后将该邮箱标记为已验证。"
+        },
+        "labels": {
+          "twoFactorCode": "两步验证码",
+          "emailCode": "邮箱验证码",
+          "currentEmailCode": "当前邮箱验证码",
+          "newEmail": "新邮箱",
+          "newEmailCode": "新邮箱验证码",
+          "verificationCode": "验证码"
+        },
+        "placeholders": {
+          "otpOrRecovery": "验证码或恢复码",
+          "sixDigitCode": "6 位验证码"
+        },
+        "actions": {
+          "useEmail": "使用邮箱验证",
+          "useTwoFactor": "使用两步验证"
+        }
+      },
+      "twoFactor": {
+        "title": {
+          "setup": "开启两步验证",
+          "manage": "两步验证管理",
+          "recovery": "备用验证码保存"
+        },
+        "description": {
+          "setup": "使用认证器 App 扫码或手动绑定。",
+          "manage": "输入验证码或备用验证码后继续操作。",
+          "recovery": "备用验证码只显示一次，请保存到安全位置。"
+        },
+        "tabs": {
+          "qr": "二维码",
+          "manual": "手动绑定"
+        },
+        "errors": {
+          "codeRequired": "请输入验证码"
+        },
+        "qrLabel": "两步验证二维码",
+        "setupExpired": "本次设置已过期",
+        "qrUnavailable": "二维码暂不可用，请使用手动密钥绑定。",
+        "scanThenVerify": "扫码后输入验证码完成绑定",
+        "regenerate": "重新生成",
+        "validUntil": "{time} 前有效",
+        "secret": "密钥",
+        "copySecret": "复制密钥",
+        "otpAuthUri": "OTP Auth URI",
+        "copyOtpUri": "复制 OTP Auth URI",
+        "code": "验证码",
+        "sixDigitCode": "6 位验证码",
+        "codeOrRecovery": "验证码或备用验证码",
+        "regenerateRecoveryCodes": "重新生成恢复码",
+        "recoveryCodes": "备用验证码",
+        "copyRecoveryCodes": "复制备用验证码",
+        "enable": "启用",
+        "disable": "关闭"
+      }
+    },
+    "toasts": {
+      "retryLater": "请稍后重试。",
+      "sessionMissing": "未检测到登录态",
+      "loadFailed": "加载账户信息失败",
+      "publicIDCopied": "已复制公开 ID",
+      "copyFailed": "复制失败",
+      "codeSent": "验证码已发送",
+      "sendCodeFailed": "验证码发送失败",
+      "passwordChanged": "密码已修改",
+      "passwordChangedDescription": "请使用新密码重新登录。",
+      "changePasswordFailed": "修改密码失败",
+      "emailSet": "邮箱已设置",
+      "setEmailFailed": "设置邮箱失败",
+      "emailVerified": "邮箱已验证",
+      "verifyEmailFailed": "验证邮箱失败",
+      "currentEmailCodeSent": "当前邮箱验证码已发送",
+      "newEmailCodeSent": "新邮箱验证码已发送",
+      "deleteAccountCodeSent": "删除账号验证码已发送",
+      "emailChanged": "邮箱已修改",
+      "changeEmailFailed": "修改邮箱失败",
+      "deleteAccountFailed": "删除账户失败",
+      "sessionLoggedOut": "会话已登出",
+      "logoutSessionFailed": "登出会话失败",
+      "identityUnlinked": "身份源已解绑",
+      "unlinkIdentityFailed": "解绑身份源失败",
+      "startTwoFactorFailed": "启动两步验证失败",
+      "twoFactorEnabled": "两步验证已启用",
+      "enableTwoFactorFailed": "启用两步验证失败",
+      "twoFactorDisabled": "两步验证已关闭",
+      "disableTwoFactorFailed": "关闭两步验证失败",
+      "recoveryCodesRegenerated": "恢复码已重新生成",
+      "regenerateRecoveryCodesFailed": "重新生成恢复码失败",
+      "providerUnavailable": "该身份源暂不可绑定",
+      "bindIdentityFailed": "绑定身份源失败"
+    }
+  },
+  "chatPage": {
+    "defaultModel": {
+      "sectionTitle": "默认模型",
+      "title": "新会话默认模型",
+      "description": "开启新对话时预选的模型。留空则使用系统推荐的第一个可用模型。",
+      "systemRecommended": "系统默认"
+    },
+    "input": {
+      "sectionTitle": "输入与发送",
+      "shortcutTitle": "发送快捷键",
+      "shortcutDescription": "当前平台使用 {shortcut} 提交消息。",
+      "heightTitle": "输入区域高度",
+      "heightDescription": "控制输入框自动扩展时允许占用的最大高度。",
+      "height": {
+        "compact": "紧凑",
+        "standard": "标准",
+        "loose": "宽松"
+      },
+      "restoreDraftTitle": "自动恢复草稿",
+      "restoreDraftDescription": "控制发送失败时是否自动恢复本次发送的文字和附件。",
+      "preserveDraftTitle": "保留会话草稿",
+      "preserveDraftDescription": "控制切换会话后是否保留并恢复当前会话的未发送内容。"
+    },
+    "display": {
+      "sectionTitle": "显示与渲染",
+      "markdownTitle": "Markdown 渲染",
+      "markdownDescription": "控制 AI 回复是否渲染为格式化 Markdown 内容。",
+      "modelTitle": "显示调用模型",
+      "modelDescription": "控制 AI 回复下方是否展示本次调用的模型。",
+      "tokenTitle": "显示 Token 用量",
+      "tokenDescription": "控制 AI 回复下方是否展示本次请求消耗的 Token 用量。",
+      "latencyTitle": "显示调用总耗时",
+      "latencyDescription": "控制 AI 回复下方是否展示本次调用的总耗时。",
+      "costTitle": "显示调用总费用",
+      "costDescription": "控制 AI 回复下方是否展示本次调用的总费用。",
+      "costDescriptionSelfMode": "控制 AI 回复下方是否展示本次调用的总费用。自用模式不展示。"
+    },
+    "context": {
+      "sectionTitle": "上下文管理",
+      "autoCompactTitle": "自动压缩上下文",
+      "autoCompactDescription": "当对话上下文接近模型限制时，自动对早期消息进行摘要压缩，保持对话连续性。关闭后需手动触发压缩。"
+    },
+    "file": {
+      "sectionTitle": "文件处理",
+      "modeTitle": "文件处理模式",
+      "mode": {
+        "auto": "自动",
+        "fullContext": "全文注入",
+        "rag": "向量检索"
+      },
+      "modeDescription": {
+        "auto": "当前：自动 — 系统根据文件大小、类型、上下文预算与检索能力自动选择全文注入或 RAG（推荐）。",
+        "fullContext": "当前：全文注入 — 后续每轮尽量将会话文件内容放入上下文，适合小文件精确分析。",
+        "rag": "当前：RAG — 后续每轮优先检索会话文件相关片段；检索不可用时回退全文注入。"
+      }
+    },
+    "memory": {
+      "sectionTitle": "AI 偏好记忆",
+      "save": "保存",
+      "cancel": "取消",
+      "delete": "删除",
+      "edit": "编辑偏好",
+      "confirmDelete": "确认删除此偏好？",
+      "separator": "：",
+      "addTitle": "添加偏好",
+      "addDescription": "保存后会作为 AI 回复时的长期偏好参考。",
+      "name": "名称",
+      "namePlaceholder": "例如：回复风格",
+      "content": "偏好内容",
+      "contentPlaceholder": "例如：简短直接，避免废话",
+      "adding": "添加中",
+      "add": "添加",
+      "added": "已添加偏好",
+      "addFailed": "添加失败",
+      "updated": "已更新",
+      "updateFailed": "更新失败",
+      "deleted": "已删除",
+      "deleteFailed": "删除失败",
+      "full": "已满",
+      "addPreference": "添加偏好",
+      "empty": "还没有偏好记忆。"
+    },
+    "toasts": {
+      "saveFailed": "保存失败",
+      "retryLater": "请稍后重试。"
+    }
+  },
+  "subscriptionPage": {
+    "title": "订阅",
+    "actions": {
+      "cancel": "取消",
+      "processing": "处理中"
+    },
+    "interval": {
+      "lifetime": "永久",
+      "year": "年",
+      "month": "月"
+    },
+    "currentSubscription": {
+      "title": "当前订阅",
+      "none": "未订阅",
+      "empty": "当前没有可用订阅方案",
+      "subscribe": "订阅"
+    },
+    "periodUsage": {
+      "title": "套餐使用情况",
+      "currentPeriod": "当前计费周期",
+      "used": "已使用 {value}",
+      "total": "总额度 {value}"
+    },
+    "usageBilling": {
+      "title": "按量付费",
+      "balance": "账户余额 {value}",
+      "topUp": "充值"
+    },
+    "selfMode": {
+      "title": "计费模式",
+      "value": "自用模式"
+    },
+    "usageTrend": {
+      "dailyTitle": "按天用量趋势",
+      "monthlyTitle": "按月用量趋势",
+      "daily": "按天",
+      "monthly": "按月",
+      "dailyUsage": "每日用量",
+      "monthlyUsage": "月度用量",
+      "empty": "暂无用量数据。",
+      "metrics": {
+        "totalCost": "总费用",
+        "totalTokens": "总 Tokens",
+        "totalCalls": "总调用",
+        "averageLatency": "平均耗时"
+      },
+      "tooltip": {
+        "cost": "费用",
+        "calls": "调用"
+      }
+    },
+    "usageLog": {
+      "title": "调用日志",
+      "searchModel": "搜索模型",
+      "type": "类型",
+      "filters": {
+        "all": "全部",
+        "free": "免费模型",
+        "billable": "计费模型"
+      },
+      "sort": {
+        "newest": "最新调用",
+        "oldest": "最早调用",
+        "tokensDesc": "Tokens 最多",
+        "costDesc": "费用最高",
+        "latencyDesc": "耗时最长"
+      },
+      "columns": {
+        "time": "时间",
+        "model": "模型",
+        "baseBilling": "基础计费",
+        "serviceBilling": "服务计费",
+        "latency": "耗时"
+      },
+      "empty": "暂无调用日志"
+    },
+    "billingTooltip": {
+      "cacheWrite": "缓存(写)",
+      "cacheWrite5m": "缓存(写 5m)",
+      "cacheWrite1h": "缓存(写 1h)",
+      "cacheWrite5m1h": "缓存(写 5m/1h)",
+      "cacheWritePricingLabel": "缓存(写 5m)",
+      "cacheWritePricingNote": "Claude 缓存读按后台配置；缓存写 5m 按后台配置价 1.25x，1h 按 2x；Fast Mode 会整体再乘 6。",
+      "claudeCacheWriteMixedNote": "Claude 缓存写按后台配置价 {multiplier} 计费。",
+      "claudeCacheWriteNote": "Claude {timeout} 缓存写按后台配置价 {multiplier} 计费。",
+      "claudeFastModeNote": "Claude Fast Mode：输入、输出和缓存费用按 {multiplier} 计费。",
+      "openaiServiceTierNote": "OpenAI service_tier={tier}：按 {multiplier} 计费。",
+      "baseService": "基础服务",
+      "input": "输入",
+      "output": "输出",
+      "cacheRead": "缓存(读)",
+      "rateNote": "倍率说明",
+      "cacheNote": "缓存说明",
+      "total": "总计",
+      "subtotal": "小计",
+      "freeModelNoBilling": "免费模型，不计费",
+      "perCall": "每次",
+      "perSecond": "每秒",
+      "callUnit": "次",
+      "secondUnit": "秒",
+      "tieredRangeBounded": "原始输入区间 {from}-{upTo}",
+      "tieredRangeOpen": "原始输入区间 {from}+",
+      "table": {
+        "item": "计费项目",
+        "usage": "用量",
+        "unitPrice": "单价",
+        "amount": "金额"
+      }
+    },
+    "plans": {
+      "title": "订阅方案",
+      "actions": {
+        "current": "当前方案",
+        "unavailable": "不可用",
+        "subscribe": "订阅",
+        "switch": "切换"
+      },
+      "features": {
+        "monthlyCredit": "{credit} 月额度",
+        "freeModelsNotIncluded": "免费模型不计入额度"
+      }
+    },
+    "payment": {
+      "title": "选择支付方式",
+      "description": "确认支付方式后继续。",
+      "method": "支付方式",
+      "card": "银行卡",
+      "disabled": "未开启",
+      "continue": "继续支付",
+      "epay": {
+        "alipay": "支付宝",
+        "wxpay": "微信支付",
+        "qqpay": "QQ 钱包",
+        "custom": "自定义 · {type}"
+      }
+    },
+    "topUp": {
+      "title": "充值",
+      "description": "输入美元金额",
+      "amount": "充值金额",
+      "amountAria": "充值美元金额",
+      "confirm": "充值"
+    },
+    "toasts": {
+      "retryLater": "请稍后重试。",
+      "subscriptionLoadFailed": "订阅信息加载失败",
+      "usageLogLoadFailed": "调用日志加载失败",
+      "checkoutCreateFailed": "支付创建失败",
+      "checkoutURLMissing": "支付渠道没有返回收银台地址。",
+      "planUpdated": "订阅方案已更新",
+      "subscribeFailed": "订阅失败",
+      "invalidTopUpAmount": "充值金额无效",
+      "invalidTopUpAmountDescription": "请输入大于 0 的美元金额。",
+      "planUnavailable": "套餐不可用",
+      "planUnavailableDescription": "当前套餐没有可用价格，请联系管理员检查计费配置。",
+      "paymentDisabled": "支付渠道未开启",
+      "paymentDisabledDescription": "需要先在后台完成支付配置，才能订阅付费套餐。",
+      "noPlanSelected": "未选择套餐",
+      "noPlanSelectedDescription": "请先选择要订阅的套餐。"
+    }
+  }
+}

@@ -1,0 +1,7151 @@
+basePath: /api/v1
+definitions:
+  github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope:
+    properties:
+      data: {}
+      details: {}
+      errorCode:
+        type: string
+      errorMsg:
+        type: string
+      requestId:
+        type: string
+    type: object
+  github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.SuccessDoc:
+    properties:
+      data: {}
+      details: {}
+      errorCode:
+        example: ""
+        type: string
+      errorMsg:
+        example: ""
+        type: string
+      requestId:
+        example: ""
+        type: string
+    type: object
+  internal_transport_http_admin.AuditLogListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_admin.AuditLogResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_admin.AuditLogResponse:
+    properties:
+      action:
+        type: string
+      actorDisplayName:
+        type: string
+      actorLabel:
+        type: string
+      actorUserID:
+        type: integer
+      actorUsername:
+        type: string
+      createdAt:
+        type: string
+      detailJSON:
+        type: string
+      id:
+        type: integer
+      ip:
+        type: string
+      requestID:
+        type: string
+      resource:
+        type: string
+      resourceID:
+        type: string
+      updatedAt:
+        type: string
+      userAgent:
+        type: string
+    type: object
+  internal_transport_http_admin.AuthEventResponse:
+    properties:
+      clientIP:
+        type: string
+      createdAt:
+        type: string
+      detailJSON:
+        type: string
+      eventType:
+        type: string
+      id:
+        type: integer
+      occurredAt:
+        type: string
+      reason:
+        type: string
+      requestID:
+        type: string
+      result:
+        type: string
+      updatedAt:
+        type: string
+      userAgent:
+        type: string
+      userDisplayName:
+        type: string
+      userID:
+        type: integer
+      userLabel:
+        type: string
+      username:
+        type: string
+    type: object
+  internal_transport_http_admin.CreateUserRequest:
+    properties:
+      avatarURL:
+        maxLength: 2048
+        type: string
+      displayName:
+        maxLength: 128
+        type: string
+      email:
+        maxLength: 128
+        type: string
+      locale:
+        maxLength: 16
+        type: string
+      password:
+        maxLength: 128
+        minLength: 8
+        type: string
+      phone:
+        maxLength: 32
+        type: string
+      subscriptionExpiresAt:
+        type: string
+      subscriptionTier:
+        maxLength: 32
+        type: string
+      timezone:
+        maxLength: 64
+        type: string
+      username:
+        maxLength: 64
+        minLength: 3
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  internal_transport_http_admin.CreateUserResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_admin.UserDataResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_admin.DeleteUserResponse:
+    properties:
+      deleted:
+        type: boolean
+    type: object
+  internal_transport_http_admin.DeleteUserResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_admin.DeleteUserResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_admin.ErrorDoc:
+    properties:
+      data: {}
+      details: {}
+      errorCode:
+        type: string
+      errorMsg:
+        type: string
+      requestId:
+        type: string
+    type: object
+  internal_transport_http_admin.PatchUserRequest:
+    properties:
+      avatarURL:
+        maxLength: 2048
+        type: string
+      displayName:
+        maxLength: 128
+        type: string
+      email:
+        maxLength: 128
+        type: string
+      locale:
+        maxLength: 16
+        type: string
+      phone:
+        maxLength: 32
+        type: string
+      profilePreferences:
+        maxLength: 1024
+        type: string
+      reason:
+        maxLength: 255
+        type: string
+      role:
+        maxLength: 32
+        type: string
+      status:
+        maxLength: 32
+        type: string
+      subscriptionExpiresAt:
+        type: string
+      subscriptionTier:
+        maxLength: 32
+        type: string
+      timezone:
+        maxLength: 64
+        type: string
+    type: object
+  internal_transport_http_admin.ResetUserPasswordRequest:
+    properties:
+      mustResetPassword:
+        type: boolean
+      newPassword:
+        maxLength: 128
+        minLength: 8
+        type: string
+    required:
+    - newPassword
+    type: object
+  internal_transport_http_admin.ResetUserPasswordResponse:
+    properties:
+      reset:
+        type: boolean
+    type: object
+  internal_transport_http_admin.ResetUserPasswordResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_admin.ResetUserPasswordResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_admin.RevokeUserSessionsResponse:
+    properties:
+      revoked:
+        type: boolean
+    type: object
+  internal_transport_http_admin.RevokeUserSessionsResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_admin.RevokeUserSessionsResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_admin.SystemEventListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_admin.SystemEventResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_admin.SystemEventResponse:
+    properties:
+      createdAt:
+        type: string
+      detailJSON:
+        type: string
+      event:
+        type: string
+      id:
+        type: integer
+      level:
+        type: string
+      message:
+        type: string
+      requestID:
+        type: string
+      resource:
+        type: string
+      resourceID:
+        type: string
+      source:
+        type: string
+      traceID:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  internal_transport_http_admin.UpdateUserStatusRequest:
+    properties:
+      reason:
+        maxLength: 255
+        type: string
+      status:
+        maxLength: 32
+        type: string
+    required:
+    - status
+    type: object
+  internal_transport_http_admin.UpdateUserStatusResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_admin.UserDataResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_admin.UsageLogListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_admin.UsageLogResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_admin.UsageLogResponse:
+    properties:
+      billedCurrency:
+        type: string
+      billedNanousd:
+        type: integer
+      billedUSD:
+        type: number
+      cacheReadTokens:
+        type: integer
+      cacheWrite1hTokens:
+        type: integer
+      cacheWrite5mTokens:
+        type: integer
+      cacheWriteTokens:
+        type: integer
+      callCount:
+        type: integer
+      conversationID:
+        type: integer
+      createdAt:
+        type: string
+      durationSeconds:
+        type: integer
+      id:
+        type: integer
+      inputTokens:
+        type: integer
+      isFreeModel:
+        type: boolean
+      latencyMS:
+        type: integer
+      outputTokens:
+        type: integer
+      platformModelName:
+        type: string
+      pricingSnapshotJSON:
+        type: string
+      providerProtocol:
+        type: string
+      reasoningTokens:
+        type: integer
+      routedBindingCode:
+        type: string
+      serviceTier:
+        type: string
+      updatedAt:
+        type: string
+      upstreamModelName:
+        type: string
+      upstreamName:
+        type: string
+      usageDate:
+        type: string
+      usageSpeed:
+        type: string
+      userDisplayName:
+        type: string
+      userID:
+        type: integer
+      userLabel:
+        type: string
+      username:
+        type: string
+    type: object
+  internal_transport_http_admin.UserAuthEventListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_admin.AuthEventResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_admin.UserDataResponse:
+    properties:
+      user:
+        $ref: '#/definitions/internal_transport_http_admin.UserResponse'
+    type: object
+  internal_transport_http_admin.UserListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_admin.UserResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_admin.UserResponse:
+    properties:
+      appearancePreferences:
+        type: string
+      avatarURL:
+        type: string
+      billingAccountCurrency:
+        type: string
+      billingAccountStatus:
+        type: string
+      billingBalanceNanousd:
+        type: integer
+      billingBalanceUSD:
+        type: number
+      createdAt:
+        type: string
+      displayName:
+        type: string
+      email:
+        type: string
+      emailVerifiedAt:
+        type: string
+      id:
+        type: integer
+      lastLoginAt:
+        type: string
+      locale:
+        type: string
+      phone:
+        type: string
+      phoneVerifiedAt:
+        type: string
+      profilePreferences:
+        type: string
+      publicID:
+        type: string
+      role:
+        type: string
+      status:
+        type: string
+      subscriptionExpiresAt:
+        type: string
+      subscriptionPlanID:
+        type: integer
+      subscriptionPlanName:
+        type: string
+      subscriptionStatus:
+        type: string
+      subscriptionTier:
+        type: string
+      timezone:
+        type: string
+      twoFactorAvailable:
+        type: boolean
+      twoFactorEnabled:
+        type: boolean
+      twoFactorRecoveryCount:
+        type: integer
+      twoFactorRequired:
+        type: boolean
+      updatedAt:
+        type: string
+      username:
+        type: string
+    type: object
+  internal_transport_http_auth.ActiveSessionListResponse:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/internal_transport_http_auth.ActiveSessionResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  internal_transport_http_auth.ActiveSessionListResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_auth.ActiveSessionListResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_auth.ActiveSessionResponse:
+    properties:
+      browserName:
+        type: string
+      cityName:
+        type: string
+      clientIP:
+        type: string
+      countryCode:
+        type: string
+      createdAt:
+        type: string
+      current:
+        type: boolean
+      deviceLabel:
+        type: string
+      deviceName:
+        type: string
+      deviceType:
+        type: string
+      expiresAt:
+        type: string
+      geoAccuracy:
+        type: string
+      geoSource:
+        type: string
+      ipLatitude:
+        type: number
+      ipLongitude:
+        type: number
+      lastSeenAt:
+        type: string
+      locationLabel:
+        type: string
+      osName:
+        type: string
+      preciseAccuracyMeters:
+        type: number
+      preciseLatitude:
+        type: number
+      preciseLocatedAt:
+        type: string
+      preciseLongitude:
+        type: number
+      regionName:
+        type: string
+      sessionID:
+        type: string
+      timezoneName:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  internal_transport_http_auth.DeleteAccountRequest:
+    properties:
+      code:
+        maxLength: 32
+        minLength: 6
+        type: string
+      verificationMethod:
+        enum:
+        - two_factor
+        - email
+        type: string
+    required:
+    - code
+    - verificationMethod
+    type: object
+  internal_transport_http_auth.DeleteAccountResponse:
+    properties:
+      deleted:
+        type: boolean
+    type: object
+  internal_transport_http_auth.DeleteAccountResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_auth.DeleteAccountResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_auth.EmailVerificationStartResponse:
+    properties:
+      availableMethods:
+        items:
+          type: string
+        type: array
+      expiresAt:
+        type: string
+      sent:
+        type: boolean
+      verificationMethod:
+        type: string
+    type: object
+  internal_transport_http_auth.EmailVerificationStartResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_auth.EmailVerificationStartResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_auth.ErrorDoc:
+    properties:
+      data: {}
+      details: {}
+      errorCode:
+        type: string
+      errorMsg:
+        type: string
+      requestId:
+        type: string
+    type: object
+  internal_transport_http_auth.LoginRequest:
+    properties:
+      password:
+        maxLength: 128
+        minLength: 6
+        type: string
+      username:
+        maxLength: 128
+        minLength: 3
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  internal_transport_http_auth.LoginResponse:
+    properties:
+      accessToken:
+        type: string
+      expiresAt:
+        type: string
+      refreshExpiresAt:
+        type: string
+      sessionID:
+        type: string
+      twoFactorChallengeToken:
+        type: string
+      twoFactorRequired:
+        type: boolean
+      user:
+        $ref: '#/definitions/internal_transport_http_auth.UserResponse'
+      verificationMethods:
+        items:
+          type: string
+        type: array
+    type: object
+  internal_transport_http_auth.LoginResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_auth.LoginResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_auth.LogoutResponse:
+    properties:
+      revoked:
+        type: boolean
+    type: object
+  internal_transport_http_auth.LogoutResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_auth.LogoutResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_auth.MeResponse:
+    properties:
+      user:
+        $ref: '#/definitions/internal_transport_http_auth.UserResponse'
+    type: object
+  internal_transport_http_auth.MeResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_auth.MeResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_auth.PatchMeRequest:
+    properties:
+      appearancePreferences:
+        maxLength: 2048
+        type: string
+      avatarURL:
+        maxLength: 2048
+        type: string
+      displayName:
+        maxLength: 128
+        type: string
+      locale:
+        maxLength: 16
+        type: string
+      profilePreferences:
+        maxLength: 1024
+        type: string
+      timezone:
+        maxLength: 64
+        type: string
+    type: object
+  internal_transport_http_auth.PatchMeResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_auth.MeResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_auth.PatchUsernameRequest:
+    properties:
+      username:
+        maxLength: 32
+        minLength: 3
+        type: string
+    required:
+    - username
+    type: object
+  internal_transport_http_auth.RefreshTokenResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_auth.LoginResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_auth.SecurityVerificationStartRequest:
+    properties:
+      verificationMethod:
+        enum:
+        - none
+        - two_factor
+        - email
+        type: string
+    type: object
+  internal_transport_http_auth.UpdateCurrentSessionLocationRequest:
+    properties:
+      accuracyMeters:
+        maximum: 1000000
+        minimum: 0
+        type: number
+      latitude:
+        type: number
+      longitude:
+        type: number
+      timezone:
+        maxLength: 64
+        type: string
+    required:
+    - latitude
+    - longitude
+    type: object
+  internal_transport_http_auth.UpdateCurrentSessionLocationResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_auth.ActiveSessionResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_auth.UserResponse:
+    properties:
+      appearancePreferences:
+        type: string
+      avatarURL:
+        type: string
+      createdAt:
+        type: string
+      displayName:
+        type: string
+      email:
+        type: string
+      emailBootstrapUsedAt:
+        type: string
+      emailSource:
+        type: string
+      emailVerifiedAt:
+        type: string
+      id:
+        type: integer
+      initialSecurityRequired:
+        type: boolean
+      initialUsernameRequired:
+        type: boolean
+      lastLoginAt:
+        type: string
+      locale:
+        type: string
+      mustResetPassword:
+        type: boolean
+      onboardingCompletedAt:
+        type: string
+      passwordEnabled:
+        type: boolean
+      passwordOrigin:
+        type: string
+      passwordSetAt:
+        type: string
+      phone:
+        type: string
+      phoneVerifiedAt:
+        type: string
+      profilePreferences:
+        type: string
+      publicID:
+        type: string
+      role:
+        type: string
+      status:
+        type: string
+      subscriptionExpiresAt:
+        type: string
+      subscriptionPlanID:
+        type: integer
+      subscriptionPlanName:
+        type: string
+      subscriptionStatus:
+        type: string
+      subscriptionTier:
+        type: string
+      timezone:
+        type: string
+      twoFactorAvailable:
+        type: boolean
+      twoFactorEnabled:
+        type: boolean
+      twoFactorRecoveryCount:
+        type: integer
+      twoFactorRequired:
+        type: boolean
+      updatedAt:
+        type: string
+      username:
+        type: string
+      usernameChangedAt:
+        type: string
+    type: object
+  internal_transport_http_billing.BillingAccountDataResponse:
+    properties:
+      account:
+        $ref: '#/definitions/internal_transport_http_billing.BillingAccountResponse'
+    type: object
+  internal_transport_http_billing.BillingAccountResponse:
+    properties:
+      balanceNanousd:
+        type: integer
+      balanceUSD:
+        type: number
+      currency:
+        type: string
+      status:
+        type: string
+      updatedAt:
+        type: string
+      userID:
+        type: integer
+    type: object
+  internal_transport_http_billing.BillingAccountResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_billing.BillingAccountDataResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_billing.BillingConfigDataResponse:
+    properties:
+      config:
+        $ref: '#/definitions/internal_transport_http_billing.BillingConfigResponse'
+    type: object
+  internal_transport_http_billing.BillingConfigRequest:
+    properties:
+      mode:
+        enum:
+        - self
+        - period
+        - usage
+        type: string
+      prepaidAmountUSD:
+        minimum: 0
+        type: number
+    required:
+    - mode
+    type: object
+  internal_transport_http_billing.BillingConfigResponse:
+    properties:
+      epayTypes:
+        items:
+          $ref: '#/definitions/internal_transport_http_billing.PaymentTypeResponse'
+        type: array
+      mode:
+        type: string
+      paymentProviders:
+        items:
+          type: string
+        type: array
+      prepaidAmountNanousd:
+        type: integer
+      prepaidAmountUSD:
+        type: number
+      usdToCNYRate:
+        type: number
+    type: object
+  internal_transport_http_billing.BillingConfigResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_billing.BillingConfigDataResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_billing.BillingOverviewDataResponse:
+    properties:
+      overview:
+        $ref: '#/definitions/internal_transport_http_billing.BillingOverviewResponse'
+    type: object
+  internal_transport_http_billing.BillingOverviewResponse:
+    properties:
+      account:
+        $ref: '#/definitions/internal_transport_http_billing.BillingAccountResponse'
+      mode:
+        type: string
+      periodCreditNanousd:
+        type: integer
+      periodCreditUSD:
+        type: number
+      periodEndAt:
+        type: string
+      periodRemainingNanousd:
+        type: integer
+      periodRemainingUSD:
+        type: number
+      periodStartAt:
+        type: string
+      periodUsedNanousd:
+        type: integer
+      periodUsedUSD:
+        type: number
+      plan:
+        $ref: '#/definitions/internal_transport_http_billing.BillingPlanResponse'
+    type: object
+  internal_transport_http_billing.BillingOverviewResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_billing.BillingOverviewDataResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_billing.BillingPlanDataResponse:
+    properties:
+      plan:
+        $ref: '#/definitions/internal_transport_http_billing.BillingPlanResponse'
+    type: object
+  internal_transport_http_billing.BillingPlanResponse:
+    properties:
+      code:
+        type: string
+      description:
+        type: string
+      discountPercent:
+        type: integer
+      featureJSON:
+        type: string
+      id:
+        type: integer
+      isActive:
+        type: boolean
+      name:
+        type: string
+      periodCreditNanousd:
+        type: integer
+      periodCreditUSD:
+        type: number
+      prices:
+        items:
+          $ref: '#/definitions/internal_transport_http_billing.BillingPriceResponse'
+        type: array
+      sortOrder:
+        type: integer
+    type: object
+  internal_transport_http_billing.BillingPlanResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_billing.BillingPlanDataResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_billing.BillingPriceResponse:
+    properties:
+      amountCents:
+        type: integer
+      billingInterval:
+        type: string
+      code:
+        type: string
+      currency:
+        type: string
+      id:
+        type: integer
+      isDefault:
+        type: boolean
+      planID:
+        type: integer
+    type: object
+  internal_transport_http_billing.CheckoutDataResponse:
+    properties:
+      checkout:
+        $ref: '#/definitions/internal_transport_http_billing.CheckoutResponse'
+    type: object
+  internal_transport_http_billing.CheckoutResponse:
+    properties:
+      baseAmountCents:
+        type: integer
+      baseCurrency:
+        type: string
+      checkoutURL:
+        type: string
+      creditNanousd:
+        type: integer
+      creditUSD:
+        type: number
+      expiredAt:
+        type: string
+      externalCheckoutID:
+        type: string
+      fxRate:
+        type: string
+      orderNo:
+        type: string
+      orderType:
+        type: string
+      payAmountCents:
+        type: integer
+      payCurrency:
+        type: string
+      provider:
+        type: string
+      status:
+        type: string
+    type: object
+  internal_transport_http_billing.CheckoutResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_billing.CheckoutDataResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_billing.CreateCheckoutRequest:
+    properties:
+      amountUSD:
+        minimum: 0
+        type: number
+      cancelURL:
+        maxLength: 512
+        type: string
+      cycles:
+        maximum: 120
+        minimum: 1
+        type: integer
+      epayType:
+        maxLength: 32
+        type: string
+      orderType:
+        enum:
+        - subscription
+        - topup
+        type: string
+      paymentProvider:
+        enum:
+        - stripe
+        - epay
+        type: string
+      priceID:
+        minimum: 1
+        type: integer
+      successURL:
+        maxLength: 512
+        type: string
+    type: object
+  internal_transport_http_billing.ErrorDoc:
+    properties:
+      data: {}
+      details: {}
+      errorCode:
+        type: string
+      errorMsg:
+        type: string
+      requestId:
+        type: string
+    type: object
+  internal_transport_http_billing.ModelPricingDataResponse:
+    properties:
+      modelPricing:
+        $ref: '#/definitions/internal_transport_http_billing.ModelPricingResponse'
+    type: object
+  internal_transport_http_billing.ModelPricingListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_billing.ModelPricingResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_billing.ModelPricingResponse:
+    properties:
+      cacheReadNanousdPerMTokens:
+        type: integer
+      cacheReadUSDPerMTokens:
+        type: number
+      cacheWriteNanousdPerMTokens:
+        type: integer
+      cacheWriteUSDPerMTokens:
+        type: number
+      callNanousdPerCall:
+        type: integer
+      callUSDPerCall:
+        type: number
+      createdAt:
+        type: string
+      currency:
+        type: string
+      durationNanousdPerSecond:
+        type: integer
+      durationUSDPerSecond:
+        type: number
+      id:
+        type: integer
+      inputNanousdPerMTokens:
+        type: integer
+      inputUSDPerMTokens:
+        type: number
+      isFree:
+        type: boolean
+      modelIcon:
+        type: string
+      modelVendor:
+        type: string
+      outputNanousdPerMTokens:
+        type: integer
+      outputUSDPerMTokens:
+        type: number
+      platformModelName:
+        type: string
+      pricingMode:
+        type: string
+      tieredPricingJSON:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  internal_transport_http_billing.PaymentTypeResponse:
+    properties:
+      name:
+        type: string
+      type:
+        type: string
+    type: object
+  internal_transport_http_billing.PlanListResponseDoc:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_transport_http_billing.BillingPlanResponse'
+        type: array
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_billing.SubscribeRequest:
+    properties:
+      cycles:
+        maximum: 120
+        minimum: 1
+        type: integer
+      priceID:
+        minimum: 1
+        type: integer
+    required:
+    - priceID
+    type: object
+  internal_transport_http_billing.SubscribeResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_billing.SubscriptionDataResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_billing.SubscriptionDataResponse:
+    properties:
+      subscription:
+        $ref: '#/definitions/internal_transport_http_billing.SubscriptionResponse'
+    type: object
+  internal_transport_http_billing.SubscriptionResponse:
+    properties:
+      autoRenew:
+        type: boolean
+      cancelAtPeriodEnd:
+        type: boolean
+      currentPeriodEndAt:
+        type: string
+      currentPeriodStartAt:
+        type: string
+      id:
+        type: integer
+      planID:
+        type: integer
+      priceID:
+        type: integer
+      startAt:
+        type: string
+      status:
+        type: string
+      userID:
+        type: integer
+    type: object
+  internal_transport_http_billing.UpdateBillingAccountBalanceRequest:
+    properties:
+      balanceUSD:
+        minimum: 0
+        type: number
+      description:
+        maxLength: 255
+        type: string
+    type: object
+  internal_transport_http_billing.UpdateBillingPlanRequest:
+    properties:
+      amountUSD:
+        minimum: 0
+        type: number
+      billingInterval:
+        enum:
+        - month
+        - year
+        - lifetime
+        type: string
+      currency:
+        maxLength: 16
+        type: string
+      description:
+        maxLength: 255
+        type: string
+      discountPercent:
+        maximum: 100
+        minimum: 0
+        type: integer
+      name:
+        maxLength: 64
+        minLength: 1
+        type: string
+      periodCreditUSD:
+        minimum: 0
+        type: number
+    required:
+    - billingInterval
+    - name
+    type: object
+  internal_transport_http_billing.UpsertModelPricingRequest:
+    properties:
+      cacheReadUSDPerMTokens:
+        minimum: 0
+        type: number
+      cacheWriteUSDPerMTokens:
+        minimum: 0
+        type: number
+      callUSDPerCall:
+        minimum: 0
+        type: number
+      currency:
+        maxLength: 16
+        type: string
+      durationUSDPerSecond:
+        minimum: 0
+        type: number
+      inputUSDPerMTokens:
+        minimum: 0
+        type: number
+      isFree:
+        type: boolean
+      outputUSDPerMTokens:
+        minimum: 0
+        type: number
+      platformModelName:
+        maxLength: 128
+        type: string
+      pricingMode:
+        enum:
+        - token
+        - call
+        - duration
+        - tiered
+        type: string
+      tieredPricingJSON:
+        maxLength: 20000
+        type: string
+    required:
+    - platformModelName
+    type: object
+  internal_transport_http_billing.UsageDailyListResponseDoc:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_transport_http_billing.UsageDailyResponse'
+        type: array
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_billing.UsageDailyModelResponse:
+    properties:
+      avgLatencyMS:
+        type: integer
+      billedNanousd:
+        type: integer
+      billedUSD:
+        type: number
+      cacheReadTokens:
+        type: integer
+      cacheWriteTokens:
+        type: integer
+      callCount:
+        type: integer
+      durationSeconds:
+        type: integer
+      inputTokens:
+        type: integer
+      outputTokens:
+        type: integer
+      platformModelName:
+        type: string
+      reasoningTokens:
+        type: integer
+      recordCount:
+        type: integer
+      totalTokens:
+        type: integer
+    type: object
+  internal_transport_http_billing.UsageDailyResponse:
+    properties:
+      avgLatencyMS:
+        type: integer
+      billedNanousd:
+        type: integer
+      billedUSD:
+        type: number
+      cacheReadTokens:
+        type: integer
+      cacheWriteTokens:
+        type: integer
+      callCount:
+        type: integer
+      durationSeconds:
+        type: integer
+      inputTokens:
+        type: integer
+      models:
+        items:
+          $ref: '#/definitions/internal_transport_http_billing.UsageDailyModelResponse'
+        type: array
+      outputTokens:
+        type: integer
+      reasoningTokens:
+        type: integer
+      recordCount:
+        type: integer
+      totalTokens:
+        type: integer
+      usageDate:
+        type: string
+    type: object
+  internal_transport_http_billing.UsageLedgerListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_billing.UsageLedgerResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_billing.UsageLedgerResponse:
+    properties:
+      billedCurrency:
+        type: string
+      billedNanousd:
+        type: integer
+      billedUSD:
+        type: number
+      cacheReadTokens:
+        type: integer
+      cacheWrite1hTokens:
+        type: integer
+      cacheWrite5mTokens:
+        type: integer
+      cacheWriteTokens:
+        type: integer
+      callCount:
+        type: integer
+      conversationID:
+        type: integer
+      createdAt:
+        type: string
+      durationSeconds:
+        type: integer
+      id:
+        type: integer
+      inputTokens:
+        type: integer
+      isFreeModel:
+        type: boolean
+      latencyMS:
+        type: integer
+      modelIcon:
+        type: string
+      modelVendor:
+        type: string
+      outputTokens:
+        type: integer
+      platformModelName:
+        type: string
+      pricingSnapshotJSON:
+        type: string
+      providerProtocol:
+        type: string
+      reasoningTokens:
+        type: integer
+      routedBindingCode:
+        type: string
+      serviceTier:
+        type: string
+      updatedAt:
+        type: string
+      upstreamModelName:
+        type: string
+      usageDate:
+        type: string
+      usageSpeed:
+        type: string
+      userID:
+        type: integer
+    type: object
+  internal_transport_http_billing.UsageMonthlyListResponseDoc:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_transport_http_billing.UsageMonthlyResponse'
+        type: array
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_billing.UsageMonthlyResponse:
+    properties:
+      avgLatencyMS:
+        type: integer
+      billedNanousd:
+        type: integer
+      billedUSD:
+        type: number
+      cacheReadTokens:
+        type: integer
+      cacheWriteTokens:
+        type: integer
+      callCount:
+        type: integer
+      durationSeconds:
+        type: integer
+      inputTokens:
+        type: integer
+      monthStartAt:
+        type: string
+      outputTokens:
+        type: integer
+      reasoningTokens:
+        type: integer
+      recordCount:
+        type: integer
+      totalTokens:
+        type: integer
+    type: object
+  internal_transport_http_channel.BatchDeleteRequest:
+    properties:
+      ids:
+        items:
+          type: integer
+        minItems: 1
+        type: array
+    required:
+    - ids
+    type: object
+  internal_transport_http_channel.BatchDeleteResponse:
+    properties:
+      failedCount:
+        type: integer
+      notFoundCount:
+        type: integer
+      results:
+        items:
+          $ref: '#/definitions/internal_transport_http_channel.BatchDeleteResultResponse'
+        type: array
+      successCount:
+        type: integer
+      total:
+        type: integer
+    type: object
+  internal_transport_http_channel.BatchDeleteResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_channel.BatchDeleteResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.BatchDeleteResultResponse:
+    properties:
+      error:
+        type: string
+      id:
+        type: integer
+      status:
+        type: string
+    type: object
+  internal_transport_http_channel.CircuitResetResponse:
+    properties:
+      reset:
+        type: boolean
+    type: object
+  internal_transport_http_channel.CreateModelRequest:
+    properties:
+      capabilitiesJSON:
+        maxLength: 10000
+        type: string
+      description:
+        maxLength: 10000
+        type: string
+      icon:
+        maxLength: 128
+        type: string
+      kindsJSON:
+        maxLength: 1000
+        type: string
+      platformModelName:
+        maxLength: 128
+        minLength: 2
+        type: string
+      status:
+        enum:
+        - active
+        - inactive
+        type: string
+      vendor:
+        maxLength: 64
+        type: string
+    required:
+    - platformModelName
+    type: object
+  internal_transport_http_channel.CreateModelResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_channel.ModelDataResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.CreateUpstreamRequest:
+    properties:
+      apiKeys:
+        maxLength: 10000
+        minLength: 2
+        type: string
+      baseURL:
+        maxLength: 512
+        type: string
+      cbDurationMin:
+        type: integer
+      cbFailureThreshold:
+        type: integer
+      cbModelThreshold:
+        type: integer
+      cbThresholdLogic:
+        enum:
+        - or
+        - and
+        type: string
+      cbWindowMin:
+        type: integer
+      compatible:
+        enum:
+        - openai
+        - anthropic
+        - google
+        - xai
+        - openrouter
+        - custom
+        type: string
+      connectTimeoutMS:
+        type: integer
+      headersJSON:
+        maxLength: 10000
+        type: string
+      name:
+        maxLength: 128
+        minLength: 2
+        type: string
+      protocolDefaultsJSON:
+        maxLength: 10000
+        type: string
+      readTimeoutMS:
+        type: integer
+      status:
+        enum:
+        - active
+        - inactive
+        type: string
+      streamIdleTimeoutMS:
+        type: integer
+    required:
+    - apiKeys
+    - baseURL
+    - name
+    type: object
+  internal_transport_http_channel.CreateUpstreamResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_channel.UpstreamDataResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.ErrorDoc:
+    properties:
+      data: {}
+      details: {}
+      errorCode:
+        type: string
+      errorMsg:
+        type: string
+      requestId:
+        type: string
+    type: object
+  internal_transport_http_channel.ImportUpstreamModelItemRequest:
+    properties:
+      kindsJSON:
+        maxLength: 1000
+        type: string
+      platformModelName:
+        maxLength: 128
+        minLength: 2
+        type: string
+      priority:
+        type: integer
+      protocol:
+        maxLength: 64
+        type: string
+      status:
+        enum:
+        - active
+        - inactive
+        type: string
+      upstreamModelName:
+        maxLength: 128
+        minLength: 1
+        type: string
+    required:
+    - platformModelName
+    - upstreamModelName
+    type: object
+  internal_transport_http_channel.ImportUpstreamModelResultResponse:
+    properties:
+      bindingCode:
+        type: string
+      createdPlatform:
+        type: boolean
+      createdRoute:
+        type: boolean
+      error:
+        type: string
+      platformModelName:
+        type: string
+      status:
+        type: string
+      upstreamModelName:
+        type: string
+    type: object
+  internal_transport_http_channel.ImportUpstreamModelsRequest:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/internal_transport_http_channel.ImportUpstreamModelItemRequest'
+        minItems: 1
+        type: array
+    required:
+    - items
+    type: object
+  internal_transport_http_channel.ImportUpstreamModelsResponse:
+    properties:
+      createdPlatform:
+        type: integer
+      createdRoutes:
+        type: integer
+      existingRoutes:
+        type: integer
+      failedCount:
+        type: integer
+      importedCount:
+        type: integer
+      results:
+        items:
+          $ref: '#/definitions/internal_transport_http_channel.ImportUpstreamModelResultResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  internal_transport_http_channel.ImportUpstreamModelsResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_channel.ImportUpstreamModelsResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.ModelDataResponse:
+    properties:
+      model:
+        $ref: '#/definitions/internal_transport_http_channel.ModelResponse'
+    type: object
+  internal_transport_http_channel.ModelListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_channel.ModelResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.ModelResponse:
+    properties:
+      activeSourceCount:
+        type: integer
+      capabilitiesJSON:
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      icon:
+        type: string
+      id:
+        type: integer
+      kindsJSON:
+        type: string
+      platformModelName:
+        type: string
+      protocolsJSON:
+        type: string
+      sortOrder:
+        type: integer
+      sourceCount:
+        type: integer
+      status:
+        type: string
+      updatedAt:
+        type: string
+      vendor:
+        type: string
+    type: object
+  internal_transport_http_channel.ModelUpstreamSourceDataResponse:
+    properties:
+      source:
+        $ref: '#/definitions/internal_transport_http_channel.ModelUpstreamSourceResponse'
+    type: object
+  internal_transport_http_channel.ModelUpstreamSourceListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_channel.ModelUpstreamSourceResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.ModelUpstreamSourceResponse:
+    properties:
+      baseURL:
+        type: string
+      bindingCode:
+        type: string
+      circuitOpen:
+        type: boolean
+      circuitUntil:
+        type: string
+      createdAt:
+        type: string
+      headersJSON:
+        type: string
+      id:
+        type: integer
+      priority:
+        type: integer
+      protocol:
+        type: string
+      source:
+        type: string
+      status:
+        type: string
+      suggestedProtocol:
+        type: string
+      updatedAt:
+        type: string
+      upstreamID:
+        type: integer
+      upstreamModelIcon:
+        type: string
+      upstreamModelKindsJSON:
+        type: string
+      upstreamModelName:
+        type: string
+      upstreamModelStatus:
+        type: string
+      upstreamModelVendor:
+        type: string
+      upstreamName:
+        type: string
+      weight:
+        type: integer
+    type: object
+  internal_transport_http_channel.PublicModelListResponseDoc:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_transport_http_channel.PublicModelResponse'
+        type: array
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.PublicModelPricingResponse:
+    properties:
+      cacheReadUSDPerMTokens:
+        type: number
+      cacheWriteUSDPerMTokens:
+        type: number
+      callUSDPerCall:
+        type: number
+      currency:
+        type: string
+      durationUSDPerSecond:
+        type: number
+      inputUSDPerMTokens:
+        type: number
+      isFree:
+        type: boolean
+      mode:
+        type: string
+      outputUSDPerMTokens:
+        type: number
+      tiers:
+        items:
+          $ref: '#/definitions/internal_transport_http_channel.PublicModelPricingTierResponse'
+        type: array
+    type: object
+  internal_transport_http_channel.PublicModelPricingTierResponse:
+    properties:
+      cacheReadUSDPerMTokens:
+        type: number
+      cacheWriteUSDPerMTokens:
+        type: number
+      fromTokens:
+        type: integer
+      inputUSDPerMTokens:
+        type: number
+      outputUSDPerMTokens:
+        type: number
+      upToTokens:
+        type: integer
+    type: object
+  internal_transport_http_channel.PublicModelResponse:
+    properties:
+      capabilitiesJSON:
+        type: string
+      description:
+        type: string
+      icon:
+        type: string
+      kindsJSON:
+        type: string
+      platformModelName:
+        type: string
+      pricing:
+        $ref: '#/definitions/internal_transport_http_channel.PublicModelPricingResponse'
+      protocolsJSON:
+        type: string
+      sortOrder:
+        type: integer
+      vendor:
+        type: string
+    type: object
+  internal_transport_http_channel.ReorderModelsRequest:
+    properties:
+      modelIDs:
+        items:
+          type: integer
+        minItems: 1
+        type: array
+    required:
+    - modelIDs
+    type: object
+  internal_transport_http_channel.ResetUpstreamCircuitResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_channel.CircuitResetResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.SyncUpstreamModelsResponse:
+    properties:
+      createdUpstreamModels:
+        type: integer
+      existingUpstreamModels:
+        type: integer
+      inactivatedModels:
+        type: integer
+      skippedUpstreamModels:
+        type: integer
+      syncedModels:
+        items:
+          $ref: '#/definitions/internal_transport_http_channel.UpstreamSyncModelResponse'
+        type: array
+      totalUpstream:
+        type: integer
+    type: object
+  internal_transport_http_channel.SyncUpstreamModelsResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_channel.SyncUpstreamModelsResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.UpdateModelRequest:
+    properties:
+      capabilitiesJSON:
+        maxLength: 10000
+        type: string
+      description:
+        maxLength: 10000
+        type: string
+      icon:
+        maxLength: 128
+        type: string
+      kindsJSON:
+        maxLength: 1000
+        type: string
+      platformModelName:
+        maxLength: 128
+        minLength: 2
+        type: string
+      status:
+        enum:
+        - active
+        - inactive
+        type: string
+      vendor:
+        maxLength: 64
+        type: string
+    type: object
+  internal_transport_http_channel.UpdateModelResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_channel.ModelDataResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.UpdateModelUpstreamSourceRequest:
+    properties:
+      priority:
+        type: integer
+      status:
+        enum:
+        - active
+        - inactive
+        type: string
+      weight:
+        type: integer
+    type: object
+  internal_transport_http_channel.UpdateModelUpstreamSourceResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_channel.ModelUpstreamSourceDataResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.UpdateUpstreamRequest:
+    properties:
+      apiKeys:
+        maxLength: 10000
+        minLength: 2
+        type: string
+      baseURL:
+        maxLength: 512
+        type: string
+      cbDurationMin:
+        type: integer
+      cbFailureThreshold:
+        type: integer
+      cbModelThreshold:
+        type: integer
+      cbThresholdLogic:
+        enum:
+        - or
+        - and
+        type: string
+      cbWindowMin:
+        type: integer
+      compatible:
+        enum:
+        - openai
+        - anthropic
+        - google
+        - xai
+        - openrouter
+        - custom
+        type: string
+      connectTimeoutMS:
+        type: integer
+      headersJSON:
+        maxLength: 10000
+        type: string
+      name:
+        maxLength: 128
+        minLength: 2
+        type: string
+      protocolDefaultsJSON:
+        maxLength: 10000
+        type: string
+      readTimeoutMS:
+        type: integer
+      status:
+        enum:
+        - active
+        - inactive
+        type: string
+      streamIdleTimeoutMS:
+        type: integer
+    type: object
+  internal_transport_http_channel.UpdateUpstreamResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_channel.UpstreamDataResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.UpsertUpstreamModelRequest:
+    properties:
+      cbDurationMin:
+        type: integer
+      cbFailureThreshold:
+        type: integer
+      cbWindowMin:
+        type: integer
+      headersJSON:
+        maxLength: 10000
+        type: string
+      kindsJSON:
+        maxLength: 1000
+        type: string
+      platformModelName:
+        maxLength: 128
+        minLength: 2
+        type: string
+      priority:
+        type: integer
+      protocol:
+        maxLength: 64
+        type: string
+      routeID:
+        type: integer
+      source:
+        maxLength: 64
+        type: string
+      status:
+        enum:
+        - active
+        - inactive
+        type: string
+      upstreamModelName:
+        maxLength: 128
+        minLength: 1
+        type: string
+      weight:
+        type: integer
+    required:
+    - platformModelName
+    - upstreamModelName
+    type: object
+  internal_transport_http_channel.UpsertUpstreamModelResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_channel.UpstreamModelDataResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.UpstreamDataResponse:
+    properties:
+      upstream:
+        $ref: '#/definitions/internal_transport_http_channel.UpstreamResponse'
+    type: object
+  internal_transport_http_channel.UpstreamListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_channel.UpstreamResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.UpstreamModelDataResponse:
+    properties:
+      binding:
+        $ref: '#/definitions/internal_transport_http_channel.UpstreamModelResponse'
+    type: object
+  internal_transport_http_channel.UpstreamModelListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_channel.UpstreamModelResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.UpstreamModelResponse:
+    properties:
+      bindingCode:
+        type: string
+      cbDurationMin:
+        type: integer
+      cbFailureThreshold:
+        type: integer
+      cbWindowMin:
+        type: integer
+      circuitOpen:
+        type: boolean
+      circuitUntil:
+        type: string
+      createdAt:
+        type: string
+      headersJSON:
+        type: string
+      id:
+        type: integer
+      modelIcon:
+        type: string
+      modelKindsJSON:
+        type: string
+      modelVendor:
+        type: string
+      platformModelID:
+        type: integer
+      platformModelName:
+        type: string
+      priority:
+        type: integer
+      protocol:
+        type: string
+      routeID:
+        type: integer
+      routeStatus:
+        type: string
+      source:
+        type: string
+      suggestedProtocol:
+        type: string
+      updatedAt:
+        type: string
+      upstreamID:
+        type: integer
+      upstreamModelIcon:
+        type: string
+      upstreamModelKindsJSON:
+        type: string
+      upstreamModelName:
+        type: string
+      upstreamModelStatus:
+        type: string
+      upstreamModelVendor:
+        type: string
+      weight:
+        type: integer
+    type: object
+  internal_transport_http_channel.UpstreamRemoteModelResponse:
+    properties:
+      alreadyBound:
+        type: boolean
+      alreadySynced:
+        type: boolean
+      bindingCode:
+        type: string
+      boundPlatformModels:
+        items:
+          type: string
+        type: array
+      suggestedKindsJSON:
+        type: string
+      suggestedPlatformModelName:
+        type: string
+      suggestedProtocol:
+        type: string
+      upstreamModelName:
+        type: string
+      upstreamModelStatus:
+        type: string
+    type: object
+  internal_transport_http_channel.UpstreamRemoteModelsResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/internal_transport_http_channel.UpstreamRemoteModelResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  internal_transport_http_channel.UpstreamRemoteModelsResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_channel.UpstreamRemoteModelsResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_channel.UpstreamResponse:
+    properties:
+      activeModelsCount:
+        type: integer
+      apiKeysMasked:
+        type: string
+      baseURL:
+        type: string
+      cbDurationMin:
+        type: integer
+      cbFailureThreshold:
+        type: integer
+      cbModelThreshold:
+        type: integer
+      cbThresholdLogic:
+        type: string
+      cbWindowMin:
+        type: integer
+      circuitOpen:
+        type: boolean
+      circuitUntil:
+        type: string
+      compatible:
+        type: string
+      connectTimeoutMS:
+        type: integer
+      createdAt:
+        type: string
+      headersJSON:
+        type: string
+      id:
+        type: integer
+      modelsCount:
+        type: integer
+      name:
+        type: string
+      protocolDefaultsJSON:
+        type: string
+      readTimeoutMS:
+        type: integer
+      status:
+        type: string
+      streamIdleTimeoutMS:
+        type: integer
+      updatedAt:
+        type: string
+    type: object
+  internal_transport_http_channel.UpstreamSyncModelResponse:
+    properties:
+      bindingCode:
+        type: string
+      created:
+        type: boolean
+      kindsJSON:
+        type: string
+      status:
+        type: string
+      suggestedProtocol:
+        type: string
+      upstreamModelName:
+        type: string
+    type: object
+  internal_transport_http_conversation.ContextArtifactResponse:
+    properties:
+      content:
+        type: string
+      createdAt:
+        type: string
+      expiresAt:
+        type: string
+      id:
+        type: integer
+      kind:
+        type: string
+      messageID:
+        type: integer
+      metadataJSON:
+        type: string
+      runID:
+        type: string
+      score:
+        type: number
+      sourceID:
+        type: string
+      sourceTitle:
+        type: string
+      sourceType:
+        type: string
+      tokenEstimate:
+        type: integer
+    type: object
+  internal_transport_http_conversation.ContextArtifactResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_conversation.ContextArtifactResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.ConversationCreateResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_conversation.ConversationResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.ConversationDeleteResponse:
+    properties:
+      deleted:
+        type: boolean
+    type: object
+  internal_transport_http_conversation.ConversationDeleteResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_conversation.ConversationDeleteResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.ConversationListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_conversation.ConversationResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.ConversationResponse:
+    properties:
+      contextPolicyJSON:
+        type: string
+      createdAt:
+        type: string
+      isStarred:
+        type: boolean
+      labelsJSON:
+        type: string
+      lastCompactedAt:
+        type: string
+      lastResponseID:
+        type: string
+      lastShareAccessedAt:
+        type: string
+      messageCount:
+        type: integer
+      model:
+        type: string
+      provider:
+        type: string
+      publicID:
+        type: string
+      sessionKey:
+        type: string
+      shareID:
+        type: string
+      shareStatus:
+        type: string
+      sharedAt:
+        type: string
+      starredAt:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+      userID:
+        type: integer
+    type: object
+  internal_transport_http_conversation.ConversationRunListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_conversation.RunResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.ConversationShareResponse:
+    properties:
+      createdAt:
+        type: string
+      lastAccessedAt:
+        type: string
+      messageCount:
+        type: integer
+      modelSnapshot:
+        type: string
+      revokedAt:
+        type: string
+      shareID:
+        type: string
+      status:
+        type: string
+      titleSnapshot:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  internal_transport_http_conversation.ConversationShareResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_conversation.ConversationShareResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.ConversationUpdateResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_conversation.ConversationResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.CreateConversationRequest:
+    properties:
+      model:
+        maxLength: 128
+        type: string
+      title:
+        maxLength: 255
+        type: string
+    type: object
+  internal_transport_http_conversation.CreateConversationShareRequest:
+    properties:
+      defaultMessagePublicIDs:
+        items:
+          type: string
+        maxItems: 1000
+        type: array
+    type: object
+  internal_transport_http_conversation.DeleteFileResponse:
+    properties:
+      deleted:
+        type: boolean
+      fileID:
+        type: string
+      quota:
+        $ref: '#/definitions/internal_transport_http_conversation.StorageQuotaResponse'
+    type: object
+  internal_transport_http_conversation.DeleteFileResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_conversation.DeleteFileResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.ErrorDoc:
+    properties:
+      data: {}
+      details: {}
+      errorCode:
+        type: string
+      errorMsg:
+        type: string
+      requestId:
+        type: string
+    type: object
+  internal_transport_http_conversation.FileListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_conversation.FileObjectResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.FileObjectResponse:
+    properties:
+      chunkCount:
+        type: integer
+      createdAt:
+        type: string
+      detectedMIME:
+        type: string
+      embedError:
+        type: string
+      embedStatus:
+        type: string
+      expiresAt:
+        type: string
+      extractStatus:
+        type: string
+      fileCategory:
+        type: string
+      fileID:
+        type: string
+      fileName:
+        type: string
+      lastAccessedAt:
+        type: string
+      mimeType:
+        type: string
+      processingErrorCode:
+        type: string
+      processingErrorMessage:
+        type: string
+      processingReady:
+        type: boolean
+      processingStatus:
+        type: string
+      purpose:
+        type: string
+      ragOptOut:
+        type: boolean
+      sha256:
+        type: string
+      sizeBytes:
+        type: integer
+      status:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  internal_transport_http_conversation.FileUpdateResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_conversation.FileObjectResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.FileUploadResponse:
+    properties:
+      file:
+        $ref: '#/definitions/internal_transport_http_conversation.FileObjectResponse'
+      quota:
+        $ref: '#/definitions/internal_transport_http_conversation.StorageQuotaResponse'
+      reused:
+        type: boolean
+    type: object
+  internal_transport_http_conversation.MessageBillingCostResponse:
+    properties:
+      billedCurrency:
+        type: string
+      billedNanousd:
+        type: integer
+      billedUSD:
+        type: number
+      billingMode:
+        type: string
+      pricingSnapshotJSON:
+        type: string
+    type: object
+  internal_transport_http_conversation.MessageFeedbackResponse:
+    properties:
+      messageID:
+        type: integer
+      messagePublicID:
+        type: string
+      myFeedback:
+        type: string
+      thumbsDownCount:
+        type: integer
+      thumbsUpCount:
+        type: integer
+    type: object
+  internal_transport_http_conversation.MessageFeedbackResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_conversation.MessageFeedbackResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.MessageListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/internal_transport_http_conversation.MessageResponse'
+            type: array
+          total:
+            type: integer
+        type: object
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.MessageProcessTraceResponse:
+    properties:
+      enabled:
+        type: boolean
+      events:
+        items:
+          $ref: '#/definitions/internal_transport_http_conversation.MessageTraceEventResponse'
+        type: array
+      process:
+        $ref: '#/definitions/internal_transport_http_conversation.MessageTraceBlockResponse'
+      promptTrace:
+        $ref: '#/definitions/internal_transport_http_conversation.MessagePromptTraceResponse'
+      status:
+        type: string
+      tools:
+        $ref: '#/definitions/internal_transport_http_conversation.MessageTraceBlockResponse'
+      upstreamThink:
+        $ref: '#/definitions/internal_transport_http_conversation.MessageTraceBlockResponse'
+    type: object
+  internal_transport_http_conversation.MessagePromptTraceBlockResponse:
+    properties:
+      cacheable:
+        type: boolean
+      kind:
+        type: string
+      sourceCount:
+        type: integer
+      sourceRefs:
+        items:
+          $ref: '#/definitions/internal_transport_http_conversation.MessagePromptTraceSourceResponse'
+        type: array
+      title:
+        type: string
+      tokenEstimate:
+        type: integer
+    type: object
+  internal_transport_http_conversation.MessagePromptTraceResponse:
+    properties:
+      blocks:
+        items:
+          $ref: '#/definitions/internal_transport_http_conversation.MessagePromptTraceBlockResponse'
+        type: array
+      fullMessageCount:
+        type: integer
+      mode:
+        type: string
+      promptFingerprint:
+        type: string
+      sentMessageCount:
+        type: integer
+      sentTokenEstimate:
+        type: integer
+      statefulDisabledReason:
+        type: string
+      statefulSavedMessages:
+        type: integer
+      statefulSavedTokens:
+        type: integer
+      statefulUsed:
+        type: boolean
+      totalTokenEstimate:
+        type: integer
+    type: object
+  internal_transport_http_conversation.MessagePromptTraceSourceResponse:
+    properties:
+      artifactID:
+        type: integer
+      sourceID:
+        type: string
+      sourceType:
+        type: string
+      title:
+        type: string
+    type: object
+  internal_transport_http_conversation.MessageResponse:
+    properties:
+      attachments:
+        type: string
+      billingCost:
+        $ref: '#/definitions/internal_transport_http_conversation.MessageBillingCostResponse'
+      branchReason:
+        type: string
+      cacheReadTokens:
+        type: integer
+      cacheWriteTokens:
+        type: integer
+      content:
+        type: string
+      contentType:
+        type: string
+      conversationID:
+        type: integer
+      createdAt:
+        type: string
+      errorCode:
+        type: string
+      errorMessage:
+        type: string
+      id:
+        type: integer
+      inputTokens:
+        type: integer
+      latencyMS:
+        type: integer
+      modelIcon:
+        type: string
+      modelVendor:
+        type: string
+      myFeedback:
+        type: string
+      outputTokens:
+        type: integer
+      parentMessageID:
+        type: integer
+      parentPublicID:
+        type: string
+      platformModelName:
+        type: string
+      processTrace:
+        $ref: '#/definitions/internal_transport_http_conversation.MessageProcessTraceResponse'
+      publicID:
+        type: string
+      reasoningTokens:
+        type: integer
+      role:
+        type: string
+      runID:
+        type: string
+      sourceMessageID:
+        type: integer
+      sourcePublicID:
+        type: string
+      status:
+        type: string
+      thumbsDownCount:
+        type: integer
+      thumbsUpCount:
+        type: integer
+      tokenUsage:
+        type: integer
+      updatedAt:
+        type: string
+      upstreamModelName:
+        type: string
+      userID:
+        type: integer
+    type: object
+  internal_transport_http_conversation.MessageTraceBlockResponse:
+    properties:
+      contentMarkdown:
+        type: string
+      parentEventID:
+        type: string
+      payloadJSON:
+        type: string
+      roundID:
+        type: string
+      stage:
+        type: string
+      status:
+        type: string
+      summary:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  internal_transport_http_conversation.MessageTraceEventResponse:
+    properties:
+      contentMarkdown:
+        type: string
+      endedAt:
+        type: string
+      eventID:
+        type: string
+      eventType:
+        type: string
+      parentEventID:
+        type: string
+      payloadJSON:
+        type: string
+      phase:
+        type: string
+      roundID:
+        type: string
+      seq:
+        type: integer
+      stage:
+        type: string
+      startedAt:
+        type: string
+      status:
+        type: string
+      summary:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  internal_transport_http_conversation.PublicSharedConversationResponse:
+    properties:
+      createdAt:
+        type: string
+      defaultMessagePublicIDs:
+        items:
+          type: string
+        type: array
+      lastAccessedAt:
+        type: string
+      messages:
+        items:
+          $ref: '#/definitions/internal_transport_http_conversation.PublicSharedMessageResponse'
+        type: array
+      model:
+        type: string
+      shareID:
+        type: string
+      title:
+        type: string
+    type: object
+  internal_transport_http_conversation.PublicSharedConversationResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_conversation.PublicSharedConversationResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.PublicSharedMessageResponse:
+    properties:
+      attachments:
+        type: string
+      branchReason:
+        type: string
+      cacheReadTokens:
+        type: integer
+      cacheWriteTokens:
+        type: integer
+      content:
+        type: string
+      contentType:
+        type: string
+      createdAt:
+        type: string
+      errorCode:
+        type: string
+      errorMessage:
+        type: string
+      inputTokens:
+        type: integer
+      latencyMS:
+        type: integer
+      modelIcon:
+        type: string
+      modelVendor:
+        type: string
+      outputTokens:
+        type: integer
+      parentPublicID:
+        type: string
+      platformModelName:
+        type: string
+      processTrace:
+        $ref: '#/definitions/internal_transport_http_conversation.MessageProcessTraceResponse'
+      publicID:
+        type: string
+      reasoningTokens:
+        type: integer
+      role:
+        type: string
+      runID:
+        type: string
+      sourcePublicID:
+        type: string
+      status:
+        type: string
+      tokenUsage:
+        type: integer
+      updatedAt:
+        type: string
+      upstreamModelName:
+        type: string
+    type: object
+  internal_transport_http_conversation.RenameConversationRequest:
+    properties:
+      title:
+        maxLength: 255
+        type: string
+    required:
+    - title
+    type: object
+  internal_transport_http_conversation.RevokeConversationSharesRequest:
+    properties:
+      conversationPublicIDs:
+        items:
+          type: string
+        maxItems: 1000
+        type: array
+    type: object
+  internal_transport_http_conversation.RevokeConversationSharesResponse:
+    properties:
+      revoked:
+        type: boolean
+    type: object
+  internal_transport_http_conversation.RevokeConversationSharesResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_conversation.RevokeConversationSharesResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.RunResponse:
+    properties:
+      cacheReadTokens:
+        type: integer
+      cacheWriteTokens:
+        type: integer
+      conversationID:
+        type: integer
+      createdAt:
+        type: string
+      endedAt:
+        type: string
+      endpoint:
+        type: string
+      errorCode:
+        type: string
+      errorMessage:
+        type: string
+      firstTokenLatencyMS:
+        type: integer
+      id:
+        type: integer
+      inputTokens:
+        type: integer
+      modelIcon:
+        type: string
+      modelVendor:
+        type: string
+      outputTokens:
+        type: integer
+      platformModelName:
+        type: string
+      provider:
+        type: string
+      providerProtocol:
+        type: string
+      reasoningTokens:
+        type: integer
+      requestID:
+        type: string
+      requestedModelName:
+        type: string
+      routedBindingCode:
+        type: string
+      runID:
+        type: string
+      startedAt:
+        type: string
+      status:
+        type: string
+      taskType:
+        type: string
+      toolCallsCount:
+        type: integer
+      totalLatencyMS:
+        type: integer
+      updatedAt:
+        type: string
+      upstreamID:
+        type: integer
+      upstreamModelID:
+        type: integer
+      upstreamModelName:
+        type: string
+      userID:
+        type: integer
+    type: object
+  internal_transport_http_conversation.SendMessageRequest:
+    properties:
+      branchReason:
+        enum:
+        - default
+        - retry
+        - edit
+        type: string
+      clientRunID:
+        maxLength: 64
+        type: string
+      content:
+        maxLength: 20000
+        type: string
+      contentType:
+        enum:
+        - text
+        - markdown
+        - image
+        - file
+        - mixed
+        type: string
+      fileIDs:
+        items:
+          type: string
+        maxItems: 20
+        type: array
+      model:
+        maxLength: 128
+        type: string
+      options:
+        additionalProperties: true
+        type: object
+      parentMessagePublicID:
+        maxLength: 32
+        type: string
+      selectedToolIDs:
+        items:
+          type: integer
+        maxItems: 32
+        type: array
+      sourceMessagePublicID:
+        maxLength: 32
+        type: string
+    required:
+    - content
+    - contentType
+    type: object
+  internal_transport_http_conversation.SendMessageResponse:
+    properties:
+      assistantMessage:
+        $ref: '#/definitions/internal_transport_http_conversation.MessageResponse'
+      userMessage:
+        $ref: '#/definitions/internal_transport_http_conversation.MessageResponse'
+    type: object
+  internal_transport_http_conversation.SendMessageResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_conversation.SendMessageResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_conversation.SetConversationArchiveRequest:
+    properties:
+      archived:
+        type: boolean
+    type: object
+  internal_transport_http_conversation.SetConversationStarRequest:
+    properties:
+      starred:
+        type: boolean
+    type: object
+  internal_transport_http_conversation.SetMessageFeedbackRequest:
+    properties:
+      feedback:
+        enum:
+        - up
+        - down
+        type: string
+    type: object
+  internal_transport_http_conversation.StorageQuotaResponse:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      quotaBytes:
+        type: integer
+      reservedBytes:
+        type: integer
+      updatedAt:
+        type: string
+      usedBytes:
+        type: integer
+      userID:
+        type: integer
+    type: object
+  internal_transport_http_conversation.UpdateFileRequest:
+    properties:
+      fileName:
+        type: string
+      ragOptOut:
+        type: boolean
+    type: object
+  internal_transport_http_conversation.UploadFileResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_conversation.FileUploadResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_memory.ErrorDoc:
+    properties:
+      data: {}
+      details: {}
+      errorCode:
+        type: string
+      errorMsg:
+        type: string
+      requestId:
+        type: string
+    type: object
+  internal_transport_http_memory.UpsertMemoryResponse:
+    properties:
+      saved:
+        type: boolean
+    type: object
+  internal_transport_http_memory.UpsertUserMemoryRequest:
+    properties:
+      memoryKey:
+        maxLength: 128
+        type: string
+      scope:
+        enum:
+        - profile
+        - preference
+        - custom
+        type: string
+      value:
+        maxLength: 10000
+        type: string
+    required:
+    - memoryKey
+    - scope
+    - value
+    type: object
+  internal_transport_http_memory.UpsertUserMemoryResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_memory.UpsertMemoryResponse'
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_memory.UserMemoryListResponseDoc:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_transport_http_memory.UserMemoryResponse'
+        type: array
+      errorMsg:
+        type: string
+    type: object
+  internal_transport_http_memory.UserMemoryResponse:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      memoryKey:
+        type: string
+      scope:
+        type: string
+      updatedAt:
+        type: string
+      updatedBy:
+        type: string
+      userID:
+        type: integer
+      value:
+        type: string
+    type: object
+  internal_transport_http_settings.PatchItem:
+    properties:
+      clear:
+        type: boolean
+      key:
+        type: string
+      namespace:
+        type: string
+      value:
+        type: string
+    required:
+    - key
+    - namespace
+    type: object
+  internal_transport_http_settings.PatchSettingsRequest:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/internal_transport_http_settings.PatchItem'
+        minItems: 1
+        type: array
+    required:
+    - items
+    type: object
+  internal_transport_http_usersettings.PatchSettingsRequest:
+    properties:
+      settings:
+        additionalProperties:
+          type: string
+        type: object
+    required:
+    - settings
+    type: object
+  internal_transport_http_usersettings.UserSettingsResponse:
+    properties:
+      settings:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  internal_transport_http_usersettings.UserSettingsResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_usersettings.UserSettingsResponse'
+      errorMsg:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: DEEIX Chat 后端 API 文档
+  title: DEEIX Chat API
+  version: 0.1.0
+paths:
+  /admin/audit-logs:
+    get:
+      consumes:
+      - application/json
+      description: superadmin 分页查看全量可追溯审计日志
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索关键词
+        in: query
+        name: query
+        type: string
+      - description: 资源类型
+        in: query
+        name: resource
+        type: string
+      - description: 动作
+        in: query
+        name: action
+        type: string
+      - description: 操作人用户ID
+        in: query
+        name: actor_user_id
+        type: integer
+      - description: 创建时间起点(RFC3339)
+        in: query
+        name: created_from
+        type: string
+      - description: 创建时间终点(RFC3339)
+        in: query
+        name: created_to
+        type: string
+      - description: 排序方式
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.AuditLogListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 超级管理员查询审计日志
+      tags:
+      - admin
+  /admin/billing/accounts/{user_id}/balance:
+    patch:
+      consumes:
+      - application/json
+      description: 设置指定用户的按量计费余额，金额单位为美元
+      parameters:
+      - description: 用户ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      - description: 余额
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_billing.UpdateBillingAccountBalanceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.BillingAccountResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员设置用户按量余额
+      tags:
+      - admin-billing
+  /admin/billing/config:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前全局计费模式
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.BillingConfigResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询计费配置
+      tags:
+      - admin-billing
+    patch:
+      consumes:
+      - application/json
+      description: 更新当前全局计费模式
+      parameters:
+      - description: 计费配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_billing.BillingConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.BillingConfigResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员更新计费配置
+      tags:
+      - admin-billing
+  /admin/billing/model-prices:
+    get:
+      consumes:
+      - application/json
+      description: 按平台模型名查询模型按量计费配置
+      parameters:
+      - description: 搜索关键词
+        in: query
+        name: q
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ModelPricingListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询模型按量单价
+      tags:
+      - admin-billing
+    put:
+      consumes:
+      - application/json
+      description: 按平台模型名创建或更新模型按量计费配置，金额单位为美元
+      parameters:
+      - description: 模型单价
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_billing.UpsertModelPricingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ModelPricingDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员保存模型按量单价
+      tags:
+      - admin-billing
+  /admin/billing/plans/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: 更新周期套餐基础配置与默认价格
+      parameters:
+      - description: 套餐ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 套餐配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_billing.UpdateBillingPlanRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.BillingPlanResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员更新周期套餐
+      tags:
+      - admin-billing
+  /admin/call-logs:
+    get:
+      consumes:
+      - application/json
+      description: superadmin 分页查看全量模型调用与计费用量账本
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索模型、上游、绑定编码、协议
+        in: query
+        name: query
+        type: string
+      - description: 平台模型名筛选
+        in: query
+        name: platform_model_name
+        type: string
+      - description: 计费模式筛选：free/token/call/duration/tiered
+        in: query
+        name: billing_mode
+        type: string
+      - description: 调用人用户ID
+        in: query
+        name: user_id
+        type: integer
+      - description: 创建时间起点(RFC3339)
+        in: query
+        name: created_from
+        type: string
+      - description: 创建时间终点(RFC3339)
+        in: query
+        name: created_to
+        type: string
+      - description: 排序方式
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.UsageLogListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 超级管理员查询模型调用日志
+      tags:
+      - admin
+  /admin/llm/models:
+    get:
+      consumes:
+      - application/json
+      description: superadmin 分页查询平台模型目录，可按 only_active 过滤
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 仅查询启用模型
+        in: query
+        name: only_active
+        type: boolean
+      - description: 搜索关键词
+        in: query
+        name: q
+        type: string
+      - description: 状态：active/inactive
+        in: query
+        name: status
+        type: string
+      - description: 排序：sortOrder_asc/updated_desc/id_desc/platformModelName_asc/sourceCount_desc
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ModelListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询模型目录
+      tags:
+      - llm
+    post:
+      consumes:
+      - application/json
+      description: superadmin 新增平台模型目录项
+      parameters:
+      - description: 模型参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_channel.CreateModelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.CreateModelResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员创建模型
+      tags:
+      - llm
+  /admin/llm/models/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: superadmin 删除平台模型目录项及其关联路由绑定
+      parameters:
+      - description: 模型ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.SuccessDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员删除模型
+      tags:
+      - llm
+    patch:
+      consumes:
+      - application/json
+      description: superadmin 更新平台模型目录项
+      parameters:
+      - description: 模型ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 模型参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_channel.UpdateModelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.UpdateModelResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员更新模型
+      tags:
+      - llm
+  /admin/llm/models/{id}/sources:
+    get:
+      consumes:
+      - application/json
+      description: superadmin 分页查询指定模型在各上游上的路由来源
+      parameters:
+      - description: 模型ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ModelUpstreamSourceListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询模型上游来源
+      tags:
+      - llm
+  /admin/llm/models/{id}/sources/{route_id}:
+    patch:
+      consumes:
+      - application/json
+      description: superadmin 快速启停指定模型在某上游上的来源
+      parameters:
+      - description: 模型ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 路由绑定ID
+        in: path
+        name: route_id
+        required: true
+        type: integer
+      - description: 来源参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_channel.UpdateModelUpstreamSourceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.UpdateModelUpstreamSourceResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员更新模型上游来源
+      tags:
+      - llm
+  /admin/llm/models/batch-delete:
+    post:
+      consumes:
+      - application/json
+      description: superadmin 批量删除模型目录及其关联路由绑定，保留上游
+      parameters:
+      - description: 批量删除请求
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_channel.BatchDeleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.BatchDeleteResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员批量删除模型
+      tags:
+      - llm
+  /admin/llm/models/order:
+    post:
+      consumes:
+      - application/json
+      description: superadmin 调整平台模型在用户侧模型选择器中的展示顺序
+      parameters:
+      - description: 模型 ID 顺序
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_channel.ReorderModelsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.SuccessDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员调整模型顺序
+      tags:
+      - llm
+  /admin/llm/settings:
+    get:
+      consumes:
+      - application/json
+      description: superadmin 查询 LLM 全局设置列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.SuccessDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询全局设置
+      tags:
+      - llm
+  /admin/llm/settings/{key}:
+    patch:
+      consumes:
+      - application/json
+      description: superadmin 更新指定 LLM 全局设置项
+      parameters:
+      - description: 设置键
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: 设置值 {\
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.SuccessDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员更新全局设置
+      tags:
+      - llm
+  /admin/llm/upstreams:
+    get:
+      consumes:
+      - application/json
+      description: superadmin 分页查询 LLM 上游配置
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索关键词
+        in: query
+        name: q
+        type: string
+      - description: 状态：active/inactive/circuit
+        in: query
+        name: status
+        type: string
+      - description: 兼容类型
+        in: query
+        name: compatible
+        type: string
+      - description: 排序：id_desc/id_asc/name_asc/updated_desc
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.UpstreamListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询上游列表
+      tags:
+      - llm
+    post:
+      consumes:
+      - application/json
+      description: superadmin 新增上游来源配置，内部标识自动分配
+      parameters:
+      - description: 上游参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_channel.CreateUpstreamRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.CreateUpstreamResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员创建上游
+      tags:
+      - llm
+  /admin/llm/upstreams/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: superadmin 删除上游配置及其关联路由绑定
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.SuccessDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员删除上游
+      tags:
+      - llm
+    patch:
+      consumes:
+      - application/json
+      description: superadmin 更新上游配置（地址、密钥、状态等）
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 上游参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_channel.UpdateUpstreamRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.UpdateUpstreamResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员更新上游
+      tags:
+      - llm
+  /admin/llm/upstreams/{id}/circuit/open:
+    post:
+      consumes:
+      - application/json
+      description: superadmin 手动开启上游熔断状态
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.SuccessDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员手动触发上游熔断
+      tags:
+      - llm
+  /admin/llm/upstreams/{id}/circuit/reset:
+    post:
+      consumes:
+      - application/json
+      description: superadmin 手动清空上游失败计数并关闭熔断状态
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ResetUpstreamCircuitResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员重置上游熔断
+      tags:
+      - llm
+  /admin/llm/upstreams/{id}/models:
+    get:
+      consumes:
+      - application/json
+      description: superadmin 分页查询指定上游的路由绑定列表
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索关键词
+        in: query
+        name: q
+        type: string
+      - description: 路由状态：active/inactive/unbound
+        in: query
+        name: route_status
+        type: string
+      - description: 上游模型状态：active/inactive
+        in: query
+        name: upstream_status
+        type: string
+      - description: 接口协议
+        in: query
+        name: protocol
+        type: string
+      - description: 排序：upstream_asc/upstream_desc/platform_asc/platform_desc/status_asc/protocol_asc
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.UpstreamModelListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询上游模型路由绑定
+      tags:
+      - llm
+    post:
+      consumes:
+      - application/json
+      description: superadmin 配置平台模型到指定上游真实模型的路由绑定与覆盖请求头
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 路由绑定参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_channel.UpsertUpstreamModelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.UpsertUpstreamModelResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员新增或更新上游模型路由绑定
+      tags:
+      - llm
+  /admin/llm/upstreams/{id}/models/{route_id}:
+    delete:
+      consumes:
+      - application/json
+      description: superadmin 删除指定上游的路由绑定
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 路由绑定ID
+        in: path
+        name: route_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.SuccessDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员删除上游模型路由绑定
+      tags:
+      - llm
+  /admin/llm/upstreams/{id}/models/{route_id}/circuit/open:
+    post:
+      consumes:
+      - application/json
+      description: superadmin 手动开启上游模型路由绑定熔断状态
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 路由绑定ID
+        in: path
+        name: route_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.SuccessDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员手动触发上游模型路由熔断
+      tags:
+      - llm
+  /admin/llm/upstreams/{id}/models/{route_id}/circuit/reset:
+    post:
+      consumes:
+      - application/json
+      description: superadmin 手动清空上游模型路由绑定失败计数并关闭熔断状态
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 路由绑定ID
+        in: path
+        name: route_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ResetUpstreamCircuitResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员重置上游模型路由熔断
+      tags:
+      - llm
+  /admin/llm/upstreams/{id}/models/{route_id}/disable:
+    patch:
+      description: superadmin 停用该路由绑定，后续路由不会选中
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 路由绑定ID
+        in: path
+        name: route_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.SuccessDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员停用上游模型路由绑定
+      tags:
+      - llm
+  /admin/llm/upstreams/{id}/models/{route_id}/enable:
+    patch:
+      description: superadmin 启用该路由绑定，使该上游模型重新参与路由
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 路由绑定ID
+        in: path
+        name: route_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.SuccessDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员启用上游模型路由绑定
+      tags:
+      - llm
+  /admin/llm/upstreams/{id}/models/batch-delete:
+    post:
+      consumes:
+      - application/json
+      description: superadmin 批量删除指定上游下的路由绑定，保留模型目录
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 批量删除请求
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_channel.BatchDeleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.BatchDeleteResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员批量删除上游模型路由绑定
+      tags:
+      - llm
+  /admin/llm/upstreams/{id}/models/import:
+    post:
+      consumes:
+      - application/json
+      description: 选择性导入上游模型，支持绑定平台模型与自定义条目
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 导入参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_channel.ImportUpstreamModelsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ImportUpstreamModelsResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员批量导入上游模型
+      tags:
+      - llm
+  /admin/llm/upstreams/{id}/models/remote:
+    get:
+      consumes:
+      - application/json
+      description: 调用上游 models 接口，仅返回可导入预览，不直接落库
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.UpstreamRemoteModelsResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员预览上游远程模型
+      tags:
+      - llm
+  /admin/llm/upstreams/{id}/models/sync:
+    post:
+      consumes:
+      - application/json
+      description: 调用上游 models 接口写入上游真实模型清单，不自动绑定平台模型
+      parameters:
+      - description: 上游ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.SyncUpstreamModelsResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员同步上游模型目录
+      tags:
+      - llm
+  /admin/llm/upstreams/batch-delete:
+    post:
+      consumes:
+      - application/json
+      description: superadmin 批量删除上游及其关联路由绑定，保留模型目录
+      parameters:
+      - description: 批量删除请求
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_channel.BatchDeleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.BatchDeleteResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员批量删除上游
+      tags:
+      - llm
+  /admin/settings:
+    get:
+      description: 按 namespace 分组返回全部动态配置项
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 查询全部动态配置
+      tags:
+      - admin/settings
+    patch:
+      consumes:
+      - application/json
+      description: 批量更新动态配置并清除缓存，下次读取自动刷新
+      parameters:
+      - description: 更新项
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_settings.PatchSettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 批量更新配置项
+      tags:
+      - admin/settings
+  /admin/settings/{namespace}:
+    get:
+      description: 查询指定 namespace 下的全部配置项
+      parameters:
+      - description: 命名空间
+        in: path
+        name: namespace
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 查询指定 namespace 的配置
+      tags:
+      - admin/settings
+  /admin/settings/docling/runtime:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 查询 Docling 运行状态
+      tags:
+      - admin/settings
+  /admin/settings/embedding/reindex:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 触发向量重建（重索引所有 stale/failed 文件）
+      tags:
+      - admin/settings
+  /admin/settings/embedding/runtime:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 查询 Embedding 服务运行状态
+      tags:
+      - admin/settings
+  /admin/settings/embedding/status:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 查询向量索引健康状态
+      tags:
+      - admin/settings
+  /admin/settings/mineru/runtime:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 查询 MinerU 运行状态
+      tags:
+      - admin/settings
+  /admin/settings/rapidocr/runtime:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 查询 RapidOCR 运行状态
+      tags:
+      - admin/settings
+  /admin/settings/rapidocr/runtime/restart:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 重启托管 RapidOCR
+      tags:
+      - admin/settings
+  /admin/settings/rapidocr/runtime/start:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 启动托管 RapidOCR
+      tags:
+      - admin/settings
+  /admin/settings/rapidocr/runtime/stop:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 停止托管 RapidOCR
+      tags:
+      - admin/settings
+  /admin/settings/tesseract/runtime:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 查询 Tesseract OCR 运行状态
+      tags:
+      - admin/settings
+  /admin/settings/tika/runtime:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 查询 Tika 运行状态
+      tags:
+      - admin/settings
+  /admin/settings/tika/runtime/restart:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 重启托管 Tika
+      tags:
+      - admin/settings
+  /admin/settings/tika/runtime/start:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 启动托管 Tika
+      tags:
+      - admin/settings
+  /admin/settings/tika/runtime/stop:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 停止托管 Tika
+      tags:
+      - admin/settings
+  /admin/system-events:
+    get:
+      consumes:
+      - application/json
+      description: superadmin 分页查看后台结构化系统事件
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索关键词
+        in: query
+        name: query
+        type: string
+      - description: 级别
+        in: query
+        name: level
+        type: string
+      - description: 来源
+        in: query
+        name: source
+        type: string
+      - description: 事件
+        in: query
+        name: event
+        type: string
+      - description: 创建时间起点(RFC3339)
+        in: query
+        name: created_from
+        type: string
+      - description: 创建时间终点(RFC3339)
+        in: query
+        name: created_to
+        type: string
+      - description: 排序方式
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.SystemEventListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 超级管理员查询系统事件
+      tags:
+      - admin
+  /admin/user-auth-events:
+    get:
+      consumes:
+      - application/json
+      description: superadmin 分页查询认证事件，支持 user_id/event_type/result 过滤
+      parameters:
+      - description: 用户ID过滤
+        in: query
+        name: user_id
+        type: integer
+      - description: 事件类型过滤
+        in: query
+        name: event_type
+        type: string
+      - description: 结果过滤(success/failure/blocked)
+        in: query
+        name: result
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.UserAuthEventListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 超级管理员查询用户认证事件
+      tags:
+      - admin
+  /admin/users:
+    get:
+      consumes:
+      - application/json
+      description: superadmin 分页查看所有用户，实现账户隔离管理
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.UserListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 超级管理员查询用户
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: 创建普通用户账号，superadmin 账号仅允许系统初始化唯一实例
+      parameters:
+      - description: 用户参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_admin.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.CreateUserResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 超级管理员创建用户
+      tags:
+      - admin
+  /admin/users/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: superadmin 硬删除指定普通用户及其主要用户域数据
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.DeleteUserResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 超级管理员删除用户
+      tags:
+      - admin
+    patch:
+      consumes:
+      - application/json
+      description: superadmin 统一维护角色、状态、时区等可编辑字段
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 局部更新参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_admin.PatchUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.UpdateUserStatusResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 超级管理员更新用户可编辑字段
+      tags:
+      - admin
+  /admin/users/{id}/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: superadmin 重置指定用户密码并吊销其全部会话
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 重置密码参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_admin.ResetUserPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ResetUserPasswordResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 超级管理员重置用户密码
+      tags:
+      - admin
+  /admin/users/{id}/revoke-sessions:
+    post:
+      consumes:
+      - application/json
+      description: superadmin 吊销指定用户全部活跃会话，用于安全治理和风险控制
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.RevokeUserSessionsResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 超级管理员吊销用户全部会话
+      tags:
+      - admin
+  /admin/users/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: superadmin 维护用户状态（active/locked/suspended/deactivated），并联动会话治理
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 状态变更参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_admin.UpdateUserStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.UpdateUserStatusResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_admin.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 超级管理员更新用户状态
+      tags:
+      - admin
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: 登录后返回JWT访问令牌
+      parameters:
+      - description: 登录参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_auth.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.LoginResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      summary: 用户登录
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: 吊销当前 access token 对应会话
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.LogoutResponseDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 登出当前会话
+      tags:
+      - auth
+  /auth/logout-all:
+    post:
+      consumes:
+      - application/json
+      description: 吊销当前用户所有活跃会话
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.LogoutResponseDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 登出全部会话
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      description: 使用 HttpOnly refresh cookie 轮换并签发新的 access token
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.RefreshTokenResponseDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      summary: 刷新访问令牌
+      tags:
+      - auth
+  /auth/sessions:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前登录用户仍然有效的活跃会话列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ActiveSessionListResponseDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 当前活跃会话
+      tags:
+      - auth
+  /auth/sessions/{session_id}/logout:
+    post:
+      consumes:
+      - application/json
+      description: 吊销当前用户指定 session_id 对应的活跃会话
+      parameters:
+      - description: 会话ID
+        in: path
+        name: session_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.LogoutResponseDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 登出指定会话
+      tags:
+      - auth
+  /auth/sessions/current/location:
+    put:
+      consumes:
+      - application/json
+      description: 用户授权后，用浏览器定位能力补充当前登录会话的精确位置
+      parameters:
+      - description: 精确位置参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_auth.UpdateCurrentSessionLocationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.UpdateCurrentSessionLocationResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 更新当前会话精确位置
+      tags:
+      - auth
+  /billing/account:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户按量余额
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.BillingAccountResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 获取按量计费账户
+      tags:
+      - billing
+  /billing/overview:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前计费方式、周期额度或按量余额
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.BillingOverviewResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 获取当前用户计费概览
+      tags:
+      - billing
+  /billing/payments/checkout:
+    post:
+      consumes:
+      - application/json
+      description: 为当前用户创建套餐支付单，并返回支付跳转地址
+      parameters:
+      - description: 支付参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_billing.CreateCheckoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.CheckoutResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 创建支付收银台
+      tags:
+      - billing
+  /billing/payments/epay/notify:
+    post:
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: success
+          schema:
+            type: string
+      summary: 易支付异步通知
+      tags:
+      - billing
+  /billing/payments/stripe/webhook:
+    post:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      summary: Stripe 支付回调
+      tags:
+      - billing
+  /billing/plans:
+    get:
+      consumes:
+      - application/json
+      description: 查询所有启用的订阅套餐及价格
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.PlanListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 获取订阅套餐
+      tags:
+      - billing
+  /billing/subscriptions:
+    post:
+      consumes:
+      - application/json
+      description: 为当前用户创建或替换订阅
+      parameters:
+      - description: 订阅参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_billing.SubscribeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.SubscribeResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 创建订阅
+      tags:
+      - billing
+  /billing/usage:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户的每日用量与费用
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索模型
+        in: query
+        name: query
+        type: string
+      - description: 状态筛选：free/billable
+        in: query
+        name: status
+        type: string
+      - description: 排序：newest/oldest/tokens_desc/cost_desc/latency_desc
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.UsageLedgerListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询用量账单
+      tags:
+      - billing
+  /billing/usage/daily:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户按日期聚合的用量与费用
+      parameters:
+      - description: 天数
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.UsageDailyListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询每日用量
+      tags:
+      - billing
+  /billing/usage/monthly:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户按月份聚合的用量与费用
+      parameters:
+      - description: 月份数量，默认近 12 个月
+        in: query
+        name: months
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.UsageMonthlyListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_billing.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询月度用量
+      tags:
+      - billing
+  /context-artifacts/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户可访问的上下文证据详情，用于 Prompt Trace 来源查看
+      parameters:
+      - description: 上下文证据 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ContextArtifactResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询上下文证据详情
+      tags:
+      - chat
+  /conversation-runs/{run_id}/cancel:
+    post:
+      description: 仅在用户显式点击暂停时取消对应 run；浏览器刷新或断开连接不会调用此接口
+      parameters:
+      - description: 运行 ID
+        in: path
+        name: run_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.SuccessDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 取消流式生成
+      tags:
+      - chat
+  /conversation-runs/{run_id}/stream:
+    get:
+      description: 页面刷新后按 run_id 重新订阅仍在运行的生成流，返回 NDJSON 事件
+      parameters:
+      - description: 运行 ID
+        in: path
+        name: run_id
+        required: true
+        type: string
+      - description: 已接收的最后事件序号
+        in: query
+        name: after
+        type: integer
+      produces:
+      - application/x-ndjson
+      responses:
+        "200":
+          description: NDJSON stream
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 恢复流式生成订阅
+      tags:
+      - chat
+  /conversations:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户会话列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: '状态筛选: active|archived|all'
+        in: query
+        name: status
+        type: string
+      - description: '星标筛选: all|starred|unstarred'
+        in: query
+        name: starred
+        type: string
+      - description: '分享筛选: all|shared|unshared'
+        in: query
+        name: share
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ConversationListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 会话分页列表
+      tags:
+      - chat
+    post:
+      consumes:
+      - application/json
+      description: 创建新的聊天会话
+      parameters:
+      - description: 会话参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_conversation.CreateConversationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ConversationCreateResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 创建会话
+      tags:
+      - chat
+  /conversations/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定会话
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ConversationDeleteResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 删除会话
+      tags:
+      - chat
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户的单个会话元信息
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ConversationUpdateResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询会话
+      tags:
+      - chat
+  /conversations/{id}/archive:
+    patch:
+      consumes:
+      - application/json
+      description: 设置指定会话归档状态
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 归档参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_conversation.SetConversationArchiveRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ConversationUpdateResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 设置会话归档
+      tags:
+      - chat
+  /conversations/{id}/messages:
+    get:
+      consumes:
+      - application/json
+      description: 查询会话内消息列表
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.MessageListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询会话消息
+      tags:
+      - chat
+    post:
+      consumes:
+      - application/json
+      description: 在会话中发送消息，支持文件/图片等多模态附件
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 消息参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_conversation.SendMessageRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.SendMessageResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 发送消息
+      tags:
+      - chat
+  /conversations/{id}/messages/stream:
+    post:
+      consumes:
+      - application/json
+      description: 在会话中发送消息并以 NDJSON 流式返回 assistant 增量文本
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 消息参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_conversation.SendMessageRequest'
+      produces:
+      - application/x-ndjson
+      responses:
+        "200":
+          description: NDJSON stream
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 流式发送消息
+      tags:
+      - chat
+  /conversations/{id}/runs:
+    get:
+      consumes:
+      - application/json
+      description: 查询会话内模型调用运行日志（tokens/时长/错误）
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ConversationRunListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询会话运行日志
+      tags:
+      - chat
+  /conversations/{id}/share:
+    delete:
+      consumes:
+      - application/json
+      description: 关闭当前会话的有效公开分享链接
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ConversationShareResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 关闭会话公开分享
+      tags:
+      - chat
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户指定会话的最近分享状态
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ConversationShareResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询会话分享状态
+      tags:
+      - chat
+    post:
+      consumes:
+      - application/json
+      description: 创建当前会话全部分支的公开快照分享链接
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 分享参数
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_transport_http_conversation.CreateConversationShareRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ConversationShareResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 创建会话公开分享
+      tags:
+      - chat
+  /conversations/{id}/share/regenerate:
+    post:
+      consumes:
+      - application/json
+      description: 关闭当前有效分享并创建新的公开快照链接
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 分享参数
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_transport_http_conversation.CreateConversationShareRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ConversationShareResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 重新生成会话分享链接
+      tags:
+      - chat
+  /conversations/{id}/star:
+    patch:
+      consumes:
+      - application/json
+      description: 设置指定会话是否星标
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 星标参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_conversation.SetConversationStarRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ConversationUpdateResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 设置会话星标
+      tags:
+      - chat
+  /conversations/{id}/title:
+    patch:
+      consumes:
+      - application/json
+      description: 修改指定会话标题
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 重命名参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_conversation.RenameConversationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ConversationUpdateResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 重命名会话
+      tags:
+      - chat
+  /conversations/shares/revoke:
+    post:
+      consumes:
+      - application/json
+      description: 批量关闭当前用户会话的公开分享链接
+      parameters:
+      - description: 批量关闭参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_conversation.RevokeConversationSharesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.RevokeConversationSharesResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 批量关闭会话公开分享
+      tags:
+      - chat
+  /files:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户上传的文件
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索关键词
+        in: query
+        name: q
+        type: string
+      - description: '筛选，支持单值或逗号分隔多值: image,document,spreadsheet,presentation,code,pdf,audio,video'
+        in: query
+        name: kind
+        type: string
+      - description: '排序: created|name|size|last_used'
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.FileListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 文件分页列表
+      tags:
+      - chat
+    post:
+      consumes:
+      - multipart/form-data
+      description: 上传对话附件文件，统一存储并扣减用户配额（默认100MB）
+      parameters:
+      - description: 文件用途
+        in: formData
+        name: purpose
+        type: string
+      - description: 文件
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.UploadFileResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 上传文件
+      tags:
+      - chat
+  /files/{file_id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定文件并回收用户配额
+      parameters:
+      - description: 文件ID
+        in: path
+        name: file_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.DeleteFileResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 删除文件
+      tags:
+      - chat
+    patch:
+      consumes:
+      - application/json
+      description: 修改文件名或 RAG 检索开关，file_name 和 rag_opt_out 至少填一个
+      parameters:
+      - description: 文件ID
+        in: path
+        name: file_id
+        required: true
+        type: string
+      - description: 更新内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_conversation.UpdateFileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.FileUpdateResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 更新文件属性
+      tags:
+      - chat
+  /files/{file_id}/content:
+    get:
+      description: 按当前登录用户权限读取文件内容，用于在线预览或下载
+      parameters:
+      - description: 文件ID
+        in: path
+        name: file_id
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 获取文件内容
+      tags:
+      - chat
+  /me:
+    delete:
+      consumes:
+      - application/json
+      description: 删除当前登录用户账户及主要用户域数据
+      parameters:
+      - description: 删除账号验证
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_auth.DeleteAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.DeleteAccountResponseDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 删除当前用户账户
+      tags:
+      - auth
+    get:
+      consumes:
+      - application/json
+      description: 查询当前登录用户资料
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.MeResponseDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 当前用户信息
+      tags:
+      - auth
+    patch:
+      consumes:
+      - application/json
+      description: 更新当前登录用户的头像、昵称、时区、对话偏好
+      parameters:
+      - description: 用户资料更新参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_auth.PatchMeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.PatchMeResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 更新当前用户资料
+      tags:
+      - auth
+  /me/delete/start:
+    post:
+      consumes:
+      - application/json
+      description: 发送删除当前账号前所需的邮箱验证码，或返回可用的两步验证方式
+      parameters:
+      - description: 验证方式
+        in: body
+        name: payload
+        schema:
+          $ref: '#/definitions/internal_transport_http_auth.SecurityVerificationStartRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.EmailVerificationStartResponseDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 开始删除账号验证
+      tags:
+      - auth
+  /me/onboarding/complete:
+    post:
+      consumes:
+      - application/json
+      description: 标记当前用户已完成首次引导
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.PatchMeResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 完成首次引导
+      tags:
+      - auth
+  /me/username:
+    patch:
+      consumes:
+      - application/json
+      description: 当前用户仅可自主修改一次登录用户名
+      parameters:
+      - description: 用户名更新参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_auth.PatchUsernameRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.PatchMeResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 修改当前用户用户名
+      tags:
+      - auth
+  /memories/profile:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户的长期个性化记忆
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_memory.UserMemoryListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_memory.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询用户个性化记忆
+      tags:
+      - memory
+    put:
+      consumes:
+      - application/json
+      description: 新增或更新当前用户的长期个性化记忆
+      parameters:
+      - description: 用户记忆参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_memory.UpsertUserMemoryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_memory.UpsertUserMemoryResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_memory.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_memory.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 更新用户个性化记忆
+      tags:
+      - memory
+  /memories/profile/{memory_key}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除当前用户的指定 key 长期记忆
+      parameters:
+      - description: 记忆 Key
+        in: path
+        name: memory_key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_memory.UpsertUserMemoryResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_memory.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_memory.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 删除用户个性化记忆
+      tags:
+      - memory
+  /messages/{id}/feedback:
+    put:
+      consumes:
+      - application/json
+      description: 对 assistant 消息设置点赞/点踩，传空 feedback 表示取消反馈
+      parameters:
+      - description: 消息 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 反馈参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_conversation.SetMessageFeedbackRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.MessageFeedbackResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 设置消息反馈
+      tags:
+      - chat
+  /models:
+    get:
+      consumes:
+      - application/json
+      description: 用户侧查询启用模型目录，用于聊天模型选择器
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.PublicModelListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询可用模型目录
+      tags:
+      - llm
+  /settings/login-page:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      summary: 查询公开登录页配置
+      tags:
+      - settings
+  /settings/model-option-policy:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 查询模型 options 透传策略
+      tags:
+      - settings
+  /shared-conversations/{share_id}:
+    get:
+      consumes:
+      - application/json
+      description: 公开读取会话分享快照
+      parameters:
+      - description: 分享 ID
+        in: path
+        name: share_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.PublicSharedConversationResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      summary: 查询公开分享会话
+      tags:
+      - chat
+  /shared-conversations/{share_id}/clone:
+    post:
+      consumes:
+      - application/json
+      description: 将公开分享快照克隆到当前登录用户账户，包含全部分支消息和分享内附件
+      parameters:
+      - description: 分享 ID
+        in: path
+        name: share_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ConversationUpdateResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 克隆公开分享会话
+      tags:
+      - chat
+  /shared-conversations/{share_id}/files/{file_id}/content:
+    get:
+      description: 只允许读取公开分享快照中实际引用的附件内容
+      parameters:
+      - description: 分享 ID
+        in: path
+        name: share_id
+        required: true
+        type: string
+      - description: 文件 ID
+        in: path
+        name: file_id
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      summary: 获取公开分享附件内容
+      tags:
+      - chat
+  /user/settings:
+    get:
+      description: 返回当前用户全部个人偏好配置，缺失项以默认值填充
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_usersettings.UserSettingsResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 获取当前用户的配置
+      tags:
+      - user/settings
+    patch:
+      consumes:
+      - application/json
+      description: 批量更新用户个人偏好配置，返回更新后的全量配置
+      parameters:
+      - description: 更新项
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_usersettings.PatchSettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_usersettings.UserSettingsResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: 更新当前用户的配置
+      tags:
+      - user/settings
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

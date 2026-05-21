@@ -1,0 +1,186 @@
+{
+  "groups": {
+    "loginPage": {
+      "title": "Sign-in page",
+      "description": "Control the browser title for the sign-in page and the default destination after sign-in."
+    },
+    "loginAndRegistration": {
+      "title": "Sign-in & registration",
+      "description": "Control available sign-in methods and email registration entry points."
+    },
+    "bindingAndVerification": {
+      "title": "Binding & verification",
+      "description": "Control email verification, registration domain policy, and third-party identity linking."
+    },
+    "loginSecurity": {
+      "title": "Sign-in security",
+      "description": "Control token lifetime, failed sign-in lockouts, and public auth rate limits."
+    }
+  },
+  "fields": {
+    "loginPageTitle": {
+      "label": "Browser title",
+      "description": "Shown in the browser tab for the sign-in page.",
+      "placeholder": "Sign in to DEEIX Chat"
+    },
+    "loginDefaultNextPath": {
+      "label": "Default redirect path",
+      "description": "Default destination after sign-in when /login has no next parameter."
+    },
+    "emailLoginEnabled": {
+      "label": "Email login",
+      "description": "Allow users to sign in with email and password."
+    },
+    "emailRegistrationEnabled": {
+      "label": "Email registration",
+      "description": "Allow users to create accounts with email."
+    },
+    "usernameLoginEnabled": {
+      "label": "Username login",
+      "description": "Allow users to sign in with username and password."
+    },
+    "thirdPartyLoginEnabled": {
+      "label": "Third-party login",
+      "description": "Enable and show configured OIDC / OAuth2 identity providers."
+    },
+    "emailVerificationEnabled": {
+      "label": "Email verification",
+      "description": "Require an email verification code during email registration."
+    },
+    "smtpHost": {
+      "label": "SMTP host",
+      "description": "SMTP server address used to send registration verification codes."
+    },
+    "smtpPort": {
+      "label": "SMTP port",
+      "description": "SMTP server port, commonly 465 or 587."
+    },
+    "smtpUsername": {
+      "label": "SMTP username",
+      "description": "SMTP login account, usually a full email address."
+    },
+    "smtpPassword": {
+      "label": "SMTP password",
+      "description": "SMTP login password or application-specific password."
+    },
+    "smtpFrom": {
+      "label": "Sender",
+      "description": "Sender shown in verification emails. Leave empty to use the SMTP username."
+    },
+    "emailRegistrationAllowedDomains": {
+      "label": "Registration domain allowlist",
+      "description": "Allowed email domains for registration. Leave empty to allow all domains."
+    },
+    "emailRegistrationBlockPlusAlias": {
+      "label": "Block plus aliases",
+      "description": "Block registration with + alias email addresses."
+    },
+    "autoLinkVerifiedEmail": {
+      "label": "Auto-link same email",
+      "description": "Automatically link a verified third-party email to an existing local account."
+    },
+    "tokenTTLHours": {
+      "label": "Access token lifetime",
+      "description": "Access Token lifetime in hours. Range: 1-168."
+    },
+    "refreshTokenTTLHours": {
+      "label": "Keep signed in",
+      "description": "Refresh Token and session lifetime in hours. Range: 1-8760."
+    },
+    "loginMaxFailures": {
+      "label": "Failure lock threshold",
+      "description": "Lock an account after this many consecutive failed sign-in attempts."
+    },
+    "loginLockMinutes": {
+      "label": "Lock duration",
+      "description": "Lock duration in minutes after too many failed sign-in attempts."
+    },
+    "publicAuthRateLimitRPM": {
+      "label": "Public auth rate limit",
+      "description": "Per-minute request limit for login, token refresh, and public login-page config APIs."
+    }
+  },
+  "providers": {
+    "title": "OIDC / OAuth2 identity providers",
+    "create": "Add identity provider",
+    "customOIDC": "Custom OIDC",
+    "customOAuth2": "Custom OAuth2",
+    "name": "Name",
+    "type": "Type",
+    "loginControl": "Sign-in",
+    "registrationControl": "Registration",
+    "dragToReorder": "Drag {name} to reorder",
+    "loginControlFor": "{name} sign-in control",
+    "registrationControlFor": "{name} registration control",
+    "edit": "Edit identity provider",
+    "delete": "Delete identity provider",
+    "empty": "No identity providers"
+  },
+  "providerDialog": {
+    "createTitle": "Add identity provider",
+    "editTitle": "Edit identity provider",
+    "description": "Client Secret is not shown after saving. Leave it empty while editing to keep the existing secret.",
+    "loginControlDescription": "Allow platform sign-in.",
+    "registrationControlDescription": "Allow automatic account creation.",
+    "callbackURL": "Callback URL",
+    "copyCallbackURL": "Copy URL",
+    "logoURL": "Logo URL",
+    "clientID": "Client ID",
+    "clientSecret": "Client Secret",
+    "oidcEndpoint": "OIDC endpoint",
+    "issuerURL": "Issuer URL",
+    "discoveryURL": "Discovery URL",
+    "authURL": "Auth URL",
+    "tokenURL": "Token URL",
+    "userinfoURL": "UserInfo URL",
+    "scopes": "Scopes",
+    "advancedSettings": "Advanced settings",
+    "sourceField": "Source field",
+    "systemField": "System field",
+    "systemFields": {
+      "userID": "User ID",
+      "email": "Email",
+      "displayName": "Display name",
+      "avatar": "Avatar"
+    }
+  },
+  "deleteDialog": {
+    "title": "Delete identity provider",
+    "thisProvider": "this identity provider",
+    "description": "Deleting {name} removes its configuration and unlinks all accounts using it. This action cannot be undone."
+  },
+  "forceDeleteDialog": {
+    "title": "Force delete identity provider",
+    "description": "Some accounts depend only on this identity provider. After force deletion, those accounts can no longer sign in through it.",
+    "confirm": "Force delete"
+  },
+  "validation": {
+    "defaultNextPath": "The default redirect path must be an internal path, for example /chat.",
+    "passwordLoginRequired": "Before disabling username and email sign-in, enable third-party sign-in and make sure at least one administrator has a linked identity provider.",
+    "missingSMTP": "Email verification requires {fields}.",
+    "invalidSMTPPort": "SMTP port must be an integer between 1 and 65535."
+  },
+  "punctuation": {
+    "listSeparator": ", "
+  },
+  "toast": {
+    "sessionExpired": "Session expired",
+    "signInAgain": "Please sign in again before continuing.",
+    "loadFailed": "Failed to load authentication settings",
+    "saveFailed": "Could not save authentication settings",
+    "settingsUpdated": "Authentication settings updated",
+    "cannotDisableLoginMethod": "Cannot disable sign-in method",
+    "thirdPartyOnlyRequiresAdminBinding": "Third-party-only sign-in is allowed only after an administrator has a linked third-party identity.",
+    "providerSaved": "Identity provider saved",
+    "providerSaveFailed": "Failed to save identity provider",
+    "providerDeleted": "Identity provider deleted",
+    "providerDeleteFailed": "Failed to delete identity provider",
+    "enableLoginFirst": "Enable sign-in first",
+    "registrationRequiresLogin": "Registration can be enabled only after this identity provider allows login.",
+    "providerControlUpdated": "Identity provider control updated",
+    "providerControlSaveFailed": "Failed to save identity provider control",
+    "providerOrderUpdated": "Identity provider order updated",
+    "providerOrderSaveFailed": "Failed to save identity provider order",
+    "callbackCopied": "Callback URL copied"
+  }
+}

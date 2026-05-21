@@ -1,0 +1,14 @@
+services:
+  tika:
+    image: apache/tika:3.2.3.0
+    container_name: deeix-chat-tika
+    ports:
+      - "127.0.0.1:9998:9998"
+    restart: unless-stopped
+    networks:
+      - deeix-chat
+
+networks:
+  deeix-chat:
+    external: true
+    name: deeix-chat-network

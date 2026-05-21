@@ -1,0 +1,199 @@
+{
+  "title": "Logs",
+  "centerTitle": "Log center",
+  "audit": "Audit logs",
+  "usage": "Usage logs",
+  "system": "System events",
+  "tabs": {
+    "audit": "Audit",
+    "usage": "Usage logs",
+    "auth": "Auth logs",
+    "system": "System events"
+  },
+  "toast": {
+    "sessionExpired": "Session expired",
+    "signInAgain": "Please sign in again before continuing.",
+    "auditLoadFailed": "Failed to load audit logs",
+    "authLoadFailed": "Failed to load auth logs",
+    "systemLoadFailed": "Failed to load system events",
+    "usageLoadFailed": "Failed to load usage logs",
+    "modelFilterLoadFailed": "Failed to load model filters"
+  },
+  "sort": {
+    "idDesc": "ID newest first",
+    "idAsc": "ID oldest first",
+    "createdDesc": "Created newest first",
+    "createdAsc": "Created oldest first",
+    "occurredDesc": "Occurred newest first",
+    "occurredAsc": "Occurred oldest first",
+    "callTimeDesc": "Call time newest first",
+    "callTimeAsc": "Call time oldest first",
+    "costDesc": "Cost high to low",
+    "tokensDesc": "Tokens high to low",
+    "latencyDesc": "Latency high to low"
+  },
+  "filters": {
+    "allResources": "All",
+    "allActions": "All",
+    "allSources": "All",
+    "allEvents": "All",
+    "allResults": "All",
+    "allLevels": "All",
+    "timeRange": "Time range",
+    "levels": {
+      "info": "Info",
+      "warn": "Warn",
+      "error": "Error"
+    }
+  },
+  "columns": {
+    "actor": "Actor",
+    "action": "Action",
+    "resource": "Resource",
+    "time": "Time",
+    "requestID": "Request ID",
+    "user": "User",
+    "event": "Event",
+    "result": "Result",
+    "reason": "Reason",
+    "level": "Level",
+    "source": "Source",
+    "message": "Message",
+    "caller": "Caller",
+    "model": "Model",
+    "billing": "Billing",
+    "latency": "Latency"
+  },
+  "audit": {
+    "searchPlaceholder": "Search user ID, action, resource, request ID, IP, or detail",
+    "empty": "No audit logs"
+  },
+  "auth": {
+    "searchPlaceholder": "Search user ID or event type",
+    "empty": "No auth logs"
+  },
+  "system": {
+    "searchPlaceholder": "Search source, event, resource, request ID, or detail",
+    "empty": "No system events"
+  },
+  "usage": {
+    "searchPlaceholder": "Search user ID, platform model, upstream model, upstream name, binding code, or protocol",
+    "empty": "No usage logs",
+    "filters": {
+      "billingMode": "Billing mode",
+      "all": "All",
+      "allModels": "All",
+      "model": "Model"
+    },
+    "billingModes": {
+      "token": "Usage",
+      "call": "Per call",
+      "duration": "Per second",
+      "tiered": "Tiered"
+    },
+    "modelTooltip": {
+      "upstreamName": "Upstream",
+      "upstreamModel": "Actual model",
+      "bindingCode": "Binding code",
+      "protocol": "Protocol"
+    },
+    "tokens": {
+      "inputShort": "In",
+      "outputShort": "Out",
+      "cacheReadShort": "Read",
+      "cacheWriteShort": "Write"
+    },
+    "billing": {
+      "cacheWrite": "Cache write",
+      "cacheWrite5m": "Cache write 5m",
+      "cacheWrite1h": "Cache write 1h",
+      "cacheWrite5m1h": "Cache write 5m/1h",
+      "cacheWritePricingLabel": "Cache write 5m",
+      "cacheWritePricingNote": "Claude cache read uses configured pricing; cache write 5m uses 1.25x, 1h uses 2x, and Fast Mode applies another 6x multiplier.",
+      "claudeCacheWriteMixedNote": "Claude cache write uses configured pricing at {multiplier}.",
+      "claudeCacheWriteNote": "Claude {timeout} cache write uses configured pricing at {multiplier}.",
+      "claudeFastModeNote": "Claude Fast Mode bills input, output, and cache usage at {multiplier}.",
+      "openaiServiceTierNote": "OpenAI service_tier={tier} bills at {multiplier}.",
+      "input": "Input",
+      "output": "Output",
+      "cacheRead": "Cache read",
+      "rateNote": "Multiplier",
+      "cacheNote": "Cache",
+      "total": "Total",
+      "freeModelNoBilling": "Free",
+      "perCall": "Per call",
+      "perSecond": "Per second",
+      "callUnit": "call",
+      "secondUnit": "second",
+      "tieredRangeBounded": "Original input range {from}-{upTo}",
+      "tieredRangeOpen": "Original input range {from}+",
+      "table": {
+        "item": "Billing item",
+        "usage": "Usage",
+        "unitPrice": "Unit price",
+        "amount": "Amount"
+      }
+    }
+  },
+  "detail": {
+    "titles": {
+      "audit": "Audit log detail",
+      "auth": "Auth log detail",
+      "usage": "Usage log detail",
+      "system": "System event detail"
+    },
+    "fallbacks": {
+      "authEvent": "Auth event",
+      "modelCall": "Model call",
+      "systemEvent": "System event",
+      "auditEvent": "Audit event"
+    },
+    "blocks": {
+      "event": "Event",
+      "actor": "Actor",
+      "request": "Request",
+      "user": "User",
+      "resource": "Resource",
+      "call": "Call",
+      "modelRoute": "Model route",
+      "usageBilling": "Usage billing"
+    },
+    "fields": {
+      "action": "Action",
+      "resource": "Resource",
+      "resourceID": "Resource ID",
+      "createdAt": "Created at",
+      "user": "User",
+      "userID": "User ID",
+      "requestID": "Request ID",
+      "event": "Event",
+      "result": "Result",
+      "reason": "Reason",
+      "occurredAt": "Occurred at",
+      "level": "Level",
+      "source": "Source",
+      "message": "Message",
+      "caller": "Caller",
+      "conversationID": "Conversation ID",
+      "callTime": "Call time",
+      "platformModel": "Platform model",
+      "upstreamName": "Upstream name",
+      "upstreamModel": "Upstream model",
+      "bindingCode": "Binding code",
+      "protocol": "Protocol",
+      "billing": "Billing",
+      "totalTokens": "Total tokens",
+      "reasoning": "Reasoning",
+      "callCount": "Call count",
+      "latency": "Latency"
+    },
+    "result": {
+      "success": "Success",
+      "failure": "Failed",
+      "blocked": "Blocked"
+    },
+    "jsonTitle": "Detail JSON",
+    "copied": "{label} copied",
+    "copyFailed": "Copy failed"
+  }
+}

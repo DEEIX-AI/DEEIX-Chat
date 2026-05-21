@@ -1,0 +1,17 @@
+services:
+  docling:
+    container_name: deeix-chat-docling
+    image: deeix-chat-docling:latest
+    build:
+      context: ../../
+      dockerfile: docker/docling/Dockerfile
+    ports:
+      - "127.0.0.1:8005:8005"
+    restart: unless-stopped
+    networks:
+      - deeix-chat
+
+networks:
+  deeix-chat:
+    external: true
+    name: deeix-chat-network

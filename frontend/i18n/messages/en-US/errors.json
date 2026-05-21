@@ -1,0 +1,266 @@
+{
+  "auth": {
+    "authorizationCodeRequired": "Authorization code is required.",
+    "emailAliasNotAllowed": "Email aliases are not allowed.",
+    "emailAlreadyExists": "This email is already in use.",
+    "emailBootstrapNotAllowed": "Email setup is not allowed for this account.",
+    "emailDomainNotAllowed": "This email domain is not allowed.",
+    "emailNotVerified": "The email address is not verified.",
+    "emailRegistrationDisabled": "Email registration is disabled.",
+    "emailUnchanged": "The new email must be different.",
+    "emailVerificationDisabled": "Email verification is disabled.",
+    "forbidden": "You do not have permission to perform this action.",
+    "invalidCredentials": "Invalid username or password.",
+    "invalidCurrentPassword": "The current password is incorrect.",
+    "invalidEmail": "Invalid email address.",
+    "invalidPassword": "Password must be at least 8 characters and not digits only.",
+    "invalidPkce": "Invalid sign-in verification parameters. Sign in again.",
+    "invalidRedirectUri": "Invalid callback URL.",
+    "invalidRefreshToken": "Your session has expired. Please sign in again.",
+    "invalidToken": "Invalid session token. Please sign in again.",
+    "invalidTwoFactorCode": "Invalid two-factor code.",
+    "lastLoginMethodRequired": "Set a password or link another identity provider first.",
+    "oauthIntentMismatch": "The OAuth flow does not match. Try again.",
+    "oauthStateExpired": "The OAuth state expired. Sign in again.",
+    "oauthStateInvalid": "Invalid OAuth state. Sign in again.",
+    "passwordResetRequired": "Password reset is required.",
+    "passwordReuseNotAllowed": "The new password must be different from the bootstrap password.",
+    "providerAccountNotRegistered": "This provider account is not registered.",
+    "providerAlreadyBound": "This provider is already linked.",
+    "providerAuthUrlNotConfigured": "Provider authorization URL is not configured.",
+    "providerBindEndpointRequired": "Use the account binding flow to link this provider.",
+    "providerCallbackMisconfigured": "Provider callback URL is misconfigured.",
+    "providerClientIdRequired": "Provider client ID is required.",
+    "providerClientSecretRequired": "Provider client secret is required.",
+    "providerDefaultRoleInvalid": "Provider default role is invalid.",
+    "providerEmailConflict": "This email belongs to another account.",
+    "providerIdRequired": "Provider ID is required.",
+    "providerIdentityConflict": "This provider identity is already linked to another account.",
+    "providerInvalid": "Provider authentication failed.",
+    "providerLoginDisabled": "Provider sign-in is disabled.",
+    "providerLogoUrlInvalid": "Provider logo URL is invalid.",
+    "providerNameRequired": "Provider name is required.",
+    "providerOauthUrlsRequired": "OAuth2 authorization URL, token URL, and userinfo URL are required.",
+    "providerOidcIssuerRequired": "OIDC issuer URL or discovery URL is required.",
+    "providerOrderInvalid": "Provider IDs must be unique.",
+    "providerRegistrationDisabled": "Provider registration is disabled.",
+    "providerRegistrationRequiresLogin": "Provider login must be enabled before provider registration.",
+    "providerSlugRequired": "Provider slug is required.",
+    "providerSubjectMissing": "Provider subject is missing.",
+    "providerTypeInvalid": "Provider type is invalid.",
+    "providerUpstreamFailed": "Provider authentication failed.",
+    "sessionInvalid": "Your session has expired. Please sign in again.",
+    "superadminRequired": "Super administrator permission is required.",
+    "twoFactorAlreadyEnabled": "Two-factor authentication is already enabled.",
+    "twoFactorChallengeExpired": "Two-factor verification expired. Sign in again.",
+    "twoFactorExpired": "Two-factor verification expired. Try again.",
+    "twoFactorNotStarted": "Two-factor verification has not started.",
+    "unauthorized": "Your session has expired. Please sign in again.",
+    "usernameChangeRequired": "Username change is required.",
+    "verificationCodeAttemptsExceeded": "Too many verification attempts. Request a new code.",
+    "verificationCodeInvalid": "Verification code is invalid or expired.",
+    "verificationCodeRecent": "A verification code was sent recently. Try again later."
+  },
+  "billing": {
+    "insufficientBalance": "Insufficient balance.",
+    "insufficientFunds": "Insufficient balance.",
+    "invalidDailyUsageDateRange": "Invalid usage date range.",
+    "invalidDailyUsageDays": "Invalid usage day count.",
+    "invalidModelPricing": "Invalid model pricing.",
+    "invalidSubscriptionExpiry": "Invalid subscription expiry.",
+    "invalidSubscriptionTier": "Invalid subscription tier.",
+    "paymentRequired": "Payment is required.",
+    "periodCreditExceeded": "Period credit has been exhausted.",
+    "pricingRequired": "Model pricing is required.",
+    "subscriptionExpiryRequired": "Subscription expiry is required."
+  },
+  "config": {
+    "invalidJson": "Invalid JSON configuration."
+  },
+  "conversation": {
+    "invalidId": "Invalid conversation ID.",
+    "invalidTitle": "Invalid conversation title.",
+    "notFound": "Conversation not found."
+  },
+  "conversationRun": {
+    "canceled": "Generation was canceled.",
+    "streamInterrupted": "The generation connection was interrupted. Retry this message.",
+    "streamNotFound": "Generation stream not found."
+  },
+  "conversationShare": {
+    "invalid": "Invalid conversation share.",
+    "invalidId": "Invalid share ID.",
+    "notFound": "Share not found.",
+    "schemaOutdated": "Share schema is outdated. Rebuild the database."
+  },
+  "contextArtifact": {
+    "invalidId": "Invalid context artifact ID.",
+    "notFound": "Context artifact not found."
+  },
+  "cors": {
+    "originForbidden": "This origin is not allowed."
+  },
+  "embedding": {
+    "serviceUnavailable": "Embedding service is unavailable."
+  },
+  "file": {
+    "embeddingUnavailable": "Embedding is unavailable for this file.",
+    "extractNotReady": "File extraction is not ready.",
+    "invalidId": "Invalid file ID.",
+    "invalidName": "Invalid file name.",
+    "invalidReference": "Invalid file reference.",
+    "invalidStream": "Invalid file stream.",
+    "notFound": "File not found.",
+    "notReady": "File is not ready.",
+    "required": "File is required.",
+    "tooLarge": "File is too large.",
+    "tooLargeForContext": "File is too large for full-context injection.",
+    "typeBlocked": "This file type is not allowed."
+  },
+  "identityProvider": {
+    "deleteConflict": "Deleting this identity provider would remove the only login method for some users."
+  },
+  "internal": {
+    "error": "Internal server error. Please try again later."
+  },
+  "llm": {
+    "apiKeysRequired": "API keys are required.",
+    "emptyResponse": "The model returned an empty response.",
+    "invalidAdapter": "Invalid model adapter.",
+    "invalidApiKeysConfig": "Invalid API keys configuration.",
+    "invalidCompatible": "Invalid compatibility mode.",
+    "invalidHeadersConfig": "Invalid headers configuration.",
+    "invalidKinds": "Invalid model kinds.",
+    "invalidPlatformModelName": "Invalid platform model name.",
+    "invalidProtocolDefaultsConfig": "Invalid protocol defaults configuration.",
+    "modelRouteNotConfigured": "Model route is not configured.",
+    "noActiveApiKey": "No active API key is available.",
+    "platformModelNameExists": "Platform model name already exists.",
+    "platformModelNameRequired": "Platform model name is required.",
+    "protocolRequired": "Protocol is required.",
+    "remoteModelsUnavailable": "Remote models are unavailable.",
+    "routeConflict": "This upstream is already bound to the same target model.",
+    "routesUnavailable": "All model routes are unavailable."
+  },
+  "mcp": {
+    "clientUnavailable": "MCP client is unavailable.",
+    "invalidServerBaseUrl": "Invalid MCP server base URL.",
+    "invalidServerHeaders": "Invalid MCP server headers.",
+    "invalidServerName": "Invalid MCP server name.",
+    "invalidServerStatus": "Invalid MCP server status.",
+    "invalidToolDescription": "Invalid MCP tool description.",
+    "invalidToolName": "Invalid MCP tool name.",
+    "invalidToolSelection": "Invalid MCP tool selection.",
+    "invalidToolStatus": "Invalid MCP tool status.",
+    "server": {
+      "invalidId": "Invalid MCP server ID."
+    },
+    "tool": {
+      "invalidId": "Invalid MCP tool ID."
+    }
+  },
+  "memory": {
+    "keyRequired": "Memory key is required."
+  },
+  "message": {
+    "feedbackTargetInvalid": "Invalid message feedback target.",
+    "invalidBranch": "Invalid message branch.",
+    "invalidFeedback": "Invalid message feedback.",
+    "invalidId": "Invalid message ID.",
+    "notFound": "Message not found.",
+    "tooManyFiles": "Too many files in one message."
+  },
+  "payment": {
+    "checkoutFailed": "Failed to create checkout.",
+    "epayTypeUnsupported": "This EPay payment type is not supported.",
+    "invalidEvent": "Invalid payment event.",
+    "invalidSignature": "Invalid payment signature.",
+    "invalidWebhookBody": "Invalid webhook body.",
+    "notificationMismatch": "Payment notification does not match the order.",
+    "orderNoRequired": "Order number is required.",
+    "providerUnavailable": "Payment provider is unavailable.",
+    "returnUrlCrossOrigin": "Payment return URL must use the configured public web origin.",
+    "returnUrlInvalid": "Invalid payment return URL.",
+    "webhookBodyTooLarge": "Webhook body is too large.",
+    "webhookNotConfigured": "Payment webhook is not configured."
+  },
+  "quota": {
+    "exceeded": "Quota exceeded."
+  },
+  "rateLimit": {
+    "authenticationExceeded": "Too many authentication attempts. Try again later.",
+    "exceeded": "Too many requests. Try again later.",
+    "refreshExceeded": "Too many session refresh attempts. Try again later."
+  },
+  "request": {
+    "invalid": "Invalid request. Check the form and try again.",
+    "invalid_": "Invalid request parameter.",
+    "invalidBody": "Invalid request. Check the form and try again.",
+    "invalidId": "Invalid ID.",
+    "invalidQuery": "Invalid query parameter.",
+    "required": "A required field is missing."
+  },
+  "resource": {
+    "conflict": "Resource conflict. Refresh and try again.",
+    "notFound": "Resource not found."
+  },
+  "route": {
+    "notFound": "Route not found."
+  },
+  "runtime": {
+    "doclingUnavailable": "Docling runtime is unavailable.",
+    "mineruUnavailable": "MinerU runtime is unavailable.",
+    "rapidocrUnavailable": "RapidOCR runtime is unavailable.",
+    "tesseractUnavailable": "Tesseract runtime is unavailable.",
+    "tikaUnavailable": "Tika runtime is unavailable."
+  },
+  "service": {
+    "unavailable": "Service is unavailable. Try again later."
+  },
+  "settings": {
+    "billingPaymentInvalid": "Invalid billing payment settings.",
+    "embeddingInvalid": "Invalid embedding settings.",
+    "extractInvalid": "Invalid file extraction settings.",
+    "invalidKey": "Invalid setting key.",
+    "invalidNamespace": "Invalid setting namespace.",
+    "invalidValue": "Invalid setting value.",
+    "modelOptionPolicyInvalid": "Invalid model option policy settings.",
+    "notFound": "Setting not found.",
+    "serviceUnavailable": "Settings service is unavailable.",
+    "smtpInvalid": "Invalid SMTP settings."
+  },
+  "upstream": {
+    "unavailable": "Upstream service is unavailable."
+  },
+  "user": {
+    "accountDeleteVerificationRequired": "Verify your identity before deleting the account.",
+    "emptyPatch": "Change at least one user field.",
+    "invalidAvatarUrl": "Invalid avatar URL.",
+    "invalidEmail": "Invalid user email.",
+    "invalidLocale": "Invalid language.",
+    "invalidLocation": "Invalid location.",
+    "invalidPhone": "Invalid phone number.",
+    "invalidRole": "Invalid user role.",
+    "invalidStatus": "Invalid user status.",
+    "invalidTimeZone": "Invalid time zone.",
+    "invalidUsername": "Username must be 3-16 characters.",
+    "invalidDisplayName": "Display name must be 3-16 characters.",
+    "lastSuperadminRoleProtected": "Cannot change the role of the last super administrator.",
+    "selfDeleteNotAllowed": "You cannot delete your own account here.",
+    "selfRoleChangeNotAllowed": "You cannot change your own role.",
+    "selfStatusChangeNotAllowed": "You cannot change your own status.",
+    "superadminAlreadyExists": "A super administrator already exists.",
+    "superadminDeleteProtected": "Super administrator accounts cannot be deleted.",
+    "superadminPasswordResetProtected": "Super administrator passwords cannot be reset.",
+    "superadminRoleProtected": "Super administrator roles cannot be changed.",
+    "superadminStatusProtected": "Super administrator status cannot be changed.",
+    "superadminTwoFactorResetProtected": "Super administrator two-factor authentication cannot be reset.",
+    "usernameAlreadyExists": "This username is already taken.",
+    "usernameChangeUsed": "Username change has already been used.",
+    "usernameTaken": "This username is already taken."
+  },
+  "userSettings": {
+    "invalidValue": "Invalid user setting value.",
+    "unknownKey": "Unknown user setting key."
+  }
+}

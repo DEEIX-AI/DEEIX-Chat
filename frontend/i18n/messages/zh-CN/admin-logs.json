@@ -1,0 +1,199 @@
+{
+  "title": "日志",
+  "centerTitle": "日志中心",
+  "audit": "审计日志",
+  "usage": "调用日志",
+  "system": "系统事件",
+  "tabs": {
+    "audit": "审计",
+    "usage": "调用日志",
+    "auth": "认证日志",
+    "system": "系统事件"
+  },
+  "toast": {
+    "sessionExpired": "登录状态已失效",
+    "signInAgain": "请重新登录后再继续操作。",
+    "auditLoadFailed": "审计日志加载失败",
+    "authLoadFailed": "认证日志加载失败",
+    "systemLoadFailed": "系统事件加载失败",
+    "usageLoadFailed": "调用日志加载失败",
+    "modelFilterLoadFailed": "模型筛选加载失败"
+  },
+  "sort": {
+    "idDesc": "ID 从新到旧",
+    "idAsc": "ID 从旧到新",
+    "createdDesc": "创建时间 从新到旧",
+    "createdAsc": "创建时间 从旧到新",
+    "occurredDesc": "发生时间 从新到旧",
+    "occurredAsc": "发生时间 从旧到新",
+    "callTimeDesc": "调用时间 从新到旧",
+    "callTimeAsc": "调用时间 从旧到新",
+    "costDesc": "费用 从高到低",
+    "tokensDesc": "Token 从高到低",
+    "latencyDesc": "延迟 从高到低"
+  },
+  "filters": {
+    "allResources": "全部",
+    "allActions": "全部",
+    "allSources": "全部",
+    "allEvents": "全部",
+    "allResults": "全部",
+    "allLevels": "全部",
+    "timeRange": "时间范围",
+    "levels": {
+      "info": "信息",
+      "warn": "警告",
+      "error": "错误"
+    }
+  },
+  "columns": {
+    "actor": "操作人",
+    "action": "动作",
+    "resource": "资源",
+    "time": "时间",
+    "requestID": "请求 ID",
+    "user": "用户",
+    "event": "事件",
+    "result": "结果",
+    "reason": "原因",
+    "level": "级别",
+    "source": "来源",
+    "message": "消息",
+    "caller": "调用人",
+    "model": "模型",
+    "billing": "计费",
+    "latency": "延迟"
+  },
+  "audit": {
+    "searchPlaceholder": "搜索用户 ID、动作、资源、请求 ID、IP、详情",
+    "empty": "暂无审计日志"
+  },
+  "auth": {
+    "searchPlaceholder": "搜索用户 ID 或事件类型",
+    "empty": "暂无认证日志"
+  },
+  "system": {
+    "searchPlaceholder": "搜索来源、事件、资源、请求 ID、详情",
+    "empty": "暂无系统事件"
+  },
+  "usage": {
+    "searchPlaceholder": "搜索用户 ID、平台模型、上游模型、上游名、绑定编码、协议",
+    "empty": "暂无调用日志",
+    "filters": {
+      "billingMode": "计费模式",
+      "all": "全部",
+      "allModels": "全部",
+      "model": "调用模型"
+    },
+    "billingModes": {
+      "token": "按量",
+      "call": "按次",
+      "duration": "按秒",
+      "tiered": "阶梯"
+    },
+    "modelTooltip": {
+      "upstreamName": "上游名",
+      "upstreamModel": "真实模型",
+      "bindingCode": "绑定编码",
+      "protocol": "协议"
+    },
+    "tokens": {
+      "inputShort": "入",
+      "outputShort": "出",
+      "cacheReadShort": "读",
+      "cacheWriteShort": "写"
+    },
+    "billing": {
+      "cacheWrite": "缓存(写)",
+      "cacheWrite5m": "缓存(写 5m)",
+      "cacheWrite1h": "缓存(写 1h)",
+      "cacheWrite5m1h": "缓存(写 5m/1h)",
+      "cacheWritePricingLabel": "缓存(写 5m)",
+      "cacheWritePricingNote": "Claude 缓存读按后台配置；缓存写 5m 按后台配置价 1.25x，1h 按 2x；Fast Mode 会整体再乘 6。",
+      "claudeCacheWriteMixedNote": "Claude 缓存写按后台配置价 {multiplier} 计费。",
+      "claudeCacheWriteNote": "Claude {timeout} 缓存写按后台配置价 {multiplier} 计费。",
+      "claudeFastModeNote": "Claude Fast Mode：输入、输出和缓存费用按 {multiplier} 计费。",
+      "openaiServiceTierNote": "OpenAI service_tier={tier}：按 {multiplier} 计费。",
+      "input": "输入",
+      "output": "输出",
+      "cacheRead": "缓存(读)",
+      "rateNote": "倍率说明",
+      "cacheNote": "缓存说明",
+      "total": "总计",
+      "freeModelNoBilling": "免费",
+      "perCall": "每次",
+      "perSecond": "每秒",
+      "callUnit": "次",
+      "secondUnit": "秒",
+      "tieredRangeBounded": "原始输入区间 {from}~{upTo}",
+      "tieredRangeOpen": "原始输入区间 {from}+",
+      "table": {
+        "item": "计费项目",
+        "usage": "用量",
+        "unitPrice": "单价",
+        "amount": "金额"
+      }
+    }
+  },
+  "detail": {
+    "titles": {
+      "audit": "审计日志详情",
+      "auth": "认证日志详情",
+      "usage": "调用日志详情",
+      "system": "系统事件详情"
+    },
+    "fallbacks": {
+      "authEvent": "认证事件",
+      "modelCall": "模型调用",
+      "systemEvent": "系统事件",
+      "auditEvent": "审计事件"
+    },
+    "blocks": {
+      "event": "事件",
+      "actor": "操作人",
+      "request": "请求",
+      "user": "用户",
+      "resource": "资源",
+      "call": "调用",
+      "modelRoute": "模型路由",
+      "usageBilling": "用量计费"
+    },
+    "fields": {
+      "action": "动作",
+      "resource": "资源",
+      "resourceID": "资源 ID",
+      "createdAt": "创建时间",
+      "user": "用户",
+      "userID": "用户 ID",
+      "requestID": "请求 ID",
+      "event": "事件",
+      "result": "结果",
+      "reason": "原因",
+      "occurredAt": "发生时间",
+      "level": "级别",
+      "source": "来源",
+      "message": "消息",
+      "caller": "调用人",
+      "conversationID": "会话 ID",
+      "callTime": "调用时间",
+      "platformModel": "平台模型",
+      "upstreamName": "上游名称",
+      "upstreamModel": "上游模型",
+      "bindingCode": "绑定编码",
+      "protocol": "协议",
+      "billing": "计费",
+      "totalTokens": "总 Token",
+      "reasoning": "推理",
+      "callCount": "调用次数",
+      "latency": "延迟"
+    },
+    "result": {
+      "success": "成功",
+      "failure": "失败",
+      "blocked": "阻断"
+    },
+    "jsonTitle": "详情 JSON",
+    "copied": "{label}已复制",
+    "copyFailed": "复制失败"
+  }
+}

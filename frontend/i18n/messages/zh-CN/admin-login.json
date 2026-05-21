@@ -1,0 +1,186 @@
+{
+  "groups": {
+    "loginPage": {
+      "title": "登录页面",
+      "description": "控制登录页标签页标题和默认登录后去向。"
+    },
+    "loginAndRegistration": {
+      "title": "登录与注册",
+      "description": "控制登录页可用的账号登录与邮箱注册入口。"
+    },
+    "bindingAndVerification": {
+      "title": "绑定与验证",
+      "description": "控制邮箱验证、注册邮箱策略和第三方身份绑定策略。"
+    },
+    "loginSecurity": {
+      "title": "登录安全",
+      "description": "控制登录令牌有效期、失败锁定和公开鉴权接口限流。"
+    }
+  },
+  "fields": {
+    "loginPageTitle": {
+      "label": "标签页标题",
+      "description": "显示在浏览器标签页中的标题。",
+      "placeholder": "Sign in to DEEIX Chat"
+    },
+    "loginDefaultNextPath": {
+      "label": "默认跳转路径",
+      "description": "访问 /login 且没有 next 参数时，登录成功后的默认跳转路径。"
+    },
+    "emailLoginEnabled": {
+      "label": "邮箱登录",
+      "description": "允许用户使用邮箱和密码登录。"
+    },
+    "emailRegistrationEnabled": {
+      "label": "邮箱注册",
+      "description": "允许用户通过邮箱创建账号。"
+    },
+    "usernameLoginEnabled": {
+      "label": "用户名登录",
+      "description": "允许用户使用用户名和密码登录。"
+    },
+    "thirdPartyLoginEnabled": {
+      "label": "第三方登录",
+      "description": "开启后可配置并展示 OIDC / OAuth2 身份源。"
+    },
+    "emailVerificationEnabled": {
+      "label": "开启邮箱验证",
+      "description": "邮箱注册时要求填写邮件验证码。"
+    },
+    "smtpHost": {
+      "label": "SMTP 主机",
+      "description": "发送注册验证码的 SMTP 服务地址。"
+    },
+    "smtpPort": {
+      "label": "SMTP 端口",
+      "description": "SMTP 服务端口，常见为 465 或 587。"
+    },
+    "smtpUsername": {
+      "label": "SMTP 用户名",
+      "description": "SMTP 登录账号，通常为完整邮箱地址。"
+    },
+    "smtpPassword": {
+      "label": "SMTP 密码",
+      "description": "SMTP 登录密码或应用专用密码。"
+    },
+    "smtpFrom": {
+      "label": "发件人",
+      "description": "验证码邮件发件人，留空使用 SMTP 用户名。"
+    },
+    "emailRegistrationAllowedDomains": {
+      "label": "注册域名白名单",
+      "description": "允许注册的邮箱域名，留空表示不限制。"
+    },
+    "emailRegistrationBlockPlusAlias": {
+      "label": "禁止邮箱别名",
+      "description": "禁止使用 + 别名邮箱注册。"
+    },
+    "autoLinkVerifiedEmail": {
+      "label": "同邮箱自动绑定",
+      "description": "第三方已验证邮箱命中本地账号时自动绑定。"
+    },
+    "tokenTTLHours": {
+      "label": "访问令牌有效期",
+      "description": "Access Token 有效期，单位小时，范围 1-168。"
+    },
+    "refreshTokenTTLHours": {
+      "label": "登录保持时间",
+      "description": "Refresh Token 与会话保持时间，单位小时，范围 1-8760。"
+    },
+    "loginMaxFailures": {
+      "label": "失败锁定阈值",
+      "description": "同一账号连续登录失败达到该次数后进入锁定。"
+    },
+    "loginLockMinutes": {
+      "label": "锁定时长",
+      "description": "登录失败触发锁定后的持续时间，单位分钟。"
+    },
+    "publicAuthRateLimitRPM": {
+      "label": "公开鉴权限流",
+      "description": "登录、刷新令牌和登录页配置接口的每分钟请求上限。"
+    }
+  },
+  "providers": {
+    "title": "OIDC / OAuth2 身份源",
+    "create": "新增身份源",
+    "customOIDC": "自定义 OIDC",
+    "customOAuth2": "自定义 OAuth2",
+    "name": "名称",
+    "type": "类型",
+    "loginControl": "登录控制",
+    "registrationControl": "注册控制",
+    "dragToReorder": "拖动 {name} 调整排序",
+    "loginControlFor": "{name} 登录控制",
+    "registrationControlFor": "{name} 注册控制",
+    "edit": "编辑身份源",
+    "delete": "删除身份源",
+    "empty": "暂无身份源"
+  },
+  "providerDialog": {
+    "createTitle": "新增身份源",
+    "editTitle": "编辑身份源",
+    "description": "Client Secret 保存后不会回显；编辑时留空表示沿用原密钥。",
+    "loginControlDescription": "允许登录平台账号",
+    "registrationControlDescription": "允许自动创建账号",
+    "callbackURL": "回调地址",
+    "copyCallbackURL": "复制回调地址",
+    "logoURL": "Logo URL",
+    "clientID": "Client ID",
+    "clientSecret": "Client Secret",
+    "oidcEndpoint": "OIDC 地址",
+    "issuerURL": "Issuer URL",
+    "discoveryURL": "Discovery URL",
+    "authURL": "Auth URL",
+    "tokenURL": "Token URL",
+    "userinfoURL": "UserInfo URL",
+    "scopes": "Scopes",
+    "advancedSettings": "高级设置",
+    "sourceField": "来源字段",
+    "systemField": "系统字段",
+    "systemFields": {
+      "userID": "用户 ID",
+      "email": "邮箱",
+      "displayName": "昵称",
+      "avatar": "头像"
+    }
+  },
+  "deleteDialog": {
+    "title": "删除身份源",
+    "thisProvider": "该身份源",
+    "description": "删除后会移除 {name} 的配置，并解绑所有使用该身份源的账号。此操作不可恢复。"
+  },
+  "forceDeleteDialog": {
+    "title": "强制删除身份源",
+    "description": "存在账号仅依赖该身份源登录。强制删除后，这些账号将无法继续通过该身份源登录。",
+    "confirm": "强制删除"
+  },
+  "validation": {
+    "defaultNextPath": "默认跳转路径必须是站内路径，例如 /chat。",
+    "passwordLoginRequired": "关闭用户名登录和邮箱登录前，需要先开启第三方登录，并确保至少一个管理员已绑定可用身份源。",
+    "missingSMTP": "开启邮箱验证后，需要填写 {fields}。",
+    "invalidSMTPPort": "SMTP 端口必须是 1-65535 之间的整数。"
+  },
+  "punctuation": {
+    "listSeparator": "、"
+  },
+  "toast": {
+    "sessionExpired": "登录状态已失效",
+    "signInAgain": "请重新登录后再继续操作。",
+    "loadFailed": "加载认证设置失败",
+    "saveFailed": "保存失败",
+    "settingsUpdated": "认证设置已更新",
+    "cannotDisableLoginMethod": "无法关闭登录方式",
+    "thirdPartyOnlyRequiresAdminBinding": "仅在管理员已绑定第三方登录时，才允许只保留第三方登录。",
+    "providerSaved": "身份源已保存",
+    "providerSaveFailed": "保存身份源失败",
+    "providerDeleted": "身份源已删除",
+    "providerDeleteFailed": "删除身份源失败",
+    "enableLoginFirst": "请先开启登录控制",
+    "registrationRequiresLogin": "只有该身份源允许登录后，才允许开启注册。",
+    "providerControlUpdated": "身份源控制已更新",
+    "providerControlSaveFailed": "保存身份源控制失败",
+    "providerOrderUpdated": "身份源排序已更新",
+    "providerOrderSaveFailed": "保存身份源排序失败",
+    "callbackCopied": "回调地址已复制"
+  }
+}

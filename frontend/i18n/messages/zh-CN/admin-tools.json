@@ -1,0 +1,144 @@
+{
+  "title": "MCP 工具",
+  "sections": {
+    "servers": "MCP 服务",
+    "tools": "MCP 工具"
+  },
+  "fields": {
+    "mcpEnable": {
+      "label": "启用 MCP 工具",
+      "description": "允许用户在对话中选择已启用的 MCP 工具。"
+    },
+    "maxLLMCalls": {
+      "label": "最大 LLM 请求次数",
+      "description": "单次消息内允许的 LLM 请求总数，包含首次请求和最终总结。默认 5，最小 2。"
+    },
+    "maxToolCalls": {
+      "label": "最大 MCP Tool 调用次数",
+      "description": "单次消息内允许的 MCP Tool Call 总数，失败调用计入次数。默认 8。"
+    },
+    "maxConcurrentCalls": {
+      "label": "MCP Tool 并发上限",
+      "description": "单个服务实例同时执行的 MCP Tool Call 上限。默认 8。"
+    },
+    "toolTimeout": {
+      "label": "MCP Tool 调用超时",
+      "description": "单次 MCP Tool Call 的最长等待时间，单位秒。默认 10。"
+    },
+    "toolRetry": {
+      "label": "MCP Tool 重试次数",
+      "description": "MCP Tool Call 失败后的重试次数。默认 0。"
+    }
+  },
+  "status": {
+    "active": "开启",
+    "inactive": "关闭",
+    "all": "全部",
+    "enabled": "已启用",
+    "disabled": "已停用"
+  },
+  "sort": {
+    "nameAsc": "名称 A-Z",
+    "nameDesc": "名称 Z-A",
+    "statusAsc": "状态",
+    "updatedDesc": "最近更新",
+    "updatedAsc": "最早更新"
+  },
+  "table": {
+    "name": "名称",
+    "url": "地址",
+    "status": "状态",
+    "tools": "工具",
+    "lastSynced": "同步时间",
+    "tool": "工具",
+    "description": "描述",
+    "schema": "Schema",
+    "enabled": "启用",
+    "emptyServers": "暂无 MCP 服务",
+    "emptyTools": "暂无工具，请先同步",
+    "emptyFilteredTools": "没有匹配的工具",
+    "noDescription": "无描述",
+    "unsynced": "未同步"
+  },
+  "toolbar": {
+    "searchServers": "搜索服务名称、地址",
+    "searchTools": "搜索工具名称、描述",
+    "add": "新增",
+    "sync": "同步",
+    "syncTools": "同步工具",
+    "editServer": "编辑服务",
+    "deleteServer": "删除服务",
+    "viewTools": "查看 {name} 的 MCP 工具",
+    "toggleServer": "切换 MCP 服务 {name} 状态",
+    "selectPageTools": "选择当前页工具",
+    "selectTool": "选择工具 {name}",
+    "editTool": "编辑工具",
+    "viewSchema": "查看 Schema",
+    "viewToolSchema": "查看工具 {name} 的 Schema",
+    "toggleTool": "切换工具 {name}",
+    "activateSelected": "启用",
+    "deactivateSelected": "停用"
+  },
+  "bulkConfirm": {
+    "title": "确认批量操作",
+    "description": "将对已选的 {count} 个工具执行此批量操作。",
+    "confirm": "确认执行",
+    "pending": "处理中"
+  },
+  "serverDialog": {
+    "createTitle": "新增 MCP 服务",
+    "editTitle": "编辑 MCP 服务",
+    "description": "配置 MCP Streamable HTTP 服务端点与访问凭据。",
+    "name": "服务名称",
+    "namePlaceholder": "服务名称",
+    "status": "服务状态",
+    "url": "服务地址",
+    "authToken": "鉴权密钥",
+    "authTokenCreatePlaceholder": "可留空",
+    "authTokenEditPlaceholder": "留空则不变",
+    "headers": "请求头"
+  },
+  "toolDialog": {
+    "title": "编辑 MCP 工具",
+    "description": "自定义对话工具栏与模型调用时展示的工具名称和描述。",
+    "displayName": "展示名称",
+    "displayNamePlaceholder": "工具展示名称",
+    "toolDescription": "描述",
+    "toolDescriptionPlaceholder": "说明这个工具适合处理什么任务"
+  },
+  "schemaDialog": {
+    "fallbackTitle": "工具 Schema",
+    "description": "{name} 的输入参数 JSON Schema",
+    "fallbackDescription": "输入参数 JSON Schema"
+  },
+  "confirm": {
+    "deleteServer": "删除 MCP 服务「{name}」？"
+  },
+  "toast": {
+    "settingsUpdated": "工具配置已更新",
+    "settingsLoadFailed": "加载工具配置失败",
+    "saveFailed": "保存失败",
+    "serversLoadFailed": "加载 MCP 服务失败",
+    "toolsLoadFailed": "加载 MCP 工具失败",
+    "toolsSynced": "MCP 工具已同步",
+    "toolsSyncFailed": "同步 MCP 工具失败",
+    "serverUpdated": "MCP 服务已更新",
+    "serverCreated": "MCP 服务已创建",
+    "serverSaveFailed": "保存 MCP 服务失败",
+    "serverDeleted": "MCP 服务已删除",
+    "serverDeleteFailed": "删除 MCP 服务失败",
+    "serverStatusUpdated": "MCP 服务已{status}",
+    "serverStatusFailed": "更新 MCP 服务状态失败",
+    "toolStatusFailed": "更新工具状态失败",
+    "selectedToolsEnabled": "所选工具已启用",
+    "selectedToolsDisabled": "所选工具已停用",
+    "selectedToolsUpdateFailed": "批量更新工具失败",
+    "toolUpdated": "工具信息已更新",
+    "toolSaveFailed": "保存工具失败",
+    "schemaCopied": "Schema 已复制",
+    "copyFailed": "复制失败",
+    "unknownError": "请求失败，请稍后重试。",
+    "sessionExpired": "登录状态已失效",
+    "sessionExpiredDescription": "请重新登录后再继续操作。"
+  }
+}

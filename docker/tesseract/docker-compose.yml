@@ -1,0 +1,23 @@
+services:
+  tesseract:
+    container_name: deeix-chat-tesseract
+    image: deeix-chat-tesseract:latest
+    build:
+      context: ../../
+      dockerfile: docker/tesseract/Dockerfile
+    ports:
+      - "127.0.0.1:8004:8004"
+    environment:
+      TESSERACT_LANG: ${TESSERACT_LANG:-chi_sim+eng}
+      TESSERACT_PSM: ${TESSERACT_PSM:-3}
+      TESSERACT_OEM: ${TESSERACT_OEM:-3}
+      TESSERACT_RENDER_SCALE: ${TESSERACT_RENDER_SCALE:-2.0}
+      TESSERACT_GRAYSCALE: ${TESSERACT_GRAYSCALE:-true}
+    restart: unless-stopped
+    networks:
+      - deeix-chat
+
+networks:
+  deeix-chat:
+    external: true
+    name: deeix-chat-network

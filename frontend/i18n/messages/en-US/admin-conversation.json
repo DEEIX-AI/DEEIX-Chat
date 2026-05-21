@@ -1,0 +1,76 @@
+{
+  "sections": {
+    "conversation": "Conversation settings",
+    "optionPassthrough": "Option passthrough"
+  },
+  "taskModel": {
+    "follow": "Follow current model"
+  },
+  "policy": {
+    "allowlist": "Allowlist",
+    "denylist": "Denylist",
+    "disabled": "Disabled"
+  },
+  "fields": {
+    "taskModel": {
+      "label": "Task model",
+      "description": "Chat model used to generate conversation titles and labels."
+    },
+    "optionPolicyMode": {
+      "label": "Option passthrough policy",
+      "description": "Controls whether user request options can be passed to upstream providers. By default, only allowlisted paths are passed."
+    },
+    "allowedPaths": {
+      "label": "Model option allowlist",
+      "description": "JSON object. default applies to every protocol, while protocol-specific entries add paths for that protocol only. Paths use xxx.xxx."
+    },
+    "deniedPaths": {
+      "label": "Model option denylist",
+      "description": "JSON object. Used only in denylist mode. System-reserved fields are blocked even when they are not listed."
+    },
+    "titlePrompt": {
+      "label": "Title generation prompt",
+      "description": "The model must return JSON: '{' \"title\": \"your summarized title\" '}'. Supports the '{{MESSAGES}}' placeholder."
+    },
+    "labelsPrompt": {
+      "label": "Label generation prompt",
+      "description": "The model must return JSON: '{' \"labels\": [\"label1\", \"label2\"] '}'. Supports the '{{MESSAGES}}' placeholder."
+    },
+    "defaultPromptPlaceholder": "Leave empty to use the built-in default prompt"
+  },
+  "preview": {
+    "title": "Live preview",
+    "passed": "Passed",
+    "filtered": "Filtered",
+    "emptyPassed": "No paths are currently passed through",
+    "emptyFiltered": "No paths are currently filtered",
+    "systemDenied": "System blocked",
+    "hitDenylist": "Matched denylist",
+    "hitAllowlist": "Matched allowlist",
+    "otherFields": "Other fields",
+    "notInDenylist": "Not on the denylist"
+  },
+  "guide": {
+    "button": "Guide",
+    "title": "Option passthrough guide",
+    "description": "Control which user options can enter upstream requests.",
+    "pathTitle": "Path syntax",
+    "pathLabel": "Path",
+    "pathDescription": "Use the field name for top-level fields. Use dot notation for nested fields. Multiple nesting levels are supported.",
+    "strategyTitle": "Passthrough strategy",
+    "allowlistDescription": "Only listed paths are passed. Other fields are discarded.",
+    "denylistDescription": "Pass by default. Paths matched by the denylist or system blocklist are removed.",
+    "openAIServiceTierNote": "OpenAI service_tier only accepts default, flex, or priority. It is omitted when not configured.",
+    "protocolTitle": "Protocol keys",
+    "protocolDescription": "default applies to every protocol. Other keys apply only to their matching protocol.",
+    "systemDeniedTitle": "System blocklist",
+    "systemDeniedDescription": "These fields are always blocked and cannot be allowed by the allowlist."
+  },
+  "toast": {
+    "sessionExpired": "Session expired",
+    "signInAgain": "Please sign in again before continuing.",
+    "loadFailed": "Failed to load conversation settings",
+    "saveFailed": "Could not save conversation settings",
+    "updated": "Conversation settings updated"
+  }
+}

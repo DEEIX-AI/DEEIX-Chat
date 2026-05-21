@@ -1,0 +1,144 @@
+{
+  "title": "MCP tools",
+  "sections": {
+    "servers": "MCP servers",
+    "tools": "MCP tools"
+  },
+  "fields": {
+    "mcpEnable": {
+      "label": "Enable MCP tools",
+      "description": "Allow users to select enabled MCP tools in conversations."
+    },
+    "maxLLMCalls": {
+      "label": "Max LLM requests",
+      "description": "Total LLM requests allowed in one message, including the first request and final summary. Default 5, minimum 2."
+    },
+    "maxToolCalls": {
+      "label": "Max MCP tool calls",
+      "description": "Total MCP tool calls allowed in one message. Failed calls count toward the limit. Default 8."
+    },
+    "maxConcurrentCalls": {
+      "label": "MCP tool concurrency",
+      "description": "Maximum concurrent MCP tool calls per service instance. Default 8."
+    },
+    "toolTimeout": {
+      "label": "MCP tool timeout",
+      "description": "Maximum wait time for one MCP tool call, in seconds. Default 10."
+    },
+    "toolRetry": {
+      "label": "MCP tool retries",
+      "description": "Retry count after an MCP tool call fails. Default 0."
+    }
+  },
+  "status": {
+    "active": "On",
+    "inactive": "Off",
+    "all": "All",
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  },
+  "sort": {
+    "nameAsc": "Name A-Z",
+    "nameDesc": "Name Z-A",
+    "statusAsc": "Status",
+    "updatedDesc": "Recently updated",
+    "updatedAsc": "Oldest updated"
+  },
+  "table": {
+    "name": "Name",
+    "url": "URL",
+    "status": "Status",
+    "tools": "Tools",
+    "lastSynced": "Last sync",
+    "tool": "Tool",
+    "description": "Description",
+    "schema": "Schema",
+    "enabled": "Enabled",
+    "emptyServers": "No MCP servers",
+    "emptyTools": "No tools. Sync first.",
+    "emptyFilteredTools": "No matching tools",
+    "noDescription": "No description",
+    "unsynced": "Not synced"
+  },
+  "toolbar": {
+    "searchServers": "Search server name or URL",
+    "searchTools": "Search tool name or description",
+    "add": "Add",
+    "sync": "Sync",
+    "syncTools": "Sync",
+    "editServer": "Edit",
+    "deleteServer": "Delete",
+    "viewTools": "View {name} MCP tools",
+    "toggleServer": "Toggle MCP server {name}",
+    "selectPageTools": "Select page",
+    "selectTool": "Select tool {name}",
+    "editTool": "Edit",
+    "viewSchema": "Schema",
+    "viewToolSchema": "View {name} schema",
+    "toggleTool": "Toggle tool {name}",
+    "activateSelected": "Enable",
+    "deactivateSelected": "Disable"
+  },
+  "bulkConfirm": {
+    "title": "Confirm bulk action",
+    "description": "Run this bulk action for {count} selected tools.",
+    "confirm": "Confirm",
+    "pending": "Processing"
+  },
+  "serverDialog": {
+    "createTitle": "Add MCP server",
+    "editTitle": "Edit MCP server",
+    "description": "Configure the MCP Streamable HTTP endpoint and credentials.",
+    "name": "Server name",
+    "namePlaceholder": "Server name",
+    "status": "Server status",
+    "url": "Server URL",
+    "authToken": "Auth token",
+    "authTokenCreatePlaceholder": "Optional",
+    "authTokenEditPlaceholder": "Leave empty to keep unchanged",
+    "headers": "Headers"
+  },
+  "toolDialog": {
+    "title": "Edit MCP tool",
+    "description": "Customize the tool name and description shown in the conversation toolbar and model calls.",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "Tool display name",
+    "toolDescription": "Description",
+    "toolDescriptionPlaceholder": "Describe what this tool is useful for"
+  },
+  "schemaDialog": {
+    "fallbackTitle": "Tool schema",
+    "description": "{name} input parameter JSON Schema",
+    "fallbackDescription": "Input parameter JSON Schema"
+  },
+  "confirm": {
+    "deleteServer": "Delete MCP server \"{name}\"?"
+  },
+  "toast": {
+    "settingsUpdated": "Tool settings updated",
+    "settingsLoadFailed": "Failed to load tool settings",
+    "saveFailed": "Could not save tool settings",
+    "serversLoadFailed": "Failed to load MCP servers",
+    "toolsLoadFailed": "Failed to load MCP tools",
+    "toolsSynced": "MCP tools synced",
+    "toolsSyncFailed": "Failed to sync MCP tools",
+    "serverUpdated": "MCP server updated",
+    "serverCreated": "MCP server created",
+    "serverSaveFailed": "Failed to save MCP server",
+    "serverDeleted": "MCP server deleted",
+    "serverDeleteFailed": "Failed to delete MCP server",
+    "serverStatusUpdated": "MCP server {status}",
+    "serverStatusFailed": "Failed to update MCP server status",
+    "toolStatusFailed": "Failed to update tool status",
+    "selectedToolsEnabled": "Selected tools enabled",
+    "selectedToolsDisabled": "Selected tools disabled",
+    "selectedToolsUpdateFailed": "Failed to update selected tools",
+    "toolUpdated": "Tool updated",
+    "toolSaveFailed": "Failed to save tool",
+    "schemaCopied": "Schema copied",
+    "copyFailed": "Copy failed",
+    "unknownError": "Request failed. Please try again later.",
+    "sessionExpired": "Your session has expired.",
+    "sessionExpiredDescription": "Please sign in again to continue."
+  }
+}

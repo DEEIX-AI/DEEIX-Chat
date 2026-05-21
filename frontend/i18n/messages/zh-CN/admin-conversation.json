@@ -1,0 +1,76 @@
+{
+  "sections": {
+    "conversation": "会话配置",
+    "optionPassthrough": "参数透传"
+  },
+  "taskModel": {
+    "follow": "跟随当前模型"
+  },
+  "policy": {
+    "allowlist": "白名单",
+    "denylist": "黑名单",
+    "disabled": "禁止透传"
+  },
+  "fields": {
+    "taskModel": {
+      "label": "任务执行模型",
+      "description": "生成会话标题和标签时使用的聊天模型。"
+    },
+    "optionPolicyMode": {
+      "label": "参数透传策略",
+      "description": "控制用户请求 options 是否允许透传到上游。默认仅放行白名单路径。"
+    },
+    "allowedPaths": {
+      "label": "模型参数白名单",
+      "description": "JSON 对象。default 对所有协议生效，协议项只对对应协议追加放行；路径使用 xxx.xxx。"
+    },
+    "deniedPaths": {
+      "label": "模型参数黑名单",
+      "description": "JSON 对象。仅黑名单模式生效；系统危险字段即使不写也会被拦截。"
+    },
+    "titlePrompt": {
+      "label": "生成标题提示词",
+      "description": "模型需返回 JSON：'{' \"title\": \"你归纳的标题\" '}'。支持 '{{MESSAGES}}' 占位符。"
+    },
+    "labelsPrompt": {
+      "label": "生成标签提示词",
+      "description": "模型需返回 JSON：'{' \"labels\": [\"标签1\", \"标签2\"] '}'。支持 '{{MESSAGES}}' 占位符。"
+    },
+    "defaultPromptPlaceholder": "留空使用内置默认提示词"
+  },
+  "preview": {
+    "title": "实时预览",
+    "passed": "不过滤",
+    "filtered": "过滤",
+    "emptyPassed": "当前没有可透传路径",
+    "emptyFiltered": "当前没有过滤路径",
+    "systemDenied": "系统拦截",
+    "hitDenylist": "命中黑名单",
+    "hitAllowlist": "命中白名单",
+    "otherFields": "其他字段",
+    "notInDenylist": "未列入黑名单"
+  },
+  "guide": {
+    "button": "教程",
+    "title": "参数透传教程",
+    "description": "控制用户 options 哪些字段可以进入上游请求。",
+    "pathTitle": "路径写法",
+    "pathLabel": "路径",
+    "pathDescription": "顶层写字段名，嵌套用点号，支持多层。",
+    "strategyTitle": "透传策略",
+    "allowlistDescription": "只放行列出的路径，其他字段丢弃。",
+    "denylistDescription": "默认透传，命中黑名单或系统拦截的路径会被移除。",
+    "openAIServiceTierNote": "OpenAI service_tier 仅接受 default、flex、priority；未配置时不传。",
+    "protocolTitle": "协议主键",
+    "protocolDescription": "default 全协议生效；其他主键只对对应协议生效。",
+    "systemDeniedTitle": "系统拦截",
+    "systemDeniedDescription": "这些字段始终拦截，不能通过白名单放行。"
+  },
+  "toast": {
+    "sessionExpired": "登录状态已失效",
+    "signInAgain": "请重新登录后再继续操作。",
+    "loadFailed": "加载会话配置失败",
+    "saveFailed": "保存失败",
+    "updated": "会话配置已更新"
+  }
+}

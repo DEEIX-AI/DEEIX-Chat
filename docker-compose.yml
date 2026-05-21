@@ -1,0 +1,25 @@
+name: deeix-chat
+
+services:
+  app:
+    image: ${DEEIX_CHAT_IMAGE:-ghcr.io/deeix-ai/deeix-chat:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: deeix-chat-app
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - app_storage:/app/storage
+      - ./config.yaml:/app/config.yaml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - deeix-chat
+volumes:
+  app_storage:
+    name: deeix-chat-app-storage
+
+networks:
+  deeix-chat:
+    name: deeix-chat-network

@@ -1,0 +1,585 @@
+{
+  "title": "Settings",
+  "general": "General",
+  "account": "Account",
+  "chat": "Chat",
+  "subscription": "Subscription",
+  "about": "About",
+  "navigation": "Settings navigation",
+  "aboutPage": {
+    "title": "About",
+    "description": "DEEIX Chat is a model access and conversation operations platform for multi-user AI applications. It unifies the model catalog, multi-provider routing, parameter governance, files and RAG, MCP tools, usage billing, identity security, audit, and operational settings in a single control plane.",
+    "details": "Product information",
+    "product": "Product",
+    "version": "Version",
+    "console": "Console",
+    "userConsole": "User console",
+    "official": "Official",
+    "website": "Website",
+    "repository": "Repository",
+    "social": "X",
+    "blog": "Blog",
+    "contact": "Contact & support",
+    "copyright": "© 2026 DEEIX. DEEIX Chat.",
+    "license": "Code licensed under the Apache License 2.0."
+  },
+  "appearance": "Appearance",
+  "language": "Language",
+  "languageDescription": "Choose the interface language for this browser and your account.",
+  "generalPage": {
+    "profile": {
+      "avatar": "Avatar",
+      "avatarAlt": "User avatar",
+      "username": "Username",
+      "usernamePlaceholder": "Set username",
+      "displayName": "Display name",
+      "displayNamePlaceholder": "Name shown in the interface",
+      "displayNameInvalid": "Display name must be 3-16 characters.",
+      "timezone": "Timezone",
+      "conversationPreferences": "Conversation preferences",
+      "conversationPreferencesPlaceholder": "Preferred style, language habits, output format, and common workflows."
+    },
+    "username": {
+      "invalid": "Username must be 3-16 lowercase letters, numbers, underscores, or hyphens and cannot use a reserved name.",
+      "alreadyChanged": "Username can only be set once.",
+      "taken": "This username is already taken."
+    },
+    "toast": {
+      "initialUsernameRequired": "Initial username must be changed before continuing.",
+      "setUsernameFailed": "Failed to set username",
+      "usernameUpdated": "Username updated",
+      "profileUpdated": "Profile updated",
+      "saveProfileFailed": "Failed to save profile"
+    },
+    "notifications": {
+      "responseCompletionTitle": "Response completion notification",
+      "responseCompletionDescription": "Notify you when a model finishes a response. This is useful for long-running tasks such as tool calls and research.",
+      "toggleResponseCompletion": "Toggle response completion notification",
+      "unsupportedTitle": "Notifications are not supported in this browser",
+      "unsupportedDescription": "Use a desktop browser that supports the Notification API.",
+      "deniedTitle": "Notification permission was denied",
+      "deniedDescription": "Allow notifications in this site's browser permissions before enabling this option.",
+      "enabledTitle": "Browser notifications enabled",
+      "enabledDescription": "You will receive a system notification when a reply finishes in the background.",
+      "defaultHelp": "When enabled, the browser notification permission is used to alert you through system notifications.",
+      "unsupportedHelp": "This browser does not support system notifications.",
+      "deniedHelp": "Notifications are blocked by the browser. Allow them manually in browser settings.",
+      "grantedHelp": "Browser notifications are enabled. When a model reply finishes, a notification will appear."
+    },
+    "appearance": {
+      "colorMode": "Color mode",
+      "themePreset": "Theme",
+      "chatFont": "Chat font",
+      "chatFontWeight": "Chat font weight",
+      "preset": {
+        "default": "Default",
+        "azure": "Azure",
+        "cobalt": "Cobalt",
+        "graphite": "Graphite",
+        "lagoon": "Lagoon",
+        "ink": "Ink",
+        "ochre": "Ochre",
+        "sepia": "Sepia"
+      },
+      "theme": {
+        "light": "Light",
+        "system": "System",
+        "dark": "Dark"
+      },
+      "font": {
+        "default": "Default",
+        "songti": "Serif",
+        "heiti": "Sans",
+        "mono": "Mono"
+      },
+      "fontWeight": {
+        "regular": "Regular",
+        "medium": "Medium",
+        "semibold": "Semibold",
+        "bold": "Bold"
+      }
+    },
+    "avatarDialog": {
+      "title": "Edit avatar",
+      "description": "Enter an avatar URL or click the avatar area to generate a pixel-style avatar.",
+      "avatarURL": "Avatar URL",
+      "apply": "Apply"
+    }
+  },
+  "profile": "Profile",
+  "security": "Security",
+  "notifications": "Notifications",
+  "memory": "AI preference memory",
+  "accountPage": {
+    "title": "Account",
+    "password": "Sign-in password",
+    "twoFactor": "Two-factor authentication",
+    "logoutAllDevices": "Sign out of all active devices",
+    "deleteAccount": "Delete your account",
+    "publicID": "Public user ID",
+    "copyPublicID": "Copy public user ID",
+    "email": {
+      "label": "Email",
+      "withAddress": "Email ({email})",
+      "verified": "Verified",
+      "unverified": "Unverified"
+    },
+    "actions": {
+      "set": "Set",
+      "update": "Update",
+      "manage": "Manage",
+      "generating": "Generating",
+      "logOut": "Sign out",
+      "loggingOut": "Signing out",
+      "deleteAccount": "Delete account",
+      "deleting": "Deleting",
+      "bind": "Bind",
+      "cancel": "Cancel",
+      "verify": "Verify"
+    },
+    "identity": {
+      "title": "Linked identity providers",
+      "provider": "Provider",
+      "username": "Username",
+      "email": "Email",
+      "linkedAt": "Linked at",
+      "empty": "No third-party identity provider is linked.",
+      "unlink": "Unlink identity provider",
+      "unlinkDisabled": "Set a password or link another identity provider first."
+    },
+    "session": {
+      "title": "Active sessions",
+      "device": "Device",
+      "location": "Location",
+      "createdAt": "Created",
+      "updatedAt": "Updated",
+      "empty": "No active sessions.",
+      "current": "Current session",
+      "actions": "Session actions",
+      "logoutThisSession": "Sign out this session",
+      "unknownDevice": "Unknown device",
+      "unknownLocation": "Unknown location",
+      "unknownIP": "Unknown IP"
+    },
+    "deleteDialog": {
+      "title": "Delete account",
+      "description": "Deleting your account is permanent. Your account and chat history cannot be restored.",
+      "verificationTitle": "Verify account deletion",
+      "verificationDescription": {
+        "twoFactor": "Enter your authenticator code or a recovery code to delete the account.",
+        "email": "Send a code to your verified email, then enter it to delete the account."
+      },
+      "verificationUnavailable": "Account deletion requires identity verification. Verify your email or enable two-factor authentication first."
+    },
+    "securityDialog": {
+      "common": {
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving",
+        "sending": "Sending",
+        "sendCode": "Send",
+        "resendIn": "Resend in {seconds}s",
+        "processing": "Processing",
+        "done": "Done",
+        "verify": "Verify",
+        "continue": "Continue",
+        "back": "Back",
+        "debugCode": "Development code: {code}",
+        "copiedLabel": "{label} copied",
+        "copyFailed": "Copy failed",
+        "copyManually": "Please select the content manually."
+      },
+      "password": {
+        "title": {
+          "required": "Set your first password",
+          "change": "Change password",
+          "set": "Set password"
+        },
+        "description": {
+          "required": "The initial password must be changed before continuing. This session will expire after the change.",
+          "change": "Your current session will expire after the password is changed. Sign in again with the new password.",
+          "set": "After setting a password, you can sign in with a username and password and use it as a fallback credential before unlinking identity providers."
+        },
+        "verificationTitle": "Verify password change",
+        "verificationDescription": {
+          "twoFactor": "Enter your authenticator code or a recovery code to continue.",
+          "email": "Send a code to your verified email, then enter it to continue."
+        },
+        "labels": {
+          "currentPassword": "Current password",
+          "newPassword": "New password",
+          "loginPassword": "Sign-in password",
+          "twoFactorCode": "Two-factor code",
+          "emailCode": "Email code"
+        },
+        "placeholders": {
+          "password": "At least 8 characters, not digits only",
+          "otpOrRecovery": "Code or recovery code",
+          "sixDigitCode": "6-digit code"
+        }
+      },
+      "email": {
+        "title": {
+          "set": "Set email",
+          "change": "Change email"
+        },
+        "description": {
+          "bootstrapVerified": "Setting your first email requires verifying ownership of the new address.",
+          "saveOnly": "The email address will be updated after saving.",
+          "change": "DEEIX Chat will ask for the verification required by your account before saving this change."
+        },
+        "labels": {
+          "newEmail": "New email"
+        }
+      },
+      "verification": {
+        "title": {
+          "emailBootstrap": "Verify new email",
+          "emailChange": "Verify email change",
+          "currentEmail": "Verify email"
+        },
+        "description": {
+          "emailBootstrap": "Send a code to the new email address, then enter it to save the email.",
+          "emailChange": "Complete the required verification before saving the email change.",
+          "currentEmail": "Send a code to {email}, then enter it to mark the address as verified."
+        },
+        "labels": {
+          "twoFactorCode": "Two-factor code",
+          "emailCode": "Email code",
+          "currentEmailCode": "Current email code",
+          "newEmail": "New email",
+          "newEmailCode": "New email code",
+          "verificationCode": "Verification code"
+        },
+        "placeholders": {
+          "otpOrRecovery": "Code or recovery code",
+          "sixDigitCode": "6-digit code"
+        },
+        "actions": {
+          "useEmail": "Use email instead",
+          "useTwoFactor": "Use two-factor instead"
+        }
+      },
+      "twoFactor": {
+        "title": {
+          "setup": "Enable two-factor authentication",
+          "manage": "Manage two-factor authentication",
+          "recovery": "Save recovery codes"
+        },
+        "description": {
+          "setup": "Scan the QR code with an authenticator app, or enter the key manually.",
+          "manage": "Enter a code or recovery code to continue.",
+          "recovery": "Recovery codes are shown only once. Save them somewhere safe."
+        },
+        "tabs": {
+          "qr": "QR code",
+          "manual": "Manual setup"
+        },
+        "errors": {
+          "codeRequired": "Enter a verification code."
+        },
+        "qrLabel": "Two-factor authentication QR code",
+        "setupExpired": "This setup has expired.",
+        "qrUnavailable": "QR code unavailable. Use the manual key instead.",
+        "scanThenVerify": "Scan the code, then enter a verification code to finish setup.",
+        "regenerate": "Regenerate",
+        "validUntil": "Valid until {time}",
+        "secret": "Secret",
+        "copySecret": "Copy secret",
+        "otpAuthUri": "OTP Auth URI",
+        "copyOtpUri": "Copy URI",
+        "code": "Verification code",
+        "sixDigitCode": "6-digit code",
+        "codeOrRecovery": "Verification code or recovery code",
+        "regenerateRecoveryCodes": "Regenerate codes",
+        "recoveryCodes": "Recovery codes",
+        "copyRecoveryCodes": "Copy codes",
+        "enable": "Enable",
+        "disable": "Disable"
+      }
+    },
+    "toasts": {
+      "retryLater": "Please try again later.",
+      "sessionMissing": "No active session was found.",
+      "loadFailed": "Failed to load account information",
+      "publicIDCopied": "Public ID copied",
+      "copyFailed": "Copy failed",
+      "codeSent": "Verification code sent",
+      "sendCodeFailed": "Failed to send verification code",
+      "passwordChanged": "Password changed",
+      "passwordChangedDescription": "Please sign in again with your new password.",
+      "changePasswordFailed": "Failed to change password",
+      "emailSet": "Email set",
+      "setEmailFailed": "Failed to set email",
+      "emailVerified": "Email verified",
+      "verifyEmailFailed": "Failed to verify email",
+      "currentEmailCodeSent": "Current email verification code sent",
+      "newEmailCodeSent": "New email verification code sent",
+      "deleteAccountCodeSent": "Account deletion code sent",
+      "emailChanged": "Email changed",
+      "changeEmailFailed": "Failed to change email",
+      "deleteAccountFailed": "Failed to delete account",
+      "sessionLoggedOut": "Session signed out",
+      "logoutSessionFailed": "Failed to sign out session",
+      "identityUnlinked": "Identity provider unlinked",
+      "unlinkIdentityFailed": "Failed to unlink identity provider",
+      "startTwoFactorFailed": "Failed to start two-factor setup",
+      "twoFactorEnabled": "Two-factor authentication enabled",
+      "enableTwoFactorFailed": "Failed to enable two-factor authentication",
+      "twoFactorDisabled": "Two-factor authentication disabled",
+      "disableTwoFactorFailed": "Failed to disable two-factor authentication",
+      "recoveryCodesRegenerated": "Recovery codes regenerated",
+      "regenerateRecoveryCodesFailed": "Failed to regenerate recovery codes",
+      "providerUnavailable": "This identity provider is not available for binding.",
+      "bindIdentityFailed": "Failed to bind identity provider"
+    }
+  },
+  "chatPage": {
+    "defaultModel": {
+      "sectionTitle": "Default model",
+      "title": "Default model for new chats",
+      "description": "The model preselected for new chats. Leave empty to use the first available system-recommended model.",
+      "systemRecommended": "System default"
+    },
+    "input": {
+      "sectionTitle": "Input and sending",
+      "shortcutTitle": "Send shortcut",
+      "shortcutDescription": "This platform uses {shortcut} to submit messages.",
+      "heightTitle": "Input area height",
+      "heightDescription": "Controls the maximum height allowed when the input box auto-expands.",
+      "height": {
+        "compact": "Compact",
+        "standard": "Standard",
+        "loose": "Loose"
+      },
+      "restoreDraftTitle": "Restore draft on failure",
+      "restoreDraftDescription": "Controls whether failed sends automatically restore the text and attachments from that attempt.",
+      "preserveDraftTitle": "Preserve conversation drafts",
+      "preserveDraftDescription": "Controls whether unsent content is kept and restored when switching conversations."
+    },
+    "display": {
+      "sectionTitle": "Display and rendering",
+      "markdownTitle": "Markdown rendering",
+      "markdownDescription": "Controls whether AI replies are rendered as formatted Markdown.",
+      "modelTitle": "Show called model",
+      "modelDescription": "Controls whether the model used for this call appears below AI replies.",
+      "tokenTitle": "Show token usage",
+      "tokenDescription": "Controls whether token usage for the request appears below AI replies.",
+      "latencyTitle": "Show total latency",
+      "latencyDescription": "Controls whether total call latency appears below AI replies.",
+      "costTitle": "Show total cost",
+      "costDescription": "Controls whether total call cost appears below AI replies.",
+      "costDescriptionSelfMode": "Controls whether total call cost appears below AI replies. Hidden in self-use mode."
+    },
+    "context": {
+      "sectionTitle": "Context management",
+      "autoCompactTitle": "Auto-compact context",
+      "autoCompactDescription": "When a conversation approaches the model limit, earlier messages are summarized automatically to keep the conversation continuous. Turn this off to compact manually."
+    },
+    "file": {
+      "sectionTitle": "File processing",
+      "modeTitle": "File processing mode",
+      "mode": {
+        "auto": "Auto",
+        "fullContext": "Full context",
+        "rag": "Vector retrieval"
+      },
+      "modeDescription": {
+        "auto": "Current: Auto. The system chooses full-context injection or RAG based on file size, type, context budget, and retrieval capability.",
+        "fullContext": "Current: Full context. Later turns try to include conversation file content directly, which works best for precise analysis of small files.",
+        "rag": "Current: RAG. Later turns retrieve relevant file chunks first, then fall back to full-context injection when retrieval is unavailable."
+      }
+    },
+    "memory": {
+      "sectionTitle": "AI preference memory",
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "edit": "Edit preference",
+      "confirmDelete": "Delete this preference?",
+      "separator": ": ",
+      "addTitle": "Add preference",
+      "addDescription": "Saved preferences are used as long-term guidance for AI replies.",
+      "name": "Name",
+      "namePlaceholder": "Example: Reply style",
+      "content": "Preference content",
+      "contentPlaceholder": "Example: concise and direct, avoid filler",
+      "adding": "Adding",
+      "add": "Add",
+      "added": "Preference added",
+      "addFailed": "Failed to add preference",
+      "updated": "Updated",
+      "updateFailed": "Failed to update",
+      "deleted": "Deleted",
+      "deleteFailed": "Failed to delete",
+      "full": "Full",
+      "addPreference": "Add preference",
+      "empty": "No preference memory yet."
+    },
+    "toasts": {
+      "saveFailed": "Failed to save",
+      "retryLater": "Please try again later."
+    }
+  },
+  "subscriptionPage": {
+    "title": "Subscription",
+    "actions": {
+      "cancel": "Cancel",
+      "processing": "Processing"
+    },
+    "interval": {
+      "lifetime": "lifetime",
+      "year": "year",
+      "month": "month"
+    },
+    "currentSubscription": {
+      "title": "Current subscription",
+      "none": "No subscription",
+      "empty": "No subscription plan is available.",
+      "subscribe": "Subscribe"
+    },
+    "periodUsage": {
+      "title": "Plan usage",
+      "currentPeriod": "Current billing period",
+      "used": "Used {value}",
+      "total": "Total {value}"
+    },
+    "usageBilling": {
+      "title": "Usage billing",
+      "balance": "Account balance {value}",
+      "topUp": "Top up"
+    },
+    "selfMode": {
+      "title": "Billing mode",
+      "value": "Self-use mode"
+    },
+    "usageTrend": {
+      "dailyTitle": "Daily usage trend",
+      "monthlyTitle": "Monthly usage trend",
+      "daily": "Daily",
+      "monthly": "Monthly",
+      "dailyUsage": "Daily usage",
+      "monthlyUsage": "Monthly usage",
+      "empty": "No usage data.",
+      "metrics": {
+        "totalCost": "Total cost",
+        "totalTokens": "Total tokens",
+        "totalCalls": "Total calls",
+        "averageLatency": "Average latency"
+      },
+      "tooltip": {
+        "cost": "Cost",
+        "calls": "Calls"
+      }
+    },
+    "usageLog": {
+      "title": "Usage logs",
+      "searchModel": "Search models",
+      "type": "Type",
+      "filters": {
+        "all": "All",
+        "free": "Free models",
+        "billable": "Billable models"
+      },
+      "sort": {
+        "newest": "Newest calls",
+        "oldest": "Oldest calls",
+        "tokensDesc": "Most tokens",
+        "costDesc": "Highest cost",
+        "latencyDesc": "Longest latency"
+      },
+      "columns": {
+        "time": "Time",
+        "model": "Model",
+        "baseBilling": "Base billing",
+        "serviceBilling": "Service billing",
+        "latency": "Latency"
+      },
+      "empty": "No usage logs."
+    },
+    "billingTooltip": {
+      "cacheWrite": "Cache write",
+      "cacheWrite5m": "Cache write 5m",
+      "cacheWrite1h": "Cache write 1h",
+      "cacheWrite5m1h": "Cache write 5m/1h",
+      "cacheWritePricingLabel": "Cache write 5m",
+      "cacheWritePricingNote": "Claude cache read uses configured pricing; cache write 5m uses 1.25x, 1h uses 2x, and Fast Mode applies another 6x multiplier.",
+      "claudeCacheWriteMixedNote": "Claude cache write uses configured pricing at {multiplier}.",
+      "claudeCacheWriteNote": "Claude {timeout} cache write uses configured pricing at {multiplier}.",
+      "claudeFastModeNote": "Claude Fast Mode bills input, output, and cache usage at {multiplier}.",
+      "openaiServiceTierNote": "OpenAI service_tier={tier} bills at {multiplier}.",
+      "baseService": "Base service",
+      "input": "Input",
+      "output": "Output",
+      "cacheRead": "Cache read",
+      "rateNote": "Multiplier",
+      "cacheNote": "Cache",
+      "total": "Total",
+      "subtotal": "Subtotal",
+      "freeModelNoBilling": "free model, not billed",
+      "perCall": "Per call",
+      "perSecond": "Per second",
+      "callUnit": "call",
+      "secondUnit": "second",
+      "tieredRangeBounded": "Original input range {from}-{upTo}",
+      "tieredRangeOpen": "Original input range {from}+",
+      "table": {
+        "item": "Billing item",
+        "usage": "Usage",
+        "unitPrice": "Unit price",
+        "amount": "Amount"
+      }
+    },
+    "plans": {
+      "title": "Subscription plans",
+      "actions": {
+        "current": "Current plan",
+        "unavailable": "Unavailable",
+        "subscribe": "Subscribe",
+        "switch": "Switch"
+      },
+      "features": {
+        "monthlyCredit": "{credit} monthly credit",
+        "freeModelsNotIncluded": "Free models do not count toward the credit."
+      }
+    },
+    "payment": {
+      "title": "Payment method",
+      "description": "Confirm the payment method to continue.",
+      "method": "Payment method",
+      "card": "Card",
+      "disabled": "Disabled",
+      "continue": "Continue",
+      "epay": {
+        "alipay": "Alipay",
+        "wxpay": "WeChat Pay",
+        "qqpay": "QQ Wallet",
+        "custom": "Custom · {type}"
+      }
+    },
+    "topUp": {
+      "title": "Top up",
+      "description": "Enter a USD amount.",
+      "amount": "Top-up amount",
+      "amountAria": "Top-up amount in USD",
+      "confirm": "Top up"
+    },
+    "toasts": {
+      "retryLater": "Please try again later.",
+      "subscriptionLoadFailed": "Failed to load subscription information",
+      "usageLogLoadFailed": "Failed to load usage logs",
+      "checkoutCreateFailed": "Failed to create payment",
+      "checkoutURLMissing": "The payment provider did not return a checkout URL.",
+      "planUpdated": "Subscription plan updated",
+      "subscribeFailed": "Subscription failed",
+      "invalidTopUpAmount": "Invalid top-up amount",
+      "invalidTopUpAmountDescription": "Enter a USD amount greater than 0.",
+      "planUnavailable": "Plan unavailable",
+      "planUnavailableDescription": "This plan has no available price. Ask an administrator to check the billing configuration.",
+      "paymentDisabled": "Payment provider is disabled",
+      "paymentDisabledDescription": "Configure a payment provider in the admin console before subscribing to a paid plan.",
+      "noPlanSelected": "No plan selected",
+      "noPlanSelectedDescription": "Select a plan before subscribing."
+    }
+  }
+}
