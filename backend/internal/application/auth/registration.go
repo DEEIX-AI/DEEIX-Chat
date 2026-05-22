@@ -320,7 +320,6 @@ func (s *Service) RequestPasswordChangeVerification(ctx context.Context, userID 
 }
 
 func (s *Service) ChangePassword(ctx context.Context, userID uint, currentPassword string, newPassword string, verificationMethod string, code string, requestID string, auditCtx requestmeta.SessionAuditContext) error {
-	cfg := s.cfg.Snapshot()
 	normalizedPassword, err := userapp.NormalizePassword(newPassword)
 	if err != nil {
 		return err
@@ -334,7 +333,7 @@ func (s *Service) ChangePassword(ctx context.Context, userID uint, currentPasswo
 		return err
 	}
 	initialReset := credential.MustResetPassword || isBootstrapSuperAdminAdminCreatedPassword(*item, credential)
-	if initialReset && normalizedPassword == strings.TrimSpace(cfg.AdminPassword) {
+	if initialReset && isBootstrapSuperAdminAdminCreatedPassword(*item, credential) && passwordMatchesCredential(normalizedPassword, credential) {
 		return fmt.Errorf("new password must be different from the bootstrap password")
 	}
 	if credential.PasswordEnabled && !initialReset {

@@ -246,7 +246,9 @@ Common backend environment variables:
 
 Production mode rejects unsafe default secrets, weak encryption keys, wildcard CORS, and non-HTTPS public URLs.
 
-The initial superadmin bootstrap credentials are built in as `deeix-chat` / `deeix-chat-2026` / `System Admin`. They are used only when the database has no superadmin account. The first login forces changing the username and password; later changes are managed from the account flow, not from `config.yaml`.
+The initial superadmin username is `admin`. When the database has no superadmin account, the backend generates a random password and prints it once in the startup logs while creating the account. The first login forces changing the username and password; later changes are managed from the account flow, not from `config.yaml`.
+
+To retrieve the initial admin password, inspect the backend logs from the first startup and search for `bootstrap superadmin created`; the `username` and `password` fields are the initial login credentials. If a superadmin already exists in the database, the service does not regenerate or print this password again.
 
 ## Security Notes
 

@@ -2,8 +2,10 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -153,6 +155,13 @@ func (s *Service) warn(message string, fields ...zap.Field) {
 	s.logger.Warn(message, fields...)
 }
 
+func (s *Service) info(message string, fields ...zap.Field) {
+	if s.logger == nil {
+		return
+	}
+	s.logger.Info(message, fields...)
+}
+
 // EnsureBootstrapSuperAdmin 确保系统存在唯一 superadmin。
 func (s *Service) EnsureBootstrapSuperAdmin(ctx context.Context) error {
 	count, err := s.repo.CountSuperAdmins(ctx)
@@ -164,7 +173,11 @@ func (s *Service) EnsureBootstrapSuperAdmin(ctx context.Context) error {
 	}
 
 	cfg := s.cfg.Snapshot()
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(cfg.AdminPassword), passwordHashCost)
+	bootstrapPassword, err := generateBootstrapAdminPassword()
+	if err != nil {
+		return err
+	}
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(bootstrapPassword), passwordHashCost)
 	if err != nil {
 		return err
 	}
@@ -187,7 +200,7 @@ func (s *Service) EnsureBootstrapSuperAdmin(ctx context.Context) error {
 		Locale:      "en-US",
 	}
 
-	return s.repo.CreateWithCredential(ctx, item, domainuser.Credential{
+	if err = s.repo.CreateWithCredential(ctx, item, domainuser.Credential{
 		PasswordHash:      string(passwordHash),
 		PasswordAlgo:      "bcrypt",
 		PasswordEnabled:   true,
@@ -195,7 +208,19 @@ func (s *Service) EnsureBootstrapSuperAdmin(ctx context.Context) error {
 		PasswordSetAt:     &now,
 		PasswordOrigin:    domainuser.PasswordOriginAdminCreated,
 		MustResetPassword: true,
-	}, 0, 0, nil, false)
+	}, 0, 0, nil, false); err != nil {
+		return err
+	}
+	s.info("bootstrap superadmin created", zap.String("username", username), zap.String("password", bootstrapPassword))
+	return nil
+}
+
+func generateBootstrapAdminPassword() (string, error) {
+	buf := make([]byte, 24)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate bootstrap admin password: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
 // Login 登录鉴权并返回访问令牌，成功与失败均记录认证事件。
@@ -527,7 +552,7 @@ func (s *Service) CompleteOnboarding(
 		if policyErr != nil {
 			return nil, false, policyErr
 		}
-		if trimmedPassword == strings.TrimSpace(cfg.AdminPassword) {
+		if isBootstrapSuperAdminAdminCreatedPassword(*item, credential) && passwordMatchesCredential(trimmedPassword, credential) {
 			return nil, false, fmt.Errorf("new password must be different from the bootstrap password")
 		}
 		passwordHash, hashErr := bcrypt.GenerateFromPassword([]byte(trimmedPassword), passwordHashCost)
@@ -566,6 +591,13 @@ func isBootstrapSuperAdminAdminCreatedPassword(item domainuser.User, credential 
 		item.Role == domainuser.RoleSuperAdmin &&
 		credential.PasswordEnabled &&
 		credential.PasswordOrigin == domainuser.PasswordOriginAdminCreated
+}
+
+func passwordMatchesCredential(password string, credential *domainuser.Credential) bool {
+	if credential == nil || strings.TrimSpace(credential.PasswordHash) == "" {
+		return false
+	}
+	return bcrypt.CompareHashAndPassword([]byte(credential.PasswordHash), []byte(password)) == nil
 }
 
 func (s *Service) applyTwoFactorView(ctx context.Context, view *userview.UserView) error {

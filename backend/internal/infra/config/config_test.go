@@ -17,9 +17,6 @@ func TestLoadDefaultsUseBootstrapAdmin(t *testing.T) {
 	if cfg.AdminUsername != defaultAdminUsername {
 		t.Fatalf("expected default admin username %q, got %q", defaultAdminUsername, cfg.AdminUsername)
 	}
-	if cfg.AdminPassword != defaultAdminPassword {
-		t.Fatalf("expected default admin password %q, got %q", defaultAdminPassword, cfg.AdminPassword)
-	}
 	if cfg.AdminDisplayName != defaultAdminDisplayName {
 		t.Fatalf("expected default admin display name %q, got %q", defaultAdminDisplayName, cfg.AdminDisplayName)
 	}
@@ -91,9 +88,6 @@ geoip:
 	cfg := Load()
 	if cfg.AdminUsername != defaultAdminUsername {
 		t.Fatalf("expected built-in admin username, got %q", cfg.AdminUsername)
-	}
-	if cfg.AdminPassword != defaultAdminPassword {
-		t.Fatalf("expected built-in admin password, got %q", cfg.AdminPassword)
 	}
 	if cfg.AdminDisplayName != defaultAdminDisplayName {
 		t.Fatalf("expected built-in admin display name, got %q", cfg.AdminDisplayName)

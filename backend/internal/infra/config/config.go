@@ -16,8 +16,7 @@ import (
 const (
 	defaultJWTSecret                    = "deeix-chat-dev-secret"
 	defaultDataEncryptionKey            = "deeix-chat-dev-data-encryption-key"
-	defaultAdminUsername                = "deeix-chat"
-	defaultAdminPassword                = "deeix-chat-2026"
+	defaultAdminUsername                = "admin"
 	defaultAdminDisplayName             = "System Admin"
 	defaultGeoIPMaxBytes                = 100 * 1024 * 1024
 	defaultHTTPReadHeaderTimeoutSeconds = 10
@@ -271,7 +270,6 @@ type Config struct {
 	StorageS3SecretAccessKey     string
 	StorageS3ForcePathStyle      bool
 	AdminUsername                string
-	AdminPassword                string
 	AdminDisplayName             string
 	GeoIPProvider                string
 	GeoIPBaseURL                 string
@@ -469,7 +467,6 @@ func Load() Config {
 		StorageS3SecretAccessKey:     envOr("STORAGE_S3_SECRET_ACCESS_KEY", yc.Storage.S3.SecretAccessKey, ""),
 		StorageS3ForcePathStyle:      envOrBoolPtr("STORAGE_S3_FORCE_PATH_STYLE", yc.Storage.S3.ForcePathStyle, true),
 		AdminUsername:                defaultAdminUsername,
-		AdminPassword:                defaultAdminPassword,
 		AdminDisplayName:             defaultAdminDisplayName,
 		GeoIPProvider:                envOr("GEOIP_PROVIDER", yc.GeoIP.Provider, "ipwhois"),
 		GeoIPBaseURL:                 envOr("GEOIP_BASE_URL", yc.GeoIP.BaseURL, "https://ipwho.is"),
