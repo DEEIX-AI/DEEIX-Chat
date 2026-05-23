@@ -274,8 +274,10 @@ func validatePatchItem(item PatchItem) error {
 		return validateIntMinMax(value, 1, 65535, key)
 	case "auth:email_registration_allowed_domains":
 		return validateEmailDomainList(value, key)
-	case "storage:max_upload_file_bytes", "storage:user_storage_quota_bytes", "file:file_full_context_max_bytes":
+	case "storage:max_upload_file_bytes", "storage:user_storage_quota_bytes":
 		return validateInt64Min(value, 1, key)
+	case "file:file_full_context_max_bytes":
+		return validateOptionalInt64Min(value, 0, key)
 	case "file:image_max_bytes", "file:doc_max_bytes":
 		if value == "" {
 			return nil
@@ -286,9 +288,9 @@ func validatePatchItem(item PatchItem) error {
 	case "file:image_max_dimension":
 		return validateIntMinMax(value, 0, 8192, key)
 	case "file:full_context_max_tokens":
-		return validateIntMinMax(value, 128, 1000000, key)
+		return validateOptionalIntZeroOrMinMax(value, 128, 1000000, key)
 	case "file:full_context_pdf_max_pages":
-		return validateIntMinMax(value, 1, 500, key)
+		return validateOptionalIntZeroOrMinMax(value, 1, 500, key)
 	case "chat:rag_wait_ready_ms":
 		return validateIntMinMax(value, 1000, 120000, key)
 	case "chat:context_artifact_retention_days":
@@ -372,7 +374,7 @@ func validatePatchItem(item PatchItem) error {
 		return validateStringMax(value, 255, key)
 	case "extract:tencent_ocr_secret_id", "extract:tencent_ocr_secret_key", "extract:aliyun_ocr_access_key_id", "extract:aliyun_ocr_access_key_secret":
 		return validateStringMax(value, 512, key)
-	case "auth:username_login_enabled", "auth:email_login_enabled", "auth:third_party_login_enabled", "auth:email_registration_enabled", "auth:email_verification_enabled", "auth:email_registration_block_plus_alias", "auth:auto_link_verified_email", "chat:rag_enabled", "chat:message_embedding_enabled", "chat:semantic_context_enabled", "file:embedding_enabled", "file:embed_trigger_on_upload", "file:embedding_normalize", "extract:image_ocr_enabled", "extract:pdf_ocr_fallback_enabled", "mcp:mcp_enable":
+	case "auth:username_login_enabled", "auth:email_login_enabled", "auth:third_party_login_enabled", "auth:email_registration_enabled", "auth:email_verification_enabled", "auth:email_registration_block_plus_alias", "auth:auto_link_verified_email", "chat:rag_enabled", "chat:message_embedding_enabled", "chat:semantic_context_enabled", "file:full_context_limit_enabled", "file:embedding_enabled", "file:embed_trigger_on_upload", "file:embedding_normalize", "extract:image_ocr_enabled", "extract:pdf_ocr_fallback_enabled", "mcp:mcp_enable":
 		if _, err := strconv.ParseBool(value); err != nil {
 			return fmt.Errorf("%s must be bool", key)
 		}
@@ -810,6 +812,28 @@ func validateInt64Min(value string, min int64, key string) error {
 	v, err := strconv.ParseInt(value, 10, 64)
 	if err != nil || v < min {
 		return fmt.Errorf("%s must be >= %d", key, min)
+	}
+	return nil
+}
+
+func validateOptionalInt64Min(value string, min int64, key string) error {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	v, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || v < min {
+		return fmt.Errorf("%s must be empty or >= %d", key, min)
+	}
+	return nil
+}
+
+func validateOptionalIntZeroOrMinMax(value string, min int, max int, key string) error {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	v, err := strconv.Atoi(value)
+	if err != nil || v < 0 || (v > 0 && (v < min || v > max)) {
+		return fmt.Errorf("%s must be empty, 0, or between %d and %d", key, min, max)
 	}
 	return nil
 }

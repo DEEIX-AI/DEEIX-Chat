@@ -89,6 +89,11 @@ export const EMBEDDING_MODES = {
   ON: "true",
 } as const;
 
+export const FULL_CONTEXT_LIMIT_MODES = {
+  OFF: "false",
+  ON: "true",
+} as const;
+
 export const MINERU_SERVICE_SOURCES = {
   CLOUD: "cloud",
   SELF_HOSTED: "self_hosted",
@@ -593,9 +598,44 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     title: "Full-text injection",
     description: "Controls whether extracted file text can be injected directly into context instead of using RAG.",
     fields: [
-      { namespace: "file", key: "file_full_context_max_bytes", label: "Full-text byte limit", description: "Maximum extracted text bytes allowed for full-context injection.", type: "int", placeholder: "Byte limit" },
-      { namespace: "file", key: "full_context_max_tokens", label: "Full-text token limit", description: "Maximum token budget allowed for full-context injection.", type: "int", placeholder: "Token limit" },
-      { namespace: "file", key: "full_context_pdf_max_pages", label: "Full-text page limit", description: "Maximum PDF pages allowed for full-context injection.", type: "int", placeholder: "Max pages" },
+      {
+        namespace: "file",
+        key: "full_context_limit_enabled",
+        label: "Full-text injection limits",
+        description: "Enable byte, token, and PDF page limits for full-text injection.",
+        type: "select",
+        options: [
+          { label: "Off", value: FULL_CONTEXT_LIMIT_MODES.OFF },
+          { label: "On", value: FULL_CONTEXT_LIMIT_MODES.ON },
+        ],
+      },
+      {
+        namespace: "file",
+        key: "file_full_context_max_bytes",
+        label: "Full-text byte limit",
+        description: "Maximum extracted text bytes allowed for full-context injection. Leave empty or use 0 for no byte limit.",
+        type: "int",
+        placeholder: "Empty or 0 means unlimited",
+        visibleWhen: { field: "file.full_context_limit_enabled", equals: FULL_CONTEXT_LIMIT_MODES.ON },
+      },
+      {
+        namespace: "file",
+        key: "full_context_max_tokens",
+        label: "Full-text token limit",
+        description: "Maximum token budget allowed for full-context injection. Leave empty or use 0 for no token limit.",
+        type: "int",
+        placeholder: "Empty or 0 means unlimited",
+        visibleWhen: { field: "file.full_context_limit_enabled", equals: FULL_CONTEXT_LIMIT_MODES.ON },
+      },
+      {
+        namespace: "file",
+        key: "full_context_pdf_max_pages",
+        label: "Full-text page limit",
+        description: "Maximum PDF pages allowed for full-context injection. Leave empty or use 0 for no page limit.",
+        type: "int",
+        placeholder: "Empty or 0 means unlimited",
+        visibleWhen: { field: "file.full_context_limit_enabled", equals: FULL_CONTEXT_LIMIT_MODES.ON },
+      },
     ],
   },
   {
@@ -1064,6 +1104,9 @@ export function applySettingsDefaults(next: Record<string, string>): Record<stri
   }
   if (!["true", "false"].includes(result["file.embedding_enabled"] ?? "")) {
     result["file.embedding_enabled"] = EMBEDDING_MODES.OFF;
+  }
+  if (!["true", "false"].includes(result["file.full_context_limit_enabled"] ?? "")) {
+    result["file.full_context_limit_enabled"] = FULL_CONTEXT_LIMIT_MODES.ON;
   }
   if (!["true", "false"].includes(result["chat.rag_enabled"] ?? "")) {
     result["chat.rag_enabled"] = "false";

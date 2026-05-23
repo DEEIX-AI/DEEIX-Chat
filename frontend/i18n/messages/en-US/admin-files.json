@@ -102,20 +102,28 @@
         "description": "Override the size limit for document attachments. Falls back to the default attachment limit when empty.",
         "placeholder": "Leave empty to use the default attachment limit"
       },
+      "full_context_limit_enabled": {
+        "label": "Full-text injection limits",
+        "description": "When enabled, full-text injection is limited by byte size, token budget, and PDF pages. When disabled, these limits are ignored.",
+        "options": {
+          "false": "Off",
+          "true": "On"
+        }
+      },
       "file_full_context_max_bytes": {
         "label": "Full-text byte limit",
-        "description": "Maximum extracted text bytes allowed for full-context injection.",
-        "placeholder": "Byte limit"
+        "description": "Maximum extracted text bytes allowed for full-context injection. Leave empty or use 0 for no byte limit.",
+        "placeholder": "Empty or 0 means unlimited"
       },
       "full_context_max_tokens": {
         "label": "Full-text token limit",
-        "description": "Maximum token budget allowed for full-context injection.",
-        "placeholder": "Token limit"
+        "description": "Maximum token budget allowed for full-context injection. Leave empty or use 0 for no token limit.",
+        "placeholder": "Empty or 0 means unlimited"
       },
       "full_context_pdf_max_pages": {
         "label": "Full-text page limit",
-        "description": "Maximum PDF pages allowed for full-context injection.",
-        "placeholder": "Max pages"
+        "description": "Maximum PDF pages allowed for full-context injection. Leave empty or use 0 for no page limit.",
+        "placeholder": "Empty or 0 means unlimited"
       },
       "embedding_enabled": {
         "label": "Embedding",

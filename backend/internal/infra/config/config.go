@@ -325,6 +325,7 @@ type Config struct {
 	MaxMessageFiles       int
 	// 文件处理配置
 	ImageMaxDimension                 int    // 图片缩放最大边长（像素），0 = 不缩放
+	FileFullContextLimitEnabled       bool   // 是否启用全文注入阈值限制
 	FileFullContextMaxBytes           int64  // 文本文件全文注入阈值（字节），超出不注入
 	FileFullContextMaxTokens          int    // 文本文件全文注入阈值（token）
 	FileImageMaxBytes                 int64  // 图片单文件上限（字节）
@@ -518,6 +519,7 @@ func Load() Config {
 		MaxUploadFileBytes:                20971520,
 		MaxMessageFiles:                   10,
 		ImageMaxDimension:                 1024,
+		FileFullContextLimitEnabled:       true,
 		FileFullContextMaxBytes:           51200, // 50KB
 		FileFullContextMaxTokens:          12000,
 		FileImageMaxBytes:                 0,

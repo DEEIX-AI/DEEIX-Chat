@@ -102,20 +102,28 @@
         "description": "用于单独覆盖文档附件的大小上限，页面单位为 MB；留空时回退到默认附件大小上限。",
         "placeholder": "留空则回退默认附件大小上限"
       },
+      "full_context_limit_enabled": {
+        "label": "全文注入限制",
+        "description": "开启后按大小、Token 和 PDF 页数限制全文注入；关闭后不再限制全文注入阈值。",
+        "options": {
+          "false": "关闭",
+          "true": "开启"
+        }
+      },
       "file_full_context_max_bytes": {
         "label": "全文大小上限",
-        "description": "用于限制全文注入允许的最大文本字节数；超过阈值后不再直接注入上下文。",
-        "placeholder": "大小上限（字节）"
+        "description": "用于限制全文注入允许的最大文本字节数；留空或填 0 表示不限制大小。",
+        "placeholder": "留空或 0 表示不限制"
       },
       "full_context_max_tokens": {
         "label": "全文 Token 上限",
-        "description": "用于限制全文注入允许的最大 Token 预算；超过阈值后不再直接注入上下文。",
-        "placeholder": "Token 上限"
+        "description": "用于限制全文注入允许的最大 Token 预算；留空或填 0 表示不限制 Token。",
+        "placeholder": "留空或 0 表示不限制"
       },
       "full_context_pdf_max_pages": {
         "label": "全文页数上限",
-        "description": "用于限制 PDF 走全文注入时允许的最大页数；超过阈值后不再直接注入上下文。",
-        "placeholder": "最大页数"
+        "description": "用于限制 PDF 走全文注入时允许的最大页数；留空或填 0 表示不限制页数。",
+        "placeholder": "留空或 0 表示不限制"
       },
       "embedding_enabled": {
         "label": "Embedding 开关",

@@ -135,11 +135,120 @@ func TestValidateModelOptionPolicySettings(t *testing.T) {
 	}
 }
 
-func TestValidateFullContextMaxTokensAllowsLargeContextWindows(t *testing.T) {
-	if err := validatePatchItem(PatchItem{Namespace: "file", Key: "full_context_max_tokens", Value: "1000000"}); err != nil {
-		t.Fatalf("expected 1M full context token limit to pass, got %v", err)
+func TestValidateFullContextLimitsAllowUnlimitedValues(t *testing.T) {
+	cases := []PatchItem{
+		{Namespace: "file", Key: "full_context_limit_enabled", Value: "true"},
+		{Namespace: "file", Key: "full_context_limit_enabled", Value: "false"},
+		{Namespace: "file", Key: "file_full_context_max_bytes", Value: ""},
+		{Namespace: "file", Key: "file_full_context_max_bytes", Value: "0"},
+		{Namespace: "file", Key: "full_context_max_tokens", Value: ""},
+		{Namespace: "file", Key: "full_context_max_tokens", Value: "0"},
+		{Namespace: "file", Key: "full_context_pdf_max_pages", Value: ""},
+		{Namespace: "file", Key: "full_context_pdf_max_pages", Value: "0"},
 	}
-	if err := validatePatchItem(PatchItem{Namespace: "file", Key: "full_context_max_tokens", Value: "1000001"}); err == nil {
-		t.Fatal("expected full context token limit above 1M to fail")
+
+	for _, item := range cases {
+		if err := validatePatchItem(item); err != nil {
+			t.Fatalf("expected %s:%s=%q to pass, got %v", item.Namespace, item.Key, item.Value, err)
+		}
+	}
+}
+
+func TestValidateFullContextLimitsEnforcesConfiguredRanges(t *testing.T) {
+	cases := []struct {
+		name string
+		item PatchItem
+		want bool
+	}{
+		{
+			name: "full context limit mode must be boolean",
+			item: PatchItem{Namespace: "file", Key: "full_context_limit_enabled", Value: "disabled"},
+			want: false,
+		},
+		{
+			name: "1M token limit passes",
+			item: PatchItem{Namespace: "file", Key: "full_context_max_tokens", Value: "1000000"},
+			want: true,
+		},
+		{
+			name: "token limit below minimum fails",
+			item: PatchItem{Namespace: "file", Key: "full_context_max_tokens", Value: "127"},
+			want: false,
+		},
+		{
+			name: "token limit above maximum fails",
+			item: PatchItem{Namespace: "file", Key: "full_context_max_tokens", Value: "1000001"},
+			want: false,
+		},
+		{
+			name: "negative byte limit fails",
+			item: PatchItem{Namespace: "file", Key: "file_full_context_max_bytes", Value: "-1"},
+			want: false,
+		},
+		{
+			name: "pdf page limit above maximum fails",
+			item: PatchItem{Namespace: "file", Key: "full_context_pdf_max_pages", Value: "501"},
+			want: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validatePatchItem(tc.item)
+			if tc.want && err != nil {
+				t.Fatalf("expected validation to pass, got %v", err)
+			}
+			if !tc.want && err == nil {
+				t.Fatal("expected validation to fail")
+			}
+		})
+	}
+}
+
+func TestRuntimeSettingsDisablesFullContextLimits(t *testing.T) {
+	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	cfg := config.Config{
+		FileFullContextLimitEnabled: true,
+		FileFullContextMaxBytes:     51200,
+		FileFullContextMaxTokens:    12000,
+		FileFullContextPDFMaxPages:  20,
+	}
+
+	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "file", Key: "full_context_limit_enabled", Value: "false"})
+	runtimeSettings.normalizeConfig(&cfg)
+
+	if cfg.FileFullContextLimitEnabled {
+		t.Fatal("expected full context limit switch to be disabled")
+	}
+	if cfg.FileFullContextMaxBytes != 0 || cfg.FileFullContextMaxTokens != 0 || cfg.FileFullContextPDFMaxPages != 0 {
+		t.Fatalf(
+			"expected disabled full context limits to be unlimited, got bytes=%d tokens=%d pdfPages=%d",
+			cfg.FileFullContextMaxBytes,
+			cfg.FileFullContextMaxTokens,
+			cfg.FileFullContextPDFMaxPages,
+		)
+	}
+}
+
+func TestRuntimeSettingsTreatsEmptyFullContextLimitsAsUnlimited(t *testing.T) {
+	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	cfg := config.Config{
+		FileFullContextLimitEnabled: true,
+		FileFullContextMaxBytes:     51200,
+		FileFullContextMaxTokens:    12000,
+		FileFullContextPDFMaxPages:  20,
+	}
+
+	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "file", Key: "file_full_context_max_bytes", Value: ""})
+	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "file", Key: "full_context_max_tokens", Value: ""})
+	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "file", Key: "full_context_pdf_max_pages", Value: ""})
+
+	if cfg.FileFullContextMaxBytes != 0 || cfg.FileFullContextMaxTokens != 0 || cfg.FileFullContextPDFMaxPages != 0 {
+		t.Fatalf(
+			"expected empty full context limits to be unlimited, got bytes=%d tokens=%d pdfPages=%d",
+			cfg.FileFullContextMaxBytes,
+			cfg.FileFullContextMaxTokens,
+			cfg.FileFullContextPDFMaxPages,
+		)
 	}
 }

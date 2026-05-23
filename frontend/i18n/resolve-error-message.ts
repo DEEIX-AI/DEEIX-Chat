@@ -118,6 +118,10 @@ const SETTINGS_FIELD_LABELS: Record<AppLocale, Record<string, string>> = {
     "chat:model_option_native_tool_types": "Native tool types",
     "chat:model_option_policy_mode": "Model option policy",
     "file:embedding_enabled": "Embedding",
+    "file:full_context_limit_enabled": "Full-text injection limits",
+    "file:file_full_context_max_bytes": "Full-text byte limit",
+    "file:full_context_max_tokens": "Full-text token limit",
+    "file:full_context_pdf_max_pages": "Full-text page limit",
     "mcp:mcp_enable": "MCP",
   },
   "zh-CN": {
@@ -157,6 +161,10 @@ const SETTINGS_FIELD_LABELS: Record<AppLocale, Record<string, string>> = {
     "chat:model_option_native_tool_types": "官方原生工具类型",
     "chat:model_option_policy_mode": "模型参数透传策略",
     "file:embedding_enabled": "向量服务",
+    "file:full_context_limit_enabled": "全文注入限制",
+    "file:file_full_context_max_bytes": "全文大小上限",
+    "file:full_context_max_tokens": "全文 Token 上限",
+    "file:full_context_pdf_max_pages": "全文页数上限",
     "mcp:mcp_enable": "MCP",
   },
 };
@@ -285,8 +293,12 @@ function resolveSettingsReason(locale: AppLocale, label: string, reason: string)
   if (locale === "zh-CN") {
     const integerRange = normalized.match(/^must be an integer between (.+) and (.+)$/);
     if (integerRange) return `${label}必须是 ${integerRange[1]} 到 ${integerRange[2]} 之间的整数。`;
+    const optionalZeroRange = normalized.match(/^must be empty, 0, or between (.+) and (.+)$/);
+    if (optionalZeroRange) return `${label}必须留空、填 0，或在 ${optionalZeroRange[1]} 到 ${optionalZeroRange[2]} 之间。`;
     const range = normalized.match(/^must be between (.+) and (.+)$/);
     if (range) return `${label}必须在 ${range[1]} 到 ${range[2]} 之间。`;
+    const optionalMin = normalized.match(/^must be empty or >= (.+)$/);
+    if (optionalMin) return `${label}必须留空，或大于等于 ${optionalMin[1]}。`;
     const min = normalized.match(/^must be >= (.+)$/);
     if (min) return `${label}必须大于等于 ${min[1]}。`;
     const maxLength = normalized.match(/^length must be <= (.+)$/);
@@ -324,6 +336,15 @@ function resolveSettingsReason(locale: AppLocale, label: string, reason: string)
       default:
         return `${label}：${normalized}`;
     }
+  }
+
+  const optionalZeroRange = normalized.match(/^must be empty, 0, or between (.+) and (.+)$/);
+  if (optionalZeroRange) {
+    return `${label} must be empty, 0, or between ${optionalZeroRange[1]} and ${optionalZeroRange[2]}.`;
+  }
+  const optionalMin = normalized.match(/^must be empty or >= (.+)$/);
+  if (optionalMin) {
+    return `${label} must be empty or at least ${optionalMin[1]}.`;
   }
 
   return `${label}: ${normalized}.`;
