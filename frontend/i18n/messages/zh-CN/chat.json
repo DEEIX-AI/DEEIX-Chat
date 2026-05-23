@@ -87,6 +87,7 @@
     "footnoteBackref": "返回脚注引用",
     "imageUnavailable": "图片不可用",
     "previewImage": "放大图片",
+    "editImage": "编辑图片",
     "downloadImage": "下载图片",
     "externalLink": {
       "title": "打开外部链接？",
@@ -184,6 +185,14 @@
     "retrievingContent": "正在检索相关内容…",
     "retryLater": "请稍后重试。",
     "imagePreviewAlt": "生成图片预览",
+    "mediaInputUnsupported": "当前输入无法使用所选模型",
+    "mediaInputBlocked": {
+      "image_edit_input_required": "该模型用于图像编辑，请先上传需要编辑的图片。",
+      "image_edit_unsupported": "该模型不支持图像编辑，请移除图片或切换到支持编辑的模型。",
+      "image_generation_rejects_attachments": "图像生成仅接受文字提示词，请移除附件或切换到可处理附件的模型。",
+      "image_task_rejects_non_image_attachments": "图像任务仅支持图片附件，请移除非图片文件。",
+      "model_task_unsupported": "该模型无法处理当前输入，请切换模型后重试。"
+    },
     "mediaStatus": {
       "queued": "图片任务已排队",
       "running": "正在生成图片",
@@ -283,6 +292,23 @@
     "booleanOn": "开启",
     "booleanOff": "关闭",
     "tool": "工具 {id}",
+    "mediaMode": {
+      "imageGeneration": "图像生成",
+      "imageGenerationIntro": "当前为图像生成模式。",
+      "imageGenerationDescription": "将根据文字提示创建新图像；上传图片后会自动切换为图像编辑。",
+      "imageEdit": "图像编辑",
+      "imageEditIntro": "当前为图像编辑模式。",
+      "imageEditDescription": "将基于已上传图片和文字提示进行编辑。",
+      "invalidFile": "监测到无效文件",
+      "invalidFileIntro": "当前文件无法用于图像任务。",
+      "blockedDescriptions": {
+        "image_edit_input_required": "请先上传需要编辑的图片。",
+        "image_edit_unsupported": "当前模型不支持图像编辑，请移除图片或切换模型。",
+        "image_generation_rejects_attachments": "图像生成仅接收文字提示，请移除附件。",
+        "image_task_rejects_non_image_attachments": "图像任务仅支持图片附件，请移除非图片文件。",
+        "model_task_unsupported": "当前模型不支持此输入，请切换模型后重试。"
+      }
+    },
     "nativeTools": {
       "grok": "Grok 原生工具",
       "openai": "OpenAI 原生工具",

@@ -16,10 +16,12 @@ import { cn } from "@/lib/utils";
 
 import {
   CollapsibleCodePre,
+  MarkdownImageActionsContext,
   MarkdownImage,
   MarkdownLink,
   MarkdownParagraph,
   ThinkingHeading,
+  type MarkdownImageActions,
 } from "./streamdown-components";
 import {
   normalizeContent,
@@ -35,6 +37,7 @@ type StreamdownRenderProps = {
   className?: string;
   streaming?: boolean;
   variant?: "default" | "thinking";
+  imageActions?: MarkdownImageActions;
 };
 
 type StreamdownFeatureFlags = {
@@ -370,6 +373,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
   className,
   streaming = false,
   variant = "default",
+  imageActions,
 }: StreamdownRenderProps) {
   const normalizedContent = React.useMemo(() => normalizeStreamdownContent(content), [content]);
   const plugins = useStreamdownPlugins(normalizedContent);
@@ -412,23 +416,24 @@ export const StreamdownRender = React.memo(function StreamdownRender({
         />
       ) : null}
       {markdownSegments.map((segment, index) => (
-        <Streamdown
-          key={`markdown-${index}`}
-          className={activeMarkdownClassName}
-          components={components}
-          controls={STREAMDOWN_CONTROLS}
-          plugins={plugins}
-          remend={STREAMDOWN_REMEND}
-          linkSafety={STREAMDOWN_LINK_SAFETY}
-          caret={streaming ? STREAMDOWN_CARET : undefined}
-          mode={streaming ? "streaming" : "static"}
-          parseIncompleteMarkdown={streaming}
-          shikiTheme={["github-light", "github-dark"]}
-          animated={false}
-          isAnimating={streaming}
-        >
-          {segment.content}
-        </Streamdown>
+        <MarkdownImageActionsContext.Provider key={`markdown-${index}`} value={imageActions ?? null}>
+          <Streamdown
+            className={activeMarkdownClassName}
+            components={components}
+            controls={STREAMDOWN_CONTROLS}
+            plugins={plugins}
+            remend={STREAMDOWN_REMEND}
+            linkSafety={STREAMDOWN_LINK_SAFETY}
+            caret={streaming ? STREAMDOWN_CARET : undefined}
+            mode={streaming ? "streaming" : "static"}
+            parseIncompleteMarkdown={streaming}
+            shikiTheme={["github-light", "github-dark"]}
+            animated={false}
+            isAnimating={streaming}
+          >
+            {segment.content}
+          </Streamdown>
+        </MarkdownImageActionsContext.Provider>
       ))}
     </div>
   );

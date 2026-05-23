@@ -4,7 +4,7 @@
         "description": "DEEIX Chat 后端 API 文档",
         "title": "DEEIX Chat API",
         "contact": {},
-        "version": "0.1.0"
+        "version": "0.1.1"
     },
     "basePath": "/api/v1",
     "paths": {
@@ -9042,6 +9042,12 @@
                     "type": "string",
                     "maxLength": 64
                 },
+                "protocols": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "status": {
                     "type": "string",
                     "enum": [
@@ -9068,11 +9074,23 @@
                 "createdRoute": {
                     "type": "boolean"
                 },
+                "createdRoutes": {
+                    "type": "integer"
+                },
                 "error": {
                     "type": "string"
                 },
+                "existingRoutes": {
+                    "type": "integer"
+                },
                 "platformModelName": {
                     "type": "string"
+                },
+                "protocols": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "status": {
                     "type": "string"
@@ -9900,6 +9918,12 @@
                 },
                 "suggestedProtocol": {
                     "type": "string"
+                },
+                "suggestedProtocols": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "upstreamModelName": {
                     "type": "string"

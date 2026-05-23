@@ -94,6 +94,7 @@ func (h *Handler) streamMediaImage(c *gin.Context, taskType appconversation.Medi
 		Options:               req.Options,
 		ClientRunID:           req.ClientRunID,
 		FileIDs:               req.FileIDs,
+		MaskFileID:            req.MaskFileID,
 		ParentMessagePublicID: req.ParentMessagePublicID,
 		SourceMessagePublicID: req.SourceMessagePublicID,
 		BranchReason:          req.BranchReason,

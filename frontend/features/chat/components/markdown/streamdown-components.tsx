@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Check, Copy, CornerUpLeft, Download, Maximize2 } from "lucide-react";
+import { Check, Copy, CornerUpLeft, Download, Maximize2, WandSparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ChevronDown } from "@/components/animate-ui/icons/chevron-down";
 import { ChevronUp } from "@/components/animate-ui/icons/chevron-up";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   downloadMarkdownImageSource,
   loadProtectedMarkdownImageBlobURL,
@@ -49,6 +50,11 @@ type MarkdownImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
   src?: string;
 };
 
+export type MarkdownImageActions = {
+  canEditImage?: (src: string) => boolean;
+  onEditImage?: (src: string) => void;
+};
+
 type MarkdownParagraphProps = React.HTMLAttributes<HTMLParagraphElement> & {
   children?: React.ReactNode;
 };
@@ -59,6 +65,7 @@ type MarkdownHeadingProps = React.HTMLAttributes<HTMLHeadingElement> & {
 
 const StreamdownLinkContext = React.createContext(false);
 const FootnoteBackrefGroupContext = React.createContext(false);
+export const MarkdownImageActionsContext = React.createContext<MarkdownImageActions | null>(null);
 
 function resolveLinkKind(href: string): ResolvedLinkKind {
   if (href.startsWith("#")) {
@@ -488,6 +495,7 @@ export function MarkdownLink({ children, className, href, onClick, ...props }: M
 export function MarkdownImage({ alt, className, onError, onLoad, src, ...props }: MarkdownImageProps) {
   const t = useTranslations("chat.markdown");
   const insideLink = React.useContext(StreamdownLinkContext);
+  const imageActions = React.useContext(MarkdownImageActionsContext);
   const [loaded, setLoaded] = React.useState(false);
   const [failed, setFailed] = React.useState(false);
   const [previewOpen, setPreviewOpen] = React.useState(false);
@@ -569,6 +577,7 @@ export function MarkdownImage({ alt, className, onError, onLoad, src, ...props }
   }, [alt, resolvedSrc, src]);
 
   const canUseImageActions = !insideLink && !failed && Boolean(displaySrc);
+  const canEditImage = Boolean(src && imageActions?.onEditImage && (imageActions.canEditImage?.(src) ?? true));
 
   if (!src) {
     return null;
@@ -604,22 +613,47 @@ export function MarkdownImage({ alt, className, onError, onLoad, src, ...props }
             loaded ? "opacity-100" : "opacity-0",
           )}
         >
-          <button
-            className="inline-flex size-7 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground"
-            title={t("previewImage")}
-            type="button"
-            onClick={() => setPreviewOpen(true)}
-          >
-            <Maximize2 className="size-3.5" />
-          </button>
-          <button
-            className="inline-flex size-7 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground"
-            title={t("downloadImage")}
-            type="button"
-            onClick={() => void handleDownload()}
-          >
-            <Download className="size-3.5" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                aria-label={t("previewImage")}
+                className="inline-flex size-7 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                type="button"
+                onClick={() => setPreviewOpen(true)}
+              >
+                <Maximize2 className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("previewImage")}</TooltipContent>
+          </Tooltip>
+          {canEditImage ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label={t("editImage")}
+                  className="inline-flex size-7 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                  type="button"
+                  onClick={() => imageActions?.onEditImage?.(src)}
+                >
+                  <WandSparkles className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{t("editImage")}</TooltipContent>
+            </Tooltip>
+          ) : null}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                aria-label={t("downloadImage")}
+                className="inline-flex size-7 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                type="button"
+                onClick={() => void handleDownload()}
+              >
+                <Download className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("downloadImage")}</TooltipContent>
+          </Tooltip>
         </span>
       ) : null}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>

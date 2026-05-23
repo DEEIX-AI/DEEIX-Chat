@@ -380,6 +380,7 @@ export type MediaImageRequest = {
   options?: ConversationOptions;
   clientRunID?: string;
   fileIDs?: string[];
+  maskFileID?: string;
   parentMessagePublicID?: string;
   sourceMessagePublicID?: string;
   branchReason?: "default" | "retry" | "edit";

@@ -12,12 +12,14 @@ export type RowDraft = AdminLLMUpstreamModelDTO & {
   isDirty: boolean;
   kindsDisplay: string;
   platformModelNameDraft: string;
+  protocols: AdminLLMAdapter[];
+  routeIDsByProtocol: Record<string, number>;
 };
 
 export type NewBindingFormState = {
   upstreamModelName: string;
   platformModelName: string;
-  protocol: AdminLLMAdapter;
+  protocols: AdminLLMAdapter[];
   kindsDisplay: string;
   status: AdminLLMStatus;
 };
@@ -25,7 +27,7 @@ export type NewBindingFormState = {
 export const DEFAULT_NEW_BINDING: NewBindingFormState = {
   upstreamModelName: "",
   platformModelName: "",
-  protocol: "openai_responses",
+  protocols: ["openai_responses"],
   kindsDisplay: "chat",
   status: "active",
 };
@@ -45,13 +47,39 @@ export function displayToKindsJson(display: string): string {
 }
 
 export function buildRowDrafts(items: AdminLLMUpstreamModelDTO[]): RowDraft[] {
-  return items.map((item) => ({
-    ...item,
-    draftKey: item.routeID > 0 ? `route:${item.routeID}` : `upstream:${item.upstreamID}:${item.upstreamModelName}`,
-    platformModelNameDraft: item.platformModelName,
-    isDirty: false,
-    kindsDisplay: kindsJsonToDisplay(item.upstreamModelKindsJSON || item.modelKindsJSON),
-  }));
+  const grouped = new Map<string, RowDraft>();
+  for (const item of items) {
+    const platformModelName = item.platformModelName || "";
+    const draftKey = platformModelName
+      ? `binding:${item.upstreamID}:${item.upstreamModelName}:${platformModelName}`
+      : `upstream:${item.upstreamID}:${item.upstreamModelName}`;
+    const existing = grouped.get(draftKey);
+    if (existing) {
+      if (item.protocol && !existing.protocols.includes(item.protocol)) {
+        existing.protocols.push(item.protocol);
+      }
+      if (item.protocol && item.routeID > 0) {
+        existing.routeIDsByProtocol[item.protocol] = item.routeID;
+      }
+      if (item.routeStatus === "active") {
+        existing.routeStatus = "active";
+      }
+      if (item.routeID > 0 && (!existing.routeID || item.routeID < existing.routeID)) {
+        existing.routeID = item.routeID;
+      }
+      continue;
+    }
+    grouped.set(draftKey, {
+      ...item,
+      draftKey,
+      platformModelNameDraft: platformModelName,
+      isDirty: false,
+      kindsDisplay: kindsJsonToDisplay(item.upstreamModelKindsJSON || item.modelKindsJSON),
+      protocols: item.protocol ? [item.protocol] : [],
+      routeIDsByProtocol: item.protocol && item.routeID > 0 ? { [item.protocol]: item.routeID } : {},
+    });
+  }
+  return Array.from(grouped.values());
 }
 
 export type UpstreamModelMessages = {
@@ -85,12 +113,15 @@ export function validateRowDrafts(
     if (!platformModelName) {
       continue;
     }
-    const bindingKey = `${upstreamModelName}\u0000${platformModelName}`;
-    const existingOwner = bindingOwners.get(bindingKey);
-    if (existingOwner && existingOwner !== row.draftKey) {
-      return messages.duplicateBinding(upstreamModelName, platformModelName);
+    const protocols = row.protocols.length > 0 ? row.protocols : [row.protocol || row.suggestedProtocol || ""];
+    for (const protocol of protocols) {
+      const bindingKey = `${upstreamModelName}\u0000${platformModelName}\u0000${protocol}`;
+      const existingOwner = bindingOwners.get(bindingKey);
+      if (existingOwner && existingOwner !== row.draftKey) {
+        return messages.duplicateBinding(upstreamModelName, platformModelName);
+      }
+      bindingOwners.set(bindingKey, row.draftKey);
     }
-    bindingOwners.set(bindingKey, row.draftKey);
   }
   return undefined;
 }

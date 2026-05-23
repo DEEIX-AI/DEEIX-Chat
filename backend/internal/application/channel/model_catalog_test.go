@@ -343,6 +343,88 @@ func TestResolveRouteProtocolRejectsExplicitProtocolKindMismatch(t *testing.T) {
 	}
 }
 
+func TestResolveRouteProtocolAcceptsExplicitProtocolForAnyDeclaredKind(t *testing.T) {
+	resolved, err := resolveRouteProtocol("openai_image_edits", compatibleOpenAI, "", `["image_gen","image_edit"]`)
+	if err != nil {
+		t.Fatalf("expected explicit image edit protocol to be accepted for dual-kind image model: %v", err)
+	}
+	if resolved != "openai_image_edits" {
+		t.Fatalf("expected openai_image_edits, got %q", resolved)
+	}
+}
+
+func TestSupportedRouteProtocolCombinationOnlyAllowsOpenAIImagePair(t *testing.T) {
+	tests := []struct {
+		name      string
+		protocols []string
+		want      bool
+	}{
+		{name: "single chat", protocols: []string{"openai_responses"}, want: true},
+		{name: "single image generation", protocols: []string{"openai_image_generations"}, want: true},
+		{name: "openai image generation and edit", protocols: []string{"openai_image_generations", "openai_image_edits"}, want: true},
+		{name: "duplicate protocol", protocols: []string{"openai_responses", "openai_responses"}, want: true},
+		{name: "two chat protocols", protocols: []string{"openai_responses", "openai_chat_completions"}, want: false},
+		{name: "image generation with chat", protocols: []string{"openai_image_generations", "openai_responses"}, want: false},
+		{name: "three protocols", protocols: []string{"openai_image_generations", "openai_image_edits", "openai_responses"}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isSupportedRouteProtocolCombination(tt.protocols); got != tt.want {
+				t.Fatalf("expected %v, got %v", tt.want, got)
+			}
+		})
+	}
+}
+
+func TestResolveRouteProtocolsExpandsOpenAIDualImageKinds(t *testing.T) {
+	protocols, err := resolveRouteProtocols(nil, compatibleOpenAI, "", `["image_gen","image_edit"]`)
+	if err != nil {
+		t.Fatalf("resolve route protocols: %v", err)
+	}
+	expected := []string{"openai_image_generations", "openai_image_edits"}
+	if len(protocols) != len(expected) {
+		t.Fatalf("expected %d protocols, got %#v", len(expected), protocols)
+	}
+	for i, expectedProtocol := range expected {
+		if protocols[i] != expectedProtocol {
+			t.Fatalf("expected protocol %d to be %q, got %#v", i, expectedProtocol, protocols)
+		}
+	}
+}
+
+func TestResolveRouteProtocolsKeepsSingleProtocolForGenerationOnlyModels(t *testing.T) {
+	tests := []struct {
+		name       string
+		compatible string
+		kindsJSON  string
+		expected   string
+	}{
+		{name: "openai generation", compatible: compatibleOpenAI, kindsJSON: `["image_gen"]`, expected: "openai_image_generations"},
+		{name: "google generation", compatible: compatibleGoogle, kindsJSON: `["image_gen"]`, expected: "google_image_generation"},
+		{name: "xai generation", compatible: compatibleXAI, kindsJSON: `["image_gen"]`, expected: "xai_image"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			protocols, err := resolveRouteProtocols(nil, tt.compatible, "", tt.kindsJSON)
+			if err != nil {
+				t.Fatalf("resolve route protocols: %v", err)
+			}
+			if len(protocols) != 1 || protocols[0] != tt.expected {
+				t.Fatalf("expected [%s], got %#v", tt.expected, protocols)
+			}
+		})
+	}
+}
+
+func TestResolveRouteProtocolsRejectsUnsupportedExplicitMultiProtocol(t *testing.T) {
+	_, err := resolveRouteProtocols([]string{"openai_responses", "openai_chat_completions"}, compatibleOpenAI, "", `["chat"]`)
+	if !errors.Is(err, ErrInvalidRouteProtocolCombination) {
+		t.Fatalf("expected ErrInvalidRouteProtocolCombination, got %v", err)
+	}
+}
+
 func TestResolveRouteProtocolUsesExplicitConversationProtocolAsSourceOfTruth(t *testing.T) {
 	for _, tc := range []struct {
 		compatible string

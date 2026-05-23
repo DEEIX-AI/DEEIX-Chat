@@ -74,7 +74,7 @@ type LLMPlatformModelRoute struct {
 	ControlPlaneModel
 	PlatformModelID    uint   `gorm:"not null;default:0;index:idx_llm_model_routes_model;uniqueIndex:idx_llm_model_routes_unique;comment:平台模型ID"`
 	UpstreamModelID    uint   `gorm:"not null;default:0;index:idx_llm_model_routes_upstream_model;uniqueIndex:idx_llm_model_routes_unique;comment:上游模型ID"`
-	Protocol           string `gorm:"size:64;not null;index:idx_llm_model_routes_protocol;comment:最终适配器协议"`
+	Protocol           string `gorm:"size:64;not null;index:idx_llm_model_routes_protocol;uniqueIndex:idx_llm_model_routes_unique;comment:最终适配器协议"`
 	Status             string `gorm:"size:32;not null;default:'active';index:idx_llm_model_routes_status;comment:路由状态"`
 	Priority           int    `gorm:"not null;default:1;index:idx_llm_model_routes_priority;comment:路由优先级"`
 	Weight             int    `gorm:"not null;default:1;comment:负载均衡权重"`

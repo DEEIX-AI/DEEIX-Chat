@@ -235,14 +235,21 @@ func escapeSQLLiteral(input string) string {
 
 func applyLLMBaselineIndexes(db *gorm.DB) error {
 	statements := []string{
+		`ALTER TABLE "llm_upstreams"
+		ADD COLUMN IF NOT EXISTS "protocol_defaults_json" text NOT NULL DEFAULT '{}'`,
+		`COMMENT ON COLUMN "llm_upstreams"."protocol_defaults_json" IS '按模型类型配置的默认协议JSON'`,
+		`ALTER TABLE "llm_platform_models"
+		ADD COLUMN IF NOT EXISTS "system_prompt" text NOT NULL DEFAULT ''`,
+		`COMMENT ON COLUMN "llm_platform_models"."system_prompt" IS '模型级系统提示词'`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_llm_upstream_models_upstream_name
 			ON "llm_upstream_models" ("upstream_id", "upstream_model_name")`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_llm_upstream_models_binding_code
 			ON "llm_upstream_models" ("binding_code")`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_llm_platform_models_name
 			ON "llm_platform_models" ("name")`,
+		`DROP INDEX IF EXISTS idx_llm_model_routes_unique`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_llm_model_routes_unique
-			ON "llm_model_routes" ("platform_model_id", "upstream_model_id")`,
+			ON "llm_model_routes" ("platform_model_id", "upstream_model_id", "protocol")`,
 		`CREATE INDEX IF NOT EXISTS idx_llm_model_routes_routing
 			ON "llm_model_routes" ("platform_model_id", "status", "priority", "weight")
 			WHERE status = 'active'`,

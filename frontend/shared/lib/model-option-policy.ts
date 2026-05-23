@@ -3,6 +3,7 @@ export const MODEL_OPTION_POLICY_PROTOCOLS = [
   "openai_chat_completions",
   "openai_responses",
   "openai_image_generations",
+  "openai_image_edits",
   "anthropic_messages",
   "gemini_generate_content",
   "google_image_generation",
@@ -59,6 +60,7 @@ export const MODEL_OPTION_POLICY_PROTOCOL_LABELS: Record<ModelOptionPolicyProtoc
   openai_chat_completions: "OpenAI（Chat Completions）",
   openai_responses: "OpenAI（Responses）",
   openai_image_generations: "OpenAI（Image Generation）",
+  openai_image_edits: "OpenAI（Image Edits）",
   anthropic_messages: "Anthropic（Messages）",
   gemini_generate_content: "Google（Generate Content）",
   google_image_generation: "Google（Image Generation）",
@@ -112,6 +114,8 @@ export function resolveModelOptionPolicyProtocol(protocol: string): ModelOptionP
       return "openai_chat_completions";
     case "openai_image_generations":
       return "openai_image_generations";
+    case "openai_image_edits":
+      return "openai_image_edits";
     case "anthropic_messages":
       return "anthropic_messages";
     case "xai_responses":

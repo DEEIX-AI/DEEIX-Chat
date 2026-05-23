@@ -15,7 +15,7 @@ import {
 } from "@/features/chat/components/message/message-bot";
 import { areChatAreaMessagesRenderEqual } from "@/features/chat/model/chat-message-render";
 import { type AssistantReaction } from "@/features/chat/components/message/message-meta";
-import type { ChatAreaMessage } from "@/features/chat/types/messages";
+import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import { ChatMessageUser } from "@/features/chat/components/message/message-user";
 import { StreamdownRender } from "@/features/chat/components/markdown/streamdown-render";
 import { CenteredEmptyState } from "@/components/ui/empty-state";
@@ -73,6 +73,7 @@ type ChatAreaProps = {
   onRetryUserMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onRetryAssistantMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onEditUserMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
+  onEditImageAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onCycleMessageBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
   onToggleStar?: () => void | Promise<void>;
   onRename?: (title: string) => void | Promise<void>;
@@ -103,6 +104,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onRetryUserMessage,
   onRetryAssistantMessage,
   onEditUserMessage,
+  onEditImageAttachment,
   onCycleMessageBranch,
   onReactAssistantMessage,
   markdownRender,
@@ -117,6 +119,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onRetryUserMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onRetryAssistantMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onEditUserMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
+  onEditImageAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onCycleMessageBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
   onReactAssistantMessage: (publicID: string, reaction: AssistantReaction) => void;
   markdownRender: boolean;
@@ -162,6 +165,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         onCycleMessageBranch={onCycleMessageBranch}
         onReactAssistantMessage={onReactAssistantMessage}
         onCopy={() => void onCopy()}
+        onEditImageAttachment={onEditImageAttachment}
         markdownRender={markdownRender}
         showModelInfo={showModelInfo}
         showLatency={showLatency}
@@ -191,6 +195,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   previous.showLatency === next.showLatency &&
   previous.showTokenUsage === next.showTokenUsage &&
   previous.showBillingCost === next.showBillingCost &&
+  previous.onEditImageAttachment === next.onEditImageAttachment &&
   areChatAreaMessagesRenderEqual(previous.item, next.item)
 ));
 
@@ -208,6 +213,7 @@ export function ChatArea({
   onRetryUserMessage,
   onRetryAssistantMessage,
   onEditUserMessage,
+  onEditImageAttachment,
   onCycleMessageBranch,
   onToggleStar,
   onRename,
@@ -226,8 +232,12 @@ export function ChatArea({
   const stableOnRetryUserMessage = useStableEvent(onRetryUserMessage);
   const stableOnRetryAssistantMessage = useStableEvent(onRetryAssistantMessage);
   const stableOnEditUserMessage = useStableEvent(onEditUserMessage);
+  const stableOnEditImageAttachment = useStableEvent((attachment: MessageAttachment, sourceModelName?: string) => {
+    onEditImageAttachment?.(attachment, sourceModelName);
+  });
   const stableOnCycleMessageBranch = useStableEvent(onCycleMessageBranch);
   const stableOnReactAssistantMessage = useStableEvent(onReactAssistantMessage);
+  const editImageAttachmentHandler = onEditImageAttachment ? stableOnEditImageAttachment : undefined;
   const shareLabel = shareActive ? t("manageShare") : t("shareConversation");
 
   return (
@@ -293,6 +303,7 @@ export function ChatArea({
                   onRetryUserMessage={stableOnRetryUserMessage}
                   onRetryAssistantMessage={stableOnRetryAssistantMessage}
                   onEditUserMessage={stableOnEditUserMessage}
+                  onEditImageAttachment={editImageAttachmentHandler}
                   onCycleMessageBranch={stableOnCycleMessageBranch}
                   onReactAssistantMessage={stableOnReactAssistantMessage}
                   markdownRender={markdownRender}

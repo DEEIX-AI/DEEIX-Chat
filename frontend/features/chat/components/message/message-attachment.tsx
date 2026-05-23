@@ -38,28 +38,32 @@ function AttachmentCard({
   const fileIcon = resolveFileIcon(att);
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group relative flex h-14 w-56 shrink-0 items-center gap-2.5 rounded-lg border border-border/50 bg-background/95 px-2.5 text-left shadow-[0_1px_2px_rgba(0,0,0,0.025)] transition-colors hover:border-border hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    <div
+      className="group relative h-14 w-56 shrink-0 rounded-lg border border-border/50 bg-background/95 text-left shadow-[0_1px_2px_rgba(0,0,0,0.025)] transition-colors hover:border-border hover:bg-accent/30"
     >
-      <div className="flex size-6 shrink-0 items-center justify-center">
-        {React.createElement(fileIcon, { className: "size-5 text-muted-foreground", strokeWidth: 1.6 })}
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <p className="truncate text-[12px] font-medium leading-4 text-foreground/90" title={att.fileName}>
-          {att.fileName}
-        </p>
-        <div className="mt-1 flex min-w-0 items-center gap-1.5">
-          <span className="min-w-0 shrink truncate text-[10px] leading-none text-muted-foreground">
-            {meta}
-          </span>
-          <span className="shrink-0 rounded-md bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground/65">
-            {ext}
-          </span>
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex h-full w-full items-center gap-2.5 rounded-lg px-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <div className="flex size-6 shrink-0 items-center justify-center">
+          {React.createElement(fileIcon, { className: "size-5 text-muted-foreground", strokeWidth: 1.6 })}
         </div>
-      </div>
-    </button>
+        <div className="flex min-w-0 flex-1 flex-col justify-center">
+          <p className="truncate text-[12px] font-medium leading-4 text-foreground/90" title={att.fileName}>
+            {att.fileName}
+          </p>
+          <div className="mt-1 flex min-w-0 items-center gap-1.5">
+            <span className="min-w-0 shrink truncate text-[10px] leading-none text-muted-foreground">
+              {meta}
+            </span>
+            <span className="shrink-0 rounded-md bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground/65">
+              {ext}
+            </span>
+          </div>
+        </div>
+      </button>
+    </div>
   );
 }
 

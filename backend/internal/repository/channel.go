@@ -340,7 +340,12 @@ type ChannelRepository interface {
 	DeleteUpstreamModel(ctx context.Context, sourceID uint, upstreamID uint) error
 	MarkMissingSyncedUpstreamModelsInactive(ctx context.Context, upstreamID uint, activeNames []string) (int64, error)
 	ListUpstreamModels(ctx context.Context, upstreamID uint, input ListChannelUpstreamModelsInput) ([]ChannelUpstreamModelListRow, int64, error)
+	ListUpstreamModelsByNames(ctx context.Context, upstreamID uint, upstreamModelNames []string) ([]ChannelUpstreamModelListRow, error)
+	GetUpstreamModelRouteByID(ctx context.Context, upstreamID uint, routeID uint) (*ChannelUpstreamModelListRow, error)
+	GetUpstreamModelRouteByNames(ctx context.Context, upstreamID uint, platformModelName string, upstreamModelName string, protocol string) (*ChannelUpstreamModelListRow, error)
 	UpsertPlatformModelRoute(ctx context.Context, item *domainchannel.PlatformModelRoute) error
+	GetModelUpstreamSourceByRouteID(ctx context.Context, platformModelName string, routeID uint) (*ChannelModelSourceRow, error)
+	ListPlatformModelRoutesByPair(ctx context.Context, upstreamID uint, platformModelID uint, upstreamModelID uint) ([]domainchannel.PlatformModelRoute, error)
 	GetPlatformModelRouteByID(ctx context.Context, routeID uint, upstreamID uint) (*domainchannel.PlatformModelRoute, error)
 	UpdatePlatformModelRouteByID(ctx context.Context, routeID uint, upstreamID uint, input UpdateChannelPlatformRouteInput) error
 	DeletePlatformModelRoute(ctx context.Context, routeID uint, upstreamID uint) error

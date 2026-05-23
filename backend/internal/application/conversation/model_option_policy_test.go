@@ -279,6 +279,37 @@ func TestFilterModelOptionsOpenAIImageGenerationsAllowsImageParams(t *testing.T)
 	}
 }
 
+func TestFilterModelOptionsOpenAIImageEditsAllowsEditParams(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"background":         "transparent",
+		"input_fidelity":     "high",
+		"n":                  1,
+		"output_compression": 80,
+		"output_format":      "webp",
+		"partial_images":     2,
+		"quality":            "high",
+		"size":               "1024x1024",
+		"prompt":             "override",
+		"stream":             true,
+	}, llm.AdapterOpenAIImageEdits, modelOptionPolicyConfig{
+		Mode:             modelOptionPolicyAllowlist,
+		AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+	})
+
+	if filtered["background"] != "transparent" || filtered["input_fidelity"] != "high" {
+		t.Fatalf("expected image edit params to pass, got %#v", filtered)
+	}
+	if filtered["partial_images"] != 2 || filtered["output_format"] != "webp" {
+		t.Fatalf("expected image edit output params to pass, got %#v", filtered)
+	}
+	for _, key := range []string{"prompt", "stream"} {
+		if _, ok := filtered[key]; ok {
+			t.Fatalf("expected %s to be hard denied, got %#v", key, filtered)
+		}
+	}
+}
+
 func TestFilterModelOptionsXAIImageAllowsImageParams(t *testing.T) {
 	filtered := filterModelOptions(map[string]interface{}{
 		"aspect_ratio":    "16:9",

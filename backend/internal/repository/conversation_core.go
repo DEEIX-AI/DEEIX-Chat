@@ -8,6 +8,26 @@ import (
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 )
 
+// MessageUsageUpdate 定义消息 token 用量更新字段。
+type MessageUsageUpdate struct {
+	InputTokens      int64
+	OutputTokens     int64
+	CacheReadTokens  int64
+	CacheWriteTokens int64
+	ReasoningTokens  int64
+}
+
+// AssistantMessageCompletionUpdate 定义助手消息完成态更新字段。
+type AssistantMessageCompletionUpdate struct {
+	Content         string
+	OutputTokens    int64
+	ReasoningTokens int64
+	LatencyMS       int64
+	Status          string
+	ErrorCode       string
+	ErrorMessage    string
+}
+
 // ConversationMetadataRepository 封装会话元信息与用户访问能力。
 type ConversationMetadataRepository interface {
 	CreateConversation(ctx context.Context, item *domainconversation.Conversation) error
@@ -44,6 +64,8 @@ type ConversationMetadataRepository interface {
 // MessageRepository 封装消息读写能力。
 type MessageRepository interface {
 	CreateMessage(ctx context.Context, item *domainconversation.Message) error
+	CreateMessagePairWithUserAttachments(ctx context.Context, userMessage *domainconversation.Message, assistantMessage *domainconversation.Message, userAttachments []domainconversation.Attachment) error
+	CompleteAssistantMessageWithAttachments(ctx context.Context, userMessageID uint, userUsage MessageUsageUpdate, assistantMessageID uint, assistantCompletion AssistantMessageCompletionUpdate, assistantAttachments []domainconversation.Attachment) error
 	GetMessageByPublicID(ctx context.Context, conversationID uint, userID uint, publicID string) (*domainconversation.Message, error)
 	GetMessageByPublicIDForUser(ctx context.Context, userID uint, publicID string) (*domainconversation.Message, error)
 	UpdateMessageUsage(ctx context.Context, messageID uint, inputTokens int64, outputTokens int64, cacheReadTokens int64, cacheWriteTokens int64, reasoningTokens int64) error

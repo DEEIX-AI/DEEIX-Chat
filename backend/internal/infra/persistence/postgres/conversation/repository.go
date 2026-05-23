@@ -637,6 +637,62 @@ func (r *Repo) CreateMessage(ctx context.Context, item *domainconversation.Messa
 	return nil
 }
 
+// CreateMessagePairWithUserAttachments 原子创建用户消息、助手占位消息、用户附件并递增会话消息数。
+func (r *Repo) CreateMessagePairWithUserAttachments(
+	ctx context.Context,
+	userMessage *domainconversation.Message,
+	assistantMessage *domainconversation.Message,
+	userAttachments []domainconversation.Attachment,
+) error {
+	if userMessage == nil || assistantMessage == nil {
+		return repository.ErrInvalidInput
+	}
+	userAttachmentSnapshot := userMessage.Attachments
+	assistantAttachmentSnapshot := assistantMessage.Attachments
+	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		userEntity := toMessageModel(userMessage)
+		if err := tx.Create(&userEntity).Error; err != nil {
+			return err
+		}
+		*userMessage = toMessageDomain(userEntity)
+		userMessage.Attachments = userAttachmentSnapshot
+
+		if len(userAttachments) > 0 {
+			entities := make([]models.Attachment, 0, len(userAttachments))
+			for i := range userAttachments {
+				item := userAttachments[i]
+				item.ConversationID = userMessage.ConversationID
+				item.MessageID = userMessage.ID
+				item.UserID = userMessage.UserID
+				entities = append(entities, toAttachmentModel(&item))
+			}
+			if err := tx.Create(&entities).Error; err != nil {
+				return err
+			}
+		}
+
+		parentMessageID := userMessage.ID
+		assistantMessage.ParentMessageID = &parentMessageID
+		assistantEntity := toMessageModel(assistantMessage)
+		if err := tx.Create(&assistantEntity).Error; err != nil {
+			return err
+		}
+		*assistantMessage = toMessageDomain(assistantEntity)
+		assistantMessage.Attachments = assistantAttachmentSnapshot
+
+		result := tx.Model(&models.Conversation{}).
+			Where("id = ?", userMessage.ConversationID).
+			Update("message_count", gorm.Expr("message_count + ?", 2))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return repository.ErrNotFound
+		}
+		return nil
+	}))
+}
+
 // GetMessageByPublicID 查询归属会话的消息。
 func (r *Repo) GetMessageByPublicID(
 	ctx context.Context,
@@ -778,6 +834,68 @@ func (r *Repo) UpdateAssistantMessageCompletion(
 			"error_message":    errorMessage,
 		}).
 		Error)
+}
+
+// CompleteAssistantMessageWithAttachments 原子写入助手附件，并同步用户用量与助手完成态。
+func (r *Repo) CompleteAssistantMessageWithAttachments(
+	ctx context.Context,
+	userMessageID uint,
+	userUsage repository.MessageUsageUpdate,
+	assistantMessageID uint,
+	assistantCompletion repository.AssistantMessageCompletionUpdate,
+	assistantAttachments []domainconversation.Attachment,
+) error {
+	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if len(assistantAttachments) > 0 {
+			entities := make([]models.Attachment, 0, len(assistantAttachments))
+			for i := range assistantAttachments {
+				item := assistantAttachments[i]
+				item.MessageID = assistantMessageID
+				entities = append(entities, toAttachmentModel(&item))
+			}
+			if err := tx.Create(&entities).Error; err != nil {
+				return err
+			}
+		}
+
+		userTokenUsage := userUsage.InputTokens + userUsage.CacheReadTokens + userUsage.CacheWriteTokens + userUsage.OutputTokens + userUsage.ReasoningTokens
+		if userTokenUsage < 0 {
+			userTokenUsage = 0
+		}
+		if err := tx.Model(&models.Message{}).
+			Where("id = ?", userMessageID).
+			Updates(map[string]interface{}{
+				"token_usage":        userTokenUsage,
+				"input_tokens":       userUsage.InputTokens,
+				"output_tokens":      userUsage.OutputTokens,
+				"cache_read_tokens":  userUsage.CacheReadTokens,
+				"cache_write_tokens": userUsage.CacheWriteTokens,
+				"reasoning_tokens":   userUsage.ReasoningTokens,
+			}).Error; err != nil {
+			return err
+		}
+
+		assistantTokenUsage := assistantCompletion.OutputTokens + assistantCompletion.ReasoningTokens
+		if assistantTokenUsage < 0 {
+			assistantTokenUsage = 0
+		}
+		latencyMS := assistantCompletion.LatencyMS
+		if latencyMS < 0 {
+			latencyMS = 0
+		}
+		return tx.Model(&models.Message{}).
+			Where("id = ?", assistantMessageID).
+			Updates(map[string]interface{}{
+				"content":          assistantCompletion.Content,
+				"token_usage":      assistantTokenUsage,
+				"output_tokens":    assistantCompletion.OutputTokens,
+				"reasoning_tokens": assistantCompletion.ReasoningTokens,
+				"latency_ms":       latencyMS,
+				"status":           assistantCompletion.Status,
+				"error_code":       assistantCompletion.ErrorCode,
+				"error_message":    assistantCompletion.ErrorMessage,
+			}).Error
+	}))
 }
 
 // UpdateMessageBilling 回填消息计费金额与计费快照。

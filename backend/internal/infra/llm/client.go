@@ -25,6 +25,8 @@ const (
 	EndpointChatCompletions = "chat_completions"
 	// EndpointImageGenerations 表示 OpenAI Images API 生成端点。
 	EndpointImageGenerations = "image_generations"
+	// EndpointImageEdits 表示 OpenAI Images API 编辑端点。
+	EndpointImageEdits = "image_edits"
 )
 
 // 超时默认值。
@@ -133,6 +135,8 @@ type GenerateInput struct {
 	// 非空时：仅在 input 中发送本轮新消息，服务端从存储状态续接历史。
 	// 空串时：退回全量发送模式，适用于所有 adapter。
 	PreviousResponseID string
+	// ImageEditMask 仅供图片编辑 adapter 使用，表示透明区域掩码。
+	ImageEditMask *ContentPart
 }
 
 // ToolDefinition 是模型可调用工具的统一声明。
@@ -644,6 +648,7 @@ func NewClientWithEnv(env string, ssrfProtectionEnabled bool) *Client {
 		AdapterOpenAIResponses:        &openAIResponsesAdapter{client: client},
 		AdapterOpenAIChatCompletions:  &openAIChatCompletionsAdapter{client: client},
 		AdapterOpenAIImageGenerations: &openAIImageGenerationsAdapter{client: client},
+		AdapterOpenAIImageEdits:       &openAIImageEditsAdapter{client: client},
 		AdapterXAIResponses:           &xAIResponsesAdapter{client: client},
 		AdapterXAIImage:               &xAIImageAdapter{client: client},
 		AdapterAnthropicMessages:      &anthropicMessagesAdapter{client: client},
@@ -1386,6 +1391,8 @@ func normalizeEndpoint(raw string) string {
 		return EndpointChatCompletions
 	case EndpointImageGenerations:
 		return EndpointImageGenerations
+	case EndpointImageEdits:
+		return EndpointImageEdits
 	default:
 		return EndpointResponses
 	}

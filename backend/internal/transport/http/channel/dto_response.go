@@ -250,6 +250,7 @@ type UpstreamRemoteModelResponse struct {
 	SuggestedPlatformModelName string   `json:"suggestedPlatformModelName"`
 	SuggestedKindsJSON         string   `json:"suggestedKindsJSON"`
 	SuggestedProtocol          string   `json:"suggestedProtocol"`
+	SuggestedProtocols         []string `json:"suggestedProtocols"`
 	BindingCode                string   `json:"bindingCode"`
 	BoundPlatformModels        []string `json:"boundPlatformModels"`
 	UpstreamModelStatus        string   `json:"upstreamModelStatus"`
@@ -271,6 +272,7 @@ func toUpstreamRemoteModelsResponse(d appchannel.UpstreamRemoteModelsData) Upstr
 			SuggestedPlatformModelName: item.SuggestedPlatformModelName,
 			SuggestedKindsJSON:         item.SuggestedKindsJSON,
 			SuggestedProtocol:          item.SuggestedProtocol,
+			SuggestedProtocols:         item.SuggestedProtocols,
 			BindingCode:                item.BindingCode,
 			BoundPlatformModels:        item.BoundPlatformModels,
 			UpstreamModelStatus:        item.UpstreamModelStatus,
@@ -335,13 +337,16 @@ type ImportUpstreamModelsResponse struct {
 }
 
 type ImportUpstreamModelResultResponse struct {
-	UpstreamModelName string `json:"upstreamModelName"`
-	PlatformModelName string `json:"platformModelName"`
-	BindingCode       string `json:"bindingCode"`
-	Status            string `json:"status"`
-	CreatedRoute      bool   `json:"createdRoute"`
-	CreatedPlatform   bool   `json:"createdPlatform"`
-	Error             string `json:"error,omitempty"`
+	UpstreamModelName string   `json:"upstreamModelName"`
+	PlatformModelName string   `json:"platformModelName"`
+	BindingCode       string   `json:"bindingCode"`
+	Status            string   `json:"status"`
+	CreatedRoute      bool     `json:"createdRoute"`
+	CreatedRoutes     int      `json:"createdRoutes"`
+	ExistingRoutes    int      `json:"existingRoutes"`
+	Protocols         []string `json:"protocols"`
+	CreatedPlatform   bool     `json:"createdPlatform"`
+	Error             string   `json:"error,omitempty"`
 }
 
 func toImportUpstreamModelsResponse(d appchannel.ImportUpstreamModelsData) ImportUpstreamModelsResponse {
@@ -353,6 +358,9 @@ func toImportUpstreamModelsResponse(d appchannel.ImportUpstreamModelsData) Impor
 			BindingCode:       item.BindingCode,
 			Status:            item.Status,
 			CreatedRoute:      item.CreatedRoute,
+			CreatedRoutes:     item.CreatedRoutes,
+			ExistingRoutes:    item.ExistingRoutes,
+			Protocols:         item.Protocols,
 			CreatedPlatform:   item.CreatedPlatform,
 			Error:             item.Error,
 		})

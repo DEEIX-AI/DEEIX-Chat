@@ -3,13 +3,14 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
 import { ChatArea, ChatAreaLoadError, ChatAreaSkeleton } from "@/features/chat/components/sections/chat-area";
 import { ChatEmptyState } from "@/features/chat/components/sections/chat-empty";
 import { useChatSession } from "@/features/chat/context/chat-session-context";
 import { useChatAttachments } from "@/features/chat/hooks/use-chat-attachments";
 import { useConversationComposerState } from "@/features/chat/hooks/use-conversation-composer-state";
-import type { ChatAreaMessage } from "@/features/chat/types/messages";
+import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import { useChatModelOptions } from "@/features/chat/hooks/use-chat-model-options";
 import { useChatRuntime } from "@/features/chat/hooks/use-chat-runtime";
 import { useChatScrollController } from "@/features/chat/hooks/use-chat-scroll-controller";
@@ -26,6 +27,7 @@ import {
 } from "@/features/chat/model/conversation-options";
 import { useSidebarRecents } from "@/features/recent/context/sidebar-recents-context";
 import { useChatData } from "@/features/chat/hooks/use-chat-data";
+import { toPendingAttachment } from "@/features/chat/model/message-submit";
 import { listAvailableMCPTools } from "@/shared/api/mcp";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import type { ConversationOptions } from "@/shared/api/conversation.types";
@@ -350,6 +352,50 @@ export function AppChatArea() {
     streamingTraceText,
   });
 
+  const onEditGeneratedImageAttachment = React.useCallback(
+    (attachment: MessageAttachment, sourceModelName?: string) => {
+      const alreadyAttached = attachments.some((item) => item.fileID === attachment.fileID);
+      if (!alreadyAttached && maxFilesPerMessage > 0 && attachments.length >= maxFilesPerMessage) {
+        toast.error(t("attachments.limitReached"), {
+          description: t("attachments.maxUploadFiles", { count: maxFilesPerMessage }),
+        });
+        return;
+      }
+
+      const pendingAttachment = toPendingAttachment(attachment);
+      setAttachments((previous) => {
+        if (previous.some((item) => item.fileID === pendingAttachment.fileID)) {
+          return previous;
+        }
+        return [...previous, pendingAttachment];
+      });
+
+      const selectedSupportsImageEdit = selectedModel?.kinds.includes("image_edit") ?? false;
+      if (!selectedSupportsImageEdit) {
+        const normalizedSourceModelName = sourceModelName?.trim() || "";
+        const sourceModel = modelOptions.find(
+          (item) => item.platformModelName === normalizedSourceModelName && item.kinds.includes("image_edit"),
+        );
+        const fallbackModel = sourceModel ?? modelOptions.find((item) => item.kinds.includes("image_edit"));
+        if (fallbackModel) {
+          setSelectedPlatformModelName(fallbackModel.platformModelName);
+        }
+      }
+
+      window.requestAnimationFrame(onScrollToLatest);
+    },
+    [
+      attachments,
+      maxFilesPerMessage,
+      modelOptions,
+      onScrollToLatest,
+      selectedModel,
+      setAttachments,
+      setSelectedPlatformModelName,
+      t,
+    ],
+  );
+
   React.useEffect(() => {
     setManualConversationTitle("");
   }, [conversationID]);
@@ -530,6 +576,7 @@ export function AppChatArea() {
                 onRetryUserMessage={onRetryUserMessage}
                 onRetryAssistantMessage={onRetryAssistantMessage}
                 onEditUserMessage={onEditUserMessage}
+                onEditImageAttachment={onEditGeneratedImageAttachment}
                 onCycleMessageBranch={onCycleMessageBranch}
                 onToggleStar={onToggleActiveConversationStar}
                 onRename={onRenameActiveConversation}

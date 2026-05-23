@@ -12,6 +12,7 @@ import type { AssistantReaction } from "@/features/chat/components/message/messa
 import type {
   ChatAreaMessage,
   ChatInlineAlert,
+  MessageAttachment,
 } from "@/features/chat/types/messages";
 import { StreamdownRender } from "@/features/chat/components/markdown/streamdown-render";
 import {
@@ -32,6 +33,51 @@ import type { PreviewDialogFile } from "@/features/files/components/preview/file
 
 const EMPTY_TRACE_EVENTS: NonNullable<ChatAreaMessage["processTrace"]>["events"] = [];
 
+function isEditableImageAttachment(attachment: MessageAttachment): boolean {
+  const mimeType = attachment.mimeType.toLowerCase();
+  const detectedMime = attachment.detectedMime?.toLowerCase() || "";
+  return (
+    attachment.kind === "image" ||
+    attachment.fileCategory === "image" ||
+    mimeType.startsWith("image/") ||
+    detectedMime.startsWith("image/")
+  );
+}
+
+function resolveFileIDFromImageSrc(src: string): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    const url = new URL(src, window.location.origin);
+    const match = url.pathname.match(/\/api\/v1\/files\/([^/]+)\/content$/);
+    return match?.[1] ? decodeURIComponent(match[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveEditableImageAttachment(
+  src: string,
+  attachments: MessageAttachment[],
+  contentType: string | undefined,
+): MessageAttachment | null {
+  if (attachments.length === 0) {
+    return null;
+  }
+
+  const fileID = resolveFileIDFromImageSrc(src);
+  if (fileID) {
+    return attachments.find((attachment) => attachment.fileID === fileID) ?? null;
+  }
+
+  if (contentType === "image" && attachments.length === 1) {
+    return attachments[0];
+  }
+
+  return null;
+}
+
 type ChatMessageBotProps = {
   item: ChatAreaMessage;
   busy: boolean;
@@ -47,6 +93,7 @@ type ChatMessageBotProps = {
   showBillingCost?: boolean;
   readOnly?: boolean;
   attachmentContentLoader?: (file: PreviewDialogFile) => Promise<FileContentResult>;
+  onEditImageAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   showBranchNavigator?: boolean;
 };
 
@@ -65,6 +112,7 @@ export function ChatMessageBot({
   showBillingCost = false,
   readOnly = false,
   attachmentContentLoader,
+  onEditImageAttachment,
   showBranchNavigator = true,
 }: ChatMessageBotProps) {
   const onRetry = React.useCallback(() => {
@@ -90,6 +138,34 @@ export function ChatMessageBot({
   );
   const hasTraceEvents = postProcessEvents.length > 0;
   const isImageGenerationLoading = item.contentType === "image" && item.isStreaming && !hasStreamdownContent;
+  const editableImageAttachments = React.useMemo(
+    () => (item.attachments ?? []).filter(isEditableImageAttachment),
+    [item.attachments],
+  );
+  const getEditableImageAttachment = React.useCallback(
+    (src: string) => resolveEditableImageAttachment(src, editableImageAttachments, item.contentType),
+    [editableImageAttachments, item.contentType],
+  );
+  const markdownImageActions = React.useMemo(() => {
+    if (readOnly || !onEditImageAttachment || editableImageAttachments.length === 0) {
+      return undefined;
+    }
+    return {
+      canEditImage: (src: string) => Boolean(getEditableImageAttachment(src)),
+      onEditImage: (src: string) => {
+        const attachment = getEditableImageAttachment(src);
+        if (attachment) {
+          onEditImageAttachment(attachment, item.platformModelName);
+        }
+      },
+    };
+  }, [
+    editableImageAttachments.length,
+    getEditableImageAttachment,
+    item.platformModelName,
+    onEditImageAttachment,
+    readOnly,
+  ]);
   const activeThinkBlock = hasTraceEvents && upstreamThink?.status === "streaming" ? upstreamThink : undefined;
   const activeToolBlock = hasTraceEvents && toolTrace?.status === "streaming" ? toolTrace : undefined;
   const processAutoCollapseReady = Boolean(hasTraceEvents || upstreamThink || toolTrace || hasStreamdownContent || item.inlineAlert);
@@ -135,7 +211,7 @@ export function ChatMessageBot({
         ) : item.isStreaming && !hasStreamdownContent && !item.inlineAlert ? (
           <AssistantMessageSkeleton fileProc={item.isFileProc} label={item.activityLabel} />
         ) : hasStreamdownContent && markdownRender ? (
-          <StreamdownRender content={item.content} streaming={Boolean(item.isStreaming)} />
+          <StreamdownRender content={item.content} streaming={Boolean(item.isStreaming)} imageActions={markdownImageActions} />
         ) : hasStreamdownContent ? (
           <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.content}</p>
         ) : null}

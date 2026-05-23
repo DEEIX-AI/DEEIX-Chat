@@ -436,10 +436,20 @@ func (s *Service) UpdateModelUpstreamSource(ctx context.Context, modelID uint, r
 	if err != nil {
 		return nil, err
 	}
+	source, err := s.repo.GetModelUpstreamSourceByRouteID(ctx, modelItem.PlatformModelName, routeID)
+	if err != nil {
+		return nil, err
+	}
 
 	updateInput := repository.UpdateChannelPlatformRouteInput{}
 	if input.Protocol != nil {
-		protocol := strings.TrimSpace(*input.Protocol)
+		protocol, err := normalizeProtocol(*input.Protocol)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.validateRouteProtocolCombination(ctx, source.UpstreamID, modelItem.ID, source.UpstreamModelID, routeID, protocol); err != nil {
+			return nil, err
+		}
 		updateInput.Protocol = &protocol
 	}
 	if input.Status != nil {
@@ -455,47 +465,25 @@ func (s *Service) UpdateModelUpstreamSource(ctx context.Context, modelID uint, r
 		updateInput.Weight = &weight
 	}
 
-	allSources, _, listErr := s.repo.ListModelUpstreamSources(ctx, modelItem.PlatformModelName, 0, 2000)
-	if listErr != nil {
-		return nil, listErr
-	}
-	var targetUpstreamID uint
-	for _, src := range allSources {
-		if src.ID == routeID {
-			targetUpstreamID = src.UpstreamID
-			break
-		}
-	}
-	if targetUpstreamID == 0 {
-		return nil, ErrUpstreamModelNotFound
-	}
-
 	if updateInput.IsZero() {
-		for _, src := range allSources {
-			if src.ID == routeID {
-				view := toModelUpstreamSourceView(src)
-				return &view, nil
-			}
-		}
-		return nil, ErrUpstreamModelNotFound
+		view := toModelUpstreamSourceView(*source)
+		return &view, nil
 	}
 
-	if err := s.repo.UpdatePlatformModelRouteByID(ctx, routeID, targetUpstreamID, updateInput); err != nil {
+	if err := s.repo.UpdatePlatformModelRouteByID(ctx, routeID, source.UpstreamID, updateInput); err != nil {
+		if isDuplicateKeyError(err) {
+			return nil, ErrUpstreamModelConflict
+		}
 		return nil, err
 	}
 	s.InvalidateModelCatalog()
 
-	allSources, _, err = s.repo.ListModelUpstreamSources(ctx, modelItem.PlatformModelName, 0, 500)
+	source, err = s.repo.GetModelUpstreamSourceByRouteID(ctx, modelItem.PlatformModelName, routeID)
 	if err != nil {
 		return nil, err
 	}
-	for _, src := range allSources {
-		if src.ID == routeID {
-			view := toModelUpstreamSourceView(src)
-			return &view, nil
-		}
-	}
-	return nil, ErrUpstreamModelNotFound
+	view := toModelUpstreamSourceView(*source)
+	return &view, nil
 }
 
 // ---------------------------------------------------------------------------

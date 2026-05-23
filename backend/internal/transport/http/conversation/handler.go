@@ -129,15 +129,30 @@ func mapStreamError(err error) streamError {
 	case errors.Is(err, appconversation.ErrMessageGenerationCanceled):
 		status = http.StatusBadRequest
 		message = "message generation canceled"
+	case errors.Is(err, appconversation.ErrMediaImagePromptRequired):
+		status = http.StatusBadRequest
+		message = "image prompt is required"
+	case errors.Is(err, appconversation.ErrMediaImageGenerationRejectsInputs):
+		status = http.StatusBadRequest
+		message = "image generation does not accept input images"
+	case errors.Is(err, appconversation.ErrMediaImageEditInputRequired):
+		status = http.StatusBadRequest
+		message = "image edit requires at least one input image"
+	case errors.Is(err, appconversation.ErrMediaImageEditTooManyInputs):
+		status = http.StatusBadRequest
+		message = "too many image edit input images"
+	case errors.Is(err, appconversation.ErrMediaImageEditInputInvalid):
+		status = http.StatusBadRequest
+		message = "image edit input image is invalid"
+	case errors.Is(err, appconversation.ErrMediaRouteProtocolMismatch):
+		status = http.StatusServiceUnavailable
+		message = "media route protocol does not match task"
 	case errors.Is(err, appconversation.ErrInvalidMediaGenerationTask):
 		status = http.StatusBadRequest
 		message = "invalid media generation task"
 	case errors.Is(err, appconversation.ErrDuplicateMessageGenerationRun):
 		status = http.StatusConflict
 		message = "message generation run already exists"
-	case errors.Is(err, appconversation.ErrMediaImageEditNotImplemented):
-		status = http.StatusNotImplemented
-		message = "image edit protocol not implemented"
 	case errors.Is(err, appconversation.ErrUpstreamRequestFailed):
 		status = http.StatusBadGateway
 		message = mapClientErrorMessage(err)

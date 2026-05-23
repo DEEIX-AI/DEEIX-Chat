@@ -175,7 +175,7 @@ func resolveRouteProtocol(explicit string, upCompatible string, defaultsJSON str
 		if !isKnownProtocol(protocol) {
 			return "", ErrInvalidAdapter
 		}
-		if kind != "" && !isProtocolAllowedForKind(kind, protocol) {
+		if !isProtocolAllowedForKinds(kindsJSON, protocol) {
 			return "", ErrInvalidAdapter
 		}
 		return protocol, nil
@@ -191,6 +191,93 @@ func resolveRouteProtocol(explicit string, upCompatible string, defaultsJSON str
 		return protocol, nil
 	}
 	return "", ErrProtocolRequired
+}
+
+// resolveRouteProtocols 解析批量导入时的协议列表，图片生成/编辑模型可自动展开为双协议绑定。
+func resolveRouteProtocols(explicit []string, upCompatible string, defaultsJSON string, kindsJSON string) ([]string, error) {
+	protocols := make([]string, 0, len(explicit))
+	seen := make(map[string]struct{}, len(explicit))
+	for _, raw := range explicit {
+		value := strings.TrimSpace(strings.ToLower(raw))
+		if value == "" {
+			continue
+		}
+		protocol, err := resolveRouteProtocol(value, upCompatible, defaultsJSON, kindsJSON)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := seen[protocol]; ok {
+			continue
+		}
+		seen[protocol] = struct{}{}
+		protocols = append(protocols, protocol)
+	}
+	if len(protocols) > 0 {
+		if !isSupportedRouteProtocolCombination(protocols) {
+			return nil, ErrInvalidRouteProtocolCombination
+		}
+		return protocols, nil
+	}
+
+	kinds := parseKinds(kindsJSON)
+	if hasModelKind(kinds, modelKindImageGen) && hasModelKind(kinds, modelKindImageEdit) {
+		generationProtocol := defaultRouteProtocolForKind(upCompatible, defaultsJSON, modelKindImageGen)
+		editProtocol := defaultRouteProtocolForKind(upCompatible, defaultsJSON, modelKindImageEdit)
+		if generationProtocol != "" && editProtocol != "" {
+			protocols = []string{generationProtocol, editProtocol}
+			if isSupportedRouteProtocolCombination(protocols) {
+				return protocols, nil
+			}
+		}
+	}
+
+	protocol, err := resolveRouteProtocol("", upCompatible, defaultsJSON, kindsJSON)
+	if err != nil {
+		return nil, err
+	}
+	return []string{protocol}, nil
+}
+
+// defaultRouteProtocolForKind 优先使用上游配置的类型默认协议，其次回退到兼容类型内置协议。
+func defaultRouteProtocolForKind(upCompatible string, defaultsJSON string, kind string) string {
+	if protocol := protocolDefaultForKind(defaultsJSON, kind); protocol != "" {
+		return protocol
+	}
+	return systemFallbackProtocols(upCompatible)[kind]
+}
+
+func isProtocolAllowedForKinds(kindsJSON string, protocol string) bool {
+	kinds := parseKinds(kindsJSON)
+	if len(kinds) == 0 {
+		return true
+	}
+	for _, kind := range kinds {
+		if isProtocolAllowedForKind(kind, protocol) {
+			return true
+		}
+	}
+	return false
+}
+
+// isSupportedRouteProtocolCombination 限制同一绑定 pair 只能单协议，或图片生成/编辑双协议。
+func isSupportedRouteProtocolCombination(protocols []string) bool {
+	seen := make(map[string]struct{}, len(protocols))
+	for _, raw := range protocols {
+		protocol := strings.TrimSpace(strings.ToLower(raw))
+		if protocol == "" {
+			continue
+		}
+		seen[protocol] = struct{}{}
+	}
+	if len(seen) <= 1 {
+		return true
+	}
+	if len(seen) != 2 {
+		return false
+	}
+	_, hasGeneration := seen[protocolOpenAIImageGenerations]
+	_, hasEdit := seen[protocolOpenAIImageEdits]
+	return hasGeneration && hasEdit
 }
 
 func protocolDefaultForKind(defaultsJSON string, kind string) string {

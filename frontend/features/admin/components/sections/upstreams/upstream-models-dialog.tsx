@@ -70,6 +70,8 @@ import type {
 } from "@/features/admin/api/llm.types";
 import {
   PROTOCOL_OPTIONS,
+  resolveKindsDisplayForProtocols,
+  resolveNextRouteProtocolSelection,
 } from "@/features/admin/utils/llm-display";
 import { MODEL_KIND_OPTIONS, PAGE_SIZE_DEFAULT } from "@/features/admin/types/llm";
 import {
@@ -158,6 +160,82 @@ function KindsDropdown({
   );
 }
 
+function ProtocolsDropdown({
+  value,
+  onChange,
+  disabled,
+  className,
+}: {
+  value: AdminLLMAdapter[];
+  onChange: (value: AdminLLMAdapter[]) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const t = useTranslations("adminChannels");
+  const selected = React.useMemo(() => new Set(value), [value]);
+  const selectedLabel = React.useMemo(
+    () =>
+      PROTOCOL_OPTIONS
+        .filter((item) => selected.has(item.value))
+        .map((item) => item.label)
+        .join(", "),
+    [selected],
+  );
+
+  function toggle(protocol: AdminLLMAdapter) {
+    onChange(resolveNextRouteProtocolSelection(value, protocol));
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          role="combobox"
+          disabled={disabled}
+          className={cn(
+            "h-7 w-full justify-between gap-2 border-input/40 bg-transparent px-2 py-0 text-[11px] font-normal text-muted-foreground shadow-none hover:bg-transparent focus-visible:border-ring/60 focus-visible:ring-[1px] focus-visible:ring-ring/40 has-[>svg]:px-2",
+            className,
+          )}
+        >
+          <span className={cn("min-w-0 flex-1 truncate text-left", selectedLabel ? "text-foreground/75" : "")}>
+            {selectedLabel || t("modelsDialog.autoProtocol")}
+          </span>
+          <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-1">
+        <button
+          type="button"
+          onClick={() => onChange([])}
+          className="relative flex w-full items-center rounded-sm py-1.5 pr-8 pl-2 text-xs font-normal hover:bg-accent"
+        >
+          <span className="min-w-0 flex-1 truncate text-left">{t("modelsDialog.autoProtocol")}</span>
+          <Check className={cn("absolute right-2 size-4 shrink-0 text-muted-foreground", value.length === 0 ? "opacity-100" : "opacity-0")} />
+        </button>
+        {PROTOCOL_OPTIONS.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => toggle(item.value)}
+            className="relative flex w-full items-center rounded-sm py-1.5 pr-8 pl-2 text-xs font-normal hover:bg-accent"
+          >
+            <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+            <Check
+              className={cn(
+                "absolute right-2 size-4 shrink-0 text-muted-foreground",
+                selected.has(item.value) ? "opacity-100" : "opacity-0",
+              )}
+            />
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function BulkActionControlRow({
   icon,
   label,
@@ -188,16 +266,25 @@ function BulkActionControlRow({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Local draft type
-// ---------------------------------------------------------------------------
+function routeIDsForRow(row: RowDraft): number[] {
+  return Object.values(row.routeIDsByProtocol).filter((id) => id > 0);
+}
 
-const AUTO_PROTOCOL_VALUE = "__auto__";
+function selectedProtocolsForSave(row: RowDraft): AdminLLMAdapter[] {
+  const protocols = row.protocols.length > 0 ? row.protocols : [];
+  return Array.from(new Set(protocols));
+}
+
+async function runOperationsInOrder(operations: Array<() => Promise<unknown>>): Promise<void> {
+  for (const operation of operations) {
+    await operation();
+  }
+}
 
 type ModelRowProps = {
   row: RowDraft;
   isSelected: boolean;
-  onSelect: (id: number, checked: boolean) => void;
+  onSelect: (draftKey: string, checked: boolean) => void;
   onUpdate: (draftKey: string, patch: Partial<Omit<RowDraft, "draftKey" | "isDirty">>) => void;
 };
 
@@ -206,7 +293,7 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, onSelect, onUpd
   const platformModelName = row.platformModelNameDraft.trim();
   const hasBindingDraft = platformModelName.length > 0;
   const routeChecked = row.routeStatus === "active";
-  const protocolValue = hasBindingDraft ? row.protocol || row.suggestedProtocol || AUTO_PROTOCOL_VALUE : AUTO_PROTOCOL_VALUE;
+  const persistedRouteCount = routeIDsForRow(row).length;
 
   const handlePlatformModelChange = (value: string) => {
     onUpdate(row.draftKey, { platformModelNameDraft: value });
@@ -223,8 +310,8 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, onSelect, onUpd
         <div className="flex h-10 items-center justify-center">
           <Checkbox
             checked={isSelected}
-            disabled={!row.routeID}
-            onCheckedChange={(checked) => onSelect(row.routeID, checked === true)}
+            disabled={persistedRouteCount === 0}
+            onCheckedChange={(checked) => onSelect(row.draftKey, checked === true)}
             aria-label={t("modelsDialog.selectModel", { name: row.upstreamModelName })}
           />
         </div>
@@ -250,32 +337,22 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, onSelect, onUpd
           onChange={(e) => handlePlatformModelChange(e.target.value)}
         />
       </TableCell>
-      <TableCell className="w-[176px] whitespace-nowrap">
+      <TableCell className="w-[220px] whitespace-nowrap">
         {!hasBindingDraft ? (
           <span className="text-xs text-muted-foreground">
             {t("modelsDialog.deleteAfterSave")}
           </span>
         ) : (
-          <Select
-            value={protocolValue}
-            onValueChange={(value) =>
+          <ProtocolsDropdown
+            value={row.protocols}
+            onChange={(protocols) =>
               onUpdate(row.draftKey, {
-                protocol: value === AUTO_PROTOCOL_VALUE ? "" : (value as AdminLLMAdapter),
+                protocols,
+                protocol: protocols[0] ?? "",
+                kindsDisplay: resolveKindsDisplayForProtocols(protocols, row.kindsDisplay),
               })
             }
-          >
-            <SelectTrigger size="xs" className="w-[176px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={AUTO_PROTOCOL_VALUE}>{t("modelsDialog.autoProtocol")}</SelectItem>
-              {PROTOCOL_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
         )}
       </TableCell>
       <TableCell className="w-[140px]">
@@ -315,6 +392,10 @@ function dedupeRemoteModels(items: AdminLLMRemoteModelItem[]): AdminLLMRemoteMod
       suggestedPlatformModelName: existing.suggestedPlatformModelName || item.suggestedPlatformModelName,
       suggestedKindsJSON: existing.suggestedKindsJSON || item.suggestedKindsJSON,
       suggestedProtocol: existing.suggestedProtocol || item.suggestedProtocol,
+      suggestedProtocols: Array.from(new Set([
+        ...(existing.suggestedProtocols ?? []),
+        ...(item.suggestedProtocols ?? []),
+      ])),
       bindingCode: existing.bindingCode || item.bindingCode,
       boundPlatformModels: Array.from(new Set([...existing.boundPlatformModels, ...item.boundPlatformModels])),
       upstreamModelStatus: existing.upstreamModelStatus || item.upstreamModelStatus,
@@ -379,7 +460,7 @@ function RemoteModelsDialog({
       setSelected(new Set(syncableItems.map((i) => i.upstreamModelName)));
       setDraftPlatformModelNames(createDraftPlatformModelNameMap(syncableItems));
     } catch (err) {
-      toast.error(resolveErrorMessage(err, t("modelsDialog.remoteLoadFailed")));
+      toast.error(t("modelsDialog.remoteLoadFailed"), { description: resolveErrorMessage(err) });
       onOpenChange(false);
     } finally {
       setLoading(false);
@@ -428,7 +509,7 @@ function RemoteModelsDialog({
         .map((i) => ({
           upstreamModelName: i.upstreamModelName,
           platformModelName: (draftPlatformModelNames.get(i.upstreamModelName) || i.upstreamModelName).trim(),
-          protocol: i.suggestedProtocol || undefined,
+          protocols: (i.suggestedProtocols?.length ? i.suggestedProtocols : i.suggestedProtocol ? [i.suggestedProtocol] : undefined),
           kindsJSON: i.suggestedKindsJSON || undefined,
         }));
       const result = await importAdminLLMUpstreamModels(token, upstream.id, { items });
@@ -447,7 +528,7 @@ function RemoteModelsDialog({
       onImported();
       onOpenChange(false);
     } catch (err) {
-      toast.error(resolveErrorMessage(err, t("modelsDialog.importFailed")));
+      toast.error(t("modelsDialog.importFailed"), { description: resolveErrorMessage(err) });
     } finally {
       setImporting(false);
     }
@@ -461,6 +542,7 @@ function RemoteModelsDialog({
         item.upstreamModelName,
         item.suggestedPlatformModelName || "",
         item.suggestedProtocol || "",
+        ...(item.suggestedProtocols ?? []),
         t(`modelsDialog.remoteStatus.${remoteModelStatusKey(item)}`),
       ].some((value) => value.toLowerCase().includes(normalizedQuery));
     });
@@ -613,19 +695,24 @@ function NewBindingDialog({
       const payload: UpsertAdminLLMUpstreamModelRequest = {
         upstreamModelName: form.upstreamModelName.trim(),
         platformModelName: form.platformModelName.trim(),
-        protocol: form.protocol,
         kindsJSON: displayToKindsJson(form.kindsDisplay),
         status: form.status,
         priority: 1,
         weight: 1,
       };
-      await upsertAdminLLMUpstreamModel(token, upstreamId, payload);
+      const protocols = form.protocols.length > 0 ? form.protocols : [undefined];
+      for (const protocol of protocols) {
+        await upsertAdminLLMUpstreamModel(token, upstreamId, {
+          ...payload,
+          protocol,
+        });
+      }
       toast.success(t("modelsDialog.bindingCreated"));
       setForm(DEFAULT_NEW_BINDING);
       onOpenChange(false);
       onCreated();
     } catch (err) {
-      toast.error(resolveErrorMessage(err, t("toast.createFailed")));
+      toast.error(t("toast.createFailed"), { description: resolveErrorMessage(err) });
     } finally {
       setSaving(false);
     }
@@ -661,21 +748,17 @@ function NewBindingDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label>{t("modelsDialog.protocol")}</Label>
-              <Select
-                value={form.protocol}
-                onValueChange={(v) => setField("protocol", v as AdminLLMAdapter)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PROTOCOL_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ProtocolsDropdown
+                value={form.protocols}
+                onChange={(protocols) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    protocols,
+                    kindsDisplay: resolveKindsDisplayForProtocols(protocols, prev.kindsDisplay),
+                  }))
+                }
+                className="h-9 text-sm"
+              />
             </div>
 
             <div className="grid gap-1.5">
@@ -774,10 +857,10 @@ export function UpstreamModelsDialog({
   const [saving, setSaving] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
-  const [selected, setSelected] = React.useState<Set<number>>(new Set());
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [newBindingOpen, setNewBindingOpen] = React.useState(false);
   const [bulkRouteStatus, setBulkRouteStatus] = React.useState<"active" | "inactive">("active");
-  const [bulkProtocol, setBulkProtocol] = React.useState<AdminLLMAdapter>("openai_responses");
+  const [bulkProtocols, setBulkProtocols] = React.useState<AdminLLMAdapter[]>(["openai_responses"]);
   const [bulkKindsDisplay, setBulkKindsDisplay] = React.useState("chat");
   const [bulkPatchConfirm, setBulkPatchConfirm] = React.useState<BulkPatchConfirm | null>(null);
   const [query, setQuery] = React.useState("");
@@ -816,7 +899,7 @@ export function UpstreamModelsDialog({
       setRows([]);
       setTotal(0);
       setLoadedUpstreamID(upstreamID);
-      toast.error(resolveErrorMessage(err, t("modelsDialog.loadFailed")));
+      toast.error(t("modelsDialog.loadFailed"), { description: resolveErrorMessage(err) });
     } finally {
       if (requestSeq === requestSeqRef.current) {
         setLoadingList(false);
@@ -892,30 +975,32 @@ export function UpstreamModelsDialog({
     setListParams((prev) => ({ ...prev, ...patch, page: patch.page ?? 1 }));
   }, []);
 
-  const allSelected =
-    visibleRows.some((r) => r.routeID > 0) && visibleRows.filter((r) => r.routeID > 0).every((r) => selected.has(r.routeID));
-  const someSelected = visibleRows.some((r) => r.routeID > 0 && selected.has(r.routeID));
+  const selectableRows = React.useMemo(
+    () => visibleRows.filter((row) => routeIDsForRow(row).length > 0),
+    [visibleRows],
+  );
+  const allSelected = selectableRows.length > 0 && selectableRows.every((row) => selected.has(row.draftKey));
+  const someSelected = selectableRows.some((row) => selected.has(row.draftKey));
 
   function handleSelectAll(checked: boolean) {
     setSelected((current) => {
       const next = new Set(current);
-      for (const row of visibleRows) {
-        if (!row.routeID) continue;
+      for (const row of selectableRows) {
         if (checked) {
-          next.add(row.routeID);
+          next.add(row.draftKey);
         } else {
-          next.delete(row.routeID);
+          next.delete(row.draftKey);
         }
       }
       return next;
     });
   }
 
-  const handleSelectOne = React.useCallback((id: number, checked: boolean) => {
+  const handleSelectOne = React.useCallback((draftKey: string, checked: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
+      if (checked) next.add(draftKey);
+      else next.delete(draftKey);
       return next;
     });
   }, []);
@@ -935,7 +1020,7 @@ export function UpstreamModelsDialog({
     if (selected.size === 0) return;
     setRows((prev) =>
       prev.map((row) =>
-        row.routeID > 0 && selected.has(row.routeID)
+        routeIDsForRow(row).length > 0 && selected.has(row.draftKey)
           ? { ...row, ...patch, isDirty: true }
           : row,
       ),
@@ -944,18 +1029,24 @@ export function UpstreamModelsDialog({
 
   async function handleDeleteSelected() {
     if (!upstream || selected.size === 0) return;
+    const routeIDs = rows
+      .filter((row) => selected.has(row.draftKey))
+      .flatMap(routeIDsForRow);
+    if (routeIDs.length === 0) return;
     setDeleting(true);
     try {
       const token = await resolveAccessToken();
       const result = await batchDeleteAdminLLMUpstreamModels(token, upstream.id, {
-        ids: Array.from(selected),
+        ids: routeIDs,
       });
       const deletedIDs = new Set(
         result.results
           .filter((item) => item.status === "deleted" || item.status === "not_found")
           .map((item) => item.id),
       );
-      setRows((prev) => prev.filter((row) => !deletedIDs.has(row.routeID)));
+      setRows((prev) =>
+        prev.filter((row) => routeIDsForRow(row).some((routeID) => !deletedIDs.has(routeID))),
+      );
       setSelected(new Set());
       if (result.failedCount > 0) {
         toast.error(t("modelsDialog.batchDeletePartialFailed"), {
@@ -975,7 +1066,7 @@ export function UpstreamModelsDialog({
       void loadBindings();
       onUpstreamUpdated({ ...upstream });
     } catch (err) {
-      toast.error(resolveErrorMessage(err, t("toast.deleteFailed")));
+      toast.error(t("toast.deleteFailed"), { description: resolveErrorMessage(err) });
     } finally {
       setDeleting(false);
       setDeleteConfirmOpen(false);
@@ -1002,47 +1093,92 @@ export function UpstreamModelsDialog({
     setSaving(true);
     try {
       const token = await resolveAccessToken();
-      const operations: Array<Promise<unknown>> = [];
+      const deleteOperations: Array<() => Promise<unknown>> = [];
+      const upsertOperations: Array<() => Promise<unknown>> = [];
       let savedCount = 0;
       let deletedCount = 0;
 
       for (const row of dirty) {
         const platformModelName = row.platformModelNameDraft.trim();
+        const existingRouteIDs = routeIDsForRow(row);
         const shouldDeleteRoute =
-          row.routeID > 0 &&
+          existingRouteIDs.length > 0 &&
           row.routeStatus === "inactive" &&
           platformModelName.length === 0;
 
         if (shouldDeleteRoute) {
-          operations.push(deleteAdminLLMUpstreamModel(token, upstream.id, row.routeID));
-          deletedCount += 1;
+          for (const routeID of existingRouteIDs) {
+            deleteOperations.push(() => deleteAdminLLMUpstreamModel(token, upstream.id, routeID));
+            deletedCount += 1;
+          }
           continue;
         }
         if (!platformModelName) {
           continue;
         }
 
-        const payload: UpsertAdminLLMUpstreamModelRequest = {
-          routeID: row.routeID,
+        const basePayload: UpsertAdminLLMUpstreamModelRequest = {
           platformModelName,
           upstreamModelName: row.upstreamModelName.trim(),
-          protocol: row.protocol || row.suggestedProtocol || undefined,
           kindsJSON: displayToKindsJson(row.kindsDisplay),
           status: row.routeStatus || "active",
           priority: row.priority || 1,
           weight: row.weight || 1,
         };
-        operations.push(upsertAdminLLMUpstreamModel(token, upstream.id, payload));
-        savedCount += 1;
+        const desiredProtocols = selectedProtocolsForSave(row);
+        if (desiredProtocols.length === 0) {
+          const keepRouteID = row.routeID || existingRouteIDs[0];
+          upsertOperations.push(() =>
+            upsertAdminLLMUpstreamModel(token, upstream.id, {
+              ...basePayload,
+              routeID: keepRouteID || undefined,
+            }),
+          );
+          savedCount += 1;
+          for (const routeID of existingRouteIDs) {
+            if (routeID === keepRouteID) continue;
+            deleteOperations.push(() => deleteAdminLLMUpstreamModel(token, upstream.id, routeID));
+            deletedCount += 1;
+          }
+          continue;
+        }
+
+        const desiredSet = new Set(desiredProtocols);
+        const reusableRouteIDs = Object.entries(row.routeIDsByProtocol)
+          .filter(([protocol]) => !desiredSet.has(protocol as AdminLLMAdapter))
+          .map(([, routeID]) => routeID)
+          .filter((routeID) => routeID > 0);
+        const reusedRouteIDs = new Set<number>();
+        for (const protocol of desiredProtocols) {
+          const existingRouteID = row.routeIDsByProtocol[protocol];
+          const routeID = existingRouteID || reusableRouteIDs.shift();
+          if (routeID) {
+            reusedRouteIDs.add(routeID);
+          }
+          upsertOperations.push(() =>
+            upsertAdminLLMUpstreamModel(token, upstream.id, {
+              ...basePayload,
+              routeID,
+              protocol,
+            }),
+          );
+          savedCount += 1;
+        }
+        for (const [protocol, routeID] of Object.entries(row.routeIDsByProtocol)) {
+          if (desiredSet.has(protocol as AdminLLMAdapter) || reusedRouteIDs.has(routeID)) continue;
+          deleteOperations.push(() => deleteAdminLLMUpstreamModel(token, upstream.id, routeID));
+          deletedCount += 1;
+        }
       }
 
-      if (operations.length === 0) {
+      if (deleteOperations.length === 0 && upsertOperations.length === 0) {
         toast.info(t("modelsDialog.noSavableChanges"));
         await loadBindings();
         return;
       }
 
-      await Promise.all(operations);
+      await runOperationsInOrder(upsertOperations);
+      await runOperationsInOrder(deleteOperations);
       if (savedCount > 0 && deletedCount > 0) {
         toast.success(t("modelsDialog.savedAndDeleted", { savedCount, deletedCount }));
       } else if (deletedCount > 0) {
@@ -1055,7 +1191,7 @@ export function UpstreamModelsDialog({
       await loadBindings();
       onUpstreamUpdated({ ...upstream });
     } catch (err) {
-      toast.error(resolveErrorMessage(err, t("toast.updateFailed")));
+      toast.error(t("toast.updateFailed"), { description: resolveErrorMessage(err) });
     } finally {
       setSaving(false);
     }
@@ -1063,6 +1199,13 @@ export function UpstreamModelsDialog({
 
   const dirtyCount = rows.filter((r) => r.isDirty).length;
   const selectedCount = selected.size;
+  const selectedRouteCount = React.useMemo(
+    () =>
+      rows
+        .filter((row) => selected.has(row.draftKey))
+        .reduce((count, row) => count + routeIDsForRow(row).length, 0),
+    [rows, selected],
+  );
 
   return (
     <>
@@ -1161,27 +1304,23 @@ export function UpstreamModelsDialog({
                   <BulkActionControlRow
                     icon={<Cable className="size-3 stroke-1" />}
                     label={t("actions.apply")}
-                    onApply={() => setBulkPatchConfirm({ patch: { protocol: bulkProtocol } })}
+                    onApply={() =>
+                      setBulkPatchConfirm({
+                        patch: {
+                          protocols: bulkProtocols,
+                          protocol: bulkProtocols[0] ?? "",
+                          kindsDisplay: resolveKindsDisplayForProtocols(bulkProtocols, bulkKindsDisplay),
+                        },
+                      })
+                    }
                     disabled={selectedCount === 0}
                   >
-                    <Select
-                      value={bulkProtocol}
-                      onValueChange={(value) => {
-                        setBulkProtocol(value as AdminLLMAdapter);
-                      }}
+                    <ProtocolsDropdown
+                      value={bulkProtocols}
+                      onChange={setBulkProtocols}
                       disabled={selectedCount === 0}
-                    >
-                      <SelectTrigger size="xs" className="h-7 px-2 text-[11px] text-muted-foreground">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent position="popper" align="start" className="z-[100]" viewportClassName="max-h-[220px]">
-                        {PROTOCOL_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value} className="text-[11px]">
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      className="h-7 w-full px-2 text-[11px]"
+                    />
                   </BulkActionControlRow>
 
                   <BulkActionControlRow
@@ -1234,7 +1373,7 @@ export function UpstreamModelsDialog({
                     <TableHead className="w-[56px]">{t("modelsDialog.routeStatus")}</TableHead>
                     <TableHead>{t("modelsDialog.upstreamModelName")}</TableHead>
                     <TableHead className="min-w-[220px]">{t("modelsDialog.platformModel")}</TableHead>
-                    <TableHead className="w-[176px]">{t("modelsDialog.protocol")}</TableHead>
+                    <TableHead className="w-[220px]">{t("modelsDialog.protocol")}</TableHead>
                     <TableHead className="w-[140px]">{t("modelsDialog.kind")}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1249,7 +1388,7 @@ export function UpstreamModelsDialog({
                     <ModelRow
                       key={row.draftKey}
                       row={row}
-                      isSelected={row.routeID > 0 && selected.has(row.routeID)}
+                      isSelected={selected.has(row.draftKey)}
                       onSelect={handleSelectOne}
                       onUpdate={updateRow}
                     />
@@ -1312,7 +1451,7 @@ export function UpstreamModelsDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>{t("modelsDialog.batchDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("modelsDialog.batchDeleteDescription", { count: selected.size })}
+              {t("modelsDialog.batchDeleteDescription", { count: selectedCount })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1323,14 +1462,14 @@ export function UpstreamModelsDialog({
               {commonT("actions.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
-              disabled={deleting || selected.size === 0}
+              disabled={deleting || selectedRouteCount === 0}
               onClick={(event) => {
                 event.preventDefault();
                 void handleDeleteSelected();
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? <SpinnerLabel>{t("modelsDialog.deleting")}</SpinnerLabel> : t("modelsDialog.confirmDelete", { count: selected.size })}
+              {deleting ? <SpinnerLabel>{t("modelsDialog.deleting")}</SpinnerLabel> : t("modelsDialog.confirmDelete", { count: selectedCount })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

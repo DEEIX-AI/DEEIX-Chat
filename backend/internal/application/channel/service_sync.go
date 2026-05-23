@@ -11,7 +11,6 @@ import (
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"go.uber.org/zap"
 )
 
@@ -34,7 +33,16 @@ func (s *Service) ListRemoteModels(ctx context.Context, upstreamID uint) (*Upstr
 		return nil, err
 	}
 
-	rows, _, _ := s.repo.ListUpstreamModels(ctx, upstreamID, repository.ListChannelUpstreamModelsInput{Offset: 0, Limit: 5000})
+	remoteNames := make([]string, 0, len(items))
+	for _, item := range items {
+		if name := strings.TrimSpace(item.ID); name != "" {
+			remoteNames = append(remoteNames, name)
+		}
+	}
+	rows, err := s.repo.ListUpstreamModelsByNames(ctx, upstreamID, remoteNames)
+	if err != nil {
+		return nil, err
+	}
 	existingByName := make(map[string]repositoryUpstreamModelSnapshot, len(rows))
 	for _, row := range rows {
 		name := strings.TrimSpace(row.UpstreamModelName)
@@ -57,13 +65,18 @@ func (s *Service) ListRemoteModels(ctx context.Context, upstreamID uint) (*Upstr
 			continue
 		}
 		kindsJSON := inferKindsJSON(name)
-		suggestedProtocol, _ := resolveRouteProtocol("", upstreamItem.Compatible, upstreamItem.ProtocolDefaultsJSON, kindsJSON)
+		suggestedProtocols, _ := resolveRouteProtocols(nil, upstreamItem.Compatible, upstreamItem.ProtocolDefaultsJSON, kindsJSON)
+		suggestedProtocol := ""
+		if len(suggestedProtocols) > 0 {
+			suggestedProtocol = suggestedProtocols[0]
+		}
 		snapshot, alreadySynced := existingByName[name]
 		views = append(views, UpstreamRemoteModelView{
 			UpstreamModelName:          name,
 			SuggestedPlatformModelName: name,
 			SuggestedKindsJSON:         kindsJSON,
 			SuggestedProtocol:          suggestedProtocol,
+			SuggestedProtocols:         suggestedProtocols,
 			BindingCode:                snapshot.BindingCode,
 			BoundPlatformModels:        snapshot.BoundPlatformModels,
 			UpstreamModelStatus:        snapshot.Status,
@@ -157,7 +170,8 @@ func (s *Service) SyncUpstreamModels(ctx context.Context, upstreamID uint) (*Syn
 
 // ImportUpstreamModels 批量把上游真实模型绑定到平台模型。
 func (s *Service) ImportUpstreamModels(ctx context.Context, upstreamID uint, input ImportUpstreamModelsInput) (*ImportUpstreamModelsData, error) {
-	if _, err := s.repo.GetUpstreamByID(ctx, upstreamID); err != nil {
+	upstreamItem, err := s.repo.GetUpstreamByID(ctx, upstreamID)
+	if err != nil {
 		if errors.Is(err, ErrUpstreamNotFound) {
 			return nil, ErrUpstreamNotFound
 		}
@@ -169,7 +183,7 @@ func (s *Service) ImportUpstreamModels(ctx context.Context, upstreamID uint, inp
 		Results: make([]ImportUpstreamModelResultView, 0, len(input.Items)),
 	}
 	for _, item := range input.Items {
-		imported, importErr := s.importSingleUpstreamModel(ctx, upstreamID, item)
+		imported, importErr := s.importSingleUpstreamModel(ctx, upstreamItem, item)
 		if importErr != nil {
 			result.FailedCount++
 			result.Results = append(result.Results, ImportUpstreamModelResultView{
@@ -182,11 +196,10 @@ func (s *Service) ImportUpstreamModels(ctx context.Context, upstreamID uint, inp
 		}
 		result.ImportedCount++
 		status := ImportUpstreamModelStatusExisting
-		if imported.CreatedRoute {
-			result.CreatedRoutes++
+		result.CreatedRoutes += imported.CreatedRoutes
+		result.ExistingRoutes += imported.ExistingRoutes
+		if imported.CreatedRoutes > 0 {
 			status = ImportUpstreamModelStatusCreated
-		} else {
-			result.ExistingRoutes++
 		}
 		if imported.CreatedPlatform {
 			result.CreatedPlatform++
@@ -290,7 +303,7 @@ func (s *Service) syncSingleUpstreamModel(ctx context.Context, up *domainchannel
 	}, nil
 }
 
-func (s *Service) importSingleUpstreamModel(ctx context.Context, upstreamID uint, input ImportUpstreamModelItemInput) (ImportUpstreamModelResultView, error) {
+func (s *Service) importSingleUpstreamModel(ctx context.Context, upstreamItem *domainchannel.Upstream, input ImportUpstreamModelItemInput) (ImportUpstreamModelResultView, error) {
 	platformModelName, err := normalizePlatformModelName(input.PlatformModelName)
 	if err != nil {
 		return ImportUpstreamModelResultView{}, err
@@ -304,41 +317,54 @@ func (s *Service) importSingleUpstreamModel(ctx context.Context, upstreamID uint
 	if platformErr != nil && !createdPlatform {
 		return ImportUpstreamModelResultView{}, platformErr
 	}
-	createdRoute := !s.routeExists(ctx, upstreamID, platformModelName, upstreamModelName)
 
-	view, err := s.UpsertUpstreamModel(ctx, upstreamID, UpsertUpstreamModelInput{
-		PlatformModelName: platformModelName,
-		UpstreamModelName: upstreamModelName,
-		Protocol:          input.Protocol,
-		KindsJSON:         input.KindsJSON,
-		Status:            input.Status,
-		Priority:          input.Priority,
-		Weight:            1,
-		Source:            "import",
-	})
+	kindsJSON := strings.TrimSpace(input.KindsJSON)
+	if kindsJSON == "" {
+		kindsJSON = inferKindsJSON(platformModelName)
+	}
+	explicitProtocols := append([]string{}, input.Protocols...)
+	if len(explicitProtocols) == 0 && strings.TrimSpace(input.Protocol) != "" {
+		explicitProtocols = append(explicitProtocols, input.Protocol)
+	}
+	protocols, err := resolveRouteProtocols(explicitProtocols, upstreamItem.Compatible, upstreamItem.ProtocolDefaultsJSON, kindsJSON)
 	if err != nil {
 		return ImportUpstreamModelResultView{}, err
 	}
-	return ImportUpstreamModelResultView{
-		UpstreamModelName: view.UpstreamModelName,
-		PlatformModelName: view.PlatformModelName,
-		BindingCode:       view.BindingCode,
-		CreatedRoute:      createdRoute,
+	result := ImportUpstreamModelResultView{
+		UpstreamModelName: upstreamModelName,
+		PlatformModelName: platformModelName,
 		CreatedPlatform:   createdPlatform,
-	}, nil
-}
-
-func (s *Service) routeExists(ctx context.Context, upstreamID uint, platformModelName string, upstreamModelName string) bool {
-	rows, _, err := s.repo.ListUpstreamModels(ctx, upstreamID, repository.ListChannelUpstreamModelsInput{Offset: 0, Limit: 5000})
-	if err != nil {
-		return false
+		Protocols:         protocols,
 	}
-	for _, row := range rows {
-		if strings.TrimSpace(row.PlatformModelName) == platformModelName &&
-			strings.TrimSpace(row.UpstreamModelName) == upstreamModelName &&
-			row.RouteID > 0 {
-			return true
+	for _, protocol := range protocols {
+		createdRoute := !s.routeExists(ctx, upstreamItem.ID, platformModelName, upstreamModelName, protocol)
+		view, err := s.UpsertUpstreamModel(ctx, upstreamItem.ID, UpsertUpstreamModelInput{
+			PlatformModelName: platformModelName,
+			UpstreamModelName: upstreamModelName,
+			Protocol:          protocol,
+			KindsJSON:         kindsJSON,
+			Status:            input.Status,
+			Priority:          input.Priority,
+			Weight:            1,
+			Source:            "import",
+		})
+		if err != nil {
+			return ImportUpstreamModelResultView{}, err
+		}
+		if result.BindingCode == "" {
+			result.BindingCode = view.BindingCode
+		}
+		if createdRoute {
+			result.CreatedRoutes++
+			result.CreatedRoute = true
+		} else {
+			result.ExistingRoutes++
 		}
 	}
-	return false
+	return result, nil
+}
+
+func (s *Service) routeExists(ctx context.Context, upstreamID uint, platformModelName string, upstreamModelName string, protocol string) bool {
+	_, err := s.repo.GetUpstreamModelRouteByNames(ctx, upstreamID, platformModelName, upstreamModelName, protocol)
+	return err == nil
 }

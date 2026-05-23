@@ -1,4 +1,4 @@
-import type { ChatAreaMessage, ChatMessageProcessTrace } from "@/features/chat/types/messages";
+import type { ChatAreaMessage, ChatMessageProcessTrace, MessageAttachment } from "@/features/chat/types/messages";
 import type { PendingAttachment } from "@/features/chat/types/chat-runtime";
 import type {
   MessageProcessTraceDTO,
@@ -9,7 +9,11 @@ export function toPendingAttachments(message: ChatAreaMessage | null | undefined
   if (!message?.attachments || message.attachments.length === 0) {
     return [];
   }
-  return message.attachments.map((item) => ({
+  return message.attachments.map(toPendingAttachment);
+}
+
+export function toPendingAttachment(item: MessageAttachment): PendingAttachment {
+  return {
     fileID: item.fileID,
     fileName: item.fileName,
     mimeType: item.mimeType,
@@ -26,7 +30,7 @@ export function toPendingAttachments(message: ChatAreaMessage | null | undefined
     ragReady: item.ragReady,
     ragReason: item.ragReason,
     ocrUsed: item.ocrUsed,
-  }));
+  };
 }
 
 export function resolvePersistedPublicID(value: string | null | undefined): string | null {

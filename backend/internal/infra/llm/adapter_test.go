@@ -8,6 +8,9 @@ func TestSupportsStreamingAdapter(t *testing.T) {
 	if !SupportsStreamingAdapter(AdapterOpenAIImageGenerations) {
 		t.Fatalf("expected image generations adapter to support upstream streaming")
 	}
+	if !SupportsStreamingAdapter(AdapterOpenAIImageEdits) {
+		t.Fatalf("expected image edits adapter to support upstream streaming")
+	}
 	if !SupportsStreamingAdapter(AdapterOpenAIResponses) {
 		t.Fatalf("expected responses adapter to support streaming")
 	}
@@ -31,5 +34,8 @@ func TestSupportsImageGenerationStream(t *testing.T) {
 	}
 	if SupportsImageGenerationStream(AdapterOpenAIResponses, "gpt-image-1") {
 		t.Fatalf("expected non-image protocol to remain non-streaming for image generation")
+	}
+	if !SupportsImageGenerationStream(AdapterOpenAIImageEdits, "gpt-image-1") {
+		t.Fatalf("expected gpt-image edits to support image edit streaming")
 	}
 }

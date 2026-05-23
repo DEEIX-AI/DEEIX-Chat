@@ -97,6 +97,7 @@ type ImportUpstreamModelItemInput struct {
 	PlatformModelName string
 	UpstreamModelName string
 	Protocol          string
+	Protocols         []string
 	KindsJSON         string
 	Status            string
 	Priority          int

@@ -228,19 +228,11 @@ func (s *Service) sendMessageInternal(
 		ErrorMessage:     "",
 		Attachments:      string(attachmentsJSON),
 	}
-	if err = s.repo.CreateMessage(ctx, userMessage); err != nil {
-		retErr = err
-		return nil, err
-	}
-	userMessage.ParentPublicID = branchState.ParentPublicID
-	userMessage.SourcePublicID = branchState.SourcePublicID
-
 	attachmentRows := make([]model.Attachment, 0, len(resolvedAttachments))
 	now := time.Now()
 	for _, item := range resolvedAttachments {
 		attachmentRows = append(attachmentRows, model.Attachment{
 			ConversationID: input.ConversationID,
-			MessageID:      userMessage.ID,
 			UserID:         input.UserID,
 			FileID:         strings.TrimSpace(item.FileID),
 			Kind:           normalizeAttachmentKind(item.Kind, item.MimeType),
@@ -254,16 +246,11 @@ func (s *Service) sendMessageInternal(
 			UploadedAt:     now,
 		})
 	}
-	if err = s.repo.CreateAttachments(ctx, attachmentRows); err != nil {
-		retErr = err
-		return nil, err
-	}
 
 	assistantMessage = &model.Message{
 		ConversationID:   input.ConversationID,
 		UserID:           input.UserID,
 		PublicID:         normalizePublicID(uuid.NewString()),
-		ParentMessageID:  &userMessage.ID,
 		RunID:            runID,
 		Role:             "assistant",
 		ContentType:      "text",
@@ -281,16 +268,14 @@ func (s *Service) sendMessageInternal(
 		ErrorMessage:     "",
 		Attachments:      "[]",
 	}
-	if err = s.repo.CreateMessage(ctx, assistantMessage); err != nil {
+	// 用户消息、助手占位、用户附件与消息计数必须一起提交，避免失败时留下半个回合。
+	if err = s.repo.CreateMessagePairWithUserAttachments(ctx, userMessage, assistantMessage, attachmentRows); err != nil {
 		retErr = err
 		return nil, err
 	}
+	userMessage.ParentPublicID = branchState.ParentPublicID
+	userMessage.SourcePublicID = branchState.SourcePublicID
 	assistantMessage.ParentPublicID = userMessage.PublicID
-	// 两条消息同批次创建，合并为一次 +2，减少一个 DB 往返
-	if err = s.repo.IncrementMessageCount(ctx, input.ConversationID, 2); err != nil {
-		retErr = err
-		return nil, err
-	}
 	traceRecorder = newMessageTraceRecorder(s, ctx, assistantMessage, input.OnEvent)
 
 	if s.routeResolver == nil || s.llmClient == nil {

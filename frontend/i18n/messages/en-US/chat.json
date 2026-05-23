@@ -87,6 +87,7 @@
     "footnoteBackref": "Back to footnote reference",
     "imageUnavailable": "Image not available",
     "previewImage": "Preview image",
+    "editImage": "Edit image",
     "downloadImage": "Download image",
     "externalLink": {
       "title": "Open external link?",
@@ -184,6 +185,14 @@
     "retrievingContent": "Retrieving relevant content...",
     "retryLater": "Please try again later.",
     "imagePreviewAlt": "Generated image preview",
+    "mediaInputUnsupported": "The selected model cannot process this input",
+    "mediaInputBlocked": {
+      "image_edit_input_required": "This model edits images. Upload an image to edit first.",
+      "image_edit_unsupported": "This model does not support image editing. Remove the image or select an editing-capable model.",
+      "image_generation_rejects_attachments": "Image generation accepts text prompts only. Remove attachments or select a model that handles them.",
+      "image_task_rejects_non_image_attachments": "Image tasks only support image attachments. Remove non-image files.",
+      "model_task_unsupported": "This model cannot process the current input. Select another model and try again."
+    },
     "mediaStatus": {
       "queued": "Image task queued",
       "running": "Generating image",
@@ -283,6 +292,23 @@
     "booleanOn": "On",
     "booleanOff": "Off",
     "tool": "Tool {id}",
+    "mediaMode": {
+      "imageGeneration": "Image generation",
+      "imageGenerationIntro": "Image generation mode is active.",
+      "imageGenerationDescription": "Creates a new image from the text prompt. Upload an image to switch to image editing.",
+      "imageEdit": "Image editing",
+      "imageEditIntro": "Image editing mode is active.",
+      "imageEditDescription": "Edits the uploaded image using the text prompt.",
+      "invalidFile": "Invalid file detected",
+      "invalidFileIntro": "This file cannot be used for an image task.",
+      "blockedDescriptions": {
+        "image_edit_input_required": "Upload an image to edit first.",
+        "image_edit_unsupported": "The selected model does not support image editing. Remove the image or switch models.",
+        "image_generation_rejects_attachments": "Image generation only accepts text prompts. Remove attachments.",
+        "image_task_rejects_non_image_attachments": "Image tasks only support image attachments. Remove non-image files.",
+        "model_task_unsupported": "The selected model cannot process this input. Switch models and try again."
+      }
+    },
     "nativeTools": {
       "grok": "Grok native tools",
       "openai": "OpenAI native tools",

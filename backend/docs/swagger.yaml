@@ -1649,6 +1649,10 @@ definitions:
       protocol:
         maxLength: 64
         type: string
+      protocols:
+        items:
+          type: string
+        type: array
       status:
         enum:
         - active
@@ -1670,10 +1674,18 @@ definitions:
         type: boolean
       createdRoute:
         type: boolean
+      createdRoutes:
+        type: integer
       error:
         type: string
+      existingRoutes:
+        type: integer
       platformModelName:
         type: string
+      protocols:
+        items:
+          type: string
+        type: array
       status:
         type: string
       upstreamModelName:
@@ -2226,6 +2238,10 @@ definitions:
         type: string
       suggestedProtocol:
         type: string
+      suggestedProtocols:
+        items:
+          type: string
+        type: array
       upstreamModelName:
         type: string
       upstreamModelStatus:
@@ -3371,7 +3387,7 @@ info:
   contact: {}
   description: DEEIX Chat 后端 API 文档
   title: DEEIX Chat API
-  version: 0.1.0
+  version: 0.1.1
 paths:
   /admin/audit-logs:
     get:

@@ -128,12 +128,13 @@
   "llm": {
     "apiKeysRequired": "API Keys 不能为空。",
     "emptyResponse": "模型返回了空响应。",
-    "invalidAdapter": "模型适配器无效。",
+    "invalidAdapter": "接口协议不受支持，请重新选择协议。",
     "invalidApiKeysConfig": "API Keys 配置无效。",
     "invalidCompatible": "兼容模式无效。",
     "invalidHeadersConfig": "请求头配置无效。",
     "invalidKinds": "模型类型无效。",
     "invalidPlatformModelName": "平台模型名称无效。",
+    "invalidRouteProtocolCombination": "当前协议组合不可用。同一绑定只能选择单个协议，或同时选择 OpenAI 图像生成与图像编辑协议。",
     "systemPromptTooLong": "系统提示词不能超过 20000 个字符。",
     "invalidProtocolDefaultsConfig": "协议默认配置无效。",
     "modelRouteNotConfigured": "模型路由未配置。",
@@ -142,7 +143,7 @@
     "platformModelNameRequired": "平台模型名称不能为空。",
     "protocolRequired": "协议不能为空。",
     "remoteModelsUnavailable": "远程模型列表暂不可用。",
-    "routeConflict": "该上游已绑定相同目标模型。",
+    "routeConflict": "该上游模型已存在相同平台模型和协议的绑定，请删除重复绑定后再保存。",
     "routesUnavailable": "所有模型路由都不可用。"
   },
   "mcp": {
@@ -164,6 +165,15 @@
   },
   "memory": {
     "keyRequired": "记忆键不能为空。"
+  },
+  "media": {
+    "imagePromptRequired": "请输入图片提示词。",
+    "imageGenerationRejectsInputs": "图片生成不支持携带输入图片，请移除附件或选择图片编辑。",
+    "imageEditInputRequired": "图片编辑需要至少上传一张输入图片。",
+    "imageEditTooManyInputs": "图片编辑输入图片过多。",
+    "imageEditInputInvalid": "图片编辑只支持有效的图片文件。",
+    "routeProtocolMismatch": "当前模型路由协议与图片任务不匹配，请检查模型绑定。",
+    "invalidTask": "图片任务参数无效。"
   },
   "message": {
     "feedbackTargetInvalid": "消息反馈目标无效。",

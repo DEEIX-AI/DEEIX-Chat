@@ -41,6 +41,8 @@ var (
 	ErrInvalidModelOrder = errors.New("invalid model order")
 	// ErrProtocolRequired 无法通过瀑布规则推断协议。
 	ErrProtocolRequired = errors.New("protocol required")
+	// ErrInvalidRouteProtocolCombination 路由协议组合无效。
+	ErrInvalidRouteProtocolCombination = errors.New("invalid route protocol combination")
 	// ErrUpstreamModelNotFound 上游模型路由绑定不存在。
 	ErrUpstreamModelNotFound = repository.ErrUpstreamModelNotFound
 	// ErrUpstreamModelConflict 上游模型路由绑定冲突。

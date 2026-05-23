@@ -68,7 +68,9 @@ func (s *Service) UpsertUpstreamModel(ctx context.Context, upstreamID uint, inpu
 		return nil, ErrInvalidJSONConfig
 	}
 
-	kindsJSON := strings.TrimSpace(input.KindsJSON)
+	rawKindsJSON := strings.TrimSpace(input.KindsJSON)
+	kindsExplicit := rawKindsJSON != ""
+	kindsJSON := rawKindsJSON
 	if kindsJSON == "" {
 		kindsJSON = inferKindsJSON(platformModelName)
 	}
@@ -81,14 +83,23 @@ func (s *Service) UpsertUpstreamModel(ctx context.Context, upstreamID uint, inpu
 		return nil, err
 	}
 
-	platformModel, _, err := s.ensurePlatformModel(ctx, platformModelName, kindsJSON, upstreamModelName)
+	platformModel, platformModelCreated, err := s.ensurePlatformModel(ctx, platformModelName, kindsJSON, upstreamModelName)
 	if err != nil {
 		return nil, err
+	}
+	if !platformModelCreated && kindsExplicit && strings.TrimSpace(platformModel.KindsJSON) != kindsJSON {
+		if err := s.repo.UpdateModel(ctx, platformModel.ID, repository.UpdateChannelModelInput{KindsJSON: &kindsJSON}); err != nil {
+			return nil, err
+		}
+		platformModel.KindsJSON = kindsJSON
 	}
 	upstreamModelVendor := normalizeUpstreamModelVendor("", upstreamModelName, upstream.Name, upstream.BaseURL)
 	upstreamModelIcon := normalizeModelIcon("", upstreamModelVendor, upstreamModelName)
 	upstreamModel, err := s.upsertUpstreamCatalogModel(ctx, upstream.ID, upstreamModelName, protocol, kindsJSON, upstreamModelVendor, upstreamModelIcon, "active", normalizeSource(input.Source), "{}")
 	if err != nil {
+		return nil, err
+	}
+	if err := s.validateRouteProtocolCombination(ctx, upstream.ID, platformModel.ID, upstreamModel.ID, input.RouteID, protocol); err != nil {
 		return nil, err
 	}
 
@@ -138,6 +149,33 @@ func (s *Service) UpsertUpstreamModel(ctx context.Context, upstreamID uint, inpu
 
 	s.InvalidateModelCatalog()
 	return s.findUpstreamModelViewByRoute(ctx, upstream.ID, route.ID, upstreamModel.ID)
+}
+
+func (s *Service) validateRouteProtocolCombination(
+	ctx context.Context,
+	upstreamID uint,
+	platformModelID uint,
+	upstreamModelID uint,
+	routeID uint,
+	protocol string,
+) error {
+	// 同一个平台模型到同一个上游真实模型只允许单协议，或 OpenAI 图片生成/编辑这一个成对组合。
+	routes, err := s.repo.ListPlatformModelRoutesByPair(ctx, upstreamID, platformModelID, upstreamModelID)
+	if err != nil {
+		return err
+	}
+	protocols := make([]string, 0, len(routes)+1)
+	for _, route := range routes {
+		if route.ID == routeID {
+			continue
+		}
+		protocols = append(protocols, route.Protocol)
+	}
+	protocols = append(protocols, protocol)
+	if !isSupportedRouteProtocolCombination(protocols) {
+		return ErrInvalidRouteProtocolCombination
+	}
+	return nil
 }
 
 func (s *Service) ensurePlatformModel(ctx context.Context, platformModelName string, kindsJSON string, candidates ...string) (*domainchannel.PlatformModel, bool, error) {
@@ -226,21 +264,15 @@ func (s *Service) upsertUpstreamCatalogModel(
 }
 
 func (s *Service) findUpstreamModelViewByRoute(ctx context.Context, upstreamID uint, routeID uint, upstreamModelID uint) (*UpstreamModelView, error) {
-	rows, _, err := s.repo.ListUpstreamModels(ctx, upstreamID, repository.ListChannelUpstreamModelsInput{Offset: 0, Limit: 5000})
+	row, err := s.repo.GetUpstreamModelRouteByID(ctx, upstreamID, routeID)
 	if err != nil {
 		return nil, err
 	}
-	for _, row := range rows {
-		if routeID > 0 && row.RouteID == routeID {
-			view := toUpstreamModelView(row)
-			return &view, nil
-		}
-		if routeID == 0 && row.ID == upstreamModelID {
-			view := toUpstreamModelView(row)
-			return &view, nil
-		}
+	if upstreamModelID > 0 && row.ID != upstreamModelID {
+		return nil, ErrUpstreamModelNotFound
 	}
-	return nil, ErrUpstreamModelNotFound
+	view := toUpstreamModelView(*row)
+	return &view, nil
 }
 
 // DeleteUpstreamModel 删除平台路由绑定，保留上游真实模型清单。
@@ -316,17 +348,12 @@ func (s *Service) ResetUpstreamModelCircuit(ctx context.Context, upstreamID uint
 }
 
 func (s *Service) routeBindingCode(ctx context.Context, upstreamID uint, routeID uint) (string, error) {
-	rows, _, err := s.repo.ListUpstreamModels(ctx, upstreamID, repository.ListChannelUpstreamModelsInput{Offset: 0, Limit: 5000})
+	row, err := s.repo.GetUpstreamModelRouteByID(ctx, upstreamID, routeID)
 	if err != nil {
 		return "", err
 	}
-	for _, row := range rows {
-		if row.RouteID == routeID {
-			if strings.TrimSpace(row.BindingCode) == "" {
-				return "", ErrUpstreamModelNotFound
-			}
-			return row.BindingCode, nil
-		}
+	if strings.TrimSpace(row.BindingCode) == "" {
+		return "", ErrUpstreamModelNotFound
 	}
-	return "", ErrUpstreamModelNotFound
+	return row.BindingCode, nil
 }

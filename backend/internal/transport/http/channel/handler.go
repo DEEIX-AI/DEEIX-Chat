@@ -446,6 +446,8 @@ func (h *Handler) UpsertUpstreamModel(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, "invalid json config")
 		case errors.Is(err, appchannel.ErrInvalidAdapter):
 			response.Error(c, http.StatusBadRequest, "invalid adapter")
+		case errors.Is(err, appchannel.ErrInvalidRouteProtocolCombination):
+			response.Error(c, http.StatusBadRequest, "invalid route protocol combination")
 		case errors.Is(err, appchannel.ErrInvalidKinds):
 			response.Error(c, http.StatusBadRequest, "invalid kinds")
 		case errors.Is(err, appchannel.ErrInvalidPlatformModelName):
@@ -785,6 +787,7 @@ func (h *Handler) ImportUpstreamModels(c *gin.Context) {
 			PlatformModelName: item.PlatformModelName,
 			UpstreamModelName: item.UpstreamModelName,
 			Protocol:          item.Protocol,
+			Protocols:         item.Protocols,
 			KindsJSON:         item.KindsJSON,
 			Status:            item.Status,
 			Priority:          item.Priority,
@@ -799,6 +802,8 @@ func (h *Handler) ImportUpstreamModels(c *gin.Context) {
 		case errors.Is(err, appchannel.ErrUpstreamNotFound):
 			response.Error(c, http.StatusNotFound, "upstream not found")
 		case errors.Is(err, appchannel.ErrInvalidAdapter):
+			response.ErrorFrom(c, http.StatusBadRequest, err)
+		case errors.Is(err, appchannel.ErrInvalidRouteProtocolCombination):
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 		case errors.Is(err, appchannel.ErrInvalidPlatformModelName):
 			response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -1134,6 +1139,14 @@ func (h *Handler) UpdateModelUpstreamSource(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, "model not found")
 		case errors.Is(err, appchannel.ErrUpstreamModelNotFound):
 			response.Error(c, http.StatusNotFound, "upstream model not found")
+		case errors.Is(err, appchannel.ErrInvalidAdapter):
+			response.Error(c, http.StatusBadRequest, "invalid adapter")
+		case errors.Is(err, appchannel.ErrProtocolRequired):
+			response.Error(c, http.StatusBadRequest, "protocol required")
+		case errors.Is(err, appchannel.ErrInvalidRouteProtocolCombination):
+			response.Error(c, http.StatusBadRequest, "invalid route protocol combination")
+		case errors.Is(err, appchannel.ErrUpstreamModelConflict):
+			response.Error(c, http.StatusConflict, "target model already bound on this upstream")
 		default:
 			response.Error(c, http.StatusInternalServerError, "update model upstream source failed")
 		}

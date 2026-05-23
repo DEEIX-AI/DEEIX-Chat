@@ -173,6 +173,18 @@ func classifyRunErrorCode(err error) string {
 		return "upstream_empty_response"
 	case errors.Is(err, ErrMessageGenerationCanceled):
 		return "generation_canceled"
+	case errors.Is(err, ErrMediaImagePromptRequired):
+		return "media_image_prompt_required"
+	case errors.Is(err, ErrMediaImageGenerationRejectsInputs):
+		return "media_image_generation_rejects_inputs"
+	case errors.Is(err, ErrMediaImageEditInputRequired):
+		return "media_image_edit_input_required"
+	case errors.Is(err, ErrMediaImageEditTooManyInputs):
+		return "media_image_edit_too_many_inputs"
+	case errors.Is(err, ErrMediaImageEditInputInvalid):
+		return "media_image_edit_input_invalid"
+	case errors.Is(err, ErrMediaRouteProtocolMismatch):
+		return "media_route_protocol_mismatch"
 	case errors.Is(err, ErrUpstreamRequestFailed):
 		return "upstream_request_failed"
 	default:

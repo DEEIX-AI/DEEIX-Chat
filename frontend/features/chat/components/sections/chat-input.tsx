@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import dynamic from "next/dynamic";
-import { Check, CircleHelp, Info } from "lucide-react";
+import { Check, CircleHelp, Image, ImageOff, ImagePlus, Info } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -27,7 +27,8 @@ import {
   isReservedConversationOptionKey,
   sanitizeConversationOptions,
 } from "@/features/chat/model/conversation-options";
-import { isMediaSubmitTask, resolveChatSubmitTask } from "@/features/chat/model/chat-task";
+import type { ChatSubmitDecision } from "@/features/chat/model/chat-task";
+import { isMediaSubmitTask, resolveChatSubmitDecision } from "@/features/chat/model/chat-task";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -129,6 +130,14 @@ type NativeToolOption = {
   labelKey: string;
   descriptionKey: string;
   payload?: Record<string, unknown>;
+};
+
+type ComposerModeIndicator = {
+  label: string;
+  intro: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  tone: "default" | "warning";
 };
 
 type ModelOptionFilterStatus = "passed" | "filtered" | "unknown";
@@ -505,6 +514,44 @@ const PROTOCOL_LABELS: Record<string, string> = {
   xai_responses: "xAI Responses",
 };
 
+function resolveComposerModeIndicator(
+  decision: ChatSubmitDecision,
+  t: (key: string) => string,
+): ComposerModeIndicator | null {
+  if (decision.blockedReason === "image_task_rejects_non_image_attachments") {
+    return {
+      label: t("mediaMode.invalidFile"),
+      intro: t("mediaMode.invalidFileIntro"),
+      description: t(`mediaMode.blockedDescriptions.${decision.blockedReason}`),
+      icon: ImageOff,
+      tone: "warning",
+    };
+  }
+  if (decision.task === "image_generation") {
+    return {
+      label: t("mediaMode.imageGeneration"),
+      intro: t("mediaMode.imageGenerationIntro"),
+      description: decision.blockedReason
+        ? t(`mediaMode.blockedDescriptions.${decision.blockedReason}`)
+        : t("mediaMode.imageGenerationDescription"),
+      icon: Image,
+      tone: "default",
+    };
+  }
+  if (decision.task === "image_edit") {
+    return {
+      label: t("mediaMode.imageEdit"),
+      intro: t("mediaMode.imageEditIntro"),
+      description: decision.blockedReason
+        ? t(`mediaMode.blockedDescriptions.${decision.blockedReason}`)
+        : t("mediaMode.imageEditDescription"),
+      icon: ImagePlus,
+      tone: "default",
+    };
+  }
+  return null;
+}
+
 function stringifyOptions(value: ConversationOptions): string {
   if (Object.keys(value).length === 0) {
     return "";
@@ -855,8 +902,11 @@ function ChatInputComponent({
   );
   const selectedProtocol = selectedModel?.protocols[0]?.trim() ?? "";
   const selectedProtocolLabel = selectedProtocol ? resolveProtocolLabel(selectedProtocol) : "";
-  const submitTask = resolveChatSubmitTask(selectedModel, attachments);
+  const submitDecision = resolveChatSubmitDecision(selectedModel, attachments);
+  const submitTask = submitDecision.task;
   const isMediaMode = isMediaSubmitTask(submitTask);
+  const composerModeIndicator = resolveComposerModeIndicator(submitDecision, tComposer);
+  const ComposerModeIcon = composerModeIndicator?.icon;
   const modelOptionPolicyDisabled = modelOptionPolicy?.mode?.trim() === "disabled";
   const selectedToolIDSet = React.useMemo(() => new Set(selectedToolIDs), [selectedToolIDs]);
   const selectedToolCount = selectedToolIDs.length;
@@ -1610,6 +1660,26 @@ function ChatInputComponent({
           </div>
 
           <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+            {composerModeIndicator && ComposerModeIcon ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className={cn(
+                      "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition-colors",
+                      composerModeIndicator.tone === "warning"
+                        ? "bg-destructive/10 text-destructive"
+                        : "bg-muted/60 text-muted-foreground",
+                    )}
+                  >
+                    <ComposerModeIcon className="size-3.5" strokeWidth={1.7} />
+                    <span className="hidden sm:inline">{composerModeIndicator.label}</span>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="end" className="max-w-72 text-xs leading-5">
+                  {composerModeIndicator.intro} {composerModeIndicator.description}
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
             <ChatModelPicker
               modelOptions={modelOptions}
               selectedPlatformModelName={selectedPlatformModelName}

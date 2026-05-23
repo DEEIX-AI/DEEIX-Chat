@@ -106,10 +106,11 @@ type ImportUpstreamModelsRequest struct {
 
 // ImportUpstreamModelItemRequest 单个导入项请求。
 type ImportUpstreamModelItemRequest struct {
-	PlatformModelName string `json:"platformModelName" binding:"required,min=2,max=128"`
-	UpstreamModelName string `json:"upstreamModelName" binding:"required,min=1,max=128"`
-	Protocol          string `json:"protocol" binding:"omitempty,max=64"`
-	KindsJSON         string `json:"kindsJSON" binding:"omitempty,max=1000"`
-	Status            string `json:"status" binding:"omitempty,oneof=active inactive"`
-	Priority          int    `json:"priority"`
+	PlatformModelName string   `json:"platformModelName" binding:"required,min=2,max=128"`
+	UpstreamModelName string   `json:"upstreamModelName" binding:"required,min=1,max=128"`
+	Protocol          string   `json:"protocol" binding:"omitempty,max=64"`
+	Protocols         []string `json:"protocols" binding:"omitempty,dive,max=64"`
+	KindsJSON         string   `json:"kindsJSON" binding:"omitempty,max=1000"`
+	Status            string   `json:"status" binding:"omitempty,oneof=active inactive"`
+	Priority          int      `json:"priority"`
 }

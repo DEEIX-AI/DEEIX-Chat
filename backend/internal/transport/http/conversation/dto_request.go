@@ -97,6 +97,7 @@ type MediaImageRequest struct {
 	Options               map[string]interface{} `json:"options"`
 	ClientRunID           string                 `json:"clientRunID" binding:"omitempty,max=64"`
 	FileIDs               []string               `json:"fileIDs" binding:"max=20"`
+	MaskFileID            string                 `json:"maskFileID" binding:"omitempty,max=128"`
 	ParentMessagePublicID string                 `json:"parentMessagePublicID" binding:"omitempty,max=32"`
 	SourceMessagePublicID string                 `json:"sourceMessagePublicID" binding:"omitempty,max=32"`
 	BranchReason          string                 `json:"branchReason" binding:"omitempty,oneof=default retry edit"`

@@ -290,7 +290,7 @@ func sanitizeModelOptionValues(options map[string]interface{}, protocolKey strin
 		default:
 			delete(options, "service_tier")
 		}
-	case "openai_image_generations":
+	case "openai_image_generations", "openai_image_edits":
 		value, ok := modelParamIntFromOption(options["partial_images"])
 		if !ok {
 			delete(options, "partial_images")
@@ -325,6 +325,8 @@ func modelOptionPolicyProtocolKey(protocol string) string {
 		return "openai_chat_completions"
 	case llm.AdapterOpenAIImageGenerations:
 		return "openai_image_generations"
+	case llm.AdapterOpenAIImageEdits:
+		return "openai_image_edits"
 	case llm.AdapterAnthropicMessages:
 		return "anthropic_messages"
 	case llm.AdapterXAIImage:

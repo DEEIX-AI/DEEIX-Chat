@@ -6,8 +6,8 @@ import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
   listAdminLLMModelUpstreamSources,
   listAdminLLMModels,
+  upsertAdminLLMUpstreamModel,
   updateAdminLLMModel,
-  updateAdminLLMModelUpstreamSource,
 } from "@/features/admin/api";
 import type {
   AdminLLMAdapter,
@@ -22,6 +22,7 @@ import {
   resolveErrorMessage,
   type ModelSortValue,
 } from "@/features/admin/types/llm";
+import { resolveKindsDisplayForProtocols } from "@/features/admin/utils/llm-display";
 import { patchByID, removeByID, removeManyByID, replaceByID } from "@/shared/lib/optimistic-list";
 
 type UseAdminModelsState = {
@@ -458,9 +459,10 @@ export function useAdminModels(): UseAdminModelsState {
     const rollbackModels = targets.map((item) => items.find((current) => current.id === item.id) ?? item);
     const targetIDs = new Set(targets.map((item) => item.id));
     const nextProtocolsJSON = JSON.stringify([nextProtocol]);
+    const nextKindsJSON = displayToKindsJson(resolveKindsDisplayForProtocols([nextProtocol]));
     setBatchApplying(true);
     setItems((current) =>
-      current.map((item) => (targetIDs.has(item.id) ? { ...item, protocolsJSON: nextProtocolsJSON } : item)),
+      current.map((item) => (targetIDs.has(item.id) ? { ...item, protocolsJSON: nextProtocolsJSON, kindsJSON: nextKindsJSON } : item)),
     );
     try {
       const results = await Promise.allSettled(
@@ -469,20 +471,29 @@ export function useAdminModels(): UseAdminModelsState {
           if (sources.results.length === 0) {
             throw new Error("model upstream sources not found");
           }
-          const sourceResults = await Promise.allSettled(
-            sources.results.map((source) =>
-              updateAdminLLMModelUpstreamSource(token, model.id, source.id, { protocol: nextProtocol }),
-            ),
-          );
-          const hasFailedSource = sourceResults.some((result) => result.status === "rejected");
-          if (hasFailedSource) {
-            throw new Error("failed to update model source protocol");
+          for (const source of sources.results) {
+            await upsertAdminLLMUpstreamModel(token, source.upstreamID, {
+              routeID: source.id,
+              platformModelName: model.platformModelName,
+              upstreamModelName: source.upstreamModelName,
+              protocol: nextProtocol,
+              kindsJSON: nextKindsJSON,
+              status: source.status,
+              priority: source.priority,
+              weight: source.weight,
+            });
           }
-          return model;
+          return { ...model, kindsJSON: nextKindsJSON, protocolsJSON: nextProtocolsJSON };
         }),
       );
       const failedModels = targets.filter((_, index) => results[index]?.status === "rejected");
       const successModels = targets.filter((_, index) => results[index]?.status === "fulfilled");
+      const successResponses = results
+        .filter((result): result is PromiseFulfilledResult<AdminLLMModelDTO> => result.status === "fulfilled")
+        .map((result) => result.value);
+      setItems((current) =>
+        successResponses.reduce((next, model) => replaceByID(next, model.id, (item) => item.id, model), current),
+      );
       if (failedModels.length > 0) {
         const failedIDs = new Set(failedModels.map((item) => item.id));
         setItems((current) =>
