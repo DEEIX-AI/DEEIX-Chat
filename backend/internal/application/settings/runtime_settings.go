@@ -132,6 +132,8 @@ func (r *RuntimeSettings) applyItem(cfg *config.Config, item domainsettings.Syst
 		cfg.ConversationTitlePrompt = item.Value
 	case "chat:conversation_labels_prompt":
 		cfg.ConversationLabelsPrompt = item.Value
+	case "chat:default_system_prompt":
+		cfg.DefaultSystemPrompt = item.Value
 	case "chat:model_option_policy_mode":
 		cfg.ModelOptionPolicyMode = strings.TrimSpace(item.Value)
 	case "chat:model_option_allowed_paths":

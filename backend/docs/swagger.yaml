@@ -1544,6 +1544,9 @@ definitions:
         - active
         - inactive
         type: string
+      systemPrompt:
+        maxLength: 20000
+        type: string
       vendor:
         maxLength: 64
         type: string
@@ -1757,6 +1760,8 @@ definitions:
         type: integer
       status:
         type: string
+      systemPrompt:
+        type: string
       updatedAt:
         type: string
       vendor:
@@ -1959,6 +1964,9 @@ definitions:
         enum:
         - active
         - inactive
+        type: string
+      systemPrompt:
+        maxLength: 20000
         type: string
       vendor:
         maxLength: 64
@@ -4306,7 +4314,7 @@ paths:
         in: query
         name: q
         type: string
-      - description: 路由状态：active/inactive/unbound
+      - description: 路由状态：bound/active/inactive
         in: query
         name: route_status
         type: string

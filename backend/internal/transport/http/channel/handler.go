@@ -883,6 +883,7 @@ func (h *Handler) CreateModel(c *gin.Context) {
 		KindsJSON:         req.KindsJSON,
 		Icon:              req.Icon,
 		CapabilitiesJSON:  req.CapabilitiesJSON,
+		SystemPrompt:      req.SystemPrompt,
 		Status:            req.Status,
 		Description:       req.Description,
 	})
@@ -894,6 +895,8 @@ func (h *Handler) CreateModel(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, "invalid json config")
 		case errors.Is(err, appchannel.ErrInvalidKinds):
 			response.Error(c, http.StatusBadRequest, "invalid kinds")
+		case errors.Is(err, appchannel.ErrSystemPromptTooLong):
+			response.Error(c, http.StatusBadRequest, "system prompt too long")
 		case errors.Is(err, appchannel.ErrInvalidPlatformModelName):
 			response.Error(c, http.StatusBadRequest, "invalid platform model name")
 		default:
@@ -937,6 +940,7 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 		KindsJSON:         req.KindsJSON,
 		Icon:              req.Icon,
 		CapabilitiesJSON:  req.CapabilitiesJSON,
+		SystemPrompt:      req.SystemPrompt,
 		Status:            req.Status,
 		Description:       req.Description,
 	})
@@ -948,6 +952,8 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, "invalid json config")
 		case errors.Is(err, appchannel.ErrInvalidKinds):
 			response.Error(c, http.StatusBadRequest, "invalid kinds")
+		case errors.Is(err, appchannel.ErrSystemPromptTooLong):
+			response.Error(c, http.StatusBadRequest, "system prompt too long")
 		case errors.Is(err, appchannel.ErrInvalidPlatformModelName):
 			response.Error(c, http.StatusBadRequest, "invalid platform model name")
 		default:

@@ -1545,7 +1545,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "路由状态：active/inactive/unbound",
+                        "description": "路由状态：bound/active/inactive",
                         "name": "route_status",
                         "in": "query"
                     },
@@ -8900,6 +8900,10 @@ const docTemplate = `{
                         "inactive"
                     ]
                 },
+                "systemPrompt": {
+                    "type": "string",
+                    "maxLength": 20000
+                },
                 "vendor": {
                     "type": "string",
                     "maxLength": 64
@@ -9209,6 +9213,9 @@ const docTemplate = `{
                 "status": {
                     "type": "string"
                 },
+                "systemPrompt": {
+                    "type": "string"
+                },
                 "updatedAt": {
                     "type": "string"
                 },
@@ -9515,6 +9522,10 @@ const docTemplate = `{
                         "active",
                         "inactive"
                     ]
+                },
+                "systemPrompt": {
+                    "type": "string",
+                    "maxLength": 20000
                 },
                 "vendor": {
                     "type": "string",

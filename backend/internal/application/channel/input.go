@@ -45,6 +45,7 @@ type CreateModelInput struct {
 	KindsJSON         string
 	Icon              string
 	CapabilitiesJSON  string
+	SystemPrompt      string
 	Status            string
 	Description       string
 }
@@ -56,6 +57,7 @@ type UpdateModelInput struct {
 	KindsJSON         *string
 	Icon              *string
 	CapabilitiesJSON  *string
+	SystemPrompt      *string
 	Status            *string
 	Description       *string
 }

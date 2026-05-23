@@ -70,6 +70,7 @@ type ModelResponse struct {
 	KindsJSON         string `json:"kindsJSON"`
 	Icon              string `json:"icon"`
 	CapabilitiesJSON  string `json:"capabilitiesJSON"`
+	SystemPrompt      string `json:"systemPrompt"`
 	Status            string `json:"status"`
 	Description       string `json:"description"`
 	SortOrder         int    `json:"sortOrder"`
@@ -88,6 +89,7 @@ func toModelResponse(v appchannel.ModelView) ModelResponse {
 		KindsJSON:         v.KindsJSON,
 		Icon:              v.Icon,
 		CapabilitiesJSON:  v.CapabilitiesJSON,
+		SystemPrompt:      v.SystemPrompt,
 		Status:            v.Status,
 		Description:       v.Description,
 		SortOrder:         v.SortOrder,

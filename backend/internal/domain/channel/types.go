@@ -71,6 +71,7 @@ type PlatformModel struct {
 	KindsJSON         string
 	Icon              string
 	CapabilitiesJSON  string
+	SystemPrompt      string
 	Status            string
 	Description       string
 	SortOrder         int

@@ -100,6 +100,7 @@ type ChannelUpstreamRouteRow struct {
 	ModelIcon                  string
 	ModelKindsJSON             string
 	ModelCapabilitiesJSON      string
+	ModelSystemPrompt          string
 	Protocol                   string
 	BaseURL                    string
 	APIKeysEnc                 string
@@ -212,6 +213,7 @@ type UpdateChannelModelInput struct {
 	KindsJSON         *string
 	Icon              *string
 	CapabilitiesJSON  *string
+	SystemPrompt      *string
 	Status            *string
 	Description       *string
 }
@@ -312,6 +314,7 @@ func (input UpdateChannelModelInput) IsZero() bool {
 		input.KindsJSON == nil &&
 		input.Icon == nil &&
 		input.CapabilitiesJSON == nil &&
+		input.SystemPrompt == nil &&
 		input.Status == nil &&
 		input.Description == nil
 }

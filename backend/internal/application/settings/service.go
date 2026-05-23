@@ -270,6 +270,8 @@ func validatePatchItem(item PatchItem) error {
 		return validateStringMax(value, 255, key)
 	case "auth:smtp_username", "auth:smtp_password", "auth:smtp_from":
 		return validateStringMax(value, 255, key)
+	case "chat:default_system_prompt":
+		return validateStringMax(value, 20000, key)
 	case "auth:smtp_port":
 		return validateIntMinMax(value, 1, 65535, key)
 	case "auth:email_registration_allowed_domains":

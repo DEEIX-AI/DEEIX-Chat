@@ -1538,7 +1538,7 @@
                     },
                     {
                         "type": "string",
-                        "description": "路由状态：active/inactive/unbound",
+                        "description": "路由状态：bound/active/inactive",
                         "name": "route_status",
                         "in": "query"
                     },
@@ -8893,6 +8893,10 @@
                         "inactive"
                     ]
                 },
+                "systemPrompt": {
+                    "type": "string",
+                    "maxLength": 20000
+                },
                 "vendor": {
                     "type": "string",
                     "maxLength": 64
@@ -9202,6 +9206,9 @@
                 "status": {
                     "type": "string"
                 },
+                "systemPrompt": {
+                    "type": "string"
+                },
                 "updatedAt": {
                     "type": "string"
                 },
@@ -9508,6 +9515,10 @@
                         "active",
                         "inactive"
                     ]
+                },
+                "systemPrompt": {
+                    "type": "string",
+                    "maxLength": 20000
                 },
                 "vendor": {
                     "type": "string",

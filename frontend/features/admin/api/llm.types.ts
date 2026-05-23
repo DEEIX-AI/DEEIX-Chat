@@ -58,6 +58,7 @@ export type AdminLLMModelDTO = {
   kindsJSON: string;
   icon: string;
   capabilitiesJSON: string;
+  systemPrompt: string;
   status: AdminLLMStatus;
   description: string;
   sortOrder: number;
@@ -202,6 +203,7 @@ export type CreateAdminLLMModelRequest = {
   kindsJSON?: string;
   icon?: string;
   capabilitiesJSON?: string;
+  systemPrompt?: string;
   status?: AdminLLMStatus;
   description?: string;
 };
@@ -212,6 +214,7 @@ export type UpdateAdminLLMModelRequest = {
   kindsJSON?: string;
   icon?: string;
   capabilitiesJSON?: string;
+  systemPrompt?: string;
   status?: AdminLLMStatus;
   description?: string;
 };

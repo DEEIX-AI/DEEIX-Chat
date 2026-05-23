@@ -12,6 +12,7 @@ import (
 type ContextSlotKind string
 
 const (
+	SlotSystemPrompt   ContextSlotKind = "system_prompt"
 	SlotPreference     ContextSlotKind = "preference"
 	SlotMemory         ContextSlotKind = "memory"
 	SlotSnapshot       ContextSlotKind = "snapshot"
@@ -24,6 +25,7 @@ const (
 // slotPriority 优先级硬编码：数值越大越优先保留。
 var slotPriority = map[ContextSlotKind]int{
 	SlotInput:          100,
+	SlotSystemPrompt:   95,
 	SlotPreference:     90,
 	SlotSnapshot:       80,
 	SlotRAG:            70,

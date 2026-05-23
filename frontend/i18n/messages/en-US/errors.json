@@ -134,6 +134,7 @@
     "invalidHeadersConfig": "Invalid headers configuration.",
     "invalidKinds": "Invalid model kinds.",
     "invalidPlatformModelName": "Invalid platform model name.",
+    "systemPromptTooLong": "System prompt must be at most 20000 characters.",
     "invalidProtocolDefaultsConfig": "Invalid protocol defaults configuration.",
     "modelRouteNotConfigured": "Model route is not configured.",
     "noActiveApiKey": "No active API key is available.",

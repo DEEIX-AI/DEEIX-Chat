@@ -248,6 +248,9 @@ func (r *Repo) UpdateModel(ctx context.Context, modelID uint, input repository.U
 	if input.CapabilitiesJSON != nil {
 		updates["capabilities_json"] = *input.CapabilitiesJSON
 	}
+	if input.SystemPrompt != nil {
+		updates["system_prompt"] = *input.SystemPrompt
+	}
 	if input.Status != nil {
 		updates["status"] = *input.Status
 	}
@@ -410,7 +413,7 @@ func (r *Repo) modelListQuery(ctx context.Context) *gorm.DB {
 	return r.db.WithContext(ctx).
 		Table("llm_platform_models AS m").
 		Select(
-			"m.id, m.name AS platform_model_name, m.vendor, m.kinds_json, m.icon, m.capabilities_json, m.status, m.description, m.sort_order, m.created_at, m.updated_at, " +
+			"m.id, m.name AS platform_model_name, m.vendor, m.kinds_json, m.icon, m.capabilities_json, m.system_prompt, m.status, m.description, m.sort_order, m.created_at, m.updated_at, " +
 				"COALESCE(stats.source_count, 0) AS source_count, COALESCE(stats.active_source_count, 0) AS active_source_count, COALESCE(stats.protocols_json, '[]') AS protocols_json",
 		).
 		Joins(
@@ -911,6 +914,7 @@ type routeScanRow struct {
 	ModelIcon                  string
 	ModelKindsJSON             string
 	ModelCapabilitiesJSON      string
+	ModelSystemPrompt          string
 	Protocol                   string
 	BaseURL                    string
 	APIKeysEnc                 string
@@ -940,7 +944,7 @@ func (r *Repo) ListActiveRoutesByModel(ctx context.Context, platformModelName st
 		Table("llm_model_routes AS r").
 		Select(
 			"r.id AS route_id, um.id AS upstream_model_id, u.id AS upstream_id, u.name AS upstream_name, "+
-				"pm.id AS platform_model_id, pm.name AS platform_model_name, pm.vendor AS model_vendor, pm.icon AS model_icon, pm.kinds_json AS model_kinds_json, pm.capabilities_json AS model_capabilities_json, "+
+				"pm.id AS platform_model_id, pm.name AS platform_model_name, pm.vendor AS model_vendor, pm.icon AS model_icon, pm.kinds_json AS model_kinds_json, pm.capabilities_json AS model_capabilities_json, pm.system_prompt AS model_system_prompt, "+
 				"r.protocol, u.base_url, u.api_keys_enc, "+
 				"u.connect_timeout_ms, u.read_timeout_ms, u.stream_idle_timeout_ms, "+
 				"u.headers_json, r.headers_json AS route_headers_json, "+
@@ -976,6 +980,7 @@ func (r *Repo) ListActiveRoutesByModel(ctx context.Context, platformModelName st
 			ModelIcon:                  s.ModelIcon,
 			ModelKindsJSON:             s.ModelKindsJSON,
 			ModelCapabilitiesJSON:      s.ModelCapabilitiesJSON,
+			ModelSystemPrompt:          s.ModelSystemPrompt,
 			Protocol:                   s.Protocol,
 			BaseURL:                    s.BaseURL,
 			APIKeysEnc:                 s.APIKeysEnc,
@@ -1186,6 +1191,7 @@ func toPlatformModelDomain(item model.LLMPlatformModel) domainchannel.PlatformMo
 		KindsJSON:         item.KindsJSON,
 		Icon:              item.Icon,
 		CapabilitiesJSON:  item.CapabilitiesJSON,
+		SystemPrompt:      item.SystemPrompt,
 		Status:            item.Status,
 		Description:       item.Description,
 		SortOrder:         item.SortOrder,
@@ -1204,6 +1210,7 @@ func toPlatformModelModel(item *domainchannel.PlatformModel) model.LLMPlatformMo
 		KindsJSON:        item.KindsJSON,
 		Icon:             item.Icon,
 		CapabilitiesJSON: item.CapabilitiesJSON,
+		SystemPrompt:     item.SystemPrompt,
 		Status:           item.Status,
 		Description:      item.Description,
 		SortOrder:        item.SortOrder,

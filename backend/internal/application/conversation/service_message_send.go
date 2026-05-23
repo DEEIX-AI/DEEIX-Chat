@@ -418,6 +418,14 @@ func (s *Service) sendMessageInternal(
 
 	// ContextAssembler 只承载真正的系统级行为指令；资料型上下文稍后进入用户 XML。
 	assembler := NewContextAssembler(int64(cfg.ContextMaxInputTokens))
+	systemPrompt := resolveSystemPromptInjection(cfg, route)
+	if systemPrompt.Content != "" {
+		if systemPrompt.InlineToUser {
+			historyMsgs = inlineSystemPromptIntoLatestUserMessage(historyMsgs, systemPrompt.Content)
+		} else {
+			assembler.Add(ContextSlot{Kind: SlotSystemPrompt, Content: systemPrompt.Content, Required: true})
+		}
+	}
 	userCtx := userContextInput{}
 	var prefixMemories []domainmemory.UserMemory
 	if prefetch.snapshot != nil {

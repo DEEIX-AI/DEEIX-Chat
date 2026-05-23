@@ -15,6 +15,8 @@ import (
 // 模型管理
 // ---------------------------------------------------------------------------
 
+const maxSystemPromptChars = 20000
+
 // ListModelsInput 定义模型列表筛选排序条件。
 type ListModelsInput struct {
 	Query    string
@@ -220,6 +222,10 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 	if err := validateOptionalJSON(strings.TrimSpace(input.CapabilitiesJSON)); err != nil {
 		return nil, ErrInvalidJSONConfig
 	}
+	systemPrompt := strings.TrimSpace(input.SystemPrompt)
+	if len([]rune(systemPrompt)) > maxSystemPromptChars {
+		return nil, ErrSystemPromptTooLong
+	}
 
 	item := &domainchannel.PlatformModel{
 		PlatformModelName: platformModelName,
@@ -227,6 +233,7 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 		KindsJSON:         kindsJSON,
 		Icon:              normalizeModelIcon(input.Icon, input.Vendor, platformModelName),
 		CapabilitiesJSON:  strings.TrimSpace(input.CapabilitiesJSON),
+		SystemPrompt:      systemPrompt,
 		Status:            normalizeStatus(input.Status),
 		Description:       strings.TrimSpace(input.Description),
 	}
@@ -280,6 +287,13 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 			return nil, ErrInvalidJSONConfig
 		}
 		update.CapabilitiesJSON = &normalized
+	}
+	if input.SystemPrompt != nil {
+		systemPrompt := strings.TrimSpace(*input.SystemPrompt)
+		if len([]rune(systemPrompt)) > maxSystemPromptChars {
+			return nil, ErrSystemPromptTooLong
+		}
+		update.SystemPrompt = &systemPrompt
 	}
 	if input.Status != nil {
 		status := normalizeStatus(*input.Status)

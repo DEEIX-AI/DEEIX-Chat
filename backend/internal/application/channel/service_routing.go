@@ -318,6 +318,7 @@ func buildResolvedRoute(row repository.ChannelUpstreamRouteRow, apiKey string) *
 		ModelVendor:                strings.TrimSpace(row.ModelVendor),
 		ModelIcon:                  strings.TrimSpace(row.ModelIcon),
 		ModelCapabilitiesJSON:      strings.TrimSpace(row.ModelCapabilitiesJSON),
+		ModelSystemPrompt:          strings.TrimSpace(row.ModelSystemPrompt),
 		UpstreamModel:              strings.TrimSpace(row.UpstreamModelName),
 		UpstreamCbFailureThreshold: row.UpstreamCbFailureThreshold,
 		UpstreamCbModelThreshold:   row.UpstreamCbModelThreshold,

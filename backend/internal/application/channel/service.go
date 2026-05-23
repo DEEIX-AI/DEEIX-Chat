@@ -58,6 +58,7 @@ type ResolvedRoute struct {
 	ModelVendor                string
 	ModelIcon                  string
 	ModelCapabilitiesJSON      string
+	ModelSystemPrompt          string
 	UpstreamModel              string
 	UpstreamCbFailureThreshold int
 	UpstreamCbModelThreshold   int

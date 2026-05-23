@@ -75,6 +75,7 @@ func toModelView(item repository.ChannelModelListRow) ModelView {
 		KindsJSON:         item.KindsJSON,
 		Icon:              item.Icon,
 		CapabilitiesJSON:  item.CapabilitiesJSON,
+		SystemPrompt:      item.SystemPrompt,
 		Status:            item.Status,
 		Description:       item.Description,
 		SortOrder:         item.SortOrder,

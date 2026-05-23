@@ -35,6 +35,8 @@ var (
 	ErrInvalidUpstreamBaseURL = errors.New("invalid upstream base url")
 	// ErrInvalidKinds 模型类型无效。
 	ErrInvalidKinds = errors.New("invalid kinds")
+	// ErrSystemPromptTooLong 系统提示词长度超过允许范围。
+	ErrSystemPromptTooLong = errors.New("system prompt too long")
 	// ErrInvalidModelOrder 模型排序参数无效。
 	ErrInvalidModelOrder = errors.New("invalid model order")
 	// ErrProtocolRequired 无法通过瀑布规则推断协议。

@@ -52,6 +52,7 @@ export type ModelFormPayload = {
   kinds: string[];
   icon: string;
   capabilitiesJSON: string;
+  systemPrompt: string;
   status: AdminLLMStatus;
   description: string;
 };
@@ -100,6 +101,7 @@ export function mapModelToForm(model: AdminLLMModelDTO): ModelFormPayload {
     kinds,
     icon: model.icon ?? "",
     capabilitiesJSON: model.capabilitiesJSON ?? "",
+    systemPrompt: model.systemPrompt ?? "",
     status: model.status,
     description: model.description ?? "",
   };

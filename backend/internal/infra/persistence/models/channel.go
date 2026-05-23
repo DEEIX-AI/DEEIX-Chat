@@ -36,6 +36,7 @@ type LLMPlatformModel struct {
 	Vendor           string `gorm:"size:64;not null;default:'';index:idx_llm_platform_models_vendor;comment:平台展示厂商"`
 	KindsJSON        string `gorm:"type:text;not null;default:'[\"chat\"]';comment:模型类型JSON数组"`
 	CapabilitiesJSON string `gorm:"type:text;not null;default:'{}';comment:平台能力配置JSON"`
+	SystemPrompt     string `gorm:"type:text;not null;default:'';comment:模型级系统提示词"`
 	Icon             string `gorm:"size:64;comment:模型图标标识"`
 	Description      string `gorm:"type:text;comment:模型说明"`
 	Status           string `gorm:"size:32;not null;default:'active';index:idx_llm_platform_models_status;comment:平台模型状态"`

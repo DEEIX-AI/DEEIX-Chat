@@ -50,6 +50,7 @@ type CreateModelRequest struct {
 	KindsJSON         string `json:"kindsJSON" binding:"omitempty,max=1000"`
 	Icon              string `json:"icon" binding:"max=128"`
 	CapabilitiesJSON  string `json:"capabilitiesJSON" binding:"max=10000"`
+	SystemPrompt      string `json:"systemPrompt" binding:"max=20000"`
 	Status            string `json:"status" binding:"omitempty,oneof=active inactive"`
 	Description       string `json:"description" binding:"max=10000"`
 }
@@ -61,6 +62,7 @@ type UpdateModelRequest struct {
 	KindsJSON         *string `json:"kindsJSON" binding:"omitempty,max=1000"`
 	Icon              *string `json:"icon" binding:"omitempty,max=128"`
 	CapabilitiesJSON  *string `json:"capabilitiesJSON" binding:"omitempty,max=10000"`
+	SystemPrompt      *string `json:"systemPrompt" binding:"omitempty,max=20000"`
 	Status            *string `json:"status" binding:"omitempty,oneof=active inactive"`
 	Description       *string `json:"description" binding:"omitempty,max=10000"`
 }

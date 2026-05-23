@@ -85,6 +85,7 @@ type FormState = {
   kinds: string[];
   icon: string;
   capabilitiesJSON: string;
+  systemPrompt: string;
   status: AdminLLMStatus;
   description: string;
 };
@@ -117,6 +118,7 @@ function buildInitialState(target: AdminLLMModelDTO | null): FormState {
       kinds: [],
       icon: "",
       capabilitiesJSON: "",
+      systemPrompt: "",
       status: "active",
       description: "",
     };
@@ -129,6 +131,7 @@ function buildInitialState(target: AdminLLMModelDTO | null): FormState {
     kinds,
     icon: target.icon ?? "",
     capabilitiesJSON: normalizeCapabilitiesJSON(target.capabilitiesJSON),
+    systemPrompt: target.systemPrompt ?? "",
     status: target.status,
     description: target.description ?? "",
   };
@@ -285,6 +288,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
           kindsJSON: kindsJson,
           icon: form.icon.trim() || undefined,
           capabilitiesJSON: normalizeCapabilitiesJSON(form.capabilitiesJSON) || undefined,
+          systemPrompt: form.systemPrompt.trim() || undefined,
           status: form.status,
           description: form.description.trim() || undefined,
         });
@@ -302,6 +306,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
         kindsJSON: kindsJson,
         icon: form.icon.trim() || undefined,
         capabilitiesJSON: normalizeCapabilitiesJSON(form.capabilitiesJSON) || undefined,
+        systemPrompt: form.systemPrompt.trim(),
         status: form.status,
         description: form.description.trim() || undefined,
       };
@@ -507,6 +512,22 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
               />
             </div>
 
+            <div>
+              <Label htmlFor="model-system-prompt">{t("sheet.systemPrompt")}</Label>
+              <Textarea
+                id="model-system-prompt"
+                value={form.systemPrompt}
+                placeholder={t("sheet.systemPromptPlaceholder")}
+                className="h-28 resize-none overflow-y-auto [field-sizing:fixed]"
+                onChange={(e) => setField("systemPrompt", e.target.value)}
+                disabled={pending}
+                maxLength={20000}
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {t("sheet.systemPromptDescription")}
+              </p>
+            </div>
+
             <Accordion
               type="multiple"
               value={expandedSections}
@@ -521,7 +542,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
                   <JsonCodeEditor
                     id="model-capabilities-json"
                     value={form.capabilitiesJSON}
-                    placeholder={'{"contextWindow":1000000,"maxOutputTokens":32000,"defaultOptions":{"reasoning":{"effort":"high"}}}'}
+                    placeholder={'{"contextWindow":1000000,"maxOutputTokens":32000,"supportsSystemPrompt":false,"defaultOptions":{"reasoning":{"effort":"high"}}}'}
                     height={220}
                     onChange={(nextValue) => setField("capabilitiesJSON", nextValue)}
                     disabled={pending}

@@ -134,6 +134,7 @@
     "invalidHeadersConfig": "请求头配置无效。",
     "invalidKinds": "模型类型无效。",
     "invalidPlatformModelName": "平台模型名称无效。",
+    "systemPromptTooLong": "系统提示词不能超过 20000 个字符。",
     "invalidProtocolDefaultsConfig": "协议默认配置无效。",
     "modelRouteNotConfigured": "模型路由未配置。",
     "noActiveApiKey": "没有可用的 API Key。",

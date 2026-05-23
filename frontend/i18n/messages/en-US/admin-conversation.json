@@ -16,6 +16,11 @@
       "label": "Task model",
       "description": "Chat model used to generate conversation titles and labels."
     },
+    "defaultSystemPrompt": {
+      "label": "Global default system prompt",
+      "description": "Global behavior instructions for all chat models. Leave empty to inject nothing. Model-level prompts are appended after it.",
+      "placeholder": "Example: keep answers accurate and clear, and follow platform safety requirements."
+    },
     "optionPolicyMode": {
       "label": "Option passthrough policy",
       "description": "Controls whether user request options can be passed to upstream providers. By default, only allowlisted paths are passed."
