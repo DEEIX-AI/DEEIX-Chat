@@ -89,6 +89,9 @@
     "previewImage": "放大图片",
     "editImage": "编辑图片",
     "downloadImage": "下载图片",
+    "copyLatex": "复制公式源码",
+    "latexCopied": "已复制公式源码",
+    "latexCopyFailed": "公式源码复制失败",
     "externalLink": {
       "title": "打开外部链接？",
       "description": "即将跳转到外部网站，请确认链接地址。",

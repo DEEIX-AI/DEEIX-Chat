@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cjk } from "@streamdown/cjk";
+import { createMathPlugin } from "@streamdown/math";
 import { type PluginConfig, Streamdown } from "streamdown";
 import { useTranslations } from "next-intl";
 
@@ -13,6 +14,7 @@ import {
   AccordionTrigger,
 } from "@/components/animate-ui/components/radix/accordion";
 import { cn } from "@/lib/utils";
+import { useLatexCopy } from "@/features/chat/hooks/use-latex-copy";
 
 import {
   CollapsibleCodePre,
@@ -48,6 +50,13 @@ type StreamdownFeatureFlags = {
 
 const BASE_STREAMDOWN_PLUGINS: PluginConfig = {
   cjk,
+};
+const STREAMDOWN_MATH_PLUGIN = createMathPlugin({
+  singleDollarTextMath: true,
+});
+const STREAMDOWN_MATH_BASE_PLUGINS: PluginConfig = {
+  ...BASE_STREAMDOWN_PLUGINS,
+  math: STREAMDOWN_MATH_PLUGIN,
 };
 
 const STREAMDOWN_PLUGIN_CACHE = new Map<string, PluginConfig>();
@@ -123,6 +132,11 @@ const BASE_MARKDOWN_CLASSNAME = cn(
   "[&_[data-footnotes]_ol]:my-0 [&_[data-footnotes]_ol]:pl-4",
   "[&_[data-footnotes]_li]:my-1 [&_[data-footnotes]_li]:pl-1 [&_[data-footnotes]_li]:text-muted-foreground/82",
   "[&_[data-footnotes]_p]:my-0 [&_[data-footnotes]_p]:text-[13px] [&_[data-footnotes]_p]:leading-6 [&_[data-footnotes]_p]:text-muted-foreground/82",
+  "[&_.katex]:text-[1.04em] [&_.katex]:leading-[1.35]",
+  "[&_.katex-display]:my-3 [&_.katex-display]:max-w-full [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden [&_.katex-display]:px-1 [&_.katex-display]:py-1",
+  "[&_.katex-display>.katex]:min-w-fit [&_.katex-display>.katex]:max-w-none",
+  "[&_[data-latex-copyable='true']]:cursor-copy [&_[data-latex-copyable='true']]:rounded-sm [&_[data-latex-copyable='true']]:outline-none [&_[data-latex-copyable='true']]:transition-colors",
+  "[&_[data-latex-copyable='true']:hover]:bg-foreground/[0.035] [&_[data-latex-copyable='true']:focus-visible]:bg-foreground/[0.045] [&_[data-latex-copyable='true']:focus-visible]:ring-2 [&_[data-latex-copyable='true']:focus-visible]:ring-ring/25",
   "[&_strong]:font-semibold",
 );
 
@@ -183,12 +197,12 @@ function getStreamdownPluginKey(features: StreamdownFeatureFlags): string {
     .join(":");
 }
 
-function getStreamdownFeaturesFromKey(key: string): StreamdownFeatureFlags {
-  return {
-    code: key.includes("code"),
-    math: key.includes("math"),
-    mermaid: key.includes("mermaid"),
-  };
+function getInitialStreamdownPlugins(features: StreamdownFeatureFlags): PluginConfig {
+  if (!features.math) {
+    return BASE_STREAMDOWN_PLUGINS;
+  }
+
+  return STREAMDOWN_MATH_BASE_PLUGINS;
 }
 
 async function loadStreamdownPlugins(features: StreamdownFeatureFlags): Promise<PluginConfig> {
@@ -217,10 +231,7 @@ async function loadStreamdownPlugins(features: StreamdownFeatureFlags): Promise<
     }
 
     if (features.math) {
-      const { createMathPlugin } = await import("@streamdown/math");
-      plugins.math = createMathPlugin({
-        singleDollarTextMath: true,
-      });
+      plugins.math = STREAMDOWN_MATH_PLUGIN;
     }
 
     if (features.mermaid) {
@@ -249,8 +260,9 @@ async function loadStreamdownPlugins(features: StreamdownFeatureFlags): Promise<
 }
 
 function useStreamdownPlugins(content: string): PluginConfig {
-  const pluginKey = React.useMemo(() => getStreamdownPluginKey(detectStreamdownFeatures(content)), [content]);
-  const [plugins, setPlugins] = React.useState<PluginConfig>(() => STREAMDOWN_PLUGIN_CACHE.get(pluginKey) ?? BASE_STREAMDOWN_PLUGINS);
+  const features = React.useMemo(() => detectStreamdownFeatures(content), [content]);
+  const pluginKey = React.useMemo(() => getStreamdownPluginKey(features), [features]);
+  const [plugins, setPlugins] = React.useState<PluginConfig>(() => STREAMDOWN_PLUGIN_CACHE.get(pluginKey) ?? getInitialStreamdownPlugins(features));
 
   React.useEffect(() => {
     let cancelled = false;
@@ -261,9 +273,9 @@ function useStreamdownPlugins(content: string): PluginConfig {
       return;
     }
 
-    setPlugins(BASE_STREAMDOWN_PLUGINS);
+    setPlugins(getInitialStreamdownPlugins(features));
 
-    void loadStreamdownPlugins(getStreamdownFeaturesFromKey(pluginKey))
+    void loadStreamdownPlugins(features)
       .then((loadedPlugins) => {
         if (!cancelled) {
           setPlugins(loadedPlugins);
@@ -271,14 +283,14 @@ function useStreamdownPlugins(content: string): PluginConfig {
       })
       .catch(() => {
         if (!cancelled) {
-          setPlugins(BASE_STREAMDOWN_PLUGINS);
+          setPlugins(getInitialStreamdownPlugins(features));
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [pluginKey]);
+  }, [features, pluginKey]);
 
   return plugins;
 }
@@ -378,6 +390,15 @@ export const StreamdownRender = React.memo(function StreamdownRender({
   const normalizedContent = React.useMemo(() => normalizeStreamdownContent(content), [content]);
   const plugins = useStreamdownPlugins(normalizedContent);
   const segments = React.useMemo(() => parseStreamdownSegments(normalizedContent), [normalizedContent]);
+  const {
+    rootRef: latexRootRef,
+    onClickCapture: handleLatexClickCapture,
+    onKeyDownCapture: handleLatexKeyDownCapture,
+    onPointerDownCapture: handleLatexPointerDownCapture,
+  } = useLatexCopy({
+    contentVersion: normalizedContent,
+    renderVersion: plugins,
+  });
   const thinkingSegments = React.useMemo(
     () => segments.filter((segment): segment is Extract<RenderSegment, { type: "thinking" }> => segment.type === "thinking"),
     [segments],
@@ -404,8 +425,12 @@ export const StreamdownRender = React.memo(function StreamdownRender({
 
   return (
     <div
+      ref={latexRootRef}
       className={cn("chat-font-content min-w-0 max-w-full overflow-hidden text-foreground [overflow-wrap:anywhere]", contentSpacingClassName, className)}
       data-chat-markdown-scope=""
+      onClickCapture={handleLatexClickCapture}
+      onKeyDownCapture={handleLatexKeyDownCapture}
+      onPointerDownCapture={handleLatexPointerDownCapture}
     >
       {mergedThinkingContent ? (
         <ThinkingSegmentBlock

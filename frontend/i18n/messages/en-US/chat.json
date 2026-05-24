@@ -89,6 +89,9 @@
     "previewImage": "Preview image",
     "editImage": "Edit image",
     "downloadImage": "Download image",
+    "copyLatex": "Copy formula source",
+    "latexCopied": "Formula source copied",
+    "latexCopyFailed": "Could not copy formula source",
     "externalLink": {
       "title": "Open external link?",
       "description": "You are about to leave this site. Confirm the link before continuing.",

@@ -1115,6 +1115,40 @@
     font-weight: var(--font-chat-weight);
   }
 
+  .chat-font-content .katex,
+  .chat-font-content .katex
+    :where(
+      .mathnormal,
+      .mathit,
+      .mathrm,
+      .mathbf,
+      .boldsymbol,
+      .textrm,
+      .mainrm,
+      .textbf,
+      .textit,
+      .mord,
+      .mop,
+      .mbin,
+      .mrel,
+      .mopen,
+      .mclose,
+      .mpunct,
+      .minner
+    ) {
+    font-family: "Times New Roman", Times, serif !important;
+  }
+
+  .chat-font-content .katex,
+  .chat-font-content .katex :where(.base, .strut, .mord, .mop, .mbin, .mrel, .mopen, .mclose, .mpunct, .minner) {
+    font-weight: 400 !important;
+  }
+
+  .chat-font-content .katex
+    :where(.textbf, .mathbf, .boldsymbol, .mathboldfrak, .textboldfrak, .mathboldsf, .textboldsf) {
+    font-weight: 700 !important;
+  }
+
   .from-bg-200\/5 {
     --tw-gradient-from: color-mix(in oklch, var(--background) 5%, transparent) var(--tw-gradient-from-position);
     --tw-gradient-to: color-mix(in oklch, var(--background) 0%, transparent) var(--tw-gradient-to-position);
