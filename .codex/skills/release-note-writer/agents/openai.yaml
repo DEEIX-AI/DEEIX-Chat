@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release Note Writer"
+  short_description: "Draft user-facing GitHub release notes"
+  default_prompt: "Use $release-note-writer to compare a git version range and draft bilingual GitHub release notes."
