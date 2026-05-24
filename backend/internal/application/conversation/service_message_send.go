@@ -968,6 +968,10 @@ func (s *Service) sendMessageInternal(
 		toolSpan.End()
 		toolCallRows = append(toolCallRows, toolResult.Rows...)
 		remainingToolCalls -= len(toolResult.Rows)
+		if toolResult.FatalErr != nil {
+			retErr = wrapUpstreamRequestError(toolResult.FatalErr)
+			return nil, retErr
+		}
 		if len(toolResult.ToolResults) == 0 {
 			break
 		}

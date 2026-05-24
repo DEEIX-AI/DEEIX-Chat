@@ -352,6 +352,10 @@ func TestBuildOpenAIResponsesRequestBodyWebSearchAndPromptCacheRetention(t *test
 	if !ok || len(tools) != 1 || tools[0]["type"] != "web_search" {
 		t.Fatalf("expected web_search tool, got %#v", payload["tools"])
 	}
+	include, ok := payload["include"].([]string)
+	if !ok || len(include) != 2 || include[0] != "reasoning.encrypted_content" || include[1] != "web_search_call.action.sources" {
+		t.Fatalf("expected web search sources include, got %#v", payload["include"])
+	}
 	if payload["prompt_cache_retention"] != "in-memory" {
 		t.Fatalf("expected prompt_cache_retention=in-memory, got %#v", payload["prompt_cache_retention"])
 	}

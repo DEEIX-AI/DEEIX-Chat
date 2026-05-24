@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -31,6 +32,7 @@ type executeAssistantToolCallsResult struct {
 	Rows              []model.ToolCall
 	ToolResults       []llm.ToolResult
 	ExecutedToolCalls []llm.ToolCall
+	FatalErr          error
 }
 
 type toolExecutionRecord struct {
@@ -66,6 +68,7 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 	}
 
 	slots := make([]toolExecutionSlot, len(toolCalls))
+	var fatalErr error
 	for i, item := range toolCalls {
 		modelToolName := strings.TrimSpace(item.ToolName)
 		executionToolName := resolveExecutionToolName(modelToolName, input.ToolNameMap)
@@ -79,6 +82,23 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 			InputJSON:  strings.TrimSpace(item.ArgumentsJSON),
 			OutputJSON: "",
 			ErrorJSON:  "",
+		}
+
+		mcpConfig := resolveMCPConfig(modelToolName, input.MCPConfigs)
+		if mcpConfig == nil {
+			row.Status = "error"
+			row.ErrorJSON = toolNotEnabledForRunMessage(modelToolName)
+			slots[i] = toolExecutionSlot{
+				row:    row,
+				result: buildToolResultForModel(row, modelToolName),
+			}
+			if fatalErr == nil {
+				fatalErr = fmt.Errorf("model requested tool %q, but it is not enabled for this run", modelToolName)
+			}
+			if input.Ledger != nil {
+				input.Ledger.store(row.ToolName, row.InputJSON, toolExecutionRecord{row: row, result: slots[i].result})
+			}
+			continue
 		}
 
 		normalizedInput, validationErr := normalizeToolArguments(row.InputJSON, input.ToolSchemas[modelToolName])
@@ -110,7 +130,7 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 			RequestID:      strings.TrimSpace(input.RequestID),
 			ToolName:       row.ToolName,
 			ArgumentsJSON:  row.InputJSON,
-			MCPConfig:      resolveMCPConfig(modelToolName, input.MCPConfigs),
+			MCPConfig:      mcpConfig,
 		})
 		row.LatencyMS = time.Since(toolStartedAt).Milliseconds()
 		if row.LatencyMS < 0 {
@@ -151,6 +171,7 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 		Rows:              rows,
 		ToolResults:       toolResults,
 		ExecutedToolCalls: executedToolCalls,
+		FatalErr:          fatalErr,
 	}
 }
 
@@ -216,6 +237,14 @@ func buildToolResultForModel(row model.ToolCall, modelToolName string) llm.ToolR
 		Status:     row.Status,
 		Error:      row.ErrorJSON,
 	}
+}
+
+func toolNotEnabledForRunMessage(toolName string) string {
+	name := strings.TrimSpace(toolName)
+	if name == "" {
+		return "tool is not enabled for this run"
+	}
+	return fmt.Sprintf("tool %s is not enabled for this run", name)
 }
 
 func budgetToolOutputForModel(raw string, maxChars int) string {

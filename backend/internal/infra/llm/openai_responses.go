@@ -54,6 +54,8 @@ func buildResponsesRequestBody(
 	if toolsEnabled && modelParamBool(input.Options, "web_search") && adapter == AdapterOpenAIResponses {
 		webSearchTools = append(webSearchTools, map[string]interface{}{"type": "web_search"})
 	}
+	nativeTools := append([]map[string]interface{}{}, providerTools...)
+	nativeTools = append(nativeTools, webSearchTools...)
 	if retention := normalizePromptCacheRetention(modelParamString(input.Options, "prompt_cache_retention")); retention != "" {
 		payload["prompt_cache_retention"] = retention
 	}
@@ -68,7 +70,7 @@ func buildResponsesRequestBody(
 	}
 	applyProviderOptions(payload, input.Options, responsesProtectedProviderOptionKeys(adapter)...)
 	if supportsResponsesIncludeDefaults(adapter) {
-		defaultIncludes := responsesDefaultIncludeValues(adapter, stream, providerTools)
+		defaultIncludes := responsesDefaultIncludeValues(adapter, stream, nativeTools)
 		appendResponseInclude(payload, responseIncludeValues(input.Options, defaultIncludes...)...)
 	} else {
 		appendResponseInclude(payload, responseIncludeValues(input.Options)...)
@@ -158,12 +160,35 @@ func supportsResponsesIncludeDefaults(adapter string) bool {
 
 func responsesDefaultIncludeValues(adapter string, stream bool, providerTools []map[string]interface{}) []string {
 	values := []string{"reasoning.encrypted_content"}
+	if adapter == AdapterOpenAIResponses {
+		values = append(values, openAIResponsesDefaultIncludeValues(providerTools)...)
+	}
 	for _, extension := range responsesProtocolExtensionsForAdapter(adapter) {
 		if extension.includeDefaults != nil {
 			values = append(values, extension.includeDefaults(stream, providerTools)...)
 		}
 	}
 	return appendUniqueStrings(nil, values...)
+}
+
+func openAIResponsesDefaultIncludeValues(tools []map[string]interface{}) []string {
+	if !responsesToolsIncludeType(tools, "web_search") {
+		return nil
+	}
+	return []string{"web_search_call.action.sources"}
+}
+
+func responsesToolsIncludeType(tools []map[string]interface{}, toolType string) bool {
+	expected := strings.TrimSpace(toolType)
+	if expected == "" {
+		return false
+	}
+	for _, tool := range tools {
+		if strings.TrimSpace(getString(tool["type"])) == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func buildResponsesAPIInput(messages []Message) []map[string]interface{} {

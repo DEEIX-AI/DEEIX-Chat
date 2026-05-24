@@ -1189,7 +1189,7 @@ func TestAnthropicStreamToolUseInputJSONDeltaIsCaptured(t *testing.T) {
 		``,
 	}, "\n")
 
-	if err := consumeAnthropicStream(strings.NewReader(rawStream), result, nil); err != nil {
+	if err := consumeAnthropicStream(strings.NewReader(rawStream), result, nil, anthropicToolClassifier{}); err != nil {
 		t.Fatalf("consume anthropic stream: %v", err)
 	}
 	compactAnthropicStreamToolCalls(result)
@@ -1198,6 +1198,185 @@ func TestAnthropicStreamToolUseInputJSONDeltaIsCaptured(t *testing.T) {
 	}
 	if result.ToolCalls[0].ToolCallID != "toolu_1" || result.ToolCalls[0].ToolName != "memory.save" || result.ToolCalls[0].ArgumentsJSON != `{"text":"hello world"}` {
 		t.Fatalf("unexpected anthropic stream tool call: %#v", result.ToolCalls[0])
+	}
+}
+
+func TestAnthropicStreamRejectsNativeToolUseReturnedAsClientTool(t *testing.T) {
+	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4-6", GenerateInput{
+		Messages: []Message{{Role: "user", Content: "北京今天天气"}},
+		Options: map[string]interface{}{
+			"tools": []interface{}{
+				map[string]interface{}{"type": "web_search_20260209"},
+			},
+		},
+	}, true)
+	classifier := newAnthropicToolClassifier(payload, nil)
+	result := &GenerateOutput{ToolCalls: make([]ToolCall, 0), ServerToolCalls: make([]ToolCall, 0)}
+	events := make([]ToolCall, 0)
+	rawStream := strings.Join([]string{
+		`event: message_start`,
+		`data: {"type":"message_start","message":{"id":"msg_1","usage":{"input_tokens":10}}}`,
+		``,
+		`event: content_block_start`,
+		`data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"web_search","input":{"query":"北京天气"}}}`,
+		``,
+	}, "\n")
+
+	err := consumeAnthropicStream(strings.NewReader(rawStream), result, func(event GenerateStreamEvent) error {
+		if event.ServerToolCall != nil {
+			events = append(events, *event.ServerToolCall)
+		}
+		return nil
+	}, classifier)
+	if err == nil {
+		t.Fatalf("expected native tool mismatch error")
+	}
+	var upstreamErr *UpstreamError
+	if !errors.As(err, &upstreamErr) {
+		t.Fatalf("expected upstream error, got %T %v", err, err)
+	}
+	if !strings.Contains(upstreamErr.Message, "client-side tool call") {
+		t.Fatalf("expected clear native tool error, got %q", upstreamErr.Message)
+	}
+	if len(result.ToolCalls) != 0 {
+		t.Fatalf("expected no local tool calls, got %#v", result.ToolCalls)
+	}
+	if len(result.ServerToolCalls) != 1 || result.ServerToolCalls[0].Status != "error" || result.ServerToolCalls[0].ToolName != "web_search" {
+		t.Fatalf("expected failed server-side tool trace, got %#v", result.ServerToolCalls)
+	}
+	if len(events) != 1 || events[0].Status != "error" {
+		t.Fatalf("expected one error trace event, got %#v", events)
+	}
+}
+
+func TestAnthropicStreamKeepsDeclaredClientToolWithNativeNameLocal(t *testing.T) {
+	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4-6", GenerateInput{
+		Messages: []Message{{Role: "user", Content: "search"}},
+		Options: map[string]interface{}{
+			"tools": []interface{}{
+				map[string]interface{}{"type": "web_search_20260209"},
+			},
+		},
+		Tools: []ToolDefinition{{Name: "web_search", Description: "Local search", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+	}, true)
+	classifier := newAnthropicToolClassifier(payload, []ToolDefinition{{Name: "web_search"}})
+	result := &GenerateOutput{ToolCalls: make([]ToolCall, 0), ServerToolCalls: make([]ToolCall, 0)}
+	rawStream := strings.Join([]string{
+		`event: message_start`,
+		`data: {"type":"message_start","message":{"id":"msg_1","usage":{"input_tokens":10}}}`,
+		``,
+		`event: content_block_start`,
+		`data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"web_search","input":{}}}`,
+		``,
+		`event: content_block_delta`,
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"query\":\"weather\"}"}}`,
+		``,
+		`event: content_block_stop`,
+		`data: {"type":"content_block_stop","index":0}`,
+		``,
+		`event: message_stop`,
+		`data: {"type":"message_stop"}`,
+		``,
+	}, "\n")
+
+	if err := consumeAnthropicStream(strings.NewReader(rawStream), result, nil, classifier); err != nil {
+		t.Fatalf("consume anthropic stream: %v", err)
+	}
+	compactAnthropicStreamToolCalls(result)
+	if len(result.ToolCalls) != 1 || result.ToolCalls[0].ToolName != "web_search" {
+		t.Fatalf("expected declared client tool call, got %#v", result.ToolCalls)
+	}
+	if len(result.ServerToolCalls) != 0 {
+		t.Fatalf("expected no server-side tool calls, got %#v", result.ServerToolCalls)
+	}
+}
+
+func TestAnthropicStreamServerToolUseIsNotLocalToolCall(t *testing.T) {
+	result := &GenerateOutput{ToolCalls: make([]ToolCall, 0), ServerToolCalls: make([]ToolCall, 0)}
+	rawStream := strings.Join([]string{
+		`event: message_start`,
+		`data: {"type":"message_start","message":{"id":"msg_1","usage":{"input_tokens":10}}}`,
+		``,
+		`event: content_block_start`,
+		`data: {"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srv_1","name":"web_search","input":{}}}`,
+		``,
+		`event: content_block_delta`,
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"query\":\"weather\"}"}}`,
+		``,
+		`event: content_block_stop`,
+		`data: {"type":"content_block_stop","index":0}`,
+		``,
+		`event: message_stop`,
+		`data: {"type":"message_stop"}`,
+		``,
+	}, "\n")
+
+	if err := consumeAnthropicStream(strings.NewReader(rawStream), result, nil, anthropicToolClassifier{}); err != nil {
+		t.Fatalf("consume anthropic stream: %v", err)
+	}
+	compactAnthropicStreamToolCalls(result)
+	if len(result.ToolCalls) != 0 {
+		t.Fatalf("expected no local tool calls, got %#v", result.ToolCalls)
+	}
+	if len(result.ServerToolCalls) != 1 || result.ServerToolCalls[0].ToolName != "web_search" || result.ServerToolCalls[0].Status != "completed" {
+		t.Fatalf("expected completed server-side tool call, got %#v", result.ServerToolCalls)
+	}
+}
+
+func TestAnthropicStreamMergesServerToolResultIntoToolCall(t *testing.T) {
+	result := &GenerateOutput{ToolCalls: make([]ToolCall, 0), ServerToolCalls: make([]ToolCall, 0)}
+	events := make([]ToolCall, 0)
+	rawStream := strings.Join([]string{
+		`event: message_start`,
+		`data: {"type":"message_start","message":{"id":"msg_1","usage":{"input_tokens":10}}}`,
+		``,
+		`event: content_block_start`,
+		`data: {"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srv_1","name":"web_search","input":{}}}`,
+		``,
+		`event: content_block_delta`,
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"query\":\"北京天气今天 2026\"}"}}`,
+		``,
+		`event: content_block_stop`,
+		`data: {"type":"content_block_stop","index":0}`,
+		``,
+		`event: content_block_start`,
+		`data: {"type":"content_block_start","index":1,"content_block":{"type":"web_search_tool_result","tool_use_id":"srv_1","content":[{"type":"web_search_result","title":"北京天气","url":"https://example.com/weather","page_age":"2026-05-24","encrypted_content":"redacted"}]}}`,
+		``,
+		`event: content_block_stop`,
+		`data: {"type":"content_block_stop","index":1}`,
+		``,
+		`event: message_stop`,
+		`data: {"type":"message_stop"}`,
+		``,
+	}, "\n")
+
+	if err := consumeAnthropicStream(strings.NewReader(rawStream), result, func(event GenerateStreamEvent) error {
+		if event.ServerToolCall != nil {
+			events = append(events, *event.ServerToolCall)
+		}
+		return nil
+	}, anthropicToolClassifier{}); err != nil {
+		t.Fatalf("consume anthropic stream: %v", err)
+	}
+	compactAnthropicStreamToolCalls(result)
+	if len(result.ToolCalls) != 0 {
+		t.Fatalf("expected no local tool calls, got %#v", result.ToolCalls)
+	}
+	if len(result.ServerToolCalls) != 1 {
+		t.Fatalf("expected one server-side tool call, got %#v", result.ServerToolCalls)
+	}
+	call := result.ServerToolCalls[0]
+	if call.ToolName != "web_search" || call.Status != "completed" {
+		t.Fatalf("expected completed web search call, got %#v", call)
+	}
+	if !strings.Contains(call.OutputJSON, "https://example.com/weather") || !strings.Contains(call.OutputJSON, "北京天气") {
+		t.Fatalf("expected search result output to be captured, got %q", call.OutputJSON)
+	}
+	if strings.Contains(call.OutputJSON, "encrypted_content") || strings.Contains(call.OutputJSON, "redacted") {
+		t.Fatalf("expected opaque search result fields to be removed, got %q", call.OutputJSON)
+	}
+	if len(events) < 2 || events[len(events)-1].OutputJSON == "" {
+		t.Fatalf("expected streaming result event with output, got %#v", events)
 	}
 }
 

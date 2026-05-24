@@ -1556,15 +1556,28 @@ function ToolTraceStructuredContent({
     const query = firstStringFromRecord(input, ["query", "q"]) || toolOutputText(call, ["query"]);
     const actionType = firstStringFromRecord(input, ["type", "action"]);
     const urls = collectToolStrings(output, urlKeys);
+    const responseText = urls.length === 0
+      ? formatToolPayload(call.output) || formatToolPayload(call.output_text) || formatToolPayload(call.output_preview)
+      : "";
+    const hasRequest = Boolean(query || (actionType && actionType !== query));
+    const hasResponse = urls.length > 0 || Boolean(responseText);
     return (
-      <div className={cn("space-y-1.5 text-muted-foreground/84", failed && "text-destructive/80")}>
+      <div className={cn("space-y-2 text-muted-foreground/84", failed && "text-destructive/80")}>
         <div>{statusText}</div>
-        {query ? <div className="break-words">{labels.tool.detail.query}: {query}</div> : null}
-        {actionType && actionType !== query ? <div className="break-words">{labels.tool.detail.action}: {actionType}</div> : null}
-        {urls.length > 0 ? (
+        {hasRequest ? (
           <div>
-            <ToolMiniLabel>{labels.tool.detail.source}</ToolMiniLabel>
-            <ToolSourceLinks urls={urls} labels={labels} />
+            <ToolMiniLabel>{labels.tool.detail.request}</ToolMiniLabel>
+            <div className="space-y-1">
+              {query ? <div className="break-words">{labels.tool.detail.query}: {query}</div> : null}
+              {actionType && actionType !== query ? <div className="break-words">{labels.tool.detail.action}: {actionType}</div> : null}
+            </div>
+          </div>
+        ) : null}
+        {hasResponse ? (
+          <div>
+            <ToolMiniLabel>{failed ? labels.tool.detail.error : labels.tool.detail.response}</ToolMiniLabel>
+            {urls.length > 0 ? <ToolSourceLinks urls={urls} labels={labels} /> : null}
+            {responseText ? <ToolPre failed={failed}>{responseText}</ToolPre> : null}
           </div>
         ) : rawDetail ? (
           <ToolDetailText failed={failed} open={open} canExpand={canExpand} labels={labels} onToggle={onToggle}>

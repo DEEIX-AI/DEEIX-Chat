@@ -450,6 +450,93 @@ func anthropicNativeToolAllowedCallers(toolType string) []string {
 	}
 }
 
+type anthropicToolClassifier struct {
+	nativeServerToolNames map[string]struct{}
+	clientToolNames       map[string]struct{}
+}
+
+func newAnthropicToolClassifier(payload map[string]interface{}, clientTools []ToolDefinition) anthropicToolClassifier {
+	classifier := anthropicToolClassifier{}
+	for _, tool := range anthropicToolPayloads(payload["tools"]) {
+		toolType := strings.TrimSpace(getString(tool["type"]))
+		if !isAnthropicNativeToolType(toolType) {
+			continue
+		}
+		toolName := strings.TrimSpace(getString(tool["name"]))
+		if toolName == "" {
+			toolName = anthropicNativeToolName(toolType)
+		}
+		if toolName == "" {
+			continue
+		}
+		if classifier.nativeServerToolNames == nil {
+			classifier.nativeServerToolNames = map[string]struct{}{}
+		}
+		classifier.nativeServerToolNames[toolName] = struct{}{}
+	}
+	for _, tool := range clientTools {
+		toolName := strings.TrimSpace(tool.Name)
+		if toolName == "" {
+			continue
+		}
+		if classifier.clientToolNames == nil {
+			classifier.clientToolNames = map[string]struct{}{}
+		}
+		classifier.clientToolNames[toolName] = struct{}{}
+	}
+	return classifier
+}
+
+func (c anthropicToolClassifier) isUnsupportedNativeClientToolUse(toolName string) bool {
+	name := strings.TrimSpace(toolName)
+	if name == "" || len(c.nativeServerToolNames) == 0 {
+		return false
+	}
+	if _, ok := c.nativeServerToolNames[name]; !ok {
+		return false
+	}
+	_, clientToolDeclared := c.clientToolNames[name]
+	return !clientToolDeclared
+}
+
+func isAnthropicNativeToolType(toolType string) bool {
+	switch strings.TrimSpace(toolType) {
+	case "web_search_20250305",
+		"web_search_20260209",
+		"web_fetch_20250910",
+		"web_fetch_20260209",
+		"code_execution_20250825",
+		"code_execution_20260120",
+		"advisor_20260301",
+		"tool_search_tool_regex_20251119",
+		"tool_search_tool_bm25_20251119":
+		return true
+	default:
+		return false
+	}
+}
+
+func isAnthropicServerToolResultBlockType(blockType string) bool {
+	value := strings.TrimSpace(blockType)
+	return value != "" && strings.HasSuffix(value, "_tool_result")
+}
+
+func anthropicUnsupportedNativeToolError(toolName string, rawBody string) error {
+	return &UpstreamError{
+		StatusCode: http.StatusBadGateway,
+		Message:    anthropicUnsupportedNativeToolMessage(toolName),
+		Body:       rawBody,
+	}
+}
+
+func anthropicUnsupportedNativeToolMessage(toolName string) string {
+	name := strings.TrimSpace(toolName)
+	if name == "" {
+		name = "native_tool"
+	}
+	return fmt.Sprintf("Anthropic native tool %q must be executed server-side, but the selected upstream returned it as a client-side tool call. Disable this Claude native tool for the channel or use an MCP tool instead.", name)
+}
+
 // normalizeAnthropicRole 将内部 role 映射到 Anthropic 的 user/assistant。
 // Anthropic Messages API 只接受这两种角色（system 已被提升到顶层）。
 func normalizeAnthropicRole(role string) string {
@@ -683,7 +770,7 @@ func (c *Client) generateAnthropic(
 	}
 
 	debug := upstreamDebugSnapshot(req, payload, resp, body)
-	output, err := parseAnthropicResponse(body)
+	output, err := parseAnthropicResponse(body, newAnthropicToolClassifier(requestBody, input.Tools))
 	if err != nil {
 		return nil, attachUpstreamDebug(err, debug)
 	}
@@ -705,19 +792,24 @@ func (c *Client) generateAnthropic(
 //	    "cache_read_input_tokens": 0
 //	  }
 //	}
-func parseAnthropicResponse(body []byte) (*GenerateOutput, error) {
+func parseAnthropicResponse(body []byte, classifier anthropicToolClassifier) (*GenerateOutput, error) {
 	parsed := make(map[string]interface{})
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
 	}
+	toolCalls, err := parseAnthropicToolUse(parsed, classifier, string(body))
+	if err != nil {
+		return nil, err
+	}
 
 	result := &GenerateOutput{
-		ResponseID: strings.TrimSpace(getString(parsed["id"])),
-		Text:       extractAnthropicText(parsed),
-		Reasoning:  extractAnthropicReasoning(parsed),
-		Usage:      parseAnthropicUsage(parsed),
-		ToolCalls:  parseAnthropicToolUse(parsed),
-		RawJSON:    string(body),
+		ResponseID:      strings.TrimSpace(getString(parsed["id"])),
+		Text:            extractAnthropicText(parsed),
+		Reasoning:       extractAnthropicReasoning(parsed),
+		Usage:           parseAnthropicUsage(parsed),
+		ToolCalls:       toolCalls,
+		ServerToolCalls: parseAnthropicServerToolUse(parsed),
+		RawJSON:         string(body),
 	}
 	return result, nil
 }
@@ -776,13 +868,17 @@ func parseAnthropicUsage(parsed map[string]interface{}) Usage {
 	}
 }
 
-// parseAnthropicToolUse 解析 Anthropic tool_use content block。
-func parseAnthropicToolUse(parsed map[string]interface{}) []ToolCall {
+// parseAnthropicToolUse 解析需要本地执行的 Anthropic tool_use content block。
+func parseAnthropicToolUse(parsed map[string]interface{}, classifier anthropicToolClassifier, rawBody string) ([]ToolCall, error) {
 	var result []ToolCall
 	for _, raw := range asSlice(parsed["content"]) {
 		block := asMap(raw)
 		if getString(block["type"]) != "tool_use" {
 			continue
+		}
+		toolName := strings.TrimSpace(getString(block["name"]))
+		if classifier.isUnsupportedNativeClientToolUse(toolName) {
+			return nil, anthropicUnsupportedNativeToolError(toolName, rawBody)
 		}
 		arguments := normalizeJSONString(block["input"])
 		if arguments == "" {
@@ -791,15 +887,62 @@ func parseAnthropicToolUse(parsed map[string]interface{}) []ToolCall {
 		result = append(result, ToolCall{
 			ToolCallID:    strings.TrimSpace(getString(block["id"])),
 			ToolType:      "function",
-			ToolName:      strings.TrimSpace(getString(block["name"])),
+			ToolName:      toolName,
 			ArgumentsJSON: arguments,
 			Status:        "requested",
 		})
 	}
 	if result == nil {
+		return make([]ToolCall, 0), nil
+	}
+	return result, nil
+}
+
+// parseAnthropicServerToolUse 解析 Anthropic server-side tool trace。
+func parseAnthropicServerToolUse(parsed map[string]interface{}) []ToolCall {
+	items := make([]ToolCall, 0)
+	indexByID := map[string]int{}
+	for _, raw := range asSlice(parsed["content"]) {
+		block := asMap(raw)
+		blockType := strings.TrimSpace(getString(block["type"]))
+		switch {
+		case blockType == "server_tool_use":
+			arguments := normalizeJSONString(block["input"])
+			if arguments == "" {
+				arguments = "{}"
+			}
+			toolCall := ToolCall{
+				ToolCallID:    strings.TrimSpace(getString(block["id"])),
+				ToolType:      blockType,
+				ToolName:      strings.TrimSpace(getString(block["name"])),
+				ArgumentsJSON: arguments,
+				Status:        "completed",
+			}
+			if toolCall.ToolCallID != "" {
+				indexByID[toolCall.ToolCallID] = len(items)
+			}
+			items = append(items, toolCall)
+		case isAnthropicServerToolResultBlockType(blockType):
+			toolUseID := strings.TrimSpace(getString(block["tool_use_id"]))
+			if toolUseID == "" {
+				continue
+			}
+			index, ok := indexByID[toolUseID]
+			if !ok {
+				continue
+			}
+			output := anthropicServerToolResultOutputJSON(block)
+			if output == "" {
+				output = "{}"
+			}
+			items[index].OutputJSON = output
+			items[index].Status = "completed"
+		}
+	}
+	if items == nil {
 		return make([]ToolCall, 0)
 	}
-	return result
+	return items
 }
 
 // ── 流式调用 ──────────────────────────────────────────────────────────────────
@@ -856,7 +999,7 @@ func (c *Client) generateAnthropicStream(
 
 	idleReader := newIdleTimeoutReader(resp.Body, resolveStreamIdleTimeout(route.StreamIdleTimeoutMS))
 	streamBody := newUpstreamBodyRecorder(idleReader)
-	if err = consumeAnthropicStream(streamBody, result, onEvent); err != nil {
+	if err = consumeAnthropicStream(streamBody, result, onEvent, newAnthropicToolClassifier(requestBody, input.Tools)); err != nil {
 		return nil, attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err)))
 	}
 	compactAnthropicStreamToolCalls(result)
@@ -882,6 +1025,7 @@ func consumeAnthropicStream(
 	reader io.Reader,
 	result *GenerateOutput,
 	onEvent func(GenerateStreamEvent) error,
+	classifier anthropicToolClassifier,
 ) error {
 	// 使用 Anthropic 自身的 SSE dispatch，保持事件语义独立于 OpenAI-family 解析。
 	// Anthropic 专用事件处理函数。
@@ -899,7 +1043,7 @@ func consumeAnthropicStream(
 		if err := json.Unmarshal([]byte(ev.data), &parsed); err != nil {
 			return nil // 单个异常事件不应中断后续流式输出。
 		}
-		return applyAnthropicStreamEvent(parsed, ev.data, result, onEvent)
+		return applyAnthropicStreamEvent(parsed, ev.data, result, onEvent, classifier)
 	}
 
 	var (
@@ -955,6 +1099,7 @@ func applyAnthropicStreamEvent(
 	rawBody string,
 	result *GenerateOutput,
 	onEvent func(GenerateStreamEvent) error,
+	classifier anthropicToolClassifier,
 ) error {
 	eventType := strings.TrimSpace(getString(parsed["type"]))
 
@@ -978,19 +1123,34 @@ func applyAnthropicStreamEvent(
 		index := anthropicContentBlockIndex(parsed)
 		switch strings.TrimSpace(getString(block["type"])) {
 		case "tool_use":
-			toolCall := upsertAnthropicStreamToolCall(result, index, ToolCall{
+			toolName := strings.TrimSpace(getString(block["name"]))
+			if classifier.isUnsupportedNativeClientToolUse(toolName) {
+				message := anthropicUnsupportedNativeToolMessage(toolName)
+				toolCall := upsertAnthropicStreamServerToolCall(result, index, ToolCall{
+					ToolCallID:    strings.TrimSpace(getString(block["id"])),
+					ToolType:      "native_tool_use",
+					ToolName:      toolName,
+					ArgumentsJSON: normalizeJSONString(block["input"]),
+					Status:        "error",
+					ErrorJSON:     message,
+				})
+				if onEvent != nil {
+					if err := onEvent(GenerateStreamEvent{
+						ServerToolCall: &toolCall,
+						ResponseID:     result.ResponseID,
+					}); err != nil {
+						return err
+					}
+				}
+				return anthropicUnsupportedNativeToolError(toolName, rawBody)
+			}
+			_ = upsertAnthropicStreamToolCall(result, index, ToolCall{
 				ToolCallID:    strings.TrimSpace(getString(block["id"])),
 				ToolType:      "function",
-				ToolName:      strings.TrimSpace(getString(block["name"])),
+				ToolName:      toolName,
 				ArgumentsJSON: normalizeJSONString(block["input"]),
 				Status:        "requested",
 			})
-			if onEvent != nil {
-				return onEvent(GenerateStreamEvent{
-					ServerToolCall: &toolCall,
-					ResponseID:     result.ResponseID,
-				})
-			}
 		case "server_tool_use":
 			toolCall := upsertAnthropicStreamServerToolCall(result, index, ToolCall{
 				ToolCallID:    strings.TrimSpace(getString(block["id"])),
@@ -1004,6 +1164,19 @@ func applyAnthropicStreamEvent(
 					ServerToolCall: &toolCall,
 					ResponseID:     result.ResponseID,
 				})
+			}
+		default:
+			if isAnthropicServerToolResultBlockType(strings.TrimSpace(getString(block["type"]))) {
+				toolCall, ok := mergeAnthropicStreamServerToolResult(result, block)
+				if !ok {
+					return nil
+				}
+				if onEvent != nil {
+					return onEvent(GenerateStreamEvent{
+						ServerToolCall: &toolCall,
+						ResponseID:     result.ResponseID,
+					})
+				}
 			}
 		}
 
@@ -1095,21 +1268,7 @@ func applyAnthropicStreamEvent(
 
 	case "content_block_stop":
 		index := anthropicContentBlockIndex(parsed)
-		if toolCall, ok := markAnthropicStreamServerToolCallComplete(result, index); ok {
-			if onEvent != nil {
-				return onEvent(GenerateStreamEvent{
-					ServerToolCall: &toolCall,
-					ResponseID:     result.ResponseID,
-				})
-			}
-			return nil
-		}
-		if toolCall, ok := markAnthropicStreamToolCallComplete(result, index); ok && onEvent != nil {
-			return onEvent(GenerateStreamEvent{
-				ServerToolCall: &toolCall,
-				ResponseID:     result.ResponseID,
-			})
-		}
+		_, _ = markAnthropicStreamToolCallComplete(result, index)
 
 	case "message_delta":
 		// message_delta 包含最终 output_tokens
@@ -1270,6 +1429,65 @@ func markAnthropicStreamServerToolCallComplete(result *GenerateOutput, index int
 	return item, true
 }
 
+func mergeAnthropicStreamServerToolResult(result *GenerateOutput, block map[string]interface{}) (ToolCall, bool) {
+	if result == nil {
+		return ToolCall{}, false
+	}
+	toolUseID := strings.TrimSpace(getString(block["tool_use_id"]))
+	if toolUseID == "" {
+		return ToolCall{}, false
+	}
+	for index := range result.ServerToolCalls {
+		item := result.ServerToolCalls[index]
+		if strings.TrimSpace(item.ToolCallID) != toolUseID {
+			continue
+		}
+		item.OutputJSON = anthropicServerToolResultOutputJSON(block)
+		if item.OutputJSON == "" {
+			item.OutputJSON = "{}"
+		}
+		item.Status = "completed"
+		result.ServerToolCalls[index] = item
+		return item, true
+	}
+	return ToolCall{}, false
+}
+
+func anthropicServerToolResultOutputJSON(block map[string]interface{}) string {
+	return normalizeJSONString(sanitizeAnthropicServerToolResultValue(block))
+}
+
+func sanitizeAnthropicServerToolResultValue(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		result := make(map[string]interface{}, len(typed))
+		for key, item := range typed {
+			if isAnthropicOpaqueToolResultKey(key) {
+				continue
+			}
+			result[key] = sanitizeAnthropicServerToolResultValue(item)
+		}
+		return result
+	case []interface{}:
+		items := make([]interface{}, 0, len(typed))
+		for _, item := range typed {
+			items = append(items, sanitizeAnthropicServerToolResultValue(item))
+		}
+		return items
+	default:
+		return value
+	}
+}
+
+func isAnthropicOpaqueToolResultKey(key string) bool {
+	switch strings.TrimSpace(key) {
+	case "encrypted_content", "encryptedContent":
+		return true
+	default:
+		return false
+	}
+}
+
 func compactAnthropicStreamToolCalls(result *GenerateOutput) {
 	if result == nil || len(result.ToolCalls) == 0 {
 		compactAnthropicStreamServerToolCalls(result)
@@ -1307,7 +1525,7 @@ func compactAnthropicStreamServerToolCalls(result *GenerateOutput) {
 		if strings.TrimSpace(item.ArgumentsJSON) == "" {
 			item.ArgumentsJSON = "{}"
 		}
-		if strings.TrimSpace(item.Status) == "" {
+		if strings.TrimSpace(item.Status) == "" || strings.TrimSpace(item.Status) == "in_progress" {
 			item.Status = "completed"
 		}
 		items = append(items, item)

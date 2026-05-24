@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 )
 
 func TestExecuteToolCallRejectsToolsNotEnabledForRun(t *testing.T) {
@@ -16,6 +17,30 @@ func TestExecuteToolCallRejectsToolsNotEnabledForRun(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "not enabled for this run") {
 		t.Fatalf("expected disabled tool error, got %v", err)
+	}
+}
+
+func TestExecuteAssistantToolCallsStopsWhenToolNotEnabledForRun(t *testing.T) {
+	svc := &Service{}
+	result := svc.executeAssistantToolCalls(context.Background(), executeAssistantToolCallsInput{
+		RunID: "run_1",
+		ToolCalls: []llm.ToolCall{{
+			ToolCallID:    "toolu_1",
+			ToolType:      "function",
+			ToolName:      "web_search",
+			ArgumentsJSON: `{"query":"weather"}`,
+			Status:        "requested",
+		}},
+	})
+
+	if result.FatalErr == nil || !strings.Contains(result.FatalErr.Error(), "not enabled for this run") {
+		t.Fatalf("expected fatal disabled tool error, got %v", result.FatalErr)
+	}
+	if len(result.Rows) != 1 || result.Rows[0].Status != "error" || result.Rows[0].ToolName != "web_search" {
+		t.Fatalf("expected one failed tool row, got %#v", result.Rows)
+	}
+	if len(result.ToolResults) != 1 || result.ToolResults[0].Status != "error" {
+		t.Fatalf("expected failed model tool result, got %#v", result.ToolResults)
 	}
 }
 
