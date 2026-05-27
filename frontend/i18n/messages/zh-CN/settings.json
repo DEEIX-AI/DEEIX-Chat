@@ -343,8 +343,12 @@
     },
     "input": {
       "sectionTitle": "输入与发送",
-      "shortcutTitle": "发送快捷键",
-      "shortcutDescription": "当前平台使用 {shortcut} 提交消息。",
+      "enterBehaviorTitle": "Enter 键行为",
+      "enterBehaviorDescription": "选择 Enter 是发送消息还是换行。选择换行时，使用 {shortcut} 发送消息。",
+      "enterBehavior": {
+        "send": "Enter 发送消息",
+        "newline": "Enter 换行"
+      },
       "heightTitle": "输入区域高度",
       "heightDescription": "控制输入框自动扩展时允许占用的最大高度。",
       "height": {

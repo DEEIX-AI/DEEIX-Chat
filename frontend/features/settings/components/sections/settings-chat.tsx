@@ -464,8 +464,8 @@ export function SettingsChat() {
       <SettingsSection title={t("input.sectionTitle")}>
         <SettingsFieldList>
           <SettingsFieldRow
-            title={t("input.shortcutTitle")}
-            description={t("input.shortcutDescription", { shortcut: `${modifierLabel}+Enter` })}
+            title={t("input.enterBehaviorTitle")}
+            description={t("input.enterBehaviorDescription", { shortcut: `${modifierLabel}+Enter` })}
           >
             <Select
               value={settings.sendShortcut === "enter" ? "enter" : modifierShortcut}
@@ -476,8 +476,8 @@ export function SettingsChat() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent align="start">
-                <SelectItem value="enter">Enter</SelectItem>
-                <SelectItem value={modifierShortcut}>{modifierLabel}+Enter</SelectItem>
+                <SelectItem value="enter">{t("input.enterBehavior.send")}</SelectItem>
+                <SelectItem value={modifierShortcut}>{t("input.enterBehavior.newline")}</SelectItem>
               </SelectContent>
             </Select>
           </SettingsFieldRow>

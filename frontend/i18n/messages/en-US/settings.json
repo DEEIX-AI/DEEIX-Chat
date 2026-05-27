@@ -343,8 +343,12 @@
     },
     "input": {
       "sectionTitle": "Input and sending",
-      "shortcutTitle": "Send shortcut",
-      "shortcutDescription": "This platform uses {shortcut} to submit messages.",
+      "enterBehaviorTitle": "Enter key behavior",
+      "enterBehaviorDescription": "Choose whether Enter sends messages or inserts a new line. When Enter inserts a new line, use {shortcut} to send.",
+      "enterBehavior": {
+        "send": "Enter sends message",
+        "newline": "Enter inserts new line"
+      },
       "heightTitle": "Input area height",
       "heightDescription": "Controls the maximum height allowed when the input box auto-expands.",
       "height": {
