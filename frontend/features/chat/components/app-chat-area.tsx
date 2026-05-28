@@ -51,6 +51,14 @@ import { cn } from "@/lib/utils";
 const MODEL_OPTIONS_STORAGE_PREFIX = "deeix-chat:chat-model-options:";
 const EMPTY_CONVERSATION_OPTIONS: ConversationOptions = {};
 
+function dragEventContainsFiles(event: React.DragEvent<HTMLElement>): boolean {
+  return Array.from(event.dataTransfer.types ?? []).includes("Files");
+}
+
+function droppedFiles(event: React.DragEvent<HTMLElement>): File[] {
+  return Array.from(event.dataTransfer.files ?? []).filter((file) => file.name.trim() || file.size > 0);
+}
+
 function modelOptionsStorageKey(platformModelName: string): string {
   return `${MODEL_OPTIONS_STORAGE_PREFIX}${encodeURIComponent(platformModelName)}`;
 }
@@ -215,6 +223,8 @@ export function AppChatArea() {
   const [selectedToolIDs, setSelectedToolIDs] = React.useState<number[]>([]);
   const htmlVisualPrompt = useHTMLVisualPrompt();
   const initializedOptionsModelRef = React.useRef("");
+  const fileDragDepthRef = React.useRef(0);
+  const [fileDragActive, setFileDragActive] = React.useState(false);
 
   React.useEffect(() => {
     setSelectedToolIDs((current) => {
@@ -359,6 +369,7 @@ export function AppChatArea() {
     activeGenerationRunsRef,
   });
   const generating = sending || Boolean(resumingRunID);
+  const uploadDropDisabled = generating || loading || uploading;
   const showLiveAssistant = showPendingAssistant || Boolean(resumingRunID);
   const latestMessageKey = visibleMessages.at(-1)?.key ?? "";
   const onStopActiveMessage = React.useCallback(() => {
@@ -637,6 +648,59 @@ export function AppChatArea() {
   const selectedModelDefaultOptions = modelOptionPolicyDisabled
     ? EMPTY_CONVERSATION_OPTIONS
     : (selectedModel?.defaultOptions ?? EMPTY_CONVERSATION_OPTIONS);
+  const resetFileDragState = React.useCallback(() => {
+    fileDragDepthRef.current = 0;
+    setFileDragActive(false);
+  }, []);
+  const onFileDragEnter = React.useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!dragEventContainsFiles(event)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    if (uploadDropDisabled) {
+      return;
+    }
+    fileDragDepthRef.current += 1;
+    setFileDragActive(true);
+  }, [uploadDropDisabled]);
+  const onFileDragOver = React.useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!dragEventContainsFiles(event)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = uploadDropDisabled ? "none" : "copy";
+  }, [uploadDropDisabled]);
+  const onFileDragLeave = React.useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!dragEventContainsFiles(event)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    fileDragDepthRef.current = Math.max(0, fileDragDepthRef.current - 1);
+    if (fileDragDepthRef.current === 0) {
+      setFileDragActive(false);
+    }
+  }, []);
+  const onFileDrop = React.useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!dragEventContainsFiles(event)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const files = droppedFiles(event);
+    resetFileDragState();
+    if (uploadDropDisabled || files.length === 0) {
+      return;
+    }
+    void onUploadFiles(files);
+  }, [onUploadFiles, resetFileDragState, uploadDropDisabled]);
+  React.useEffect(() => {
+    if (uploadDropDisabled) {
+      resetFileDragState();
+    }
+  }, [resetFileDragState, uploadDropDisabled]);
 
   const chatInputProps = {
     draft,
@@ -661,6 +725,7 @@ export function AppChatArea() {
     defaultOptions: selectedModelDefaultOptions,
     modelOptionPolicy,
     modelLoading: modelsLoading,
+    dropActive: fileDragActive,
     onDraftChange: setDraft,
     onModelChange: setSelectedPlatformModelName,
     onSelectedToolsChange: setSelectedToolIDs,
@@ -679,7 +744,13 @@ export function AppChatArea() {
     !isConversationLoading && !isConversationLoadFailed && !isConversationMode && messagesWithInlineError.length === 0;
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden md:overflow-visible">
+    <div
+      className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden md:overflow-visible"
+      onDragEnter={onFileDragEnter}
+      onDragOver={onFileDragOver}
+      onDragLeave={onFileDragLeave}
+      onDrop={onFileDrop}
+    >
       {shouldUseCenteredComposer ? (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <ChatEmptyState greetingTitle={greetingTitle}>

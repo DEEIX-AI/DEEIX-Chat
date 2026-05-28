@@ -76,6 +76,7 @@ type ChatInputProps = {
   modelOptionPolicy: ModelOptionPolicy | null;
   modelLoading: boolean;
   modelDisabled?: boolean;
+  dropActive?: boolean;
   onDraftChange: (value: string) => void;
   onModelChange: (platformModelName: string) => void;
   onSelectedToolsChange: (toolIDs: number[]) => void;
@@ -178,6 +179,7 @@ function ChatInputComponent({
   modelOptionPolicy,
   modelLoading,
   modelDisabled = false,
+  dropActive = false,
   onDraftChange,
   onModelChange,
   onSelectedToolsChange,
@@ -262,6 +264,7 @@ function ChatInputComponent({
       <InputGroup
         className={cn(
           "bg-pure rounded-3xl border-[0.5px] border-border/70 shadow-xs has-[[data-slot=input-group-control]:focus-visible]:ring-0 has-[[data-slot=input-group-control]:focus-visible]:border-border",
+          dropActive && "border-dashed border-foreground/30 bg-muted/20 shadow-none",
         )}
       >
         {attachments.length > 0 || uploadingAttachments.length > 0 ? (
@@ -379,11 +382,11 @@ function ChatInputComponent({
           value={draft}
           disabled={sending || loading || uploading}
           readOnly={speechInput.active}
-          placeholder={speechInput.placeholder}
+          placeholder={dropActive ? tChat("attachments.dropTitle") : speechInput.placeholder}
           rows={1}
           style={{ fontFamily: "var(--font-chat)", fontWeight: "var(--font-chat-weight)" }}
           className={cn(
-            "rounded-3xl min-h-12 overflow-y-auto px-5 pt-4 text-[15px] leading-6 placeholder:text-[15px] placeholder:font-[inherit] placeholder:leading-6",
+            "rounded-3xl min-h-12 overflow-y-auto px-5 pt-4 text-[15px] leading-6 placeholder:text-[inherit] placeholder:font-[inherit] placeholder:leading-[inherit]",
             inputHeightClassName,
             speechInput.active ? "placeholder:font-normal placeholder:text-muted-foreground" : "",
           )}

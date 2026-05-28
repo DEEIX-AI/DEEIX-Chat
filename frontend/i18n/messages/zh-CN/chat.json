@@ -195,6 +195,7 @@
     "autoTruncatedDescription": "最多保留前 {max} 个附件，已忽略 {count} 个超出上限的文件。",
     "uploadFailed": "上传失败",
     "uploadSignInRequired": "未登录，无法上传文件。",
+    "dropTitle": "松开以添加附件",
     "duplicateReused": "检测到文件重复，已复用",
     "partialUploadFailed": "部分文件上传失败",
     "retryFailedFiles": "请重试失败的文件。",

@@ -195,6 +195,7 @@
     "autoTruncatedDescription": "Kept the first {max} attachments and ignored {count} files over the limit.",
     "uploadFailed": "Upload failed",
     "uploadSignInRequired": "Sign in before uploading files.",
+    "dropTitle": "Drop files to attach",
     "duplicateReused": "Duplicate file detected and reused",
     "partialUploadFailed": "Some files failed to upload",
     "retryFailedFiles": "Please retry the failed files.",
