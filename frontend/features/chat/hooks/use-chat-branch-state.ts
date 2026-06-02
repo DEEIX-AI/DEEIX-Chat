@@ -165,11 +165,13 @@ export function useChatBranchState({
   resetToken,
   messages,
   pendingExchange,
+  liveRunIDs,
 }: {
   conversationID: string | null;
   resetToken: number;
   messages: MessageDTO[];
   pendingExchange: PendingExchange | null;
+  liveRunIDs?: ReadonlySet<string>;
 }) {
   const t = useTranslations("chat.messages");
   const [branchSelections, setBranchSelections] = React.useState<Record<string, string>>({});
@@ -181,13 +183,17 @@ export function useChatBranchState({
   const serverTreeMessages = React.useMemo(
     () =>
       messages.map((item) =>
-        mapServerMessage(item, {
-          generationInterrupted: t("generationInterrupted"),
-          streamInterrupted: t("streamInterrupted"),
-          imageRunning: t("imageRunning"),
-        }),
+        mapServerMessage(
+          item,
+          {
+            generationInterrupted: t("generationInterrupted"),
+            streamInterrupted: t("streamInterrupted"),
+            imageRunning: t("imageRunning"),
+          },
+          { liveRunIDs },
+        ),
       ),
-    [messages, t],
+    [liveRunIDs, messages, t],
   );
   const serverMessagePublicIDs = React.useMemo(
     () => new Set(serverTreeMessages.map((item) => item.publicID).filter(Boolean)),
@@ -234,7 +240,7 @@ export function useChatBranchState({
           item.role === "assistant" &&
           ((pendingExchange.runID && item.runID === pendingExchange.runID) ||
             item.publicID === (pendingExchange.assistantPublicID || pendingExchange.tempAssistantPublicID)) &&
-          item.isPending,
+          item.isStreaming,
       ),
   );
 

@@ -889,6 +889,51 @@ func (r *Repo) UpdateMessageState(
 		Error)
 }
 
+// CancelPendingGenerationMessagesByRunID 将用户显式取消的 pending 回合更新为稳定终态。
+func (r *Repo) CancelPendingGenerationMessagesByRunID(
+	ctx context.Context,
+	userID uint,
+	runID string,
+	errorCode string,
+	errorMessage string,
+) (bool, error) {
+	normalizedRunID := strings.TrimSpace(runID)
+	if userID == 0 || normalizedRunID == "" {
+		return false, repository.ErrInvalidInput
+	}
+	normalizedErrorCode := strings.TrimSpace(errorCode)
+	normalizedErrorMessage := truncateText(strings.TrimSpace(errorMessage), 255)
+	returnedRows := int64(0)
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		userResult := tx.Model(&models.Message{}).
+			Where("user_id = ? AND run_id = ? AND role = ? AND status = ?", userID, normalizedRunID, "user", "pending").
+			Updates(map[string]interface{}{
+				"status":        "success",
+				"error_code":    "",
+				"error_message": "",
+			})
+		if userResult.Error != nil {
+			return userResult.Error
+		}
+		assistantResult := tx.Model(&models.Message{}).
+			Where("user_id = ? AND run_id = ? AND role = ? AND status = ?", userID, normalizedRunID, "assistant", "pending").
+			Updates(map[string]interface{}{
+				"status":        "canceled",
+				"error_code":    normalizedErrorCode,
+				"error_message": normalizedErrorMessage,
+			})
+		if assistantResult.Error != nil {
+			return assistantResult.Error
+		}
+		returnedRows = userResult.RowsAffected + assistantResult.RowsAffected
+		return nil
+	})
+	if err != nil {
+		return false, translateError(err)
+	}
+	return returnedRows > 0, nil
+}
+
 // InterruptPendingAssistantMessageByRunID 将失去活跃生成流的 pending assistant 标记为错误。
 func (r *Repo) InterruptPendingAssistantMessageByRunID(
 	ctx context.Context,

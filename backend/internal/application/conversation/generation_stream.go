@@ -53,7 +53,25 @@ func EnsureMessageGenerationRunID(raw string) string {
 
 // CancelMessageGeneration 取消用户显式停止的流式生成；浏览器刷新不会走这个路径。
 func (s *Service) CancelMessageGeneration(ctx context.Context, userID uint, runID string) bool {
-	return s.generationStreams.cancel(ctx, userID, normalizeRunID(runID))
+	normalizedRunID := normalizeRunID(runID)
+	canceled := s.generationStreams.cancel(ctx, userID, normalizedRunID)
+	if !canceled || s == nil || s.repo == nil {
+		return canceled
+	}
+	markCtx := ctx
+	var cancel context.CancelFunc
+	if markCtx == nil || markCtx.Err() != nil {
+		markCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+	}
+	_, _ = s.repo.CancelPendingGenerationMessagesByRunID(
+		markCtx,
+		userID,
+		normalizedRunID,
+		classifyRunErrorCode(ErrMessageGenerationCanceled),
+		ErrMessageGenerationCanceled.Error(),
+	)
+	return true
 }
 
 // PublishMessageGenerationEvent 发布生成流事件，并返回带 seq 的实际载荷。

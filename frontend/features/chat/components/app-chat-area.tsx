@@ -370,6 +370,7 @@ export function AppChatArea() {
     setAttachments,
     releaseAttachments,
     activeGenerationRunsRef,
+    resumingRunID,
   });
   const generating = sending || Boolean(resumingRunID);
   const uploadDropDisabled = generating || loading || uploading;

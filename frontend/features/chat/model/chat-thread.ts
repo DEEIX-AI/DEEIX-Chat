@@ -160,6 +160,7 @@ export function mapServerMessage(
   labels: { generationInterrupted: string; streamInterrupted?: string; imageRunning?: string } = {
     generationInterrupted: "Generation interrupted",
   },
+  options: { liveRunIDs?: ReadonlySet<string> } = {},
 ): ChatAreaMessage {
   const publicID = item.publicID.trim();
   const msg: ChatAreaMessage = {
@@ -210,9 +211,11 @@ export function mapServerMessage(
       };
     }
     if (item.status === "pending") {
-      msg.isPending = true;
-      msg.isStreaming = true;
-      msg.activityLabel = item.contentType === "image" ? labels.imageRunning : undefined;
+      const liveRunID = item.runID?.trim() || "";
+      const live = Boolean(liveRunID && options.liveRunIDs?.has(liveRunID));
+      msg.isPending = live;
+      msg.isStreaming = live;
+      msg.activityLabel = live && item.contentType === "image" ? labels.imageRunning : undefined;
     }
   }
   return msg;

@@ -302,11 +302,24 @@ func isRegularFile(filePath string) bool {
 }
 
 func applyFrontendCacheHeaders(c *gin.Context, requestPath string) {
-	if strings.HasPrefix(requestPath, "/_next/static/") || strings.HasPrefix(requestPath, "/fonts/") {
+	if isImmutableFrontendAsset(requestPath) {
 		c.Header("Cache-Control", "public, max-age=31536000, immutable")
 		return
 	}
+	if isNextExportDataAsset(requestPath) {
+		c.Header("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800")
+		return
+	}
 	c.Header("Cache-Control", "public, max-age=3600")
+}
+
+func isImmutableFrontendAsset(requestPath string) bool {
+	return strings.HasPrefix(requestPath, "/_next/static/") || strings.HasPrefix(requestPath, "/fonts/")
+}
+
+func isNextExportDataAsset(requestPath string) bool {
+	fileName := path.Base(requestPath)
+	return strings.HasPrefix(fileName, "__next.") && strings.EqualFold(path.Ext(fileName), ".txt")
 }
 
 func readyzHandler(hc HealthChecker) gin.HandlerFunc {

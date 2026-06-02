@@ -35,6 +35,7 @@ export function useChatRuntime({
   setAttachments,
   releaseAttachments,
   activeGenerationRunsRef,
+  resumingRunID = "",
 }: {
   conversationID: string | null;
   resetToken: number;
@@ -58,16 +59,22 @@ export function useChatRuntime({
   setAttachments: React.Dispatch<React.SetStateAction<PendingAttachment[]>>;
   releaseAttachments: (items: PendingAttachment[]) => void;
   activeGenerationRunsRef?: React.RefObject<Set<string>>;
+  resumingRunID?: string;
 }) {
   const [showConversationLayout, setShowConversationLayout] = React.useState(false);
   const [pendingExchange, setPendingExchange] = React.useState<PendingExchange | null>(null);
   const previousResetTokenRef = React.useRef(resetToken);
+  const liveServerRunIDs = React.useMemo(() => {
+    const normalized = resumingRunID.trim();
+    return normalized ? new Set([normalized]) : undefined;
+  }, [resumingRunID]);
 
   const branchState = useChatBranchState({
     conversationID,
     resetToken,
     messages,
     pendingExchange,
+    liveRunIDs: liveServerRunIDs,
   });
 
   const submitState = useChatSubmitStream({
