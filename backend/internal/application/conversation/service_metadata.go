@@ -52,7 +52,7 @@ type conversationMetadataLLMResult struct {
 }
 
 func (s *Service) maybeGenerateConversationMetadataAsync(conversation model.Conversation, userMsg model.Message, assistantMsg model.Message) {
-	if conversation.MessageCount != 0 {
+	if !shouldGenerateConversationMetadata(conversation) {
 		return
 	}
 	if strings.TrimSpace(userMsg.Content) == "" && strings.TrimSpace(assistantMsg.Content) == "" {
@@ -117,7 +117,7 @@ func (s *Service) generateConversationMetadata(ctx context.Context, conversation
 		}()
 	}
 
-	if s.routeResolver != nil && s.llmClient != nil {
+	if s.routeResolver != nil && s.llmClient != nil && conversationLabelsEmpty(conversation.LabelsJSON) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -453,6 +453,15 @@ func shouldAutoReplaceConversationTitle(title string) bool {
 	default:
 		return false
 	}
+}
+
+func shouldGenerateConversationMetadata(conversation model.Conversation) bool {
+	return shouldAutoReplaceConversationTitle(conversation.Title) || conversationLabelsEmpty(conversation.LabelsJSON)
+}
+
+func conversationLabelsEmpty(labelsJSON string) bool {
+	value := strings.TrimSpace(strings.ToLower(labelsJSON))
+	return value == "" || value == "null" || value == "[]"
 }
 
 func truncateByEstimatedTokens(text string, maxTokens int64) string {

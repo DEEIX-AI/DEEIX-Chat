@@ -71,3 +71,27 @@ func TestConversationTitleFromFirstUserMessage(t *testing.T) {
 		}
 	}
 }
+
+func TestShouldGenerateConversationMetadataAfterFailedFirstTurn(t *testing.T) {
+	conversation := model.Conversation{
+		Title:        "新会话",
+		LabelsJSON:   "[]",
+		MessageCount: 2,
+	}
+
+	if !shouldGenerateConversationMetadata(conversation) {
+		t.Fatal("expected placeholder metadata to be generated even when failed messages already exist")
+	}
+}
+
+func TestConversationLabelsEmpty(t *testing.T) {
+	emptyCases := []string{"", "null", "[]", "  []  "}
+	for _, value := range emptyCases {
+		if !conversationLabelsEmpty(value) {
+			t.Fatalf("expected labels %q to be empty", value)
+		}
+	}
+	if conversationLabelsEmpty(`["技术"]`) {
+		t.Fatal("expected non-empty labels to be preserved")
+	}
+}
