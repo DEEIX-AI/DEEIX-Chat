@@ -232,7 +232,7 @@ export function FilePreviewDialog({
 
     if (state.status === "loading") {
       return (
-        <div className="flex min-h-[320px] flex-col gap-3 px-1 py-4">
+        <div className="flex min-h-[180px] flex-col gap-3 px-1 py-4 sm:min-h-[320px]">
           <Skeleton className="h-4 w-2/3 rounded-md" />
           <Skeleton className="h-4 w-full rounded-md" />
           <Skeleton className="h-4 w-4/5 rounded-md" />
@@ -243,7 +243,7 @@ export function FilePreviewDialog({
 
     if (state.status === "error") {
       return (
-        <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 text-center">
+        <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 text-center sm:min-h-[280px]">
           <FileX className="size-10 text-muted-foreground/50" />
           <p className="text-sm font-medium text-foreground">{t("cannotPreview")}</p>
           <p className="max-w-[340px] text-xs text-muted-foreground">{state.message}</p>
@@ -284,7 +284,7 @@ export function FilePreviewDialog({
     }
 
     return (
-      <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 text-center">
+      <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 text-center sm:min-h-[280px]">
         <FileX className="size-10 text-muted-foreground/50" />
         <p className="text-sm font-medium text-foreground">{t("unsupported")}</p>
         {allowDownload ? (
@@ -305,9 +305,9 @@ export function FilePreviewDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+        className="flex max-h-[68dvh] w-[calc(100vw-1.5rem)] flex-col gap-0 overflow-hidden p-0 sm:max-h-[92vh] sm:max-w-2xl"
       >
-        <DialogHeader className="flex flex-row items-center justify-between gap-4 border-b border-border/50 px-5 py-4">
+        <DialogHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/50 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">
           <div className="min-w-0 flex-1">
             <DialogTitle className="truncate text-sm font-medium leading-snug">
               {file?.fileName ?? t("fallbackTitle")}
@@ -328,8 +328,8 @@ export function FilePreviewDialog({
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-hidden">
-          <div className="h-full max-h-[calc(92vh-72px)] overflow-auto">
-            <div className="px-5 py-5">{previewBody}</div>
+          <div className="h-full max-h-[calc(68dvh-64px)] overflow-auto sm:max-h-[calc(92vh-72px)]">
+            <div className="px-3 py-3 sm:px-5 sm:py-5">{previewBody}</div>
           </div>
         </div>
       </DialogContent>

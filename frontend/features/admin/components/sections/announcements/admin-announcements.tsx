@@ -562,7 +562,7 @@ export function AdminAnnouncementsPage() {
               void save();
             }}
           >
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="grid grid-cols-2 gap-5">
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{t("fields.title")}</p>
                 <Input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} disabled={saving} />
@@ -578,9 +578,7 @@ export function AdminAnnouncementsPage() {
                   onToChange={(value) => setForm((current) => ({ ...current, expiresAt: dateRangeBoundaryValue(value, "end") }))}
                 />
               </div>
-            </div>
 
-            <div className="grid gap-5 md:grid-cols-4">
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{t("fields.type")}</p>
                 <Select value={form.type} onValueChange={(value) => setForm({ ...form, type: normalizeAnnouncementType(value) })} disabled={saving}>
@@ -624,22 +622,20 @@ export function AdminAnnouncementsPage() {
                   />
                 </div>
               </div>
-            </div>
 
-            <div className="grid gap-5 md:grid-cols-2">
-              <div className="space-y-1">
+              <div className="col-span-2 space-y-1">
                 <p className="text-xs text-muted-foreground">{t("fields.contentMarkdown")}</p>
                 <Textarea
                   value={form.contentMarkdown}
                   onChange={(event) => setForm({ ...form, contentMarkdown: event.target.value })}
                   disabled={saving}
-                  className="h-[220px] resize-none text-xs"
+                  className="h-32 resize-none overflow-y-auto text-xs [field-sizing:fixed]"
                 />
               </div>
 
-              <div className="space-y-1">
+              <div className="col-span-2 space-y-1">
                 <p className="text-xs text-muted-foreground">{t("fields.preview")}</p>
-                <div className="h-[220px] overflow-y-auto rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                <div className="h-32 overflow-y-auto rounded-md border border-border/60 bg-muted/20 px-3 py-2">
                   <StreamdownRender content={form.contentMarkdown || t("previewEmpty")} className="text-sm" />
                 </div>
               </div>

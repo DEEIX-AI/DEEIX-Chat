@@ -285,33 +285,19 @@ function ChatInputComponent({
                 </button>
               </div>
             ) : null}
-            <div className="w-full overflow-x-auto">
-              <div className="flex w-max gap-2 px-1.5 pb-1 pt-2">
+            <div className="w-full overflow-hidden sm:overflow-x-auto">
+              <div className="flex max-h-[196px] w-full flex-col gap-2 overflow-y-auto pb-1 pl-1.5 pr-2 pt-2 sm:max-h-none sm:w-max sm:flex-row sm:overflow-y-visible sm:pr-1.5">
                 {attachments.map((item) => (
                   <div
                     key={item.fileID}
-                    role="button"
-                    tabIndex={0}
-                    className="bg-pure group relative flex h-14 w-[212px] shrink-0 items-center gap-2.5 rounded-lg border border-border/50 bg-background/95 px-2.5 text-left shadow-[0_1px_2px_rgba(0,0,0,0.025)] transition-colors hover:border-border hover:bg-accent/30 sm:w-[228px]"
-                    onClick={() => setPreviewAttachment(item)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setPreviewAttachment(item);
-                      }
-                    }}
+                    className="bg-pure group relative flex h-14 w-full shrink-0 items-center gap-1.5 rounded-lg border border-border/50 bg-background/95 px-2 text-left shadow-[0_1px_2px_rgba(0,0,0,0.025)] transition-colors hover:border-border hover:bg-accent/30 sm:w-[228px] sm:px-2.5"
                   >
                     <button
                       type="button"
-                      className="bg-pure absolute -right-1.5 -top-1.5 z-20 inline-flex size-5 items-center justify-center rounded-full border border-border text-muted-foreground opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100 hover:bg-accent hover:text-foreground"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onRemoveAttachment(item.fileID);
-                      }}
-                      aria-label={tComposer("removeAttachment", { name: item.fileName })}
+                      className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md py-1 text-left outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/35"
+                      onClick={() => setPreviewAttachment(item)}
+                      aria-label={tComposer("previewAttachment", { name: item.fileName })}
                     >
-                      <XIcon size={14} strokeWidth={1.8} animateOnHover="default" />
-                    </button>
                     {(() => {
                       const badge = resolveFileProcessingBadge(item, (key, values) => tFileStatus(key, values));
                       const FileIcon = resolveFileIcon(item);
@@ -350,12 +336,21 @@ function ChatInputComponent({
                         </>
                       );
                     })()}
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/35 sm:size-7"
+                      onClick={() => onRemoveAttachment(item.fileID)}
+                      aria-label={tComposer("removeAttachment", { name: item.fileName })}
+                    >
+                      <XIcon size={15} strokeWidth={1.8} animateOnHover="default" />
+                    </button>
                   </div>
                 ))}
                 {uploadingAttachments.map((item) => (
                   <div
                     key={item.tempID}
-                    className="bg-pure relative flex h-14 w-[212px] shrink-0 items-center gap-2.5 rounded-lg border border-border/50 bg-background/95 px-2.5 sm:w-[228px]"
+                    className="bg-pure relative flex h-14 w-full shrink-0 items-center gap-2.5 rounded-lg border border-border/50 bg-background/95 px-2.5 sm:w-[228px]"
                     aria-label={tComposer("uploadingAttachment", { name: item.fileName })}
                   >
                     <Skeleton className="size-5 shrink-0 rounded-sm" />

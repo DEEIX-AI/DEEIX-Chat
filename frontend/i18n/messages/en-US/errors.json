@@ -271,6 +271,7 @@
   "upstream": {
     "unavailable": "Upstream service is unavailable."
   },
+  "upstreamRequestFailed": "The upstream request failed. Try again later or ask an administrator to check the model route.",
   "user": {
     "accountDeleteVerificationRequired": "Verify your identity before deleting the account.",
     "emptyPatch": "Change at least one user field.",

@@ -330,6 +330,7 @@
     "dialogDescription": "{model} 的请求参数配置，保存后会随模型请求发送。",
     "ragAllDisabled": "所有附件已关闭 RAG，将以全文注入，可能消耗较多 Token",
     "closeHint": "关闭提示",
+    "previewAttachment": "预览附件 {name}",
     "removeAttachment": "移除附件 {name}",
     "uploadingAttachment": "上传中 {name}",
     "ragDisabledTitle": "该文件已关闭 RAG，将以全文注入（消耗更多 Token）",

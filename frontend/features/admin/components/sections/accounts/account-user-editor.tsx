@@ -410,12 +410,12 @@ export function EditUserSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent ref={editSheetContentRef} side="right" className="w-full gap-0 overflow-y-auto">
-        <SheetHeader className="sticky top-0 z-10 bg-background/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <SheetContent ref={editSheetContentRef} side="right" className="flex flex-col gap-0 sm:max-w-[520px]">
+        <SheetHeader className="px-4 pb-4">
           <SheetTitle>{t("editor.manageTitle")}</SheetTitle>
         </SheetHeader>
 
-        <div className="space-y-6 p-4">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 pb-4">
           <div className="flex items-start gap-4">
             <Button
               type="button"
@@ -665,42 +665,40 @@ export function EditUserSheet({
           </SheetSection>
         </div>
 
-        <SheetFooter className="sticky bottom-0 z-10 border-t bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" size="sm" variant="ghost" disabled={pending || resetPasswordPending || resetTwoFactorPending || revokePending || deletePending}>
-                  {t("editor.moreActions")}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" className="w-40">
-                <DropdownMenuItem onSelect={onOpenResetPasswordDialog} disabled={pending || resetPasswordPending || resetTwoFactorPending || revokePending || deletePending}>
-                  {resetPasswordPending ? t("confirm.resetting") : t("editor.resetPassword")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onOpenResetTwoFactorDialog} disabled={pending || resetPasswordPending || resetTwoFactorPending || revokePending || deletePending || !editDialogTarget?.twoFactorEnabled}>
-                  {resetTwoFactorPending ? t("confirm.resetting") : t("editor.reset2fa")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onOpenRevokeDialog} disabled={pending || resetPasswordPending || resetTwoFactorPending || revokePending || deletePending}>
-                  {revokePending ? t("confirm.revoking") : t("editor.revokeSessions")}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onSelect={onOpenDeleteDialog}
-                  disabled={pending || resetPasswordPending || resetTwoFactorPending || revokePending || deletePending}
-                >
-                  {deletePending ? t("confirm.deleting") : t("delete")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={pending || resetPasswordPending || resetTwoFactorPending || revokePending || deletePending}>
-                {t("actions.close")}
+        <SheetFooter className="flex flex-row items-center justify-between gap-2 px-4 py-3">
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="ghost" className="shrink-0" disabled={pending || resetPasswordPending || resetTwoFactorPending || revokePending || deletePending}>
+                {t("editor.moreActions")}
               </Button>
-              <Button type="button" onClick={onSaveEdit} disabled={pending || resetPasswordPending || resetTwoFactorPending || revokePending || deletePending}>
-                {pending ? <SpinnerLabel>{t("actions.saving")}</SpinnerLabel> : t("actions.save")}
-              </Button>
-            </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top" className="w-40">
+              <DropdownMenuItem onSelect={onOpenResetPasswordDialog} disabled={pending || resetPasswordPending || resetTwoFactorPending || revokePending || deletePending}>
+                {resetPasswordPending ? t("confirm.resetting") : t("editor.resetPassword")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onOpenResetTwoFactorDialog} disabled={pending || resetPasswordPending || resetTwoFactorPending || revokePending || deletePending || !editDialogTarget?.twoFactorEnabled}>
+                {resetTwoFactorPending ? t("confirm.resetting") : t("editor.reset2fa")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onOpenRevokeDialog} disabled={pending || resetPasswordPending || resetTwoFactorPending || revokePending || deletePending}>
+                {revokePending ? t("confirm.revoking") : t("editor.revokeSessions")}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={onOpenDeleteDialog}
+                disabled={pending || resetPasswordPending || resetTwoFactorPending || revokePending || deletePending}
+              >
+                {deletePending ? t("confirm.deleting") : t("delete")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={pending || resetPasswordPending || resetTwoFactorPending || revokePending || deletePending}>
+              {t("actions.close")}
+            </Button>
+            <Button type="button" onClick={onSaveEdit} disabled={pending || resetPasswordPending || resetTwoFactorPending || revokePending || deletePending}>
+              {pending ? <SpinnerLabel>{t("actions.saving")}</SpinnerLabel> : t("actions.save")}
+            </Button>
           </div>
         </SheetFooter>
       </SheetContent>

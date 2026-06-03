@@ -271,6 +271,7 @@
   "upstream": {
     "unavailable": "上游服务不可用。"
   },
+  "upstreamRequestFailed": "上游请求失败，请稍后重试或联系管理员检查模型路由。",
   "user": {
     "accountDeleteVerificationRequired": "删除账号前需要先验证身份。",
     "emptyPatch": "请至少修改一个用户字段。",

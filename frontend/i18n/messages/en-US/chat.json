@@ -330,6 +330,7 @@
     "dialogDescription": "{model} request parameters. Saved values are sent with model requests.",
     "ragAllDisabled": "All attachments have RAG disabled and will be injected as full context. This may use more tokens.",
     "closeHint": "Close hint",
+    "previewAttachment": "Preview attachment {name}",
     "removeAttachment": "Remove attachment {name}",
     "uploadingAttachment": "Uploading {name}",
     "ragDisabledTitle": "This file has RAG disabled and will be injected as full context. It may use more tokens.",
