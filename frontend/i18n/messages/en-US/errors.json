@@ -197,6 +197,7 @@
     "imageEditInputRequired": "Image editing requires at least one input image.",
     "imageEditTooManyInputs": "Too many input images for image editing.",
     "imageEditInputInvalid": "Image editing only supports valid image files.",
+    "imageStreamUnsupported": "Tips: The upstream may not support streaming responses. Ask an administrator to disable \"Image streaming call\" in model capabilities (set image.stream=false), then try again.",
     "routeProtocolMismatch": "The current model route protocol does not match this image task. Check the model binding.",
     "invalidTask": "Invalid image task parameters."
   },

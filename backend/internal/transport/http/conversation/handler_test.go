@@ -67,3 +67,26 @@ func TestStreamErrorPayloadIncludesUpstreamDebug(t *testing.T) {
 		t.Fatalf("expected public error stream to omit upstream headers, got request=%#v response=%#v", debug.Request.Headers, debug.Response.Headers)
 	}
 }
+
+func TestStreamErrorPayloadClassifiesImageStreamConfigurationFailure(t *testing.T) {
+	err := errors.Join(appconversation.ErrUpstreamRequestFailed, &llm.UpstreamError{
+		StatusCode: 500,
+		Message:    "invalid character 'e' looking for beginning of value",
+		Debug: &llm.UpstreamDebugSnapshot{
+			Request: llm.UpstreamDebugRequest{
+				Method: "POST",
+				Path:   "/v1/images/generations",
+				Body:   `{"model":"gpt-image-2","prompt":"a cat","stream":true}`,
+			},
+			Response: llm.UpstreamDebugResponse{
+				StatusCode: 500,
+				Body:       `{"error":{"message":"invalid character 'e' looking for beginning of value"}}`,
+			},
+		},
+	})
+
+	payload := streamErrorPayload(err)
+	if got := payload["errorCode"]; got != appconversation.MessageErrorCodeMediaImageStreamUnsupported {
+		t.Fatalf("errorCode = %#v, want %q", got, appconversation.MessageErrorCodeMediaImageStreamUnsupported)
+	}
+}

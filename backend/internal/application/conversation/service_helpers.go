@@ -18,6 +18,8 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/conv"
 )
 
+const MessageErrorCodeMediaImageStreamUnsupported = "media.image_stream_unsupported"
+
 func normalizePublicID(raw string) string {
 	return conv.NormalizePublicID(raw)
 }
@@ -156,6 +158,10 @@ func inferProvider(platformModelName string) string {
 }
 
 func classifyRunErrorCode(err error) string {
+	var upstreamErr *llm.UpstreamError
+	if errors.As(err, &upstreamErr) && isImageStreamConfigurationFailure(upstreamErr) {
+		return MessageErrorCodeMediaImageStreamUnsupported
+	}
 	switch {
 	case errors.Is(err, ErrConversationNotFound):
 		return "conversation_not_found"
@@ -286,9 +292,13 @@ func upstreamErrorSummary(err *llm.UpstreamError) string {
 		return ""
 	}
 	lines := make([]string, 0, 3)
+	hint := imageStreamConfigurationHint(err)
 	if isSuccessfulUpstreamStatus(err.StatusCode) {
 		lines = append(lines, fmt.Sprintf("模型响应格式不兼容（HTTP %d）", err.StatusCode))
 		lines = append(lines, "错误：上游返回成功状态码，但响应格式与当前协议不兼容")
+		if hint != "" {
+			lines = append(lines, hint)
+		}
 		return strings.Join(lines, "\n")
 	}
 	if err.StatusCode > 0 {
@@ -298,6 +308,9 @@ func upstreamErrorSummary(err *llm.UpstreamError) string {
 	}
 	if message := normalizeUpstreamErrorMessage(err.Message); message != "" {
 		lines = append(lines, "错误："+message)
+	}
+	if hint != "" {
+		lines = append(lines, hint)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -321,6 +334,93 @@ func looksLikeRawSSEBody(value string) bool {
 		strings.Contains(normalized, " data:")
 }
 
+func imageStreamConfigurationHint(err *llm.UpstreamError) string {
+	if !isImageStreamConfigurationFailure(err) {
+		return ""
+	}
+	return "Tips：当前上游可能不支持流式响应，请管理员在模型能力中关闭“图像流式调用”（设置 image.stream=false）后重试。"
+}
+
+func isImageStreamConfigurationFailure(err *llm.UpstreamError) bool {
+	return err != nil && isImageStreamingUpstreamRequest(err.Debug) && isStreamingResponseFormatFailure(err)
+}
+
+func isImageStreamingUpstreamRequest(debug *llm.UpstreamDebugSnapshot) bool {
+	if debug == nil {
+		return false
+	}
+	path := strings.ToLower(strings.TrimSpace(debug.Request.Path))
+	body := strings.TrimSpace(debug.Request.Body)
+	if strings.Contains(path, "/images/") {
+		return jsonObjectFieldIsTrue(body, "stream")
+	}
+	if strings.Contains(path, ":streamgeneratecontent") {
+		return geminiImageResponseRequested(body)
+	}
+	return false
+}
+
+func jsonObjectFieldIsTrue(raw string, key string) bool {
+	var payload map[string]interface{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &payload); err != nil {
+		return false
+	}
+	switch value := payload[key].(type) {
+	case bool:
+		return value
+	case string:
+		return strings.EqualFold(strings.TrimSpace(value), "true")
+	default:
+		return false
+	}
+}
+
+func geminiImageResponseRequested(raw string) bool {
+	var payload map[string]interface{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &payload); err != nil {
+		return false
+	}
+	config, ok := payload["generationConfig"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	return containsImageModality(config["responseModalities"])
+}
+
+func containsImageModality(raw interface{}) bool {
+	switch value := raw.(type) {
+	case string:
+		return strings.EqualFold(strings.TrimSpace(value), "image")
+	case []interface{}:
+		for _, item := range value {
+			if containsImageModality(item) {
+				return true
+			}
+		}
+	case []string:
+		for _, item := range value {
+			if containsImageModality(item) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func isStreamingResponseFormatFailure(err *llm.UpstreamError) bool {
+	detail := strings.ToLower(strings.TrimSpace(err.Message + "\n" + err.Body))
+	if err.Debug != nil {
+		detail = strings.TrimSpace(detail + "\n" + strings.ToLower(err.Debug.Response.Body))
+	}
+	if detail == "" {
+		return false
+	}
+	if strings.Contains(detail, "invalid character") && strings.Contains(detail, "looking for beginning of value") {
+		return true
+	}
+	return isStreamUnsupportedError(err)
+}
+
 func wrapUpstreamRequestError(cause error) error {
 	if cause == nil {
 		return ErrUpstreamRequestFailed
@@ -331,6 +431,18 @@ func wrapUpstreamRequestError(cause error) error {
 // MessageErrorSummary 返回适合边界层展示的错误摘要。
 func MessageErrorSummary(err error) string {
 	return messageErrorSummary(err)
+}
+
+// MessageErrorCode 返回适合边界层和前端本地化使用的稳定错误码。
+func MessageErrorCode(err error) string {
+	if err == nil {
+		return ""
+	}
+	var upstreamErr *llm.UpstreamError
+	if errors.As(err, &upstreamErr) && isImageStreamConfigurationFailure(upstreamErr) {
+		return MessageErrorCodeMediaImageStreamUnsupported
+	}
+	return ""
 }
 
 // MessageErrorDebug 返回脱敏后的上游请求/响应快照，用于排查兼容性问题。

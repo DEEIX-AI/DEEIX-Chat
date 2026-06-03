@@ -14,6 +14,9 @@ import {
 } from "@/features/chat/model/chat-thread";
 import type { BranchSelectionPathItem } from "@/features/chat/model/chat-thread";
 import type { MessageDTO } from "@/shared/api/conversation.types";
+import type { UpstreamDebugInfo } from "@/shared/api/conversation.types";
+import { ApiError } from "@/shared/api/http-client";
+import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 
 type PendingBranchSelectionInput = {
   parentPublicID: string | null;
@@ -223,6 +226,7 @@ export function useChatBranchState({
   liveRunIDs?: ReadonlySet<string>;
 }) {
   const t = useTranslations("chat.messages");
+  const resolveErrorMessage = useLocalizedErrorMessage();
   const [branchSelections, setBranchSelections] = React.useState<Record<string, string>>({});
   const [submittedBranchSelectionPath, setSubmittedBranchSelectionPath] = React.useState<BranchSelectionPathItem[]>([]);
 
@@ -240,11 +244,13 @@ export function useChatBranchState({
             generationInterrupted: t("generationInterrupted"),
             streamInterrupted: t("streamInterrupted"),
             imageRunning: t("imageRunning"),
+            resolveErrorMessage: (errorCode: string, fallback: string, details?: UpstreamDebugInfo) =>
+              resolveErrorMessage(new ApiError(fallback, 502, details, errorCode), fallback),
           },
           { liveRunIDs },
         ),
       ),
-    [liveRunIDs, messages, t],
+    [liveRunIDs, messages, resolveErrorMessage, t],
   );
   const serverMessagePublicIDs = React.useMemo(
     () => new Set(serverTreeMessages.map((item) => item.publicID).filter(Boolean)),

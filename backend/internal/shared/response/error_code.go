@@ -542,6 +542,7 @@ var fallbackMessages = map[string]string{
 	"llm.system_prompt_too_long":                      "system prompt too long",
 	"llm.platform_model_name_required":                "platform model name is required",
 	"llm.protocol_required":                           "protocol is required",
+	"media.image_stream_unsupported":                  "upstream may not support image streaming; disable image.stream for this model",
 	"billing.period_credit_exceeded":                  "period usage credit exceeded",
 	"billing.invalid_subscription_tier":               "invalid subscription tier",
 	"billing.subscription_expiry_required":            "subscription expiry required",

@@ -197,6 +197,7 @@
     "imageEditInputRequired": "图片编辑需要至少上传一张输入图片。",
     "imageEditTooManyInputs": "图片编辑输入图片过多。",
     "imageEditInputInvalid": "图片编辑只支持有效的图片文件。",
+    "imageStreamUnsupported": "Tips：当前上游可能不支持流式响应，请管理员在模型能力中关闭“图像流式调用”（设置 image.stream=false）后重试。",
     "routeProtocolMismatch": "当前模型路由协议与图片任务不匹配，请检查模型绑定。",
     "invalidTask": "图片任务参数无效。"
   },

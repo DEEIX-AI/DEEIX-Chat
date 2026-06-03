@@ -50,6 +50,7 @@ import type {
   SendMessageResult,
   StreamMessageEvent,
 } from "@/shared/api/conversation.types";
+import { ApiError } from "@/shared/api/http-client";
 
 const CONVERSATION_METADATA_REFRESH_DELAYS = [800, 1200, 1800, 2600, 3500, 5000] as const;
 
@@ -78,6 +79,13 @@ function resolveImageLoadingAspectRatio(options: ConversationOptions): ImageLoad
     return "portrait";
   }
   return "square";
+}
+
+function streamEventErrorToApiError(
+  event: Extract<StreamMessageEvent, { type: "error" }>,
+  fallback: string,
+): ApiError {
+  return new ApiError(event.message || fallback, 502, event.debug, event.errorCode);
 }
 
 function resolveInputSideUsageValue(...values: Array<number | null | undefined>): number {
@@ -614,6 +622,20 @@ export function useChatMessageSubmit({
             return prev;
           }
           const streamedText = prev.assistantText;
+          const terminalErrorMessage = terminalStreamError
+            ? resolveErrorMessage(streamEventErrorToApiError(terminalStreamError, t("retryLater")), terminalStreamError.message || t("retryLater"))
+            : "";
+          const completedErrorMessage = completed.assistantMessage.errorCode
+            ? resolveErrorMessage(
+                new ApiError(
+                  completed.assistantMessage.errorMessage || t("retryLater"),
+                  502,
+                  terminalStreamError?.debug,
+                  completed.assistantMessage.errorCode,
+                ),
+                completed.assistantMessage.errorMessage || t("retryLater"),
+              )
+            : completed.assistantMessage.errorMessage;
           return {
             ...prev,
             userPublicID: completed.userMessage.publicID,
@@ -656,7 +678,7 @@ export function useChatMessageSubmit({
               completed.assistantMessage.status === "error" || completed.assistantMessage.status === "interrupted"
                 ? {
                     title: t("generationInterrupted"),
-                    message: terminalStreamError?.message || completed.assistantMessage.errorMessage || t("retryLater"),
+                    message: terminalErrorMessage || completedErrorMessage || t("retryLater"),
                     details: terminalStreamError?.debug,
                   }
                 : undefined,

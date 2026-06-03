@@ -97,6 +97,7 @@ type streamError struct {
 
 func mapStreamError(err error) streamError {
 	status := http.StatusInternalServerError
+	code := ""
 	message := "send message failed"
 	switch {
 	case errors.Is(err, appconversation.ErrConversationNotFound):
@@ -158,9 +159,12 @@ func mapStreamError(err error) streamError {
 		message = "message generation run already exists"
 	case errors.Is(err, appconversation.ErrUpstreamRequestFailed):
 		status = http.StatusBadGateway
+		code = appconversation.MessageErrorCode(err)
 		message = mapClientErrorMessage(err)
 	}
-	code := response.InferErrorCode(status, message)
+	if code == "" {
+		code = response.InferErrorCode(status, message)
+	}
 	return streamError{
 		Status:  status,
 		Code:    code,
