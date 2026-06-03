@@ -50,6 +50,7 @@ const SheetContent = React.forwardRef<
   React.ComponentProps<typeof SheetPrimitive.Content> & {
     side?: "top" | "right" | "bottom" | "left"
     showOverlay?: boolean
+    showCloseButton?: boolean
   }
 >(function SheetContent(
   {
@@ -57,6 +58,7 @@ const SheetContent = React.forwardRef<
     children,
     side = "right",
     showOverlay = true,
+    showCloseButton = true,
     onInteractOutside,
     ...props
   },
@@ -101,10 +103,12 @@ const SheetContent = React.forwardRef<
         {...props}
       >
         {children}
-        <SheetPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-6 right-6 rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
-          <XIcon className="size-4" />
-          <span className="sr-only">{t("close")}</span>
-        </SheetPrimitive.Close>
+        {showCloseButton ? (
+          <SheetPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-6 right-6 rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
+            <XIcon className="size-4" />
+            <span className="sr-only">{t("close")}</span>
+          </SheetPrimitive.Close>
+        ) : null}
       </SheetPrimitive.Content>
     </SheetPortal>
   )

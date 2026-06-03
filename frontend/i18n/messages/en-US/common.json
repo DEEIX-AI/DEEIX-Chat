@@ -124,5 +124,9 @@
     "errors": "{count} errors",
     "format": "Format",
     "loading": "Loading editor..."
+  },
+  "appVersion": {
+    "title": "New version available",
+    "description": "Refresh the page to use the latest version."
   }
 }

@@ -305,6 +305,15 @@ export type UpdateAdminLLMModelUpstreamSourceRequest = {
   weight?: number;
 };
 
+export type BindAdminLLMModelUpstreamSourceRequest = {
+  upstreamID: number;
+  upstreamModelID: number;
+  protocol?: AdminLLMAdapter;
+  status?: AdminLLMStatus;
+  priority?: number;
+  weight?: number;
+};
+
 export type ImportAdminLLMUpstreamModelsRequest = {
   items: Array<{
     platformModelName: string;

@@ -76,7 +76,8 @@ type ChatModelConfigProps = {
   selectedProtocol: string;
   selectedModelName: string;
   onOptionsChange: React.Dispatch<React.SetStateAction<ConversationOptions>>;
-  onOptionsReset: () => void;
+  onOptionsReset: (defaults?: ConversationOptions) => void;
+  onDefaultOptionsRestore: () => Promise<ConversationOptions | null>;
 };
 
 type OptionTranslationResolver = ((key: string) => string) & {
@@ -747,6 +748,7 @@ export function ChatModelConfig({
   selectedModelName,
   onOptionsChange,
   onOptionsReset,
+  onDefaultOptionsRestore,
 }: ChatModelConfigProps) {
   const tCommon = useTranslations("common.actions");
   const tComposer = useTranslations("chat.composer");
@@ -760,7 +762,10 @@ export function ChatModelConfig({
   const [optionsObject, setOptionsObject] = React.useState<ConversationOptions>({});
   const [filteredOptions, setFilteredOptions] = React.useState<FilteredOption[]>([]);
   const [mobileView, setMobileView] = React.useState<"json" | "visual">("json");
+  const [defaultRestorePending, setDefaultRestorePending] = React.useState(false);
+  const [restoredDefaultOptions, setRestoredDefaultOptions] = React.useState<ConversationOptions | null>(null);
   const optionsObjectRef = React.useRef<ConversationOptions>({});
+  const effectiveDefaultOptions = restoredDefaultOptions ?? defaultOptions;
   const selectedProtocolLabel = selectedProtocol ? resolveProtocolLabel(selectedProtocol) : "";
   const configuredOptions = React.useMemo(
     () => visualOptionsFromControls(optionControls, optionsObject),
@@ -820,6 +825,7 @@ export function ChatModelConfig({
     setFilteredOptions([]);
     setOptionsDraft(stringifyOptions(sanitized));
     setMobileView("json");
+    setRestoredDefaultOptions(null);
     setDialogOpen(true);
   }, [options]);
 
@@ -865,6 +871,27 @@ export function ChatModelConfig({
     }
   }, []);
 
+  const handleRestoreDefaultOptions = React.useCallback(async () => {
+    if (defaultRestorePending) {
+      return;
+    }
+    setDefaultRestorePending(true);
+    try {
+      const latestDefaults = await onDefaultOptionsRestore();
+      if (!latestDefaults) {
+        toast.error(tComposer("defaultModelUnavailable"));
+        return;
+      }
+      const sanitized = sanitizeConversationOptions(latestDefaults);
+      setRestoredDefaultOptions(sanitized);
+      replaceOptionsDraft(sanitized);
+    } catch {
+      toast.error(tComposer("defaultLoadFailed"), { description: tComposer("retryLater") });
+    } finally {
+      setDefaultRestorePending(false);
+    }
+  }, [defaultRestorePending, onDefaultOptionsRestore, replaceOptionsDraft, tComposer]);
+
   const saveOptionsDraft = React.useCallback(() => {
     const parsed = parseOptionsDraft(optionsDraft);
     if (!parsed.options) {
@@ -872,14 +899,14 @@ export function ChatModelConfig({
       toast.error(tComposer("saveFailed"));
       return;
     }
-    if (JSON.stringify(parsed.options) === JSON.stringify(defaultOptions)) {
-      onOptionsReset();
+    if (JSON.stringify(parsed.options) === JSON.stringify(effectiveDefaultOptions)) {
+      onOptionsReset(effectiveDefaultOptions);
       setDialogOpen(false);
       return;
     }
     onOptionsChange(parsed.options);
     setDialogOpen(false);
-  }, [defaultOptions, onOptionsChange, onOptionsReset, optionsDraft, tComposer]);
+  }, [effectiveDefaultOptions, onOptionsChange, onOptionsReset, optionsDraft, tComposer]);
 
   const renderOptionsViewToggle = () => (
     <Tabs
@@ -932,7 +959,8 @@ export function ChatModelConfig({
                 variant="ghost"
                 size="sm"
                 className="h-6 px-2 text-[11px]"
-                onClick={() => replaceOptionsDraft(defaultOptions)}
+                disabled={defaultRestorePending}
+                onClick={() => void handleRestoreDefaultOptions()}
               >
                 {tComposer("default")}
               </Button>

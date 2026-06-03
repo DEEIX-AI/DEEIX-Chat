@@ -15,6 +15,7 @@ import type {
   AdminLLMUpstreamModelData,
   AdminLLMUpstreamModelDTO,
   AdminLLMUpstreamView,
+  BindAdminLLMModelUpstreamSourceRequest,
   CreateAdminLLMModelRequest,
   CreateAdminLLMUpstreamRequest,
   ImportAdminLLMUpstreamModelsData,
@@ -427,6 +428,18 @@ export async function listAdminLLMModelUpstreamSources(
     true,
   );
   return normalizeAdminPagePayload(data);
+}
+
+export async function bindAdminLLMModelUpstreamSource(
+  accessToken: string,
+  modelID: number,
+  payload: BindAdminLLMModelUpstreamSourceRequest,
+): Promise<AdminLLMModelUpstreamSourceData> {
+  return authedRequest<AdminLLMModelUpstreamSourceData>(
+    `/api/v1/admin/llm/models/${modelID}/sources`,
+    { method: "POST", accessToken, body: payload },
+    true,
+  );
 }
 
 export async function updateAdminLLMModelUpstreamSource(

@@ -16,8 +16,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { JsonCodeEditor } from "@/shared/components/json-code-editor";
 
-export type SettingsFieldType = "int" | "bool" | "string" | "password" | "textarea" | "select" | "tabs" | "button";
+export type SettingsFieldType = "int" | "bool" | "string" | "password" | "textarea" | "json" | "select" | "tabs" | "button";
 
 export type SettingsFieldOption = {
   label: string;
@@ -378,7 +379,7 @@ export function SettingsFieldEditor({
     </>
   );
 
-  if (field.type === "textarea") {
+  if (field.type === "textarea" || field.type === "json") {
     return (
       <motion.div layout transition={layoutTransition} className="min-w-0">
         <Field>
@@ -394,14 +395,25 @@ export function SettingsFieldEditor({
               {field.description ? <FieldDescription className="text-[11px]">{field.description}</FieldDescription> : null}
             </div>
 
-            <Textarea
-              id={field.id}
-              value={value}
-              onChange={(event) => onChange?.(event.target.value)}
-              placeholder={field.placeholder}
-              className="h-28 resize-none overflow-y-auto [field-sizing:fixed]"
-              disabled={disabled}
-            />
+            {field.type === "json" ? (
+              <JsonCodeEditor
+                id={field.id}
+                value={value}
+                onChange={(nextValue) => onChange?.(nextValue)}
+                placeholder={field.placeholder}
+                height={260}
+                disabled={disabled}
+              />
+            ) : (
+              <Textarea
+                id={field.id}
+                value={value}
+                onChange={(event) => onChange?.(event.target.value)}
+                placeholder={field.placeholder}
+                className="h-28 resize-none overflow-y-auto [field-sizing:fixed]"
+                disabled={disabled}
+              />
+            )}
             {afterControl}
           </div>
         </Field>

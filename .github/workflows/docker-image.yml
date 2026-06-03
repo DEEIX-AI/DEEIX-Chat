@@ -73,6 +73,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.arch }}
           cache-to: type=gha,scope=${{ matrix.arch }},mode=max
 

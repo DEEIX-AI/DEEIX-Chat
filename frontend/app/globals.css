@@ -1039,7 +1039,7 @@
     --data-table-row-hover-bg: var(--accent);
   }
 
-  tbody .data-table-row:hover {
+  tbody .data-table-row:not([data-interactive="false"]):hover {
     --data-table-row-bg: var(--data-table-row-hover-bg);
   }
 

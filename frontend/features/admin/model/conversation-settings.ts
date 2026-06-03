@@ -1,7 +1,7 @@
 import type { SettingsGrouped } from "@/shared/api/settings.types";
 import { resolveLocalizedErrorMessage } from "@/i18n/resolve-error-message";
 
-export type ConversationFieldType = "int" | "bool" | "string" | "password" | "textarea" | "select" | "tabs" | "button";
+export type ConversationFieldType = "int" | "bool" | "string" | "password" | "textarea" | "json" | "select" | "tabs" | "button";
 
 export type ConversationSettingsField = {
   namespace: "chat";
@@ -154,7 +154,7 @@ export function buildConversationSettingsFields(t: ConversationSettingsTranslato
       key: "model_option_allowed_paths",
       label: t("fields.allowedPaths.label"),
       description: t("fields.allowedPaths.description"),
-      type: "textarea",
+      type: "json",
       placeholder: DEFAULT_MODEL_OPTION_ALLOWED_PATHS,
     },
     {
@@ -162,7 +162,7 @@ export function buildConversationSettingsFields(t: ConversationSettingsTranslato
       key: "model_option_denied_paths",
       label: t("fields.deniedPaths.label"),
       description: t("fields.deniedPaths.description"),
-      type: "textarea",
+      type: "json",
       placeholder: DEFAULT_MODEL_OPTION_DENIED_PATHS,
     },
     {

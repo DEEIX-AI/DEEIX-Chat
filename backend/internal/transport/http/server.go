@@ -101,6 +101,8 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 
 	api := engine.Group("/api/v1")
 	api.GET("/version", func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store, no-cache, must-revalidate")
+		c.Header("Pragma", "no-cache")
 		c.JSON(http.StatusOK, buildinfo.Snapshot())
 	})
 	if modules.Auth != nil || modules.Settings != nil || modules.Billing != nil || modules.Conversation != nil {

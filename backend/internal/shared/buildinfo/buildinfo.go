@@ -25,6 +25,7 @@ type Info struct {
 	Version   string `json:"version"`
 	Commit    string `json:"commit"`
 	BuildTime string `json:"buildTime"`
+	BuildID   string `json:"buildID"`
 }
 
 func Snapshot() Info {
@@ -33,7 +34,20 @@ func Snapshot() Info {
 		Version:   ResolveVersion(),
 		Commit:    Commit,
 		BuildTime: BuildTime,
+		BuildID:   ResolveBuildID(),
 	}
+}
+
+func ResolveBuildID() string {
+	parts := []string{ResolveVersion()}
+	for _, value := range []string{Commit, BuildTime} {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" || normalized == "unknown" || normalized == "dev" {
+			continue
+		}
+		parts = append(parts, normalized)
+	}
+	return strings.Join(parts, "-")
 }
 
 func ResolveVersion() string {

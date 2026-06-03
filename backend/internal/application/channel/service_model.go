@@ -445,6 +445,64 @@ func (s *Service) ListModelUpstreamSources(ctx context.Context, modelID uint, pa
 	return views, total, nil
 }
 
+// BindModelUpstreamSource 将当前平台模型绑定到一个已存在的上游模型。
+func (s *Service) BindModelUpstreamSource(ctx context.Context, modelID uint, input BindModelUpstreamSourceInput) (*ModelUpstreamSourceView, error) {
+	modelItem, err := s.repo.GetModelByID(ctx, modelID)
+	if err != nil {
+		return nil, err
+	}
+	upstream, err := s.repo.GetUpstreamByID(ctx, input.UpstreamID)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(upstream.Status) != "active" {
+		return nil, ErrUpstreamSourceUnavailable
+	}
+	upstreamModel, err := s.repo.GetUpstreamModelByID(ctx, input.UpstreamModelID, input.UpstreamID)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(upstreamModel.Status) != "active" {
+		return nil, ErrUpstreamSourceUnavailable
+	}
+
+	protocolInput := strings.TrimSpace(input.Protocol)
+	if protocolInput == "" {
+		protocolInput = strings.TrimSpace(upstreamModel.SuggestedProtocol)
+	}
+	protocol, err := resolveRouteProtocol(protocolInput, upstream.Compatible, upstream.ProtocolDefaultsJSON, upstreamModel.KindsJSON)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateRouteProtocolCombination(ctx, upstream.ID, modelItem.ID, upstreamModel.ID, 0, protocol); err != nil {
+		return nil, err
+	}
+
+	route := &domainchannel.PlatformModelRoute{
+		PlatformModelID: modelItem.ID,
+		UpstreamModelID: upstreamModel.ID,
+		Protocol:        protocol,
+		Status:          normalizeStatus(input.Status),
+		Priority:        normalizePriority(input.Priority),
+		Weight:          normalizeWeight(input.Weight),
+		Source:          "manual",
+	}
+	if err := s.repo.UpsertPlatformModelRoute(ctx, route); err != nil {
+		if isDuplicateKeyError(err) {
+			return nil, ErrUpstreamModelConflict
+		}
+		return nil, err
+	}
+	s.InvalidateModelCatalog()
+
+	source, err := s.repo.GetModelUpstreamSourceByRouteID(ctx, modelItem.PlatformModelName, route.ID)
+	if err != nil {
+		return nil, err
+	}
+	view := toModelUpstreamSourceView(*source)
+	return &view, nil
+}
+
 // UpdateModelUpstreamSource 更新模型上游来源配置。
 func (s *Service) UpdateModelUpstreamSource(ctx context.Context, modelID uint, routeID uint, input UpdateModelUpstreamSourceInput) (*ModelUpstreamSourceView, error) {
 	modelItem, err := s.repo.GetModelByID(ctx, modelID)

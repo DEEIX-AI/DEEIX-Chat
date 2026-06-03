@@ -68,16 +68,20 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
 }
 
 type TableRowProps = React.ComponentProps<"tr"> & {
+  interactive?: boolean
   selected?: boolean
   tone?: "muted"
+  "data-interactive"?: string
   "data-selected"?: string
   "data-tone"?: "muted" | string
 }
 
 function TableRow({
   className,
+  interactive,
   selected,
   tone,
+  "data-interactive": dataInteractive,
   "data-selected": dataSelected,
   "data-tone": dataTone,
   ...props
@@ -89,6 +93,7 @@ function TableRow({
         "data-table-row border-b border-border/60 last:border-b-0",
         className
       )}
+      data-interactive={interactive === false ? "false" : dataInteractive}
       data-selected={selected ? "true" : dataSelected}
       data-tone={tone ?? dataTone}
       {...props}

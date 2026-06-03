@@ -44,6 +44,7 @@ func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup) {
 	adminGroup.POST("/llm/models/:id/test", m.Handler.TestModel)
 	adminGroup.POST("/llm/models/:id/test-all", m.Handler.TestModelAll)
 	adminGroup.GET("/llm/models/:id/sources", m.Handler.ListModelUpstreamSources)
+	adminGroup.POST("/llm/models/:id/sources", m.Handler.BindModelUpstreamSource)
 	adminGroup.PATCH("/llm/models/:id/sources/:route_id", m.Handler.UpdateModelUpstreamSource)
 
 	// 全局设置

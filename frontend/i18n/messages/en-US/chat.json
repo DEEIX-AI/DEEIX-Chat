@@ -321,6 +321,8 @@
     "ignoredHelp": "Not enabled means this option is not present in the JSON on the left and will not be sent. Ignored means it is present in JSON but filtered by the backend passthrough policy.",
     "noVisualFields": "No visual fields",
     "saveFailed": "Failed to save parameters",
+    "defaultLoadFailed": "Failed to restore default parameters",
+    "defaultModelUnavailable": "The current model is unavailable. Select another model.",
     "retryLater": "Please try again later.",
     "streamResponseParseFailed": "The upstream returned HTTP {statusCode}, but the stream format is incompatible with the selected protocol.",
     "jsonMustBeObject": "JSON must be an object",

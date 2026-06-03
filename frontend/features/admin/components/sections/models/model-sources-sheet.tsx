@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Activity, CircleOff, MoreHorizontal, RefreshCw } from "lucide-react";
+import { Activity, Check, CircleOff, MoreHorizontal, Plus, RefreshCw, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -14,6 +14,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -35,7 +42,10 @@ import {
 } from "@/components/ui/table";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
+  bindAdminLLMModelUpstreamSource,
   deleteAdminLLMUpstreamModel,
+  listAdminLLMUpstreamModels,
+  listAdminLLMUpstreams,
   listAdminLLMModelUpstreamSources,
   openAdminLLMUpstreamModelCircuit,
   resetAdminLLMUpstreamModelCircuit,
@@ -43,10 +53,13 @@ import {
   updateAdminLLMModelUpstreamSource,
 } from "@/features/admin/api";
 import type {
+  AdminLLMAdapter,
   AdminLLMModelDTO,
   AdminLLMModelProbeResult,
   AdminLLMModelUpstreamSourceDTO,
   AdminLLMStatus,
+  AdminLLMUpstreamModelDTO,
+  AdminLLMUpstreamView,
 } from "@/features/admin/api/llm.types";
 
 import { TablePagination } from "@/components/ui/table-tools";
@@ -57,6 +70,12 @@ import {
   resolveValue,
 } from "@/features/admin/types/llm";
 import { ModelProbeDialog } from "./model-probe-dialog";
+import {
+  DEFAULT_MODEL_SOURCE_BIND_DRAFT,
+  type ModelSourceBindDraft,
+  resolveModelSourceBindDraft,
+  uniqueUpstreamModels,
+} from "./model-source-binding";
 
 type UpstreamSourcesSheetProps = {
   model: AdminLLMModelDTO | null;
@@ -91,6 +110,14 @@ export function UpstreamSourcesSheet({
   const [probeLoading, setProbeLoading] = React.useState(false);
   const [probeTargetName, setProbeTargetName] = React.useState("");
   const [probeResults, setProbeResults] = React.useState<AdminLLMModelProbeResult[]>([]);
+  const [bindOpen, setBindOpen] = React.useState(false);
+  const [bindPending, setBindPending] = React.useState(false);
+  const [upstreams, setUpstreams] = React.useState<AdminLLMUpstreamView[]>([]);
+  const [upstreamsLoading, setUpstreamsLoading] = React.useState(false);
+  const [upstreamsLoaded, setUpstreamsLoaded] = React.useState(false);
+  const [upstreamModels, setUpstreamModels] = React.useState<AdminLLMUpstreamModelDTO[]>([]);
+  const [upstreamModelsLoading, setUpstreamModelsLoading] = React.useState(false);
+  const [bindForm, setBindForm] = React.useState<ModelSourceBindDraft>(DEFAULT_MODEL_SOURCE_BIND_DRAFT);
   const pageSize = 25;
 
   const loadSources = React.useCallback(
@@ -141,7 +168,86 @@ export function UpstreamSourcesSheet({
     setActionSourceID(null);
     setRouteDrafts({});
     setProbeResults([]);
+    setBindOpen(false);
+    setBindForm(DEFAULT_MODEL_SOURCE_BIND_DRAFT);
+    setUpstreamModels([]);
   }, [loadSources, model]);
+
+  const loadUpstreams = React.useCallback(async () => {
+    setUpstreamsLoading(true);
+    try {
+      const token = await resolveAccessToken();
+      if (!token) {
+        toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
+        return;
+      }
+      const data = await listAdminLLMUpstreams(token, { page: 1, pageSize: 2000, status: "active", sort: "name_asc" });
+      setUpstreams(data.results);
+    } catch (error) {
+      toast.error(toastT("upstreamsLoadFailed"), { description: resolveErrorMessage(error) });
+    } finally {
+      setUpstreamsLoaded(true);
+      setUpstreamsLoading(false);
+    }
+  }, [toastT]);
+
+  const loadUpstreamModels = React.useCallback(async (upstreamID: string) => {
+    const parsedUpstreamID = Number.parseInt(upstreamID, 10);
+    if (!Number.isFinite(parsedUpstreamID) || parsedUpstreamID <= 0) {
+      setUpstreamModels([]);
+      return;
+    }
+    setUpstreamModelsLoading(true);
+    try {
+      const token = await resolveAccessToken();
+      if (!token) {
+        toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
+        return;
+      }
+      const data = await listAdminLLMUpstreamModels(token, parsedUpstreamID, {
+        page: 1,
+        pageSize: 2000,
+        upstreamStatus: "active",
+        sort: "upstream_asc",
+      });
+      setUpstreamModels(uniqueUpstreamModels(data.results).filter((item) => item.upstreamModelStatus === "active"));
+    } catch (error) {
+      toast.error(toastT("upstreamModelsLoadFailed"), { description: resolveErrorMessage(error) });
+    } finally {
+      setUpstreamModelsLoading(false);
+    }
+  }, [toastT]);
+
+  React.useEffect(() => {
+    if (bindOpen && !upstreamsLoaded && !upstreamsLoading) {
+      void loadUpstreams();
+    }
+  }, [bindOpen, loadUpstreams, upstreamsLoaded, upstreamsLoading]);
+
+  React.useEffect(() => {
+    if (!bindOpen) return;
+    void loadUpstreamModels(bindForm.upstreamID);
+  }, [bindForm.upstreamID, bindOpen, loadUpstreamModels]);
+
+  function setBindField<K extends keyof ModelSourceBindDraft>(key: K, value: ModelSourceBindDraft[K]) {
+    setBindForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function handleBindUpstreamChange(upstreamID: string) {
+    setBindForm({
+      ...DEFAULT_MODEL_SOURCE_BIND_DRAFT,
+      upstreamID,
+    });
+  }
+
+  function handleBindUpstreamModelChange(upstreamModelID: string) {
+    const selected = upstreamModels.find((item) => String(item.id) === upstreamModelID);
+    setBindForm((current) => ({
+      ...current,
+      upstreamModelID,
+      protocol: selected?.suggestedProtocol ?? "",
+    }));
+  }
 
   const setRouteDraft = React.useCallback(
     (sourceID: number, field: keyof RouteDraft, value: string) => {
@@ -350,14 +456,78 @@ export function UpstreamSourcesSheet({
     [onRefreshModel, probeResults, toastT],
   );
 
+  const selectedUpstreamModel = upstreamModels.find((item) => String(item.id) === bindForm.upstreamModelID);
+  const protocolOptions = React.useMemo(() => {
+    const values = new Set<string>(Object.keys(ADAPTER_LABELS));
+    if (selectedUpstreamModel?.suggestedProtocol) {
+      values.add(selectedUpstreamModel.suggestedProtocol);
+    }
+    if (selectedUpstreamModel?.protocol) {
+      values.add(selectedUpstreamModel.protocol);
+    }
+    return Array.from(values).sort((a, b) => {
+      const labelA = ADAPTER_LABELS[a as AdminLLMAdapter] ?? a;
+      const labelB = ADAPTER_LABELS[b as AdminLLMAdapter] ?? b;
+      return labelA.localeCompare(labelB);
+    }) as AdminLLMAdapter[];
+  }, [selectedUpstreamModel?.protocol, selectedUpstreamModel?.suggestedProtocol]);
+
+  const handleBindSubmit = React.useCallback(async () => {
+    if (!model || bindPending) return;
+    const resolvedDraft = resolveModelSourceBindDraft(bindForm);
+    if (resolvedDraft.status !== "valid") {
+      const error = resolvedDraft.status === "empty" ? "required" : resolvedDraft.error;
+      const messageKey = {
+        required: "bindRequired",
+        protocolRequired: "bindProtocolRequired",
+        priorityMustBePositive: "priorityMustBePositive",
+        weightMustBePositive: "weightMustBePositive",
+        duplicate: "bindDuplicateSource",
+      }[error];
+      toast.error(toastT(messageKey));
+      return;
+    }
+
+    const token = await resolveAccessToken();
+    if (!token) {
+      toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
+      return;
+    }
+
+    setBindPending(true);
+    try {
+      await bindAdminLLMModelUpstreamSource(token, model.id, resolvedDraft.payload);
+      toast.success(toastT("sourceBound"));
+      setBindForm(DEFAULT_MODEL_SOURCE_BIND_DRAFT);
+      setBindOpen(false);
+      await loadSources(model.id, 1);
+      onRefreshModel();
+    } catch (error) {
+      toast.error(toastT("sourceBindFailed"), { description: resolveErrorMessage(error) });
+    } finally {
+      setBindPending(false);
+    }
+  }, [bindForm, bindPending, loadSources, model, onRefreshModel, toastT]);
+
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <>
       <Sheet open={!!model} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent className="flex flex-col sm:max-w-[720px]">
+        <SheetContent className="flex flex-col sm:max-w-[720px]" showCloseButton={false}>
           <SheetHeader className="px-4 pb-4">
-            <SheetTitle>{t("title")}</SheetTitle>
+            <div className="flex items-center justify-between gap-3">
+              <SheetTitle>{t("title")}</SheetTitle>
+              <Button
+                type="button"
+                size="sm"
+                variant={bindOpen ? "secondary" : "outline"}
+                onClick={() => setBindOpen((current) => !current)}
+              >
+                <Plus className="size-3.5 stroke-1" />
+                {t("bindSource")}
+              </Button>
+            </div>
           </SheetHeader>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4">
@@ -374,6 +544,128 @@ export function UpstreamSourcesSheet({
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {bindOpen ? (
+                  <TableRow interactive={false} tone="muted">
+                    <TableCell className="py-1">
+                      <Select
+                        value={bindForm.upstreamID}
+                        onValueChange={handleBindUpstreamChange}
+                        disabled={bindPending || upstreamsLoading}
+                      >
+                        <SelectTrigger className="h-8 min-w-[140px] bg-background text-xs">
+                          <SelectValue placeholder={upstreamsLoading ? t("loadingUpstreams") : t("selectUpstream")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {upstreams.map((item) => (
+                            <SelectItem key={item.id} value={String(item.id)}>
+                              {item.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className="py-1">
+                      <Select
+                        value={bindForm.upstreamModelID}
+                        onValueChange={handleBindUpstreamModelChange}
+                        disabled={bindPending || !bindForm.upstreamID || upstreamModelsLoading}
+                      >
+                        <SelectTrigger className="h-8 min-w-[180px] bg-background font-mono text-xs">
+                          <SelectValue placeholder={upstreamModelsLoading ? t("loadingUpstreamModels") : t("selectUpstreamModel")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {upstreamModels.map((item) => (
+                            <SelectItem key={item.id} value={String(item.id)}>
+                              {item.upstreamModelName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className="py-1">
+                      <Select
+                        value={bindForm.protocol}
+                        onValueChange={(value) => setBindField("protocol", value as AdminLLMAdapter)}
+                        disabled={bindPending || !bindForm.upstreamModelID}
+                      >
+                        <SelectTrigger className="h-8 min-w-[180px] bg-background text-xs">
+                          <SelectValue placeholder={t("selectProtocol")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {protocolOptions.map((protocol) => (
+                            <SelectItem key={protocol} value={protocol}>
+                              {ADAPTER_LABELS[protocol] ?? protocol}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap py-1">
+                      <div className="flex h-8 items-center justify-center gap-1">
+                        <Input
+                          value={bindForm.priority}
+                          inputMode="numeric"
+                          disabled={bindPending}
+                          onChange={(event) => setBindField("priority", event.target.value)}
+                          className="w-[58px] bg-background px-2 text-center font-mono text-xs tabular-nums"
+                          aria-label={t("priority")}
+                        />
+                        <span className="text-xs text-muted-foreground">/</span>
+                        <Input
+                          value={bindForm.weight}
+                          inputMode="numeric"
+                          disabled={bindPending}
+                          onChange={(event) => setBindField("weight", event.target.value)}
+                          className="w-[58px] bg-background px-2 text-center font-mono text-xs tabular-nums"
+                          aria-label={t("weight")}
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell className="w-[72px] py-1">
+                      <Select
+                        value={bindForm.status}
+                        onValueChange={(value) => setBindField("status", value as AdminLLMStatus)}
+                        disabled={bindPending}
+                      >
+                        <SelectTrigger className="h-8 w-[72px] bg-background px-2 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">{probeT("status.active")}</SelectItem>
+                          <SelectItem value="inactive">{probeT("status.inactive")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className="py-1 text-muted-foreground">-</TableCell>
+                    <TableCell className="w-[56px] whitespace-nowrap py-1" stickyEnd>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          className="text-muted-foreground shadow-none"
+                          disabled={bindPending}
+                          onClick={() => {
+                            setBindOpen(false);
+                            setBindForm(DEFAULT_MODEL_SOURCE_BIND_DRAFT);
+                          }}
+                          aria-label={commonT("actions.cancel")}
+                        >
+                          <X className="size-3.5 stroke-1" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          disabled={bindPending}
+                          onClick={() => void handleBindSubmit()}
+                          aria-label={t("bindConfirm")}
+                        >
+                          {bindPending ? <Spinner className="size-3.5" /> : <Check className="size-3.5 stroke-1" />}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : null}
                 {loading ? <TableSkeletonRows colSpan={7} rowCount={8} /> : null}
                 {sources.map((source) => {
                   const actionPending = actionSourceID === source.id;

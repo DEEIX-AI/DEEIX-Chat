@@ -8,8 +8,34 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/gin-gonic/gin"
 )
+
+func TestVersionEndpointIsPublicAndUncached(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine, err := NewEngine(config.NewRuntime(config.Config{AppName: "test", JWTSecret: "test-jwt-secret-value"}), nil, Modules{}, nil, nil)
+	if err != nil {
+		t.Fatalf("create engine: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/version", nil)
+	engine.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+	if got := recorder.Header().Get("Cache-Control"); got != "no-store, no-cache, must-revalidate" {
+		t.Fatalf("expected version no-store cache header, got %q", got)
+	}
+	if got := recorder.Header().Get("Pragma"); got != "no-cache" {
+		t.Fatalf("expected version pragma no-cache, got %q", got)
+	}
+	if !strings.Contains(recorder.Body.String(), `"buildID"`) {
+		t.Fatalf("expected version response to include buildID, got %q", recorder.Body.String())
+	}
+}
 
 func TestFrontendStaticFallbackServesExportedPage(t *testing.T) {
 	gin.SetMode(gin.TestMode)

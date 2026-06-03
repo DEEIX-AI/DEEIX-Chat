@@ -198,6 +198,7 @@ export function AppChatArea() {
 
   const {
     modelOptions,
+    refreshModelOption,
     modelsLoading,
     modelsErrorMsg,
     sendShortcut,
@@ -281,14 +282,23 @@ export function AppChatArea() {
     [selectedModel?.platformModelName],
   );
 
-  const resetModelOptions = React.useCallback(() => {
+  const resetModelOptions = React.useCallback((defaults?: ConversationOptions) => {
     const platformModelName = selectedModel?.platformModelName.trim() || "";
-    const defaults = cloneConversationOptions(selectedModel?.defaultOptions ?? {});
+    const nextDefaults = cloneConversationOptions(defaults ?? selectedModel?.defaultOptions ?? {});
     if (platformModelName) {
       removeCachedModelOptions(platformModelName);
     }
-    setOptions(defaults);
+    setOptions(nextDefaults);
   }, [selectedModel]);
+
+  const restoreBackendDefaultModelOptions = React.useCallback(async () => {
+    const platformModelName = selectedModel?.platformModelName.trim() || selectedPlatformModelName.trim();
+    if (!platformModelName) {
+      return null;
+    }
+    const refreshedModel = await refreshModelOption(platformModelName);
+    return refreshedModel ? cloneConversationOptions(refreshedModel.defaultOptions) : null;
+  }, [refreshModelOption, selectedModel?.platformModelName, selectedPlatformModelName]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -762,6 +772,7 @@ export function AppChatArea() {
     onHTMLVisualPromptChange: htmlVisualPrompt.setEnabled,
     onOptionsChange: setModelOptions,
     onOptionsReset: resetModelOptions,
+    onOptionsDefaultRestore: restoreBackendDefaultModelOptions,
     onUploadFiles,
     onCaptureScreenshot,
     onRemoveAttachment,

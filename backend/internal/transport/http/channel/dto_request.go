@@ -103,6 +103,16 @@ type UpdateModelUpstreamSourceRequest struct {
 	Weight   *int    `json:"weight"`
 }
 
+// BindModelUpstreamSourceRequest 模型侧新增上游来源绑定请求。
+type BindModelUpstreamSourceRequest struct {
+	UpstreamID      uint   `json:"upstreamID" binding:"required,gt=0"`
+	UpstreamModelID uint   `json:"upstreamModelID" binding:"required,gt=0"`
+	Protocol        string `json:"protocol" binding:"omitempty,max=64"`
+	Status          string `json:"status" binding:"omitempty,oneof=active inactive"`
+	Priority        int    `json:"priority"`
+	Weight          int    `json:"weight"`
+}
+
 // ImportUpstreamModelsRequest 批量导入上游模型请求。
 type ImportUpstreamModelsRequest struct {
 	Items []ImportUpstreamModelItemRequest `json:"items" binding:"required,min=1,dive"`

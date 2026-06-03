@@ -453,7 +453,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
           {inlineData?.loading ? (
             <TableRow tone="muted">
               <CollapsibleTableCell
-                colSpan={9}
+                colSpan={10}
                 opening={opening}
                 closing={collapsing}
                 className="py-3 pl-16 text-xs text-muted-foreground"
@@ -535,6 +535,13 @@ const ModelTableRow = React.memo(function ModelTableRow({
                   <CollapsibleTableCell
                     opening={opening}
                     closing={collapsing}
+                    className="w-[112px] whitespace-nowrap py-1 text-[11px] leading-4 text-muted-foreground"
+                  >
+                    -
+                  </CollapsibleTableCell>
+                  <CollapsibleTableCell
+                    opening={opening}
+                    closing={collapsing}
                     className="whitespace-nowrap py-1 text-[11px] leading-4 text-muted-foreground"
                   >
                     {formatDateTime(source.updatedAt, locale)}
@@ -559,13 +566,10 @@ const ModelTableRow = React.memo(function ModelTableRow({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         {onTestSource ? (
-                          <>
-                            <DropdownMenuItem onSelect={() => onTestSource(source)}>
-                              <Activity className="size-3.5 stroke-1" />
-                              {t("actions.test")}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                          </>
+                          <DropdownMenuItem onSelect={() => onTestSource(source)}>
+                            <Activity className="size-3.5 stroke-1" />
+                            {t("actions.test")}
+                          </DropdownMenuItem>
                         ) : null}
                         {source.status === "active" ? (
                           <DropdownMenuItem onSelect={() => onInlineStatusToggle(source, item.id)}>
@@ -578,7 +582,6 @@ const ModelTableRow = React.memo(function ModelTableRow({
                             {t("sources.enableSource")}
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuSeparator />
                         {source.circuitOpen ? (
                           <DropdownMenuItem onSelect={() => onInlineCircuit(source, item.id, "reset")}>
                             <RotateCcw className="size-3.5 stroke-1" />
@@ -607,7 +610,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
           ) : (
             <TableRow tone="muted">
               <CollapsibleTableCell
-                colSpan={9}
+                colSpan={10}
                 opening={opening}
                 closing={collapsing}
                 className="py-3 pl-16 text-xs text-muted-foreground"

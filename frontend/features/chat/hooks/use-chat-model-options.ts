@@ -163,6 +163,20 @@ function resolveMCPMaxSelectedTools(value: unknown): number {
   return Math.min(Math.floor(numeric), 128);
 }
 
+function toChatModelOption(item: PublicModelDTO): ChatModelOption {
+  return {
+    platformModelName: item.platformModelName,
+    icon: item.icon,
+    vendor: item.vendor,
+    kinds: parseKindsJSON(item.kindsJSON),
+    protocols: parseProtocolsJSON(item.protocolsJSON),
+    defaultOptions: resolveDefaultOptions(item.capabilitiesJSON),
+    optionControls: resolveOptionControls(item.capabilitiesJSON),
+    nativeToolKeys: resolveNativeToolKeys(item.capabilitiesJSON),
+    pricing: item.pricing,
+  };
+}
+
 export function useChatModelOptions({
   conversationPublicID,
   conversationModel,
@@ -194,6 +208,23 @@ export function useChatModelOptions({
   const selectPlatformModelName = React.useCallback((platformModelName: string) => {
     userSelectedModelRef.current = true;
     setSelectedPlatformModelName(platformModelName);
+  }, []);
+
+  const refreshModelOption = React.useCallback(async (platformModelName: string): Promise<ChatModelOption | null> => {
+    const normalizedName = platformModelName.trim();
+    if (!normalizedName) {
+      return null;
+    }
+
+    const token = await resolveAccessToken();
+    if (!token) {
+      throw new Error("missing access token");
+    }
+
+    const nextModels = await listPublicModels(token);
+    setAvailableModels(nextModels);
+    const nextModel = nextModels.find((item) => item.platformModelName === normalizedName);
+    return nextModel ? toChatModelOption(nextModel) : null;
   }, []);
 
   React.useEffect(() => {
@@ -321,24 +352,13 @@ export function useChatModelOptions({
 
   const modelOptions = React.useMemo<ChatModelOption[]>(
     () =>
-      availableModels.map((item) => {
-        return {
-          platformModelName: item.platformModelName,
-          icon: item.icon,
-          vendor: item.vendor,
-          kinds: parseKindsJSON(item.kindsJSON),
-          protocols: parseProtocolsJSON(item.protocolsJSON),
-          defaultOptions: resolveDefaultOptions(item.capabilitiesJSON),
-          optionControls: resolveOptionControls(item.capabilitiesJSON),
-          nativeToolKeys: resolveNativeToolKeys(item.capabilitiesJSON),
-          pricing: item.pricing,
-        };
-      }),
+      availableModels.map(toChatModelOption),
     [availableModels],
   );
 
   return {
     modelOptions,
+    refreshModelOption,
     modelsLoading,
     modelsErrorMsg,
     sendShortcut,

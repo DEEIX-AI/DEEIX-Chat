@@ -82,7 +82,8 @@ type ChatInputProps = {
   onSelectedToolsChange: (toolIDs: number[]) => void;
   onHTMLVisualPromptChange: (enabled: boolean) => void;
   onOptionsChange: React.Dispatch<React.SetStateAction<ConversationOptions>>;
-  onOptionsReset: () => void;
+  onOptionsReset: (defaults?: ConversationOptions) => void;
+  onOptionsDefaultRestore: () => Promise<ConversationOptions | null>;
   onUploadFiles: (files: File[]) => void | Promise<void>;
   onCaptureScreenshot: () => void | Promise<void>;
   onRemoveAttachment: (fileID: string) => void;
@@ -186,6 +187,7 @@ function ChatInputComponent({
   onHTMLVisualPromptChange,
   onOptionsChange,
   onOptionsReset,
+  onOptionsDefaultRestore,
   onUploadFiles,
   onCaptureScreenshot,
   onRemoveAttachment,
@@ -482,6 +484,7 @@ function ChatInputComponent({
                 selectedModelName={selectedModelName}
                 onOptionsChange={onOptionsChange}
                 onOptionsReset={onOptionsReset}
+                onDefaultOptionsRestore={onOptionsDefaultRestore}
               />
             ) : null}
 

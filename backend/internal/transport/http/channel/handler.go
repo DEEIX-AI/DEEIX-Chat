@@ -1246,6 +1246,68 @@ func (h *Handler) ListModelUpstreamSources(c *gin.Context) {
 	response.SuccessPage(c, total, results)
 }
 
+// BindModelUpstreamSource godoc
+// @Summary 管理员绑定模型上游来源
+// @Description 管理员将当前平台模型绑定到一个已存在的上游模型
+// @Tags llm
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "模型ID"
+// @Param body body BindModelUpstreamSourceRequest true "来源绑定参数"
+// @Success 200 {object} ModelUpstreamSourceDataResponse
+// @Failure 400 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/llm/models/{id}/sources [post]
+func (h *Handler) BindModelUpstreamSource(c *gin.Context) {
+	modelID, err := uintParam(c, "id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid model id")
+		return
+	}
+
+	var req BindModelUpstreamSourceRequest
+	if err = c.ShouldBindJSON(&req); err != nil {
+		response.InvalidRequestBody(c, err)
+		return
+	}
+
+	item, err := h.service.BindModelUpstreamSource(c.Request.Context(), modelID, appchannel.BindModelUpstreamSourceInput{
+		UpstreamID:      req.UpstreamID,
+		UpstreamModelID: req.UpstreamModelID,
+		Protocol:        req.Protocol,
+		Status:          req.Status,
+		Priority:        req.Priority,
+		Weight:          req.Weight,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, appchannel.ErrModelNotFound):
+			response.Error(c, http.StatusNotFound, "model not found")
+		case errors.Is(err, appchannel.ErrUpstreamNotFound):
+			response.Error(c, http.StatusNotFound, "upstream not found")
+		case errors.Is(err, appchannel.ErrUpstreamModelNotFound):
+			response.Error(c, http.StatusNotFound, "upstream model not found")
+		case errors.Is(err, appchannel.ErrInvalidAdapter):
+			response.Error(c, http.StatusBadRequest, "invalid adapter")
+		case errors.Is(err, appchannel.ErrProtocolRequired):
+			response.Error(c, http.StatusBadRequest, "protocol required")
+		case errors.Is(err, appchannel.ErrInvalidRouteProtocolCombination):
+			response.Error(c, http.StatusBadRequest, "invalid route protocol combination")
+		case errors.Is(err, appchannel.ErrUpstreamSourceUnavailable):
+			response.Error(c, http.StatusBadRequest, "upstream source unavailable")
+		case errors.Is(err, appchannel.ErrUpstreamModelConflict):
+			response.Error(c, http.StatusConflict, "target model already bound on this upstream")
+		default:
+			response.Error(c, http.StatusInternalServerError, "bind model upstream source failed")
+		}
+		return
+	}
+	response.Success(c, ModelUpstreamSourceDataResponse{Source: toModelUpstreamSourceResponse(*item)})
+}
+
 // UpdateModelUpstreamSource godoc
 // @Summary 管理员更新模型上游来源
 // @Description 管理员快速启停指定模型在某上游上的来源

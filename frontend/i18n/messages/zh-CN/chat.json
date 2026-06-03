@@ -321,6 +321,8 @@
     "ignoredHelp": "未启用表示该配置当前不在左侧 JSON 中，不会随请求透传。已忽略表示该配置已写入 JSON，但会被后台透传策略过滤。",
     "noVisualFields": "暂无可视化字段",
     "saveFailed": "模型配置保存失败",
+    "defaultLoadFailed": "恢复默认参数失败",
+    "defaultModelUnavailable": "当前模型不可用，请重新选择模型。",
     "retryLater": "请稍后重试。",
     "streamResponseParseFailed": "上游返回 HTTP {statusCode}，但流式响应格式与当前协议不兼容。",
     "jsonMustBeObject": "JSON 必须是对象",
