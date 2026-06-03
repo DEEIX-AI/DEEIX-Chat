@@ -134,7 +134,6 @@ const LogoColumn: React.FC<LogoColumnProps> = React.memo(
                 aria-hidden="true"
                 className={cn("h-20 w-20 max-h-[80%] max-w-[80%] object-contain dark:invert md:h-32 md:w-32", logoClassName)}
                 decoding="async"
-                loading="lazy"
                 src={currentLogo.src}
               />
             ) : null}
@@ -193,6 +192,33 @@ function LogoCarousel({
   const allLogos = useMemo(() => (logos && logos.length > 0 ? logos : defaultLogos), [defaultLogos, logos])
 
   const logoSets = useMemo(() => distributeLogos(allLogos, columnCount), [allLogos, columnCount])
+
+  // Preload all src-based logo images so the browser caches them once,
+  // preventing repeated network requests during carousel cycling.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const srcURLs = new Set<string>()
+    for (const logo of allLogos) {
+      if (logo.src) {
+        srcURLs.add(logo.src)
+      }
+    }
+    if (srcURLs.size === 0) return
+
+    // Use Image() constructor to trigger browser preload/cache
+    const images: HTMLImageElement[] = []
+    for (const src of srcURLs) {
+      const img = new Image()
+      img.src = src
+      images.push(img)
+    }
+    return () => {
+      // Allow GC by clearing src references
+      for (const img of images) {
+        img.src = ""
+      }
+    }
+  }, [allLogos])
 
   // Function to update the current time (used for logo cycling)
   const updateTime = useCallback(() => {
