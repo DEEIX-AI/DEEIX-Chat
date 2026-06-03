@@ -44,21 +44,24 @@ type VisualOptionKind = "boolean" | "number" | "select" | "text";
 type VisualOption = {
   key: string;
   path: string[];
-  value: EditableOptionValue;
+  value: unknown;
   label?: string;
   description?: string;
   kind?: VisualOptionKind;
   selectValues?: string[];
   placeholder?: string;
   active: boolean;
-};
-
-type FilteredOption = {
-  key: string;
-  value: unknown;
+  editable: boolean;
+  forcedFilterStatus?: ModelOptionFilterStatus;
 };
 
 type ModelOptionFilterStatus = "inactive" | "passed" | "filtered" | "unknown";
+
+type OptionValueEntry = {
+  key: string;
+  path: string[];
+  value: unknown;
+};
 
 type NativeToolVisualOption = {
   definition: NativeToolDefinition;
@@ -402,7 +405,6 @@ function stringifyOptions(value: ConversationOptions): string {
 }
 
 function parseOptionsDraft(value: string): {
-  filteredOptions: FilteredOption[];
   options: ConversationOptions | null;
   rawOptions: ConversationOptions | null;
   error: string;
@@ -410,19 +412,48 @@ function parseOptionsDraft(value: string): {
   try {
     const parsed = JSON.parse(value.trim() || "{}") as unknown;
     if (parsed === null || Array.isArray(parsed) || typeof parsed !== "object") {
-      return { filteredOptions: [], options: null, rawOptions: null, error: "JSON must be an object" };
+      return { options: null, rawOptions: null, error: "JSON must be an object" };
     }
     const rawOptions = parsed as ConversationOptions;
     return {
-      filteredOptions: Object.entries(rawOptions)
-        .filter(([key]) => isReservedConversationOptionKey(key))
-        .map(([key, optionValue]) => ({ key, value: optionValue })),
       options: sanitizeConversationOptions(rawOptions),
       rawOptions,
       error: "",
     };
   } catch {
-    return { filteredOptions: [], options: null, rawOptions: null, error: "" };
+    return { options: null, rawOptions: null, error: "" };
+  }
+}
+
+function collectOptionValueEntries(value: unknown, path: string[]): OptionValueEntry[] {
+  if (path.length === 0) {
+    return [];
+  }
+  if (!isPlainOptionObject(value)) {
+    return [{ key: optionPathKey(path), path, value }];
+  }
+  const entries = Object.entries(value).flatMap(([key, nestedValue]) => collectOptionValueEntries(nestedValue, [...path, key]));
+  if (entries.length === 0) {
+    return [{ key: optionPathKey(path), path, value }];
+  }
+  return entries;
+}
+
+function optionValueEntriesFromOptions(options: ConversationOptions): OptionValueEntry[] {
+  return Object.entries(options).flatMap(([key, value]) => collectOptionValueEntries(value, [key]));
+}
+
+function formatVisualOptionValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean" || value === null) {
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
   }
 }
 
@@ -479,6 +510,18 @@ function optionPathKey(path: string[]): string {
   return path.join(".");
 }
 
+function isIgnoredOptionPath(
+  policy: ModelOptionPolicy | null,
+  protocol: string,
+  key: string,
+  path: string[],
+): boolean {
+  if (isReservedConversationOptionKey(path[0] ?? "")) {
+    return true;
+  }
+  return Boolean(policy && isModelOptionPathFiltered({ policy, protocol, path: key }));
+}
+
 function getOptionAtPath(options: ConversationOptions, path: string[]): unknown {
   let current: unknown = options;
   for (const segment of path) {
@@ -516,7 +559,11 @@ function setOptionAtPath(options: ConversationOptions, path: string[], value: un
   };
 }
 
-function visualOptionsFromOptions(options: ConversationOptions): VisualOption[] {
+function visualOptionsFromOptions(
+  options: ConversationOptions,
+  policy: ModelOptionPolicy | null,
+  protocol: string,
+): VisualOption[] {
   const nestedOptions = NESTED_VISUAL_OPTION_PATHS.flatMap((path): VisualOption[] => {
     if (isReservedConversationOptionKey(path[0] ?? "")) {
       return [];
@@ -525,20 +572,36 @@ function visualOptionsFromOptions(options: ConversationOptions): VisualOption[] 
     if (!isEditableOptionValue(value)) {
       return [];
     }
-    return [{ key: optionPathKey(path), path, value, active: true }];
+    return [{ key: optionPathKey(path), path, value, active: true, editable: true }];
   });
   const topLevelOptions = Object.entries(options).flatMap(([key, value]): VisualOption[] => {
     if (isReservedConversationOptionKey(key)) {
       return [];
     }
     if (isEditableOptionValue(value)) {
-      return [{ key, path: [key], value, active: true }];
+      return [{ key, path: [key], value, active: true, editable: true }];
     }
     return [];
   });
-  const merged = [...nestedOptions, ...topLevelOptions];
-  const deduped = merged.filter((item, index) => merged.findIndex((candidate) => candidate.key === item.key) === index);
-  return deduped.sort((left, right) => compareOptionKeys(left.key, right.key));
+  const editableOptions = [...nestedOptions, ...topLevelOptions]
+    .filter((item, index, items) => items.findIndex((candidate) => candidate.key === item.key) === index);
+  const visibleKeys = new Set(editableOptions.map((item) => item.key));
+  const ignoredOptions = optionValueEntriesFromOptions(options).flatMap((entry): VisualOption[] => {
+    if (visibleKeys.has(entry.key) || !isIgnoredOptionPath(policy, protocol, entry.key, entry.path)) {
+      return [];
+    }
+    return [{
+      key: entry.key,
+      path: entry.path,
+      value: entry.value,
+      active: true,
+      editable: false,
+      forcedFilterStatus: "filtered",
+    }];
+  });
+  return [...editableOptions, ...ignoredOptions]
+    .filter((item, index, items) => items.findIndex((candidate) => candidate.key === item.key) === index)
+    .sort((left, right) => compareOptionKeys(left.key, right.key));
 }
 
 function optionPathFromControl(path: string): string[] {
@@ -596,6 +659,7 @@ function visualOptionsFromControls(
       kind: resolveControlKind(control),
       selectValues,
       placeholder: control.placeholder,
+      editable: true,
     }];
   });
 }
@@ -760,7 +824,6 @@ export function ChatModelConfig({
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [optionsDraft, setOptionsDraft] = React.useState("");
   const [optionsObject, setOptionsObject] = React.useState<ConversationOptions>({});
-  const [filteredOptions, setFilteredOptions] = React.useState<FilteredOption[]>([]);
   const [mobileView, setMobileView] = React.useState<"json" | "visual">("json");
   const [defaultRestorePending, setDefaultRestorePending] = React.useState(false);
   const [restoredDefaultOptions, setRestoredDefaultOptions] = React.useState<ConversationOptions | null>(null);
@@ -776,8 +839,9 @@ export function ChatModelConfig({
     [configuredOptions],
   );
   const editableOptions = React.useMemo(
-    () => visualOptionsFromOptions(optionsObject).filter((item) => !configuredOptionKeys.has(item.key)),
-    [configuredOptionKeys, optionsObject],
+    () => visualOptionsFromOptions(optionsObject, modelOptionPolicy, selectedProtocol)
+      .filter((item) => !configuredOptionKeys.has(item.key)),
+    [configuredOptionKeys, modelOptionPolicy, optionsObject, selectedProtocol],
   );
   const nativeToolGroup = React.useMemo(() => {
     const policyProtocol = resolveModelOptionPolicyProtocol(selectedProtocol);
@@ -812,7 +876,7 @@ export function ChatModelConfig({
     () => [...configuredOptions, ...editableOptions],
     [configuredOptions, editableOptions],
   );
-  const hasRecognizedOptions = Boolean(nativeToolGroup) || visibleOptions.length > 0 || filteredOptions.length > 0;
+  const hasRecognizedOptions = Boolean(nativeToolGroup) || visibleOptions.length > 0;
 
   React.useEffect(() => {
     optionsObjectRef.current = optionsObject;
@@ -822,7 +886,6 @@ export function ChatModelConfig({
     const sanitized = sanitizeConversationOptions(options);
     optionsObjectRef.current = sanitized;
     setOptionsObject(sanitized);
-    setFilteredOptions([]);
     setOptionsDraft(stringifyOptions(sanitized));
     setMobileView("json");
     setRestoredDefaultOptions(null);
@@ -833,7 +896,6 @@ export function ChatModelConfig({
     const sanitized = sanitizeConversationOptions(next);
     optionsObjectRef.current = sanitized;
     setOptionsObject(sanitized);
-    setFilteredOptions([]);
     setOptionsDraft(stringifyOptions(sanitized));
   }, []);
 
@@ -842,7 +904,6 @@ export function ChatModelConfig({
     const nextOptions = parsed.rawOptions ?? next;
     optionsObjectRef.current = nextOptions;
     setOptionsObject(nextOptions);
-    setFilteredOptions(parsed.filteredOptions);
     setOptionsDraft(stringifyOptions(next));
   }, []);
 
@@ -867,7 +928,6 @@ export function ChatModelConfig({
     if (parsed.rawOptions && parsed.options) {
       optionsObjectRef.current = parsed.rawOptions;
       setOptionsObject(parsed.rawOptions);
-      setFilteredOptions(parsed.filteredOptions);
     }
   }, []);
 
@@ -1070,16 +1130,18 @@ export function ChatModelConfig({
                 </div>
               </div>
             ) : null}
-            {visibleOptions.map(({ key, path, value, active, label, description, kind: configuredKind, selectValues: configuredSelectValues, placeholder }) => {
+            {visibleOptions.map(({ key, path, value, active, editable, forcedFilterStatus, label, description, kind: configuredKind, selectValues: configuredSelectValues, placeholder }) => {
+              const editableValue = isEditableOptionValue(value) ? value : null;
               const selectValues = resolveSelectValues(key, configuredSelectValues);
               const kind = configuredKind === "select" && selectValues.length === 0
                 ? "text"
-                : (configuredKind ?? resolveOptionKind(key, value));
+                : (configuredKind ?? resolveOptionKind(key, editableValue));
               const title = resolveOptionTitle(key, label, tOptionLabels);
               const optionDescription = resolveOptionDescription(key, description, tOptionDescriptions);
               const detailText = optionDescription || key;
-              const filterStatus = active ? resolveModelOptionFilterStatus(modelOptionPolicy, selectedProtocol, key) : "inactive";
+              const filterStatus = forcedFilterStatus ?? (active ? resolveModelOptionFilterStatus(modelOptionPolicy, selectedProtocol, key) : "inactive");
               const ignored = filterStatus === "filtered";
+              const valueText = editable ? "" : formatVisualOptionValue(value);
 
               return (
                 <div
@@ -1115,9 +1177,16 @@ export function ChatModelConfig({
                       </p>
                     ) : null}
                   </div>
-                  {kind === "boolean" ? (
+                  {!editable ? (
+                    <code
+                      className="block max-w-full truncate justify-self-start rounded-md bg-muted/60 px-2 py-1 font-mono text-[11px] leading-none text-muted-foreground line-through sm:justify-self-end"
+                      title={valueText}
+                    >
+                      {valueText}
+                    </code>
+                  ) : kind === "boolean" ? (
                     <Select
-                      value={value === true ? "true" : value === false ? "false" : undefined}
+                      value={editableValue === true ? "true" : editableValue === false ? "false" : undefined}
                       onValueChange={(nextValue) => updateOptionValue(path, nextValue === "true")}
                     >
                       <SelectTrigger size="sm">
@@ -1130,7 +1199,7 @@ export function ChatModelConfig({
                     </Select>
                   ) : kind === "select" ? (
                     <Select
-                      value={typeof value === "string" && value.trim() ? value : undefined}
+                      value={typeof editableValue === "string" && editableValue.trim() ? editableValue : undefined}
                       onValueChange={(nextValue) => updateOptionValue(path, nextValue)}
                     >
                       <SelectTrigger size="sm">
@@ -1146,7 +1215,7 @@ export function ChatModelConfig({
                     </Select>
                   ) : (
                     <Input
-                      value={value === null ? "" : String(value)}
+                      value={editableValue === null ? "" : String(editableValue)}
                       inputMode={kind === "number" ? "decimal" : undefined}
                       placeholder={placeholder ?? (kind === "number" ? "0.7" : key)}
                       onChange={(event) => {
@@ -1166,23 +1235,6 @@ export function ChatModelConfig({
                 </div>
               );
             })}
-            {filteredOptions.length > 0 ? (
-              <div className={cn("space-y-2", visibleOptions.length > 0 ? "pt-1" : "")}>
-                {filteredOptions.map((item) => (
-                  <div
-                    key={item.key}
-                    className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-2 rounded-md px-2 py-1.5 text-muted-foreground sm:gap-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-xs line-through">{item.key}</p>
-                    </div>
-                    <span className="w-fit text-[11px] sm:justify-self-end">
-                      {tComposer("ignored")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
           </div>
         </div>
       ) : (
