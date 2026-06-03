@@ -429,6 +429,7 @@
     "closeShare": "Stop sharing",
     "regenerating": "Regenerating",
     "regenerate": "Regenerate",
+    "copyAndClose": "Copy and close",
     "creating": "Creating",
     "createLink": "Create",
     "snapshotMessages": "{title} - {count} snapshot messages"

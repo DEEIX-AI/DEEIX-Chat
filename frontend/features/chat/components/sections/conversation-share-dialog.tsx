@@ -168,17 +168,26 @@ export function ConversationShareDialog({
     [applyShare, conversationPublicID, defaultMessagePublicIDs, hasDefaultBranch, resolveErrorMessage, t, tCommon, working],
   );
 
-  const copyLink = React.useCallback(async () => {
+  const copyLink = React.useCallback(async (): Promise<boolean> => {
     if (!currentURL) {
-      return;
+      return false;
     }
     try {
       await navigator.clipboard.writeText(currentURL);
       toast.success(t("linkCopied"));
+      return true;
     } catch {
       toast.error(t("copyFailed"));
+      return false;
     }
   }, [currentURL, t]);
+
+  const copyLinkAndClose = React.useCallback(async () => {
+    const copied = await copyLink();
+    if (copied) {
+      onOpenChange(false);
+    }
+  }, [copyLink, onOpenChange]);
 
   const openLink = React.useCallback(() => {
     if (!currentURL) {
@@ -234,9 +243,6 @@ export function ConversationShareDialog({
         <DialogFooter>
           {active ? (
             <>
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={Boolean(working)}>
-                {tCommon("cancel")}
-              </Button>
               <Button
                 type="button"
                 variant="ghost"
@@ -247,10 +253,18 @@ export function ConversationShareDialog({
               </Button>
               <Button
                 type="button"
+                variant="ghost"
                 onClick={() => void runMutation("regenerate")}
                 disabled={Boolean(working) || loading || !hasDefaultBranch}
               >
                 {working === "regenerate" ? <SpinnerLabel>{t("regenerating")}</SpinnerLabel> : t("regenerate")}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void copyLinkAndClose()}
+                disabled={Boolean(working) || loading || !active}
+              >
+                {t("copyAndClose")}
               </Button>
             </>
           ) : (
