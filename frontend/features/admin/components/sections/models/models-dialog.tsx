@@ -4,16 +4,17 @@ import * as React from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
@@ -72,30 +73,32 @@ export function DeleteModelDialog({
   }, [onDeleted, t, target]);
 
   return (
-    <Dialog open={!!target} onOpenChange={(open) => !open && !pending && onClose()}>
-      <DialogContent className="sm:max-w-[400px]">
-        <DialogHeader>
-          <DialogTitle>{t("deleteDialog.title")}</DialogTitle>
-          <DialogDescription>
+    <AlertDialog open={!!target} onOpenChange={(open) => !open && !pending && onClose()}>
+      <AlertDialogContent className="sm:max-w-[400px]">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t("deleteDialog.title")}</AlertDialogTitle>
+          <AlertDialogDescription>
             {t("deleteDialog.description", { model: target?.platformModelName ?? "" })}
-          </DialogDescription>
-        </DialogHeader>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
 
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>
             {commonT("actions.cancel")}
-          </Button>
-          <Button
-            type="button"
+          </AlertDialogCancel>
+          <AlertDialogAction
             variant="destructive"
-            onClick={() => void handleDelete()}
+            onClick={(event) => {
+              event.preventDefault();
+              void handleDelete();
+            }}
             disabled={pending}
           >
             {pending ? <SpinnerLabel>{t("deleteDialog.deleting")}</SpinnerLabel> : t("deleteDialog.confirm")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -152,14 +155,14 @@ export function BulkDeleteModelsDialog({
   }, [onDeleted, t, targets]);
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && !pending && onClose()}>
-      <DialogContent className="sm:max-w-[480px]">
-        <DialogHeader>
-          <DialogTitle>{t("deleteDialog.bulkTitle")}</DialogTitle>
-          <DialogDescription>
+    <AlertDialog open={open} onOpenChange={(nextOpen) => !nextOpen && !pending && onClose()}>
+      <AlertDialogContent className="sm:max-w-[480px]">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t("deleteDialog.bulkTitle")}</AlertDialogTitle>
+          <AlertDialogDescription>
             {t("deleteDialog.bulkDescription", { count: targets.length })}
-          </DialogDescription>
-        </DialogHeader>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
 
         <div className="space-y-3 pt-1">
           <div className="flex flex-wrap gap-1.5">
@@ -176,20 +179,22 @@ export function BulkDeleteModelsDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>
             {commonT("actions.cancel")}
-          </Button>
-          <Button
-            type="button"
+          </AlertDialogCancel>
+          <AlertDialogAction
             variant="destructive"
-            onClick={() => void handleDelete()}
+            onClick={(event) => {
+              event.preventDefault();
+              void handleDelete();
+            }}
             disabled={pending || targets.length === 0}
           >
             {pending ? <SpinnerLabel>{t("deleteDialog.deleting")}</SpinnerLabel> : t("deleteDialog.bulkConfirm", { count: targets.length })}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

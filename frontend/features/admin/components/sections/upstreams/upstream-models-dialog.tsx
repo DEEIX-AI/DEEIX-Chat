@@ -1606,12 +1606,12 @@ export function UpstreamModelsDialog({
               {commonT("actions.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               disabled={deleting || selectedRouteCount === 0}
               onClick={(event) => {
                 event.preventDefault();
                 void handleDeleteSelected();
               }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleting ? <SpinnerLabel>{t("modelsDialog.deleting")}</SpinnerLabel> : t("modelsDialog.confirmDelete", { count: selectedCount })}
             </AlertDialogAction>

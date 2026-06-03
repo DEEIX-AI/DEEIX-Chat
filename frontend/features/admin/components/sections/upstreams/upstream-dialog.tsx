@@ -85,12 +85,12 @@ export function DeleteUpstreamDialog({
             {tActions("cancel")}
           </AlertDialogCancel>
           <AlertDialogAction
+            variant="destructive"
             disabled={pending}
             onClick={(e) => {
               e.preventDefault();
               void handleConfirm();
             }}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
             {pending ? <SpinnerLabel>{t("deleteDialog.deleting")}</SpinnerLabel> : tActions("delete")}
           </AlertDialogAction>
@@ -176,12 +176,12 @@ export function BulkDeleteUpstreamsDialog({
             {tActions("cancel")}
           </AlertDialogCancel>
           <AlertDialogAction
+            variant="destructive"
             disabled={pending || targets.length === 0}
             onClick={(event) => {
               event.preventDefault();
               void handleConfirm();
             }}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
             {pending ? <SpinnerLabel>{t("deleteDialog.deleting")}</SpinnerLabel> : t("deleteDialog.confirmBulk", { count: targets.length })}
           </AlertDialogAction>

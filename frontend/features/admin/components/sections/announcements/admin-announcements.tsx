@@ -5,6 +5,16 @@ import { useLocale, useTranslations } from "next-intl";
 import { Edit3, Pin, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -653,22 +663,29 @@ export function AdminAnnouncementsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !saving && !open && setDeleteTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("deleteTitle")}</DialogTitle>
-            <DialogDescription>{t("deleteDescription")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" size="sm" onClick={() => setDeleteTarget(null)} disabled={saving}>
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !saving && !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("deleteTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("deleteDescription")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>
               {common("actions.cancel")}
-            </Button>
-            <Button type="button" variant="destructive" size="sm" onClick={confirmDelete} disabled={saving}>
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmDelete();
+              }}
+              disabled={saving}
+            >
               {saving ? t("deleting") : t("delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
