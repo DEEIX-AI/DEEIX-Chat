@@ -2,6 +2,10 @@ package conversation
 
 import (
 	"bytes"
+	"image"
+	"image/color"
+	"image/jpeg"
+	"image/png"
 	"testing"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
@@ -25,6 +29,48 @@ func TestDetectGeneratedImageMIMEUsesActualImageBytes(t *testing.T) {
 	}
 	if mimeType != "image/jpeg" {
 		t.Fatalf("expected actual jpeg MIME, got %q", mimeType)
+	}
+}
+
+func TestNormalizeMediaImageEditInputConvertsCMYKJPEGToPNG(t *testing.T) {
+	src := image.NewCMYK(image.Rect(0, 0, 2, 2))
+	src.SetCMYK(0, 0, color.CMYK{C: 255, M: 0, Y: 0, K: 0})
+	src.SetCMYK(1, 0, color.CMYK{C: 0, M: 255, Y: 0, K: 0})
+	src.SetCMYK(0, 1, color.CMYK{C: 0, M: 0, Y: 255, K: 0})
+	src.SetCMYK(1, 1, color.CMYK{C: 0, M: 0, Y: 0, K: 32})
+
+	var input bytes.Buffer
+	if err := jpeg.Encode(&input, src, &jpeg.Options{Quality: 90}); err != nil {
+		t.Fatalf("encode source jpeg: %v", err)
+	}
+
+	got, mimeType, err := normalizeMediaImageEditInput(input.Bytes(), "image/jpeg")
+	if err != nil {
+		t.Fatalf("normalize image edit input: %v", err)
+	}
+	if mimeType != "image/png" {
+		t.Fatalf("expected normalized PNG MIME, got %q", mimeType)
+	}
+	if !bytes.HasPrefix(got, []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}) {
+		prefixLen := len(got)
+		if prefixLen > 8 {
+			prefixLen = 8
+		}
+		t.Fatalf("expected normalized PNG bytes, got prefix % x", got[:prefixLen])
+	}
+	decoded, err := png.Decode(bytes.NewReader(got))
+	if err != nil {
+		t.Fatalf("decode normalized PNG: %v", err)
+	}
+	if decoded.Bounds().Dx() != 2 || decoded.Bounds().Dy() != 2 {
+		t.Fatalf("expected dimensions to be preserved, got %v", decoded.Bounds())
+	}
+}
+
+func TestMediaImageEditInputFileNameMatchesNormalizedMIME(t *testing.T) {
+	got := mediaImageEditInputFileName("IMG_4442.jpeg", "image/png")
+	if got != "IMG_4442.png" {
+		t.Fatalf("expected normalized filename extension, got %q", got)
 	}
 }
 

@@ -486,7 +486,7 @@ func (s *Service) resolveMediaImageEditInputs(ctx context.Context, input MediaIm
 		if readErr != nil {
 			return nil, nil, readErr
 		}
-		part.FileName = strings.TrimSpace(attachment.FileName)
+		part.FileName = mediaImageEditInputFileName(attachment.FileName, part.MimeType)
 		parts = append(parts, part)
 	}
 	return attachments, parts, nil
@@ -525,7 +525,7 @@ func (s *Service) readMediaImageEditFile(ctx context.Context, userID uint, fileI
 	if mimeType == "" {
 		mimeType = strings.TrimSpace(content.File.DetectedMIME)
 	}
-	data, mimeType, err = validateGeneratedImageBytes(data, mimeType)
+	data, mimeType, err = normalizeMediaImageEditInput(data, mimeType)
 	if err != nil {
 		return llm.ContentPart{}, ErrMediaImageEditInputInvalid
 	}
@@ -533,7 +533,7 @@ func (s *Service) readMediaImageEditFile(ctx context.Context, userID uint, fileI
 		Kind:     llm.ContentPartImage,
 		MimeType: mimeType,
 		Data:     data,
-		FileName: strings.TrimSpace(content.File.FileName),
+		FileName: mediaImageEditInputFileName(content.File.FileName, mimeType),
 	}, nil
 }
 
