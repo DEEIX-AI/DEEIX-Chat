@@ -220,6 +220,7 @@
     "systemPromptDescription": "仅对聊天任务生效；当模型不支持原生 system prompt 时，会自动合并到用户提示词中。",
     "capabilitiesJSON": "模型能力 JSON",
     "capabilitiesDescription": "配置模型默认参数和聊天参数面板中的可视化控件。",
+    "imageStreamEnabled": "图像流式调用",
     "capabilitiesQuick": {
       "button": "快速配置",
       "title": "快速配置模型参数",

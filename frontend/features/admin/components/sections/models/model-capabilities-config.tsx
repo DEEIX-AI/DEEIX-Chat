@@ -102,6 +102,40 @@ function parseCapabilitiesObject(raw: string): Record<string, unknown> | null {
   }
 }
 
+export function imageStreamEnabledFromCapabilities(raw: string): boolean {
+  const payload = parseCapabilitiesObject(raw);
+  if (!payload) {
+    return true;
+  }
+  const image = payload.image;
+  if (!isPlainJSONObject(image)) {
+    return true;
+  }
+  return image.stream !== false;
+}
+
+export function setImageStreamEnabledInCapabilities(raw: string, enabled: boolean): string | null {
+  const payload = parseCapabilitiesObject(raw);
+  if (!payload) {
+    return null;
+  }
+  if (enabled) {
+    const image = payload.image;
+    if (isPlainJSONObject(image)) {
+      delete image.stream;
+      if (Object.keys(image).length === 0) {
+        delete payload.image;
+      }
+    }
+  } else {
+    payload.image = {
+      ...(isPlainJSONObject(payload.image) ? payload.image : {}),
+      stream: false,
+    };
+  }
+  return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
+}
+
 function optionPathSegments(path: string): string[] {
   return path
     .split(".")

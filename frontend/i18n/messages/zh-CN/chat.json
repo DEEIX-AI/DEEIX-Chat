@@ -590,6 +590,7 @@
     "generationConfig__maxOutputTokens": "最大输出 Tokens",
     "generationConfig__mediaResolution": "媒体分辨率",
     "generationConfig__presencePenalty": "存在惩罚",
+    "generationConfig__responseModalities": "响应模态",
     "generationConfig__responseLogprobs": "返回 Logprobs",
     "generationConfig__responseMimeType": "响应 MIME",
     "generationConfig__seed": "随机种子",

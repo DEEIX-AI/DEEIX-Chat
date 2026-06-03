@@ -79,6 +79,10 @@ type ChatModelConfigProps = {
   onOptionsReset: () => void;
 };
 
+type OptionTranslationResolver = ((key: string) => string) & {
+  has?: (key: string) => boolean;
+};
+
 const OPTION_LABEL_KEYS = new Set<string>([
   "budget_tokens",
   "cache_timeout",
@@ -595,24 +599,18 @@ function visualOptionsFromControls(
   });
 }
 
-function resolveOptionTitle(key: string, configuredLabel: string | undefined, translate: (key: string) => string): string {
-  if (OPTION_LABEL_KEYS.has(key)) {
-    try {
-      return translate(key.replaceAll(".", "__"));
-    } catch {
-      return configuredLabel?.trim() || key;
-    }
+function resolveOptionTitle(key: string, configuredLabel: string | undefined, translate: OptionTranslationResolver): string {
+  const translationKey = key.replaceAll(".", "__");
+  if (OPTION_LABEL_KEYS.has(key) && translate.has?.(translationKey)) {
+    return translate(translationKey);
   }
   return configuredLabel?.trim() || key;
 }
 
-function resolveOptionDescription(key: string, description: string | undefined, translate: (key: string) => string): string {
-  if (OPTION_DESCRIPTION_KEYS.has(key)) {
-    try {
-      return translate(key.replaceAll(".", "__"));
-    } catch {
-      return description?.trim() || "";
-    }
+function resolveOptionDescription(key: string, description: string | undefined, translate: OptionTranslationResolver): string {
+  const translationKey = key.replaceAll(".", "__");
+  if (OPTION_DESCRIPTION_KEYS.has(key) && translate.has?.(translationKey)) {
+    return translate(translationKey);
   }
   return description?.trim() || "";
 }
@@ -897,7 +895,7 @@ export function ChatModelConfig({
   );
 
   const renderOptionsEditor = () => (
-    <div className="space-y-1.5">
+    <div className="flex h-full min-h-0 flex-col space-y-1.5">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <p className="shrink-0 text-xs text-muted-foreground">{tComposer("jsonConfig")}</p>
@@ -911,13 +909,13 @@ export function ChatModelConfig({
           </span>
         ) : null}
       </div>
-      <div className="p-0.5">
+      <div className="min-h-0 flex-1 p-0.5">
         <JsonCodeEditor
           value={optionsDraft}
           onChange={handleOptionsJSONChange}
           autoFocus
-          height="min(52dvh, 420px)"
-          className="min-h-56"
+          height="100%"
+          className="h-full min-h-0"
           actions={
             <>
               <Button
@@ -955,7 +953,7 @@ export function ChatModelConfig({
   );
 
   const renderOptionsVisualFields = () => (
-    <div className="flex min-h-0 flex-col space-y-1.5 md:border-l md:pl-5">
+    <div className="flex h-full min-h-0 flex-col space-y-1.5 md:border-l md:pl-5">
       <div className="flex min-h-6 items-center justify-between gap-2 px-2 py-0.5">
         <p className="shrink-0 text-xs text-muted-foreground">{tComposer("visualConfig")}</p>
         <Tooltip>
@@ -974,7 +972,7 @@ export function ChatModelConfig({
         </Tooltip>
       </div>
       {hasRecognizedOptions ? (
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1 md:h-[min(52dvh,420px)] md:max-h-[min(52dvh,420px)]">
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           <div className="space-y-2 md:space-y-2.5">
             {nativeToolGroup ? (
               <div className="space-y-1.5 px-2 py-1.5">
@@ -1160,7 +1158,7 @@ export function ChatModelConfig({
           </div>
         </div>
       ) : (
-        <div className="flex h-40 min-h-0 flex-1 items-center justify-center text-xs text-muted-foreground md:h-[min(52dvh,420px)]">
+        <div className="flex min-h-0 flex-1 items-center justify-center text-xs text-muted-foreground">
           {tComposer("noVisualFields")}
         </div>
       )}
@@ -1209,12 +1207,12 @@ export function ChatModelConfig({
               saveOptionsDraft();
             }}
           >
-            <div className="min-h-0 flex-1 overflow-y-auto sm:pr-1">
-              <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,430px)_minmax(300px,1fr)] md:gap-5">
-                <div className={cn(mobileView === "json" ? "block" : "hidden", "md:block")}>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <div className="grid h-[min(58dvh,520px)] min-h-[320px] min-w-0 gap-4 md:grid-cols-[minmax(0,430px)_minmax(300px,1fr)] md:gap-5">
+                <div className={cn(mobileView === "json" ? "block" : "hidden", "h-full min-h-0 md:block")}>
                   {renderOptionsEditor()}
                 </div>
-                <div className={cn(mobileView === "visual" ? "block" : "hidden", "md:block")}>
+                <div className={cn(mobileView === "visual" ? "block" : "hidden", "h-full min-h-0 md:block")}>
                   {renderOptionsVisualFields()}
                 </div>
               </div>

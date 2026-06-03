@@ -220,6 +220,7 @@
     "systemPromptDescription": "Applies only to chat tasks. If the model does not support native system prompts, it is merged into the user prompt.",
     "capabilitiesJSON": "Model capabilities JSON",
     "capabilitiesDescription": "Configure model default parameters and visual controls in the chat parameters panel.",
+    "imageStreamEnabled": "Image streaming calls",
     "capabilitiesQuick": {
       "button": "Quick config",
       "title": "Quick configure model parameters",

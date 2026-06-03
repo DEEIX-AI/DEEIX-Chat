@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Combobox,
   ComboboxContent,
@@ -77,9 +78,11 @@ import {
 import { parseProtocolsJSON } from "@/features/chat/model/chat-adapter-options";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";
 import {
+  imageStreamEnabledFromCapabilities,
   MODEL_CAPABILITIES_PLACEHOLDER,
   ModelCapabilitiesGuideButton,
   ModelCapabilitiesQuickConfig,
+  setImageStreamEnabledInCapabilities,
 } from "@/features/admin/components/sections/models/model-capabilities-config";
 import type { NativeToolDefinition } from "@/shared/lib/model-option-policy";
 
@@ -117,6 +120,14 @@ const MODEL_SHEET_VENDOR_OPTIONS: VendorOption[] = [
     };
   }),
 ];
+
+const IMAGE_MEDIA_PROTOCOLS = new Set([
+  "openai_image_generations",
+  "openai_image_edits",
+  "google_image_generation",
+  "xai_image",
+  "xai_image_edits",
+]);
 
 function buildInitialState(target: AdminLLMModelDTO | null): FormState {
   if (!target) {
@@ -248,6 +259,17 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
     ])),
     [sources, target?.protocolsJSON],
   );
+  const imageStreamEnabled = imageStreamEnabledFromCapabilities(form.capabilitiesJSON);
+  const showImageStreamControl = routeProtocols.some((protocol) => IMAGE_MEDIA_PROTOCOLS.has(protocol.trim()));
+
+  function updateImageStreamEnabled(enabled: boolean) {
+    const nextValue = setImageStreamEnabledInCapabilities(form.capabilitiesJSON, enabled);
+    if (nextValue === null) {
+      toast.error(t("sheet.capabilitiesQuick.invalidJSON"));
+      return;
+    }
+    setField("capabilitiesJSON", nextValue);
+  }
 
   function handleClose() {
     onClose();
@@ -590,6 +612,22 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
                       <ModelCapabilitiesGuideButton t={t} />
                     </div>
                   </div>
+                  {showImageStreamControl ? (
+                    <label
+                      htmlFor="model-image-stream-enabled"
+                      className="mb-2 flex min-w-0 items-center gap-2 px-1 py-1"
+                    >
+                      <Checkbox
+                        id="model-image-stream-enabled"
+                        checked={imageStreamEnabled}
+                        disabled={pending}
+                        onCheckedChange={(checked) => updateImageStreamEnabled(checked === true)}
+                      />
+                      <span className="min-w-0 truncate text-xs font-medium text-foreground">
+                        {t("sheet.imageStreamEnabled")}
+                      </span>
+                    </label>
+                  ) : null}
                   <JsonCodeEditor
                     id="model-capabilities-json"
                     value={form.capabilitiesJSON}

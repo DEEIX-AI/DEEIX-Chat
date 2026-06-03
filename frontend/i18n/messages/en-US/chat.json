@@ -590,6 +590,7 @@
     "generationConfig__maxOutputTokens": "Max output tokens",
     "generationConfig__mediaResolution": "Media resolution",
     "generationConfig__presencePenalty": "Presence penalty",
+    "generationConfig__responseModalities": "Response modalities",
     "generationConfig__responseLogprobs": "Return logprobs",
     "generationConfig__responseMimeType": "Response MIME",
     "generationConfig__seed": "Seed",

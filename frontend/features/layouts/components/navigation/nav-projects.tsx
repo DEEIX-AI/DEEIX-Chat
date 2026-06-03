@@ -7,7 +7,8 @@ import { PencilLine, Plus, Star, StarOff, Trash } from "lucide-react"
 import { useTranslations } from "next-intl"
 
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis"
-import { FolderOpenIcon, type FolderOpenIconHandle } from "@/components/ui/folder-open"
+import { FolderArchiveIcon } from "@/components/ui/folder-archive"
+import { FolderOpenIcon } from "@/components/ui/folder-open"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,7 +45,6 @@ import {
   SidebarGroupAction,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
   SidebarMenuSubItem,
@@ -107,48 +107,90 @@ const PROJECT_TREE_ACCORDION_MASK_STYLE = {
 } satisfies React.CSSProperties
 const PROJECT_CREATE_ACTION_CLASS = "right-2 top-2.5 size-7"
 
+type ProjectFolderIconHandle = {
+  startAnimation: () => void
+  stopAnimation: () => void
+}
+
 function ProjectTreeButton({
   active,
   contentID,
   expanded,
   name,
-  onClick,
+  onStartConversation,
+  onToggleExpanded,
   onHoverChange,
 }: {
   active: boolean
   contentID: string
   expanded: boolean
   name: string
-  onClick: () => void
+  onStartConversation: () => void
+  onToggleExpanded: () => void
   onHoverChange: (hovered: boolean) => void
 }) {
-  const iconRef = React.useRef<FolderOpenIconHandle>(null)
+  const iconRef = React.useRef<ProjectFolderIconHandle>(null)
 
   return (
-    <SidebarMenuButton
-      isActive={active}
-      className="pr-8"
-      tooltip={name}
-      aria-controls={contentID}
-      aria-expanded={expanded}
-      onClick={onClick}
+    <div
+      className={cn(
+        "relative flex h-8 w-full min-w-0 items-center rounded-md text-sm transition-colors",
+        active
+          ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+      )}
       onMouseEnter={() => {
         onHoverChange(true)
-        iconRef.current?.startAnimation()
       }}
       onMouseLeave={() => {
         onHoverChange(false)
-        iconRef.current?.stopAnimation()
       }}
     >
-      <FolderOpenIcon
-        ref={iconRef}
-        size={18}
-        strokeWidth={1.7}
-        className="flex size-4.5 shrink-0 items-center justify-center text-current"
-      />
-      <span>{name}</span>
-    </SidebarMenuButton>
+      <button
+        type="button"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md outline-hidden ring-sidebar-ring transition-colors focus-visible:ring-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        aria-controls={contentID}
+        aria-expanded={expanded}
+        aria-label={name}
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          onToggleExpanded()
+        }}
+        onMouseEnter={() => {
+          iconRef.current?.startAnimation()
+        }}
+        onMouseLeave={() => {
+          iconRef.current?.stopAnimation()
+        }}
+      >
+        {expanded ? (
+          <FolderOpenIcon
+            ref={iconRef}
+            size={18}
+            strokeWidth={1.7}
+            className="flex size-4.5 shrink-0 items-center justify-center text-current"
+          />
+        ) : (
+          <FolderArchiveIcon
+            ref={iconRef}
+            size={18}
+            className="flex size-4.5 shrink-0 items-center justify-center text-current"
+          />
+        )}
+      </button>
+      <button
+        type="button"
+        className="flex h-8 min-w-0 flex-1 items-center pr-8 text-left outline-hidden ring-sidebar-ring focus-visible:ring-2"
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          onStartConversation()
+        }}
+      >
+        <span className="truncate">{name}</span>
+      </button>
+    </div>
   )
 }
 
@@ -394,15 +436,25 @@ export function NavProjects() {
     [loadProjectConversations],
   )
 
-  const selectProject = React.useCallback(
+  const toggleProjectExpanded = React.useCallback(
     (projectID: string) => {
-      ensureProjectExpanded(projectID)
-      router.push(`/chat?project_id=${encodeURIComponent(projectID)}`)
-      if (isMobile) {
-        setOpenMobile(false)
+      const shouldLoad = !projectConversationStateRef.current[projectID]?.loaded
+      let expandedNext = false
+      setExpandedProjectIDs((prev) => {
+        const next = new Set(prev)
+        if (next.has(projectID)) {
+          next.delete(projectID)
+        } else {
+          next.add(projectID)
+          expandedNext = true
+        }
+        return next
+      })
+      if (expandedNext && shouldLoad) {
+        void loadProjectConversations(projectID)
       }
     },
-    [ensureProjectExpanded, isMobile, router, setOpenMobile],
+    [loadProjectConversations],
   )
 
   const startProjectConversation = React.useCallback(
@@ -611,7 +663,8 @@ export function NavProjects() {
                     contentID={projectConversationContentID}
                     expanded={expanded}
                     name={project.name}
-                    onClick={() => selectProject(project.publicID)}
+                    onStartConversation={() => startProjectConversation(project.publicID)}
+                    onToggleExpanded={() => toggleProjectExpanded(project.publicID)}
                     onHoverChange={(hovered) => setHoveredProjectRowID(hovered ? project.publicID : null)}
                   />
                   <DropdownMenu
