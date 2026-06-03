@@ -12,6 +12,7 @@ import {
 import type {
   AdminLLMAdapter,
   AdminBatchDeleteData,
+  AdminLLMModelAccessScope,
   AdminLLMModelDTO,
   AdminLLMModelUpstreamSourceDTO,
   AdminLLMStatus,
@@ -65,6 +66,7 @@ type UseAdminModelsState = {
   setSourcesModel: (target: AdminLLMModelDTO | null) => void;
   loadModels: (page?: number, pageSize?: number) => Promise<void>;
   handleToggleStatus: (item: AdminLLMModelDTO, nextStatus: AdminLLMStatus) => Promise<void>;
+  handleToggleAccessScope: (item: AdminLLMModelDTO, nextScope: AdminLLMModelAccessScope) => Promise<void>;
   handleBulkApplyKinds: () => Promise<void>;
   handleBulkApplyProtocol: () => Promise<void>;
   handleBulkApplyVendor: () => Promise<void>;
@@ -208,6 +210,30 @@ export function useAdminModels(): UseAdminModelsState {
       }
     },
     [items, loadModels, page, pageSize, sortValue, statusFilter, t],
+  );
+
+  const handleToggleAccessScope = React.useCallback(
+    async (item: AdminLLMModelDTO, nextScope: AdminLLMModelAccessScope) => {
+      const token = await resolveAccessToken();
+      if (!token) {
+        toast.error(t("sessionExpired"), { description: t("signInAgain") });
+        return;
+      }
+      const previousItem = items.find((model) => model.id === item.id) ?? item;
+      setItems((current) => patchByID(current, item.id, (model) => model.id, { accessScope: nextScope }));
+      try {
+        const data = await updateAdminLLMModel(token, item.id, { accessScope: nextScope });
+        setItems((current) => replaceByID(current, item.id, (model) => model.id, data.model));
+        toast.success(nextScope === "public" ? t("modelScopePublic") : t("modelScopeInternal"));
+        if (sortValue === "updated_desc") {
+          void loadModels(page, pageSize);
+        }
+      } catch (error) {
+        setItems((current) => replaceByID(current, item.id, (model) => model.id, previousItem));
+        toast.error(t("modelScopeUpdateFailed"), { description: resolveErrorMessage(error) });
+      }
+    },
+    [items, loadModels, page, pageSize, sortValue, t],
   );
 
   const handleSourceStatusChange = React.useCallback((modelID: number, previous: AdminLLMStatus, next: AdminLLMStatus) => {
@@ -608,6 +634,7 @@ export function useAdminModels(): UseAdminModelsState {
     setSourcesModel,
     loadModels,
     handleToggleStatus,
+    handleToggleAccessScope,
     handleBulkApplyKinds,
     handleBulkApplyProtocol,
     handleBulkApplyVendor,

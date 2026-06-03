@@ -53,6 +53,7 @@ type CreateModelRequest struct {
 	Icon              string `json:"icon" binding:"max=128"`
 	CapabilitiesJSON  string `json:"capabilitiesJSON" binding:"max=10000"`
 	SystemPrompt      string `json:"systemPrompt" binding:"max=20000"`
+	AccessScope       string `json:"accessScope" binding:"omitempty,oneof=public internal"`
 	Status            string `json:"status" binding:"omitempty,oneof=active inactive"`
 	Description       string `json:"description" binding:"max=10000"`
 }
@@ -65,6 +66,7 @@ type UpdateModelRequest struct {
 	Icon              *string `json:"icon" binding:"omitempty,max=128"`
 	CapabilitiesJSON  *string `json:"capabilitiesJSON" binding:"omitempty,max=10000"`
 	SystemPrompt      *string `json:"systemPrompt" binding:"omitempty,max=20000"`
+	AccessScope       *string `json:"accessScope" binding:"omitempty,oneof=public internal"`
 	Status            *string `json:"status" binding:"omitempty,oneof=active inactive"`
 	Description       *string `json:"description" binding:"omitempty,max=10000"`
 }

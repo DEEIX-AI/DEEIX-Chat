@@ -58,6 +58,7 @@ import { LobeHubIcon } from "@/shared/components/lobehub-icon";
 import { KNOWN_VENDOR_OPTIONS, resolveLobeHubIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
 import type {
   AdminLLMModelDTO,
+  AdminLLMModelAccessScope,
   AdminLLMModelUpstreamSourceDTO,
   AdminLLMModelVendor,
   AdminLLMStatus,
@@ -97,6 +98,7 @@ type FormState = {
   icon: string;
   capabilitiesJSON: string;
   systemPrompt: string;
+  accessScope: AdminLLMModelAccessScope;
   status: AdminLLMStatus;
   description: string;
 };
@@ -138,6 +140,7 @@ function buildInitialState(target: AdminLLMModelDTO | null): FormState {
       icon: "",
       capabilitiesJSON: "",
       systemPrompt: "",
+      accessScope: "public",
       status: "active",
       description: "",
     };
@@ -151,6 +154,7 @@ function buildInitialState(target: AdminLLMModelDTO | null): FormState {
     icon: target.icon ?? "",
     capabilitiesJSON: normalizeCapabilitiesJSON(target.capabilitiesJSON),
     systemPrompt: target.systemPrompt ?? "",
+    accessScope: target.accessScope === "internal" ? "internal" : "public",
     status: target.status,
     description: target.description ?? "",
   };
@@ -354,6 +358,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
           icon: form.icon.trim() || undefined,
           capabilitiesJSON: normalizeCapabilitiesJSON(form.capabilitiesJSON) || undefined,
           systemPrompt: form.systemPrompt.trim() || undefined,
+          accessScope: form.accessScope,
           status: form.status,
           description: form.description.trim() || undefined,
         });
@@ -372,6 +377,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
         icon: form.icon.trim() || undefined,
         capabilitiesJSON: normalizeCapabilitiesJSON(form.capabilitiesJSON) || undefined,
         systemPrompt: form.systemPrompt.trim(),
+        accessScope: form.accessScope,
         status: form.status,
         description: form.description.trim() || undefined,
       };
@@ -500,6 +506,23 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
                       {t(`status.${s}`)}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>{t("sheet.accessScope")}</Label>
+              <Select
+                value={form.accessScope}
+                onValueChange={(v) => setField("accessScope", v as AdminLLMModelAccessScope)}
+                disabled={pending}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">{t("accessScope.public")}</SelectItem>
+                  <SelectItem value="internal">{t("accessScope.internal")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

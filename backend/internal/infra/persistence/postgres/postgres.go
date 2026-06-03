@@ -255,6 +255,11 @@ func applyLLMBaselineIndexes(db *gorm.DB) error {
 		`ALTER TABLE "llm_platform_models"
 		ADD COLUMN IF NOT EXISTS "system_prompt" text NOT NULL DEFAULT ''`,
 		`COMMENT ON COLUMN "llm_platform_models"."system_prompt" IS '模型级系统提示词'`,
+		`ALTER TABLE "llm_platform_models"
+		ADD COLUMN IF NOT EXISTS "access_scope" varchar(32) NOT NULL DEFAULT 'public'`,
+		`COMMENT ON COLUMN "llm_platform_models"."access_scope" IS '模型使用范围: public用户可用 internal仅内部任务'`,
+		`CREATE INDEX IF NOT EXISTS idx_llm_platform_models_access_scope
+			ON "llm_platform_models" ("access_scope")`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_llm_upstream_models_upstream_name
 			ON "llm_upstream_models" ("upstream_id", "upstream_model_name")`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_llm_upstream_models_binding_code

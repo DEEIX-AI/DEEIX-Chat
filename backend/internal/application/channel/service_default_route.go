@@ -25,6 +25,7 @@ func (s *Service) ResolveDefaultRoute(ctx context.Context, input ResolveRouteInp
 		route, routeErr := s.ResolveRoute(ctx, ResolveRouteInput{
 			PlatformModelName: name,
 			TaskType:          input.TaskType,
+			Scope:             input.Scope,
 			UserID:            input.UserID,
 			ConversationID:    input.ConversationID,
 			RequestID:         strings.TrimSpace(input.RequestID),

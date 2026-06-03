@@ -15,6 +15,10 @@
     "inactive": "停用",
     "circuitOpen": "熔断中"
   },
+  "accessScope": {
+    "public": "全平台",
+    "internal": "内部任务"
+  },
   "kinds": {
     "chat": "对话",
     "audio": "语音",
@@ -30,10 +34,12 @@
     "kind": "类型",
     "vendor": "厂商",
     "sources": "来源",
+    "accessScope": "可用范围",
     "empty": "暂无模型数据",
     "selectAllModels": "全选模型",
     "selectModel": "选择 {name}",
     "modelStatusAria": "{name} 状态",
+    "modelAccessScopeAria": "{name} 可用范围",
     "modelActions": "模型操作",
     "editModel": "编辑模型",
     "viewSources": "查看上游来源",
@@ -184,6 +190,9 @@
     "operationFailed": "操作失败",
     "modelCreated": "模型已创建",
     "modelUpdated": "模型已更新",
+    "modelScopePublic": "模型已设为全局可用",
+    "modelScopeInternal": "模型已设为内部任务可用",
+    "modelScopeUpdateFailed": "可用范围更新失败",
     "createFailed": "创建失败",
     "updateFailed": "更新失败"
   },
@@ -211,6 +220,7 @@
     "noMatchedVendors": "没有匹配的厂商",
     "kind": "类别",
     "selectKind": "选择类别",
+    "accessScope": "可用范围",
     "icon": "图标（LobeHub icon 名）",
     "iconAutoDescription": "未填写时将优先按模型名自动匹配模型 icon；当前归类为 {vendor}。",
     "description": "描述",

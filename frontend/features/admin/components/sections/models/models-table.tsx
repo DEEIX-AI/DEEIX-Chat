@@ -47,6 +47,13 @@ import {
   TableSkeletonRows,
 } from "@/components/ui/table";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -64,6 +71,7 @@ import {
 import { LobeHubIcon } from "@/shared/components/lobehub-icon";
 import { resolveLobeHubIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
 import type {
+  AdminLLMModelAccessScope,
   AdminLLMModelDTO,
   AdminLLMModelUpstreamSourceDTO,
   AdminLLMStatus,
@@ -224,6 +232,7 @@ type ModelsTableProps = {
   onEdit: (item: AdminLLMModelDTO) => void;
   onViewSources: (item: AdminLLMModelDTO) => void;
   onToggleStatus: (item: AdminLLMModelDTO, status: AdminLLMStatus) => void;
+  onToggleAccessScope: (item: AdminLLMModelDTO, scope: AdminLLMModelAccessScope) => void;
   onDelete: (item: AdminLLMModelDTO) => void;
   onTestModel?: (item: AdminLLMModelDTO) => void;
   onTestSource?: (source: AdminLLMModelUpstreamSourceDTO) => void;
@@ -243,6 +252,7 @@ type ModelTableRowProps = {
   onEdit: (item: AdminLLMModelDTO) => void;
   onViewSources: (item: AdminLLMModelDTO) => void;
   onToggleStatus: (item: AdminLLMModelDTO, status: AdminLLMStatus) => void;
+  onToggleAccessScope: (item: AdminLLMModelDTO, scope: AdminLLMModelAccessScope) => void;
   onDelete: (item: AdminLLMModelDTO) => void;
   onTestModel?: (item: AdminLLMModelDTO) => void;
   onTestSource?: (source: AdminLLMModelUpstreamSourceDTO) => void;
@@ -271,6 +281,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
   onEdit,
   onViewSources,
   onToggleStatus,
+  onToggleAccessScope,
   onDelete,
   onTestModel,
   onTestSource,
@@ -355,6 +366,25 @@ const ModelTableRow = React.memo(function ModelTableRow({
               aria-label={t("table.modelStatusAria", { name: item.platformModelName })}
             />
           </div>
+        </TableCell>
+
+        <TableCell className="w-[112px] whitespace-nowrap py-1" onClick={(event) => event.stopPropagation()}>
+          <Select
+            value={item.accessScope === "internal" ? "internal" : "public"}
+            onValueChange={(value) => onToggleAccessScope(item, value as AdminLLMModelAccessScope)}
+          >
+            <SelectTrigger
+              size="sm"
+              className="h-7 w-[96px] border-input/40 bg-transparent px-2 text-xs shadow-none"
+              aria-label={t("table.modelAccessScopeAria", { name: item.platformModelName })}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="public" className="text-xs">{t("accessScope.public")}</SelectItem>
+              <SelectItem value="internal" className="text-xs">{t("accessScope.internal")}</SelectItem>
+            </SelectContent>
+          </Select>
         </TableCell>
 
         <TableCell className="whitespace-nowrap py-1 text-muted-foreground">
@@ -600,6 +630,7 @@ export function ModelsTable({
   onEdit,
   onViewSources,
   onToggleStatus,
+  onToggleAccessScope,
   onDelete,
   onTestModel,
   onTestSource,
@@ -924,6 +955,7 @@ export function ModelsTable({
           <TableHead className="w-[120px]">{t("table.vendor")}</TableHead>
           <TableHead className="w-[96px] text-center">{t("table.sources")}</TableHead>
           <TableHead className="w-[72px] text-center">{t("fields.status")}</TableHead>
+          <TableHead className="w-[112px]">{t("table.accessScope")}</TableHead>
           <TableHead className="w-[140px]">{t("sources.updatedAt")}</TableHead>
           <TableHead className="w-[56px]" stickyEnd />
         </TableRow>
@@ -931,11 +963,11 @@ export function ModelsTable({
 
       <TableBody>
         {loading && items.length === 0 ? (
-          <TableSkeletonRows colSpan={9} rowCount={10} />
+          <TableSkeletonRows colSpan={10} rowCount={10} />
         ) : null}
 
         {items.length === 0 && !loading ? (
-          <TableEmptyRow colSpan={9}>{t("table.empty")}</TableEmptyRow>
+          <TableEmptyRow colSpan={10}>{t("table.empty")}</TableEmptyRow>
         ) : null}
 
         {renderedItems.map((item) => (
@@ -952,6 +984,7 @@ export function ModelsTable({
             onEdit={onEdit}
             onViewSources={onViewSources}
             onToggleStatus={onToggleStatus}
+            onToggleAccessScope={onToggleAccessScope}
             onDelete={onDelete}
             onTestModel={onTestModel}
             onTestSource={onTestSource}

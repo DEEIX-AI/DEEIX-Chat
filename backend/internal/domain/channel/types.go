@@ -72,6 +72,7 @@ type PlatformModel struct {
 	Icon              string
 	CapabilitiesJSON  string
 	SystemPrompt      string
+	AccessScope       string
 	Status            string
 	Description       string
 	SortOrder         int

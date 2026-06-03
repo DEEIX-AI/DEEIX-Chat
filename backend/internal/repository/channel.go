@@ -214,6 +214,7 @@ type UpdateChannelModelInput struct {
 	Icon              *string
 	CapabilitiesJSON  *string
 	SystemPrompt      *string
+	AccessScope       *string
 	Status            *string
 	Description       *string
 }
@@ -315,6 +316,7 @@ func (input UpdateChannelModelInput) IsZero() bool {
 		input.Icon == nil &&
 		input.CapabilitiesJSON == nil &&
 		input.SystemPrompt == nil &&
+		input.AccessScope == nil &&
 		input.Status == nil &&
 		input.Description == nil
 }

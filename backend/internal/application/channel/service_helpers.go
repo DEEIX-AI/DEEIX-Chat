@@ -76,6 +76,7 @@ func toModelView(item repository.ChannelModelListRow) ModelView {
 		Icon:              item.Icon,
 		CapabilitiesJSON:  item.CapabilitiesJSON,
 		SystemPrompt:      item.SystemPrompt,
+		AccessScope:       normalizeModelAccessScopeValue(item.AccessScope),
 		Status:            item.Status,
 		Description:       item.Description,
 		SortOrder:         item.SortOrder,
@@ -170,6 +171,22 @@ func normalizeStatus(raw string) string {
 		return "active"
 	}
 	return v
+}
+
+func normalizeModelAccessScope(raw string) (string, error) {
+	value := normalizeModelAccessScopeValue(raw)
+	if value != ModelAccessScopePublic && value != ModelAccessScopeInternal {
+		return "", ErrInvalidModelAccessScope
+	}
+	return value, nil
+}
+
+func normalizeModelAccessScopeValue(raw string) string {
+	value := strings.TrimSpace(strings.ToLower(raw))
+	if value == "" {
+		return ModelAccessScopePublic
+	}
+	return value
 }
 
 func normalizePriority(value int) int {

@@ -438,6 +438,7 @@ export function AdminModelsPage() {
           onEdit={models.setEditTarget}
           onViewSources={models.setSourcesModel}
           onToggleStatus={(item, status) => void models.handleToggleStatus(item, status)}
+          onToggleAccessScope={(item, scope) => void models.handleToggleAccessScope(item, scope)}
           onDelete={models.setDeleteTarget}
           onTestModel={handleTestModel}
           onTestSource={handleTestSource}

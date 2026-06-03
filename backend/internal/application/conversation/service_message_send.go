@@ -338,12 +338,13 @@ func (s *Service) sendMessageInternal(
 	route, err := s.routeResolver.ResolveRoute(ctx, channel.ResolveRouteInput{
 		PlatformModelName: conversation.Model,
 		TaskType:          channel.TaskTypeChat,
+		Scope:             channel.RouteScopeUser,
 		UserID:            input.UserID,
 		ConversationID:    input.ConversationID,
 		RequestID:         strings.TrimSpace(input.RequestID),
 	})
 	if err != nil {
-		if errors.Is(err, channel.ErrRouteNotFound) || errors.Is(err, channel.ErrModelNotFound) {
+		if errors.Is(err, channel.ErrRouteNotFound) || errors.Is(err, channel.ErrModelNotFound) || errors.Is(err, channel.ErrModelAccessDenied) {
 			retErr = ErrModelRouteNotConfigured
 			return nil, retErr
 		}

@@ -48,6 +48,7 @@ type CreateModelInput struct {
 	Icon              string
 	CapabilitiesJSON  string
 	SystemPrompt      string
+	AccessScope       string
 	Status            string
 	Description       string
 }
@@ -60,6 +61,7 @@ type UpdateModelInput struct {
 	Icon              *string
 	CapabilitiesJSON  *string
 	SystemPrompt      *string
+	AccessScope       *string
 	Status            *string
 	Description       *string
 }

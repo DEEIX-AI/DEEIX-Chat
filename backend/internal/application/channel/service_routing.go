@@ -23,8 +23,12 @@ func (s *Service) ResolveRoute(ctx context.Context, input ResolveRouteInput) (*R
 	if err != nil {
 		return nil, ErrModelNotFound
 	}
-	if _, err := s.repo.GetActiveModelByName(ctx, platformModelName); err != nil {
+	platformModel, err := s.repo.GetActiveModelByName(ctx, platformModelName)
+	if err != nil {
 		return nil, err
+	}
+	if !routeScopeAllowsModelAccess(input.Scope, platformModel.AccessScope) {
+		return nil, ErrModelAccessDenied
 	}
 
 	rows, err := s.repo.ListActiveRoutesByModel(ctx, platformModelName)
@@ -123,6 +127,22 @@ func (s *Service) ResolveRoute(ctx context.Context, input ResolveRouteInput) (*R
 	}
 
 	return nil, ErrAllRoutesUnavailable
+}
+
+func normalizeRouteScope(raw string) string {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case RouteScopeInternal:
+		return RouteScopeInternal
+	default:
+		return RouteScopeUser
+	}
+}
+
+func routeScopeAllowsModelAccess(routeScope string, modelAccessScope string) bool {
+	if normalizeRouteScope(routeScope) == RouteScopeInternal {
+		return true
+	}
+	return normalizeModelAccessScopeValue(modelAccessScope) == ModelAccessScopePublic
 }
 
 // MarkRouteSuccess 标记上游调用成功，清除失败计数。

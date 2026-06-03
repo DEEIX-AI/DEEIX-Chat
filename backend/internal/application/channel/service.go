@@ -77,6 +77,7 @@ type ResolvedRoute struct {
 type ResolveRouteInput struct {
 	PlatformModelName string
 	TaskType          string
+	Scope             string
 	UserID            uint
 	ConversationID    uint
 	RequestID         string
@@ -95,6 +96,14 @@ const (
 	routeFailureIgnore    routeFailureClass = "ignore"
 	circuitProbeTTLSec                      = 30
 	modelCatalogCacheTTL                    = 30 * time.Second
+)
+
+const (
+	ModelAccessScopePublic   = "public"
+	ModelAccessScopeInternal = "internal"
+
+	RouteScopeUser     = "user"
+	RouteScopeInternal = "internal"
 )
 
 // localAPIKeyCounters 存储各上游的本地 round-robin 计数器（Redis 不可用时的降级实现）。

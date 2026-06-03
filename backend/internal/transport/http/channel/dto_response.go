@@ -96,6 +96,7 @@ type ModelResponse struct {
 	Icon              string `json:"icon"`
 	CapabilitiesJSON  string `json:"capabilitiesJSON"`
 	SystemPrompt      string `json:"systemPrompt"`
+	AccessScope       string `json:"accessScope"`
 	Status            string `json:"status"`
 	Description       string `json:"description"`
 	SortOrder         int    `json:"sortOrder"`
@@ -115,6 +116,7 @@ func toModelResponse(v appchannel.ModelView) ModelResponse {
 		Icon:              v.Icon,
 		CapabilitiesJSON:  v.CapabilitiesJSON,
 		SystemPrompt:      v.SystemPrompt,
+		AccessScope:       v.AccessScope,
 		Status:            v.Status,
 		Description:       v.Description,
 		SortOrder:         v.SortOrder,

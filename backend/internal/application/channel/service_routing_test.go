@@ -61,3 +61,20 @@ func TestBuildResolvedRouteSnapshotsModelIdentity(t *testing.T) {
 		t.Fatalf("expected platform model snapshot, got %#v", route)
 	}
 }
+
+func TestRouteScopeAllowsModelAccessDefaultsToUserScope(t *testing.T) {
+	for _, scope := range []string{"", "unknown", RouteScopeUser} {
+		if routeScopeAllowsModelAccess(scope, ModelAccessScopeInternal) {
+			t.Fatalf("scope %q should not access internal model", scope)
+		}
+		if !routeScopeAllowsModelAccess(scope, ModelAccessScopePublic) {
+			t.Fatalf("scope %q should access public model", scope)
+		}
+	}
+}
+
+func TestRouteScopeAllowsInternalModelForInternalScope(t *testing.T) {
+	if !routeScopeAllowsModelAccess(RouteScopeInternal, ModelAccessScopeInternal) {
+		t.Fatalf("internal scope should access internal model")
+	}
+}

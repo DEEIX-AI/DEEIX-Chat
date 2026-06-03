@@ -37,6 +37,7 @@ type LLMPlatformModel struct {
 	KindsJSON        string `gorm:"type:text;not null;default:'[\"chat\"]';comment:模型类型JSON数组"`
 	CapabilitiesJSON string `gorm:"type:text;not null;default:'{}';comment:平台能力配置JSON"`
 	SystemPrompt     string `gorm:"type:text;not null;default:'';comment:模型级系统提示词"`
+	AccessScope      string `gorm:"size:32;not null;default:'public';index:idx_llm_platform_models_access_scope;comment:模型使用范围: public用户可用 internal仅内部任务"`
 	Icon             string `gorm:"size:64;comment:模型图标标识"`
 	Description      string `gorm:"type:text;comment:模型说明"`
 	Status           string `gorm:"size:32;not null;default:'active';index:idx_llm_platform_models_status;comment:平台模型状态"`

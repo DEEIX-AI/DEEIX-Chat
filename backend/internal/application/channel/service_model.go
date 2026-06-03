@@ -57,7 +57,7 @@ func (s *Service) ListActiveModels(ctx context.Context) ([]ModelView, error) {
 		if err != nil {
 			return nil, err
 		}
-		return filterRoutableModels(items), nil
+		return filterPublicRoutableModels(items), nil
 	}
 	mode, err := s.modelPricingFilter.GetBillingMode(ctx)
 	if err != nil {
@@ -68,7 +68,7 @@ func (s *Service) ListActiveModels(ctx context.Context) ([]ModelView, error) {
 		if err != nil {
 			return nil, err
 		}
-		return filterRoutableModels(items), nil
+		return filterPublicRoutableModels(items), nil
 	}
 
 	s.modelCatalogMu.RLock()
@@ -83,7 +83,7 @@ func (s *Service) ListActiveModels(ctx context.Context) ([]ModelView, error) {
 	if err != nil {
 		return nil, err
 	}
-	views := filterRoutableModels(items)
+	views := filterPublicRoutableModels(items)
 	pricingByPlatformModelName, err := s.modelPricingFilter.ListPublicModelPricing(ctx)
 	if err != nil {
 		return nil, err
@@ -141,11 +141,14 @@ func cloneModelViews(items []ModelView) []ModelView {
 	return results
 }
 
-// filterRoutableModels 过滤出有有效上游来源的可路由模型。
-func filterRoutableModels(items []repository.ChannelModelListRow) []ModelView {
+// filterPublicRoutableModels 过滤出公开接口可展示的有效可路由模型。
+func filterPublicRoutableModels(items []repository.ChannelModelListRow) []ModelView {
 	results := make([]ModelView, 0, len(items))
 	for _, item := range items {
 		if item.ActiveSourceCount <= 0 {
+			continue
+		}
+		if normalizeModelAccessScopeValue(item.AccessScope) != ModelAccessScopePublic {
 			continue
 		}
 		results = append(results, toModelView(item))
@@ -226,6 +229,10 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 	if len([]rune(systemPrompt)) > maxSystemPromptChars {
 		return nil, ErrSystemPromptTooLong
 	}
+	accessScope, err := normalizeModelAccessScope(input.AccessScope)
+	if err != nil {
+		return nil, err
+	}
 
 	item := &domainchannel.PlatformModel{
 		PlatformModelName: platformModelName,
@@ -234,6 +241,7 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 		Icon:              normalizeModelIcon(input.Icon, input.Vendor, platformModelName),
 		CapabilitiesJSON:  strings.TrimSpace(input.CapabilitiesJSON),
 		SystemPrompt:      systemPrompt,
+		AccessScope:       accessScope,
 		Status:            normalizeStatus(input.Status),
 		Description:       strings.TrimSpace(input.Description),
 	}
@@ -294,6 +302,13 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 			return nil, ErrSystemPromptTooLong
 		}
 		update.SystemPrompt = &systemPrompt
+	}
+	if input.AccessScope != nil {
+		accessScope, err := normalizeModelAccessScope(*input.AccessScope)
+		if err != nil {
+			return nil, err
+		}
+		update.AccessScope = &accessScope
 	}
 	if input.Status != nil {
 		status := normalizeStatus(*input.Status)

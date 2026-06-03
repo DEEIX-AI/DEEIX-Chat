@@ -34,6 +34,7 @@ func (s *Service) resolveTextTaskRouteCandidates(ctx context.Context, configured
 		route, err := s.routeResolver.ResolveRoute(ctx, channel.ResolveRouteInput{
 			PlatformModelName: value,
 			TaskType:          channel.TaskTypeChat,
+			Scope:             channel.RouteScopeInternal,
 			UserID:            userID,
 			ConversationID:    conversationID,
 			RequestID:         strings.TrimSpace(requestID),
@@ -52,6 +53,7 @@ func (s *Service) resolveTextTaskRouteCandidates(ctx context.Context, configured
 		route, err := s.routeResolver.ResolveRoute(ctx, channel.ResolveRouteInput{
 			PlatformModelName: modelName,
 			TaskType:          channel.TaskTypeChat,
+			Scope:             channel.RouteScopeInternal,
 			UserID:            userID,
 			ConversationID:    conversationID,
 			RequestID:         strings.TrimSpace(requestID),
@@ -66,6 +68,7 @@ func (s *Service) resolveTextTaskRouteCandidates(ctx context.Context, configured
 	if resolver, ok := s.routeResolver.(defaultRouteResolver); ok {
 		route, err := resolver.ResolveDefaultRoute(ctx, channel.ResolveRouteInput{
 			TaskType:       channel.TaskTypeChat,
+			Scope:          channel.RouteScopeInternal,
 			UserID:         userID,
 			ConversationID: conversationID,
 			RequestID:      strings.TrimSpace(requestID),

@@ -957,6 +957,7 @@ func (h *Handler) CreateModel(c *gin.Context) {
 		Icon:              req.Icon,
 		CapabilitiesJSON:  req.CapabilitiesJSON,
 		SystemPrompt:      req.SystemPrompt,
+		AccessScope:       req.AccessScope,
 		Status:            req.Status,
 		Description:       req.Description,
 	})
@@ -968,6 +969,8 @@ func (h *Handler) CreateModel(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, "invalid json config")
 		case errors.Is(err, appchannel.ErrInvalidKinds):
 			response.Error(c, http.StatusBadRequest, "invalid kinds")
+		case errors.Is(err, appchannel.ErrInvalidModelAccessScope):
+			response.Error(c, http.StatusBadRequest, "invalid model access scope")
 		case errors.Is(err, appchannel.ErrSystemPromptTooLong):
 			response.Error(c, http.StatusBadRequest, "system prompt too long")
 		case errors.Is(err, appchannel.ErrInvalidPlatformModelName):
@@ -1014,6 +1017,7 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 		Icon:              req.Icon,
 		CapabilitiesJSON:  req.CapabilitiesJSON,
 		SystemPrompt:      req.SystemPrompt,
+		AccessScope:       req.AccessScope,
 		Status:            req.Status,
 		Description:       req.Description,
 	})
@@ -1025,6 +1029,8 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, "invalid json config")
 		case errors.Is(err, appchannel.ErrInvalidKinds):
 			response.Error(c, http.StatusBadRequest, "invalid kinds")
+		case errors.Is(err, appchannel.ErrInvalidModelAccessScope):
+			response.Error(c, http.StatusBadRequest, "invalid model access scope")
 		case errors.Is(err, appchannel.ErrSystemPromptTooLong):
 			response.Error(c, http.StatusBadRequest, "system prompt too long")
 		case errors.Is(err, appchannel.ErrInvalidPlatformModelName):

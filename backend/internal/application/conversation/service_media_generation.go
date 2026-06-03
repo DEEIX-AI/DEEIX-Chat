@@ -116,6 +116,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 	route, err := s.routeResolver.ResolveRoute(ctx, channel.ResolveRouteInput{
 		PlatformModelName: platformModelName,
 		TaskType:          taskRouteType,
+		Scope:             channel.RouteScopeUser,
 		UserID:            input.UserID,
 		ConversationID:    input.ConversationID,
 		RequestID:         strings.TrimSpace(input.RequestID),

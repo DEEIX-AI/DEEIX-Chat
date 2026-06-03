@@ -273,6 +273,9 @@ func (r *Repo) UpdateModel(ctx context.Context, modelID uint, input repository.U
 	if input.SystemPrompt != nil {
 		updates["system_prompt"] = *input.SystemPrompt
 	}
+	if input.AccessScope != nil {
+		updates["access_scope"] = *input.AccessScope
+	}
 	if input.Status != nil {
 		updates["status"] = *input.Status
 	}
@@ -435,7 +438,7 @@ func (r *Repo) modelListQuery(ctx context.Context) *gorm.DB {
 	return r.db.WithContext(ctx).
 		Table("llm_platform_models AS m").
 		Select(
-			"m.id, m.name AS platform_model_name, m.vendor, m.kinds_json, m.icon, m.capabilities_json, m.system_prompt, m.status, m.description, m.sort_order, m.created_at, m.updated_at, " +
+			"m.id, m.name AS platform_model_name, m.vendor, m.kinds_json, m.icon, m.capabilities_json, m.system_prompt, m.access_scope, m.status, m.description, m.sort_order, m.created_at, m.updated_at, " +
 				"COALESCE(stats.source_count, 0) AS source_count, COALESCE(stats.active_source_count, 0) AS active_source_count, COALESCE(stats.protocols_json, '[]') AS protocols_json",
 		).
 		Joins(
@@ -1355,6 +1358,7 @@ func toPlatformModelDomain(item model.LLMPlatformModel) domainchannel.PlatformMo
 		Icon:              item.Icon,
 		CapabilitiesJSON:  item.CapabilitiesJSON,
 		SystemPrompt:      item.SystemPrompt,
+		AccessScope:       item.AccessScope,
 		Status:            item.Status,
 		Description:       item.Description,
 		SortOrder:         item.SortOrder,
@@ -1374,6 +1378,7 @@ func toPlatformModelModel(item *domainchannel.PlatformModel) model.LLMPlatformMo
 		Icon:             item.Icon,
 		CapabilitiesJSON: item.CapabilitiesJSON,
 		SystemPrompt:     item.SystemPrompt,
+		AccessScope:      item.AccessScope,
 		Status:           item.Status,
 		Description:      item.Description,
 		SortOrder:        item.SortOrder,

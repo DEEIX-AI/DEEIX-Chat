@@ -15,6 +15,10 @@
     "inactive": "Disabled",
     "circuitOpen": "Circuit open"
   },
+  "accessScope": {
+    "public": "Platform-wide",
+    "internal": "Internal tasks"
+  },
   "kinds": {
     "chat": "Chat",
     "audio": "Audio",
@@ -30,10 +34,12 @@
     "kind": "Type",
     "vendor": "Vendor",
     "sources": "Sources",
+    "accessScope": "Availability",
     "empty": "No models",
     "selectAllModels": "Select all",
     "selectModel": "Select {name}",
     "modelStatusAria": "{name} status",
+    "modelAccessScopeAria": "{name} availability",
     "modelActions": "Model actions",
     "editModel": "Edit",
     "viewSources": "Sources",
@@ -184,6 +190,9 @@
     "operationFailed": "Action failed",
     "modelCreated": "Model created",
     "modelUpdated": "Model updated",
+    "modelScopePublic": "Model set to globally available",
+    "modelScopeInternal": "Model set to internal tasks",
+    "modelScopeUpdateFailed": "Failed to update availability",
     "createFailed": "Could not create model",
     "updateFailed": "Could not update model"
   },
@@ -211,6 +220,7 @@
     "noMatchedVendors": "No matching vendors",
     "kind": "Kind",
     "selectKind": "Select kind",
+    "accessScope": "Availability",
     "icon": "Icon (LobeHub icon name)",
     "iconAutoDescription": "When empty, the icon is inferred from the model name first. Current vendor category: {vendor}.",
     "description": "Description",
