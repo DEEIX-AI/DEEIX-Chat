@@ -61,6 +61,19 @@ type UpdateSessionActivityInput struct {
 	PreciseLocatedAt *time.Time
 }
 
+// RotateSessionTokensInput 定义 refresh token 轮换所需的会话状态。
+type RotateSessionTokensInput struct {
+	UserID               uint
+	SessionID            string
+	PresentedRefreshHash string
+	NextRefreshHash      string
+	NextAccessJTI        string
+	IssuedAt             time.Time
+	ExpiresAt            time.Time
+	Now                  time.Time
+	PreviousTokenGrace   time.Duration
+}
+
 // UpdateIdentityProviderInput 定义第三方身份提供方更新字段。
 type UpdateIdentityProviderInput struct {
 	Type                *string
@@ -221,15 +234,7 @@ type UserRepository interface {
 	) error
 	CreateSession(ctx context.Context, item *domainuser.Session) error
 	GetSessionByUserAndSessionID(ctx context.Context, userID uint, sessionID string) (*domainuser.Session, error)
-	RotateSessionTokens(
-		ctx context.Context,
-		userID uint,
-		sessionID string,
-		refreshTokenHash string,
-		accessJTI string,
-		issuedAt time.Time,
-		expiresAt time.Time,
-	) error
+	RotateSessionTokens(ctx context.Context, input RotateSessionTokensInput) error
 	TouchSessionActivity(ctx context.Context, userID uint, sessionID string, input UpdateSessionActivityInput) error
 	RevokeSession(ctx context.Context, userID uint, sessionID string, reason string) error
 	RevokeAllSessions(ctx context.Context, userID uint, reason string) error

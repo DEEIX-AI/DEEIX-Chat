@@ -159,6 +159,9 @@ func migrate(db *gorm.DB, cfg config.Config) error {
 	if err := applyIdentityBaselineConstraints(db); err != nil {
 		return err
 	}
+	if err := applyIdentitySessionBaseline(db); err != nil {
+		return err
+	}
 	if err := applyIdentityProviderBaseline(db); err != nil {
 		return err
 	}
@@ -350,6 +353,26 @@ func applyIdentityBaselineConstraints(db *gorm.DB) error {
 		`COMMENT ON COLUMN "identity_users"."appearance_preferences" IS '外观偏好JSON'`,
 		`DROP INDEX IF EXISTS uk_identity_users_single_superadmin`,
 	}
+	for _, statement := range statements {
+		if err := db.Exec(statement).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func applyIdentitySessionBaseline(db *gorm.DB) error {
+	statements := []string{
+		`ALTER TABLE "identity_sessions"
+		ADD COLUMN IF NOT EXISTS "previous_refresh_token_hash" varchar(255) NOT NULL DEFAULT ''`,
+		`COMMENT ON COLUMN "identity_sessions"."previous_refresh_token_hash" IS '上一枚刷新令牌哈希'`,
+		`ALTER TABLE "identity_sessions"
+		ADD COLUMN IF NOT EXISTS "refresh_rotated_at" timestamptz`,
+		`COMMENT ON COLUMN "identity_sessions"."refresh_rotated_at" IS '刷新令牌轮换时间'`,
+		`CREATE INDEX IF NOT EXISTS idx_identity_sessions_refresh_rotated_at
+		ON "identity_sessions" ("refresh_rotated_at")`,
+	}
+
 	for _, statement := range statements {
 		if err := db.Exec(statement).Error; err != nil {
 			return err

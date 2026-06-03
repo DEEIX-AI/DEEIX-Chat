@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -35,6 +34,8 @@ import (
 )
 
 const passwordHashCost = 12
+const refreshTokenPreviousHashGrace = 15 * time.Second
+const accessTokenSessionClockSkew = 2 * time.Minute
 
 // Service 封装认证业务能力。
 type Service struct {
@@ -1061,10 +1062,6 @@ func (s *Service) Refresh(
 		s.RecordAuthEvent(ctx, claims.UserID, requestID, "token_refresh", "failure", "session_revoked_or_expired", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
 		return nil, ErrSessionRevoked
 	}
-	if subtle.ConstantTimeCompare([]byte(hashToken(trimmedRefreshToken)), []byte(session.RefreshTokenHash)) != 1 {
-		s.RecordAuthEvent(ctx, claims.UserID, requestID, "token_refresh", "failure", "refresh_token_hash_mismatch", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
-		return nil, ErrInvalidRefreshToken
-	}
 
 	userItem, err := s.repo.GetByID(ctx, claims.UserID)
 	if err != nil {
@@ -1083,13 +1080,22 @@ func (s *Service) Refresh(
 
 	if err = s.repo.RotateSessionTokens(
 		ctx,
-		userItem.ID,
-		claims.SessionID,
-		hashToken(tokenBundle.RefreshToken),
-		tokenBundle.AccessJTI,
-		now,
-		tokenBundle.RefreshExpiresAt,
+		repository.RotateSessionTokensInput{
+			UserID:               userItem.ID,
+			SessionID:            claims.SessionID,
+			PresentedRefreshHash: hashToken(trimmedRefreshToken),
+			NextRefreshHash:      hashToken(tokenBundle.RefreshToken),
+			NextAccessJTI:        tokenBundle.AccessJTI,
+			IssuedAt:             now,
+			ExpiresAt:            tokenBundle.RefreshExpiresAt,
+			Now:                  now,
+			PreviousTokenGrace:   refreshTokenPreviousHashGrace,
+		},
 	); err != nil {
+		if errors.Is(err, repository.ErrInvalidInput) {
+			s.RecordAuthEvent(ctx, claims.UserID, requestID, "token_refresh", "failure", "refresh_token_hash_mismatch", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+			return nil, ErrInvalidRefreshToken
+		}
 		return nil, err
 	}
 
@@ -1192,10 +1198,10 @@ func (s *Service) ValidateAccessSession(
 	ctx context.Context,
 	userID uint,
 	sessionID string,
-	accessJTI string,
+	accessIssuedAt time.Time,
 	auditCtx requestmeta.SessionAuditContext,
 ) error {
-	if userID == 0 || strings.TrimSpace(sessionID) == "" || strings.TrimSpace(accessJTI) == "" {
+	if userID == 0 || strings.TrimSpace(sessionID) == "" || accessIssuedAt.IsZero() {
 		return ErrSessionRevoked
 	}
 
@@ -1209,7 +1215,7 @@ func (s *Service) ValidateAccessSession(
 	if session.RevokedAt != nil || time.Now().After(session.ExpiresAt) {
 		return ErrSessionRevoked
 	}
-	if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(session.AccessJTI)), []byte(strings.TrimSpace(accessJTI))) != 1 {
+	if accessIssuedAt.Add(accessTokenSessionClockSkew).Before(session.CreatedAt) {
 		return ErrSessionRevoked
 	}
 

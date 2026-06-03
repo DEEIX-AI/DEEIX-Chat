@@ -1,4 +1,4 @@
-import { clearSessionSnapshot, writeSessionSnapshot } from "@/shared/auth/session";
+import { clearSessionSnapshot, readAccessToken, readSessionRevision, writeSessionSnapshot } from "@/shared/auth/session";
 import { apiRequest, ApiError, resolveApiBaseURL, type ApiRequestOptions } from "@/shared/api/http-client";
 import type { ApiEnvelope } from "@/shared/api/common.types";
 import type { LoginData } from "@/shared/api/auth.types";
@@ -12,15 +12,26 @@ type AuthedFetchOptions = Omit<RequestInit, "headers"> & {
   headers?: HeadersInit;
 };
 
+type NavigatorWithLocks = Navigator & {
+  locks?: {
+    request<T>(name: string, callback: () => Promise<T> | T): Promise<T>;
+  };
+};
+
+const AUTH_REFRESH_LOCK_NAME = "deeix-chat:auth-refresh";
+
 let refreshAccessTokenPromise: Promise<string> | null = null;
 
 async function requestAccessTokenRefresh(): Promise<string> {
+  const startedRevision = readSessionRevision();
   try {
     const data = await apiRequest<LoginData>("/api/v1/auth/refresh", {
       method: "POST",
     });
     if (!data.accessToken) {
-      clearSessionSnapshot();
+      if (readSessionRevision() === startedRevision) {
+        clearSessionSnapshot({ syncPeers: false });
+      }
       return "";
     }
 
@@ -31,19 +42,46 @@ async function requestAccessTokenRefresh(): Promise<string> {
     return data.accessToken;
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
-      clearSessionSnapshot();
+      if (readSessionRevision() === startedRevision) {
+        clearSessionSnapshot({ syncPeers: false });
+      }
     }
     return "";
   }
 }
 
-export function refreshAccessToken(): Promise<string> {
+async function runAccessTokenRefresh(failedToken: string): Promise<string> {
+  const refresh = async () => {
+    const currentToken = readAccessToken();
+    if (currentToken && currentToken !== failedToken) {
+      return currentToken;
+    }
+    return requestAccessTokenRefresh();
+  };
+
+  const locks = typeof navigator === "undefined" ? undefined : (navigator as NavigatorWithLocks).locks;
+  if (!locks) {
+    return refresh();
+  }
+
+  return locks.request(AUTH_REFRESH_LOCK_NAME, refresh);
+}
+
+export function refreshAccessToken(failedToken = ""): Promise<string> {
   if (!refreshAccessTokenPromise) {
-    refreshAccessTokenPromise = requestAccessTokenRefresh().finally(() => {
+    refreshAccessTokenPromise = runAccessTokenRefresh(failedToken).finally(() => {
       refreshAccessTokenPromise = null;
     });
   }
   return refreshAccessTokenPromise;
+}
+
+async function recoverAccessToken(failedToken: string): Promise<string> {
+  const currentToken = readAccessToken();
+  if (currentToken && currentToken !== failedToken) {
+    return currentToken;
+  }
+  return refreshAccessToken(failedToken);
 }
 
 export async function authedRequest<T>(
@@ -59,7 +97,7 @@ export async function authedRequest<T>(
       throw error;
     }
 
-    const refreshedToken = await refreshAccessToken();
+    const refreshedToken = await recoverAccessToken(options.accessToken);
     if (!refreshedToken) {
       throw error;
     }
@@ -71,7 +109,7 @@ export async function authedRequest<T>(
       });
     } catch (retryError) {
       if (retryError instanceof ApiError && retryError.status === 401) {
-        clearSessionSnapshot();
+        clearSessionSnapshot({ syncPeers: false });
       }
       throw retryError;
     }
@@ -133,7 +171,7 @@ export async function authedFetch(
     throw await toApiError(response);
   }
 
-  const refreshedToken = await refreshAccessToken();
+  const refreshedToken = await recoverAccessToken(options.accessToken);
   if (!refreshedToken) {
     throw await toApiError(response);
   }
@@ -146,7 +184,7 @@ export async function authedFetch(
     }),
   );
   if (retryResponse.status === 401) {
-    clearSessionSnapshot();
+    clearSessionSnapshot({ syncPeers: false });
   }
   if (!retryResponse.ok) {
     throw await toApiError(retryResponse);

@@ -195,6 +195,7 @@ var exactErrorSpecs = map[string]errorSpec{
 	"platform model name already exists":          {Code: "llm.platform_model_name_exists", Message: "platform model name already exists"},
 	"target model already bound on this upstream": {Code: "llm.route_conflict", Message: "target model is already bound on this upstream"},
 	"all routes unavailable":                      {Code: "llm.routes_unavailable", Message: "all model routes are unavailable"},
+	"upstream source unavailable":                 {Code: "llm.upstream_source_unavailable", Message: "upstream source unavailable"},
 	"route not found":                             {Code: "route.not_found", Message: "route not found"},
 	"api_keys is required":                        {Code: "llm.api_keys_required", Message: "api_keys is required"},
 

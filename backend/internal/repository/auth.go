@@ -61,15 +61,7 @@ type AuthRepository interface {
 	) error
 	CreateSession(ctx context.Context, item *domainuser.Session) error
 	GetSessionByUserAndSessionID(ctx context.Context, userID uint, sessionID string) (*domainuser.Session, error)
-	RotateSessionTokens(
-		ctx context.Context,
-		userID uint,
-		sessionID string,
-		refreshTokenHash string,
-		accessJTI string,
-		issuedAt time.Time,
-		expiresAt time.Time,
-	) error
+	RotateSessionTokens(ctx context.Context, input RotateSessionTokensInput) error
 	TouchSessionActivity(ctx context.Context, userID uint, sessionID string, input UpdateSessionActivityInput) error
 	RevokeSession(ctx context.Context, userID uint, sessionID string, reason string) error
 	RevokeAllSessions(ctx context.Context, userID uint, reason string) error

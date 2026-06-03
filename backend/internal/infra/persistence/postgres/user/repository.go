@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"strings"
@@ -882,28 +883,58 @@ func (r *Repo) GetSessionByUserAndSessionID(ctx context.Context, userID uint, se
 	return toDomainSession(item), nil
 }
 
-// RotateSessionTokens 轮换会话令牌信息。
-func (r *Repo) RotateSessionTokens(
-	ctx context.Context,
-	userID uint,
-	sessionID string,
-	refreshTokenHash string,
-	accessJTI string,
-	issuedAt time.Time,
-	expiresAt time.Time,
-) error {
-	return translateError(r.db.WithContext(ctx).
-		Model(&model.UserSession{}).
-		Where("user_id = ? AND session_id = ?", userID, sessionID).
-		Updates(map[string]interface{}{
-			"refresh_token_hash": refreshTokenHash,
-			"access_jti":         accessJTI,
-			"issued_at":          issuedAt,
-			"expires_at":         expiresAt,
-			"revoked_at":         nil,
-			"revoke_reason":      "",
-		}).
-		Error)
+// RotateSessionTokens 以会话行锁原子校验并轮换令牌信息。
+func (r *Repo) RotateSessionTokens(ctx context.Context, input repository.RotateSessionTokensInput) error {
+	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var item model.UserSession
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ? AND session_id = ?", input.UserID, input.SessionID).
+			First(&item).Error; err != nil {
+			return translateError(err)
+		}
+
+		if !sessionAcceptsPresentedRefreshHash(item, input.PresentedRefreshHash, input.Now, input.PreviousTokenGrace) {
+			return repository.ErrInvalidInput
+		}
+
+		updates := map[string]interface{}{
+			"previous_refresh_token_hash": item.RefreshTokenHash,
+			"refresh_token_hash":          input.NextRefreshHash,
+			"refresh_rotated_at":          input.Now,
+			"access_jti":                  input.NextAccessJTI,
+			"issued_at":                   input.IssuedAt,
+			"expires_at":                  input.ExpiresAt,
+			"revoked_at":                  nil,
+			"revoke_reason":               "",
+		}
+
+		return translateError(tx.Model(&model.UserSession{}).
+			Where("id = ?", item.ID).
+			Updates(updates).
+			Error)
+	}))
+}
+
+func sessionAcceptsPresentedRefreshHash(
+	item model.UserSession,
+	presentedHash string,
+	now time.Time,
+	previousTokenGrace time.Duration,
+) bool {
+	normalizedPresentedHash := strings.TrimSpace(presentedHash)
+	if normalizedPresentedHash == "" {
+		return false
+	}
+	if item.RevokedAt != nil || !item.ExpiresAt.After(now) {
+		return false
+	}
+	if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(item.RefreshTokenHash)), []byte(normalizedPresentedHash)) == 1 {
+		return true
+	}
+	if previousTokenGrace <= 0 || item.RefreshRotatedAt == nil || now.Sub(*item.RefreshRotatedAt) > previousTokenGrace {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(strings.TrimSpace(item.PreviousRefreshTokenHash)), []byte(normalizedPresentedHash)) == 1
 }
 
 // TouchSessionActivity 更新会话最近活跃时间及审计元数据。
@@ -1680,36 +1711,38 @@ func toModelUserTwoFactor(item *domainuser.UserTwoFactor) *model.UserTwoFactor {
 
 func toDomainSession(item model.UserSession) *domainuser.Session {
 	return &domainuser.Session{
-		ID:               item.ID,
-		SessionID:        item.SessionID,
-		UserID:           item.UserID,
-		RefreshTokenHash: item.RefreshTokenHash,
-		AccessJTI:        item.AccessJTI,
-		ClientIP:         item.ClientIP,
-		UserAgent:        item.UserAgent,
-		DeviceName:       item.DeviceName,
-		BrowserName:      item.BrowserName,
-		OSName:           item.OSName,
-		DeviceType:       item.DeviceType,
-		GeoSource:        item.GeoSource,
-		GeoAccuracy:      item.GeoAccuracy,
-		CountryCode:      item.CountryCode,
-		RegionName:       item.RegionName,
-		CityName:         item.CityName,
-		TimezoneName:     item.TimezoneName,
-		IPLatitude:       item.IPLatitude,
-		IPLongitude:      item.IPLongitude,
-		PreciseLatitude:  item.PreciseLatitude,
-		PreciseLongitude: item.PreciseLongitude,
-		PreciseAccuracyM: item.PreciseAccuracyM,
-		PreciseLocatedAt: item.PreciseLocatedAt,
-		IssuedAt:         item.IssuedAt,
-		LastSeenAt:       item.LastSeenAt,
-		ExpiresAt:        item.ExpiresAt,
-		RevokedAt:        item.RevokedAt,
-		RevokeReason:     item.RevokeReason,
-		CreatedAt:        item.CreatedAt,
-		UpdatedAt:        item.UpdatedAt,
+		ID:                       item.ID,
+		SessionID:                item.SessionID,
+		UserID:                   item.UserID,
+		RefreshTokenHash:         item.RefreshTokenHash,
+		PreviousRefreshTokenHash: item.PreviousRefreshTokenHash,
+		RefreshRotatedAt:         item.RefreshRotatedAt,
+		AccessJTI:                item.AccessJTI,
+		ClientIP:                 item.ClientIP,
+		UserAgent:                item.UserAgent,
+		DeviceName:               item.DeviceName,
+		BrowserName:              item.BrowserName,
+		OSName:                   item.OSName,
+		DeviceType:               item.DeviceType,
+		GeoSource:                item.GeoSource,
+		GeoAccuracy:              item.GeoAccuracy,
+		CountryCode:              item.CountryCode,
+		RegionName:               item.RegionName,
+		CityName:                 item.CityName,
+		TimezoneName:             item.TimezoneName,
+		IPLatitude:               item.IPLatitude,
+		IPLongitude:              item.IPLongitude,
+		PreciseLatitude:          item.PreciseLatitude,
+		PreciseLongitude:         item.PreciseLongitude,
+		PreciseAccuracyM:         item.PreciseAccuracyM,
+		PreciseLocatedAt:         item.PreciseLocatedAt,
+		IssuedAt:                 item.IssuedAt,
+		LastSeenAt:               item.LastSeenAt,
+		ExpiresAt:                item.ExpiresAt,
+		RevokedAt:                item.RevokedAt,
+		RevokeReason:             item.RevokeReason,
+		CreatedAt:                item.CreatedAt,
+		UpdatedAt:                item.UpdatedAt,
 	}
 }
 
@@ -1731,33 +1764,35 @@ func toModelSession(item *domainuser.Session) *model.UserSession {
 			CreatedAt: item.CreatedAt,
 			UpdatedAt: item.UpdatedAt,
 		},
-		SessionID:        item.SessionID,
-		UserID:           item.UserID,
-		RefreshTokenHash: item.RefreshTokenHash,
-		AccessJTI:        item.AccessJTI,
-		ClientIP:         item.ClientIP,
-		UserAgent:        item.UserAgent,
-		DeviceName:       item.DeviceName,
-		BrowserName:      item.BrowserName,
-		OSName:           item.OSName,
-		DeviceType:       item.DeviceType,
-		GeoSource:        item.GeoSource,
-		GeoAccuracy:      item.GeoAccuracy,
-		CountryCode:      item.CountryCode,
-		RegionName:       item.RegionName,
-		CityName:         item.CityName,
-		TimezoneName:     item.TimezoneName,
-		IPLatitude:       item.IPLatitude,
-		IPLongitude:      item.IPLongitude,
-		PreciseLatitude:  item.PreciseLatitude,
-		PreciseLongitude: item.PreciseLongitude,
-		PreciseAccuracyM: item.PreciseAccuracyM,
-		PreciseLocatedAt: item.PreciseLocatedAt,
-		IssuedAt:         item.IssuedAt,
-		LastSeenAt:       item.LastSeenAt,
-		ExpiresAt:        item.ExpiresAt,
-		RevokedAt:        item.RevokedAt,
-		RevokeReason:     item.RevokeReason,
+		SessionID:                item.SessionID,
+		UserID:                   item.UserID,
+		RefreshTokenHash:         item.RefreshTokenHash,
+		PreviousRefreshTokenHash: item.PreviousRefreshTokenHash,
+		RefreshRotatedAt:         item.RefreshRotatedAt,
+		AccessJTI:                item.AccessJTI,
+		ClientIP:                 item.ClientIP,
+		UserAgent:                item.UserAgent,
+		DeviceName:               item.DeviceName,
+		BrowserName:              item.BrowserName,
+		OSName:                   item.OSName,
+		DeviceType:               item.DeviceType,
+		GeoSource:                item.GeoSource,
+		GeoAccuracy:              item.GeoAccuracy,
+		CountryCode:              item.CountryCode,
+		RegionName:               item.RegionName,
+		CityName:                 item.CityName,
+		TimezoneName:             item.TimezoneName,
+		IPLatitude:               item.IPLatitude,
+		IPLongitude:              item.IPLongitude,
+		PreciseLatitude:          item.PreciseLatitude,
+		PreciseLongitude:         item.PreciseLongitude,
+		PreciseAccuracyM:         item.PreciseAccuracyM,
+		PreciseLocatedAt:         item.PreciseLocatedAt,
+		IssuedAt:                 item.IssuedAt,
+		LastSeenAt:               item.LastSeenAt,
+		ExpiresAt:                item.ExpiresAt,
+		RevokedAt:                item.RevokedAt,
+		RevokeReason:             item.RevokeReason,
 	}
 }
 

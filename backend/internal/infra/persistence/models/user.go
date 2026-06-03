@@ -116,33 +116,35 @@ func (UserCredential) TableName() string {
 // UserSession 存储用户会话信息。
 type UserSession struct {
 	BaseModel
-	SessionID        string     `gorm:"size:64;not null;default:'';uniqueIndex:idx_identity_sessions_session_id;comment:会话ID"`
-	UserID           uint       `gorm:"not null;default:0;index:idx_identity_sessions_user_id;comment:用户ID"`
-	RefreshTokenHash string     `gorm:"size:255;not null;default:'';comment:刷新令牌哈希"`
-	AccessJTI        string     `gorm:"size:64;not null;default:'';index:idx_identity_sessions_access_jti;comment:访问令牌JTI"`
-	ClientIP         string     `gorm:"size:64;not null;default:'';comment:客户端IP"`
-	UserAgent        string     `gorm:"size:512;not null;default:'';comment:用户代理"`
-	DeviceName       string     `gorm:"size:128;not null;default:'';comment:设备名称"`
-	BrowserName      string     `gorm:"size:64;not null;default:'';comment:浏览器名称"`
-	OSName           string     `gorm:"size:64;not null;default:'';comment:操作系统名称"`
-	DeviceType       string     `gorm:"size:32;not null;default:'';comment:设备类型"`
-	GeoSource        string     `gorm:"size:32;not null;default:'';comment:地理信息来源"`
-	GeoAccuracy      string     `gorm:"size:32;not null;default:'';comment:地理信息精度"`
-	CountryCode      string     `gorm:"size:32;not null;default:'';comment:国家或地区代码"`
-	RegionName       string     `gorm:"size:64;not null;default:'';comment:区域名称"`
-	CityName         string     `gorm:"size:64;not null;default:'';comment:城市名称"`
-	TimezoneName     string     `gorm:"size:64;not null;default:'';comment:时区名称"`
-	IPLatitude       *float64   `gorm:"comment:IP定位纬度"`
-	IPLongitude      *float64   `gorm:"comment:IP定位经度"`
-	PreciseLatitude  *float64   `gorm:"comment:精确定位纬度"`
-	PreciseLongitude *float64   `gorm:"comment:精确定位经度"`
-	PreciseAccuracyM *float64   `gorm:"comment:精确定位精度(米)"`
-	PreciseLocatedAt *time.Time `gorm:"comment:精确定位采集时间"`
-	IssuedAt         time.Time  `gorm:"not null;comment:签发时间"`
-	LastSeenAt       *time.Time `gorm:"comment:最近活跃时间"`
-	ExpiresAt        time.Time  `gorm:"not null;index:idx_identity_sessions_expires_at;comment:过期时间"`
-	RevokedAt        *time.Time `gorm:"index:idx_identity_sessions_revoked_at;comment:吊销时间"`
-	RevokeReason     string     `gorm:"size:128;not null;default:'';comment:吊销原因"`
+	SessionID                string     `gorm:"size:64;not null;default:'';uniqueIndex:idx_identity_sessions_session_id;comment:会话ID"`
+	UserID                   uint       `gorm:"not null;default:0;index:idx_identity_sessions_user_id;comment:用户ID"`
+	RefreshTokenHash         string     `gorm:"size:255;not null;default:'';comment:刷新令牌哈希"`
+	PreviousRefreshTokenHash string     `gorm:"size:255;not null;default:'';comment:上一枚刷新令牌哈希"`
+	RefreshRotatedAt         *time.Time `gorm:"index:idx_identity_sessions_refresh_rotated_at;comment:刷新令牌轮换时间"`
+	AccessJTI                string     `gorm:"size:64;not null;default:'';index:idx_identity_sessions_access_jti;comment:访问令牌JTI"`
+	ClientIP                 string     `gorm:"size:64;not null;default:'';comment:客户端IP"`
+	UserAgent                string     `gorm:"size:512;not null;default:'';comment:用户代理"`
+	DeviceName               string     `gorm:"size:128;not null;default:'';comment:设备名称"`
+	BrowserName              string     `gorm:"size:64;not null;default:'';comment:浏览器名称"`
+	OSName                   string     `gorm:"size:64;not null;default:'';comment:操作系统名称"`
+	DeviceType               string     `gorm:"size:32;not null;default:'';comment:设备类型"`
+	GeoSource                string     `gorm:"size:32;not null;default:'';comment:地理信息来源"`
+	GeoAccuracy              string     `gorm:"size:32;not null;default:'';comment:地理信息精度"`
+	CountryCode              string     `gorm:"size:32;not null;default:'';comment:国家或地区代码"`
+	RegionName               string     `gorm:"size:64;not null;default:'';comment:区域名称"`
+	CityName                 string     `gorm:"size:64;not null;default:'';comment:城市名称"`
+	TimezoneName             string     `gorm:"size:64;not null;default:'';comment:时区名称"`
+	IPLatitude               *float64   `gorm:"comment:IP定位纬度"`
+	IPLongitude              *float64   `gorm:"comment:IP定位经度"`
+	PreciseLatitude          *float64   `gorm:"comment:精确定位纬度"`
+	PreciseLongitude         *float64   `gorm:"comment:精确定位经度"`
+	PreciseAccuracyM         *float64   `gorm:"comment:精确定位精度(米)"`
+	PreciseLocatedAt         *time.Time `gorm:"comment:精确定位采集时间"`
+	IssuedAt                 time.Time  `gorm:"not null;comment:签发时间"`
+	LastSeenAt               *time.Time `gorm:"comment:最近活跃时间"`
+	ExpiresAt                time.Time  `gorm:"not null;index:idx_identity_sessions_expires_at;comment:过期时间"`
+	RevokedAt                *time.Time `gorm:"index:idx_identity_sessions_revoked_at;comment:吊销时间"`
+	RevokeReason             string     `gorm:"size:128;not null;default:'';comment:吊销原因"`
 }
 
 // TableName 指定表名。

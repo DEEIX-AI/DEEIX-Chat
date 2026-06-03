@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/token"
@@ -18,7 +19,7 @@ type SessionValidator interface {
 		ctx context.Context,
 		userID uint,
 		sessionID string,
-		accessJTI string,
+		accessIssuedAt time.Time,
 		auditCtx requestmeta.SessionAuditContext,
 	) error
 }
@@ -58,7 +59,11 @@ func AuthMiddleware(jwtSecret string, validator SessionValidator) gin.HandlerFun
 		}
 		auditCtx := ResolveSessionAuditContext(c)
 		if validator != nil {
-			if err = validator.ValidateAccessSession(c.Request.Context(), claims.UserID, claims.SessionID, claims.ID, auditCtx); err != nil {
+			var issuedAt time.Time
+			if claims.IssuedAt != nil {
+				issuedAt = claims.IssuedAt.Time
+			}
+			if err = validator.ValidateAccessSession(c.Request.Context(), claims.UserID, claims.SessionID, issuedAt, auditCtx); err != nil {
 				response.Error(c, http.StatusUnauthorized, "session invalid")
 				c.Abort()
 				return

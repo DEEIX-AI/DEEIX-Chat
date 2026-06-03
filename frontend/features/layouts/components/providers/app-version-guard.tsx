@@ -6,36 +6,20 @@ import { toast } from "sonner";
 
 import { getAppVersion, resolveAppBuildID } from "@/shared/api/app-version";
 
-const APP_VERSION_STORAGE_KEY = "deeix-chat:app-build-id";
 const APP_VERSION_TOAST_ID = "deeix-chat:app-version-refresh";
 const APP_VERSION_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 
 type CheckReason = "initial" | "interval" | "focus" | "visible";
-
-function readLocalStorage(key: string): string {
-  try {
-    return window.localStorage.getItem(key)?.trim() ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function writeLocalStorage(key: string, value: string): void {
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    // Storage can be unavailable in private browsing or hardened environments.
-  }
-}
 
 export function AppVersionGuard() {
   const t = useTranslations("common.appVersion");
   const tActions = useTranslations("common.actions");
   const checkingRef = React.useRef(false);
   const lastCheckAtRef = React.useRef(0);
+  const loadedBuildIDRef = React.useRef("");
 
   const showRefreshToast = React.useCallback(
-    (nextBuildID: string) => {
+    () => {
       toast.info(t("title"), {
         id: APP_VERSION_TOAST_ID,
         description: t("description"),
@@ -43,7 +27,6 @@ export function AppVersionGuard() {
         action: {
           label: tActions("refresh"),
           onClick: () => {
-            writeLocalStorage(APP_VERSION_STORAGE_KEY, nextBuildID);
             window.location.reload();
           },
         },
@@ -70,16 +53,15 @@ export function AppVersionGuard() {
           return;
         }
 
-        const currentBuildID = readLocalStorage(APP_VERSION_STORAGE_KEY);
-        if (!currentBuildID) {
-          writeLocalStorage(APP_VERSION_STORAGE_KEY, nextBuildID);
+        if (!loadedBuildIDRef.current) {
+          loadedBuildIDRef.current = nextBuildID;
           return;
         }
-        if (currentBuildID === nextBuildID) {
+        if (loadedBuildIDRef.current === nextBuildID) {
           return;
         }
 
-        showRefreshToast(nextBuildID);
+        showRefreshToast();
       } catch {
         // Version checking is opportunistic and must not affect normal app usage.
       } finally {
