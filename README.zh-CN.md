@@ -18,7 +18,7 @@
   <a href="https://www.apache.org/licenses/LICENSE-2.0"><img alt="开源协议" src="https://img.shields.io/badge/License-Apache%202.0-blue" /></a>
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-black" />
   <img alt="React" src="https://img.shields.io/badge/React-19-149eca" />
-  <img alt="Go" src="https://img.shields.io/badge/Go-1.25-00add8" />
+  <img alt="Go" src="https://img.shields.io/badge/Go-1.26-00add8" />
 </p>
 
 ## 项目简介
@@ -74,7 +74,7 @@ pkg -> 无业务依赖的技术工具
 ## 技术栈
 
 - 前端：Next.js 16、React 19、TypeScript、Tailwind CSS、shadcn/ui 风格组件、Radix/Base UI、Streamdown、KaTeX、Mermaid、Recharts、Motion
-- 后端：Go 1.25、Gin、Gorm、PostgreSQL、pgvector、Redis、Swagger、OpenTelemetry、Zap
+- 后端：Go 1.26、Gin、Gorm、PostgreSQL、pgvector、Redis、Swagger、OpenTelemetry、Zap
 - 存储：本地文件系统或 S3 兼容对象存储
 - 文件处理：内置提取、Apache Tika、Docling、RapidOCR、Tesseract OCR、Paddle OCR、云 OCR 适配、MinerU、LLM OCR 回退
 - 工具协议：MCP Streamable HTTP JSON-RPC

@@ -18,7 +18,7 @@
   <a href="https://www.apache.org/licenses/LICENSE-2.0"><img alt="License" src="https://img.shields.io/badge/License-Apache%202.0-blue" /></a>
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-black" />
   <img alt="React" src="https://img.shields.io/badge/React-19-149eca" />
-  <img alt="Go" src="https://img.shields.io/badge/Go-1.25-00add8" />
+  <img alt="Go" src="https://img.shields.io/badge/Go-1.26-00add8" />
 </p>
 
 ## Overview
@@ -74,7 +74,7 @@ The database uses domain-prefixed tables for identity, LLM routing, billing, con
 ## Tech Stack
 
 - Frontend: Next.js 16, React 19, TypeScript, Tailwind CSS, shadcn/ui-style components, Radix/Base UI, Streamdown, KaTeX, Mermaid, Recharts, Motion
-- Backend: Go 1.25, Gin, Gorm, PostgreSQL, pgvector, Redis, Swagger, OpenTelemetry, Zap
+- Backend: Go 1.26, Gin, Gorm, PostgreSQL, pgvector, Redis, Swagger, OpenTelemetry, Zap
 - Storage: local filesystem or S3-compatible object storage
 - File processing: built-in extractors, Apache Tika, Docling, RapidOCR, Tesseract OCR, Paddle OCR, cloud OCR adapters, MinerU, and LLM OCR fallback
 - Tooling: MCP Streamable HTTP JSON-RPC

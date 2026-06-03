@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -56,5 +57,16 @@ func AccessLog(logger *zap.Logger) gin.HandlerFunc {
 }
 
 func shouldSkipAccessLog(requestPath string) bool {
-	return requestPath == "/healthz"
+	if requestPath == "/healthz" {
+		return true
+	}
+	return !isBackendAccessLogPath(requestPath)
+}
+
+func isBackendAccessLogPath(requestPath string) bool {
+	return requestPath == "/readyz" ||
+		requestPath == "/api" ||
+		strings.HasPrefix(requestPath, "/api/") ||
+		requestPath == "/swagger" ||
+		strings.HasPrefix(requestPath, "/swagger/")
 }
