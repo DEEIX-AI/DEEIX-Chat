@@ -440,7 +440,12 @@ function collectOptionValueEntries(value: unknown, path: string[]): OptionValueE
 }
 
 function optionValueEntriesFromOptions(options: ConversationOptions): OptionValueEntry[] {
-  return Object.entries(options).flatMap(([key, value]) => collectOptionValueEntries(value, [key]));
+  return Object.entries(options).flatMap(([key, value]) => {
+    if (key === "tools") {
+      return [{ key, path: [key], value }];
+    }
+    return collectOptionValueEntries(value, [key]);
+  });
 }
 
 function formatVisualOptionValue(value: unknown): string {
@@ -474,10 +479,42 @@ function providerToolObjectsFromOptions(options: ConversationOptions): Record<st
 }
 
 function providerToolMatchesDefinition(tool: Record<string, unknown>, definition: NativeToolDefinition): boolean {
-  if (tool.type === definition.type) {
-    return true;
+  const toolType = typeof tool.type === "string" ? tool.type.trim() : "";
+  if (toolType) {
+    return toolType === definition.type;
   }
   return Object.keys(definition.payload ?? {}).some((key) => key !== "type" && Object.prototype.hasOwnProperty.call(tool, key));
+}
+
+function nativeToolDefinitionsFromKeys(
+  toolKeys: string[],
+  catalog: NativeToolDefinition[],
+): NativeToolDefinition[] {
+  const allowedKeys = new Set(toolKeys.map((key) => key.trim()).filter(Boolean));
+  return catalog.filter((tool) => allowedKeys.has(tool.toolKey.trim()));
+}
+
+function providerToolMatchesAnyDefinition(
+  value: unknown,
+  definitions: NativeToolDefinition[],
+): boolean {
+  if (!isPlainOptionObject(value)) {
+    return false;
+  }
+  return definitions.some((definition) => providerToolMatchesDefinition(value, definition));
+}
+
+function ignoredProviderToolValues(
+  value: unknown,
+  definitions: NativeToolDefinition[],
+): unknown[] {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    return [value];
+  }
+  return value.filter((item) => !providerToolMatchesAnyDefinition(item, definitions));
 }
 
 function hasProviderTool(options: ConversationOptions, definition: NativeToolDefinition): boolean {
@@ -522,6 +559,17 @@ function isIgnoredOptionPath(
   return Boolean(policy && isModelOptionPathFiltered({ policy, protocol, path: key }));
 }
 
+function ignoredVisualOption(entry: OptionValueEntry, value: unknown): VisualOption {
+  return {
+    key: entry.key,
+    path: entry.path,
+    value,
+    active: true,
+    editable: false,
+    forcedFilterStatus: "filtered",
+  };
+}
+
 function getOptionAtPath(options: ConversationOptions, path: string[]): unknown {
   let current: unknown = options;
   for (const segment of path) {
@@ -563,6 +611,7 @@ function visualOptionsFromOptions(
   options: ConversationOptions,
   policy: ModelOptionPolicy | null,
   protocol: string,
+  nativeToolDefinitions: NativeToolDefinition[],
 ): VisualOption[] {
   const nestedOptions = NESTED_VISUAL_OPTION_PATHS.flatMap((path): VisualOption[] => {
     if (isReservedConversationOptionKey(path[0] ?? "")) {
@@ -587,17 +636,17 @@ function visualOptionsFromOptions(
     .filter((item, index, items) => items.findIndex((candidate) => candidate.key === item.key) === index);
   const visibleKeys = new Set(editableOptions.map((item) => item.key));
   const ignoredOptions = optionValueEntriesFromOptions(options).flatMap((entry): VisualOption[] => {
-    if (visibleKeys.has(entry.key) || !isIgnoredOptionPath(policy, protocol, entry.key, entry.path)) {
+    if (visibleKeys.has(entry.key)) {
       return [];
     }
-    return [{
-      key: entry.key,
-      path: entry.path,
-      value: entry.value,
-      active: true,
-      editable: false,
-      forcedFilterStatus: "filtered",
-    }];
+    if (entry.key === "tools") {
+      const ignoredTools = ignoredProviderToolValues(entry.value, nativeToolDefinitions);
+      return ignoredTools.length > 0 ? [ignoredVisualOption(entry, ignoredTools)] : [];
+    }
+    if (!isIgnoredOptionPath(policy, protocol, entry.key, entry.path)) {
+      return [];
+    }
+    return [ignoredVisualOption(entry, entry.value)];
   });
   return [...editableOptions, ...ignoredOptions]
     .filter((item, index, items) => items.findIndex((candidate) => candidate.key === item.key) === index)
@@ -830,6 +879,10 @@ export function ChatModelConfig({
   const optionsObjectRef = React.useRef<ConversationOptions>({});
   const effectiveDefaultOptions = restoredDefaultOptions ?? defaultOptions;
   const selectedProtocolLabel = selectedProtocol ? resolveProtocolLabel(selectedProtocol) : "";
+  const nativeToolDefinitions = React.useMemo(
+    () => nativeToolDefinitionsFromKeys(nativeToolKeys, modelOptionPolicy?.nativeTools ?? []),
+    [modelOptionPolicy?.nativeTools, nativeToolKeys],
+  );
   const configuredOptions = React.useMemo(
     () => visualOptionsFromControls(optionControls, optionsObject),
     [optionControls, optionsObject],
@@ -839,9 +892,9 @@ export function ChatModelConfig({
     [configuredOptions],
   );
   const editableOptions = React.useMemo(
-    () => visualOptionsFromOptions(optionsObject, modelOptionPolicy, selectedProtocol)
+    () => visualOptionsFromOptions(optionsObject, modelOptionPolicy, selectedProtocol, nativeToolDefinitions)
       .filter((item) => !configuredOptionKeys.has(item.key)),
-    [configuredOptionKeys, modelOptionPolicy, optionsObject, selectedProtocol],
+    [configuredOptionKeys, modelOptionPolicy, nativeToolDefinitions, optionsObject, selectedProtocol],
   );
   const nativeToolGroup = React.useMemo(() => {
     const policyProtocol = resolveModelOptionPolicyProtocol(selectedProtocol);
