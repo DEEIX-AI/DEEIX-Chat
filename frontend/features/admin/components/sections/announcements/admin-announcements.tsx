@@ -492,8 +492,8 @@ export function AdminAnnouncementsPage() {
                       </SelectContent>
                     </Select>
                   </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex justify-center">
+                  <TableCell className="py-1.5 text-center">
+                    <div className="flex h-7 items-center justify-center">
                       <Switch
                         size="sm"
                         checked={Boolean(item.pinned)}
@@ -503,8 +503,8 @@ export function AdminAnnouncementsPage() {
                       />
                     </div>
                   </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex justify-center">
+                  <TableCell className="py-1.5 text-center">
+                    <div className="flex h-7 items-center justify-center">
                       <Switch
                         size="sm"
                         checked={item.status === "active"}
@@ -514,7 +514,7 @@ export function AdminAnnouncementsPage() {
                       />
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-1.5">
                     <Input
                       type="text"
                       inputMode="numeric"
@@ -527,9 +527,9 @@ export function AdminAnnouncementsPage() {
                       className="h-7 w-[58px] px-2 text-left text-xs tabular-nums"
                     />
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{activeWindowLabel(item, locale)}</TableCell>
-                  <TableCell stickyEnd className="text-right">
-                    <div className="flex justify-end gap-1">
+                  <TableCell className="py-1.5 text-xs text-muted-foreground">{activeWindowLabel(item, locale)}</TableCell>
+                  <TableCell stickyEnd className="py-1.5 text-right">
+                    <div className="flex h-7 items-center justify-end gap-1">
                       <Button type="button" size="icon-sm" variant="ghost" onClick={() => openEdit(item)} aria-label={t("edit")}>
                         <Edit3 className="size-3.5 stroke-1" />
                       </Button>
@@ -559,20 +559,20 @@ export function AdminAnnouncementsPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={(nextOpen) => !saving && setDialogOpen(nextOpen)}>
-        <DialogContent className="sm:max-w-[920px]">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(90vh,820px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[720px]">
+          <DialogHeader className="shrink-0 px-4 py-4">
             <DialogTitle>{form.id ? t("editTitle") : t("createTitle")}</DialogTitle>
             <DialogDescription>{t("dialogDescription")}</DialogDescription>
           </DialogHeader>
 
           <form
-            className="space-y-4"
+            className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault();
               void save();
             }}
           >
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid min-h-0 flex-1 grid-cols-2 gap-5 overflow-y-auto px-4 py-2">
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{t("fields.title")}</p>
                 <Input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} disabled={saving} />
@@ -610,7 +610,7 @@ export function AdminAnnouncementsPage() {
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{t("fields.pinned")}</p>
-                <div className="flex h-9 items-center">
+                <div className="flex h-8 items-center">
                   <Switch
                     size="sm"
                     checked={form.pinned}
@@ -622,7 +622,7 @@ export function AdminAnnouncementsPage() {
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{t("fields.status")}</p>
-                <div className="flex h-9 items-center">
+                <div className="flex h-8 items-center">
                   <Switch
                     size="sm"
                     checked={form.status === "active"}
@@ -633,7 +633,7 @@ export function AdminAnnouncementsPage() {
                 </div>
               </div>
 
-              <div className="col-span-2 space-y-1">
+              <div className="col-span-2 space-y-1 md:col-span-1">
                 <p className="text-xs text-muted-foreground">{t("fields.contentMarkdown")}</p>
                 <Textarea
                   value={form.contentMarkdown}
@@ -643,7 +643,7 @@ export function AdminAnnouncementsPage() {
                 />
               </div>
 
-              <div className="col-span-2 space-y-1">
+              <div className="col-span-2 space-y-1 md:col-span-1">
                 <p className="text-xs text-muted-foreground">{t("fields.preview")}</p>
                 <div className="h-32 overflow-y-auto rounded-md border border-border/60 bg-muted/20 px-3 py-2">
                   <StreamdownRender content={form.contentMarkdown || t("previewEmpty")} className="text-sm" />
@@ -651,7 +651,7 @@ export function AdminAnnouncementsPage() {
               </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="shrink-0 px-4 py-3">
               <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
                 {common("actions.cancel")}
               </Button>

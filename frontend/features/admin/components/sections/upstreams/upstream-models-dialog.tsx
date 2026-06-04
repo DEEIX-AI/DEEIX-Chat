@@ -346,8 +346,8 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, onSelect, onUpd
         row.isDirty && "bg-amber-50/40 dark:bg-amber-900/10",
       )}
     >
-      <TableCell className="w-[44px] py-0 text-center whitespace-nowrap">
-        <div className="flex h-10 items-center justify-center">
+      <TableCell className="w-[44px] py-1.5 text-center whitespace-nowrap">
+        <div className="flex h-7 items-center justify-center">
           <Checkbox
             checked={isSelected}
             disabled={persistedRouteCount === 0}
@@ -356,20 +356,22 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, onSelect, onUpd
           />
         </div>
       </TableCell>
-      <TableCell className="w-[56px] whitespace-nowrap">
-        <Switch
-          size="sm"
-          checked={routeChecked}
-          onCheckedChange={(checked) => onUpdate(row.draftKey, { routeStatus: checked ? "active" : "inactive" })}
-          aria-label={t("modelsDialog.routeStatusFor", { name: row.upstreamModelName })}
-        />
+      <TableCell className="w-[56px] py-1.5 whitespace-nowrap">
+        <div className="flex h-7 items-center">
+          <Switch
+            size="sm"
+            checked={routeChecked}
+            onCheckedChange={(checked) => onUpdate(row.draftKey, { routeStatus: checked ? "active" : "inactive" })}
+            aria-label={t("modelsDialog.routeStatusFor", { name: row.upstreamModelName })}
+          />
+        </div>
       </TableCell>
-      <TableCell className="max-w-[220px] font-mono text-xs text-muted-foreground">
-        <span className="block truncate" title={row.upstreamModelName}>
+      <TableCell className="max-w-[220px] py-1.5 font-mono text-xs text-muted-foreground">
+        <span className="flex h-7 items-center truncate" title={row.upstreamModelName}>
           {row.upstreamModelName}
         </span>
       </TableCell>
-      <TableCell className="min-w-[220px]">
+      <TableCell className="min-w-[220px] py-1.5">
         <Input
           className="h-7 min-w-[220px] font-mono text-xs"
           value={row.platformModelNameDraft}
@@ -377,9 +379,9 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, onSelect, onUpd
           onChange={(e) => handlePlatformModelChange(e.target.value)}
         />
       </TableCell>
-      <TableCell className="w-[220px] whitespace-nowrap">
+      <TableCell className="w-[220px] py-1.5 whitespace-nowrap">
         {!hasBindingDraft ? (
-          <span className="text-xs text-muted-foreground">
+          <span className="flex h-7 items-center text-xs text-muted-foreground">
             {t("modelsDialog.deleteAfterSave")}
           </span>
         ) : (
@@ -395,31 +397,33 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, onSelect, onUpd
           />
         )}
       </TableCell>
-      <TableCell className="w-[140px]">
+      <TableCell className="w-[140px] py-1.5">
         <KindsDropdown
           value={row.kindsDisplay}
           onChange={(value) => onUpdate(row.draftKey, { kindsDisplay: value })}
         />
       </TableCell>
-      <TableCell className="w-[48px] text-right" stickyEnd>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground shadow-none"
-                disabled={testDisabled}
-                onClick={() => onTest(row, testRouteID)}
-                aria-label={modelT("actions.test")}
-              >
-                <Activity className="size-3.5 stroke-1" />
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="top">{testTooltip}</TooltipContent>
-        </Tooltip>
+      <TableCell className="w-[48px] py-1.5 text-right" stickyEnd>
+        <div className="flex h-7 items-center justify-end">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground shadow-none"
+                  disabled={testDisabled}
+                  onClick={() => onTest(row, testRouteID)}
+                  aria-label={modelT("actions.test")}
+                >
+                  <Activity className="size-3.5 stroke-1" />
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top">{testTooltip}</TooltipContent>
+          </Tooltip>
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -471,17 +475,21 @@ function RemoteModelsSkeletonRows({ rowCount = 10 }: { rowCount?: number }) {
     <>
       {Array.from({ length: rowCount }).map((_, index) => (
         <TableRow key={`remote-model-skeleton-${index}`}>
-          <TableCell className="w-14 px-2 text-center">
+          <TableCell className="w-14 px-2 py-1.5 text-center">
             <span className="mx-auto block size-4 animate-pulse rounded-sm bg-muted" />
           </TableCell>
-          <TableCell className="min-w-0">
-            <span className="block h-4 w-4/5 animate-pulse rounded-sm bg-muted" />
+          <TableCell className="min-w-0 py-1.5">
+            <span className="flex h-7 items-center">
+              <span className="block h-4 w-4/5 animate-pulse rounded-sm bg-muted" />
+            </span>
           </TableCell>
-          <TableCell className="min-w-0">
+          <TableCell className="min-w-0 py-1.5">
             <span className="block h-7 w-full animate-pulse rounded-md bg-muted/80" />
           </TableCell>
-          <TableCell className="w-20 text-center">
-            <span className="mx-auto block h-5 w-16 animate-pulse rounded-full bg-muted/70" />
+          <TableCell className="w-20 py-1.5 text-center">
+            <span className="flex h-7 items-center justify-center">
+              <span className="block h-5 w-16 animate-pulse rounded-full bg-muted/70" />
+            </span>
           </TableCell>
         </TableRow>
       ))}
@@ -641,8 +649,8 @@ function RemoteModelsDialog({
           <Table className="min-w-0 table-auto">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-12 px-2 py-0 text-center">
-                  <div className="flex h-8 items-center justify-center">
+                <TableHead className="w-12 px-2 py-1.5 text-center">
+                  <div className="flex h-7 items-center justify-center">
                     <Checkbox
                       checked={allSelected ? true : someSelected ? "indeterminate" : false}
                       onCheckedChange={(v) => toggleAll(v === true)}
@@ -664,29 +672,35 @@ function RemoteModelsDialog({
               ) : null}
               {filteredRemoteItems.map((item) => (
                 <TableRow key={item.upstreamModelName}>
-                  <TableCell className="w-14 px-2 text-center">
-                    <Checkbox
-                      checked={selected.has(item.upstreamModelName)}
-                      onCheckedChange={(v) => toggleOne(item.upstreamModelName, v === true)}
-                      aria-label={item.upstreamModelName}
-                    />
+                  <TableCell className="w-14 px-2 py-1.5 text-center">
+                    <div className="flex h-7 items-center justify-center">
+                      <Checkbox
+                        checked={selected.has(item.upstreamModelName)}
+                        onCheckedChange={(v) => toggleOne(item.upstreamModelName, v === true)}
+                        aria-label={item.upstreamModelName}
+                      />
+                    </div>
                   </TableCell>
-                  <TableCell className="max-w-[220px] font-mono text-xs text-muted-foreground">
-                    <span className="block truncate" title={item.upstreamModelName}>
+                  <TableCell className="max-w-[220px] py-1.5 font-mono text-xs text-muted-foreground">
+                    <span className="flex h-7 items-center truncate" title={item.upstreamModelName}>
                       {item.upstreamModelName}
                     </span>
                   </TableCell>
-                  <TableCell className="min-w-0">
-                    <Input
-                      className="w-full min-w-0 font-mono text-xs"
-                      value={draftPlatformModelNames.get(item.upstreamModelName) ?? ""}
-                      onChange={(e) => setDraftPlatformModelName(item.upstreamModelName, e.target.value)}
-                    />
+                  <TableCell className="min-w-0 py-1.5">
+                    <div className="flex h-7 items-center">
+                      <Input
+                        className="w-full min-w-0 font-mono text-xs"
+                        value={draftPlatformModelNames.get(item.upstreamModelName) ?? ""}
+                        onChange={(e) => setDraftPlatformModelName(item.upstreamModelName, e.target.value)}
+                      />
+                    </div>
                   </TableCell>
-                  <TableCell className="w-20 text-center">
-                    <Badge variant={item.alreadyBound ? "secondary" : "outline"}>
-                      {t(`modelsDialog.remoteStatus.${remoteModelStatusKey(item)}`)}
-                    </Badge>
+                  <TableCell className="w-20 py-1.5 text-center">
+                    <div className="flex h-7 items-center justify-center">
+                      <Badge variant={item.alreadyBound ? "secondary" : "outline"}>
+                        {t(`modelsDialog.remoteStatus.${remoteModelStatusKey(item)}`)}
+                      </Badge>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -694,7 +708,7 @@ function RemoteModelsDialog({
           </Table>
         </div>
 
-        <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-3">
+        <DialogFooter className="shrink-0 items-center justify-between px-4 py-3">
           <span className="text-xs text-muted-foreground">
             {t("modelsDialog.syncSummary", {
               total: remoteItems.length,
@@ -705,18 +719,17 @@ function RemoteModelsDialog({
             })}
           </span>
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={importing}>
+            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={importing}>
               {commonT("actions.cancel")}
             </Button>
             <Button
-              size="sm"
               onClick={handleSyncBindings}
               disabled={importing || selected.size === 0}
             >
               {importing ? <SpinnerLabel>{t("modelsDialog.syncing")}</SpinnerLabel> : t("sync")}
             </Button>
           </div>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -784,69 +797,71 @@ function NewBindingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[520px]">
+        <DialogHeader className="shrink-0 px-4 py-4">
           <DialogTitle>{t("modelsDialog.createBindingTitle")}</DialogTitle>
-        <DialogDescription>{t("modelsDialog.createBindingDescription")}</DialogDescription>
+          <DialogDescription>{t("modelsDialog.createBindingDescription")}</DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-2">
-          <div className="grid gap-1.5">
-            <Label>{t("modelsDialog.upstreamModelName")}</Label>
-            <Input
-              placeholder="gpt-5.5"
-              value={form.upstreamModelName}
-              onChange={(e) => setField("upstreamModelName", e.target.value)}
-            />
-          </div>
-
-          <div className="grid gap-1.5">
-            <Label>{t("modelsDialog.platformModelName")}</Label>
-            <Input
-              placeholder="claude-sonnet-4.5"
-              value={form.platformModelName}
-              onChange={(e) => setField("platformModelName", e.target.value)}
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
+          <div className="grid gap-4">
             <div className="grid gap-1.5">
-              <Label>{t("modelsDialog.protocol")}</Label>
-              <ProtocolsDropdown
-                value={form.protocols}
-                onChange={(protocols) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    protocols,
-                    kindsDisplay: resolveKindsDisplayForProtocols(protocols, prev.kindsDisplay),
-                  }))
-                }
-                className="h-9 text-sm"
+              <Label>{t("modelsDialog.upstreamModelName")}</Label>
+              <Input
+                placeholder="gpt-5.5"
+                value={form.upstreamModelName}
+                onChange={(e) => setField("upstreamModelName", e.target.value)}
               />
             </div>
 
             <div className="grid gap-1.5">
-              <Label>{t("modelsDialog.kind")}</Label>
-              <KindsDropdown
-                value={form.kindsDisplay}
-                onChange={(v) => setField("kindsDisplay", v)}
-                className="w-full"
+              <Label>{t("modelsDialog.platformModelName")}</Label>
+              <Input
+                placeholder="claude-sonnet-4.5"
+                value={form.platformModelName}
+                onChange={(e) => setField("platformModelName", e.target.value)}
               />
             </div>
-          </div>
 
-          <div className="grid gap-1.5">
-            <Label>{t("fields.status")}</Label>
-            <Switch
-              size="sm"
-              checked={form.status === "active"}
-              onCheckedChange={(checked) => setField("status", checked ? "active" : "inactive")}
-              aria-label={t("modelsDialog.routeStatus")}
-            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-1.5">
+                <Label>{t("modelsDialog.protocol")}</Label>
+                <ProtocolsDropdown
+                  value={form.protocols}
+                  onChange={(protocols) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      protocols,
+                      kindsDisplay: resolveKindsDisplayForProtocols(protocols, prev.kindsDisplay),
+                    }))
+                  }
+                  className="h-9 text-sm"
+                />
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label>{t("modelsDialog.kind")}</Label>
+                <KindsDropdown
+                  value={form.kindsDisplay}
+                  onChange={(v) => setField("kindsDisplay", v)}
+                  className="w-full"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label>{t("fields.status")}</Label>
+              <Switch
+                size="sm"
+                checked={form.status === "active"}
+                onCheckedChange={(checked) => setField("status", checked ? "active" : "inactive")}
+                aria-label={t("modelsDialog.routeStatus")}
+              />
+            </div>
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 px-4 py-3">
           <Button
             variant="ghost"
             size="sm"
@@ -1489,8 +1504,8 @@ export function UpstreamModelsDialog({
             <Table className="min-w-[800px]">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[44px] py-0 text-center">
-                      <div className="flex h-8 items-center justify-center">
+                    <TableHead className="w-[44px] py-1.5 text-center">
+                      <div className="flex h-7 items-center justify-center">
                         <Checkbox
                           checked={allSelected ? true : someSelected ? "indeterminate" : false}
                           onCheckedChange={(checked) => handleSelectAll(checked === true)}
@@ -1538,14 +1553,14 @@ export function UpstreamModelsDialog({
             className="shrink-0 px-4 py-3"
           />
 
-          <div className="flex shrink-0 flex-row justify-end gap-2 p-4">
-            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={saving}>
+          <DialogFooter className="shrink-0 px-4 py-3">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
               {commonT("actions.close")}
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving || dirtyCount === 0}>
+            <Button onClick={handleSave} disabled={saving || dirtyCount === 0}>
               {saving ? <SpinnerLabel>{t("sheet.saving")}</SpinnerLabel> : commonT("actions.save")}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

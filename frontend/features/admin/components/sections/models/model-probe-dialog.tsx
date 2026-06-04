@@ -318,23 +318,20 @@ export function ModelProbeDialog({
           </div>
 
           <DialogFooter className="shrink-0 px-5 py-3">
-            <div className="flex w-full items-center justify-end gap-2">
-              {canDeleteRoute && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => setDeleteOpen(true)}
-                  disabled={loading || deleting}
-                >
-                  {t("deleteSource")}
-                </Button>
-              )}
-              <Button size="sm" onClick={() => onOpenChange(false)} disabled={loading || deleting}>
-                {commonT("actions.close")}
+            {canDeleteRoute && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                onClick={() => setDeleteOpen(true)}
+                disabled={loading || deleting}
+              >
+                {t("deleteSource")}
               </Button>
-            </div>
+            )}
+            <Button onClick={() => onOpenChange(false)} disabled={loading || deleting}>
+              {commonT("actions.close")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

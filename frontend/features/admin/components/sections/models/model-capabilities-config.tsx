@@ -452,21 +452,21 @@ export function ModelCapabilitiesGuideButton({ t }: { t: (key: string) => string
           {t("sheet.capabilitiesGuide.button")}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[760px]">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[760px]">
+        <DialogHeader className="shrink-0 px-4 py-4">
           <DialogTitle>{t("sheet.capabilitiesGuide.title")}</DialogTitle>
           <DialogDescription>{t("sheet.capabilitiesGuide.description")}</DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="defaults" className="gap-3">
-          <TabsList>
+        <Tabs defaultValue="defaults" className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-4 py-2">
+          <TabsList className="shrink-0">
             <TabsTrigger value="defaults">{t("sheet.capabilitiesGuide.defaultsTab")}</TabsTrigger>
             <TabsTrigger value="controls">{t("sheet.capabilitiesGuide.controlsTab")}</TabsTrigger>
             <TabsTrigger value="tools">{t("sheet.capabilitiesGuide.toolsTab")}</TabsTrigger>
             <TabsTrigger value="policy">{t("sheet.capabilitiesGuide.policyTab")}</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="defaults" className="space-y-3 text-sm text-muted-foreground">
+          <TabsContent value="defaults" className="min-h-0 flex-1 space-y-3 overflow-y-auto text-sm text-muted-foreground">
             <p className="text-xs">{t("sheet.capabilitiesGuide.defaultsDescription")}</p>
             <pre className="max-h-72 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
 {`{
@@ -479,7 +479,7 @@ export function ModelCapabilitiesGuideButton({ t }: { t: (key: string) => string
             </pre>
           </TabsContent>
 
-          <TabsContent value="controls" className="space-y-3 text-sm text-muted-foreground">
+          <TabsContent value="controls" className="min-h-0 flex-1 space-y-3 overflow-y-auto text-sm text-muted-foreground">
             <p className="text-xs">{t("sheet.capabilitiesGuide.controlsDescription")}</p>
             <pre className="max-h-72 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
 {`{
@@ -511,7 +511,7 @@ export function ModelCapabilitiesGuideButton({ t }: { t: (key: string) => string
             <p className="text-xs">{t("sheet.capabilitiesGuide.controlTypes")}</p>
           </TabsContent>
 
-          <TabsContent value="tools" className="space-y-3 text-sm text-muted-foreground">
+          <TabsContent value="tools" className="min-h-0 flex-1 space-y-3 overflow-y-auto text-sm text-muted-foreground">
             <p className="text-xs">{t("sheet.capabilitiesGuide.toolsDescription")}</p>
             <pre className="max-h-72 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
 {`{
@@ -523,7 +523,7 @@ export function ModelCapabilitiesGuideButton({ t }: { t: (key: string) => string
             </pre>
           </TabsContent>
 
-          <TabsContent value="policy" className="space-y-3 text-sm text-muted-foreground">
+          <TabsContent value="policy" className="min-h-0 flex-1 space-y-3 overflow-y-auto text-sm text-muted-foreground">
             <p className="text-xs">{t("sheet.capabilitiesGuide.policyDescription")}</p>
             <pre className="max-h-72 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
 {`{
@@ -729,13 +729,13 @@ export function ModelCapabilitiesQuickConfig({
       >
         {t("sheet.capabilitiesQuick.button")}
       </Button>
-      <DialogContent className="flex max-h-[min(90dvh,680px)] min-w-0 flex-col overflow-x-hidden sm:max-w-[760px]">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[min(86vh,760px)] min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-[760px]">
+        <DialogHeader className="shrink-0 px-4 py-4">
           <DialogTitle>{t("sheet.capabilitiesQuick.title")}</DialogTitle>
           <DialogDescription>{t("sheet.capabilitiesQuick.description")}</DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden">
+        <div className="min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden px-4 py-2">
           <Tabs
             value={activeTab}
             onValueChange={(value) => setActiveTab(value as "defaults" | "controls" | "tools")}
@@ -798,54 +798,54 @@ export function ModelCapabilitiesQuickConfig({
                 </div>
               ) : (
                 <div className="min-w-0 space-y-1.5">
-                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_32px] gap-2 px-1 text-[11px] text-muted-foreground">
-                      <span>{t("sheet.capabilitiesQuick.pathColumn")}</span>
-                      <span>{t("sheet.capabilitiesQuick.valueColumn")}</span>
-                      <span />
-                    </div>
-                    {defaultRows.map((row) => {
-                      const rowErrors = defaultErrors[row.id] ?? {};
-                      return (
-                        <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_32px] items-start gap-2">
-                          <div className="min-w-0 space-y-1">
-                            <Input
-                              aria-invalid={Boolean(rowErrors.path)}
-                              className={cn("h-8", rowErrors.path && "border-destructive focus-visible:ring-destructive/30")}
-                              value={row.path}
-                              placeholder="reasoning.effort"
-                              onChange={(event) => updateDefaultRow(row.id, { path: event.target.value })}
-                            />
-                            {rowErrors.path ? <p className="truncate px-1 text-[10px] text-destructive">{rowErrors.path}</p> : null}
-                          </div>
-                          <div className="min-w-0 space-y-1">
-                            <Input
-                              aria-invalid={Boolean(rowErrors.value)}
-                              className={cn("h-8", rowErrors.value && "border-destructive focus-visible:ring-destructive/30")}
-                              value={row.value}
-                              placeholder='"high"'
-                              onChange={(event) => updateDefaultRow(row.id, { value: event.target.value })}
-                            />
-                            {rowErrors.value ? <p className="truncate px-1 text-[10px] text-destructive">{rowErrors.value}</p> : null}
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            className="justify-self-end text-muted-foreground hover:text-destructive"
-                            onClick={() => {
-                              setDefaultRows((prev) => prev.filter((item) => item.id !== row.id));
-                              setDefaultErrors((prev) => {
-                                const { [row.id]: _rowErrors, ...rest } = prev;
-                                return rest;
-                              });
-                            }}
-                            aria-label={commonT("actions.delete")}
-                          >
-                            <Trash2 className="size-3.5" />
-                          </Button>
+                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_32px] gap-2 px-1 text-[11px] text-muted-foreground">
+                    <span>{t("sheet.capabilitiesQuick.pathColumn")}</span>
+                    <span>{t("sheet.capabilitiesQuick.valueColumn")}</span>
+                    <span />
+                  </div>
+                  {defaultRows.map((row) => {
+                    const rowErrors = defaultErrors[row.id] ?? {};
+                    return (
+                      <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_32px] items-start gap-2">
+                        <div className="min-w-0 space-y-1">
+                          <Input
+                            aria-invalid={Boolean(rowErrors.path)}
+                            className={cn("h-8", rowErrors.path && "border-destructive focus-visible:ring-destructive/30")}
+                            value={row.path}
+                            placeholder="reasoning.effort"
+                            onChange={(event) => updateDefaultRow(row.id, { path: event.target.value })}
+                          />
+                          {rowErrors.path ? <p className="truncate px-1 text-[10px] text-destructive">{rowErrors.path}</p> : null}
                         </div>
-                      );
-                    })}
+                        <div className="min-w-0 space-y-1">
+                          <Input
+                            aria-invalid={Boolean(rowErrors.value)}
+                            className={cn("h-8", rowErrors.value && "border-destructive focus-visible:ring-destructive/30")}
+                            value={row.value}
+                            placeholder='"high"'
+                            onChange={(event) => updateDefaultRow(row.id, { value: event.target.value })}
+                          />
+                          {rowErrors.value ? <p className="truncate px-1 text-[10px] text-destructive">{rowErrors.value}</p> : null}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="justify-self-end text-muted-foreground hover:text-destructive"
+                          onClick={() => {
+                            setDefaultRows((prev) => prev.filter((item) => item.id !== row.id));
+                            setDefaultErrors((prev) => {
+                              const { [row.id]: _rowErrors, ...rest } = prev;
+                              return rest;
+                            });
+                          }}
+                          aria-label={commonT("actions.delete")}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </TabsContent>
@@ -857,12 +857,12 @@ export function ModelCapabilitiesQuickConfig({
                 </div>
               ) : (
                 <div className="min-w-0 space-y-2">
-                    {controlRows.map((row) => {
-                      const rowErrors = controlErrors[row.id] ?? {};
-                      return (
-                        <div key={row.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_32px] items-center gap-2 rounded-md bg-muted/25 px-2 py-2">
-                          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
-                            <label className="min-w-0 space-y-1">
+                  {controlRows.map((row) => {
+                    const rowErrors = controlErrors[row.id] ?? {};
+                    return (
+                      <div key={row.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_32px] items-center gap-2 rounded-md bg-muted/25 px-2 py-2">
+                        <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
+                          <label className="min-w-0 space-y-1">
                             <span className="block truncate px-1 text-[11px] text-muted-foreground">
                               {t("sheet.capabilitiesQuick.pathColumn")}
                             </span>
@@ -942,26 +942,26 @@ export function ModelCapabilitiesQuickConfig({
                               onChange={(event) => updateControlRow(row.id, { placeholder: event.target.value })}
                             />
                           </label>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            className="self-center justify-self-end text-muted-foreground hover:text-destructive"
-                            onClick={() => {
-                              setControlRows((prev) => prev.filter((item) => item.id !== row.id));
-                              setControlErrors((prev) => {
-                                const { [row.id]: _rowErrors, ...rest } = prev;
-                                return rest;
-                              });
-                            }}
-                            aria-label={commonT("actions.delete")}
-                          >
-                            <Trash2 className="size-3.5" />
-                          </Button>
                         </div>
-                      );
-                    })}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="self-center justify-self-end text-muted-foreground hover:text-destructive"
+                          onClick={() => {
+                            setControlRows((prev) => prev.filter((item) => item.id !== row.id));
+                            setControlErrors((prev) => {
+                              const { [row.id]: _rowErrors, ...rest } = prev;
+                              return rest;
+                            });
+                          }}
+                          aria-label={commonT("actions.delete")}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </TabsContent>
@@ -1001,7 +1001,7 @@ export function ModelCapabilitiesQuickConfig({
           </Tabs>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 px-4 py-3">
           <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
             {commonT("actions.cancel")}
           </Button>

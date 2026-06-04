@@ -760,7 +760,7 @@ export function AdminToolsPage() {
                       {formatTime(server.lastSyncedAt, locale, t("table.unsynced"))}
                     </TableCell>
                     <TableCell className="w-[92px] whitespace-nowrap py-1.5" stickyEnd>
-                      <div className="flex items-center justify-start gap-1 md:justify-end">
+                      <div className="flex h-7 items-center justify-start gap-1 md:justify-end">
                         <Button
                           type="button"
                           size="icon-xs"
@@ -879,8 +879,8 @@ export function AdminToolsPage() {
                 <Table className="min-w-[640px]">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[44px] py-0 text-center">
-                        <div className="flex h-8 items-center justify-center">
+                      <TableHead className="w-[44px] py-1.5 text-center">
+                        <div className="flex h-7 items-center justify-center">
                           <Checkbox
                             checked={allPagedToolsSelected ? true : somePagedToolsSelected ? "indeterminate" : false}
                             onCheckedChange={(checked) => toggleSelectedPagedTools(checked === true)}
@@ -898,8 +898,8 @@ export function AdminToolsPage() {
                     {toolsLoading ? <TableSkeletonRows colSpan={5} rowCount={8} /> : null}
                     {pagedTools.map((tool) => (
                       <TableRow key={tool.id} selected={selectedToolIDs.has(tool.id)}>
-                        <TableCell className="w-[44px] py-0 whitespace-nowrap">
-                          <div className="flex h-8 items-center justify-center">
+                        <TableCell className="w-[44px] whitespace-nowrap py-1.5">
+                          <div className="flex h-7 items-center justify-center">
                             <Checkbox
                               checked={selectedToolIDs.has(tool.id)}
                               onCheckedChange={(checked) => toggleSelectedTool(tool.id, checked === true)}
@@ -907,8 +907,8 @@ export function AdminToolsPage() {
                             />
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex min-w-0 max-w-[18rem] items-center gap-2">
+                        <TableCell className="py-1.5">
+                          <div className="flex min-h-7 min-w-0 max-w-[18rem] items-center gap-2">
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-xs font-medium">{toolDisplayName(tool)}</p>
                               <p className="truncate text-xs leading-4 text-muted-foreground">{tool.name}</p>
@@ -926,31 +926,35 @@ export function AdminToolsPage() {
                             </Button>
                           </div>
                         </TableCell>
-                        <TableCell className="w-[320px] whitespace-normal">
+                        <TableCell className="w-[320px] whitespace-normal py-1.5">
                           <div className="line-clamp-2 text-xs leading-5 text-muted-foreground" title={tool.description || undefined}>
                             {tool.description || t("table.noDescription")}
                           </div>
                         </TableCell>
-                        <TableCell className="text-center">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-xs"
-                            className="text-muted-foreground shadow-none"
-                            onClick={() => setSchemaTool(tool)}
-                            aria-label={t("toolbar.viewToolSchema", { name: tool.name })}
-                            title={t("toolbar.viewSchema")}
-                          >
-                            <FileBraces className="size-3.5 stroke-1" />
-                          </Button>
+                        <TableCell className="py-1.5 text-center">
+                          <div className="flex h-7 items-center justify-center">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              className="text-muted-foreground shadow-none"
+                              onClick={() => setSchemaTool(tool)}
+                              aria-label={t("toolbar.viewToolSchema", { name: tool.name })}
+                              title={t("toolbar.viewSchema")}
+                            >
+                              <FileBraces className="size-3.5 stroke-1" />
+                            </Button>
+                          </div>
                         </TableCell>
-                        <TableCell className="text-center">
-                          <Switch
-                            size="sm"
-                            checked={tool.status === "active"}
-                            onCheckedChange={(checked) => void setToolStatus(tool, checked)}
-                            aria-label={t("toolbar.toggleTool", { name: tool.name })}
-                          />
+                        <TableCell className="py-1.5 text-center">
+                          <div className="flex h-7 items-center justify-center">
+                            <Switch
+                              size="sm"
+                              checked={tool.status === "active"}
+                              onCheckedChange={(checked) => void setToolStatus(tool, checked)}
+                              aria-label={t("toolbar.toggleTool", { name: tool.name })}
+                            />
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -979,82 +983,84 @@ export function AdminToolsPage() {
       </Sheet>
 
       <Dialog open={serverDialogOpen} onOpenChange={setServerDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(86vh,760px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+          <DialogHeader className="shrink-0 px-4 py-4">
             <DialogTitle>{serverForm.id ? t("serverDialog.editTitle") : t("serverDialog.createTitle")}</DialogTitle>
             <DialogDescription>{t("serverDialog.description")}</DialogDescription>
           </DialogHeader>
 
           <form
-            className="space-y-4"
+            className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault();
               void saveServer();
             }}
           >
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    {t("serverDialog.name")} <span className="text-destructive">*</span>
+                  </p>
+                  <Input
+                    value={serverForm.name}
+                    placeholder={t("serverDialog.namePlaceholder")}
+                    onChange={(event) => setServerForm((prev) => ({ ...prev, name: event.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">{t("serverDialog.status")}</p>
+                  <Select
+                    value={serverForm.status}
+                    onValueChange={(status: "active" | "inactive") => setServerForm((prev) => ({ ...prev, status }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">{t("status.active")}</SelectItem>
+                      <SelectItem value="inactive">{t("status.inactive")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">
-                  {t("serverDialog.name")} <span className="text-destructive">*</span>
+                  {t("serverDialog.url")} <span className="text-destructive">*</span>
                 </p>
                 <Input
-                  value={serverForm.name}
-                  placeholder={t("serverDialog.namePlaceholder")}
-                  onChange={(event) => setServerForm((prev) => ({ ...prev, name: event.target.value }))}
+                  value={serverForm.baseURL}
+                  placeholder="https://example.com/mcp"
+                  onChange={(event) => setServerForm((prev) => ({ ...prev, baseURL: event.target.value }))}
                   required
                 />
               </div>
+
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">{t("serverDialog.status")}</p>
-                <Select
-                  value={serverForm.status}
-                  onValueChange={(status: "active" | "inactive") => setServerForm((prev) => ({ ...prev, status }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">{t("status.active")}</SelectItem>
-                    <SelectItem value="inactive">{t("status.inactive")}</SelectItem>
-                  </SelectContent>
-                </Select>
+                <p className="text-xs text-muted-foreground">{t("serverDialog.authToken")}</p>
+                <Input
+                  value={serverForm.authToken}
+                  placeholder={serverForm.id ? t("serverDialog.authTokenEditPlaceholder") : t("serverDialog.authTokenCreatePlaceholder")}
+                  onChange={(event) => setServerForm((prev) => ({ ...prev, authToken: event.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t("serverDialog.headers")}</p>
+                <Textarea
+                  value={serverForm.headersJSON}
+                  className="h-24 resize-none font-mono text-xs"
+                  placeholder={`{
+  "X-API-Key": "..."
+}`}
+                  onChange={(event) => setServerForm((prev) => ({ ...prev, headersJSON: event.target.value }))}
+                />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">
-                {t("serverDialog.url")} <span className="text-destructive">*</span>
-              </p>
-              <Input
-                value={serverForm.baseURL}
-                placeholder="https://example.com/mcp"
-                onChange={(event) => setServerForm((prev) => ({ ...prev, baseURL: event.target.value }))}
-                required
-              />
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t("serverDialog.authToken")}</p>
-              <Input
-                value={serverForm.authToken}
-                placeholder={serverForm.id ? t("serverDialog.authTokenEditPlaceholder") : t("serverDialog.authTokenCreatePlaceholder")}
-                onChange={(event) => setServerForm((prev) => ({ ...prev, authToken: event.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t("serverDialog.headers")}</p>
-              <Textarea
-                value={serverForm.headersJSON}
-                className="h-24 resize-none font-mono text-xs"
-                placeholder={`{
-  "X-API-Key": "..."
-}`}
-                onChange={(event) => setServerForm((prev) => ({ ...prev, headersJSON: event.target.value }))}
-              />
-            </div>
-
-            <DialogFooter>
+            <DialogFooter className="shrink-0 px-4 py-3">
               <Button type="button" variant="ghost" onClick={() => setServerDialogOpen(false)} disabled={serverSaving}>
                 {tActions("cancel")}
               </Button>
@@ -1067,40 +1073,42 @@ export function AdminToolsPage() {
       </Dialog>
 
       <Dialog open={Boolean(toolForm)} onOpenChange={(open) => !open && setToolForm(null)}>
-        <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[520px]">
+          <DialogHeader className="shrink-0 px-4 py-4">
             <DialogTitle>{t("toolDialog.title")}</DialogTitle>
             <DialogDescription>{t("toolDialog.description")}</DialogDescription>
           </DialogHeader>
 
           <form
-            className="space-y-4"
+            className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault();
               void saveTool();
             }}
           >
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t("toolDialog.displayName")}</p>
-              <Input
-                value={toolForm?.displayName ?? ""}
-                placeholder={t("toolDialog.displayNamePlaceholder")}
-                maxLength={160}
-                onChange={(event) => setToolForm((prev) => (prev ? { ...prev, displayName: event.target.value } : prev))}
-              />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t("toolDialog.toolDescription")}</p>
-              <Textarea
-                value={toolForm?.description ?? ""}
-                className="h-28 resize-none text-xs leading-5"
-                placeholder={t("toolDialog.toolDescriptionPlaceholder")}
-                maxLength={4096}
-                onChange={(event) => setToolForm((prev) => (prev ? { ...prev, description: event.target.value } : prev))}
-              />
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t("toolDialog.displayName")}</p>
+                <Input
+                  value={toolForm?.displayName ?? ""}
+                  placeholder={t("toolDialog.displayNamePlaceholder")}
+                  maxLength={160}
+                  onChange={(event) => setToolForm((prev) => (prev ? { ...prev, displayName: event.target.value } : prev))}
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t("toolDialog.toolDescription")}</p>
+                <Textarea
+                  value={toolForm?.description ?? ""}
+                  className="h-28 resize-none text-xs leading-5"
+                  placeholder={t("toolDialog.toolDescriptionPlaceholder")}
+                  maxLength={4096}
+                  onChange={(event) => setToolForm((prev) => (prev ? { ...prev, description: event.target.value } : prev))}
+                />
+              </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="shrink-0 px-4 py-3">
               <Button type="button" variant="ghost" onClick={() => setToolForm(null)} disabled={toolSaving}>
                 {tActions("cancel")}
               </Button>
@@ -1113,17 +1121,17 @@ export function AdminToolsPage() {
       </Dialog>
 
       <Dialog open={Boolean(schemaTool)} onOpenChange={(open) => !open && setSchemaTool(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+          <DialogHeader className="shrink-0 px-4 py-4">
             <DialogTitle>{schemaTool?.displayName || schemaTool?.name || t("schemaDialog.fallbackTitle")}</DialogTitle>
             <DialogDescription>
               {schemaTool?.name ? t("schemaDialog.description", { name: schemaTool.name }) : t("schemaDialog.fallbackDescription")}
             </DialogDescription>
           </DialogHeader>
-          <pre className="max-h-[60vh] overflow-auto rounded-md border border-border/60 bg-muted/35 p-3 text-xs leading-5 text-foreground/86">
+          <pre className="mx-4 min-h-0 flex-1 overflow-auto rounded-md border border-border/60 bg-muted/35 p-3 text-xs leading-5 text-foreground/86">
             <code>{schemaText}</code>
           </pre>
-          <DialogFooter>
+          <DialogFooter className="shrink-0 px-4 py-3">
             <Button type="button" variant="ghost" onClick={() => setSchemaTool(null)}>
               {tActions("close")}
             </Button>

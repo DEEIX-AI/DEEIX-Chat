@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   DIALOG_LAYOUT_TRANSITION,
@@ -152,61 +153,59 @@ export function PlanBillingDialog({
   const tActions = useTranslations("common.actions");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[760px]">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+        <DialogHeader className="shrink-0 px-4 py-4">
           <DialogTitle>{t("plans.dialogTitle")}</DialogTitle>
           <DialogDescription>{t("plans.dialogDescription")}</DialogDescription>
         </DialogHeader>
 
-        <motion.form layout transition={DIALOG_LAYOUT_TRANSITION} onSubmit={onSubmit} className="space-y-4">
-          {planForm ? (
-            <>
-              <div className="grid gap-5 md:grid-cols-2">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">{t("plans.name")}</p>
-                  <Input value={planForm.name} onChange={(event) => setPlanForm({ ...planForm, name: event.target.value })} required />
+        <motion.form layout transition={DIALOG_LAYOUT_TRANSITION} onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
+            {planForm ? (
+              <>
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">{t("plans.name")}</p>
+                    <Input value={planForm.name} onChange={(event) => setPlanForm({ ...planForm, name: event.target.value })} required />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">{t("plans.price")}</p>
+                    <Input value={planForm.amount} type="number" min="0" step="0.01" onChange={(event) => setPlanForm({ ...planForm, amount: event.target.value })} />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">{t("plans.price")}</p>
-                  <Input value={planForm.amount} type="number" min="0" step="0.01" onChange={(event) => setPlanForm({ ...planForm, amount: event.target.value })} />
-                </div>
-              </div>
 
-              <div className="grid gap-5 md:grid-cols-2">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">{t("plans.interval")}</p>
-                  <Select value={planForm.billingInterval} onValueChange={(value) => setPlanForm({ ...planForm, billingInterval: value })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="lifetime">{t("plans.intervals.lifetime")}</SelectItem>
-                      <SelectItem value="month">{t("plans.intervals.month")}</SelectItem>
-                      <SelectItem value="year">{t("plans.intervals.year")}</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">{t("plans.interval")}</p>
+                    <Select value={planForm.billingInterval} onValueChange={(value) => setPlanForm({ ...planForm, billingInterval: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="lifetime">{t("plans.intervals.lifetime")}</SelectItem>
+                        <SelectItem value="month">{t("plans.intervals.month")}</SelectItem>
+                        <SelectItem value="year">{t("plans.intervals.year")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">{t("plans.periodCredit")}</p>
+                    <Input value={planForm.periodCredit} type="number" min="0" step="0.01" onChange={(event) => setPlanForm({ ...planForm, periodCredit: event.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">{t("plans.discount")}</p>
+                    <Input value={planForm.discountPercent} type="number" min="0" max="100" step="1" onChange={(event) => setPlanForm({ ...planForm, discountPercent: event.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">{t("plans.description")}</p>
+                    <Input value={planForm.description} onChange={(event) => setPlanForm({ ...planForm, description: event.target.value })} />
+                  </div>
                 </div>
-              </div>
+              </>
+            ) : null}
+          </div>
 
-              <div className="grid gap-5 md:grid-cols-2">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">{t("plans.periodCredit")}</p>
-                  <Input value={planForm.periodCredit} type="number" min="0" step="0.01" onChange={(event) => setPlanForm({ ...planForm, periodCredit: event.target.value })} />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">{t("plans.discount")}</p>
-                  <Input value={planForm.discountPercent} type="number" min="0" max="100" step="1" onChange={(event) => setPlanForm({ ...planForm, discountPercent: event.target.value })} />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">{t("plans.description")}</p>
-                <Input value={planForm.description} onChange={(event) => setPlanForm({ ...planForm, description: event.target.value })} />
-              </div>
-            </>
-          ) : null}
-
-          <DialogFooter>
+          <DialogFooter className="shrink-0 px-4 py-3">
             <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>
               {tActions("cancel")}
             </Button>
@@ -303,25 +302,24 @@ export function PricingBillingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[780px]">
-        <DialogHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[620px]">
+        <DialogHeader className="shrink-0 gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-1.5">
             <DialogTitle>{t("modelPricing.dialogTitle")}</DialogTitle>
             <DialogDescription>{t("modelPricing.dialogDescription")}</DialogDescription>
           </div>
-          <div className="inline-flex shrink-0 rounded-md border border-border/60 bg-muted/20 p-0.5">
-            <Button type="button" size="xs" variant={editorMode === "form" ? "secondary" : "ghost"} className="h-7 shadow-none" onClick={() => setEditorMode("form")}>
-              {t("modelPricing.formMode")}
-            </Button>
-            <Button type="button" size="xs" variant={editorMode === "json" ? "secondary" : "ghost"} className="h-7 shadow-none" onClick={() => setEditorMode("json")}>
-              {t("modelPricing.jsonMode")}
-            </Button>
-          </div>
+          <Tabs value={editorMode} onValueChange={(value) => setEditorMode(value === "json" ? "json" : "form")} className="shrink-0">
+            <TabsList>
+              <TabsTrigger value="form">{t("modelPricing.formMode")}</TabsTrigger>
+              <TabsTrigger value="json">{t("modelPricing.jsonMode")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </DialogHeader>
 
-        <motion.form layout transition={DIALOG_LAYOUT_TRANSITION} onSubmit={onSubmit} className="space-y-4">
-          {form ? (
-            <>
+        <motion.form layout transition={DIALOG_LAYOUT_TRANSITION} onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
+            {form ? (
+              <>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{t("modelPricing.platformModel")}</p>
                 <div className="flex h-8 items-center rounded-md border border-input/40 bg-muted/30 px-3 text-xs">
@@ -331,7 +329,7 @@ export function PricingBillingDialog({
 
               {editorMode === "form" ? (
                 <>
-                  <div className="grid gap-5 md:grid-cols-2">
+                  <div className="grid grid-cols-2 gap-5">
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">{t("modelPricing.pricingMode")}</p>
                       <Select value={form.pricingMode} onValueChange={(value) => setForm({ ...form, pricingMode: normalizePricingMode(value) })}>
@@ -356,7 +354,7 @@ export function PricingBillingDialog({
 
                   {form.pricingMode === "token" ? (
                     <>
-                      <div className="grid gap-5 md:grid-cols-2">
+                      <div className="grid grid-cols-2 gap-5">
                         <div className="space-y-1">
                           <p className="text-xs text-muted-foreground">{t("modelPricing.inputPerM")}</p>
                           <Input value={form.input} type="number" min="0" step="0.000001" onChange={(event) => setForm({ ...form, input: event.target.value })} />
@@ -367,7 +365,7 @@ export function PricingBillingDialog({
                         </div>
                       </div>
 
-                      <div className="grid gap-5 md:grid-cols-2">
+                      <div className="grid grid-cols-2 gap-5">
                         <div className="space-y-1">
                           <p className="text-xs text-muted-foreground">{t("modelPricing.cacheReadPerM")}</p>
                           <Input value={form.cacheRead} type="number" min="0" step="0.000001" onChange={(event) => setForm({ ...form, cacheRead: event.target.value })} />
@@ -421,7 +419,7 @@ export function PricingBillingDialog({
                             <Trash2 className="size-3.5" />
                           </Button>
                         </div>
-                        <div className="grid gap-2 md:grid-cols-5">
+                        <div className="grid grid-cols-5 gap-2">
                           <div className="space-y-1">
                             <p className="text-[11px] text-muted-foreground">{t("modelPricing.tokenLimitK")}</p>
                             <Input
@@ -508,10 +506,11 @@ export function PricingBillingDialog({
                   </p>
                 </div>
               )}
-            </>
-          ) : null}
+              </>
+            ) : null}
+          </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 px-4 py-3">
             <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>
               {tActions("cancel")}
             </Button>

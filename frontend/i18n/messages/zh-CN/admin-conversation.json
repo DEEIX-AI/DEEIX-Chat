@@ -57,6 +57,7 @@
   },
   "guide": {
     "button": "教程",
+    "close": "关闭",
     "title": "参数透传教程",
     "description": "控制用户 options 哪些字段可以进入上游请求。",
     "pathTitle": "路径写法",

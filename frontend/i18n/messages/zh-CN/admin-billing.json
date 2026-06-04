@@ -115,7 +115,7 @@
     "status": "状态",
     "active": "启用",
     "inactive": "停用",
-    "creditUSD": "余额金额",
+    "creditUSD": "兑换金额",
     "plan": "套餐",
     "planPlaceholder": "选择套餐",
     "durationDays": "有效天数",
