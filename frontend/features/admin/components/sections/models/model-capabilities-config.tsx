@@ -1373,8 +1373,9 @@ export function ModelCapabilitiesQuickConfig({
                         <div
                           key={row.id}
                           className={cn(
-                            "min-w-0 rounded-md border border-transparent border-l-2 px-2 py-2",
-                            protocolMatched ? "border-l-muted-foreground/30 bg-muted/40" : "bg-muted/20",
+                            "min-w-0 rounded-md border border-l-2 px-2 py-2",
+                            protocolMatched ? "border-l-muted-foreground/30 bg-muted/40" : "border-l-transparent bg-muted/20",
+                            expanded ? "border-y-border/70 border-r-border/70" : "border-y-transparent border-r-transparent",
                             expanded && "space-y-3",
                             !row.enabled && "text-muted-foreground",
                           )}

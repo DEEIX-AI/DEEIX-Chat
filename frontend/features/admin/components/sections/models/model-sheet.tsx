@@ -803,7 +803,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
               className="border-y border-border/60"
             >
               <AccordionItem value="capabilities" className="border-border/60">
-                <AccordionTrigger className="items-center py-2.5 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline data-[state=open]:font-medium data-[state=open]:text-foreground">
+                <AccordionTrigger className="h-11 items-center py-0 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline data-[state=open]:font-medium data-[state=open]:text-foreground [&_.accordion-trigger-icon]:translate-y-0">
                   {t("sheet.capabilities")}
                 </AccordionTrigger>
                 <AccordionContent className="space-y-3 pb-4 pt-0">
@@ -880,7 +880,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
               </AccordionItem>
 
               <AccordionItem value="other" className="border-border/60">
-                <AccordionTrigger className="items-center py-2.5 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline data-[state=open]:font-medium data-[state=open]:text-foreground">
+                <AccordionTrigger className="h-11 items-center py-0 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline data-[state=open]:font-medium data-[state=open]:text-foreground [&_.accordion-trigger-icon]:translate-y-0">
                   {t("sheet.otherInfo")}
                 </AccordionTrigger>
                 <AccordionContent className="space-y-4 pb-4 pt-0">
@@ -932,7 +932,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
               </AccordionItem>
 
               <AccordionItem value="sources" className="border-border/60">
-                <AccordionTrigger className="items-center py-2.5 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline data-[state=open]:font-medium data-[state=open]:text-foreground">
+                <AccordionTrigger className="h-11 items-center py-0 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline data-[state=open]:font-medium data-[state=open]:text-foreground [&_.accordion-trigger-icon]:translate-y-0">
                   {mode === "create"
                     ? t("sheet.bindInitialSource")
                     : t("sheet.upstreamSources", { count: sourcesLoading ? "..." : sources.length })}
@@ -1147,7 +1147,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
 
               {target && (
                 <AccordionItem value="meta" className="border-border/60">
-                  <AccordionTrigger className="items-center py-2.5 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline data-[state=open]:font-medium data-[state=open]:text-foreground">
+                  <AccordionTrigger className="h-11 items-center py-0 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline data-[state=open]:font-medium data-[state=open]:text-foreground [&_.accordion-trigger-icon]:translate-y-0">
                     {t("sheet.metadata")}
                   </AccordionTrigger>
                   <AccordionContent className="space-y-2 pb-4 pt-0 text-xs">
