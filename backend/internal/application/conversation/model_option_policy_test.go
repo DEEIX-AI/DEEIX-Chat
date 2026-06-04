@@ -124,7 +124,7 @@ func TestFilterModelOptionsPreservesOfficialNativeToolsOutsidePathPolicy(t *test
 	filtered := filterModelOptions(map[string]interface{}{
 		"temperature": 0.4,
 		"tools": []interface{}{
-			map[string]interface{}{"type": "web_search_20260209", "foo": "bar"},
+			map[string]interface{}{"type": "web_search_20260209", "max_uses": 3, "name": "override"},
 			map[string]interface{}{"type": "custom_tool", "name": "provider_lookup"},
 			map[string]interface{}{"type": "web_search_20260209"},
 			"invalid",
@@ -146,15 +146,19 @@ func TestFilterModelOptionsPreservesOfficialNativeToolsOutsidePathPolicy(t *test
 	if tools[0]["type"] != "web_search_20260209" || tools[0]["name"] != "web_search" {
 		t.Fatalf("expected sanitized web_search tool, got %#v", tools[0])
 	}
-	if _, ok := tools[0]["foo"]; ok {
-		t.Fatalf("expected arbitrary tool fields to be removed, got %#v", tools[0])
+	if tools[0]["max_uses"] != 3 {
+		t.Fatalf("expected official native tool parameters to pass, got %#v", tools[0])
 	}
 }
 
 func TestFilterModelOptionsPreservesXAINativeToolsWhenToolsIsExplicitlyDenied(t *testing.T) {
 	filtered := filterModelOptions(map[string]interface{}{
 		"tools": []interface{}{
-			map[string]interface{}{"type": "x_search", "extra": true},
+			map[string]interface{}{
+				"type":                       "x_search",
+				"enable_image_understanding": true,
+				"allowed_domains":            []interface{}{"x.com"},
+			},
 			map[string]interface{}{"type": "not_official"},
 		},
 	}, llm.AdapterXAIResponses, modelOptionPolicyConfig{
@@ -171,8 +175,109 @@ func TestFilterModelOptionsPreservesXAINativeToolsWhenToolsIsExplicitlyDenied(t 
 	if tools[0]["type"] != "x_search" {
 		t.Fatalf("expected sanitized x_search tool, got %#v", tools[0])
 	}
-	if _, ok := tools[0]["extra"]; ok {
-		t.Fatalf("expected arbitrary xAI tool fields to be removed, got %#v", tools[0])
+	if tools[0]["enable_image_understanding"] != true {
+		t.Fatalf("expected xAI native tool parameters to pass, got %#v", tools[0])
+	}
+	domains, ok := tools[0]["allowed_domains"].([]interface{})
+	if !ok || len(domains) != 1 || domains[0] != "x.com" {
+		t.Fatalf("expected xAI domain parameters to pass, got %#v", tools[0])
+	}
+}
+
+func TestFilterModelOptionsPreservesAllowedXAINativeToolParameters(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"store": false,
+		"tools": []interface{}{
+			map[string]interface{}{
+				"type":                       "x_search",
+				"enable_image_understanding": true,
+			},
+			map[string]interface{}{
+				"type":                       "web_search",
+				"enable_image_understanding": true,
+				"enable_image_search":        true,
+			},
+			map[string]interface{}{
+				"type": "code_interpreter",
+				"container": map[string]interface{}{
+					"type": "auto",
+				},
+			},
+			map[string]interface{}{"type": "unknown_tool", "enable_image_understanding": true},
+		},
+	}, llm.AdapterXAIResponses, modelOptionPolicyConfig{
+		Mode:                  modelOptionPolicyAllowlist,
+		AllowedPathsJSON:      `{"default":["store"]}`,
+		DeniedPathsJSON:       config.DefaultModelOptionDeniedPathsJSON(),
+		ModelCapabilitiesJSON: `{"nativeToolKeys":["xai.x_search","xai.web_search","xai.code_interpreter"]}`,
+	})
+
+	if filtered["store"] != false {
+		t.Fatalf("expected allowed non-tool option to pass, got %#v", filtered)
+	}
+	tools, ok := filtered["tools"].([]map[string]interface{})
+	if !ok || len(tools) != 3 {
+		t.Fatalf("expected three allowed xAI native tools, got %#v", filtered["tools"])
+	}
+	if tools[0]["type"] != "x_search" || tools[0]["enable_image_understanding"] != true {
+		t.Fatalf("expected x_search image understanding parameter to pass, got %#v", tools[0])
+	}
+	if tools[1]["type"] != "web_search" || tools[1]["enable_image_understanding"] != true || tools[1]["enable_image_search"] != true {
+		t.Fatalf("expected web_search image parameters to pass, got %#v", tools[1])
+	}
+	container, ok := tools[2]["container"].(map[string]interface{})
+	if tools[2]["type"] != "code_interpreter" || !ok || container["type"] != "auto" {
+		t.Fatalf("expected code_interpreter parameters to pass, got %#v", tools[2])
+	}
+}
+
+func TestFilterModelOptionsDerivesNativeToolKeysFromCapabilityDefaultTools(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"store": false,
+		"tools": []interface{}{
+			map[string]interface{}{
+				"type":                       "x_search",
+				"enable_image_understanding": true,
+			},
+			map[string]interface{}{
+				"type":                       "web_search",
+				"enable_image_understanding": true,
+			},
+			map[string]interface{}{
+				"type": "code_interpreter",
+				"container": map[string]interface{}{
+					"type": "auto",
+				},
+			},
+		},
+	}, llm.AdapterXAIResponses, modelOptionPolicyConfig{
+		Mode:             modelOptionPolicyAllowlist,
+		AllowedPathsJSON: `{"default":["store"]}`,
+		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+		ModelCapabilitiesJSON: `{
+			"defaultOptions": {
+				"tools": [
+					{"type": "x_search"},
+					{"type": "web_search"},
+					{"type": "code_interpreter"}
+				]
+			}
+		}`,
+	})
+
+	tools, ok := filtered["tools"].([]map[string]interface{})
+	if !ok || len(tools) != 3 {
+		t.Fatalf("expected native tool keys to be derived from capability default tools, got %#v", filtered)
+	}
+	if tools[0]["type"] != "x_search" || tools[0]["enable_image_understanding"] != true {
+		t.Fatalf("expected derived x_search to preserve parameters, got %#v", tools[0])
+	}
+	if tools[1]["type"] != "web_search" || tools[1]["enable_image_understanding"] != true {
+		t.Fatalf("expected derived web_search to preserve parameters, got %#v", tools[1])
+	}
+	container, ok := tools[2]["container"].(map[string]interface{})
+	if tools[2]["type"] != "code_interpreter" || !ok || container["type"] != "auto" {
+		t.Fatalf("expected derived code_interpreter to preserve parameters, got %#v", tools[2])
 	}
 }
 
@@ -200,7 +305,7 @@ func TestFilterModelOptionsDropsProviderNativeToolsDisabledByPolicy(t *testing.T
 func TestFilterModelOptionsPreservesOpenAIResponsesNativeTools(t *testing.T) {
 	filtered := filterModelOptions(map[string]interface{}{
 		"tools": []interface{}{
-			map[string]interface{}{"type": "web_search_preview", "extra": true},
+			map[string]interface{}{"type": "web_search_preview", "search_context_size": "low"},
 			map[string]interface{}{"type": "shell"},
 		},
 	}, llm.AdapterOpenAIResponses, modelOptionPolicyConfig{
@@ -217,8 +322,8 @@ func TestFilterModelOptionsPreservesOpenAIResponsesNativeTools(t *testing.T) {
 	if tools[0]["type"] != "web_search_preview" {
 		t.Fatalf("expected web_search_preview to pass, got %#v", tools[0])
 	}
-	if _, ok := tools[0]["extra"]; ok {
-		t.Fatalf("expected arbitrary OpenAI tool fields to be removed, got %#v", tools[0])
+	if tools[0]["search_context_size"] != "low" {
+		t.Fatalf("expected OpenAI native tool parameters to pass, got %#v", tools[0])
 	}
 	environment, ok := tools[1]["environment"].(map[string]interface{})
 	if !ok || environment["type"] != "container_auto" {
@@ -230,7 +335,7 @@ func TestFilterModelOptionsPreservesNativeToolsForcedByModelCapabilitiesAcrossPr
 	filtered := filterModelOptions(map[string]interface{}{
 		"quality": "auto",
 		"tools": []interface{}{
-			map[string]interface{}{"type": "web_search_preview", "extra": true},
+			map[string]interface{}{"type": "web_search_preview", "search_context_size": "medium"},
 		},
 	}, llm.AdapterOpenAIImageEdits, modelOptionPolicyConfig{
 		Mode:                  modelOptionPolicyAllowlist,
@@ -249,8 +354,8 @@ func TestFilterModelOptionsPreservesNativeToolsForcedByModelCapabilitiesAcrossPr
 	if tools[0]["type"] != "web_search_preview" {
 		t.Fatalf("expected canonical web_search_preview tool, got %#v", tools[0])
 	}
-	if _, ok := tools[0]["extra"]; ok {
-		t.Fatalf("expected arbitrary tool fields to be removed, got %#v", tools[0])
+	if tools[0]["search_context_size"] != "medium" {
+		t.Fatalf("expected forced native tool parameters to pass, got %#v", tools[0])
 	}
 }
 

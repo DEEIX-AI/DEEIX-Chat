@@ -433,36 +433,79 @@ func FindByKey(key string) (Definition, bool) {
 	return Definition{}, false
 }
 
-// CanonicalPayload 从用户 options.tools 项中只提取工具引用，并返回后端固定 payload。
-func CanonicalPayload(protocol string, raw map[string]interface{}) (map[string]interface{}, bool) {
+var nativeToolDeniedPayloadKeys = map[string]struct{}{
+	"model":                {},
+	"messages":             {},
+	"input":                {},
+	"instructions":         {},
+	"prompt":               {},
+	"system":               {},
+	"systemInstruction":    {},
+	"headers":              {},
+	"api_key":              {},
+	"apiKey":               {},
+	"base_url":             {},
+	"baseURL":              {},
+	"stream":               {},
+	"previous_response_id": {},
+}
+
+// PayloadFromOption 识别用户 options.tools 项中的官方原生工具，并返回可发送给上游的规范化 payload。
+func PayloadFromOption(protocol string, raw map[string]interface{}) (Definition, map[string]interface{}, bool) {
 	toolType := strings.TrimSpace(stringValue(raw["type"]))
 	if toolType == "" {
 		toolType = inferToolTypeFromRawKeys(protocol, raw)
 	}
 	if toolType == "" {
-		return nil, false
+		return Definition{}, nil, false
 	}
 	definition, ok := Find(protocol, toolType)
 	if !ok {
-		return nil, false
+		return Definition{}, nil, false
 	}
-	return cloneMap(definition.Payload), true
+	return definition, buildPayload(definition, raw), true
 }
 
-// CanonicalPayloadByKey 从用户 options.tools 项中识别指定官方原生工具 key，并返回后端固定 payload。
-func CanonicalPayloadByKey(key string, raw map[string]interface{}) (map[string]interface{}, bool) {
+// PayloadFromKey 识别指定官方原生工具 key，并返回可发送给上游的规范化 payload。
+func PayloadFromKey(key string, raw map[string]interface{}) (Definition, map[string]interface{}, bool) {
 	key = strings.TrimSpace(key)
 	for _, definition := range definitions {
 		if definition.Key != key {
 			continue
 		}
-		payload, ok := CanonicalPayload(definition.Protocol, raw)
+		matched, payload, ok := PayloadFromOption(definition.Protocol, raw)
 		if !ok {
 			continue
 		}
-		return payload, true
+		return matched, payload, true
 	}
-	return nil, false
+	return Definition{}, nil, false
+}
+
+func buildPayload(definition Definition, raw map[string]interface{}) map[string]interface{} {
+	payload := cloneMap(raw)
+	for key := range nativeToolDeniedPayloadKeys {
+		delete(payload, key)
+	}
+	for _, key := range definition.rawTypeFieldKeys {
+		if _, canonical := definition.Payload[key]; !canonical {
+			delete(payload, key)
+		}
+	}
+	mergePayload(payload, definition.Payload)
+	return payload
+}
+
+func mergePayload(dst map[string]interface{}, src map[string]interface{}) {
+	for key, value := range src {
+		srcMap, srcIsMap := value.(map[string]interface{})
+		dstMap, dstIsMap := dst[key].(map[string]interface{})
+		if srcIsMap && dstIsMap {
+			mergePayload(dstMap, srcMap)
+			continue
+		}
+		dst[key] = cloneValue(value)
+	}
 }
 
 // PricingDefinitions 返回内置默认原生工具计费展示目录。

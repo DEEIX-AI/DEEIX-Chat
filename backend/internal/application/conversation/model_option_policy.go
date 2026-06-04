@@ -92,7 +92,7 @@ func nativeProviderToolsFromOption(protocolKey string, raw interface{}, capabili
 	if len(rawTools) == 0 {
 		return nil
 	}
-	allowedKeys := nativeToolKeysFromCapabilities(capabilitiesJSON)
+	allowedKeys := nativeToolKeysFromCapabilities(capabilitiesJSON, protocolKey)
 	if len(allowedKeys) == 0 {
 		return nil
 	}
@@ -113,37 +113,34 @@ func nativeProviderToolsFromOption(protocolKey string, raw interface{}, capabili
 }
 
 func nativeProviderToolPayload(protocolKey string, rawTool map[string]interface{}, allowedKeys map[string]struct{}) (map[string]interface{}, nativetool.Definition, bool) {
-	tool, ok := nativetool.CanonicalPayload(protocolKey, rawTool)
+	definition, tool, ok := nativetool.PayloadFromOption(protocolKey, rawTool)
 	if ok {
-		toolType := stringModelOptionValue(tool["type"])
-		definition, found := nativetool.Find(protocolKey, toolType)
-		if found {
-			if _, allowed := allowedKeys[definition.Key]; allowed {
-				return tool, definition, true
-			}
+		if _, allowed := allowedKeys[definition.Key]; allowed {
+			return tool, definition, true
 		}
 	}
 	for _, candidate := range nativetool.Definitions() {
 		if _, allowed := allowedKeys[candidate.Key]; !allowed {
 			continue
 		}
-		tool, ok := nativetool.CanonicalPayloadByKey(candidate.Key, rawTool)
+		definition, tool, ok := nativetool.PayloadFromKey(candidate.Key, rawTool)
 		if !ok {
 			continue
 		}
-		return tool, candidate, true
+		return tool, definition, true
 	}
 	return nil, nativetool.Definition{}, false
 }
 
-// nativeToolKeysFromCapabilities 解析模型能力 JSON 中显式声明支持的官方原生工具。
-func nativeToolKeysFromCapabilities(raw string) map[string]struct{} {
+// nativeToolKeysFromCapabilities 解析模型能力 JSON 中管理员显式声明或默认配置启用的官方原生工具。
+func nativeToolKeysFromCapabilities(raw string, protocolKey string) map[string]struct{} {
 	value := strings.TrimSpace(raw)
 	if value == "" {
 		return nil
 	}
 	var config struct {
-		NativeToolKeys []string `json:"nativeToolKeys"`
+		NativeToolKeys []string               `json:"nativeToolKeys"`
+		DefaultOptions map[string]interface{} `json:"defaultOptions"`
 	}
 	if err := json.Unmarshal([]byte(value), &config); err != nil {
 		return nil
@@ -157,6 +154,12 @@ func nativeToolKeysFromCapabilities(raw string) map[string]struct{} {
 		key = strings.TrimSpace(key)
 		if _, ok := known[key]; ok {
 			allowed[key] = struct{}{}
+		}
+	}
+	for _, tool := range providerToolOptionPayloads(config.DefaultOptions["tools"]) {
+		definition, _, ok := nativetool.PayloadFromOption(protocolKey, tool)
+		if ok {
+			allowed[definition.Key] = struct{}{}
 		}
 	}
 	return allowed
@@ -178,14 +181,6 @@ func providerToolOptionPayloads(raw interface{}) []map[string]interface{} {
 	default:
 		return nil
 	}
-}
-
-// stringModelOptionValue 从自由 JSON 值中安全读取字符串。
-func stringModelOptionValue(value interface{}) string {
-	if typed, ok := value.(string); ok {
-		return typed
-	}
-	return ""
 }
 
 func sanitizeModelOptionValues(options map[string]interface{}, protocolKey string) {

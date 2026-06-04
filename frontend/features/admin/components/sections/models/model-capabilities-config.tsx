@@ -369,6 +369,22 @@ function nativeToolOptionsFromCatalog(nativeTools: NativeToolDefinition[]): Nati
   });
 }
 
+function inferNativeToolKeyFromRawTool(rawTool: unknown, nativeTools: NativeToolDefinition[]): string {
+  if (!isPlainJSONObject(rawTool)) {
+    return "";
+  }
+  const rawType = typeof rawTool.type === "string" ? rawTool.type.trim() : "";
+  for (const tool of nativeTools) {
+    if (rawType && rawType === tool.type) {
+      return tool.toolKey;
+    }
+    if (tool.payload && Object.keys(tool.payload).some((key) => key !== "type" && Object.prototype.hasOwnProperty.call(rawTool, key))) {
+      return tool.toolKey;
+    }
+  }
+  return "";
+}
+
 function parseNativeToolKeys(value: unknown, nativeTools: NativeToolDefinition[]): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -381,6 +397,43 @@ function parseNativeToolKeys(value: unknown, nativeTools: NativeToolDefinition[]
         .filter((key) => key && known.has(key)),
     ),
   );
+}
+
+function deriveNativeToolKeysFromDefaultOptions(value: unknown, nativeTools: NativeToolDefinition[]): string[] {
+  if (!isPlainJSONObject(value)) {
+    return [];
+  }
+  const tools = Array.isArray(value.tools) ? value.tools : [];
+  return Array.from(
+    new Set(
+      tools
+        .map((tool) => inferNativeToolKeyFromRawTool(tool, nativeTools))
+        .filter((key) => key && nativeTools.some((tool) => tool.toolKey === key)),
+    ),
+  );
+}
+
+export function normalizeModelCapabilitiesJSON(value: string | null | undefined, nativeTools: NativeToolDefinition[]): string {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed || trimmed === "{}") {
+    return "";
+  }
+  const payload = parseCapabilitiesObject(trimmed);
+  if (!payload) {
+    return trimmed;
+  }
+  const nativeToolKeys = Array.from(
+    new Set([
+      ...parseNativeToolKeys(payload.nativeToolKeys, nativeTools),
+      ...deriveNativeToolKeysFromDefaultOptions(payload.defaultOptions, nativeTools),
+    ]),
+  );
+  if (nativeToolKeys.length > 0) {
+    payload.nativeToolKeys = nativeToolKeys;
+  } else {
+    delete payload.nativeToolKeys;
+  }
+  return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
 }
 
 function nativeToolDescriptionKey(toolKey: string): string {
@@ -646,7 +699,14 @@ export function ModelCapabilitiesQuickConfig({
     }
     setDefaultRows(flattenDefaultOptions(payload.defaultOptions));
     setControlRows(parseOptionControls(payload.optionControls));
-    setNativeToolKeys(parseNativeToolKeys(payload.nativeToolKeys, nativeTools));
+    setNativeToolKeys(
+      Array.from(
+        new Set([
+          ...parseNativeToolKeys(payload.nativeToolKeys, nativeTools),
+          ...deriveNativeToolKeysFromDefaultOptions(payload.defaultOptions, nativeTools),
+        ]),
+      ),
+    );
     setDefaultErrors({});
     setControlErrors({});
     setActiveTab("defaults");

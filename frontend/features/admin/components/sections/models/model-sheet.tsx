@@ -90,6 +90,7 @@ import {
   MODEL_CAPABILITIES_PLACEHOLDER,
   ModelCapabilitiesGuideButton,
   ModelCapabilitiesQuickConfig,
+  normalizeModelCapabilitiesJSON,
   setImageStreamEnabledInCapabilities,
 } from "@/features/admin/components/sections/models/model-capabilities-config";
 import type { NativeToolDefinition } from "@/shared/lib/model-option-policy";
@@ -167,7 +168,7 @@ function buildInitialState(target: AdminLLMModelDTO | null): FormState {
     vendor: normalizeSupportedVendor(target.vendor),
     kinds,
     icon: target.icon ?? "",
-    capabilitiesJSON: normalizeCapabilitiesJSON(target.capabilitiesJSON),
+    capabilitiesJSON: normalizeCapabilitiesText(target.capabilitiesJSON),
     systemPrompt: target.systemPrompt ?? "",
     accessScope: target.accessScope === "internal" ? "internal" : "public",
     status: target.status,
@@ -190,9 +191,13 @@ function normalizeSupportedVendor(value: string | null | undefined): AdminLLMMod
     : UNKNOWN_VENDOR;
 }
 
-function normalizeCapabilitiesJSON(value: string | null | undefined): string {
+function normalizeCapabilitiesText(value: string | null | undefined): string {
   const trimmed = value?.trim() ?? "";
   return trimmed === "{}" ? "" : trimmed;
+}
+
+function normalizeCapabilitiesJSON(value: string | null | undefined, nativeTools: NativeToolDefinition[]): string {
+  return normalizeModelCapabilitiesJSON(value, nativeTools);
 }
 
 function VendorOptionIcon({
@@ -553,7 +558,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
           vendor: form.vendor || undefined,
           kindsJSON: kindsJson,
           icon: form.icon.trim() || undefined,
-          capabilitiesJSON: normalizeCapabilitiesJSON(form.capabilitiesJSON) || undefined,
+          capabilitiesJSON: normalizeCapabilitiesJSON(form.capabilitiesJSON, nativeTools) || undefined,
           systemPrompt: form.systemPrompt.trim() || undefined,
           accessScope: form.accessScope,
           status: form.status,
@@ -593,7 +598,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
         vendor: form.vendor || undefined,
         kindsJSON: kindsJson,
         icon: form.icon.trim() || undefined,
-        capabilitiesJSON: normalizeCapabilitiesJSON(form.capabilitiesJSON) || undefined,
+        capabilitiesJSON: normalizeCapabilitiesJSON(form.capabilitiesJSON, nativeTools) || undefined,
         systemPrompt: form.systemPrompt.trim(),
         accessScope: form.accessScope,
         status: form.status,
