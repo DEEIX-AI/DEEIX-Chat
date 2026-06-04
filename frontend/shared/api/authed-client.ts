@@ -19,8 +19,20 @@ type NavigatorWithLocks = Navigator & {
 };
 
 const AUTH_REFRESH_LOCK_NAME = "deeix-chat:auth-refresh";
+const SESSION_TERMINATING_ERROR_CODES = new Set([
+  "auth.invalid_token",
+  "auth.invalid_refresh_token",
+  "auth.session_invalid",
+]);
 
 let refreshAccessTokenPromise: Promise<string> | null = null;
+
+function isSessionTerminatingAuthError(error: unknown): boolean {
+  return error instanceof ApiError &&
+    error.status === 401 &&
+    typeof error.errorCode === "string" &&
+    SESSION_TERMINATING_ERROR_CODES.has(error.errorCode);
+}
 
 async function requestAccessTokenRefresh(): Promise<string> {
   const startedRevision = readSessionRevision();
@@ -41,7 +53,7 @@ async function requestAccessTokenRefresh(): Promise<string> {
     });
     return data.accessToken;
   } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
+    if (isSessionTerminatingAuthError(error)) {
       if (readSessionRevision() === startedRevision) {
         clearSessionSnapshot({ syncPeers: false });
       }
@@ -108,7 +120,7 @@ export async function authedRequest<T>(
         accessToken: refreshedToken,
       });
     } catch (retryError) {
-      if (retryError instanceof ApiError && retryError.status === 401) {
+      if (isSessionTerminatingAuthError(retryError)) {
         clearSessionSnapshot({ syncPeers: false });
       }
       throw retryError;
@@ -183,11 +195,12 @@ export async function authedFetch(
       accessToken: refreshedToken,
     }),
   );
-  if (retryResponse.status === 401) {
-    clearSessionSnapshot({ syncPeers: false });
-  }
   if (!retryResponse.ok) {
-    throw await toApiError(retryResponse);
+    const retryError = await toApiError(retryResponse);
+    if (isSessionTerminatingAuthError(retryError)) {
+      clearSessionSnapshot({ syncPeers: false });
+    }
+    throw retryError;
   }
   return retryResponse;
 }
