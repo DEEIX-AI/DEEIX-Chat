@@ -79,6 +79,7 @@ export function AdminSidebar({
                 key={item.id}
                 ref={active ? activeLinkRef : undefined}
                 href={`${basePath}${item.href}`}
+                prefetch={false}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "relative flex h-8 shrink-0 scroll-mx-3 items-center justify-between gap-2 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors xl:h-9 xl:w-full xl:px-3.5",

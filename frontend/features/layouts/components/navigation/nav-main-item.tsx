@@ -68,6 +68,7 @@ export function NavMainItem({
         <TooltipTrigger asChild>
           <Link
             href={item.url}
+            prefetch={false}
             className={cn(
               "group/item flex h-8 items-center rounded-md text-sm transition-colors outline-hidden ring-sidebar-ring focus-visible:ring-2",
               isCollapsed

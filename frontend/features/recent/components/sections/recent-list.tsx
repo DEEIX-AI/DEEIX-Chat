@@ -205,7 +205,7 @@ function RecentConversationRow({
             </div>
           </div>
         ) : (
-          <Link href={`/chat?conversation_id=${item.publicID}`} className="min-w-0 flex-1">
+          <Link href={`/chat?conversation_id=${item.publicID}`} prefetch={false} className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <AnimatedText
                 text={title}
