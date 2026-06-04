@@ -53,6 +53,7 @@ import {
   includesPasswordLoginSettings,
   includesTurnstileSettings,
   isEmailSMTPField,
+  isRateLimitChildField,
   normalizeProviderSlugPreview,
   providerToForm,
   PROVIDER_TEMPLATES,
@@ -390,8 +391,9 @@ export function AdminLoginSettingsPage() {
           const groupDirty = group.fields.some((field) => dirtyFieldIDs.has(fieldID(field)));
           const thirdPartyEnabled = (settingsMap["auth.third_party_login_enabled"] ?? "true") === "true";
           const visibleFields = group.fields.filter((field) => !isEmailSMTPField(field) || settingsMap["auth.email_verification_enabled"] !== "false");
-          const mainFields = visibleFields.filter((field) => !isEmailSMTPField(field));
+          const mainFields = visibleFields.filter((field) => !isEmailSMTPField(field) && !isRateLimitChildField(field));
           const smtpFields = visibleFields.filter(isEmailSMTPField);
+          const rateLimitFields = visibleFields.filter(isRateLimitChildField);
           return (
             <React.Fragment key={group.title}>
               <SettingsSection
@@ -411,6 +413,7 @@ export function AdminLoginSettingsPage() {
                     {mainFields.map((field, fieldIndex) => {
                       const id = fieldID(field);
                       const showSMTPFields = field.key === "email_verification_enabled" && settingsMap["auth.email_verification_enabled"] !== "false";
+                      const showRateLimitFields = field.key === "rate_limit_enabled" && rateLimitFields.length > 0;
                       return (
                         <React.Fragment key={id}>
                           <SettingsFieldItem index={fieldIndex}>
@@ -437,6 +440,26 @@ export function AdminLoginSettingsPage() {
                                       dirty={(settingsMap[smtpFieldID] ?? "") !== (savedMap[smtpFieldID] ?? "")}
                                       disabled={isFieldDisabled(smtpField)}
                                       onChange={(value) => updateSettingValue(smtpField, value)}
+                                    />
+                                  );
+                                })}
+                              </SettingsFieldList>
+                            </SettingsFieldInset>
+                          ) : null}
+                          {showRateLimitFields ? (
+                            <SettingsFieldInset className="mt-3 md:mt-4">
+                              <SettingsFieldList className="gap-3 md:gap-4">
+                                {rateLimitFields.map((rateLimitField) => {
+                                  const rateLimitFieldID = fieldID(rateLimitField);
+                                  return (
+                                    <SettingsFieldEditor
+                                      key={rateLimitFieldID}
+                                      field={toEditorField(rateLimitField)}
+                                      value={settingsMap[rateLimitFieldID] ?? ""}
+                                      configured={configuredMap[rateLimitFieldID]}
+                                      dirty={(settingsMap[rateLimitFieldID] ?? "") !== (savedMap[rateLimitFieldID] ?? "")}
+                                      disabled={isFieldDisabled(rateLimitField)}
+                                      onChange={(value) => updateSettingValue(rateLimitField, value)}
                                     />
                                   );
                                 })}

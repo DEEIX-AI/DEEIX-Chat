@@ -18,7 +18,7 @@
     },
     "loginSecurity": {
       "title": "登录安全",
-      "description": "控制登录令牌有效期、失败锁定和公开鉴权接口限流。"
+      "description": "控制登录令牌有效期、失败锁定和平台 HTTP 429 限流。"
     }
   },
   "fields": {
@@ -111,9 +111,17 @@
       "label": "锁定时长",
       "description": "登录失败触发锁定后的持续时间，单位分钟。"
     },
+    "rateLimitEnabled": {
+      "label": "平台限流",
+      "description": "启用后由平台返回 HTTP 429；关闭时可交由 Traefik、网关或其他外层组件处理。"
+    },
+    "rateLimitRPM": {
+      "label": "用户接口限流",
+      "description": "登录后用户接口的基础每分钟请求上限；平台限流关闭时不生效。"
+    },
     "publicAuthRateLimitRPM": {
       "label": "公开鉴权限流",
-      "description": "登录、刷新令牌和登录页配置接口的每分钟请求上限。"
+      "description": "公开登录、注册、刷新令牌等接口的基础每分钟请求上限；平台限流关闭时不生效。"
     }
   },
   "providers": {

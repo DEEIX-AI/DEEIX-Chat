@@ -19,7 +19,7 @@ func TestAccessLogSkipsHealthz(t *testing.T) {
 	router.GET("/healthz", func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
-	router.GET("/readyz", func(c *gin.Context) {
+	router.GET("/api/ping", func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 
@@ -28,7 +28,7 @@ func TestAccessLogSkipsHealthz(t *testing.T) {
 		t.Fatalf("expected /healthz to skip access log, got %d entries", logs.Len())
 	}
 
-	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/ping", nil))
 	if logs.Len() != 1 {
 		t.Fatalf("expected regular route to emit access log, got %d entries", logs.Len())
 	}

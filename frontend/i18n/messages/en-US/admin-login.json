@@ -18,7 +18,7 @@
     },
     "loginSecurity": {
       "title": "Sign-in security",
-      "description": "Control token lifetime, failed sign-in lockouts, and public auth rate limits."
+      "description": "Control token lifetime, failed sign-in lockouts, and platform HTTP 429 rate limiting."
     }
   },
   "fields": {
@@ -111,9 +111,17 @@
       "label": "Lock duration",
       "description": "Lock duration in minutes after too many failed sign-in attempts."
     },
+    "rateLimitEnabled": {
+      "label": "Platform rate limit",
+      "description": "When enabled, the platform returns HTTP 429. Disable it when Traefik, a gateway, or another outer layer handles rate limiting."
+    },
+    "rateLimitRPM": {
+      "label": "User API rate limit",
+      "description": "Base per-minute request limit for signed-in user APIs. It has no effect when platform rate limiting is disabled."
+    },
     "publicAuthRateLimitRPM": {
       "label": "Public auth rate limit",
-      "description": "Per-minute request limit for login, token refresh, and public login-page config APIs."
+      "description": "Base per-minute request limit for public login, registration, and token refresh APIs. It has no effect when platform rate limiting is disabled."
     }
   },
   "providers": {

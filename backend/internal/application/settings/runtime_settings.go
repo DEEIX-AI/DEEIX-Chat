@@ -84,6 +84,8 @@ func (r *RuntimeSettings) applyItem(cfg *config.Config, item domainsettings.Syst
 		cfg.LoginMaxFailures = toInt(item.Value, cfg.LoginMaxFailures)
 	case "auth:login_lock_minutes":
 		cfg.LoginLockMinutes = toInt(item.Value, cfg.LoginLockMinutes)
+	case "auth:rate_limit_enabled":
+		cfg.RateLimitEnabled = toBool(item.Value, cfg.RateLimitEnabled)
 	case "auth:rate_limit_rpm":
 		cfg.RateLimitRPM = toInt(item.Value, cfg.RateLimitRPM)
 	case "auth:public_auth_rate_limit_rpm":

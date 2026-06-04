@@ -30,6 +30,8 @@ export type LoginSettingsField = {
     | "refresh_token_ttl_hours"
     | "login_max_failures"
     | "login_lock_minutes"
+    | "rate_limit_enabled"
+    | "rate_limit_rpm"
     | "public_auth_rate_limit_rpm";
   label: string;
   description: string;
@@ -102,6 +104,8 @@ export function buildLoginSettingsGroups(t: LoginSettingsTranslator): LoginSetti
       { namespace: "auth", key: "refresh_token_ttl_hours", label: t("fields.refreshTokenTTLHours.label"), description: t("fields.refreshTokenTTLHours.description"), type: "int", placeholder: "720" },
       { namespace: "auth", key: "login_max_failures", label: t("fields.loginMaxFailures.label"), description: t("fields.loginMaxFailures.description"), type: "int", placeholder: "5" },
       { namespace: "auth", key: "login_lock_minutes", label: t("fields.loginLockMinutes.label"), description: t("fields.loginLockMinutes.description"), type: "int", placeholder: "15" },
+      { namespace: "auth", key: "rate_limit_enabled", label: t("fields.rateLimitEnabled.label"), description: t("fields.rateLimitEnabled.description"), type: "bool" },
+      { namespace: "auth", key: "rate_limit_rpm", label: t("fields.rateLimitRPM.label"), description: t("fields.rateLimitRPM.description"), type: "int", placeholder: "60" },
       { namespace: "auth", key: "public_auth_rate_limit_rpm", label: t("fields.publicAuthRateLimitRPM.label"), description: t("fields.publicAuthRateLimitRPM.description"), type: "int", placeholder: "30" },
     ],
   },
@@ -297,6 +301,8 @@ export function applyLoginDefaults(settings: Record<string, string>): Record<str
     "auth.refresh_token_ttl_hours": settings["auth.refresh_token_ttl_hours"]?.trim() || "720",
     "auth.login_max_failures": settings["auth.login_max_failures"]?.trim() || "5",
     "auth.login_lock_minutes": settings["auth.login_lock_minutes"]?.trim() || "15",
+    "auth.rate_limit_enabled": settings["auth.rate_limit_enabled"] || "false",
+    "auth.rate_limit_rpm": settings["auth.rate_limit_rpm"]?.trim() || "60",
     "auth.public_auth_rate_limit_rpm": settings["auth.public_auth_rate_limit_rpm"]?.trim() || "30",
   };
   if (result["auth.email_login_enabled"] === "false") {
@@ -320,6 +326,10 @@ export function toEditorField(field: LoginSettingsField) {
 
 export function isEmailSMTPField(field: LoginSettingsField) {
   return field.key === "smtp_host" || field.key === "smtp_port" || field.key === "smtp_username" || field.key === "smtp_password" || field.key === "smtp_from";
+}
+
+export function isRateLimitChildField(field: LoginSettingsField) {
+  return field.key === "rate_limit_rpm" || field.key === "public_auth_rate_limit_rpm";
 }
 
 export function includesEmailVerificationSettings(group: LoginSettingsGroup) {

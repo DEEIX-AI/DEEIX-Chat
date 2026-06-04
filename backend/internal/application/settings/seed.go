@@ -20,6 +20,7 @@ func defaultSettings() []domainsettings.SystemSetting {
 		{Namespace: "auth", Key: "refresh_token_ttl_hours", Value: "720", ValueType: "int", Description: "Refresh Token 有效期(小时)"},
 		{Namespace: "auth", Key: "login_max_failures", Value: "5", ValueType: "int", Description: "登录失败锁定阈值"},
 		{Namespace: "auth", Key: "login_lock_minutes", Value: "15", ValueType: "int", Description: "锁定时长(分钟)"},
+		{Namespace: "auth", Key: "rate_limit_enabled", Value: "false", ValueType: "bool", Description: "是否启用平台 HTTP 429 限流"},
 		{Namespace: "auth", Key: "rate_limit_rpm", Value: "60", ValueType: "int", Description: "全局限流 RPM"},
 		{Namespace: "auth", Key: "public_auth_rate_limit_rpm", Value: "30", ValueType: "int", Description: "公开鉴权接口限流 RPM"},
 		{Namespace: "auth", Key: "login_page_title", Value: defaultLoginPageTitle, ValueType: "string", Description: "登录页面标题"},

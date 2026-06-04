@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -33,9 +34,10 @@ func (r *rateLimiter) AllowSlidingWindow(ctx context.Context, key string, limit 
 		ttl = window * 2
 	}
 
-	now := time.Now().UnixMilli()
+	nowNanos := time.Now().UnixNano()
+	now := nowNanos / int64(time.Millisecond)
 	windowStart := now - window.Milliseconds()
-	member := fmt.Sprintf("%d", now)
+	member := strconv.FormatInt(nowNanos, 10)
 
 	pipe := r.client.Pipeline()
 	pipe.ZRemRangeByScore(ctx, key, "0", fmt.Sprintf("%d", windowStart))
