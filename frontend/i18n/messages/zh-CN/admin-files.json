@@ -109,11 +109,7 @@
       },
       "full_context_limit_enabled": {
         "label": "全文注入限制",
-        "description": "开启后按大小、Token 和 PDF 页数限制全文注入；关闭后不再限制全文注入阈值。",
-        "options": {
-          "false": "关闭",
-          "true": "开启"
-        }
+        "description": "开启后按大小、Token 和 PDF 页数限制全文注入；关闭后不再限制全文注入阈值。"
       },
       "file_full_context_max_bytes": {
         "label": "全文大小上限",
@@ -131,12 +127,8 @@
         "placeholder": "留空或 0 表示不限制"
       },
       "embedding_enabled": {
-        "label": "Embedding 开关",
-        "description": "开启后启用文件向量化和向量检索能力；关闭后相关链路将停用。",
-        "options": {
-          "false": "关闭",
-          "true": "开启"
-        }
+        "label": "启用 Embedding",
+        "description": "开启后启用文件向量化和向量检索能力；关闭后相关链路将停用。"
       },
       "embedding_host": {
         "label": "Embedding 服务地址 *",

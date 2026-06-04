@@ -81,7 +81,7 @@
     },
     "autoLinkVerifiedEmail": {
       "label": "Auto-link same email",
-      "description": "Automatically link a verified third-party email to an existing local account."
+      "description": "Automatically link to an existing local account only when the third-party email matches and the provider's email verification field, email_verified by default, is true."
     },
     "turnstileRegistrationEnabled": {
       "label": "Registration human check",

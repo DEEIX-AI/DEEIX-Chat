@@ -332,12 +332,16 @@ export function isRateLimitChildField(field: LoginSettingsField) {
   return field.key === "rate_limit_rpm" || field.key === "public_auth_rate_limit_rpm";
 }
 
+export function isTurnstileChildField(field: LoginSettingsField) {
+  return field.key === "turnstile_site_key" || field.key === "turnstile_secret_key";
+}
+
 export function includesEmailVerificationSettings(group: LoginSettingsGroup) {
   return group.fields.some((field) => field.key === "email_verification_enabled" || isEmailSMTPField(field));
 }
 
 export function includesTurnstileSettings(group: LoginSettingsGroup) {
-  return group.fields.some((field) => field.key === "turnstile_registration_enabled" || field.key === "turnstile_site_key" || field.key === "turnstile_secret_key");
+  return group.fields.some((field) => field.key === "turnstile_registration_enabled" || isTurnstileChildField(field));
 }
 
 export function validateEmailVerificationSettings(

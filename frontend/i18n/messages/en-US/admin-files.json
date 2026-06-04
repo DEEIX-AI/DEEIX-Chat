@@ -109,11 +109,7 @@
       },
       "full_context_limit_enabled": {
         "label": "Full-text injection limits",
-        "description": "When enabled, full-text injection is limited by byte size, token budget, and PDF pages. When disabled, these limits are ignored.",
-        "options": {
-          "false": "Off",
-          "true": "On"
-        }
+        "description": "When enabled, full-text injection is limited by byte size, token budget, and PDF pages. When disabled, these limits are ignored."
       },
       "file_full_context_max_bytes": {
         "label": "Full-text byte limit",
@@ -131,12 +127,8 @@
         "placeholder": "Empty or 0 means unlimited"
       },
       "embedding_enabled": {
-        "label": "Embedding",
-        "description": "Enable file vectorization and vector retrieval. Related pipelines are disabled when this is off.",
-        "options": {
-          "false": "Off",
-          "true": "On"
-        }
+        "label": "Enable Embedding",
+        "description": "Enable file vectorization and vector retrieval. Related pipelines are disabled when this is off."
       },
       "embedding_host": {
         "label": "Embedding service URL *",

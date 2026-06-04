@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { SettingsFieldEditor } from "../shared/settings-runtime-panel";
+import { SettingsCollapsibleContent } from "../shared/settings-collapsible-content";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -182,12 +183,30 @@ export function AdminToolsPage() {
   const [schemaTool, setSchemaTool] = React.useState<MCPToolDTO | null>(null);
   const [toolForm, setToolForm] = React.useState<ToolFormState | null>(null);
   const [toolSaving, setToolSaving] = React.useState(false);
+  const mcpEnabled = settingsMap["mcp.mcp_enable"] === "true";
+  const mcpEnableField = React.useMemo(
+    () => TOOL_SETTINGS_FIELDS.find((field) => field.key === "mcp_enable"),
+    [],
+  );
+  const mcpRuntimeFields = React.useMemo(
+    () => TOOL_SETTINGS_FIELDS.filter((field) => field.key !== "mcp_enable"),
+    [],
+  );
 
   const toolSheetServer = React.useMemo(
     () => servers.find((item) => item.id === toolSheetServerID) ?? null,
     [servers, toolSheetServerID],
   );
   const activeToolCount = React.useMemo(() => countActiveTools(tools), [tools]);
+
+  React.useEffect(() => {
+    if (mcpEnabled) {
+      return;
+    }
+    setToolSheetServerID(null);
+    setToolForm(null);
+    setSchemaTool(null);
+  }, [mcpEnabled]);
 
   const filteredServers = React.useMemo(() => {
     const query = serverQuery.trim().toLowerCase();
@@ -638,6 +657,7 @@ export function AdminToolsPage() {
       toast.error(t("toast.copyFailed"));
     }
   }, [schemaText, schemaTool, t]);
+  const mcpEnableFieldID = mcpEnableField ? toolFieldID(mcpEnableField) : "";
 
   return (
     <SettingsPage>
@@ -654,64 +674,78 @@ export function AdminToolsPage() {
       >
 
         <SettingsFieldList>
-          {TOOL_SETTINGS_FIELDS.map((field, index) => {
-            const id = toolFieldID(field);
-            return (
-              <SettingsFieldItem key={id} index={index}>
-                <SettingsFieldEditor
-                  field={toToolEditorField(field, (key) => t(`fields.${key}`))}
-                  value={settingsMap[id] ?? ""}
-                  dirty={(settingsMap[id] ?? "") !== (savedMap[id] ?? "")}
-                  disabled={loading || saving}
-                  onChange={(value) => setSettingsMap((prev) => ({ ...prev, [id]: value }))}
-                />
-              </SettingsFieldItem>
-            );
-          })}
+          {mcpEnableField ? (
+            <SettingsFieldItem key={mcpEnableFieldID} index={0}>
+              <SettingsFieldEditor
+                field={toToolEditorField(mcpEnableField, (key) => t(`fields.${key}`))}
+                value={settingsMap[mcpEnableFieldID] ?? ""}
+                dirty={(settingsMap[mcpEnableFieldID] ?? "") !== (savedMap[mcpEnableFieldID] ?? "")}
+                disabled={loading || saving}
+                onChange={(value) => setSettingsMap((prev) => ({ ...prev, [mcpEnableFieldID]: value }))}
+              />
+            </SettingsFieldItem>
+          ) : null}
+          <SettingsCollapsibleContent open={mcpEnabled}>
+            {mcpRuntimeFields.map((field, index) => {
+              const id = toolFieldID(field);
+              return (
+                <SettingsFieldItem key={id} index={index + 1}>
+                  <SettingsFieldEditor
+                    field={toToolEditorField(field, (key) => t(`fields.${key}`))}
+                    value={settingsMap[id] ?? ""}
+                    dirty={(settingsMap[id] ?? "") !== (savedMap[id] ?? "")}
+                    disabled={loading || saving}
+                    onChange={(value) => setSettingsMap((prev) => ({ ...prev, [id]: value }))}
+                  />
+                </SettingsFieldItem>
+              );
+            })}
+          </SettingsCollapsibleContent>
         </SettingsFieldList>
 
-        <Field className="gap-2">
-          <div className="flex items-center">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <FieldLabel>{t("sections.servers")}</FieldLabel>
+        <SettingsCollapsibleContent open={mcpEnabled}>
+          <Field className="gap-2">
+            <div className="flex items-center">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <FieldLabel>{t("sections.servers")}</FieldLabel>
+                </div>
               </div>
             </div>
-          </div>
 
-          <TableToolbar
-            query={serverQuery}
-            onQueryChange={setServerQuery}
-            queryPlaceholder={t("toolbar.searchServers")}
-            filters={[
-              {
-                key: "status",
-                label: t("table.status"),
-                value: serverStatusFilter,
-                onValueChange: setServerStatusFilter,
-                options: [
-                  { label: t("status.all"), value: "" },
-                  { label: t("status.active"), value: "active" },
-                  { label: t("status.inactive"), value: "inactive" },
-                ],
-              },
-            ]}
-            loading={serversLoading || actionServerID !== null}
-            onRefresh={() => void loadServers()}
-            refreshDisabled={serversLoading || actionServerID !== null}
-            refreshLoading={serversLoading}
-          >
-            <Button
-              type="button"
-              size="sm"
-              className="h-7 gap-1 text-xs"
-              onClick={openCreateServerDialog}
-              disabled={serversLoading}
+            <TableToolbar
+              query={serverQuery}
+              onQueryChange={setServerQuery}
+              queryPlaceholder={t("toolbar.searchServers")}
+              filters={[
+                {
+                  key: "status",
+                  label: t("table.status"),
+                  value: serverStatusFilter,
+                  onValueChange: setServerStatusFilter,
+                  options: [
+                    { label: t("status.all"), value: "" },
+                    { label: t("status.active"), value: "active" },
+                    { label: t("status.inactive"), value: "inactive" },
+                  ],
+                },
+              ]}
+              loading={serversLoading || actionServerID !== null}
+              onRefresh={() => void loadServers()}
+              refreshDisabled={serversLoading || actionServerID !== null}
+              refreshLoading={serversLoading}
             >
-              <Plus className="size-3.5 stroke-1" />
-              {t("toolbar.add")}
-            </Button>
-          </TableToolbar>
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                onClick={openCreateServerDialog}
+                disabled={serversLoading}
+              >
+                <Plus className="size-3.5 stroke-1" />
+                {t("toolbar.add")}
+              </Button>
+            </TableToolbar>
 
           <Table>
             <TableHeader>
@@ -809,7 +843,8 @@ export function AdminToolsPage() {
             onPageSizeChange={setServerPageSize}
             loading={serversLoading || actionServerID !== null}
           />
-        </Field>
+          </Field>
+        </SettingsCollapsibleContent>
       </SettingsSection>
 
       <Sheet open={Boolean(toolSheetServer)} onOpenChange={(open) => !open && setToolSheetServerID(null)}>

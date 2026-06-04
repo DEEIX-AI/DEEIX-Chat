@@ -5,6 +5,7 @@ import { ArrowRight, ChevronDown, Copy, GripVertical, Pencil, Plus, Save, Trash2
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { SettingsCollapsibleContent } from "../shared/settings-collapsible-content";
 import { SettingsFieldEditor } from "../shared/settings-runtime-panel";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
@@ -54,6 +55,7 @@ import {
   includesTurnstileSettings,
   isEmailSMTPField,
   isRateLimitChildField,
+  isTurnstileChildField,
   normalizeProviderSlugPreview,
   providerToForm,
   PROVIDER_TEMPLATES,
@@ -391,8 +393,9 @@ export function AdminLoginSettingsPage() {
           const groupDirty = group.fields.some((field) => dirtyFieldIDs.has(fieldID(field)));
           const thirdPartyEnabled = (settingsMap["auth.third_party_login_enabled"] ?? "true") === "true";
           const visibleFields = group.fields.filter((field) => !isEmailSMTPField(field) || settingsMap["auth.email_verification_enabled"] !== "false");
-          const mainFields = visibleFields.filter((field) => !isEmailSMTPField(field) && !isRateLimitChildField(field));
+          const mainFields = visibleFields.filter((field) => !isEmailSMTPField(field) && !isRateLimitChildField(field) && !isTurnstileChildField(field));
           const smtpFields = visibleFields.filter(isEmailSMTPField);
+          const turnstileFields = visibleFields.filter(isTurnstileChildField);
           const rateLimitFields = visibleFields.filter(isRateLimitChildField);
           return (
             <React.Fragment key={group.title}>
@@ -413,7 +416,8 @@ export function AdminLoginSettingsPage() {
                     {mainFields.map((field, fieldIndex) => {
                       const id = fieldID(field);
                       const showSMTPFields = field.key === "email_verification_enabled" && settingsMap["auth.email_verification_enabled"] !== "false";
-                      const showRateLimitFields = field.key === "rate_limit_enabled" && rateLimitFields.length > 0;
+                      const showTurnstileFields = field.key === "turnstile_registration_enabled" && settingsMap["auth.turnstile_registration_enabled"] === "true" && turnstileFields.length > 0;
+                      const showRateLimitFields = field.key === "rate_limit_enabled" && settingsMap["auth.rate_limit_enabled"] === "true" && rateLimitFields.length > 0;
                       return (
                         <React.Fragment key={id}>
                           <SettingsFieldItem index={fieldIndex}>
@@ -446,25 +450,49 @@ export function AdminLoginSettingsPage() {
                               </SettingsFieldList>
                             </SettingsFieldInset>
                           ) : null}
-                          {showRateLimitFields ? (
-                            <SettingsFieldInset className="mt-3 md:mt-4">
-                              <SettingsFieldList className="gap-3 md:gap-4">
-                                {rateLimitFields.map((rateLimitField) => {
-                                  const rateLimitFieldID = fieldID(rateLimitField);
-                                  return (
-                                    <SettingsFieldEditor
-                                      key={rateLimitFieldID}
-                                      field={toEditorField(rateLimitField)}
-                                      value={settingsMap[rateLimitFieldID] ?? ""}
-                                      configured={configuredMap[rateLimitFieldID]}
-                                      dirty={(settingsMap[rateLimitFieldID] ?? "") !== (savedMap[rateLimitFieldID] ?? "")}
-                                      disabled={isFieldDisabled(rateLimitField)}
-                                      onChange={(value) => updateSettingValue(rateLimitField, value)}
-                                    />
-                                  );
-                                })}
-                              </SettingsFieldList>
-                            </SettingsFieldInset>
+                          {field.key === "rate_limit_enabled" ? (
+                            <SettingsCollapsibleContent open={showRateLimitFields}>
+                              <SettingsFieldInset className="mt-3 md:mt-4">
+                                <SettingsFieldList className="gap-3 md:gap-4">
+                                  {rateLimitFields.map((rateLimitField) => {
+                                    const rateLimitFieldID = fieldID(rateLimitField);
+                                    return (
+                                      <SettingsFieldEditor
+                                        key={rateLimitFieldID}
+                                        field={toEditorField(rateLimitField)}
+                                        value={settingsMap[rateLimitFieldID] ?? ""}
+                                        configured={configuredMap[rateLimitFieldID]}
+                                        dirty={(settingsMap[rateLimitFieldID] ?? "") !== (savedMap[rateLimitFieldID] ?? "")}
+                                        disabled={isFieldDisabled(rateLimitField)}
+                                        onChange={(value) => updateSettingValue(rateLimitField, value)}
+                                      />
+                                    );
+                                  })}
+                                </SettingsFieldList>
+                              </SettingsFieldInset>
+                            </SettingsCollapsibleContent>
+                          ) : null}
+                          {field.key === "turnstile_registration_enabled" ? (
+                            <SettingsCollapsibleContent open={showTurnstileFields}>
+                              <SettingsFieldInset className="mt-3 md:mt-4">
+                                <SettingsFieldList className="gap-3 md:gap-4">
+                                  {turnstileFields.map((turnstileField) => {
+                                    const turnstileFieldID = fieldID(turnstileField);
+                                    return (
+                                      <SettingsFieldEditor
+                                        key={turnstileFieldID}
+                                        field={toEditorField(turnstileField)}
+                                        value={settingsMap[turnstileFieldID] ?? ""}
+                                        configured={configuredMap[turnstileFieldID]}
+                                        dirty={(settingsMap[turnstileFieldID] ?? "") !== (savedMap[turnstileFieldID] ?? "")}
+                                        disabled={isFieldDisabled(turnstileField)}
+                                        onChange={(value) => updateSettingValue(turnstileField, value)}
+                                      />
+                                    );
+                                  })}
+                                </SettingsFieldList>
+                              </SettingsFieldInset>
+                            </SettingsCollapsibleContent>
                           ) : null}
                         </React.Fragment>
                       );

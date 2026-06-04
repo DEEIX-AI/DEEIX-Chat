@@ -81,7 +81,7 @@
     },
     "autoLinkVerifiedEmail": {
       "label": "同邮箱自动绑定",
-      "description": "第三方已验证邮箱命中本地账号时自动绑定。"
+      "description": "第三方身份返回的邮箱与本地账号一致，且该身份源的邮箱验证字段（默认 email_verified）为 true 时，才会自动绑定到已有账号。"
     },
     "turnstileRegistrationEnabled": {
       "label": "注册人机验证",

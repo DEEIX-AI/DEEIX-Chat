@@ -612,11 +612,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         key: "full_context_limit_enabled",
         label: "Full-text injection limits",
         description: "Enable byte, token, and PDF page limits for full-text injection.",
-        type: "select",
-        options: [
-          { label: "Off", value: FULL_CONTEXT_LIMIT_MODES.OFF },
-          { label: "On", value: FULL_CONTEXT_LIMIT_MODES.ON },
-        ],
+        type: "bool",
       },
       {
         namespace: "file",
@@ -655,13 +651,9 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       {
         namespace: "file",
         key: "embedding_enabled",
-        label: "Embedding",
+        label: "Enable Embedding",
         description: "Enable file vectorization and vector retrieval. Related pipelines are disabled when off.",
-        type: "select",
-        options: [
-          { label: "Off", value: EMBEDDING_MODES.OFF },
-          { label: "On", value: EMBEDDING_MODES.ON },
-        ],
+        type: "bool",
       },
       {
         namespace: "file",
@@ -863,9 +855,6 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         label: "LLM compression",
         description: "Call a model to generate semantic summaries. When off, only template summaries are used.",
         type: "bool",
-        subgroupKey: "compact_llm",
-        subgroupTitle: "LLM compression policy",
-        subgroupDescription: "Controls summary model calls, execution mode, and failure fallback.",
       },
       {
         namespace: "chat",
