@@ -185,8 +185,8 @@ export function ChatMessageBot({
     onEditImageAttachment,
     readOnly,
   ]);
-  const activeThinkBlock = hasTraceEvents && upstreamThink?.status === "streaming" ? upstreamThink : undefined;
-  const activeToolBlock = hasTraceEvents && toolTrace?.status === "streaming" ? toolTrace : undefined;
+  const activeThinkBlock = hasTraceEvents ? upstreamThink : undefined;
+  const activeToolBlock = hasTraceEvents ? toolTrace : undefined;
   const processAutoCollapseReady = Boolean(hasTraceEvents || upstreamThink || toolTrace || hasStreamdownContent || item.inlineAlert);
   const toolAutoCollapseReady = Boolean(upstreamThink || hasStreamdownContent || item.inlineAlert);
 

@@ -30,6 +30,7 @@ export const DEFAULT_MODEL_OPTION_ALLOWED_PATHS = `{
     "max_output_tokens",
     "max_completion_tokens",
     "stop",
+    "tools",
     "response_format.type"
   ],
   "openai_chat_completions": [
@@ -43,6 +44,7 @@ export const DEFAULT_MODEL_OPTION_ALLOWED_PATHS = `{
   ],
   "openai_responses": [
     "service_tier",
+    "store",
     "reasoning.effort",
     "reasoning.summary",
     "text.verbosity"
@@ -80,10 +82,12 @@ export const DEFAULT_MODEL_OPTION_ALLOWED_PATHS = `{
   "anthropic_messages": [
     "speed",
     "top_k",
+    "cache_control",
     "thinking.type",
     "thinking.budget_tokens"
   ],
   "xai_responses": [
+    "store",
     "reasoning.effort"
   ],
   "xai_image": [

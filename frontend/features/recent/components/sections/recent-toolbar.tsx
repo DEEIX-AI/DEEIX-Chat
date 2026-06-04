@@ -70,9 +70,33 @@ export function RecentToolbar({
     () => RECENT_SHARE_FILTER_OPTIONS.map((item) => ({ ...item, label: t(item.value) })),
     [t],
   );
+  const filterGroups = (
+    <div className="flex w-full min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap pb-0.5 [scrollbar-width:none] [-ms-overflow-style:none] md:w-auto md:justify-end md:pb-0 [&::-webkit-scrollbar]:hidden">
+      <RecentFilterGroup
+        label={t("status")}
+        value={statusFilter}
+        options={statusOptions}
+        onChange={onStatusFilterChange}
+      />
+
+      <RecentFilterGroup
+        label={t("star")}
+        value={starredFilter}
+        options={starredOptions}
+        onChange={onStarredFilterChange}
+      />
+
+      <RecentFilterGroup
+        label={t("share")}
+        value={shareFilter}
+        options={shareOptions}
+        onChange={onShareFilterChange}
+      />
+    </div>
+  );
 
   return (
-    <div className="group mt-6 flex w-full items-center">
+    <div className="group mt-6 flex w-full items-start md:items-center">
       <div className="hidden w-13 shrink-0 items-center justify-center md:flex">
         <Checkbox
           checked={pageSelectionState}
@@ -85,10 +109,10 @@ export function RecentToolbar({
         />
       </div>
 
-      <div className="flex w-full min-w-0 items-center justify-between gap-2 px-1 text-sm md:w-[calc(100%-3.25rem)] md:px-3">
+      <div className="flex w-full min-w-0 flex-col gap-2 px-1 text-sm md:w-[calc(100%-3.25rem)] md:flex-row md:items-center md:justify-between md:gap-2 md:px-3">
         {isSelectionMode ? (
           <>
-            <div className="flex min-w-0 shrink-0 items-center gap-4 text-foreground/70">
+            <div className="flex w-full min-w-0 items-center gap-4 overflow-x-auto whitespace-nowrap text-foreground/70 [scrollbar-width:none] [-ms-overflow-style:none] md:w-auto md:shrink-0 md:overflow-visible [&::-webkit-scrollbar]:hidden">
               <span>{t("selectedCount", { count: selectedCount })}</span>
               <button
                 type="button"
@@ -142,65 +166,23 @@ export function RecentToolbar({
               </button>
             </div>
 
-            <div className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap">
-              <RecentFilterGroup
-                label={t("status")}
-                value={statusFilter}
-                options={statusOptions}
-                onChange={onStatusFilterChange}
-              />
-
-              <RecentFilterGroup
-                label={t("star")}
-                value={starredFilter}
-                options={starredOptions}
-                onChange={onStarredFilterChange}
-              />
-
-              <RecentFilterGroup
-                label={t("share")}
-                value={shareFilter}
-                options={shareOptions}
-                onChange={onShareFilterChange}
-              />
-            </div>
+            {filterGroups}
           </>
         ) : (
           <>
-            <div className="flex min-w-0 shrink-0 items-center gap-4 text-foreground/60">
-              <span className="md:hidden">{t("allConversations")}</span>
+            <div className="flex w-full min-w-0 items-center justify-start gap-4 text-foreground/60 md:w-auto md:shrink-0">
+              <span className="min-w-0 truncate md:hidden">{t("allConversations")}</span>
               <span className="hidden md:inline">{t("allConversationsDescription")}</span>
               <button
                 type="button"
-                className="underline underline-offset-4 transition-colors hover:text-foreground"
+                className="shrink-0 underline underline-offset-4 transition-colors hover:text-foreground"
                 onClick={onEnterSelectionMode}
               >
                 {t("select")}
               </button>
             </div>
 
-            <div className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap">
-              <RecentFilterGroup
-                label={t("status")}
-                value={statusFilter}
-                options={statusOptions}
-                onChange={onStatusFilterChange}
-              />
-
-              <RecentFilterGroup
-                label={t("star")}
-                value={starredFilter}
-                options={starredOptions}
-                onChange={onStarredFilterChange}
-              />
-
-              <RecentFilterGroup
-                label={t("share")}
-                value={shareFilter}
-                options={shareOptions}
-                onChange={onShareFilterChange}
-              />
-            </div>
+            {filterGroups}
           </>
         )}
       </div>

@@ -40,6 +40,7 @@ export type ChatTraceBlock = {
   title: string;
   summary: string;
   contentMarkdown: string;
+  contentSegments?: string[];
   status: string;
   stage?: string;
   roundID?: string;

@@ -320,7 +320,7 @@ export function JsonCodeEditor({
     <div
       id={id}
       className={cn(
-        "relative overflow-hidden rounded-md border border-input bg-background text-xs shadow-sm focus-within:border-ring/60 focus-within:ring-[1px] focus-within:ring-ring/40",
+        "relative resize-y overflow-hidden rounded-md border border-input bg-background text-xs shadow-sm focus-within:border-ring/60 focus-within:ring-[1px] focus-within:ring-ring/40",
         disabled && "opacity-60",
         className,
       )}

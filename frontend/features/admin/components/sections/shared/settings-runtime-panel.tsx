@@ -276,6 +276,24 @@ function resolveRuntimeIcon(icon: ServiceRuntimeIconKey) {
 
 const layoutTransition = { duration: 0.2, ease: [0.22, 1, 0.36, 1] } as const;
 
+function SettingsFieldFrame({
+  animateLayout,
+  children,
+}: {
+  animateLayout: boolean;
+  children: React.ReactNode;
+}) {
+  if (!animateLayout) {
+    return <div className="min-w-0">{children}</div>;
+  }
+
+  return (
+    <motion.div layout transition={layoutTransition} className="min-w-0">
+      {children}
+    </motion.div>
+  );
+}
+
 export function SettingsFieldEditor({
   field,
   value,
@@ -284,6 +302,7 @@ export function SettingsFieldEditor({
   disabled,
   labelAction,
   afterControl,
+  animateLayout = true,
   onChange,
 }: {
   field: SettingsFieldDefinition;
@@ -293,6 +312,7 @@ export function SettingsFieldEditor({
   disabled: boolean;
   labelAction?: React.ReactNode;
   afterControl?: React.ReactNode;
+  animateLayout?: boolean;
   onChange?: (value: string) => void;
 }) {
   const t = useTranslations("common");
@@ -381,7 +401,7 @@ export function SettingsFieldEditor({
 
   if (field.type === "textarea" || field.type === "json") {
     return (
-      <motion.div layout transition={layoutTransition} className="min-w-0">
+      <SettingsFieldFrame animateLayout={animateLayout}>
         <Field>
           <div className="min-w-0 space-y-2">
             <div>
@@ -417,12 +437,12 @@ export function SettingsFieldEditor({
             {afterControl}
           </div>
         </Field>
-      </motion.div>
+      </SettingsFieldFrame>
     );
   }
 
   return (
-    <motion.div layout transition={layoutTransition} className="min-w-0">
+    <SettingsFieldFrame animateLayout={animateLayout}>
       <Field>
         <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-start md:gap-4 xl:gap-6">
           <div className="min-w-0 flex-1">
@@ -519,7 +539,7 @@ export function SettingsFieldEditor({
           </div>
         </div>
       </Field>
-    </motion.div>
+    </SettingsFieldFrame>
   );
 }
 

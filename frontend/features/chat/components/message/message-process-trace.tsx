@@ -1808,12 +1808,18 @@ function traceEventToBlock(event: ChatTraceEvent): ChatTraceBlock {
     summary: event.summary,
     contentMarkdown: event.contentMarkdown,
     status: event.status,
+    stage: event.stage,
+    roundID: event.roundID,
+    parentEventID: event.parentEventID,
     updatedAt: event.updatedAt,
     payloadJson: event.payloadJson,
   };
 }
 
 function isToolTraceEvent(event: ChatTraceEvent): boolean {
+  if (event.stage === "think" || event.phase === "upstream_think" || event.eventType === "think") {
+    return false;
+  }
   return event.stage === "tool" || event.phase === "tools" || event.eventType === "tool";
 }
 
@@ -1831,48 +1837,72 @@ function buildTraceDisplayEvents(events: ChatTraceEvent[]): TraceDisplayEvent[] 
     .filter((event) => isToolTraceEvent(event) || isThinkTraceEvent(event))
     .sort((left, right) => left.seq - right.seq)
     .map((event) => {
-      if (isToolTraceEvent(event)) {
-        return { event, kind: "tool" };
+      if (isThinkTraceEvent(event)) {
+        return { event, kind: "think" };
       }
-      return { event, kind: "think" };
+      return { event, kind: "tool" };
     });
 }
 
-function splitTraceDisplayEvents(events: TraceDisplayEvent[], activeToolBlock?: ChatTraceBlock, activeThinkBlock?: ChatTraceBlock) {
-  const toolParentEventIDs = new Set<string>();
-  const toolRoundIDs = new Set<string>();
-  for (const item of events) {
-    if (item.kind !== "tool") continue;
-    if (item.event.parentEventID) toolParentEventIDs.add(item.event.parentEventID);
-    if (item.event.roundID) toolRoundIDs.add(item.event.roundID);
-  }
-  if (activeToolBlock?.parentEventID) toolParentEventIDs.add(activeToolBlock.parentEventID);
-  if (activeToolBlock?.roundID) toolRoundIDs.add(activeToolBlock.roundID);
+function traceBlockDisplayText(block: Pick<ChatTraceBlock, "contentMarkdown" | "summary">): string {
+  return block.contentMarkdown?.trim() || block.summary?.trim() || "";
+}
 
-  const chainEvents: TraceDisplayEvent[] = [];
-  let finalThinkBlock: ChatTraceBlock | undefined;
+type OrderedThinkBlock = ChatTraceBlock & {
+  seq: number;
+};
 
-  const isBoundToTool = (block: { eventID?: string; roundID?: string; parentEventID?: string }) =>
-    toolParentEventIDs.has(block.eventID ?? "") ||
-    (Boolean(block.roundID) && toolRoundIDs.has(block.roundID ?? "")) ||
-    (Boolean(block.parentEventID) && toolParentEventIDs.has(block.parentEventID ?? ""));
+function mergeThinkTraceBlock(events: TraceDisplayEvent[], activeThinkBlock?: ChatTraceBlock): ChatTraceBlock | undefined {
+  const blocks: OrderedThinkBlock[] = events
+    .filter((item) => item.kind === "think")
+    .map((item) => ({ ...traceEventToBlock(item.event), seq: item.event.seq }));
 
-  events.forEach((item) => {
-    if (item.kind === "tool") {
-      chainEvents.push(item);
-      return;
+  if (activeThinkBlock) {
+    const activeText = traceBlockDisplayText(activeThinkBlock);
+    const activeIndex = blocks.findIndex((block) => {
+      const sameRound = Boolean(activeThinkBlock.roundID && block.roundID === activeThinkBlock.roundID);
+      const sameParent = Boolean(activeThinkBlock.parentEventID && block.parentEventID === activeThinkBlock.parentEventID);
+      const sameText = Boolean(activeText && traceBlockDisplayText(block) === activeText);
+      return sameRound || sameParent || sameText;
+    });
+    if (activeIndex >= 0) {
+      blocks[activeIndex] = { ...activeThinkBlock, seq: blocks[activeIndex].seq };
+    } else {
+      blocks.push({ ...activeThinkBlock, seq: Number.MAX_SAFE_INTEGER });
     }
-
-    if (!isBoundToTool(item.event)) {
-      finalThinkBlock = traceEventToBlock(item.event);
-    }
-  });
-
-  if (activeThinkBlock && !isBoundToTool(activeThinkBlock)) {
-    finalThinkBlock = activeThinkBlock;
   }
 
-  return { chainEvents, finalThinkBlock };
+  if (blocks.length === 0) {
+    return undefined;
+  }
+
+  const ordered = [...blocks].sort((left, right) => left.seq - right.seq);
+  const parts: string[] = [];
+  for (const block of ordered) {
+    const text = traceBlockDisplayText(block);
+    if (text && !parts.includes(text)) {
+      parts.push(text);
+    }
+  }
+  if (parts.length === 0) {
+    return undefined;
+  }
+
+  const latest = ordered[ordered.length - 1];
+  return {
+    ...latest,
+    stage: "think",
+    status: ordered.some((block) => block.status === "streaming") ? "streaming" : latest.status || "completed",
+    contentMarkdown: parts.join("\n\n"),
+    contentSegments: parts,
+  };
+}
+
+function splitTraceDisplayEvents(events: TraceDisplayEvent[], activeThinkBlock?: ChatTraceBlock) {
+  return {
+    toolEvents: events.filter((item) => item.kind === "tool"),
+    thinkBlock: mergeThinkTraceBlock(events, activeThinkBlock),
+  };
 }
 
 export function MessageTraceEventBlocks({
@@ -1889,26 +1919,26 @@ export function MessageTraceEventBlocks({
   autoCollapseReady?: boolean;
 }) {
   const displayEvents = React.useMemo(() => buildTraceDisplayEvents(traceEvents), [traceEvents]);
-  const { chainEvents, finalThinkBlock } = React.useMemo(
-    () => splitTraceDisplayEvents(displayEvents, activeToolBlock, activeThinkBlock),
-    [activeThinkBlock, activeToolBlock, displayEvents],
+  const { toolEvents, thinkBlock } = React.useMemo(
+    () => splitTraceDisplayEvents(displayEvents, activeThinkBlock),
+    [activeThinkBlock, displayEvents],
   );
-  if (chainEvents.length === 0 && !activeToolBlock && !finalThinkBlock) {
+  if (toolEvents.length === 0 && !activeToolBlock && !thinkBlock) {
     return null;
   }
 
   return (
     <>
       <MessageToolChainTrace
-        events={chainEvents}
+        events={toolEvents}
         activeToolBlock={activeToolBlock}
-        streaming={Boolean(messageStreaming && (activeToolBlock?.status === "streaming" || chainEvents.some((item) => item.event.status === "streaming")))}
-        autoCollapseReady={autoCollapseReady || Boolean(finalThinkBlock)}
+        streaming={Boolean(messageStreaming && (activeToolBlock?.status === "streaming" || toolEvents.some((item) => item.event.status === "streaming")))}
+        autoCollapseReady={autoCollapseReady || Boolean(thinkBlock)}
       />
-      {finalThinkBlock ? (
+      {thinkBlock ? (
         <MessageUpstreamThink
-          block={finalThinkBlock}
-          streaming={Boolean(messageStreaming && finalThinkBlock.status === "streaming")}
+          block={thinkBlock}
+          streaming={Boolean(messageStreaming && thinkBlock.status === "streaming")}
           autoCollapseReady={autoCollapseReady}
         />
       ) : null}
@@ -1918,7 +1948,6 @@ export function MessageTraceEventBlocks({
 
 type ToolChainStep = {
   key: string;
-  type: "think" | "tool";
   label: string;
   detail: string;
   failed: boolean;
@@ -1956,7 +1985,6 @@ function toolTraceStatusRank(status: string | undefined): number {
 }
 
 function sameToolChainCall(left: ToolChainStep, right: ToolChainStep): boolean {
-  if (left.type !== "tool" || right.type !== "tool") return false;
   if (left.toolCallID && right.toolCallID) return left.toolCallID === right.toolCallID;
   const leftName = left.toolName?.trim() || "";
   const rightName = right.toolName?.trim() || "";
@@ -1972,10 +2000,6 @@ function sameToolChainCall(left: ToolChainStep, right: ToolChainStep): boolean {
 function dedupeToolChainSteps(steps: ToolChainStep[]): ToolChainStep[] {
   const result: ToolChainStep[] = [];
   for (const step of steps) {
-    if (step.type !== "tool") {
-      result.push(step);
-      continue;
-    }
     const existingIndex = result.findIndex((item) => sameToolChainCall(item, step));
     if (existingIndex < 0) {
       result.push(step);
@@ -1994,18 +2018,8 @@ function dedupeToolChainSteps(steps: ToolChainStep[]): ToolChainStep[] {
 function buildToolChainSteps(events: TraceDisplayEvent[], labels: ProcessTraceLabels): ToolChainStep[] {
   return events.flatMap<ToolChainStep>((item, eventIndex) => {
     const event = item.event;
-    if (item.kind === "think") {
-      const detail = event.contentMarkdown?.trim() || event.summary?.trim();
-      if (!detail) return [];
-      return [
-        {
-          key: event.eventID || `think-${event.seq}`,
-          type: "think",
-          label: labels.tool.names.thinking,
-          detail,
-          failed: event.status === "error",
-        },
-      ];
+    if (item.kind !== "tool") {
+      return [];
     }
 
     const calls = parseToolTraceCalls(event.payloadJson);
@@ -2013,7 +2027,6 @@ function buildToolChainSteps(events: TraceDisplayEvent[], labels: ProcessTraceLa
       return [
         {
           key: event.eventID || `tool-${event.seq}`,
-          type: "tool",
           label: labels.tool.names.generic,
           detail: event.contentMarkdown?.trim() || event.summary?.trim() || event.title?.trim() || "",
           failed: event.status === "error",
@@ -2026,7 +2039,6 @@ function buildToolChainSteps(events: TraceDisplayEvent[], labels: ProcessTraceLa
       const { detail, failed } = toolTraceCallDetail(call, labels);
       return {
         key: `${event.eventID || event.seq}-${label}-${callIndex}-${eventIndex}`,
-        type: "tool" as const,
         label,
         detail,
         failed,
@@ -2053,7 +2065,6 @@ function buildToolChainStepsFromBlock(block: ChatTraceBlock | undefined, labels:
     return [
       {
         key: "active-tool",
-        type: "tool",
         label: labels.tool.names.generic,
         detail,
         failed: block.status === "error",
@@ -2065,7 +2076,6 @@ function buildToolChainStepsFromBlock(block: ChatTraceBlock | undefined, labels:
     const { detail, failed } = toolTraceCallDetail(call, labels);
     return {
       key: `active-tool-${label}-${index}`,
-      type: "tool" as const,
       label,
       detail,
       failed,
@@ -2089,7 +2099,7 @@ function ToolChainRows({ steps, labels }: { steps: ToolChainStep[]; labels: Proc
     <ol className="space-y-0.5">
       {steps.map((step, index) => {
         const open = expanded.has(step.key);
-        const canExpand = step.type === "tool" && shouldCollapseToolDetail(step.detail);
+        const canExpand = shouldCollapseToolDetail(step.detail);
 
         return (
           <li
@@ -2120,56 +2130,48 @@ function ToolChainRows({ steps, labels }: { steps: ToolChainStep[]; labels: Proc
               </span>
             </div>
             <div className="min-w-0 pb-2 max-sm:col-start-2">
-              {step.type === "think" ? (
-                <StreamdownRender
-                  content={step.detail}
-                  variant="thinking"
-                  className="text-[12px] leading-5 text-muted-foreground/84 [&_ul]:my-0 [&_ul]:space-y-0.5 [&_li]:pl-0 [&_li]:leading-5"
+              {step.toolCall ? (
+                <ToolTraceStructuredContent
+                  call={step.toolCall}
+                  rawDetail={step.detail}
+                  failed={step.failed}
+                  open={open}
+                  canExpand={canExpand}
+                  labels={labels}
+                  onToggle={() =>
+                    setExpanded((current) => {
+                      const next = new Set(current);
+                      if (next.has(step.key)) {
+                        next.delete(step.key);
+                      } else {
+                        next.add(step.key);
+                      }
+                      return next;
+                    })
+                  }
                 />
               ) : (
-                step.toolCall ? (
-                  <ToolTraceStructuredContent
-                    call={step.toolCall}
-                    rawDetail={step.detail}
-                    failed={step.failed}
-                    open={open}
-                    canExpand={canExpand}
-                    labels={labels}
-                    onToggle={() =>
-                      setExpanded((current) => {
-                        const next = new Set(current);
-                        if (next.has(step.key)) {
-                          next.delete(step.key);
-                        } else {
-                          next.add(step.key);
-                        }
-                        return next;
-                      })
-                    }
-                  />
-                ) : (
-                  <ToolDetailText
-                    failed={step.failed}
-                    open={open}
-                    canExpand={canExpand}
-                    labels={labels}
-                    onToggle={() =>
-                      setExpanded((current) => {
-                        const next = new Set(current);
-                        if (next.has(step.key)) {
-                          next.delete(step.key);
-                        } else {
-                          next.add(step.key);
-                        }
-                        return next;
-                      })
-                    }
-                  >
-                    {step.latencyMS && step.latencyMS > 0 ? <span>{step.latencyMS}ms</span> : null}
-                    {step.latencyMS && step.latencyMS > 0 && step.detail ? <span>{labels.tool.detail.latencySeparator}</span> : null}
-                    {step.detail ? <span>{step.detail}</span> : null}
-                  </ToolDetailText>
-                )
+                <ToolDetailText
+                  failed={step.failed}
+                  open={open}
+                  canExpand={canExpand}
+                  labels={labels}
+                  onToggle={() =>
+                    setExpanded((current) => {
+                      const next = new Set(current);
+                      if (next.has(step.key)) {
+                        next.delete(step.key);
+                      } else {
+                        next.add(step.key);
+                      }
+                      return next;
+                    })
+                  }
+                >
+                  {step.latencyMS && step.latencyMS > 0 ? <span>{step.latencyMS}ms</span> : null}
+                  {step.latencyMS && step.latencyMS > 0 && step.detail ? <span>{labels.tool.detail.latencySeparator}</span> : null}
+                  {step.detail ? <span>{step.detail}</span> : null}
+                </ToolDetailText>
               )}
             </div>
           </li>
@@ -2191,9 +2193,12 @@ function MessageToolChainTrace({
   autoCollapseReady?: boolean;
 }) {
   const labels = useProcessTraceLabels();
-  const toolEventCount = events.filter((item) => item.kind === "tool").length + (activeToolBlock ? 1 : 0);
   const steps = React.useMemo(
-    () => dedupeToolChainSteps([...buildToolChainSteps(events, labels), ...buildToolChainStepsFromBlock(activeToolBlock, labels)]),
+    () =>
+      dedupeToolChainSteps([
+        ...buildToolChainSteps(events, labels),
+        ...buildToolChainStepsFromBlock(activeToolBlock, labels),
+      ]),
     [activeToolBlock, events, labels],
   );
   const [accordionValue, setAccordionValue] = React.useState(() => (streaming ? "message-tool-chain" : ""));
@@ -2208,11 +2213,10 @@ function MessageToolChainTrace({
     }
   }, [autoCollapseReady, streaming]);
 
-  if (toolEventCount === 0 || steps.length === 0) {
+  if (steps.length === 0) {
     return null;
   }
 
-  const toolStepCount = steps.filter((step) => step.type === "tool").length;
   const open = accordionValue === "message-tool-chain";
 
   return (
@@ -2241,7 +2245,7 @@ function MessageToolChainTrace({
                 </span>
               </div>
               <div className="mt-0.5 truncate text-[11px] font-normal leading-4 text-muted-foreground/62">
-                {toolStepCount > 0 ? labels.tool.chain.summaryCount(toolStepCount) : labels.tool.chain.summaryFallback}
+                {steps.length > 0 ? labels.tool.chain.summaryCount(steps.length) : labels.tool.chain.summaryFallback}
               </div>
             </div>
             <ChevronDown
@@ -2299,6 +2303,7 @@ export function MessageUpstreamThink({
   const open = accordionValue === "upstream-think";
   const resolvedTitle = title ?? (streaming ? labels.think.titleActive : labels.think.titleDone);
   const resolvedSubtitle = subtitle ?? (streaming ? labels.think.subtitleActive : labels.think.subtitleDone);
+  const contentSegments = block.contentSegments?.filter((item) => item.trim()) ?? [];
 
   return (
     <div className={TRACE_ROOT_CLASS}>
@@ -2335,7 +2340,20 @@ export function MessageUpstreamThink({
             />
           </AccordionTrigger>
           <AccordionContent className="pb-0 pt-1.5">
-            <StreamdownRender content={block.contentMarkdown} streaming={Boolean(streaming)} variant="thinking" />
+            {contentSegments.length > 0 ? (
+              <div className="space-y-3">
+                {contentSegments.map((content, index) => (
+                  <StreamdownRender
+                    key={`${index}-${content.slice(0, 24)}`}
+                    content={content}
+                    streaming={Boolean(streaming && index === contentSegments.length - 1)}
+                    variant="thinking"
+                  />
+                ))}
+              </div>
+            ) : (
+              <StreamdownRender content={block.contentMarkdown} streaming={Boolean(streaming)} variant="thinking" />
+            )}
           </AccordionContent>
         </AccordionItem>
       </Accordion>
