@@ -389,7 +389,7 @@ function ChatModelMenuItem({
   onSelect: () => void;
   pricingLabels: React.ComponentProps<typeof ModelPricingTooltipContent>["labels"];
   viewPricingLabel: string;
-  pricingTooltipSide: "left" | "top";
+  pricingTooltipSide: "right";
 }) {
   const platformModelName = model.platformModelName.trim();
   const identity = React.useMemo(
@@ -434,7 +434,7 @@ function ChatModelMenuItem({
           </TooltipTrigger>
           <TooltipContent
             side={pricingTooltipSide}
-            align={pricingTooltipSide === "top" ? "end" : "center"}
+            align="center"
             sideOffset={8}
             className="z-[80] max-w-[min(92vw,35rem)] text-left font-medium tabular-nums"
           >
@@ -792,7 +792,7 @@ export function ChatModelPicker({
                         }}
                         pricingLabels={pricingLabels}
                         viewPricingLabel={t("viewPricing")}
-                        pricingTooltipSide="top"
+                        pricingTooltipSide="right"
                       />
                     ))}
                   </div>
@@ -896,7 +896,7 @@ export function ChatModelPicker({
                     }}
                     pricingLabels={pricingLabels}
                     viewPricingLabel={t("viewPricing")}
-                    pricingTooltipSide="left"
+                    pricingTooltipSide="right"
                   />
                 ))}
               </div>

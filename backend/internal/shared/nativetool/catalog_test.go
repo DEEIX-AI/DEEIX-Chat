@@ -64,7 +64,7 @@ func TestPayloadFromOptionRemovesSystemControlledToolFields(t *testing.T) {
 
 func TestUsagePricingKeyMapsObservedToolUsage(t *testing.T) {
 	key, ok := UsagePricingKey("xai_responses", "collections_search")
-	if !ok || key != "xaiCollectionsSearch" {
+	if !ok || key != "xai.collections_search" {
 		t.Fatalf("expected xAI collections search price key, got key=%q ok=%v", key, ok)
 	}
 	price, ok := UsagePriceByKey(key)
@@ -73,17 +73,17 @@ func TestUsagePricingKeyMapsObservedToolUsage(t *testing.T) {
 	}
 
 	key, ok = UsagePricingKey("gemini_generate_content", "google_search")
-	if !ok || key != "googleGoogleSearch" {
+	if !ok || key != "google.google_search" {
 		t.Fatalf("expected Google search price key, got key=%q ok=%v", key, ok)
 	}
 }
 
 func TestPricingOverridesApplyToDisplayAndUsagePricing(t *testing.T) {
-	raw := `{"xaiWebSearch":{"priceNanousd":123000000,"unit":"call","priceLabel":"","billable":true}}`
+	raw := `{"xai.web_search":{"priceNanousd":123000000,"unit":"call","priceLabel":"","billable":true}}`
 	items := PricingDefinitionsWithOverrides(raw)
 	var found PricingDefinition
 	for _, item := range items {
-		if item.ToolKey == "xaiWebSearch" {
+		if item.ToolKey == "xai.web_search" {
 			found = item
 			break
 		}
@@ -95,18 +95,99 @@ func TestPricingOverridesApplyToDisplayAndUsagePricing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse pricing overrides: %v", err)
 	}
-	price, ok := UsagePriceByKeyWithOverrides("xaiWebSearch", overrides)
+	price, ok := UsagePriceByKeyWithOverrides("xai.web_search", overrides)
 	if !ok || price.NanousdPerCall != 123000000 {
 		t.Fatalf("expected usage price override, got %#v ok=%v", price, ok)
 	}
 }
 
+func TestPricingDefinitionsMatchOfficialNativeToolKeys(t *testing.T) {
+	officialKeys := make(map[string]struct{})
+	for _, definition := range Definitions() {
+		officialKeys[definition.Key] = struct{}{}
+	}
+	pricingKeys := make(map[string]struct{})
+	for _, item := range PricingDefinitions() {
+		if item.ToolKey == "" {
+			t.Fatalf("pricing item has empty tool key: %#v", item)
+		}
+		if item.Label == "" {
+			t.Fatalf("pricing item has empty label: %#v", item)
+		}
+		if item.Description == "" {
+			t.Fatalf("pricing item has empty description: %#v", item)
+		}
+		if item.Type == "" {
+			t.Fatalf("pricing item has empty type: %#v", item)
+		}
+		pricingKeys[item.ToolKey] = struct{}{}
+	}
+	if len(pricingKeys) != len(officialKeys) {
+		t.Fatalf("expected pricing count to match official native tools: pricing=%d official=%d", len(pricingKeys), len(officialKeys))
+	}
+	for key := range officialKeys {
+		if _, ok := pricingKeys[key]; !ok {
+			t.Fatalf("missing pricing item for official native tool %q", key)
+		}
+	}
+}
+
+func TestModelCapabilityNativeToolsExtendPricingAndUsageCatalog(t *testing.T) {
+	dynamic := DefinitionsFromCapabilitiesJSON(`{
+		"nativeTools": [
+			{
+				"key": "custom.search_20260601",
+				"provider": "Custom",
+				"protocols": ["openai_responses", "xai_responses"],
+				"type": "search_20260601",
+				"label": "Custom Search",
+				"description": "Custom hosted search.",
+				"payload": {"type": "search_20260601", "enable_image_understanding": true},
+				"defaultEnabled": true,
+				"priceNanousd": 7000000,
+				"usageAliases": ["custom_search"]
+			}
+		]
+	}`)
+	definitions := MergeDefinitions(dynamic)
+	var protocols int
+	for _, definition := range definitions {
+		if definition.Key == "custom.search_20260601" {
+			protocols++
+		}
+	}
+	if protocols != 2 {
+		t.Fatalf("expected custom native tool to expand to two protocol definitions, got %d", protocols)
+	}
+
+	pricing := PricingDefinitionsFromDefinitions(definitions)
+	var found PricingDefinition
+	for _, item := range pricing {
+		if item.ToolKey == "custom.search_20260601" {
+			found = item
+			break
+		}
+	}
+	if found.ToolKey == "" || found.Label != "Custom Search" || found.Type != "search_20260601" || found.PriceNanousd != 7000000 {
+		t.Fatalf("expected dynamic native tool pricing row, got %#v", found)
+	}
+
+	overrides, err := ParsePricingOverridesJSONForDefinitions(`{"custom.search_20260601":{"priceNanousd":9000000,"unit":"call","priceLabel":"","billable":true}}`, definitions)
+	if err != nil {
+		t.Fatalf("parse dynamic pricing override: %v", err)
+	}
+	price, ok := UsagePriceForToolWithOverrides("xai_responses", "custom_search", definitions, overrides)
+	if !ok || price.NanousdPerCall != 9000000 || price.Provider != "custom" {
+		t.Fatalf("expected dynamic usage price override, got %#v ok=%v", price, ok)
+	}
+}
+
 func TestZeroDefaultPricingCanBeCustomizedPerCall(t *testing.T) {
-	raw := `{"openaiShell":{"priceNanousd":1000000,"unit":"search","priceLabel":"notMetered","billable":false}}`
+	raw := `{"openai.shell":{"priceNanousd":1000000,"unit":"search","priceLabel":"notMetered","billable":false}}`
 	items := PricingDefinitionsWithOverrides(raw)
 	var found PricingDefinition
 	for _, item := range items {
-		if item.ToolKey == "openaiShell" {
+		if item.ToolKey == "openai.shell" {
 			found = item
 			break
 		}
@@ -118,7 +199,7 @@ func TestZeroDefaultPricingCanBeCustomizedPerCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse pricing overrides: %v", err)
 	}
-	price, ok := UsagePriceByKeyWithOverrides("openaiShell", overrides)
+	price, ok := UsagePriceByKeyWithOverrides("openai.shell", overrides)
 	if !ok || price.NanousdPerCall != 1000000 {
 		t.Fatalf("expected OpenAI shell usage price override, got %#v ok=%v", price, ok)
 	}
@@ -134,7 +215,7 @@ func TestPricingOverridesUseDefaults(t *testing.T) {
 	if !PricingOverridesUseDefaults(DefaultPricingJSON()) {
 		t.Fatal("expected default pricing JSON to be treated as provider defaults")
 	}
-	if PricingOverridesUseDefaults(`{"googleGoogleSearch":{"priceNanousd":1000000,"unit":"call","priceLabel":"","billable":true}}`) {
+	if PricingOverridesUseDefaults(`{"google.google_search":{"priceNanousd":1000000,"unit":"call","priceLabel":"","billable":true}}`) {
 		t.Fatal("expected customized Google search price to differ from defaults")
 	}
 }

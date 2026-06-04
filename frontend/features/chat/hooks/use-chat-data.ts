@@ -105,6 +105,15 @@ export function useChatData(
     setReloadToken((prev) => prev + 1);
   }, []);
 
+  const replaceMessage = React.useCallback((nextMessage: MessageDTO) => {
+    setState((prev) => ({
+      ...prev,
+      messages: prev.messages.map((message) =>
+        message.publicID === nextMessage.publicID ? nextMessage : message,
+      ),
+    }));
+  }, []);
+
   const cancelResumedGeneration = React.useCallback(async () => {
     const active = activeResumeStreamRef.current;
     if (!active) {
@@ -304,6 +313,7 @@ export function useChatData(
     ...state,
     cancelResumedGeneration,
     reload,
+    replaceMessage,
     resumingRunID,
   };
 }

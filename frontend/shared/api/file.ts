@@ -1,10 +1,10 @@
 import { authedFetch, authedRequest } from "@/shared/api/authed-client";
 import { pathParam, resolveApiBaseURL } from "@/shared/api/http-client";
-import type { PagePayload } from "@/shared/api/common.types";
 import type {
   ChatFilePolicyDTO,
   DeleteFileResult,
   FileExtractDTO,
+  FileListResult,
   FileObjectDTO,
   FileProcessingStatusDTO,
   UploadFileResult,
@@ -58,7 +58,7 @@ export async function uploadFile(
 export async function listFiles(
   accessToken: string,
   params: ListFilesParams = {},
-): Promise<PagePayload<FileObjectDTO>> {
+): Promise<FileListResult> {
   const searchParams = new URLSearchParams();
 
   if (typeof params.page === "number") {
@@ -78,7 +78,7 @@ export async function listFiles(
   }
 
   const suffix = searchParams.toString();
-  return authedRequest<PagePayload<FileObjectDTO>>(
+  return authedRequest<FileListResult>(
     suffix ? `/api/v1/files?${suffix}` : "/api/v1/files",
     {
       method: "GET",

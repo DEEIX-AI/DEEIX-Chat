@@ -164,6 +164,7 @@ export function areChatAreaMessagesRenderEqual(
     previous.serverMessageID === next.serverMessageID &&
     previous.createdAt === next.createdAt &&
     previous.updatedAt === next.updatedAt &&
+    previous.editedAt === next.editedAt &&
     previous.isPending === next.isPending &&
     previous.isStreaming === next.isStreaming &&
     previous.isFileProc === next.isFileProc &&

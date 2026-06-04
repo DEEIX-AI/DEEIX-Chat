@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Check, CircleAlert, Copy, Download, Pencil, Plus, Save, Trash2, Upload, X } from "lucide-react";
 import { motion } from "motion/react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale, useMessages, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -109,6 +109,7 @@ import { resolveApiBaseURL } from "@/shared/api/http-client";
 import { LobeHubIcon } from "@/shared/components/lobehub-icon";
 import { configuredSettingsMap } from "@/shared/lib/settings-meta";
 import { KNOWN_VENDOR_OPTIONS, resolveLobeHubIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
+import { localizedNativeToolText } from "@/shared/lib/native-tool-i18n";
 
 function formatBillingAmountInput(value: number | null | undefined): string {
   if (!Number.isFinite(value ?? NaN) || (value ?? 0) <= 0) {
@@ -149,6 +150,9 @@ function nativeToolPriceDraftsFrom(items: NativeToolPricingDTO[]): Record<string
 function nativeToolPricingSignature(items: NativeToolPricingDTO[]): string {
   return JSON.stringify(items.map((item) => ({
     toolKey: item.toolKey,
+    label: item.label,
+    description: item.description,
+    type: item.type,
     priceNanousd: item.priceNanousd,
     unit: item.unit,
     priceLabel: item.priceLabel,
@@ -270,6 +274,7 @@ function isRedemptionCodeFormatValid(value: string): boolean {
 
 export function AdminBillingPage() {
   const locale = useLocale();
+  const messages = useMessages();
   const t = useTranslations("adminBilling");
   const tActions = useTranslations("common.actions");
   const tCommonErrors = useTranslations("common.errors");
@@ -2071,52 +2076,66 @@ export function AdminBillingPage() {
           </SettingsFieldItem>
         </SettingsFieldList>
         <SettingsCollapsibleContent open={nativeToolBillingEnabled} contentClassName="mt-5 space-y-2">
+            <p className="px-1 text-[11px] leading-5 text-muted-foreground">
+              {t("toolPricing.nativeToolCount", { count: nativeToolPricing.length })}
+            </p>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>{t("toolPricing.provider")}</TableHead>
                   <TableHead>{t("toolPricing.tool")}</TableHead>
+                  <TableHead>{t("toolPricing.type")}</TableHead>
                   <TableHead className="text-right">{t("toolPricing.price")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {nativeToolPricing.map((row) => (
-                  <TableRow key={`${row.provider}-${row.toolKey}`}>
-                    <TableCell className="py-1.5 text-xs text-muted-foreground">{row.provider}</TableCell>
-                    <TableCell className="py-1.5 text-xs text-foreground">{t(`toolPricing.tools.${row.toolKey}`)}</TableCell>
-                    <TableCell className="py-1.5 text-right font-mono text-xs text-muted-foreground">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <span className="text-muted-foreground">$</span>
-                        <Input
-                          value={nativeToolPriceDrafts[row.toolKey] ?? formatNativeToolPriceInput(row.priceNanousd)}
-                          inputMode="decimal"
-                          className="h-7 w-24 text-right font-mono text-xs"
-                          disabled={loading || nativeToolBillingSaving}
-                          aria-label={`${t(`toolPricing.tools.${row.toolKey}`)} ${t("toolPricing.price")}`}
-                          onChange={(event) => {
-                            const nextDraft = event.target.value;
-                            const nextNanousd = nativeToolPriceInputToNanousd(nextDraft);
-                            setNativeToolPriceDrafts((current) => ({
-                              ...current,
-                              [row.toolKey]: nextDraft,
-                            }));
-                            if (nextNanousd === null) {
-                              return;
-                            }
-                            setNativeToolPricing((current) => current.map((item) => (
-                              item.toolKey === row.toolKey
-                                ? { ...item, priceNanousd: nextNanousd, unit: "call", priceLabel: "", billable: nextNanousd > 0 }
-                                : item
-                            )));
-                          }}
-                        />
-                        <span className="whitespace-nowrap text-muted-foreground">
-                          / {t("toolPricing.units.call")}
-                        </span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {nativeToolPricing.map((row) => {
+                  const label = localizedNativeToolText(messages, "nativeToolLabels", row.toolKey) || row.label || row.type || row.toolKey;
+                  const description = localizedNativeToolText(messages, "nativeToolDescriptions", row.toolKey) || row.description || row.type || row.toolKey;
+                  return (
+                    <TableRow key={`${row.provider}-${row.toolKey}`}>
+                      <TableCell className="py-1.5 text-xs text-muted-foreground">{row.provider}</TableCell>
+                      <TableCell className="py-1.5 text-xs text-foreground">
+                        <div className="flex min-w-0 flex-col">
+                          <span className="truncate">{label}</span>
+                          <span className="truncate text-[11px] text-muted-foreground">{description}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-1.5 font-mono text-xs text-muted-foreground">{row.type || row.toolKey}</TableCell>
+                      <TableCell className="py-1.5 text-right font-mono text-xs text-muted-foreground">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className="text-muted-foreground">$</span>
+                          <Input
+                            value={nativeToolPriceDrafts[row.toolKey] ?? formatNativeToolPriceInput(row.priceNanousd)}
+                            inputMode="decimal"
+                            className="h-7 w-24 text-right font-mono text-xs"
+                            disabled={loading || nativeToolBillingSaving}
+                            aria-label={`${label} ${t("toolPricing.price")}`}
+                            onChange={(event) => {
+                              const nextDraft = event.target.value;
+                              const nextNanousd = nativeToolPriceInputToNanousd(nextDraft);
+                              setNativeToolPriceDrafts((current) => ({
+                                ...current,
+                                [row.toolKey]: nextDraft,
+                              }));
+                              if (nextNanousd === null) {
+                                return;
+                              }
+                              setNativeToolPricing((current) => current.map((item) => (
+                                item.toolKey === row.toolKey
+                                  ? { ...item, priceNanousd: nextNanousd, unit: "call", priceLabel: "", billable: nextNanousd > 0 }
+                                  : item
+                              )));
+                            }}
+                          />
+                          <span className="whitespace-nowrap text-muted-foreground">
+                            / {t("toolPricing.units.call")}
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
             <p className="text-[11px] leading-5 text-muted-foreground">{t("toolPricing.defaultPriceDescription")}</p>

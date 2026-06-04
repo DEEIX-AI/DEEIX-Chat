@@ -13,6 +13,7 @@ import type {
 import type {
   ConversationDTO,
   ConversationOptions,
+  MessageDTO,
 } from "@/shared/api/conversation.types";
 
 export function useChatSubmitStream({
@@ -33,6 +34,7 @@ export function useChatSubmitStream({
   onConversationCreated,
   touchByPublicID,
   reload,
+  replaceMessage,
   setDraft,
   setAttachments,
   releaseAttachments,
@@ -65,6 +67,7 @@ export function useChatSubmitStream({
   onConversationCreated?: (conversationPublicID: string) => void;
   touchByPublicID: (publicID: string, patch?: Partial<ConversationDTO>) => void;
   reload: () => void;
+  replaceMessage: (message: MessageDTO) => void;
   setDraft: React.Dispatch<React.SetStateAction<string>>;
   setAttachments: React.Dispatch<React.SetStateAction<PendingAttachment[]>>;
   releaseAttachments: (items: PendingAttachment[]) => void;
@@ -101,6 +104,7 @@ export function useChatSubmitStream({
     onConversationCreated,
     touchByPublicID,
     reload,
+    replaceMessage,
     setDraft,
     setAttachments,
     releaseAttachments,

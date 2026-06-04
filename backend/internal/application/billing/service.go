@@ -54,6 +54,7 @@ type Service struct {
 	modelPricingInvalidator       func()
 	platformModelIdentityResolver platformModelIdentityResolver
 	modelPricingCatalog           modelPricingCatalogProvider
+	nativeToolCatalog             nativeToolCatalogProvider
 	auditWriter                   auditWriter
 	redemptionCodeSecret          string
 }
@@ -64,6 +65,10 @@ type platformModelIdentityResolver interface {
 
 type modelPricingCatalogProvider interface {
 	ListActivePlatformModelNames(ctx context.Context) (map[string]struct{}, error)
+}
+
+type nativeToolCatalogProvider interface {
+	ListNativeToolDefinitions(ctx context.Context) ([]nativetool.Definition, error)
 }
 
 // UsagePricingInput 定义账单计算入参。
@@ -129,6 +134,9 @@ type ServiceUsageInput struct {
 type NativeToolPricingView struct {
 	Provider     string
 	ToolKey      string
+	Label        string
+	Description  string
+	Type         string
 	PriceNanousd int64
 	Unit         string
 	PriceLabel   string
@@ -268,6 +276,14 @@ func (s *Service) SetModelPricingCatalogProvider(provider modelPricingCatalogPro
 	s.modelPricingCatalog = provider
 }
 
+// SetNativeToolCatalogProvider 注入平台级官方原生工具目录提供者。
+func (s *Service) SetNativeToolCatalogProvider(provider nativeToolCatalogProvider) {
+	if s == nil {
+		return
+	}
+	s.nativeToolCatalog = provider
+}
+
 // SetRedemptionCodeSecret 注入兑换码 HMAC 与密文存储密钥。
 func (s *Service) SetRedemptionCodeSecret(secret string) {
 	if s == nil {
@@ -294,14 +310,29 @@ func (s *Service) GetBillingMode(ctx context.Context) (string, error) {
 	return s.repo.GetBillingMode(ctx)
 }
 
-// ListNativeToolDefaultPricing 返回当前内置的原生工具默认价格目录。
-func ListNativeToolDefaultPricing() []NativeToolPricingView {
-	return nativeToolPricingViews(nativetool.PricingDefinitions())
+// ListNativeToolPricing 返回应用管理员覆盖后的平台级原生工具计费价格目录。
+func (s *Service) ListNativeToolPricing(ctx context.Context, rawPricingJSON string) ([]NativeToolPricingView, error) {
+	definitions, err := s.nativeToolDefinitions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nativeToolPricingViews(nativetool.PricingDefinitionsWithOverridesFromDefinitions(rawPricingJSON, definitions)), nil
 }
 
-// ListNativeToolPricing 返回应用管理员覆盖后的原生工具计费价格目录。
-func ListNativeToolPricing(rawPricingJSON string) []NativeToolPricingView {
-	return nativeToolPricingViews(nativetool.PricingDefinitionsWithOverrides(rawPricingJSON))
+// NormalizeNativeToolPricingJSON 基于当前平台级原生工具目录校验并格式化价格配置。
+func (s *Service) NormalizeNativeToolPricingJSON(ctx context.Context, overrides map[string]nativetool.PricingOverride) (string, error) {
+	definitions, err := s.nativeToolDefinitions(ctx)
+	if err != nil {
+		return "", err
+	}
+	return nativetool.PricingOverridesJSONForDefinitions(overrides, definitions)
+}
+
+func (s *Service) nativeToolDefinitions(ctx context.Context) ([]nativetool.Definition, error) {
+	if s == nil || s.nativeToolCatalog == nil {
+		return nativetool.Definitions(), nil
+	}
+	return s.nativeToolCatalog.ListNativeToolDefinitions(ctx)
 }
 
 func nativeToolPricingViews(items []nativetool.PricingDefinition) []NativeToolPricingView {
@@ -310,6 +341,9 @@ func nativeToolPricingViews(items []nativetool.PricingDefinition) []NativeToolPr
 		results = append(results, NativeToolPricingView{
 			Provider:     item.Provider,
 			ToolKey:      item.ToolKey,
+			Label:        item.Label,
+			Description:  item.Description,
+			Type:         item.Type,
 			PriceNanousd: item.PriceNanousd,
 			Unit:         item.Unit,
 			PriceLabel:   item.PriceLabel,
@@ -1402,11 +1436,15 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 	if err != nil {
 		return nil, err
 	}
-	nativeToolPricingOverrides, err := nativetool.ParsePricingOverridesJSON(nativeToolPricingJSON)
+	nativeToolDefinitions, err := s.nativeToolDefinitions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	nativeToolPricingOverrides, err := nativetool.ParsePricingOverridesJSONForDefinitions(nativeToolPricingJSON, nativeToolDefinitions)
 	if err != nil {
 		nativeToolPricingOverrides = map[string]nativetool.PricingOverride{}
 	}
-	nativeToolItems, nativeToolBilledNanousd := buildNativeToolServiceItems(input, mode, isFreeModel, nativeToolBillingEnabled, nativeToolPricingOverrides)
+	nativeToolItems, nativeToolBilledNanousd := buildNativeToolServiceItems(input, mode, isFreeModel, nativeToolBillingEnabled, nativeToolPricingOverrides, nativeToolDefinitions)
 	if len(nativeToolItems) > 0 {
 		serviceItems = append(serviceItems, nativeToolItems...)
 		serviceBilledNanousd += nativeToolBilledNanousd
@@ -1466,7 +1504,7 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		"duration_billed_nanousd":                  durationBilledNanousd,
 		"server_side_tool_usage":                   normalizeUsageCountMap(input.ServerSideToolUsage),
 		"native_tool_billing_enabled":              nativeToolBillingEnabled,
-		"native_tool_pricing_source":               nativeToolPricingSourceForSnapshot(nativeToolPricingJSON),
+		"native_tool_pricing_source":               nativeToolPricingSourceForSnapshot(nativeToolPricingJSON, nativeToolDefinitions),
 		"native_tool_billed_nanousd":               nativeToolBilledNanousd,
 		"base_service_billed_nanousd":              serviceBilledNanousd,
 		"service_items":                            usageServiceItemSnapshots(serviceItems),
@@ -2690,7 +2728,7 @@ func paginateModelPricing(items []domainbilling.ModelPricing, offset int, limit 
 }
 
 // buildNativeToolServiceItems 将原生 server-side tool 调用转换为账单服务项。
-func buildNativeToolServiceItems(input UsagePricingInput, billingMode string, isFreeModel bool, enabled bool, pricingOverrides map[string]nativetool.PricingOverride) ([]domainbilling.UsageServiceItem, int64) {
+func buildNativeToolServiceItems(input UsagePricingInput, billingMode string, isFreeModel bool, enabled bool, pricingOverrides map[string]nativetool.PricingOverride, definitions []nativetool.Definition) ([]domainbilling.UsageServiceItem, int64) {
 	if billingMode == "self" || isFreeModel || !enabled || len(input.ServerSideToolUsage) == 0 {
 		return []domainbilling.UsageServiceItem{}, 0
 	}
@@ -2701,7 +2739,7 @@ func buildNativeToolServiceItems(input UsagePricingInput, billingMode string, is
 	results := make([]domainbilling.UsageServiceItem, 0, len(counts))
 	var total int64
 	for toolName, count := range counts {
-		price, ok := nativeToolDefaultCallPrice(input, toolName, pricingOverrides)
+		price, ok := nativeToolDefaultCallPrice(input, toolName, pricingOverrides, definitions)
 		if !ok || price.NanousdPerCall <= 0 || count <= 0 {
 			continue
 		}
@@ -2724,36 +2762,15 @@ func buildNativeToolServiceItems(input UsagePricingInput, billingMode string, is
 }
 
 // nativeToolDefaultCallPrice 返回当前已适配厂商原生工具的官方默认按次价格。
-func nativeToolDefaultCallPrice(input UsagePricingInput, toolName string, pricingOverrides map[string]nativetool.PricingOverride) (nativetool.UsagePrice, bool) {
-	key, ok := nativetool.UsagePricingKey(input.ProviderProtocol, toolName)
-	if !ok {
-		return nativetool.UsagePrice{}, false
-	}
-	if key == "openaiWebSearchStandard" && isOpenAIWebSearchReasoningModel(input) {
-		key = "openaiWebSearchReasoning"
-	}
-	return nativetool.UsagePriceByKeyWithOverrides(key, pricingOverrides)
+func nativeToolDefaultCallPrice(input UsagePricingInput, toolName string, pricingOverrides map[string]nativetool.PricingOverride, definitions []nativetool.Definition) (nativetool.UsagePrice, bool) {
+	return nativetool.UsagePriceForToolWithOverrides(input.ProviderProtocol, toolName, definitions, pricingOverrides)
 }
 
-func nativeToolPricingSourceForSnapshot(raw string) string {
-	if nativetool.PricingOverridesUseDefaults(raw) {
+func nativeToolPricingSourceForSnapshot(raw string, definitions []nativetool.Definition) string {
+	if nativetool.PricingOverridesUseDefaultsForDefinitions(raw, definitions) {
 		return nativeToolPricingSource
 	}
 	return "admin_configured"
-}
-
-// isOpenAIWebSearchReasoningModel 区分 OpenAI Web Search 的推理与非推理模型价格。
-func isOpenAIWebSearchReasoningModel(input UsagePricingInput) bool {
-	for _, name := range []string{input.UpstreamModelName, input.PlatformModelName} {
-		modelName := strings.ToLower(strings.TrimSpace(name))
-		switch {
-		case strings.HasPrefix(modelName, "gpt-5"):
-			return true
-		case strings.HasPrefix(modelName, "o1"), strings.HasPrefix(modelName, "o3"), strings.HasPrefix(modelName, "o4"):
-			return true
-		}
-	}
-	return false
 }
 
 // nativeToolServiceCode 生成原生工具服务项编码，供账单明细和快照稳定引用。

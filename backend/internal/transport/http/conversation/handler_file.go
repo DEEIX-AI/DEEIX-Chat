@@ -134,16 +134,20 @@ func (h *Handler) ListFiles(c *gin.Context) {
 	filterKind := normalizeFileKinds(c.Query("kind"))
 	sortBy := normalizeFileSort(c.Query("sort"))
 
-	items, total, err := h.service.ListFiles(c.Request.Context(), userID, page, pageSize, searchQuery, filterKind, sortBy)
+	result, err := h.service.ListFiles(c.Request.Context(), userID, page, pageSize, searchQuery, filterKind, sortBy)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "list files failed")
 		return
 	}
-	results := make([]FileObjectResponse, 0, len(items))
-	for i := range items {
-		results = append(results, toFileObjectResponse(&items[i]))
+	results := make([]FileObjectResponse, 0, len(result.Items))
+	for i := range result.Items {
+		results = append(results, toFileObjectResponse(&result.Items[i]))
 	}
-	response.SuccessPage(c, total, results)
+	response.Success(c, FileListResponse{
+		Total:   result.Total,
+		Results: results,
+		Quota:   toStorageQuotaResponse(result.Quota),
+	})
 }
 
 // GetFileProcessingStatus 查询文件处理状态。

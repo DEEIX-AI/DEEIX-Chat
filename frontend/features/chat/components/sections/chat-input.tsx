@@ -534,7 +534,7 @@ function ChatInputComponent({
                 <TooltipTrigger asChild>
                   <span
                     className={cn(
-                      "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition-colors",
+                      "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium transition-colors",
                       composerModeIndicator.tone === "warning"
                         ? "bg-destructive/10 text-destructive"
                         : "bg-muted/60 text-muted-foreground",

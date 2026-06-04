@@ -229,6 +229,7 @@ type PublicSharedMessageResponse struct {
 	ModelVendor       string                       `json:"modelVendor"`
 	ModelIcon         string                       `json:"modelIcon"`
 	ProcessTrace      *MessageProcessTraceResponse `json:"processTrace,omitempty"`
+	EditedAt          *time.Time                   `json:"editedAt"`
 	CreatedAt         time.Time                    `json:"createdAt"`
 	UpdatedAt         time.Time                    `json:"updatedAt"`
 }
@@ -267,6 +268,7 @@ func toPublicSharedMessageResponse(
 		ModelVendor:       runModel.ModelVendor,
 		ModelIcon:         runModel.ModelIcon,
 		ProcessTrace:      toPublicMessageProcessTraceResponse(item.ProcessTrace),
+		EditedAt:          item.EditedAt,
 		CreatedAt:         item.CreatedAt,
 		UpdatedAt:         item.UpdatedAt,
 	}
@@ -414,6 +416,13 @@ type FileUploadResponse struct {
 type DeleteFileResponse struct {
 	Deleted bool                 `json:"deleted"`
 	FileID  string               `json:"fileID"`
+	Quota   StorageQuotaResponse `json:"quota"`
+}
+
+// FileListResponse 文件列表响应 DTO。
+type FileListResponse struct {
+	Total   int64                `json:"total"`
+	Results []FileObjectResponse `json:"results"`
 	Quota   StorageQuotaResponse `json:"quota"`
 }
 
@@ -704,6 +713,7 @@ type MessageResponse struct {
 	ThumbsDownCount   int64                        `json:"thumbsDownCount"`
 	BillingCost       *MessageBillingCostResponse  `json:"billingCost,omitempty"`
 	ProcessTrace      *MessageProcessTraceResponse `json:"processTrace,omitempty"`
+	EditedAt          *time.Time                   `json:"editedAt"`
 	CreatedAt         time.Time                    `json:"createdAt"`
 	UpdatedAt         time.Time                    `json:"updatedAt"`
 }
@@ -929,6 +939,7 @@ func toMessageResponseWithRunAndFallback(m model.Message, run model.Run, fallbac
 		ThumbsDownCount:   m.ThumbsDownCount,
 		BillingCost:       toMessageBillingCostResponse(m),
 		ProcessTrace:      toMessageProcessTraceResponse(m.ProcessTrace),
+		EditedAt:          m.EditedAt,
 		CreatedAt:         m.CreatedAt,
 		UpdatedAt:         m.UpdatedAt,
 	}
@@ -1168,11 +1179,8 @@ type UploadFileResponseDoc struct {
 
 // FileListResponseDoc 文件分页响应文档。
 type FileListResponseDoc struct {
-	ErrorMsg string `json:"errorMsg"`
-	Data     struct {
-		Total   int64                `json:"total"`
-		Results []FileObjectResponse `json:"results"`
-	} `json:"data"`
+	ErrorMsg string           `json:"errorMsg"`
+	Data     FileListResponse `json:"data"`
 }
 
 // DeleteFileResponseDoc 删除文件响应文档。
@@ -1239,6 +1247,12 @@ type MessageListResponseDoc struct {
 type SendMessageResponseDoc struct {
 	ErrorMsg string              `json:"errorMsg"`
 	Data     SendMessageResponse `json:"data"`
+}
+
+// MessageResponseDoc 消息响应文档。
+type MessageResponseDoc struct {
+	ErrorMsg string          `json:"errorMsg"`
+	Data     MessageResponse `json:"data"`
 }
 
 // MessageFeedbackResponseDoc 设置消息反馈响应文档。

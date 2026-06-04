@@ -202,6 +202,7 @@ export function mapServerMessage(
     serverMessageID: item.id,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+    editedAt: item.editedAt ?? null,
     myFeedback: item.myFeedback || null,
     thumbsUpCount: item.thumbsUpCount ?? 0,
     thumbsDownCount: item.thumbsDownCount ?? 0,

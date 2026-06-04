@@ -48,7 +48,7 @@ func (s *Service) ListFiles(
 	searchQuery string,
 	filterKind string,
 	sortBy string,
-) ([]model.FileObject, int64, error) {
+) (*appupload.ListFilesResult, error) {
 	return s.uploadSvc.ListFiles(ctx, userID, page, pageSize, searchQuery, filterKind, sortBy)
 }
 

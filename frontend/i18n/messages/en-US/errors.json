@@ -203,7 +203,10 @@
   },
   "message": {
     "feedbackTargetInvalid": "Invalid message feedback target.",
+    "editStateInvalid": "This message cannot be edited in its current state.",
+    "editTargetInvalid": "Only AI replies can be edited.",
     "invalidBranch": "Invalid message branch.",
+    "invalidContent": "Invalid message content.",
     "invalidFeedback": "Invalid message feedback.",
     "invalidId": "Invalid message ID.",
     "notFound": "Message not found.",
@@ -271,6 +274,7 @@
   "upstream": {
     "unavailable": "Upstream service is unavailable."
   },
+  "upstreamEmptyResponse": "The upstream returned an empty response. Try again later or ask an administrator to check the model route.",
   "upstreamRequestFailed": "The upstream request failed. Try again later or ask an administrator to check the model route.",
   "user": {
     "accountDeleteVerificationRequired": "Verify your identity before deleting the account.",

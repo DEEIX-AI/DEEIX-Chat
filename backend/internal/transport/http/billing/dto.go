@@ -491,6 +491,9 @@ type BillingConfigResponse struct {
 type NativeToolPricingResponse struct {
 	Provider     string `json:"provider"`
 	ToolKey      string `json:"toolKey"`
+	Label        string `json:"label"`
+	Description  string `json:"description"`
+	Type         string `json:"type"`
 	PriceNanousd int64  `json:"priceNanousd"`
 	Unit         string `json:"unit"`
 	PriceLabel   string `json:"priceLabel"`
@@ -681,6 +684,9 @@ func toNativeToolPricingResponses(items []appbilling.NativeToolPricingView) []Na
 		results = append(results, NativeToolPricingResponse{
 			Provider:     strings.TrimSpace(item.Provider),
 			ToolKey:      strings.TrimSpace(item.ToolKey),
+			Label:        strings.TrimSpace(item.Label),
+			Description:  strings.TrimSpace(item.Description),
+			Type:         strings.TrimSpace(item.Type),
 			PriceNanousd: item.PriceNanousd,
 			Unit:         strings.TrimSpace(item.Unit),
 			PriceLabel:   strings.TrimSpace(item.PriceLabel),
@@ -690,7 +696,7 @@ func toNativeToolPricingResponses(items []appbilling.NativeToolPricingView) []Na
 	return results
 }
 
-func nativeToolPricingRequestsJSON(items []NativeToolPricingRequest) (string, error) {
+func nativeToolPricingOverridesFromRequests(items []NativeToolPricingRequest) map[string]nativetool.PricingOverride {
 	overrides := make(map[string]nativetool.PricingOverride, len(items))
 	for _, item := range items {
 		key := strings.TrimSpace(item.ToolKey)
@@ -704,7 +710,7 @@ func nativeToolPricingRequestsJSON(items []NativeToolPricingRequest) (string, er
 			Billable:     item.Billable,
 		}
 	}
-	return nativetool.PricingOverridesJSON(overrides)
+	return overrides
 }
 
 func toSubscriptionResponse(sub *domainbilling.Subscription) SubscriptionResponse {

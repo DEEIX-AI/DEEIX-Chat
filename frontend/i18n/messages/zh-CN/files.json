@@ -45,6 +45,17 @@
     "selectLoaded": "选择已加载",
     "clear": "取消选择"
   },
+  "storage": {
+    "title": "存储空间",
+    "used": "已用",
+    "usedTotal": "{used} / {total}",
+    "usedUnlimited": "{used} / 无上限",
+    "usedPercent": "已用 {percent}%",
+    "remaining": "剩余 {remaining}",
+    "percent": "{percent}%",
+    "unlimited": "无上限",
+    "noLimit": "不限制总容量"
+  },
   "deleteDialog": {
     "title": "删除文件",
     "description": "确认删除「{name}」文件吗？此操作不可撤销。",

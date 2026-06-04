@@ -25,8 +25,10 @@ import {
   Alert,
   AlertDescription,
 } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { isUpstreamStreamingDebugBody, summarizeUpstreamError } from "@/features/chat/utils/chat-runtime";
 import type { FileContentResult } from "@/shared/api/file";
@@ -86,6 +88,7 @@ type ChatMessageBotProps = {
   reaction: AssistantReaction;
   onRetryAssistantMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onContinueAssistantMessage?: (message: ChatAreaMessage) => Promise<void> | void;
+  onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
   onCycleMessageBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
   onReactAssistantMessage: (publicID: string, reaction: AssistantReaction) => void;
   onCopy: () => void;
@@ -107,6 +110,7 @@ export function ChatMessageBot({
   reaction,
   onRetryAssistantMessage,
   onContinueAssistantMessage,
+  onEditAssistantMessage,
   onCycleMessageBranch,
   onReactAssistantMessage,
   onCopy,
@@ -121,13 +125,34 @@ export function ChatMessageBot({
   artifactActions,
   showBranchNavigator = true,
 }: ChatMessageBotProps) {
+  const tCommon = useTranslations("common.actions");
   const submitT = useTranslations("chat.submit");
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [editingValue, setEditingValue] = React.useState(item.content);
   const onRetry = React.useCallback(() => {
     void onRetryAssistantMessage(item);
   }, [item, onRetryAssistantMessage]);
   const onContinue = React.useCallback(() => {
     void onContinueAssistantMessage?.(item);
   }, [item, onContinueAssistantMessage]);
+  const onEditSave = React.useCallback(async () => {
+    const nextContent = editingValue.trim();
+    if (!nextContent || nextContent === item.content.trim()) {
+      return;
+    }
+    const ok = await onEditAssistantMessage(item, nextContent);
+    if (ok !== false) {
+      setIsEditing(false);
+    }
+  }, [editingValue, item, onEditAssistantMessage]);
+  React.useEffect(() => {
+    setIsEditing(false);
+  }, [item.publicID]);
+  React.useEffect(() => {
+    if (!isEditing) {
+      setEditingValue(item.content);
+    }
+  }, [isEditing, item.content]);
   const upstreamThink = item.processTrace?.upstreamThink;
   const toolTrace = item.processTrace?.tools;
   const traceEvents = item.processTrace?.events ?? EMPTY_TRACE_EVENTS;
@@ -189,6 +214,42 @@ export function ChatMessageBot({
   const activeToolBlock = hasTraceEvents ? toolTrace : undefined;
   const processAutoCollapseReady = Boolean(hasTraceEvents || upstreamThink || toolTrace || hasStreamdownContent || item.inlineAlert);
   const toolAutoCollapseReady = Boolean(upstreamThink || hasStreamdownContent || item.inlineAlert);
+
+  if (!readOnly && isEditing) {
+    const nextContent = editingValue.trim();
+    const unchanged = nextContent === item.content.trim();
+
+    return (
+      <div className="flex justify-start">
+        <div className="w-full max-w-[760px] rounded-lg bg-muted/40 p-3 text-foreground">
+          <Textarea
+            autoFocus
+            value={editingValue}
+            className="chat-font-content min-h-[160px] resize-none rounded-lg border-border border-[0.5px] bg-background px-3 py-2 text-sm leading-7 shadow-none focus-visible:border-primary focus-visible:ring-0"
+            style={{ fontFamily: "var(--font-chat)", fontWeight: "var(--font-chat-weight)" }}
+            onChange={(event) => setEditingValue(event.target.value)}
+          />
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <Button
+              variant="ghost"
+              className="rounded-lg text-xs font-medium"
+              onClick={() => setIsEditing(false)}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              variant="default"
+              className="rounded-lg text-xs font-medium shadow-none hover:bg-primary/60"
+              disabled={busy || nextContent.length === 0 || unchanged}
+              onClick={() => void onEditSave()}
+            >
+              {tCommon("save")}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="group/assistant-message flex w-full flex-col items-start">
@@ -279,6 +340,7 @@ export function ChatMessageBot({
         onCycleBranch={onCycleMessageBranch}
         onRetry={onRetry}
         onContinue={onContinueAssistantMessage ? onContinue : undefined}
+        onEdit={() => setIsEditing(true)}
         onCopy={onCopy}
         onReact={(value) => onReactAssistantMessage(item.publicID, value)}
         showModelInfo={showModelInfo}

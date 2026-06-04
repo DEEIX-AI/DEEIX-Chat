@@ -352,7 +352,7 @@ func TestBuildUsageLedgerUsesNativeToolPricingOverrides(t *testing.T) {
 	repo := &billingRepositoryStub{
 		mode:                     "usage",
 		nativeToolBillingEnabled: true,
-		nativeToolPricingJSON:    `{"xaiWebSearch":{"priceNanousd":123000000,"unit":"call","priceLabel":"","billable":true}}`,
+		nativeToolPricingJSON:    `{"xai.web_search":{"priceNanousd":123000000,"unit":"call","priceLabel":"","billable":true}}`,
 		pricing: &domainbilling.ModelPricing{
 			PlatformModelName: "grok-4.3",
 			Currency:          "USD",
@@ -392,8 +392,8 @@ func TestBuildUsageLedgerBillsOpenAIWebSearchPreviewByModelFamily(t *testing.T) 
 		upstreamModelName string
 		wantNanousd       int64
 	}{
-		{name: "reasoning model", platformModelName: "gpt-5.4", wantNanousd: 10_000_000},
-		{name: "non reasoning model", platformModelName: "gpt-4o-mini", upstreamModelName: "gpt-4o-mini-search-preview", wantNanousd: 25_000_000},
+		{name: "gpt-5 model", platformModelName: "gpt-5.4", wantNanousd: 25_000_000},
+		{name: "gpt-4o model", platformModelName: "gpt-4o-mini", upstreamModelName: "gpt-4o-mini-search-preview", wantNanousd: 25_000_000},
 	}
 
 	for _, tc := range cases {

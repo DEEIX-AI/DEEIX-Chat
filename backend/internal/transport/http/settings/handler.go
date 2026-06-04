@@ -19,6 +19,10 @@ import (
 
 const runtimeActionTimeout = 5 * time.Minute
 
+type nativeToolCatalogProvider interface {
+	ListNativeToolDefinitions(ctx context.Context) ([]nativetool.Definition, error)
+}
+
 // Handler 封装 settings HTTP 处理。
 type Handler struct {
 	service         *appsettings.Service
@@ -26,6 +30,7 @@ type Handler struct {
 	runtimeSvc      *appruntime.Service
 	runtime         *config.Runtime
 	embeddingSvc    *appembedding.Service // 可选，用于模型变更后触发向量失效
+	nativeTools     nativeToolCatalogProvider
 }
 
 // NewHandler 创建处理器。
@@ -41,6 +46,11 @@ func NewHandler(service *appsettings.Service, runtimeSettings *appsettings.Runti
 // SetEmbeddingService 注入 Embedding 服务（可选），用于在模型配置变更时自动标记向量失效。
 func (h *Handler) SetEmbeddingService(svc *appembedding.Service) {
 	h.embeddingSvc = svc
+}
+
+// SetNativeToolCatalogProvider 注入平台级官方原生工具目录提供者。
+func (h *Handler) SetNativeToolCatalogProvider(provider nativeToolCatalogProvider) {
+	h.nativeTools = provider
 }
 
 // ListAll godoc
@@ -144,11 +154,20 @@ func (h *Handler) GetModelOptionPolicy(c *gin.Context) {
 	if deniedPathsJSON == "" {
 		deniedPathsJSON = config.DefaultModelOptionDeniedPathsJSON()
 	}
+	nativeTools := nativetool.Definitions()
+	if h.nativeTools != nil {
+		items, err := h.nativeTools.ListNativeToolDefinitions(c.Request.Context())
+		if err != nil {
+			response.Error(c, http.StatusInternalServerError, "list native tools failed")
+			return
+		}
+		nativeTools = items
+	}
 	response.Success(c, ModelOptionPolicyResponse{
 		Mode:             mode,
 		AllowedPathsJSON: allowedPathsJSON,
 		DeniedPathsJSON:  deniedPathsJSON,
-		NativeTools:      toNativeToolDefinitionResponses(nativetool.Definitions()),
+		NativeTools:      toNativeToolDefinitionResponses(nativeTools),
 	})
 }
 

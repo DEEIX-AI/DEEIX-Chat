@@ -180,6 +180,8 @@ func NewApp() (*App, error) {
 	billingService.SetModelPricingInvalidator(channelService.InvalidateModelCatalog)
 	billingService.SetPlatformModelIdentityResolver(channelService)
 	billingService.SetModelPricingCatalogProvider(channelService)
+	billingService.SetNativeToolCatalogProvider(channelService)
+	settingsHandler.SetNativeToolCatalogProvider(channelService)
 	channelHandler := channelhttp.NewHandler(channelService)
 	channelModule := channelhttp.NewModule(channelHandler)
 	conversationRepo := conversationrepo.NewRepo(db)

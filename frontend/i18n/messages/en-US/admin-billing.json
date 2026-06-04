@@ -204,9 +204,11 @@
     "title": "Tool pricing",
     "nativeToolBilling": "Native tool billing",
     "nativeToolBillingDescription": "When enabled, administrator-enabled official native tools are billed using the prices below. Self-use mode still records usage only.",
+    "nativeToolCount": "Showing {count} official native tools.",
     "defaultPriceDescription": "All official native tools use a configurable per-call price. Set 0 to avoid separate billing. Model tokens produced by tool results are still billed through model pricing.",
     "provider": "Provider",
     "tool": "Tool",
+    "type": "Type",
     "price": "Price",
     "note": "Native tool prices are configured as per-call rates. Tools without upstream-reported call counts will not create separate native tool billing items.",
     "prices": {
@@ -216,24 +218,6 @@
     "units": {
       "call": "call",
       "search": "search"
-    },
-    "tools": {
-      "openaiWebSearchReasoning": "Web search (reasoning models)",
-      "openaiWebSearchStandard": "Web search (non-reasoning models)",
-      "openaiShell": "Shell",
-      "openaiImageGeneration": "Image generation",
-      "openaiCodeInterpreter": "Code interpreter",
-      "anthropicWebSearch": "Web search",
-      "anthropicWebFetch": "Web fetch",
-      "anthropicCodeExecution": "Code execution",
-      "anthropicAdvisor": "Advisor",
-      "anthropicToolSearch": "Tool search",
-      "xaiWebSearch": "Web Search",
-      "xaiXSearch": "X Search",
-      "xaiCodeExecution": "Code Execution",
-      "xaiAttachmentSearch": "File Attachments Search",
-      "xaiCollectionsSearch": "Collections Search / RAG",
-      "googleGoogleSearch": "Google Search"
     }
   },
   "pricingModes": {

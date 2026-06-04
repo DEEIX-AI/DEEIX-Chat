@@ -163,6 +163,8 @@
     "editMessage": "Edit",
     "copyMessage": "Copy",
     "copyReply": "Copy",
+    "editReply": "Edit",
+    "replyEditedDisclaimer": "Edited",
     "likeReply": "Like",
     "dislikeReply": "Dislike",
     "retryReply": "Retry",
@@ -245,6 +247,7 @@
     "continueGenerationPrompt": "Continue from the previous interrupted reply without repeating content that was already generated.",
     "continueReplyFailed": "Unable to continue generation",
     "continueReplyUnavailable": "This reply cannot be continued right now.",
+    "editReplyFailed": "Failed to edit reply",
     "retryReplyFailed": "Unable to retry this reply",
     "retryReplyMissingUser": "The corresponding user message was not found."
   },

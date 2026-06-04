@@ -71,36 +71,37 @@ func (ConversationShare) TableName() string {
 // Message 存储会话内消息。
 type Message struct {
 	BaseModel
-	ConversationID   uint   `gorm:"not null;index:idx_chat_messages_conversation_id;comment:会话ID"`
-	UserID           uint   `gorm:"not null;index:idx_chat_messages_user_id;comment:用户ID"`
-	PublicID         string `gorm:"size:32;not null;default:'';uniqueIndex:idx_chat_messages_public_id;comment:公开消息ID"`
-	ParentMessageID  *uint  `gorm:"index:idx_chat_messages_parent_message_id;comment:父消息ID"`
-	RunID            string `gorm:"size:64;not null;default:'';index:idx_chat_messages_run_id;comment:会话运行ID"`
-	Role             string `gorm:"size:32;not null;default:'';index:idx_chat_messages_role;comment:消息角色(user/assistant/system/tool)"`
-	ContentType      string `gorm:"size:32;not null;default:'';comment:消息内容类型"`
-	Content          string `gorm:"type:text;not null;default:'';comment:消息内容"`
-	BranchReason     string `gorm:"size:32;not null;default:'default';index:idx_chat_messages_branch_reason;comment:分支来源(default/retry/edit)"`
-	SourceMessageID  *uint  `gorm:"index:idx_chat_messages_source_message_id;comment:来源消息ID(重试/编辑源)"`
-	TokenUsage       int64  `gorm:"not null;default:0;comment:token总消耗"`
-	InputTokens      int64  `gorm:"not null;default:0;comment:输入Token"`
-	OutputTokens     int64  `gorm:"not null;default:0;comment:输出Token"`
-	CacheReadTokens  int64  `gorm:"not null;default:0;comment:缓存读取Token"`
-	CacheWriteTokens int64  `gorm:"not null;default:0;comment:缓存写入Token"`
-	ReasoningTokens  int64  `gorm:"not null;default:0;comment:推理Token"`
-	LatencyMS        int64  `gorm:"not null;default:0;comment:消息处理时长毫秒"`
-	BilledCurrency   string `gorm:"size:16;not null;default:'USD';comment:消息计费币种"`
-	BilledNanousd    int64  `gorm:"not null;default:0;comment:消息计费金额(纳美元)"`
-	PricingSnapshot  string `gorm:"type:text;not null;default:'';comment:消息计费快照JSON"`
-	Status           string `gorm:"size:32;not null;default:'';index:idx_chat_messages_status;comment:消息处理状态"`
-	ErrorCode        string `gorm:"size:64;not null;default:'';comment:错误码"`
-	ErrorMessage     string `gorm:"size:255;not null;default:'';comment:错误信息"`
-	IsCompacted      bool   `gorm:"not null;default:false;index:idx_chat_messages_is_compacted;comment:是否已被压缩(压缩后不纳入祖先链)"`
-	ParentPublicID   string `gorm:"-"`
-	SourcePublicID   string `gorm:"-"`
-	Attachments      string `gorm:"-"`
-	MyFeedback       string `gorm:"-"`
-	ThumbsUpCount    int64  `gorm:"-"`
-	ThumbsDownCount  int64  `gorm:"-"`
+	ConversationID   uint       `gorm:"not null;index:idx_chat_messages_conversation_id;comment:会话ID"`
+	UserID           uint       `gorm:"not null;index:idx_chat_messages_user_id;comment:用户ID"`
+	PublicID         string     `gorm:"size:32;not null;default:'';uniqueIndex:idx_chat_messages_public_id;comment:公开消息ID"`
+	ParentMessageID  *uint      `gorm:"index:idx_chat_messages_parent_message_id;comment:父消息ID"`
+	RunID            string     `gorm:"size:64;not null;default:'';index:idx_chat_messages_run_id;comment:会话运行ID"`
+	Role             string     `gorm:"size:32;not null;default:'';index:idx_chat_messages_role;comment:消息角色(user/assistant/system/tool)"`
+	ContentType      string     `gorm:"size:32;not null;default:'';comment:消息内容类型"`
+	Content          string     `gorm:"type:text;not null;default:'';comment:消息内容"`
+	BranchReason     string     `gorm:"size:32;not null;default:'default';index:idx_chat_messages_branch_reason;comment:分支来源(default/retry/edit)"`
+	SourceMessageID  *uint      `gorm:"index:idx_chat_messages_source_message_id;comment:来源消息ID(重试/编辑源)"`
+	TokenUsage       int64      `gorm:"not null;default:0;comment:token总消耗"`
+	InputTokens      int64      `gorm:"not null;default:0;comment:输入Token"`
+	OutputTokens     int64      `gorm:"not null;default:0;comment:输出Token"`
+	CacheReadTokens  int64      `gorm:"not null;default:0;comment:缓存读取Token"`
+	CacheWriteTokens int64      `gorm:"not null;default:0;comment:缓存写入Token"`
+	ReasoningTokens  int64      `gorm:"not null;default:0;comment:推理Token"`
+	LatencyMS        int64      `gorm:"not null;default:0;comment:消息处理时长毫秒"`
+	BilledCurrency   string     `gorm:"size:16;not null;default:'USD';comment:消息计费币种"`
+	BilledNanousd    int64      `gorm:"not null;default:0;comment:消息计费金额(纳美元)"`
+	PricingSnapshot  string     `gorm:"type:text;not null;default:'';comment:消息计费快照JSON"`
+	Status           string     `gorm:"size:32;not null;default:'';index:idx_chat_messages_status;comment:消息处理状态"`
+	ErrorCode        string     `gorm:"size:64;not null;default:'';comment:错误码"`
+	ErrorMessage     string     `gorm:"size:255;not null;default:'';comment:错误信息"`
+	IsCompacted      bool       `gorm:"not null;default:false;index:idx_chat_messages_is_compacted;comment:是否已被压缩(压缩后不纳入祖先链)"`
+	EditedAt         *time.Time `gorm:"index:idx_chat_messages_edited_at;comment:用户编辑时间"`
+	ParentPublicID   string     `gorm:"-"`
+	SourcePublicID   string     `gorm:"-"`
+	Attachments      string     `gorm:"-"`
+	MyFeedback       string     `gorm:"-"`
+	ThumbsUpCount    int64      `gorm:"-"`
+	ThumbsDownCount  int64      `gorm:"-"`
 }
 
 // TableName 指定表名。

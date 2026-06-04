@@ -86,6 +86,9 @@ export type AdminBillingMode = "self" | "period" | "usage";
 export type NativeToolPricingDTO = {
   provider: string;
   toolKey: string;
+  label: string;
+  description: string;
+  type: string;
   priceNanousd: number;
   unit: "call" | "search" | string;
   priceLabel: "included" | "notMetered" | string;

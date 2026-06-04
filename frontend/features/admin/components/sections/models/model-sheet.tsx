@@ -53,6 +53,7 @@ import { getModelOptionPolicy } from "@/shared/api/settings";
 import {
   bindAdminLLMModelUpstreamSource,
   createAdminLLMModel,
+  invalidateAdminReferenceDataCache,
   listAdminLLMModelUpstreamSources,
   listAdminLLMUpstreamModels,
   listAdminLLMUpstreams,
@@ -588,6 +589,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
         }
         setForm(buildInitialState(data.model));
         setBindRows([createModelSourceBindDraftRow()]);
+        invalidateAdminReferenceDataCache();
         handleClose();
         onSuccess();
         return;
@@ -606,6 +608,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
         description: form.description.trim() || undefined,
       };
       await updateAdminLLMModel(token, target.id, payload);
+      invalidateAdminReferenceDataCache();
 
       handleClose();
       onSuccess();

@@ -185,6 +185,7 @@ type Message struct {
 	ThumbsUpCount    int64
 	ThumbsDownCount  int64
 	ProcessTrace     *MessageProcessTrace
+	EditedAt         *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }

@@ -34,6 +34,7 @@ import type {
   SetConversationProjectRequest,
   SetConversationStarRequest,
   SetMessageFeedbackRequest,
+  UpdateMessageRequest,
   UpdateConversationProjectRequest,
   StreamMessageEvent,
   TraceBlockDTO,
@@ -796,6 +797,22 @@ export async function setMessageFeedback(
     `/api/v1/messages/${pathParam(messagePublicID)}/feedback`,
     {
       method: "PUT",
+      accessToken,
+      body: payload,
+    },
+    true,
+  );
+}
+
+export async function updateMessage(
+  accessToken: string,
+  messagePublicID: string,
+  payload: UpdateMessageRequest,
+): Promise<MessageDTO> {
+  return authedRequest<MessageDTO>(
+    `/api/v1/messages/${pathParam(messagePublicID)}`,
+    {
+      method: "PATCH",
       accessToken,
       body: payload,
     },

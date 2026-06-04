@@ -204,9 +204,11 @@
     "title": "工具定价",
     "nativeToolBilling": "原生工具计费",
     "nativeToolBillingDescription": "开启后，管理员启用的官方原生工具会按下方价格计入账单；自用模式仍只记录用量。",
+    "nativeToolCount": "当前展示 {count} 个官方原生工具。",
     "defaultPriceDescription": "所有官方原生工具均按次配置价格；填 0 表示不单独计费。工具返回内容产生的模型 token 仍按模型定价计算。",
     "provider": "厂商",
     "tool": "工具",
+    "type": "类型",
     "price": "价格",
     "note": "原生工具价格由管理员统一配置为每次调用价格；未被上游返回调用次数的工具不会生成单独工具账单项。",
     "prices": {
@@ -216,24 +218,6 @@
     "units": {
       "call": "次",
       "search": "次搜索"
-    },
-    "tools": {
-      "openaiWebSearchReasoning": "网页搜索（推理模型）",
-      "openaiWebSearchStandard": "网页搜索（非推理模型）",
-      "openaiShell": "Shell",
-      "openaiImageGeneration": "图像生成",
-      "openaiCodeInterpreter": "代码解释器",
-      "anthropicWebSearch": "网页搜索",
-      "anthropicWebFetch": "网页抓取",
-      "anthropicCodeExecution": "代码执行",
-      "anthropicAdvisor": "Advisor",
-      "anthropicToolSearch": "工具搜索",
-      "xaiWebSearch": "Web Search",
-      "xaiXSearch": "X Search",
-      "xaiCodeExecution": "Code Execution",
-      "xaiAttachmentSearch": "File Attachments Search",
-      "xaiCollectionsSearch": "Collections Search / RAG",
-      "googleGoogleSearch": "Google Search"
     }
   },
   "pricingModes": {

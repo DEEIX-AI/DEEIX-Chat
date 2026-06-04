@@ -9,6 +9,7 @@ import (
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/nativetool"
 )
 
 // ---------------------------------------------------------------------------
@@ -109,6 +110,28 @@ func (s *Service) listAllActiveModelRows(ctx context.Context) ([]repository.Chan
 		results = append(results, items...)
 		if len(items) < batchSize {
 			return results, nil
+		}
+	}
+}
+
+// ListNativeToolDefinitions 返回内置目录叠加所有模型能力 JSON 中声明的官方原生工具。
+func (s *Service) ListNativeToolDefinitions(ctx context.Context) ([]nativetool.Definition, error) {
+	const batchSize = 500
+	dynamic := make([]nativetool.Definition, 0)
+	for offset := 0; ; offset += batchSize {
+		items, _, err := s.repo.ListModels(ctx, repository.ListChannelModelsInput{
+			Offset: offset,
+			Limit:  batchSize,
+			Sort:   "sortOrder_asc",
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range items {
+			dynamic = append(dynamic, nativetool.DefinitionsFromCapabilitiesJSON(item.CapabilitiesJSON)...)
+		}
+		if len(items) < batchSize {
+			return nativetool.MergeDefinitions(dynamic), nil
 		}
 	}
 }

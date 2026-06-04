@@ -15,13 +15,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { UserStorageQuotaDTO } from "@/shared/api/file.types";
 
 type SidebarHeaderProps = {
   collapsed: boolean;
   showCollapseButton?: boolean;
   total: number;
-  quota: UserStorageQuotaDTO | null;
   query: string;
   searchOpen: boolean;
   filterKeys: FileFilterValue[];
@@ -44,7 +42,6 @@ type SidebarHeaderProps = {
 export function SidebarHeader({
   collapsed,
   total,
-  quota,
   query,
   searchOpen,
   filterKeys,

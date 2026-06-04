@@ -78,6 +78,12 @@ export type UserStorageQuotaDTO = {
   updatedAt: string;
 };
 
+export type FileListResult = {
+  total: number;
+  results: FileObjectDTO[];
+  quota: UserStorageQuotaDTO;
+};
+
 export type UploadFileResult = {
   file: FileObjectDTO;
   quota: UserStorageQuotaDTO;

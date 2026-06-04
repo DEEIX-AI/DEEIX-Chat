@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { CircleHelp } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useMessages, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { Cog } from "@/components/animate-ui/icons/cog";
@@ -37,6 +37,7 @@ import type { ConversationOptions } from "@/shared/api/conversation.types";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";
 import type { ModelNativeToolConfig, ModelOptionPolicy, NativeToolDefinition } from "@/shared/lib/model-option-policy";
 import { isModelOptionPathFiltered, resolveModelOptionPolicyProtocol } from "@/shared/lib/model-option-policy";
+import { localizedNativeToolText } from "@/shared/lib/native-tool-i18n";
 
 type EditableOptionValue = string | number | boolean | null;
 type VisualOptionKind = "boolean" | "number" | "select" | "text";
@@ -916,25 +917,12 @@ function resolveNativeToolGroupTitle(provider: string, fallback: string, tCompos
   }
 }
 
-function nativeToolMessageKey(toolKey: string): string {
-  return toolKey.replaceAll(".", "__");
+function resolveNativeToolLabel(tool: NativeToolDefinition, messages: unknown): string {
+  return localizedNativeToolText(messages, "nativeToolLabels", tool.toolKey) || tool.label || tool.type || tool.toolKey;
 }
 
-function translateOptional(translate: (key: string) => string, key: string): string {
-  try {
-    const value = translate(key);
-    return value.trim() ? value : "";
-  } catch {
-    return "";
-  }
-}
-
-function resolveNativeToolLabel(tool: NativeToolDefinition, translate: (key: string) => string): string {
-  return translateOptional(translate, nativeToolMessageKey(tool.toolKey)) || tool.label || tool.type || tool.toolKey;
-}
-
-function resolveNativeToolDescription(tool: NativeToolDefinition, translate: (key: string) => string): string {
-  return translateOptional(translate, nativeToolMessageKey(tool.toolKey)) || tool.description || tool.type || tool.toolKey;
+function resolveNativeToolDescription(tool: NativeToolDefinition, messages: unknown): string {
+  return localizedNativeToolText(messages, "nativeToolDescriptions", tool.toolKey) || tool.description || tool.type || tool.toolKey;
 }
 
 export function ChatModelConfig({
@@ -955,8 +943,7 @@ export function ChatModelConfig({
   const tComposer = useTranslations("chat.composer");
   const tOptionLabels = useTranslations("chat.optionLabels");
   const tOptionDescriptions = useTranslations("chat.optionDescriptions");
-  const tNativeToolLabels = useTranslations("chat.nativeToolLabels");
-  const tNativeToolDescriptions = useTranslations("chat.nativeToolDescriptions");
+  const messages = useMessages();
   const [hovered, setHovered] = React.useState(false);
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [optionsDraft, setOptionsDraft] = React.useState("");
@@ -1198,8 +1185,8 @@ export function ChatModelConfig({
                   {nativeToolGroup.options.map((toolOption) => {
                     const tool = toolOption.definition;
                     const checked = hasProviderTool(optionsObject, tool);
-                    const label = resolveNativeToolLabel(tool, tNativeToolLabels);
-                    const description = resolveNativeToolDescription(tool, tNativeToolDescriptions);
+                    const label = resolveNativeToolLabel(tool, messages);
+                    const description = resolveNativeToolDescription(tool, messages);
                     const typeLabel = tool.type.trim();
                     const protocolLabels = toolOption.protocols.map(resolveProtocolLabel).join(" / ");
                     const status = checked ? "passed" : "inactive";

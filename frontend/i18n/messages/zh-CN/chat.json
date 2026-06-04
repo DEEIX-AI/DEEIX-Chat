@@ -163,6 +163,8 @@
     "editMessage": "编辑",
     "copyMessage": "复制",
     "copyReply": "复制",
+    "editReply": "编辑",
+    "replyEditedDisclaimer": "已编辑",
     "likeReply": "点赞",
     "dislikeReply": "点踩",
     "retryReply": "重试",
@@ -245,6 +247,7 @@
     "continueGenerationPrompt": "请从上一条中断的回复处继续，不要重复已经生成的内容。",
     "continueReplyFailed": "无法继续生成",
     "continueReplyUnavailable": "这条回复当前不能继续生成。",
+    "editReplyFailed": "编辑回复失败",
     "retryReplyFailed": "无法重试这条回复",
     "retryReplyMissingUser": "没有找到对应的用户消息。"
   },

@@ -110,3 +110,8 @@ type MediaImageRequest struct {
 type SetMessageFeedbackRequest struct {
 	Feedback string `json:"feedback" binding:"omitempty,oneof=up down"`
 }
+
+// UpdateMessageRequest 更新消息内容请求。
+type UpdateMessageRequest struct {
+	Content string `json:"content" binding:"required,max=200000"`
+}

@@ -40,12 +40,14 @@ import {
   streamImageEdit,
   streamImageGeneration,
   streamMessage as streamConversationMessage,
+  updateMessage,
   type ConversationStreamOptions,
 } from "@/shared/api/conversation";
 import type {
   ConversationDTO,
   ConversationOptions,
   MediaImageRequest,
+  MessageDTO,
   SendMessageRequest,
   SendMessageResult,
   StreamMessageEvent,
@@ -203,6 +205,7 @@ export function useChatMessageSubmit({
   onConversationCreated,
   touchByPublicID,
   reload,
+  replaceMessage,
   setDraft,
   setAttachments,
   releaseAttachments,
@@ -239,6 +242,7 @@ export function useChatMessageSubmit({
   onConversationCreated?: (conversationPublicID: string) => void;
   touchByPublicID: (publicID: string, patch?: Partial<ConversationDTO>) => void;
   reload: () => void;
+  replaceMessage: (message: MessageDTO) => void;
   setDraft: React.Dispatch<React.SetStateAction<string>>;
   setAttachments: React.Dispatch<React.SetStateAction<PendingAttachment[]>>;
   releaseAttachments: (items: PendingAttachment[]) => void;
@@ -931,6 +935,31 @@ export function useChatMessageSubmit({
     [submitMessage, t],
   );
 
+  const onEditAssistantMessage = React.useCallback(
+    async (message: ChatAreaMessage, content: string) => {
+      const messagePublicID = resolvePersistedPublicID(message.publicID);
+      const nextContent = content.trim();
+      if (!messagePublicID || !nextContent) {
+        toast.error(t("editReplyFailed"), { description: t("continueReplyUnavailable") });
+        return false;
+      }
+      const token = await resolveAccessToken();
+      if (!token) {
+        toast.error(t("editReplyFailed"), { description: t("signInRequired") });
+        return false;
+      }
+      try {
+        const updated = await updateMessage(token, messagePublicID, { content: nextContent });
+        replaceMessage(updated);
+        return true;
+      } catch {
+        toast.error(t("editReplyFailed"), { description: t("retryLater") });
+        return false;
+      }
+    },
+    [replaceMessage, t],
+  );
+
   const onCycleMessageBranch = React.useCallback(
     (parentPublicID: string | null, direction: "previous" | "next") => {
       const siblings = buildChildrenIndex(combinedMessages).get(toBranchKey(parentPublicID)) ?? [];
@@ -959,6 +988,7 @@ export function useChatMessageSubmit({
 
   return {
     onCycleMessageBranch,
+    onEditAssistantMessage,
     onEditUserMessage,
     onContinueAssistantMessage,
     onRetryAssistantMessage,

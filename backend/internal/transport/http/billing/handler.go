@@ -105,12 +105,16 @@ func (h *Handler) loadBillingConfig(ctx context.Context) (BillingConfigResponse,
 			}
 		}
 	}
+	nativeToolPricing, err := h.service.ListNativeToolPricing(ctx, nativeToolPricingJSON)
+	if err != nil {
+		return BillingConfigResponse{}, err
+	}
 	return BillingConfigResponse{
 		Mode:                     mode,
 		PrepaidAmountUSD:         prepaidAmountUSD,
 		PrepaidAmountNanousd:     usdToNanousd(prepaidAmountUSD),
 		NativeToolBillingEnabled: nativeToolBillingEnabled,
-		NativeToolPricing:        toNativeToolPricingResponses(appbilling.ListNativeToolPricing(nativeToolPricingJSON)),
+		NativeToolPricing:        toNativeToolPricingResponses(nativeToolPricing),
 		PaymentProviders:         paymentProviders,
 		USDToCNYRate:             usdToCNYRate,
 		EPayTypes:                epayTypes,
@@ -158,7 +162,7 @@ func (h *Handler) PatchBillingConfig(c *gin.Context) {
 		})
 	}
 	if req.NativeToolPricing != nil {
-		value, err := nativeToolPricingRequestsJSON(req.NativeToolPricing)
+		value, err := h.service.NormalizeNativeToolPricingJSON(c.Request.Context(), nativeToolPricingOverridesFromRequests(req.NativeToolPricing))
 		if err != nil {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return

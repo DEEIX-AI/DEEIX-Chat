@@ -11,6 +11,7 @@ import {
   DatabaseSearch,
   DatabaseZap,
   Cpu,
+  FilePenLine,
   Forward,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -43,6 +44,7 @@ export type ChatMetaMessage = {
   status?: string;
   createdAt?: string;
   updatedAt?: string;
+  editedAt?: string | null;
   isPending?: boolean;
   isStreaming?: boolean;
   branchNavigator?: ChatMessageBranchNavigator;
@@ -393,6 +395,25 @@ function LatencyBadge({ item }: { item: ChatMetaMessage }) {
         </span>
       </TooltipTrigger>
       <TooltipContent>{isLive ? t("generationDuration") : t("totalDuration")}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function EditedBadge() {
+  const t = useTranslations("chat.messages");
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className="ml-0.5 inline-flex items-center gap-1 rounded bg-muted/30 px-1.5 py-0.5 text-[10px] leading-3.5 text-muted-foreground/70 select-none whitespace-nowrap"
+          aria-label={t("replyEditedDisclaimer")}
+        >
+          <FilePenLine className="size-3" strokeWidth={1.4} />
+          {t("replyEditedDisclaimer")}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{t("replyEditedDisclaimer")}</TooltipContent>
     </Tooltip>
   );
 }
@@ -864,6 +885,7 @@ export function AssistantMessageMeta({
   onCycleBranch,
   onRetry,
   onContinue,
+  onEdit,
   onCopy,
   onReact,
   showModelInfo = true,
@@ -880,6 +902,7 @@ export function AssistantMessageMeta({
   onCycleBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
   onRetry: () => void;
   onContinue?: () => void;
+  onEdit?: () => void;
   onCopy: () => void;
   onReact: (value: AssistantReaction) => void;
   showModelInfo?: boolean;
@@ -893,6 +916,7 @@ export function AssistantMessageMeta({
   const t = useTranslations("chat.messages");
   const isLive = Boolean(item.isPending || item.isStreaming);
   const canRetry = !readOnly && !busy && !isLive;
+  const canEdit = Boolean(canRetry && onEdit && resolvePersistedPublicID(item.publicID));
   const canContinue = Boolean(canRetry && resolvePersistedPublicID(item.publicID) && item.status === "interrupted");
   const canShowBranchNavigator = Boolean(showBranchNavigator && item.branchNavigator && !busy && !isLive);
 
@@ -907,6 +931,14 @@ export function AssistantMessageMeta({
           >
             <Copy size={14} strokeWidth={1.8} animateOnHover="default" />
           </MetaIconButton>
+          {canEdit ? (
+            <MetaIconButton
+              label={t("editReply")}
+              onClick={onEdit}
+            >
+              <Brush size={14} strokeWidth={1.8} animateOnHover="default" />
+            </MetaIconButton>
+          ) : null}
           <MetaIconButton
             label={t("likeReply")}
             className={reaction === "up" ? "text-foreground" : undefined}
@@ -954,6 +986,7 @@ export function AssistantMessageMeta({
           />
         ) : null}
         {showLatency ? <LatencyBadge item={item} /> : null}
+        {item.editedAt ? <EditedBadge /> : null}
         {showBillingCost ? <BillingCostBadge item={item} /> : null}
         {canShowBranchNavigator ? <BranchSwitcher item={item} onCycle={onCycleBranch} /> : null}
       </div>

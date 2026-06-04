@@ -257,6 +257,51 @@ func (s *Service) SetMessageFeedback(
 	}, nil
 }
 
+// UpdateAssistantMessageContent 更新当前用户的一条 assistant 消息正文。
+func (s *Service) UpdateAssistantMessageContent(
+	ctx context.Context,
+	userID uint,
+	messagePublicID string,
+	content string,
+) (*model.Message, error) {
+	normalizedPublicID := strings.TrimSpace(messagePublicID)
+	if normalizedPublicID == "" {
+		return nil, ErrMessageNotFound
+	}
+	normalizedContent := strings.TrimSpace(content)
+	if normalizedContent == "" {
+		return nil, ErrInvalidMessageContent
+	}
+
+	message, err := s.repo.GetMessageByPublicIDForUser(ctx, userID, normalizedPublicID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrMessageNotFound
+		}
+		return nil, err
+	}
+	if message.Role != "assistant" {
+		return nil, ErrMessageEditTargetInvalid
+	}
+	if message.Status == "pending" {
+		return nil, ErrMessageEditStateInvalid
+	}
+
+	updated, err := s.repo.UpdateAssistantMessageContent(ctx, userID, normalizedPublicID, normalizedContent, time.Now())
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrMessageNotFound
+		}
+		return nil, err
+	}
+	items := []model.Message{*updated}
+	if err = s.hydrateMessageFeedback(ctx, userID, items); err != nil {
+		return nil, err
+	}
+	updated = &items[0]
+	return updated, nil
+}
+
 // RenameConversation 重命名会话。
 func (s *Service) RenameConversation(ctx context.Context, userID uint, publicID string, title string) (*model.Conversation, error) {
 	normalizedTitle := strings.TrimSpace(title)

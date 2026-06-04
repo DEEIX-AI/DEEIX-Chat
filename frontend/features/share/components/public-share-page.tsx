@@ -101,6 +101,7 @@ function toReadOnlyMessageDTO(item: PublicSharedMessageDTO): MessageDTO {
     myFeedback: "",
     thumbsUpCount: 0,
     thumbsDownCount: 0,
+    editedAt: item.editedAt ?? null,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
@@ -168,6 +169,7 @@ function PublicSharedMessage({
         busy={false}
         reaction={null}
         onRetryAssistantMessage={noopAsync}
+        onEditAssistantMessage={async () => false}
         onCycleMessageBranch={onCycleBranch}
         onReactAssistantMessage={noop}
         onCopy={noop}

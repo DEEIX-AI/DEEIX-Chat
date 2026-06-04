@@ -78,6 +78,7 @@ export type MessageDTO = {
   thumbsUpCount: number;
   thumbsDownCount: number;
   billingCost?: MessageBillingCostDTO;
+  editedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -358,6 +359,7 @@ export type PublicSharedMessageDTO = {
   modelVendor: string;
   modelIcon: string;
   processTrace?: MessageProcessTraceDTO;
+  editedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -374,6 +376,10 @@ export type PublicSharedConversationDTO = {
 
 export type SetMessageFeedbackRequest = {
   feedback?: "up" | "down";
+};
+
+export type UpdateMessageRequest = {
+  content: string;
 };
 
 export type MessageFeedbackResult = {

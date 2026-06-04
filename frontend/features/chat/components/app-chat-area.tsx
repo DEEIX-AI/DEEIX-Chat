@@ -168,6 +168,7 @@ export function AppChatArea() {
     errorMsg,
     messages,
     reload,
+    replaceMessage,
     resumingRunID,
   } = useChatData(conversationID, {
     activeGenerationRunsRef,
@@ -357,6 +358,7 @@ export function AppChatArea() {
 
   const {
     onCycleMessageBranch,
+    onEditAssistantMessage,
     onEditUserMessage,
     onContinueAssistantMessage,
     onRetryAssistantMessage,
@@ -389,6 +391,7 @@ export function AppChatArea() {
     onConversationCreated: setLocallyCreatedConversationID,
     touchByPublicID,
     reload,
+    replaceMessage,
     setDraft,
     setAttachments,
     releaseAttachments,
@@ -836,6 +839,7 @@ export function AppChatArea() {
                   onRetryUserMessage={onRetryUserMessage}
                   onRetryAssistantMessage={onRetryAssistantMessage}
                   onContinueAssistantMessage={onContinueAssistantMessage}
+                  onEditAssistantMessage={onEditAssistantMessage}
                   onEditUserMessage={onEditUserMessage}
                   onEditImageAttachment={onEditGeneratedImageAttachment}
                   onOpenCodeArtifact={artifactWorkspace.openArtifact}

@@ -203,7 +203,10 @@
   },
   "message": {
     "feedbackTargetInvalid": "消息反馈目标无效。",
+    "editStateInvalid": "当前消息状态不允许编辑。",
+    "editTargetInvalid": "只能编辑 AI 回复。",
     "invalidBranch": "消息分支无效。",
+    "invalidContent": "消息内容无效。",
     "invalidFeedback": "消息反馈无效。",
     "invalidId": "消息 ID 无效。",
     "notFound": "消息不存在。",
@@ -271,6 +274,7 @@
   "upstream": {
     "unavailable": "上游服务不可用。"
   },
+  "upstreamEmptyResponse": "上游返回了空响应，请稍后重试或联系管理员检查模型路由。",
   "upstreamRequestFailed": "上游请求失败，请稍后重试或联系管理员检查模型路由。",
   "user": {
     "accountDeleteVerificationRequired": "删除账号前需要先验证身份。",

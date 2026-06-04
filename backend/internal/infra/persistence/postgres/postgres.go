@@ -422,6 +422,11 @@ func applyConversationBaselineIndexes(db *gorm.DB) error {
 		WHERE status = 'active'`,
 		`CREATE INDEX IF NOT EXISTS idx_chat_conversation_shares_user_status_updated_at
 		ON "chat_conversation_shares" ("user_id", "status", "updated_at" DESC, "id" DESC)`,
+		`ALTER TABLE "chat_messages"
+		ADD COLUMN IF NOT EXISTS "edited_at" timestamptz`,
+		`COMMENT ON COLUMN "chat_messages"."edited_at" IS '用户编辑时间'`,
+		`CREATE INDEX IF NOT EXISTS idx_chat_messages_edited_at
+		ON "chat_messages" ("edited_at")`,
 		`ALTER TABLE "chat_runs"
 		ADD COLUMN IF NOT EXISTS "task_type" varchar(32) NOT NULL DEFAULT 'chat'`,
 		`COMMENT ON COLUMN "chat_runs"."task_type" IS '任务类型'`,

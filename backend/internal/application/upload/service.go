@@ -87,6 +87,13 @@ type DeleteFileResult struct {
 	Quota   domainconversation.StorageQuota
 }
 
+// ListFilesResult 定义文件列表和当前用户存储配额。
+type ListFilesResult struct {
+	Items []domainconversation.FileObject
+	Total int64
+	Quota domainconversation.StorageQuota
+}
+
 // FileContentResult 定义文件内容读取结果。
 type FileContentResult struct {
 	File        domainconversation.FileObject
@@ -143,7 +150,7 @@ func (s *Service) ListFiles(
 	searchQuery string,
 	filterKind string,
 	sortBy string,
-) ([]domainconversation.FileObject, int64, error) {
+) (*ListFilesResult, error) {
 	offset, limit := normalizePage(page, pageSize)
 	_, _ = s.repo.MarkTimedOutFileEmbeddingsFailed(
 		ctx,
@@ -151,7 +158,19 @@ func (s *Service) ListFiles(
 		time.Now().Add(-embeddingTimeoutStaleAfter),
 		"向量化超时，请检查向量化服务配置后重试",
 	)
-	return s.repo.ListFileObjectsByUserWithFilter(ctx, userID, offset, limit, searchQuery, filterKind, sortBy)
+	items, total, err := s.repo.ListFileObjectsByUserWithFilter(ctx, userID, offset, limit, searchQuery, filterKind, sortBy)
+	if err != nil {
+		return nil, err
+	}
+	quota, err := s.repo.GetOrInitUserStorageQuota(ctx, userID, s.cfg.Snapshot().UserStorageQuotaBytes)
+	if err != nil {
+		return nil, err
+	}
+	return &ListFilesResult{
+		Items: items,
+		Total: total,
+		Quota: *quota,
+	}, nil
 }
 
 func normalizePage(page int, pageSize int) (int, int) {

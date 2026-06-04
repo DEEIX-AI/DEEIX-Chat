@@ -6,6 +6,7 @@ import { ContentHeader } from "@/features/files/components/sections/content-head
 import { ContentPreview } from "@/features/files/components/sections/content-preview";
 import { SidebarHeader } from "@/features/files/components/sections/sidebar-header";
 import { SidebarList } from "@/features/files/components/sections/sidebar-list";
+import { StorageQuotaPanel } from "@/features/files/components/sections/storage-quota-panel";
 import { useFilesPage } from "@/features/files/hooks/use-files-page";
 import {
   AlertDialog,
@@ -100,7 +101,6 @@ export function AppFiles() {
               <SidebarHeader
                 collapsed={isSidebarCollapsed}
                 total={total}
-                quota={quota}
                 query={query}
                 searchOpen={isSearchOpen}
                 filterKeys={filterKeys}
@@ -126,7 +126,6 @@ export function AppFiles() {
                 collapsed={false}
                 showCollapseButton={false}
                 total={total}
-                quota={quota}
                 query={query}
                 searchOpen={isSearchOpen}
                 filterKeys={filterKeys}
@@ -168,6 +167,7 @@ export function AppFiles() {
                 onDeleteRequest={onDeleteRequest}
               />
             ) : null}
+            {!isSidebarCollapsed ? <StorageQuotaPanel quota={quota} /> : null}
           </div>
         </aside>
 

@@ -248,6 +248,7 @@ export function useFilesPage(): UseFilesPageResult {
         filesRef.current = nextItems;
         setFiles(nextItems);
         setTotal(data.total);
+        setQuota(data.quota);
         setSelectedFileID((current) => {
           const preferredFileID = options.preferredFileID ?? current;
           if (preferredFileID && nextItems.some((item) => item.fileID === preferredFileID)) {

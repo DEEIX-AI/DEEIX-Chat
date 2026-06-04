@@ -45,6 +45,17 @@
     "selectLoaded": "Select loaded",
     "clear": "Clear"
   },
+  "storage": {
+    "title": "Storage",
+    "used": "Used",
+    "usedTotal": "{used} / {total}",
+    "usedUnlimited": "{used} / Unlimited",
+    "usedPercent": "{percent}% used",
+    "remaining": "{remaining} left",
+    "percent": "{percent}%",
+    "unlimited": "Unlimited",
+    "noLimit": "No storage limit"
+  },
   "deleteDialog": {
     "title": "Delete file",
     "description": "Delete \"{name}\"? This action cannot be undone.",
