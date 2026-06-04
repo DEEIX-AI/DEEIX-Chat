@@ -97,7 +97,7 @@
     "bulkTitle": "Bulk delete upstreams",
     "bulkDescription": "This will delete {count} upstreams and all route bindings, but keep model catalogs.",
     "moreTargets": "{count} more",
-    "confirmBulk": "Delete ({count})",
+    "confirmBulk": "Delete",
     "summary": "Deleted {success}, not found {notFound}, failed {failed}"
   },
   "bulkConfirm": {

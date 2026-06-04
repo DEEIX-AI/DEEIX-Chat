@@ -22,7 +22,6 @@ export function AccountConfirmationDialog({
   description,
   confirmLabel,
   pendingLabel,
-  destructive = false,
   onConfirm,
 }: {
   open: boolean;
@@ -32,7 +31,6 @@ export function AccountConfirmationDialog({
   description: string;
   confirmLabel: string;
   pendingLabel: string;
-  destructive?: boolean;
   onConfirm: () => void;
 }) {
   const t = useTranslations("adminUsers.actions");
@@ -44,10 +42,9 @@ export function AccountConfirmationDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel size="default" disabled={pending}>{t("cancel")}</AlertDialogCancel>
+          <AlertDialogCancel disabled={pending}>{t("cancel")}</AlertDialogCancel>
           <AlertDialogAction
-            size="default"
-            variant={destructive ? "destructive" : undefined}
+            variant="destructive"
             disabled={pending}
             onClick={(event) => {
               event.preventDefault();

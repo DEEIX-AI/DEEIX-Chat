@@ -7,9 +7,48 @@ import { RecentDialogs } from "@/features/recent/components/sections/recent-dial
 import { RecentHeader } from "@/features/recent/components/sections/recent-header";
 import { RecentList } from "@/features/recent/components/sections/recent-list";
 import { RecentToolbar } from "@/features/recent/components/sections/recent-toolbar";
+import type { RecentBulkConfirmAction } from "@/features/recent/types/recent";
 
 export function AppRecent() {
   const controller = useRecentPage();
+  const {
+    allSelectedArchived,
+    archiveSelected,
+    revokeSelectedShares,
+    selectedConversationIDs,
+    selectedSharedCount,
+  } = controller;
+  const [bulkConfirmAction, setBulkConfirmAction] = React.useState<RecentBulkConfirmAction | null>(null);
+  const [bulkConfirmPending, setBulkConfirmPending] = React.useState(false);
+  const bulkConfirmCount = bulkConfirmAction === "revokeShares"
+    ? selectedSharedCount
+    : selectedConversationIDs.length;
+
+  const requestArchiveSelected = React.useCallback(() => {
+    setBulkConfirmAction(allSelectedArchived ? "unarchive" : "archive");
+  }, [allSelectedArchived]);
+
+  const requestRevokeSelectedShares = React.useCallback(() => {
+    setBulkConfirmAction("revokeShares");
+  }, []);
+
+  const confirmBulkAction = React.useCallback(async () => {
+    if (!bulkConfirmAction) {
+      return;
+    }
+
+    setBulkConfirmPending(true);
+    try {
+      if (bulkConfirmAction === "revokeShares") {
+        await revokeSelectedShares();
+      } else {
+        await archiveSelected();
+      }
+      setBulkConfirmAction(null);
+    } finally {
+      setBulkConfirmPending(false);
+    }
+  }, [archiveSelected, bulkConfirmAction, revokeSelectedShares]);
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
@@ -32,8 +71,8 @@ export function AppRecent() {
           onToggleSelectionMode={controller.toggleSelectionMode}
           onEnterSelectionMode={controller.enterSelectionMode}
           onExitSelectionMode={controller.exitSelectionMode}
-          onArchiveSelected={controller.archiveSelected}
-          onRevokeSelectedShares={controller.revokeSelectedShares}
+          onArchiveSelected={requestArchiveSelected}
+          onRevokeSelectedShares={requestRevokeSelectedShares}
           onRequestDeleteSelected={controller.requestDeleteSelected}
           onStatusFilterChange={controller.setStatusFilter}
           onStarredFilterChange={controller.setStarredFilter}
@@ -74,6 +113,9 @@ export function AppRecent() {
         deleteTarget={controller.deleteTarget}
         deleteFiles={controller.deleteFiles}
         shareTarget={controller.shareTarget}
+        bulkConfirmAction={bulkConfirmAction}
+        bulkConfirmCount={bulkConfirmCount}
+        bulkConfirmPending={bulkConfirmPending}
         onRenameValueChange={controller.setRenameValue}
         onRenameCommit={controller.onRenameCommit}
         onCloseRenameDialog={controller.closeRenameDialog}
@@ -82,6 +124,8 @@ export function AppRecent() {
         onCloseDeleteDialog={controller.closeDeleteDialog}
         onCloseShareDialog={controller.closeShareDialog}
         onShareChange={controller.onShareChange}
+        onCloseBulkConfirm={() => setBulkConfirmAction(null)}
+        onConfirmBulkAction={confirmBulkAction}
       />
     </div>
   );

@@ -9,6 +9,16 @@ import { SettingsFieldEditor } from "../shared/settings-runtime-panel";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -156,6 +166,8 @@ export function AdminToolsPage() {
   const [serverDialogOpen, setServerDialogOpen] = React.useState(false);
   const [serverForm, setServerForm] = React.useState<ServerFormState>(EMPTY_SERVER_FORM);
   const [serverSaving, setServerSaving] = React.useState(false);
+  const [serverDeleteTarget, setServerDeleteTarget] = React.useState<AdminMCPServerDTO | null>(null);
+  const [serverDeleting, setServerDeleting] = React.useState(false);
   const [tools, setTools] = React.useState<MCPToolDTO[]>([]);
   const [toolsLoading, setToolsLoading] = React.useState(false);
   const [toolQuery, setToolQuery] = React.useState("");
@@ -442,26 +454,27 @@ export function AdminToolsPage() {
     }
   }, [loadServers, serverForm, syncTools, t]);
 
-  const removeServer = React.useCallback(
-    async (server: AdminMCPServerDTO) => {
-      if (!window.confirm(t("confirm.deleteServer", { name: server.name }))) {
+  const confirmDeleteServer = React.useCallback(async () => {
+      if (!serverDeleteTarget) {
         return;
       }
+      setServerDeleting(true);
       try {
         const token = await resolveAccessToken();
         if (!token) {
           toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
           return;
         }
-        await deleteAdminMCPServer(token, server.id);
+        await deleteAdminMCPServer(token, serverDeleteTarget.id);
         toast.success(t("toast.serverDeleted"));
+        setServerDeleteTarget(null);
         await loadServers();
       } catch (error) {
         toast.error(t("toast.serverDeleteFailed"), { description: resolveToolSettingsErrorMessage(error, t("toast.unknownError")) });
+      } finally {
+        setServerDeleting(false);
       }
-    },
-    [loadServers, t],
-  );
+    }, [loadServers, serverDeleteTarget, t]);
 
   const setServerStatus = React.useCallback(async (server: AdminMCPServerDTO, active: boolean) => {
     const previous = servers;
@@ -776,7 +789,7 @@ export function AdminToolsPage() {
                         <Button type="button" size="icon-xs" variant="ghost" className="text-muted-foreground shadow-none" onClick={() => openEditServerDialog(server)} title={t("toolbar.editServer")} aria-label={t("toolbar.editServer")}>
                           <Pencil className="size-3.5 stroke-1" />
                         </Button>
-                        <Button type="button" size="icon-xs" variant="ghost" className="text-muted-foreground shadow-none" onClick={() => void removeServer(server)} title={t("toolbar.deleteServer")} aria-label={t("toolbar.deleteServer")}>
+                        <Button type="button" size="icon-xs" variant="ghost" className="text-muted-foreground shadow-none" onClick={() => setServerDeleteTarget(server)} title={t("toolbar.deleteServer")} aria-label={t("toolbar.deleteServer")}>
                           <Trash2 className="size-3.5 stroke-1" />
                         </Button>
                       </div>
@@ -1165,6 +1178,39 @@ export function AdminToolsPage() {
           });
         }}
       />
+
+      <AlertDialog
+        open={serverDeleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !serverDeleting) {
+            setServerDeleteTarget(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("toolbar.deleteServer")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("confirm.deleteServer", { name: serverDeleteTarget?.name ?? "" })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={serverDeleting}>
+              {tActions("cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={serverDeleting || !serverDeleteTarget}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmDeleteServer();
+              }}
+            >
+              {serverDeleting ? t("bulkConfirm.pending") : tActions("delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SettingsPage>
   );
 }

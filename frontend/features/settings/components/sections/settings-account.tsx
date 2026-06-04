@@ -588,8 +588,8 @@ export function SettingsAccount() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel size="default" disabled={deletingAccount}>{t("actions.cancel")}</AlertDialogCancel>
-            <AlertDialogAction size="default" variant="destructive" onClick={beginDeleteAccountVerification} disabled={deletingAccount || !deleteVerificationAvailable}>
+            <AlertDialogCancel disabled={deletingAccount}>{t("actions.cancel")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={beginDeleteAccountVerification} disabled={deletingAccount || !deleteVerificationAvailable}>
               {deletingAccount ? <SpinnerLabel>{t("actions.deleting")}</SpinnerLabel> : t("actions.deleteAccount")}
             </AlertDialogAction>
           </AlertDialogFooter>

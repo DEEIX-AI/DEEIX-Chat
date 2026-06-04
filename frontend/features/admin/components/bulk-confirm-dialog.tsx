@@ -22,7 +22,6 @@ export function AdminBulkConfirmDialog({
   description,
   confirmLabel,
   pendingLabel,
-  destructive = false,
   onConfirm,
 }: {
   open: boolean;
@@ -32,7 +31,6 @@ export function AdminBulkConfirmDialog({
   description: string;
   confirmLabel: string;
   pendingLabel: string;
-  destructive?: boolean;
   onConfirm: () => void;
 }) {
   const t = useTranslations("common.actions");
@@ -45,12 +43,11 @@ export function AdminBulkConfirmDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel size="default" disabled={pending}>
+          <AlertDialogCancel disabled={pending}>
             {t("cancel")}
           </AlertDialogCancel>
           <AlertDialogAction
-            size="default"
-            variant={destructive ? "destructive" : undefined}
+            variant="destructive"
             disabled={pending}
             onClick={(event) => {
               event.preventDefault();

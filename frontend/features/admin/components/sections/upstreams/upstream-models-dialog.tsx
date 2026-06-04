@@ -137,7 +137,7 @@ function KindsDropdown({
           role="combobox"
           disabled={disabled}
           className={cn(
-            "h-7 w-full justify-between gap-2 border-input/40 bg-transparent px-2 py-0 text-[11px] font-normal text-muted-foreground shadow-none hover:bg-transparent focus-visible:border-ring/60 focus-visible:ring-[1px] focus-visible:ring-ring/40 has-[>svg]:px-2",
+            "h-8 min-w-0 w-full justify-between gap-2 border-input/40 bg-transparent px-3 py-1 text-xs font-normal text-muted-foreground shadow-none hover:bg-transparent focus-visible:border-ring/60 focus-visible:ring-[1px] focus-visible:ring-ring/40 has-[>svg]:px-3",
             className,
           )}
         >
@@ -205,7 +205,7 @@ function ProtocolsDropdown({
           role="combobox"
           disabled={disabled}
           className={cn(
-            "h-7 w-full justify-between gap-2 border-input/40 bg-transparent px-2 py-0 text-[11px] font-normal text-muted-foreground shadow-none hover:bg-transparent focus-visible:border-ring/60 focus-visible:ring-[1px] focus-visible:ring-ring/40 has-[>svg]:px-2",
+            "h-8 min-w-0 w-full justify-between gap-2 border-input/40 bg-transparent px-3 py-1 text-xs font-normal text-muted-foreground shadow-none hover:bg-transparent focus-visible:border-ring/60 focus-visible:ring-[1px] focus-visible:ring-ring/40 has-[>svg]:px-3",
             className,
           )}
         >
@@ -394,6 +394,7 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, onSelect, onUpd
                 kindsDisplay: resolveKindsDisplayForProtocols(protocols, row.kindsDisplay),
               })
             }
+            className="h-7 px-2 py-0 text-[11px] has-[>svg]:px-2"
           />
         )}
       </TableCell>
@@ -401,6 +402,7 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, onSelect, onUpd
         <KindsDropdown
           value={row.kindsDisplay}
           onChange={(value) => onUpdate(row.draftKey, { kindsDisplay: value })}
+          className="h-7 px-2 py-0 text-[11px] has-[>svg]:px-2"
         />
       </TableCell>
       <TableCell className="w-[48px] py-1.5 text-right" stickyEnd>
@@ -823,8 +825,8 @@ function NewBindingDialog({
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-1.5">
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+              <div className="grid min-w-0 gap-1.5">
                 <Label>{t("modelsDialog.protocol")}</Label>
                 <ProtocolsDropdown
                   value={form.protocols}
@@ -835,11 +837,10 @@ function NewBindingDialog({
                       kindsDisplay: resolveKindsDisplayForProtocols(protocols, prev.kindsDisplay),
                     }))
                   }
-                  className="h-9 text-sm"
                 />
               </div>
 
-              <div className="grid gap-1.5">
+              <div className="grid min-w-0 gap-1.5">
                 <Label>{t("modelsDialog.kind")}</Label>
                 <KindsDropdown
                   value={form.kindsDisplay}

@@ -97,7 +97,7 @@
     "bulkTitle": "批量删除上游",
     "bulkDescription": "将删除 {count} 个上游及其全部路由绑定，但会保留模型目录。",
     "moreTargets": "其余 {count} 个",
-    "confirmBulk": "确认删除（{count}）",
+    "confirmBulk": "确认删除",
     "summary": "已删除 {success} 个，未找到 {notFound} 个，失败 {failed} 个"
   },
   "bulkConfirm": {

@@ -170,10 +170,6 @@ function SelectFilterControl({
   );
 }
 
-function isDestructiveBulkAction(label: string): boolean {
-  return label.includes("\u5220\u9664") || label.toLocaleLowerCase().includes("delete");
-}
-
 function ToolbarButton({
   className,
   ...props
@@ -345,30 +341,22 @@ export function TableToolbar({
 
                 {bulkActions.length ? (
                   <div className="space-y-1">
-                    {bulkActions.map((action) => {
-                      const destructive = isDestructiveBulkAction(action.label);
-                      return (
-                        <button
-                          key={action.key}
-                          type="button"
-                          onClick={action.onClick}
-                          disabled={loading || !hasSelection || action.disabled}
-                          className={cn(
-                            "group flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] transition-colors disabled:pointer-events-none disabled:opacity-50",
-                            destructive
-                              ? "text-destructive hover:bg-destructive/10"
-                              : "text-foreground/70 hover:bg-muted hover:text-foreground",
-                          )}
-                        >
-                          {action.icon ? (
-                            <span className="flex w-4 shrink-0 justify-center text-muted-foreground group-hover:text-current [&_svg]:size-3 [&_svg]:stroke-1">
-                              {action.icon}
-                            </span>
-                          ) : null}
-                          <span className="flex-1 truncate">{action.label}</span>
-                        </button>
-                      );
-                    })}
+                    {bulkActions.map((action) => (
+                      <button
+                        key={action.key}
+                        type="button"
+                        onClick={action.onClick}
+                        disabled={loading || !hasSelection || action.disabled}
+                        className="group flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-destructive transition-colors hover:bg-destructive/10 disabled:pointer-events-none disabled:opacity-50"
+                      >
+                        {action.icon ? (
+                          <span className="flex w-4 shrink-0 justify-center text-muted-foreground group-hover:text-current [&_svg]:size-3 [&_svg]:stroke-1">
+                            {action.icon}
+                          </span>
+                        ) : null}
+                        <span className="flex-1 truncate">{action.label}</span>
+                      </button>
+                    ))}
                   </div>
                 ) : null}
               </div>

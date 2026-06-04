@@ -932,7 +932,6 @@ export function AccountsUsers({
         description={t("confirm.deleteDescription")}
         confirmLabel={t("delete")}
         pendingLabel={t("confirm.deleting")}
-        destructive
         onConfirm={() => {
           if (deleteDialogTarget) {
             void onDeleteUser(deleteDialogTarget);
@@ -952,7 +951,6 @@ export function AccountsUsers({
         description={t("bulkConfirm.description", { count: selectedUserIDs.size })}
         confirmLabel={t("bulkConfirm.confirm")}
         pendingLabel={t("bulkConfirm.pending")}
-        destructive={bulkConfirmAction === "delete"}
         onConfirm={handleConfirmBulkAction}
       />
     </>

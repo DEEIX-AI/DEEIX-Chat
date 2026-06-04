@@ -96,6 +96,24 @@
     "deleteFilesDescription": "仅删除未被其他会话引用的文件；仍被其他会话使用的文件会保留。",
     "thisConversation": "该会话",
     "untitled": "新会话",
+    "bulk": {
+      "archive": {
+        "title": "归档所选会话",
+        "description": "确认归档所选的 {count} 个会话吗？",
+        "confirm": "归档"
+      },
+      "unarchive": {
+        "title": "取消归档所选会话",
+        "description": "确认取消归档所选的 {count} 个会话吗？",
+        "confirm": "取消归档"
+      },
+      "revokeShares": {
+        "title": "关闭所选分享",
+        "description": "确认关闭所选 {count} 个会话的分享吗？已有分享链接将不可访问。",
+        "confirm": "关闭分享"
+      },
+      "pending": "处理中..."
+    },
     "cancel": "取消",
     "save": "保存",
     "delete": "删除"

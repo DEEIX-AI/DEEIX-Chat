@@ -96,6 +96,24 @@
     "deleteFilesDescription": "Only files not referenced by other conversations are deleted. Files still used elsewhere stay available.",
     "thisConversation": "this conversation",
     "untitled": "New chat",
+    "bulk": {
+      "archive": {
+        "title": "Archive selected conversations",
+        "description": "Archive the selected {count} conversations?",
+        "confirm": "Archive"
+      },
+      "unarchive": {
+        "title": "Unarchive selected conversations",
+        "description": "Unarchive the selected {count} conversations?",
+        "confirm": "Unarchive"
+      },
+      "revokeShares": {
+        "title": "Close selected shares",
+        "description": "Close shares for the selected {count} conversations? Existing share links will stop working.",
+        "confirm": "Close shares"
+      },
+      "pending": "Processing..."
+    },
     "cancel": "Cancel",
     "save": "Save",
     "delete": "Delete"
