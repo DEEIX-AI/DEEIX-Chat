@@ -77,16 +77,18 @@ export function PeriodBillingTable({
                   </TableCell>
                   <TableCell className="py-1.5">{plan.discountPercent}%</TableCell>
                   <TableCell stickyEnd className="w-[56px] py-1.5 text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      className="h-7 w-7 text-muted-foreground shadow-none"
-                      onClick={() => onEdit(plan)}
-                      aria-label={t("actions.editPlan")}
-                    >
-                      <Pencil className="size-3.5 stroke-1" />
-                    </Button>
+                    <div className="flex h-7 items-center justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="h-7 w-7 text-muted-foreground shadow-none"
+                        onClick={() => onEdit(plan)}
+                        aria-label={t("actions.editPlan")}
+                      >
+                        <Pencil className="size-3.5 stroke-1" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               );

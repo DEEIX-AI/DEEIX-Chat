@@ -154,117 +154,120 @@ export function CreateUserDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={createDialogContentRef}
+        className="flex max-h-[min(86vh,760px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0 px-4 py-4">
           <DialogTitle>{t("editor.createTitle")}</DialogTitle>
           <DialogDescription>{t("editor.createDescription")}</DialogDescription>
         </DialogHeader>
 
-        <motion.form layout transition={DIALOG_LAYOUT_TRANSITION} onSubmit={onCreateSubmit} className="space-y-4">
-          <div className="grid items-end gap-5 md:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="space-y-1">
-              <UserAvatarButton
-                onClick={onOpenCreateAvatarDialog}
-                disabled={pending}
-                src={resolveAvatarImageSrc(createPayload.avatarURL, createAvatarSource)}
-                alt={t("avatar.preview")}
-                fallback={resolveCreateUserInitial(createPayload.username, createPayload.displayName)}
-              />
+        <motion.form layout transition={DIALOG_LAYOUT_TRANSITION} onSubmit={onCreateSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
+            <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] items-end gap-5">
+              <div className="space-y-1">
+                <UserAvatarButton
+                  onClick={onOpenCreateAvatarDialog}
+                  disabled={pending}
+                  src={resolveAvatarImageSrc(createPayload.avatarURL, createAvatarSource)}
+                  alt={t("avatar.preview")}
+                  fallback={resolveCreateUserInitial(createPayload.username, createPayload.displayName)}
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t("editor.username")}</p>
+                <Input
+                  value={createPayload.username}
+                  placeholder={t("editor.usernamePlaceholder")}
+                  onChange={(event) => setCreatePayload((current) => ({ ...current, username: event.target.value }))}
+                  maxLength={USERNAME_MAX_LENGTH}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t("editor.displayName")}</p>
+                <Input
+                  value={createPayload.displayName}
+                  placeholder={t("editor.displayNamePlaceholder")}
+                  onChange={(event) => setCreatePayload((current) => ({ ...current, displayName: event.target.value }))}
+                  maxLength={DISPLAY_NAME_MAX_LENGTH}
+                />
+              </div>
             </div>
+
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t("editor.username")}</p>
+              <p className="text-xs text-muted-foreground">{t("editor.password")}</p>
               <Input
-                value={createPayload.username}
-                placeholder={t("editor.usernamePlaceholder")}
-                onChange={(event) => setCreatePayload((current) => ({ ...current, username: event.target.value }))}
-                maxLength={USERNAME_MAX_LENGTH}
+                value={createPayload.password}
+                placeholder={t("editor.passwordPlaceholder")}
+                type="password"
+                onChange={(event) => setCreatePayload((current) => ({ ...current, password: event.target.value }))}
+                minLength={PASSWORD_MIN_LENGTH}
                 required
               />
             </div>
+
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t("editor.displayName")}</p>
+              <p className="text-xs text-muted-foreground">{t("editor.email")}</p>
               <Input
-                value={createPayload.displayName}
-                placeholder={t("editor.displayNamePlaceholder")}
-                onChange={(event) => setCreatePayload((current) => ({ ...current, displayName: event.target.value }))}
-                maxLength={DISPLAY_NAME_MAX_LENGTH}
+                value={createPayload.email}
+                placeholder={t("editor.emailPlaceholder")}
+                onChange={(event) => setCreatePayload((current) => ({ ...current, email: event.target.value }))}
               />
             </div>
+
+            {billingMode === "period" ? (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">{t("editor.subscriptionPlan")}</p>
+                  <Combobox
+                    items={billingPlans.map((plan) => plan.code)}
+                    value={createPayload.subscriptionTier}
+                    filter={null}
+                    autoComplete="none"
+                    onValueChange={(value) =>
+                      setCreatePayload((current) => ({
+                        ...current,
+                        subscriptionTier: value as UserTier,
+                        subscriptionExpiresAt: value === "free" ? "" : current.subscriptionExpiresAt,
+                      }))
+                    }
+                    disabled={pending}
+                  >
+                    <ComboboxInput className="w-full min-w-0" placeholder={t("editor.selectSubscriptionPlan")} showClear={false} disabled={pending} />
+                    <ComboboxContent portalContainer={createDialogContentRef}>
+                      <ComboboxEmpty>{t("editor.noMatchingSubscriptionPlans")}</ComboboxEmpty>
+                      <ComboboxList>
+                        {(tier: UserTier) => (
+                          <ComboboxItem key={tier} value={tier}>
+                            {billingPlans.find((plan) => plan.code === tier)?.name ?? tier}
+                          </ComboboxItem>
+                        )}
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
+                </div>
+
+                <DialogCollapsible open={createPayload.subscriptionTier !== "free"}>
+                  <AdminDateTimePicker
+                    value={createPayload.subscriptionExpiresAt}
+                    label={t("editor.expiryTime")}
+                    placeholder={t("editor.selectExpiryDate")}
+                    granularity="date"
+                    disabled={createPayload.subscriptionTier === "free"}
+                    disabledDate={{ before: new Date() }}
+                    onChange={(value) =>
+                      setCreatePayload((current) => ({
+                        ...current,
+                        subscriptionExpiresAt: value,
+                      }))
+                    }
+                  />
+                </DialogCollapsible>
+              </div>
+            ) : null}
           </div>
 
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">{t("editor.password")}</p>
-            <Input
-              value={createPayload.password}
-              placeholder={t("editor.passwordPlaceholder")}
-              type="password"
-              onChange={(event) => setCreatePayload((current) => ({ ...current, password: event.target.value }))}
-              minLength={PASSWORD_MIN_LENGTH}
-              required
-            />
-          </div>
-
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">{t("editor.email")}</p>
-            <Input
-              value={createPayload.email}
-              placeholder={t("editor.emailPlaceholder")}
-              onChange={(event) => setCreatePayload((current) => ({ ...current, email: event.target.value }))}
-            />
-          </div>
-
-          {billingMode === "period" ? (
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t("editor.subscriptionPlan")}</p>
-              <Combobox
-                items={billingPlans.map((plan) => plan.code)}
-                value={createPayload.subscriptionTier}
-                filter={null}
-                autoComplete="none"
-                onValueChange={(value) =>
-                  setCreatePayload((current) => ({
-                    ...current,
-                    subscriptionTier: value as UserTier,
-                    subscriptionExpiresAt: value === "free" ? "" : current.subscriptionExpiresAt,
-                  }))
-                }
-                disabled={pending}
-              >
-                <ComboboxInput className="w-full min-w-0" placeholder={t("editor.selectSubscriptionPlan")} showClear={false} disabled={pending} />
-                <ComboboxContent portalContainer={createDialogContentRef}>
-                  <ComboboxEmpty>{t("editor.noMatchingSubscriptionPlans")}</ComboboxEmpty>
-                  <ComboboxList>
-                    {(tier: UserTier) => (
-                      <ComboboxItem key={tier} value={tier}>
-                        {billingPlans.find((plan) => plan.code === tier)?.name ?? tier}
-                      </ComboboxItem>
-                    )}
-                  </ComboboxList>
-                </ComboboxContent>
-              </Combobox>
-            </div>
-
-            <DialogCollapsible open={createPayload.subscriptionTier !== "free"}>
-              <AdminDateTimePicker
-                value={createPayload.subscriptionExpiresAt}
-                label={t("editor.expiryTime")}
-                placeholder={t("editor.selectExpiryDate")}
-                granularity="date"
-                disabled={createPayload.subscriptionTier === "free"}
-                disabledDate={{ before: new Date() }}
-                onChange={(value) =>
-                  setCreatePayload((current) => ({
-                    ...current,
-                    subscriptionExpiresAt: value,
-                  }))
-                }
-              />
-            </DialogCollapsible>
-          </div>
-          ) : null}
-
-          <DialogFooter>
+          <DialogFooter className="shrink-0 px-4 py-3">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={pending}>
               {t("actions.cancel")}
             </Button>

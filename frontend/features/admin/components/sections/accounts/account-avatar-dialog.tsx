@@ -47,13 +47,13 @@ export function AccountAvatarEditorDialog({
   const t = useTranslations("adminUsers.avatar");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
+      <DialogContent className="flex max-h-[min(86vh,760px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[420px]">
+        <DialogHeader className="shrink-0 px-4 py-4">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
           <div className="flex justify-center">
             <button
               type="button"
@@ -81,7 +81,7 @@ export function AccountAvatarEditorDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 px-4 py-3">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={pending}>
             {t("cancel")}
           </Button>

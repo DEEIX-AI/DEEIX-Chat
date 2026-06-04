@@ -244,8 +244,8 @@ const UserTableRow = React.memo(function UserTableRow({
 
   return (
     <TableRow>
-      <TableCell className="w-[44px] py-0 whitespace-nowrap text-center">
-        <div className="flex h-10 items-center justify-center">
+      <TableCell className="w-[44px] py-1.5 whitespace-nowrap text-center">
+        <div className="flex h-7 items-center justify-center">
           <Checkbox
             checked={checked}
             onCheckedChange={(value) => onToggleSelectedUser(item.id, value === true)}
@@ -253,9 +253,11 @@ const UserTableRow = React.memo(function UserTableRow({
           />
         </div>
       </TableCell>
-      <TableCell className="whitespace-nowrap font-mono text-xs text-foreground">{item.id}</TableCell>
-      <TableCell>
-        <div className="flex items-center gap-3">
+      <TableCell className="py-1.5 whitespace-nowrap font-mono text-xs text-foreground">
+        <span className="flex h-7 items-center">{item.id}</span>
+      </TableCell>
+      <TableCell className="py-1.5">
+        <div className="flex h-7 items-center gap-3">
           <button
             type="button"
             className="rounded-full transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -277,56 +279,60 @@ const UserTableRow = React.memo(function UserTableRow({
           </div>
         </div>
       </TableCell>
-      <TableCell className="whitespace-nowrap">
-        <Combobox
-          items={rowRoleOptions}
-          value={item.role}
-          onValueChange={(value) => void onInlinePatch(item, "role", { role: value as UserDTO["role"] })}
-          disabled={disabled || inlineRolePending}
-        >
-          <ComboboxInput
-            className={`w-[90px] ${COMPACT_COMBOBOX_CLASSNAME}`}
-            placeholder={t("table.selectRole")}
-            showClear={false}
+      <TableCell className="py-1.5 whitespace-nowrap">
+        <div className="flex h-7 items-center">
+          <Combobox
+            items={rowRoleOptions}
+            value={item.role}
+            onValueChange={(value) => void onInlinePatch(item, "role", { role: value as UserDTO["role"] })}
             disabled={disabled || inlineRolePending}
-          />
-          <ComboboxContent>
-            <ComboboxEmpty>{t("table.noMatchingRoles")}</ComboboxEmpty>
-            <ComboboxList>
-              {(role: AdminUserRole) => (
-                <ComboboxItem key={role} value={role}>
-                  {role}
-                </ComboboxItem>
-              )}
-            </ComboboxList>
-          </ComboboxContent>
-        </Combobox>
+          >
+            <ComboboxInput
+              className={`w-[90px] ${COMPACT_COMBOBOX_CLASSNAME}`}
+              placeholder={t("table.selectRole")}
+              showClear={false}
+              disabled={disabled || inlineRolePending}
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>{t("table.noMatchingRoles")}</ComboboxEmpty>
+              <ComboboxList>
+                {(role: AdminUserRole) => (
+                  <ComboboxItem key={role} value={role}>
+                    {role}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+        </div>
       </TableCell>
-      <TableCell className="whitespace-nowrap">
-        <Combobox
-          items={USER_STATUS_OPTIONS}
-          value={item.status}
-          itemToStringLabel={resolveUserStatusLabel}
-          onValueChange={(value) => void onInlinePatch(item, "status", { status: value as UserDTO["status"] })}
-          disabled={disabled || inlineStatusPending}
-        >
-          <ComboboxInput
-            className={`w-[80px] ${COMPACT_COMBOBOX_CLASSNAME}`}
-            placeholder={t("table.selectStatus")}
-            showClear={false}
+      <TableCell className="py-1.5 whitespace-nowrap">
+        <div className="flex h-7 items-center">
+          <Combobox
+            items={USER_STATUS_OPTIONS}
+            value={item.status}
+            itemToStringLabel={resolveUserStatusLabel}
+            onValueChange={(value) => void onInlinePatch(item, "status", { status: value as UserDTO["status"] })}
             disabled={disabled || inlineStatusPending}
-          />
-          <ComboboxContent>
-            <ComboboxEmpty>{t("table.noMatchingStatus")}</ComboboxEmpty>
-            <ComboboxList>
-              {(status: AdminUserStatus) => (
-                <ComboboxItem key={status} value={status}>
-                  {resolveUserStatusLabel(status)}
-                </ComboboxItem>
-              )}
-            </ComboboxList>
-          </ComboboxContent>
-        </Combobox>
+          >
+            <ComboboxInput
+              className={`w-[80px] ${COMPACT_COMBOBOX_CLASSNAME}`}
+              placeholder={t("table.selectStatus")}
+              showClear={false}
+              disabled={disabled || inlineStatusPending}
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>{t("table.noMatchingStatus")}</ComboboxEmpty>
+              <ComboboxList>
+                {(status: AdminUserStatus) => (
+                  <ComboboxItem key={status} value={status}>
+                    {resolveUserStatusLabel(status)}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+        </div>
       </TableCell>
       {billingMode === "period" ? (
         <TableCell className="text-foreground">
@@ -360,23 +366,25 @@ const UserTableRow = React.memo(function UserTableRow({
         </div>
       </TableCell>
       <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTime(item.lastLoginAt, locale)}</TableCell>
-      <TableCell className="w-[56px] whitespace-nowrap" stickyEnd>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          className="text-muted-foreground shadow-none"
-          onClick={() => onOpenEdit(item)}
-          disabled={disabled}
-          aria-label={t("table.editUserAria", { username: item.username })}
-          title={t("table.editUser")}
-        >
-          {pendingAction === "edit" && actionUserID === item.id ? (
-            <Spinner className="size-3.5" />
-          ) : (
-            <Settings className="size-3.5 stroke-1" />
-          )}
-        </Button>
+      <TableCell className="w-[56px] py-1.5 whitespace-nowrap" stickyEnd>
+        <div className="flex h-7 items-center justify-end">
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className="text-muted-foreground shadow-none"
+            onClick={() => onOpenEdit(item)}
+            disabled={disabled}
+            aria-label={t("table.editUserAria", { username: item.username })}
+            title={t("table.editUser")}
+          >
+            {pendingAction === "edit" && actionUserID === item.id ? (
+              <Spinner className="size-3.5" />
+            ) : (
+              <Settings className="size-3.5 stroke-1" />
+            )}
+          </Button>
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -679,8 +687,8 @@ export function AccountsUsers({
         <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[44px] py-0 text-center">
-                  <div className="flex h-8 items-center justify-center">
+                <TableHead className="w-[44px] py-1.5 text-center">
+                  <div className="flex h-7 items-center justify-center">
                     <Checkbox
                       checked={selectAllState}
                       onCheckedChange={(checked) => handleSelectAllVisible(checked === true)}

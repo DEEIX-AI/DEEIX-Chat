@@ -137,8 +137,8 @@ function UpdateResultDialog({
 
   return (
     <Dialog open={state !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[420px]">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[420px]">
+        <DialogHeader className="shrink-0 px-4 py-4">
           <DialogTitle>
             {state?.type === "available"
               ? t("updateDialog.availableTitle")
@@ -154,27 +154,33 @@ function UpdateResultDialog({
                 : t("updateDialog.currentDescription", { current: currentVersion })}
           </DialogDescription>
         </DialogHeader>
-        {state?.type === "available" ? (
-          <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-md bg-muted/50 px-3 py-2 text-xs">
-            <span className="text-muted-foreground">{t("updateDialog.currentVersion")}</span>
-            <span className="font-medium">{currentVersion}</span>
-            <span className="text-muted-foreground">{t("updateDialog.latestVersion")}</span>
-            <span className="font-medium">{latestVersion}</span>
-          </div>
-        ) : null}
-        <DialogFooter>
-          {state?.type === "failed" ? (
-            <Button type="button" variant="ghost" size="sm" onClick={onRetry}>
-              {t("updateDialog.retry")}
-            </Button>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
+          {state?.type === "available" ? (
+            <div className="rounded-md bg-muted/50 px-3 py-2 text-xs">
+              <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
+                <span className="text-muted-foreground">{t("updateDialog.currentVersion")}</span>
+                <span className="font-medium">{currentVersion}</span>
+                <span className="text-muted-foreground">{t("updateDialog.latestVersion")}</span>
+                <span className="font-medium">{latestVersion}</span>
+              </div>
+            </div>
           ) : null}
+        </div>
+
+        <DialogFooter className="shrink-0 px-4 py-3">
           <DialogClose asChild>
-            <Button type="button" variant="ghost" size="sm">
+            <Button type="button" variant="ghost">
               {t("updateDialog.close")}
             </Button>
           </DialogClose>
+          {state?.type === "failed" ? (
+            <Button type="button" onClick={onRetry}>
+              {t("updateDialog.retry")}
+            </Button>
+          ) : null}
           {state?.type === "available" ? (
-            <Button asChild type="button" size="sm">
+            <Button asChild type="button">
               <a href={state.release.url} target="_blank" rel="noopener noreferrer">
                 {t("updateDialog.openRelease")}
               </a>

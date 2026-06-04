@@ -57,6 +57,7 @@
   },
   "guide": {
     "button": "Guide",
+    "close": "Close",
     "title": "Option passthrough guide",
     "description": "Control which user options can enter upstream requests.",
     "pathTitle": "Path syntax",

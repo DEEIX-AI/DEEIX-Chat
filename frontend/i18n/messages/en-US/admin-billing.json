@@ -115,7 +115,7 @@
     "status": "Status",
     "active": "Active",
     "inactive": "Inactive",
-    "creditUSD": "Credit amount",
+    "creditUSD": "Redemption amount",
     "plan": "Plan",
     "planPlaceholder": "Select plan",
     "durationDays": "Duration days",

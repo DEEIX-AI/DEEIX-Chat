@@ -546,13 +546,13 @@ export function UpstreamSourcesSheet({
               <TableBody>
                 {bindOpen ? (
                   <TableRow interactive={false} tone="muted">
-                    <TableCell className="py-1">
+                    <TableCell className="py-1.5">
                       <Select
                         value={bindForm.upstreamID}
                         onValueChange={handleBindUpstreamChange}
                         disabled={bindPending || upstreamsLoading}
                       >
-                        <SelectTrigger className="h-8 min-w-[140px] bg-background text-xs">
+                        <SelectTrigger className="h-7 min-w-[140px] bg-background text-xs">
                           <SelectValue placeholder={upstreamsLoading ? t("loadingUpstreams") : t("selectUpstream")} />
                         </SelectTrigger>
                         <SelectContent>
@@ -564,13 +564,13 @@ export function UpstreamSourcesSheet({
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="py-1">
+                    <TableCell className="py-1.5">
                       <Select
                         value={bindForm.upstreamModelID}
                         onValueChange={handleBindUpstreamModelChange}
                         disabled={bindPending || !bindForm.upstreamID || upstreamModelsLoading}
                       >
-                        <SelectTrigger className="h-8 min-w-[180px] bg-background font-mono text-xs">
+                        <SelectTrigger className="h-7 min-w-[180px] bg-background font-mono text-xs">
                           <SelectValue placeholder={upstreamModelsLoading ? t("loadingUpstreamModels") : t("selectUpstreamModel")} />
                         </SelectTrigger>
                         <SelectContent>
@@ -582,13 +582,13 @@ export function UpstreamSourcesSheet({
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="py-1">
+                    <TableCell className="py-1.5">
                       <Select
                         value={bindForm.protocol}
                         onValueChange={(value) => setBindField("protocol", value as AdminLLMAdapter)}
                         disabled={bindPending || !bindForm.upstreamModelID}
                       >
-                        <SelectTrigger className="h-8 min-w-[180px] bg-background text-xs">
+                        <SelectTrigger className="h-7 min-w-[180px] bg-background text-xs">
                           <SelectValue placeholder={t("selectProtocol")} />
                         </SelectTrigger>
                         <SelectContent>
@@ -600,14 +600,14 @@ export function UpstreamSourcesSheet({
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap py-1">
-                      <div className="flex h-8 items-center justify-center gap-1">
+                    <TableCell className="whitespace-nowrap py-1.5">
+                      <div className="flex h-7 items-center justify-center gap-1">
                         <Input
                           value={bindForm.priority}
                           inputMode="numeric"
                           disabled={bindPending}
                           onChange={(event) => setBindField("priority", event.target.value)}
-                          className="w-[58px] bg-background px-2 text-center font-mono text-xs tabular-nums"
+                          className="h-7 w-[58px] bg-background px-2 text-center font-mono text-xs tabular-nums"
                           aria-label={t("priority")}
                         />
                         <span className="text-xs text-muted-foreground">/</span>
@@ -616,18 +616,18 @@ export function UpstreamSourcesSheet({
                           inputMode="numeric"
                           disabled={bindPending}
                           onChange={(event) => setBindField("weight", event.target.value)}
-                          className="w-[58px] bg-background px-2 text-center font-mono text-xs tabular-nums"
+                          className="h-7 w-[58px] bg-background px-2 text-center font-mono text-xs tabular-nums"
                           aria-label={t("weight")}
                         />
                       </div>
                     </TableCell>
-                    <TableCell className="w-[72px] py-1">
+                    <TableCell className="w-[72px] py-1.5">
                       <Select
                         value={bindForm.status}
                         onValueChange={(value) => setBindField("status", value as AdminLLMStatus)}
                         disabled={bindPending}
                       >
-                        <SelectTrigger className="h-8 w-[72px] bg-background px-2 text-xs">
+                        <SelectTrigger className="h-7 w-[72px] bg-background px-2 text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -636,9 +636,9 @@ export function UpstreamSourcesSheet({
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="py-1 text-muted-foreground">-</TableCell>
-                    <TableCell className="w-[56px] whitespace-nowrap py-1" stickyEnd>
-                      <div className="flex items-center justify-end gap-1">
+                    <TableCell className="py-1.5 text-muted-foreground">-</TableCell>
+                    <TableCell className="w-[56px] whitespace-nowrap py-1.5" stickyEnd>
+                      <div className="flex h-7 items-center justify-end gap-1">
                         <Button
                           type="button"
                           size="icon-sm"
@@ -672,21 +672,21 @@ export function UpstreamSourcesSheet({
 
                   return (
                     <TableRow key={source.id}>
-                      <TableCell className="py-1">
+                      <TableCell className="py-1.5">
                         <div className="whitespace-nowrap">
                           <span className="font-medium">{resolveValue(source.upstreamName)}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="py-1 font-mono text-xs">
+                      <TableCell className="py-1.5 font-mono text-xs">
                         {resolveValue(source.upstreamModelName)}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap py-1">
+                      <TableCell className="whitespace-nowrap py-1.5">
                         <Badge variant="secondary" className="whitespace-nowrap">
                           {ADAPTER_LABELS[source.protocol] ?? source.protocol}
                         </Badge>
                       </TableCell>
-                      <TableCell className="whitespace-nowrap py-1">
-                        <div className="flex h-6 items-center justify-center gap-1">
+                      <TableCell className="whitespace-nowrap py-1.5">
+                        <div className="flex h-7 items-center justify-center gap-1">
                           <Input
                             type="text"
                             inputMode="numeric"
@@ -700,7 +700,7 @@ export function UpstreamSourcesSheet({
                               handleRouteInputKeyDown(event, source, "priority")
                             }
                             aria-label={t("priorityAria", { name: source.upstreamModelName })}
-                            className="w-[58px] px-2 text-center font-mono tabular-nums"
+                            className="h-7 w-[58px] px-2 text-center font-mono tabular-nums"
                           />
                           <span className="text-xs text-muted-foreground">/</span>
                           <Input
@@ -714,12 +714,12 @@ export function UpstreamSourcesSheet({
                             onBlur={() => void handleRouteValueCommit(source, "weight")}
                             onKeyDown={(event) => handleRouteInputKeyDown(event, source, "weight")}
                             aria-label={t("weightAria", { name: source.upstreamModelName })}
-                            className="w-[58px] px-2 text-center font-mono tabular-nums"
+                            className="h-7 w-[58px] px-2 text-center font-mono tabular-nums"
                           />
                         </div>
                       </TableCell>
-                      <TableCell className="w-[72px] whitespace-nowrap py-1">
-                        <div className="flex h-8 items-center justify-center">
+                      <TableCell className="w-[72px] whitespace-nowrap py-1.5">
+                        <div className="flex h-7 items-center justify-center">
                           <Switch
                             size="sm"
                             checked={source.status === "active"}
@@ -731,49 +731,51 @@ export function UpstreamSourcesSheet({
                           />
                         </div>
                       </TableCell>
-                      <TableCell className="whitespace-nowrap py-1 text-muted-foreground">
+                      <TableCell className="whitespace-nowrap py-1.5 text-muted-foreground">
                         {formatDateTime(source.updatedAt, locale)}
                       </TableCell>
-                      <TableCell className="w-[56px] whitespace-nowrap py-1" stickyEnd>
-                        <DropdownMenu modal={false}>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              type="button"
-                              size="icon-sm"
-                              variant="ghost"
-                              className="text-muted-foreground shadow-none"
-                              aria-label={t("sourceActions")}
-                              disabled={actionPending}
-                            >
-                              {actionPending ? (
-                                <Spinner className="size-3.5" />
+                      <TableCell className="w-[56px] whitespace-nowrap py-1.5" stickyEnd>
+                        <div className="flex h-7 items-center justify-end">
+                          <DropdownMenu modal={false}>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                size="icon-sm"
+                                variant="ghost"
+                                className="text-muted-foreground shadow-none"
+                                aria-label={t("sourceActions")}
+                                disabled={actionPending}
+                              >
+                                {actionPending ? (
+                                  <Spinner className="size-3.5" />
+                                ) : (
+                                  <MoreHorizontal className="size-3.5 stroke-1" />
+                                )}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => void handleTestSource(source)}>
+                                <Activity className="size-3.5 stroke-1" />
+                                {probeT("actions.test")}
+                              </DropdownMenuItem>
+                              {source.circuitOpen ? (
+                                <DropdownMenuItem
+                                  onSelect={() => void handleCircuitAction(source, "reset")}
+                                >
+                                  <RefreshCw className="size-3.5 stroke-1" />
+                                  {t("resetCircuit")}
+                                </DropdownMenuItem>
                               ) : (
-                                <MoreHorizontal className="size-3.5 stroke-1" />
+                                <DropdownMenuItem
+                                  onSelect={() => void handleCircuitAction(source, "open")}
+                                >
+                                  <CircleOff className="size-3.5 stroke-1" />
+                                  {t("openCircuit")}
+                                </DropdownMenuItem>
                               )}
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => void handleTestSource(source)}>
-                              <Activity className="size-3.5 stroke-1" />
-                              {probeT("actions.test")}
-                            </DropdownMenuItem>
-                            {source.circuitOpen ? (
-                              <DropdownMenuItem
-                                onSelect={() => void handleCircuitAction(source, "reset")}
-                              >
-                                <RefreshCw className="size-3.5 stroke-1" />
-                                {t("resetCircuit")}
-                              </DropdownMenuItem>
-                            ) : (
-                              <DropdownMenuItem
-                                onSelect={() => void handleCircuitAction(source, "open")}
-                              >
-                                <CircleOff className="size-3.5 stroke-1" />
-                                {t("openCircuit")}
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

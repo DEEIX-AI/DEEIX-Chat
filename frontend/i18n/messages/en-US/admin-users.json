@@ -129,7 +129,7 @@
     "description": "Enter an avatar URL or click the avatar area to generate a pixel-style avatar.",
     "userAvatar": "User avatar",
     "preview": "Avatar preview",
-    "apply": "Apply avatar",
+    "apply": "Apply",
     "urlLabel": "Avatar URL",
     "cancel": "Cancel",
     "saving": "Saving"
