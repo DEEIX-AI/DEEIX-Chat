@@ -518,7 +518,7 @@ export function AdminConversationSettingsPage() {
     <SettingsPage>
       <SettingsSection title={t("sections.conversation")} actions={conversationActions}>
         <SettingsFieldList>
-          {conversationFields.map(renderField)}
+          {conversationFields.map((field, index) => renderField(field, index))}
         </SettingsFieldList>
       </SettingsSection>
 
