@@ -25,7 +25,7 @@
   "payment": {
     "title": "支付配置",
     "usdToCnyRate": "USD -> CNY 汇率",
-    "usdToCnyRateDescription": "套餐美元基准价换算为人民币支付金额时使用。",
+    "usdToCnyRateDescription": "将美元基准价换算为人民币支付金额时使用。",
     "channels": "支付渠道",
     "channelsDescription": "Stripe 和易支付可以同时启用，用户支付时选择本次渠道。",
     "enableStripe": "启用 Stripe",
@@ -249,7 +249,7 @@
     "moreItems": "等",
     "loadFailed": "计费配置加载失败",
     "paymentIncomplete": "支付配置不完整",
-    "paymentRateRequired": "需要填写有效的 USD -> CNY 汇率。",
+    "paymentRateRequired": "启用易支付时需要填写有效的美元兑人民币汇率。",
     "stripeRequired": "Stripe 需要填写 Secret Key 和 Webhook Secret。",
     "epayRequired": "易支付需要填写网关地址、商户 ID 和商户密钥。",
     "epayTypesInvalid": "易支付支付类型需要是包含 name 和 type 的 JSON 数组。",

@@ -1065,7 +1065,7 @@ export function AdminBillingPage() {
   async function savePaymentSettings() {
     const providers = normalizePaymentProviders(paymentSettings.payment_providers);
     const usdToCnyRate = Number(paymentSettings.usd_to_cny_rate);
-    if (providers.length > 0 && (!Number.isFinite(usdToCnyRate) || usdToCnyRate <= 0)) {
+    if (providers.includes("epay") && (!Number.isFinite(usdToCnyRate) || usdToCnyRate <= 0)) {
       toast.error(t("toast.paymentIncomplete"), { description: t("toast.paymentRateRequired") });
       return;
     }
@@ -1440,20 +1440,7 @@ export function AdminBillingPage() {
       </div>
 
       <FieldGroup className="gap-0">
-        <SettingsFieldRow
-          title={t("payment.usdToCnyRate")}
-          description={t("payment.usdToCnyRateDescription")}
-        >
-          <Input
-            id="billing.usd_to_cny_rate"
-            value={paymentSettings.usd_to_cny_rate}
-            className="text-right"
-            disabled={loading || saving}
-            onChange={(event) => updatePaymentSetting("usd_to_cny_rate", event.target.value)}
-          />
-        </SettingsFieldRow>
-
-        <div className="pt-4">
+        <div>
           <Tabs value={paymentTab} onValueChange={(value) => setPaymentTab(value as PaymentProvider)}>
             <SettingsFieldRow
               title={t("payment.channels")}
@@ -1473,35 +1460,35 @@ export function AdminBillingPage() {
                 <Switch size="sm" checked={stripeEnabled} disabled={loading || saving} onCheckedChange={(checked) => setPaymentProviderEnabled("stripe", checked)} />
               </SettingsFieldRow>
               <SettingsCollapsibleContent open={stripeEnabled} contentClassName="space-y-4">
-                  <SettingsFieldRow
-                    title={t("payment.stripeWebhookEndpoint")}
-                    description={t("payment.stripeWebhookEndpointDescription")}
-                  >
-                    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
-                      <Input value={stripeWebhookEndpoint} className="min-w-0 truncate text-left text-xs md:text-right" readOnly />
-                      <Button type="button" variant="secondary" size="icon" className="size-8 shrink-0 rounded-md shadow-none active:scale-90 transition-transform" onClick={() => void copyStripeWebhookEndpoint()} aria-label={tActions("copy")} title={tActions("copy")}>
-                        <Copy className="size-3.5" />
-                      </Button>
-                    </div>
-                  </SettingsFieldRow>
-                  <SettingsFieldRow
-                    title={t("payment.stripePublishableKey")}
-                    description={t("payment.stripePublishableKeyDescription")}
-                  >
-                    <Input value={paymentSettings.stripe_publishable_key} className="text-right" disabled={loading || saving} placeholder="pk_..." onChange={(event) => updatePaymentSetting("stripe_publishable_key", event.target.value)} />
-                  </SettingsFieldRow>
-                  <SettingsFieldRow
-                    title={t("payment.stripeSecretKey")}
-                    description={t("payment.stripeSecretKeyDescription")}
-                  >
-                    <Input value={paymentSettings.stripe_secret_key} className="text-right" type="password" disabled={loading || saving} placeholder={paymentConfiguredMap["billing.stripe_secret_key"] ? tInput("configuredPasswordPlaceholder") : "sk_..."} onChange={(event) => updatePaymentSetting("stripe_secret_key", event.target.value)} />
-                  </SettingsFieldRow>
-                  <SettingsFieldRow
-                    title={t("payment.stripeWebhookSecret")}
-                    description={t("payment.stripeWebhookSecretDescription")}
-                  >
-                    <Input value={paymentSettings.stripe_webhook_secret} className="text-right" type="password" disabled={loading || saving} placeholder={paymentConfiguredMap["billing.stripe_webhook_secret"] ? tInput("configuredPasswordPlaceholder") : "whsec_..."} onChange={(event) => updatePaymentSetting("stripe_webhook_secret", event.target.value)} />
-                  </SettingsFieldRow>
+                <SettingsFieldRow
+                  title={t("payment.stripeWebhookEndpoint")}
+                  description={t("payment.stripeWebhookEndpointDescription")}
+                >
+                  <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
+                    <Input value={stripeWebhookEndpoint} className="min-w-0 truncate text-left text-xs md:text-right" readOnly />
+                    <Button type="button" variant="secondary" size="icon" className="size-8 shrink-0 rounded-md shadow-none active:scale-90 transition-transform" onClick={() => void copyStripeWebhookEndpoint()} aria-label={tActions("copy")} title={tActions("copy")}>
+                      <Copy className="size-3.5" />
+                    </Button>
+                  </div>
+                </SettingsFieldRow>
+                <SettingsFieldRow
+                  title={t("payment.stripePublishableKey")}
+                  description={t("payment.stripePublishableKeyDescription")}
+                >
+                  <Input value={paymentSettings.stripe_publishable_key} className="text-right" disabled={loading || saving} placeholder="pk_..." onChange={(event) => updatePaymentSetting("stripe_publishable_key", event.target.value)} />
+                </SettingsFieldRow>
+                <SettingsFieldRow
+                  title={t("payment.stripeSecretKey")}
+                  description={t("payment.stripeSecretKeyDescription")}
+                >
+                  <Input value={paymentSettings.stripe_secret_key} className="text-right" type="password" disabled={loading || saving} placeholder={paymentConfiguredMap["billing.stripe_secret_key"] ? tInput("configuredPasswordPlaceholder") : "sk_..."} onChange={(event) => updatePaymentSetting("stripe_secret_key", event.target.value)} />
+                </SettingsFieldRow>
+                <SettingsFieldRow
+                  title={t("payment.stripeWebhookSecret")}
+                  description={t("payment.stripeWebhookSecretDescription")}
+                >
+                  <Input value={paymentSettings.stripe_webhook_secret} className="text-right" type="password" disabled={loading || saving} placeholder={paymentConfiguredMap["billing.stripe_webhook_secret"] ? tInput("configuredPasswordPlaceholder") : "whsec_..."} onChange={(event) => updatePaymentSetting("stripe_webhook_secret", event.target.value)} />
+                </SettingsFieldRow>
               </SettingsCollapsibleContent>
             </TabsContent>
 
@@ -1513,39 +1500,51 @@ export function AdminBillingPage() {
                 <Switch size="sm" checked={epayEnabled} disabled={loading || saving} onCheckedChange={(checked) => setPaymentProviderEnabled("epay", checked)} />
               </SettingsFieldRow>
               <SettingsCollapsibleContent open={epayEnabled} contentClassName="space-y-4">
-                  <SettingsFieldRow
-                    title={t("payment.epayGateway")}
-                    description={t("payment.epayGatewayDescription")}
-                  >
-                    <Input value={paymentSettings.epay_gateway_url} className="text-right" disabled={loading || saving} placeholder="https://..." onChange={(event) => updatePaymentSetting("epay_gateway_url", event.target.value)} />
-                  </SettingsFieldRow>
-                  <SettingsFieldRow
-                    title={t("payment.epayPid")}
-                    description={t("payment.epayPidDescription")}
-                  >
-                    <Input value={paymentSettings.epay_pid} className="text-right" disabled={loading || saving} onChange={(event) => updatePaymentSetting("epay_pid", event.target.value)} />
-                  </SettingsFieldRow>
-                  <SettingsFieldRow
-                    title={t("payment.epayKey")}
-                    description={t("payment.epayKeyDescription")}
-                  >
-                    <Input value={paymentSettings.epay_key} className="text-right" type="password" disabled={loading || saving} placeholder={paymentConfiguredMap["billing.epay_key"] ? tInput("configuredPasswordPlaceholder") : ""} onChange={(event) => updatePaymentSetting("epay_key", event.target.value)} />
-                  </SettingsFieldRow>
-                  <Field>
-                    <div className="space-y-2">
-                      <div>
-                        <FieldLabel>{t("payment.epayTypes")}</FieldLabel>
-                        <FieldDescription className="text-[11px]">{t("payment.epayTypesDescription")}</FieldDescription>
-                      </div>
-                      <Textarea
-                        value={paymentSettings.epay_types}
-                        className="h-28 w-full resize-none overflow-y-auto font-mono [field-sizing:fixed]"
-                        disabled={loading || saving}
-                        spellCheck={false}
-                        onChange={(event) => updatePaymentSetting("epay_types", event.target.value)}
-                      />
+                <SettingsFieldRow
+                  title={t("payment.usdToCnyRate")}
+                  description={t("payment.usdToCnyRateDescription")}
+                >
+                  <Input
+                    id="billing.usd_to_cny_rate"
+                    value={paymentSettings.usd_to_cny_rate}
+                    className="text-right"
+                    disabled={loading || saving}
+                    onChange={(event) => updatePaymentSetting("usd_to_cny_rate", event.target.value)}
+                  />
+                </SettingsFieldRow>
+                <SettingsFieldRow
+                  title={t("payment.epayGateway")}
+                  description={t("payment.epayGatewayDescription")}
+                >
+                  <Input value={paymentSettings.epay_gateway_url} className="text-right" disabled={loading || saving} placeholder="https://..." onChange={(event) => updatePaymentSetting("epay_gateway_url", event.target.value)} />
+                </SettingsFieldRow>
+                <SettingsFieldRow
+                  title={t("payment.epayPid")}
+                  description={t("payment.epayPidDescription")}
+                >
+                  <Input value={paymentSettings.epay_pid} className="text-right" disabled={loading || saving} onChange={(event) => updatePaymentSetting("epay_pid", event.target.value)} />
+                </SettingsFieldRow>
+                <SettingsFieldRow
+                  title={t("payment.epayKey")}
+                  description={t("payment.epayKeyDescription")}
+                >
+                  <Input value={paymentSettings.epay_key} className="text-right" type="password" disabled={loading || saving} placeholder={paymentConfiguredMap["billing.epay_key"] ? tInput("configuredPasswordPlaceholder") : ""} onChange={(event) => updatePaymentSetting("epay_key", event.target.value)} />
+                </SettingsFieldRow>
+                <Field>
+                  <div className="space-y-2">
+                    <div>
+                      <FieldLabel>{t("payment.epayTypes")}</FieldLabel>
+                      <FieldDescription className="text-[11px]">{t("payment.epayTypesDescription")}</FieldDescription>
                     </div>
-                  </Field>
+                    <Textarea
+                      value={paymentSettings.epay_types}
+                      className="h-28 w-full resize-none overflow-y-auto font-mono [field-sizing:fixed]"
+                      disabled={loading || saving}
+                      spellCheck={false}
+                      onChange={(event) => updatePaymentSetting("epay_types", event.target.value)}
+                    />
+                  </div>
+                </Field>
               </SettingsCollapsibleContent>
             </TabsContent>
           </Tabs>

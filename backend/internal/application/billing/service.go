@@ -223,6 +223,14 @@ type TopUpPaymentOrderInput struct {
 	USDToCNYRate float64
 }
 
+type paymentQuote struct {
+	BaseCurrency    string
+	BaseAmountCents int64
+	PayCurrency     string
+	PayAmountCents  int64
+	FXRate          float64
+}
+
 // BillingAccountBalanceInput 定义管理员设置余额入参。
 type BillingAccountBalanceInput struct {
 	UserID      uint
@@ -645,10 +653,8 @@ func (s *Service) CreatePaymentOrder(ctx context.Context, input PaymentOrderInpu
 	if baseAmountCents <= 0 {
 		return nil, nil, nil, repository.ErrInvalidInput
 	}
-	payCurrency := "CNY"
-	fxRate := resolveUSDToCNYRate(input.USDToCNYRate)
-	payAmountCents := convertPaymentAmountCents(baseAmountCents, baseCurrency, payCurrency, fxRate)
-	if payAmountCents <= 0 {
+	quote := resolvePaymentQuote(provider, baseCurrency, baseAmountCents, input.USDToCNYRate)
+	if quote.PayAmountCents <= 0 {
 		return nil, nil, nil, repository.ErrInvalidInput
 	}
 
@@ -666,11 +672,11 @@ func (s *Service) CreatePaymentOrder(ctx context.Context, input PaymentOrderInpu
 		"price_code":        price.Code,
 		"billing_interval":  price.BillingInterval,
 		"cycles":            cycles,
-		"base_currency":     baseCurrency,
-		"base_amount_cents": baseAmountCents,
-		"pay_currency":      payCurrency,
-		"pay_amount_cents":  payAmountCents,
-		"fx_rate":           formatFXRate(fxRate),
+		"base_currency":     quote.BaseCurrency,
+		"base_amount_cents": quote.BaseAmountCents,
+		"pay_currency":      quote.PayCurrency,
+		"pay_amount_cents":  quote.PayAmountCents,
+		"fx_rate":           formatFXRate(quote.FXRate),
 		"provider":          provider,
 	}
 	snapshotJSON := "{}"
@@ -685,11 +691,11 @@ func (s *Service) CreatePaymentOrder(ctx context.Context, input PaymentOrderInpu
 		PriceID:         price.ID,
 		Provider:        provider,
 		Status:          domainbilling.PaymentStatusPending,
-		BaseCurrency:    baseCurrency,
-		BaseAmountCents: baseAmountCents,
-		PayCurrency:     payCurrency,
-		PayAmountCents:  payAmountCents,
-		FXRate:          formatFXRate(fxRate),
+		BaseCurrency:    quote.BaseCurrency,
+		BaseAmountCents: quote.BaseAmountCents,
+		PayCurrency:     quote.PayCurrency,
+		PayAmountCents:  quote.PayAmountCents,
+		FXRate:          formatFXRate(quote.FXRate),
 		BillingInterval: price.BillingInterval,
 		Cycles:          cycles,
 		ExpiredAt:       &expiredAt,
@@ -722,11 +728,9 @@ func (s *Service) CreateTopUpPaymentOrder(ctx context.Context, input TopUpPaymen
 
 	baseCurrency := "USD"
 	baseAmountCents := input.AmountCents
-	payCurrency := "CNY"
-	fxRate := resolveUSDToCNYRate(input.USDToCNYRate)
-	payAmountCents := convertPaymentAmountCents(baseAmountCents, baseCurrency, payCurrency, fxRate)
+	quote := resolvePaymentQuote(provider, baseCurrency, baseAmountCents, input.USDToCNYRate)
 	creditNanousd := centsToNanousd(baseAmountCents)
-	if payAmountCents <= 0 || creditNanousd <= 0 {
+	if quote.PayAmountCents <= 0 || creditNanousd <= 0 {
 		return nil, repository.ErrInvalidInput
 	}
 
@@ -738,11 +742,11 @@ func (s *Service) CreateTopUpPaymentOrder(ctx context.Context, input TopUpPaymen
 	expiredAt := now.Add(30 * time.Minute)
 	snapshot := map[string]interface{}{
 		"order_type":        domainbilling.PaymentOrderTypeTopUp,
-		"base_currency":     baseCurrency,
-		"base_amount_cents": baseAmountCents,
-		"pay_currency":      payCurrency,
-		"pay_amount_cents":  payAmountCents,
-		"fx_rate":           formatFXRate(fxRate),
+		"base_currency":     quote.BaseCurrency,
+		"base_amount_cents": quote.BaseAmountCents,
+		"pay_currency":      quote.PayCurrency,
+		"pay_amount_cents":  quote.PayAmountCents,
+		"fx_rate":           formatFXRate(quote.FXRate),
 		"credit_nanousd":    creditNanousd,
 		"provider":          provider,
 	}
@@ -756,11 +760,11 @@ func (s *Service) CreateTopUpPaymentOrder(ctx context.Context, input TopUpPaymen
 		UserID:          input.UserID,
 		Provider:        provider,
 		Status:          domainbilling.PaymentStatusPending,
-		BaseCurrency:    baseCurrency,
-		BaseAmountCents: baseAmountCents,
-		PayCurrency:     payCurrency,
-		PayAmountCents:  payAmountCents,
-		FXRate:          formatFXRate(fxRate),
+		BaseCurrency:    quote.BaseCurrency,
+		BaseAmountCents: quote.BaseAmountCents,
+		PayCurrency:     quote.PayCurrency,
+		PayAmountCents:  quote.PayAmountCents,
+		FXRate:          formatFXRate(quote.FXRate),
 		CreditNanousd:   creditNanousd,
 		BillingInterval: domainbilling.IntervalLifetime,
 		Cycles:          1,
@@ -2780,6 +2784,24 @@ func resolveUSDToCNYRate(value float64) float64 {
 	return value
 }
 
+func resolvePaymentQuote(provider string, baseCurrency string, baseAmountCents int64, usdToCNYRate float64) paymentQuote {
+	baseCurrency = normalizeCurrency(baseCurrency)
+	quote := paymentQuote{
+		BaseCurrency:    baseCurrency,
+		BaseAmountCents: baseAmountCents,
+		PayCurrency:     baseCurrency,
+		PayAmountCents:  baseAmountCents,
+		FXRate:          1,
+	}
+	if provider != domainbilling.PaymentProviderEPay {
+		return quote
+	}
+	quote.PayCurrency = "CNY"
+	quote.FXRate = resolveUSDToCNYRate(usdToCNYRate)
+	quote.PayAmountCents = convertPaymentAmountCents(baseAmountCents, baseCurrency, quote.PayCurrency, quote.FXRate)
+	return quote
+}
+
 func convertPaymentAmountCents(baseAmountCents int64, baseCurrency string, payCurrency string, rate float64) int64 {
 	if baseAmountCents <= 0 {
 		return 0
@@ -2792,7 +2814,7 @@ func convertPaymentAmountCents(baseAmountCents int64, baseCurrency string, payCu
 	if baseCurrency == "USD" && payCurrency == "CNY" {
 		return int64(math.Round(float64(baseAmountCents) * resolveUSDToCNYRate(rate)))
 	}
-	return baseAmountCents
+	return 0
 }
 
 func formatFXRate(value float64) string {

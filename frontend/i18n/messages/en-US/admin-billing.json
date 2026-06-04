@@ -25,7 +25,7 @@
   "payment": {
     "title": "Payment settings",
     "usdToCnyRate": "USD -> CNY rate",
-    "usdToCnyRateDescription": "Used to convert plan prices from the USD baseline to CNY payment amounts.",
+    "usdToCnyRateDescription": "Used to convert the USD base price to a CNY payment amount.",
     "channels": "Payment channels",
     "channelsDescription": "Stripe and EPay can be enabled together. Users choose the channel at checkout.",
     "enableStripe": "Enable Stripe",
@@ -249,7 +249,7 @@
     "moreItems": "and",
     "loadFailed": "Failed to load billing settings",
     "paymentIncomplete": "Payment settings incomplete",
-    "paymentRateRequired": "Enter a valid USD -> CNY rate.",
+    "paymentRateRequired": "Enter a valid USD to CNY rate when EPay is enabled.",
     "stripeRequired": "Stripe requires Secret Key and Webhook Secret.",
     "epayRequired": "EPay requires gateway URL, merchant ID, and merchant key.",
     "epayTypesInvalid": "EPay payment types must be a JSON array containing name and type.",

@@ -312,7 +312,7 @@ func (h *Handler) createStripeCheckoutSession(
 	if err != nil {
 		return "", "", err
 	}
-	currency := strings.ToLower(firstNonEmpty(order.PayCurrency, "CNY"))
+	currency := strings.ToLower(firstNonEmpty(order.PayCurrency, order.BaseCurrency, "USD"))
 	form := url.Values{}
 	form.Set("mode", "payment")
 	form.Set("success_url", successURL)

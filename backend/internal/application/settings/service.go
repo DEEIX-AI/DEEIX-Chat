@@ -710,9 +710,6 @@ func (s *Service) validateBillingPaymentSettings(ctx context.Context, patches []
 	if len(providers) == 0 {
 		return nil
 	}
-	if err := validateFloatMinMax(next["billing:usd_to_cny_rate"], 0.000001, 1000, "billing:usd_to_cny_rate"); err != nil {
-		return err
-	}
 	for _, provider := range providers {
 		switch provider {
 		case "stripe":
@@ -723,6 +720,9 @@ func (s *Service) validateBillingPaymentSettings(ctx context.Context, patches []
 				return err
 			}
 		case "epay":
+			if err := validateFloatMinMax(next["billing:usd_to_cny_rate"], 0.000001, 1000, "billing:usd_to_cny_rate"); err != nil {
+				return err
+			}
 			if err := requireSettingFields(next, []requiredSettingField{
 				{key: "billing:epay_gateway_url", label: "billing:epay_gateway_url"},
 				{key: "billing:epay_types", label: "billing:epay_types"},
