@@ -369,20 +369,54 @@ function nativeToolOptionsFromCatalog(nativeTools: NativeToolDefinition[]): Nati
   });
 }
 
-function inferNativeToolKeyFromRawTool(rawTool: unknown, nativeTools: NativeToolDefinition[]): string {
-  if (!isPlainJSONObject(rawTool)) {
-    return "";
-  }
+function nativeToolMatchesRawTool(rawTool: Record<string, unknown>, tool: NativeToolDefinition): boolean {
   const rawType = typeof rawTool.type === "string" ? rawTool.type.trim() : "";
-  for (const tool of nativeTools) {
-    if (rawType && rawType === tool.type) {
-      return tool.toolKey;
+  if (rawType && rawType === tool.type) {
+    return true;
+  }
+  return Boolean(
+    tool.payload &&
+      Object.keys(tool.payload).some((key) => key !== "type" && Object.prototype.hasOwnProperty.call(rawTool, key)),
+  );
+}
+
+function nativeToolDefinitionMatchesRouteProtocols(tool: NativeToolDefinition, routeProtocolSet: Set<string>): boolean {
+  if (routeProtocolSet.size === 0) {
+    return true;
+  }
+  return routeProtocolSet.has(resolveModelOptionPolicyProtocol(tool.protocol));
+}
+
+function collectNativeToolKeysFromDefaultOptions(
+  value: unknown,
+  nativeTools: NativeToolDefinition[],
+  routeProtocols: string[],
+): { derivedKeys: string[]; matchingKeys: Set<string> } {
+  const matchingKeys = new Set<string>();
+  if (!isPlainJSONObject(value)) {
+    return { derivedKeys: [], matchingKeys };
+  }
+  const routeProtocolSet = new Set(routeProtocols.map((protocol) => resolveModelOptionPolicyProtocol(protocol)).filter(Boolean));
+  const tools = Array.isArray(value.tools) ? value.tools : [];
+  const derivedKeys: string[] = [];
+  for (const rawTool of tools) {
+    if (!isPlainJSONObject(rawTool)) {
+      continue;
     }
-    if (tool.payload && Object.keys(tool.payload).some((key) => key !== "type" && Object.prototype.hasOwnProperty.call(rawTool, key))) {
-      return tool.toolKey;
+    const matchingTools = nativeTools.filter((tool) => nativeToolMatchesRawTool(rawTool, tool));
+    matchingTools.forEach((tool) => {
+      if (tool.toolKey) {
+        matchingKeys.add(tool.toolKey);
+      }
+    });
+    const selected = routeProtocolSet.size > 0
+      ? matchingTools.find((tool) => nativeToolDefinitionMatchesRouteProtocols(tool, routeProtocolSet))
+      : matchingTools[0];
+    if (selected?.toolKey) {
+      derivedKeys.push(selected.toolKey);
     }
   }
-  return "";
+  return { derivedKeys: Array.from(new Set(derivedKeys)), matchingKeys };
 }
 
 function parseNativeToolKeys(value: unknown, nativeTools: NativeToolDefinition[]): string[] {
@@ -399,21 +433,28 @@ function parseNativeToolKeys(value: unknown, nativeTools: NativeToolDefinition[]
   );
 }
 
-function deriveNativeToolKeysFromDefaultOptions(value: unknown, nativeTools: NativeToolDefinition[]): string[] {
-  if (!isPlainJSONObject(value)) {
-    return [];
-  }
-  const tools = Array.isArray(value.tools) ? value.tools : [];
+function resolveNativeToolKeysFromCapabilities(
+  nativeToolKeys: unknown,
+  defaultOptions: unknown,
+  nativeTools: NativeToolDefinition[],
+  routeProtocols: string[],
+): string[] {
+  const explicitKeys = parseNativeToolKeys(nativeToolKeys, nativeTools);
+  const { derivedKeys, matchingKeys } = collectNativeToolKeysFromDefaultOptions(defaultOptions, nativeTools, routeProtocols);
   return Array.from(
     new Set(
-      tools
-        .map((tool) => inferNativeToolKeyFromRawTool(tool, nativeTools))
-        .filter((key) => key && nativeTools.some((tool) => tool.toolKey === key)),
+      explicitKeys
+        .filter((key) => !matchingKeys.has(key) || derivedKeys.includes(key))
+        .concat(derivedKeys),
     ),
   );
 }
 
-export function normalizeModelCapabilitiesJSON(value: string | null | undefined, nativeTools: NativeToolDefinition[]): string {
+export function normalizeModelCapabilitiesJSON(
+  value: string | null | undefined,
+  nativeTools: NativeToolDefinition[],
+  routeProtocols: string[],
+): string {
   const trimmed = value?.trim() ?? "";
   if (!trimmed || trimmed === "{}") {
     return "";
@@ -422,12 +463,7 @@ export function normalizeModelCapabilitiesJSON(value: string | null | undefined,
   if (!payload) {
     return trimmed;
   }
-  const nativeToolKeys = Array.from(
-    new Set([
-      ...parseNativeToolKeys(payload.nativeToolKeys, nativeTools),
-      ...deriveNativeToolKeysFromDefaultOptions(payload.defaultOptions, nativeTools),
-    ]),
-  );
+  const nativeToolKeys = resolveNativeToolKeysFromCapabilities(payload.nativeToolKeys, payload.defaultOptions, nativeTools, routeProtocols);
   if (nativeToolKeys.length > 0) {
     payload.nativeToolKeys = nativeToolKeys;
   } else {
@@ -524,8 +560,12 @@ export function ModelCapabilitiesGuideButton({ t }: { t: (key: string) => string
             <pre className="max-h-72 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
 {`{
   "defaultOptions": {
+    "store": false,
     "reasoning": {
-      "effort": "high"
+      "effort": "medium"
+    },
+    "text": {
+      "verbosity": "medium"
     }
   }
 }`}
@@ -569,11 +609,32 @@ export function ModelCapabilitiesGuideButton({ t }: { t: (key: string) => string
             <pre className="max-h-72 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
 {`{
   "nativeToolKeys": [
-    "openai.web_search_preview",
-    "google.google_search"
-  ]
+    "xai.x_search",
+    "xai.web_search",
+    "xai.code_interpreter"
+  ],
+  "defaultOptions": {
+    "store": false,
+    "tools": [
+      {
+        "type": "x_search",
+        "enable_image_understanding": true
+      },
+      {
+        "type": "web_search",
+        "enable_image_understanding": true
+      },
+      {
+        "type": "code_interpreter",
+        "container": {
+          "type": "auto"
+        }
+      }
+    ]
+  }
 }`}
             </pre>
+            <p className="text-xs">{t("sheet.capabilitiesGuide.toolsAutoDescription")}</p>
           </TabsContent>
 
           <TabsContent value="policy" className="min-h-0 flex-1 space-y-3 overflow-y-auto text-sm text-muted-foreground">
@@ -699,14 +760,7 @@ export function ModelCapabilitiesQuickConfig({
     }
     setDefaultRows(flattenDefaultOptions(payload.defaultOptions));
     setControlRows(parseOptionControls(payload.optionControls));
-    setNativeToolKeys(
-      Array.from(
-        new Set([
-          ...parseNativeToolKeys(payload.nativeToolKeys, nativeTools),
-          ...deriveNativeToolKeysFromDefaultOptions(payload.defaultOptions, nativeTools),
-        ]),
-      ),
-    );
+    setNativeToolKeys(resolveNativeToolKeysFromCapabilities(payload.nativeToolKeys, payload.defaultOptions, nativeTools, routeProtocols));
     setDefaultErrors({});
     setControlErrors({});
     setActiveTab("defaults");

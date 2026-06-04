@@ -196,10 +196,6 @@ function normalizeCapabilitiesText(value: string | null | undefined): string {
   return trimmed === "{}" ? "" : trimmed;
 }
 
-function normalizeCapabilitiesJSON(value: string | null | undefined, nativeTools: NativeToolDefinition[]): string {
-  return normalizeModelCapabilitiesJSON(value, nativeTools);
-}
-
 function VendorOptionIcon({
   iconUrl,
   label,
@@ -558,7 +554,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
           vendor: form.vendor || undefined,
           kindsJSON: kindsJson,
           icon: form.icon.trim() || undefined,
-          capabilitiesJSON: normalizeCapabilitiesJSON(form.capabilitiesJSON, nativeTools) || undefined,
+          capabilitiesJSON: normalizeModelCapabilitiesJSON(form.capabilitiesJSON, nativeTools, routeProtocols) || undefined,
           systemPrompt: form.systemPrompt.trim() || undefined,
           accessScope: form.accessScope,
           status: form.status,
@@ -598,7 +594,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
         vendor: form.vendor || undefined,
         kindsJSON: kindsJson,
         icon: form.icon.trim() || undefined,
-        capabilitiesJSON: normalizeCapabilitiesJSON(form.capabilitiesJSON, nativeTools) || undefined,
+        capabilitiesJSON: normalizeModelCapabilitiesJSON(form.capabilitiesJSON, nativeTools, routeProtocols) || undefined,
         systemPrompt: form.systemPrompt.trim(),
         accessScope: form.accessScope,
         status: form.status,

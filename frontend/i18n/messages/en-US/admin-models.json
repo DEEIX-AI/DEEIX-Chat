@@ -313,14 +313,15 @@
     "capabilitiesGuide": {
       "button": "Guide",
       "title": "Model capabilities JSON guide",
-      "description": "This JSON stores model default parameters and frontend parameter control definitions. Final passthrough is still controlled by the option policy.",
+      "description": "This JSON stores model defaults, visual option controls, and official native tool capabilities. It is normalized against the current route protocol on save.",
       "defaultsTab": "Defaults",
       "controlsTab": "Controls",
       "toolsTab": "Official tools",
       "policyTab": "Policy",
-      "defaultsDescription": "defaultOptions becomes this model's default request parameters. The chat page uses it when the user has no saved local parameters for the model.",
+      "defaultsDescription": "defaultOptions becomes this model's default request parameters. The chat page uses it when the user has no saved local parameters for the model; backend option policy still applies before sending.",
       "controlsDescription": "optionControls only defines how the chat parameters dialog renders controls. It is not sent to the model by itself. path maps to the real options path.",
-      "toolsDescription": "nativeToolKeys defines the provider-hosted official tools allowed for this model. If users hand-write options.tools, the backend preserves only catalog tools allowed here.",
+      "toolsDescription": "nativeToolKeys defines the provider-hosted official tools allowed for this model. defaultOptions.tools may include default tool parameters; saving derives and fills nativeToolKeys against the current route protocol.",
+      "toolsAutoDescription": "When users hand-write options.tools, only admin-allowed official tools are preserved. Parameters on allowed tools pass through; unknown tools and MCP/function tools cannot be injected through JSON.",
       "controlTypes": "type supports text, select, number, and boolean. select controls should provide options.",
       "policyDescription": "Rendering a control does not guarantee passthrough. The same path still needs to be allowed by the option policy; the backend filters options before sending."
     },

@@ -313,14 +313,15 @@
     "capabilitiesGuide": {
       "button": "指南",
       "title": "模型能力 JSON 指南",
-      "description": "该 JSON 保存模型默认参数和前端参数控件定义；最终是否透传仍由参数过滤规则决定。",
+      "description": "该 JSON 保存模型默认参数、可视化参数控件和官方原生工具能力；保存时会按当前路由协议规范化。",
       "defaultsTab": "默认参数",
       "controlsTab": "参数控件",
       "toolsTab": "官方工具",
       "policyTab": "过滤规则",
-      "defaultsDescription": "defaultOptions 会作为该模型的默认请求参数。用户未保存过本地参数时，聊天页会使用这里的值。",
+      "defaultsDescription": "defaultOptions 会作为该模型的默认请求参数。用户未保存过本地参数时，聊天页会使用这里的值；最终发送前仍会经过后端参数策略。",
       "controlsDescription": "optionControls 只定义聊天参数 Dialog 如何展示控件，不会单独发送给模型。path 对应真实 options 路径。",
-      "toolsDescription": "nativeToolKeys 定义当前模型允许的厂商官方原生工具。用户手写 options.tools 时，后端也只保留这里允许且 catalog 已适配的工具。",
+      "toolsDescription": "nativeToolKeys 定义当前模型允许的厂商官方原生工具。defaultOptions.tools 可以写工具默认参数，保存时会按当前路由协议自动推导并补齐 nativeToolKeys。",
+      "toolsAutoDescription": "用户侧手写 options.tools 时，只会保留管理员允许的官方工具；已允许工具的子参数会透传，未知工具和 MCP/function tool 不会通过 JSON 注入。",
       "controlTypes": "type 支持 text、select、number、boolean；select 需要提供 options。",
       "policyDescription": "控件展示不等于一定透传。对应 path 仍需要在参数过滤规则中允许，后端发送前会统一过滤。"
     },
