@@ -49,6 +49,7 @@ export function SettingsSidebar({
               <Link
                 key={item.id}
                 href={`${basePath}${item.href}`}
+                prefetch={false}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "relative flex h-8 shrink-0 items-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors outline-hidden ring-sidebar-ring focus-visible:ring-2 xl:h-9 xl:w-full xl:px-3.5 [--settings-sidebar-state-bg:color-mix(in_oklch,var(--sidebar-accent),var(--sidebar-foreground)_1%)]",

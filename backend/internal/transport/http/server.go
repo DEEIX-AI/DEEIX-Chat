@@ -308,6 +308,10 @@ func applyFrontendCacheHeaders(c *gin.Context, requestPath string) {
 		c.Header("Cache-Control", "public, max-age=31536000, immutable")
 		return
 	}
+	if isVendorIconAsset(requestPath) {
+		c.Header("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800")
+		return
+	}
 	if isNextExportDataAsset(requestPath) {
 		c.Header("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800")
 		return
@@ -316,7 +320,12 @@ func applyFrontendCacheHeaders(c *gin.Context, requestPath string) {
 }
 
 func isImmutableFrontendAsset(requestPath string) bool {
-	return strings.HasPrefix(requestPath, "/_next/static/") || strings.HasPrefix(requestPath, "/fonts/")
+	return strings.HasPrefix(requestPath, "/_next/static/") ||
+		strings.HasPrefix(requestPath, "/fonts/")
+}
+
+func isVendorIconAsset(requestPath string) bool {
+	return strings.HasPrefix(requestPath, "/vendor/lobehub-icons/")
 }
 
 func isNextExportDataAsset(requestPath string) bool {

@@ -60,14 +60,6 @@ export function NavUser({
   const skipTriggerFocusRef = React.useRef(false)
   const isAdmin = user.role === "admin" || user.role === "superadmin"
 
-  React.useEffect(() => {
-    router.prefetch("/setting/general")
-    router.prefetch("/setting/subscription")
-    if (isAdmin) {
-      router.prefetch("/admin")
-    }
-  }, [isAdmin, router])
-
   const onLogout = React.useCallback(async () => {
     if (loggingOut) {
       return

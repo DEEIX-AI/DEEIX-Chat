@@ -231,6 +231,112 @@ func TestFilterModelOptionsPreservesAllowedXAINativeToolParameters(t *testing.T)
 	}
 }
 
+func TestFilterModelOptionsPreservesConfiguredNativeToolsAndDropsExternalTools(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"store": false,
+		"tools": []interface{}{
+			map[string]interface{}{
+				"type":                       "x_search",
+				"enable_image_understanding": true,
+			},
+			map[string]interface{}{
+				"type":            "future_search",
+				"fresh_parameter": "enabled",
+			},
+			map[string]interface{}{
+				"type":   "external_function",
+				"name":   "server_attack",
+				"strict": true,
+			},
+			map[string]interface{}{
+				"type": "disabled_native_tool",
+			},
+		},
+	}, llm.AdapterXAIResponses, modelOptionPolicyConfig{
+		Mode:             modelOptionPolicyAllowlist,
+		AllowedPathsJSON: `{"default":["store"]}`,
+		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+		ModelCapabilitiesJSON: `{
+			"nativeTools": [
+				{
+					"key": "xai.x_search",
+					"protocols": ["xai_responses"],
+					"type": "x_search",
+					"enabled": true,
+					"payload": {"type": "x_search"}
+				},
+				{
+					"key": "xai.future_search",
+					"protocols": ["xai_responses"],
+					"type": "future_search",
+					"enabled": true,
+					"payload": {"type": "future_search"}
+				},
+				{
+					"key": "xai.disabled_native_tool",
+					"protocols": ["xai_responses"],
+					"type": "disabled_native_tool",
+					"enabled": false,
+					"payload": {"type": "disabled_native_tool"}
+				}
+			]
+		}`,
+	})
+
+	if filtered["store"] != false {
+		t.Fatalf("expected allowed non-tool option to pass, got %#v", filtered)
+	}
+	tools, ok := filtered["tools"].([]map[string]interface{})
+	if !ok || len(tools) != 2 {
+		t.Fatalf("expected configured native tools only, got %#v", filtered["tools"])
+	}
+	if tools[0]["type"] != "x_search" || tools[0]["enable_image_understanding"] != true {
+		t.Fatalf("expected catalog native tool parameters to pass, got %#v", tools[0])
+	}
+	if tools[1]["type"] != "future_search" || tools[1]["fresh_parameter"] != "enabled" {
+		t.Fatalf("expected administrator-defined native tool parameters to pass, got %#v", tools[1])
+	}
+}
+
+func TestFilterModelOptionsPreservesNativeToolAcrossConfiguredProtocols(t *testing.T) {
+	capabilitiesJSON := `{
+		"nativeTools": [
+			{
+				"key": "openai.web_search",
+				"protocols": ["openai_chat_completions", "openai_responses"],
+				"type": "web_search",
+				"enabled": true,
+				"payload": {"type": "web_search"}
+			}
+		]
+	}`
+	for _, adapter := range []string{llm.AdapterOpenAIChatCompletions, llm.AdapterOpenAIResponses} {
+		t.Run(adapter, func(t *testing.T) {
+			filtered := filterModelOptions(map[string]interface{}{
+				"tools": []interface{}{
+					map[string]interface{}{
+						"type":                "web_search",
+						"search_context_size": "low",
+					},
+				},
+			}, adapter, modelOptionPolicyConfig{
+				Mode:                  modelOptionPolicyAllowlist,
+				AllowedPathsJSON:      `{"default":[]}`,
+				DeniedPathsJSON:       config.DefaultModelOptionDeniedPathsJSON(),
+				ModelCapabilitiesJSON: capabilitiesJSON,
+			})
+
+			tools, ok := filtered["tools"].([]map[string]interface{})
+			if !ok || len(tools) != 1 {
+				t.Fatalf("expected one official tool for %s, got %#v", adapter, filtered)
+			}
+			if tools[0]["type"] != "web_search" || tools[0]["search_context_size"] != "low" {
+				t.Fatalf("expected web_search parameters to pass for %s, got %#v", adapter, tools[0])
+			}
+		})
+	}
+}
+
 func TestFilterModelOptionsDerivesNativeToolKeysFromCapabilityDefaultTools(t *testing.T) {
 	filtered := filterModelOptions(map[string]interface{}{
 		"store": false,

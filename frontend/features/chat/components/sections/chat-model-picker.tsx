@@ -382,14 +382,15 @@ function ChatModelMenuItem({
   onSelect,
   pricingLabels,
   viewPricingLabel,
+  pricingTooltipSide,
 }: {
   model: ChatModelOption;
   selected: boolean;
   onSelect: () => void;
   pricingLabels: React.ComponentProps<typeof ModelPricingTooltipContent>["labels"];
   viewPricingLabel: string;
+  pricingTooltipSide: "left" | "top";
 }) {
-  const [pricingOpen, setPricingOpen] = React.useState(false);
   const platformModelName = model.platformModelName.trim();
   const identity = React.useMemo(
     () =>
@@ -421,38 +422,21 @@ function ChatModelMenuItem({
         </span>
       </button>
       {model.pricing ? (
-        <Tooltip open={pricingOpen} onOpenChange={setPricingOpen}>
+        <Tooltip>
           <TooltipTrigger asChild>
             <button
               type="button"
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:text-current focus-visible:text-current focus-visible:outline-none group-hover:text-current group-focus-within:text-current group-data-[selected=true]:text-current"
               aria-label={viewPricingLabel}
-              onPointerDown={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setPricingOpen(true);
-              }}
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setPricingOpen(true);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setPricingOpen(true);
-                }
-              }}
             >
               <CircleDollarSign className="size-3.5" strokeWidth={1.8} />
             </button>
           </TooltipTrigger>
           <TooltipContent
-            side="right"
-            align="center"
+            side={pricingTooltipSide}
+            align={pricingTooltipSide === "top" ? "end" : "center"}
             sideOffset={8}
-            className="max-w-[560px] text-left font-medium tabular-nums"
+            className="z-[80] max-w-[min(92vw,35rem)] text-left font-medium tabular-nums"
           >
             <ModelPricingTooltipContent
               platformModelName={model.platformModelName}
@@ -808,6 +792,7 @@ export function ChatModelPicker({
                         }}
                         pricingLabels={pricingLabels}
                         viewPricingLabel={t("viewPricing")}
+                        pricingTooltipSide="top"
                       />
                     ))}
                   </div>
@@ -911,6 +896,7 @@ export function ChatModelPicker({
                     }}
                     pricingLabels={pricingLabels}
                     viewPricingLabel={t("viewPricing")}
+                    pricingTooltipSide="left"
                   />
                 ))}
               </div>

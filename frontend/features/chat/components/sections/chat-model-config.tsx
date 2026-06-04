@@ -35,7 +35,7 @@ import { cn } from "@/lib/utils";
 import type { ModelOptionControl } from "@/features/chat/types/chat-runtime";
 import type { ConversationOptions } from "@/shared/api/conversation.types";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";
-import type { ModelOptionPolicy, NativeToolDefinition } from "@/shared/lib/model-option-policy";
+import type { ModelNativeToolConfig, ModelOptionPolicy, NativeToolDefinition } from "@/shared/lib/model-option-policy";
 import { isModelOptionPathFiltered, resolveModelOptionPolicyProtocol } from "@/shared/lib/model-option-policy";
 
 type EditableOptionValue = string | number | boolean | null;
@@ -75,6 +75,7 @@ type ChatModelConfigProps = {
   defaultOptions: ConversationOptions;
   optionControls: ModelOptionControl[];
   nativeToolKeys: string[];
+  nativeTools: ModelNativeToolConfig[];
   modelOptionPolicy: ModelOptionPolicy | null;
   selectedProtocol: string;
   selectedModelName: string;
@@ -494,6 +495,92 @@ function nativeToolDefinitionsFromKeys(
   return catalog.filter((tool) => allowedKeys.has(tool.toolKey.trim()));
 }
 
+function nativeToolConfigPayloadType(config: ModelNativeToolConfig): string {
+  return typeof config.payload.type === "string" ? config.payload.type.trim() : "";
+}
+
+function nativeToolDefinitionFromConfig(
+  config: ModelNativeToolConfig,
+  catalog: NativeToolDefinition[],
+  selectedProtocol: string,
+): NativeToolDefinition | null {
+  const key = config.key.trim();
+  const protocols = config.protocols.length > 0 ? config.protocols : (config.protocol.trim() ? [config.protocol.trim()] : []);
+  const type = config.type.trim() || nativeToolConfigPayloadType(config);
+  const policyProtocol = selectedProtocol ? resolveModelOptionPolicyProtocol(selectedProtocol) : "";
+  const matched = (key && policyProtocol && protocols.includes(policyProtocol) ? catalog.find((tool) => tool.toolKey === key && tool.protocol === policyProtocol) : undefined)
+    ?? (key && protocols.length > 0 ? catalog.find((tool) => tool.toolKey === key && protocols.includes(tool.protocol)) : undefined)
+    ?? (key && policyProtocol ? catalog.find((tool) => tool.toolKey === key && tool.protocol === policyProtocol) : undefined)
+    ?? catalog.find((tool) => tool.toolKey === key)
+    ?? (type && policyProtocol && (protocols.length === 0 || protocols.includes(policyProtocol)) ? catalog.find((tool) => tool.protocol === policyProtocol && tool.type === type) : undefined)
+    ?? (type && protocols.length > 0 ? catalog.find((tool) => protocols.includes(tool.protocol) && tool.type === type) : undefined)
+    ?? (!policyProtocol && type ? catalog.find((tool) => tool.type === type) : undefined);
+  if (!matched && !key && !type && Object.keys(config.payload).length === 0) {
+    return null;
+  }
+  return {
+    protocol: matched?.protocol || protocols[0] || selectedProtocol,
+    provider: config.provider || matched?.provider || "Provider",
+    type: type || matched?.type || key,
+    toolKey: key || matched?.toolKey || type,
+    label: config.label || matched?.label || type || key,
+    description: config.description || matched?.description || type || key,
+    payload: Object.keys(config.payload).length > 0 ? config.payload : (matched?.payload ?? {}),
+    defaultEnabled: config.defaultEnabled,
+    billable: matched?.billable ?? false,
+    billingUnit: matched?.billingUnit ?? "",
+    priceNanousd: matched?.priceNanousd ?? 0,
+    priceLabel: matched?.priceLabel ?? "",
+    riskLevel: matched?.riskLevel ?? "",
+    usageAliases: matched?.usageAliases ?? [],
+  };
+}
+
+function nativeToolDefinitionsFromConfigs(
+  configs: ModelNativeToolConfig[],
+  legacyKeys: string[],
+  catalog: NativeToolDefinition[],
+  selectedProtocol: string,
+): NativeToolVisualOption[] {
+  const sourceConfigs = configs.length > 0
+    ? configs
+    : nativeToolDefinitionsFromKeys(legacyKeys, catalog).map((tool): ModelNativeToolConfig => ({
+      id: `${tool.protocol}:${tool.toolKey}:${tool.type}`,
+      key: tool.toolKey,
+      protocol: tool.protocol,
+      protocols: [tool.protocol],
+      provider: tool.provider,
+      type: tool.type,
+      label: tool.label,
+      description: tool.description,
+      enabled: true,
+      defaultEnabled: false,
+      payload: tool.payload,
+    }));
+  return sourceConfigs.flatMap((config): NativeToolVisualOption[] => {
+    if (!config.enabled) {
+      return [];
+    }
+    const definition = nativeToolDefinitionFromConfig(config, catalog, selectedProtocol);
+    if (!definition) {
+      return [];
+    }
+    const matchingDefinitions = catalog.filter((tool) => tool.toolKey === definition.toolKey);
+    const protocols = config.protocols.length > 0
+      ? config.protocols
+      : Array.from(new Set([
+        config.protocol,
+        definition.protocol,
+        ...matchingDefinitions.map((tool) => tool.protocol).filter(Boolean),
+      ].filter(Boolean)));
+    return [{
+      definition,
+      protocols,
+      protocolMatched: !selectedProtocol || protocols.includes(resolveModelOptionPolicyProtocol(selectedProtocol)),
+    }];
+  });
+}
+
 function providerToolMatchesAnyDefinition(
   value: unknown,
   definitions: NativeToolDefinition[],
@@ -856,6 +943,7 @@ export function ChatModelConfig({
   defaultOptions,
   optionControls,
   nativeToolKeys,
+  nativeTools,
   modelOptionPolicy,
   selectedProtocol,
   selectedModelName,
@@ -879,9 +967,13 @@ export function ChatModelConfig({
   const optionsObjectRef = React.useRef<ConversationOptions>({});
   const effectiveDefaultOptions = restoredDefaultOptions ?? defaultOptions;
   const selectedProtocolLabel = selectedProtocol ? resolveProtocolLabel(selectedProtocol) : "";
+  const nativeToolVisualOptions = React.useMemo(
+    () => nativeToolDefinitionsFromConfigs(nativeTools, nativeToolKeys, modelOptionPolicy?.nativeTools ?? [], selectedProtocol),
+    [modelOptionPolicy?.nativeTools, nativeToolKeys, nativeTools, selectedProtocol],
+  );
   const nativeToolDefinitions = React.useMemo(
-    () => nativeToolDefinitionsFromKeys(nativeToolKeys, modelOptionPolicy?.nativeTools ?? []),
-    [modelOptionPolicy?.nativeTools, nativeToolKeys],
+    () => nativeToolVisualOptions.map((item) => item.definition),
+    [nativeToolVisualOptions],
   );
   const configuredOptions = React.useMemo(
     () => visualOptionsFromControls(optionControls, optionsObject),
@@ -897,34 +989,16 @@ export function ChatModelConfig({
     [configuredOptionKeys, modelOptionPolicy, nativeToolDefinitions, optionsObject, selectedProtocol],
   );
   const nativeToolGroup = React.useMemo(() => {
-    const policyProtocol = resolveModelOptionPolicyProtocol(selectedProtocol);
-    const orderedKeys = Array.from(new Set(nativeToolKeys.map((key) => key.trim()).filter(Boolean)));
-    if (orderedKeys.length === 0) {
+    if (nativeToolVisualOptions.length === 0) {
       return null;
     }
-    const catalog = modelOptionPolicy?.nativeTools ?? [];
-    const options = orderedKeys.flatMap((toolKey): NativeToolVisualOption[] => {
-      const definitions = catalog.filter((tool) => tool.toolKey === toolKey);
-      if (definitions.length === 0) {
-        return [];
-      }
-      const protocols = Array.from(new Set(definitions.map((tool) => tool.protocol).filter(Boolean)));
-      const matchedDefinition = definitions.find((tool) => tool.protocol === policyProtocol);
-      return [{
-        definition: matchedDefinition ?? definitions[0],
-        protocols,
-        protocolMatched: Boolean(matchedDefinition),
-      }];
-    });
-    if (options.length === 0) {
-      return null;
-    }
-    const provider = options[0]?.definition.provider ?? selectedProtocol;
+    const providers = Array.from(new Set(nativeToolVisualOptions.map((item) => item.definition.provider).filter(Boolean)));
+    const provider = providers.length === 1 ? providers[0] : "";
     return {
-      title: resolveNativeToolGroupTitle(provider, provider, tComposer),
-      options,
+      title: provider ? resolveNativeToolGroupTitle(provider, provider, tComposer) : tComposer("nativeTools.official"),
+      options: nativeToolVisualOptions,
     };
-  }, [modelOptionPolicy?.nativeTools, nativeToolKeys, selectedProtocol, tComposer]);
+  }, [nativeToolVisualOptions, tComposer]);
   const visibleOptions = React.useMemo(
     () => [...configuredOptions, ...editableOptions],
     [configuredOptions, editableOptions],
@@ -1126,11 +1200,12 @@ export function ChatModelConfig({
                     const checked = hasProviderTool(optionsObject, tool);
                     const label = resolveNativeToolLabel(tool, tNativeToolLabels);
                     const description = resolveNativeToolDescription(tool, tNativeToolDescriptions);
+                    const typeLabel = tool.type.trim();
                     const protocolLabels = toolOption.protocols.map(resolveProtocolLabel).join(" / ");
                     const status = checked ? "passed" : "inactive";
                     return (
                       <label
-                        key={tool.type}
+                        key={`${tool.protocol}:${tool.toolKey}:${tool.type}`}
                         className="flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50"
                       >
                         <Checkbox
@@ -1147,21 +1222,31 @@ export function ChatModelConfig({
                           >
                             {description}
                           </span>
+                          {typeLabel ? (
+                            <span className="min-w-0">
+                              <span
+                                className="inline-flex max-w-full truncate rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10px] leading-none text-muted-foreground"
+                                title={typeLabel}
+                              >
+                                {typeLabel}
+                              </span>
+                            </span>
+                          ) : null}
                         </span>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className="inline-flex shrink-0 items-center gap-1">
-                              {!toolOption.protocolMatched ? (
-                                <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] leading-none text-amber-700">
-                                  {tComposer("nativeToolMayNotApply")}
-                                </span>
-                              ) : null}
+                            <span className="inline-flex shrink-0 flex-col items-end gap-1">
                               <ModelOptionFilterBadge
                                 status={status}
                                 inactiveLabel={tComposer("notEnabled")}
                                 ignoredLabel={tComposer("ignored")}
                                 passedLabel={tComposer("willPass")}
                               />
+                              {!toolOption.protocolMatched ? (
+                                <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] leading-none text-amber-700">
+                                  {tComposer("nativeToolMayNotApply")}
+                                </span>
+                              ) : null}
                             </span>
                           </TooltipTrigger>
                           <TooltipContent side="left" align="end" className="max-w-72 text-xs">

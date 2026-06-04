@@ -375,6 +375,7 @@
       }
     },
     "nativeTools": {
+      "official": "Official native tools",
       "grok": "Grok native tools",
       "openai": "OpenAI native tools",
       "claude": "Claude native tools",

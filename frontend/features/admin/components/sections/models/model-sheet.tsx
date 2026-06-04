@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/sheet";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { getModelOptionPolicy } from "@/shared/api/settings";
 import {
@@ -242,6 +243,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
   const [form, setForm] = useState<FormState>(() => buildInitialState(target));
   const [pending, setPending] = useState(false);
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
+  const [showCapabilitiesJSONAdvanced, setShowCapabilitiesJSONAdvanced] = useState(false);
   const sheetContentRef = useRef<HTMLDivElement | null>(null);
   const [nativeTools, setNativeTools] = useState<NativeToolDefinition[]>([]);
   // Upstream sources for accordion
@@ -476,6 +478,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
       setForm(buildInitialState(null));
       setBindRows([createModelSourceBindDraftRow()]);
       setExpandedSections([]);
+      setShowCapabilitiesJSONAdvanced(false);
       setUpstreams([]);
       setUpstreamsLoaded(false);
       setUpstreamModelsByID({});
@@ -487,13 +490,15 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
       setSources([]);
       setForm(buildInitialState(null));
       setBindRows([createModelSourceBindDraftRow()]);
-      setExpandedSections(["sources"]);
+      setExpandedSections(["capabilities", "sources"]);
+      setShowCapabilitiesJSONAdvanced(false);
       return;
     }
 
     setForm(buildInitialState(target));
     setBindRows([createModelSourceBindDraftRow()]);
-    setExpandedSections([]);
+    setExpandedSections(["capabilities"]);
+    setShowCapabilitiesJSONAdvanced(false);
 
     setSourcesLoading(true);
     void (async () => {
@@ -634,175 +639,253 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
     <Sheet open={open} onOpenChange={(nextOpen) => !nextOpen && !pending && handleClose()}>
       <SheetContent
         ref={sheetContentRef}
-        className="flex flex-col sm:max-w-[460px]"
+        className="flex flex-col gap-0 sm:max-w-[460px]"
       >
-        <SheetHeader className="px-4 pb-4">
+        <SheetHeader className="shrink-0 px-4 py-4">
           <SheetTitle>{mode === "create" ? t("sheet.createTitle") : t("sheet.editTitle")}</SheetTitle>
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="overflow-y-auto flex-1 px-6 space-y-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
 
-            <div>
-              <Label htmlFor="model-platform-name">{t("platformModel")}</Label>
-              <Input
-                id="model-platform-name"
-                value={form.platformModelName}
-                placeholder="claude-sonnet-4.5"
-                onChange={(e) => setField("platformModelName", e.target.value)}
-                disabled={pending}
-              />
-            </div>
+            <div className="space-y-4">
+              <div className="min-w-0 space-y-1">
+                <Label className="text-xs font-normal text-muted-foreground" htmlFor="model-platform-name">{t("platformModel")}</Label>
+                <Input
+                  id="model-platform-name"
+                  value={form.platformModelName}
+                  placeholder="claude-sonnet-4.5"
+                  onChange={(e) => setField("platformModelName", e.target.value)}
+                  disabled={pending}
+                />
+              </div>
 
-            <div>
-              <Label htmlFor="model-vendor">{t("sheet.vendor")}</Label>
-              <Combobox
-                id="model-vendor"
-                items={vendorOptions}
-                value={selectedVendorOption}
-                onValueChange={(item) => setField("vendor", item?.value ?? UNKNOWN_VENDOR)}
-                itemToStringLabel={(item) => item?.label ?? ""}
-                isItemEqualToValue={(item, selected) => item.value === selected.value}
-                disabled={pending}
-              >
-                <ComboboxTrigger
-                  render={
+              <div className="min-w-0 space-y-1">
+                <Label className="text-xs font-normal text-muted-foreground" htmlFor="model-vendor">{t("sheet.vendor")}</Label>
+                <Combobox
+                  id="model-vendor"
+                  items={vendorOptions}
+                  value={selectedVendorOption}
+                  onValueChange={(item) => setField("vendor", item?.value ?? UNKNOWN_VENDOR)}
+                  itemToStringLabel={(item) => item?.label ?? ""}
+                  isItemEqualToValue={(item, selected) => item.value === selected.value}
+                  disabled={pending}
+                >
+                  <ComboboxTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-between border-input/40 bg-transparent px-3 py-1 font-normal hover:bg-transparent focus-visible:border-ring/60 focus-visible:ring-[1px] focus-visible:ring-ring/40 [&_[data-slot=combobox-trigger-icon]]:size-4 [&_[data-slot=combobox-trigger-icon]]:opacity-50"
+                        disabled={pending}
+                      >
+                        <span className="flex min-w-0 flex-1 items-center justify-start gap-2">
+                          <VendorOptionIcon
+                            iconUrl={selectedVendorOption?.iconUrl}
+                            label={selectedVendorOption?.label ?? ""}
+                            unknown={selectedVendorOption?.value === UNKNOWN_VENDOR}
+                          />
+                          <span className="min-w-0 truncate text-left leading-5">
+                            <ComboboxValue />
+                          </span>
+                        </span>
+                      </Button>
+                    }
+                  />
+                  <ComboboxContent
+                    align="start"
+                    className="min-w-[320px]"
+                    portalContainer={sheetContentRef}
+                  >
+                    <ComboboxInput placeholder={t("sheet.vendorSearchPlaceholder")} showTrigger={false} showClear={false} disabled={pending} />
+                    <ComboboxEmpty>{t("sheet.noMatchedVendors")}</ComboboxEmpty>
+                    <ComboboxList>
+                      {(item: VendorOption) => (
+                        <ComboboxItem key={item.value} value={item} className="text-left">
+                          <VendorOptionIcon
+                            iconUrl={item.iconUrl}
+                            label={item.label}
+                            unknown={item.value === UNKNOWN_VENDOR}
+                          />
+                          <span className="min-w-0 flex-1 truncate leading-5">{item.label}</span>
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
+              </div>
+
+              <div className="min-w-0 space-y-1">
+                <Label className="text-xs font-normal text-muted-foreground">{t("fields.status")}</Label>
+                <Select
+                  value={form.status}
+                  onValueChange={(v) => setField("status", v as AdminLLMStatus)}
+                  disabled={pending}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MODEL_STATUS_OPTIONS.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {t(`status.${s}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="min-w-0 space-y-1">
+                <Label className="text-xs font-normal text-muted-foreground">{t("sheet.kind")}</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
                     <Button
                       type="button"
                       variant="outline"
-                      className="w-full justify-between border-input/40 bg-transparent px-3 py-1 font-normal hover:bg-transparent focus-visible:border-ring/60 focus-visible:ring-[1px] focus-visible:ring-ring/40 [&_[data-slot=combobox-trigger-icon]]:size-4 [&_[data-slot=combobox-trigger-icon]]:opacity-50"
+                      role="combobox"
                       disabled={pending}
+                      className="w-full justify-between border-input/40 bg-transparent px-3 py-1 font-normal hover:bg-transparent focus-visible:border-ring/60 focus-visible:ring-[1px] focus-visible:ring-ring/40"
                     >
-                      <span className="flex min-w-0 flex-1 items-center justify-start gap-2">
-                        <VendorOptionIcon
-                          iconUrl={selectedVendorOption?.iconUrl}
-                          label={selectedVendorOption?.label ?? ""}
-                          unknown={selectedVendorOption?.value === UNKNOWN_VENDOR}
-                        />
-                        <span className="min-w-0 truncate text-left leading-5">
-                          <ComboboxValue />
-                        </span>
+                      <span className={`min-w-0 flex-1 truncate text-left ${selectedKindLabel ? "" : "text-muted-foreground"}`}>
+                        {selectedKindLabel || t("sheet.selectKind")}
                       </span>
+                      <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground opacity-50" />
                     </Button>
-                  }
-                />
-                <ComboboxContent
-                  align="start"
-                  className="min-w-[320px]"
-                  portalContainer={sheetContentRef}
-                >
-                  <ComboboxInput placeholder={t("sheet.vendorSearchPlaceholder")} showTrigger={false} showClear={false} disabled={pending} />
-                  <ComboboxEmpty>{t("sheet.noMatchedVendors")}</ComboboxEmpty>
-                  <ComboboxList>
-                    {(item: VendorOption) => (
-                      <ComboboxItem key={item.value} value={item} className="text-left">
-                        <VendorOptionIcon
-                          iconUrl={item.iconUrl}
-                          label={item.label}
-                          unknown={item.value === UNKNOWN_VENDOR}
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-48 p-1">
+                    {MODEL_KIND_OPTIONS.map(({ value }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => toggleKind(value)}
+                        className="relative flex w-full items-center rounded-sm py-1.5 pr-8 pl-2 text-xs font-normal hover:bg-accent"
+                      >
+                        <span className="min-w-0 flex-1 truncate text-left">{t(`kinds.${value}`)}</span>
+                        <Check
+                          className={`absolute right-2 size-4 shrink-0 text-muted-foreground ${
+                            form.kinds.includes(value) ? "opacity-100" : "opacity-0"
+                          }`}
                         />
-                        <span className="min-w-0 flex-1 truncate leading-5">{item.label}</span>
-                      </ComboboxItem>
-                    )}
-                  </ComboboxList>
-                </ComboboxContent>
-              </Combobox>
-            </div>
-
-            <div>
-              <Label>{t("fields.status")}</Label>
-              <Select
-                value={form.status}
-                onValueChange={(v) => setField("status", v as AdminLLMStatus)}
-                disabled={pending}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MODEL_STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {t(`status.${s}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>{t("sheet.kind")}</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    role="combobox"
-                    disabled={pending}
-                    className="w-full justify-between border-input/40 bg-transparent px-3 py-1 font-normal hover:bg-transparent focus-visible:border-ring/60 focus-visible:ring-[1px] focus-visible:ring-ring/40"
-                  >
-                    <span className={`min-w-0 flex-1 truncate text-left ${selectedKindLabel ? "" : "text-muted-foreground"}`}>
-                      {selectedKindLabel || t("sheet.selectKind")}
-                    </span>
-                    <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-48 p-1">
-                  {MODEL_KIND_OPTIONS.map(({ value }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => toggleKind(value)}
-                      className="relative flex w-full items-center rounded-sm py-1.5 pr-8 pl-2 text-xs font-normal hover:bg-accent"
-                    >
-                      <span className="min-w-0 flex-1 truncate text-left">{t(`kinds.${value}`)}</span>
-                      <Check
-                        className={`absolute right-2 size-4 shrink-0 text-muted-foreground ${
-                          form.kinds.includes(value) ? "opacity-100" : "opacity-0"
-                        }`}
-                      />
-                    </button>
-                  ))}
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div>
-              <Label htmlFor="model-icon">{t("sheet.icon")}</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="model-icon"
-                  value={form.icon}
-                  placeholder="openai"
-                  className="font-mono"
-                  onChange={(e) => setField("icon", e.target.value)}
-                  disabled={pending}
-                />
-                {iconPreviewUrl ? (
-                  <LobeHubIcon key={iconPreviewUrl} iconUrl={iconPreviewUrl} label={form.icon} size={24} />
-                ) : (
-                  <div className="size-6 shrink-0" />
-                )}
+                      </button>
+                    ))}
+                  </PopoverContent>
+                </Popover>
               </div>
-              {form.icon.trim() === "" ? (
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {t("sheet.iconAutoDescription", { vendor: resolvedIdentity.vendorLabel })}
-                </p>
-              ) : null}
+
+              <div className="min-w-0 space-y-1">
+                <Label className="text-xs font-normal text-muted-foreground" htmlFor="model-icon">{t("sheet.icon")}</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="model-icon"
+                    value={form.icon}
+                    placeholder="openai"
+                    onChange={(e) => setField("icon", e.target.value)}
+                    disabled={pending}
+                  />
+                  {iconPreviewUrl ? (
+                    <LobeHubIcon key={iconPreviewUrl} iconUrl={iconPreviewUrl} label={form.icon} size={24} />
+                  ) : (
+                    <div className="size-6 shrink-0" />
+                  )}
+                </div>
+                {form.icon.trim() === "" ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    {t("sheet.iconAutoDescription", { vendor: resolvedIdentity.vendorLabel })}
+                  </p>
+                ) : null}
+              </div>
             </div>
 
             <Accordion
               type="multiple"
               value={expandedSections}
               onValueChange={setExpandedSections}
-              className="space-y-2"
+              className="border-y border-border/60"
             >
-              <AccordionItem value="other" className="px-1">
-                <AccordionTrigger className="py-1.5 text-xs text-muted-foreground hover:no-underline">
+              <AccordionItem value="capabilities" className="border-border/60">
+                <AccordionTrigger className="h-11 items-center py-0 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline data-[state=open]:font-medium data-[state=open]:text-foreground [&_.accordion-trigger-icon]:translate-y-0">
+                  {t("sheet.capabilities")}
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3 pb-4 pt-0">
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    {t("sheet.capabilitiesDescription")}
+                  </p>
+                  {showImageStreamControl ? (
+                    <div className="pb-1">
+                      <label
+                        htmlFor="model-image-stream-enabled"
+                        className="flex min-w-0 items-center gap-2 text-xs font-normal text-muted-foreground"
+                      >
+                        <Checkbox
+                          id="model-image-stream-enabled"
+                          checked={imageStreamEnabled}
+                          disabled={pending}
+                          className="size-3.5"
+                          onCheckedChange={(checked) => updateImageStreamEnabled(checked === true)}
+                        />
+                        <span className="min-w-0 truncate">
+                          {t("sheet.imageStreamEnabled")}
+                        </span>
+                      </label>
+                    </div>
+                  ) : null}
+                  <div className="grid min-w-0 grid-cols-2 gap-2">
+                    <ModelCapabilitiesQuickConfig
+                      value={form.capabilitiesJSON}
+                      disabled={pending}
+                      nativeTools={nativeTools}
+                      routeProtocols={routeProtocols}
+                      t={t}
+                      commonT={commonT}
+                      triggerVariant="secondary"
+                      triggerClassName="h-8 w-full justify-start px-2 text-xs font-normal shadow-none"
+                      triggerLabel={t("sheet.capabilitiesVisualButton")}
+                      onApply={(nextValue) => setField("capabilitiesJSON", nextValue)}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-8 justify-between px-2 text-xs font-normal shadow-none"
+                      onClick={() => setShowCapabilitiesJSONAdvanced((prev) => !prev)}
+                    >
+                      {t("sheet.capabilitiesAdvancedJSON")}
+                      <ChevronDownIcon
+                        className={cn(
+                          "size-3 transition-transform",
+                          showCapabilitiesJSONAdvanced && "rotate-180",
+                        )}
+                      />
+                    </Button>
+                  </div>
+                  {showCapabilitiesJSONAdvanced ? (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex min-w-0 items-center justify-between gap-2">
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          {t("sheet.capabilitiesJSON")}
+                        </p>
+                        <ModelCapabilitiesGuideButton t={t} />
+                      </div>
+                      <JsonCodeEditor
+                        id="model-capabilities-json"
+                        value={form.capabilitiesJSON}
+                        placeholder={MODEL_CAPABILITIES_PLACEHOLDER}
+                        height={220}
+                        onChange={(nextValue) => setField("capabilitiesJSON", nextValue)}
+                        disabled={pending}
+                      />
+                    </div>
+                  ) : null}
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="other" className="border-border/60">
+                <AccordionTrigger className="h-11 items-center py-0 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline data-[state=open]:font-medium data-[state=open]:text-foreground [&_.accordion-trigger-icon]:translate-y-0">
                   {t("sheet.otherInfo")}
                 </AccordionTrigger>
-                <AccordionContent className="space-y-4 pt-3">
-                  <div>
-                    <Label>{t("sheet.accessScope")}</Label>
+                <AccordionContent className="space-y-4 pb-4 pt-0">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-normal text-muted-foreground">{t("sheet.accessScope")}</Label>
                     <Select
                       value={form.accessScope}
                       onValueChange={(v) => setField("accessScope", v as AdminLLMModelAccessScope)}
@@ -818,8 +901,8 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
                     </Select>
                   </div>
 
-                  <div>
-                    <Label htmlFor="model-desc">{t("sheet.description")}</Label>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-normal text-muted-foreground" htmlFor="model-desc">{t("sheet.description")}</Label>
                     <Textarea
                       id="model-desc"
                       value={form.description}
@@ -830,8 +913,8 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="model-system-prompt">{t("sheet.systemPrompt")}</Label>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-normal text-muted-foreground" htmlFor="model-system-prompt">{t("sheet.systemPrompt")}</Label>
                     <Textarea
                       id="model-system-prompt"
                       value={form.systemPrompt}
@@ -848,64 +931,13 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="capabilities" className="px-1">
-                <AccordionTrigger className="py-1.5 text-xs text-muted-foreground hover:no-underline">
-                  {t("sheet.capabilitiesJSON")}
-                </AccordionTrigger>
-                <AccordionContent className="pt-3">
-                  <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
-                    <p className="min-w-0 text-xs text-muted-foreground">
-                      {t("sheet.capabilitiesDescription")}
-                    </p>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <ModelCapabilitiesGuideButton t={t} />
-                    </div>
-                  </div>
-                  {showImageStreamControl ? (
-                    <label
-                      htmlFor="model-image-stream-enabled"
-                      className="mb-2 flex min-w-0 items-center gap-2 px-1 py-1"
-                    >
-                      <Checkbox
-                        id="model-image-stream-enabled"
-                        checked={imageStreamEnabled}
-                        disabled={pending}
-                        onCheckedChange={(checked) => updateImageStreamEnabled(checked === true)}
-                      />
-                      <span className="min-w-0 truncate text-xs font-medium text-foreground">
-                        {t("sheet.imageStreamEnabled")}
-                      </span>
-                    </label>
-                  ) : null}
-                  <JsonCodeEditor
-                    id="model-capabilities-json"
-                    value={form.capabilitiesJSON}
-                    placeholder={MODEL_CAPABILITIES_PLACEHOLDER}
-                    height={220}
-                    onChange={(nextValue) => setField("capabilitiesJSON", nextValue)}
-                    disabled={pending}
-                    actions={(
-                      <ModelCapabilitiesQuickConfig
-                        value={form.capabilitiesJSON}
-                        disabled={pending}
-                        nativeTools={nativeTools}
-                        routeProtocols={routeProtocols}
-                        t={t}
-                        commonT={commonT}
-                        onApply={(nextValue) => setField("capabilitiesJSON", nextValue)}
-                      />
-                    )}
-                  />
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="sources" className="px-1">
-                <AccordionTrigger className="py-1.5 text-xs text-muted-foreground hover:no-underline">
+              <AccordionItem value="sources" className="border-border/60">
+                <AccordionTrigger className="h-11 items-center py-0 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline data-[state=open]:font-medium data-[state=open]:text-foreground [&_.accordion-trigger-icon]:translate-y-0">
                   {mode === "create"
                     ? t("sheet.bindInitialSource")
                     : t("sheet.upstreamSources", { count: sourcesLoading ? "..." : sources.length })}
                 </AccordionTrigger>
-                <AccordionContent className="pt-3 space-y-2">
+                <AccordionContent className="space-y-3 pb-4 pt-0">
                   {mode === "create" ? (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between gap-2">
@@ -915,8 +947,8 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
                         <Button
                           type="button"
                           size="sm"
-                          variant="outline"
-                          className="h-8 shrink-0 px-2.5"
+                          variant="secondary"
+                          className="h-8 shrink-0 px-2 text-xs font-normal shadow-none"
                           disabled={pending}
                           onClick={addBindRow}
                         >
@@ -957,7 +989,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
 
                               <div className="grid grid-cols-2 gap-2">
                                 <div className="min-w-0 space-y-1">
-                                  <Label className="text-[11px] leading-4">{t("sources.upstream")}</Label>
+                                  <Label className="text-xs font-normal text-muted-foreground">{t("sources.upstream")}</Label>
                                   <Select
                                     value={draft.upstreamID}
                                     onValueChange={(value) => handleBindRowUpstreamChange(row.id, value)}
@@ -977,7 +1009,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
                                 </div>
 
                                 <div className="min-w-0 space-y-1">
-                                  <Label className="text-[11px] leading-4">{t("sources.upstreamModel")}</Label>
+                                  <Label className="text-xs font-normal text-muted-foreground">{t("sources.upstreamModel")}</Label>
                                   <Select
                                     value={draft.upstreamModelID}
                                     onValueChange={(value) => handleBindRowModelChange(row.id, value)}
@@ -999,7 +1031,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
 
                               <div className="grid grid-cols-2 gap-2">
                                 <div className="min-w-0 space-y-1">
-                                  <Label className="text-[11px] leading-4">{t("sources.protocol")}</Label>
+                                  <Label className="text-xs font-normal text-muted-foreground">{t("sources.protocol")}</Label>
                                   <Select
                                     value={draft.protocol}
                                     onValueChange={(value) => setBindRowField(row.id, "protocol", value as AdminLLMAdapter)}
@@ -1019,7 +1051,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
                                 </div>
 
                                 <div className="min-w-0 space-y-1">
-                                  <Label className="text-[11px] leading-4">{t("sources.status")}</Label>
+                                  <Label className="text-xs font-normal text-muted-foreground">{t("sources.status")}</Label>
                                   <Select
                                     value={draft.status}
                                     onValueChange={(value) => setBindRowField(row.id, "status", value as AdminLLMStatus)}
@@ -1038,7 +1070,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
 
                               <div className="grid grid-cols-2 gap-2">
                                 <div className="min-w-0 space-y-1">
-                                  <Label className="text-[11px] leading-4" htmlFor={`model-source-priority-${row.id}`}>
+                                  <Label className="text-xs font-normal text-muted-foreground" htmlFor={`model-source-priority-${row.id}`}>
                                     {t("sources.priority")}
                                   </Label>
                                   <Input
@@ -1051,7 +1083,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
                                   />
                                 </div>
                                 <div className="min-w-0 space-y-1">
-                                  <Label className="text-[11px] leading-4" htmlFor={`model-source-weight-${row.id}`}>
+                                  <Label className="text-xs font-normal text-muted-foreground" htmlFor={`model-source-weight-${row.id}`}>
                                     {t("sources.weight")}
                                   </Label>
                                   <Input
@@ -1074,49 +1106,51 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
                   ) : sources.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{t("sources.empty")}</p>
                   ) : (
-                    sources.map((src) => (
-                      <div
-                        key={src.id}
-                        className="rounded-md border px-3 py-2 text-xs space-y-1.5"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="font-medium truncate">
-                              {resolveValue(src.upstreamName)}
-                            </span>
-                            <span className="text-muted-foreground">→</span>
-                            <span className="font-mono text-muted-foreground truncate">
-                              {resolveValue(src.upstreamModelName)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            {src.circuitOpen ? (
-                              <Badge variant="outline" className="border-destructive/60 text-destructive text-[10px]">
-                                {t("status.circuitOpen")}
-                              </Badge>
-                            ) : src.status === "inactive" ? (
-                              <Badge variant="outline" className="text-muted-foreground text-[10px]">
-                                {t("status.inactive")}
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-[10px]">
-                                {t("status.active")}
-                              </Badge>
-                            )}
+                    <div className="space-y-1.5">
+                      {sources.map((src) => (
+                        <div
+                          key={src.id}
+                          className="flex h-8 items-center rounded-md bg-secondary px-2.5 text-xs"
+                        >
+                          <div className="flex min-w-0 flex-1 items-center justify-between gap-1.5">
+                            <div className="flex min-w-0 items-center gap-1">
+                              <span className="truncate font-medium">
+                                {resolveValue(src.upstreamName)}
+                              </span>
+                              <span className="text-muted-foreground">→</span>
+                              <span className="truncate font-mono text-muted-foreground">
+                                {resolveValue(src.upstreamModelName)}
+                              </span>
+                            </div>
+                            <div className="flex shrink-0 items-center">
+                              {src.circuitOpen ? (
+                                <Badge variant="ghost" className="h-5 rounded-md px-1.5 text-[10px] font-normal text-destructive">
+                                  {t("status.circuitOpen")}
+                                </Badge>
+                              ) : src.status === "inactive" ? (
+                                <Badge variant="ghost" className="h-5 rounded-md px-1.5 text-[10px] font-normal text-muted-foreground">
+                                  {t("status.inactive")}
+                                </Badge>
+                              ) : (
+                                <Badge variant="ghost" className="h-5 rounded-md px-1.5 text-[10px] font-normal text-foreground/75">
+                                  {t("status.active")}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      ))}
+                    </div>
                   )}
                 </AccordionContent>
               </AccordionItem>
 
               {target && (
-                <AccordionItem value="meta" className="px-1">
-                  <AccordionTrigger className="py-1.5 text-xs text-muted-foreground hover:no-underline">
+                <AccordionItem value="meta" className="border-border/60">
+                  <AccordionTrigger className="h-11 items-center py-0 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline data-[state=open]:font-medium data-[state=open]:text-foreground [&_.accordion-trigger-icon]:translate-y-0">
                     {t("sheet.metadata")}
                   </AccordionTrigger>
-                  <AccordionContent className="pt-3 space-y-2 text-xs">
+                  <AccordionContent className="space-y-2 pb-4 pt-0 text-xs">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">ID</span>
                       <span className="font-mono">{target.id}</span>
