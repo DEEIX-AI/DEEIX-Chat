@@ -474,6 +474,7 @@ function ChatInputComponent({
                 defaultOptions={defaultOptions}
                 optionControls={selectedModel?.optionControls ?? []}
                 nativeToolKeys={selectedModel?.nativeToolKeys ?? []}
+                nativeTools={selectedModel?.nativeTools ?? []}
                 modelOptionPolicy={modelOptionPolicy}
                 selectedProtocol={selectedProtocol}
                 selectedModelName={selectedModelName}

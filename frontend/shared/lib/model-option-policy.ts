@@ -41,6 +41,20 @@ export type NativeToolDefinition = {
   usageAliases: string[];
 };
 
+export type ModelNativeToolConfig = {
+  id: string;
+  key: string;
+  protocol: string;
+  protocols: string[];
+  provider?: string;
+  type: string;
+  label: string;
+  description?: string;
+  enabled: boolean;
+  defaultEnabled: boolean;
+  payload: Record<string, unknown>;
+};
+
 export const MODEL_OPTION_POLICY_PROTOCOL_LABELS: Record<ModelOptionPolicyProtocol, string> = {
   default: "Default",
   openai_chat_completions: "OpenAI（Chat Completions）",

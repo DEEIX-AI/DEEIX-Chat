@@ -375,6 +375,7 @@
       }
     },
     "nativeTools": {
+      "official": "官方原生工具",
       "grok": "Grok 原生工具",
       "openai": "OpenAI 原生工具",
       "claude": "Claude 原生工具",
