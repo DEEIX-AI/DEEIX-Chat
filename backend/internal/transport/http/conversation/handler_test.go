@@ -68,6 +68,21 @@ func TestStreamErrorPayloadIncludesUpstreamDebug(t *testing.T) {
 	}
 }
 
+func TestMapStreamErrorDoesNotExposeUpstreamUnauthorizedAsPlatformUnauthorized(t *testing.T) {
+	err := errors.Join(appconversation.ErrUpstreamRequestFailed, &llm.UpstreamError{
+		StatusCode: 401,
+		Message:    "upstream authentication failed",
+	})
+
+	mapped := mapStreamError(err)
+	if mapped.Status != 502 {
+		t.Fatalf("expected upstream 401 to be mapped to gateway failure, got status=%d", mapped.Status)
+	}
+	if mapped.Code == "auth.unauthorized" || mapped.Code == "auth.invalid_token" || mapped.Code == "auth.session_invalid" {
+		t.Fatalf("expected upstream 401 to avoid platform auth codes, got %#v", mapped)
+	}
+}
+
 func TestStreamErrorPayloadClassifiesImageStreamConfigurationFailure(t *testing.T) {
 	err := errors.Join(appconversation.ErrUpstreamRequestFailed, &llm.UpstreamError{
 		StatusCode: 500,
