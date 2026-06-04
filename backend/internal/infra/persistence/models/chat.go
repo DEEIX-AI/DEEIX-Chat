@@ -216,7 +216,7 @@ func (FileChunk) TableName() string {
 type UserStorageQuota struct {
 	BaseModel
 	UserID        uint  `gorm:"not null;default:0;uniqueIndex:idx_file_storage_quotas_user_id;comment:用户ID"`
-	QuotaBytes    int64 `gorm:"not null;default:104857600;comment:总配额(Byte)"`
+	QuotaBytes    int64 `gorm:"not null;default:0;comment:总配额(Byte)，0表示不限制"`
 	UsedBytes     int64 `gorm:"not null;default:0;comment:已用空间(Byte)"`
 	ReservedBytes int64 `gorm:"not null;default:0;comment:预留空间(Byte)"`
 }

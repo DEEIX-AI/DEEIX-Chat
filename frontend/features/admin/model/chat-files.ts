@@ -174,6 +174,15 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         placeholder: "Size limit (MB)"
       },
       {
+        namespace: "storage",
+        key: "user_storage_quota_bytes",
+        label: "User storage quota",
+        description: "Maximum total file storage per user. The UI uses MB; set 0 for unlimited.",
+        type: "int",
+        valueUnit: "mb",
+        placeholder: "0 for unlimited"
+      },
+      {
         namespace: "file",
         key: "image_max_bytes",
         label: "Image size limit",

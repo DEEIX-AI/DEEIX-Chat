@@ -38,6 +38,9 @@ export function AppFiles() {
     loadingMore,
     uploading,
     deletingFileID,
+    selectedFileIDs,
+    bulkDeleteOpen,
+    bulkDeleting,
     hasMore,
     query,
     sortKey,
@@ -69,6 +72,12 @@ export function AppFiles() {
     onDeleteRequest,
     onClearDeleteTarget,
     onConfirmDeleteTarget,
+    onToggleFileSelection,
+    onSelectLoadedFiles,
+    onClearFileSelection,
+    onBulkDeleteRequest,
+    onClearBulkDelete,
+    onConfirmBulkDelete,
     onBackToList,
     onToggleRagOptOut,
   } = useFilesPage();
@@ -97,26 +106,52 @@ export function AppFiles() {
                 filterKeys={filterKeys}
                 sortKey={sortKey}
                 uploading={uploading}
+                selectedCount={selectedFileIDs.length}
+                selectAllDisabled={loading || files.length === 0 || bulkDeleting}
+                bulkDeleteDisabled={bulkDeleting}
                 onToggleCollapsed={onToggleSidebarCollapsed}
                 onToggleSearch={onToggleSearch}
                 onQueryChange={onQueryChange}
                 onFilterToggle={onFilterToggle}
                 onSortChange={onSortChange}
+                onSelectLoaded={onSelectLoadedFiles}
+                onClearSelection={onClearFileSelection}
+                onBulkDeleteRequest={onBulkDeleteRequest}
                 onUpload={onOpenUploadPicker}
               />
             </div>
 
-            <div className="py-2 md:hidden">
-              <div className="flex h-8 items-center justify-between px-0">
-                <h1 className="text-[15px] font-medium text-foreground">{t("title")}</h1>
-                <span className="text-xs text-muted-foreground">{t("fileCount", { count: total })}</span>
-              </div>
+            <div className="md:hidden">
+              <SidebarHeader
+                collapsed={false}
+                showCollapseButton={false}
+                total={total}
+                quota={quota}
+                query={query}
+                searchOpen={isSearchOpen}
+                filterKeys={filterKeys}
+                sortKey={sortKey}
+                uploading={uploading}
+                selectedCount={selectedFileIDs.length}
+                selectAllDisabled={loading || files.length === 0 || bulkDeleting}
+                bulkDeleteDisabled={bulkDeleting}
+                onToggleCollapsed={onToggleSidebarCollapsed}
+                onToggleSearch={onToggleSearch}
+                onQueryChange={onQueryChange}
+                onFilterToggle={onFilterToggle}
+                onSortChange={onSortChange}
+                onSelectLoaded={onSelectLoadedFiles}
+                onClearSelection={onClearFileSelection}
+                onBulkDeleteRequest={onBulkDeleteRequest}
+                onUpload={onOpenUploadPicker}
+              />
             </div>
 
             {!isSidebarCollapsed ? (
               <SidebarList
                 items={files}
                 selectedFileID={selectedFileID}
+                selectedFileIDs={selectedFileIDs}
                 loading={loading}
                 loadingMore={loadingMore}
                 hasMore={hasMore}
@@ -124,6 +159,7 @@ export function AppFiles() {
                 renamingFileID={renamingFileID}
                 renameValue={renameValue}
                 onSelect={onSelectFile}
+                onToggleSelection={onToggleFileSelection}
                 onLoadMore={onLoadMore}
                 onRenameStart={onRenameStart}
                 onRenameValueChange={onRenameValueChange}
@@ -181,6 +217,34 @@ export function AppFiles() {
               onClick={onConfirmDeleteTarget}
             >
               {tCommon("delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={bulkDeleteOpen}
+        onOpenChange={(openState) => {
+          if (!openState) {
+            onClearBulkDelete();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("bulkDeleteDialog.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("bulkDeleteDialog.description", { count: selectedFileIDs.length })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>{tCommon("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={bulkDeleting}
+              onClick={onConfirmBulkDelete}
+            >
+              {t("bulkDeleteDialog.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

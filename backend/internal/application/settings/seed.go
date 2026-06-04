@@ -72,7 +72,7 @@ func defaultSettings() []domainsettings.SystemSetting {
 		{Namespace: "chat", Key: "model_option_denied_paths", Value: config.DefaultModelOptionDeniedPathsJSON(), ValueType: "json", Description: "模型 options 黑名单路径 JSON，default 对所有协议生效"},
 
 		// 存储配置
-		{Namespace: "storage", Key: "user_storage_quota_bytes", Value: "104857600", ValueType: "int", Description: "用户配额(字节)"},
+		{Namespace: "storage", Key: "user_storage_quota_bytes", Value: "104857600", ValueType: "int", Description: "用户总存储配额(字节)，0表示不限制"},
 		{Namespace: "storage", Key: "max_upload_file_bytes", Value: "20971520", ValueType: "int", Description: "默认附件大小上限(字节)"},
 		{Namespace: "storage", Key: "max_message_files", Value: "10", ValueType: "int", Description: "单消息附件数"},
 

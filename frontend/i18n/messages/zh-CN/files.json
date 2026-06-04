@@ -34,12 +34,26 @@
     "download": "下载",
     "delete": "删除",
     "rename": "重命名",
+    "select": "选择",
+    "cancelSelect": "取消选择",
+    "selectFile": "选择文件",
+    "selectAll": "全选",
     "loadMore": "下滑加载更多"
+  },
+  "selection": {
+    "count": "已选择 {count} 个",
+    "selectLoaded": "选择已加载",
+    "clear": "取消选择"
   },
   "deleteDialog": {
     "title": "删除文件",
     "description": "确认删除「{name}」文件吗？此操作不可撤销。",
     "fallbackName": "文件"
+  },
+  "bulkDeleteDialog": {
+    "title": "批量删除文件",
+    "description": "确认删除已选择的 {count} 个文件吗？此操作不可撤销。",
+    "confirm": "确认删除"
   },
   "list": {
     "loadingMore": "读取更多...",
@@ -105,6 +119,9 @@
     "uploadFailed": "文件上传失败",
     "deleteSucceeded": "文件已删除",
     "deleteFailed": "文件删除失败",
+    "bulkDeleteSucceeded": "已删除 {count} 个文件",
+    "bulkDeletePartialFailed": "部分文件删除失败",
+    "bulkDeletePartialDescription": "成功 {success} 个，失败 {failed} 个。",
     "renameEmpty": "文件名不能为空",
     "renameSucceeded": "文件名已更新",
     "renameFailed": "文件重命名失败",

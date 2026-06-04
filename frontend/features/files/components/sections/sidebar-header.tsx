@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDownUp, Check, Funnel, PanelLeftClose, PanelLeftOpen, Plus, Search } from "lucide-react";
+import { ArrowDownUp, Check, Funnel, PanelLeftClose, PanelLeftOpen, Plus, Search, SquareDashed, SquareDashedMousePointer, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import type { FileFilterValue, FileSortKey } from "@/features/files/types/files";
@@ -19,6 +19,7 @@ import type { UserStorageQuotaDTO } from "@/shared/api/file.types";
 
 type SidebarHeaderProps = {
   collapsed: boolean;
+  showCollapseButton?: boolean;
   total: number;
   quota: UserStorageQuotaDTO | null;
   query: string;
@@ -26,11 +27,17 @@ type SidebarHeaderProps = {
   filterKeys: FileFilterValue[];
   sortKey: FileSortKey;
   uploading: boolean;
+  selectedCount: number;
+  selectAllDisabled: boolean;
+  bulkDeleteDisabled: boolean;
   onToggleCollapsed: () => void;
   onToggleSearch: () => void;
   onQueryChange: (value: string) => void;
   onFilterToggle: (value: FileFilterValue | "all") => void;
   onSortChange: (value: FileSortKey) => void;
+  onSelectLoaded: () => void;
+  onClearSelection: () => void;
+  onBulkDeleteRequest: () => void;
   onUpload: () => void;
 };
 
@@ -43,13 +50,21 @@ export function SidebarHeader({
   filterKeys,
   sortKey,
   uploading,
+  selectedCount,
+  selectAllDisabled,
+  bulkDeleteDisabled,
+  showCollapseButton = true,
   onToggleCollapsed,
   onToggleSearch,
   onQueryChange,
   onFilterToggle,
   onSortChange,
+  onSelectLoaded,
+  onClearSelection,
+  onBulkDeleteRequest,
   onUpload,
 }: SidebarHeaderProps) {
+  const tCommon = useTranslations("common.actions");
   const t = useTranslations("files");
   const activeFilterSet = React.useMemo(() => new Set(filterKeys), [filterKeys]);
   const hasActiveFilters = filterKeys.length > 0;
@@ -86,9 +101,11 @@ export function SidebarHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          <Button type="button" variant="ghost" size="icon" className="size-6" onClick={onToggleCollapsed} aria-label={t("actions.collapseSidebar")} title={t("actions.collapseSidebar")}>
-            <PanelLeftClose className="size-4 stroke-1 " />
-          </Button>
+          {showCollapseButton ? (
+            <Button type="button" variant="ghost" size="icon" className="size-6" onClick={onToggleCollapsed} aria-label={t("actions.collapseSidebar")} title={t("actions.collapseSidebar")}>
+              <PanelLeftClose className="size-4 stroke-1 " />
+            </Button>
+          ) : null}
           <Button type="button" variant="ghost" size="icon" className="size-6" onClick={onToggleSearch} aria-label={t("actions.search")} title={t("actions.search")}>
             <Search className="size-4 stroke-1" />
           </Button>
@@ -109,7 +126,19 @@ export function SidebarHeader({
         </div>
       ) : null}
 
-      <div className="flex min-w-0 items-center gap-1.5 overflow-hidden px-0.5 pt-2 pb-2">
+      <div className="flex min-w-0 items-center gap-0.5 overflow-hidden px-0 pt-1.5 pb-1.5">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 shrink-0 gap-0.5 px-1 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground"
+          onClick={selectedCount > 0 ? onClearSelection : onSelectLoaded}
+          disabled={selectedCount > 0 ? bulkDeleteDisabled : selectAllDisabled}
+        >
+          {selectedCount > 0 ? <SquareDashed className="size-3 stroke-1" /> : <SquareDashedMousePointer className="size-3 stroke-1" />}
+          {selectedCount > 0 ? tCommon("cancel") : t("actions.selectAll")}
+        </Button>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -117,11 +146,11 @@ export function SidebarHeader({
               variant="ghost"
               size="sm"
               className={cn(
-                "h-8 gap-1.5 px-2 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground",
+                "h-7 gap-0.5 px-1 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground",
                 hasActiveFilters && "bg-muted text-foreground",
               )}
             >
-              <Funnel className="size-3.5 stroke-1" />
+              <Funnel className="size-3 stroke-1" />
               {t("actions.filter")}
             </Button>
           </DropdownMenuTrigger>
@@ -171,9 +200,9 @@ export function SidebarHeader({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-8 gap-1.5 px-2 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
+              className="h-7 gap-0.5 px-1 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
             >
-              <ArrowDownUp className="size-3.5 stroke-1" />
+              <ArrowDownUp className="size-3 stroke-1" />
               {t("actions.sort")}
             </Button>
           </DropdownMenuTrigger>
@@ -200,6 +229,20 @@ export function SidebarHeader({
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {selectedCount > 0 ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 shrink-0 gap-0.5 px-1 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground"
+            onClick={onBulkDeleteRequest}
+            disabled={bulkDeleteDisabled}
+          >
+            <Trash2 className="size-3 stroke-1" />
+            {t("actions.delete")}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

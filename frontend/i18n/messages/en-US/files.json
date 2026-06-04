@@ -34,12 +34,26 @@
     "download": "Download",
     "delete": "Delete",
     "rename": "Rename",
+    "select": "Select",
+    "cancelSelect": "Cancel selection",
+    "selectFile": "Select file",
+    "selectAll": "Select all",
     "loadMore": "Load more"
+  },
+  "selection": {
+    "count": "{count} selected",
+    "selectLoaded": "Select loaded",
+    "clear": "Clear"
   },
   "deleteDialog": {
     "title": "Delete file",
     "description": "Delete \"{name}\"? This action cannot be undone.",
     "fallbackName": "file"
+  },
+  "bulkDeleteDialog": {
+    "title": "Delete files",
+    "description": "Delete the {count} selected files? This action cannot be undone.",
+    "confirm": "Confirm delete"
   },
   "list": {
     "loadingMore": "Loading more...",
@@ -105,6 +119,9 @@
     "uploadFailed": "File upload failed",
     "deleteSucceeded": "File deleted",
     "deleteFailed": "Failed to delete file",
+    "bulkDeleteSucceeded": "{count} files deleted",
+    "bulkDeletePartialFailed": "Some files failed to delete",
+    "bulkDeletePartialDescription": "{success} succeeded, {failed} failed.",
     "renameEmpty": "File name cannot be empty",
     "renameSucceeded": "File name updated",
     "renameFailed": "Failed to rename file",

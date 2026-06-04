@@ -49,6 +49,9 @@ type UseFilesPageResult = {
   loadingMore: boolean;
   uploading: boolean;
   deletingFileID: string | null;
+  selectedFileIDs: string[];
+  bulkDeleteOpen: boolean;
+  bulkDeleting: boolean;
   hasMore: boolean;
   query: string;
   sortKey: FileSortKey;
@@ -80,6 +83,12 @@ type UseFilesPageResult = {
   onDeleteRequest: (item: FileObjectDTO) => void;
   onClearDeleteTarget: () => void;
   onConfirmDeleteTarget: () => Promise<void>;
+  onToggleFileSelection: (fileID: string, checked: boolean) => void;
+  onSelectLoadedFiles: () => void;
+  onClearFileSelection: () => void;
+  onBulkDeleteRequest: () => void;
+  onClearBulkDelete: () => void;
+  onConfirmBulkDelete: () => Promise<void>;
   onBackToList: () => void;
   onToggleRagOptOut: (fileID: string, current: boolean) => Promise<void>;
 };
@@ -110,6 +119,9 @@ export function useFilesPage(): UseFilesPageResult {
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [deletingFileID, setDeletingFileID] = React.useState<string | null>(null);
+  const [selectedFileIDs, setSelectedFileIDs] = React.useState<string[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = React.useState(false);
+  const [bulkDeleting, setBulkDeleting] = React.useState(false);
   const [nextPage, setNextPage] = React.useState(2);
   const [hasMore, setHasMore] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -136,6 +148,11 @@ export function useFilesPage(): UseFilesPageResult {
 
   React.useEffect(() => {
     filesRef.current = files;
+  }, [files]);
+
+  React.useEffect(() => {
+    const visibleFileIDs = new Set(files.map((item) => item.fileID));
+    setSelectedFileIDs((current) => current.filter((fileID) => visibleFileIDs.has(fileID)));
   }, [files]);
 
   React.useEffect(() => {
@@ -457,6 +474,85 @@ export function useFilesPage(): UseFilesPageResult {
     [ensureAccessToken, loadFiles, resolveErrorMessage, selectedFileID, t],
   );
 
+  const onToggleFileSelection = React.useCallback((fileID: string, checked: boolean) => {
+    setSelectedFileIDs((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(fileID);
+      } else {
+        next.delete(fileID);
+      }
+      return Array.from(next);
+    });
+  }, []);
+
+  const onSelectLoadedFiles = React.useCallback(() => {
+    setSelectedFileIDs(filesRef.current.map((item) => item.fileID));
+  }, []);
+
+  const onClearFileSelection = React.useCallback(() => {
+    setSelectedFileIDs([]);
+  }, []);
+
+  const onBulkDeleteRequest = React.useCallback(() => {
+    if (selectedFileIDs.length === 0) {
+      return;
+    }
+    setBulkDeleteOpen(true);
+  }, [selectedFileIDs.length]);
+
+  const onClearBulkDelete = React.useCallback(() => {
+    if (!bulkDeleting) {
+      setBulkDeleteOpen(false);
+    }
+  }, [bulkDeleting]);
+
+  const onConfirmBulkDelete = React.useCallback(async () => {
+    const fileIDs = selectedFileIDs.filter((fileID) => filesRef.current.some((item) => item.fileID === fileID));
+    if (fileIDs.length === 0) {
+      setBulkDeleteOpen(false);
+      return;
+    }
+    const token = await ensureAccessToken();
+    if (!token) {
+      toast.error(t("toasts.sessionExpired"), { description: t("toasts.deleteAfterLogin") });
+      return;
+    }
+
+    setBulkDeleting(true);
+    let successCount = 0;
+    let failedCount = 0;
+    let latestQuota: UserStorageQuotaDTO | null = null;
+    for (const fileID of fileIDs) {
+      try {
+        const result = await deleteFile(token, fileID);
+        latestQuota = result.quota;
+        successCount += 1;
+      } catch {
+        failedCount += 1;
+      }
+    }
+
+    if (latestQuota) {
+      setQuota(latestQuota);
+    }
+    setSelectedFileIDs([]);
+    setBulkDeleteOpen(false);
+    setBulkDeleting(false);
+    if (fileIDs.includes(selectedFileID ?? "")) {
+      setSelectedFileID(null);
+    }
+    await loadFiles({ preferredFileID: fileIDs.includes(selectedFileID ?? "") ? null : selectedFileID, silent: true, background: true });
+
+    if (failedCount > 0) {
+      toast.error(t("toasts.bulkDeletePartialFailed"), {
+        description: t("toasts.bulkDeletePartialDescription", { success: successCount, failed: failedCount }),
+      });
+      return;
+    }
+    toast.success(t("toasts.bulkDeleteSucceeded", { count: successCount }));
+  }, [ensureAccessToken, loadFiles, selectedFileID, selectedFileIDs, t]);
+
   const onRenameCommit = React.useCallback(
     async (fileID: string, currentFileName: string) => {
       const nextFileName = renameValue.trim();
@@ -634,6 +730,9 @@ export function useFilesPage(): UseFilesPageResult {
     loadingMore,
     uploading,
     deletingFileID,
+    selectedFileIDs,
+    bulkDeleteOpen,
+    bulkDeleting,
     hasMore,
     query,
     sortKey,
@@ -665,6 +764,12 @@ export function useFilesPage(): UseFilesPageResult {
     onDeleteRequest: setDeleteTarget,
     onClearDeleteTarget,
     onConfirmDeleteTarget,
+    onToggleFileSelection,
+    onSelectLoadedFiles,
+    onClearFileSelection,
+    onBulkDeleteRequest,
+    onClearBulkDelete,
+    onConfirmBulkDelete,
     onBackToList,
     onToggleRagOptOut,
   };

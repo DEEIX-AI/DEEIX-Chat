@@ -221,6 +221,29 @@ func TestUploadFileRetriesCreateAfterStaleDuplicateConflict(t *testing.T) {
 	}
 }
 
+func TestUploadFileAllowsUnlimitedUserStorageQuota(t *testing.T) {
+	ctx := context.Background()
+	repo := newUploadTestRepo()
+	store := newUploadTestStore()
+	service := newUploadTestService(repo, store)
+	cfg := service.cfg.Snapshot()
+	cfg.UserStorageQuotaBytes = 0
+	cfg.MaxUploadFileBytes = 1024 * 1024
+	service.cfg.Store(cfg)
+	repo.quota.QuotaBytes = 1
+
+	result, err := service.UploadFile(ctx, uploadTestInput("notes.md", "content"))
+	if err != nil {
+		t.Fatalf("unlimited quota upload failed: %v", err)
+	}
+	if result.Quota.QuotaBytes != 0 {
+		t.Fatalf("expected quota limit to sync to unlimited, got %d", result.Quota.QuotaBytes)
+	}
+	if result.Quota.UsedBytes != result.File.SizeBytes {
+		t.Fatalf("expected used bytes to increase, got quota=%#v file=%#v", result.Quota, result.File)
+	}
+}
+
 func TestNormalizeDetectedMIMEDowngradesActiveContent(t *testing.T) {
 	tests := []struct {
 		detected string
@@ -403,9 +426,10 @@ func (r *uploadTestRepo) CreateFileObjectAndConsumeQuota(_ context.Context, item
 		r.failNextCreateDuplicate = false
 		return nil, repository.ErrDuplicate
 	}
-	if quotaLimit > 0 {
-		r.quota.QuotaBytes = quotaLimit
+	if quotaLimit < 0 {
+		quotaLimit = 0
 	}
+	r.quota.QuotaBytes = quotaLimit
 	nextUsed := r.quota.UsedBytes + item.SizeBytes
 	if r.quota.QuotaBytes > 0 && nextUsed > r.quota.QuotaBytes {
 		return nil, repository.ErrConflict
@@ -422,9 +446,10 @@ func (r *uploadTestRepo) CreateFileObjectAndConsumeQuota(_ context.Context, item
 }
 
 func (r *uploadTestRepo) DeleteFileObjectAndReleaseQuota(_ context.Context, userID uint, fileID string, quotaLimit int64, options repository.DeleteFileObjectOptions) (*domainconversation.FileObject, *domainconversation.StorageQuota, bool, error) {
-	if quotaLimit > 0 {
-		r.quota.QuotaBytes = quotaLimit
+	if quotaLimit < 0 {
+		quotaLimit = 0
 	}
+	r.quota.QuotaBytes = quotaLimit
 	for i := range r.files {
 		if r.files[i].UserID != userID || r.files[i].FileID != fileID || r.files[i].Status != "active" {
 			continue
@@ -451,7 +476,11 @@ func (r *uploadTestRepo) DeleteFileObjectAndReleaseQuota(_ context.Context, user
 	return nil, nil, false, repository.ErrNotFound
 }
 
-func (r *uploadTestRepo) GetOrInitUserStorageQuota(context.Context, uint, int64) (*domainconversation.StorageQuota, error) {
+func (r *uploadTestRepo) GetOrInitUserStorageQuota(_ context.Context, _ uint, quotaLimit int64) (*domainconversation.StorageQuota, error) {
+	if quotaLimit < 0 {
+		quotaLimit = 0
+	}
+	r.quota.QuotaBytes = quotaLimit
 	return cloneQuota(r.quota), nil
 }
 

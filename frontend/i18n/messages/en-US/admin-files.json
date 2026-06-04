@@ -84,6 +84,11 @@
         "label": "Default size limit",
         "description": "Default size limit for a single attachment. The UI uses MB.",
         "placeholder": "Size limit (MB)"
+      },
+      "user_storage_quota_bytes": {
+        "label": "User storage quota",
+        "description": "Maximum total file storage per user. The UI uses MB; set 0 for unlimited.",
+        "placeholder": "0 for unlimited"
       }
     },
     "file": {

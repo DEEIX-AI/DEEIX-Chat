@@ -280,8 +280,10 @@ func validatePatchItem(item PatchItem) error {
 		return validateIntMinMax(value, 1, 65535, key)
 	case "auth:email_registration_allowed_domains":
 		return validateEmailDomainList(value, key)
-	case "storage:max_upload_file_bytes", "storage:user_storage_quota_bytes":
+	case "storage:max_upload_file_bytes":
 		return validateInt64Min(value, 1, key)
+	case "storage:user_storage_quota_bytes":
+		return validateInt64Min(value, 0, key)
 	case "file:file_full_context_max_bytes":
 		return validateOptionalInt64Min(value, 0, key)
 	case "file:image_max_bytes", "file:doc_max_bytes":

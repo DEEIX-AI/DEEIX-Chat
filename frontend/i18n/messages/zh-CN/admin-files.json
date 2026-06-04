@@ -84,6 +84,11 @@
         "label": "默认大小上限",
         "description": "用于设置单个附件的默认大小上限，页面单位为 MB。",
         "placeholder": "大小上限（MB）"
+      },
+      "user_storage_quota_bytes": {
+        "label": "用户存储配额",
+        "description": "用于限制每位用户可占用的文件总存储空间，页面单位为 MB；设置为 0 表示不限制。",
+        "placeholder": "0 表示不限制"
       }
     },
     "file": {

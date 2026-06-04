@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { PencilLine } from "lucide-react";
+import { PencilLine, SquareCheckBig } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
 import { Trash2 } from "@/components/animate-ui/icons/trash-2";
 import { resolveFileIcon } from "@/features/files/utils/file-display";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CenteredEmptyState } from "@/components/ui/empty-state";
 import {
   DropdownMenu,
@@ -23,6 +24,7 @@ import type { FileObjectDTO } from "@/shared/api/file.types";
 type SidebarListProps = {
   items: FileObjectDTO[];
   selectedFileID: string | null;
+  selectedFileIDs: string[];
   loading: boolean;
   loadingMore: boolean;
   hasMore: boolean;
@@ -30,6 +32,7 @@ type SidebarListProps = {
   renamingFileID: string | null;
   renameValue: string;
   onSelect: (fileID: string) => void;
+  onToggleSelection: (fileID: string, checked: boolean) => void;
   onLoadMore: () => void;
   onRenameStart: (item: FileObjectDTO) => void;
   onRenameValueChange: (value: string) => void;
@@ -41,9 +44,11 @@ type SidebarListProps = {
 function SidebarListItem({
   item,
   selected,
+  checked,
   renaming,
   renameValue,
   onSelect,
+  onToggleSelection,
   onRenameStart,
   onRenameValueChange,
   onRenameCommit,
@@ -52,9 +57,11 @@ function SidebarListItem({
 }: {
   item: FileObjectDTO;
   selected: boolean;
+  checked: boolean;
   renaming: boolean;
   renameValue: string;
   onSelect: (fileID: string) => void;
+  onToggleSelection: (fileID: string, checked: boolean) => void;
   onRenameStart: (item: FileObjectDTO) => void;
   onRenameValueChange: (value: string) => void;
   onRenameCommit: (fileID: string, currentFileName: string) => void;
@@ -107,6 +114,13 @@ function SidebarListItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
+      <Checkbox
+        checked={checked}
+        className="mr-0.5 size-3 shrink-0"
+        aria-label={t("actions.selectFile")}
+        onClick={(event) => event.stopPropagation()}
+        onCheckedChange={(nextChecked) => onToggleSelection(item.fileID, nextChecked === true)}
+      />
       {React.createElement(fileIcon, { className: "size-3 text-muted-foreground" })}
 
       <span className="min-w-0 flex-1 truncate text-xs" title={item.fileName}>{item.fileName}</span>
@@ -146,6 +160,15 @@ function SidebarListItem({
             <DropdownMenuItem
               onSelect={(event) => {
                 event.preventDefault();
+                onToggleSelection(item.fileID, !checked);
+              }}
+            >
+              <DropdownMenuItemIcon icon={SquareCheckBig} />
+              {checked ? t("actions.cancelSelect") : t("actions.select")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault();
                 onRenameStart(item);
               }}
             >
@@ -177,6 +200,7 @@ function SidebarListItem({
 export function SidebarList({
   items,
   selectedFileID,
+  selectedFileIDs,
   loading,
   loadingMore,
   hasMore,
@@ -184,6 +208,7 @@ export function SidebarList({
   renamingFileID,
   renameValue,
   onSelect,
+  onToggleSelection,
   onLoadMore,
   onRenameStart,
   onRenameValueChange,
@@ -194,6 +219,7 @@ export function SidebarList({
   const t = useTranslations("files");
   const scrollAreaRef = React.useRef<HTMLDivElement | null>(null);
   const loadMoreRef = React.useRef<HTMLDivElement | null>(null);
+  const selectedFileIDSet = React.useMemo(() => new Set(selectedFileIDs), [selectedFileIDs]);
 
   React.useEffect(() => {
     if (!hasMore || loading || loadingMore) {
@@ -251,6 +277,7 @@ export function SidebarList({
           ) : items.length > 0 ? (
             items.map((item) => {
               const isSelected = item.fileID === selectedFileID;
+              const isChecked = selectedFileIDSet.has(item.fileID);
               const isRenaming = renamingFileID === item.fileID;
 
               return (
@@ -258,9 +285,11 @@ export function SidebarList({
                   key={item.fileID}
                   item={item}
                   selected={isSelected}
+                  checked={isChecked}
                   renaming={isRenaming}
                   renameValue={renameValue}
                   onSelect={onSelect}
+                  onToggleSelection={onToggleSelection}
                   onRenameStart={onRenameStart}
                   onRenameValueChange={onRenameValueChange}
                   onRenameCommit={onRenameCommit}

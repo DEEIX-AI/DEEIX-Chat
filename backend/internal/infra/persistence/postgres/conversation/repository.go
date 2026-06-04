@@ -1925,7 +1925,7 @@ func (r *Repo) CreateFileObjectAndConsumeQuota(
 		}
 
 		nextUsed := quota.UsedBytes + entity.SizeBytes
-		if nextUsed+quota.ReservedBytes > quota.QuotaBytes {
+		if quota.QuotaBytes > 0 && nextUsed+quota.ReservedBytes > quota.QuotaBytes {
 			return ErrStorageQuotaExceeded
 		}
 
@@ -2073,8 +2073,8 @@ func getOrInitQuotaForUpdate(tx *gorm.DB, userID uint, defaultQuotaBytes int64) 
 		return nil, query.Error
 	}
 	if query.RowsAffected == 0 {
-		if defaultQuotaBytes <= 0 {
-			defaultQuotaBytes = 104857600
+		if defaultQuotaBytes < 0 {
+			defaultQuotaBytes = 0
 		}
 		quota = models.UserStorageQuota{
 			UserID:        userID,
@@ -2082,8 +2082,20 @@ func getOrInitQuotaForUpdate(tx *gorm.DB, userID uint, defaultQuotaBytes int64) 
 			UsedBytes:     0,
 			ReservedBytes: 0,
 		}
-		if err := tx.Create(&quota).Error; err != nil {
+		if err := tx.Select("UserID", "QuotaBytes", "UsedBytes", "ReservedBytes").Create(&quota).Error; err != nil {
 			return nil, translateError(err)
+		}
+	} else {
+		if defaultQuotaBytes < 0 {
+			defaultQuotaBytes = 0
+		}
+		if quota.QuotaBytes != defaultQuotaBytes {
+			if err := tx.Model(&models.UserStorageQuota{}).
+				Where("id = ?", quota.ID).
+				Update("quota_bytes", defaultQuotaBytes).Error; err != nil {
+				return nil, translateError(err)
+			}
+			quota.QuotaBytes = defaultQuotaBytes
 		}
 	}
 	return &quota, nil
