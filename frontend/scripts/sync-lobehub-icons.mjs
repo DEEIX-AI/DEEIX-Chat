@@ -1,10 +1,11 @@
-import { cpSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const sourceDir = join(rootDir, "node_modules", "@lobehub", "icons-static-svg", "icons");
 const targetDir = join(rootDir, "public", "vendor", "lobehub-icons");
+const spriteFile = join(targetDir, "__sprite.svg");
 const manifestDir = join(rootDir, "shared", "generated");
 const manifestFile = join(manifestDir, "lobehub-icon-manifest.ts");
 
@@ -17,14 +18,42 @@ function titleFromSlug(slug) {
     .join(" ");
 }
 
+function buildSpriteSymbol(fileName) {
+  const slug = fileName.slice(0, -4);
+  const content = readFileSync(join(targetDir, fileName), "utf8");
+  const svgMatch = content.match(/<svg\b([^>]*)>([\s\S]*)<\/svg>\s*$/u);
+  if (!svgMatch) {
+    throw new Error(`Invalid SVG: ${fileName}`);
+  }
+  const [, attributes, rawBody] = svgMatch;
+  const viewBoxMatch = attributes.match(/\bviewBox=(["'])(.*?)\1/u);
+  if (!viewBoxMatch) {
+    throw new Error(`SVG missing viewBox: ${fileName}`);
+  }
+  const body = rawBody
+    .replace(/<title\b[^>]*>[\s\S]*?<\/title>/gu, "")
+    .trim();
+  return `<symbol id="${slug}" viewBox="${viewBoxMatch[2]}">${body}</symbol>`;
+}
+
 rmSync(targetDir, { force: true, recursive: true });
 mkdirSync(targetDir, { recursive: true });
 cpSync(sourceDir, targetDir, { recursive: true });
 
-const icons = readdirSync(targetDir)
+const iconFiles = readdirSync(targetDir)
   .filter((name) => name.endsWith(".svg"))
-  .sort((left, right) => left.localeCompare(right))
-  .map((fileName) => {
+  .sort((left, right) => left.localeCompare(right));
+
+writeFileSync(
+  spriteFile,
+  [
+    '<svg xmlns="http://www.w3.org/2000/svg" style="display:none">',
+    ...iconFiles.map(buildSpriteSymbol),
+    "</svg>\n",
+  ].join("\n"),
+);
+
+const icons = iconFiles.map((fileName) => {
     const slug = fileName.slice(0, -4);
     return {
       id: slug,
