@@ -148,15 +148,11 @@ export function JsonCodeEditor({
     try {
       const model = editor.getModel();
       if (model) {
-        editor.executeEdits("json-code-editor.external-value", [{
-          range: model.getFullModelRange(),
-          text: nextValue,
-          forceMoveMarkers: true,
-        }]);
+        model.setValue(nextValue);
       } else {
         editor.setValue(nextValue);
       }
-      editorValueRef.current = nextValue;
+      editorValueRef.current = editor.getValue();
     } finally {
       suppressChangeRef.current = false;
     }
@@ -271,8 +267,7 @@ export function JsonCodeEditor({
   }, [syncEditorValue]);
 
   React.useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor || editorValueRef.current === value || editor.hasTextFocus()) {
+    if (!editorRef.current || editorValueRef.current === value) {
       return;
     }
     syncEditorValue(value);

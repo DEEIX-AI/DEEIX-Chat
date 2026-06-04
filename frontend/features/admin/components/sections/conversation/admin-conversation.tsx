@@ -463,7 +463,6 @@ export function AdminConversationSettingsPage() {
     field: ConversationSettingsField,
     index: number,
     options?: {
-      itemKey?: string;
       animateLayout?: boolean;
     },
   ) {
@@ -499,7 +498,7 @@ export function AdminConversationSettingsPage() {
         />
       ) : undefined;
     return (
-      <SettingsFieldItem key={options?.itemKey ?? id} index={index}>
+      <SettingsFieldItem key={id} index={index}>
         <SettingsFieldEditor
           field={toEditorField(field)}
           value={settingsMap[id] ?? ""}
@@ -529,7 +528,6 @@ export function AdminConversationSettingsPage() {
           {modelOptionModeField ? renderField(modelOptionModeField, 0) : null}
           {activeModelOptionRuleField
             ? renderField(activeModelOptionRuleField, 1, {
-              itemKey: "chat.model_option_rule_paths",
               animateLayout: false,
             })
             : null}
