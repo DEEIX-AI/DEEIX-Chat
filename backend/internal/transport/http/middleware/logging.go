@@ -12,7 +12,7 @@ import (
 // AccessLog 输出请求访问日志。
 func AccessLog(logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if shouldSkipAccessLog(c.Request.URL.Path) {
+		if skipAccessLog(c) {
 			c.Next()
 			return
 		}
@@ -56,17 +56,6 @@ func AccessLog(logger *zap.Logger) gin.HandlerFunc {
 	}
 }
 
-func shouldSkipAccessLog(requestPath string) bool {
-	if requestPath == "/healthz" {
-		return true
-	}
-	return !isBackendAccessLogPath(requestPath)
-}
-
-func isBackendAccessLogPath(requestPath string) bool {
-	return requestPath == "/readyz" ||
-		requestPath == "/api" ||
-		strings.HasPrefix(requestPath, "/api/") ||
-		requestPath == "/swagger" ||
-		strings.HasPrefix(requestPath, "/swagger/")
+func skipAccessLog(c *gin.Context) bool {
+	return !strings.HasPrefix(c.Request.URL.Path, "/api/")
 }
