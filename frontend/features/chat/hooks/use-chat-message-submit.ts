@@ -147,7 +147,7 @@ function normalizeLabelsJSON(value: string | null | undefined): string {
 
 function isPlaceholderConversationTitle(title: string): boolean {
   const value = title.trim().toLowerCase();
-  return ["", "new conversation", "untitled", "新会话", "新对话", "新的对话"].includes(value);
+  return ["", "new conversation", "new chat", "untitled", "新会话", "新对话", "新的对话"].includes(value);
 }
 
 function shouldRefreshGeneratedConversationMetadata(item: ConversationDTO | null, visibleMessageCount: number): boolean {
