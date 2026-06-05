@@ -405,15 +405,22 @@ func toUpstreamRemoteModelsResponse(d appchannel.UpstreamRemoteModelsData) Upstr
 			SuggestedPlatformModelName: item.SuggestedPlatformModelName,
 			SuggestedKindsJSON:         item.SuggestedKindsJSON,
 			SuggestedProtocol:          item.SuggestedProtocol,
-			SuggestedProtocols:         item.SuggestedProtocols,
+			SuggestedProtocols:         stringList(item.SuggestedProtocols),
 			BindingCode:                item.BindingCode,
-			BoundPlatformModels:        item.BoundPlatformModels,
+			BoundPlatformModels:        stringList(item.BoundPlatformModels),
 			UpstreamModelStatus:        item.UpstreamModelStatus,
 			AlreadySynced:              item.AlreadySynced,
 			AlreadyBound:               item.AlreadyBound,
 		})
 	}
 	return UpstreamRemoteModelsResponse{Total: d.Total, Items: items}
+}
+
+func stringList(items []string) []string {
+	if items == nil {
+		return []string{}
+	}
+	return items
 }
 
 // UpstreamSyncModelResponse 单个同步结果响应 DTO。
