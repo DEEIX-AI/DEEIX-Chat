@@ -44,6 +44,12 @@ export function normalizeContent(input: unknown): string {
 }
 
 const MARKDOWN_LITERAL_FRAGMENT_RE = /(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`)/g;
+const HTML_VISUAL_MARKDOWN_FENCE_RE = /(^|\n)([ \t]{0,3})(```|~~~)[ \t]*(?:(?:markdown|md)[^\n]*)?\n([\s\S]*?)\n[ \t]*\3[ \t]*(?=\n|$)/gi;
+const HTML_VISUAL_FRAGMENT_RE = /^\s*<(?:div|section|article|aside|main|details|table)\b[\s\S]*<\/(?:div|section|article|aside|main|details|table)>\s*$/i;
+const HTML_VISUAL_STYLE_RE = /\sstyle\s*=\s*["'][^"']{8,}["']/i;
+const HTML_VISUAL_OPEN_RE = /<(div|section|article|aside|main|details|table)\b[^>]*\sstyle\s*=\s*["'][^"']{8,}["'][^>]*>/i;
+const HTML_BLOCK_TAG_SCAN_RE = /<\/?(div|section|article|aside|main|details|table)\b[^>]*>/gi;
+const HTML_VISUAL_BLANK_LINE_RE = /\n[ \t]*\n(?=[ \t]*<\/?(?:div|section|article|aside|main|details|table)\b)/gi;
 const INLINE_DOLLAR_MATH_RE = /(^|[^\\$])\$([^$\n]{1,800})\$/g;
 const ESCAPED_INLINE_DOLLAR_MATH_RE = /\\\$([^$\n]{1,400})\\\$/g;
 const DISPLAY_DOLLAR_MATH_RE = /(\${2,})([\s\S]*?)(\1)/g;
@@ -261,19 +267,93 @@ export function normalizeMermaidBlocks(source: string): string {
   );
 }
 
+export function normalizeHTMLVisualMarkdownFences(source: string): string {
+  if (!source.includes("```") && !source.includes("~~~")) {
+    return source;
+  }
+
+  return source.replace(
+    HTML_VISUAL_MARKDOWN_FENCE_RE,
+    (match: string, prefix: string, _indent: string, _fence: string, code: string) => {
+      const trimmedCode = code.trim();
+      if (!HTML_VISUAL_FRAGMENT_RE.test(trimmedCode) || !HTML_VISUAL_STYLE_RE.test(trimmedCode)) {
+        return match;
+      }
+      return `${prefix}${trimmedCode}`;
+    },
+  );
+}
+
+function isSelfClosingHTMLTag(tag: string): boolean {
+  return tag.trimEnd().endsWith("/>");
+}
+
+function findHTMLVisualBlockEnd(source: string, start: number): number {
+  HTML_BLOCK_TAG_SCAN_RE.lastIndex = start;
+  const stack: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = HTML_BLOCK_TAG_SCAN_RE.exec(source)) !== null) {
+    const tag = match[0];
+    const tagName = match[1].toLowerCase();
+    if (tag.startsWith("</")) {
+      const lastIndex = stack.lastIndexOf(tagName);
+      if (lastIndex >= 0) {
+        stack.splice(lastIndex);
+      }
+      if (stack.length === 0) {
+        return HTML_BLOCK_TAG_SCAN_RE.lastIndex;
+      }
+      continue;
+    }
+    if (!isSelfClosingHTMLTag(tag)) {
+      stack.push(tagName);
+    }
+  }
+  return source.length;
+}
+
+function normalizeHTMLVisualBlankLinesInText(source: string): string {
+  if (!source.includes("style=") || !/<(?:div|section|article|aside|main|details|table)\b/i.test(source)) {
+    return source;
+  }
+
+  let cursor = 0;
+  let normalized = "";
+  while (cursor < source.length) {
+    const tail = source.slice(cursor);
+    const match = HTML_VISUAL_OPEN_RE.exec(tail);
+    if (!match) {
+      normalized += tail;
+      break;
+    }
+
+    const blockStart = cursor + match.index;
+    const blockEnd = findHTMLVisualBlockEnd(source, blockStart);
+    normalized += source.slice(cursor, blockStart);
+    normalized += source.slice(blockStart, blockEnd).replace(HTML_VISUAL_BLANK_LINE_RE, "\n");
+    cursor = blockEnd;
+  }
+  return normalized;
+}
+
+export function normalizeHTMLVisualBlankLines(source: string): string {
+  return mapMarkdownTextFragments(source, normalizeHTMLVisualBlankLinesInText);
+}
+
 export function parseStreamdownSegments(source: string): RenderSegment[] {
   if (!source) {
     return [];
   }
 
+  const normalizedSource = normalizeHTMLVisualMarkdownFences(source);
   const segments: RenderSegment[] = [];
 
-  const thinkingBlock = parseLeadingThinkingBlock(source);
+  const thinkingBlock = parseLeadingThinkingBlock(normalizedSource);
   if (!thinkingBlock) {
-    if (source.trim()) {
+    if (normalizedSource.trim()) {
       segments.push({
         type: "markdown",
-        content: escapeThinkingLikeHtmlTags(source),
+        content: escapeThinkingLikeHtmlTags(normalizedSource),
       });
     }
     return segments;
@@ -285,7 +365,7 @@ export function parseStreamdownSegments(source: string): RenderSegment[] {
     incomplete: false,
   });
 
-  const tail = source.slice(thinkingBlock.end);
+  const tail = normalizedSource.slice(thinkingBlock.end);
   if (tail.trim()) {
     segments.push({
       type: "markdown",

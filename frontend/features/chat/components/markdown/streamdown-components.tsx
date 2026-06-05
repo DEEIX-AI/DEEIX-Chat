@@ -189,11 +189,18 @@ const SAFE_HTML_STYLE_PROPERTIES: ReadonlySet<string> = new Set([
   "placeContent",
   "placeItems",
   "placeSelf",
+  "position",
   "rowGap",
   "textAlign",
+  "top",
+  "right",
+  "bottom",
+  "left",
+  "transform",
   "verticalAlign",
   "whiteSpace",
   "width",
+  "zIndex",
 ]);
 const KATEX_SPAN_CLASS_NAMES = [
   "katex",
@@ -450,6 +457,10 @@ function getLineCount(value: string): number {
   return value.replace(/\n$/, "").split("\n").length;
 }
 
+function isMermaidLanguage(language: string): boolean {
+  return language === "mermaid" || language === "mmd";
+}
+
 function CodeBlockActionButton({
   label,
   children,
@@ -625,9 +636,10 @@ export function CollapsibleCodePre({ children }: CollapsiblePreProps) {
   const codeContent = childElement ? getCodeTextFromChild(childElement) : "";
   const lineCount = getLineCount(codeContent);
   const language = childElement ? getCodeLanguage(childElement.props.className) : "";
+  const mermaid = isMermaidLanguage(language);
   const artifactPreviewable = Boolean(resolveArtifactPreviewKind(language, codeContent));
   const isCollapsible =
-    childElement != null && language !== "mermaid" && lineCount > CODE_BLOCK_COLLAPSE_LINE_THRESHOLD;
+    childElement != null && !mermaid && lineCount > CODE_BLOCK_COLLAPSE_LINE_THRESHOLD;
   const [expanded, setExpanded] = React.useState(false);
   const [isToggleHovered, setIsToggleHovered] = React.useState(false);
 
@@ -640,7 +652,7 @@ export function CollapsibleCodePre({ children }: CollapsiblePreProps) {
   if (!isCollapsible) {
     return (
       <div className="relative w-full">
-        <CodeBlockActions code={codeContent} language={language} previewable={artifactPreviewable} />
+        {!mermaid ? <CodeBlockActions code={codeContent} language={language} previewable={artifactPreviewable} /> : null}
         {codeBlock}
       </div>
     );
