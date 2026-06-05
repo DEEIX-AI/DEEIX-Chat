@@ -105,6 +105,12 @@ func TestConversationMetadataFallsBackToFirstUserMessageTitle(t *testing.T) {
 	}
 }
 
+func TestShouldAutoReplaceConversationTitleIncludesEnglishNewChat(t *testing.T) {
+	if !shouldAutoReplaceConversationTitle("New chat") {
+		t.Fatal("expected English localized new chat title to be replaceable")
+	}
+}
+
 func TestConversationMetadataErrorDoesNotLeakWhenEitherTaskSucceeds(t *testing.T) {
 	titleErr := errors.New("title failed")
 	labelsErr := errors.New("labels failed")

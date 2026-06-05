@@ -452,7 +452,7 @@ func (r *Repo) UpdateConversationMetadata(ctx context.Context, conversationID ui
 	if strings.TrimSpace(title) != "" {
 		updates["title"] = gorm.Expr(
 			"CASE WHEN lower(btrim(title)) IN ? THEN ? ELSE title END",
-			[]string{"", "new conversation", "untitled", "新会话", "新对话", "新的对话"},
+			[]string{"", "new conversation", "new chat", "untitled", "新会话", "新对话", "新的对话"},
 			strings.TrimSpace(title),
 		)
 	}
