@@ -34,17 +34,17 @@ The architecture is designed for simple deployment, efficient static delivery, a
 | Area | Capabilities |
 | --- | --- |
 | Conversations | Multi-branch chat, streaming, retries, edits, feedback, sharing, cloned shared conversations, rich markdown rendering, file cards, model metadata, usage details, and execution traces. |
-| Media generation | Dedicated image generation and image edit flow with task-aware routing, provider-native OpenAI, Google, and xAI image protocols, generated file storage, preview, download, and run history separated from text chat. |
-| Model control plane | Platform model catalog, upstream channels, real upstream models, route bindings, priority and weight routing, model capability JSON, display ordering, vendor mapping, automatic icons, and circuit breaker state. |
+| Media generation | Dedicated image generation and image edit flow with task-aware routing, provider-native OpenAI, Google, and xAI image protocols, default streaming where supported, admin-controlled image streaming capability, generated file storage, preview, download, and run history separated from text chat. |
+| Model control plane | Platform model catalog, upstream channels, real upstream models, route bindings, priority and weight routing, model capability JSON, visual option controls, official native tool capability keys, display ordering, vendor mapping, automatic icons, and circuit breaker state. |
 | Provider protocols | OpenAI Responses, Chat Completions, Images Generations, and Images Edits; Anthropic Messages; Google/Gemini Generate Content and Image Generation; xAI Responses, Images Generations, and Images Edits; OpenRouter defaults; and custom OpenAI-compatible routes. |
-| Request governance | Protocol-aware request assembly, user option allowlists and denylists, system-protected fields, previous-response continuation where supported, and context snapshots for review. |
-| Files and RAG | File upload, preview, download, deletion, quota control, MIME detection, text extraction, OCR, full-context injection, image context, chunking, embeddings, and semantic retrieval. |
+| Request governance | Protocol-aware request assembly, user option allowlists and denylists, system-protected fields, model-scoped official native tool pass-through, previous-response continuation where supported, and context snapshots for review. |
+| Files and RAG | File upload, preview, download, single and bulk deletion, per-user storage quota with unlimited mode, MIME detection, text extraction, OCR, full-context injection, image context, chunking, embeddings, and semantic retrieval. |
 | Memory and context | Message-window truncation, token-budget truncation, context compression, conversation memory, long-term user memory, RAG evidence records, and prompt trace inspection. |
-| Tools | Admin-managed MCP servers, tool discovery, per-tool enablement, user-side tool selection, execution limits, retries, trace rendering, and tool result handling. |
-| Billing and payments | Subscription plans, top-ups, balances, token/call/duration/tiered model pricing, free models, prepaid thresholds, usage ledgers, billing snapshots, Stripe Checkout, EPay, and webhook validation. |
+| Tools | Admin-managed MCP servers, provider-native official tools, tool discovery, per-tool enablement, user-side tool selection, execution limits, retries, trace rendering, and tool result handling. |
+| Billing and payments | Subscription plans, top-ups, balances, token/call/duration/tiered model pricing, configurable per-call native tool pricing, free models, prepaid thresholds, usage ledgers, billing snapshots, Stripe Checkout, EPay, and webhook validation. |
 | Identity and security | Local login, registration, session management, HttpOnly refresh cookies, 2FA/TOTP, recovery codes, trusted devices, SSO/OIDC/OAuth providers, contact verification, timezone, and locale. |
 | Administration | Users, roles, auth providers, upstreams, platform models, route bindings, model pricing, subscriptions, balances, usage logs, audit logs, auth events, system events, and runtime settings. |
-| Operations | Efficient static delivery, predictable Go runtime footprint, Docker builds, single-runtime frontend/API serving, Swagger docs, structured logs, request IDs, Redis caching, PostgreSQL pgvector, optional GeoIP, optional OpenTelemetry, and S3-compatible storage. |
+| Operations | Efficient static delivery, predictable Go runtime footprint, Docker builds, single-runtime frontend/API serving, public build/version endpoint, new-version refresh prompts, Swagger docs, structured logs, request IDs, Redis caching, PostgreSQL pgvector, optional GeoIP, optional OpenTelemetry, and S3-compatible storage. |
 
 <p>
   <img src="./frontend/public/DEEIX-Chat-Image.png" alt="DEEIX Chat image generation" width="32%" />
@@ -225,6 +225,7 @@ Use this mode when the frontend and backend are served from different public ori
 - `/files` - file manager
 - `/setting` - user account, subscription, preferences, security settings, and product information
 - `/admin` - administration console
+- `/admin/chat-files` - file, extraction, OCR, RAG, and user storage quota settings
 
 ## Common Commands
 
