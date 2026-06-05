@@ -101,6 +101,7 @@
     "externalLink": {
       "title": "打开外部链接？",
       "description": "即将跳转到外部网站，请确认链接地址。",
+      "linkAddress": "链接地址",
       "copy": "复制链接",
       "copied": "已复制链接"
     },

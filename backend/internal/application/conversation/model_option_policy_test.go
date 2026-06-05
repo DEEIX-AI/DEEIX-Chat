@@ -680,6 +680,36 @@ func TestFilterModelOptionsCanonicalizesExistingGoogleNativeToolConfigs(t *testi
 	}
 }
 
+func TestFilterModelOptionsMergesGoogleNativeToolEmptyObjectPayloads(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"tools": []interface{}{
+			map[string]interface{}{"code_execution": map[string]interface{}{}},
+		},
+	}, llm.AdapterGoogleGenerateContent, modelOptionPolicyConfig{
+		Mode:             modelOptionPolicyAllowlist,
+		AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+		ModelCapabilitiesJSON: `{
+			"nativeTools": [
+				{
+					"key": "google.code_execution",
+					"protocols": ["gemini_generate_content"],
+					"type": "code_execution",
+					"payload": {"code_execution": {}}
+				}
+			]
+		}`,
+	})
+
+	tools, ok := filtered["tools"].([]map[string]interface{})
+	if !ok || len(tools) != 1 {
+		t.Fatalf("expected google code_execution tool, got %#v", filtered)
+	}
+	if _, ok := tools[0]["code_execution"].(map[string]interface{}); !ok {
+		t.Fatalf("expected code_execution empty object to pass, got %#v", tools[0])
+	}
+}
+
 func TestFilterModelOptionsOpenAIImageGenerationsAllowsImageParams(t *testing.T) {
 	filtered := filterModelOptions(map[string]interface{}{
 		"size":               "1024x1024",

@@ -152,6 +152,7 @@ export function AppChatArea() {
     router.push(projectID ? `/chat?project_id=${encodeURIComponent(projectID)}` : "/chat");
   }, [requestNewConversation, routeProjectID, router]);
   const activeGenerationRunsRef = React.useRef<Set<string>>(new Set());
+  const failedGenerationRunsRef = React.useRef<Set<string>>(new Set());
   const { deleteFilesByDefault } = useChatPreferences();
   const {
     items,
@@ -173,6 +174,7 @@ export function AppChatArea() {
     resumingRunID,
   } = useChatData(conversationID, {
     activeGenerationRunsRef,
+    failedGenerationRunsRef,
   });
   const { greetingTitle } = useChatViewerProfile();
   const [manualConversationTitle, setManualConversationTitle] = React.useState("");
@@ -399,6 +401,7 @@ export function AppChatArea() {
     setAttachments,
     releaseAttachments,
     activeGenerationRunsRef,
+    failedGenerationRunsRef,
     resumingRunID,
   });
   const generating = sending || Boolean(resumingRunID);

@@ -225,6 +225,7 @@ export function useChatMessageSubmit({
   resetStreamBuffer,
   startStream,
   activeGenerationRunsRef,
+  failedGenerationRunsRef,
 }: {
   conversationID: string | null;
   resetToken: number;
@@ -263,6 +264,7 @@ export function useChatMessageSubmit({
   resetStreamBuffer: () => void;
   startStream: (exchangeKey: string) => void;
   activeGenerationRunsRef?: React.RefObject<Set<string>>;
+  failedGenerationRunsRef?: React.RefObject<Set<string>>;
 }) {
   const t = useTranslations("chat.submit");
   const [sending, setSending] = React.useState(false);
@@ -621,6 +623,7 @@ export function useChatMessageSubmit({
               : await streamImageEdit(token, targetConversationID, mediaPayload, streamOptions);
         }
 
+        failedGenerationRunsRef?.current.delete(clientRunID);
         sentSuccessfully = true;
         flushStreamTextNow();
         resetStreamBuffer();
@@ -759,6 +762,7 @@ export function useChatMessageSubmit({
         const errorMessage = resolveErrorMessage(error, t("retryLater"));
         const errorDetails = resolveErrorDetails(error);
         const errorSummary = resolveErrorSummary(error, t("retryLater"));
+        failedGenerationRunsRef?.current.add(clientRunID);
         shouldKeepConversationLayout = true;
         if (resetComposer && restoreDraftOnFailure) {
           setDraft(content);
@@ -802,6 +806,7 @@ export function useChatMessageSubmit({
     [
       activeConversation,
       activeGenerationRunsRef,
+      failedGenerationRunsRef,
       conversationID,
       enqueueStreamText,
       flushStreamTextNow,
