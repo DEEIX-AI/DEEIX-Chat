@@ -40,6 +40,7 @@ for (const asset of assets) {
 
 const pwaAssetCacheKey = contentHash(Buffer.from(JSON.stringify(pwaAssetManifest)));
 
+mkdirSync(dirname(manifestFile), { recursive: true });
 writeFileSync(
   manifestFile,
   [
