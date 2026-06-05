@@ -156,6 +156,36 @@ func TestBuildGeminiImageGenerationRequestBodySupportsResponseModalitiesAndTools
 	}
 }
 
+func TestBuildGeminiImageGenerationRequestBodyPreservesGoogleImageSearchOptions(t *testing.T) {
+	payload, err := buildGeminiImageGenerationRequestBody("gemini-3-pro-image", GenerateInput{
+		Messages: []Message{{Role: "user", Content: "Find current product imagery"}},
+		Options: map[string]interface{}{
+			"tools": []interface{}{
+				map[string]interface{}{
+					"google_search": map[string]interface{}{
+						"searchTypes": map[string]interface{}{
+							"webSearch":   map[string]interface{}{},
+							"imageSearch": map[string]interface{}{},
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("build gemini image request body: %v", err)
+	}
+	tools := payload["tools"].([]map[string]interface{})
+	googleSearch := asMap(tools[0]["google_search"])
+	searchTypes := asMap(googleSearch["searchTypes"])
+	if _, ok := searchTypes["webSearch"]; !ok {
+		t.Fatalf("expected webSearch to pass, got %#v", tools)
+	}
+	if _, ok := searchTypes["imageSearch"]; !ok {
+		t.Fatalf("expected imageSearch to pass, got %#v", tools)
+	}
+}
+
 func TestParseGeminiResponseCapturesGoogleSearchUsage(t *testing.T) {
 	output, err := parseGeminiResponse([]byte(`{
 		"candidates": [{

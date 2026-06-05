@@ -116,7 +116,7 @@ func nativeProviderToolPayload(protocolKey string, rawTool map[string]interface{
 	definition, tool, ok := nativetool.PayloadFromOption(protocolKey, rawTool)
 	if ok {
 		if capability, allowed := nativeToolCapabilityByDefinition(allowedTools, definition); allowed {
-			return mergeNativeToolPayload(tool, capability.Payload), capability.Identity(), true
+			return nativetool.CanonicalPayload(definition, mergeNativeToolPayload(tool, capability.Payload)), capability.Identity(), true
 		}
 	}
 	for _, capability := range allowedTools {
@@ -154,14 +154,14 @@ func nativeToolCapabilitiesFromConfig(raw string, protocolKey string) []nativeTo
 	}
 	var config struct {
 		NativeTools []struct {
-			Key              string                 `json:"key"`
-			ToolKey          string                 `json:"toolKey"`
-			Protocol         string                 `json:"protocol"`
-			Protocols        []string               `json:"protocols"`
-			Type             string                 `json:"type"`
-			Enabled          *bool                  `json:"enabled"`
-			Payload          map[string]interface{} `json:"payload"`
-			DefaultEnabled   bool                   `json:"defaultEnabled"`
+			Key            string                 `json:"key"`
+			ToolKey        string                 `json:"toolKey"`
+			Protocol       string                 `json:"protocol"`
+			Protocols      []string               `json:"protocols"`
+			Type           string                 `json:"type"`
+			Enabled        *bool                  `json:"enabled"`
+			Payload        map[string]interface{} `json:"payload"`
+			DefaultEnabled bool                   `json:"defaultEnabled"`
 		} `json:"nativeTools"`
 		NativeToolKeys []string               `json:"nativeToolKeys"`
 		DefaultOptions map[string]interface{} `json:"defaultOptions"`
@@ -224,7 +224,7 @@ func nativeToolCapabilitiesFromConfig(raw string, protocolKey string) []nativeTo
 					Key:      key,
 					Protocol: firstNonEmpty(protocol, definition.Protocol, protocolKey),
 					Type:     firstNonEmpty(item.Type, definition.Type),
-					Payload:  mergeNativeToolPayload(definition.Payload, item.Payload),
+					Payload:  nativetool.CanonicalPayload(definition, item.Payload),
 				})
 			}
 			continue
@@ -264,7 +264,7 @@ func nativeToolCapabilitiesFromConfig(raw string, protocolKey string) []nativeTo
 				Key:      definition.Key,
 				Protocol: definition.Protocol,
 				Type:     definition.Type,
-				Payload:  mergeNativeToolPayload(definition.Payload, tool),
+				Payload:  nativetool.CanonicalPayload(definition, tool),
 			})
 		}
 	}
@@ -477,6 +477,14 @@ func modelParamIntFromOption(value interface{}) (int, bool) {
 
 func modelOptionPolicyProtocolKey(protocol string) string {
 	switch llm.NormalizeAdapter(protocol) {
+	case "openai":
+		return "openai_responses"
+	case "anthropic", "claude":
+		return "anthropic_messages"
+	case "xai", "grok":
+		return "xai_responses"
+	case "google", "gemini":
+		return "gemini_generate_content"
 	case llm.AdapterGoogleGenerateContent:
 		return "gemini_generate_content"
 	case llm.AdapterGoogleImageGeneration:

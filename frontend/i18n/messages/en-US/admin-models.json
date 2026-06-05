@@ -325,7 +325,9 @@
         "xai__web_search": "Use xAI hosted web search for realtime information.",
         "xai__x_search": "Use xAI hosted X search for social platform information.",
         "xai__code_interpreter": "Use xAI hosted code interpreter.",
-        "google__google_search": "Use Google hosted search grounding for realtime information."
+        "google__google_search": "Use Google hosted search grounding for realtime information.",
+        "google__code_execution": "Use Google hosted code execution.",
+        "google__url_context": "Use Google hosted URL context to read web content."
       }
     },
     "capabilitiesGuide": {

@@ -521,8 +521,8 @@ func buildGeminiProviderTools(tools []map[string]interface{}) []map[string]inter
 	}
 	result := make([]map[string]interface{}, 0, len(tools))
 	for _, tool := range tools {
-		if isGeminiGoogleSearchTool(tool) {
-			result = append(result, map[string]interface{}{"google_search": map[string]interface{}{}})
+		if googleSearch, ok := geminiGoogleSearchToolPayload(tool); ok {
+			result = append(result, map[string]interface{}{"google_search": googleSearch})
 			continue
 		}
 		result = append(result, tool)
@@ -530,17 +530,26 @@ func buildGeminiProviderTools(tools []map[string]interface{}) []map[string]inter
 	return result
 }
 
-func isGeminiGoogleSearchTool(tool map[string]interface{}) bool {
+func geminiGoogleSearchToolPayload(tool map[string]interface{}) (map[string]interface{}, bool) {
 	if strings.TrimSpace(getString(tool["type"])) == "google_search" {
-		return true
+		return geminiToolParameterMap(tool["google_search"], tool["googleSearch"]), true
 	}
 	if _, ok := tool["google_search"]; ok {
-		return true
+		return geminiToolParameterMap(tool["google_search"], tool["googleSearch"]), true
 	}
 	if _, ok := tool["googleSearch"]; ok {
-		return true
+		return geminiToolParameterMap(tool["googleSearch"]), true
 	}
-	return false
+	return nil, false
+}
+
+func geminiToolParameterMap(values ...interface{}) map[string]interface{} {
+	for _, value := range values {
+		if typed, ok := value.(map[string]interface{}); ok {
+			return typed
+		}
+	}
+	return map[string]interface{}{}
 }
 
 // toGeminiRole 将内部 role 转换为 Gemini role（user / model）。

@@ -29,11 +29,53 @@ func TestPayloadFromOptionPreservesToolParametersAndFixesIdentity(t *testing.T) 
 		t.Fatal("expected google_search native tool payload")
 	}
 	googleSearch := payload["google_search"].(map[string]interface{})
-	if googleSearch["time_range_filter"] != "week" || payload["type"] != "google_search" {
+	if googleSearch["time_range_filter"] != "week" {
 		t.Fatalf("expected canonical google_search payload, got %#v", payload)
+	}
+	if _, ok := payload["type"]; ok {
+		t.Fatalf("expected Gemini field-style tool payload without type, got %#v", payload)
 	}
 	if _, ok := payload["googleSearch"]; ok {
 		t.Fatalf("expected googleSearch alias to be normalized away, got %#v", payload)
+	}
+
+	_, payload, ok = PayloadFromOption("gemini_generate_content", map[string]interface{}{
+		"type":          "google_search",
+		"google_search": nil,
+	})
+	if !ok {
+		t.Fatal("expected google_search native tool payload from type")
+	}
+	if _, ok := payload["google_search"].(map[string]interface{}); !ok {
+		t.Fatalf("expected nil google_search to normalize to object, got %#v", payload)
+	}
+	if _, ok := payload["type"]; ok {
+		t.Fatalf("expected Gemini field-style tool payload without type, got %#v", payload)
+	}
+
+	for _, item := range []string{"google_search", "code_execution", "url_context"} {
+		definition, ok := Find("gemini_generate_content", item)
+		if !ok {
+			t.Fatalf("expected %s definition", item)
+		}
+		if _, ok := definition.Payload[item].(map[string]interface{}); !ok {
+			t.Fatalf("expected %s definition payload to preserve empty object, got %#v", item, definition.Payload)
+		}
+	}
+
+	for _, item := range []string{"code_execution", "url_context"} {
+		_, payload, ok = PayloadFromOption("gemini_generate_content", map[string]interface{}{
+			item: map[string]interface{}{},
+		})
+		if !ok {
+			t.Fatalf("expected %s native tool payload", item)
+		}
+		if _, ok := payload[item].(map[string]interface{}); !ok {
+			t.Fatalf("expected canonical %s payload, got %#v", item, payload)
+		}
+		if _, ok := payload["type"]; ok {
+			t.Fatalf("expected Gemini field-style tool payload without type, got %#v", payload)
+		}
 	}
 }
 
@@ -75,6 +117,14 @@ func TestUsagePricingKeyMapsObservedToolUsage(t *testing.T) {
 	key, ok = UsagePricingKey("gemini_generate_content", "google_search")
 	if !ok || key != "google.google_search" {
 		t.Fatalf("expected Google search price key, got key=%q ok=%v", key, ok)
+	}
+	key, ok = UsagePricingKey("gemini_generate_content", "code_execution")
+	if !ok || key != "google.code_execution" {
+		t.Fatalf("expected Google code execution price key, got key=%q ok=%v", key, ok)
+	}
+	key, ok = UsagePricingKey("gemini_generate_content", "url_context")
+	if !ok || key != "google.url_context" {
+		t.Fatalf("expected Google URL context price key, got key=%q ok=%v", key, ok)
 	}
 }
 

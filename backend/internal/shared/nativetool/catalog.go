@@ -328,7 +328,7 @@ var definitions = []Definition{
 		Key:              "google.google_search",
 		Label:            "Google Search",
 		Description:      "Google hosted search grounding tool.",
-		Payload:          map[string]interface{}{"type": "google_search", "google_search": map[string]interface{}{}},
+		Payload:          map[string]interface{}{"google_search": map[string]interface{}{}},
 		DefaultEnabled:   true,
 		PriceLabel:       "notMetered",
 		UsageAliases:     []string{"google_search"},
@@ -341,11 +341,38 @@ var definitions = []Definition{
 		Key:              "google.google_search",
 		Label:            "Google Search",
 		Description:      "Google hosted search grounding tool.",
-		Payload:          map[string]interface{}{"type": "google_search", "google_search": map[string]interface{}{}},
+		Payload:          map[string]interface{}{"google_search": map[string]interface{}{}},
 		DefaultEnabled:   true,
 		PriceLabel:       "notMetered",
 		UsageAliases:     []string{"google_search"},
 		rawTypeFieldKeys: []string{"google_search", "googleSearch"},
+	},
+	{
+		Protocol:         "gemini_generate_content",
+		Provider:         "Google",
+		Type:             "code_execution",
+		Key:              "google.code_execution",
+		Label:            "Code Execution",
+		Description:      "Google hosted code execution tool.",
+		Payload:          map[string]interface{}{"code_execution": map[string]interface{}{}},
+		DefaultEnabled:   true,
+		PriceLabel:       "notMetered",
+		RiskLevel:        "high",
+		UsageAliases:     []string{"code_execution"},
+		rawTypeFieldKeys: []string{"code_execution", "codeExecution"},
+	},
+	{
+		Protocol:         "gemini_generate_content",
+		Provider:         "Google",
+		Type:             "url_context",
+		Key:              "google.url_context",
+		Label:            "URL Context",
+		Description:      "Google hosted URL context tool.",
+		Payload:          map[string]interface{}{"url_context": map[string]interface{}{}},
+		DefaultEnabled:   true,
+		PriceLabel:       "notMetered",
+		UsageAliases:     []string{"url_context"},
+		rawTypeFieldKeys: []string{"url_context", "urlContext"},
 	},
 }
 
@@ -370,6 +397,8 @@ var usagePricesByKey = map[string]UsagePrice{
 	"xai.attachment_search":                     {Provider: "xai", ServiceName: "xAI File Attachments Search", NanousdPerCall: priceUSD001Nanousd},
 	"xai.collections_search":                    {Provider: "xai", ServiceName: "xAI Collections Search / RAG", NanousdPerCall: priceUSD00025Nanousd},
 	"google.google_search":                      {Provider: "google", ServiceName: "Google Search grounding"},
+	"google.code_execution":                     {Provider: "google", ServiceName: "Google Code Execution"},
+	"google.url_context":                        {Provider: "google", ServiceName: "Google URL Context"},
 }
 
 // Definitions 返回全部官方原生工具定义。
@@ -470,10 +499,18 @@ func PayloadFromKey(key string, raw map[string]interface{}) (Definition, map[str
 	return Definition{}, nil, false
 }
 
+// CanonicalPayload 按官方原生工具定义生成可发送给上游的规范 payload。
+func CanonicalPayload(definition Definition, raw map[string]interface{}) map[string]interface{} {
+	return buildPayload(definition, raw)
+}
+
 func buildPayload(definition Definition, raw map[string]interface{}) map[string]interface{} {
 	payload := cloneMap(raw)
 	for key := range nativeToolDeniedPayloadKeys {
 		delete(payload, key)
+	}
+	if _, typedPayload := definition.Payload["type"]; !typedPayload {
+		delete(payload, "type")
 	}
 	for _, key := range definition.rawTypeFieldKeys {
 		if _, canonical := definition.Payload[key]; !canonical {
@@ -862,8 +899,13 @@ func UsagePricingKey(protocol string, toolName string) (string, bool) {
 			return "xai.collections_search", true
 		}
 	case "gemini_generate_content", "google_image_generation":
-		if tool == "google_search" {
+		switch tool {
+		case "google_search":
 			return "google.google_search", true
+		case "code_execution":
+			return "google.code_execution", true
+		case "url_context":
+			return "google.url_context", true
 		}
 	}
 	return "", false
@@ -1040,7 +1082,7 @@ func cloneDefinition(definition Definition) Definition {
 }
 
 func cloneMap(src map[string]interface{}) map[string]interface{} {
-	if len(src) == 0 {
+	if src == nil {
 		return nil
 	}
 	dst := make(map[string]interface{}, len(src))

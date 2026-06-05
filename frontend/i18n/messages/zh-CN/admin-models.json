@@ -325,7 +325,9 @@
         "xai__web_search": "使用 xAI 托管网页搜索获取实时信息。",
         "xai__x_search": "使用 xAI 托管 X 搜索获取社交平台信息。",
         "xai__code_interpreter": "使用 xAI 托管代码解释器运行代码。",
-        "google__google_search": "使用 Google 托管搜索接地能力获取实时信息。"
+        "google__google_search": "使用 Google 托管搜索接地能力获取实时信息。",
+        "google__code_execution": "使用 Google 托管代码执行工具运行代码。",
+        "google__url_context": "使用 Google 托管 URL 上下文工具读取网页内容。"
       }
     },
     "capabilitiesGuide": {
