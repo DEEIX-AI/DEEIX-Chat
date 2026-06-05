@@ -16,7 +16,7 @@ const (
 	systemPromptModeInlineUser = "inline_user"
 )
 
-const htmlVisualPromptInstruction = `<format>
+const htmlVisualPromptFormatInstruction = `<format>
   <rule>标题从 ## 起，子层级使用 ###；禁用 #</rule>
   <rule>遵循用户语言</rule>
   <rule>保持高信息密度和紧凑的行文</rule>
@@ -55,10 +55,14 @@ const htmlVisualPromptInstruction = `<format>
       <constraint>无缝嵌入正文流：HTML 片段必须像一段加粗或列表一样，自然穿插在 Markdown 文本之间，文字解释与可视化元素相互配合，禁止整段回复全量包裹于一个巨大 HTML 块中。</constraint>
     </boundary>
   </html-visual>
-</format>
-<require>
-  更积极的使用html-visual为用户提供更好的回复质量和效果。
-</require>`
+</format>`
+
+const htmlVisualPromptDefaultRequire = `更积极的使用html-visual为用户提供更好的回复质量和效果。`
+
+var htmlVisualColorModeLabels = map[string]string{
+	"light": "浅色模式",
+	"dark":  "深色模式",
+}
 
 type systemPromptInjection struct {
 	Content      string
@@ -82,11 +86,11 @@ type systemPromptCapabilities struct {
 }
 
 // resolveMessageSystemPromptInjection 合并平台、模型、项目和本次请求级系统提示词，并按路由能力决定注入方式。
-func resolveMessageSystemPromptInjection(cfg config.Config, route *channel.ResolvedRoute, projectPrompt string, htmlVisualPrompt bool) systemPromptInjection {
+func resolveMessageSystemPromptInjection(cfg config.Config, route *channel.ResolvedRoute, projectPrompt string, htmlVisualPrompt bool, htmlVisualColorMode string) systemPromptInjection {
 	if route == nil {
 		return systemPromptInjection{}
 	}
-	content := buildResolvedMessageSystemPrompt(cfg.DefaultSystemPrompt, route.ModelSystemPrompt, projectPrompt, htmlVisualPrompt)
+	content := buildResolvedMessageSystemPrompt(cfg.DefaultSystemPrompt, route.ModelSystemPrompt, projectPrompt, htmlVisualPrompt, htmlVisualColorMode)
 	if content == "" {
 		return systemPromptInjection{}
 	}
@@ -97,7 +101,7 @@ func resolveMessageSystemPromptInjection(cfg config.Config, route *channel.Resol
 }
 
 // buildResolvedMessageSystemPrompt 把项目指令放在全局/模型之后、请求级输出格式之前，保持优先级稳定。
-func buildResolvedMessageSystemPrompt(globalPrompt string, modelPrompt string, projectPrompt string, htmlVisualPrompt bool) string {
+func buildResolvedMessageSystemPrompt(globalPrompt string, modelPrompt string, projectPrompt string, htmlVisualPrompt bool, htmlVisualColorMode string) string {
 	layers := []systemPromptLayer{
 		{tag: "platform", priority: 100, content: globalPrompt},
 		{tag: "model", priority: 80, content: modelPrompt},
@@ -114,10 +118,18 @@ func buildResolvedMessageSystemPrompt(globalPrompt string, modelPrompt string, p
 			tag:      "format",
 			priority: 30,
 			scope:    "request",
-			content:  htmlVisualPromptInstruction,
+			content:  buildHTMLVisualPromptInstruction(htmlVisualColorMode),
 		})
 	}
 	return buildSystemPromptLayers(layers)
+}
+
+func buildHTMLVisualPromptInstruction(colorMode string) string {
+	require := htmlVisualPromptDefaultRequire
+	if label, ok := htmlVisualColorModeLabels[strings.TrimSpace(colorMode)]; ok {
+		require = strings.TrimSuffix(require, "。") + "；默认视觉风格需适配当前" + label + "。"
+	}
+	return htmlVisualPromptFormatInstruction + "\n<require>\n  " + require + "\n</require>"
 }
 
 func buildSystemPromptLayers(layers []systemPromptLayer) string {

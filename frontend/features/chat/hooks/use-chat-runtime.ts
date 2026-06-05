@@ -21,6 +21,7 @@ export function useChatRuntime({
   modelOptions,
   selectedToolIDs,
   htmlVisualPromptEnabled,
+  htmlVisualColorMode,
   options,
   draft,
   attachments,
@@ -46,6 +47,7 @@ export function useChatRuntime({
   modelOptions: ChatModelOption[];
   selectedToolIDs: number[];
   htmlVisualPromptEnabled: boolean;
+  htmlVisualColorMode: "light" | "dark";
   options: ConversationOptions;
   draft: string;
   attachments: PendingAttachment[];
@@ -86,6 +88,7 @@ export function useChatRuntime({
     modelOptions,
     selectedToolIDs,
     htmlVisualPromptEnabled,
+    htmlVisualColorMode,
     options,
     draft,
     attachments,

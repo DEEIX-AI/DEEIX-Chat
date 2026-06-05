@@ -399,6 +399,7 @@ export type SendMessageRequest = {
   fileIDs?: string[];
   selectedToolIDs?: number[];
   htmlVisualPrompt?: boolean;
+  htmlVisualColorMode?: "light" | "dark";
   parentMessagePublicID?: string;
   sourceMessagePublicID?: string;
   branchReason?: "default" | "retry" | "edit";

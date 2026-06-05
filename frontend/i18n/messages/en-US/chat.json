@@ -165,6 +165,7 @@
     "copyReply": "Copy",
     "editReply": "Edit",
     "replyEditedDisclaimer": "Edited",
+    "replyEditedTooltip": "Content may no longer fully reflect the original model output.",
     "likeReply": "Like",
     "dislikeReply": "Dislike",
     "retryReply": "Retry",

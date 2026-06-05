@@ -195,6 +195,7 @@ export function useChatMessageSubmit({
   modelOptions,
   selectedToolIDs,
   htmlVisualPromptEnabled,
+  htmlVisualColorMode,
   options,
   draft,
   attachments,
@@ -232,6 +233,7 @@ export function useChatMessageSubmit({
   modelOptions: ChatModelOption[];
   selectedToolIDs: number[];
   htmlVisualPromptEnabled: boolean;
+  htmlVisualColorMode: "light" | "dark";
   options: ConversationOptions;
   draft: string;
   attachments: PendingAttachment[];
@@ -605,6 +607,7 @@ export function useChatMessageSubmit({
             content: payloadContent,
             selectedToolIDs: selectedToolIDs.length > 0 ? selectedToolIDs : undefined,
             htmlVisualPrompt: htmlVisualPromptEnabled || undefined,
+            htmlVisualColorMode: htmlVisualPromptEnabled ? htmlVisualColorMode : undefined,
           };
           completed = await streamConversationMessage(token, targetConversationID, chatPayload, streamOptions);
         } else {
@@ -621,6 +624,8 @@ export function useChatMessageSubmit({
         sentSuccessfully = true;
         flushStreamTextNow();
         resetStreamBuffer();
+        const assistantMessageStatus = completed.assistantMessage.status || "success";
+        const assistantMessageSucceeded = assistantMessageStatus === "success";
         setPendingExchange((prev) => {
           if (!prev || prev.key !== exchangeKey) {
             return prev;
@@ -675,7 +680,7 @@ export function useChatMessageSubmit({
             assistantReasoningTokens: completed.assistantMessage.reasoningTokens,
             assistantLatencyMS: completed.assistantMessage.latencyMS,
             assistantProcessTrace: toPendingProcessTrace(completed.assistantMessage.processTrace),
-            assistantStatus: completed.assistantMessage.status || "success",
+            assistantStatus: assistantMessageStatus,
             assistantErrorCode: completed.assistantMessage.errorCode,
             assistantErrorMessage: completed.assistantMessage.errorMessage,
             assistantInlineAlert:
@@ -712,7 +717,7 @@ export function useChatMessageSubmit({
           targetConversationID,
           toConversationPatch(targetConversation, requestPlatformModelName),
         );
-        if (shouldRefreshConversationMetadata) {
+        if (assistantMessageSucceeded && shouldRefreshConversationMetadata) {
           void refreshGeneratedConversationMetadata(
             token,
             targetConversationID,
@@ -723,7 +728,7 @@ export function useChatMessageSubmit({
           });
         }
         releaseAttachments(effectiveAttachments);
-        if ((completed.assistantMessage.status || "success") === "success") {
+        if (assistantMessageSucceeded) {
           notifyResponseCompletion({
             content: completed.assistantMessage.content,
             conversationPublicID: targetConversationID,
@@ -810,6 +815,7 @@ export function useChatMessageSubmit({
       modelOptions,
       selectedToolIDs,
       htmlVisualPromptEnabled,
+      htmlVisualColorMode,
       selectedPlatformModelName,
       sending,
       setAttachments,

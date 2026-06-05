@@ -457,7 +457,7 @@ func (s *Service) sendMessageInternal(
 
 	// ContextAssembler 只承载真正的系统级行为指令；资料型上下文稍后进入用户 XML。
 	assembler := NewContextAssembler(int64(cfg.ContextMaxInputTokens))
-	systemPrompt := resolveMessageSystemPromptInjection(cfg, route, conversation.ProjectSystemPrompt, input.HTMLVisualPromptEnabled)
+	systemPrompt := resolveMessageSystemPromptInjection(cfg, route, conversation.ProjectSystemPrompt, input.HTMLVisualPromptEnabled, input.HTMLVisualColorMode)
 	if systemPrompt.Content != "" {
 		if systemPrompt.InlineToUser {
 			historyMsgs = inlineSystemPromptIntoLatestUserMessage(historyMsgs, systemPrompt.Content)
@@ -728,9 +728,18 @@ func (s *Service) sendMessageInternal(
 	}
 	sendSpan.SetAttributes(promptShapeTraceAttributes("conversation.prompt", initialPromptShape)...)
 
+	firstVisibleDeltaLatencyMS := int64(0)
+	visibleDeltaCount := 0
 	emitVisibleDelta := func(delta string) error {
 		if delta == "" {
 			return nil
+		}
+		visibleDeltaCount++
+		if firstVisibleDeltaLatencyMS == 0 {
+			firstVisibleDeltaLatencyMS = time.Since(startedAt).Milliseconds()
+			if firstVisibleDeltaLatencyMS < 0 {
+				firstVisibleDeltaLatencyMS = 0
+			}
 		}
 		if traceRecorder != nil {
 			traceRecorder.completeUpstreamThink()
@@ -1168,7 +1177,10 @@ func (s *Service) sendMessageInternal(
 	run.CacheWriteTokens = totalUsage.CacheWriteTokens
 	run.ReasoningTokens = totalUsage.ReasoningTokens
 	run.ToolCallsCount = len(toolCallRows)
-	run.FirstTokenLatencyMS = time.Since(startedAt).Milliseconds()
+	run.FirstTokenLatencyMS = firstVisibleDeltaLatencyMS
+	if run.FirstTokenLatencyMS == 0 {
+		run.FirstTokenLatencyMS = time.Since(startedAt).Milliseconds()
+	}
 	if run.FirstTokenLatencyMS < 0 {
 		run.FirstTokenLatencyMS = 0
 	}
@@ -1182,6 +1194,8 @@ func (s *Service) sendMessageInternal(
 			zap.Int64("cache_read_tokens", totalUsage.CacheReadTokens),
 			zap.Int64("cache_write_tokens", totalUsage.CacheWriteTokens),
 			zap.Int64("output_tokens", totalUsage.OutputTokens),
+			zap.Int("visible_delta_count", visibleDeltaCount),
+			zap.Int64("first_visible_delta_latency_ms", firstVisibleDeltaLatencyMS),
 		}
 		fields = append(fields, promptShapeLogFields(initialPromptShape)...)
 		s.logger.Debug("conversation_prompt_shape", fields...)

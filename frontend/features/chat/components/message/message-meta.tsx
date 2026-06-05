@@ -71,14 +71,17 @@ function formatMessageDate(value: string | undefined, locale: string): string {
     return "";
   }
 
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      month: "numeric",
-      day: "numeric",
-    }).format(date);
-  } catch {
-    return "";
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const isCurrentYear = year === new Date().getFullYear();
+  const isChinese = locale.toLowerCase().startsWith("zh");
+
+  if (isChinese) {
+    return isCurrentYear ? `${month}月${day}日` : `${year}年${month}月${day}日`;
   }
+
+  return isCurrentYear ? `${month}/${day}` : `${year}/${month}/${day}`;
 }
 
 function BranchSwitcher({
@@ -401,19 +404,21 @@ function LatencyBadge({ item }: { item: ChatMetaMessage }) {
 
 function EditedBadge() {
   const t = useTranslations("chat.messages");
+  const label = t("replyEditedDisclaimer");
+  const tooltip = t("replyEditedTooltip");
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span
           className="ml-0.5 inline-flex items-center gap-1 rounded bg-muted/30 px-1.5 py-0.5 text-[10px] leading-3.5 text-muted-foreground/70 select-none whitespace-nowrap"
-          aria-label={t("replyEditedDisclaimer")}
+          aria-label={tooltip}
         >
           <FilePenLine className="size-3" strokeWidth={1.4} />
-          {t("replyEditedDisclaimer")}
+          {label}
         </span>
       </TooltipTrigger>
-      <TooltipContent>{t("replyEditedDisclaimer")}</TooltipContent>
+      <TooltipContent className="max-w-64">{tooltip}</TooltipContent>
     </Tooltip>
   );
 }
@@ -919,76 +924,107 @@ export function AssistantMessageMeta({
   const canEdit = Boolean(canRetry && onEdit && resolvePersistedPublicID(item.publicID));
   const canContinue = Boolean(canRetry && resolvePersistedPublicID(item.publicID) && item.status === "interrupted");
   const canShowBranchNavigator = Boolean(showBranchNavigator && item.branchNavigator && !busy && !isLive);
+  const hasTokenUsage = Boolean(
+    (item.inputTokens ?? 0) > 0 ||
+    (item.outputTokens ?? 0) > 0 ||
+    (item.cacheReadTokens ?? 0) > 0 ||
+    (item.cacheWriteTokens ?? 0) > 0 ||
+    (item.reasoningTokens ?? 0) > 0,
+  );
+  const hasLatencyBadge = Boolean(
+    showLatency &&
+    (
+      isLive ||
+      (item.latencyMS && item.latencyMS > 0) ||
+      calculateElapsedMS(item.createdAt, item.updatedAt) > 0
+    ),
+  );
+  const hasDetailBadges = Boolean(
+    (showModelInfo && item.platformModelName?.trim()) ||
+    (showTokenUsage && hasTokenUsage) ||
+    hasLatencyBadge ||
+    item.editedAt ||
+    (showBillingCost && item.billingCost && item.billingCost.billingMode !== "self"),
+  );
+  const hasActionRow = Boolean(!readOnly || canShowBranchNavigator);
 
   return (
-    <MetaContainer align="start" mobileStack alwaysVisible={alwaysVisible}>
-      {!readOnly ? (
-        <div className="flex min-w-0 items-center gap-1">
-          <MetaIconButton
-            label={t("copyReply")}
-            disabled={!item.publicID}
-            onClick={onCopy}
-          >
-            <Copy size={14} strokeWidth={1.8} animateOnHover="default" />
-          </MetaIconButton>
-          {canEdit ? (
-            <MetaIconButton
-              label={t("editReply")}
-              onClick={onEdit}
-            >
-              <Brush size={14} strokeWidth={1.8} animateOnHover="default" />
-            </MetaIconButton>
-          ) : null}
-          <MetaIconButton
-            label={t("likeReply")}
-            className={reaction === "up" ? "text-foreground" : undefined}
-            disabled={isLive}
-            onClick={() => onReact(reaction === "up" ? null : "up")}
-          >
-            <ThumbsUp size={14} strokeWidth={1.8} animateOnHover="default" />
-          </MetaIconButton>
-          <MetaIconButton
-            label={t("dislikeReply")}
-            className={reaction === "down" ? "text-foreground" : undefined}
-            disabled={isLive}
-            onClick={() => onReact(reaction === "down" ? null : "down")}
-          >
-            <ThumbsDown size={14} strokeWidth={1.8} animateOnHover="default" />
-          </MetaIconButton>
-          {canRetry ? (
-            <MetaIconButton
-              label={t("retryReply")}
-              onClick={onRetry}
-            >
-              <RotateCcw size={14} strokeWidth={1.8} animateOnHover="default" />
-            </MetaIconButton>
-          ) : null}
-          {canContinue && onContinue ? (
-            <MetaIconButton
-              label={t("continueReply")}
-              onClick={onContinue}
-            >
-              <Forward className="size-3.5" strokeWidth={1.8} />
-            </MetaIconButton>
-          ) : null}
-          <QuickMemoryPin disabled={isLive} />
-        </div>
-      ) : null}
-      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
-        {showModelInfo ? <ModelBadge label={item.platformModelName?.trim() || ""} /> : null}
-        {showTokenUsage ? (
-          <TokenBadge
-            inputTokens={item.inputTokens}
-            outputTokens={item.outputTokens}
-            cacheReadTokens={item.cacheReadTokens}
-            cacheWriteTokens={item.cacheWriteTokens}
-            reasoningTokens={item.reasoningTokens}
-          />
+    <MetaContainer align="start" alwaysVisible={alwaysVisible}>
+      <div className="flex min-w-0 max-w-full flex-col items-start gap-1.5 pt-0.5">
+        {hasDetailBadges ? (
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
+            {showModelInfo ? <ModelBadge label={item.platformModelName?.trim() || ""} /> : null}
+            {showTokenUsage ? (
+              <TokenBadge
+                inputTokens={item.inputTokens}
+                outputTokens={item.outputTokens}
+                cacheReadTokens={item.cacheReadTokens}
+                cacheWriteTokens={item.cacheWriteTokens}
+                reasoningTokens={item.reasoningTokens}
+              />
+            ) : null}
+            {hasLatencyBadge ? <LatencyBadge item={item} /> : null}
+            {item.editedAt ? <EditedBadge /> : null}
+            {showBillingCost ? <BillingCostBadge item={item} /> : null}
+          </div>
         ) : null}
-        {showLatency ? <LatencyBadge item={item} /> : null}
-        {item.editedAt ? <EditedBadge /> : null}
-        {showBillingCost ? <BillingCostBadge item={item} /> : null}
-        {canShowBranchNavigator ? <BranchSwitcher item={item} onCycle={onCycleBranch} /> : null}
+        {hasActionRow ? (
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
+            {!readOnly ? (
+              <>
+                <MetaIconButton
+                  label={t("copyReply")}
+                  disabled={!item.publicID}
+                  onClick={onCopy}
+                >
+                  <Copy size={14} strokeWidth={1.8} animateOnHover="default" />
+                </MetaIconButton>
+                {canEdit ? (
+                  <MetaIconButton
+                    label={t("editReply")}
+                    onClick={onEdit}
+                  >
+                    <Brush size={14} strokeWidth={1.8} animateOnHover="default" />
+                  </MetaIconButton>
+                ) : null}
+                <MetaIconButton
+                  label={t("likeReply")}
+                  className={reaction === "up" ? "text-foreground" : undefined}
+                  disabled={isLive}
+                  onClick={() => onReact(reaction === "up" ? null : "up")}
+                >
+                  <ThumbsUp size={14} strokeWidth={1.8} animateOnHover="default" />
+                </MetaIconButton>
+                <MetaIconButton
+                  label={t("dislikeReply")}
+                  className={reaction === "down" ? "text-foreground" : undefined}
+                  disabled={isLive}
+                  onClick={() => onReact(reaction === "down" ? null : "down")}
+                >
+                  <ThumbsDown size={14} strokeWidth={1.8} animateOnHover="default" />
+                </MetaIconButton>
+                {canRetry ? (
+                  <MetaIconButton
+                    label={t("retryReply")}
+                    onClick={onRetry}
+                  >
+                    <RotateCcw size={14} strokeWidth={1.8} animateOnHover="default" />
+                  </MetaIconButton>
+                ) : null}
+                {canContinue && onContinue ? (
+                  <MetaIconButton
+                    label={t("continueReply")}
+                    onClick={onContinue}
+                  >
+                    <Forward className="size-3.5" strokeWidth={1.8} />
+                  </MetaIconButton>
+                ) : null}
+                <QuickMemoryPin disabled={isLive} />
+              </>
+            ) : null}
+            {canShowBranchNavigator ? <BranchSwitcher item={item} onCycle={onCycleBranch} /> : null}
+          </div>
+        ) : null}
       </div>
     </MetaContainer>
   );

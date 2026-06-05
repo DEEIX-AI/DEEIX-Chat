@@ -24,6 +24,7 @@ export function useChatSubmitStream({
   modelOptions,
   selectedToolIDs,
   htmlVisualPromptEnabled,
+  htmlVisualColorMode,
   options,
   draft,
   attachments,
@@ -57,6 +58,7 @@ export function useChatSubmitStream({
   modelOptions: ChatModelOption[];
   selectedToolIDs: number[];
   htmlVisualPromptEnabled: boolean;
+  htmlVisualColorMode: "light" | "dark";
   options: ConversationOptions;
   draft: string;
   attachments: PendingAttachment[];
@@ -94,6 +96,7 @@ export function useChatSubmitStream({
     modelOptions,
     selectedToolIDs,
     htmlVisualPromptEnabled,
+    htmlVisualColorMode,
     options,
     draft,
     attachments,

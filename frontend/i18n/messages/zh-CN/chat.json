@@ -165,6 +165,7 @@
     "copyReply": "复制",
     "editReply": "编辑",
     "replyEditedDisclaimer": "已编辑",
+    "replyEditedTooltip": "内容可能不再完全代表原始模型输出，请注意结合上下文甄别。",
     "likeReply": "点赞",
     "dislikeReply": "点踩",
     "retryReply": "重试",
