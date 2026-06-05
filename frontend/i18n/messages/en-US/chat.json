@@ -101,6 +101,7 @@
     "externalLink": {
       "title": "Open external link?",
       "description": "You are about to leave this site. Confirm the link before continuing.",
+      "linkAddress": "Link address",
       "copy": "Copy link",
       "copied": "Link copied"
     },

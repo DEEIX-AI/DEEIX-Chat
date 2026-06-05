@@ -386,7 +386,7 @@ func mergeModelOptionMap(dst map[string]interface{}, src map[string]interface{})
 	for key, value := range src {
 		srcMap, srcIsMap := value.(map[string]interface{})
 		dstMap, dstIsMap := dst[key].(map[string]interface{})
-		if srcIsMap && dstIsMap {
+		if srcIsMap && dstIsMap && dstMap != nil {
 			mergeModelOptionMap(dstMap, srcMap)
 			continue
 		}
@@ -601,7 +601,7 @@ func deleteModelOptionPath(dst map[string]interface{}, path []string) {
 }
 
 func cloneModelOptionMap(src map[string]interface{}) map[string]interface{} {
-	if len(src) == 0 {
+	if src == nil {
 		return nil
 	}
 	dst := make(map[string]interface{}, len(src))

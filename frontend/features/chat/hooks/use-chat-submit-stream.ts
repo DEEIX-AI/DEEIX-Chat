@@ -50,6 +50,7 @@ export function useChatSubmitStream({
   combinedMessages,
   serverMessagePublicIDs,
   activeGenerationRunsRef,
+  failedGenerationRunsRef,
 }: {
   conversationID: string | null;
   resetToken: number;
@@ -84,6 +85,7 @@ export function useChatSubmitStream({
   combinedMessages: ChatAreaMessage[];
   serverMessagePublicIDs: Set<string>;
   activeGenerationRunsRef?: React.RefObject<Set<string>>;
+  failedGenerationRunsRef?: React.RefObject<Set<string>>;
 }) {
   const streamBuffer = useChatStreamBuffer({
     setPendingExchange,
@@ -127,6 +129,7 @@ export function useChatSubmitStream({
     startStream: streamBuffer.startStream,
     resetToken,
     activeGenerationRunsRef,
+    failedGenerationRunsRef,
   });
 
   return {
