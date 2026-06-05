@@ -13,13 +13,14 @@
     }
   },
   "scripts": {
-    "postinstall": "pnpm sync:icons",
+    "postinstall": "pnpm sync:icons && pnpm sync:pwa-assets",
     "sync:version": "node ../scripts/sync-version.mjs frontend",
     "check:version": "node ../scripts/sync-version.mjs --check frontend",
     "sync:icons": "node scripts/sync-lobehub-icons.mjs",
-    "predev": "pnpm check:version && pnpm sync:icons",
+    "sync:pwa-assets": "node scripts/sync-pwa-assets.mjs",
+    "predev": "pnpm check:version && pnpm sync:icons && pnpm sync:pwa-assets",
     "dev": "next dev --turbopack",
-    "prebuild": "pnpm check:version && pnpm sync:icons",
+    "prebuild": "pnpm check:version && pnpm sync:icons && pnpm sync:pwa-assets",
     "build": "next build --turbopack",
     "analyze": "next experimental-analyze",
     "analyze:output": "next experimental-analyze --output",

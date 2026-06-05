@@ -40,9 +40,20 @@ function replaceOrThrow(content, pattern, replacement, label) {
 
 function syncFrontend() {
   const packageFile = join(repoRoot, "frontend", "package.json");
+  const serviceWorkerFile = join(repoRoot, "frontend", "public", "sw.js");
   const packageJson = JSON.parse(readFileSync(packageFile, "utf8"));
   packageJson.version = version;
   writeIfChanged(packageFile, `${JSON.stringify(packageJson, null, 2)}\n`);
+
+  writeIfChanged(
+    serviceWorkerFile,
+    replaceOrThrow(
+      readFileSync(serviceWorkerFile, "utf8"),
+      /const PWA_ASSET_VERSION = "[^"]+";/u,
+      `const PWA_ASSET_VERSION = ${JSON.stringify(version)};`,
+      "frontend service worker PWA asset version",
+    ),
+  );
 }
 
 function syncBackend() {

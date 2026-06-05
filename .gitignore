@@ -160,6 +160,7 @@ __pycache__/
 storage/*
 backend/docs/rules/*
 frontend/public/vendor/lobehub-icons/
+frontend/public/pwa/generated/
 
 .DS_Store
 .idea
