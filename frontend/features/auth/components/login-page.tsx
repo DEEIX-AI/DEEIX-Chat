@@ -322,7 +322,7 @@ export function LoginPage({ nextPath }: LoginPageProps) {
             ) : null}
 
             {canShowRegisterSwitch ? (
-              <div className="mt-6 text-center text-sm font-normal leading-none text-muted-foreground">
+              <div className="mt-6 text-center text-sm font-normal leading-5 text-muted-foreground">
                 {mode === "register" ? t("alreadyHaveAccount") : t("noAccount")}{" "}
                 <button
                   type="button"
