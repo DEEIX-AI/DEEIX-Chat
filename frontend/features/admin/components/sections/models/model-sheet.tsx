@@ -600,7 +600,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
         platformModelName: form.platformModelName.trim() || undefined,
         vendor: form.vendor || undefined,
         kindsJSON: kindsJson,
-        icon: form.icon.trim() || undefined,
+        icon: form.icon.trim(),
         capabilitiesJSON: normalizeModelCapabilitiesJSON(form.capabilitiesJSON, nativeTools, routeProtocols) || undefined,
         systemPrompt: form.systemPrompt.trim(),
         accessScope: form.accessScope,
