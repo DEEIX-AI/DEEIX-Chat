@@ -36,6 +36,7 @@ import { AppLogo } from "@/shared/components/app-logo";
 import { TimeZoneSelect } from "@/shared/components/time-zone-select";
 import { useTheme, type ThemePreset } from "@/shared/components/theme-provider";
 import { lobehubIconManifest } from "@/shared/generated/lobehub-icon-manifest";
+import { writeClipboardText } from "@/shared/lib/clipboard";
 import { createQRCodeSVG } from "@/shared/lib/qr-code";
 import { detectCurrentTimeZone } from "@/shared/lib/time-zone";
 import { cn } from "@/lib/utils";
@@ -408,7 +409,7 @@ export function InitialSecurityGuard() {
 
   const copyText = React.useCallback(async (value: string, label: string) => {
     try {
-      await navigator.clipboard.writeText(value);
+      await writeClipboardText(value);
       toast.success(t("toasts.copied", { label }));
     } catch {
       toast.error(t("toasts.copyFailed"), { description: t("toasts.manualCopy") });
@@ -556,7 +557,7 @@ export function InitialSecurityGuard() {
 
   const copyRecoveryCodes = React.useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(recoveryCodes.join("\n"));
+      await writeClipboardText(recoveryCodes.join("\n"));
       toast.success(t("toasts.recoveryCodesCopied"));
     } catch {
       toast.error(t("toasts.copyFailed"));
