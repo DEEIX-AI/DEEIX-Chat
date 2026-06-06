@@ -228,21 +228,23 @@ func (h *Handler) Patch(c *gin.Context) {
 		return
 	}
 
-	// 检测 Embedding 模型是否变更：若变更则标记所有已向量化文件为 stale，并更新签名
+	// 检测 Embedding 模型签名：模型变更时标记旧向量为 stale；签名缺失时只补写当前签名。
 	newCfg := h.runtime.Snapshot()
 	newSignature := appembedding.ComputeModelSignature(newCfg.RAGModel, newCfg.EmbeddingOutputDimensions)
-	if newSignature != prevSignature && h.embeddingSvc != nil {
+	signatureMissing := strings.TrimSpace(newCfg.EmbeddingModelSignature) == "" && strings.TrimSpace(newCfg.RAGModel) != ""
+	if (newSignature != prevSignature || signatureMissing) && h.embeddingSvc != nil {
 		go func() {
 			staleCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			affected, staleErr := h.embeddingSvc.MarkAllFilesStale(staleCtx)
-			if staleErr == nil {
-				_, _ = h.service.BatchUpdate(staleCtx, []appsettings.PatchItem{
-					{Namespace: "file", Key: "embedding_model_signature", Value: newSignature},
-				})
-				_ = h.runtimeSettings.ApplyTo(staleCtx, h.runtime)
+			if newSignature != prevSignature {
+				if _, staleErr := h.embeddingSvc.MarkAllFilesStale(staleCtx); staleErr != nil {
+					return
+				}
 			}
-			_ = affected // suppress unused warning; caller can check /admin/embedding/status
+			_, _ = h.service.BatchUpdate(staleCtx, []appsettings.PatchItem{
+				{Namespace: "file", Key: "embedding_model_signature", Value: newSignature},
+			})
+			_ = h.runtimeSettings.ApplyTo(staleCtx, h.runtime)
 		}()
 	}
 

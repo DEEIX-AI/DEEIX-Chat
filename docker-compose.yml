@@ -8,11 +8,12 @@ services:
       dockerfile: Dockerfile
     container_name: deeix-chat-app
     ports:
+      # Optional. Localhost-only by default. Put a reverse proxy in front for public access.
       - "127.0.0.1:8080:8080"
     volumes:
       - app_storage:/app/storage
-      # The image runs from /app, so this file is loaded automatically as /app/config.yaml.
-      # Set CONFIG_FILE only when mounting a different container path.
+      - app_data:/app/data
+      # The image runs from /app and reads /app/config.yaml automatically.
       - ./config.yaml:/app/config.yaml:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -21,6 +22,8 @@ services:
 volumes:
   app_storage:
     name: deeix-chat-app-storage
+  app_data:
+    name: deeix-chat-app-data
 
 networks:
   deeix-chat:

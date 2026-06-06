@@ -19,11 +19,16 @@ type Service struct {
 	repo              repository.SettingsRepository
 	dataEncryptionKey string
 	authSafety        authSafetyService
+	vectorStore       vectorStoreAvailabilityService
 	auditWriter       auditWriter
 }
 
 type authSafetyService interface {
 	HasActiveSuperAdminIdentity(ctx context.Context) (bool, error)
+}
+
+type vectorStoreAvailabilityService interface {
+	VectorStoreAvailable(ctx context.Context) (bool, error)
 }
 
 type auditWriter interface {
@@ -37,6 +42,10 @@ func NewService(repo repository.SettingsRepository, dataEncryptionKey string) *S
 
 func (s *Service) SetAuthSafetyService(service authSafetyService) {
 	s.authSafety = service
+}
+
+func (s *Service) SetVectorStoreAvailabilityService(service vectorStoreAvailabilityService) {
+	s.vectorStore = service
 }
 
 // SetAuditWriter 注入系统设置审计写入器。
@@ -656,12 +665,17 @@ func upsertPatch(patches []PatchItem, next PatchItem) []PatchItem {
 func (s *Service) validateEmbeddingDependentSettings(ctx context.Context, patches []PatchItem) error {
 	requiresValidation := false
 	for _, item := range patches {
-		if item.Namespace != "chat" {
-			continue
+		if item.Namespace == "file" {
+			switch item.Key {
+			case "embedding_enabled", "embedding_host", "rag_model":
+				requiresValidation = true
+			}
 		}
-		if (item.Key == "rag_enabled" || item.Key == "message_embedding_enabled" || item.Key == "semantic_context_enabled") && strings.EqualFold(strings.TrimSpace(item.Value), "true") {
-			requiresValidation = true
-			break
+		if item.Namespace == "chat" {
+			switch item.Key {
+			case "rag_enabled", "message_embedding_enabled", "semantic_context_enabled":
+				requiresValidation = true
+			}
 		}
 	}
 	if !requiresValidation {
@@ -674,15 +688,25 @@ func (s *Service) validateEmbeddingDependentSettings(ctx context.Context, patche
 	}
 	applyPatchesToEffectiveSettings(next, patches, "chat", "file")
 
+	embeddingEnabled, _ := strconv.ParseBool(next["file:embedding_enabled"])
 	ragEnabled, _ := strconv.ParseBool(next["chat:rag_enabled"])
 	messageEmbeddingEnabled, _ := strconv.ParseBool(next["chat:message_embedding_enabled"])
 	semanticContextEnabled, _ := strconv.ParseBool(next["chat:semantic_context_enabled"])
 	if semanticContextEnabled && !messageEmbeddingEnabled {
 		return fmt.Errorf("chat:message_embedding_enabled is required when chat:semantic_context_enabled is true")
 	}
-	if ragEnabled || messageEmbeddingEnabled || semanticContextEnabled {
+	if embeddingEnabled || ragEnabled || messageEmbeddingEnabled || semanticContextEnabled {
 		if !embeddingServiceReady(next) {
-			return fmt.Errorf("embedding service must be enabled and configured before enabling RAG or semantic enhancement")
+			return fmt.Errorf("embedding service must be enabled and configured before enabling embedding features")
+		}
+		if s.vectorStore != nil {
+			available, err := s.vectorStore.VectorStoreAvailable(ctx)
+			if err != nil {
+				return err
+			}
+			if !available {
+				return fmt.Errorf("vector store is unavailable; enable a supported vector store before enabling embedding features")
+			}
 		}
 	}
 	return nil

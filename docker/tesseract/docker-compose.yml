@@ -6,6 +6,7 @@ services:
       context: ../../
       dockerfile: docker/tesseract/Dockerfile
     ports:
+      # Optional. Localhost-only by default. Configure the app to use http://host.docker.internal:8004/ocr when needed.
       - "127.0.0.1:8004:8004"
     environment:
       TESSERACT_LANG: ${TESSERACT_LANG:-chi_sim+eng}
@@ -19,5 +20,6 @@ services:
 
 networks:
   deeix-chat:
+    # Required. Start a root compose profile first, or create this network manually.
     external: true
     name: deeix-chat-network

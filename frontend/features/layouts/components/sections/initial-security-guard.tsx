@@ -302,12 +302,12 @@ export function InitialSecurityGuard() {
     const nextUsername = username.trim().toLowerCase();
     const nextDisplayName = displayName.trim();
     const nextPassword = password.trim();
-    if (viewer.initialUsernameRequired && !isUsernamePolicyValid(nextUsername)) {
-      toast.error(t("toasts.usernameTooShort"));
-      return;
-    }
     if (viewer.initialUsernameRequired && nextUsername === viewer.username.trim().toLowerCase()) {
       toast.error(t("toasts.changeInitialUsername"));
+      return;
+    }
+    if (viewer.initialUsernameRequired && !isUsernamePolicyValid(nextUsername)) {
+      toast.error(t("toasts.usernameTooShort"));
       return;
     }
     if (!viewer.mustResetPassword && !isDisplayNameLengthValid(nextDisplayName)) {

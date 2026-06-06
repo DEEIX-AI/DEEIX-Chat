@@ -658,8 +658,8 @@ export function AdminFilesSettingsPage() {
                     <div className="flex min-w-0 items-center justify-between gap-3">
                       <div className="min-w-0 space-y-0.5">
                         <p className="text-xs font-medium">{t("embeddingStatus.title")}</p>
-                        {embeddingStatus?.model_signature ? (
-                          <p className="min-w-0 break-all font-mono text-[11px] text-muted-foreground">{embeddingStatus.model_signature}</p>
+                        {embeddingStatus?.modelSignature ? (
+                          <p className="min-w-0 break-all font-mono text-[11px] text-muted-foreground">{embeddingStatus.modelSignature}</p>
                         ) : (
                           <p className="text-[11px] text-muted-foreground">{t("embeddingStatus.noSignature")}</p>
                         )}
@@ -667,7 +667,7 @@ export function AdminFilesSettingsPage() {
                       <Button
                         type="button"
                         size="sm"
-                        variant={embeddingStatus?.needs_reindex ? "default" : "outline"}
+                        variant="default"
                         disabled={reindexing || embeddingStatusLoading || loading || saving}
                         onClick={() => void handleReindex()}
                       >
@@ -677,10 +677,10 @@ export function AdminFilesSettingsPage() {
                     {embeddingStatus ? (
                       <div className="grid min-w-0 grid-cols-2 gap-2 text-center sm:grid-cols-4">
                         {[
-                          { label: t("embeddingStatus.ready"), value: embeddingStatus.ready_count, color: "text-green-600 dark:text-green-400" },
-                          { label: t("embeddingStatus.stale"), value: embeddingStatus.stale_count, color: embeddingStatus.stale_count > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground" },
-                          { label: t("embeddingStatus.pending"), value: embeddingStatus.pending_count, color: "text-muted-foreground" },
-                          { label: t("embeddingStatus.failed"), value: embeddingStatus.failed_count, color: embeddingStatus.failed_count > 0 ? "text-destructive" : "text-muted-foreground" },
+                          { label: t("embeddingStatus.ready"), value: embeddingStatus.readyCount, color: "text-green-600 dark:text-green-400" },
+                          { label: t("embeddingStatus.stale"), value: embeddingStatus.staleCount, color: embeddingStatus.staleCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground" },
+                          { label: t("embeddingStatus.pending"), value: embeddingStatus.pendingCount, color: "text-muted-foreground" },
+                          { label: t("embeddingStatus.failed"), value: embeddingStatus.failedCount, color: embeddingStatus.failedCount > 0 ? "text-destructive" : "text-muted-foreground" },
                         ].map(({ label, value, color }) => (
                           <div key={label} className="rounded-md bg-background/60 py-2 px-1 border border-border/40">
                             <p className={cn("text-base font-semibold tabular-nums", color)}>{value}</p>
@@ -702,7 +702,7 @@ export function AdminFilesSettingsPage() {
                         {t("embeddingStatus.empty")}
                       </p>
                     )}
-                    {embeddingStatus?.needs_reindex && (
+                    {embeddingStatus?.needsReindex && (
                       <p className="text-[11px] text-amber-600 dark:text-amber-400">
                         {t("embeddingStatus.needsReindex")}
                       </p>

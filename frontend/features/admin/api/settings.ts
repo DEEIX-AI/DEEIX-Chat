@@ -93,12 +93,12 @@ export async function getAdminEmbeddingRuntime(accessToken: string): Promise<Adm
 }
 
 export interface AdminEmbeddingIndexStatus {
-  model_signature: string;
-  ready_count: number;
-  stale_count: number;
-  pending_count: number;
-  failed_count: number;
-  needs_reindex: boolean;
+  modelSignature: string;
+  readyCount: number;
+  staleCount: number;
+  pendingCount: number;
+  failedCount: number;
+  needsReindex: boolean;
 }
 
 export async function getAdminEmbeddingStatus(accessToken: string): Promise<AdminEmbeddingIndexStatus> {

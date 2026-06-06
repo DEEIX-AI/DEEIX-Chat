@@ -56,6 +56,35 @@ func TestNormalizeAppearancePreferencesRejectsUnknownKey(t *testing.T) {
 	}
 }
 
+func TestShouldRequireInitialUsernameOnlyForBootstrapSuperAdmin(t *testing.T) {
+	if !shouldRequireInitialUsername(domainuser.User{
+		Username: "admin",
+		Role:     domainuser.RoleSuperAdmin,
+	}, "admin") {
+		t.Fatal("expected bootstrap superadmin username to require initialization change")
+	}
+
+	if shouldRequireInitialUsername(domainuser.User{
+		Username:          "admin",
+		Role:              domainuser.RoleSuperAdmin,
+		UsernameChangedAt: ptrTime(time.Now()),
+	}, "admin") {
+		t.Fatal("expected changed superadmin username to remain optional")
+	}
+
+	if shouldRequireInitialUsername(domainuser.User{
+		Username:    "user",
+		Role:        domainuser.RoleUser,
+		EmailSource: domainuser.EmailSourceLocalRegister,
+	}, "admin") {
+		t.Fatal("expected local registration user username to remain optional")
+	}
+}
+
+func ptrTime(value time.Time) *time.Time {
+	return &value
+}
+
 func TestValidateAccessSessionAllowsTokenIssuedBeforeLatestRefresh(t *testing.T) {
 	now := time.Now()
 	createdAt := now.Add(-30 * time.Minute)

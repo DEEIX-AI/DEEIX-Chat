@@ -1084,6 +1084,8 @@ func (h *Handler) PatchUsername(c *gin.Context) {
 	item, err := h.service.UpdateUsernameOnce(c.Request.Context(), userID, toUpdateUsernameInput(req))
 	if err != nil {
 		switch {
+		case errors.Is(err, appauth.ErrUsernameChangeRequired):
+			response.Error(c, http.StatusBadRequest, appauth.ErrUsernameChangeRequired.Error())
 		case errors.Is(err, appauth.ErrInvalidUsername):
 			response.Error(c, http.StatusBadRequest, "invalid username")
 		case errors.Is(err, appauth.ErrUsernameTaken):
