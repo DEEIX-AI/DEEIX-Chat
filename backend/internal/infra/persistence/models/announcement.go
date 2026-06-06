@@ -24,9 +24,9 @@ func (Announcement) TableName() string {
 // AnnouncementUserState 记录用户对公告版本的展示状态。
 type AnnouncementUserState struct {
 	BaseModel
-	AnnouncementID        uint       `gorm:"not null;index:idx_announcement_user_states_announcement;comment:公告ID"`
-	UserID                uint       `gorm:"not null;index:idx_announcement_user_states_user;comment:用户ID"`
-	AnnouncementUpdatedAt time.Time  `gorm:"not null;comment:公告版本更新时间"`
+	AnnouncementID        uint       `gorm:"not null;index:idx_announcement_user_states_announcement;uniqueIndex:idx_announcement_user_states_version;comment:公告ID"`
+	UserID                uint       `gorm:"not null;index:idx_announcement_user_states_user;uniqueIndex:idx_announcement_user_states_version;comment:用户ID"`
+	AnnouncementUpdatedAt time.Time  `gorm:"not null;uniqueIndex:idx_announcement_user_states_version;comment:公告版本更新时间"`
 	DismissedUntil        *time.Time `gorm:"index:idx_announcement_user_states_dismissed_until;comment:暂不显示截止时间"`
 	ClosedAt              *time.Time `gorm:"index:idx_announcement_user_states_closed_at;comment:关闭时间"`
 }

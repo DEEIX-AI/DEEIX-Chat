@@ -11,6 +11,7 @@ import (
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/schema"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/sqlitevec"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -22,6 +23,7 @@ func New(cfg config.Config) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	sqlitevec.Register()
 	db, err := gorm.Open(sqlite.Open(dsn), newGORMConfig(cfg))
 	if err != nil {
 		return nil, err
@@ -30,6 +32,9 @@ func New(cfg config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 	if err = schema.Migrate(db); err != nil {
+		return nil, err
+	}
+	if err = sqlitevec.Migrate(db); err != nil {
 		return nil, err
 	}
 	if err = schema.SeedLLMSettings(db); err != nil {

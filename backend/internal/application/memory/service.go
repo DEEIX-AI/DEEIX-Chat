@@ -109,7 +109,7 @@ func (s *Service) ListUserMemories(ctx context.Context, userID uint) ([]domainme
 	return s.repo.ListUserMemories(ctx, userID)
 }
 
-// SearchUserMemoriesByEmbedding 语义检索用户记忆（需 pgvector 支持）。
+// SearchUserMemoriesByEmbedding 语义检索用户记忆（需向量存储支持）。
 func (s *Service) SearchUserMemoriesByEmbedding(ctx context.Context, userID uint, queryEmbedding []float32, topK int, minSimilarity float64) ([]domainmemory.UserMemory, error) {
 	return s.repo.SearchUserMemoriesByEmbedding(ctx, userID, queryEmbedding, topK, minSimilarity)
 }

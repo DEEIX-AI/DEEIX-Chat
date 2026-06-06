@@ -239,6 +239,7 @@ func (s *Service) ProcessFile(ctx context.Context, userID uint, fileID string) e
 	now := time.Now()
 	preview := compactSnippet(extractResult.Text, defaultProcessingPreview)
 	ragAvailable, ragReason := s.embeddingSvc.Available(runCtx)
+	indexingAvailable, _ := s.embeddingSvc.IndexingAvailable(runCtx)
 	resultRAGReady := false
 	resultRAGReason := "not_applicable"
 	if supportsRAG(fileObj.FileCategory) {
@@ -286,7 +287,7 @@ func (s *Service) ProcessFile(ctx context.Context, userID uint, fileID string) e
 		return err
 	}
 
-	if ragAvailable && supportsRAG(fileObj.FileCategory) && s.embeddingSvc.ShouldTrigger(*fileObj) {
+	if indexingAvailable && supportsRAG(fileObj.FileCategory) && s.embeddingSvc.ShouldTrigger(*fileObj) {
 		processingStatus = "embedding"
 		_ = s.repo.UpdateFileObjectProcessing(runCtx, fileObj.UserID, fileObj.FileID, repository.UpdateFileObjectProcessingInput{
 			ProcessingStatus: &processingStatus,

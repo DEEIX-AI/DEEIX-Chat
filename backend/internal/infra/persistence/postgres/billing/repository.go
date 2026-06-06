@@ -45,6 +45,31 @@ func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}
 }
 
+func (r *Repo) sqliteDialect() bool {
+	return r != nil && r.db != nil && r.db.Dialector != nil && r.db.Dialector.Name() == "sqlite"
+}
+
+func (r *Repo) pricingModeExpression() string {
+	if r.sqliteDialect() {
+		return "COALESCE(NULLIF(json_extract(pricing_snapshot_json, '$.pricing_mode'), ''), 'token')"
+	}
+	return "COALESCE(NULLIF(pricing_snapshot_json, '')::jsonb ->> 'pricing_mode', 'token')"
+}
+
+func (r *Repo) usageDayKeyExpression() string {
+	if r.sqliteDialect() {
+		return "strftime('%Y-%m-%d', usage_date)"
+	}
+	return "TO_CHAR(usage_date, 'YYYY-MM-DD')"
+}
+
+func (r *Repo) usageMonthKeyExpression() string {
+	if r.sqliteDialect() {
+		return "strftime('%Y-%m-01', usage_date)"
+	}
+	return "TO_CHAR(date_trunc('month', usage_date), 'YYYY-MM-DD')"
+}
+
 // ListActivePlans 查询启用套餐。
 func (r *Repo) ListActivePlans(ctx context.Context) ([]domainbilling.Plan, error) {
 	items := make([]model.BillingPlan, 0)
@@ -1386,7 +1411,7 @@ func (r *Repo) ListUsageLogs(ctx context.Context, filter repository.UsageLogList
 		query = query.Where("is_free_model = ?", true)
 	case "token", "call", "duration", "tiered":
 		query = query.Where("is_free_model = ?", false)
-		query = query.Where("COALESCE(NULLIF(pricing_snapshot_json, '')::jsonb ->> 'pricing_mode', 'token') = ?", strings.TrimSpace(filter.BillingMode))
+		query = query.Where(r.pricingModeExpression()+" = ?", strings.TrimSpace(filter.BillingMode))
 	}
 	if filter.CreatedFrom != nil {
 		query = query.Where("created_at >= ?", *filter.CreatedFrom)
@@ -1436,24 +1461,24 @@ func (r *Repo) ListMonthlyUsageByUser(ctx context.Context, userID uint, limit in
 	startMonth := endMonth.AddDate(0, -limit, 0)
 
 	type monthlyUsageRow struct {
-		MonthStartAt     time.Time `gorm:"column:month_start_at"`
-		RecordCount      int64     `gorm:"column:record_count"`
-		InputTokens      int64     `gorm:"column:input_tokens"`
-		CacheReadTokens  int64     `gorm:"column:cache_read_tokens"`
-		CacheWriteTokens int64     `gorm:"column:cache_write_tokens"`
-		OutputTokens     int64     `gorm:"column:output_tokens"`
-		ReasoningTokens  int64     `gorm:"column:reasoning_tokens"`
-		CallCount        int64     `gorm:"column:call_count"`
-		DurationSeconds  int64     `gorm:"column:duration_seconds"`
-		AvgLatencyMS     int64     `gorm:"column:avg_latency_ms"`
-		BilledNanousd    int64     `gorm:"column:billed_nanousd"`
+		MonthKey         string `gorm:"column:month_key"`
+		RecordCount      int64  `gorm:"column:record_count"`
+		InputTokens      int64  `gorm:"column:input_tokens"`
+		CacheReadTokens  int64  `gorm:"column:cache_read_tokens"`
+		CacheWriteTokens int64  `gorm:"column:cache_write_tokens"`
+		OutputTokens     int64  `gorm:"column:output_tokens"`
+		ReasoningTokens  int64  `gorm:"column:reasoning_tokens"`
+		CallCount        int64  `gorm:"column:call_count"`
+		DurationSeconds  int64  `gorm:"column:duration_seconds"`
+		AvgLatencyMS     int64  `gorm:"column:avg_latency_ms"`
+		BilledNanousd    int64  `gorm:"column:billed_nanousd"`
 	}
 
 	rows := make([]monthlyUsageRow, 0, limit)
+	monthKeyExpression := r.usageMonthKeyExpression()
 	if err := r.db.WithContext(ctx).
 		Model(&model.UsageLedger{}).
-		Select(`
-			date_trunc('month', usage_date)::date AS month_start_at,
+		Select(monthKeyExpression+` AS month_key,
 			COUNT(*) AS record_count,
 			COALESCE(SUM(input_tokens), 0) AS input_tokens,
 			COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
@@ -1466,8 +1491,8 @@ func (r *Repo) ListMonthlyUsageByUser(ctx context.Context, userID uint, limit in
 			COALESCE(SUM(billed_nanousd), 0) AS billed_nanousd
 		`).
 		Where("user_id = ? AND usage_date >= ? AND usage_date < ?", userID, startMonth, endMonth).
-		Group("month_start_at").
-		Order("month_start_at DESC").
+		Group(monthKeyExpression).
+		Order("month_key DESC").
 		Limit(limit).
 		Scan(&rows).Error; err != nil {
 		return nil, translateError(err)
@@ -1475,8 +1500,12 @@ func (r *Repo) ListMonthlyUsageByUser(ctx context.Context, userID uint, limit in
 
 	results := make([]domainbilling.UsageMonthlySummary, 0, len(rows))
 	for _, row := range rows {
+		monthStartAt, err := time.Parse("2006-01-02", row.MonthKey)
+		if err != nil {
+			return nil, err
+		}
 		results = append(results, domainbilling.UsageMonthlySummary{
-			MonthStartAt:     row.MonthStartAt,
+			MonthStartAt:     monthStartAt,
 			RecordCount:      row.RecordCount,
 			InputTokens:      row.InputTokens,
 			CacheReadTokens:  row.CacheReadTokens,
@@ -1507,30 +1536,27 @@ func (r *Repo) GetUserCreatedAt(ctx context.Context, userID uint) (time.Time, er
 // ListDailyUsageByUser 按日期聚合用户用量。
 func (r *Repo) ListDailyUsageByUser(ctx context.Context, userID uint, startDate time.Time, endDate time.Time) ([]domainbilling.UsageDailySummary, error) {
 	type dailyModelUsageRow struct {
-		UsageDate           time.Time `gorm:"column:usage_date"`
-		PlatformModelName   string    `gorm:"column:platform_model_name"`
-		PricingSnapshotJSON string    `gorm:"column:pricing_snapshot_json"`
-		RecordCount         int64     `gorm:"column:record_count"`
-		InputTokens         int64     `gorm:"column:input_tokens"`
-		CacheReadTokens     int64     `gorm:"column:cache_read_tokens"`
-		CacheWriteTokens    int64     `gorm:"column:cache_write_tokens"`
-		OutputTokens        int64     `gorm:"column:output_tokens"`
-		ReasoningTokens     int64     `gorm:"column:reasoning_tokens"`
-		CallCount           int64     `gorm:"column:call_count"`
-		DurationSeconds     int64     `gorm:"column:duration_seconds"`
-		AvgLatencyMS        int64     `gorm:"column:avg_latency_ms"`
-		LatencyCount        int64     `gorm:"column:latency_count"`
-		BilledNanousd       int64     `gorm:"column:billed_nanousd"`
+		UsageDateKey      string `gorm:"column:usage_date_key"`
+		PlatformModelName string `gorm:"column:platform_model_name"`
+		RecordCount       int64  `gorm:"column:record_count"`
+		InputTokens       int64  `gorm:"column:input_tokens"`
+		CacheReadTokens   int64  `gorm:"column:cache_read_tokens"`
+		CacheWriteTokens  int64  `gorm:"column:cache_write_tokens"`
+		OutputTokens      int64  `gorm:"column:output_tokens"`
+		ReasoningTokens   int64  `gorm:"column:reasoning_tokens"`
+		CallCount         int64  `gorm:"column:call_count"`
+		DurationSeconds   int64  `gorm:"column:duration_seconds"`
+		AvgLatencyMS      int64  `gorm:"column:avg_latency_ms"`
+		LatencyCount      int64  `gorm:"column:latency_count"`
+		BilledNanousd     int64  `gorm:"column:billed_nanousd"`
 	}
 
 	modelRows := make([]dailyModelUsageRow, 0)
+	dayKeyExpression := r.usageDayKeyExpression()
 	if err := r.db.WithContext(ctx).
 		Model(&model.UsageLedger{}).
-		Select(`
-			date_trunc('day', usage_date)::date AS usage_date,
+		Select(dayKeyExpression+` AS usage_date_key,
 			platform_model_name,
-			(ARRAY_AGG(NULLIF(pricing_snapshot_json, '') ORDER BY created_at DESC, id DESC)
-				FILTER (WHERE NULLIF(pricing_snapshot_json, '') IS NOT NULL))[1] AS pricing_snapshot_json,
 			COUNT(*) AS record_count,
 			COALESCE(SUM(input_tokens), 0) AS input_tokens,
 			COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
@@ -1544,8 +1570,8 @@ func (r *Repo) ListDailyUsageByUser(ctx context.Context, userID uint, startDate 
 			COALESCE(SUM(billed_nanousd), 0) AS billed_nanousd
 		`).
 		Where("user_id = ? AND usage_date >= ? AND usage_date < ?", userID, startDate, endDate).
-		Group("date_trunc('day', usage_date)::date, platform_model_name").
-		Order("usage_date ASC, billed_nanousd DESC, platform_model_name ASC").
+		Group(dayKeyExpression + ", platform_model_name").
+		Order("usage_date_key ASC, billed_nanousd DESC, platform_model_name ASC").
 		Scan(&modelRows).Error; err != nil {
 		return nil, translateError(err)
 	}
@@ -1555,10 +1581,14 @@ func (r *Repo) ListDailyUsageByUser(ctx context.Context, userID uint, startDate 
 	latencyCountsByDate := make(map[string]int64)
 	modelsByDate := make(map[string][]domainbilling.UsageDailyModelSummary)
 	for _, row := range modelRows {
-		key := row.UsageDate.Format("2006-01-02")
+		key := row.UsageDateKey
+		usageDate, err := time.Parse("2006-01-02", key)
+		if err != nil {
+			return nil, err
+		}
 		summary, exists := resultsByDate[key]
 		if !exists {
-			summary = domainbilling.UsageDailySummary{UsageDate: row.UsageDate}
+			summary = domainbilling.UsageDailySummary{UsageDate: usageDate}
 			dateKeys = append(dateKeys, key)
 		}
 		summary.RecordCount += row.RecordCount

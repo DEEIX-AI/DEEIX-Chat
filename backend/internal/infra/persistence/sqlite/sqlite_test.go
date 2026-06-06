@@ -30,6 +30,9 @@ func TestNewMigratesAndSeedsSQLite(t *testing.T) {
 	if !db.Migrator().HasTable(&model.User{}) {
 		t.Fatal("expected users table to be migrated")
 	}
+	if !db.Migrator().HasTable("file_chunk_vectors") {
+		t.Fatal("expected sqlite vector tables to be migrated")
+	}
 	var planCount int64
 	if err := db.Model(&model.BillingPlan{}).Count(&planCount).Error; err != nil {
 		t.Fatalf("count billing plans: %v", err)

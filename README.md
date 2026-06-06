@@ -83,7 +83,7 @@ flowchart TB
   end
 
   subgraph Data["Data and Storage"]
-    DB["PostgreSQL + pgvector<br/>or SQLite"]
+    DB["PostgreSQL + pgvector<br/>or SQLite + sqlite-vec"]
     Cache["Redis<br/>or In-Memory Cache"]
     Storage["Local Filesystem<br/>or S3-Compatible Storage"]
   end
@@ -105,7 +105,7 @@ flowchart TB
 | --- | --- | --- |
 | Frontend | Chat UI, admin console, and static builds | Next.js 16, React 19, TypeScript, Tailwind CSS, Shadcn/UI, Streamdown, KaTeX, Mermaid, Recharts, Motion |
 | Backend runtime | APIs, authentication, authorization, orchestration, protocol adaptation, and static serving | Go 1.26, Gin, Gorm, Swagger, OpenTelemetry, Zap |
-| Data and cache | Domain data, vector retrieval, session state, and runtime cache | PostgreSQL, pgvector, SQLite, Redis, in-memory cache |
+| Data and cache | Domain data, vector retrieval, session state, and runtime cache | PostgreSQL, pgvector, SQLite, sqlite-vec, Redis, in-memory cache |
 | Files and storage | Uploaded files, generated files, object storage, and local persistence | Local filesystem, S3-compatible object storage |
 | File processing | Text extraction, OCR, document parsing, and LLM OCR fallback | Built-in extractors, Apache Tika, Docling, RapidOCR, Tesseract OCR, Paddle OCR, cloud OCR adapters, MinerU |
 | Tool protocol | MCP tool integration and provider-native official tools | MCP Streamable HTTP JSON-RPC, provider-native tools |
@@ -165,13 +165,13 @@ Choose one installation profile first, then copy the matching config file. All r
 
 | Profile | Use case | Config file | Compose file | Built-in dependencies |
 | --- | --- | --- | --- | --- |
-| Lightweight | Local evaluation, personal use, small single-node deployments | `config.sqlite.example.yaml` | `docker-compose.sqlite.yml` | App only, SQLite + in-memory cache |
+| Lightweight | Local evaluation, personal use, small single-node deployments | `config.sqlite.example.yaml` | `docker-compose.sqlite.yml` | App only, SQLite + sqlite-vec + in-memory cache |
 | Default | External PostgreSQL and Redis already exist | `config.example.yaml` | `docker-compose.yml` | App only |
 | Full | Single-machine stack with app, PostgreSQL, and Redis | `config.full.example.yaml` | `docker-compose.full.yml` | App, PostgreSQL, Redis |
 
 #### 1. Lightweight Installation: SQLite
 
-This is the lowest-dependency deployment. It starts only the `app` container, stores data in SQLite, and uses the in-process memory cache. Use it for local evaluation, personal deployments, and small single-node setups.
+This is the lowest-dependency deployment. It starts only the `app` container, stores data and local vector indexes in SQLite, and uses the in-process memory cache. Use it for local evaluation, personal deployments, and small single-node setups.
 
 ```bash
 cp config.sqlite.example.yaml config.yaml

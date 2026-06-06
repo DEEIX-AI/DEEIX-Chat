@@ -184,6 +184,7 @@ func NewApp() (*App, error) {
 	channelHandler := channelhttp.NewHandler(channelService)
 	channelModule := channelhttp.NewModule(channelHandler)
 	conversationRepo := conversationrepo.NewRepo(db)
+	settingsService.SetVectorStoreAvailabilityService(conversationRepo)
 	conversationCache := buildConversationCache(cfg, redisClient, memoryCache)
 	mcpRepo := mcprepo.NewRepo(db)
 	embedClient := embedding.NewWithEnv(cfg.Env, cfg.SSRFProtectionEnabled)

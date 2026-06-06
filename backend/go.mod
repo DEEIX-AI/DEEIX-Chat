@@ -3,6 +3,7 @@ module github.com/DEEIX-AI/DEEIX-Chat/backend
 go 1.26
 
 require (
+	github.com/asg017/sqlite-vec-go-bindings v0.1.6
 	github.com/aws/aws-sdk-go-v2 v1.41.7
 	github.com/aws/aws-sdk-go-v2/config v1.32.17
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.16
@@ -31,6 +32,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.40.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.50.0
+	golang.org/x/image v0.39.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/text v0.36.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -112,7 +114,6 @@ require (
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.17.0 // indirect
-	golang.org/x/image v0.39.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect

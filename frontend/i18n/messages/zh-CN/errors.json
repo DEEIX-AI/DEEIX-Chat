@@ -128,6 +128,7 @@
     "originForbidden": "当前来源不允许访问。"
   },
   "embedding": {
+    "serviceNotConfigured": "请先启用并配置 Embedding 服务。",
     "serviceUnavailable": "向量服务不可用。"
   },
   "file": {
