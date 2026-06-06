@@ -76,8 +76,8 @@ func (r *Repo) ListAdminAnnouncements(ctx context.Context, filter repository.Ann
 		query = query.Where("pinned = ?", *filter.Pinned)
 	}
 	if keyword := strings.TrimSpace(filter.Query); keyword != "" {
-		like := "%" + keyword + "%"
-		query = query.Where("title ILIKE ? OR content_markdown ILIKE ?", like, like)
+		like := "%" + strings.ToLower(keyword) + "%"
+		query = query.Where("LOWER(title) LIKE ? OR LOWER(content_markdown) LIKE ?", like, like)
 	}
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, translateError(err)

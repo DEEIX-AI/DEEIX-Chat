@@ -30,12 +30,10 @@ RUN --mount=type=cache,id=next-cache,target=/src/frontend/.next/cache \
     pnpm build
 
 
-FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS backend-builder
+FROM --platform=$TARGETPLATFORM golang:1.26-bookworm AS backend-builder
 
 WORKDIR /src/backend
 
-ARG TARGETOS
-ARG TARGETARCH
 ARG GIT_COMMIT=unknown
 ARG BUILD_TIME=""
 COPY VERSION /src/VERSION
@@ -50,9 +48,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     VERSION="$(cat /src/VERSION)" \
     && if [ -z "${BUILD_TIME}" ]; then BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; fi \
-    && CGO_ENABLED=0 \
-       GOOS=${TARGETOS} \
-       GOARCH=${TARGETARCH} \
+    && CGO_ENABLED=1 \
        go build -trimpath \
        -ldflags="-s -w -X github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/buildinfo.Version=${VERSION} -X github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/buildinfo.Commit=${GIT_COMMIT} -X github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/buildinfo.BuildTime=${BUILD_TIME}" \
        -o /out/deeix-chat ./cmd/server
@@ -78,6 +74,6 @@ COPY --from=frontend-builder /src/frontend/out /app/frontend/out
 
 EXPOSE 8080
 
-VOLUME ["/app/storage"]
+VOLUME ["/app/storage", "/app/data"]
 
 CMD ["/app/deeix-chat"]

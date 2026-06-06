@@ -19,6 +19,7 @@ services:
       - "host.docker.internal:host-gateway"
     networks:
       - deeix-chat
+
 volumes:
   app_storage:
     name: deeix-chat-app-storage

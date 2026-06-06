@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/schema"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -31,7 +31,7 @@ func New(cfg config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	if err = seedBillingCatalog(db); err != nil {
+	if err = schema.SeedBillingCatalog(db); err != nil {
 		return nil, err
 	}
 
@@ -180,7 +180,7 @@ func migrate(db *gorm.DB, cfg config.Config) error {
 	if err := applyVectorBaseline(db, vectorBaselineRequired(cfg)); err != nil {
 		return err
 	}
-	if err := seedLLMSettings(db); err != nil {
+	if err := schema.SeedLLMSettings(db); err != nil {
 		return err
 	}
 
@@ -188,62 +188,7 @@ func migrate(db *gorm.DB, cfg config.Config) error {
 }
 
 func applySchemaBaseline(db *gorm.DB) error {
-	models := []interface{}{
-		&model.User{},
-		&model.UserContactVerification{},
-		&model.UserCredential{},
-		&model.UserSession{},
-		&model.UserAuthEvent{},
-		&model.AuthIdentityProvider{},
-		&model.UserIdentity{},
-		&model.UserTwoFactor{},
-		&model.TrustedDevice{},
-		&model.LLMUpstream{},
-		&model.LLMUpstreamModel{},
-		&model.LLMPlatformModel{},
-		&model.LLMPlatformModelRoute{},
-		&model.MCPServer{},
-		&model.MCPTool{},
-		&model.Conversation{},
-		&model.ConversationProject{},
-		&model.ConversationShare{},
-		&model.Message{},
-		&model.ConversationMessageFeedback{},
-		&model.Attachment{},
-		&model.FileObject{},
-		&model.UserStorageQuota{},
-		&model.ConversationRun{},
-		&model.ChatRunEvent{},
-		&model.ChatContextRecord{},
-		&model.UserMemory{},
-		&model.BillingPlan{},
-		&model.BillingPrice{},
-		&model.Subscription{},
-		&model.PaymentOrder{},
-		&model.BillingAccount{},
-		&model.BalanceTransaction{},
-		&model.RedemptionCode{},
-		&model.Redemption{},
-		&model.ModelPricing{},
-		&model.UsageLedger{},
-		&model.AuditLog{},
-		&model.SystemEvent{},
-		&model.Announcement{},
-		&model.AnnouncementUserState{},
-		&model.SystemSetting{},
-		&model.UserSetting{},
-		&model.FileChunk{},
-		&model.MessageChunk{},
-	}
-	for _, item := range models {
-		if db.Migrator().HasTable(item) {
-			continue
-		}
-		if err := db.Migrator().CreateTable(item); err != nil {
-			return err
-		}
-	}
-	return nil
+	return schema.Migrate(db)
 }
 
 func escapeSQLLiteral(input string) string {
@@ -520,154 +465,4 @@ func handleOptionalVectorBaselineError(required bool, operation string, err erro
 	}
 	log.Printf("postgres vector baseline skipped: %s failed: %v", operation, err)
 	return nil
-}
-
-func seedLLMSettings(db *gorm.DB) error {
-	settings := []model.SystemSetting{
-		{
-			Namespace:   "llm",
-			Key:         "circuit_breaker.error_classification",
-			Value:       `{"circuit_errors":["5xx","timeout","connection_error"],"rate_limit_errors":["429"],"ignore_errors":["4xx"]}`,
-			ValueType:   "json",
-			Description: "熔断错误分类配置",
-		},
-		{
-			Namespace:   "llm",
-			Key:         "circuit_breaker.defaults",
-			Value:       `{"model_failure_threshold":5,"model_duration_min":15,"model_window_min":3,"upstream_failure_threshold":20,"upstream_model_threshold":3,"upstream_threshold_logic":"or","upstream_duration_min":30,"upstream_window_min":5}`,
-			ValueType:   "json",
-			Description: "熔断默认参数",
-		},
-		{
-			Namespace:   "llm",
-			Key:         "rate_limit.defaults",
-			Value:       `{"backoff_base_sec":5,"backoff_max_sec":60,"backoff_multiplier":2}`,
-			ValueType:   "json",
-			Description: "限流退避默认参数",
-		},
-		{
-			Namespace:   "llm",
-			Key:         "load_balance.defaults",
-			Value:       `{"algorithm":"weighted_random"}`,
-			ValueType:   "json",
-			Description: "负载均衡默认参数",
-		},
-	}
-
-	for i := range settings {
-		if err := db.Where("namespace = ? AND key = ?", settings[i].Namespace, settings[i].Key).
-			FirstOrCreate(&settings[i]).Error; err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func seedBillingCatalog(db *gorm.DB) error {
-	var planCount int64
-	if err := db.Model(&model.BillingPlan{}).Count(&planCount).Error; err != nil {
-		return err
-	}
-	var priceCount int64
-	if err := db.Model(&model.BillingPrice{}).Count(&priceCount).Error; err != nil {
-		return err
-	}
-	if planCount > 0 || priceCount > 0 {
-		return nil
-	}
-
-	plans := []model.BillingPlan{
-		{
-			Code:                "free",
-			Name:                "Free",
-			Description:         "默认免费套餐",
-			FeatureJSON:         `{"priority":"shared"}`,
-			PeriodCreditNanousd: 1000000000,
-			DiscountPercent:     0,
-			SortOrder:           10,
-			IsActive:            true,
-		},
-		{
-			Code:                "pro",
-			Name:                "Pro",
-			Description:         "轻度使用套餐",
-			FeatureJSON:         `{"priority":"standard"}`,
-			PeriodCreditNanousd: 30000000000,
-			DiscountPercent:     0,
-			SortOrder:           20,
-			IsActive:            true,
-		},
-		{
-			Code:                "max",
-			Name:                "Max",
-			Description:         "中度使用套餐",
-			FeatureJSON:         `{"priority":"advanced"}`,
-			PeriodCreditNanousd: 75000000000,
-			DiscountPercent:     0,
-			SortOrder:           30,
-			IsActive:            true,
-		},
-		{
-			Code:                "ultra",
-			Name:                "Ultra",
-			Description:         "重度使用套餐",
-			FeatureJSON:         `{"priority":"premium"}`,
-			PeriodCreditNanousd: 300000000000,
-			DiscountPercent:     0,
-			SortOrder:           40,
-			IsActive:            true,
-		},
-	}
-
-	return db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&plans).Error; err != nil {
-			return err
-		}
-
-		planIDByCode := make(map[string]uint, len(plans))
-		for _, item := range plans {
-			planIDByCode[item.Code] = item.ID
-		}
-
-		prices := []model.BillingPrice{
-			{
-				PlanID:          planIDByCode["free"],
-				Code:            "free-default",
-				BillingInterval: model.BillingIntervalLifetime,
-				Currency:        "USD",
-				AmountCents:     0,
-				IsActive:        true,
-				IsDefault:       true,
-			},
-			{
-				PlanID:          planIDByCode["pro"],
-				Code:            "pro-monthly",
-				BillingInterval: model.BillingIntervalMonth,
-				Currency:        "USD",
-				AmountCents:     2000,
-				IsActive:        true,
-				IsDefault:       true,
-			},
-			{
-				PlanID:          planIDByCode["max"],
-				Code:            "max-monthly",
-				BillingInterval: model.BillingIntervalMonth,
-				Currency:        "USD",
-				AmountCents:     5000,
-				IsActive:        true,
-				IsDefault:       true,
-			},
-			{
-				PlanID:          planIDByCode["ultra"],
-				Code:            "ultra-monthly",
-				BillingInterval: model.BillingIntervalMonth,
-				Currency:        "USD",
-				AmountCents:     20000,
-				IsActive:        true,
-				IsDefault:       true,
-			},
-		}
-
-		return tx.Create(&prices).Error
-	})
 }

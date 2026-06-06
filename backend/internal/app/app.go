@@ -29,7 +29,6 @@ import (
 	appsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/systemevent"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/usersettings"
-	platformcache "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/cache/redis"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/geoip"
@@ -37,7 +36,6 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mcp"
 	platformlogger "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/logger"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
-	platformdb "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres"
 	announcementrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/announcement"
 	auditrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/audit"
 	billingrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/billing"
@@ -102,12 +100,12 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 
-	db, err := platformdb.New(cfg)
+	db, err := openDatabase(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	redisClient, err := platformcache.NewRedis(cfg)
+	redisClient, memoryCache, err := openCache(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +121,7 @@ func NewApp() (*App, error) {
 	settingsService.SetAuditWriter(auditService)
 	runtimeService := appruntime.NewService(runtimeCfg)
 	runtimeService.SetDockerRunner(platformruntime.NewDockerRunner())
-	settingsCache := platformcache.NewSettingsCache(redisClient)
+	settingsCache := buildSettingsCache(cfg, redisClient, memoryCache)
 	runtimeSettings := settings.NewRuntimeSettings(settingsRepo, settingsCache, cfg.DataEncryptionKey)
 	settingsHandler := settingshttp.NewHandler(settingsService, runtimeSettings, runtimeService, runtimeCfg)
 	settingsModule := settingshttp.NewModule(settingsHandler)
@@ -160,7 +158,8 @@ func NewApp() (*App, error) {
 	authService.SetAuditWriter(auditService)
 	settingsService.SetAuthSafetyService(authService)
 	authService.SetSubscriptionResolver(billingService)
-	if err = authService.EnsureBootstrapSuperAdmin(context.Background()); err != nil {
+	bootstrapSuperAdmin, err := authService.EnsureBootstrapSuperAdmin(context.Background())
+	if err != nil {
 		return nil, err
 	}
 	authHandler := authhttp.NewHandler(authService)
@@ -171,7 +170,7 @@ func NewApp() (*App, error) {
 	memoryHandler := memoryhttp.NewHandler(memoryService)
 	memoryModule := memoryhttp.NewModule(memoryHandler)
 	channelRepo := channelrepo.NewRepo(db)
-	channelCache := platformcache.NewChannelCache(redisClient)
+	channelCache := buildChannelCache(cfg, redisClient, memoryCache)
 	llmClient := llm.NewClientWithEnv(cfg.Env, cfg.SSRFProtectionEnabled)
 	mcpClient := mcp.NewClientWithEnv(cfg.Env, cfg.SSRFProtectionEnabled)
 	channelService := channel.NewServiceWithRuntime(runtimeCfg, channelRepo, channelCache, llmClient)
@@ -185,7 +184,7 @@ func NewApp() (*App, error) {
 	channelHandler := channelhttp.NewHandler(channelService)
 	channelModule := channelhttp.NewModule(channelHandler)
 	conversationRepo := conversationrepo.NewRepo(db)
-	conversationCache := platformcache.NewConversationCache(redisClient)
+	conversationCache := buildConversationCache(cfg, redisClient, memoryCache)
 	mcpRepo := mcprepo.NewRepo(db)
 	embedClient := embedding.NewWithEnv(cfg.Env, cfg.SSRFProtectionEnabled)
 	compactService := compact.NewServiceWithRuntime(runtimeCfg, conversationRepo, log)
@@ -240,8 +239,8 @@ func NewApp() (*App, error) {
 	announcementHandler := announcementhttp.NewHandler(announcementService)
 	announcementModule := announcementhttp.NewModule(announcementHandler)
 
-	hc := newHealthChecker(db, redisClient)
-	rateLimiter := platformcache.NewRateLimiter(redisClient)
+	hc := newHealthChecker(db, cfg.CacheDriver, redisClient)
+	rateLimiter := buildRateLimiter(cfg, redisClient, memoryCache)
 	engine, err := platformhttp.NewEngine(runtimeCfg, log, platformhttp.Modules{
 		Auth:         authModule,
 		AuthService:  authService,
@@ -254,6 +253,15 @@ func NewApp() (*App, error) {
 		Announcement: announcementModule,
 		Settings:     settingsModule,
 		UserSettings: userSettingsModule,
+		StartupLog: func(log *zap.Logger) {
+			if log == nil || bootstrapSuperAdmin == nil {
+				return
+			}
+			log.Info("bootstrap superadmin created",
+				zap.String("username", bootstrapSuperAdmin.Username),
+				zap.String("password", bootstrapSuperAdmin.Password),
+			)
+		},
 	}, hc, rateLimiter)
 	if err != nil {
 		return nil, err
@@ -351,55 +359,4 @@ func (a *App) Close() {
 	defer cancel()
 	platformtracing.Shutdown(shutdownCtx)
 	a.logger.Sync() //nolint:errcheck
-}
-
-// ---------- HealthChecker 实现 ----------
-
-type healthChecker struct {
-	db    *gorm.DB
-	redis *redis.Client
-}
-
-func newHealthChecker(db *gorm.DB, redisClient *redis.Client) platformhttp.HealthChecker {
-	return &healthChecker{db: db, redis: redisClient}
-}
-
-// CheckHealth 实现 platformhttp.HealthChecker 接口。
-func (h *healthChecker) CheckHealth(ctx context.Context) ([]platformhttp.HealthCheck, bool) {
-	checks := make([]platformhttp.HealthCheck, 0, 2)
-	healthy := true
-
-	if h.db != nil {
-		sqlDB, err := h.db.DB()
-		if err != nil {
-			checks = append(checks, platformhttp.HealthCheck{Name: "db", Status: "error: " + err.Error()})
-			healthy = false
-		} else {
-			dbCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			defer cancel()
-			if err = sqlDB.PingContext(dbCtx); err != nil {
-				checks = append(checks, platformhttp.HealthCheck{Name: "db", Status: "error"})
-				healthy = false
-			} else {
-				checks = append(checks, platformhttp.HealthCheck{Name: "db", Status: "ok"})
-			}
-		}
-	} else {
-		checks = append(checks, platformhttp.HealthCheck{Name: "db", Status: "not_configured"})
-	}
-
-	if h.redis != nil {
-		redisCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		defer cancel()
-		if err := h.redis.Ping(redisCtx).Err(); err != nil {
-			checks = append(checks, platformhttp.HealthCheck{Name: "redis", Status: "error"})
-			healthy = false
-		} else {
-			checks = append(checks, platformhttp.HealthCheck{Name: "redis", Status: "ok"})
-		}
-	} else {
-		checks = append(checks, platformhttp.HealthCheck{Name: "redis", Status: "not_configured"})
-	}
-
-	return checks, healthy
 }

@@ -3,14 +3,19 @@ app:
   # Required. Use prod and replace security values before public deployment.
   env: dev
 
+# Docker reads /app/config.yaml by default because compose mounts ./config.yaml there.
+# Effective priority is environment variables > config.yaml > built-in defaults.
+# Runtime business settings are stored in the database and managed from the admin console.
+
 server:
-  # Optional. Change these values only when local ports or public URLs differ.
+  # Optional. Change these values only when exposed ports or public URLs differ.
+  # Optional. If http_port changes, also update the compose port mapping.
   http_port: "8080"
-  cors_allow_origin: "http://127.0.0.1:8080,http://localhost:8080,http://127.0.0.1:3000,http://localhost:3000"
+  cors_allow_origin: "http://localhost:8080,http://127.0.0.1:8080"
   trusted_proxies: "127.0.0.1/32,::1/128"
-  public_api_base_url: "http://127.0.0.1:8080"
-  public_web_base_url: "http://localhost:3000"
-  frontend_dist_dir: "./frontend/out"
+  public_api_base_url: "http://localhost:8080"
+  public_web_base_url: "http://localhost:8080"
+  frontend_dist_dir: "/app/frontend/out"
   read_header_timeout_seconds: 10
   read_timeout_seconds: 120
   idle_timeout_seconds: 120
@@ -31,15 +36,17 @@ database:
   driver: postgres
   postgres:
     # Required when database.driver is postgres.
-    dsn: "postgres://deeix_chat:deeix_chat_dev_2026@127.0.0.1:5432/deeix_chat?sslmode=disable&TimeZone=Asia%2FShanghai"
+    # Optional. docker-compose.full.yml overrides this value with the bundled PostgreSQL service.
+    dsn: "postgres://deeix_chat:deeix_chat_2026@postgres:5432/deeix_chat?sslmode=disable&TimeZone=Asia%2FShanghai"
     max_open_conns: 30
     max_idle_conns: 10
     conn_max_lifetime_minutes: 60
     conn_max_idle_time_minutes: 10
   redis:
     # Required when cache.driver is redis.
-    addr: "127.0.0.1:6379"
-    password: "deeix_chat_redis_dev"
+    # Optional. docker-compose.full.yml overrides this value with the bundled Redis service.
+    addr: "redis:6379"
+    password: "deeix_chat_2026"
     db: 0
 
 cache:
@@ -50,7 +57,7 @@ storage:
   # Required. Use local for filesystem storage or s3 for object storage.
   backend: local
   local:
-    root_dir: ./storage
+    root_dir: /app/storage
   s3:
     # Required when storage.backend is s3.
     endpoint: ""
@@ -66,7 +73,7 @@ geoip:
   provider: ipwhois
   # Optional. Leave these commented unless provider is set to mmdb.
   # database_url: "https://example.com/path/to/GeoLite2-City.mmdb"
-  # database_path: "./data/geoip/GeoLite2-City.mmdb"
+  # database_path: "/app/data/geoip/GeoLite2-City.mmdb"
   # database_max_bytes: 104857600
   # refresh_interval_hours: 168
   # timeout_ms: 2500

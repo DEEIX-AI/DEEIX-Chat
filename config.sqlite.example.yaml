@@ -4,13 +4,13 @@ app:
   env: dev
 
 server:
-  # Optional. Change these values only when local ports or public URLs differ.
+  # Optional. Defaults match docker-compose.sqlite.yml. Change only when exposed ports or public URLs differ.
   http_port: "8080"
-  cors_allow_origin: "http://127.0.0.1:8080,http://localhost:8080,http://127.0.0.1:3000,http://localhost:3000"
+  cors_allow_origin: "http://localhost:8080,http://127.0.0.1:8080"
   trusted_proxies: "127.0.0.1/32,::1/128"
-  public_api_base_url: "http://127.0.0.1:8080"
-  public_web_base_url: "http://localhost:3000"
-  frontend_dist_dir: "./frontend/out"
+  public_api_base_url: "http://localhost:8080"
+  public_web_base_url: "http://localhost:8080"
+  frontend_dist_dir: "/app/frontend/out"
   read_header_timeout_seconds: 10
   read_timeout_seconds: 120
   idle_timeout_seconds: 120
@@ -18,7 +18,6 @@ server:
 
 security:
   # Required. Replace both values with strong random secrets before deployment.
-  # Required. data_encryption_key protects upstream API keys, SSO secrets, MCP tokens, and TOTP secrets.
   jwt_secret: "change-me-dev-jwt-secret"
   data_encryption_key: "change-me-dev-data-encryption-key-32-bytes-min"
   # Optional. Enable in production to block outbound requests to private or metadata networks.
@@ -27,30 +26,29 @@ security:
   turnstile_siteverify_url: "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
 database:
-  # Required. PostgreSQL is used for this profile.
-  driver: postgres
-  postgres:
-    # Required when database.driver is postgres.
-    dsn: "postgres://deeix_chat:deeix_chat_dev_2026@127.0.0.1:5432/deeix_chat?sslmode=disable&TimeZone=Asia%2FShanghai"
-    max_open_conns: 30
-    max_idle_conns: 10
-    conn_max_lifetime_minutes: 60
-    conn_max_idle_time_minutes: 10
-  redis:
-    # Required when cache.driver is redis.
-    addr: "127.0.0.1:6379"
-    password: "deeix_chat_redis_dev"
-    db: 0
+  # Required. SQLite is intended for single-node deployments.
+  driver: sqlite
+  sqlite:
+    # Required. The SQLite database is stored under the persistent /app/data volume.
+    path: /app/data/deeix.db
+    dsn: ""
+    max_open_conns: 1
+    busy_timeout_ms: 5000
+    cache_size_kb: 20480
+    mmap_size_bytes: 268435456
+    synchronous: NORMAL
+    temp_store: MEMORY
 
 cache:
-  # Required. Redis is used for this profile.
-  driver: redis
+  # Required. Use memory for this single-process SQLite profile.
+  driver: memory
 
 storage:
   # Required. Use local for filesystem storage or s3 for object storage.
   backend: local
   local:
-    root_dir: ./storage
+    # Required. Local files are stored under the persistent /app/storage volume.
+    root_dir: /app/storage
   s3:
     # Required when storage.backend is s3.
     endpoint: ""
@@ -64,17 +62,11 @@ storage:
 geoip:
   # Optional. Use none to disable, ipwhois for public lookup, or mmdb for a local GeoLite2/MMDB database.
   provider: ipwhois
-  # Optional. Leave these commented unless provider is set to mmdb.
-  # database_url: "https://example.com/path/to/GeoLite2-City.mmdb"
-  # database_path: "./data/geoip/GeoLite2-City.mmdb"
-  # database_max_bytes: 104857600
-  # refresh_interval_hours: 168
-  # timeout_ms: 2500
+  timeout_ms: 2500
 
 observability:
   tracing:
     # Optional. Set endpoint to auto-enable tracing, or set enabled explicitly.
-    # enabled: true
     endpoint: ""
     headers: ""
     insecure: false

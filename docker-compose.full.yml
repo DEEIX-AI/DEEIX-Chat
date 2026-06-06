@@ -11,18 +11,18 @@ services:
       - postgres
       - redis
     environment:
-      # Deployment topology: full compose connects to services on the compose network.
-      # These environment variables override database.redis/database.postgres values in config.yaml.
+      # Full compose connects to bundled services on the compose network.
+      # These environment variables override database and Redis values in config.yaml.
       POSTGRES_DSN: "postgres://deeix_chat:deeix_chat_2026@postgres:5432/deeix_chat?sslmode=disable&TimeZone=Asia%2FShanghai"
       REDIS_ADDR: "redis:6379"
       REDIS_PASSWORD: "deeix_chat_2026"
     ports:
-      # Localhost-only by default. Put a reverse proxy in front for public access.
+      # Optional. Localhost-only by default. Put a reverse proxy in front for public access.
       - "127.0.0.1:8080:8080"
     volumes:
       - app_storage:/app/storage
-      # The image runs from /app, so this file is loaded automatically as /app/config.yaml.
-      # Set CONFIG_FILE only when mounting a different container path.
+      - app_data:/app/data
+      # The image runs from /app and reads /app/config.yaml automatically.
       - ./config.yaml:/app/config.yaml:ro
     networks:
       - deeix-chat
@@ -35,7 +35,7 @@ services:
       POSTGRES_PASSWORD: deeix_chat_2026
       POSTGRES_DB: deeix_chat
     ports:
-      # Localhost-only for local administration; the app uses the internal Docker network.
+      # Optional. Localhost-only for local administration; the app uses the internal Docker network.
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -47,7 +47,7 @@ services:
     container_name: deeix-chat-redis
     command: redis-server --requirepass deeix_chat_2026
     ports:
-      # Localhost-only for local administration; the app uses the internal Docker network.
+      # Optional. Localhost-only for local administration; the app uses the internal Docker network.
       - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
@@ -57,6 +57,8 @@ services:
 volumes:
   app_storage:
     name: deeix-chat-app-storage
+  app_data:
+    name: deeix-chat-app-data
   postgres_data:
     name: deeix-chat-postgres-data
   redis_data:

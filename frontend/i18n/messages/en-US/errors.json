@@ -61,7 +61,7 @@
     "turnstileNotConfigured": "Human verification is not configured.",
     "turnstileRequired": "Complete the human verification first.",
     "unauthorized": "Your session has expired. Please sign in again.",
-    "usernameChangeRequired": "Username change is required.",
+    "usernameChangeRequired": "Change the initial username.",
     "verificationCodeAttemptsExceeded": "Too many verification attempts. Request a new code.",
     "verificationCodeInvalid": "Verification code is invalid or expired.",
     "verificationCodeRecent": "A verification code was sent recently. Try again later."

@@ -68,6 +68,10 @@ func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}
 }
 
+func (r *Repo) sqliteDialect() bool {
+	return r != nil && r.db != nil && r.db.Dialector != nil && r.db.Dialector.Name() == "sqlite"
+}
+
 // CreateConversation 创建会话。
 func (r *Repo) CreateConversation(ctx context.Context, item *domainconversation.Conversation) error {
 	entity := toConversationModel(item)
@@ -2211,6 +2215,17 @@ func (r *Repo) CloneFileEmbeddingArtifacts(ctx context.Context, source *domainco
 		if err := tx.Where("file_obj_id = ?", targetEntity.ID).Delete(&models.FileChunk{}).Error; err != nil {
 			return translateError(err)
 		}
+		if r.sqliteDialect() {
+			return tx.Exec(
+				`INSERT INTO "file_chunks" ("file_obj_id", "user_id", "chunk_index", "page_num", "char_offset", "content", "token_count", "created_at")
+				 SELECT ?, ?, "chunk_index", "page_num", "char_offset", "content", "token_count", CURRENT_TIMESTAMP
+				 FROM "file_chunks"
+				 WHERE "file_obj_id" = ?`,
+				targetEntity.ID,
+				targetEntity.UserID,
+				sourceEntity.ID,
+			).Error
+		}
 		return tx.Exec(
 			`INSERT INTO "file_chunks" ("file_obj_id", "user_id", "chunk_index", "page_num", "char_offset", "content", "token_count", "embedding", "created_at")
 			 SELECT ?, ?, "chunk_index", "page_num", "char_offset", "content", "token_count", "embedding", NOW()
@@ -2225,7 +2240,7 @@ func (r *Repo) CloneFileEmbeddingArtifacts(ctx context.Context, source *domainco
 
 // ReplaceFileChunks 替换文件的所有分片（删除旧的，插入新的，并用 raw SQL 更新 embedding）。
 func (r *Repo) ReplaceFileChunks(ctx context.Context, fileObjID uint, chunks []domainconversation.FileChunk, embeddings [][]float32) error {
-	if len(chunks) != len(embeddings) {
+	if !r.sqliteDialect() && len(chunks) != len(embeddings) {
 		return fmt.Errorf("embedding count mismatch: chunks=%d embeddings=%d", len(chunks), len(embeddings))
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -2243,6 +2258,9 @@ func (r *Repo) ReplaceFileChunks(ctx context.Context, fileObjID uint, chunks []d
 		// 插入新分片
 		if err := tx.Create(&entities).Error; err != nil {
 			return translateError(err)
+		}
+		if r.sqliteDialect() {
+			return nil
 		}
 		// 更新 embedding（通过 raw SQL 写入 vector 值）
 		for i, chunk := range entities {
@@ -2328,6 +2346,9 @@ func (r *Repo) SearchFileChunks(ctx context.Context, userID uint, fileObjIDs []u
 	if len(fileObjIDs) == 0 || len(queryEmbedding) == 0 {
 		return nil, nil
 	}
+	if r.sqliteDialect() {
+		return nil, nil
+	}
 	if topK <= 0 {
 		topK = 5
 	}
@@ -2372,6 +2393,9 @@ func (r *Repo) BM25SearchFileChunks(ctx context.Context, userID uint, fileObjIDs
 	if topK <= 0 {
 		topK = 5
 	}
+	if r.sqliteDialect() {
+		return r.keywordSearchFileChunks(ctx, userID, fileObjIDs, query, topK)
+	}
 	// 中文字符逐字切开，空格分隔后拼成 OR 查询，提高中文召回率
 	tsQuery := buildTSQuery(query)
 	if tsQuery == "" {
@@ -2404,6 +2428,44 @@ func (r *Repo) BM25SearchFileChunks(ctx context.Context, userID uint, fileObjIDs
 				CreatedAt:  row.CreatedAt,
 			},
 			Similarity: row.Similarity,
+		})
+	}
+	return results, nil
+}
+
+func (r *Repo) keywordSearchFileChunks(ctx context.Context, userID uint, fileObjIDs []uint, query string, topK int) ([]domainconversation.FileChunkSearchResult, error) {
+	terms := strings.Fields(strings.ToLower(strings.TrimSpace(query)))
+	if len(terms) == 0 {
+		terms = []string{strings.ToLower(strings.TrimSpace(query))}
+	}
+	dbq := r.db.WithContext(ctx).
+		Model(&models.FileChunk{}).
+		Where("user_id = ? AND file_obj_id IN ?", userID, fileObjIDs)
+	for _, term := range terms {
+		if strings.TrimSpace(term) == "" {
+			continue
+		}
+		dbq = dbq.Where("LOWER(content) LIKE ?", "%"+term+"%")
+	}
+	rows := make([]models.FileChunk, 0, topK)
+	if err := dbq.Order("id ASC").Limit(topK).Find(&rows).Error; err != nil {
+		return nil, translateError(err)
+	}
+	results := make([]domainconversation.FileChunkSearchResult, 0, len(rows))
+	for _, row := range rows {
+		results = append(results, domainconversation.FileChunkSearchResult{
+			FileChunk: domainconversation.FileChunk{
+				ID:         row.ID,
+				FileObjID:  row.FileObjID,
+				UserID:     row.UserID,
+				ChunkIndex: row.ChunkIndex,
+				PageNum:    row.PageNum,
+				CharOffset: row.CharOffset,
+				Content:    row.Content,
+				TokenCount: row.TokenCount,
+				CreatedAt:  row.CreatedAt,
+			},
+			Similarity: 0.5,
 		})
 	}
 	return results, nil
@@ -3296,6 +3358,9 @@ func fileObjectProcessingStateUpdates(item *domainconversation.FileObjectProcess
 // ── MessageEmbeddingRepository ─────────────────────────────────────────────
 
 func (r *Repo) VectorStoreAvailable(ctx context.Context) (bool, error) {
+	if r.sqliteDialect() {
+		return false, nil
+	}
 	checks := []string{
 		`SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')`,
 		`SELECT EXISTS (
@@ -3369,6 +3434,9 @@ func (r *Repo) UpsertMessageChunks(ctx context.Context, chunks []domainconversat
 		if err := tx.Create(&entities).Error; err != nil {
 			return translateError(err)
 		}
+		if r.sqliteDialect() {
+			return nil
+		}
 		// 写入 embedding 向量。
 		for i, entity := range entities {
 			if i >= len(embeddings) || len(embeddings[i]) == 0 {
@@ -3399,6 +3467,9 @@ type messageChunkSearchRow struct {
 // SearchMessageChunks 按查询向量检索最相关的历史消息分片。
 func (r *Repo) SearchMessageChunks(ctx context.Context, conversationID uint, userID uint, queryEmbedding []float32, topK int, minSimilarity float64) ([]domainconversation.MessageChunk, error) {
 	if len(queryEmbedding) == 0 || topK <= 0 {
+		return nil, nil
+	}
+	if r.sqliteDialect() {
 		return nil, nil
 	}
 	vec := float32SliceToPostgresVector(queryEmbedding)

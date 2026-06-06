@@ -47,6 +47,10 @@ func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}
 }
 
+func (r *Repo) sqliteDialect() bool {
+	return r != nil && r.db != nil && r.db.Dialector != nil && r.db.Dialector.Name() == "sqlite"
+}
+
 // UpsertUserMemory 更新或插入用户长期记忆。
 func (r *Repo) UpsertUserMemory(ctx context.Context, item *domainmemory.UserMemory) error {
 	if item == nil {
@@ -122,6 +126,9 @@ func (r *Repo) SearchUserMemoriesByEmbedding(ctx context.Context, userID uint, q
 	if len(queryEmbedding) == 0 || topK <= 0 {
 		return nil, nil
 	}
+	if r.sqliteDialect() {
+		return nil, nil
+	}
 	vec := float32SliceToVec(queryEmbedding)
 	query := `
 		SELECT id, user_id, memory_key, value, scope, updated_by,
@@ -154,6 +161,9 @@ func (r *Repo) SearchUserMemoriesByEmbedding(ctx context.Context, userID uint, q
 // UpsertUserMemoryEmbedding 更新指定记忆条目的向量（异步写入，失败静默）。
 func (r *Repo) UpsertUserMemoryEmbedding(ctx context.Context, userID uint, memoryKey string, expectedValue string, embedding []float32) error {
 	if len(embedding) == 0 {
+		return nil
+	}
+	if r.sqliteDialect() {
 		return nil
 	}
 	vec := float32SliceToVec(embedding)

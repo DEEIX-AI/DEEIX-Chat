@@ -134,6 +134,12 @@ type AuditInput struct {
 	Detail     interface{}
 }
 
+// BootstrapSuperAdmin 表示首次启动时自动创建的超级管理员凭据。
+type BootstrapSuperAdmin struct {
+	Username string
+	Password string
+}
+
 // RecordAudit 记录认证域审计日志。
 func (s *Service) RecordAudit(ctx context.Context, input AuditInput) {
 	if s.auditWriter == nil {
@@ -159,31 +165,24 @@ func (s *Service) warn(message string, fields ...zap.Field) {
 	s.logger.Warn(message, fields...)
 }
 
-func (s *Service) info(message string, fields ...zap.Field) {
-	if s.logger == nil {
-		return
-	}
-	s.logger.Info(message, fields...)
-}
-
 // EnsureBootstrapSuperAdmin 确保系统至少存在一个 superadmin。
-func (s *Service) EnsureBootstrapSuperAdmin(ctx context.Context) error {
+func (s *Service) EnsureBootstrapSuperAdmin(ctx context.Context) (*BootstrapSuperAdmin, error) {
 	count, err := s.repo.CountSuperAdmins(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if count > 0 {
-		return s.repo.MarkBootstrapSuperAdminPasswordResetRequired(ctx, s.cfg.Snapshot().AdminUsername)
+		return nil, s.repo.MarkBootstrapSuperAdminPasswordResetRequired(ctx, s.cfg.Snapshot().AdminUsername)
 	}
 
 	cfg := s.cfg.Snapshot()
 	bootstrapPassword, err := generateBootstrapAdminPassword()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(bootstrapPassword), passwordHashCost)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	now := time.Now()
 
@@ -213,10 +212,9 @@ func (s *Service) EnsureBootstrapSuperAdmin(ctx context.Context) error {
 		PasswordOrigin:    domainuser.PasswordOriginAdminCreated,
 		MustResetPassword: true,
 	}, 0, 0, nil, false); err != nil {
-		return err
+		return nil, err
 	}
-	s.info("bootstrap superadmin created", zap.String("username", username), zap.String("password", bootstrapPassword))
-	return nil
+	return &BootstrapSuperAdmin{Username: username, Password: bootstrapPassword}, nil
 }
 
 func generateBootstrapAdminPassword() (string, error) {
@@ -525,10 +523,7 @@ func shouldRequireInitialUsername(item domainuser.User, adminUsername string) bo
 	if item.Role == domainuser.RoleSuperAdmin {
 		return strings.EqualFold(strings.TrimSpace(item.Username), strings.TrimSpace(adminUsername))
 	}
-	return item.Role == domainuser.RoleUser &&
-		(item.EmailSource == domainuser.EmailSourceLocalRegister ||
-			item.EmailSource == domainuser.EmailSourceProviderVerified ||
-			item.EmailSource == domainuser.EmailSourceProviderUnverified)
+	return false
 }
 
 func (s *Service) CompleteOnboarding(
@@ -546,9 +541,8 @@ func (s *Service) CompleteOnboarding(
 	if credentialErr != nil && !errors.Is(credentialErr, repository.ErrNotFound) {
 		return nil, false, credentialErr
 	}
-	cfg := s.cfg.Snapshot()
-	if shouldRequireInitialUsername(*item, cfg.AdminUsername) {
-		return nil, false, fmt.Errorf("username change required")
+	if shouldRequireInitialUsername(*item, s.cfg.Snapshot().AdminUsername) {
+		return nil, false, ErrUsernameChangeRequired
 	}
 	passwordChanged := false
 	if credential != nil && (credential.MustResetPassword || isBootstrapSuperAdminAdminCreatedPassword(*item, credential)) {
@@ -825,7 +819,7 @@ func (s *Service) UpdateUsernameOnce(ctx context.Context, userID uint, input Upd
 	}
 	if shouldRequireInitialUsername(*current, s.cfg.Snapshot().AdminUsername) &&
 		strings.EqualFold(strings.TrimSpace(current.Username), username) {
-		return nil, ErrInvalidUsername
+		return nil, ErrUsernameChangeRequired
 	}
 	item, err := s.repo.UpdateUsernameOnce(ctx, userID, username, time.Now())
 	if errors.Is(err, repository.ErrDuplicateUsername) || errors.Is(err, repository.ErrDuplicate) {

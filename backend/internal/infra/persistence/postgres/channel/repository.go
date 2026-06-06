@@ -193,8 +193,8 @@ func (r *Repo) ListUpstreams(ctx context.Context, input repository.ListChannelUp
 
 func applyUpstreamListFilters(query *gorm.DB, input repository.ListChannelUpstreamsInput) *gorm.DB {
 	if keyword := strings.TrimSpace(input.Query); keyword != "" {
-		like := "%" + keyword + "%"
-		query = query.Where("name ILIKE ? OR base_url ILIKE ?", like, like)
+		like := "%" + strings.ToLower(keyword) + "%"
+		query = query.Where("LOWER(name) LIKE ? OR LOWER(base_url) LIKE ?", like, like)
 	}
 	if status := strings.TrimSpace(input.Status); status == "active" || status == "inactive" {
 		query = query.Where("status = ?", status)
@@ -462,8 +462,8 @@ func applyModelListFilters(query *gorm.DB, input repository.ListChannelModelsInp
 		query = query.Where("m.status = ?", status)
 	}
 	if keyword := strings.TrimSpace(input.Query); keyword != "" {
-		like := "%" + keyword + "%"
-		query = query.Where("m.name ILIKE ? OR m.vendor ILIKE ? OR m.description ILIKE ?", like, like, like)
+		like := "%" + strings.ToLower(keyword) + "%"
+		query = query.Where("LOWER(m.name) LIKE ? OR LOWER(m.vendor) LIKE ? OR LOWER(m.description) LIKE ?", like, like, like)
 	}
 	if vendor := strings.TrimSpace(input.Vendor); vendor != "" {
 		query = query.Where("m.vendor = ?", vendor)
@@ -800,9 +800,9 @@ func (r *Repo) GetUpstreamModelRouteByNames(
 
 func applyUpstreamModelListFilters(query *gorm.DB, input repository.ListChannelUpstreamModelsInput) *gorm.DB {
 	if keyword := strings.TrimSpace(input.Query); keyword != "" {
-		like := "%" + keyword + "%"
+		like := "%" + strings.ToLower(keyword) + "%"
 		query = query.Where(
-			"um.upstream_model_name ILIKE ? OR um.binding_code ILIKE ? OR pm.name ILIKE ? OR r.protocol ILIKE ?",
+			"LOWER(um.upstream_model_name) LIKE ? OR LOWER(um.binding_code) LIKE ? OR LOWER(pm.name) LIKE ? OR LOWER(r.protocol) LIKE ?",
 			like,
 			like,
 			like,
