@@ -740,6 +740,7 @@ export function ChatModelPicker({
 
   return (
     <>
+      <div className="min-w-0 max-w-[min(320px,100%)] shrink">
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <InputGroupButton
@@ -747,7 +748,7 @@ export function ChatModelPicker({
             type="button"
             variant="ghost"
             size="sm"
-            className="min-w-0 max-w-[min(320px,100%)] rounded-lg px-2 hover:bg-accent focus-visible:bg-accent data-[state=open]:bg-accent"
+            className="w-full min-w-0 max-w-[min(320px,100%)] rounded-lg px-1.5 hover:bg-accent focus-visible:bg-accent data-[state=open]:bg-accent sm:px-2"
             disabled={disabled || loading || modelOptions.length === 0}
             aria-label={t("selectModel")}
           >
@@ -887,6 +888,7 @@ export function ChatModelPicker({
           )}
         </PopoverContent>
       </Popover>
+      </div>
       {open
       && !isMobile
       && activeDesktopVendorGroup
