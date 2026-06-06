@@ -420,7 +420,7 @@ function ChatInputComponent({
         />
 
         <InputGroupAddon align="block-end" className="items-center justify-between pt-2">
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <InputGroupButton
@@ -428,7 +428,7 @@ function ChatInputComponent({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="rounded-md text-muted-foreground hover:text-foreground"
+                  className="size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
                   disabled={sending || loading || uploading}
                   aria-label={tComposer("openTools")}
                   onMouseEnter={() => setIsPlusHovered(true)}
@@ -502,7 +502,7 @@ function ChatInputComponent({
                     variant="ghost"
                     size="icon-sm"
                     className={cn(
-                      "rounded-md text-muted-foreground hover:text-foreground",
+                      "size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8",
                       htmlVisualPromptEnabled && "bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary",
                     )}
                     disabled={sending || loading || uploading}
@@ -528,7 +528,7 @@ function ChatInputComponent({
             ) : null}
           </div>
 
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-hidden sm:gap-1.5">
             {composerModeIndicator && ComposerModeIcon ? (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -561,7 +561,7 @@ function ChatInputComponent({
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="rounded-md text-muted-foreground hover:text-foreground"
+              className="size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
               disabled={loading || uploading || (!sending && !hasDraftText && !speechInput.supported)}
               onClick={sending ? onStopMessage : hasDraftText ? onSendMessage : speechInput.toggle}
               onMouseEnter={() => setIsVoiceHovered(true)}
