@@ -39,6 +39,10 @@ ARG BUILD_TIME=""
 COPY VERSION /src/VERSION
 COPY backend/go.mod backend/go.sum ./
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends libsqlite3-dev \
+  && rm -rf /var/lib/apt/lists/*
+
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
