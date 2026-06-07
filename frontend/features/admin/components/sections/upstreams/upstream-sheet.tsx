@@ -495,6 +495,7 @@ export function UpstreamSheet({
                 className={`h-24 resize-none overflow-auto whitespace-pre [field-sizing:fixed] ${CODE_TEXTAREA_CLASS}`}
                 placeholder={mode === "create" ? t("sheet.apiKeysPlaceholder") : t("sheet.apiKeysAddPlaceholder")}
                 required={mode === "create"}
+                spellCheck={false}
                 value={form.apiKeysLines}
                 wrap="off"
                 onChange={(e) => setField("apiKeysLines", e.target.value)}
