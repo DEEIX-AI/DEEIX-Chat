@@ -201,7 +201,7 @@ cp config.full.example.yaml config.yaml
 docker compose -f docker-compose.full.yml up -d
 ```
 
-`docker-compose.full.yml` sets `POSTGRES_DSN`, `REDIS_ADDR`, and `REDIS_PASSWORD` in compose `environment`, so those values override the database and Redis values in `config.yaml`.
+`docker-compose.full.yml` sets `POSTGRES_DSN`, `REDIS_ADDR`, `REDIS_USERNAME`, and `REDIS_PASSWORD` in compose `environment`, so those values override the database and Redis values in `config.yaml`.
 
 #### Configuration, Persistence, and Image
 
@@ -348,6 +348,7 @@ Static configuration environment variables:
 | SQLite | `SQLITE_TEMP_STORE` | Temporary storage: `DEFAULT`, `FILE`, or `MEMORY`. |
 | Cache | `CACHE_DRIVER` | `redis` or `memory`; `memory` is single-process only. |
 | Redis | `REDIS_ADDR` | Redis address. |
+| Redis | `REDIS_USERNAME` | Redis ACL username; leave empty for password-only/default-user Redis. |
 | Redis | `REDIS_PASSWORD` | Redis password. |
 | Redis | `REDIS_DB` | Redis DB number. |
 | Storage | `STORAGE_BACKEND` | `local` or `s3`. |

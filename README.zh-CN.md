@@ -201,7 +201,7 @@ cp config.full.example.yaml config.yaml
 docker compose -f docker-compose.full.yml up -d
 ```
 
-`docker-compose.full.yml` 会在 compose `environment` 中设置 `POSTGRES_DSN`、`REDIS_ADDR` 和 `REDIS_PASSWORD`，因此这些值会覆盖 `config.yaml` 里的数据库和 Redis 配置。
+`docker-compose.full.yml` 会在 compose `environment` 中设置 `POSTGRES_DSN`、`REDIS_ADDR`、`REDIS_USERNAME` 和 `REDIS_PASSWORD`，因此这些值会覆盖 `config.yaml` 里的数据库和 Redis 配置。
 
 #### 配置、持久化和镜像
 
@@ -348,6 +348,7 @@ docker compose logs app
 | SQLite | `SQLITE_TEMP_STORE` | 临时存储：`DEFAULT`、`FILE`、`MEMORY`。 |
 | 缓存 | `CACHE_DRIVER` | `redis` 或 `memory`；`memory` 仅适用于单进程。 |
 | Redis | `REDIS_ADDR` | Redis 地址。 |
+| Redis | `REDIS_USERNAME` | Redis ACL 用户名；使用仅密码或默认用户 Redis 时留空。 |
 | Redis | `REDIS_PASSWORD` | Redis 密码。 |
 | Redis | `REDIS_DB` | Redis DB 编号。 |
 | 存储 | `STORAGE_BACKEND` | `local` 或 `s3`。 |

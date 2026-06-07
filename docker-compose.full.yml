@@ -15,6 +15,7 @@ services:
       # These environment variables override database and Redis values in config.yaml.
       POSTGRES_DSN: "postgres://deeix_chat:deeix_chat_2026@postgres:5432/deeix_chat?sslmode=disable&TimeZone=Asia%2FShanghai"
       REDIS_ADDR: "redis:6379"
+      REDIS_USERNAME: ""
       REDIS_PASSWORD: "deeix_chat_2026"
     ports:
       # Optional. Localhost-only by default. Put a reverse proxy in front for public access.
