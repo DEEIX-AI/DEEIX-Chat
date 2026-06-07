@@ -191,6 +191,7 @@ type yamlConfig struct {
 		} `yaml:"sqlite"`
 		Redis struct {
 			Addr     string `yaml:"addr"`
+			Username string `yaml:"username"`
 			Password string `yaml:"password"`
 			DB       int    `yaml:"db"`
 		} `yaml:"redis"`
@@ -269,6 +270,7 @@ type Config struct {
 	SQLiteTempStore              string
 	CacheDriver                  string
 	RedisAddr                    string
+	RedisUsername                string
 	RedisPassword                string
 	RedisDB                      int
 	StorageBackend               string
@@ -483,6 +485,7 @@ func Load() Config {
 		SQLiteTempStore:              normalizeSQLiteTempStore(envOr("SQLITE_TEMP_STORE", yc.Database.SQLite.TempStore, "MEMORY")),
 		CacheDriver:                  normalizeCacheDriver(envOr("CACHE_DRIVER", yc.Cache.Driver, "redis")),
 		RedisAddr:                    envOr("REDIS_ADDR", yc.Database.Redis.Addr, "127.0.0.1:6379"),
+		RedisUsername:                envOr("REDIS_USERNAME", yc.Database.Redis.Username, ""),
 		RedisPassword:                envOr("REDIS_PASSWORD", yc.Database.Redis.Password, ""),
 		RedisDB:                      envOrInt("REDIS_DB", yc.Database.Redis.DB, 0),
 		StorageBackend:               envOr("STORAGE_BACKEND", yc.Storage.Backend, "local"),
