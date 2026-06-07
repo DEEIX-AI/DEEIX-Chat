@@ -127,6 +127,10 @@ const onboardingThemePresets: ThemePreset[] = [
   "sepia",
 ];
 
+function isPasswordReuseError(error: unknown) {
+  return error instanceof ApiError && error.errorCode === "auth.password_reuse_not_allowed";
+}
+
 function OnboardingFeatureCarousel({
   activeIndex,
   logos,
@@ -547,6 +551,9 @@ export function InitialSecurityGuard() {
       }
       toast.success(t("toasts.complete"));
     } catch (error) {
+      if (isPasswordReuseError(error)) {
+        setStep(2);
+      }
       toast.error(t("toasts.completeFailed"), {
         description: resolveErrorMessage(error, tCommonErrors("unknown")),
       });
