@@ -18,6 +18,18 @@ func TestNormalizeToolArgumentsCoercesSchemaDeclaredScalars(t *testing.T) {
 	}
 }
 
+func TestNormalizeToolArgumentsAcceptsNumericEnumValues(t *testing.T) {
+	schema := json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"},"safesearch":{"type":"number","enum":[0,1,2],"default":0}},"required":["query"]}`)
+
+	got, err := normalizeToolArguments(`{"query":"weather","safesearch":0}`, schema)
+	if err != nil {
+		t.Fatalf("normalize arguments: %v", err)
+	}
+	if got != `{"query":"weather","safesearch":0}` {
+		t.Fatalf("unexpected normalized arguments: %s", got)
+	}
+}
+
 func TestNormalizeToolArgumentsRejectsMissingRequiredField(t *testing.T) {
 	schema := json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"},"count":{"type":"number"}},"required":["query"]}`)
 

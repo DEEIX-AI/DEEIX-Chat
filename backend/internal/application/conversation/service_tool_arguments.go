@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/big"
 	"reflect"
 	"strconv"
 	"strings"
@@ -20,6 +21,10 @@ type toolArgumentIssue struct {
 
 type toolArgumentValidationError struct {
 	issues []toolArgumentIssue
+}
+
+type toolArgumentEnumNumber struct {
+	value string
 }
 
 func (e toolArgumentValidationError) Error() string {
@@ -337,15 +342,10 @@ func validateToolArgumentEnum(value interface{}, schema map[string]interface{}, 
 }
 
 func normalizeEnumComparableValue(value interface{}) interface{} {
+	if number, ok := normalizeEnumComparableNumber(value); ok {
+		return number
+	}
 	switch typed := value.(type) {
-	case json.Number:
-		if parsed, err := strconv.ParseInt(typed.String(), 10, 64); err == nil {
-			return parsed
-		}
-		if parsed, err := strconv.ParseFloat(typed.String(), 64); err == nil {
-			return parsed
-		}
-		return typed.String()
 	case map[string]interface{}:
 		next := make(map[string]interface{}, len(typed))
 		for key, item := range typed {
@@ -361,6 +361,32 @@ func normalizeEnumComparableValue(value interface{}) interface{} {
 	default:
 		return value
 	}
+}
+
+func normalizeEnumComparableNumber(value interface{}) (toolArgumentEnumNumber, bool) {
+	switch typed := value.(type) {
+	case json.Number:
+		return normalizeEnumComparableNumberString(typed.String())
+	case float64:
+		if math.IsNaN(typed) || math.IsInf(typed, 0) {
+			return toolArgumentEnumNumber{}, false
+		}
+		return normalizeEnumComparableNumberString(strconv.FormatFloat(typed, 'g', -1, 64))
+	case int:
+		return normalizeEnumComparableNumberString(strconv.FormatInt(int64(typed), 10))
+	case int64:
+		return normalizeEnumComparableNumberString(strconv.FormatInt(typed, 10))
+	default:
+		return toolArgumentEnumNumber{}, false
+	}
+}
+
+func normalizeEnumComparableNumberString(raw string) (toolArgumentEnumNumber, bool) {
+	rational, ok := new(big.Rat).SetString(strings.TrimSpace(raw))
+	if !ok {
+		return toolArgumentEnumNumber{}, false
+	}
+	return toolArgumentEnumNumber{value: rational.RatString()}, true
 }
 
 func toolArgumentTypeName(value interface{}) string {
