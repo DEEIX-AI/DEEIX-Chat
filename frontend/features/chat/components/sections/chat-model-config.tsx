@@ -1376,7 +1376,7 @@ export function ChatModelConfig({
         type="button"
         variant="ghost"
         size="icon-sm"
-        className="rounded-md text-muted-foreground hover:text-foreground"
+        className="size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
         disabled={disabled}
         onClick={openOptionsDialog}
         aria-label={tComposer("modelOptions")}

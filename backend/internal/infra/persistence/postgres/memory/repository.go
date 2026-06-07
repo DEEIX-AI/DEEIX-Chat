@@ -3,11 +3,13 @@ package memory
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/sqlitevec"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
 )
@@ -47,6 +49,10 @@ func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}
 }
 
+func (r *Repo) sqliteDialect() bool {
+	return r != nil && r.db != nil && r.db.Dialector != nil && r.db.Dialector.Name() == "sqlite"
+}
+
 // UpsertUserMemory 更新或插入用户长期记忆。
 func (r *Repo) UpsertUserMemory(ctx context.Context, item *domainmemory.UserMemory) error {
 	if item == nil {
@@ -57,10 +63,15 @@ func (r *Repo) UpsertUserMemory(ctx context.Context, item *domainmemory.UserMemo
 		Where("user_id = ? AND memory_key = ?", item.UserID, item.MemoryKey).
 		First(&existing).Error
 	if err == nil {
-		existing.Value = item.Value
-		existing.Scope = item.Scope
-		existing.UpdatedBy = item.UpdatedBy
-		return translateError(r.db.WithContext(ctx).Save(&existing).Error)
+		return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			existing.Value = item.Value
+			existing.Scope = item.Scope
+			existing.UpdatedBy = item.UpdatedBy
+			if err := tx.Save(&existing).Error; err != nil {
+				return translateError(err)
+			}
+			return r.clearUserMemoryEmbedding(ctx, tx, existing.ID)
+		})
 	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		record := model.UserMemory{
@@ -75,11 +86,57 @@ func (r *Repo) UpsertUserMemory(ctx context.Context, item *domainmemory.UserMemo
 	return translateError(err)
 }
 
+func (r *Repo) clearUserMemoryEmbedding(ctx context.Context, tx *gorm.DB, memoryID uint) error {
+	if memoryID == 0 {
+		return nil
+	}
+	if r.sqliteDialect() {
+		return translateError(tx.Exec(
+			fmt.Sprintf(`DELETE FROM %s WHERE memory_id = ?`, sqlitevec.UserMemoryVectorTable),
+			memoryID,
+		).Error)
+	}
+	if !r.postgresUserMemoryEmbeddingColumnAvailable(ctx, tx) {
+		return nil
+	}
+	return translateError(tx.Exec(`UPDATE "user_memories" SET embedding = NULL WHERE id = ?`, memoryID).Error)
+}
+
+func (r *Repo) postgresUserMemoryEmbeddingColumnAvailable(ctx context.Context, tx *gorm.DB) bool {
+	if tx == nil || tx.Dialector == nil || tx.Dialector.Name() != "postgres" {
+		return false
+	}
+	available := false
+	err := tx.WithContext(ctx).Raw(`
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = current_schema()
+				AND table_name = 'user_memories'
+				AND column_name = 'embedding'
+				AND udt_name = 'vector'
+		)`,
+	).Scan(&available).Error
+	return err == nil && available
+}
+
 // DeleteUserMemory 删除用户长期记忆（按 key 匹配，物理删除）。
 func (r *Repo) DeleteUserMemory(ctx context.Context, userID uint, memoryKey string) error {
-	return translateError(r.db.WithContext(ctx).
-		Where("user_id = ? AND memory_key = ?", userID, memoryKey).
-		Delete(&model.UserMemory{}).Error)
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if r.sqliteDialect() {
+			if err := tx.Exec(
+				fmt.Sprintf(`DELETE FROM %s WHERE memory_id IN (
+					SELECT id FROM user_memories WHERE user_id = ? AND memory_key = ?
+				)`, sqlitevec.UserMemoryVectorTable),
+				userID,
+				memoryKey,
+			).Error; err != nil {
+				return translateError(err)
+			}
+		}
+		return translateError(tx.
+			Where("user_id = ? AND memory_key = ?", userID, memoryKey).
+			Delete(&model.UserMemory{}).Error)
+	})
 }
 
 // ListUserMemories 查询用户长期记忆。
@@ -117,10 +174,13 @@ type userMemorySearchRow struct {
 	Similarity float64
 }
 
-// SearchUserMemoriesByEmbedding 按查询向量语义检索最相关的用户记忆（需 pgvector 支持）。
+// SearchUserMemoriesByEmbedding 按查询向量语义检索最相关的用户记忆。
 func (r *Repo) SearchUserMemoriesByEmbedding(ctx context.Context, userID uint, queryEmbedding []float32, topK int, minSimilarity float64) ([]domainmemory.UserMemory, error) {
 	if len(queryEmbedding) == 0 || topK <= 0 {
 		return nil, nil
+	}
+	if r.sqliteDialect() {
+		return r.searchSQLiteUserMemoriesByEmbedding(ctx, userID, queryEmbedding, topK, minSimilarity)
 	}
 	vec := float32SliceToVec(queryEmbedding)
 	query := `
@@ -151,10 +211,49 @@ func (r *Repo) SearchUserMemoriesByEmbedding(ctx context.Context, userID uint, q
 	return results, nil
 }
 
+func (r *Repo) searchSQLiteUserMemoriesByEmbedding(ctx context.Context, userID uint, queryEmbedding []float32, topK int, minSimilarity float64) ([]domainmemory.UserMemory, error) {
+	vector, err := sqlitevec.SerializeFloat32(queryEmbedding)
+	if err != nil {
+		return nil, err
+	}
+	query := fmt.Sprintf(`
+		SELECT memories.id, memories.user_id, memories.memory_key, memories.value, memories.scope, memories.updated_by,
+		       (1.0 - vectors.distance) AS similarity
+		FROM %s AS vectors
+		JOIN user_memories AS memories
+			ON memories.id = vectors.memory_id
+		WHERE vectors.embedding MATCH ?
+			AND vectors.k = ?
+			AND vectors.user_id = ?
+		ORDER BY vectors.distance ASC`, sqlitevec.UserMemoryVectorTable)
+	var rows []userMemorySearchRow
+	if err := r.db.WithContext(ctx).Raw(query, vector, topK, userID).Scan(&rows).Error; err != nil {
+		return nil, translateError(err)
+	}
+	results := make([]domainmemory.UserMemory, 0, len(rows))
+	for _, row := range rows {
+		if row.Similarity < minSimilarity {
+			continue
+		}
+		results = append(results, domainmemory.UserMemory{
+			ID:        row.ID,
+			UserID:    row.UserID,
+			MemoryKey: row.MemoryKey,
+			Value:     row.Value,
+			Scope:     row.Scope,
+			UpdatedBy: row.UpdatedBy,
+		})
+	}
+	return results, nil
+}
+
 // UpsertUserMemoryEmbedding 更新指定记忆条目的向量（异步写入，失败静默）。
 func (r *Repo) UpsertUserMemoryEmbedding(ctx context.Context, userID uint, memoryKey string, expectedValue string, embedding []float32) error {
 	if len(embedding) == 0 {
 		return nil
+	}
+	if r.sqliteDialect() {
+		return r.upsertSQLiteUserMemoryEmbedding(ctx, userID, memoryKey, expectedValue, embedding)
 	}
 	vec := float32SliceToVec(embedding)
 	query := `UPDATE "user_memories" SET embedding = ?::vector WHERE user_id = ? AND memory_key = ?`
@@ -167,4 +266,33 @@ func (r *Repo) UpsertUserMemoryEmbedding(ctx context.Context, userID uint, memor
 		query,
 		args...,
 	).Error
+}
+
+func (r *Repo) upsertSQLiteUserMemoryEmbedding(ctx context.Context, userID uint, memoryKey string, expectedValue string, embedding []float32) error {
+	var item model.UserMemory
+	query := r.db.WithContext(ctx).Where("user_id = ? AND memory_key = ?", userID, memoryKey)
+	if strings.TrimSpace(expectedValue) != "" {
+		query = query.Where("value = ?", strings.TrimSpace(expectedValue))
+	}
+	if err := query.First(&item).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return translateError(err)
+	}
+	vector, err := sqlitevec.SerializeFloat32(embedding)
+	if err != nil {
+		return err
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(fmt.Sprintf(`DELETE FROM %s WHERE memory_id = ?`, sqlitevec.UserMemoryVectorTable), item.ID).Error; err != nil {
+			return translateError(err)
+		}
+		return translateError(tx.Exec(
+			fmt.Sprintf(`INSERT INTO %s (memory_id, user_id, embedding) VALUES (?, ?, ?)`, sqlitevec.UserMemoryVectorTable),
+			item.ID,
+			item.UserID,
+			vector,
+		).Error)
+	})
 }

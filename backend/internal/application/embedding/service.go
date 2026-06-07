@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -17,6 +18,8 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"go.uber.org/zap"
 )
+
+var ErrEmbeddingServiceNotConfigured = errors.New("embedding service not configured")
 
 // Service 封装文件 embedding 执行与状态管理能力。
 type Service struct {
@@ -46,41 +49,55 @@ func NewServiceWithRuntime(cfg *config.Runtime, repo repository.EmbeddingReposit
 	}
 }
 
-// Available 返回当前 embedding 能力是否可用及原因。
+// Available 返回当前对话 RAG 检索能力是否可用及原因。
 func (s *Service) Available(ctx context.Context) (bool, string) {
 	cfg := s.snapshot()
 	if !cfg.RAGEnabled {
 		return false, "rag_disabled"
 	}
+	available, reason, _ := s.indexingAvailable(ctx, cfg)
+	return available, reason
+}
+
+// IndexingAvailable 返回文件向量索引维护能力是否可用及原因。
+func (s *Service) IndexingAvailable(ctx context.Context) (bool, string) {
+	available, reason, _ := s.indexingAvailable(ctx, s.snapshot())
+	return available, reason
+}
+
+func (s *Service) indexingAvailable(ctx context.Context, cfg config.Config) (bool, string, error) {
 	if !cfg.EmbeddingEnabled {
-		return false, "embedding_disabled"
+		return false, "embedding_disabled", nil
 	}
 	if strings.TrimSpace(cfg.RAGModel) == "" {
-		return false, "embedding_model_missing"
+		return false, "embedding_model_missing", nil
 	}
 	if strings.TrimSpace(cfg.EmbeddingHost) == "" {
-		return false, "embedding_host_missing"
+		return false, "embedding_host_missing", nil
+	}
+	if s.embedClient == nil {
+		return false, "embedding_client_missing", nil
 	}
 	if s.repo == nil {
-		return false, "vector_store_unavailable"
+		return false, "vector_store_unavailable", nil
 	}
 	available, err := s.repo.VectorStoreAvailable(ctx)
 	if err != nil {
 		if s.logger != nil {
 			s.logger.Warn("embedding vector store availability check failed", zap.Error(err))
 		}
-		return false, "vector_store_error"
+		return false, "vector_store_error", err
 	}
 	if !available {
-		return false, "vector_store_unavailable"
+		return false, "vector_store_unavailable", nil
 	}
-	return true, "available"
+	return true, "available", nil
 }
 
 // ShouldTrigger 判断当前文件是否应触发 embedding。
 func (s *Service) ShouldTrigger(fileObj domainconversation.FileObject) bool {
 	cfg := s.snapshot()
-	if !cfg.RAGEnabled || !cfg.EmbeddingEnabled || !cfg.EmbedTriggerOnUpload || strings.TrimSpace(cfg.RAGModel) == "" {
+	if !cfg.EmbeddingEnabled || !cfg.EmbedTriggerOnUpload || strings.TrimSpace(cfg.RAGModel) == "" || strings.TrimSpace(cfg.EmbeddingHost) == "" {
 		return false
 	}
 	if strings.TrimSpace(fileObj.StoragePath) == "" || strings.ToLower(strings.TrimSpace(fileObj.Status)) != "active" {
@@ -99,7 +116,7 @@ func (s *Service) MaybeTrigger(fileObj domainconversation.FileObject) {
 	if !s.ShouldTrigger(fileObj) {
 		return
 	}
-	if available, _ := s.Available(context.Background()); !available {
+	if available, _, _ := s.indexingAvailable(context.Background(), s.snapshot()); !available {
 		return
 	}
 	s.Trigger(fileObj)
@@ -122,7 +139,7 @@ func (s *Service) Trigger(fileObj domainconversation.FileObject) {
 // ProcessFile 执行 embedding 完整流程。
 func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.FileObject) error {
 	cfg := s.snapshot()
-	if !cfg.RAGEnabled || !cfg.EmbeddingEnabled || strings.TrimSpace(cfg.RAGModel) == "" {
+	if !cfg.EmbeddingEnabled || strings.TrimSpace(cfg.RAGModel) == "" || strings.TrimSpace(cfg.EmbeddingHost) == "" {
 		return nil
 	}
 	if s.repo == nil {
@@ -362,8 +379,12 @@ func (s *Service) ReindexStaleFiles(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 	cfg := s.snapshot()
-	if !cfg.RAGEnabled || !cfg.EmbeddingEnabled || strings.TrimSpace(cfg.RAGModel) == "" || strings.TrimSpace(cfg.EmbeddingHost) == "" {
-		return 0, fmt.Errorf("embedding service not configured")
+	available, _, err := s.indexingAvailable(ctx, cfg)
+	if err != nil {
+		return 0, err
+	}
+	if !available {
+		return 0, ErrEmbeddingServiceNotConfigured
 	}
 
 	const pageSize = 100

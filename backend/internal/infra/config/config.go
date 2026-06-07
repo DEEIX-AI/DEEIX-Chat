@@ -171,6 +171,7 @@ type yamlConfig struct {
 		TurnstileSiteverifyURL string `yaml:"turnstile_siteverify_url"`
 	} `yaml:"security"`
 	Database struct {
+		Driver   string `yaml:"driver"`
 		Postgres struct {
 			DSN                string `yaml:"dsn"`
 			MaxOpenConns       int    `yaml:"max_open_conns"`
@@ -178,12 +179,25 @@ type yamlConfig struct {
 			ConnMaxLifetimeMin int    `yaml:"conn_max_lifetime_minutes"`
 			ConnMaxIdleTimeMin int    `yaml:"conn_max_idle_time_minutes"`
 		} `yaml:"postgres"`
+		SQLite struct {
+			Path          string `yaml:"path"`
+			DSN           string `yaml:"dsn"`
+			MaxOpenConns  int    `yaml:"max_open_conns"`
+			BusyTimeoutMS int    `yaml:"busy_timeout_ms"`
+			CacheSizeKB   int    `yaml:"cache_size_kb"`
+			MmapSizeBytes int64  `yaml:"mmap_size_bytes"`
+			Synchronous   string `yaml:"synchronous"`
+			TempStore     string `yaml:"temp_store"`
+		} `yaml:"sqlite"`
 		Redis struct {
 			Addr     string `yaml:"addr"`
 			Password string `yaml:"password"`
 			DB       int    `yaml:"db"`
 		} `yaml:"redis"`
 	} `yaml:"database"`
+	Cache struct {
+		Driver string `yaml:"driver"`
+	} `yaml:"cache"`
 	Storage struct {
 		Backend string `yaml:"backend"`
 		Local   struct {
@@ -239,11 +253,21 @@ type Config struct {
 	JWTSecret                    string
 	DataEncryptionKey            string
 	SSRFProtectionEnabled        bool
+	DatabaseDriver               string
 	PostgresDSN                  string
 	PostgresMaxOpenConns         int
 	PostgresMaxIdleConns         int
 	PostgresConnMaxLifetimeMin   int
 	PostgresConnMaxIdleTimeMin   int
+	SQLitePath                   string
+	SQLiteDSN                    string
+	SQLiteMaxOpenConns           int
+	SQLiteBusyTimeoutMS          int
+	SQLiteCacheSizeKB            int
+	SQLiteMmapSizeBytes          int64
+	SQLiteSynchronous            string
+	SQLiteTempStore              string
+	CacheDriver                  string
 	RedisAddr                    string
 	RedisPassword                string
 	RedisDB                      int
@@ -443,11 +467,21 @@ func Load() Config {
 		JWTSecret:                    envOr("JWT_SECRET", yc.Security.JWTSecret, defaultJWTSecret),
 		DataEncryptionKey:            envOr("DATA_ENCRYPTION_KEY", yc.Security.DataEncryptionKey, defaultDataEncryptionKey),
 		SSRFProtectionEnabled:        envOrBoolPtr("SSRF_PROTECTION_ENABLED", yc.Security.SSRFProtectionEnabled, false),
+		DatabaseDriver:               normalizeDatabaseDriver(envOr("DATABASE_DRIVER", yc.Database.Driver, "postgres")),
 		PostgresDSN:                  envOr("POSTGRES_DSN", yc.Database.Postgres.DSN, "host=127.0.0.1 user=deeix_chat password=deeix_chat_dev_2026 dbname=deeix_chat port=5432 sslmode=disable TimeZone=Asia/Shanghai"),
 		PostgresMaxOpenConns:         envOrInt("POSTGRES_MAX_OPEN_CONNS", yc.Database.Postgres.MaxOpenConns, 30),
 		PostgresMaxIdleConns:         envOrInt("POSTGRES_MAX_IDLE_CONNS", yc.Database.Postgres.MaxIdleConns, 10),
 		PostgresConnMaxLifetimeMin:   envOrInt("POSTGRES_CONN_MAX_LIFETIME_MINUTES", yc.Database.Postgres.ConnMaxLifetimeMin, 60),
 		PostgresConnMaxIdleTimeMin:   envOrInt("POSTGRES_CONN_MAX_IDLE_TIME_MINUTES", yc.Database.Postgres.ConnMaxIdleTimeMin, 10),
+		SQLitePath:                   envOrPath("SQLITE_PATH", yc.Database.SQLite.Path, "./data/deeix.db", yc.sourceDir),
+		SQLiteDSN:                    envOr("SQLITE_DSN", yc.Database.SQLite.DSN, ""),
+		SQLiteMaxOpenConns:           envOrInt("SQLITE_MAX_OPEN_CONNS", yc.Database.SQLite.MaxOpenConns, 1),
+		SQLiteBusyTimeoutMS:          envOrInt("SQLITE_BUSY_TIMEOUT_MS", yc.Database.SQLite.BusyTimeoutMS, 5000),
+		SQLiteCacheSizeKB:            envOrInt("SQLITE_CACHE_SIZE_KB", yc.Database.SQLite.CacheSizeKB, 20480),
+		SQLiteMmapSizeBytes:          envOrInt64("SQLITE_MMAP_SIZE_BYTES", yc.Database.SQLite.MmapSizeBytes, 268435456),
+		SQLiteSynchronous:            normalizeSQLiteSynchronous(envOr("SQLITE_SYNCHRONOUS", yc.Database.SQLite.Synchronous, "NORMAL")),
+		SQLiteTempStore:              normalizeSQLiteTempStore(envOr("SQLITE_TEMP_STORE", yc.Database.SQLite.TempStore, "MEMORY")),
+		CacheDriver:                  normalizeCacheDriver(envOr("CACHE_DRIVER", yc.Cache.Driver, "redis")),
 		RedisAddr:                    envOr("REDIS_ADDR", yc.Database.Redis.Addr, "127.0.0.1:6379"),
 		RedisPassword:                envOr("REDIS_PASSWORD", yc.Database.Redis.Password, ""),
 		RedisDB:                      envOrInt("REDIS_DB", yc.Database.Redis.DB, 0),
@@ -609,6 +643,12 @@ func Load() Config {
 
 // Validate 检查关键配置是否合法。
 func (c Config) Validate() error {
+	if err := c.validateDatabase(); err != nil {
+		return err
+	}
+	if err := c.validateCache(); err != nil {
+		return err
+	}
 	if err := c.validateStorage(); err != nil {
 		return err
 	}
@@ -647,6 +687,37 @@ func (c Config) Validate() error {
 	}
 
 	return nil
+}
+
+func (c Config) validateDatabase() error {
+	switch normalizeDatabaseDriver(c.DatabaseDriver) {
+	case "postgres":
+		return nil
+	case "sqlite":
+		if strings.TrimSpace(c.SQLiteDSN) == "" && strings.TrimSpace(c.SQLitePath) == "" {
+			return errors.New("invalid database config: SQLITE_PATH or SQLITE_DSN must be set when DATABASE_DRIVER=sqlite")
+		}
+		if normalizeSQLiteSynchronous(c.SQLiteSynchronous) == "" {
+			return fmt.Errorf("invalid database config: unsupported SQLITE_SYNCHRONOUS %q", c.SQLiteSynchronous)
+		}
+		if normalizeSQLiteTempStore(c.SQLiteTempStore) == "" {
+			return fmt.Errorf("invalid database config: unsupported SQLITE_TEMP_STORE %q", c.SQLiteTempStore)
+		}
+		return nil
+	default:
+		return fmt.Errorf("invalid database config: unsupported DATABASE_DRIVER %q", c.DatabaseDriver)
+	}
+}
+
+func (c Config) validateCache() error {
+	switch normalizeCacheDriver(c.CacheDriver) {
+	case "redis":
+		return nil
+	case "memory":
+		return nil
+	default:
+		return fmt.Errorf("invalid cache config: unsupported CACHE_DRIVER %q", c.CacheDriver)
+	}
 }
 
 func (c Config) validateStorage() error {
@@ -736,6 +807,50 @@ func normalizeEnv(value string) string {
 		return "prod"
 	default:
 		return strings.ToLower(strings.TrimSpace(value))
+	}
+}
+
+func normalizeDatabaseDriver(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "postgres", "postgresql", "pg":
+		return "postgres"
+	case "sqlite", "sqlite3":
+		return "sqlite"
+	default:
+		return strings.ToLower(strings.TrimSpace(value))
+	}
+}
+
+func normalizeCacheDriver(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "redis":
+		return "redis"
+	case "memory", "mem", "inmemory", "in-memory":
+		return "memory"
+	default:
+		return strings.ToLower(strings.TrimSpace(value))
+	}
+}
+
+func normalizeSQLiteSynchronous(value string) string {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "", "NORMAL":
+		return "NORMAL"
+	case "OFF", "FULL", "EXTRA":
+		return strings.ToUpper(strings.TrimSpace(value))
+	default:
+		return ""
+	}
+}
+
+func normalizeSQLiteTempStore(value string) string {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "", "MEMORY":
+		return "MEMORY"
+	case "DEFAULT", "FILE":
+		return strings.ToUpper(strings.TrimSpace(value))
+	default:
+		return ""
 	}
 }
 

@@ -21,6 +21,8 @@ var (
 	ErrUsernameTaken = errors.New("username already exists")
 	// ErrUsernameChangeUsed 用户名自主修改次数已用完。
 	ErrUsernameChangeUsed = errors.New("username change already used")
+	// ErrUsernameChangeRequired 初始化用户名必须修改。
+	ErrUsernameChangeRequired = errors.New("username change required")
 	// ErrInvalidLocation 当前会话位置数据非法。
 	ErrInvalidLocation = errors.New("invalid location")
 	// ErrDeleteSuperAdminNotAllowed 禁止自助删除超级管理员。

@@ -45,7 +45,7 @@
       "taken": "This username is already taken."
     },
     "toast": {
-      "initialUsernameRequired": "Initial username must be changed before continuing.",
+      "initialUsernameRequired": "Change the initial username.",
       "setUsernameFailed": "Failed to set username",
       "usernameUpdated": "Username updated",
       "profileUpdated": "Profile updated",

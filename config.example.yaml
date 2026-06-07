@@ -1,10 +1,10 @@
 app:
   name: DEEIX Chat
-  # REQUIRED for deployment: change to prod and replace security/admin defaults below.
+  # Required. Use prod and replace security values before public deployment.
   env: dev
 
 server:
-  # Local development defaults. Change only when backend/frontend ports or public URLs differ.
+  # Optional. Change these values only when local ports or public URLs differ.
   http_port: "8080"
   cors_allow_origin: "http://127.0.0.1:8080,http://localhost:8080,http://127.0.0.1:3000,http://localhost:3000"
   trusted_proxies: "127.0.0.1/32,::1/128"
@@ -17,35 +17,42 @@ server:
   max_header_bytes: 1048576
 
 security:
-  # REQUIRED for deployment: replace both values with strong random secrets.
-  # data_encryption_key protects upstream API keys, SSO secrets, MCP tokens, and TOTP secrets.
+  # Required. Replace both values with strong random secrets before deployment.
+  # Required. data_encryption_key protects upstream API keys, SSO secrets, MCP tokens, and TOTP secrets.
   jwt_secret: "change-me-dev-jwt-secret"
   data_encryption_key: "change-me-dev-data-encryption-key-32-bytes-min"
-  # Optional: set true to block outbound requests to localhost, private networks, link-local, and metadata IPs in prod.
+  # Optional. Enable in production to block outbound requests to private or metadata networks.
   ssrf_protection_enabled: false
-  # Optional: override only when using a compatible Turnstile verification proxy.
+  # Optional. Override only when using a compatible Turnstile verification proxy.
   turnstile_siteverify_url: "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
 database:
+  # Required. PostgreSQL is used for this profile.
+  driver: postgres
   postgres:
-    # REQUIRED: set this to your local PostgreSQL DSN.
+    # Required when database.driver is postgres.
     dsn: "postgres://deeix_chat:deeix_chat_dev_2026@127.0.0.1:5432/deeix_chat?sslmode=disable&TimeZone=Asia%2FShanghai"
     max_open_conns: 30
     max_idle_conns: 10
     conn_max_lifetime_minutes: 60
     conn_max_idle_time_minutes: 10
   redis:
-    # REQUIRED: set these to your local Redis connection settings.
+    # Required when cache.driver is redis.
     addr: "127.0.0.1:6379"
     password: "deeix_chat_redis_dev"
     db: 0
 
+cache:
+  # Required. Redis is used for this profile.
+  driver: redis
+
 storage:
-  # Optional: switch to s3 and fill the s3 block when using object storage.
+  # Required. Use local for filesystem storage or s3 for object storage.
   backend: local
   local:
     root_dir: ./storage
   s3:
+    # Required when storage.backend is s3.
     endpoint: ""
     region: auto
     bucket: ""
@@ -55,10 +62,9 @@ storage:
     force_path_style: true
 
 geoip:
-  # Optional: use none to disable, ipwhois for the built-in public lookup,
-  # or mmdb for a local GeoLite2/MMDB database.
+  # Optional. Use none to disable, ipwhois for public lookup, or mmdb for a local GeoLite2/MMDB database.
   provider: ipwhois
-  # GeoLite2/MMDB example. Leave these commented unless provider is set to mmdb.
+  # Optional. Leave these commented unless provider is set to mmdb.
   # database_url: "https://example.com/path/to/GeoLite2-City.mmdb"
   # database_path: "./data/geoip/GeoLite2-City.mmdb"
   # database_max_bytes: 104857600
@@ -67,9 +73,7 @@ geoip:
 
 observability:
   tracing:
-    # Optional: configure OpenTelemetry collector endpoint to enable tracing.
-    # Omit enabled to auto-enable tracing when endpoint is set.
-    # If enabled is true, endpoint is required; if enabled is false, tracing stays disabled.
+    # Optional. Set endpoint to auto-enable tracing, or set enabled explicitly.
     # enabled: true
     endpoint: ""
     headers: ""

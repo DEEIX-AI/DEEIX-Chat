@@ -45,7 +45,7 @@
       "taken": "该用户名已被占用。"
     },
     "toast": {
-      "initialUsernameRequired": "初始化用户名需要先修改后才能继续。",
+      "initialUsernameRequired": "请修改初始化用户名。",
       "setUsernameFailed": "设置用户名失败",
       "usernameUpdated": "用户名已更新",
       "profileUpdated": "个人资料已更新",

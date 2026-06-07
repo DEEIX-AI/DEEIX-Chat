@@ -80,8 +80,9 @@ body:
     id: logs
     attributes:
       label: Logs, screenshots, or request samples
-      description: Paste relevant logs, screenshots, network responses, request IDs, or API samples. Remove secrets and personal data.
-      render: shell
+      description: Paste relevant logs, screenshots, network responses, request IDs, or API samples. You can also drag and drop screenshots, log files, request samples, or documents into this field. Remove secrets and personal data.
+      placeholder: |
+        Paste logs or request samples here, or drag and drop screenshots/files into this field.
     validations:
       required: false
   - type: textarea

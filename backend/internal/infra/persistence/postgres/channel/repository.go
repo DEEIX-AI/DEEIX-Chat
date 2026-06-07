@@ -2,6 +2,7 @@ package channel
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -174,7 +175,7 @@ func (r *Repo) ListUpstreams(ctx context.Context, input repository.ListChannelUp
 			`LEFT JOIN (
 				SELECT um.upstream_id,
 					COUNT(r.id) AS models_count,
-					COUNT(r.id) FILTER (WHERE r.status = 'active' AND um.status = 'active') AS active_models_count
+					SUM(CASE WHEN r.status = 'active' AND um.status = 'active' THEN 1 ELSE 0 END) AS active_models_count
 				FROM llm_upstream_models um
 				LEFT JOIN llm_model_routes r ON r.upstream_model_id = um.id
 				GROUP BY um.upstream_id
@@ -193,8 +194,8 @@ func (r *Repo) ListUpstreams(ctx context.Context, input repository.ListChannelUp
 
 func applyUpstreamListFilters(query *gorm.DB, input repository.ListChannelUpstreamsInput) *gorm.DB {
 	if keyword := strings.TrimSpace(input.Query); keyword != "" {
-		like := "%" + keyword + "%"
-		query = query.Where("name ILIKE ? OR base_url ILIKE ?", like, like)
+		like := "%" + strings.ToLower(keyword) + "%"
+		query = query.Where("LOWER(name) LIKE ? OR LOWER(base_url) LIKE ?", like, like)
 	}
 	if status := strings.TrimSpace(input.Status); status == "active" || status == "inactive" {
 		query = query.Where("status = ?", status)
@@ -409,7 +410,11 @@ func (r *Repo) GetModelListRowByID(ctx context.Context, modelID uint) (*ModelLis
 		}
 		return nil, translateError(err)
 	}
-	return &item, nil
+	items := []ModelListRow{item}
+	if err := r.applyModelListProtocols(ctx, items); err != nil {
+		return nil, err
+	}
+	return &items[0], nil
 }
 
 // ListModels 分页查询平台模型。
@@ -431,6 +436,9 @@ func (r *Repo) ListModels(ctx context.Context, input repository.ListChannelModel
 		Scan(&items).Error; err != nil {
 		return nil, 0, translateError(err)
 	}
+	if err := r.applyModelListProtocols(ctx, items); err != nil {
+		return nil, 0, err
+	}
 	return items, total, nil
 }
 
@@ -439,20 +447,70 @@ func (r *Repo) modelListQuery(ctx context.Context) *gorm.DB {
 		Table("llm_platform_models AS m").
 		Select(
 			"m.id, m.name AS platform_model_name, m.vendor, m.kinds_json, m.icon, m.capabilities_json, m.system_prompt, m.access_scope, m.status, m.description, m.sort_order, m.created_at, m.updated_at, " +
-				"COALESCE(stats.source_count, 0) AS source_count, COALESCE(stats.active_source_count, 0) AS active_source_count, COALESCE(stats.protocols_json, '[]') AS protocols_json",
+				"COALESCE(stats.source_count, 0) AS source_count, COALESCE(stats.active_source_count, 0) AS active_source_count, '[]' AS protocols_json",
 		).
 		Joins(
 			`LEFT JOIN (
 				SELECT r.platform_model_id,
-					COUNT(*) AS source_count,
-					COUNT(*) FILTER (WHERE r.status = 'active' AND um.status = 'active' AND u.status = 'active') AS active_source_count,
-					COALESCE(json_agg(DISTINCT r.protocol) FILTER (WHERE r.status = 'active' AND um.status = 'active' AND u.status = 'active' AND r.protocol != ''), '[]') AS protocols_json
+					COUNT(r.id) AS source_count,
+					SUM(CASE WHEN r.status = 'active' AND um.status = 'active' AND u.status = 'active' THEN 1 ELSE 0 END) AS active_source_count
 				FROM llm_model_routes r
 				JOIN llm_upstream_models um ON um.id = r.upstream_model_id
 				JOIN llm_upstreams u ON u.id = um.upstream_id
 				GROUP BY r.platform_model_id
 			) AS stats ON stats.platform_model_id = m.id`,
 		)
+}
+
+func (r *Repo) applyModelListProtocols(ctx context.Context, items []ModelListRow) error {
+	if len(items) == 0 {
+		return nil
+	}
+
+	modelIDs := make([]uint, 0, len(items))
+	indexByModelID := make(map[uint]int, len(items))
+	for index, item := range items {
+		modelIDs = append(modelIDs, item.ID)
+		indexByModelID[item.ID] = index
+		items[index].ProtocolsJSON = "[]"
+	}
+
+	type protocolRow struct {
+		PlatformModelID uint
+		Protocol        string
+	}
+	rows := make([]protocolRow, 0)
+	if err := r.db.WithContext(ctx).
+		Table("llm_model_routes AS r").
+		Select("DISTINCT r.platform_model_id, r.protocol").
+		Joins("JOIN llm_upstream_models um ON um.id = r.upstream_model_id").
+		Joins("JOIN llm_upstreams u ON u.id = um.upstream_id").
+		Where("r.platform_model_id IN ? AND r.status = ? AND um.status = ? AND u.status = ? AND r.protocol != ?", modelIDs, "active", "active", "active", "").
+		Order("r.platform_model_id ASC, r.protocol ASC").
+		Scan(&rows).Error; err != nil {
+		return translateError(err)
+	}
+
+	protocolsByModelID := make(map[uint][]string)
+	for _, row := range rows {
+		protocol := strings.TrimSpace(row.Protocol)
+		if protocol == "" {
+			continue
+		}
+		protocolsByModelID[row.PlatformModelID] = append(protocolsByModelID[row.PlatformModelID], protocol)
+	}
+	for modelID, protocols := range protocolsByModelID {
+		index, ok := indexByModelID[modelID]
+		if !ok {
+			continue
+		}
+		payload, err := json.Marshal(protocols)
+		if err != nil {
+			return err
+		}
+		items[index].ProtocolsJSON = string(payload)
+	}
+	return nil
 }
 
 func applyModelListFilters(query *gorm.DB, input repository.ListChannelModelsInput) *gorm.DB {
@@ -462,8 +520,8 @@ func applyModelListFilters(query *gorm.DB, input repository.ListChannelModelsInp
 		query = query.Where("m.status = ?", status)
 	}
 	if keyword := strings.TrimSpace(input.Query); keyword != "" {
-		like := "%" + keyword + "%"
-		query = query.Where("m.name ILIKE ? OR m.vendor ILIKE ? OR m.description ILIKE ?", like, like, like)
+		like := "%" + strings.ToLower(keyword) + "%"
+		query = query.Where("LOWER(m.name) LIKE ? OR LOWER(m.vendor) LIKE ? OR LOWER(m.description) LIKE ?", like, like, like)
 	}
 	if vendor := strings.TrimSpace(input.Vendor); vendor != "" {
 		query = query.Where("m.vendor = ?", vendor)
@@ -800,9 +858,9 @@ func (r *Repo) GetUpstreamModelRouteByNames(
 
 func applyUpstreamModelListFilters(query *gorm.DB, input repository.ListChannelUpstreamModelsInput) *gorm.DB {
 	if keyword := strings.TrimSpace(input.Query); keyword != "" {
-		like := "%" + keyword + "%"
+		like := "%" + strings.ToLower(keyword) + "%"
 		query = query.Where(
-			"um.upstream_model_name ILIKE ? OR um.binding_code ILIKE ? OR pm.name ILIKE ? OR r.protocol ILIKE ?",
+			"LOWER(um.upstream_model_name) LIKE ? OR LOWER(um.binding_code) LIKE ? OR LOWER(pm.name) LIKE ? OR LOWER(r.protocol) LIKE ?",
 			like,
 			like,
 			like,

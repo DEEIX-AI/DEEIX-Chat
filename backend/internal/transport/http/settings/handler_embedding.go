@@ -2,10 +2,12 @@ package settings
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
+	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/gin-gonic/gin"
 )
@@ -104,6 +106,10 @@ func (h *Handler) TriggerReindex(c *gin.Context) {
 	defer cancel()
 	submitted, err := h.embeddingSvc.ReindexStaleFiles(ctx)
 	if err != nil {
+		if errors.Is(err, appembedding.ErrEmbeddingServiceNotConfigured) {
+			response.ErrorFrom(c, http.StatusBadRequest, err)
+			return
+		}
 		response.Error(c, http.StatusInternalServerError, "reindex failed")
 		return
 	}

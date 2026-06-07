@@ -12,6 +12,15 @@ type testSettingsRepo struct {
 	byNamespace map[string][]domainsettings.SystemSetting
 }
 
+type testVectorStore struct {
+	available bool
+	err       error
+}
+
+func (s testVectorStore) VectorStoreAvailable(context.Context) (bool, error) {
+	return s.available, s.err
+}
+
 func (r *testSettingsRepo) ListAll(ctx context.Context) ([]domainsettings.SystemSetting, error) {
 	var result []domainsettings.SystemSetting
 	for _, items := range r.byNamespace {
@@ -93,6 +102,54 @@ func TestValidateEmbeddingDependentSettingsRejectsRAGWithoutEmbedding(t *testing
 	})
 	if err == nil {
 		t.Fatal("expected validation error")
+	}
+}
+
+func TestValidateEmbeddingDependentSettingsRejectsEmbeddingWithoutVectorStore(t *testing.T) {
+	repo := &testSettingsRepo{byNamespace: map[string][]domainsettings.SystemSetting{
+		"chat": {
+			{Namespace: "chat", Key: "rag_enabled", Value: "false"},
+			{Namespace: "chat", Key: "message_embedding_enabled", Value: "false"},
+			{Namespace: "chat", Key: "semantic_context_enabled", Value: "false"},
+		},
+		"file": {
+			{Namespace: "file", Key: "embedding_enabled", Value: "false"},
+			{Namespace: "file", Key: "embedding_host", Value: "https://embedding.example.com"},
+			{Namespace: "file", Key: "rag_model", Value: "embed-model"},
+		},
+	}}
+	service := NewService(repo, "test-data-encryption-key")
+	service.SetVectorStoreAvailabilityService(testVectorStore{available: false})
+
+	err := service.validateEmbeddingDependentSettings(context.Background(), []PatchItem{
+		{Namespace: "file", Key: "embedding_enabled", Value: "true"},
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
+func TestValidateEmbeddingDependentSettingsAllowsEmbeddingWithVectorStore(t *testing.T) {
+	repo := &testSettingsRepo{byNamespace: map[string][]domainsettings.SystemSetting{
+		"chat": {
+			{Namespace: "chat", Key: "rag_enabled", Value: "false"},
+			{Namespace: "chat", Key: "message_embedding_enabled", Value: "false"},
+			{Namespace: "chat", Key: "semantic_context_enabled", Value: "false"},
+		},
+		"file": {
+			{Namespace: "file", Key: "embedding_enabled", Value: "false"},
+			{Namespace: "file", Key: "embedding_host", Value: "https://embedding.example.com"},
+			{Namespace: "file", Key: "rag_model", Value: "embed-model"},
+		},
+	}}
+	service := NewService(repo, "test-data-encryption-key")
+	service.SetVectorStoreAvailabilityService(testVectorStore{available: true})
+
+	err := service.validateEmbeddingDependentSettings(context.Background(), []PatchItem{
+		{Namespace: "file", Key: "embedding_enabled", Value: "true"},
+	})
+	if err != nil {
+		t.Fatalf("expected validation to pass, got %v", err)
 	}
 }
 

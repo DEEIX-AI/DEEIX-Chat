@@ -3,6 +3,7 @@ services:
     image: apache/tika:3.2.3.0
     container_name: deeix-chat-tika
     ports:
+      # Optional. Localhost-only by default. Configure the app to use http://host.docker.internal:9998 when needed.
       - "127.0.0.1:9998:9998"
     restart: unless-stopped
     networks:
@@ -10,5 +11,6 @@ services:
 
 networks:
   deeix-chat:
+    # Required. Start a root compose profile first, or create this network manually.
     external: true
     name: deeix-chat-network

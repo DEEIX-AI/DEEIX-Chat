@@ -1,0 +1,73 @@
+app:
+  name: DEEIX Chat
+  # Required. Use prod and replace security values before public deployment.
+  env: dev
+
+server:
+  # Optional. Defaults match docker-compose.sqlite.yml. Change only when exposed ports or public URLs differ.
+  http_port: "8080"
+  cors_allow_origin: "http://localhost:8080,http://127.0.0.1:8080"
+  trusted_proxies: "127.0.0.1/32,::1/128"
+  public_api_base_url: "http://localhost:8080"
+  public_web_base_url: "http://localhost:8080"
+  frontend_dist_dir: "/app/frontend/out"
+  read_header_timeout_seconds: 10
+  read_timeout_seconds: 120
+  idle_timeout_seconds: 120
+  max_header_bytes: 1048576
+
+security:
+  # Required. Replace both values with strong random secrets before deployment.
+  jwt_secret: "change-me-dev-jwt-secret"
+  data_encryption_key: "change-me-dev-data-encryption-key-32-bytes-min"
+  # Optional. Enable in production to block outbound requests to private or metadata networks.
+  ssrf_protection_enabled: false
+  # Optional. Override only when using a compatible Turnstile verification proxy.
+  turnstile_siteverify_url: "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+database:
+  # Required. SQLite is intended for single-node deployments.
+  driver: sqlite
+  sqlite:
+    # Required. The SQLite database is stored under the persistent /app/data volume.
+    path: /app/data/deeix.db
+    dsn: ""
+    max_open_conns: 1
+    busy_timeout_ms: 5000
+    cache_size_kb: 20480
+    mmap_size_bytes: 268435456
+    synchronous: NORMAL
+    temp_store: MEMORY
+
+cache:
+  # Required. Use memory for this single-process SQLite profile.
+  driver: memory
+
+storage:
+  # Required. Use local for filesystem storage or s3 for object storage.
+  backend: local
+  local:
+    # Required. Local files are stored under the persistent /app/storage volume.
+    root_dir: /app/storage
+  s3:
+    # Required when storage.backend is s3.
+    endpoint: ""
+    region: auto
+    bucket: ""
+    prefix: ""
+    access_key_id: ""
+    secret_access_key: ""
+    force_path_style: true
+
+geoip:
+  # Optional. Use none to disable, ipwhois for public lookup, or mmdb for a local GeoLite2/MMDB database.
+  provider: ipwhois
+  timeout_ms: 2500
+
+observability:
+  tracing:
+    # Optional. Set endpoint to auto-enable tracing, or set enabled explicitly.
+    endpoint: ""
+    headers: ""
+    insecure: false
+    sampling_rate: 1

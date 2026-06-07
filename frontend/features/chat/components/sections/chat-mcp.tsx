@@ -211,7 +211,7 @@ export function ChatMCP({
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="relative rounded-md text-muted-foreground hover:text-foreground"
+          className="relative size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
           disabled={disabled}
           aria-label={tComposer("mcpTools")}
           title={selectedToolCount > 0 ? tComposer("mcpToolsSelected", { count: selectedToolCount }) : tComposer("mcpTools")}
