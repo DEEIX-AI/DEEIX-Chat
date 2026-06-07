@@ -15,6 +15,7 @@
 
 <p align="center">
   <a href="https://deeix.com"><img alt="Website" src="https://img.shields.io/badge/Website-deeix.com-black" /></a>
+  <a href="https://deeix.com/docs/deeix-chat"><img alt="Guide" src="https://img.shields.io/badge/Guide-deeix.com%2Fdocs%2Fdeeix--chat-0f766e" /></a>
   <a href="https://t.me/deeix_chat"><img alt="Telegram" src="https://img.shields.io/badge/Telegram-deeix_chat-26A5E4?logo=telegram&logoColor=white" /></a>
   <a href="https://x.com/DEEIX_AI"><img alt="X" src="https://img.shields.io/badge/X-%40DEEIX_AI-black?logo=x&logoColor=white" /></a>
   <a href="https://www.apache.org/licenses/LICENSE-2.0"><img alt="License" src="https://img.shields.io/badge/License-Apache%202.0-blue" /></a>
@@ -387,6 +388,7 @@ Authentication, registration, conversation settings, model option policies, file
 
 ## Documentation
 
+- Usage guide: [deeix.com/docs/deeix-chat](https://deeix.com/docs/deeix-chat)
 - Backend guide: [backend/README.md](./backend/README.md)
 - Backend standards: [backend/docs/README.md](./backend/docs/README.md)
 - Frontend guide: [frontend/README.md](./frontend/README.md)

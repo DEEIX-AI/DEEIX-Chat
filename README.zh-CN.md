@@ -15,6 +15,7 @@
 
 <p align="center">
   <a href="https://deeix.com"><img alt="官网" src="https://img.shields.io/badge/官网-deeix.com-black" /></a>
+  <a href="https://deeix.com/docs/deeix-chat"><img alt="使用教程" src="https://img.shields.io/badge/使用教程-deeix.com%2Fdocs%2Fdeeix--chat-0f766e" /></a>
   <a href="https://t.me/deeix_chat"><img alt="Telegram" src="https://img.shields.io/badge/Telegram-deeix_chat-26A5E4?logo=telegram&logoColor=white" /></a>
   <a href="https://x.com/DEEIX_AI"><img alt="推特 / X" src="https://img.shields.io/badge/X-%40DEEIX_AI-black?logo=x&logoColor=white" /></a>
   <a href="https://www.apache.org/licenses/LICENSE-2.0"><img alt="开源协议" src="https://img.shields.io/badge/License-Apache%202.0-blue" /></a>
@@ -387,6 +388,7 @@ docker compose logs app
 
 ## 文档入口
 
+- 使用教程：[deeix.com/docs/deeix-chat](https://deeix.com/docs/deeix-chat)
 - 后端说明：[backend/README.md](./backend/README.md)
 - 后端规范：[backend/docs/README.md](./backend/docs/README.md)
 - 前端说明：[frontend/README.md](./frontend/README.md)
