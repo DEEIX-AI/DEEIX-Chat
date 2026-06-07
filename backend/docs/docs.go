@@ -1496,6 +1496,74 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员将当前平台模型绑定到一个已存在的上游模型",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员绑定模型上游来源",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "模型ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "来源绑定参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_channel.BindModelUpstreamSourceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_channel.ModelUpstreamSourceDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_channel.ErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_channel.ErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_channel.ErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_channel.ErrorDoc"
+                        }
+                    }
+                }
             }
         },
         "/admin/llm/models/{id}/sources/{route_id}": {
@@ -7352,6 +7420,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/messages/{id}": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "更新当前用户会话中的 assistant 消息内容，并标记为已编辑",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "更新消息内容",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "消息 public_id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "消息内容",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_conversation.UpdateMessageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_conversation.MessageResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_conversation.ErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_conversation.ErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_conversation.ErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/messages/{id}/feedback": {
             "put": {
                 "security": [
@@ -10103,6 +10235,12 @@ const docTemplate = `{
                 "billable": {
                     "type": "boolean"
                 },
+                "description": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
                 "priceLabel": {
                     "type": "string"
                 },
@@ -10113,6 +10251,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "toolKey": {
+                    "type": "string"
+                },
+                "type": {
                     "type": "string"
                 },
                 "unit": {
@@ -10965,6 +11106,38 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_transport_http_channel.BindModelUpstreamSourceRequest": {
+            "type": "object",
+            "required": [
+                "upstreamID",
+                "upstreamModelID"
+            ],
+            "properties": {
+                "priority": {
+                    "type": "integer"
+                },
+                "protocol": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "inactive"
+                    ]
+                },
+                "upstreamID": {
+                    "type": "integer"
+                },
+                "upstreamModelID": {
+                    "type": "integer"
+                },
+                "weight": {
+                    "type": "integer"
+                }
+            }
+        },
         "internal_transport_http_channel.CircuitResetResponse": {
             "type": "object",
             "properties": {
@@ -10979,6 +11152,13 @@ const docTemplate = `{
                 "platformModelName"
             ],
             "properties": {
+                "accessScope": {
+                    "type": "string",
+                    "enum": [
+                        "public",
+                        "internal"
+                    ]
+                },
                 "capabilitiesJSON": {
                     "type": "string",
                     "maxLength": 10000
@@ -11464,6 +11644,9 @@ const docTemplate = `{
         "internal_transport_http_channel.ModelResponse": {
             "type": "object",
             "properties": {
+                "accessScope": {
+                    "type": "string"
+                },
                 "activeSourceCount": {
                     "type": "integer"
                 },
@@ -11782,6 +11965,13 @@ const docTemplate = `{
         "internal_transport_http_channel.UpdateModelRequest": {
             "type": "object",
             "properties": {
+                "accessScope": {
+                    "type": "string",
+                    "enum": [
+                        "public",
+                        "internal"
+                    ]
+                },
                 "capabilitiesJSON": {
                     "type": "string",
                     "maxLength": 10000
@@ -12887,22 +13077,28 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_transport_http_conversation.FileListResponse": {
+            "type": "object",
+            "properties": {
+                "quota": {
+                    "$ref": "#/definitions/internal_transport_http_conversation.StorageQuotaResponse"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_transport_http_conversation.FileObjectResponse"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "internal_transport_http_conversation.FileListResponseDoc": {
             "type": "object",
             "properties": {
                 "data": {
-                    "type": "object",
-                    "properties": {
-                        "results": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/internal_transport_http_conversation.FileObjectResponse"
-                            }
-                        },
-                        "total": {
-                            "type": "integer"
-                        }
-                    }
+                    "$ref": "#/definitions/internal_transport_http_conversation.FileListResponse"
                 },
                 "errorMsg": {
                     "type": "string"
@@ -13221,6 +13417,9 @@ const docTemplate = `{
                 "createdAt": {
                     "type": "string"
                 },
+                "editedAt": {
+                    "type": "string"
+                },
                 "errorCode": {
                     "type": "string"
                 },
@@ -13298,6 +13497,17 @@ const docTemplate = `{
                 },
                 "userID": {
                     "type": "integer"
+                }
+            }
+        },
+        "internal_transport_http_conversation.MessageResponseDoc": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_transport_http_conversation.MessageResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
                 }
             }
         },
@@ -13448,6 +13658,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "createdAt": {
+                    "type": "string"
+                },
+                "editedAt": {
                     "type": "string"
                 },
                 "errorCode": {
@@ -13688,8 +13901,7 @@ const docTemplate = `{
                     "maxLength": 64
                 },
                 "content": {
-                    "type": "string",
-                    "maxLength": 20000
+                    "type": "string"
                 },
                 "contentType": {
                     "type": "string",
@@ -13707,6 +13919,13 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "htmlVisualColorMode": {
+                    "type": "string",
+                    "enum": [
+                        "light",
+                        "dark"
+                    ]
                 },
                 "htmlVisualPrompt": {
                     "type": "boolean"
@@ -13861,6 +14080,17 @@ const docTemplate = `{
                 },
                 "ragOptOut": {
                     "type": "boolean"
+                }
+            }
+        },
+        "internal_transport_http_conversation.UpdateMessageRequest": {
+            "type": "object",
+            "required": [
+                "content"
+            ],
+            "properties": {
+                "content": {
+                    "type": "string"
                 }
             }
         },

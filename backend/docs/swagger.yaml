@@ -1564,6 +1564,10 @@ definitions:
     properties:
       billable:
         type: boolean
+      description:
+        type: string
+      label:
+        type: string
       priceLabel:
         type: string
       priceNanousd:
@@ -1571,6 +1575,8 @@ definitions:
       provider:
         type: string
       toolKey:
+        type: string
+      type:
         type: string
       unit:
         type: string
@@ -2138,6 +2144,28 @@ definitions:
       status:
         type: string
     type: object
+  internal_transport_http_channel.BindModelUpstreamSourceRequest:
+    properties:
+      priority:
+        type: integer
+      protocol:
+        maxLength: 64
+        type: string
+      status:
+        enum:
+        - active
+        - inactive
+        type: string
+      upstreamID:
+        type: integer
+      upstreamModelID:
+        type: integer
+      weight:
+        type: integer
+    required:
+    - upstreamID
+    - upstreamModelID
+    type: object
   internal_transport_http_channel.CircuitResetResponse:
     properties:
       reset:
@@ -2145,6 +2173,11 @@ definitions:
     type: object
   internal_transport_http_channel.CreateModelRequest:
     properties:
+      accessScope:
+        enum:
+        - public
+        - internal
+        type: string
       capabilitiesJSON:
         maxLength: 10000
         type: string
@@ -2476,6 +2509,8 @@ definitions:
     type: object
   internal_transport_http_channel.ModelResponse:
     properties:
+      accessScope:
+        type: string
       activeSourceCount:
         type: integer
       capabilitiesJSON:
@@ -2684,6 +2719,11 @@ definitions:
     type: object
   internal_transport_http_channel.UpdateModelRequest:
     properties:
+      accessScope:
+        enum:
+        - public
+        - internal
+        type: string
       capabilitiesJSON:
         maxLength: 10000
         type: string
@@ -3421,17 +3461,21 @@ definitions:
       requestId:
         type: string
     type: object
+  internal_transport_http_conversation.FileListResponse:
+    properties:
+      quota:
+        $ref: '#/definitions/internal_transport_http_conversation.StorageQuotaResponse'
+      results:
+        items:
+          $ref: '#/definitions/internal_transport_http_conversation.FileObjectResponse'
+        type: array
+      total:
+        type: integer
+    type: object
   internal_transport_http_conversation.FileListResponseDoc:
     properties:
       data:
-        properties:
-          results:
-            items:
-              $ref: '#/definitions/internal_transport_http_conversation.FileObjectResponse'
-            type: array
-          total:
-            type: integer
-        type: object
+        $ref: '#/definitions/internal_transport_http_conversation.FileListResponse'
       errorMsg:
         type: string
     type: object
@@ -3639,6 +3683,8 @@ definitions:
         type: integer
       createdAt:
         type: string
+      editedAt:
+        type: string
       errorCode:
         type: string
       errorMessage:
@@ -3691,6 +3737,13 @@ definitions:
         type: string
       userID:
         type: integer
+    type: object
+  internal_transport_http_conversation.MessageResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_conversation.MessageResponse'
+      errorMsg:
+        type: string
     type: object
   internal_transport_http_conversation.MessageTraceBlockResponse:
     properties:
@@ -3789,6 +3842,8 @@ definitions:
       contentType:
         type: string
       createdAt:
+        type: string
+      editedAt:
         type: string
       errorCode:
         type: string
@@ -3946,7 +4001,6 @@ definitions:
         maxLength: 64
         type: string
       content:
-        maxLength: 20000
         type: string
       contentType:
         enum:
@@ -3961,6 +4015,11 @@ definitions:
           type: string
         maxItems: 20
         type: array
+      htmlVisualColorMode:
+        enum:
+        - light
+        - dark
+        type: string
       htmlVisualPrompt:
         type: boolean
       model:
@@ -4068,6 +4127,13 @@ definitions:
         type: string
       ragOptOut:
         type: boolean
+    type: object
+  internal_transport_http_conversation.UpdateMessageRequest:
+    properties:
+      content:
+        type: string
+    required:
+    - content
     type: object
   internal_transport_http_conversation.UploadFileResponseDoc:
     properties:
@@ -4197,7 +4263,7 @@ info:
   contact: {}
   description: DEEIX Chat 后端 API 文档
   title: DEEIX Chat API
-  version: "0.2.0"
+  version: 0.2.0
 paths:
   /admin/announcements:
     get:
@@ -5078,6 +5144,50 @@ paths:
       security:
       - BearerAuth: []
       summary: 管理员查询模型上游来源
+      tags:
+      - llm
+    post:
+      consumes:
+      - application/json
+      description: 管理员将当前平台模型绑定到一个已存在的上游模型
+      parameters:
+      - description: 模型ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 来源绑定参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_channel.BindModelUpstreamSourceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ModelUpstreamSourceDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_channel.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员绑定模型上游来源
       tags:
       - llm
   /admin/llm/models/{id}/sources/{route_id}:
@@ -8856,6 +8966,47 @@ paths:
       summary: 删除用户个性化记忆
       tags:
       - memory
+  /messages/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: 更新当前用户会话中的 assistant 消息内容，并标记为已编辑
+      parameters:
+      - description: 消息 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 消息内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_conversation.UpdateMessageRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.MessageResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_conversation.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 更新消息内容
+      tags:
+      - chat
   /messages/{id}/feedback:
     put:
       consumes:

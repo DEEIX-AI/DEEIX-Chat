@@ -81,7 +81,7 @@ type UpdateFileRequest struct {
 // SendMessageRequest 发送消息请求。
 type SendMessageRequest struct {
 	ContentType             string                 `json:"contentType" binding:"required,oneof=text markdown image file mixed"`
-	Content                 string                 `json:"content" binding:"required,max=20000"`
+	Content                 string                 `json:"content" binding:"required"`
 	Model                   string                 `json:"model" binding:"omitempty,max=128"`
 	Options                 map[string]interface{} `json:"options"`
 	ClientRunID             string                 `json:"clientRunID" binding:"omitempty,max=64"`
@@ -96,7 +96,7 @@ type SendMessageRequest struct {
 
 // MediaImageRequest 图片生成/编辑请求。
 type MediaImageRequest struct {
-	Prompt                string                 `json:"prompt" binding:"required,max=20000"`
+	Prompt                string                 `json:"prompt" binding:"required"`
 	Model                 string                 `json:"model" binding:"omitempty,max=128"`
 	Options               map[string]interface{} `json:"options"`
 	ClientRunID           string                 `json:"clientRunID" binding:"omitempty,max=64"`
@@ -114,5 +114,5 @@ type SetMessageFeedbackRequest struct {
 
 // UpdateMessageRequest 更新消息内容请求。
 type UpdateMessageRequest struct {
-	Content string `json:"content" binding:"required,max=200000"`
+	Content string `json:"content" binding:"required"`
 }
