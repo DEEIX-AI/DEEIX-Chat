@@ -457,7 +457,12 @@ export function UpstreamSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex flex-col gap-0 sm:max-w-[460px]">
+      <SheetContent
+        className="flex flex-col gap-0 sm:max-w-[460px]"
+        onInteractOutside={(event) => {
+          event.preventDefault();
+        }}
+      >
         <SheetHeader className="px-4 pb-4">
           <SheetTitle>{mode === "create" ? t("sheet.createTitle") : t("sheet.editTitle")}</SheetTitle>
         </SheetHeader>
