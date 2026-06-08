@@ -17,9 +17,16 @@ import {
   readLocalAppearancePreferences,
   serializeAppearancePreferences,
 } from "@/features/settings/utils/appearance-preferences";
-import { cancelCurrentTwoFactorSetup, completeOnboarding, confirmCurrentTwoFactorSetup, patchMe, patchUsername, startCurrentTwoFactorSetup } from "@/shared/api/auth";
+import {
+  cancelCurrentTwoFactorSetup,
+  completeOnboarding,
+  confirmCurrentTwoFactorSetup,
+  isPasswordReuseNotAllowedError,
+  patchMe,
+  patchUsername,
+  startCurrentTwoFactorSetup,
+} from "@/shared/api/auth";
 import type { TwoFactorSetupStartData, UserDTO } from "@/shared/api/auth.types";
-import { ApiError } from "@/shared/api/http-client";
 import {
   DISPLAY_NAME_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
@@ -127,10 +134,6 @@ const onboardingThemePresets: ThemePreset[] = [
   "ochre",
   "sepia",
 ];
-
-function isPasswordReuseError(error: unknown) {
-  return error instanceof ApiError && error.errorCode === "auth.password_reuse_not_allowed";
-}
 
 function OnboardingFeatureCarousel({
   activeIndex,
@@ -552,7 +555,7 @@ export function InitialSecurityGuard() {
       }
       toast.success(t("toasts.complete"));
     } catch (error) {
-      if (isPasswordReuseError(error)) {
+      if (isPasswordReuseNotAllowedError(error)) {
         setStep(2);
       }
       toast.error(t("toasts.completeFailed"), {

@@ -1,4 +1,4 @@
-import { apiRequest, pathParam } from "@/shared/api/http-client";
+import { ApiError, apiRequest, pathParam } from "@/shared/api/http-client";
 import { authedRequest } from "@/shared/api/authed-client";
 import type {
   ActiveSessionListData,
@@ -29,6 +29,14 @@ import type {
   UserIdentityData,
   UserIdentityListData,
 } from "@/shared/api/auth.types";
+
+export const AUTH_ERROR_CODES = {
+  passwordReuseNotAllowed: "auth.password_reuse_not_allowed",
+} as const;
+
+export function isPasswordReuseNotAllowedError(error: unknown): boolean {
+  return error instanceof ApiError && error.errorCode === AUTH_ERROR_CODES.passwordReuseNotAllowed;
+}
 
 export async function login(username: string, password: string): Promise<LoginData> {
   return apiRequest<LoginData>("/api/v1/auth/login", {
