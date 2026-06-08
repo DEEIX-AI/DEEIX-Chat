@@ -419,7 +419,7 @@ function ChatModelMenuItem({
         onClick={onSelect}
       >
         <LobeHubIcon iconUrl={iconURL} label={platformModelName} />
-        <span className="min-w-0 flex-1 truncate">
+        <span className="min-w-0 flex-1 truncate leading-4">
           {platformModelName}
         </span>
         <span className="flex size-3 shrink-0 items-center justify-center">
