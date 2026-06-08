@@ -62,6 +62,10 @@ func DefaultModelOptionAllowedPathsJSON() string {
     "reasoning.summary",
     "text.verbosity"
   ],
+  "openrouter_responses": [
+    "reasoning.effort",
+    "reasoning.summary"
+  ],
   "openai_image_generations": [
     "background",
     "moderation",

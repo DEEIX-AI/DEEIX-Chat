@@ -38,6 +38,9 @@ func buildResponsesRequestBody(
 	providerStreamOptions map[string]interface{},
 	stream bool,
 ) map[string]interface{} {
+	if adapter == AdapterOpenRouterResponses {
+		return buildOpenRouterResponsesRequestBody(model, input, messages, providerTools, toolDefinitions, providerStreamOptions, stream)
+	}
 	items := buildResponsesAPIInput(messages)
 	payload := map[string]interface{}{
 		"model":  strings.TrimSpace(model),

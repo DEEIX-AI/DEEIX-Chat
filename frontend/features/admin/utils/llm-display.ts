@@ -36,6 +36,7 @@ type ProtocolOption = {
 
 export const PROTOCOL_OPTIONS: ReadonlyArray<ProtocolOption> = [
   { value: "openai_responses", label: "Responses API (OpenAI)", kinds: ["chat"] },
+  { value: "openrouter_responses", label: "Responses (OpenRouter)", kinds: ["chat"] },
   { value: "openai_chat_completions", label: "Chat Completions (OpenAI)", kinds: ["chat"] },
   { value: "openai_image_generations", label: "Images Generations (OpenAI)", kinds: ["image_gen"] },
   { value: "openai_image_edits", label: "Images Edits (OpenAI)", kinds: ["image_edit"] },

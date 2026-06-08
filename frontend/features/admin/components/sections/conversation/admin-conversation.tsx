@@ -223,6 +223,10 @@ generationConfig.safetySettings.threshold`}
     "reasoning.effort",
     "text.verbosity"
   ],
+  "openrouter_responses": [
+    "reasoning.effort",
+    "reasoning.summary"
+  ],
   "openai_image_generations": [
     "background",
     "moderation",
@@ -302,7 +306,7 @@ generationConfig.safetySettings.threshold`}
             <h4 className="text-sm font-medium text-foreground">{t("guide.protocolTitle")}</h4>
             <p className="text-xs">{t("guide.protocolDescription")}</p>
             <div className="flex flex-wrap gap-1.5">
-              {["default", "openai_chat_completions", "openai_responses", "openai_image_generations", "openai_image_edits", "google_image_generation", "xai_image", "xai_image_edits", "anthropic_messages", "xai_responses", "gemini_generate_content"].map((item) => (
+              {["default", "openai_chat_completions", "openai_responses", "openrouter_responses", "openai_image_generations", "openai_image_edits", "google_image_generation", "xai_image", "xai_image_edits", "anthropic_messages", "xai_responses", "gemini_generate_content"].map((item) => (
                 <code key={item} className="rounded-md bg-muted/60 px-2 py-1 text-xs text-foreground">{item}</code>
               ))}
             </div>

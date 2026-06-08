@@ -70,6 +70,38 @@ func TestBuildOpenAIResponsesUsesOutputTextForAssistantHistory(t *testing.T) {
 	}
 }
 
+func TestBuildOpenRouterResponsesAddsRequiredHistoryMessageFields(t *testing.T) {
+	payload := mustBuildRequestBody(t, AdapterOpenRouterResponses, "openai/gpt-oss-120b:free", EndpointResponses, GenerateInput{
+		Messages: []Message{
+			{Role: "user", Content: "你好"},
+			{Role: "assistant", Content: "你好！有什么我可以帮忙的吗？"},
+			{Role: "user", Content: "你是谁？"},
+		},
+	}, true)
+
+	inputItems, ok := payload["input"].([]map[string]interface{})
+	if !ok || len(inputItems) != 3 {
+		t.Fatalf("expected three openrouter responses input items, got %#v", payload["input"])
+	}
+	if inputItems[0]["type"] != "message" || inputItems[0]["role"] != "user" {
+		t.Fatalf("expected user message item, got %#v", inputItems[0])
+	}
+	assistant := inputItems[1]
+	if assistant["type"] != "message" || assistant["role"] != "assistant" {
+		t.Fatalf("expected assistant message item, got %#v", assistant)
+	}
+	if assistant["id"] == "" || assistant["status"] != "completed" {
+		t.Fatalf("expected assistant id/status for openrouter history, got %#v", assistant)
+	}
+	content := assistant["content"].([]map[string]interface{})
+	if content[0]["type"] != "output_text" {
+		t.Fatalf("expected output_text content, got %#v", content[0])
+	}
+	if _, ok := payload["include"]; ok {
+		t.Fatalf("expected no openai-only default include for openrouter responses, got %#v", payload["include"])
+	}
+}
+
 func TestBuildOpenAIResponsesPlaylistHistoryMatchesOfficialContentTypes(t *testing.T) {
 	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5.5", EndpointResponses, GenerateInput{
 		Messages: []Message{
