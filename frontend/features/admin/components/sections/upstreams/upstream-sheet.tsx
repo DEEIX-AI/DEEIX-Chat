@@ -74,6 +74,7 @@ const NO_PROTOCOL_DEFAULT = "__system_default__";
 const PROTOCOL_OPTIONS_BY_KIND: Record<(typeof PROTOCOL_DEFAULT_KINDS)[number], string[]> = {
   chat: [
     "openai_responses",
+    "openrouter_responses",
     "openai_chat_completions",
     "anthropic_messages",
     "google_generate_content",
@@ -81,6 +82,7 @@ const PROTOCOL_OPTIONS_BY_KIND: Record<(typeof PROTOCOL_DEFAULT_KINDS)[number], 
   ],
   audio: [
     "openai_responses",
+    "openrouter_responses",
     "openai_chat_completions",
     "anthropic_messages",
     "google_generate_content",

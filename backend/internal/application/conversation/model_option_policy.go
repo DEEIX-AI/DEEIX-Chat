@@ -434,7 +434,7 @@ func sanitizeModelOptionValues(options map[string]interface{}, protocolKey strin
 		return
 	}
 	switch protocolKey {
-	case "openai_chat_completions", "openai_responses":
+	case "openai_chat_completions", "openai_responses", "openrouter_responses":
 		serviceTier, ok := options["service_tier"]
 		if !ok {
 			return
@@ -479,6 +479,8 @@ func modelOptionPolicyProtocolKey(protocol string) string {
 	switch llm.NormalizeAdapter(protocol) {
 	case "openai":
 		return "openai_responses"
+	case "openrouter":
+		return "openrouter_responses"
 	case "anthropic", "claude":
 		return "anthropic_messages"
 	case "xai", "grok":
@@ -491,6 +493,8 @@ func modelOptionPolicyProtocolKey(protocol string) string {
 		return "google_image_generation"
 	case llm.AdapterOpenAIChatCompletions:
 		return "openai_chat_completions"
+	case llm.AdapterOpenRouterResponses:
+		return "openrouter_responses"
 	case llm.AdapterOpenAIImageGenerations:
 		return "openai_image_generations"
 	case llm.AdapterOpenAIImageEdits:

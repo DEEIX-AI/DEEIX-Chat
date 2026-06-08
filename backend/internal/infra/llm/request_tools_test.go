@@ -170,6 +170,26 @@ func TestBuildResponsesToolInputItems(t *testing.T) {
 	}
 }
 
+func TestBuildOpenRouterResponsesToolHistoryAddsItemIDs(t *testing.T) {
+	payload := mustBuildRequestBody(t, AdapterOpenRouterResponses, "openai/o4-mini", EndpointResponses, GenerateInput{
+		Messages: []Message{
+			{Role: "assistant", ToolCalls: []ToolCall{{ToolCallID: "call_123", ToolName: "get_weather", ArgumentsJSON: `{"location":"Boston, MA"}`}}},
+			{Role: "tool", ToolResults: []ToolResult{{ToolCallID: "call_123", ToolName: "get_weather", OutputJSON: `{"temperature":"72F"}`, Status: "success"}}},
+		},
+	}, false)
+
+	items := payload["input"].([]map[string]interface{})
+	if len(items) != 2 {
+		t.Fatalf("expected two tool history items, got %#v", items)
+	}
+	if items[0]["type"] != "function_call" || items[0]["id"] == "" || items[0]["call_id"] != "call_123" {
+		t.Fatalf("expected function_call item id and call_id, got %#v", items[0])
+	}
+	if items[1]["type"] != "function_call_output" || items[1]["id"] == "" || items[1]["call_id"] != "call_123" {
+		t.Fatalf("expected function_call_output item id and call_id, got %#v", items[1])
+	}
+}
+
 func TestBuildOpenAIToolsKeepsInputSchema(t *testing.T) {
 	schema := json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"},"count":{"type":"number"}},"required":["query"]}`)
 	payload := mustBuildRequestBody(t, AdapterOpenAIChatCompletions, "gpt-5", EndpointChatCompletions, GenerateInput{
