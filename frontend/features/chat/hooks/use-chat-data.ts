@@ -4,14 +4,19 @@ import * as React from "react";
 import { useTranslations } from "next-intl";
 
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { cancelMessageGeneration, listMessages, resumeMessageGenerationStream } from "@/shared/api/conversation";
+import { cancelMessageGeneration, listMessagesPage, resumeMessageGenerationStream } from "@/shared/api/conversation";
 import { buildMediaImagePreviewMarkdown } from "@/features/chat/model/media-image-preview";
 import type { MessageDTO } from "@/shared/api/conversation.types";
 
+const MESSAGE_PAGE_SIZE = 100;
+
 type ChatDataState = {
   loading: boolean;
+  loadingOlder: boolean;
   errorMsg: string;
   messages: MessageDTO[];
+  total: number;
+  hasOlder: boolean;
 };
 
 type ActiveResumeStream = {
@@ -34,8 +39,11 @@ export function useChatData(
   const tSubmit = useTranslations("chat.submit");
   const [state, setState] = React.useState<ChatDataState>({
     loading: Boolean(conversationID),
+    loadingOlder: false,
     errorMsg: "",
     messages: [],
+    total: 0,
+    hasOlder: false,
   });
   const [reloadToken, setReloadToken] = React.useState(0);
   const [resumingRunID, setResumingRunID] = React.useState("");
@@ -50,8 +58,11 @@ export function useChatData(
       if (!conversationID) {
         setState({
           loading: false,
+          loadingOlder: false,
           errorMsg: "",
           messages: [],
+          total: 0,
+          hasOlder: false,
         });
         return;
       }
@@ -60,8 +71,11 @@ export function useChatData(
       previousConversationIDRef.current = conversationID;
       setState((prev) => ({
         loading: isConversationSwitch || prev.messages.length === 0,
+        loadingOlder: false,
         errorMsg: "",
         messages: isConversationSwitch ? [] : prev.messages,
+        total: isConversationSwitch ? 0 : prev.total,
+        hasOlder: isConversationSwitch ? false : prev.hasOlder,
       }));
       try {
         const token = await resolveAccessToken();
@@ -69,28 +83,39 @@ export function useChatData(
           if (!cancelled) {
             setState({
               loading: false,
+              loadingOlder: false,
               errorMsg: t("signInRequired"),
               messages: [],
+              total: 0,
+              hasOlder: false,
             });
           }
           return;
         }
 
-        const messages = await listMessages(token, conversationID);
+        const data = await listMessagesPage(token, conversationID, {
+          page: 1,
+          pageSize: MESSAGE_PAGE_SIZE,
+          tail: true,
+        });
         if (cancelled) {
           return;
         }
 
         setState({
           loading: false,
+          loadingOlder: false,
           errorMsg: "",
-          messages,
+          messages: data.results,
+          total: data.total,
+          hasOlder: data.results.length < data.total,
         });
       } catch {
         if (!cancelled) {
           setState((prev) => ({
             ...prev,
             loading: false,
+            loadingOlder: false,
             errorMsg: t("loadFailed"),
           }));
         }
@@ -115,6 +140,53 @@ export function useChatData(
       ),
     }));
   }, []);
+
+  const loadOlderMessages = React.useCallback(async () => {
+    if (!conversationID || state.loading || state.loadingOlder || !state.hasOlder || state.messages.length === 0) {
+      return false;
+    }
+
+    const beforeID = state.messages[0]?.id ?? 0;
+    if (beforeID <= 0) {
+      setState((prev) => ({ ...prev, hasOlder: false }));
+      return false;
+    }
+
+    setState((prev) => ({ ...prev, loadingOlder: true }));
+    try {
+      const token = await resolveAccessToken();
+      if (!token) {
+        setState((prev) => ({ ...prev, loadingOlder: false, hasOlder: false }));
+        return false;
+      }
+
+      const data = await listMessagesPage(token, conversationID, {
+        pageSize: MESSAGE_PAGE_SIZE,
+        beforeID,
+      });
+      if (previousConversationIDRef.current !== conversationID) {
+        return false;
+      }
+      let loaded = false;
+      setState((prev) => {
+        const existingPublicIDs = new Set(prev.messages.map((message) => message.publicID));
+        const olderMessages = data.results.filter((message) => !existingPublicIDs.has(message.publicID));
+        const messages = [...olderMessages, ...prev.messages];
+        loaded = olderMessages.length > 0;
+        return {
+          ...prev,
+          loadingOlder: false,
+          messages,
+          total: data.total,
+          hasOlder: loaded && messages.length < data.total,
+        };
+      });
+      return loaded;
+    } catch {
+      setState((prev) => ({ ...prev, loadingOlder: false }));
+      return false;
+    }
+  }, [conversationID, state.hasOlder, state.loading, state.loadingOlder, state.messages]);
 
   const cancelResumedGeneration = React.useCallback(async () => {
     const active = activeResumeStreamRef.current;
@@ -320,6 +392,7 @@ export function useChatData(
   return {
     ...state,
     cancelResumedGeneration,
+    loadOlderMessages,
     reload,
     replaceMessage,
     resumingRunID,

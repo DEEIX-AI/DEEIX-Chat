@@ -68,9 +68,23 @@ func (h *Handler) recordAudit(c *gin.Context, action string, resource string, re
 	})
 }
 
+const (
+	defaultHTTPPageSize = 20
+	maxHTTPPageSize     = 100
+	maxMessagePageSize  = 1000
+)
+
 func pageParams(c *gin.Context) (int, int) {
+	return pageParamsWithMax(c, maxHTTPPageSize)
+}
+
+func messagePageParams(c *gin.Context) (int, int) {
+	return pageParamsWithMax(c, maxMessagePageSize)
+}
+
+func pageParamsWithMax(c *gin.Context, maxPageSize int) (int, int) {
 	page := 1
-	pageSize := 20
+	pageSize := defaultHTTPPageSize
 
 	if raw := c.Query("page"); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
@@ -79,8 +93,8 @@ func pageParams(c *gin.Context) (int, int) {
 	}
 	if raw := c.Query("page_size"); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			if parsed > 100 {
-				parsed = 100
+			if maxPageSize > 0 && parsed > maxPageSize {
+				parsed = maxPageSize
 			}
 			pageSize = parsed
 		}

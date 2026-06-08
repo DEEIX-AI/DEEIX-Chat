@@ -1176,6 +1176,40 @@ func (r *Repo) ListMessages(ctx context.Context, conversationID uint, offset int
 	return toMessageDomains(items), total, nil
 }
 
+// ListMessagesBeforeID 查询指定消息 ID 之前的一页会话消息（按时间升序返回）。
+func (r *Repo) ListMessagesBeforeID(ctx context.Context, conversationID uint, beforeID uint, limit int) ([]domainconversation.Message, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	items := make([]models.Message, 0, limit)
+	var total int64
+
+	if err := r.db.WithContext(ctx).
+		Model(&models.Message{}).
+		Where("conversation_id = ?", conversationID).
+		Count(&total).Error; err != nil {
+		return nil, 0, translateError(err)
+	}
+
+	if err := r.db.WithContext(ctx).
+		Where("conversation_id = ? AND id < ?", conversationID, beforeID).
+		Order("id DESC").
+		Limit(limit).
+		Find(&items).Error; err != nil {
+		return nil, 0, translateError(err)
+	}
+	for left, right := 0, len(items)-1; left < right; left, right = left+1, right-1 {
+		items[left], items[right] = items[right], items[left]
+	}
+	if err := r.hydrateMessageRefs(ctx, items); err != nil {
+		return nil, 0, err
+	}
+	if err := r.hydrateMessageAttachments(ctx, items); err != nil {
+		return nil, 0, err
+	}
+	return toMessageDomains(items), total, nil
+}
+
 // ListMessagesForShare 查询分享快照可公开展示的消息。
 func (r *Repo) ListMessagesForShare(ctx context.Context, conversationID uint, publicIDs []string) ([]domainconversation.Message, error) {
 	items := make([]models.Message, 0)

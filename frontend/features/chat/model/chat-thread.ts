@@ -338,7 +338,7 @@ export function buildVisibleMessages(
   selections: Record<string, string>,
 ): ChatAreaMessage[] {
   const children = buildChildrenIndex(messages);
-  const visible: ChatAreaMessage[] = [];
+  let visible: ChatAreaMessage[] = [];
   const visited = new Set<string>();
   let parentKey = ROOT_BRANCH_KEY;
 
@@ -357,6 +357,10 @@ export function buildVisibleMessages(
     visited.add(selected.publicID);
     visible.push(selected);
     parentKey = selected.publicID;
+  }
+
+  if (visible.length === 0 && messages.length > 0) {
+    visible = buildTailVisibleMessages(messages);
   }
 
   const withUserNavigators = visible.map((item) => {
@@ -399,4 +403,20 @@ export function buildVisibleMessages(
       branchNavigator: previous.branchNavigator ?? item.branchNavigator,
     };
   });
+}
+
+function buildTailVisibleMessages(messages: ChatAreaMessage[]): ChatAreaMessage[] {
+  const byPublicID = new Map(messages.map((item) => [item.publicID, item]));
+  const visible: ChatAreaMessage[] = [];
+  const visited = new Set<string>();
+  let current = messages.at(-1) ?? null;
+
+  while (current && !visited.has(current.publicID)) {
+    visited.add(current.publicID);
+    visible.push(current);
+    const parentPublicID = current.parentPublicID?.trim() || "";
+    current = parentPublicID ? byPublicID.get(parentPublicID) ?? null : null;
+  }
+
+  return visible.reverse();
 }

@@ -3,6 +3,7 @@ package conversation
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
@@ -161,7 +162,16 @@ func (h *Handler) ListMessages(c *gin.Context) {
 		return
 	}
 
-	page, pageSize := pageParams(c)
+	page, pageSize := messagePageParams(c)
+	var beforeID uint
+	if rawBeforeID := strings.TrimSpace(c.Query("before_id")); rawBeforeID != "" {
+		parsed, parseErr := strconv.ParseUint(rawBeforeID, 10, 64)
+		if parseErr != nil || parsed == 0 {
+			response.Error(c, http.StatusBadRequest, "invalid before message id")
+			return
+		}
+		beforeID = uint(parsed)
+	}
 	conversation, err := h.service.GetConversationByPublicID(c.Request.Context(), userID, publicID)
 	if err != nil {
 		if errors.Is(err, appconversation.ErrConversationNotFound) {
@@ -174,7 +184,9 @@ func (h *Handler) ListMessages(c *gin.Context) {
 
 	var items []model.Message
 	var total int64
-	if c.Query("tail") == "true" {
+	if beforeID > 0 {
+		items, total, err = h.service.ListMessagesBeforeID(c.Request.Context(), userID, conversation.ID, beforeID, pageSize)
+	} else if c.Query("tail") == "true" {
 		items, total, err = h.service.ListRecentMessages(c.Request.Context(), userID, conversation.ID, pageSize)
 	} else {
 		items, total, err = h.service.ListMessages(c.Request.Context(), userID, conversation.ID, page, pageSize)

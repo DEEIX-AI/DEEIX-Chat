@@ -4,6 +4,7 @@ import * as React from "react";
 
 const CHAT_SCROLL_STORAGE_KEY = "deeix-chat:chat-scroll:v1";
 const BOTTOM_THRESHOLD_PX = 96;
+const TOP_LOAD_THRESHOLD_PX = 48;
 const SCROLL_POSITION_PERSIST_DELAY_MS = 180;
 const RESTORE_RETRY_FRAMES = 3;
 
@@ -85,6 +86,9 @@ export function useChatScrollController({
   showPendingAssistant,
   streamingText,
   streamingTraceText,
+  hasOlderMessages = false,
+  loadingOlderMessages = false,
+  onLoadOlderMessages,
 }: {
   conversationID: string | null;
   loading: boolean;
@@ -94,6 +98,9 @@ export function useChatScrollController({
   showPendingAssistant: boolean;
   streamingText: string;
   streamingTraceText: string;
+  hasOlderMessages?: boolean;
+  loadingOlderMessages?: boolean;
+  onLoadOlderMessages?: () => Promise<boolean> | boolean;
 }) {
   const messageViewportRef = React.useRef<HTMLDivElement | null>(null);
   const messageContentRef = React.useRef<HTMLDivElement | null>(null);
@@ -106,6 +113,11 @@ export function useChatScrollController({
   const currentConversationIDRef = React.useRef<string | null>(conversationID);
   const handledConversationIDRef = React.useRef<string | null | undefined>(undefined);
   const wasStreamingRef = React.useRef(false);
+  const hasOlderMessagesRef = React.useRef(hasOlderMessages);
+  const loadingOlderMessagesRef = React.useRef(loadingOlderMessages);
+  const onLoadOlderMessagesRef = React.useRef(onLoadOlderMessages);
+  const loadingOlderInFlightRef = React.useRef(false);
+  const olderScrollRestoreRef = React.useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const [showScrollToLatestButton, setShowScrollToLatestButton] = React.useState(false);
 
   const hasLiveStreamingContent = showPendingAssistant || streamingText.length > 0 || streamingTraceText.length > 0;
@@ -134,6 +146,18 @@ export function useChatScrollController({
   const setFollowMode = React.useCallback((mode: FollowMode) => {
     followModeRef.current = mode;
   }, []);
+
+  React.useEffect(() => {
+    hasOlderMessagesRef.current = hasOlderMessages;
+  }, [hasOlderMessages]);
+
+  React.useEffect(() => {
+    loadingOlderMessagesRef.current = loadingOlderMessages;
+  }, [loadingOlderMessages]);
+
+  React.useEffect(() => {
+    onLoadOlderMessagesRef.current = onLoadOlderMessages;
+  }, [onLoadOlderMessages]);
 
   const scrollViewportToBottom = React.useCallback(
     (viewport: HTMLDivElement | null = messageViewportRef.current) => {
@@ -204,6 +228,40 @@ export function useChatScrollController({
     [persistViewportPosition],
   );
 
+  const triggerLoadOlderMessages = React.useCallback(() => {
+    const viewport = messageViewportRef.current;
+    const loadOlder = onLoadOlderMessagesRef.current;
+    if (
+      !viewport ||
+      !loadOlder ||
+      !hasOlderMessagesRef.current ||
+      loadingOlderMessagesRef.current ||
+      loadingOlderInFlightRef.current
+    ) {
+      return;
+    }
+
+    setFollowMode("manual");
+    loadingOlderInFlightRef.current = true;
+    olderScrollRestoreRef.current = {
+      scrollHeight: viewport.scrollHeight,
+      scrollTop: viewport.scrollTop,
+    };
+
+    Promise.resolve(loadOlder())
+      .then((loaded) => {
+        if (!loaded) {
+          olderScrollRestoreRef.current = null;
+        }
+      })
+      .catch(() => {
+        olderScrollRestoreRef.current = null;
+      })
+      .finally(() => {
+        loadingOlderInFlightRef.current = false;
+      });
+  }, [setFollowMode]);
+
   const restoreViewportPosition = React.useCallback(() => {
     const viewport = messageViewportRef.current;
     if (!viewport) {
@@ -231,8 +289,11 @@ export function useChatScrollController({
     }
 
     setFollowMode(updateScrollAffordance(viewport) ? "follow" : "manual");
+    if (viewport.scrollTop <= TOP_LOAD_THRESHOLD_PX) {
+      triggerLoadOlderMessages();
+    }
     schedulePersistViewportPosition(currentConversationIDRef.current);
-  }, [schedulePersistViewportPosition, setFollowMode, updateScrollAffordance]);
+  }, [schedulePersistViewportPosition, setFollowMode, triggerLoadOlderMessages, updateScrollAffordance]);
 
   const onScrollToLatest = React.useCallback(() => {
     const viewport = messageViewportRef.current;
@@ -252,6 +313,8 @@ export function useChatScrollController({
     currentConversationIDRef.current = conversationID;
     restoreStateRef.current = conversationID ? "pending" : "idle";
     wasStreamingRef.current = false;
+    olderScrollRestoreRef.current = null;
+    loadingOlderInFlightRef.current = false;
     setFollowMode("follow");
     setShowScrollToLatestButton(false);
 
@@ -297,6 +360,24 @@ export function useChatScrollController({
   }, [loading, restoreViewportPosition, visibleMessageCount]);
 
   React.useLayoutEffect(() => {
+    if (loadingOlderMessages) {
+      return;
+    }
+
+    const restore = olderScrollRestoreRef.current;
+    const viewport = messageViewportRef.current;
+    if (!restore || !viewport) {
+      return;
+    }
+
+    const heightDelta = viewport.scrollHeight - restore.scrollHeight;
+    setFollowMode("manual");
+    viewport.scrollTop = restore.scrollTop + Math.max(0, heightDelta);
+    olderScrollRestoreRef.current = null;
+    updateScrollAffordance(viewport);
+  }, [loadingOlderMessages, setFollowMode, updateScrollAffordance, visibleMessageCount]);
+
+  React.useLayoutEffect(() => {
     if (restoreStateRef.current === "pending") {
       return;
     }
@@ -322,6 +403,16 @@ export function useChatScrollController({
     updateScrollAffordance,
     visibleMessageCount,
   ]);
+
+  React.useEffect(() => {
+    const viewport = messageViewportRef.current;
+    if (!viewport || restoreStateRef.current === "pending" || loading || loadingOlderMessages) {
+      return;
+    }
+    if (viewport.scrollTop <= TOP_LOAD_THRESHOLD_PX) {
+      triggerLoadOlderMessages();
+    }
+  }, [hasOlderMessages, loading, loadingOlderMessages, triggerLoadOlderMessages, visibleMessageCount]);
 
   React.useEffect(() => {
     const content = messageContentRef.current;

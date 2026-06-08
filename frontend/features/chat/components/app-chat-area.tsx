@@ -44,9 +44,10 @@ import {
 import { useSidebarRecents } from "@/features/recent/context/sidebar-recents-context";
 import { useChatData } from "@/features/chat/hooks/use-chat-data";
 import { toPendingAttachment } from "@/features/chat/model/message-submit";
+import { getConversation } from "@/shared/api/conversation";
 import { listAvailableMCPTools } from "@/shared/api/mcp";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
+import type { ConversationDTO, ConversationOptions } from "@/shared/api/conversation.types";
 import type { MCPToolDTO } from "@/shared/api/mcp.types";
 import { useTheme } from "@/shared/components/theme-provider";
 import { cn } from "@/lib/utils";
@@ -167,7 +168,10 @@ export function AppChatArea() {
   const {
     cancelResumedGeneration,
     loading,
+    loadingOlder,
     errorMsg,
+    hasOlder,
+    loadOlderMessages,
     messages,
     reload,
     replaceMessage,
@@ -188,6 +192,38 @@ export function AppChatArea() {
     }
     return items.find((item) => item.publicID === conversationID) ?? null;
   }, [conversationID, items]);
+  const [loadedConversation, setLoadedConversation] = React.useState<ConversationDTO | null>(null);
+  React.useEffect(() => {
+    const normalizedConversationID = conversationID?.trim() || "";
+    if (!normalizedConversationID || activeConversation?.publicID === normalizedConversationID) {
+      setLoadedConversation(null);
+      return;
+    }
+
+    let cancelled = false;
+    async function loadConversation() {
+      const token = await resolveAccessToken();
+      if (!token) {
+        return;
+      }
+      const item = await getConversation(token, normalizedConversationID);
+      if (cancelled) {
+        return;
+      }
+      setLoadedConversation(item);
+    }
+
+    void loadConversation().catch(() => {
+      if (!cancelled) {
+        setLoadedConversation(null);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeConversation?.publicID, conversationID]);
+  const currentConversation =
+    activeConversation ?? (loadedConversation?.publicID === conversationID ? loadedConversation : null);
   const activeRouteProject = React.useMemo(() => {
     if (!routeProjectID || conversationID) {
       return null;
@@ -220,7 +256,7 @@ export function AppChatArea() {
     setSelectedPlatformModelName,
   } = useChatModelOptions({
     conversationPublicID: conversationID,
-    conversationModel: activeConversation?.model ?? null,
+    conversationModel: currentConversation?.model ?? null,
   });
   const {
     conversationKey,
@@ -380,7 +416,7 @@ export function AppChatArea() {
     conversationID,
     resetToken: newConversationRevision,
     messages,
-    activeConversation,
+    activeConversation: currentConversation,
     selectedPlatformModelName,
     modelOptions,
     selectedToolIDs,
@@ -432,6 +468,9 @@ export function AppChatArea() {
     showPendingAssistant: showLiveAssistant,
     streamingText,
     streamingTraceText,
+    hasOlderMessages: hasOlder,
+    loadingOlderMessages: loadingOlder,
+    onLoadOlderMessages: loadOlderMessages,
   });
 
   const onEditGeneratedImageAttachment = React.useCallback(
@@ -483,20 +522,20 @@ export function AppChatArea() {
   }, [conversationID]);
 
   React.useEffect(() => {
-    const nextTitle = activeConversation?.title?.trim();
+    const nextTitle = currentConversation?.title?.trim();
     if (nextTitle) {
       setManualConversationTitle(nextTitle);
     }
-  }, [activeConversation?.publicID, activeConversation?.title]);
+  }, [currentConversation?.publicID, currentConversation?.title]);
 
   const actionConversationID = React.useMemo(() => (conversationID || "").trim(), [conversationID]);
   const canOperateConversation = actionConversationID.length > 0;
   const activeConversationTitle = React.useMemo(
-    () => manualConversationTitle || activeConversation?.title?.trim() || t("untitledConversation"),
-    [activeConversation?.title, manualConversationTitle, t],
+    () => manualConversationTitle || currentConversation?.title?.trim() || t("untitledConversation"),
+    [currentConversation?.title, manualConversationTitle, t],
   );
-  const activeConversationStarred = Boolean(activeConversation?.isStarred);
-  const activeConversationShared = activeConversation?.shareStatus === "active" && Boolean(activeConversation.shareID?.trim());
+  const activeConversationStarred = Boolean(currentConversation?.isStarred);
+  const activeConversationShared = currentConversation?.shareStatus === "active" && Boolean(currentConversation.shareID?.trim());
   const shareDefaultMessagePublicIDs = React.useMemo(
     () =>
       visibleMessages
@@ -855,7 +894,7 @@ export function AppChatArea() {
                   projectMenu={{
                     label: t("labelMenu.moveToProject"),
                     unassignedLabel: t("labelMenu.unassignedProject"),
-                    currentProjectID: activeConversation?.projectID,
+                    currentProjectID: currentConversation?.projectID,
                     projects,
                     onSelect: onSetActiveConversationProject,
                   }}

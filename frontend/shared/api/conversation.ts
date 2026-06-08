@@ -717,21 +717,55 @@ export async function getContextArtifact(
 }
 
 // Messages
-export async function listMessages(
+type ListMessagesOptions = {
+  page?: number;
+  pageSize?: number;
+  tail?: boolean;
+  beforeID?: number;
+};
+
+export async function listMessagesPage(
   accessToken: string,
   conversationPublicID: string,
-  page = 1,
-  pageSize = 1000,
-): Promise<MessageDTO[]> {
-  const tailQuery = page === 1 ? "&tail=true" : "";
+  options: ListMessagesOptions = {},
+): Promise<PagePayload<MessageDTO>> {
+  const page = options.page && options.page > 0 ? options.page : 1;
+  const pageSize = options.pageSize && options.pageSize > 0 ? options.pageSize : 100;
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  if (options.tail) {
+    params.set("tail", "true");
+  }
+  if (options.beforeID && options.beforeID > 0) {
+    params.set("before_id", String(options.beforeID));
+  }
   const data = await authedRequest<PagePayload<MessageDTO>>(
-    `/api/v1/conversations/${pathParam(conversationPublicID)}/messages?page=${page}&page_size=${pageSize}${tailQuery}`,
+    `/api/v1/conversations/${pathParam(conversationPublicID)}/messages?${params.toString()}`,
     {
       accessToken,
     },
     true,
   );
-  return data.results ?? [];
+  return {
+    total: data.total ?? 0,
+    results: data.results ?? [],
+  };
+}
+
+export async function listMessages(
+  accessToken: string,
+  conversationPublicID: string,
+  page = 1,
+  pageSize = 100,
+): Promise<MessageDTO[]> {
+  const data = await listMessagesPage(accessToken, conversationPublicID, {
+    page,
+    pageSize,
+    tail: page === 1,
+  });
+  return data.results;
 }
 
 export async function sendMessage(

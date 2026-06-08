@@ -2,10 +2,12 @@ package conversation
 
 import (
 	"errors"
+	"net/http/httptest"
 	"testing"
 
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/gin-gonic/gin"
 )
 
 func TestSafeFileContentTypeDowngradesActiveContent(t *testing.T) {
@@ -22,6 +24,23 @@ func TestSafeFileContentTypeDowngradesActiveContent(t *testing.T) {
 		if got := safeFileContentType(tt.contentType); got != tt.want {
 			t.Fatalf("safeFileContentType(%q) = %q, want %q", tt.contentType, got, tt.want)
 		}
+	}
+}
+
+func TestMessagePageParamsAllowsRestoreWindow(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/messages?page=1&page_size=1000", nil)
+
+	_, pageSize := messagePageParams(c)
+	if pageSize != 1000 {
+		t.Fatalf("messagePageParams page size = %d, want 1000", pageSize)
+	}
+
+	_, normalPageSize := pageParams(c)
+	if normalPageSize != maxHTTPPageSize {
+		t.Fatalf("pageParams page size = %d, want %d", normalPageSize, maxHTTPPageSize)
 	}
 }
 
