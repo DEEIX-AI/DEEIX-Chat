@@ -136,8 +136,8 @@ func systemFallbackProtocols(compatible string) map[string]string {
 		}
 	case compatibleOpenRouter:
 		return map[string]string{
-			modelKindChat:      llm.AdapterOpenAIResponses,
-			modelKindAudio:     llm.AdapterOpenAIResponses,
+			modelKindChat:      llm.AdapterOpenRouterResponses,
+			modelKindAudio:     llm.AdapterOpenRouterResponses,
 			modelKindImageGen:  protocolOpenAIImageGenerations,
 			modelKindImageEdit: protocolOpenAIImageEdits,
 			modelKindVideoGen:  protocolOpenAIVideoGenerations,
@@ -157,6 +157,7 @@ func systemFallbackProtocols(compatible string) map[string]string {
 func isKnownProtocol(raw string) bool {
 	switch strings.TrimSpace(strings.ToLower(raw)) {
 	case llm.AdapterOpenAIResponses,
+		llm.AdapterOpenRouterResponses,
 		llm.AdapterOpenAIChatCompletions,
 		llm.AdapterAnthropicMessages,
 		llm.AdapterGoogleGenerateContent,
@@ -331,6 +332,7 @@ func isProtocolAllowedForKind(kind string, protocol string) bool {
 	case modelKindChat, modelKindAudio:
 		switch protocol {
 		case llm.AdapterOpenAIResponses,
+			llm.AdapterOpenRouterResponses,
 			llm.AdapterOpenAIChatCompletions,
 			llm.AdapterAnthropicMessages,
 			llm.AdapterGoogleGenerateContent,

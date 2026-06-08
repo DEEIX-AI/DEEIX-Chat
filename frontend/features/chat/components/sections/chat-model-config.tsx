@@ -391,6 +391,7 @@ const PROTOCOL_LABELS: Record<string, string> = {
   openai_image_edits: "Images Edits",
   openai_image_generations: "Images Generations",
   openai_responses: "Responses",
+  openrouter_responses: "OpenRouter Responses",
   openai_video_generations: "Video Generations",
   replicate_predictions: "Predictions",
   stability_ai_generate: "Image Generation",

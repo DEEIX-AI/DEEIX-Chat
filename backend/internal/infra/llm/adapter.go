@@ -10,6 +10,7 @@ import (
 // 已支持的协议常量。每个协议固定对应一个 HTTP 端点，任务能力由模型类别和路由规则约束。
 const (
 	AdapterOpenAIResponses        = "openai_responses"         // POST /v1/responses
+	AdapterOpenRouterResponses    = "openrouter_responses"     // POST /v1/responses（OpenRouter Responses Beta）
 	AdapterOpenAIChatCompletions  = "openai_chat_completions"  // POST /v1/chat/completions
 	AdapterOpenAIImageGenerations = "openai_image_generations" // POST /v1/images/generations
 	AdapterOpenAIImageEdits       = "openai_image_edits"       // POST /v1/images/edits
@@ -48,6 +49,7 @@ func NormalizeAdapter(raw string) string {
 func IsKnownAdapter(raw string) bool {
 	switch NormalizeAdapter(raw) {
 	case AdapterOpenAIResponses,
+		AdapterOpenRouterResponses,
 		AdapterOpenAIChatCompletions,
 		AdapterOpenAIImageGenerations,
 		AdapterOpenAIImageEdits,
@@ -66,7 +68,7 @@ func IsKnownAdapter(raw string) bool {
 // IsImplementedAdapter 返回协议是否已有可用的传输层实现。
 func IsImplementedAdapter(raw string) bool {
 	switch NormalizeAdapter(raw) {
-	case AdapterOpenAIResponses, AdapterOpenAIChatCompletions, AdapterOpenAIImageGenerations, AdapterOpenAIImageEdits, AdapterXAIResponses,
+	case AdapterOpenAIResponses, AdapterOpenRouterResponses, AdapterOpenAIChatCompletions, AdapterOpenAIImageGenerations, AdapterOpenAIImageEdits, AdapterXAIResponses,
 		AdapterAnthropicMessages, AdapterGoogleGenerateContent, AdapterGoogleImageGeneration, AdapterXAIImage, AdapterXAIImageEdits:
 		return true
 	default:
@@ -78,6 +80,7 @@ func IsImplementedAdapter(raw string) bool {
 func SupportsStreamingAdapter(raw string) bool {
 	switch NormalizeAdapter(raw) {
 	case AdapterOpenAIResponses,
+		AdapterOpenRouterResponses,
 		AdapterOpenAIChatCompletions,
 		AdapterOpenAIImageGenerations,
 		AdapterOpenAIImageEdits,
@@ -135,7 +138,7 @@ func DefaultEndpointForAdapter(adapter string) string {
 	case AdapterOpenAIImageEdits, AdapterXAIImageEdits:
 		return EndpointImageEdits
 	default:
-		// openai_responses、xai_responses 及所有未知值均使用 Responses 端点。
+		// openai_responses、openrouter_responses、xai_responses 及所有未知值均使用 Responses 端点。
 		return EndpointResponses
 	}
 }

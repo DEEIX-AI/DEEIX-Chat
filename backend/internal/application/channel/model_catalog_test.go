@@ -58,7 +58,7 @@ func TestProtocolDefaultsForXAIUsesXAIResponsesForConversationKinds(t *testing.T
 	}
 }
 
-func TestProtocolDefaultsForOpenRouterUsesOpenAIResponsesForConversationKinds(t *testing.T) {
+func TestProtocolDefaultsForOpenRouterUsesOpenRouterResponsesForConversationKinds(t *testing.T) {
 	raw := protocolDefaultsForCompatible(compatibleOpenRouter)
 
 	var defaults map[string]string
@@ -66,10 +66,10 @@ func TestProtocolDefaultsForOpenRouterUsesOpenAIResponsesForConversationKinds(t 
 		t.Fatalf("unmarshal defaults: %v", err)
 	}
 
-	if defaults[modelKindChat] != "openai_responses" {
+	if defaults[modelKindChat] != "openrouter_responses" {
 		t.Fatalf("expected OpenRouter chat default, got %q in %s", defaults[modelKindChat], raw)
 	}
-	if defaults[modelKindAudio] != "openai_responses" {
+	if defaults[modelKindAudio] != "openrouter_responses" {
 		t.Fatalf("expected OpenRouter audio default, got %q in %s", defaults[modelKindAudio], raw)
 	}
 	expectedMediaDefaults := map[string]string{
