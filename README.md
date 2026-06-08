@@ -15,6 +15,7 @@
 
 <p align="center">
   <a href="https://deeix.com"><img alt="Website" src="https://img.shields.io/badge/Website-deeix.com-black" /></a>
+  <a href="https://deeix.com/docs/deeix-chat"><img alt="Guide" src="https://img.shields.io/badge/Guide-deeix.com%2Fdocs%2Fdeeix--chat-0f766e" /></a>
   <a href="https://t.me/deeix_chat"><img alt="Telegram" src="https://img.shields.io/badge/Telegram-deeix_chat-26A5E4?logo=telegram&logoColor=white" /></a>
   <a href="https://x.com/DEEIX_AI"><img alt="X" src="https://img.shields.io/badge/X-%40DEEIX_AI-black?logo=x&logoColor=white" /></a>
   <a href="https://www.apache.org/licenses/LICENSE-2.0"><img alt="License" src="https://img.shields.io/badge/License-Apache%202.0-blue" /></a>
@@ -201,7 +202,7 @@ cp config.full.example.yaml config.yaml
 docker compose -f docker-compose.full.yml up -d
 ```
 
-`docker-compose.full.yml` sets `POSTGRES_DSN`, `REDIS_ADDR`, and `REDIS_PASSWORD` in compose `environment`, so those values override the database and Redis values in `config.yaml`.
+`docker-compose.full.yml` sets `POSTGRES_DSN`, `REDIS_ADDR`, `REDIS_USERNAME`, and `REDIS_PASSWORD` in compose `environment`, so those values override the database and Redis values in `config.yaml`.
 
 #### Configuration, Persistence, and Image
 
@@ -348,6 +349,7 @@ Static configuration environment variables:
 | SQLite | `SQLITE_TEMP_STORE` | Temporary storage: `DEFAULT`, `FILE`, or `MEMORY`. |
 | Cache | `CACHE_DRIVER` | `redis` or `memory`; `memory` is single-process only. |
 | Redis | `REDIS_ADDR` | Redis address. |
+| Redis | `REDIS_USERNAME` | Redis ACL username; leave empty for password-only/default-user Redis. |
 | Redis | `REDIS_PASSWORD` | Redis password. |
 | Redis | `REDIS_DB` | Redis DB number. |
 | Storage | `STORAGE_BACKEND` | `local` or `s3`. |
@@ -386,6 +388,7 @@ Authentication, registration, conversation settings, model option policies, file
 
 ## Documentation
 
+- Usage guide: [deeix.com/docs/deeix-chat](https://deeix.com/docs/deeix-chat)
 - Backend guide: [backend/README.md](./backend/README.md)
 - Backend standards: [backend/docs/README.md](./backend/docs/README.md)
 - Frontend guide: [frontend/README.md](./frontend/README.md)

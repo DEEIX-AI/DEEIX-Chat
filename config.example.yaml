@@ -39,6 +39,8 @@ database:
   redis:
     # Required when cache.driver is redis.
     addr: "127.0.0.1:6379"
+    # Optional. Set when Redis ACL requires a username.
+    username: ""
     password: "deeix_chat_redis_dev"
     db: 0
 

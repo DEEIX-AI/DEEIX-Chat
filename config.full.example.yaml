@@ -46,6 +46,8 @@ database:
     # Required when cache.driver is redis.
     # Optional. docker-compose.full.yml overrides this value with the bundled Redis service.
     addr: "redis:6379"
+    # Optional. Set when Redis ACL requires a username.
+    username: ""
     password: "deeix_chat_2026"
     db: 0
 

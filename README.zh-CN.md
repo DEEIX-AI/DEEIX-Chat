@@ -15,6 +15,7 @@
 
 <p align="center">
   <a href="https://deeix.com"><img alt="官网" src="https://img.shields.io/badge/官网-deeix.com-black" /></a>
+  <a href="https://deeix.com/docs/deeix-chat"><img alt="使用教程" src="https://img.shields.io/badge/使用教程-deeix.com%2Fdocs%2Fdeeix--chat-0f766e" /></a>
   <a href="https://t.me/deeix_chat"><img alt="Telegram" src="https://img.shields.io/badge/Telegram-deeix_chat-26A5E4?logo=telegram&logoColor=white" /></a>
   <a href="https://x.com/DEEIX_AI"><img alt="推特 / X" src="https://img.shields.io/badge/X-%40DEEIX_AI-black?logo=x&logoColor=white" /></a>
   <a href="https://www.apache.org/licenses/LICENSE-2.0"><img alt="开源协议" src="https://img.shields.io/badge/License-Apache%202.0-blue" /></a>
@@ -201,7 +202,7 @@ cp config.full.example.yaml config.yaml
 docker compose -f docker-compose.full.yml up -d
 ```
 
-`docker-compose.full.yml` 会在 compose `environment` 中设置 `POSTGRES_DSN`、`REDIS_ADDR` 和 `REDIS_PASSWORD`，因此这些值会覆盖 `config.yaml` 里的数据库和 Redis 配置。
+`docker-compose.full.yml` 会在 compose `environment` 中设置 `POSTGRES_DSN`、`REDIS_ADDR`、`REDIS_USERNAME` 和 `REDIS_PASSWORD`，因此这些值会覆盖 `config.yaml` 里的数据库和 Redis 配置。
 
 #### 配置、持久化和镜像
 
@@ -348,6 +349,7 @@ docker compose logs app
 | SQLite | `SQLITE_TEMP_STORE` | 临时存储：`DEFAULT`、`FILE`、`MEMORY`。 |
 | 缓存 | `CACHE_DRIVER` | `redis` 或 `memory`；`memory` 仅适用于单进程。 |
 | Redis | `REDIS_ADDR` | Redis 地址。 |
+| Redis | `REDIS_USERNAME` | Redis ACL 用户名；使用仅密码或默认用户 Redis 时留空。 |
 | Redis | `REDIS_PASSWORD` | Redis 密码。 |
 | Redis | `REDIS_DB` | Redis DB 编号。 |
 | 存储 | `STORAGE_BACKEND` | `local` 或 `s3`。 |
@@ -386,6 +388,7 @@ docker compose logs app
 
 ## 文档入口
 
+- 使用教程：[deeix.com/docs/deeix-chat](https://deeix.com/docs/deeix-chat)
 - 后端说明：[backend/README.md](./backend/README.md)
 - 后端规范：[backend/docs/README.md](./backend/docs/README.md)
 - 前端说明：[frontend/README.md](./frontend/README.md)
