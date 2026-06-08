@@ -19,6 +19,7 @@ import {
 } from "@/features/settings/utils/appearance-preferences";
 import { cancelCurrentTwoFactorSetup, completeOnboarding, confirmCurrentTwoFactorSetup, patchMe, patchUsername, startCurrentTwoFactorSetup } from "@/shared/api/auth";
 import type { TwoFactorSetupStartData, UserDTO } from "@/shared/api/auth.types";
+import { ApiError } from "@/shared/api/http-client";
 import {
   DISPLAY_NAME_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
