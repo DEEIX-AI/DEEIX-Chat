@@ -199,15 +199,6 @@ export function AdminToolsPage() {
   );
   const activeToolCount = React.useMemo(() => countActiveTools(tools), [tools]);
 
-  React.useEffect(() => {
-    if (mcpEnabled) {
-      return;
-    }
-    setToolSheetServerID(null);
-    setToolForm(null);
-    setSchemaTool(null);
-  }, [mcpEnabled]);
-
   const filteredServers = React.useMemo(() => {
     const query = serverQuery.trim().toLowerCase();
     return servers.filter((server) => {
@@ -705,7 +696,7 @@ export function AdminToolsPage() {
           </SettingsCollapsibleContent>
         </SettingsFieldList>
 
-        <SettingsCollapsibleContent open={mcpEnabled}>
+        <SettingsCollapsibleContent open>
           <Field className="gap-2">
             <div className="flex items-center">
               <div className="min-w-0 flex-1">
