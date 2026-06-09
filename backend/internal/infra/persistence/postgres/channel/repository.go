@@ -174,8 +174,8 @@ func (r *Repo) ListUpstreams(ctx context.Context, input repository.ListChannelUp
 		Joins(
 			`LEFT JOIN (
 				SELECT um.upstream_id,
-					COUNT(r.id) AS models_count,
-					SUM(CASE WHEN r.status = 'active' AND um.status = 'active' THEN 1 ELSE 0 END) AS active_models_count
+					COUNT(DISTINCT um.id) AS models_count,
+					COUNT(DISTINCT CASE WHEN r.status = 'active' AND um.status = 'active' THEN um.id END) AS active_models_count
 				FROM llm_upstream_models um
 				LEFT JOIN llm_model_routes r ON r.upstream_model_id = um.id
 				GROUP BY um.upstream_id
