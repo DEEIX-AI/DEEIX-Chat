@@ -3,9 +3,6 @@ name: deeix-chat
 services:
   app:
     image: ${DEEIX_CHAT_IMAGE:-ghcr.io/deeix-ai/deeix-chat:latest}
-    build:
-      context: .
-      dockerfile: Dockerfile
     container_name: deeix-chat-app
     ports:
       # Optional. Localhost-only by default. Put a reverse proxy in front for public access.

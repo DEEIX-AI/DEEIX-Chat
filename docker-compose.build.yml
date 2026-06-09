@@ -1,0 +1,8 @@
+name: deeix-chat
+
+services:
+  app:
+    image: ${DEEIX_CHAT_LOCAL_IMAGE:-deeix-chat:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
