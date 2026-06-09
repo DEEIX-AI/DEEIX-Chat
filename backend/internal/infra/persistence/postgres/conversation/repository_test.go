@@ -71,6 +71,35 @@ func TestListMessagesBeforeIDReturnsPreviousWindowAscending(t *testing.T) {
 	}
 }
 
+func TestUpdateConversationMetadataSQLiteUsesPortableTrim(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+
+	conversation := model.Conversation{
+		UserID:     1,
+		PublicID:   "conv_metadata_sqlite",
+		Title:      " 新对话 ",
+		LabelsJSON: "[]",
+		SessionKey: "session_metadata_sqlite",
+		Status:     "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	updated, err := repo.UpdateConversationMetadata(ctx, conversation.ID, "SQLite 标题", `["技术"]`)
+	if err != nil {
+		t.Fatalf("UpdateConversationMetadata() error = %v", err)
+	}
+	if updated.Title != "SQLite 标题" {
+		t.Fatalf("updated title = %q, want %q", updated.Title, "SQLite 标题")
+	}
+	if updated.LabelsJSON != `["技术"]` {
+		t.Fatalf("updated labels = %q, want %q", updated.LabelsJSON, `["技术"]`)
+	}
+}
+
 func openConversationRepositoryTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	name := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())

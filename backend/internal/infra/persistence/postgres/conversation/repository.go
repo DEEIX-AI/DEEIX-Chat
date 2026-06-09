@@ -74,6 +74,13 @@ func (r *Repo) sqliteDialect() bool {
 	return r != nil && r.db != nil && r.db.Dialector != nil && r.db.Dialector.Name() == "sqlite"
 }
 
+func (r *Repo) trimFunctionName() string {
+	if r.sqliteDialect() {
+		return "trim"
+	}
+	return "btrim"
+}
+
 // CreateConversation 创建会话。
 func (r *Repo) CreateConversation(ctx context.Context, item *domainconversation.Conversation) error {
 	entity := toConversationModel(item)
@@ -457,7 +464,7 @@ func (r *Repo) UpdateConversationMetadata(ctx context.Context, conversationID ui
 	updates := map[string]interface{}{}
 	if strings.TrimSpace(title) != "" {
 		updates["title"] = gorm.Expr(
-			"CASE WHEN lower(btrim(title)) IN ? THEN ? ELSE title END",
+			fmt.Sprintf("CASE WHEN lower(%s(title)) IN ? THEN ? ELSE title END", r.trimFunctionName()),
 			[]string{"", "new conversation", "new chat", "untitled", "新会话", "新对话", "新的对话"},
 			strings.TrimSpace(title),
 		)

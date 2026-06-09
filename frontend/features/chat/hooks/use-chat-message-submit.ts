@@ -54,7 +54,10 @@ import type {
 } from "@/shared/api/conversation.types";
 import { ApiError } from "@/shared/api/http-client";
 
-const CONVERSATION_METADATA_REFRESH_DELAYS = [800, 1200, 1800, 2600, 3500, 5000] as const;
+const CONVERSATION_METADATA_REFRESH_MAX_WAIT_MS = 45_000;
+const CONVERSATION_METADATA_REFRESH_INITIAL_DELAY_MS = 800;
+const CONVERSATION_METADATA_REFRESH_MAX_DELAY_MS = 5_000;
+const CONVERSATION_METADATA_REFRESH_BACKOFF = 1.5;
 
 function resolveSubmitBlockDescription(
   reason: ChatSubmitBlockReason,
@@ -150,8 +153,12 @@ function isPlaceholderConversationTitle(title: string): boolean {
   return ["", "new conversation", "new chat", "untitled", "新会话", "新对话", "新的对话"].includes(value);
 }
 
-function shouldRefreshGeneratedConversationMetadata(item: ConversationDTO | null, visibleMessageCount: number): boolean {
-  return visibleMessageCount === 0 || item?.messageCount === 0;
+function hasPendingGeneratedConversationMetadata(item: ConversationDTO | null): boolean {
+  return (
+    !item ||
+    isPlaceholderConversationTitle(item.title) ||
+    normalizeLabelsJSON(item.labelsJSON) === "[]"
+  );
 }
 
 function hasGeneratedConversationMetadataChanged(
@@ -172,8 +179,14 @@ async function refreshGeneratedConversationMetadata(
   previous: ConversationDTO | null,
   touchByPublicID: (publicID: string, patch?: Partial<ConversationDTO>) => void,
 ): Promise<void> {
-  for (const delay of CONVERSATION_METADATA_REFRESH_DELAYS) {
-    await sleep(delay);
+  let elapsedMS = 0;
+  let delayMS = CONVERSATION_METADATA_REFRESH_INITIAL_DELAY_MS;
+
+  while (elapsedMS < CONVERSATION_METADATA_REFRESH_MAX_WAIT_MS) {
+    const nextDelayMS = Math.min(delayMS, CONVERSATION_METADATA_REFRESH_MAX_WAIT_MS - elapsedMS);
+    await sleep(nextDelayMS);
+    elapsedMS += nextDelayMS;
+
     let latest: ConversationDTO;
     try {
       latest = await getConversation(accessToken, conversationPublicID);
@@ -184,6 +197,11 @@ async function refreshGeneratedConversationMetadata(
       touchByPublicID(conversationPublicID, latest);
       return;
     }
+
+    delayMS = Math.min(
+      Math.round(delayMS * CONVERSATION_METADATA_REFRESH_BACKOFF),
+      CONVERSATION_METADATA_REFRESH_MAX_DELAY_MS,
+    );
   }
 }
 
@@ -487,7 +505,7 @@ export function useChatMessageSubmit({
           window.history.replaceState(null, "", `/chat?conversation_id=${created.publicID}`);
           onConversationCreated?.(created.publicID);
         }
-        const shouldRefreshConversationMetadata = shouldRefreshGeneratedConversationMetadata(targetConversation, visibleMessageCount);
+        const shouldRefreshConversationMetadata = hasPendingGeneratedConversationMetadata(targetConversation);
 
         const commonStreamPayload = {
           model: requestPlatformModelName,
