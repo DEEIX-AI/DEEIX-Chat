@@ -586,7 +586,8 @@
     },
     "topUp": {
       "title": "充值",
-      "description": "输入美元金额",
+      "description": "输入美元金额并确认支付方式。",
+      "currentBalance": "当前余额 {value}",
       "amount": "充值金额",
       "amountAria": "充值美元金额",
       "confirm": "充值"

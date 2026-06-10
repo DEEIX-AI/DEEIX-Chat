@@ -1902,6 +1902,7 @@ export function SettingsSubscription() {
                   {t("redemption.open")}
                 </Button>
                 <Button type="button" variant="outline" disabled={billingLoading || topUpLoading || paymentDisabled} onClick={() => setTopUpDialogOpen(true)}>
+                  <Banknote className="size-3.5" />
                   {t("usageBilling.topUp")}
                 </Button>
               </div>
@@ -2149,18 +2150,29 @@ export function SettingsSubscription() {
             <DialogTitle>{t("topUp.title")}</DialogTitle>
             <DialogDescription>{t("topUp.description")}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">{t("topUp.amount")}</p>
-            <Input
-              value={topUpAmount}
-              type="number"
-              min="0"
-              step="0.01"
-              onChange={(event) => setTopUpAmount(event.target.value)}
-              disabled={billingLoading || topUpLoading || paymentDisabled}
-              aria-label={t("topUp.amountAria")}
-            />
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">{t("topUp.amount")}</p>
+              <p className="truncate text-xs text-muted-foreground tabular-nums">
+                {t("topUp.currentBalance", { value: formatAccountBalance(billingAccount?.balanceUSD ?? 0) })}
+              </p>
+            </div>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+              <Input
+                value={topUpAmount}
+                type="number"
+                min="0"
+                step="0.01"
+                className="pl-7"
+                onChange={(event) => setTopUpAmount(event.target.value)}
+                disabled={billingLoading || topUpLoading || paymentDisabled}
+                aria-label={t("topUp.amountAria")}
+              />
+            </div>
           </div>
+
           {!paymentDisabled ? (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">{t("payment.method")}</p>
