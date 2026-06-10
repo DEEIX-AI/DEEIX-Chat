@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
+
+import { useCopyAction } from "@/shared/components/copy-action";
 
 const LATEX_COPYABLE_SELECTOR = ".katex, .katex-display";
 const LATEX_ANNOTATION_SELECTOR = "annotation[encoding='application/x-tex']";
@@ -107,33 +108,14 @@ function annotateLatexElements(root: HTMLElement, label: string) {
   });
 }
 
-async function writeClipboardText(value: string): Promise<void> {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(value);
-    return;
-  }
-
-  const textarea = document.createElement("textarea");
-  textarea.value = value;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.left = "-9999px";
-  textarea.style.top = "0";
-  document.body.appendChild(textarea);
-  textarea.select();
-
-  try {
-    const copied = document.execCommand("copy");
-    if (!copied) {
-      throw new Error("copy failed");
-    }
-  } finally {
-    textarea.remove();
-  }
-}
-
 export function useLatexCopy({ contentVersion, renderVersion }: UseLatexCopyOptions): UseLatexCopyResult {
   const t = useTranslations("chat.markdown");
+  const { copy } = useCopyAction({
+    messages: {
+      copied: t("latexCopied"),
+      failed: t("latexCopyFailed"),
+    },
+  });
   const rootRef = React.useRef<HTMLDivElement>(null);
   const pointerDownRef = React.useRef<{ x: number; y: number } | null>(null);
 
@@ -157,16 +139,9 @@ export function useLatexCopy({ contentVersion, renderVersion }: UseLatexCopyOpti
         return false;
       }
 
-      try {
-        await writeClipboardText(source);
-        toast.success(t("latexCopied"));
-      } catch {
-        toast.error(t("latexCopyFailed"));
-      }
-
-      return true;
+      return copy(source);
     },
-    [t],
+    [copy],
   );
 
   const onPointerDownCapture = React.useCallback<React.PointerEventHandler<HTMLDivElement>>((event) => {

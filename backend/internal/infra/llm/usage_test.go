@@ -2,6 +2,7 @@ package llm
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 )
 
@@ -12,6 +13,21 @@ func mustDecodeObject(t *testing.T, raw string) map[string]interface{} {
 		t.Fatalf("decode usage fixture: %v", err)
 	}
 	return payload
+}
+
+func assertJSONEqual(t *testing.T, actual string, expected string) {
+	t.Helper()
+	var actualPayload interface{}
+	if err := json.Unmarshal([]byte(actual), &actualPayload); err != nil {
+		t.Fatalf("decode actual json: %v; raw=%s", err, actual)
+	}
+	var expectedPayload interface{}
+	if err := json.Unmarshal([]byte(expected), &expectedPayload); err != nil {
+		t.Fatalf("decode expected json: %v; raw=%s", err, expected)
+	}
+	if !reflect.DeepEqual(actualPayload, expectedPayload) {
+		t.Fatalf("json mismatch:\nactual:   %s\nexpected: %s", actual, expected)
+	}
 }
 
 func TestParseChatCompletionsUsage(t *testing.T) {
@@ -28,6 +44,12 @@ func TestParseChatCompletionsUsage(t *testing.T) {
 	if usage.InputTokens != 84 || usage.OutputTokens != 16 || usage.CacheReadTokens != 17 || usage.ReasoningTokens != 7 {
 		t.Fatalf("unexpected chat completions usage: %+v", usage)
 	}
+	assertJSONEqual(t, usage.RawUsageJSON, `{
+		"prompt_tokens": 101,
+		"completion_tokens": 23,
+		"prompt_tokens_details": {"cached_tokens": 17},
+		"completion_tokens_details": {"reasoning_tokens": 7}
+	}`)
 }
 
 func TestParseChatStreamUsageIgnoresServiceTierOnlyChunks(t *testing.T) {
@@ -184,6 +206,17 @@ func TestParseAnthropicMessagesUsage(t *testing.T) {
 	if usage.InputTokens != 101 || usage.OutputTokens != 23 || usage.CacheReadTokens != 17 || usage.CacheWriteTokens != 8 || usage.CacheWrite5mTokens != 5 || usage.CacheWrite1hTokens != 3 || usage.ReasoningTokens != 0 || usage.Speed != "fast" {
 		t.Fatalf("unexpected anthropic usage: %+v", usage)
 	}
+	assertJSONEqual(t, usage.RawUsageJSON, `{
+		"input_tokens": 101,
+		"output_tokens": 23,
+		"cache_creation_input_tokens": 11,
+		"cache_read_input_tokens": 17,
+		"speed": "fast",
+		"cache_creation": {
+			"ephemeral_1h_input_tokens": 3,
+			"ephemeral_5m_input_tokens": 5
+		}
+	}`)
 }
 
 func TestParseAnthropicMessagesUsageFallsBackToLegacyCacheCreation(t *testing.T) {
@@ -200,6 +233,44 @@ func TestParseAnthropicMessagesUsageFallsBackToLegacyCacheCreation(t *testing.T)
 	if usage.CacheWriteTokens != 11 {
 		t.Fatalf("unexpected anthropic legacy cache write usage: %+v", usage)
 	}
+}
+
+func TestApplyAnthropicStreamEventKeepsSplitRawUsage(t *testing.T) {
+	result := &GenerateOutput{}
+	start := mustDecodeObject(t, `{
+		"type": "message_start",
+		"message": {
+			"id": "msg_1",
+			"usage": {
+				"input_tokens": 101,
+				"cache_read_input_tokens": 17
+			}
+		}
+	}`)
+	if err := applyAnthropicStreamEvent(start, "", result, nil, anthropicToolClassifier{}); err != nil {
+		t.Fatalf("apply message_start: %v", err)
+	}
+	delta := mustDecodeObject(t, `{
+		"type": "message_delta",
+		"usage": {
+			"output_tokens": 23
+		}
+	}`)
+	if err := applyAnthropicStreamEvent(delta, "", result, nil, anthropicToolClassifier{}); err != nil {
+		t.Fatalf("apply message_delta: %v", err)
+	}
+	if result.Usage.InputTokens != 101 || result.Usage.OutputTokens != 23 || result.Usage.CacheReadTokens != 17 {
+		t.Fatalf("unexpected anthropic stream usage: %+v", result.Usage)
+	}
+	assertJSONEqual(t, result.Usage.RawUsageJSON, `[
+		{
+			"input_tokens": 101,
+			"cache_read_input_tokens": 17
+		},
+		{
+			"output_tokens": 23
+		}
+	]`)
 }
 
 func TestParseAnthropicServerSideToolUsage(t *testing.T) {
@@ -257,6 +328,12 @@ func TestParseGoogleGenerateContentUsage(t *testing.T) {
 	if usage.InputTokens != 84 || usage.OutputTokens != 23 || usage.CacheReadTokens != 17 || usage.ReasoningTokens != 7 {
 		t.Fatalf("unexpected google generateContent usage: %+v", usage)
 	}
+	assertJSONEqual(t, usage.RawUsageJSON, `{
+		"promptTokenCount": 101,
+		"candidatesTokenCount": 23,
+		"cachedContentTokenCount": 17,
+		"thoughtsTokenCount": 7
+	}`)
 }
 
 func TestNonCachedInputTokensNeverNegative(t *testing.T) {

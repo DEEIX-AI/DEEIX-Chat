@@ -59,6 +59,7 @@ import {
 } from "@/features/admin/model/tool-settings";
 import { cn } from "@/lib/utils";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { CopyActionButton } from "@/shared/components/copy-action";
 import {
   SettingsFieldItem,
   SettingsFieldList,
@@ -648,17 +649,6 @@ export function AdminToolsPage() {
     }
   }, [schemaTool]);
 
-  const copySchema = React.useCallback(async () => {
-    if (!schemaTool) {
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(schemaText);
-      toast.success(t("toast.schemaCopied"));
-    } catch {
-      toast.error(t("toast.copyFailed"));
-    }
-  }, [schemaText, schemaTool, t]);
   const mcpEnableFieldID = mcpEnableField ? toolFieldID(mcpEnableField) : "";
 
   return (
@@ -1185,9 +1175,14 @@ export function AdminToolsPage() {
             <Button type="button" variant="ghost" onClick={() => setSchemaTool(null)}>
               {tActions("close")}
             </Button>
-            <Button type="button" onClick={() => void copySchema()}>
+            <CopyActionButton
+              type="button"
+              value={schemaText}
+              messages={{ copied: t("toast.schemaCopied"), failed: t("toast.copyFailed") }}
+              disabled={!schemaTool}
+            >
               {tActions("copy")}
-            </Button>
+            </CopyActionButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>

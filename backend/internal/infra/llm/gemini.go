@@ -793,6 +793,7 @@ func parseGeminiUsage(parsed map[string]interface{}) Usage {
 		OutputTokens:    getInt64FromPath(parsed, "usageMetadata", "candidatesTokenCount"),
 		CacheReadTokens: cacheReadTokens,
 		ReasoningTokens: getInt64FromPath(parsed, "usageMetadata", "thoughtsTokenCount"),
+		RawUsageJSON:    rawUsageJSONFromPath(parsed, "usageMetadata"),
 	}
 }
 

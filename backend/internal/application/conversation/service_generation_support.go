@@ -241,6 +241,7 @@ func (s *Service) recordBasicServiceUsage(
 		CallCount:          item.CallCount,
 		LatencyMS:          latencyMS,
 		ServiceItems:       []appbilling.ServiceUsageInput{item},
+		RawUsageJSON:       usage.RawUsageJSON,
 	})
 	if err != nil {
 		if s.logger != nil {

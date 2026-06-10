@@ -1,7 +1,7 @@
 import { LayoutDashboard } from "@/components/animate-ui/icons/layout-dashboard"
 import { Layers } from "@/components/animate-ui/icons/layers"
 import { MessageCircleMore } from "@/components/animate-ui/icons/message-circle-more"
-import { Plus } from "@/components/animate-ui/icons/plus"
+import { PlusIcon } from "@/components/ui/plus"
 import { Search } from "@/components/animate-ui/icons/search"
 import type { NavigationItem } from "@/features/layouts/types/navigation"
 
@@ -10,7 +10,7 @@ export const NAVIGATION_ITEMS = [
     id: "newChat",
     title: "New chat",
     url: "#",
-    icon: Plus,
+    icon: PlusIcon,
     variant: "primary",
     group: "primary",
     shortcut: ["command", "shift", "O"],

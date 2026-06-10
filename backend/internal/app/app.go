@@ -228,6 +228,8 @@ func NewApp() (*App, error) {
 	adminService.SetAuthSecurityService(authService)
 	adminService.SetSystemEventService(systemEventService)
 	adminService.SetUsageLogService(billingService)
+	adminService.SetOrderLogService(billingService)
+	adminService.SetConversationEventService(conversationService)
 	adminService.SetSubscriptionResolver(billingService)
 	adminHandler := adminhttp.NewHandler(adminService)
 	adminModule := adminhttp.NewModule(adminHandler)

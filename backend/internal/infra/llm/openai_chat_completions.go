@@ -548,6 +548,7 @@ func parseOpenAICompatibleUsageForAdapter(adapter string, parsed map[string]inte
 		),
 		ReasoningTokens: reasoningTokens,
 		ServiceTier:     strings.TrimSpace(getString(parsed["service_tier"])),
+		RawUsageJSON:    rawUsageJSONFromPath(parsed, "usage"),
 	}
 }
 

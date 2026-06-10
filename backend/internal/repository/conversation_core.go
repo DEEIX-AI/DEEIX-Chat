@@ -106,6 +106,20 @@ type ConversationTraceRepository interface {
 	CreateConversationToolCalls(ctx context.Context, items []domainconversation.ToolCall) error
 	ListConversationRuns(ctx context.Context, userID uint, conversationID uint, offset int, limit int) ([]domainconversation.Run, int64, error)
 	ListConversationRunsByRunIDs(ctx context.Context, userID uint, conversationID uint, runIDs []string) ([]domainconversation.Run, error)
+	ListConversationEventLogs(ctx context.Context, filter ConversationEventLogListFilter, offset int, limit int) ([]domainconversation.EventLog, int64, error)
+}
+
+// ConversationEventLogListFilter 描述管理员对话事件列表筛选和排序条件。
+type ConversationEventLogListFilter struct {
+	Query          string
+	EventScope     string
+	EventType      string
+	Status         string
+	UserID         uint
+	ConversationID uint
+	CreatedFrom    *time.Time
+	CreatedTo      *time.Time
+	Sort           string
 }
 
 // MessageEmbeddingRepository 封装消息历史向量存储与检索能力。

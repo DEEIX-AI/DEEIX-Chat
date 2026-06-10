@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
@@ -22,14 +23,24 @@ export function resolveSettingsSidebarSection(section?: string | null): Settings
   return "general";
 }
 
+function resolveActiveSettingsSectionFromPath(pathname: string, basePath: string): SettingsSidebarSection {
+  const normalizedBasePath = basePath.replace(/\/$/, "");
+  const section = SETTINGS_SIDEBAR_ITEMS.find((item) => {
+    const href = `${normalizedBasePath}${item.href}`;
+    return pathname === href || pathname.startsWith(`${href}/`);
+  });
+
+  return section?.id ?? "general";
+}
+
 export function SettingsSidebar({
-  activeSection,
   basePath,
 }: {
-  activeSection: SettingsSidebarSection;
   basePath: string;
 }) {
   const t = useTranslations("settings");
+  const pathname = usePathname();
+  const activeSection = resolveActiveSettingsSectionFromPath(pathname, basePath);
 
   return (
     <aside className="w-full shrink-0 xl:max-w-64">

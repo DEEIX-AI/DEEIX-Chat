@@ -19,6 +19,7 @@ type ChatMessageUserProps = {
   onEditUserMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
   onCycleMessageBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
   onCopy: () => void;
+  copySucceeded?: boolean;
   readOnly?: boolean;
   attachmentContentLoader?: (file: PreviewDialogFile) => Promise<FileContentResult>;
   showBranchNavigator?: boolean;
@@ -31,6 +32,7 @@ export function ChatMessageUser({
   onEditUserMessage,
   onCycleMessageBranch,
   onCopy,
+  copySucceeded = false,
   readOnly = false,
   attachmentContentLoader,
   showBranchNavigator = true,
@@ -132,6 +134,7 @@ export function ChatMessageUser({
         onRetry={onRetry}
         onEdit={() => setIsEditing(true)}
         onCopy={onCopy}
+        copySucceeded={copySucceeded}
         readOnly={readOnly}
         alwaysVisible={readOnly}
         showBranchNavigator={showBranchNavigator}

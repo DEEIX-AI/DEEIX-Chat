@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Copy, MapPinned, Monitor, Moon, ShieldCheck, Sun } from "lucide-react";
+import { MapPinned, Monitor, Moon, ShieldCheck, Sun } from "lucide-react";
 import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -41,10 +41,10 @@ import { useAppLocale } from "@/i18n/app-i18n-provider";
 import { APP_LOCALE_LABELS, APP_LOCALES, type AppLocale } from "@/i18n/config";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { AppLogo } from "@/shared/components/app-logo";
+import { CopyActionButton } from "@/shared/components/copy-action";
 import { TimeZoneSelect } from "@/shared/components/time-zone-select";
 import { useTheme, type ThemePreset } from "@/shared/components/theme-provider";
 import { lobehubIconManifest } from "@/shared/generated/lobehub-icon-manifest";
-import { writeClipboardText } from "@/shared/lib/clipboard";
 import { createQRCodeSVG } from "@/shared/lib/qr-code";
 import { detectCurrentTimeZone } from "@/shared/lib/time-zone";
 import { cn } from "@/lib/utils";
@@ -415,14 +415,11 @@ export function InitialSecurityGuard() {
     }
   }, [accessToken, resolveErrorMessage, savingTwoFactor, t, tCommonErrors, twoFactorSetup]);
 
-  const copyText = React.useCallback(async (value: string, label: string) => {
-    try {
-      await writeClipboardText(value);
-      toast.success(t("toasts.copied", { label }));
-    } catch {
-      toast.error(t("toasts.copyFailed"), { description: t("toasts.manualCopy") });
-    }
-  }, [t]);
+  const copyMessages = React.useMemo(() => ({
+    copied: t("toasts.copied", { label: "" }).trim(),
+    failed: t("toasts.copyFailed"),
+    failedDescription: t("toasts.manualCopy"),
+  }), [t]);
 
   const handleLocaleChange = React.useCallback((nextLocale: AppLocale) => {
     if (nextLocale === locale) {
@@ -565,15 +562,6 @@ export function InitialSecurityGuard() {
       setFinishing(false);
     }
   }, [accessToken, finishing, password, refreshUser, resolveErrorMessage, t, tCommonErrors, twoFactorSkipped, viewer]);
-
-  const copyRecoveryCodes = React.useCallback(async () => {
-    try {
-      await writeClipboardText(recoveryCodes.join("\n"));
-      toast.success(t("toasts.recoveryCodesCopied"));
-    } catch {
-      toast.error(t("toasts.copyFailed"));
-    }
-  }, [recoveryCodes, t]);
 
   if (!viewer || (!guideActive && recoveryCodes.length === 0)) {
     return null;
@@ -784,17 +772,17 @@ export function InitialSecurityGuard() {
                             <span className="min-w-0 flex-1 break-all font-mono text-[11px] leading-5 text-muted-foreground">
                               {twoFactorSetup.secret}
                             </span>
-                            <Button
+                            <CopyActionButton
                               type="button"
                               variant="ghost"
                               size="icon-sm"
                               className="shrink-0 text-muted-foreground shadow-none"
-                              onClick={() => void copyText(twoFactorSetup.secret, t("toasts.secret"))}
+                              value={twoFactorSetup.secret}
+                              messages={copyMessages}
+                              copyOptions={{ copied: t("toasts.copied", { label: t("toasts.secret") }) }}
                               aria-label={t("actions.copySecret")}
                               title={t("actions.copySecretTitle")}
-                            >
-                              <Copy className="size-3.5" />
-                            </Button>
+                            />
                           </div>
                         </div>
                       ) : null}
@@ -976,9 +964,16 @@ export function InitialSecurityGuard() {
                   <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-medium">{t("labels.recoveryCodes")}</p>
-                      <Button type="button" variant="ghost" size="icon" className="size-7 shadow-none" onClick={() => void copyRecoveryCodes()} aria-label={t("actions.copyRecoveryCodes")}>
-                        <Copy className="size-3.5" />
-                      </Button>
+                      <CopyActionButton
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 shadow-none"
+                        value={recoveryCodes.join("\n")}
+                        messages={copyMessages}
+                        copyOptions={{ copied: t("toasts.recoveryCodesCopied"), failedDescription: undefined }}
+                        aria-label={t("actions.copyRecoveryCodes")}
+                      />
                     </div>
                     <div className="grid grid-cols-2 gap-1 font-mono text-[11px] text-muted-foreground">
                       {recoveryCodes.map((code) => (

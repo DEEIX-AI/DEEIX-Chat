@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CircleArrowUp } from "lucide-react";
 
@@ -17,15 +18,25 @@ import {
 } from "@/features/admin/model/update-check";
 import { cn } from "@/lib/utils";
 
+function resolveActiveSectionFromPath(pathname: string, basePath: string): AdminSection {
+  const normalizedBasePath = basePath.replace(/\/$/, "");
+  const section = ADMIN_SECTIONS.find((item) => {
+    const href = `${normalizedBasePath}${item.href}`;
+    return pathname === href || pathname.startsWith(`${href}/`);
+  });
+
+  return section?.id ?? "accounts";
+}
+
 export function AdminSidebar({
-  activeSection,
   basePath,
 }: {
-  activeSection: AdminSection;
   basePath: string;
 }) {
   const t = useTranslations("adminUsers");
   const tAbout = useTranslations("adminUsers.aboutPage");
+  const pathname = usePathname();
+  const activeSection = resolveActiveSectionFromPath(pathname, basePath);
   const activeLinkRef = React.useRef<HTMLAnchorElement | null>(null);
   const cachedLatestRelease = React.useSyncExternalStore(
     subscribeLatestReleaseChange,

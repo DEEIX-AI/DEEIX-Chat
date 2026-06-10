@@ -406,6 +406,38 @@ type MessageTraceEventRow struct {
 	UpdatedAt       time.Time
 }
 
+// EventLog 表示后台日志中心展示的对话运行事件。
+type EventLog struct {
+	ID              uint
+	MessageID       uint
+	ConversationID  uint
+	UserID          uint
+	RunID           string
+	EventScope      string
+	EventID         string
+	EventType       string
+	Phase           string
+	Stage           string
+	RoundID         string
+	ParentEventID   string
+	Status          string
+	Title           string
+	Summary         string
+	ContentMarkdown string
+	PayloadJSON     string
+	Seq             int
+	ToolCallID      string
+	ToolName        string
+	LatencyMS       int64
+	InputJSON       string
+	OutputJSON      string
+	ErrorJSON       string
+	StartedAt       time.Time
+	EndedAt         *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 // ToolCall 表示工具调用记录。
 type ToolCall struct {
 	ID             uint

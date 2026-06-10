@@ -146,11 +146,77 @@ export type AdminUsageLogDTO = {
   updatedAt: string;
 };
 
+export type AdminPaymentOrderDTO = {
+  id: number;
+  orderNo: string;
+  orderType: string;
+  userID: number;
+  username: string;
+  userDisplayName: string;
+  userLabel: string;
+  planID: number;
+  priceID: number;
+  provider: string;
+  status: string;
+  baseCurrency: string;
+  baseAmountCents: number;
+  payCurrency: string;
+  payAmountCents: number;
+  fxRate: string;
+  creditNanousd: number;
+  creditUSD: number;
+  billingInterval: string;
+  cycles: number;
+  externalPaymentID: string;
+  externalCheckoutID: string;
+  paidAt?: string | null;
+  expiredAt?: string | null;
+  snapshotJSON: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminConversationEventDTO = {
+  id: number;
+  messageID: number;
+  conversationID: number;
+  userID: number;
+  username: string;
+  userDisplayName: string;
+  userLabel: string;
+  runID: string;
+  eventScope: string;
+  eventID: string;
+  eventType: string;
+  phase: string;
+  stage: string;
+  roundID: string;
+  parentEventID: string;
+  status: string;
+  title: string;
+  summary: string;
+  contentMarkdown: string;
+  payloadJSON: string;
+  seq: number;
+  toolCallID: string;
+  toolName: string;
+  latencyMS: number;
+  inputJSON: string;
+  outputJSON: string;
+  errorJSON: string;
+  startedAt: string;
+  endedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ListAdminUsersResult = PagePayload<UserDTO>;
 export type ListAdminUserAuthEventsResult = PagePayload<AdminUserAuthEventDTO>;
 export type ListAdminAuditLogsResult = PagePayload<AdminAuditLogDTO>;
 export type ListAdminSystemEventsResult = PagePayload<AdminSystemEventDTO>;
 export type ListAdminUsageLogsResult = PagePayload<AdminUsageLogDTO>;
+export type ListAdminPaymentOrdersResult = PagePayload<AdminPaymentOrderDTO>;
+export type ListAdminConversationEventsResult = PagePayload<AdminConversationEventDTO>;
 
 export type TikaRuntimeStatus =
   | "running"

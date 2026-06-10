@@ -18,10 +18,13 @@ import { resolveLobeHubIconURL, resolveModelIdentity } from "@/shared/lib/model-
 import { cn } from "@/lib/utils";
 
 const MODEL_MENU_MAX_HEIGHT = 400;
+const MODEL_MENU_MODEL_PANEL_MAX_HEIGHT = 280;
+const MODEL_MENU_HEADER_HEIGHT = 28;
+const MODEL_MENU_POPOVER_CHROME_HEIGHT = 12;
+const MODEL_MENU_SAFE_INSET = 16;
 const MODEL_MENU_VENDOR_ROW_HEIGHT = 28;
 const MODEL_MENU_MODEL_ROW_HEIGHT = 28;
 const MODEL_MENU_ROW_GAP = 2;
-const MODEL_MENU_LIST_PADDING_BOTTOM = 4;
 const MODEL_MENU_MODEL_PANEL_CHROME_HEIGHT = 12;
 const MODEL_MENU_TEXT_WIDTH_UNIT = 7;
 const MODEL_MENU_CONTENT_GAP_WIDTH = 56;
@@ -48,21 +51,30 @@ type ChatModelPickerProps = {
   onModelChange: (platformModelName: string) => void;
 };
 
+function resolveModelMenuContentHeight(
+  itemCount: number,
+  rowHeight: number,
+  maxContentHeight = MODEL_MENU_MAX_HEIGHT,
+): number {
+  const actualContentHeight = itemCount > 0
+    ? itemCount * rowHeight + Math.max(0, itemCount - 1) * MODEL_MENU_ROW_GAP
+    : 0;
+  return Math.min(actualContentHeight, maxContentHeight);
+}
+
 function resolveModelMenuMaxHeight(
   itemCount: number,
   rowHeight: number,
   chromeHeight: number,
   availablePanelHeight?: number | null,
+  maxContentHeight = MODEL_MENU_MAX_HEIGHT,
 ): string {
-  const actualContentHeight = itemCount > 0
-    ? itemCount * rowHeight + Math.max(0, itemCount - 1) * MODEL_MENU_ROW_GAP + MODEL_MENU_LIST_PADDING_BOTTOM
-    : 0;
-  const contentHeight = Math.min(actualContentHeight, MODEL_MENU_MAX_HEIGHT);
+  const contentHeight = resolveModelMenuContentHeight(itemCount, rowHeight, maxContentHeight);
   if (availablePanelHeight && availablePanelHeight > 0) {
     const availableListHeight = Math.max(rowHeight, Math.floor(availablePanelHeight - chromeHeight));
     return `${Math.min(contentHeight, availableListHeight)}px`;
   }
-  return `min(${contentHeight}px, calc(100vh - ${96 + chromeHeight}px))`;
+  return `min(${contentHeight}px, max(${rowHeight}px, calc(var(--radix-popover-content-available-height, calc(100vh - 96px)) - ${chromeHeight}px)))`;
 }
 
 function resolveAdaptiveMenuWidthValue(labels: string[], minWidth: number, maxWidth: number, viewportWidth?: number): number {
@@ -78,6 +90,86 @@ function resolveAdaptiveMenuWidthValue(labels: string[], minWidth: number, maxWi
 function resolveAdaptiveMenuWidth(labels: string[], minWidth: number, maxWidth: number): string {
   const preferredWidth = resolveAdaptiveMenuWidthValue(labels, minWidth, maxWidth);
   return `min(${preferredWidth}px, calc(100vw - ${MODEL_MENU_VIEWPORT_GUTTER}px))`;
+}
+
+function resolveVendorGroups(modelOptions: ChatModelOption[]) {
+  const groupMap = new Map<string, ChatModelOption[]>();
+  for (const item of modelOptions) {
+    const identity = resolveModelIdentity({
+      code: item.platformModelName,
+      vendor: item.vendor,
+      icon: item.icon,
+    });
+    const group = groupMap.get(identity.vendorKey) ?? [];
+    group.push(item);
+    groupMap.set(identity.vendorKey, group);
+  }
+
+  return Array.from(groupMap.entries()).map(([vendor, items]) => ({
+    vendor,
+    label: resolveModelIdentity({ vendor }).vendorLabel,
+    icon: resolveModelIdentity({ vendor }).vendorIcon,
+    items,
+  }));
+}
+
+function resolveDesktopModelPanelLayout({
+  activeVendorRowRect,
+  itemCount,
+  key,
+  menuRect,
+  preferredWidth,
+  viewportHeight,
+  viewportWidth,
+}: {
+  activeVendorRowRect?: DOMRect;
+  itemCount: number;
+  key: number;
+  menuRect: DOMRect;
+  preferredWidth: number;
+  viewportHeight: number;
+  viewportWidth: number;
+}): FloatingModelPanelLayout {
+  const width = Math.min(preferredWidth, Math.max(0, viewportWidth - MODEL_MENU_COLLISION_GUTTER * 2));
+  const panelChromeHeight = MODEL_MENU_MODEL_PANEL_CHROME_HEIGHT;
+  const contentHeight = resolveModelMenuContentHeight(
+    itemCount,
+    MODEL_MENU_MODEL_ROW_HEIGHT,
+    MODEL_MENU_MODEL_PANEL_MAX_HEIGHT,
+  );
+  const maxListHeight = Math.max(
+    MODEL_MENU_MODEL_ROW_HEIGHT,
+    viewportHeight - MODEL_MENU_SAFE_INSET - MODEL_MENU_COLLISION_GUTTER - panelChromeHeight,
+  );
+  const initialListHeight = Math.min(contentHeight, maxListHeight);
+  const initialPanelHeight = panelChromeHeight + initialListHeight;
+  const preferredY = activeVendorRowRect
+    ? activeVendorRowRect.top
+    : menuRect.top + initialPanelHeight <= viewportHeight - MODEL_MENU_COLLISION_GUTTER
+      ? menuRect.top
+      : menuRect.bottom - initialPanelHeight;
+  const y = Math.min(
+    Math.max(preferredY, MODEL_MENU_SAFE_INSET),
+    Math.max(MODEL_MENU_SAFE_INSET, viewportHeight - initialPanelHeight - MODEL_MENU_COLLISION_GUTTER),
+  );
+  const listMaxHeight = Math.min(
+    contentHeight,
+    Math.max(
+      MODEL_MENU_MODEL_ROW_HEIGHT,
+      Math.min(maxListHeight, viewportHeight - y - MODEL_MENU_COLLISION_GUTTER - panelChromeHeight),
+    ),
+  );
+  const rightX = menuRect.right + MODEL_MENU_PANEL_GAP;
+  const leftX = menuRect.left - MODEL_MENU_PANEL_GAP - width;
+  const rightFits = rightX + width <= viewportWidth - MODEL_MENU_COLLISION_GUTTER;
+  const leftFits = leftX >= MODEL_MENU_COLLISION_GUTTER;
+  const preferredX = rightFits || !leftFits ? rightX : leftX;
+  const x = Math.min(
+    Math.max(preferredX, MODEL_MENU_COLLISION_GUTTER),
+    Math.max(MODEL_MENU_COLLISION_GUTTER, viewportWidth - width - MODEL_MENU_COLLISION_GUTTER),
+  );
+
+  return { key, x, y, width, listMaxHeight };
 }
 
 function ChatModelIdentity({
@@ -174,9 +266,7 @@ function ModelMenuScrollContainer({
         style={{ maxHeight }}
         onScroll={updateScrollHints}
       >
-        <div className="pb-1">
-          {children}
-        </div>
+        {children}
       </div>
       {hasMoreAbove ? (
         <div className="pointer-events-none absolute inset-x-0 top-0 flex h-4 items-start justify-center rounded-t-lg bg-gradient-to-b from-popover via-popover/80 to-transparent pt-px">
@@ -497,28 +587,14 @@ export function ChatModelPicker({
       icon: selectedModel.icon,
     }).vendorLabel;
   }, [selectedModel]);
-  const vendorGroups = React.useMemo(() => {
-    const groupMap = new Map<string, ChatModelOption[]>();
-    for (const item of modelOptions) {
-      const identity = resolveModelIdentity({
-        code: item.platformModelName,
-        vendor: item.vendor,
-        icon: item.icon,
-      });
-      const group = groupMap.get(identity.vendorKey) ?? [];
-      group.push(item);
-      groupMap.set(identity.vendorKey, group);
-    }
-
-    return Array.from(groupMap.entries()).map(([vendor, items]) => ({
-      vendor,
-      label: resolveModelIdentity({ vendor }).vendorLabel,
-      icon: resolveModelIdentity({ vendor }).vendorIcon,
-      items,
-    }));
-  }, [modelOptions]);
+  const vendorGroups = React.useMemo(() => resolveVendorGroups(modelOptions), [modelOptions]);
   const vendorMenuMaxHeight = React.useMemo(
-    () => resolveModelMenuMaxHeight(vendorGroups.length, MODEL_MENU_VENDOR_ROW_HEIGHT, 12),
+    () =>
+      resolveModelMenuMaxHeight(
+        vendorGroups.length,
+        MODEL_MENU_VENDOR_ROW_HEIGHT,
+        MODEL_MENU_HEADER_HEIGHT + MODEL_MENU_POPOVER_CHROME_HEIGHT + MODEL_MENU_SAFE_INSET,
+      ),
     [vendorGroups.length],
   );
   const vendorMenuWidth = React.useMemo(
@@ -539,6 +615,8 @@ export function ChatModelPicker({
         activeDesktopVendorGroup?.items.length ?? 0,
         MODEL_MENU_MODEL_ROW_HEIGHT,
         MODEL_MENU_MODEL_PANEL_CHROME_HEIGHT,
+        null,
+        MODEL_MENU_MODEL_PANEL_MAX_HEIGHT,
       );
     },
     [activeDesktopVendorGroup, desktopModelPanelLayout],
@@ -571,7 +649,7 @@ export function ChatModelPicker({
       resolveModelMenuMaxHeight(
         mobileVendorGroup ? mobileVendorGroup.items.length : vendorGroups.length,
         MODEL_MENU_VENDOR_ROW_HEIGHT,
-        56,
+        MODEL_MENU_HEADER_HEIGHT + MODEL_MENU_POPOVER_CHROME_HEIGHT + MODEL_MENU_SAFE_INSET,
       ),
     [mobileVendorGroup, vendorGroups.length],
   );
@@ -647,54 +725,16 @@ export function ChatModelPicker({
     if (menuRect.width <= 0 || menuRect.height <= 0) {
       return;
     }
-    const panelWidth = Math.min(
-      desktopModelMenuWidthValue,
-      Math.max(0, window.innerWidth - MODEL_MENU_COLLISION_GUTTER * 2),
-    );
-    const panelChromeHeight = MODEL_MENU_MODEL_PANEL_CHROME_HEIGHT;
-    const actualContentHeight = activeDesktopVendorGroup.items.length > 0
-      ? activeDesktopVendorGroup.items.length * MODEL_MENU_MODEL_ROW_HEIGHT
-        + Math.max(0, activeDesktopVendorGroup.items.length - 1) * MODEL_MENU_ROW_GAP
-        + MODEL_MENU_LIST_PADDING_BOTTOM
-      : 0;
-    const contentHeight = Math.min(actualContentHeight, MODEL_MENU_MAX_HEIGHT);
-    const maxListHeight = Math.max(
-      MODEL_MENU_MODEL_ROW_HEIGHT,
-      window.innerHeight - MODEL_MENU_COLLISION_GUTTER * 2 - panelChromeHeight,
-    );
-    const initialListHeight = Math.min(
-      contentHeight,
-      maxListHeight,
-    );
-    const initialPanelHeight = panelChromeHeight + initialListHeight;
-    const preferredY = menuRect.top + initialPanelHeight <= window.innerHeight - MODEL_MENU_COLLISION_GUTTER
-      ? menuRect.top
-      : menuRect.bottom - initialPanelHeight;
-    const y = Math.min(
-      Math.max(preferredY, MODEL_MENU_COLLISION_GUTTER),
-      Math.max(MODEL_MENU_COLLISION_GUTTER, window.innerHeight - initialPanelHeight - MODEL_MENU_COLLISION_GUTTER),
-    );
-    const listMaxHeight = Math.min(
-      contentHeight,
-      Math.max(
-        MODEL_MENU_MODEL_ROW_HEIGHT,
-        Math.min(
-          maxListHeight,
-          window.innerHeight - y - MODEL_MENU_COLLISION_GUTTER - panelChromeHeight,
-        ),
-      ),
-    );
-    const rightX = menuRect.right + MODEL_MENU_PANEL_GAP;
-    const leftX = menuRect.left - MODEL_MENU_PANEL_GAP - panelWidth;
-    const rightFits = rightX + panelWidth <= window.innerWidth - MODEL_MENU_COLLISION_GUTTER;
-    const leftFits = leftX >= MODEL_MENU_COLLISION_GUTTER;
-    const preferredX = rightFits || !leftFits ? rightX : leftX;
-    const x = Math.min(
-      Math.max(preferredX, MODEL_MENU_COLLISION_GUTTER),
-      Math.max(MODEL_MENU_COLLISION_GUTTER, window.innerWidth - panelWidth - MODEL_MENU_COLLISION_GUTTER),
-    );
-
-    setDesktopModelPanelLayout({ key: layoutKey, x, y, width: panelWidth, listMaxHeight });
+    const activeVendorRow = menu.querySelector<HTMLElement>('[data-active-vendor="true"]');
+    setDesktopModelPanelLayout(resolveDesktopModelPanelLayout({
+      activeVendorRowRect: activeVendorRow?.getBoundingClientRect(),
+      itemCount: activeDesktopVendorGroup.items.length,
+      key: layoutKey,
+      menuRect,
+      preferredWidth: desktopModelMenuWidthValue,
+      viewportHeight: window.innerHeight,
+      viewportWidth: window.innerWidth,
+    }));
   }, [activeDesktopVendorGroup, desktopModelMenuWidthValue, isMobile, open]);
 
   React.useLayoutEffect(() => {
@@ -772,7 +812,10 @@ export function ChatModelPicker({
           sideOffset={8}
           className="relative overflow-visible rounded-xl p-1.5"
           ref={desktopPopoverContentRef}
-          style={{ width: isMobile ? mobileMenuWidth : vendorMenuWidth }}
+          style={{
+            width: isMobile ? mobileMenuWidth : vendorMenuWidth,
+            maxHeight: "var(--radix-popover-content-available-height)",
+          }}
           onInteractOutside={(event) => {
             const target = event.target;
             if (target instanceof Node && desktopModelPanelRef.current?.contains(target)) {
@@ -864,6 +907,7 @@ export function ChatModelPicker({
                       <button
                         type="button"
                         key={group.vendor}
+                        data-active-vendor={activeVendor ? "true" : undefined}
                         className={cn(
                           "flex h-7 w-full items-center gap-2 rounded-md px-2 py-0 text-left text-[11px] font-medium outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground",
                           activeVendor ? "bg-accent text-accent-foreground" : "text-muted-foreground",

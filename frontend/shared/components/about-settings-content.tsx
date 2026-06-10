@@ -101,7 +101,7 @@ export function AboutSettingsContent({
     {
       label: labels.official,
       value: "DEEIX",
-      href: "https://github.com/DEEIX-AI/DEEIX",
+      href: "https://github.com/DEEIX-AI",
       providerIcon: { name: "GitHub", slug: "github" },
     },
     {

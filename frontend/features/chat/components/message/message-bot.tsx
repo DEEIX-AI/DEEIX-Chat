@@ -92,6 +92,7 @@ type ChatMessageBotProps = {
   onCycleMessageBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
   onReactAssistantMessage: (publicID: string, reaction: AssistantReaction) => void;
   onCopy: () => void;
+  copySucceeded?: boolean;
   markdownRender?: boolean;
   showModelInfo?: boolean;
   showLatency?: boolean;
@@ -114,6 +115,7 @@ export function ChatMessageBot({
   onCycleMessageBranch,
   onReactAssistantMessage,
   onCopy,
+  copySucceeded = false,
   markdownRender = true,
   showModelInfo = true,
   showLatency = true,
@@ -342,6 +344,7 @@ export function ChatMessageBot({
         onContinue={onContinueAssistantMessage ? onContinue : undefined}
         onEdit={() => setIsEditing(true)}
         onCopy={onCopy}
+        copySucceeded={copySucceeded}
         onReact={(value) => onReactAssistantMessage(item.publicID, value)}
         showModelInfo={showModelInfo}
         showLatency={showLatency}

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight, ChevronDown, Copy, GripVertical, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowRight, ChevronDown, GripVertical, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -31,6 +31,7 @@ import type { IdentityProviderPayload } from "@/features/admin/api/auth";
 import { Table, TableBody, TableCell, TableEmptyRow, TableHead, TableHeader, TableRow, TableSkeletonRows } from "@/components/ui/table";
 import { ApiError } from "@/shared/api/http-client";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { CopyActionButton } from "@/shared/components/copy-action";
 import { configuredSettingsMap } from "@/shared/lib/settings-meta";
 import type { IdentityProviderDTO } from "@/shared/api/auth.types";
 import type { PatchSettingItem } from "@/shared/api/settings.types";
@@ -377,15 +378,6 @@ export function AdminLoginSettingsPage() {
   const callbackSlug = providerForm.slug?.trim() || normalizeProviderSlugPreview(providerForm.name) || "provider";
   const callbackURL = `${frontendOrigin || "http://localhost:3000"}/auth/callback?provider=${encodeURIComponent(callbackSlug)}`;
 
-  const copyCallbackURL = React.useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(callbackURL);
-      toast.success(t("toast.callbackCopied"));
-    } catch {
-      toast.error(commonT("errors.copyFailed"));
-    }
-  }, [callbackURL, commonT, t]);
-
   return (
     <SettingsPage>
       <div className="space-y-8">
@@ -714,9 +706,16 @@ export function AdminLoginSettingsPage() {
               <span className="text-xs text-muted-foreground">{t("providerDialog.callbackURL")}</span>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                 <Input value={callbackURL} disabled readOnly />
-                <Button type="button" variant="ghost" size="icon" className="text-muted-foreground shadow-none" onClick={() => void copyCallbackURL()} aria-label={t("providerDialog.copyCallbackURL")} title={t("providerDialog.copyCallbackURL")}>
-                  <Copy className="size-3.5" />
-                </Button>
+                <CopyActionButton
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground shadow-none"
+                  value={callbackURL}
+                  messages={{ copied: t("toast.callbackCopied"), failed: commonT("errors.copyFailed") }}
+                  aria-label={t("providerDialog.copyCallbackURL")}
+                  title={t("providerDialog.copyCallbackURL")}
+                />
               </div>
             </label>
             <label className="col-span-2 space-y-1 text-sm">

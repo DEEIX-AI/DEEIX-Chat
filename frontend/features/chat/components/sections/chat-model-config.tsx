@@ -802,6 +802,31 @@ function visualOptionsFromControls(
   });
 }
 
+function hasVisualConfigurationContent({
+  nativeToolDefinitions,
+  optionControls,
+  options,
+  policy,
+  protocol,
+}: {
+  nativeToolDefinitions: NativeToolDefinition[];
+  optionControls: ModelOptionControl[];
+  options: ConversationOptions;
+  policy: ModelOptionPolicy | null;
+  protocol: string;
+}): boolean {
+  if (nativeToolDefinitions.length > 0) {
+    return true;
+  }
+  const configuredOptions = visualOptionsFromControls(optionControls, options);
+  if (configuredOptions.length > 0) {
+    return true;
+  }
+  const configuredKeys = new Set(configuredOptions.map((item) => item.key));
+  return visualOptionsFromOptions(options, policy, protocol, nativeToolDefinitions)
+    .some((item) => !configuredKeys.has(item.key));
+}
+
 function resolveOptionTitle(key: string, configuredLabel: string | undefined, translate: OptionTranslationResolver): string {
   const translationKey = key.replaceAll(".", "__");
   if (OPTION_LABEL_KEYS.has(key) && translate.has?.(translationKey)) {
@@ -949,7 +974,7 @@ export function ChatModelConfig({
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [optionsDraft, setOptionsDraft] = React.useState("");
   const [optionsObject, setOptionsObject] = React.useState<ConversationOptions>({});
-  const [mobileView, setMobileView] = React.useState<"json" | "visual">("json");
+  const [mobileView, setMobileView] = React.useState<"json" | "visual">("visual");
   const [defaultRestorePending, setDefaultRestorePending] = React.useState(false);
   const [restoredDefaultOptions, setRestoredDefaultOptions] = React.useState<ConversationOptions | null>(null);
   const optionsObjectRef = React.useRef<ConversationOptions>({});
@@ -999,13 +1024,20 @@ export function ChatModelConfig({
 
   const openOptionsDialog = React.useCallback(() => {
     const sanitized = sanitizeConversationOptions(options);
+    const hasVisualContent = hasVisualConfigurationContent({
+      nativeToolDefinitions,
+      optionControls,
+      options: sanitized,
+      policy: modelOptionPolicy,
+      protocol: selectedProtocol,
+    });
     optionsObjectRef.current = sanitized;
     setOptionsObject(sanitized);
     setOptionsDraft(stringifyOptions(sanitized));
-    setMobileView("json");
+    setMobileView(hasVisualContent ? "visual" : "json");
     setRestoredDefaultOptions(null);
     setDialogOpen(true);
-  }, [options]);
+  }, [modelOptionPolicy, nativeToolDefinitions, optionControls, options, selectedProtocol]);
 
   const replaceOptionsDraft = React.useCallback((next: ConversationOptions) => {
     const sanitized = sanitizeConversationOptions(next);
@@ -1090,8 +1122,8 @@ export function ChatModelConfig({
       className="w-fit gap-0"
     >
       <TabsList className="h-7">
-        <TabsTrigger value="json">JSON</TabsTrigger>
         <TabsTrigger value="visual">{tComposer("visual")}</TabsTrigger>
+        <TabsTrigger value="json">JSON</TabsTrigger>
       </TabsList>
     </Tabs>
   );
@@ -1113,9 +1145,10 @@ export function ChatModelConfig({
       </div>
       <div className="min-h-0 flex-1 p-0.5">
         <JsonCodeEditor
+          key={mobileView === "json" ? "json-visible" : "json-hidden"}
           value={optionsDraft}
           onChange={handleOptionsJSONChange}
-          autoFocus
+          autoFocus={mobileView === "json"}
           height="100%"
           className="h-full min-h-0"
           actions={

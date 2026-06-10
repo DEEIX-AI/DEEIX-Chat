@@ -47,7 +47,9 @@ export type SpeechInputStatus = "idle" | "listening";
 
 type UseSpeechInputParams = {
   draft: string;
+  listeningPlaceholder: string;
   onDraftChange: (value: string) => void;
+  placeholder: string;
 };
 
 type UseSpeechInputState = {
@@ -58,7 +60,12 @@ type UseSpeechInputState = {
   toggle: () => void;
 };
 
-export function useSpeechInput({ draft, onDraftChange }: UseSpeechInputParams): UseSpeechInputState {
+export function useSpeechInput({
+  draft,
+  listeningPlaceholder,
+  onDraftChange,
+  placeholder,
+}: UseSpeechInputParams): UseSpeechInputState {
   const [supported, setSupported] = React.useState(false);
   const [status, setStatus] = React.useState<SpeechInputStatus>("idle");
   const recognitionRef = React.useRef<BrowserSpeechRecognition | null>(null);
@@ -68,7 +75,7 @@ export function useSpeechInput({ draft, onDraftChange }: UseSpeechInputParams): 
   const restartTimerRef = React.useRef<number | null>(null);
 
   const active = status !== "idle";
-  const placeholder = active ? "Listening..." : "Reply...";
+  const resolvedPlaceholder = active ? listeningPlaceholder : placeholder;
 
   React.useEffect(() => {
     draftRef.current = draft;
@@ -210,7 +217,7 @@ export function useSpeechInput({ draft, onDraftChange }: UseSpeechInputParams): 
     supported,
     status,
     active,
-    placeholder,
+    placeholder: resolvedPlaceholder,
     toggle,
   };
 }

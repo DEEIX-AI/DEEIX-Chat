@@ -153,7 +153,7 @@ function SidebarListItem({
               }}
               tabIndex={-1}
             >
-              <Ellipsis className="size-3" strokeWidth={1} animate={hovered ? "default" : undefined} />
+              <Ellipsis className="size-3" strokeWidth={1} animate={hovered ? "pulse" : undefined} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-32">

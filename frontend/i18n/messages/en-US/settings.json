@@ -168,6 +168,11 @@
       "unknownLocation": "Unknown location",
       "unknownIP": "Unknown IP"
     },
+    "logoutAllDialog": {
+      "title": "Sign out all active devices?",
+      "description": "After confirmation, active sessions for this account in other browsers, desktop apps, or mobile devices will be invalidated. This device will return to the sign-in page too.",
+      "confirm": "Sign out all devices"
+    },
     "deleteDialog": {
       "title": "Delete account",
       "description": "Deleting your account is permanent. Your account and chat history cannot be restored.",
@@ -586,7 +591,8 @@
     },
     "topUp": {
       "title": "Top up",
-      "description": "Enter a USD amount.",
+      "description": "Enter a USD amount and confirm the payment method.",
+      "currentBalance": "Current balance {value}",
       "amount": "Top-up amount",
       "amountAria": "Top-up amount in USD",
       "confirm": "Top up"

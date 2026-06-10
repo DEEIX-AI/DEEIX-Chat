@@ -442,6 +442,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 		EffectiveOptions:   filteredOptions,
 		UsageSpeed:         usage.Speed,
 		UsageServiceTier:   usage.ServiceTier,
+		RawUsageJSON:       usage.RawUsageJSON,
 		CacheWrite5mTokens: usage.CacheWrite5mTokens,
 		CacheWrite1hTokens: usage.CacheWrite1hTokens,
 		LatencyMS:          latencyMS,

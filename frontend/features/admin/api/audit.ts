@@ -1,5 +1,12 @@
 import { authedRequest } from "@/shared/api/authed-client";
-import type { AdminAuditLogDTO, AdminSystemEventDTO, AdminUsageLogDTO, AdminUserAuthEventDTO } from "@/features/admin/api/admin.types";
+import type {
+  AdminAuditLogDTO,
+  AdminConversationEventDTO,
+  AdminPaymentOrderDTO,
+  AdminSystemEventDTO,
+  AdminUsageLogDTO,
+  AdminUserAuthEventDTO,
+} from "@/features/admin/api/admin.types";
 import type { PagePayload } from "@/shared/api/common.types";
 
 import { normalizeAdminPagePayload, resolveAdminPage, type AdminPageOptions } from "./shared";
@@ -35,6 +42,29 @@ type ListAdminUsageLogsOptions = AdminPageOptions & {
   platformModelName?: string;
   billingMode?: string;
   userID?: number;
+  createdFrom?: string;
+  createdTo?: string;
+  sort?: string;
+};
+
+type ListAdminPaymentOrdersOptions = AdminPageOptions & {
+  query?: string;
+  orderType?: string;
+  provider?: string;
+  status?: string;
+  userID?: number;
+  createdFrom?: string;
+  createdTo?: string;
+  sort?: string;
+};
+
+type ListAdminConversationEventsOptions = AdminPageOptions & {
+  query?: string;
+  eventScope?: string;
+  eventType?: string;
+  status?: string;
+  userID?: number;
+  conversationID?: number;
   createdFrom?: string;
   createdTo?: string;
   sort?: string;
@@ -149,6 +179,59 @@ export async function listAdminUsageLogs(
 
   const data = await authedRequest<PagePayload<AdminUsageLogDTO>>(
     `/api/v1/admin/call-logs?${params.toString()}`,
+    { accessToken },
+    true,
+  );
+
+  return normalizeAdminPagePayload(data);
+}
+
+export async function listAdminPaymentOrders(
+  accessToken: string,
+  options: ListAdminPaymentOrdersOptions = {},
+): Promise<PagePayload<AdminPaymentOrderDTO>> {
+  const { page, pageSize } = resolveAdminPage(options);
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("page_size", String(pageSize));
+  if (options.query?.trim()) params.set("query", options.query.trim());
+  if (options.orderType?.trim()) params.set("order_type", options.orderType.trim());
+  if (options.provider?.trim()) params.set("provider", options.provider.trim());
+  if (options.status?.trim()) params.set("status", options.status.trim());
+  if (options.userID && options.userID > 0) params.set("user_id", String(options.userID));
+  if (options.createdFrom?.trim()) params.set("created_from", options.createdFrom.trim());
+  if (options.createdTo?.trim()) params.set("created_to", options.createdTo.trim());
+  if (options.sort?.trim()) params.set("sort", options.sort.trim());
+
+  const data = await authedRequest<PagePayload<AdminPaymentOrderDTO>>(
+    `/api/v1/admin/payment-orders?${params.toString()}`,
+    { accessToken },
+    true,
+  );
+
+  return normalizeAdminPagePayload(data);
+}
+
+export async function listAdminConversationEvents(
+  accessToken: string,
+  options: ListAdminConversationEventsOptions = {},
+): Promise<PagePayload<AdminConversationEventDTO>> {
+  const { page, pageSize } = resolveAdminPage(options);
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("page_size", String(pageSize));
+  if (options.query?.trim()) params.set("query", options.query.trim());
+  if (options.eventScope?.trim()) params.set("event_scope", options.eventScope.trim());
+  if (options.eventType?.trim()) params.set("event_type", options.eventType.trim());
+  if (options.status?.trim()) params.set("status", options.status.trim());
+  if (options.userID && options.userID > 0) params.set("user_id", String(options.userID));
+  if (options.conversationID && options.conversationID > 0) params.set("conversation_id", String(options.conversationID));
+  if (options.createdFrom?.trim()) params.set("created_from", options.createdFrom.trim());
+  if (options.createdTo?.trim()) params.set("created_to", options.createdTo.trim());
+  if (options.sort?.trim()) params.set("sort", options.sort.trim());
+
+  const data = await authedRequest<PagePayload<AdminConversationEventDTO>>(
+    `/api/v1/admin/conversation-events?${params.toString()}`,
     { accessToken },
     true,
   );

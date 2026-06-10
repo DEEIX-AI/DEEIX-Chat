@@ -66,6 +66,14 @@ function getEditorFontSize() {
   return BASE_EDITOR_FONT_SIZE * readUIFontScale();
 }
 
+function preservePlaceholderIndentation(value: string | undefined): string | undefined {
+  return value?.replace(/^[ \t]+/gm, (indent) =>
+    indent
+      .replaceAll(" ", "\u00A0")
+      .replaceAll("\t", "\u00A0\u00A0"),
+  );
+}
+
 function configureMonacoWorkers() {
   if (typeof window === "undefined") {
     return;
@@ -126,7 +134,7 @@ export function JsonCodeEditor({
   const mountDisabledRef = React.useRef(disabled);
   const mountThemeRef = React.useRef(resolvedTheme);
   const mountAutoFocusRef = React.useRef(autoFocus);
-  const placeholderRef = React.useRef(placeholder);
+  const placeholderRef = React.useRef(preservePlaceholderIndentation(placeholder));
   const [loading, setLoading] = React.useState(true);
   const [markerCount, setMarkerCount] = React.useState(0);
 
@@ -172,8 +180,19 @@ export function JsonCodeEditor({
   }, [autoFocus]);
 
   React.useEffect(() => {
-    placeholderRef.current = placeholder;
-    editorRef.current?.updateOptions({ placeholder: placeholder || undefined });
+    if (!autoFocus) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      editorRef.current?.focus();
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [autoFocus]);
+
+  React.useEffect(() => {
+    const formattedPlaceholder = preservePlaceholderIndentation(placeholder);
+    placeholderRef.current = formattedPlaceholder;
+    editorRef.current?.updateOptions({ placeholder: formattedPlaceholder || undefined });
   }, [placeholder]);
 
   React.useEffect(() => {

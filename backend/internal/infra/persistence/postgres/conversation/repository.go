@@ -74,6 +74,13 @@ func (r *Repo) sqliteDialect() bool {
 	return r != nil && r.db != nil && r.db.Dialector != nil && r.db.Dialector.Name() == "sqlite"
 }
 
+func (r *Repo) trimFunctionName() string {
+	if r.sqliteDialect() {
+		return "trim"
+	}
+	return "btrim"
+}
+
 // CreateConversation 创建会话。
 func (r *Repo) CreateConversation(ctx context.Context, item *domainconversation.Conversation) error {
 	entity := toConversationModel(item)
@@ -457,7 +464,7 @@ func (r *Repo) UpdateConversationMetadata(ctx context.Context, conversationID ui
 	updates := map[string]interface{}{}
 	if strings.TrimSpace(title) != "" {
 		updates["title"] = gorm.Expr(
-			"CASE WHEN lower(btrim(title)) IN ? THEN ? ELSE title END",
+			fmt.Sprintf("CASE WHEN lower(%s(title)) IN ? THEN ? ELSE title END", r.trimFunctionName()),
 			[]string{"", "new conversation", "new chat", "untitled", "新会话", "新对话", "新的对话"},
 			strings.TrimSpace(title),
 		)
@@ -1520,6 +1527,73 @@ func (r *Repo) ListConversationRuns(
 		return nil, 0, translateError(err)
 	}
 	return toConversationRunDomains(items), total, nil
+}
+
+// ListConversationEventLogs 分页查询管理员对话事件日志。
+func (r *Repo) ListConversationEventLogs(
+	ctx context.Context,
+	filter repository.ConversationEventLogListFilter,
+	offset int,
+	limit int,
+) ([]domainconversation.EventLog, int64, error) {
+	items := make([]models.ChatRunEvent, 0)
+	var total int64
+	query := r.db.WithContext(ctx).Model(&models.ChatRunEvent{})
+	if filter.UserID > 0 {
+		query = query.Where("user_id = ?", filter.UserID)
+	}
+	if filter.ConversationID > 0 {
+		query = query.Where("conversation_id = ?", filter.ConversationID)
+	}
+	if search := strings.TrimSpace(filter.Query); search != "" {
+		like := "%" + strings.ToLower(search) + "%"
+		query = query.Where(
+			"LOWER(run_id) LIKE ? OR LOWER(event_id) LIKE ? OR LOWER(event_type) LIKE ? OR LOWER(phase) LIKE ? OR LOWER(stage) LIKE ? OR LOWER(title) LIKE ? OR LOWER(summary) LIKE ? OR LOWER(tool_name) LIKE ?",
+			like,
+			like,
+			like,
+			like,
+			like,
+			like,
+			like,
+			like,
+		)
+	}
+	if eventScope := strings.TrimSpace(filter.EventScope); eventScope != "" {
+		query = query.Where("event_scope = ?", eventScope)
+	}
+	if eventType := strings.TrimSpace(filter.EventType); eventType != "" {
+		query = query.Where("event_type = ?", eventType)
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if filter.CreatedFrom != nil {
+		query = query.Where("created_at >= ?", *filter.CreatedFrom)
+	}
+	if filter.CreatedTo != nil {
+		query = query.Where("created_at <= ?", *filter.CreatedTo)
+	}
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, translateError(err)
+	}
+	order := "created_at DESC, id DESC"
+	switch strings.TrimSpace(filter.Sort) {
+	case "created_asc":
+		order = "created_at ASC, id ASC"
+	case "latency_desc":
+		order = "latency_ms DESC, id DESC"
+	case "seq_asc":
+		order = "run_id ASC, seq ASC, id ASC"
+	}
+	if err := query.
+		Order(order).
+		Offset(offset).
+		Limit(limit).
+		Find(&items).Error; err != nil {
+		return nil, 0, translateError(err)
+	}
+	return toConversationEventLogDomains(items), total, nil
 }
 
 // ListConversationRunsByRunIDs 按运行 ID 查询会话运行快照。
@@ -3108,6 +3182,43 @@ func toConversationRunDomains(items []models.ConversationRun) []domainconversati
 	results := make([]domainconversation.Run, 0, len(items))
 	for _, item := range items {
 		results = append(results, toConversationRunDomain(item))
+	}
+	return results
+}
+
+func toConversationEventLogDomains(items []models.ChatRunEvent) []domainconversation.EventLog {
+	results := make([]domainconversation.EventLog, 0, len(items))
+	for _, item := range items {
+		results = append(results, domainconversation.EventLog{
+			ID:              item.ID,
+			MessageID:       item.MessageID,
+			ConversationID:  item.ConversationID,
+			UserID:          item.UserID,
+			RunID:           item.RunID,
+			EventScope:      item.EventScope,
+			EventID:         item.EventID,
+			EventType:       item.EventType,
+			Phase:           item.Phase,
+			Stage:           item.Stage,
+			RoundID:         item.RoundID,
+			ParentEventID:   item.ParentEventID,
+			Status:          item.Status,
+			Title:           item.Title,
+			Summary:         item.Summary,
+			ContentMarkdown: item.ContentMarkdown,
+			PayloadJSON:     item.PayloadJSON,
+			Seq:             item.Seq,
+			ToolCallID:      item.ToolCallID,
+			ToolName:        item.ToolName,
+			LatencyMS:       item.LatencyMS,
+			InputJSON:       item.InputJSON,
+			OutputJSON:      item.OutputJSON,
+			ErrorJSON:       item.ErrorJSON,
+			StartedAt:       item.StartedAt,
+			EndedAt:         item.EndedAt,
+			CreatedAt:       item.CreatedAt,
+			UpdatedAt:       item.UpdatedAt,
+		})
 	}
 	return results
 }

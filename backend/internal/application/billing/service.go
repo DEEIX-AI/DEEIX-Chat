@@ -98,6 +98,26 @@ type UsagePricingInput struct {
 	LatencyMS           int64
 	ServerSideToolUsage map[string]int64
 	ServiceItems        []ServiceUsageInput
+	RawUsageJSON        string
+}
+
+func upstreamUsageSnapshot(input UsagePricingInput) interface{} {
+	raw := strings.TrimSpace(input.RawUsageJSON)
+	if raw == "" {
+		return map[string]interface{}{}
+	}
+	var decoded interface{}
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		return map[string]interface{}{}
+	}
+	switch value := decoded.(type) {
+	case map[string]interface{}:
+		return value
+	case []interface{}:
+		return value
+	default:
+		return map[string]interface{}{}
+	}
 }
 
 // PlatformModelIdentity 描述一次计费需要用到的平台模型身份。
@@ -174,6 +194,18 @@ type UsageLogListFilter struct {
 	CreatedFrom       *time.Time
 	CreatedTo         *time.Time
 	Sort              string
+}
+
+// PaymentOrderListFilter 描述管理员支付订单筛选和排序条件。
+type PaymentOrderListFilter struct {
+	Query       string
+	OrderType   string
+	Provider    string
+	Status      string
+	UserID      uint
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+	Sort        string
 }
 
 type tieredPricingConfig struct {
@@ -1502,6 +1534,7 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		"output_billed_nanousd":                    outputBilledNanousd,
 		"call_billed_nanousd":                      callBilledNanousd,
 		"duration_billed_nanousd":                  durationBilledNanousd,
+		"upstream_usage":                           upstreamUsageSnapshot(input),
 		"server_side_tool_usage":                   normalizeUsageCountMap(input.ServerSideToolUsage),
 		"native_tool_billing_enabled":              nativeToolBillingEnabled,
 		"native_tool_pricing_source":               nativeToolPricingSourceForSnapshot(nativeToolPricingJSON, nativeToolDefinitions),
@@ -2003,6 +2036,21 @@ func (s *Service) ListUsageLogs(ctx context.Context, page int, pageSize int, fil
 		CreatedFrom:       filter.CreatedFrom,
 		CreatedTo:         filter.CreatedTo,
 		Sort:              filter.Sort,
+	}, offset, limit)
+}
+
+// ListPaymentOrders 分页查询管理员支付订单记录。
+func (s *Service) ListPaymentOrders(ctx context.Context, page int, pageSize int, filter PaymentOrderListFilter) ([]domainbilling.PaymentOrder, int64, error) {
+	offset, limit := normalizePage(page, pageSize)
+	return s.repo.ListPaymentOrders(ctx, repository.PaymentOrderListFilter{
+		Query:       filter.Query,
+		OrderType:   filter.OrderType,
+		Provider:    filter.Provider,
+		Status:      filter.Status,
+		UserID:      filter.UserID,
+		CreatedFrom: filter.CreatedFrom,
+		CreatedTo:   filter.CreatedTo,
+		Sort:        filter.Sort,
 	}, offset, limit)
 }
 

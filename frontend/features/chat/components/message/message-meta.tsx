@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { Brush } from "@/components/animate-ui/icons/brush";
 import { ChevronLeft } from "@/components/animate-ui/icons/chevron-left";
 import { ChevronRight } from "@/components/animate-ui/icons/chevron-right";
+import { Check } from "@/components/animate-ui/icons/check";
 import { Copy } from "@/components/animate-ui/icons/copy";
 import { Heart } from "@/components/animate-ui/icons/heart";
 import { RotateCcw } from "@/components/animate-ui/icons/rotate-ccw";
@@ -195,6 +196,7 @@ export function UserMessageMeta({
   onRetry,
   onEdit,
   onCopy,
+  copySucceeded = false,
   readOnly = false,
   alwaysVisible = false,
   showBranchNavigator = true,
@@ -206,6 +208,7 @@ export function UserMessageMeta({
   onRetry: () => void;
   onEdit: () => void;
   onCopy: () => void;
+  copySucceeded?: boolean;
   readOnly?: boolean;
   alwaysVisible?: boolean;
   showBranchNavigator?: boolean;
@@ -242,7 +245,11 @@ export function UserMessageMeta({
             disabled={item.isPending}
             onClick={onCopy}
           >
-            <Copy size={14} strokeWidth={1.8} animateOnHover="default" />
+            {copySucceeded ? (
+              <Check size={14} strokeWidth={1.8} animate="default" />
+            ) : (
+              <Copy size={14} strokeWidth={1.8} animateOnHover="default" />
+            )}
           </MetaIconButton>
         </div>
       ) : null}
@@ -892,6 +899,7 @@ export function AssistantMessageMeta({
   onContinue,
   onEdit,
   onCopy,
+  copySucceeded = false,
   onReact,
   showModelInfo = true,
   showLatency = true,
@@ -909,6 +917,7 @@ export function AssistantMessageMeta({
   onContinue?: () => void;
   onEdit?: () => void;
   onCopy: () => void;
+  copySucceeded?: boolean;
   onReact: (value: AssistantReaction) => void;
   showModelInfo?: boolean;
   showLatency?: boolean;
@@ -977,7 +986,11 @@ export function AssistantMessageMeta({
                   disabled={!item.publicID}
                   onClick={onCopy}
                 >
-                  <Copy size={14} strokeWidth={1.8} animateOnHover="default" />
+                  {copySucceeded ? (
+                    <Check size={14} strokeWidth={1.8} animate="default" />
+                  ) : (
+                    <Copy size={14} strokeWidth={1.8} animateOnHover="default" />
+                  )}
                 </MetaIconButton>
                 {canEdit ? (
                   <MetaIconButton

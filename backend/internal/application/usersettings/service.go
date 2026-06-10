@@ -2,6 +2,7 @@ package usersettings
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -34,6 +35,7 @@ var allowedKeys = map[string]string{
 	"chat.restore_draft_on_failure":             "true",
 	"chat.preserve_conversation_drafts":         "true",
 	"chat.input_height":                         "standard",
+	"chat.default_mcp_tool_ids":                 "[]",
 }
 
 // boolKeys 取值只能是 "true" / "false"。
@@ -59,6 +61,9 @@ var enumKeys = map[string]map[string]bool{
 
 // validateValue 校验 key 对应 value 的合法性。
 func validateValue(key, value string) error {
+	if key == "chat.default_mcp_tool_ids" {
+		return validateDefaultMCPToolIDs(value, key)
+	}
 	if boolKeys[key] {
 		if value != "true" && value != "false" {
 			return &ErrValidation{Msg: fmt.Sprintf("invalid value for %s: must be 'true' or 'false'", key)}
@@ -71,6 +76,22 @@ func validateValue(key, value string) error {
 				valid = append(valid, "'"+v+"'")
 			}
 			return &ErrValidation{Msg: fmt.Sprintf("invalid value for %s: must be one of %s", key, strings.Join(valid, ", "))}
+		}
+	}
+	return nil
+}
+
+func validateDefaultMCPToolIDs(value string, key string) error {
+	var toolIDs []uint64
+	if err := json.Unmarshal([]byte(strings.TrimSpace(value)), &toolIDs); err != nil {
+		return &ErrValidation{Msg: fmt.Sprintf("invalid value for %s: must be a JSON array of positive tool IDs", key)}
+	}
+	if len(toolIDs) > 128 {
+		return &ErrValidation{Msg: fmt.Sprintf("invalid value for %s: must contain at most 128 tool IDs", key)}
+	}
+	for _, id := range toolIDs {
+		if id == 0 {
+			return &ErrValidation{Msg: fmt.Sprintf("invalid value for %s: tool IDs must be positive integers", key)}
 		}
 	}
 	return nil

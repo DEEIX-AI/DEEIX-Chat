@@ -1448,6 +1448,70 @@ func (r *Repo) ListUsageLogs(ctx context.Context, filter repository.UsageLogList
 	return results, total, nil
 }
 
+// ListPaymentOrders 分页查询管理员支付订单记录。
+func (r *Repo) ListPaymentOrders(ctx context.Context, filter repository.PaymentOrderListFilter, offset int, limit int) ([]domainbilling.PaymentOrder, int64, error) {
+	items := make([]model.PaymentOrder, 0)
+	var total int64
+	query := r.db.WithContext(ctx).Model(&model.PaymentOrder{})
+	if filter.UserID > 0 {
+		query = query.Where("user_id = ?", filter.UserID)
+	}
+	if search := strings.TrimSpace(filter.Query); search != "" {
+		like := "%" + strings.ToLower(search) + "%"
+		query = query.Where(
+			"LOWER(order_no) LIKE ? OR LOWER(provider) LIKE ? OR LOWER(status) LIKE ? OR LOWER(external_payment_id) LIKE ? OR LOWER(external_checkout_id) LIKE ?",
+			like,
+			like,
+			like,
+			like,
+			like,
+		)
+	}
+	if orderType := strings.TrimSpace(filter.OrderType); orderType != "" {
+		query = query.Where("order_type = ?", orderType)
+	}
+	if provider := strings.TrimSpace(filter.Provider); provider != "" {
+		query = query.Where("provider = ?", provider)
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if filter.CreatedFrom != nil {
+		query = query.Where("created_at >= ?", *filter.CreatedFrom)
+	}
+	if filter.CreatedTo != nil {
+		query = query.Where("created_at <= ?", *filter.CreatedTo)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, translateError(err)
+	}
+	order := "created_at DESC, id DESC"
+	switch strings.TrimSpace(filter.Sort) {
+	case "created_asc":
+		order = "created_at ASC, id ASC"
+	case "paid_desc":
+		order = "paid_at DESC NULLS LAST, id DESC"
+	case "amount_desc":
+		order = "pay_amount_cents DESC, id DESC"
+	}
+	if r.sqliteDialect() && strings.TrimSpace(filter.Sort) == "paid_desc" {
+		order = "paid_at IS NULL ASC, paid_at DESC, id DESC"
+	}
+	if err := query.
+		Order(order).
+		Offset(offset).
+		Limit(limit).
+		Find(&items).Error; err != nil {
+		return nil, 0, translateError(err)
+	}
+	results := make([]domainbilling.PaymentOrder, 0, len(items))
+	for _, item := range items {
+		results = append(results, toDomainPaymentOrder(item))
+	}
+	return results, total, nil
+}
+
 // ListMonthlyUsageByUser 按月份聚合用户用量。
 func (r *Repo) ListMonthlyUsageByUser(ctx context.Context, userID uint, limit int) ([]domainbilling.UsageMonthlySummary, error) {
 	if limit <= 0 {

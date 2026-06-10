@@ -146,7 +146,7 @@ export function SidebarConversationItem({
                   event.stopPropagation()
                 }}
               >
-                <Ellipsis size={16} strokeWidth={1.4} animate={isMenuHovered ? "default" : undefined} />
+                <Ellipsis size={16} strokeWidth={1.4} animate={isMenuHovered ? "pulse" : undefined} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-max min-w-36 max-w-[calc(100vw-2rem)]">

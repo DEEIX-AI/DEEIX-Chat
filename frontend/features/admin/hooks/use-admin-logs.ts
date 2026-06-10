@@ -3,10 +3,24 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { listAdminAuditLogs, listAdminSystemEvents, listAdminUsageLogs, listAdminUserAuthEvents } from "@/features/admin/api";
+import {
+  listAdminAuditLogs,
+  listAdminConversationEvents,
+  listAdminPaymentOrders,
+  listAdminSystemEvents,
+  listAdminUsageLogs,
+  listAdminUserAuthEvents,
+} from "@/features/admin/api";
 import { listAdminLLMModels } from "@/features/admin/api/llm";
 import { listAllAdminPages } from "@/features/admin/api/shared";
-import type { AdminAuditLogDTO, AdminSystemEventDTO, AdminUsageLogDTO, AdminUserAuthEventDTO } from "@/features/admin/api/admin.types";
+import type {
+  AdminAuditLogDTO,
+  AdminConversationEventDTO,
+  AdminPaymentOrderDTO,
+  AdminSystemEventDTO,
+  AdminUsageLogDTO,
+  AdminUserAuthEventDTO,
+} from "@/features/admin/api/admin.types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import type { ModelSelectOption } from "@/shared/components/model-select";
 import { resolveModelOptionIconUrl } from "@/shared/lib/model-option-display";
@@ -42,10 +56,120 @@ export const USAGE_LOG_SORT_OPTIONS = [
   { labelKey: "sort.latencyDesc", value: "latency_desc" },
 ] as const;
 
+export const PAYMENT_ORDER_SORT_OPTIONS = [
+  { labelKey: "sort.createdDesc", value: "created_desc" },
+  { labelKey: "sort.createdAsc", value: "created_asc" },
+  { labelKey: "sort.paidDesc", value: "paid_desc" },
+  { labelKey: "sort.amountDesc", value: "amount_desc" },
+] as const;
+
+export const CONVERSATION_EVENT_SORT_OPTIONS = [
+  { labelKey: "sort.createdDesc", value: "created_desc" },
+  { labelKey: "sort.createdAsc", value: "created_asc" },
+  { labelKey: "sort.latencyDesc", value: "latency_desc" },
+  { labelKey: "sort.sequenceAsc", value: "seq_asc" },
+] as const;
+
 export type AuditLogSortValue = (typeof AUDIT_LOG_SORT_OPTIONS)[number]["value"];
 export type SecurityLogSortValue = (typeof SECURITY_LOG_SORT_OPTIONS)[number]["value"];
 export type SystemEventSortValue = (typeof SYSTEM_EVENT_SORT_OPTIONS)[number]["value"];
 export type UsageLogSortValue = (typeof USAGE_LOG_SORT_OPTIONS)[number]["value"];
+export type PaymentOrderSortValue = (typeof PAYMENT_ORDER_SORT_OPTIONS)[number]["value"];
+export type ConversationEventSortValue = (typeof CONVERSATION_EVENT_SORT_OPTIONS)[number]["value"];
+
+const AUDIT_RESOURCE_VALUES = [
+  "user",
+  "conversation",
+  "conversation_project",
+  "message",
+  "file",
+  "memory",
+  "settings",
+] as const;
+
+const AUDIT_RESOURCE_LABEL_KEYS: Record<string, string> = {
+  user: "audit.resources.user",
+  conversation: "audit.resources.conversation",
+  conversation_project: "audit.resources.conversation_project",
+  message: "audit.resources.message",
+  file: "audit.resources.file",
+  memory: "audit.resources.memory",
+  settings: "audit.resources.settings",
+};
+
+const AUDIT_ACTION_VALUES = [
+  "login",
+  "stream_message",
+  "create_conversation",
+  "rename_conversation",
+  "export_conversation",
+  "delete_conversation",
+  "set_conversation_star",
+  "set_conversation_archive",
+  "set_conversation_project",
+  "batch_set_conversation_project",
+  "create_conversation_project",
+  "update_conversation_project",
+  "delete_conversation_project",
+  "reorder_conversation_projects",
+  "create_conversation_share",
+  "regenerate_conversation_share",
+  "revoke_conversation_share",
+  "revoke_conversation_shares",
+  "clone_shared_conversation",
+  "update_message",
+  "set_message_feedback",
+  "upload_file",
+  "update_file",
+  "delete_file",
+  "upsert_user_memory",
+  "delete_user_memory",
+  "settings.update",
+  "admin_create_user",
+  "admin_patch_user",
+  "admin_update_user_status",
+  "admin_revoke_user_sessions",
+  "admin_reset_user_password",
+  "admin_reset_user_2fa",
+  "admin_delete_user",
+] as const;
+
+const AUDIT_ACTION_LABEL_KEYS: Record<string, string> = {
+  login: "audit.actions.login",
+  stream_message: "audit.actions.stream_message",
+  create_conversation: "audit.actions.create_conversation",
+  rename_conversation: "audit.actions.rename_conversation",
+  export_conversation: "audit.actions.export_conversation",
+  delete_conversation: "audit.actions.delete_conversation",
+  set_conversation_star: "audit.actions.set_conversation_star",
+  set_conversation_archive: "audit.actions.set_conversation_archive",
+  set_conversation_project: "audit.actions.set_conversation_project",
+  batch_set_conversation_project: "audit.actions.batch_set_conversation_project",
+  create_conversation_project: "audit.actions.create_conversation_project",
+  update_conversation_project: "audit.actions.update_conversation_project",
+  delete_conversation_project: "audit.actions.delete_conversation_project",
+  reorder_conversation_projects: "audit.actions.reorder_conversation_projects",
+  create_conversation_share: "audit.actions.create_conversation_share",
+  regenerate_conversation_share: "audit.actions.regenerate_conversation_share",
+  revoke_conversation_share: "audit.actions.revoke_conversation_share",
+  revoke_conversation_shares: "audit.actions.revoke_conversation_shares",
+  clone_shared_conversation: "audit.actions.clone_shared_conversation",
+  update_message: "audit.actions.update_message",
+  set_message_feedback: "audit.actions.set_message_feedback",
+  upload_file: "audit.actions.upload_file",
+  update_file: "audit.actions.update_file",
+  delete_file: "audit.actions.delete_file",
+  upsert_user_memory: "audit.actions.upsert_user_memory",
+  delete_user_memory: "audit.actions.delete_user_memory",
+  "settings.update": "audit.actions.settings_update",
+  admin_create_user: "audit.actions.admin_create_user",
+  admin_patch_user: "audit.actions.admin_patch_user",
+  admin_update_user_status: "audit.actions.admin_update_user_status",
+  admin_revoke_user_sessions: "audit.actions.admin_revoke_user_sessions",
+  admin_reset_user_password: "audit.actions.admin_reset_user_password",
+  admin_reset_user_2fa: "audit.actions.admin_reset_user_2fa",
+  admin_delete_user: "audit.actions.admin_delete_user",
+};
 
 type UseAdminLogsState = {
   auditLogs: AdminAuditLogDTO[];
@@ -137,6 +261,55 @@ type UseAdminUsageLogsState = {
   loadUsageLogs: (page?: number, pageSize?: number) => Promise<void>;
 };
 
+type UseAdminPaymentOrdersState = {
+  orders: AdminPaymentOrderDTO[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+  loading: boolean;
+  query: string;
+  setQuery: (value: string) => void;
+  orderTypeFilter: string;
+  setOrderTypeFilter: (value: string) => void;
+  providerFilter: string;
+  setProviderFilter: (value: string) => void;
+  statusFilter: string;
+  setStatusFilter: (value: string) => void;
+  createdFromFilter: string;
+  setCreatedFromFilter: (value: string) => void;
+  createdToFilter: string;
+  setCreatedToFilter: (value: string) => void;
+  sortValue: PaymentOrderSortValue;
+  setSortValue: (value: PaymentOrderSortValue) => void;
+  loadPaymentOrders: (page?: number, pageSize?: number) => Promise<void>;
+};
+
+type UseAdminConversationEventsState = {
+  events: AdminConversationEventDTO[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+  loading: boolean;
+  query: string;
+  setQuery: (value: string) => void;
+  eventScopeFilter: string;
+  setEventScopeFilter: (value: string) => void;
+  eventTypeFilter: string;
+  setEventTypeFilter: (value: string) => void;
+  statusFilter: string;
+  setStatusFilter: (value: string) => void;
+  createdFromFilter: string;
+  setCreatedFromFilter: (value: string) => void;
+  createdToFilter: string;
+  setCreatedToFilter: (value: string) => void;
+  sortValue: ConversationEventSortValue;
+  setSortValue: (value: ConversationEventSortValue) => void;
+  eventTypeOptions: Array<{ label: string; value: string }>;
+  loadConversationEvents: (page?: number, pageSize?: number) => Promise<void>;
+};
+
 function parsePositiveInt(value: string): number | undefined {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
@@ -160,6 +333,28 @@ function toRFC3339DateRangeBound(value: string, bound: "start" | "end"): string 
 
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function appendObservedAuditOptions(
+  baseValues: readonly string[],
+  observedValues: string[],
+  labelForValue: (value: string) => string,
+  allLabel: string,
+): Array<{ label: string; value: string }> {
+  const orderedValues = new Set<string>(baseValues);
+  for (const value of observedValues) {
+    const normalized = value.trim();
+    if (normalized) {
+      orderedValues.add(normalized);
+    }
+  }
+  return [
+    { label: allLabel, value: "" },
+    ...Array.from(orderedValues).map((value) => ({
+      label: labelForValue(value),
+      value,
+    })),
+  ];
 }
 
 export function useAdminLogs(): UseAdminLogsState {
@@ -259,35 +454,29 @@ export function useAdminLogs(): UseAdminLogsState {
   }, []);
 
   const resourceOptions = React.useMemo(() => {
-    const values = new Set<string>();
-    for (const item of auditLogs) {
-      const resource = item.resource.trim();
-      if (resource) {
-        values.add(resource);
-      }
-    }
-    return [
-      { label: t("filters.allResources"), value: "" },
-      ...Array.from(values)
-        .sort((left, right) => left.localeCompare(right))
-        .map((value) => ({ label: value, value })),
-    ];
+    const observedValues = auditLogs.map((item) => item.resource);
+    return appendObservedAuditOptions(
+      AUDIT_RESOURCE_VALUES,
+      observedValues,
+      (value) => {
+        const labelKey = AUDIT_RESOURCE_LABEL_KEYS[value];
+        return labelKey ? t(labelKey) : value;
+      },
+      t("filters.allResources"),
+    );
   }, [auditLogs, t]);
 
   const actionOptions = React.useMemo(() => {
-    const values = new Set<string>();
-    for (const item of auditLogs) {
-      const action = item.action.trim();
-      if (action) {
-        values.add(action);
-      }
-    }
-    return [
-      { label: t("filters.allActions"), value: "" },
-      ...Array.from(values)
-        .sort((left, right) => left.localeCompare(right))
-        .map((value) => ({ label: value, value })),
-    ];
+    const observedValues = auditLogs.map((item) => item.action);
+    return appendObservedAuditOptions(
+      AUDIT_ACTION_VALUES,
+      observedValues,
+      (value) => {
+        const labelKey = AUDIT_ACTION_LABEL_KEYS[value];
+        return labelKey ? t(labelKey) : value;
+      },
+      t("filters.allActions"),
+    );
   }, [auditLogs, t]);
 
   return {
@@ -702,5 +891,243 @@ export function useAdminUsageLogs(): UseAdminUsageLogsState {
     setSortValue,
     platformModelOptions,
     loadUsageLogs,
+  };
+}
+
+export function useAdminPaymentOrders(): UseAdminPaymentOrdersState {
+  const t = useTranslations("adminLogs");
+  const [orders, setOrders] = React.useState<AdminPaymentOrderDTO[]>([]);
+  const [total, setTotal] = React.useState(0);
+  const [page, setPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(ADMIN_LOGS_PAGE_SIZE);
+  const [loading, setLoading] = React.useState(true);
+  const [query, setQueryState] = React.useState("");
+  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const [orderTypeFilter, setOrderTypeFilterState] = React.useState("");
+  const [providerFilter, setProviderFilterState] = React.useState("");
+  const [statusFilter, setStatusFilterState] = React.useState("");
+  const [createdFromFilter, setCreatedFromFilterState] = React.useState("");
+  const [createdToFilter, setCreatedToFilterState] = React.useState("");
+  const [sortValue, setSortValueState] = React.useState<PaymentOrderSortValue>("created_desc");
+  const requestSeqRef = React.useRef(0);
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  const loadPaymentOrders = React.useCallback(async (nextPage = 1, nextPageSize = pageSize) => {
+    const requestSeq = requestSeqRef.current + 1;
+    requestSeqRef.current = requestSeq;
+    setLoading(true);
+    try {
+      const token = await resolveAccessToken();
+      if (!token) {
+        toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
+        return;
+      }
+      const data = await listAdminPaymentOrders(token, {
+        page: nextPage,
+        pageSize: nextPageSize,
+        query: /^\d+$/.test(debouncedQuery) ? undefined : debouncedQuery,
+        userID: parsePositiveInt(debouncedQuery),
+        orderType: orderTypeFilter,
+        provider: providerFilter,
+        status: statusFilter,
+        createdFrom: toRFC3339DateRangeBound(createdFromFilter, "start"),
+        createdTo: toRFC3339DateRangeBound(createdToFilter, "end"),
+        sort: sortValue,
+      });
+      if (requestSeq !== requestSeqRef.current) return;
+      setOrders(data.results);
+      setTotal(data.total);
+      setPage(nextPage);
+      setPageSize(nextPageSize);
+    } catch (error) {
+      toast.error(t("toast.ordersLoadFailed"), { description: resolveAdminErrorMessage(error) });
+    } finally {
+      if (requestSeq === requestSeqRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [createdFromFilter, createdToFilter, debouncedQuery, orderTypeFilter, pageSize, providerFilter, sortValue, statusFilter, t]);
+
+  React.useEffect(() => {
+    void loadPaymentOrders(1);
+  }, [loadPaymentOrders]);
+
+  const setQuery = React.useCallback((value: string) => {
+    setQueryState(value);
+    setPage(1);
+  }, []);
+  const setOrderTypeFilter = React.useCallback((value: string) => {
+    setOrderTypeFilterState(value);
+    setPage(1);
+  }, []);
+  const setProviderFilter = React.useCallback((value: string) => {
+    setProviderFilterState(value);
+    setPage(1);
+  }, []);
+  const setStatusFilter = React.useCallback((value: string) => {
+    setStatusFilterState(value);
+    setPage(1);
+  }, []);
+  const setCreatedFromFilter = React.useCallback((value: string) => {
+    setCreatedFromFilterState(value);
+    setPage(1);
+  }, []);
+  const setCreatedToFilter = React.useCallback((value: string) => {
+    setCreatedToFilterState(value);
+    setPage(1);
+  }, []);
+  const setSortValue = React.useCallback((value: PaymentOrderSortValue) => {
+    setSortValueState(value);
+    setPage(1);
+  }, []);
+
+  return {
+    orders,
+    total,
+    page,
+    pageSize,
+    pageCount: Math.max(1, Math.ceil(total / pageSize)),
+    loading,
+    query,
+    setQuery,
+    orderTypeFilter,
+    setOrderTypeFilter,
+    providerFilter,
+    setProviderFilter,
+    statusFilter,
+    setStatusFilter,
+    createdFromFilter,
+    setCreatedFromFilter,
+    createdToFilter,
+    setCreatedToFilter,
+    sortValue,
+    setSortValue,
+    loadPaymentOrders,
+  };
+}
+
+export function useAdminConversationEvents(): UseAdminConversationEventsState {
+  const t = useTranslations("adminLogs");
+  const [events, setEvents] = React.useState<AdminConversationEventDTO[]>([]);
+  const [total, setTotal] = React.useState(0);
+  const [page, setPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(ADMIN_LOGS_PAGE_SIZE);
+  const [loading, setLoading] = React.useState(true);
+  const [query, setQueryState] = React.useState("");
+  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const [eventScopeFilter, setEventScopeFilterState] = React.useState("");
+  const [eventTypeFilter, setEventTypeFilterState] = React.useState("");
+  const [statusFilter, setStatusFilterState] = React.useState("");
+  const [createdFromFilter, setCreatedFromFilterState] = React.useState("");
+  const [createdToFilter, setCreatedToFilterState] = React.useState("");
+  const [sortValue, setSortValueState] = React.useState<ConversationEventSortValue>("created_desc");
+  const requestSeqRef = React.useRef(0);
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  const loadConversationEvents = React.useCallback(async (nextPage = 1, nextPageSize = pageSize) => {
+    const requestSeq = requestSeqRef.current + 1;
+    requestSeqRef.current = requestSeq;
+    setLoading(true);
+    try {
+      const token = await resolveAccessToken();
+      if (!token) {
+        toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
+        return;
+      }
+      const data = await listAdminConversationEvents(token, {
+        page: nextPage,
+        pageSize: nextPageSize,
+        query: /^\d+$/.test(debouncedQuery) ? undefined : debouncedQuery,
+        userID: parsePositiveInt(debouncedQuery),
+        eventScope: eventScopeFilter,
+        eventType: eventTypeFilter,
+        status: statusFilter,
+        createdFrom: toRFC3339DateRangeBound(createdFromFilter, "start"),
+        createdTo: toRFC3339DateRangeBound(createdToFilter, "end"),
+        sort: sortValue,
+      });
+      if (requestSeq !== requestSeqRef.current) return;
+      setEvents(data.results);
+      setTotal(data.total);
+      setPage(nextPage);
+      setPageSize(nextPageSize);
+    } catch (error) {
+      toast.error(t("toast.conversationEventsLoadFailed"), { description: resolveAdminErrorMessage(error) });
+    } finally {
+      if (requestSeq === requestSeqRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [createdFromFilter, createdToFilter, debouncedQuery, eventScopeFilter, eventTypeFilter, pageSize, sortValue, statusFilter, t]);
+
+  React.useEffect(() => {
+    void loadConversationEvents(1);
+  }, [loadConversationEvents]);
+
+  const eventTypeOptions = React.useMemo(() => {
+    const values = [...new Set(events.map((item) => item.eventType).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    return values.map((value) => ({ label: value, value }));
+  }, [events]);
+
+  const setQuery = React.useCallback((value: string) => {
+    setQueryState(value);
+    setPage(1);
+  }, []);
+  const setEventScopeFilter = React.useCallback((value: string) => {
+    setEventScopeFilterState(value);
+    setPage(1);
+  }, []);
+  const setEventTypeFilter = React.useCallback((value: string) => {
+    setEventTypeFilterState(value);
+    setPage(1);
+  }, []);
+  const setStatusFilter = React.useCallback((value: string) => {
+    setStatusFilterState(value);
+    setPage(1);
+  }, []);
+  const setCreatedFromFilter = React.useCallback((value: string) => {
+    setCreatedFromFilterState(value);
+    setPage(1);
+  }, []);
+  const setCreatedToFilter = React.useCallback((value: string) => {
+    setCreatedToFilterState(value);
+    setPage(1);
+  }, []);
+  const setSortValue = React.useCallback((value: ConversationEventSortValue) => {
+    setSortValueState(value);
+    setPage(1);
+  }, []);
+
+  return {
+    events,
+    total,
+    page,
+    pageSize,
+    pageCount: Math.max(1, Math.ceil(total / pageSize)),
+    loading,
+    query,
+    setQuery,
+    eventScopeFilter,
+    setEventScopeFilter,
+    eventTypeFilter,
+    setEventTypeFilter,
+    statusFilter,
+    setStatusFilter,
+    createdFromFilter,
+    setCreatedFromFilter,
+    createdToFilter,
+    setCreatedToFilter,
+    sortValue,
+    setSortValue,
+    eventTypeOptions,
+    loadConversationEvents,
   };
 }

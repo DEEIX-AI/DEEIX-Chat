@@ -39,7 +39,7 @@ function AttachmentCard({
 
   return (
     <div
-      className="group relative h-14 w-56 shrink-0 rounded-lg border border-border/50 bg-background/95 text-left shadow-[0_1px_2px_rgba(0,0,0,0.025)] transition-colors hover:border-border hover:bg-accent/30"
+      className="group relative h-14 w-56 shrink-0 rounded-lg bg-muted/35 text-left transition-colors hover:bg-muted/50 dark:bg-white/[0.06] dark:hover:bg-white/[0.09]"
     >
       <button
         type="button"

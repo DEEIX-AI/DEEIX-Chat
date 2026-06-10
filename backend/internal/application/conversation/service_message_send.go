@@ -1336,6 +1336,7 @@ func (s *Service) sendMessageInternal(
 		EffectiveOptions:    filteredOptions,
 		UsageSpeed:          totalUsage.Speed,
 		UsageServiceTier:    totalUsage.ServiceTier,
+		RawUsageJSON:        totalUsage.RawUsageJSON,
 		CacheWrite5mTokens:  totalUsage.CacheWrite5mTokens,
 		CacheWrite1hTokens:  totalUsage.CacheWrite1hTokens,
 		ServerSideToolUsage: totalServerSideToolUsage,

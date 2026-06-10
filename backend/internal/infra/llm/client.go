@@ -491,6 +491,7 @@ type Usage struct {
 	ReasoningTokens    int64
 	Speed              string
 	ServiceTier        string
+	RawUsageJSON       string
 }
 
 func nonCachedInputTokens(totalInputTokens int64, cacheReadTokens int64) int64 {
@@ -505,6 +506,88 @@ func nonCachedInputTokens(totalInputTokens int64, cacheReadTokens int64) int64 {
 		return 0
 	}
 	return remaining
+}
+
+func rawUsageJSONFromPath(payload map[string]interface{}, keys ...string) string {
+	if len(payload) == 0 || len(keys) == 0 {
+		return ""
+	}
+	var current interface{} = payload
+	for _, key := range keys {
+		currentMap, ok := current.(map[string]interface{})
+		if !ok {
+			return ""
+		}
+		current, ok = currentMap[key]
+		if !ok {
+			return ""
+		}
+	}
+	switch value := current.(type) {
+	case map[string]interface{}:
+		if len(value) == 0 {
+			return ""
+		}
+	case []interface{}:
+		if len(value) == 0 {
+			return ""
+		}
+	default:
+		return ""
+	}
+	raw, err := json.Marshal(current)
+	if err != nil {
+		return ""
+	}
+	return string(raw)
+}
+
+func MergeRawUsageJSON(left string, right string) string {
+	left = strings.TrimSpace(left)
+	right = strings.TrimSpace(right)
+	if left == "" {
+		return right
+	}
+	if right == "" || right == left {
+		return left
+	}
+	items := make([]interface{}, 0, 2)
+	items = appendRawUsageJSON(items, left)
+	items = appendRawUsageJSON(items, right)
+	if len(items) == 0 {
+		return ""
+	}
+	if len(items) == 1 {
+		raw, err := json.Marshal(items[0])
+		if err != nil {
+			return ""
+		}
+		return string(raw)
+	}
+	raw, err := json.Marshal(items)
+	if err != nil {
+		return ""
+	}
+	return string(raw)
+}
+
+func appendRawUsageJSON(items []interface{}, raw string) []interface{} {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return items
+	}
+	var decoded interface{}
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		return items
+	}
+	switch value := decoded.(type) {
+	case []interface{}:
+		return append(items, value...)
+	case map[string]interface{}:
+		return append(items, value)
+	default:
+		return items
+	}
 }
 
 // ToolCall 记录上游返回的工具调用请求。

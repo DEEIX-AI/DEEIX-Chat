@@ -53,6 +53,7 @@ import {
   SettingsFieldRow,
   SettingsSection,
 } from "@/shared/components/settings-layout";
+import { CopyActionButton, useCopyAction } from "@/shared/components/copy-action";
 import {
   getAdminReferenceData,
   batchDeleteAdminRedemptionCodes,
@@ -279,6 +280,12 @@ export function AdminBillingPage() {
   const tActions = useTranslations("common.actions");
   const tCommonErrors = useTranslations("common.errors");
   const tInput = useTranslations("common.input");
+  const { copy, isCopied } = useCopyAction({
+    messages: {
+      copied: tActions("copied"),
+      failed: tCommonErrors("copyFailed"),
+    },
+  });
   const importPricingInputRef = React.useRef<HTMLInputElement | null>(null);
   const [plans, setPlans] = React.useState<AdminBillingPlanDTO[]>([]);
   const [models, setModels] = React.useState<AdminLLMModelDTO[]>([]);
@@ -327,18 +334,8 @@ export function AdminBillingPage() {
   const [redemptionBulkPending, setRedemptionBulkPending] = React.useState(false);
   const [redemptionDeleteTarget, setRedemptionDeleteTarget] = React.useState<AdminRedemptionCodeDTO | null>(null);
   const [createdRedemptionCodes, setCreatedRedemptionCodes] = React.useState<string[]>([]);
-  const [redemptionCopyingID, setRedemptionCopyingID] = React.useState<number | null>(null);
   const [redemptionStatusPendingID, setRedemptionStatusPendingID] = React.useState<number | null>(null);
   const stripeWebhookEndpoint = React.useMemo(() => `${resolveApiBaseURL()}/api/v1/billing/payments/stripe/webhook`, []);
-
-  const copyStripeWebhookEndpoint = React.useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(stripeWebhookEndpoint);
-      toast.success(tActions("copied"));
-    } catch {
-      toast.error(tCommonErrors("copyFailed"));
-    }
-  }, [stripeWebhookEndpoint, tActions, tCommonErrors]);
 
   const loadData = React.useCallback(async () => {
     setLoading(true);
@@ -658,21 +655,6 @@ export function AdminBillingPage() {
     });
   }
 
-  async function copyCreatedRedemptionCodes() {
-    if (createdRedemptionCodes.length === 0) return;
-    await copyRedemptionText(createdRedemptionCodes.join("\n"));
-  }
-
-  async function copyRedemptionText(value: string) {
-    if (!value.trim()) return;
-    try {
-      await navigator.clipboard.writeText(value);
-      toast.success(tActions("copied"));
-    } catch {
-      toast.error(tCommonErrors("copyFailed"));
-    }
-  }
-
   async function fetchRedemptionCodePlaintext(item: AdminRedemptionCodeDTO): Promise<string> {
     const token = await resolveAccessToken();
     if (!token) {
@@ -718,27 +700,20 @@ export function AdminBillingPage() {
     return { results, failedCount };
   }
 
-  async function copyStoredRedemptionCode(item: AdminRedemptionCodeDTO) {
-    setRedemptionCopyingID(item.id);
-    try {
-      const code = await fetchRedemptionCodePlaintext(item);
-      await copyRedemptionText(code);
-    } catch (error) {
-      toast.error(t("toast.redemptionCopyFailed"), { description: resolveErrorMessage(error) });
-    } finally {
-      setRedemptionCopyingID(null);
-    }
-  }
-
   async function copySelectedRedemptionCodes() {
     setRedemptionBulkPending(true);
     try {
       const { results, failedCount } = await revealSelectedRedemptionCodes();
       if (results.length === 0) return;
-      await navigator.clipboard.writeText(results.map((result) => result.code).join("\n"));
-      toast.success(t("toast.redemptionBulkCopied", { count: results.length }), {
-        description: failedCount > 0 ? t("toast.redemptionBulkRevealSkipped", { count: failedCount }) : undefined,
+      const copied = await copy(results.map((result) => result.code).join("\n"), {
+        key: "selected-redemption-codes",
+        copied: t("toast.redemptionBulkCopied", { count: results.length }),
+        copiedDescription: failedCount > 0 ? t("toast.redemptionBulkRevealSkipped", { count: failedCount }) : undefined,
+        failed: t("toast.redemptionBulkCopyFailed"),
       });
+      if (!copied) {
+        return;
+      }
     } catch (error) {
       toast.error(t("toast.redemptionBulkCopyFailed"), { description: resolveErrorMessage(error) });
     } finally {
@@ -1471,9 +1446,16 @@ export function AdminBillingPage() {
                 >
                   <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
                     <Input value={stripeWebhookEndpoint} className="min-w-0 truncate text-left text-xs md:text-right" readOnly />
-                    <Button type="button" variant="secondary" size="icon" className="size-8 shrink-0 rounded-md shadow-none active:scale-90 transition-transform" onClick={() => void copyStripeWebhookEndpoint()} aria-label={tActions("copy")} title={tActions("copy")}>
-                      <Copy className="size-3.5" />
-                    </Button>
+                    <CopyActionButton
+                      type="button"
+                      variant="secondary"
+                      size="icon"
+                      className="size-8 shrink-0 rounded-md shadow-none active:scale-90 transition-transform"
+                      value={stripeWebhookEndpoint}
+                      messages={{ copied: tActions("copied"), failed: tCommonErrors("copyFailed") }}
+                      aria-label={tActions("copy")}
+                      title={tActions("copy")}
+                    />
                   </div>
                 </SettingsFieldRow>
                 <SettingsFieldRow
@@ -1673,7 +1655,7 @@ export function AdminBillingPage() {
               {
                 key: "copy-codes",
                 label: t("redemption.copySelected"),
-                icon: <Copy className="size-3.5 stroke-1" />,
+                icon: isCopied("selected-redemption-codes") ? <Check className="size-3.5 stroke-1" /> : <Copy className="size-3.5 stroke-1" />,
                 onClick: () => void copySelectedRedemptionCodes(),
               },
               {
@@ -1753,17 +1735,17 @@ export function AdminBillingPage() {
                       <TableCell className="w-[168px] max-w-[168px] py-1.5 font-mono text-xs">
                         <div className="flex h-7 items-center gap-1.5">
                           <span className="min-w-0 max-w-[112px] truncate">{displayCode}</span>
-                          <Button
+                          <CopyActionButton
                             type="button"
                             variant="ghost"
                             size="icon-xs"
                             className="h-6 w-6 text-muted-foreground shadow-none"
-                            disabled={redemptionCopyingID === item.id}
-                            onClick={() => void copyStoredRedemptionCode(item)}
+                            messages={{ copied: tActions("copied"), failed: t("toast.redemptionCopyFailed") }}
+                            resolveValue={() => fetchRedemptionCodePlaintext(item)}
+                            onResolveError={(error) => toast.error(t("toast.redemptionCopyFailed"), { description: resolveErrorMessage(error) })}
+                            iconClassName="size-3.5 stroke-1.5"
                             aria-label={tActions("copy")}
-                          >
-                            <Copy className="size-3.5 stroke-1.5" />
-                          </Button>
+                          />
                           {unavailableReason ? (
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -2386,25 +2368,31 @@ export function AdminBillingPage() {
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-2">
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-medium">{t("redemption.createdCodes")}</p>
-              <Button type="button" variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs shadow-none" onClick={() => void copyCreatedRedemptionCodes()}>
-                <Copy className="size-3.5" />
+              <CopyActionButton
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs shadow-none"
+                value={createdRedemptionCodes.join("\n")}
+                messages={{ copied: tActions("copied"), failed: tCommonErrors("copyFailed") }}
+                disabled={createdRedemptionCodes.length === 0}
+              >
                 {t("redemption.copyAll")}
-              </Button>
+              </CopyActionButton>
             </div>
             <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
               {createdRedemptionCodes.map((code) => (
                 <div key={code} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border/60 bg-muted/25 px-3 py-2">
                   <span className="min-w-0 break-all font-mono text-xs">{code}</span>
-                  <Button
+                  <CopyActionButton
                     type="button"
                     variant="ghost"
                     size="icon-sm"
                     className="text-muted-foreground"
-                    onClick={() => void copyRedemptionText(code)}
+                    value={code}
+                    messages={{ copied: tActions("copied"), failed: tCommonErrors("copyFailed") }}
                     aria-label={tActions("copy")}
-                  >
-                    <Copy className="size-3.5" />
-                  </Button>
+                  />
                 </div>
               ))}
             </div>

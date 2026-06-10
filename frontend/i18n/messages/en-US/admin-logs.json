@@ -1,13 +1,15 @@
 {
   "title": "Logs",
   "centerTitle": "Log center",
-  "audit": "Audit logs",
-  "usage": "Usage logs",
+  "audit": "Operation audit",
+  "usage": "Model calls",
   "system": "System events",
   "tabs": {
-    "audit": "Audit",
-    "usage": "Usage logs",
-    "auth": "Auth logs",
+    "audit": "Operation audit",
+    "usage": "Model calls",
+    "auth": "Auth security",
+    "orders": "Order records",
+    "conversation": "Conversation events",
     "system": "System events"
   },
   "toast": {
@@ -17,6 +19,8 @@
     "authLoadFailed": "Failed to load auth logs",
     "systemLoadFailed": "Failed to load system events",
     "usageLoadFailed": "Failed to load usage logs",
+    "ordersLoadFailed": "Failed to load order records",
+    "conversationEventsLoadFailed": "Failed to load conversation events",
     "modelFilterLoadFailed": "Failed to load model filters"
   },
   "sort": {
@@ -30,7 +34,10 @@
     "callTimeAsc": "Call time oldest first",
     "costDesc": "Cost high to low",
     "tokensDesc": "Tokens high to low",
-    "latencyDesc": "Latency high to low"
+    "latencyDesc": "Latency high to low",
+    "paidDesc": "Paid newest first",
+    "amountDesc": "Amount high to low",
+    "sequenceAsc": "Event sequence oldest first"
   },
   "filters": {
     "allResources": "All",
@@ -62,11 +69,64 @@
     "caller": "Caller",
     "model": "Model",
     "billing": "Billing",
-    "latency": "Latency"
+    "latency": "Latency",
+    "orderNo": "Order no.",
+    "type": "Type",
+    "provider": "Provider",
+    "status": "Status",
+    "amount": "Amount",
+    "scope": "Scope",
+    "tool": "Tool",
+    "runID": "Run ID"
   },
   "audit": {
     "searchPlaceholder": "Search user ID, action, resource, request ID, IP, or detail",
-    "empty": "No audit logs"
+    "empty": "No audit logs",
+    "resources": {
+      "user": "Users and accounts",
+      "conversation": "Conversations",
+      "conversation_project": "Projects",
+      "message": "Messages",
+      "file": "Files",
+      "memory": "Memory",
+      "settings": "System settings"
+    },
+    "actions": {
+      "login": "Sign in",
+      "stream_message": "Send message",
+      "create_conversation": "Create conversation",
+      "rename_conversation": "Rename conversation",
+      "export_conversation": "Export conversation",
+      "delete_conversation": "Delete conversation",
+      "set_conversation_star": "Star conversation",
+      "set_conversation_archive": "Archive conversation",
+      "set_conversation_project": "Move conversation to project",
+      "batch_set_conversation_project": "Batch move conversations",
+      "create_conversation_project": "Create project",
+      "update_conversation_project": "Update project",
+      "delete_conversation_project": "Delete project",
+      "reorder_conversation_projects": "Reorder projects",
+      "create_conversation_share": "Create share",
+      "regenerate_conversation_share": "Regenerate share",
+      "revoke_conversation_share": "Revoke share",
+      "revoke_conversation_shares": "Revoke shares",
+      "clone_shared_conversation": "Clone shared conversation",
+      "update_message": "Update message",
+      "set_message_feedback": "Message feedback",
+      "upload_file": "Upload file",
+      "update_file": "Update file",
+      "delete_file": "Delete file",
+      "upsert_user_memory": "Save memory",
+      "delete_user_memory": "Delete memory",
+      "settings_update": "Update system settings",
+      "admin_create_user": "Admin create user",
+      "admin_patch_user": "Admin update user",
+      "admin_update_user_status": "Admin update user status",
+      "admin_revoke_user_sessions": "Admin revoke user sessions",
+      "admin_reset_user_password": "Admin reset password",
+      "admin_reset_user_2fa": "Admin reset two-factor auth",
+      "admin_delete_user": "Admin delete user"
+    }
   },
   "auth": {
     "searchPlaceholder": "Search user ID or event type",
@@ -135,16 +195,60 @@
       }
     }
   },
+  "orders": {
+    "searchPlaceholder": "Search user ID, order no., provider, status, or external payment ID",
+    "empty": "No order records",
+    "filters": {
+      "all": "All",
+      "orderType": "Order type",
+      "provider": "Provider",
+      "status": "Payment status"
+    },
+    "types": {
+      "subscription": "Subscription",
+      "topup": "Top-up"
+    },
+    "status": {
+      "pending": "Pending",
+      "paid": "Paid",
+      "expired": "Expired",
+      "failed": "Failed"
+    }
+  },
+  "conversation": {
+    "searchPlaceholder": "Search user ID, run ID, event, stage, title, or tool name",
+    "empty": "No conversation events",
+    "filters": {
+      "all": "All",
+      "scope": "Scope",
+      "eventType": "Event type",
+      "status": "Status"
+    },
+    "scopes": {
+      "trace_block": "Trace block",
+      "trace_event": "Trace event",
+      "tool_call": "Tool call"
+    },
+    "status": {
+      "streaming": "Streaming",
+      "completed": "Completed",
+      "error": "Error"
+    }
+  },
   "detail": {
     "titles": {
       "audit": "Audit log detail",
       "auth": "Auth log detail",
       "usage": "Usage log detail",
+      "order": "Order record detail",
+      "conversation": "Conversation event detail",
       "system": "System event detail"
     },
     "fallbacks": {
       "authEvent": "Auth event",
       "modelCall": "Model call",
+      "order": "Order record",
+      "conversationEvent": "Conversation event",
       "systemEvent": "System event",
       "auditEvent": "Audit event"
     },
@@ -156,7 +260,11 @@
       "resource": "Resource",
       "call": "Call",
       "modelRoute": "Model route",
-      "usageBilling": "Usage billing"
+      "usageBilling": "Usage billing",
+      "order": "Order",
+      "payment": "Payment",
+      "conversationEvent": "Conversation event",
+      "tool": "Tool"
     },
     "fields": {
       "action": "Action",
@@ -185,13 +293,33 @@
       "totalTokens": "Total tokens",
       "reasoning": "Reasoning",
       "callCount": "Call count",
-      "latency": "Latency"
+      "latency": "Latency",
+      "orderNo": "Order no.",
+      "orderType": "Order type",
+      "provider": "Provider",
+      "status": "Status",
+      "paidAt": "Paid at",
+      "amount": "Amount",
+      "credit": "Credit",
+      "interval": "Interval",
+      "externalPaymentID": "External payment ID",
+      "externalCheckoutID": "External checkout ID",
+      "runID": "Run ID",
+      "eventScope": "Event scope",
+      "stage": "Stage",
+      "seq": "Seq",
+      "messageID": "Message ID",
+      "toolName": "Tool name",
+      "toolCallID": "Tool call ID",
+      "title": "Title",
+      "summary": "Summary"
     },
     "result": {
       "success": "Success",
       "failure": "Failed",
       "blocked": "Blocked"
     },
+    "rawUsageJsonTitle": "Raw Usage JSON",
     "jsonTitle": "Detail JSON",
     "copied": "{label} copied",
     "copyFailed": "Copy failed"

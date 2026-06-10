@@ -157,6 +157,7 @@ type SendMessageResult struct {
 	EffectiveOptions    map[string]interface{}
 	UsageSpeed          string
 	UsageServiceTier    string
+	RawUsageJSON        string
 	CacheWrite5mTokens  int64
 	CacheWrite1hTokens  int64
 	ServerSideToolUsage map[string]int64

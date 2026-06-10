@@ -166,6 +166,7 @@ func addLLMUsage(left llm.Usage, right llm.Usage) llm.Usage {
 		ReasoningTokens:    left.ReasoningTokens + right.ReasoningTokens,
 		Speed:              mergeLLMUsageSpeed(left.Speed, right.Speed),
 		ServiceTier:        mergeLLMUsageServiceTier(left.ServiceTier, right.ServiceTier),
+		RawUsageJSON:       llm.MergeRawUsageJSON(left.RawUsageJSON, right.RawUsageJSON),
 	}
 }
 
@@ -180,6 +181,7 @@ func diffLLMUsage(current llm.Usage, previous llm.Usage) llm.Usage {
 		ReasoningTokens:    nonNegativeTokenDelta(current.ReasoningTokens, previous.ReasoningTokens),
 		Speed:              strings.TrimSpace(current.Speed),
 		ServiceTier:        strings.TrimSpace(current.ServiceTier),
+		RawUsageJSON:       diffLLMUsageRawJSON(current.RawUsageJSON, previous.RawUsageJSON),
 	}
 }
 
@@ -224,6 +226,14 @@ func addServerSideToolUsage(left map[string]int64, right map[string]int64) map[s
 		return nil
 	}
 	return result
+}
+
+func diffLLMUsageRawJSON(current string, previous string) string {
+	current = strings.TrimSpace(current)
+	if current == "" || current == strings.TrimSpace(previous) {
+		return ""
+	}
+	return current
 }
 
 func mergeLLMUsageSpeed(left string, right string) string {

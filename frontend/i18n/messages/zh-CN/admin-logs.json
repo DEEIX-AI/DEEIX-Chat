@@ -1,13 +1,15 @@
 {
   "title": "日志",
   "centerTitle": "日志中心",
-  "audit": "审计日志",
-  "usage": "调用日志",
+  "audit": "操作审计",
+  "usage": "模型调用",
   "system": "系统事件",
   "tabs": {
-    "audit": "审计",
-    "usage": "调用日志",
-    "auth": "认证日志",
+    "audit": "操作审计",
+    "usage": "模型调用",
+    "auth": "认证安全",
+    "orders": "订单记录",
+    "conversation": "对话事件",
     "system": "系统事件"
   },
   "toast": {
@@ -17,6 +19,8 @@
     "authLoadFailed": "认证日志加载失败",
     "systemLoadFailed": "系统事件加载失败",
     "usageLoadFailed": "调用日志加载失败",
+    "ordersLoadFailed": "订单记录加载失败",
+    "conversationEventsLoadFailed": "对话事件加载失败",
     "modelFilterLoadFailed": "模型筛选加载失败"
   },
   "sort": {
@@ -30,7 +34,10 @@
     "callTimeAsc": "调用时间 从旧到新",
     "costDesc": "费用 从高到低",
     "tokensDesc": "Token 从高到低",
-    "latencyDesc": "延迟 从高到低"
+    "latencyDesc": "延迟 从高到低",
+    "paidDesc": "支付时间 从新到旧",
+    "amountDesc": "金额 从高到低",
+    "sequenceAsc": "事件顺序 从旧到新"
   },
   "filters": {
     "allResources": "全部",
@@ -62,11 +69,64 @@
     "caller": "调用人",
     "model": "模型",
     "billing": "计费",
-    "latency": "延迟"
+    "latency": "延迟",
+    "orderNo": "订单号",
+    "type": "类型",
+    "provider": "渠道",
+    "status": "状态",
+    "amount": "金额",
+    "scope": "范围",
+    "tool": "工具",
+    "runID": "运行 ID"
   },
   "audit": {
     "searchPlaceholder": "搜索用户 ID、动作、资源、请求 ID、IP、详情",
-    "empty": "暂无审计日志"
+    "empty": "暂无审计日志",
+    "resources": {
+      "user": "用户与账号",
+      "conversation": "会话",
+      "conversation_project": "项目",
+      "message": "消息",
+      "file": "文件",
+      "memory": "记忆",
+      "settings": "系统设置"
+    },
+    "actions": {
+      "login": "登录",
+      "stream_message": "发送消息",
+      "create_conversation": "创建会话",
+      "rename_conversation": "重命名会话",
+      "export_conversation": "导出会话",
+      "delete_conversation": "删除会话",
+      "set_conversation_star": "星标会话",
+      "set_conversation_archive": "归档会话",
+      "set_conversation_project": "移动会话项目",
+      "batch_set_conversation_project": "批量移动会话项目",
+      "create_conversation_project": "创建项目",
+      "update_conversation_project": "更新项目",
+      "delete_conversation_project": "删除项目",
+      "reorder_conversation_projects": "调整项目顺序",
+      "create_conversation_share": "创建分享",
+      "regenerate_conversation_share": "重生成分享",
+      "revoke_conversation_share": "撤销分享",
+      "revoke_conversation_shares": "批量撤销分享",
+      "clone_shared_conversation": "克隆分享会话",
+      "update_message": "更新消息",
+      "set_message_feedback": "消息反馈",
+      "upload_file": "上传文件",
+      "update_file": "更新文件",
+      "delete_file": "删除文件",
+      "upsert_user_memory": "保存记忆",
+      "delete_user_memory": "删除记忆",
+      "settings_update": "更新系统设置",
+      "admin_create_user": "管理员创建用户",
+      "admin_patch_user": "管理员更新用户",
+      "admin_update_user_status": "管理员修改用户状态",
+      "admin_revoke_user_sessions": "管理员吊销用户会话",
+      "admin_reset_user_password": "管理员重置密码",
+      "admin_reset_user_2fa": "管理员重置二步验证",
+      "admin_delete_user": "管理员删除用户"
+    }
   },
   "auth": {
     "searchPlaceholder": "搜索用户 ID 或事件类型",
@@ -135,16 +195,60 @@
       }
     }
   },
+  "orders": {
+    "searchPlaceholder": "搜索用户 ID、订单号、渠道、状态、外部支付 ID",
+    "empty": "暂无订单记录",
+    "filters": {
+      "all": "全部",
+      "orderType": "订单类型",
+      "provider": "支付渠道",
+      "status": "支付状态"
+    },
+    "types": {
+      "subscription": "订阅",
+      "topup": "充值"
+    },
+    "status": {
+      "pending": "待支付",
+      "paid": "已支付",
+      "expired": "已过期",
+      "failed": "支付失败"
+    }
+  },
+  "conversation": {
+    "searchPlaceholder": "搜索用户 ID、运行 ID、事件、阶段、标题、工具名",
+    "empty": "暂无对话事件",
+    "filters": {
+      "all": "全部",
+      "scope": "事件范围",
+      "eventType": "事件类型",
+      "status": "状态"
+    },
+    "scopes": {
+      "trace_block": "轨迹块",
+      "trace_event": "轨迹事件",
+      "tool_call": "工具调用"
+    },
+    "status": {
+      "streaming": "生成中",
+      "completed": "已完成",
+      "error": "异常"
+    }
+  },
   "detail": {
     "titles": {
       "audit": "审计日志详情",
       "auth": "认证日志详情",
       "usage": "调用日志详情",
+      "order": "订单记录详情",
+      "conversation": "对话事件详情",
       "system": "系统事件详情"
     },
     "fallbacks": {
       "authEvent": "认证事件",
       "modelCall": "模型调用",
+      "order": "订单记录",
+      "conversationEvent": "对话事件",
       "systemEvent": "系统事件",
       "auditEvent": "审计事件"
     },
@@ -156,7 +260,11 @@
       "resource": "资源",
       "call": "调用",
       "modelRoute": "模型路由",
-      "usageBilling": "用量计费"
+      "usageBilling": "用量计费",
+      "order": "订单",
+      "payment": "支付",
+      "conversationEvent": "对话事件",
+      "tool": "工具"
     },
     "fields": {
       "action": "动作",
@@ -185,13 +293,33 @@
       "totalTokens": "总 Token",
       "reasoning": "推理",
       "callCount": "调用次数",
-      "latency": "延迟"
+      "latency": "延迟",
+      "orderNo": "订单号",
+      "orderType": "订单类型",
+      "provider": "支付渠道",
+      "status": "状态",
+      "paidAt": "支付时间",
+      "amount": "金额",
+      "credit": "入账金额",
+      "interval": "周期",
+      "externalPaymentID": "外部支付 ID",
+      "externalCheckoutID": "外部收银台 ID",
+      "runID": "运行 ID",
+      "eventScope": "事件范围",
+      "stage": "阶段",
+      "seq": "序号",
+      "messageID": "消息 ID",
+      "toolName": "工具名",
+      "toolCallID": "工具调用 ID",
+      "title": "标题",
+      "summary": "摘要"
     },
     "result": {
       "success": "成功",
       "failure": "失败",
       "blocked": "阻断"
     },
+    "rawUsageJsonTitle": "原始 Usage JSON",
     "jsonTitle": "详情 JSON",
     "copied": "{label}已复制",
     "copyFailed": "复制失败"

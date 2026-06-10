@@ -2,9 +2,8 @@
 
 import * as React from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, Copy, Download, X } from "lucide-react";
+import { Download, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +21,7 @@ import {
   resolveArtifactDownloadName,
   type ChatArtifact,
 } from "@/features/chat/model/chat-artifacts";
+import { CopyActionButton } from "@/shared/components/copy-action";
 import { cn } from "@/lib/utils";
 
 type ChatArtifactWorkspaceProps = {
@@ -142,7 +142,6 @@ function ChatArtifactPanel({
   onClose,
 }: ChatArtifactPanelProps) {
   const t = useTranslations("chat.artifacts");
-  const [copied, setCopied] = React.useState(false);
   const previewHTML = React.useMemo(
     () => buildArtifactPreviewDocument(artifact.kind, artifact.code),
     [artifact.code, artifact.kind],
@@ -152,20 +151,6 @@ function ChatArtifactPanel({
     () => artifacts.map((item, index) => ({ item, label: artifactLabel(item, index) })),
     [artifacts],
   );
-
-  React.useEffect(() => {
-    setCopied(false);
-  }, [artifact.id, artifact.code]);
-
-  const handleCopy = React.useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(artifact.code);
-      setCopied(true);
-      toast.success(t("sourceCopied"));
-    } catch {
-      toast.error(t("copyFailed"));
-    }
-  }, [artifact.code, t]);
 
   const handleDownload = React.useCallback(() => {
     if (!canPreview) return;
@@ -208,9 +193,22 @@ function ChatArtifactPanel({
           </TabsList>
 
           <div className="flex min-w-0 items-center justify-end gap-0.5">
-            <ArtifactActionButton label={t("copySource")} onClick={() => void handleCopy()}>
-              {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-            </ArtifactActionButton>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <CopyActionButton
+                  key={`${artifact.id}:${artifact.code}`}
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 rounded-md text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground"
+                  value={artifact.code}
+                  messages={{ copied: t("sourceCopied"), failed: t("copyFailed") }}
+                  iconClassName="size-3"
+                  aria-label={t("copySource")}
+                />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t("copySource")}</TooltipContent>
+            </Tooltip>
             <ArtifactActionButton label={t("downloadHtml")} disabled={!canPreview} onClick={handleDownload}>
               <Download className="size-3" />
             </ArtifactActionButton>

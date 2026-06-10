@@ -236,7 +236,7 @@ function RecentConversationRow({
                 event.stopPropagation();
               }}
             >
-              <Ellipsis size={16} strokeWidth={1.4} animate={hovered ? "default" : undefined} />
+              <Ellipsis size={16} strokeWidth={1.4} animate={hovered ? "pulse" : undefined} />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-max min-w-40 max-w-[calc(100vw-2rem)]">

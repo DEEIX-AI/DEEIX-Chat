@@ -7,6 +7,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/userview"
 	domainaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/audit"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
+	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/systemevent"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 )
@@ -204,6 +205,72 @@ type UsageLogResponse struct {
 	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
+// PaymentOrderResponse 支付订单记录响应。
+type PaymentOrderResponse struct {
+	ID                 uint       `json:"id"`
+	OrderNo            string     `json:"orderNo"`
+	OrderType          string     `json:"orderType"`
+	UserID             uint       `json:"userID"`
+	Username           string     `json:"username"`
+	UserDisplayName    string     `json:"userDisplayName"`
+	UserLabel          string     `json:"userLabel"`
+	PlanID             uint       `json:"planID"`
+	PriceID            uint       `json:"priceID"`
+	Provider           string     `json:"provider"`
+	Status             string     `json:"status"`
+	BaseCurrency       string     `json:"baseCurrency"`
+	BaseAmountCents    int64      `json:"baseAmountCents"`
+	PayCurrency        string     `json:"payCurrency"`
+	PayAmountCents     int64      `json:"payAmountCents"`
+	FXRate             string     `json:"fxRate"`
+	CreditNanousd      int64      `json:"creditNanousd"`
+	CreditUSD          float64    `json:"creditUSD"`
+	BillingInterval    string     `json:"billingInterval"`
+	Cycles             int        `json:"cycles"`
+	ExternalPaymentID  string     `json:"externalPaymentID"`
+	ExternalCheckoutID string     `json:"externalCheckoutID"`
+	PaidAt             *time.Time `json:"paidAt"`
+	ExpiredAt          *time.Time `json:"expiredAt"`
+	SnapshotJSON       string     `json:"snapshotJSON"`
+	CreatedAt          time.Time  `json:"createdAt"`
+	UpdatedAt          time.Time  `json:"updatedAt"`
+}
+
+// ConversationEventResponse 对话事件响应。
+type ConversationEventResponse struct {
+	ID              uint       `json:"id"`
+	MessageID       uint       `json:"messageID"`
+	ConversationID  uint       `json:"conversationID"`
+	UserID          uint       `json:"userID"`
+	Username        string     `json:"username"`
+	UserDisplayName string     `json:"userDisplayName"`
+	UserLabel       string     `json:"userLabel"`
+	RunID           string     `json:"runID"`
+	EventScope      string     `json:"eventScope"`
+	EventID         string     `json:"eventID"`
+	EventType       string     `json:"eventType"`
+	Phase           string     `json:"phase"`
+	Stage           string     `json:"stage"`
+	RoundID         string     `json:"roundID"`
+	ParentEventID   string     `json:"parentEventID"`
+	Status          string     `json:"status"`
+	Title           string     `json:"title"`
+	Summary         string     `json:"summary"`
+	ContentMarkdown string     `json:"contentMarkdown"`
+	PayloadJSON     string     `json:"payloadJSON"`
+	Seq             int        `json:"seq"`
+	ToolCallID      string     `json:"toolCallID"`
+	ToolName        string     `json:"toolName"`
+	LatencyMS       int64      `json:"latencyMS"`
+	InputJSON       string     `json:"inputJSON"`
+	OutputJSON      string     `json:"outputJSON"`
+	ErrorJSON       string     `json:"errorJSON"`
+	StartedAt       time.Time  `json:"startedAt"`
+	EndedAt         *time.Time `json:"endedAt"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
+}
+
 // ── Swagger 文档 DTO ────────────────────────────────────────────────────────
 
 // UserListResponseDoc 用户分页响应。
@@ -278,6 +345,24 @@ type UsageLogListResponseDoc struct {
 	Data     struct {
 		Total   int64              `json:"total"`
 		Results []UsageLogResponse `json:"results"`
+	} `json:"data"`
+}
+
+// PaymentOrderListResponseDoc 支付订单分页响应。
+type PaymentOrderListResponseDoc struct {
+	ErrorMsg string `json:"errorMsg"`
+	Data     struct {
+		Total   int64                  `json:"total"`
+		Results []PaymentOrderResponse `json:"results"`
+	} `json:"data"`
+}
+
+// ConversationEventListResponseDoc 对话事件分页响应。
+type ConversationEventListResponseDoc struct {
+	ErrorMsg string `json:"errorMsg"`
+	Data     struct {
+		Total   int64                       `json:"total"`
+		Results []ConversationEventResponse `json:"results"`
 	} `json:"data"`
 }
 
@@ -417,6 +502,74 @@ func toUsageLogResponse(item domainbilling.UsageLedger, label appadmin.UserLabel
 		PricingSnapshotJSON: item.PricingSnapshotJSON,
 		CreatedAt:           item.CreatedAt,
 		UpdatedAt:           item.UpdatedAt,
+	}
+}
+
+func toPaymentOrderResponse(item domainbilling.PaymentOrder, label appadmin.UserLabel) PaymentOrderResponse {
+	return PaymentOrderResponse{
+		ID:                 item.ID,
+		OrderNo:            item.OrderNo,
+		OrderType:          item.OrderType,
+		UserID:             item.UserID,
+		Username:           label.Username,
+		UserDisplayName:    label.DisplayName,
+		UserLabel:          label.Label,
+		PlanID:             item.PlanID,
+		PriceID:            item.PriceID,
+		Provider:           item.Provider,
+		Status:             item.Status,
+		BaseCurrency:       item.BaseCurrency,
+		BaseAmountCents:    item.BaseAmountCents,
+		PayCurrency:        item.PayCurrency,
+		PayAmountCents:     item.PayAmountCents,
+		FXRate:             item.FXRate,
+		CreditNanousd:      item.CreditNanousd,
+		CreditUSD:          float64(item.CreditNanousd) / 1_000_000_000,
+		BillingInterval:    item.BillingInterval,
+		Cycles:             item.Cycles,
+		ExternalPaymentID:  item.ExternalPaymentID,
+		ExternalCheckoutID: item.ExternalCheckoutID,
+		PaidAt:             item.PaidAt,
+		ExpiredAt:          item.ExpiredAt,
+		SnapshotJSON:       item.SnapshotJSON,
+		CreatedAt:          item.CreatedAt,
+		UpdatedAt:          item.UpdatedAt,
+	}
+}
+
+func toConversationEventResponse(item domainconversation.EventLog, label appadmin.UserLabel) ConversationEventResponse {
+	return ConversationEventResponse{
+		ID:              item.ID,
+		MessageID:       item.MessageID,
+		ConversationID:  item.ConversationID,
+		UserID:          item.UserID,
+		Username:        label.Username,
+		UserDisplayName: label.DisplayName,
+		UserLabel:       label.Label,
+		RunID:           item.RunID,
+		EventScope:      item.EventScope,
+		EventID:         item.EventID,
+		EventType:       item.EventType,
+		Phase:           item.Phase,
+		Stage:           item.Stage,
+		RoundID:         item.RoundID,
+		ParentEventID:   item.ParentEventID,
+		Status:          item.Status,
+		Title:           item.Title,
+		Summary:         item.Summary,
+		ContentMarkdown: item.ContentMarkdown,
+		PayloadJSON:     item.PayloadJSON,
+		Seq:             item.Seq,
+		ToolCallID:      item.ToolCallID,
+		ToolName:        item.ToolName,
+		LatencyMS:       item.LatencyMS,
+		InputJSON:       item.InputJSON,
+		OutputJSON:      item.OutputJSON,
+		ErrorJSON:       item.ErrorJSON,
+		StartedAt:       item.StartedAt,
+		EndedAt:         item.EndedAt,
+		CreatedAt:       item.CreatedAt,
+		UpdatedAt:       item.UpdatedAt,
 	}
 }
 

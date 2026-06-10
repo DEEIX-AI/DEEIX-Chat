@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Check, Copy, CornerUpLeft, Download, Eye, Maximize2, WandSparkles } from "lucide-react";
+import { CornerUpLeft, Download, Eye, Maximize2, WandSparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
 import { ChevronDown } from "@/components/animate-ui/icons/chevron-down";
 import { ChevronUp } from "@/components/animate-ui/icons/chevron-up";
@@ -22,6 +21,7 @@ import {
   resolveArtifactPreviewKind,
   type ArtifactPreviewKind,
 } from "@/features/chat/model/chat-artifacts";
+import { CopyActionButton } from "@/shared/components/copy-action";
 import { cn } from "@/lib/utils";
 
 const CODE_BLOCK_COLLAPSE_LINE_THRESHOLD = 16;
@@ -119,6 +119,7 @@ const SAFE_HTML_STYLE_PROPERTIES: ReadonlySet<string> = new Set([
   "borderInlineEnd",
   "borderInlineStart",
   "borderLeft",
+  "borderBottomWidth",
   "borderRadius",
   "borderRight",
   "borderStyle",
@@ -204,6 +205,7 @@ const SAFE_HTML_STYLE_PROPERTIES: ReadonlySet<string> = new Set([
 ]);
 const KATEX_SPAN_CLASS_NAMES = [
   "katex",
+  "katex-display",
   "katex-html",
   "katex-mathml",
   "base",
@@ -226,6 +228,7 @@ const KATEX_SPAN_CLASS_NAMES = [
   "mtight",
   "mspace",
   "mfrac",
+  "frac-line",
   "mathrm",
   "mathnormal",
   "mathit",
@@ -500,22 +503,7 @@ function CodeBlockActions({
   const commonErrors = useTranslations("common.errors");
   const artifactCopy = useTranslations("chat.markdown.artifact");
   const artifactActions = React.useContext(MarkdownArtifactActionsContext);
-  const [copied, setCopied] = React.useState(false);
   const artifactKind = React.useMemo(() => resolveArtifactPreviewKind(language, code), [code, language]);
-
-  React.useEffect(() => {
-    setCopied(false);
-  }, [code]);
-
-  const handleCopy = React.useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      toast.success(commonActions("copied"));
-    } catch {
-      toast.error(commonErrors("copyFailed"));
-    }
-  }, [code, commonActions, commonErrors]);
 
   const handleOpenArtifact = React.useCallback(() => {
     if (!artifactActions || !artifactKind) {
@@ -534,9 +522,22 @@ function CodeBlockActions({
             <Eye className="size-4" strokeWidth={1.8} />
           </CodeBlockActionButton>
         ) : null}
-        <CodeBlockActionButton label={commonActions("copy")} onClick={() => void handleCopy()}>
-          {copied ? <Check className="size-3.5" strokeWidth={1.8} /> : <Copy className="size-3.5" strokeWidth={1.8} />}
-        </CodeBlockActionButton>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <CopyActionButton
+              key={`${language}:${code}`}
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="inline-flex size-6 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-foreground/[0.04] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
+              value={code}
+              messages={{ copied: commonActions("copied"), failed: commonErrors("copyFailed") }}
+              iconClassName="size-3.5"
+              aria-label={commonActions("copy")}
+            />
+          </TooltipTrigger>
+          <TooltipContent side="top">{commonActions("copy")}</TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );
@@ -545,22 +546,6 @@ function CodeBlockActions({
 function ExternalLinkSafetyDialog({ isOpen, onClose, onConfirm, url }: ExternalLinkSafetyDialogProps) {
   const t = useTranslations("chat.markdown.externalLink");
   const common = useTranslations("common.actions");
-  const [copied, setCopied] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!isOpen) {
-      setCopied(false);
-    }
-  }, [isOpen]);
-
-  const handleCopy = React.useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  }, [url]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -574,15 +559,16 @@ function ExternalLinkSafetyDialog({ isOpen, onClose, onConfirm, url }: ExternalL
           <p className="text-xs text-muted-foreground">{t("linkAddress")}</p>
           <div className="flex items-center gap-2">
             <Input readOnly value={url} className="font-mono" />
-            <Button
+            <CopyActionButton
+              key={isOpen ? url : "closed"}
               type="button"
               variant="ghost"
               size="icon"
-              aria-label={copied ? t("copied") : t("copy")}
-              onClick={() => void handleCopy()}
-            >
-              {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-            </Button>
+              value={url}
+              messages={{ copied: t("copied"), failed: t("copyFailed") }}
+              iconClassName="size-4"
+              aria-label={t("copy")}
+            />
           </div>
         </div>
 

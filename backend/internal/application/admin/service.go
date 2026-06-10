@@ -12,11 +12,13 @@ import (
 	auditapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	authapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/auth"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
+	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	systemeventapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/systemevent"
 	userapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/userview"
 	domainaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/audit"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
+	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/systemevent"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -90,6 +92,14 @@ type usageLogService interface {
 	ListUsageLogs(ctx context.Context, page int, pageSize int, filter billing.UsageLogListFilter) ([]domainbilling.UsageLedger, int64, error)
 }
 
+type orderLogService interface {
+	ListPaymentOrders(ctx context.Context, page int, pageSize int, filter billing.PaymentOrderListFilter) ([]domainbilling.PaymentOrder, int64, error)
+}
+
+type conversationEventService interface {
+	ListConversationEventLogs(ctx context.Context, page int, pageSize int, filter appconversation.EventLogListFilter) ([]domainconversation.EventLog, int64, error)
+}
+
 type authSecurityService interface {
 	GetCurrentTwoFactorStatus(ctx context.Context, userID uint) (*authapp.TwoFactorStatusResult, error)
 	ResetUserTwoFactorByAdmin(ctx context.Context, userID uint) error
@@ -101,6 +111,8 @@ type Service struct {
 	auditService         auditService
 	systemEventService   systemEventService
 	usageLogService      usageLogService
+	orderLogService      orderLogService
+	conversationEventSvc conversationEventService
 	authSecurityService  authSecurityService
 	subscriptionResolver subscriptionResolver
 }
@@ -155,6 +167,16 @@ func (s *Service) SetSystemEventService(service systemEventService) {
 // SetUsageLogService 注入调用日志查询能力。
 func (s *Service) SetUsageLogService(service usageLogService) {
 	s.usageLogService = service
+}
+
+// SetOrderLogService 注入支付订单日志查询能力。
+func (s *Service) SetOrderLogService(service orderLogService) {
+	s.orderLogService = service
+}
+
+// SetConversationEventService 注入对话事件查询能力。
+func (s *Service) SetConversationEventService(service conversationEventService) {
+	s.conversationEventSvc = service
 }
 
 // SetSubscriptionResolver 注入订阅派生解析能力。
@@ -350,27 +372,6 @@ func (s *Service) CreateUser(
 		subscriptionTier,
 		subscriptionExpiresAt,
 	)
-}
-
-// ListAuditLogs 查询审计日志分页列表。
-func (s *Service) ListAuditLogs(ctx context.Context, page int, pageSize int, filter auditapp.ListFilter) ([]domainaudit.Log, int64, error) {
-	return s.auditService.List(ctx, page, pageSize, filter)
-}
-
-// ListUsageLogs 查询管理员调用日志。
-func (s *Service) ListUsageLogs(ctx context.Context, page int, pageSize int, filter billing.UsageLogListFilter) ([]domainbilling.UsageLedger, int64, error) {
-	if s.usageLogService == nil {
-		return []domainbilling.UsageLedger{}, 0, nil
-	}
-	return s.usageLogService.ListUsageLogs(ctx, page, pageSize, filter)
-}
-
-// ListSystemEvents 查询系统事件分页列表。
-func (s *Service) ListSystemEvents(ctx context.Context, page int, pageSize int, filter systemeventapp.ListFilter) ([]domainsystemevent.Event, int64, error) {
-	if s.systemEventService == nil {
-		return []domainsystemevent.Event{}, 0, nil
-	}
-	return s.systemEventService.List(ctx, page, pageSize, filter)
 }
 
 // ResolveUserLabels 批量解析日志展示用的用户名称。

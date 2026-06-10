@@ -47,6 +47,7 @@ type BillingRepository interface {
 	UpsertModelPricing(ctx context.Context, item *domainbilling.ModelPricing) (*domainbilling.ModelPricing, error)
 	ListUsageByUser(ctx context.Context, userID uint, filter UsageListFilter, offset int, limit int) ([]domainbilling.UsageLedger, int64, error)
 	ListUsageLogs(ctx context.Context, filter UsageLogListFilter, offset int, limit int) ([]domainbilling.UsageLedger, int64, error)
+	ListPaymentOrders(ctx context.Context, filter PaymentOrderListFilter, offset int, limit int) ([]domainbilling.PaymentOrder, int64, error)
 	GetUserCreatedAt(ctx context.Context, userID uint) (time.Time, error)
 	ListMonthlyUsageByUser(ctx context.Context, userID uint, limit int) ([]domainbilling.UsageMonthlySummary, error)
 	ListDailyUsageByUser(ctx context.Context, userID uint, startDate time.Time, endDate time.Time) ([]domainbilling.UsageDailySummary, error)
@@ -105,4 +106,16 @@ type UsageLogListFilter struct {
 	CreatedFrom       *time.Time
 	CreatedTo         *time.Time
 	Sort              string
+}
+
+// PaymentOrderListFilter 描述管理员支付订单列表筛选和排序条件。
+type PaymentOrderListFilter struct {
+	Query       string
+	OrderType   string
+	Provider    string
+	Status      string
+	UserID      uint
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+	Sort        string
 }

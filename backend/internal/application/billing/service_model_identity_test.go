@@ -18,6 +18,16 @@ func (s modelIdentityResolverStub) ResolvePlatformModelIdentity(context.Context,
 	return s.identity, nil
 }
 
+func TestUpstreamUsageSnapshotReturnsEmptyObjectWhenRawUsageIsMissing(t *testing.T) {
+	snapshot, ok := upstreamUsageSnapshot(UsagePricingInput{
+		InputTokens:  10,
+		OutputTokens: 20,
+	}).(map[string]interface{})
+	if !ok || len(snapshot) != 0 {
+		t.Fatalf("expected empty upstream usage snapshot, got %#v", snapshot)
+	}
+}
+
 type billingRepositoryStub struct {
 	mode                       string
 	pricing                    *domainbilling.ModelPricing
@@ -195,6 +205,9 @@ func (r *billingRepositoryStub) ListUsageByUser(context.Context, uint, repositor
 func (r *billingRepositoryStub) ListUsageLogs(context.Context, repository.UsageLogListFilter, int, int) ([]domainbilling.UsageLedger, int64, error) {
 	panic("not used")
 }
+func (r *billingRepositoryStub) ListPaymentOrders(context.Context, repository.PaymentOrderListFilter, int, int) ([]domainbilling.PaymentOrder, int64, error) {
+	panic("not used")
+}
 func (r *billingRepositoryStub) GetUserCreatedAt(context.Context, uint) (time.Time, error) {
 	panic("not used")
 }
@@ -235,6 +248,7 @@ func TestBuildUsageLedgerSnapshotsModelIdentity(t *testing.T) {
 		UpstreamModelName: "gpt-5.5-upstream",
 		InputTokens:       1_000_000,
 		OutputTokens:      1_000_000,
+		RawUsageJSON:      `{"input_tokens":1000000,"output_tokens":1000000,"vendor_extra":"kept"}`,
 		ServerSideToolUsage: map[string]int64{
 			"web_search": 2,
 			"ignored":    0,
@@ -269,6 +283,10 @@ func TestBuildUsageLedgerSnapshotsModelIdentity(t *testing.T) {
 	}
 	if snapshot["routed_binding_code"] != "upm_gpt55_20260514" || snapshot["upstream_model_name"] != "gpt-5.5-upstream" {
 		t.Fatalf("expected routed binding/upstream snapshot, got routed=%#v upstream_model=%#v", snapshot["routed_binding_code"], snapshot["upstream_model_name"])
+	}
+	upstreamUsage, ok := snapshot["upstream_usage"].(map[string]interface{})
+	if !ok || upstreamUsage["vendor_extra"] != "kept" || upstreamUsage["input_tokens"] != float64(1_000_000) {
+		t.Fatalf("expected raw upstream usage snapshot, got %#v", snapshot["upstream_usage"])
 	}
 	if _, ok := snapshot["billing_multiplier"]; ok {
 		t.Fatalf("did not expect billing multiplier snapshot, got %#v", snapshot["billing_multiplier"])

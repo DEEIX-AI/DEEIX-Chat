@@ -9,6 +9,7 @@ import (
 	appadmin "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/admin"
 	auditapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
+	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	systemeventapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/systemevent"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
@@ -337,6 +338,136 @@ func (h *Handler) ListUsageLogs(c *gin.Context) {
 		logs = append(logs, toUsageLogResponse(item, userLabels[item.UserID]))
 	}
 	response.SuccessPage(c, total, logs)
+}
+
+// ListPaymentOrders godoc
+// @Summary 管理员查询支付订单记录
+// @Description 管理员分页查看订阅和充值支付单
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码"
+// @Param page_size query int false "每页数量"
+// @Param query query string false "搜索订单号、支付渠道、外部支付ID"
+// @Param order_type query string false "订单类型(subscription/topup)"
+// @Param provider query string false "支付渠道"
+// @Param status query string false "支付状态"
+// @Param user_id query int false "用户ID"
+// @Param created_from query string false "创建时间起点(RFC3339)"
+// @Param created_to query string false "创建时间终点(RFC3339)"
+// @Param sort query string false "排序方式"
+// @Success 200 {object} PaymentOrderListResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/payment-orders [get]
+// ListPaymentOrders 查询支付订单记录。
+func (h *Handler) ListPaymentOrders(c *gin.Context) {
+	page, pageSize := pageParams(c)
+	userID, ok := parseOptionalUintQuery(c, "user_id")
+	if !ok {
+		return
+	}
+	createdFrom, ok := parseOptionalTimeQuery(c, "created_from")
+	if !ok {
+		return
+	}
+	createdTo, ok := parseOptionalTimeQuery(c, "created_to")
+	if !ok {
+		return
+	}
+	items, total, err := h.service.ListPaymentOrders(c.Request.Context(), page, pageSize, appbilling.PaymentOrderListFilter{
+		Query:       c.Query("query"),
+		OrderType:   c.Query("order_type"),
+		Provider:    c.Query("provider"),
+		Status:      c.Query("status"),
+		UserID:      userID,
+		CreatedFrom: createdFrom,
+		CreatedTo:   createdTo,
+		Sort:        c.Query("sort"),
+	})
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "list payment orders failed")
+		return
+	}
+	userIDs := make([]uint, 0, len(items))
+	for _, item := range items {
+		userIDs = append(userIDs, item.UserID)
+	}
+	userLabels := h.service.ResolveUserLabels(c.Request.Context(), userIDs)
+	orders := make([]PaymentOrderResponse, 0, len(items))
+	for _, item := range items {
+		orders = append(orders, toPaymentOrderResponse(item, userLabels[item.UserID]))
+	}
+	response.SuccessPage(c, total, orders)
+}
+
+// ListConversationEvents godoc
+// @Summary 管理员查询对话事件
+// @Description 管理员分页查看对话运行轨迹、工具、MCP 与处理事件
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码"
+// @Param page_size query int false "每页数量"
+// @Param query query string false "搜索运行ID、事件、阶段、标题、工具名"
+// @Param event_scope query string false "事件范围(trace_block/trace_event/tool_call)"
+// @Param event_type query string false "事件类型"
+// @Param status query string false "事件状态"
+// @Param user_id query int false "用户ID"
+// @Param conversation_id query int false "会话ID"
+// @Param created_from query string false "创建时间起点(RFC3339)"
+// @Param created_to query string false "创建时间终点(RFC3339)"
+// @Param sort query string false "排序方式"
+// @Success 200 {object} ConversationEventListResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/conversation-events [get]
+// ListConversationEvents 查询对话事件。
+func (h *Handler) ListConversationEvents(c *gin.Context) {
+	page, pageSize := pageParams(c)
+	userID, ok := parseOptionalUintQuery(c, "user_id")
+	if !ok {
+		return
+	}
+	conversationID, ok := parseOptionalUintQuery(c, "conversation_id")
+	if !ok {
+		return
+	}
+	createdFrom, ok := parseOptionalTimeQuery(c, "created_from")
+	if !ok {
+		return
+	}
+	createdTo, ok := parseOptionalTimeQuery(c, "created_to")
+	if !ok {
+		return
+	}
+	items, total, err := h.service.ListConversationEventLogs(c.Request.Context(), page, pageSize, appconversation.EventLogListFilter{
+		Query:          c.Query("query"),
+		EventScope:     c.Query("event_scope"),
+		EventType:      c.Query("event_type"),
+		Status:         c.Query("status"),
+		UserID:         userID,
+		ConversationID: conversationID,
+		CreatedFrom:    createdFrom,
+		CreatedTo:      createdTo,
+		Sort:           c.Query("sort"),
+	})
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "list conversation events failed")
+		return
+	}
+	userIDs := make([]uint, 0, len(items))
+	for _, item := range items {
+		userIDs = append(userIDs, item.UserID)
+	}
+	userLabels := h.service.ResolveUserLabels(c.Request.Context(), userIDs)
+	events := make([]ConversationEventResponse, 0, len(items))
+	for _, item := range items {
+		events = append(events, toConversationEventResponse(item, userLabels[item.UserID]))
+	}
+	response.SuccessPage(c, total, events)
 }
 
 // ListSystemEvents godoc

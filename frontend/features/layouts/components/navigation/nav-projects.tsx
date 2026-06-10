@@ -3,12 +3,13 @@
 import * as React from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { AnimatePresence, motion, type Transition } from "motion/react"
-import { PencilLine, Plus, Star, StarOff, Trash, type LucideIcon } from "lucide-react"
+import { PencilLine, Star, StarOff, Trash } from "lucide-react"
 import { useTranslations } from "next-intl"
 
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis"
 import { FolderArchiveIcon } from "@/components/ui/folder-archive"
 import { FolderOpenIcon } from "@/components/ui/folder-open"
+import { PlusIcon } from "@/components/ui/plus"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -88,6 +89,7 @@ type ProjectConversationState = {
   loaded: boolean
   error: boolean
 }
+type ProjectConversationStateMap = Record<string, ProjectConversationState>
 
 const PROJECT_CONVERSATION_PAGE_SIZE = 30
 const PROJECT_TREE_ACCORDION_TRANSITION: Transition = {
@@ -122,6 +124,8 @@ function ProjectGroupHeader({
   createLabel: string
   onCreate: () => void
 }) {
+  const [createHovered, setCreateHovered] = React.useState(false)
+
   return (
     <div className="group/project-create flex h-8 items-center">
       <SidebarGroupLabel className="min-w-0 flex-1 shrink pr-2">{title}</SidebarGroupLabel>
@@ -129,9 +133,11 @@ function ProjectGroupHeader({
         type="button"
         aria-label={createLabel}
         className={PROJECT_CREATE_ACTION_CLASS}
+        onMouseEnter={() => setCreateHovered(true)}
+        onMouseLeave={() => setCreateHovered(false)}
         onClick={onCreate}
       >
-        <Plus />
+        <PlusIcon size={18} strokeWidth={1.8} animate={createHovered ? "default" : undefined} />
       </SidebarGroupAction>
     </div>
   )
@@ -142,12 +148,14 @@ function ProjectTreeButton({
   contentID,
   expanded,
   name,
+  onHoverChange,
   onToggleExpanded,
 }: {
   active: boolean
   contentID: string
   expanded: boolean
   name: string
+  onHoverChange?: (hovered: boolean) => void
   onToggleExpanded: () => void
 }) {
   const iconRef = React.useRef<ProjectFolderIconHandle>(null)
@@ -171,9 +179,11 @@ function ProjectTreeButton({
         onToggleExpanded()
       }}
       onMouseEnter={() => {
+        onHoverChange?.(true)
         iconRef.current?.startAnimation()
       }}
       onMouseLeave={() => {
+        onHoverChange?.(false)
         iconRef.current?.stopAnimation()
       }}
     >
@@ -226,8 +236,8 @@ const ProjectInlineAction = React.forwardRef<HTMLButtonElement, ProjectInlineAct
       title={label}
       tabIndex={tabIndex ?? (visible ? undefined : -1)}
       className={cn(
-        "pointer-events-none absolute top-0 z-10 flex h-8 w-8 items-center justify-center rounded-md text-sidebar-foreground opacity-0 transition-[background-color,color,opacity] duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/project-row:pointer-events-auto group-hover/project-row:opacity-100 group-focus-within/project-row:pointer-events-auto group-focus-within/project-row:opacity-100",
-        visible && "pointer-events-auto opacity-100",
+        "absolute top-0 z-10 flex h-8 w-8 items-center justify-center rounded-md text-sidebar-foreground opacity-0 transition-[background-color,color,opacity] duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/project-row:opacity-100 group-focus-within/project-row:opacity-100",
+        visible && "opacity-100",
         className,
       )}
       onMouseEnter={(event) => {
@@ -248,10 +258,6 @@ const ProjectInlineAction = React.forwardRef<HTMLButtonElement, ProjectInlineAct
     </button>
   )
 })
-
-function ProjectActionIcon({ icon: Icon }: { icon: LucideIcon }) {
-  return <Icon size={16} strokeWidth={1.6} className="size-4" />
-}
 
 export function NavProjects() {
   const t = useTranslations("recent.projects")
@@ -290,12 +296,14 @@ export function NavProjects() {
   const [shareTarget, setShareTarget] = React.useState<{ publicID: string; title: string } | null>(null)
   const [renameValue, setRenameValue] = React.useState("")
   const [expandedProjectIDs, setExpandedProjectIDs] = React.useState<Set<string>>(() => new Set())
-  const [projectConversationState, setProjectConversationState] = React.useState<Record<string, ProjectConversationState>>({})
+  const [projectConversationState, setProjectConversationState] = React.useState<ProjectConversationStateMap>({})
   const [openProjectMenuID, setOpenProjectMenuID] = React.useState<string | null>(null)
   const [hoveredProjectMenuID, setHoveredProjectMenuID] = React.useState<string | null>(null)
+  const [hoveredProjectCreateID, setHoveredProjectCreateID] = React.useState<string | null>(null)
   const [hoveredProjectRowID, setHoveredProjectRowID] = React.useState<string | null>(null)
   const [focusedProjectRowID, setFocusedProjectRowID] = React.useState<string | null>(null)
   const projectConversationStateRef = React.useRef(projectConversationState)
+  const expandedProjectIDsRef = React.useRef(expandedProjectIDs)
   const activeConversationProjectID = React.useMemo(
     () => items.find((item) => item.publicID === activeConversationID)?.projectID ?? "",
     [activeConversationID, items],
@@ -308,9 +316,17 @@ export function NavProjects() {
     failureMessage: tRecent("exportFailed"),
   })
 
-  React.useEffect(() => {
-    projectConversationStateRef.current = projectConversationState
-  }, [projectConversationState])
+  const updateProjectConversationState = React.useCallback((updater: (prev: ProjectConversationStateMap) => ProjectConversationStateMap) => {
+    const next = updater(projectConversationStateRef.current)
+    projectConversationStateRef.current = next
+    setProjectConversationState(next)
+  }, [])
+
+  const updateExpandedProjectIDs = React.useCallback((updater: (prev: Set<string>) => Set<string>) => {
+    const next = updater(expandedProjectIDsRef.current)
+    expandedProjectIDsRef.current = next
+    setExpandedProjectIDs(next)
+  }, [])
 
   const closeDraft = React.useCallback(() => {
     setDraft(null)
@@ -372,7 +388,7 @@ export function NavProjects() {
       return
     }
 
-    setProjectConversationState((prev) => ({
+    updateProjectConversationState((prev) => ({
       ...prev,
       [projectID]: {
         items: prev[projectID]?.items ?? [],
@@ -384,13 +400,13 @@ export function NavProjects() {
 
     const token = await resolveAccessToken()
     if (!token) {
-      setProjectConversationState((prev) => ({
+      updateProjectConversationState((prev) => ({
         ...prev,
         [projectID]: {
-          items: [],
+          items: prev[projectID]?.items ?? [],
           loading: false,
-          loaded: true,
-          error: false,
+          loaded: false,
+          error: true,
         },
       }))
       return
@@ -404,7 +420,7 @@ export function NavProjects() {
         starred: "all",
         project: projectID,
       })
-      setProjectConversationState((prev) => ({
+      updateProjectConversationState((prev) => ({
         ...prev,
         [projectID]: {
           items: sortByUpdatedAtDesc(data.results ?? []),
@@ -414,7 +430,7 @@ export function NavProjects() {
         },
       }))
     } catch {
-      setProjectConversationState((prev) => ({
+      updateProjectConversationState((prev) => ({
         ...prev,
         [projectID]: {
           items: prev[projectID]?.items ?? [],
@@ -424,12 +440,12 @@ export function NavProjects() {
         },
       }))
     }
-  }, [])
+  }, [updateProjectConversationState])
 
   const ensureProjectExpanded = React.useCallback(
     (projectID: string) => {
       const shouldLoad = !projectConversationStateRef.current[projectID]?.loaded
-      setExpandedProjectIDs((prev) => {
+      updateExpandedProjectIDs((prev) => {
         if (prev.has(projectID)) {
           return prev
         }
@@ -441,20 +457,19 @@ export function NavProjects() {
         void loadProjectConversations(projectID)
       }
     },
-    [loadProjectConversations],
+    [loadProjectConversations, updateExpandedProjectIDs],
   )
 
   const toggleProjectExpanded = React.useCallback(
     (projectID: string) => {
       const shouldLoad = !projectConversationStateRef.current[projectID]?.loaded
-      let expandedNext = false
-      setExpandedProjectIDs((prev) => {
+      const expandedNext = !expandedProjectIDsRef.current.has(projectID)
+      updateExpandedProjectIDs((prev) => {
         const next = new Set(prev)
         if (next.has(projectID)) {
           next.delete(projectID)
         } else {
           next.add(projectID)
-          expandedNext = true
         }
         return next
       })
@@ -462,7 +477,7 @@ export function NavProjects() {
         void loadProjectConversations(projectID)
       }
     },
-    [loadProjectConversations],
+    [loadProjectConversations, updateExpandedProjectIDs],
   )
 
   const startProjectConversation = React.useCallback(
@@ -488,7 +503,7 @@ export function NavProjects() {
       return
     }
 
-    setProjectConversationState((prev) => {
+    updateProjectConversationState((prev) => {
       const projectIDs = Object.keys(prev)
       if (projectIDs.length === 0) {
         return prev
@@ -535,7 +550,7 @@ export function NavProjects() {
 
       return changed ? next : prev
     })
-  }, [items, lastChange])
+  }, [items, lastChange, updateProjectConversationState])
 
   const commitDraft = React.useCallback(async () => {
     const name = draft?.name.trim() ?? ""
@@ -573,12 +588,12 @@ export function NavProjects() {
       router.push("/chat")
     }
     if (deleted) {
-      setExpandedProjectIDs((prev) => {
+      updateExpandedProjectIDs((prev) => {
         const next = new Set(prev)
         next.delete(deletingProjectID)
         return next
       })
-      setProjectConversationState((prev) => {
+      updateProjectConversationState((prev) => {
         const { [deletingProjectID]: _deleted, ...next } = prev
         return next
       })
@@ -597,6 +612,8 @@ export function NavProjects() {
     pathname,
     projectConversationState,
     router,
+    updateExpandedProjectIDs,
+    updateProjectConversationState,
   ])
 
   React.useEffect(() => {
@@ -649,6 +666,7 @@ export function NavProjects() {
             {projects.map((project) => {
               const expanded = expandedProjectIDs.has(project.publicID)
               const conversationState = projectConversationState[project.publicID]
+              const conversationLoading = expanded && (!conversationState || conversationState.loading)
               const hasActiveChild = Boolean(conversationState?.items.some((item) => item.publicID === activeConversationID))
               const active =
                 ((pathname === "/recent" || pathname === "/chat") && activeProjectID === project.publicID) ||
@@ -656,6 +674,7 @@ export function NavProjects() {
                 hasActiveChild
               const rowHovered = hoveredProjectRowID === project.publicID
               const rowFocused = focusedProjectRowID === project.publicID
+              const createHovered = hoveredProjectCreateID === project.publicID
               const menuHovered = hoveredProjectMenuID === project.publicID
               const menuOpen = openProjectMenuID === project.publicID
               const showProjectActions = rowHovered || rowFocused || menuHovered || menuOpen
@@ -664,8 +683,6 @@ export function NavProjects() {
                 <SidebarMenuItem key={project.publicID}>
                   <div
                     className="group/project-row relative"
-                    onMouseEnter={() => setHoveredProjectRowID(project.publicID)}
-                    onMouseLeave={() => setHoveredProjectRowID(null)}
                     onFocus={() => setFocusedProjectRowID(project.publicID)}
                     onBlur={(event) => {
                       const nextTarget = event.relatedTarget
@@ -679,15 +696,17 @@ export function NavProjects() {
                       contentID={projectConversationContentID}
                       expanded={expanded}
                       name={project.name}
+                      onHoverChange={(hovered) => setHoveredProjectRowID(hovered ? project.publicID : null)}
                       onToggleExpanded={() => toggleProjectExpanded(project.publicID)}
                     />
                     <ProjectInlineAction
                       label={t("newChatInProject")}
                       visible={showProjectActions}
                       className="right-8"
+                      onHoverChange={(hovered) => setHoveredProjectCreateID(hovered ? project.publicID : null)}
                       onClick={() => startProjectConversation(project.publicID)}
                     >
-                      <ProjectActionIcon icon={Plus} />
+                      <PlusIcon size={16} strokeWidth={1.6} animate={createHovered ? "default" : undefined} />
                     </ProjectInlineAction>
                     <DropdownMenu
                       modal={false}
@@ -701,7 +720,7 @@ export function NavProjects() {
                           className="right-0"
                           onHoverChange={(hovered) => setHoveredProjectMenuID(hovered ? project.publicID : null)}
                         >
-                          <Ellipsis size={16} strokeWidth={1.4} animate={menuHovered ? "default" : undefined} />
+                          <Ellipsis size={16} strokeWidth={1.4} animate={menuHovered ? "pulse" : undefined} />
                         </ProjectInlineAction>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-max min-w-36 max-w-[calc(100vw-2rem)]">
@@ -740,7 +759,7 @@ export function NavProjects() {
                         style={PROJECT_TREE_ACCORDION_MASK_STYLE}
                       >
                         <SidebarMenuSub className="mx-0 w-full translate-x-0 border-l-0 px-0 py-0.5">
-                          {conversationState?.loading ? (
+                          {conversationLoading ? (
                             <SidebarMenuSubItem>
                               <div className="flex h-7 w-full items-center gap-2 rounded-md pl-8 pr-2 text-xs text-muted-foreground">
                                 <Spinner className="size-3.5" />

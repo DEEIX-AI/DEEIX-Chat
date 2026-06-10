@@ -168,6 +168,11 @@
       "unknownLocation": "未知地区",
       "unknownIP": "未知 IP"
     },
+    "logoutAllDialog": {
+      "title": "登出所有在线设备？",
+      "description": "确认后，此账号在其他浏览器、桌面端或移动设备上的在线会话都会失效。当前设备也会回到登录页。",
+      "confirm": "确认登出所有设备"
+    },
     "deleteDialog": {
       "title": "删除账户",
       "description": "删除账号是永久性的。您将无法恢复您的账号或聊天记录。",
@@ -586,7 +591,8 @@
     },
     "topUp": {
       "title": "充值",
-      "description": "输入美元金额",
+      "description": "输入美元金额并确认支付方式。",
+      "currentBalance": "当前余额 {value}",
       "amount": "充值金额",
       "amountAria": "充值美元金额",
       "confirm": "充值"
