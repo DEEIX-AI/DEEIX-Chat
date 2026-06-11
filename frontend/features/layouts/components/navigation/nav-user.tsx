@@ -132,7 +132,6 @@ export function NavUser({
               </Avatar>
               <div className="grid min-w-0 flex-1 gap-0.5 overflow-hidden pl-1.5 text-left text-sm leading-tight transition-opacity duration-200 ease-linear group-data-[collapsible=icon]:hidden">
                 <span className="truncate font-medium text-foreground/95">{user.name}</span>
-                <span className="truncate text-xs text-foreground/90">{user.email}</span>
               </div>
               <ChevronDown className="ml-auto size-4 stroke-1 transition-opacity duration-200 ease-linear group-data-[collapsible=icon]:hidden" />
             </button>
