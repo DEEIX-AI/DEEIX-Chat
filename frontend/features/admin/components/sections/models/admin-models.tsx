@@ -462,6 +462,7 @@ export function AdminModelsPage() {
           open
           mode={createOpen ? "create" : "edit"}
           target={models.editTarget}
+          models={models.items}
           onClose={() => {
             setCreateOpen(false);
             models.setEditTarget(null);

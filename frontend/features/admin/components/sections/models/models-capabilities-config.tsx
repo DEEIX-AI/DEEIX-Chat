@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronDownIcon, CircleHelp, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDownIcon, CircleHelp, CopyPlus, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
+import { ModelCapabilitiesPresetDialog } from "@/features/admin/components/sections/models/models-capabilities-presets";
 import type { NativeToolDefinition } from "@/shared/lib/model-option-policy";
 import { MODEL_OPTION_POLICY_PROTOCOL_LABELS, resolveModelOptionPolicyProtocol } from "@/shared/lib/model-option-policy";
 
@@ -1028,6 +1030,8 @@ export function ModelCapabilitiesGuideButton({ t }: { t: (key: string) => string
 export function ModelCapabilitiesQuickConfig({
   value,
   disabled,
+  presetModels = [],
+  currentModelID,
   nativeTools,
   routeProtocols,
   t,
@@ -1039,9 +1043,11 @@ export function ModelCapabilitiesQuickConfig({
 }: {
   value: string;
   disabled: boolean;
+  presetModels?: AdminLLMModelDTO[];
+  currentModelID?: number | null;
   nativeTools: NativeToolDefinition[];
   routeProtocols: string[];
-  t: (key: string) => string;
+  t: (key: string, values?: Record<string, string | number>) => string;
   commonT: (key: string) => string;
   triggerVariant?: "default" | "secondary" | "ghost" | "outline" | "link";
   triggerClassName?: string;
@@ -1049,7 +1055,9 @@ export function ModelCapabilitiesQuickConfig({
   onApply: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [presetOpen, setPresetOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"parameters" | "tools">("parameters");
+  const [draftBaseJSON, setDraftBaseJSON] = useState("");
   const [parameterRows, setParameterRows] = useState<ParameterRow[]>([]);
   const [nativeToolRows, setNativeToolRows] = useState<NativeToolRow[]>([]);
   const [expandedNativeToolID, setExpandedNativeToolID] = useState("");
@@ -1070,6 +1078,7 @@ export function ModelCapabilitiesQuickConfig({
     setParameterErrors({});
     setNativeToolErrors({});
     setActiveTab("parameters");
+    setDraftBaseJSON(value);
     return true;
   }
 
@@ -1157,13 +1166,28 @@ export function ModelCapabilitiesQuickConfig({
       toast.error(t("sheet.capabilitiesQuick.validationFailed"));
       return;
     }
-    const nextValue = buildCapabilitiesJSON(value, parameterRows, nativeToolRows);
+    const nextValue = buildCapabilitiesJSON(draftBaseJSON, parameterRows, nativeToolRows);
     if (nextValue === null) {
       toast.error(t("sheet.capabilitiesQuick.invalidJSON"));
       return;
     }
     onApply(nextValue);
     setOpen(false);
+  }
+
+  function applyPresetValue(nextValue: string) {
+    const payload = parseCapabilitiesObject(nextValue);
+    if (!payload) {
+      toast.error(t("sheet.capabilitiesQuick.invalidJSON"));
+      return;
+    }
+    setParameterRows(parseParameterRows(payload.defaultOptions, payload.optionControls));
+    setNativeToolRows(parseNativeToolRows(payload, nativeTools, routeProtocols));
+    setExpandedNativeToolID("");
+    setParameterErrors({});
+    setNativeToolErrors({});
+    setActiveTab("parameters");
+    setDraftBaseJSON(nextValue);
   }
 
   return (
@@ -1180,9 +1204,34 @@ export function ModelCapabilitiesQuickConfig({
       </Button>
       <DialogContent className="flex h-[min(86vh,760px)] min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-[760px]">
         <DialogHeader className="shrink-0 px-4 py-4">
-          <DialogTitle>{t("sheet.capabilitiesQuick.title")}</DialogTitle>
-          <DialogDescription>{t("sheet.capabilitiesQuick.description")}</DialogDescription>
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1.5">
+              <DialogTitle>{t("sheet.capabilitiesQuick.title")}</DialogTitle>
+              <DialogDescription>{t("sheet.capabilitiesQuick.description")}</DialogDescription>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-7 shrink-0 gap-1 px-2 text-xs font-normal shadow-none"
+              onClick={() => setPresetOpen(true)}
+            >
+              <CopyPlus className="size-3.5" />
+              {t("sheet.capabilitiesPreset.button")}
+            </Button>
+          </div>
         </DialogHeader>
+
+        <ModelCapabilitiesPresetDialog
+          open={presetOpen}
+          onOpenChange={setPresetOpen}
+          models={presetModels}
+          currentModelID={currentModelID}
+          routeProtocols={routeProtocols}
+          t={t}
+          commonT={commonT}
+          onApply={applyPresetValue}
+        />
 
         <div className="min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden px-4 py-2">
           <Tabs

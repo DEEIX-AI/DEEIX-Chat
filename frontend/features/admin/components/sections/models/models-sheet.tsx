@@ -53,6 +53,7 @@ import { getModelOptionPolicy } from "@/shared/api/settings";
 import {
   bindAdminLLMModelUpstreamSource,
   createAdminLLMModel,
+  getAdminReferenceData,
   invalidateAdminReferenceDataCache,
   listAdminLLMModelUpstreamSources,
   listAdminLLMUpstreamModels,
@@ -229,6 +230,7 @@ type ModelSheetProps = {
   open: boolean;
   mode: "create" | "edit";
   target: AdminLLMModelDTO | null;
+  models: AdminLLMModelDTO[];
   onClose: () => void;
   onSuccess: () => void;
 };
@@ -237,7 +239,7 @@ type ModelSheetProps = {
 // Component
 // ---------------------------------------------------------------------------
 
-export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelSheetProps) {
+export function ModelSheet({ open, mode, target, models, onClose, onSuccess }: ModelSheetProps) {
   const t = useTranslations("adminModels");
   const commonT = useTranslations("common");
   const locale = useLocale();
@@ -247,6 +249,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
   const [showCapabilitiesJSONAdvanced, setShowCapabilitiesJSONAdvanced] = useState(false);
   const sheetContentRef = useRef<HTMLDivElement | null>(null);
   const [nativeTools, setNativeTools] = useState<NativeToolDefinition[]>([]);
+  const [capabilitySourceModels, setCapabilitySourceModels] = useState<AdminLLMModelDTO[]>(models);
   // Upstream sources for accordion
   const [sources, setSources] = useState<AdminLLMModelUpstreamSourceDTO[]>([]);
   const [sourcesLoading, setSourcesLoading] = useState(false);
@@ -449,6 +452,7 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
   useEffect(() => {
     if (!open) {
       setNativeTools([]);
+      setCapabilitySourceModels(models);
       return;
     }
     let cancelled = false;
@@ -462,16 +466,21 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
         if (!cancelled) {
           setNativeTools(policy.nativeTools);
         }
+        const referenceData = await getAdminReferenceData(token);
+        if (!cancelled) {
+          setCapabilitySourceModels(referenceData.models);
+        }
       } catch {
         if (!cancelled) {
           setNativeTools([]);
+          setCapabilitySourceModels(models);
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [models, open]);
 
   useEffect(() => {
     if (!open) {
@@ -836,6 +845,8 @@ export function ModelSheet({ open, mode, target, onClose, onSuccess }: ModelShee
                     <ModelCapabilitiesQuickConfig
                       value={form.capabilitiesJSON}
                       disabled={pending}
+                      presetModels={capabilitySourceModels}
+                      currentModelID={target?.id ?? null}
                       nativeTools={nativeTools}
                       routeProtocols={routeProtocols}
                       t={t}
