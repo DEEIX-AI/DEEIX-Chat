@@ -2,9 +2,9 @@ package usersettings
 
 import (
 	"context"
-	"errors"
 
 	domainusersettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/usersettings"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
@@ -13,7 +13,7 @@ import (
 
 // translateError 将 gorm 底层错误统一映射为仓储语义错误。
 func translateError(err error) error {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if dberror.IsRecordNotFound(err) {
 		return repository.ErrNotFound
 	}
 	return err
@@ -43,7 +43,7 @@ func (r *Repo) GetByKey(ctx context.Context, userID uint, key string) (*model.Us
 	var item model.UserSetting
 	err := r.db.WithContext(ctx).Where("user_id = ? AND key = ?", userID, key).First(&item).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if dberror.IsRecordNotFound(err) {
 			return nil, nil
 		}
 		return nil, translateError(err)

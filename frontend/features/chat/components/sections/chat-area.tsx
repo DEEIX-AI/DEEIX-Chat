@@ -6,7 +6,7 @@ import { ArrowDownToLine } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ChatLabel } from "@/features/chat/components/sections/chat-label";
-import { useMessageFeedback } from "@/features/chat/hooks/use-message-feedback";
+import { useChatMessageFeedback } from "@/features/chat/hooks/use-chat-message-feedback";
 import {
   AssistantMessageSkeleton,
   ChatInlineAlertCard,
@@ -16,7 +16,7 @@ import { areChatAreaMessagesRenderEqual } from "@/features/chat/model/chat-messa
 import { type AssistantReaction } from "@/features/chat/components/message/message-meta";
 import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import { ChatMessageUser } from "@/features/chat/components/message/message-user";
-import { StreamdownRender } from "@/features/chat/components/markdown/streamdown-render";
+import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import type { OpenCodeArtifactInput } from "@/features/chat/model/chat-artifacts";
 import { CenteredEmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -291,7 +291,7 @@ export function ChatArea({
   splitRightInset = false,
 }: ChatAreaProps) {
   const t = useTranslations("chat");
-  const { getReaction, onReactAssistantMessage } = useMessageFeedback(messages);
+  const { getReaction, onReactAssistantMessage } = useChatMessageFeedback(messages);
   const stableOnRetryUserMessage = useStableEvent(onRetryUserMessage);
   const stableOnRetryAssistantMessage = useStableEvent(onRetryAssistantMessage);
   const stableOnContinueAssistantMessage = useStableEvent(onContinueAssistantMessage ?? (() => undefined));

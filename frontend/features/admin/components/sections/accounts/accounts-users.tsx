@@ -42,9 +42,9 @@ import type { AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin.
 import type { AdminBillingMode } from "@/features/admin/api/billing.types";
 import type { UserDTO } from "@/shared/api/auth.types";
 
-import { AccountAvatarEditorDialog } from "./account-avatar-dialog";
-import { AccountConfirmationDialog } from "./account-confirm-dialog";
-import { AccountPasswordResetDialog } from "./account-password-dialog";
+import { AccountAvatarEditorDialog } from "./accounts-avatar-dialog";
+import { AccountConfirmationDialog } from "./accounts-confirm-dialog";
+import { AccountPasswordResetDialog } from "./accounts-password-dialog";
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
 import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
 import { useAdminUsersPage } from "@/features/admin/hooks/use-admin-users-page";
@@ -66,14 +66,14 @@ import {
 } from "@/features/admin/utils/account-display";
 
 const CreateUserDialog = dynamic(
-  () => import("./account-user-editor").then((module) => module.CreateUserDialog),
+  () => import("./accounts-user-editor").then((module) => module.CreateUserDialog),
   {
     ssr: false,
   },
 );
 
 const EditUserSheet = dynamic(
-  () => import("./account-user-editor").then((module) => module.EditUserSheet),
+  () => import("./accounts-user-editor").then((module) => module.EditUserSheet),
   {
     ssr: false,
   },

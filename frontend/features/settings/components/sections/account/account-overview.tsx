@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { SpinnerLabel } from "@/components/ui/spinner";
-import { resolveEmailTitle, resolveEmailValue } from "@/features/settings/model/account-page";
+import { resolveEmailTitle, resolveEmailValue } from "@/features/settings/model/account-settings";
 import type { UserDTO } from "@/shared/api/auth.types";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { SettingsSection } from "@/shared/components/settings-layout";

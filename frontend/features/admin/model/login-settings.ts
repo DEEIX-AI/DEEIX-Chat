@@ -1,7 +1,6 @@
 import type { IdentityProviderDTO } from "@/shared/api/auth.types";
 import type { IdentityProviderPayload } from "@/features/admin/api/auth";
 import type { SettingsGrouped } from "@/shared/api/settings.types";
-import { resolveLocalizedErrorMessage } from "@/i18n/resolve-error-message";
 
 export type LoginFieldType = "int" | "bool" | "string" | "password" | "textarea" | "select" | "tabs" | "button";
 
@@ -436,11 +435,6 @@ export function validatePasswordLoginSettings(
   }
   return undefined;
 }
-
-export function resolveErrorMessage(error: unknown): string {
-  return resolveLocalizedErrorMessage(error);
-}
-
 
 export function createProviderForm(overrides: Partial<IdentityProviderPayload>): IdentityProviderPayload {
   const form = {

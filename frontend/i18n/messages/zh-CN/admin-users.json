@@ -2,7 +2,7 @@
   "adminTitle": "管理",
   "sections": {
     "accounts": "账户",
-    "channels": "上游",
+    "upstreams": "上游",
     "models": "模型",
     "toolSettings": "工具",
     "billing": "计费",

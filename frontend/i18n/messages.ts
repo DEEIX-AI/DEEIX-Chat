@@ -1,6 +1,5 @@
-import enAdminBilling from "@/i18n/messages/en-US/admin-billing.json";
 import enAdminAnnouncements from "@/i18n/messages/en-US/admin-announcements.json";
-import enAdminChannels from "@/i18n/messages/en-US/admin-channels.json";
+import enAdminBilling from "@/i18n/messages/en-US/admin-billing.json";
 import enAdminConversation from "@/i18n/messages/en-US/admin-conversation.json";
 import enAdminFiles from "@/i18n/messages/en-US/admin-files.json";
 import enAdminLogin from "@/i18n/messages/en-US/admin-login.json";
@@ -8,6 +7,7 @@ import enAdminLogs from "@/i18n/messages/en-US/admin-logs.json";
 import enAdminModels from "@/i18n/messages/en-US/admin-models.json";
 import enAdminPrompts from "@/i18n/messages/en-US/admin-prompts.json";
 import enAdminTools from "@/i18n/messages/en-US/admin-tools.json";
+import enAdminUpstreams from "@/i18n/messages/en-US/admin-upstreams.json";
 import enAdminUsers from "@/i18n/messages/en-US/admin-users.json";
 import enChat from "@/i18n/messages/en-US/chat.json";
 import enAnnouncements from "@/i18n/messages/en-US/announcements.json";
@@ -36,17 +36,17 @@ export const DEFAULT_MESSAGES = {
   share: enShare,
   files: enFiles,
   settings: enSettings,
-  adminUsers: enAdminUsers,
-  adminChannels: enAdminChannels,
+  adminAnnouncements: enAdminAnnouncements,
+  adminBilling: enAdminBilling,
   adminConversation: enAdminConversation,
   adminFiles: enAdminFiles,
   adminLogin: enAdminLogin,
+  adminLogs: enAdminLogs,
   adminModels: enAdminModels,
   adminPrompts: enAdminPrompts,
-  adminBilling: enAdminBilling,
-  adminAnnouncements: enAdminAnnouncements,
-  adminLogs: enAdminLogs,
   adminTools: enAdminTools,
+  adminUpstreams: enAdminUpstreams,
+  adminUsers: enAdminUsers,
 };
 
 export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages> {
@@ -66,17 +66,17 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     share,
     files,
     settings,
-    adminUsers,
-    adminChannels,
+    adminAnnouncements,
+    adminBilling,
     adminConversation,
     adminFiles,
     adminLogin,
+    adminLogs,
     adminModels,
     adminPrompts,
-    adminBilling,
-    adminAnnouncements,
-    adminLogs,
     adminTools,
+    adminUpstreams,
+    adminUsers,
   ] = await Promise.all([
     import("@/i18n/messages/zh-CN/common.json"),
     import("@/i18n/messages/zh-CN/errors.json"),
@@ -89,17 +89,17 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     import("@/i18n/messages/zh-CN/share.json"),
     import("@/i18n/messages/zh-CN/files.json"),
     import("@/i18n/messages/zh-CN/settings.json"),
-    import("@/i18n/messages/zh-CN/admin-users.json"),
-    import("@/i18n/messages/zh-CN/admin-channels.json"),
+    import("@/i18n/messages/zh-CN/admin-announcements.json"),
+    import("@/i18n/messages/zh-CN/admin-billing.json"),
     import("@/i18n/messages/zh-CN/admin-conversation.json"),
     import("@/i18n/messages/zh-CN/admin-files.json"),
     import("@/i18n/messages/zh-CN/admin-login.json"),
+    import("@/i18n/messages/zh-CN/admin-logs.json"),
     import("@/i18n/messages/zh-CN/admin-models.json"),
     import("@/i18n/messages/zh-CN/admin-prompts.json"),
-    import("@/i18n/messages/zh-CN/admin-billing.json"),
-    import("@/i18n/messages/zh-CN/admin-announcements.json"),
-    import("@/i18n/messages/zh-CN/admin-logs.json"),
     import("@/i18n/messages/zh-CN/admin-tools.json"),
+    import("@/i18n/messages/zh-CN/admin-upstreams.json"),
+    import("@/i18n/messages/zh-CN/admin-users.json"),
   ]);
 
   return {
@@ -114,16 +114,16 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     share: share.default,
     files: files.default,
     settings: settings.default,
-    adminUsers: adminUsers.default,
-    adminChannels: adminChannels.default,
+    adminAnnouncements: adminAnnouncements.default,
+    adminBilling: adminBilling.default,
     adminConversation: adminConversation.default,
     adminFiles: adminFiles.default,
     adminLogin: adminLogin.default,
+    adminLogs: adminLogs.default,
     adminModels: adminModels.default,
     adminPrompts: adminPrompts.default,
-    adminBilling: adminBilling.default,
-    adminAnnouncements: adminAnnouncements.default,
-    adminLogs: adminLogs.default,
     adminTools: adminTools.default,
+    adminUpstreams: adminUpstreams.default,
+    adminUsers: adminUsers.default,
   };
 }

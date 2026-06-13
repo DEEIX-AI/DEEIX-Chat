@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { SpinnerLabel } from "@/components/ui/spinner";
-import { formatDateTime } from "@/features/settings/model/account-page";
+import { formatDateTime } from "@/features/settings/model/account-settings";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { createQRCodeSVG } from "@/shared/lib/qr-code";

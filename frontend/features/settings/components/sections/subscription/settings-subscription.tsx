@@ -36,7 +36,7 @@ import {
   planRank,
   resolveDefaultPrice,
   resolvePlanActionKind,
-} from "./subscription-format";
+} from "@/features/settings/model/subscription-format";
 import { RedemptionDialog, TopUpDialog } from "./subscription-billing-dialogs";
 import { SubscriptionSummary } from "./subscription-summary";
 import { SubscriptionTrend } from "./subscription-trend";

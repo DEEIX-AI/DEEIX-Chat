@@ -20,7 +20,7 @@ import {
   formatCreditUSD,
   formatUSD,
   normalizePricingMode,
-} from "@/features/admin/model/billing-page";
+} from "@/features/admin/model/billing-settings";
 
 export function PeriodBillingTable({
   plans,

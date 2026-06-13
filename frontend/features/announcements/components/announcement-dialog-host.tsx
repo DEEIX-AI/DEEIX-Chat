@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StreamdownRender } from "@/features/chat/components/markdown/streamdown-render";
+import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { closeAnnouncement, dismissAnnouncementToday, listAnnouncements } from "@/shared/api/announcements";
 import type { AnnouncementDTO } from "@/shared/api/announcements.types";
 import { useAuthSession } from "@/shared/auth/auth-session-context";

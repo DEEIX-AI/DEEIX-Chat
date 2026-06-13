@@ -2,7 +2,7 @@
   "adminTitle": "Admin",
   "sections": {
     "accounts": "Accounts",
-    "channels": "Upstreams",
+    "upstreams": "Upstreams",
     "models": "Models",
     "toolSettings": "Tools",
     "billing": "Billing",

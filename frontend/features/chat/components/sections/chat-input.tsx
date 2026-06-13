@@ -19,7 +19,7 @@ import type {
   PendingAttachment,
   UploadingAttachment,
 } from "@/features/chat/types/chat-runtime";
-import { useSpeechInput } from "@/features/chat/hooks/use-speech-input";
+import { useChatSpeechInput } from "@/features/chat/hooks/use-chat-speech-input";
 import {
   useChatMentionMenu,
   type ChatMentionMenuKind,
@@ -28,7 +28,7 @@ import { ChatMentionMenuPortal } from "@/features/chat/components/shared/chat-me
 import { ChatMCP } from "@/features/chat/components/sections/chat-mcp";
 import { ChatModelPicker } from "@/features/chat/components/sections/chat-model-picker";
 import { ChatModelConfig } from "@/features/chat/components/sections/chat-model-config";
-import { formatBytes, resolveFileIcon } from "@/features/files/utils/file-display";
+import { formatBytes, resolveFileIcon } from "@/shared/lib/file-display";
 import type { ChatSubmitDecision } from "@/features/chat/model/chat-task";
 import { isMediaSubmitTask, resolveChatSubmitDecision } from "@/features/chat/model/chat-task";
 import {
@@ -55,7 +55,7 @@ import type { SendShortcut } from "@/features/settings/types/settings";
 import { isSendShortcutEvent } from "@/shared/lib/platform-shortcuts";
 
 const FilePreviewDialog = dynamic(
-  () => import("@/features/files/components/preview/file-preview-dialog").then((module) => module.FilePreviewDialog),
+  () => import("@/shared/components/file-preview/file-preview-dialog").then((module) => module.FilePreviewDialog),
   { ssr: false },
 );
 
@@ -215,7 +215,7 @@ function ChatInputComponent({
   const tFileStatus = useTranslations("files.status");
   const [isBlocksHovered, setIsBlocksHovered] = React.useState(false);
   const [isVoiceHovered, setIsVoiceHovered] = React.useState(false);
-  const speechInput = useSpeechInput({
+  const speechInput = useChatSpeechInput({
     draft,
     listeningPlaceholder: tComposer("voiceListeningPlaceholder"),
     onDraftChange,

@@ -1,5 +1,4 @@
 import type { ProfileDraft } from "@/features/settings/types/settings";
-import { resolveLocalizedErrorMessage } from "@/i18n/resolve-error-message";
 import type { UserDTO } from "@/shared/api/auth.types";
 
 function normalizeString(value: unknown, fallback = ""): string {
@@ -29,8 +28,4 @@ export function isProfileDraftEqual(left: ProfileDraft, right: ProfileDraft): bo
     left.locale === right.locale &&
     left.profilePreferences === right.profilePreferences
   );
-}
-
-export function resolveSettingsErrorMessage(error: unknown): string {
-  return resolveLocalizedErrorMessage(error);
 }

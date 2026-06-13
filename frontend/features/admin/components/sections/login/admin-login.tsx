@@ -61,7 +61,6 @@ import {
   providerToForm,
   PROVIDER_TEMPLATES,
   reorderProviders,
-  resolveErrorMessage,
   toEditorField,
   validateEmailVerificationSettings,
   validatePasswordLoginSettings,
@@ -70,6 +69,7 @@ import {
   type LoginSettingsGroup,
   type ProviderTemplate,
 } from "@/features/admin/model/login-settings";
+import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 
 function RequiredMark() {
   return <span className="ml-0.5 text-destructive">*</span>;
@@ -119,7 +119,7 @@ export function AdminLoginSettingsPage() {
       setSavedMap(flattened);
       setProviders(providerPage.results);
     } catch (error) {
-      toast.error(t("toast.loadFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.loadFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setLoading(false);
     }
@@ -231,7 +231,7 @@ export function AdminLoginSettingsPage() {
         setSavedMap(flattened);
         toast.success(t("toast.settingsUpdated"));
       } catch (error) {
-        toast.error(t("toast.saveFailed"), { description: resolveErrorMessage(error) });
+        toast.error(t("toast.saveFailed"), { description: resolveAdminErrorMessage(error) });
       } finally {
         setSaving(false);
       }
@@ -279,7 +279,7 @@ export function AdminLoginSettingsPage() {
       const page = await listAdminIdentityProviders(token);
       setProviders(page.results);
     } catch (error) {
-      toast.error(t("toast.providerSaveFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.providerSaveFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setSaving(false);
     }
@@ -300,10 +300,10 @@ export function AdminLoginSettingsPage() {
       if (!force && error instanceof ApiError && error.status === 409) {
         setDeleteProviderTarget(null);
         setForceDeleteProviderTarget(provider);
-        setForceDeleteProviderMessage(resolveErrorMessage(error));
+        setForceDeleteProviderMessage(resolveAdminErrorMessage(error));
         return;
       }
-      toast.error(t("toast.providerDeleteFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.providerDeleteFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setSaving(false);
     }
@@ -334,7 +334,7 @@ export function AdminLoginSettingsPage() {
       toast.success(t("toast.providerControlUpdated"));
     } catch (error) {
       setProviders(previousProviders);
-      toast.error(t("toast.providerControlSaveFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.providerControlSaveFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setSaving(false);
     }
@@ -353,7 +353,7 @@ export function AdminLoginSettingsPage() {
       toast.success(t("toast.providerOrderUpdated"));
     } catch (error) {
       setProviders(previousProviders);
-      toast.error(t("toast.providerOrderSaveFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.providerOrderSaveFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setSaving(false);
     }

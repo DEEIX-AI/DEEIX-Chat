@@ -2,12 +2,12 @@ package memory
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/sqlitevec"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -33,7 +33,7 @@ func float32SliceToVec(v []float32) string {
 
 // translateError 将 gorm 底层错误统一映射为仓储语义错误。
 func translateError(err error) error {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if dberror.IsRecordNotFound(err) {
 		return repository.ErrNotFound
 	}
 	return err
@@ -73,7 +73,7 @@ func (r *Repo) UpsertUserMemory(ctx context.Context, item *domainmemory.UserMemo
 			return r.clearUserMemoryEmbedding(ctx, tx, existing.ID)
 		})
 	}
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if dberror.IsRecordNotFound(err) {
 		record := model.UserMemory{
 			UserID:    item.UserID,
 			MemoryKey: item.MemoryKey,
@@ -275,7 +275,7 @@ func (r *Repo) upsertSQLiteUserMemoryEmbedding(ctx context.Context, userID uint,
 		query = query.Where("value = ?", strings.TrimSpace(expectedValue))
 	}
 	if err := query.First(&item).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if dberror.IsRecordNotFound(err) {
 			return nil
 		}
 		return translateError(err)

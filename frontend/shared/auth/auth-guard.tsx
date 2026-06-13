@@ -6,15 +6,9 @@ import { useTranslations } from "next-intl";
 
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { AuthSessionProvider } from "@/shared/auth/auth-session-context";
+import { normalizeAuthNextPath } from "@/shared/auth/local-path";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { readAccessToken, SESSION_SNAPSHOT_CHANGED_EVENT, type SessionSnapshot } from "@/shared/auth/session";
-
-function normalizeNextPath(value: string): string {
-  if (!value.startsWith("/") || value.startsWith("//")) {
-    return "/chat";
-  }
-  return value;
-}
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const common = useTranslations("common");
@@ -41,7 +35,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       }
 
       if (!cancelled) {
-        const nextPath = normalizeNextPath(`${window.location.pathname}${window.location.search}`);
+        const nextPath = normalizeAuthNextPath(`${window.location.pathname}${window.location.search}`);
         router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
       }
     }
@@ -58,7 +52,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       const nextToken = snapshot?.accessToken ?? "";
       setAccessToken(nextToken || null);
       if (!nextToken) {
-        const nextPath = normalizeNextPath(`${window.location.pathname}${window.location.search}`);
+        const nextPath = normalizeAuthNextPath(`${window.location.pathname}${window.location.search}`);
         router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
       }
     }

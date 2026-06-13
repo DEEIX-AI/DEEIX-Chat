@@ -26,16 +26,16 @@ import {
   BulkDeleteUpstreamsDialog,
   CircuitActionDialog,
   DeleteUpstreamDialog,
-} from "./upstream-dialog";
+} from "./upstreams-dialog";
 import { UpstreamsTable } from "./upstreams-table";
 import { COMPATIBLE_OPTIONS } from "@/features/admin/utils/llm-display";
 
-const UpstreamSheet = dynamic(() => import("./upstream-sheet").then((module) => module.UpstreamSheet), {
+const UpstreamSheet = dynamic(() => import("./upstreams-sheet").then((module) => module.UpstreamSheet), {
   ssr: false,
 });
 
 const UpstreamModelsDialog = dynamic(
-  () => import("./upstream-models-dialog").then((module) => module.UpstreamModelsDialog),
+  () => import("./upstreams-models-dialog").then((module) => module.UpstreamModelsDialog),
   {
     ssr: false,
   },
@@ -72,7 +72,7 @@ function BulkActionControlRow({
 }
 
 export function AdminUpstreamsPage() {
-  const t = useTranslations("adminChannels");
+  const t = useTranslations("adminUpstreams");
   const upstreams = useAdminUpstreams();
   const [syncOnOpenUpstreamID, setSyncOnOpenUpstreamID] = React.useState<number | null>(null);
   const [statusConfirmOpen, setStatusConfirmOpen] = React.useState(false);

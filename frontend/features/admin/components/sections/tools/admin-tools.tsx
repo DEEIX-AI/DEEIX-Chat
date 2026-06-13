@@ -54,10 +54,10 @@ import {
   TOOL_SETTINGS_FIELDS,
   applyToolSettingsDefaults,
   flattenToolSettings,
-  resolveToolSettingsErrorMessage,
   toToolEditorField,
   toolFieldID,
 } from "@/features/admin/model/tool-settings";
+import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { cn } from "@/lib/utils";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { CopyActionButton } from "@/shared/components/copy-action";
@@ -300,7 +300,7 @@ export function AdminToolsPage() {
       setSettingsMap(flattened);
       setSavedMap(flattened);
     } catch (error) {
-      toast.error(t("toast.settingsLoadFailed"), { description: resolveToolSettingsErrorMessage(error, t("toast.unknownError")) });
+      toast.error(t("toast.settingsLoadFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
     } finally {
       setLoading(false);
     }
@@ -318,7 +318,7 @@ export function AdminToolsPage() {
       setServers(items);
       setToolSheetServerID((current) => (current && items.some((item) => item.id === current) ? current : null));
     } catch (error) {
-      toast.error(t("toast.serversLoadFailed"), { description: resolveToolSettingsErrorMessage(error, t("toast.unknownError")) });
+      toast.error(t("toast.serversLoadFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
     } finally {
       setServersLoading(false);
     }
@@ -336,7 +336,7 @@ export function AdminToolsPage() {
       setTools(await listAdminMCPServerTools(token, serverID));
     } catch (error) {
       setTools([]);
-      toast.error(t("toast.toolsLoadFailed"), { description: resolveToolSettingsErrorMessage(error, t("toast.unknownError")) });
+      toast.error(t("toast.toolsLoadFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
     } finally {
       setToolsLoading(false);
     }
@@ -418,7 +418,7 @@ export function AdminToolsPage() {
       setSavedMap(flattened);
       toast.success(t("toast.settingsUpdated"));
     } catch (error) {
-      toast.error(t("toast.saveFailed"), { description: resolveToolSettingsErrorMessage(error, t("toast.unknownError")) });
+      toast.error(t("toast.saveFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
     } finally {
       setSaving(false);
     }
@@ -450,7 +450,7 @@ export function AdminToolsPage() {
         setTools(nextTools);
         toast.success(t("toast.toolsSynced"));
       } catch (error) {
-        toast.error(t("toast.toolsSyncFailed"), { description: resolveToolSettingsErrorMessage(error, t("toast.unknownError")) });
+        toast.error(t("toast.toolsSyncFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
       } finally {
         await loadServers();
         setSyncingServerID(null);
@@ -483,7 +483,7 @@ export function AdminToolsPage() {
         await loadServers();
       }
     } catch (error) {
-      toast.error(t("toast.serverSaveFailed"), { description: resolveToolSettingsErrorMessage(error, t("toast.unknownError")) });
+      toast.error(t("toast.serverSaveFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
     } finally {
       setServerSaving(false);
     }
@@ -505,7 +505,7 @@ export function AdminToolsPage() {
         setServerDeleteTarget(null);
         await loadServers();
       } catch (error) {
-        toast.error(t("toast.serverDeleteFailed"), { description: resolveToolSettingsErrorMessage(error, t("toast.unknownError")) });
+        toast.error(t("toast.serverDeleteFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
       } finally {
         setServerDeleting(false);
       }
@@ -530,7 +530,7 @@ export function AdminToolsPage() {
       toast.success(t("toast.serverStatusUpdated", { status: serverStatusLabel(nextStatus, t) }));
     } catch (error) {
       setServers(previous);
-      toast.error(t("toast.serverStatusFailed"), { description: resolveToolSettingsErrorMessage(error, t("toast.unknownError")) });
+      toast.error(t("toast.serverStatusFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
     } finally {
       setActionServerID(null);
     }
@@ -561,7 +561,7 @@ export function AdminToolsPage() {
     } catch (error) {
       setTools(previous);
       refreshServerToolCount(tool.serverID, previous);
-      toast.error(t("toast.toolStatusFailed"), { description: resolveToolSettingsErrorMessage(error, t("toast.unknownError")) });
+      toast.error(t("toast.toolStatusFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
     }
   }, [refreshServerToolCount, t, tools]);
 
@@ -588,7 +588,7 @@ export function AdminToolsPage() {
     } catch (error) {
       setTools(previous);
       refreshServerToolCount(toolSheetServer.id, previous);
-      toast.error(t("toast.selectedToolsUpdateFailed"), { description: resolveToolSettingsErrorMessage(error, t("toast.unknownError")) });
+      toast.error(t("toast.selectedToolsUpdateFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
     }
   }, [refreshServerToolCount, selectedToolIDs, t, toolSheetServer, tools]);
 
@@ -644,7 +644,7 @@ export function AdminToolsPage() {
       setToolForm(null);
       toast.success(t("toast.toolUpdated"));
     } catch (error) {
-      toast.error(t("toast.toolSaveFailed"), { description: resolveToolSettingsErrorMessage(error, t("toast.unknownError")) });
+      toast.error(t("toast.toolSaveFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
     } finally {
       setToolSaving(false);
     }

@@ -36,7 +36,7 @@ import {
   type PricingMode,
   type PricingFormState,
   type TieredPricingTierForm,
-} from "@/features/admin/model/billing-page";
+} from "@/features/admin/model/billing-settings";
 
 type PricingJSONValue = Record<string, unknown>;
 

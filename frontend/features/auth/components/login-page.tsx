@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { PASSWORD_MIN_LENGTH } from "@/shared/auth/account-policy";
-import { useLoginPage } from "@/features/auth/hooks/use-login-page";
+import { useLoginPage } from "@/features/auth/hooks/use-auth-login-page";
 import { AppLogo } from "@/shared/components/app-logo";
 import { IdentityProviderIcon } from "@/shared/components/identity-provider-icon";
 import { TurnstileWidget } from "@/features/auth/components/turnstile-widget";

@@ -10,7 +10,7 @@ import { useFileExtract } from "@/features/files/hooks/use-file-extract";
 import { useFileInvalidation } from "@/features/files/hooks/use-file-invalidation";
 import { useFilePreview } from "@/features/files/hooks/use-file-preview";
 import type { FileFilterValue, FileSortKey } from "@/features/files/types/files";
-import { resolveFileFilter } from "@/features/files/utils/file-display";
+import { resolveFileFilter } from "@/shared/lib/file-display";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
   deleteFile,

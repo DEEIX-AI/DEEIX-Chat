@@ -89,7 +89,7 @@ type UseAdminUpstreamsState = {
 };
 
 export function useAdminUpstreams(): UseAdminUpstreamsState {
-  const t = useTranslations("adminChannels.toast");
+  const t = useTranslations("adminUpstreams.toast");
   const resolveErrorMessage = useLocalizedErrorMessage();
   const [items, setItems] = React.useState<AdminLLMUpstreamView[]>([]);
   const [total, setTotal] = React.useState(0);

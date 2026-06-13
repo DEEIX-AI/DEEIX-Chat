@@ -14,8 +14,8 @@ import type {
   ChatInlineAlert,
   MessageAttachment,
 } from "@/features/chat/types/messages";
-import { MarkdownImage, type MarkdownArtifactActions } from "@/features/chat/components/markdown/streamdown-components";
-import { StreamdownRender } from "@/features/chat/components/markdown/streamdown-render";
+import { MarkdownImage, type MarkdownArtifactActions } from "@/shared/components/markdown/streamdown-components";
+import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import {
   Accordion,
   AccordionContent,
@@ -32,7 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { isUpstreamStreamingDebugBody, summarizeUpstreamError } from "@/features/chat/utils/chat-runtime";
 import type { FileContentResult } from "@/shared/api/file";
-import type { PreviewDialogFile } from "@/features/files/components/preview/file-preview-dialog";
+import type { PreviewDialogFile } from "@/shared/components/file-preview/file-preview-dialog";
 import { resolveLeadingImagePreview } from "@/features/chat/model/media-image-preview";
 
 const EMPTY_TRACE_EVENTS: NonNullable<ChatAreaMessage["processTrace"]>["events"] = [];

@@ -20,9 +20,9 @@ import type {
 import {
   PAGE_SIZE_DEFAULT,
   displayToKindsJson,
-  resolveErrorMessage,
   type ModelSortValue,
 } from "@/features/admin/types/llm";
+import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { resolveKindsDisplayForProtocols } from "@/features/admin/utils/llm-display";
 import { patchByID, removeByID, removeManyByID, replaceByID } from "@/shared/lib/optimistic-list";
 import { runSettledBulkItems } from "@/shared/lib/bulk-action";
@@ -143,7 +143,7 @@ export function useAdminModels(): UseAdminModelsState {
           setSelectedModelIDs(new Set());
         });
       } catch (error) {
-        toast.error(t("modelsLoadFailed"), { description: resolveErrorMessage(error) });
+        toast.error(t("modelsLoadFailed"), { description: resolveAdminErrorMessage(error) });
       } finally {
         if (requestSeq === requestSeqRef.current) {
           setLoading(false);
@@ -204,7 +204,7 @@ export function useAdminModels(): UseAdminModelsState {
         }
       } catch (error) {
         setItems((current) => replaceByID(current, item.id, (model) => model.id, previousItem));
-        toast.error(t("modelStatusUpdateFailed"), { description: resolveErrorMessage(error) });
+        toast.error(t("modelStatusUpdateFailed"), { description: resolveAdminErrorMessage(error) });
       }
     },
     [items, loadModels, page, pageSize, sortValue, statusFilter, t],
@@ -228,7 +228,7 @@ export function useAdminModels(): UseAdminModelsState {
         }
       } catch (error) {
         setItems((current) => replaceByID(current, item.id, (model) => model.id, previousItem));
-        toast.error(t("modelScopeUpdateFailed"), { description: resolveErrorMessage(error) });
+        toast.error(t("modelScopeUpdateFailed"), { description: resolveAdminErrorMessage(error) });
       }
     },
     [items, loadModels, page, pageSize, sortValue, t],
@@ -328,7 +328,7 @@ export function useAdminModels(): UseAdminModelsState {
       setItems((current) =>
         rollbackModels.reduce((next, model) => replaceByID(next, model.id, (item) => item.id, model), current),
       );
-      toast.error(t("bulkKindsFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("bulkKindsFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setBatchApplying(false);
     }
@@ -395,7 +395,7 @@ export function useAdminModels(): UseAdminModelsState {
       setItems((current) =>
         rollbackModels.reduce((next, model) => replaceByID(next, model.id, (item) => item.id, model), current),
       );
-      toast.error(t("bulkVendorFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("bulkVendorFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setBatchApplying(false);
     }
@@ -462,7 +462,7 @@ export function useAdminModels(): UseAdminModelsState {
       setItems((current) =>
         rollbackModels.reduce((next, model) => replaceByID(next, model.id, (item) => item.id, model), current),
       );
-      toast.error(t("bulkStatusFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("bulkStatusFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setBatchApplying(false);
     }
@@ -548,7 +548,7 @@ export function useAdminModels(): UseAdminModelsState {
       setItems((current) =>
         rollbackModels.reduce((next, model) => replaceByID(next, model.id, (item) => item.id, model), current),
       );
-      toast.error(t("bulkProtocolFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("bulkProtocolFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setBatchApplying(false);
     }

@@ -9,7 +9,7 @@ import type {
   ModelOptionControlType,
 } from "@/features/chat/types/chat-runtime";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { parseProtocolsJSON } from "@/features/chat/model/chat-adapter-options";
+import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
 import { sanitizeConversationOptions } from "@/features/chat/model/conversation-options";
 import { listConversationRuns } from "@/shared/api/conversation";
 import { listPublicModels } from "@/shared/api/model";

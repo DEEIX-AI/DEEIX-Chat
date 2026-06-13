@@ -33,7 +33,6 @@ import {
   isSettingsValueField,
   OCR_ENGINES,
   resolveActiveServices,
-  resolveErrorMessage,
   resolveFieldID,
   resolveMinerUSource,
   resolveOCREngine,
@@ -49,7 +48,7 @@ import {
   type ServiceState,
   type SettingsField,
   type SettingsGroup,
-} from "@/features/admin/model/chat-files";
+} from "@/features/admin/model/files-settings";
 import {
   type AdminEmbeddingIndexStatus,
   getAdminDoclingRuntime,
@@ -63,43 +62,32 @@ import {
   patchAdminSettings,
   triggerAdminEmbeddingReindex,
 } from "@/features/admin/api";
+import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { cn } from "@/lib/utils";
 import type { PatchSettingItem } from "@/shared/api/settings.types";
 import { configuredSettingsMap, settingHasValue } from "@/shared/lib/settings-meta";
 
 const SERVICE_LOADERS: Record<ServiceName, (token: string) => Promise<ServiceRuntimeData>> = {
-  tika: getAdminTikaRuntime as (token: string) => Promise<ServiceRuntimeData>,
-  docling: getAdminDoclingRuntime as (token: string) => Promise<ServiceRuntimeData>,
-  mineru: getAdminMinerURuntime as (token: string) => Promise<ServiceRuntimeData>,
-  tesseract: getAdminTesseractRuntime as (token: string) => Promise<ServiceRuntimeData>,
-  rapidocr: getAdminRapidOCRRuntime as (token: string) => Promise<ServiceRuntimeData>,
-  embedding: getAdminEmbeddingRuntime as (token: string) => Promise<ServiceRuntimeData>,
+  tika: getAdminTikaRuntime,
+  docling: getAdminDoclingRuntime,
+  mineru: getAdminMinerURuntime,
+  tesseract: getAdminTesseractRuntime,
+  rapidocr: getAdminRapidOCRRuntime,
+  embedding: getAdminEmbeddingRuntime,
 };
-
-function translateOptional(
-  translate: (key: string, values?: Record<string, string | number>) => string,
-  key: string,
-  fallback: string,
-): string {
-  try {
-    return translate(key);
-  } catch {
-    return fallback;
-  }
-}
 
 function toEditorField(field: SettingsField, translate: (key: string) => string) {
   const fieldKey = `fields.${field.namespace}.${field.key}`;
   return {
     id: resolveFieldID(field),
-    label: translateOptional(translate, `${fieldKey}.label`, field.label),
-    description: translateOptional(translate, `${fieldKey}.description`, field.description),
+    label: translate(`${fieldKey}.label`),
+    description: translate(`${fieldKey}.description`),
     type: field.type,
-    placeholder: field.placeholder ? translateOptional(translate, `${fieldKey}.placeholder`, field.placeholder) : undefined,
+    placeholder: field.placeholder ? translate(`${fieldKey}.placeholder`) : undefined,
     valueUnit: field.valueUnit,
     options: field.options?.map((option) => ({
       ...option,
-      label: translateOptional(translate, `${fieldKey}.options.${option.value}`, option.label),
+      label: translate(`${fieldKey}.options.${option.value}`),
     })),
   } as const;
 }
@@ -145,7 +133,7 @@ export function AdminFilesSettingsPage() {
       });
       setTimeout(() => { void loadEmbeddingStatus(); }, 1500);
     } catch (error) {
-      toast.error(t("toast.reindexFailed"), { description: resolveErrorMessage(error, t("toast.unknownError")) });
+      toast.error(t("toast.reindexFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
     } finally {
       setReindexing(false);
     }
@@ -170,7 +158,7 @@ export function AdminFilesSettingsPage() {
         await loadServiceRuntime(name);
       } catch (error) {
         toast.error(t("toast.serviceTestFailed", { service: SERVICE_LABELS[name] }), {
-          description: resolveErrorMessage(error, t("toast.unknownError")),
+          description: resolveAdminErrorMessage(error, t("toast.unknownError")),
         });
       } finally {
         setServiceStates((prev) => ({ ...prev, [name]: { ...prev[name], action: "" } }));
@@ -213,7 +201,7 @@ export function AdminFilesSettingsPage() {
         setEmbeddingStatus(null);
       }
     } catch (error) {
-      toast.error(t("toast.loadFailed"), { description: resolveErrorMessage(error, t("toast.unknownError")) });
+      toast.error(t("toast.loadFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
     } finally {
       setLoading(false);
     }
@@ -489,7 +477,7 @@ export function AdminFilesSettingsPage() {
             setEmbeddingStatus(null);
           }
         } else {
-          toast.success(t("toast.groupUpdated", { group: translateOptional(t, `groups.${group.key}.title`, group.title) }));
+          toast.success(t("toast.groupUpdated", { group: t(`groups.${group.key}.title`) }));
           if (group.fields.some((f) => f.namespace === "file" && (f.key === "embedding_enabled" || f.key === "rag_model" || f.key === "embedding_host"))) {
             if (flattened["file.embedding_enabled"] === EMBEDDING_MODES.ON) {
               void loadEmbeddingStatus();
@@ -499,7 +487,7 @@ export function AdminFilesSettingsPage() {
           }
         }
       } catch (error) {
-        toast.error(t("toast.saveFailed"), { description: resolveErrorMessage(error, t("toast.unknownError")) });
+        toast.error(t("toast.saveFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
       } finally {
         setSaving(false);
       }
@@ -522,7 +510,7 @@ export function AdminFilesSettingsPage() {
           <React.Fragment key={group.title}>
             {visibleFields.length > 0 && (
               <SettingsSection
-                title={translateOptional(t, `groups.${group.key}.title`, group.title)}
+                title={t(`groups.${group.key}.title`)}
                 actions={
                   visibleFields.some((field) => dirtyFieldIDs.has(resolveFieldID(field))) ? (
                     <Button type="button" size="sm" disabled={loading || saving} onClick={() => requestSaveGroup(group)}>

@@ -22,7 +22,7 @@ import { ChangePasswordDialog } from "@/features/settings/components/sections/ac
 import { TwoFactorDialog } from "@/features/settings/components/sections/account/account-two-factor-dialog";
 import { SecurityVerificationDialog } from "@/features/settings/components/sections/account/account-verification-dialog";
 import { useSettingsAccount } from "@/features/settings/hooks/use-settings-account";
-import { shouldUseEmailBootstrap } from "@/features/settings/model/account-page";
+import { shouldUseEmailBootstrap } from "@/features/settings/model/account-settings";
 import type { SecurityVerificationMethod } from "@/shared/api/auth.types";
 import {
   SettingsPage,

@@ -2,11 +2,11 @@
 
 import { useTranslations } from "next-intl";
 
-import { ContentHeader } from "@/features/files/components/sections/content-header";
-import { ContentPreview } from "@/features/files/components/sections/content-preview";
-import { SidebarHeader } from "@/features/files/components/sections/sidebar-header";
-import { SidebarList } from "@/features/files/components/sections/sidebar-list";
-import { StorageQuotaPanel } from "@/features/files/components/sections/storage-quota-panel";
+import { ContentHeader } from "@/features/files/components/sections/content/content-header";
+import { ContentPreview } from "@/features/files/components/sections/content/content-preview";
+import { SidebarHeader } from "@/features/files/components/sections/sidebar/sidebar-header";
+import { SidebarList } from "@/features/files/components/sections/sidebar/sidebar-list";
+import { StorageQuotaPanel } from "@/features/files/components/sections/storage/storage-quota-panel";
 import { useFilesPage } from "@/features/files/hooks/use-files-page";
 import {
   AlertDialog,

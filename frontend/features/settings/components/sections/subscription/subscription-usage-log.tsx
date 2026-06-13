@@ -21,7 +21,7 @@ import {
   formatUsageLogTime,
   modelDisplayLabel,
   nanousdToUSD,
-} from "./subscription-format";
+} from "@/features/settings/model/subscription-format";
 
 type BillingTooltipLabels = {
   display: BillingDisplayLabels;

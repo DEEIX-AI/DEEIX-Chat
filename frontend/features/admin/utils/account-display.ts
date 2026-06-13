@@ -1,5 +1,4 @@
 import type { UserDTO } from "@/shared/api/auth.types";
-import { resolveLocalizedErrorMessage } from "@/i18n/resolve-error-message";
 
 const USER_STATUS_LABELS: Record<string, string> = {
   pending_activation: "Pending activation",
@@ -71,10 +70,6 @@ export function resolveSubscriptionExpiryInputValue(value: string | null | undef
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-export function resolveErrorMessage(error: unknown): string {
-  return resolveLocalizedErrorMessage(error);
 }
 
 export function formatDateTime(value: string | null | undefined, locale = "en-US"): string {

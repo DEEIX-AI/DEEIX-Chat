@@ -4,12 +4,12 @@ import * as React from "react";
 import dynamic from "next/dynamic";
 
 import type { MessageAttachment } from "@/features/chat/types/messages";
-import type { PreviewDialogFile } from "@/features/files/components/preview/file-preview-dialog";
-import { formatBytes, resolveFileExtension, resolveFileIcon } from "@/features/files/utils/file-display";
+import type { PreviewDialogFile } from "@/shared/components/file-preview/file-preview-dialog";
+import { formatBytes, resolveFileExtension, resolveFileIcon } from "@/shared/lib/file-display";
 import type { FileContentResult } from "@/shared/api/file";
 
 const FilePreviewDialog = dynamic(
-  () => import("@/features/files/components/preview/file-preview-dialog").then((module) => module.FilePreviewDialog),
+  () => import("@/shared/components/file-preview/file-preview-dialog").then((module) => module.FilePreviewDialog),
   { ssr: false },
 );
 

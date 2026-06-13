@@ -11,21 +11,21 @@ import { ChatEmptyState } from "@/features/chat/components/sections/chat-empty";
 import { useChatSession } from "@/features/chat/context/chat-session-context";
 import { useChatArtifacts } from "@/features/chat/hooks/use-chat-artifacts";
 import { useChatAttachments } from "@/features/chat/hooks/use-chat-attachments";
-import { useConversationComposerState } from "@/features/chat/hooks/use-conversation-composer-state";
+import { useChatComposerState } from "@/features/chat/hooks/use-chat-composer-state";
 import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import { useChatModelOptions } from "@/features/chat/hooks/use-chat-model-options";
 import { useChatRuntime } from "@/features/chat/hooks/use-chat-runtime";
 import { useChatScrollController } from "@/features/chat/hooks/use-chat-scroll-controller";
 import { useChatViewerProfile } from "@/features/chat/hooks/use-chat-viewer-profile";
-import { useConversationExportAction } from "@/features/chat/hooks/use-conversation-export-action";
-import { useHTMLVisualPrompt } from "@/features/chat/hooks/use-visual-prompt";
+import { useChatConversationExport } from "@/features/chat/hooks/use-chat-conversation-export";
+import { useChatVisualPrompt } from "@/features/chat/hooks/use-chat-visual-prompt";
 import { ChatInput } from "@/features/chat/components/sections/chat-input";
 import {
   ConversationShareDialog,
   sharePatchFromDTO,
-} from "@/features/chat/components/sections/conversation-share-dialog";
-import { DeleteFilesOption } from "@/features/recent/components/delete-files-option";
-import { useChatPreferences } from "@/features/settings/hooks/use-chat-preferences";
+} from "@/features/chat/components/sections/chat-share-dialog";
+import { DeleteFilesOption } from "@/shared/components/delete-files-option";
+import { useSettingsChatPreferences } from "@/features/settings/hooks/use-settings-chat-preferences";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -203,7 +203,7 @@ export function AppChatArea() {
   }, [requestNewConversation, routeProjectID, router]);
   const activeGenerationRunsRef = React.useRef<Set<string>>(new Set());
   const failedGenerationRunsRef = React.useRef<Set<string>>(new Set());
-  const { deleteFilesByDefault } = useChatPreferences();
+  const { deleteFilesByDefault } = useSettingsChatPreferences();
   const {
     items,
     projects,
@@ -316,7 +316,7 @@ export function AppChatArea() {
     setDraft,
     setAttachments,
     appendAttachmentsForKey,
-  } = useConversationComposerState(conversationID, {
+  } = useChatComposerState(conversationID, {
     preserveDrafts: preserveConversationDrafts,
     resetToken: newConversationRevision,
   });
@@ -334,7 +334,7 @@ export function AppChatArea() {
   const [selectedToolIDs, setSelectedToolIDs] = React.useState<number[]>([]);
   const [defaultToolIDs, setDefaultToolIDs] = React.useState<number[]>([]);
   const defaultToolIDsRef = React.useRef<number[]>([]);
-  const htmlVisualPrompt = useHTMLVisualPrompt();
+  const htmlVisualPrompt = useChatVisualPrompt();
   const { resolvedTheme } = useTheme();
   const initializedOptionsModelRef = React.useRef("");
   const selectedModelDefaultOptionsRef = React.useRef<ConversationOptions>({});
@@ -781,7 +781,7 @@ export function AppChatArea() {
     setShareDialogOpen(true);
   }, [canOperateConversation]);
 
-  const exportActiveConversation = useConversationExportAction({
+  const exportActiveConversation = useChatConversationExport({
     successMessage: t("exportJSONSuccess"),
     failureMessage: t("exportJSONFailed"),
   });

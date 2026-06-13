@@ -36,16 +36,16 @@ import {
   type UserSortValue,
 } from "@/features/admin/types/accounts";
 import {
-  resolveErrorMessage,
   resolveSubscriptionExpiryInputValue,
   resolveSubscriptionExpiryDate,
   resolveSubscriptionExpiryISO,
 } from "@/features/admin/utils/account-display";
+import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { patchByID, removeByID, removeManyByID, replaceByID, restoreAt, restoreManyAt } from "@/shared/lib/optimistic-list";
 import { runBulkActionInChunks, runSettledBulkItems } from "@/shared/lib/bulk-action";
 import { resolveTimeZoneOptions } from "@/shared/lib/time-zone";
-import { useUserFilters } from "./use-user-filters";
-import { useUserSelection } from "./use-user-selection";
+import { useAdminUserFilters } from "./use-admin-user-filters";
+import { useAdminUserSelection } from "./use-admin-user-selection";
 
 type UseAdminUsersPageParams = {
   items: UserDTO[];
@@ -225,7 +225,7 @@ export function useAdminUsersPage({
     sortValue,
     setSortValue,
     filteredItems,
-  } = useUserFilters(items);
+  } = useAdminUserFilters(items);
   const canManageUser = React.useCallback(
     (user: UserDTO) => viewerRole === "superadmin" || user.role !== "superadmin",
     [viewerRole],
@@ -241,7 +241,7 @@ export function useAdminUsersPage({
     handleSelectAllVisible,
     handleToggleSelectedUser,
     setSelectedUserIDs,
-  } = useUserSelection(items, selectableFilteredItems);
+  } = useAdminUserSelection(items, selectableFilteredItems);
   const [batchRole, setBatchRole] = React.useState<AdminUserRole | "">("");
   const [batchStatus, setBatchStatus] = React.useState<AdminUserStatus | "">("");
   const [batchTimezone, setBatchTimezone] = React.useState("");
@@ -393,7 +393,7 @@ export function useAdminUsersPage({
       } catch (error) {
         onSetUsers((current) => replaceByID(current, item.id, (user) => user.id, previousItem));
         toast.error(t("toast.inlineUpdateFailed", { field: field === "role" ? t("fields.role") : t("fields.status") }), {
-          description: resolveErrorMessage(error),
+          description: resolveAdminErrorMessage(error),
         });
       } finally {
         setInlinePending((current) => {
@@ -465,7 +465,7 @@ export function useAdminUsersPage({
         toast.success(t("toast.createSucceeded"));
         await onLoadUsers(1, pageSize);
       } catch (error) {
-        toast.error(t("toast.createFailed"), { description: resolveErrorMessage(error) });
+        toast.error(t("toast.createFailed"), { description: resolveAdminErrorMessage(error) });
       } finally {
         setPendingAction("");
       }
@@ -511,7 +511,7 @@ export function useAdminUsersPage({
       );
       setAvatarDialog({ mode: "closed" });
     } catch (error) {
-      toast.error(t("toast.avatarUpdateFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.avatarUpdateFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setPendingAction("");
       setActionUserID(null);
@@ -641,7 +641,7 @@ export function useAdminUsersPage({
       toast.success(t("toast.userUpdated"));
       setEditDialogTarget(null);
     } catch (error) {
-      toast.error(t("toast.editFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.editFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setPendingAction("");
       setActionUserID(null);
@@ -679,7 +679,7 @@ export function useAdminUsersPage({
       setResetPasswordDraft("");
       setResetDialogTarget(null);
     } catch (error) {
-      toast.error(t("toast.resetPasswordFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.resetPasswordFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setPendingAction("");
       setActionUserID(null);
@@ -709,7 +709,7 @@ export function useAdminUsersPage({
       toast.success(t("toast.twoFactorReset"));
       setResetTwoFactorDialogTarget(null);
     } catch (error) {
-      toast.error(t("toast.twoFactorResetFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.twoFactorResetFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setPendingAction("");
       setActionUserID(null);
@@ -738,7 +738,7 @@ export function useAdminUsersPage({
       await revokeAdminUserSessions(token, userID);
       toast.success(t("toast.sessionsRevoked"));
     } catch (error) {
-      toast.error(t("toast.revokeSessionsFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.revokeSessionsFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setPendingAction("");
       setActionUserID(null);
@@ -772,7 +772,7 @@ export function useAdminUsersPage({
     } catch (error) {
       onSetUsers((current) => restoreAt(current, user, removedIndex, (item) => item.id));
       onSetTotal((current) => Math.max(current, total));
-      toast.error(t("toast.deleteFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.deleteFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setPendingAction("");
       setActionUserID(null);
@@ -834,7 +834,7 @@ export function useAdminUsersPage({
       setBatchRole("");
     } catch (error) {
       onSetUsers((current) => restoreManyAt(current, rollbackUsers, (item) => item.id));
-      toast.error(t("toast.bulkRoleFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.bulkRoleFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setPendingAction("");
     }
@@ -895,7 +895,7 @@ export function useAdminUsersPage({
       setBatchStatus("");
     } catch (error) {
       onSetUsers((current) => restoreManyAt(current, rollbackUsers, (item) => item.id));
-      toast.error(t("toast.bulkStatusFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.bulkStatusFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setPendingAction("");
     }
@@ -951,7 +951,7 @@ export function useAdminUsersPage({
     } catch (error) {
       onSetUsers((current) => restoreManyAt(current, rollbackUsers, (item) => item.id));
       onSetTotal((current) => Math.max(current, total));
-      toast.error(t("toast.bulkDeleteFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.bulkDeleteFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setPendingAction("");
     }
@@ -1006,7 +1006,7 @@ export function useAdminUsersPage({
       setBatchTimezone("");
     } catch (error) {
       onSetUsers((current) => restoreManyAt(current, rollbackUsers, (item) => item.id));
-      toast.error(t("toast.bulkTimezoneFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.bulkTimezoneFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setPendingAction("");
     }
@@ -1084,7 +1084,7 @@ export function useAdminUsersPage({
       setBatchBalance("");
     } catch (error) {
       onSetUsers((current) => restoreManyAt(current, rollbackUsers, (item) => item.id));
-      toast.error(t("toast.bulkBalanceFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.bulkBalanceFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setPendingAction("");
     }

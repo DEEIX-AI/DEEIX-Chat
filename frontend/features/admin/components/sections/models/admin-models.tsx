@@ -29,15 +29,15 @@ import {
 } from "@/features/admin/api";
 import { useAdminModels } from "@/features/admin/hooks/use-admin-models";
 import { BulkDeleteModelsDialog, DeleteModelDialog } from "./models-dialog";
-import { ModelProbeDialog } from "./model-probe-dialog";
+import { ModelProbeDialog } from "./models-probe-dialog";
 import { ModelsTable } from "./models-table";
 import {
   ADAPTER_LABELS,
   MODEL_KIND_OPTIONS,
   MODEL_SORT_OPTIONS,
-  resolveErrorMessage,
   type ModelSortValue,
 } from "@/features/admin/types/llm";
+import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import type {
   AdminLLMAdapter,
   AdminLLMModelDTO,
@@ -49,19 +49,19 @@ import { KNOWN_VENDOR_OPTIONS } from "@/shared/lib/model-identity";
 import { cn } from "@/lib/utils";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
-const ModelSheet = dynamic(() => import("./model-sheet").then((module) => module.ModelSheet), {
+const ModelSheet = dynamic(() => import("./models-sheet").then((module) => module.ModelSheet), {
   ssr: false,
 });
 
 const UpstreamSourcesSheet = dynamic(
-  () => import("./model-sources-sheet").then((module) => module.UpstreamSourcesSheet),
+  () => import("./models-sources-sheet").then((module) => module.UpstreamSourcesSheet),
   {
     ssr: false,
   },
 );
 
 const ModelOrderSheet = dynamic(
-  () => import("./model-order-sheet").then((module) => module.ModelOrderSheet),
+  () => import("./models-order-sheet").then((module) => module.ModelOrderSheet),
   {
     ssr: false,
   },
@@ -218,7 +218,7 @@ export function AdminModelsPage() {
       const data = await loader(token);
       setProbeResults(Array.isArray(data) ? data : [data]);
     } catch (error) {
-      toast.error(t("toast.operationFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.operationFailed"), { description: resolveAdminErrorMessage(error) });
       setProbeOpen(false);
     } finally {
       setProbeLoading(false);
@@ -250,7 +250,7 @@ export function AdminModelsPage() {
       toast.success(t("toast.sourceDeleted"));
       void models.loadModels(models.page, models.pageSize);
     } catch (error) {
-      toast.error(t("toast.sourceDeleteFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.sourceDeleteFailed"), { description: resolveAdminErrorMessage(error) });
       throw error;
     }
   }

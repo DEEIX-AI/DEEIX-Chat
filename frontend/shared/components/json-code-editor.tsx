@@ -28,6 +28,9 @@ type JsonDiagnosticsDefaults = {
     trailingCommas: "ignore" | "error";
   }) => void;
 };
+type MonacoLanguagesWithJson = MonacoModule["languages"] & {
+  json?: { jsonDefaults?: JsonDiagnosticsDefaults };
+};
 
 let monacoLoadPromise: Promise<MonacoModule> | null = null;
 const BASE_EDITOR_FONT_SIZE = 12;
@@ -208,9 +211,7 @@ export function JsonCodeEditor({
       }
 
       monacoRef.current = monaco;
-      const jsonDefaults = (monaco.languages as unknown as {
-        json?: { jsonDefaults?: JsonDiagnosticsDefaults };
-      }).json?.jsonDefaults;
+      const jsonDefaults = (monaco.languages as MonacoLanguagesWithJson).json?.jsonDefaults;
       jsonDefaults?.setDiagnosticsOptions({
         validate: true,
         allowComments: true,

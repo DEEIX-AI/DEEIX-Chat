@@ -1,22 +1,28 @@
 {
   "groups": {
     "uploadLimits": {
-      "title": "Upload limits"
+      "title": "Upload limits",
+      "description": "Controls attachment count, MIME allowlist, and file size limits for chat messages."
     },
     "extraction": {
-      "title": "Content extraction"
+      "title": "Content extraction",
+      "description": "Controls the primary extraction pipeline, shared OCR engine, and OCR activation scope."
     },
     "fullContext": {
-      "title": "Full-text injection"
+      "title": "Full-text injection",
+      "description": "Controls whether extracted file text can be injected directly into context instead of using RAG."
     },
     "embedding": {
-      "title": "Vector retrieval"
+      "title": "Vector retrieval",
+      "description": "Configures whether the external Embedding service is enabled. Changing the model marks old vectors stale."
     },
     "semantic": {
-      "title": "Semantic enhancement"
+      "title": "Semantic enhancement",
+      "description": "Semantic recall for historical messages based on vector retrieval. Requires message embedding to be ready."
     },
     "rag": {
-      "title": "RAG"
+      "title": "RAG",
+      "description": "Controls retrieval, similarity thresholds, injection budget, and readiness wait strategy."
     }
   },
   "runtime": {

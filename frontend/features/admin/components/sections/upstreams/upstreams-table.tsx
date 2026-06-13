@@ -143,7 +143,7 @@ export function UpstreamsTable({
   onDelete,
 }: UpstreamsTableProps) {
   const locale = useLocale();
-  const t = useTranslations("adminChannels");
+  const t = useTranslations("adminUpstreams");
   const allSelected = items.length > 0 && items.every((item) => selected.has(item.id));
   const someSelected = items.some((item) => selected.has(item.id));
   const virtualRows = useVirtualTableRows(items, {

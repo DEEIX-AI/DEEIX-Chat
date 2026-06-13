@@ -30,7 +30,7 @@ import type {
   AdminLLMModelDTO,
 } from "@/features/admin/api/llm.types";
 
-import { resolveErrorMessage } from "@/features/admin/types/llm";
+import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 
 function summarizeBatchDeleteResult(result: AdminBatchDeleteData, t: (key: string, values?: Record<string, number>) => string): string {
   return t("deleteDialog.batchSummary", {
@@ -70,7 +70,7 @@ export function DeleteModelDialog({
       toast.success(t("toast.modelDeleted"));
       onDeleted();
     } catch (error) {
-      toast.error(t("toast.modelDeleteFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.modelDeleteFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setPending(false);
     }
@@ -153,7 +153,7 @@ export function BulkDeleteModelsDialog({
         });
       }
     } catch (error) {
-      toast.error(t("toast.bulkDeleteFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.bulkDeleteFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setPending(false);
     }

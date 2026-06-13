@@ -540,13 +540,13 @@ function nativeToolDefinitionFromConfig(
 
 function nativeToolDefinitionsFromConfigs(
   configs: ModelNativeToolConfig[],
-  legacyKeys: string[],
+  fallbackToolKeys: string[],
   catalog: NativeToolDefinition[],
   selectedProtocol: string,
 ): NativeToolVisualOption[] {
   const sourceConfigs = configs.length > 0
     ? configs
-    : nativeToolDefinitionsFromKeys(legacyKeys, catalog).map((tool): ModelNativeToolConfig => ({
+    : nativeToolDefinitionsFromKeys(fallbackToolKeys, catalog).map((tool): ModelNativeToolConfig => ({
       id: `${tool.protocol}:${tool.toolKey}:${tool.type}`,
       key: tool.toolKey,
       protocol: tool.protocol,

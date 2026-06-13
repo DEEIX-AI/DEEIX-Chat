@@ -27,7 +27,7 @@ import {
   resolvePlanActionLabel,
   resolvePlanButtonVariant,
   resolvePlanFeatures,
-} from "./subscription-format";
+} from "@/features/settings/model/subscription-format";
 
 type BillingMode = "period" | "usage" | "self";
 type PaymentProvider = "stripe" | "epay";

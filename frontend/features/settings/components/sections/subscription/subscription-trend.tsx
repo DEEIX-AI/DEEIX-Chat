@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Rectangle, XAxis, YAxis } from "recharts";
+import type { BarShapeProps, RectangleProps } from "recharts";
 import { useTranslations } from "next-intl";
 
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
@@ -20,7 +21,7 @@ import {
   formatUsageSummaryCost,
   formatUsageTrendLatency,
   modelDisplayLabel,
-} from "./subscription-format";
+} from "@/features/settings/model/subscription-format";
 
 type DailyUsageChartPoint = {
   dayLabel: string;
@@ -194,6 +195,20 @@ function isTopStackSegment(point: DailyUsageChartPoint, modelSeries: ModelSeries
   return true;
 }
 
+function DailyUsageStackBarShape({
+  modelIndex,
+  modelSeries,
+  props,
+}: {
+  modelIndex: number;
+  modelSeries: ModelSeries[];
+  props: BarShapeProps;
+}) {
+  const point: DailyUsageChartPoint | undefined = props.payload;
+  const radius: RectangleProps["radius"] = point && isTopStackSegment(point, modelSeries, modelIndex) ? [4, 4, 0, 0] : 0;
+  return <Rectangle {...props} radius={radius} />;
+}
+
 function DailyUsageChart({
   items,
   loading,
@@ -285,14 +300,16 @@ function DailyUsageChart({
             <ChartTooltip cursor={false} content={<DailyUsageChartTooltip />} />
             {modelSeries.length > 0 ? (
               modelSeries.map((model, modelIndex) => (
-                <Bar key={model.key} dataKey={model.key} stackId="usage" fill={model.color} maxBarSize={42}>
-                  {chartData.map((point) => (
-                    <Cell
-                      key={`${model.key}-${point.fullDayLabel}`}
-                      radius={(isTopStackSegment(point, modelSeries, modelIndex) ? [4, 4, 0, 0] : [0, 0, 0, 0]) as unknown as number}
-                    />
-                  ))}
-                </Bar>
+                <Bar
+                  key={model.key}
+                  dataKey={model.key}
+                  stackId="usage"
+                  fill={model.color}
+                  maxBarSize={42}
+                  shape={(props: BarShapeProps) => (
+                    <DailyUsageStackBarShape modelIndex={modelIndex} modelSeries={modelSeries} props={props} />
+                  )}
+                />
               ))
             ) : (
               <Bar dataKey="totalTokens" fill="var(--color-totalTokens)" radius={[4, 4, 0, 0]} maxBarSize={42} />

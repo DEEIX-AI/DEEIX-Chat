@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 
 const ADMIN_SECTION_LABEL_KEYS: Record<AdminSection, string> = {
   accounts: "sections.accounts",
-  channels: "sections.channels",
+  upstreams: "sections.upstreams",
   models: "sections.models",
   "tool-settings": "sections.toolSettings",
   billing: "sections.billing",

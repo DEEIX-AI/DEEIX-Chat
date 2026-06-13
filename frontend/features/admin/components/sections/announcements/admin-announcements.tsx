@@ -47,7 +47,7 @@ import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/vir
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { StreamdownRender } from "@/features/chat/components/markdown/streamdown-render";
+import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { AdminDateRangeFilter } from "@/features/admin/components/admin-date-range-filter";
 import { adminDateTimeFormValue, adminDateTimeValueToISOString } from "@/features/admin/components/admin-date-time-picker";
 import {

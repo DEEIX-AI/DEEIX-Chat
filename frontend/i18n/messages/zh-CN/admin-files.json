@@ -1,22 +1,28 @@
 {
   "groups": {
     "uploadLimits": {
-      "title": "上传限制"
+      "title": "上传限制",
+      "description": "控制对话附件数量、MIME 白名单和文件大小上限。"
     },
     "extraction": {
-      "title": "内容提取"
+      "title": "内容提取",
+      "description": "控制文件内容提取主链路、共享 OCR 引擎和 OCR 启用范围。"
     },
     "fullContext": {
-      "title": "全文注入"
+      "title": "全文注入",
+      "description": "控制提取后的文件文本是否可以直接注入上下文，而不是走 RAG。"
     },
     "embedding": {
-      "title": "向量化检索"
+      "title": "向量化检索",
+      "description": "配置外部 Embedding 服务是否启用；变更模型会将旧向量标记为失效。"
     },
     "semantic": {
-      "title": "语义增强"
+      "title": "语义增强",
+      "description": "基于向量检索召回历史消息语义片段，需要消息向量化就绪。"
     },
     "rag": {
-      "title": "RAG"
+      "title": "RAG",
+      "description": "控制检索、相似度阈值、注入预算和就绪等待策略。"
     }
   },
   "runtime": {

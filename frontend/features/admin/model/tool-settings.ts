@@ -1,5 +1,4 @@
 import type { SettingsGrouped } from "@/shared/api/settings.types";
-import { resolveLocalizedErrorMessage } from "@/i18n/resolve-error-message";
 
 export type ToolSettingsFieldType = "int" | "bool";
 
@@ -113,8 +112,4 @@ export function toToolEditorField(
     type: field.type,
     placeholder: field.placeholder,
   } as const;
-}
-
-export function resolveToolSettingsErrorMessage(error: unknown, fallback?: string): string {
-  return resolveLocalizedErrorMessage(error, fallback);
 }

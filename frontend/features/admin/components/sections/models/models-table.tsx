@@ -79,9 +79,9 @@ import type {
 import {
   ADAPTER_LABELS,
   formatDateTime,
-  resolveErrorMessage,
   resolveValue,
 } from "@/features/admin/types/llm";
+import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { sortProtocolsForDisplay } from "@/features/admin/utils/llm-display";
 import { parseKindsJSON } from "@/shared/model/llm-schema";
 
@@ -895,7 +895,7 @@ export function ModelsTable({
             items: (prev[modelId]?.items ?? []).map((item) => (item.id === source.id ? source : item)),
           },
         }));
-        toast.error(t("toast.operationFailed"), { description: resolveErrorMessage(error) });
+        toast.error(t("toast.operationFailed"), { description: resolveAdminErrorMessage(error) });
       }
     },
     [t],
@@ -938,7 +938,7 @@ export function ModelsTable({
           },
         }));
         onSourceStatusChange?.(modelId, nextStatus, source.status);
-        toast.error(t("toast.operationFailed"), { description: resolveErrorMessage(error) });
+        toast.error(t("toast.operationFailed"), { description: resolveAdminErrorMessage(error) });
       }
     },
     [onSourceStatusChange, t],
@@ -977,7 +977,7 @@ export function ModelsTable({
         [modelId]: previousEntry,
       }));
       onSourceDeleteChange?.(modelId, source, false);
-      toast.error(t("toast.sourceDeleteFailed"), { description: resolveErrorMessage(error) });
+      toast.error(t("toast.sourceDeleteFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       setDeleteSourcePending(false);
     }

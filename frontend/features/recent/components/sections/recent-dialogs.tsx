@@ -6,8 +6,8 @@ import { useTranslations } from "next-intl";
 import type { RecentBulkConfirmAction, RecentDeleteTarget } from "@/features/recent/types/recent";
 import {
   ConversationShareDialog,
-} from "@/features/chat/components/sections/conversation-share-dialog";
-import { DeleteFilesOption } from "@/features/recent/components/delete-files-option";
+} from "@/features/chat/components/sections/chat-share-dialog";
+import { DeleteFilesOption } from "@/shared/components/delete-files-option";
 import type { ConversationDTO, ConversationShareDTO } from "@/shared/api/conversation.types";
 import { Sparkles } from "@/components/animate-ui/icons/sparkles";
 import {

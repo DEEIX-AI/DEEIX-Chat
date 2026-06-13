@@ -27,8 +27,8 @@ import type { ProfileDraft, ThemeMode } from "@/features/settings/types/settings
 import {
   createDraftFromUser,
   isProfileDraftEqual,
-  resolveSettingsErrorMessage,
 } from "@/features/settings/utils/profile-settings";
+import { resolveLocalizedErrorMessage } from "@/i18n/resolve-error-message";
 import { createGeneratedGithubAvatarRef, generateAvatarVariant, resolveAvatarImageSrc } from "@/shared/lib/avatar";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import {
@@ -66,7 +66,7 @@ function resolveUsernameErrorMessage(
       return error.message.includes("already used") ? labels.alreadyChanged : labels.taken;
     }
   }
-  return resolveSettingsErrorMessage(error);
+  return resolveLocalizedErrorMessage(error);
 }
 
 export function SettingsGeneral() {
@@ -231,7 +231,7 @@ export function SettingsGeneral() {
       );
     } catch (error) {
       toast.error(t("generalPage.toast.saveProfileFailed"), {
-        description: resolveSettingsErrorMessage(error),
+        description: resolveLocalizedErrorMessage(error),
       });
     } finally {
       setSaving(false);
@@ -326,7 +326,7 @@ export function SettingsGeneral() {
             );
           } catch (error) {
             toast.error(t("generalPage.toast.saveProfileFailed"), {
-              description: resolveSettingsErrorMessage(error),
+              description: resolveLocalizedErrorMessage(error),
             });
           }
         })();

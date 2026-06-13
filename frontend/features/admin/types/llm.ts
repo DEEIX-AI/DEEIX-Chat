@@ -1,5 +1,4 @@
 import type { AdminLLMModelDTO, AdminLLMModelVendor, AdminLLMStatus } from "@/features/admin/api/llm.types";
-import { resolveLocalizedErrorMessage } from "@/i18n/resolve-error-message";
 import { MODEL_KIND_META, resolveProtocolLabel } from "@/features/admin/utils/llm-display";
 import { parseKindsJSON, stringifyKinds } from "@/shared/model/llm-schema";
 import { KNOWN_VENDOR_OPTIONS } from "@/shared/lib/model-identity";
@@ -62,10 +61,6 @@ export type ModelFormPayload = {
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
-
-export function resolveErrorMessage(error: unknown): string {
-  return resolveLocalizedErrorMessage(error);
-}
 
 export function formatDateTime(value: string | null | undefined, locale = "en-US"): string {
   if (!value) return "-";

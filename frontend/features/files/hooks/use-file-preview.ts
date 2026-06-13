@@ -9,7 +9,7 @@ import { fetchFileContent } from "@/shared/api/file";
 import type { FileObjectDTO } from "@/shared/api/file.types";
 
 import type { FilePreviewKind } from "@/features/files/types/files";
-import { isFileReady, isImageFile, resolveFileExtension, resolveFilePreviewKind } from "@/features/files/utils/file-display";
+import { isFileReady, isImageFile, resolveFileExtension, resolveFilePreviewKind } from "@/shared/lib/file-display";
 
 function isReadableTextContent(content: string): boolean {
   if (!content) {

@@ -3,7 +3,7 @@
 import * as React from "react"
 import { LayoutGroup, motion } from "motion/react"
 
-import { useSidebarData } from "@/features/layouts/hooks/use-sidebar-data"
+import { useLayoutSidebarData } from "@/features/layouts/hooks/use-layout-sidebar-data"
 import { NavControl } from "@/features/layouts/components/navigation/nav-control"
 import { NavMain } from "@/features/layouts/components/navigation/nav-main"
 import { NavProjects } from "@/features/layouts/components/navigation/nav-projects"
@@ -26,8 +26,16 @@ const data = {
   },
 }
 
+function SidebarSectionFallback() {
+  return (
+    <div className="px-2 py-2">
+      <Spinner className="size-3.5" />
+    </div>
+  )
+}
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const sidebarData = useSidebarData()
+  const sidebarData = useLayoutSidebarData()
   const user = sidebarData.user ?? data.user
 
   return (
@@ -43,13 +51,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         >
           <LayoutGroup id="sidebar-conversations">
-            <React.Suspense fallback={<div className="px-2 py-2"><Spinner className="size-3.5" /></div>}>
+            <React.Suspense fallback={<SidebarSectionFallback />}>
               <NavProjects />
             </React.Suspense>
-            <React.Suspense fallback={<div className="px-2 py-2"><Spinner className="size-3.5" /></div>}>
+            <React.Suspense fallback={<SidebarSectionFallback />}>
               <NavStarred />
             </React.Suspense>
-            <React.Suspense fallback={<div className="px-2 py-2"><Spinner className="size-3.5" /></div>}>
+            <React.Suspense fallback={<SidebarSectionFallback />}>
               <NavRecents />
             </React.Suspense>
           </LayoutGroup>

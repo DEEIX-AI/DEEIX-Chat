@@ -4,6 +4,12 @@ import { useEffect, useRef, type HTMLAttributes } from "react"
 
 import { cn } from "@/lib/utils"
 
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext
+  }
+}
+
 export type LiveWaveformProps = HTMLAttributes<HTMLDivElement> & {
   active?: boolean
   processing?: boolean
@@ -269,10 +275,10 @@ export const LiveWaveform = ({
         streamRef.current = stream
         onStreamReady?.(stream)
 
-        const AudioContextConstructor =
-          window.AudioContext ||
-          (window as unknown as { webkitAudioContext: typeof AudioContext })
-            .webkitAudioContext
+        const AudioContextConstructor = window.AudioContext || window.webkitAudioContext
+        if (!AudioContextConstructor) {
+          throw new Error("AudioContext is not supported")
+        }
         const audioContext = new AudioContextConstructor()
         const analyser = audioContext.createAnalyser()
         analyser.fftSize = fftSize

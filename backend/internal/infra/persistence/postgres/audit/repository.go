@@ -2,10 +2,10 @@ package audit
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	domainaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/audit"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
@@ -13,7 +13,7 @@ import (
 
 // translateError 将 gorm 底层错误统一映射为仓储语义错误。
 func translateError(err error) error {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if dberror.IsRecordNotFound(err) {
 		return repository.ErrNotFound
 	}
 	return err

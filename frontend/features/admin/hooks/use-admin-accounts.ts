@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { listAdminUsers } from "@/features/admin/api";
 import type { UserDTO } from "@/shared/api/auth.types";
-import { resolveErrorMessage } from "@/features/admin/utils/account-display";
+import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 
 const USERS_PAGE_SIZE_DEFAULT = 25;
 
@@ -56,7 +56,7 @@ export function useAdminAccounts(): UseAdminAccountsState {
           setPageSize(nextPageSize);
         });
       } catch (error) {
-        toast.error(t("usersLoadFailed"), { description: resolveErrorMessage(error) });
+        toast.error(t("usersLoadFailed"), { description: resolveAdminErrorMessage(error) });
       } finally {
         if (requestSeq === requestSeqRef.current) {
           setLoading(false);

@@ -19,7 +19,7 @@ import type {
   ChatTraceEvent,
   RAGCitation,
 } from "@/features/chat/types/messages";
-import { StreamdownRender } from "@/features/chat/components/markdown/streamdown-render";
+import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { cn } from "@/lib/utils";
 
 const TRACE_KIND_CONTEXT_PLANNING = "context_planning";

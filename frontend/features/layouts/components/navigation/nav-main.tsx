@@ -6,7 +6,10 @@ import { useTranslations } from "next-intl"
 
 import { SidebarGroup, SidebarMenu, useSidebar } from "@/components/ui/sidebar"
 import { useChatSession } from "@/features/chat/context/chat-session-context"
-import { useNavigationSearch, useNavigationShortcuts } from "@/features/layouts/hooks/use-navigation-search"
+import {
+  useLayoutNavigationSearch,
+  useLayoutNavigationShortcuts,
+} from "@/features/layouts/hooks/use-layout-navigation-search"
 import { NAVIGATION_ITEMS } from "@/features/layouts/model/navigation-items"
 import { NavigationSearch } from "@/features/layouts/components/navigation/navigation-search"
 import { NavMainItem } from "@/features/layouts/components/navigation/nav-main-item"
@@ -23,7 +26,7 @@ export function NavMain() {
   const { items } = useSidebarRecents()
   const isCollapsed = !isMobile && state === "collapsed"
 
-  const search = useNavigationSearch({
+  const search = useLayoutNavigationSearch({
     items,
     maxResults: MAX_SEARCH_RESULTS,
   })
@@ -41,7 +44,7 @@ export function NavMain() {
     router.push("/chat")
   }, [pathname, requestNewConversation, router])
 
-  useNavigationShortcuts({
+  useLayoutNavigationShortcuts({
     onCreateConversation,
     onOpenSearch: search.openSearch,
   })

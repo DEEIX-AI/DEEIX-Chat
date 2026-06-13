@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 import { ChatMessageBot } from "@/features/chat/components/message/message-bot";
 import { ChatMessageUser } from "@/features/chat/components/message/message-user";
-import { StreamdownRender } from "@/features/chat/components/markdown/streamdown-render";
+import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import {
   buildChildrenIndex,
   buildVisibleMessages,
@@ -24,7 +24,7 @@ import type {
   PublicSharedMessageDTO,
 } from "@/shared/api/conversation.types";
 import { fetchSharedFileContent, type FileContentResult } from "@/shared/api/file";
-import type { PreviewDialogFile } from "@/features/files/components/preview/file-preview-dialog";
+import type { PreviewDialogFile } from "@/shared/components/file-preview/file-preview-dialog";
 import { CenteredEmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

@@ -19,7 +19,7 @@ import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { FileContentResult } from "@/shared/api/file";
-import type { PreviewDialogFile } from "@/features/files/components/preview/file-preview-dialog";
+import type { PreviewDialogFile } from "@/shared/components/file-preview/file-preview-dialog";
 
 const USER_MESSAGE_COLLAPSED_LINES = 6;
 const USER_MESSAGE_LINE_HEIGHT_REM = 2;

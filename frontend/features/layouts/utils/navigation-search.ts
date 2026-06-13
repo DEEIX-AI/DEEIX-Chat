@@ -6,10 +6,6 @@ import {
   normalizeConversationSearchText,
 } from "@/shared/lib/conversation-search"
 
-export function normalizeSearchText(value: string) {
-  return normalizeConversationSearchText(value)
-}
-
 export function toConversationSearchResult(item: ConversationDTO, untitled = "New chat"): ConversationSearchResult {
   return {
     publicID: item.publicID,
@@ -26,7 +22,7 @@ export function filterConversationSearchResults(
   maxResults?: number,
   untitled?: string,
 ) {
-  const normalizedQuery = normalizeSearchText(query)
+  const normalizedQuery = normalizeConversationSearchText(query)
   const results = items
     .filter((item) => conversationMatchesSearch(item, normalizedQuery))
     .map((item) => toConversationSearchResult(item, untitled))

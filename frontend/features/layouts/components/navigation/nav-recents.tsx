@@ -22,18 +22,18 @@ import {
   SidebarMenu,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { LoadingReveal } from "@/features/layouts/components/sections/loading-reveal"
+import { LoadingReveal } from "@/shared/components/loading-reveal"
 import { SidebarConversationItem } from "@/features/layouts/components/navigation/sidebar-conversation-item"
 import { SidebarConversationSkeleton } from "@/features/layouts/components/navigation/sidebar-conversation-skeleton"
 import {
   ConversationShareDialog,
   sharePatchFromDTO,
-} from "@/features/chat/components/sections/conversation-share-dialog"
-import { useConversationExportAction } from "@/features/chat/hooks/use-conversation-export-action"
-import { DeleteFilesOption } from "@/features/recent/components/delete-files-option"
-import { useChatPreferences } from "@/features/settings/hooks/use-chat-preferences"
-import { useActiveSidebarConversation } from "@/features/layouts/hooks/use-active-sidebar-conversation"
-import { useSidebarListFlip } from "@/features/layouts/hooks/use-sidebar-list-flip"
+} from "@/features/chat/components/sections/chat-share-dialog"
+import { useChatConversationExport } from "@/features/chat/hooks/use-chat-conversation-export"
+import { DeleteFilesOption } from "@/shared/components/delete-files-option"
+import { useSettingsChatPreferences } from "@/features/settings/hooks/use-settings-chat-preferences"
+import { useLayoutActiveConversation } from "@/features/layouts/hooks/use-layout-active-conversation"
+import { useLayoutSidebarListFlip } from "@/features/layouts/hooks/use-layout-sidebar-list-flip"
 import type {
   SidebarConversationDeleteTarget,
   SidebarConversationRenameTarget,
@@ -48,8 +48,8 @@ export function NavRecents() {
   const t = useTranslations("recent")
   const { isMobile, setOpenMobile } = useSidebar()
   const router = useRouter()
-  const activeConversationID = useActiveSidebarConversation()
-  const { deleteFilesByDefault } = useChatPreferences()
+  const activeConversationID = useLayoutActiveConversation()
+  const { deleteFilesByDefault } = useSettingsChatPreferences()
 
   const {
     recentItems,
@@ -79,7 +79,7 @@ export function NavRecents() {
   const loadMoreRef = React.useRef<HTMLLIElement | null>(null)
   const listContainerRef = React.useRef<HTMLDivElement | null>(null)
   const deleteFilesID = React.useId()
-  const onExport = useConversationExportAction({
+  const onExport = useChatConversationExport({
     successMessage: t("exported"),
     failureMessage: t("exportFailed"),
   })
@@ -181,7 +181,7 @@ export function NavRecents() {
     [recentItems],
   )
 
-  useSidebarListFlip(listContainerRef, {
+  useLayoutSidebarListFlip(listContainerRef, {
     enabled: Boolean(transferringStarPublicID),
     signature: visibleItemsSignature,
     excludeKey: transferringStarPublicID,
