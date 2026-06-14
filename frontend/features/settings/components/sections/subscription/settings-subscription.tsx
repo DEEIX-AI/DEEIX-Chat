@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -39,9 +40,38 @@ import {
 } from "@/features/settings/model/subscription-format";
 import { RedemptionDialog, TopUpDialog } from "./subscription-billing-dialogs";
 import { SubscriptionSummary } from "./subscription-summary";
-import { SubscriptionTrend } from "./subscription-trend";
-import type { UsageTrendView } from "./subscription-trend";
 import { SubscriptionUsageLog } from "./subscription-usage-log";
+import type { UsageTrendView } from "./subscription-trend";
+
+const SubscriptionTrend = dynamic(
+  () => import("./subscription-trend").then((module) => module.SubscriptionTrend),
+  {
+    ssr: false,
+    loading: () => <SubscriptionTrendSkeleton />,
+  },
+);
+
+function SubscriptionTrendSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="flex h-9 items-center justify-between gap-3">
+        <div className="h-4 w-28 rounded-full bg-muted/50" />
+        <div className="h-7 w-24 rounded-full bg-muted/50" />
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={`subscription-trend-skeleton-${index}`} className="rounded-md bg-muted/40 p-3">
+            <div className="h-3 w-16 rounded-full bg-muted/60" />
+            <div className="mt-2 h-4 w-20 rounded-full bg-muted/60" />
+          </div>
+        ))}
+      </div>
+      <div className="rounded-md bg-muted/35 p-3">
+        <div className="h-[260px] rounded-md bg-muted/30" />
+      </div>
+    </div>
+  );
+}
 
 type BillingRuntimeConfig = BillingConfigData["config"];
 type PaymentProvider = "stripe" | "epay";

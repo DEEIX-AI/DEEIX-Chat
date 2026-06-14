@@ -44,7 +44,6 @@ import { AppLogo } from "@/shared/components/app-logo";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { TimeZoneSelect } from "@/shared/components/time-zone-select";
 import { useTheme, type ThemePreset } from "@/shared/components/theme-provider";
-import { lobehubIconManifest } from "@/shared/generated/lobehub-icon-manifest";
 import { createQRCodeSVG } from "@/shared/lib/qr-code";
 import { detectCurrentTimeZone } from "@/shared/lib/time-zone";
 import { cn } from "@/lib/utils";
@@ -109,18 +108,22 @@ function buildLogoCarouselItems(): LogoCarouselLogo[] {
     "suno",
     "elevenlabs",
   ];
-  const iconByID = new Map<string, (typeof lobehubIconManifest)[number]>(
-    lobehubIconManifest.map((item) => [item.id, item]),
-  );
-  return supportedIconSlugs.flatMap((slug, index) => {
-    const item = iconByID.get(slug);
-    if (!item) return [];
+  return supportedIconSlugs.map((slug, index) => {
     return {
-      id: `${item.id}-${index}`,
-      name: item.name,
-      src: item.src,
+      id: `${slug}-${index}`,
+      name: titleFromIconSlug(slug),
+      src: `/vendor/lobehub-icons/${slug}.svg`,
     };
   });
+}
+
+function titleFromIconSlug(slug: string): string {
+  return slug
+    .replace(/-(brand|brand-color|color|text|text-cn)$/u, "")
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 const onboardingLogoItems = buildLogoCarouselItems();
