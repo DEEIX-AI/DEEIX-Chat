@@ -5,7 +5,6 @@ import { Database } from "lucide-react";
 import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -97,11 +96,13 @@ export function AccountOpenWebUIImportDialog({
 
         <motion.form layout transition={DIALOG_LAYOUT_TRANSITION} className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
-            <Alert className="rounded-md px-3 py-2">
-              <Database className="size-3.5" />
-              <AlertTitle className="text-xs">{t("dedupeTitle")}</AlertTitle>
-              <AlertDescription className="text-xs">{t("dedupeDescription")}</AlertDescription>
-            </Alert>
+            <div className="flex items-center gap-3 rounded-md bg-muted/45 px-3 py-2">
+              <Database className="size-3.5 shrink-0 text-foreground" />
+              <div className="min-w-0 space-y-0.5">
+                <div className="truncate text-xs font-medium text-foreground">{t("dedupeTitle")}</div>
+                <div className="truncate text-xs text-muted-foreground">{t("dedupeDescription")}</div>
+              </div>
+            </div>
 
             <div className="space-y-1">
               <Label htmlFor="openwebui-dsn" className="text-xs font-normal text-muted-foreground">
@@ -134,7 +135,7 @@ export function AccountOpenWebUIImportDialog({
             </div>
 
             {result ? (
-              <div className="grid grid-cols-2 gap-2 rounded-md border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+              <div className="grid grid-cols-2 gap-2 rounded-md bg-muted/45 p-3 text-xs text-muted-foreground">
                 <span>{t("summary.scanned", { count: result.scanned })}</span>
                 <span>{t("summary.imported", { count: result.imported })}</span>
                 <span>{t("summary.skippedExistingEmail", { count: result.skippedExistingEmail })}</span>
