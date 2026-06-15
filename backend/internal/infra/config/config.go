@@ -322,6 +322,7 @@ type Config struct {
 	ThirdPartyLoginEnabled       bool
 	EmailRegistrationEnabled     bool
 	EmailVerificationEnabled     bool
+	PasswordResetEnabled         bool
 	EmailRegistrationDomains     string
 	EmailRegistrationNoAlias     bool
 	AutoLinkVerifiedEmail        bool
@@ -537,6 +538,7 @@ func Load() Config {
 		ThirdPartyLoginEnabled:            true,
 		EmailRegistrationEnabled:          true,
 		EmailVerificationEnabled:          false,
+		PasswordResetEnabled:              false,
 		EmailRegistrationDomains:          "",
 		EmailRegistrationNoAlias:          false,
 		AutoLinkVerifiedEmail:             true,

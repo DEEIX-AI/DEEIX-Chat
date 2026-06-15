@@ -39,6 +39,10 @@
       "label": "Email registration",
       "description": "Allow users to create accounts with email."
     },
+    "passwordResetEnabled": {
+      "label": "Password reset",
+      "description": "Allow users to reset passwords from the sign-in page. Requires email verification."
+    },
     "usernameLoginEnabled": {
       "label": "Username login",
       "description": "Allow users to sign in with username and password."

@@ -391,7 +391,7 @@ func validatePatchItem(item PatchItem) error {
 		return validateStringMax(value, 255, key)
 	case "extract:tencent_ocr_secret_id", "extract:tencent_ocr_secret_key", "extract:aliyun_ocr_access_key_id", "extract:aliyun_ocr_access_key_secret":
 		return validateStringMax(value, 512, key)
-	case "auth:username_login_enabled", "auth:email_login_enabled", "auth:third_party_login_enabled", "auth:email_registration_enabled", "auth:email_verification_enabled", "auth:email_registration_block_plus_alias", "auth:auto_link_verified_email", "auth:turnstile_registration_enabled", "auth:rate_limit_enabled", "billing:native_tool_billing_enabled", "chat:rag_enabled", "chat:message_embedding_enabled", "chat:semantic_context_enabled", "file:full_context_limit_enabled", "file:embedding_enabled", "file:embed_trigger_on_upload", "file:embedding_normalize", "extract:image_ocr_enabled", "extract:pdf_ocr_fallback_enabled", "mcp:mcp_enable":
+	case "auth:username_login_enabled", "auth:email_login_enabled", "auth:third_party_login_enabled", "auth:email_registration_enabled", "auth:email_verification_enabled", "auth:password_reset_enabled", "auth:email_registration_block_plus_alias", "auth:auto_link_verified_email", "auth:turnstile_registration_enabled", "auth:rate_limit_enabled", "billing:native_tool_billing_enabled", "chat:rag_enabled", "chat:message_embedding_enabled", "chat:semantic_context_enabled", "file:full_context_limit_enabled", "file:embedding_enabled", "file:embed_trigger_on_upload", "file:embedding_normalize", "extract:image_ocr_enabled", "extract:pdf_ocr_fallback_enabled", "mcp:mcp_enable":
 		if _, err := strconv.ParseBool(value); err != nil {
 			return fmt.Errorf("%s must be bool", key)
 		}
@@ -558,10 +558,22 @@ func (s *Service) applyAuthSettingDependencies(ctx context.Context, patches []Pa
 		}
 	}
 	emailVerificationEnabled, _ := strconv.ParseBool(next["auth:email_verification_enabled"])
+	passwordResetEnabled, _ := strconv.ParseBool(next["auth:password_reset_enabled"])
+	if !emailVerificationEnabled {
+		if patchValueIsTrue(patches, "auth", "password_reset_enabled") {
+			return nil, fmt.Errorf("auth:password_reset_enabled requires auth:email_verification_enabled")
+		}
+		patches = upsertPatch(patches, PatchItem{Namespace: "auth", Key: "password_reset_enabled", Value: "false"})
+		next["auth:password_reset_enabled"] = "false"
+		passwordResetEnabled = false
+	}
 	if emailVerificationEnabled {
 		if err := validateEmailVerificationSMTPSettings(next); err != nil {
 			return nil, err
 		}
+	}
+	if passwordResetEnabled && !usernameLoginEnabled && !emailLoginEnabled {
+		return nil, fmt.Errorf("auth:password_reset_enabled requires username or email login")
 	}
 
 	return patches, nil

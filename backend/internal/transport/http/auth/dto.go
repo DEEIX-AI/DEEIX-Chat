@@ -562,7 +562,7 @@ func toEmailRegistrationStartResponse(d *appauth.EmailRegistrationStartResult) E
 	}
 }
 
-func toPasswordResetStartResponse(d *appauth.EmailRegistrationStartResult) PasswordResetStartResponse {
+func toPasswordResetStartResponse(d *appauth.PasswordResetStartResult) PasswordResetStartResponse {
 	return PasswordResetStartResponse{
 		Sent:      d.Sent,
 		ExpiresAt: d.ExpiresAt,

@@ -100,6 +100,8 @@ func (r *RuntimeSettings) applyItem(cfg *config.Config, item domainsettings.Syst
 		cfg.EmailRegistrationEnabled = toBool(item.Value, cfg.EmailRegistrationEnabled)
 	case "auth:email_verification_enabled":
 		cfg.EmailVerificationEnabled = toBool(item.Value, cfg.EmailVerificationEnabled)
+	case "auth:password_reset_enabled":
+		cfg.PasswordResetEnabled = toBool(item.Value, cfg.PasswordResetEnabled)
 	case "auth:smtp_host":
 		cfg.SMTPHost = strings.TrimSpace(item.Value)
 	case "auth:smtp_port":
@@ -356,6 +358,9 @@ func (r *RuntimeSettings) normalizeConfig(cfg *config.Config) {
 	}
 	if !cfg.EmailRegistrationEnabled {
 		cfg.TurnstileRegistrationEnabled = false
+	}
+	if !cfg.EmailVerificationEnabled || (!cfg.UsernameLoginEnabled && !cfg.EmailLoginEnabled) {
+		cfg.PasswordResetEnabled = false
 	}
 	if !cfg.EmbeddingEnabled || strings.TrimSpace(cfg.EmbeddingHost) == "" || strings.TrimSpace(cfg.RAGModel) == "" {
 		cfg.RAGEnabled = false

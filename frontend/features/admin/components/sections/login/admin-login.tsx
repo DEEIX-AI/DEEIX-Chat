@@ -161,6 +161,9 @@ export function AdminLoginSettingsPage() {
       if (field.key === "email_registration_enabled" && value !== "true") {
         next["auth.turnstile_registration_enabled"] = "false";
       }
+      if (field.key === "email_verification_enabled" && value !== "true") {
+        next["auth.password_reset_enabled"] = "false";
+      }
       return next;
     });
   }, [t]);
@@ -168,6 +171,7 @@ export function AdminLoginSettingsPage() {
   const isFieldDisabled = React.useCallback((field: LoginSettingsField) => {
     if (loading || saving) return true;
     if (field.key === "email_registration_enabled" && settingsMap["auth.email_login_enabled"] === "false") return true;
+    if (field.key === "password_reset_enabled" && settingsMap["auth.email_verification_enabled"] === "false") return true;
     if (field.key === "turnstile_registration_enabled" && settingsMap["auth.email_registration_enabled"] === "false") return true;
     return false;
   }, [loading, saving, settingsMap]);

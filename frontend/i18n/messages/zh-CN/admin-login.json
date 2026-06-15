@@ -39,6 +39,10 @@
       "label": "邮箱注册",
       "description": "允许用户通过邮箱创建账号。"
     },
+    "passwordResetEnabled": {
+      "label": "重置密码",
+      "description": "允许用户登录页重置密码（需开启邮箱验证）。"
+    },
     "usernameLoginEnabled": {
       "label": "用户名登录",
       "description": "允许用户使用用户名和密码登录。"

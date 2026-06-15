@@ -14,6 +14,7 @@ export type LoginSettingsField = {
     | "third_party_login_enabled"
     | "email_registration_enabled"
     | "email_verification_enabled"
+    | "password_reset_enabled"
     | "smtp_host"
     | "smtp_port"
     | "smtp_username"
@@ -67,6 +68,7 @@ export function buildLoginSettingsGroups(t: LoginSettingsTranslator): LoginSetti
     fields: [
       { namespace: "auth", key: "email_login_enabled", label: t("fields.emailLoginEnabled.label"), description: t("fields.emailLoginEnabled.description"), type: "bool" },
       { namespace: "auth", key: "email_registration_enabled", label: t("fields.emailRegistrationEnabled.label"), description: t("fields.emailRegistrationEnabled.description"), type: "bool" },
+      { namespace: "auth", key: "password_reset_enabled", label: t("fields.passwordResetEnabled.label"), description: t("fields.passwordResetEnabled.description"), type: "bool" },
       { namespace: "auth", key: "username_login_enabled", label: t("fields.usernameLoginEnabled.label"), description: t("fields.usernameLoginEnabled.description"), type: "bool" },
       { namespace: "auth", key: "third_party_login_enabled", label: t("fields.thirdPartyLoginEnabled.label"), description: t("fields.thirdPartyLoginEnabled.description"), type: "bool" },
     ],
@@ -285,6 +287,7 @@ export function applyLoginDefaults(settings: Record<string, string>): Record<str
     "auth.third_party_login_enabled": settings["auth.third_party_login_enabled"] || "true",
     "auth.email_registration_enabled": settings["auth.email_registration_enabled"] || "true",
     "auth.email_verification_enabled": settings["auth.email_verification_enabled"] || "false",
+    "auth.password_reset_enabled": settings["auth.password_reset_enabled"] || "false",
     "auth.smtp_host": settings["auth.smtp_host"] ?? "",
     "auth.smtp_port": settings["auth.smtp_port"]?.trim() || "587",
     "auth.smtp_username": settings["auth.smtp_username"] ?? "",
@@ -309,6 +312,9 @@ export function applyLoginDefaults(settings: Record<string, string>): Record<str
   }
   if (result["auth.email_registration_enabled"] === "false") {
     result["auth.turnstile_registration_enabled"] = "false";
+  }
+  if (result["auth.email_verification_enabled"] === "false") {
+    result["auth.password_reset_enabled"] = "false";
   }
   return result;
 }

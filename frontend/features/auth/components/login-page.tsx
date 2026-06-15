@@ -61,7 +61,6 @@ export function LoginPage({ nextPath }: LoginPageProps) {
     resetCode,
     resetCodeCooldownSeconds,
     resetCodeSent,
-    resetDebugCode,
     resetEmail,
     resetPassword,
     sendingCode,
@@ -300,7 +299,6 @@ export function LoginPage({ nextPath }: LoginPageProps) {
                       </Button>
                     </div>
                   </div>
-                  {resetDebugCode ? <p className="text-xs font-medium text-muted-foreground">{t("debugCode", { code: resetDebugCode })}</p> : null}
                   <Button
                     className="mt-1 h-9 w-full rounded-md bg-foreground text-sm font-semibold text-background shadow-none hover:bg-foreground/90"
                     type="submit"

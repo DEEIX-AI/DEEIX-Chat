@@ -87,7 +87,6 @@ export type EmailRegistrationStartData = {
 export type PasswordResetStartData = {
   sent: boolean;
   expiresAt: string;
-  debugCode?: string;
 };
 
 export type PasswordResetCompleteData = {

@@ -52,6 +52,12 @@ type EmailRegistrationStartResult struct {
 	ExpiresAt time.Time
 }
 
+// PasswordResetStartResult 表示密码重置验证码请求结果。
+type PasswordResetStartResult struct {
+	Sent      bool
+	ExpiresAt time.Time
+}
+
 type PasswordChangeVerificationStartResult struct {
 	Sent             bool
 	ExpiresAt        time.Time
@@ -401,7 +407,7 @@ func (s *Service) ChangePassword(ctx context.Context, userID uint, currentPasswo
 	return nil
 }
 
-func (s *Service) RequestPasswordReset(ctx context.Context, email string, requestID string, auditCtx requestmeta.SessionAuditContext) (*EmailRegistrationStartResult, error) {
+func (s *Service) RequestPasswordReset(ctx context.Context, email string, requestID string, auditCtx requestmeta.SessionAuditContext) (*PasswordResetStartResult, error) {
 	cfg := s.cfg.Snapshot()
 	normalizedEmail, err := normalizeRegistrationEmail(email)
 	if err != nil {
@@ -413,14 +419,20 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string, reques
 	}
 	if !ok {
 		s.recordPasswordResetEvent(ctx, 0, requestID, "failure", "unavailable", normalizedEmail, auditCtx)
-		return nil, ErrPasswordResetFailed
+		return inactivePasswordResetStartResult(), nil
 	}
 
 	now := time.Now()
 	existingVerification, err := s.repo.GetPendingContactVerificationForUser(ctx, item.ID, domainuser.ContactVerificationChannelEmail, domainuser.ContactVerificationPurposePasswordReset, normalizedEmail, now)
 	if err == nil && existingVerification.SentAt != nil && now.Sub(*existingVerification.SentAt) < emailRegistrationSendCooldown {
 		s.recordPasswordResetEvent(ctx, item.ID, requestID, "failure", "sent_recently", normalizedEmail, auditCtx)
-		return nil, ErrPasswordResetFailed
+		if existingVerification.ExpiresAt == nil {
+			return inactivePasswordResetStartResult(), nil
+		}
+		return &PasswordResetStartResult{
+			Sent:      true,
+			ExpiresAt: *existingVerification.ExpiresAt,
+		}, nil
 	}
 	if err != nil && !errors.Is(err, repository.ErrNotFound) {
 		return nil, err
@@ -466,7 +478,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string, reques
 		auditCtx,
 		map[string]interface{}{"verification_id": created.ID, "expires_at": expiresAt},
 	)
-	return &EmailRegistrationStartResult{
+	return &PasswordResetStartResult{
 		Sent:      true,
 		ExpiresAt: expiresAt,
 	}, nil
@@ -544,6 +556,9 @@ func (s *Service) resolvePasswordResetTarget(ctx context.Context, email string, 
 }
 
 func passwordResetEnabled(cfg config.Config) bool {
+	if !cfg.PasswordResetEnabled || !cfg.EmailVerificationEnabled {
+		return false
+	}
 	if !cfg.UsernameLoginEnabled && !cfg.EmailLoginEnabled {
 		return false
 	}
@@ -554,8 +569,15 @@ func passwordResetEnabled(cfg config.Config) bool {
 		strings.TrimSpace(cfg.SMTPPassword) != ""
 }
 
+func inactivePasswordResetStartResult() *PasswordResetStartResult {
+	return &PasswordResetStartResult{
+		Sent:      true,
+		ExpiresAt: time.Now().Add(emailRegistrationCodeTTL),
+	}
+}
+
 func (s *Service) recordPasswordResetEvent(ctx context.Context, userID uint, requestID string, result string, reason string, email string, auditCtx requestmeta.SessionAuditContext, extra ...map[string]interface{}) {
-	detail := map[string]interface{}{"email": email}
+	detail := map[string]interface{}{"email_hash": hashAuditEmail(email)}
 	if len(extra) > 0 {
 		for key, value := range extra[0] {
 			detail[key] = value
@@ -573,6 +595,15 @@ func (s *Service) recordPasswordResetEvent(ctx context.Context, userID uint, req
 		normalizedAuditCtx.UserAgent,
 		marshalAuthEventDetail(detail),
 	)
+}
+
+func hashAuditEmail(email string) string {
+	normalized := strings.ToLower(strings.TrimSpace(email))
+	if normalized == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(normalized))
+	return hex.EncodeToString(sum[:])
 }
 
 func (s *Service) RequestEmailBootstrapVerification(ctx context.Context, userID uint, newEmail string, requestID string, auditCtx requestmeta.SessionAuditContext) (*EmailChangeVerificationStartResult, error) {

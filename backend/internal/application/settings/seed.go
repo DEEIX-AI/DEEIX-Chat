@@ -30,6 +30,7 @@ func defaultSettings() []domainsettings.SystemSetting {
 		{Namespace: "auth", Key: "third_party_login_enabled", Value: "true", ValueType: "bool", Description: "是否启用第三方登录入口"},
 		{Namespace: "auth", Key: "email_registration_enabled", Value: "true", ValueType: "bool", Description: "是否允许邮箱注册"},
 		{Namespace: "auth", Key: "email_verification_enabled", Value: "false", ValueType: "bool", Description: "邮箱注册时是否要求邮箱验证码"},
+		{Namespace: "auth", Key: "password_reset_enabled", Value: "false", ValueType: "bool", Description: "是否允许用户在登录页重置密码"},
 		{Namespace: "auth", Key: "smtp_host", Value: "", ValueType: "string", Description: "邮箱验证码 SMTP 主机"},
 		{Namespace: "auth", Key: "smtp_port", Value: "587", ValueType: "int", Description: "邮箱验证码 SMTP 端口"},
 		{Namespace: "auth", Key: "smtp_username", Value: "", ValueType: "string", Description: "邮箱验证码 SMTP 用户名"},

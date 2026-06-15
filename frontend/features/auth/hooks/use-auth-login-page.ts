@@ -70,7 +70,6 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
   const [resetEmail, setResetEmail] = React.useState("");
   const [resetPassword, setResetPassword] = React.useState("");
   const [resetCode, setResetCode] = React.useState("");
-  const [resetDebugCode, setResetDebugCode] = React.useState("");
   const [registerTurnstileToken, setRegisterTurnstileToken] = React.useState("");
   const [registerTurnstileResetSignal, setRegisterTurnstileResetSignal] = React.useState(0);
   const [codeSent, setCodeSent] = React.useState(false);
@@ -305,11 +304,9 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
       return;
     }
     setSendingCode(true);
-    setResetDebugCode("");
     try {
       const result = await startPasswordReset(resetEmail);
       setResetCodeSent(result.sent);
-      setResetDebugCode(result.debugCode ?? "");
       if (result.sent) {
         const now = Date.now();
         setCooldownNow(now);
@@ -378,7 +375,6 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
         setPassword("");
         setResetPassword("");
         setResetCode("");
-        setResetDebugCode("");
         setResetCodeSent(false);
         setResetCodeResendAt(0);
         setMode("login");
@@ -402,7 +398,6 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
   const updateResetEmail = React.useCallback((value: string) => {
     setResetEmail(value);
     setResetCodeSent(false);
-    setResetDebugCode("");
     setResetCodeResendAt(0);
   }, []);
 
@@ -464,7 +459,6 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
     resetCode,
     resetCodeCooldownSeconds,
     resetCodeSent,
-    resetDebugCode,
     resetEmail,
     resetPassword,
     sendingCode,
