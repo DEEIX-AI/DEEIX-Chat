@@ -207,6 +207,111 @@ func TestCreateTopUpPaymentOrderResolvesProviderPaymentCurrency(t *testing.T) {
 	}
 }
 
+func TestCreateTopUpPaymentOrderAllowsPeriodModeOverageBalance(t *testing.T) {
+	repo := &billingRepositoryStub{mode: "period"}
+	service := NewService(repo)
+
+	order, err := service.CreateTopUpPaymentOrder(context.Background(), TopUpPaymentOrderInput{
+		UserID:      1,
+		AmountCents: 5000,
+		Provider:    domainbilling.PaymentProviderStripe,
+	})
+	if err != nil {
+		t.Fatalf("CreateTopUpPaymentOrder() error = %v", err)
+	}
+	if order.OrderType != domainbilling.PaymentOrderTypeTopUp || order.CreditNanousd <= 0 {
+		t.Fatalf("unexpected top up order: %+v", order)
+	}
+}
+
+func TestEnsureModelUsableAllowsPeriodOverageWhenBalanceIsAvailable(t *testing.T) {
+	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	endAt := now.Add(30 * 24 * time.Hour)
+	repo := &billingRepositoryStub{
+		mode:            "period",
+		prepaidNanousd:  300,
+		billableNanousd: 1000,
+		account:         &domainbilling.BillingAccount{UserID: 1, BalanceNanousd: 500, Currency: "USD", Status: "active"},
+		pricing: &domainbilling.ModelPricing{
+			PlatformModelName:       "gpt-test",
+			Currency:                "USD",
+			InputNanousdPerMTokens:  1,
+			OutputNanousdPerMTokens: 1,
+		},
+		plans: []domainbilling.Plan{
+			{ID: 2, Code: "pro", Name: "Pro", PeriodCreditNanousd: 1000, IsActive: true},
+		},
+		subscriptions: []domainbilling.Subscription{
+			{ID: 20, UserID: 1, PlanID: 2, Status: "active", CurrentPeriodStartAt: now, CurrentPeriodEndAt: &endAt},
+		},
+	}
+	service := NewService(repo)
+
+	if err := service.EnsureModelUsable(context.Background(), 1, "gpt-test", now); err != nil {
+		t.Fatalf("EnsureModelUsable() error = %v", err)
+	}
+}
+
+func TestEnsureModelUsableRejectsPeriodOverageWhenBalanceIsInsufficient(t *testing.T) {
+	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	endAt := now.Add(30 * 24 * time.Hour)
+	repo := &billingRepositoryStub{
+		mode:            "period",
+		prepaidNanousd:  300,
+		billableNanousd: 1000,
+		account:         &domainbilling.BillingAccount{UserID: 1, BalanceNanousd: 100, Currency: "USD", Status: "active"},
+		pricing: &domainbilling.ModelPricing{
+			PlatformModelName:       "gpt-test",
+			Currency:                "USD",
+			InputNanousdPerMTokens:  1,
+			OutputNanousdPerMTokens: 1,
+		},
+		plans: []domainbilling.Plan{
+			{ID: 2, Code: "pro", Name: "Pro", PeriodCreditNanousd: 1000, IsActive: true},
+		},
+		subscriptions: []domainbilling.Subscription{
+			{ID: 20, UserID: 1, PlanID: 2, Status: "active", CurrentPeriodStartAt: now, CurrentPeriodEndAt: &endAt},
+		},
+	}
+	service := NewService(repo)
+
+	err := service.EnsureModelUsable(context.Background(), 1, "gpt-test", now)
+	if !errors.Is(err, ErrUsageBalanceInsufficient) {
+		t.Fatalf("EnsureModelUsable() error = %v, want ErrUsageBalanceInsufficient", err)
+	}
+}
+
+func TestReserveUsageBalancePeriodModeReservesOnlyPotentialOverage(t *testing.T) {
+	now := time.Now()
+	endAt := now.Add(30 * 24 * time.Hour)
+	repo := &billingRepositoryStub{
+		mode:            "period",
+		prepaidNanousd:  300,
+		billableNanousd: 900,
+		pricing: &domainbilling.ModelPricing{
+			PlatformModelName:       "gpt-test",
+			Currency:                "USD",
+			InputNanousdPerMTokens:  1,
+			OutputNanousdPerMTokens: 1,
+		},
+		plans: []domainbilling.Plan{
+			{ID: 2, Code: "pro", Name: "Pro", PeriodCreditNanousd: 1000, IsActive: true},
+		},
+		subscriptions: []domainbilling.Subscription{
+			{ID: 20, UserID: 1, PlanID: 2, Status: "active", CurrentPeriodStartAt: now.Add(-time.Hour), CurrentPeriodEndAt: &endAt},
+		},
+	}
+	service := NewService(repo)
+
+	reservation, err := service.ReserveUsageBalance(context.Background(), 1, "gpt-test", "run_1")
+	if err != nil {
+		t.Fatalf("ReserveUsageBalance() error = %v", err)
+	}
+	if reservation == nil || reservation.AmountNanousd != 200 || repo.reservedNanousd != 200 {
+		t.Fatalf("reservation = %+v, reserved = %d, want 200", reservation, repo.reservedNanousd)
+	}
+}
+
 func TestBuildSubscriptionEntitlementViewsShowsCurrentAndQueuedPlans(t *testing.T) {
 	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	day := 24 * time.Hour

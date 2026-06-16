@@ -360,7 +360,7 @@ const UserTableRow = React.memo(function UserTableRow({
           </div>
         </TableCell>
       ) : null}
-      {billingMode === "usage" ? (
+      {billingMode !== "self" ? (
         <TableCell className="whitespace-nowrap text-foreground">
           <span title={resolveBillingAccountStatusLabel(item.billingAccountStatus || "active")}>
             {formatBillingBalance(item.billingBalanceUSD)}
@@ -564,6 +564,9 @@ export function AccountsUsers({
     }
   }
 
+  const showBalanceColumn = billingMode !== "self";
+  const tableColSpan = 9 + (billingMode === "period" ? 2 : showBalanceColumn ? 1 : 0);
+
   return (
     <>
       <div className="space-y-3">
@@ -687,7 +690,7 @@ export function AccountsUsers({
                 />
               </BulkActionControlRow>
 
-              {billingMode === "usage" ? (
+              {showBalanceColumn ? (
                 <BulkActionControlRow
                   icon={<DollarSign className="size-3 stroke-1" />}
                   label={t("actions.apply")}
@@ -779,7 +782,7 @@ export function AccountsUsers({
                 <TableHead>{t("fields.role")}</TableHead>
                 <TableHead>{t("fields.status")}</TableHead>
                 {billingMode === "period" ? <TableHead>{t("fields.subscription")}</TableHead> : null}
-                {billingMode === "usage" ? <TableHead>{t("fields.balance")}</TableHead> : null}
+                {showBalanceColumn ? <TableHead>{t("fields.balance")}</TableHead> : null}
                 <TableHead className="text-center">2FA</TableHead>
                 <TableHead>{t("fields.timezone")}</TableHead>
                 <TableHead>{t("fields.lastLogin")}</TableHead>
@@ -788,9 +791,9 @@ export function AccountsUsers({
             </TableHeader>
             <TableBody>
               {initialLoading ? (
-                <TableLoadingRow colSpan={billingMode === "self" ? 9 : 10} />
+                <TableLoadingRow colSpan={tableColSpan} />
               ) : null}
-              {showRows ? <VirtualTablePaddingRow colSpan={billingMode === "self" ? 9 : 10} height={virtualRows.paddingTop} /> : null}
+              {showRows ? <VirtualTablePaddingRow colSpan={tableColSpan} height={virtualRows.paddingTop} /> : null}
               {showRows
                 ? virtualRows.rows.map(({ item }) => (
                     <UserTableRow
@@ -811,9 +814,9 @@ export function AccountsUsers({
                     />
                   ))
                 : null}
-              {showRows ? <VirtualTablePaddingRow colSpan={billingMode === "self" ? 9 : 10} height={virtualRows.paddingBottom} /> : null}
+              {showRows ? <VirtualTablePaddingRow colSpan={tableColSpan} height={virtualRows.paddingBottom} /> : null}
               {!loading && filteredItems.length === 0 ? (
-                <TableEmptyRow colSpan={billingMode === "self" ? 9 : 10}>{t("table.empty")}</TableEmptyRow>
+                <TableEmptyRow colSpan={tableColSpan}>{t("table.empty")}</TableEmptyRow>
               ) : null}
             </TableBody>
         </Table>

@@ -15,7 +15,7 @@
     "mode": "计费模式",
     "modeDescription": "自用模式只记录用量；周期计费按订阅额度限制；按量计费按模型定价计算费用。",
     "prepaidAmount": "预付费金额",
-    "prepaidAmountDescription": "按量模式发起调用前要求账户余额达到该金额；最终仍按真实账单扣费。",
+    "prepaidAmountDescription": "按量模式及周期超额按量扣费时，发起调用前要求账户余额达到该金额；最终仍按真实账单扣费。",
     "modes": {
       "self": "自用模式",
       "period": "周期计费",

@@ -35,10 +35,15 @@ type billingRepositoryStub struct {
 	plans                      []domainbilling.Plan
 	prices                     []domainbilling.Price
 	subscriptions              []domainbilling.Subscription
+	account                    *domainbilling.BillingAccount
+	prepaidNanousd             int64
+	billableNanousd            int64
 	nativeToolBillingEnabled   bool
 	nativeToolPricingJSON      string
 	requestedPlatformModelName string
 	replacedSubscription       *domainbilling.Subscription
+	reservedNanousd            int64
+	periodUsageSettled         bool
 }
 
 func (r *billingRepositoryStub) GetBillingMode(context.Context) (string, error) {
@@ -46,7 +51,7 @@ func (r *billingRepositoryStub) GetBillingMode(context.Context) (string, error) 
 }
 
 func (r *billingRepositoryStub) GetBillingPrepaidAmountNanousd(context.Context) (int64, error) {
-	return 0, nil
+	return r.prepaidNanousd, nil
 }
 
 func (r *billingRepositoryStub) GetNativeToolBillingEnabled(context.Context) (bool, error) {
@@ -157,14 +162,22 @@ func (r *billingRepositoryStub) AddUsageAndDebitBalance(context.Context, *domain
 func (r *billingRepositoryStub) AddUsageAndSettleBalance(context.Context, *domainbilling.UsageLedger, *domainbilling.UsageBalanceReservation) error {
 	panic("not used")
 }
-func (r *billingRepositoryStub) ReserveUsageBalance(context.Context, uint, int64, string) (*domainbilling.UsageBalanceReservation, error) {
-	panic("not used")
+func (r *billingRepositoryStub) AddPeriodUsageAndSettleOverage(context.Context, *domainbilling.UsageLedger, time.Time, time.Time, int64, *domainbilling.UsageBalanceReservation) error {
+	r.periodUsageSettled = true
+	return nil
+}
+func (r *billingRepositoryStub) ReserveUsageBalance(_ context.Context, userID uint, amountNanousd int64, refNo string) (*domainbilling.UsageBalanceReservation, error) {
+	r.reservedNanousd = amountNanousd
+	return &domainbilling.UsageBalanceReservation{UserID: userID, AmountNanousd: amountNanousd, RefNo: refNo}, nil
 }
 func (r *billingRepositoryStub) ReleaseUsageBalanceReservation(context.Context, uint, string, string) error {
 	panic("not used")
 }
-func (r *billingRepositoryStub) GetOrCreateBillingAccount(context.Context, uint) (*domainbilling.BillingAccount, error) {
-	panic("not used")
+func (r *billingRepositoryStub) GetOrCreateBillingAccount(_ context.Context, userID uint) (*domainbilling.BillingAccount, error) {
+	if r.account != nil {
+		return r.account, nil
+	}
+	return &domainbilling.BillingAccount{UserID: userID, Currency: "USD", Status: "active"}, nil
 }
 func (r *billingRepositoryStub) ListBillingAccountsByUserIDs(context.Context, []uint) ([]domainbilling.BillingAccount, error) {
 	panic("not used")
@@ -218,7 +231,7 @@ func (r *billingRepositoryStub) ListDailyUsageByUser(context.Context, uint, time
 	panic("not used")
 }
 func (r *billingRepositoryStub) SumBillableNanousd(context.Context, uint, time.Time, time.Time) (int64, error) {
-	panic("not used")
+	return r.billableNanousd, nil
 }
 
 func TestBuildUsageLedgerSnapshotsModelIdentity(t *testing.T) {

@@ -472,6 +472,10 @@
       "used": "已使用 {value}",
       "total": "总额度 {value}"
     },
+    "periodOverage": {
+      "title": "超额按量",
+      "balance": "可用余额 {value}"
+    },
     "entitlements": {
       "title": "订阅权益",
       "count": "{count} 段",

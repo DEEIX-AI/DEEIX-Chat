@@ -334,6 +334,17 @@ export function SubscriptionSummary({
               </div>
             </div>
           </div>
+
+          <ActionRow
+            title={t("periodOverage.title")}
+            value={t("periodOverage.balance", { value: formatAccountBalance(billingAccount?.balanceUSD ?? 0) })}
+            action={
+              <Button type="button" variant="outline" disabled={billingLoading || topUpLoading || paymentDisabled} onClick={onOpenTopUpDialog}>
+                <Banknote className="size-3.5" />
+                {t("usageBilling.topUp")}
+              </Button>
+            }
+          />
         </section>
       ) : null}
 

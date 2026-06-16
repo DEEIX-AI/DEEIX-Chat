@@ -15,7 +15,7 @@
     "mode": "Billing mode",
     "modeDescription": "Self-use records usage only. Subscription billing limits usage by plan credits. Usage billing calculates cost from model pricing.",
     "prepaidAmount": "Prepaid amount",
-    "prepaidAmountDescription": "In usage billing, calls can start only when the account balance meets this amount. The final deduction still uses the actual bill.",
+    "prepaidAmountDescription": "In usage billing and subscription overage billing, calls can start only when the account balance meets this amount. The final deduction still uses the actual bill.",
     "modes": {
       "self": "Self-use",
       "period": "Subscription billing",

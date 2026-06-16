@@ -1400,7 +1400,10 @@ export function AdminBillingPage() {
       return t("redemption.unavailableSelf");
     }
     const codeMode = item.mode === "period" ? "period" : "usage";
-    if (billingMode !== codeMode) {
+    const modeAllowed = billingMode === "period"
+      ? codeMode === "usage" || codeMode === "period"
+      : billingMode === codeMode;
+    if (!modeAllowed) {
       return t("redemption.unavailableModeMismatch", {
         currentMode: redemptionModeLabel(billingMode),
         codeMode: redemptionModeLabel(codeMode),

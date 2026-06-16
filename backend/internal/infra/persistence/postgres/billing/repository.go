@@ -621,6 +621,118 @@ func (r *Repo) AddUsageAndSettleBalance(ctx context.Context, usage *domainbillin
 	})
 }
 
+// AddPeriodUsageAndSettleOverage 写入周期用量，并将超出套餐额度的部分按量结算。
+func (r *Repo) AddPeriodUsageAndSettleOverage(
+	ctx context.Context,
+	usage *domainbilling.UsageLedger,
+	periodStart time.Time,
+	periodEnd time.Time,
+	periodCreditNanousd int64,
+	reservation *domainbilling.UsageBalanceReservation,
+) error {
+	if usage == nil {
+		return nil
+	}
+	if usage.UserID == 0 || periodStart.IsZero() || !periodEnd.After(periodStart) || periodCreditNanousd < 0 {
+		return repository.ErrInvalidInput
+	}
+	settledSnapshotJSON := ""
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		account, err := getOrCreateBillingAccountForUpdate(tx, usage.UserID)
+		if err != nil {
+			return err
+		}
+
+		var usedBeforeNanousd int64
+		if err = tx.Model(&model.UsageLedger{}).
+			Select("COALESCE(SUM(billed_nanousd), 0)").
+			Where("user_id = ? AND is_free_model = ? AND created_at >= ? AND created_at < ?", usage.UserID, false, periodStart, periodEnd).
+			Scan(&usedBeforeNanousd).Error; err != nil {
+			return translateError(err)
+		}
+
+		chargeNanousd := usage.BilledNanousd
+		if usage.IsFreeModel || chargeNanousd <= 0 {
+			chargeNanousd = 0
+		}
+		remainingNanousd := periodCreditNanousd - usedBeforeNanousd
+		if remainingNanousd < 0 {
+			remainingNanousd = 0
+		}
+		coveredNanousd := minInt64(chargeNanousd, remainingNanousd)
+		overageNanousd := chargeNanousd - coveredNanousd
+		reservedNanousd := int64(0)
+		if reservation != nil {
+			reservedNanousd = reservation.AmountNanousd
+			if reservedNanousd < 0 {
+				return repository.ErrInvalidInput
+			}
+		}
+		deltaNanousd := overageNanousd - reservedNanousd
+		if deltaNanousd > 0 && account.BalanceNanousd < deltaNanousd {
+			return repository.ErrInsufficientBalance
+		}
+
+		ledger := *usage
+		ledger.PricingSnapshotJSON = withPeriodSettlementSnapshot(ledger.PricingSnapshotJSON, map[string]interface{}{
+			"period_credit_nanousd":                   periodCreditNanousd,
+			"period_used_before_nanousd":              usedBeforeNanousd,
+			"period_used_after_nanousd":               usedBeforeNanousd + chargeNanousd,
+			"period_credit_covered_nanousd":           coveredNanousd,
+			"period_overage_billed_nanousd":           overageNanousd,
+			"period_balance_debited_nanousd":          overageNanousd,
+			"period_balance_reserved_nanousd":         reservedNanousd,
+			"period_balance_settlement_delta_nanousd": deltaNanousd,
+		})
+		record := toModelUsageLedger(&ledger)
+		if err := tx.Create(&record).Error; err != nil {
+			return translateError(err)
+		}
+		if deltaNanousd == 0 {
+			settledSnapshotJSON = ledger.PricingSnapshotJSON
+			return nil
+		}
+
+		nextBalance := account.BalanceNanousd - deltaNanousd
+		if err := tx.Model(account).Updates(map[string]interface{}{
+			"balance_nanousd": nextBalance,
+			"currency":        "USD",
+			"status":          "active",
+		}).Error; err != nil {
+			return translateError(err)
+		}
+		transactionType := domainbilling.BalanceTransactionTypeUsage
+		description := "周期套餐超额按量扣费"
+		if deltaNanousd < 0 {
+			transactionType = domainbilling.BalanceTransactionTypeUsageRefund
+			description = "周期套餐超额预扣差额退回"
+		}
+		transaction := model.BalanceTransaction{
+			AccountID:           account.ID,
+			UserID:              usage.UserID,
+			Type:                transactionType,
+			AmountNanousd:       -deltaNanousd,
+			BalanceAfterNanousd: nextBalance,
+			RefType:             "usage_ledger",
+			RefID:               record.ID,
+			RefNo:               reservationRefNo(reservation),
+			Description:         description,
+		}
+		if err := tx.Create(&transaction).Error; err != nil {
+			return translateError(err)
+		}
+		settledSnapshotJSON = ledger.PricingSnapshotJSON
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if settledSnapshotJSON != "" {
+		usage.PricingSnapshotJSON = settledSnapshotJSON
+	}
+	return nil
+}
+
 // ReserveUsageBalance 在真实调用前预扣固定金额，避免并发请求透支余额。
 func (r *Repo) ReserveUsageBalance(ctx context.Context, userID uint, amountNanousd int64, refNo string) (*domainbilling.UsageBalanceReservation, error) {
 	refNo = strings.TrimSpace(refNo)
@@ -747,6 +859,21 @@ func reservationRefNo(reservation *domainbilling.UsageBalanceReservation) string
 		return ""
 	}
 	return strings.TrimSpace(reservation.RefNo)
+}
+
+func withPeriodSettlementSnapshot(raw string, values map[string]interface{}) string {
+	snapshot := map[string]interface{}{}
+	if trimmed := strings.TrimSpace(raw); trimmed != "" {
+		_ = json.Unmarshal([]byte(trimmed), &snapshot)
+	}
+	for key, value := range values {
+		snapshot[key] = value
+	}
+	encoded, err := json.Marshal(snapshot)
+	if err != nil {
+		return raw
+	}
+	return string(encoded)
 }
 
 // GetOrCreateBillingAccount 查询或创建用户按量余额账户。
@@ -926,7 +1053,18 @@ func (r *Repo) ListRedemptionCodes(ctx context.Context, filter repository.Redemp
 	items := make([]model.RedemptionCode, 0, limit)
 	var total int64
 	query := r.db.WithContext(ctx).Model(&model.RedemptionCode{})
-	if mode := strings.TrimSpace(filter.Mode); mode != "" {
+	if len(filter.Modes) > 0 {
+		modes := make([]string, 0, len(filter.Modes))
+		for _, mode := range filter.Modes {
+			if normalized := normalizeRedemptionMode(mode); normalized != "" {
+				modes = append(modes, normalized)
+			}
+		}
+		if len(modes) == 0 {
+			return []domainbilling.RedemptionCode{}, 0, nil
+		}
+		query = query.Where("mode IN ?", modes)
+	} else if mode := strings.TrimSpace(filter.Mode); mode != "" {
 		query = query.Where("mode = ?", mode)
 	}
 	if status := strings.TrimSpace(filter.Status); status != "" {
@@ -1840,10 +1978,13 @@ func getOrCreateBillingAccountForUpdate(tx *gorm.DB, userID uint) (*model.Billin
 		BalanceNanousd: 0,
 		Status:         "active",
 	}
-	if err := tx.Create(&account).Error; err != nil {
+	if err := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}},
+		DoNothing: true,
+	}).Create(&account).Error; err != nil {
 		return nil, translateError(err)
 	}
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", account.ID).First(&account).Error; err != nil {
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", userID).First(&account).Error; err != nil {
 		return nil, translateError(err)
 	}
 	return &account, nil
@@ -1922,7 +2063,7 @@ func toDomainRedemption(item model.Redemption) domainbilling.Redemption {
 
 func validateRedeemableCode(tx *gorm.DB, code model.RedemptionCode, userID uint, currentMode string, now time.Time) error {
 	if code.Status != domainbilling.RedemptionCodeStatusActive ||
-		code.Mode != currentMode ||
+		!redemptionCodeModeAvailableInBillingMode(code.Mode, currentMode) ||
 		(code.ExpiresAt != nil && !code.ExpiresAt.After(now)) {
 		return repository.ErrRedemptionUnavailable
 	}
@@ -2536,6 +2677,22 @@ func normalizeRedemptionMode(value string) string {
 	}
 }
 
+func redemptionCodeModeAvailableInBillingMode(codeMode string, billingMode string) bool {
+	switch strings.TrimSpace(billingMode) {
+	case domainbilling.RedemptionCodeModeUsage:
+		return strings.TrimSpace(codeMode) == domainbilling.RedemptionCodeModeUsage
+	case domainbilling.RedemptionCodeModePeriod:
+		switch strings.TrimSpace(codeMode) {
+		case domainbilling.RedemptionCodeModeUsage, domainbilling.RedemptionCodeModePeriod:
+			return true
+		default:
+			return false
+		}
+	default:
+		return false
+	}
+}
+
 func normalizeRedemptionRewardType(value string) string {
 	switch strings.TrimSpace(value) {
 	case domainbilling.RedemptionRewardTypeSubscription:
@@ -2590,6 +2747,13 @@ func clampNonNegative(value int64) int64 {
 		return 0
 	}
 	return value
+}
+
+func minInt64(a int64, b int64) int64 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func clampPercent(value int) int {

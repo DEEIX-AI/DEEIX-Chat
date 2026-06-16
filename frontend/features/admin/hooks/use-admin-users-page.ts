@@ -598,11 +598,11 @@ export function useAdminUsersPage({
     }
 
     const billingBalanceChanged =
-      billingMode === "usage" &&
+      billingMode !== "self" &&
       Number.isFinite(nextBillingBalance) &&
       roundBillingBalance(nextBillingBalance) !== roundBillingBalance(editDialogTarget.billingBalanceUSD ?? 0);
 
-    if (billingMode === "usage" && (!Number.isFinite(nextBillingBalance) || nextBillingBalance < 0)) {
+    if (billingMode !== "self" && (!Number.isFinite(nextBillingBalance) || nextBillingBalance < 0)) {
       toast.error(t("toast.editFailed"), { description: t("validation.invalidUsageBalance") });
       return;
     }
@@ -1018,7 +1018,7 @@ export function useAdminUsersPage({
     if (!selectedUsers.length || !batchBalance.trim() || pendingAction) {
       return;
     }
-    if (billingMode !== "usage") {
+    if (billingMode === "self") {
       return;
     }
     if (!Number.isFinite(nextBalance) || nextBalance < 0) {

@@ -218,6 +218,45 @@ func TestListRedemptionCodesAvailableUsesCurrentBillingMode(t *testing.T) {
 	}
 }
 
+func TestListRedemptionCodesAvailablePeriodIncludesUsageBalanceCodes(t *testing.T) {
+	repo := newRedemptionRepositoryStub(domainbilling.RedemptionCodeModePeriod)
+	service := NewService(repo)
+
+	_, _, err := service.ListRedemptionCodes(context.Background(), RedemptionCodeListInput{
+		Availability: "available",
+		Page:         1,
+		PageSize:     20,
+	})
+	if err != nil {
+		t.Fatalf("ListRedemptionCodes() error = %v", err)
+	}
+	if !repo.listCalled {
+		t.Fatalf("ListRedemptionCodes() did not query repository")
+	}
+	wantModes := []string{domainbilling.RedemptionCodeModeUsage, domainbilling.RedemptionCodeModePeriod}
+	if repo.listFilter.Mode != "" || !equalStringSlices(repo.listFilter.Modes, wantModes) || repo.listFilter.Availability != "available" {
+		t.Fatalf("List filter = %+v, want modes %v", repo.listFilter, wantModes)
+	}
+}
+
+func TestListRedemptionCodesAvailablePeriodAllowsExplicitUsageMode(t *testing.T) {
+	repo := newRedemptionRepositoryStub(domainbilling.RedemptionCodeModePeriod)
+	service := NewService(repo)
+
+	_, _, err := service.ListRedemptionCodes(context.Background(), RedemptionCodeListInput{
+		Mode:         domainbilling.RedemptionCodeModeUsage,
+		Availability: "available",
+		Page:         1,
+		PageSize:     20,
+	})
+	if err != nil {
+		t.Fatalf("ListRedemptionCodes() error = %v", err)
+	}
+	if !repo.listCalled || repo.listFilter.Mode != domainbilling.RedemptionCodeModeUsage {
+		t.Fatalf("List filter = %+v, want explicit usage mode", repo.listFilter)
+	}
+}
+
 func TestListRedemptionCodesAvailableSkipsModeMismatch(t *testing.T) {
 	repo := newRedemptionRepositoryStub(domainbilling.RedemptionCodeModeUsage)
 	service := NewService(repo)
@@ -481,6 +520,18 @@ func isUppercaseUUID(value string) bool {
 	}
 	for _, item := range value {
 		if item >= 'a' && item <= 'z' {
+			return false
+		}
+	}
+	return true
+}
+
+func equalStringSlices(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
 			return false
 		}
 	}

@@ -447,7 +447,7 @@ export function EditUserSheet({
                 {billingMode === "period" ? (
                   <Badge variant="outline" className="text-muted-foreground">{resolveDetailValue(editDialogTarget?.subscriptionTier)}</Badge>
                 ) : null}
-                {billingMode === "usage" ? (
+                {billingMode !== "self" ? (
                   <Badge variant="outline" className="text-muted-foreground">
                     {formatBillingBalance(editDialogTarget?.billingBalanceUSD)}
                   </Badge>
@@ -630,7 +630,7 @@ export function EditUserSheet({
                   </DialogCollapsible>
                 </div>
               ) : null}
-              {billingMode === "usage" ? (
+              {billingMode !== "self" ? (
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs font-normal text-muted-foreground">{t("editor.accountBalance")}</Label>

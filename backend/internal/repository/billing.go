@@ -26,6 +26,7 @@ type BillingRepository interface {
 	AddUsage(ctx context.Context, usage *domainbilling.UsageLedger) error
 	AddUsageAndDebitBalance(ctx context.Context, usage *domainbilling.UsageLedger) error
 	AddUsageAndSettleBalance(ctx context.Context, usage *domainbilling.UsageLedger, reservation *domainbilling.UsageBalanceReservation) error
+	AddPeriodUsageAndSettleOverage(ctx context.Context, usage *domainbilling.UsageLedger, periodStart time.Time, periodEnd time.Time, periodCreditNanousd int64, reservation *domainbilling.UsageBalanceReservation) error
 	ReserveUsageBalance(ctx context.Context, userID uint, amountNanousd int64, refNo string) (*domainbilling.UsageBalanceReservation, error)
 	ReleaseUsageBalanceReservation(ctx context.Context, userID uint, refNo string, description string) error
 	GetOrCreateBillingAccount(ctx context.Context, userID uint) (*domainbilling.BillingAccount, error)
@@ -57,6 +58,7 @@ type BillingRepository interface {
 // RedemptionCodeListFilter 描述管理员兑换码列表筛选条件。
 type RedemptionCodeListFilter struct {
 	Mode         string
+	Modes        []string
 	Status       string
 	Availability string
 	Query        string

@@ -2,9 +2,11 @@ package billing
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
+	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/sqlite"
@@ -88,6 +90,125 @@ func TestUsageQueriesUseSQLitePortableExpressions(t *testing.T) {
 	}
 }
 
+func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
+	db := openBillingSQLiteTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	now := time.Date(2026, 6, 6, 12, 0, 0, 0, time.UTC)
+	periodStart := now.Add(-2 * time.Hour)
+	periodEnd := now.Add(2 * time.Hour)
+
+	account := model.BillingAccount{
+		UserID:         1,
+		Currency:       "USD",
+		BalanceNanousd: 500,
+		Status:         "active",
+	}
+	if err := db.Create(&account).Error; err != nil {
+		t.Fatalf("create billing account: %v", err)
+	}
+	if err := db.Create(&model.UsageLedger{
+		BaseModel:           model.BaseModel{CreatedAt: now.Add(-time.Hour)},
+		UserID:              1,
+		PlatformModelName:   "gpt-before",
+		UsageDate:           now.Add(-time.Hour),
+		BilledCurrency:      "USD",
+		BilledNanousd:       800,
+		PricingSnapshotJSON: `{}`,
+	}).Error; err != nil {
+		t.Fatalf("create previous usage: %v", err)
+	}
+
+	usage := &domainbilling.UsageLedger{
+		UserID:              1,
+		PlatformModelName:   "gpt-current",
+		UsageDate:           now,
+		BilledCurrency:      "USD",
+		BilledNanousd:       500,
+		PricingSnapshotJSON: `{"pricing_mode":"token"}`,
+	}
+	err := repo.AddPeriodUsageAndSettleOverage(ctx, usage, periodStart, periodEnd, 1000, nil)
+	if err != nil {
+		t.Fatalf("AddPeriodUsageAndSettleOverage() error = %v", err)
+	}
+
+	var refreshed model.BillingAccount
+	if err := db.Where("user_id = ?", 1).First(&refreshed).Error; err != nil {
+		t.Fatalf("load billing account: %v", err)
+	}
+	if refreshed.BalanceNanousd != 200 {
+		t.Fatalf("balance = %d, want 200", refreshed.BalanceNanousd)
+	}
+	var tx model.BalanceTransaction
+	if err := db.Where("user_id = ? AND type = ?", 1, domainbilling.BalanceTransactionTypeUsage).First(&tx).Error; err != nil {
+		t.Fatalf("load balance transaction: %v", err)
+	}
+	if tx.AmountNanousd != -300 || tx.BalanceAfterNanousd != 200 {
+		t.Fatalf("transaction amount/balance = %d/%d, want -300/200", tx.AmountNanousd, tx.BalanceAfterNanousd)
+	}
+
+	var ledger model.UsageLedger
+	if err := db.Where("platform_model_name = ?", "gpt-current").First(&ledger).Error; err != nil {
+		t.Fatalf("load current usage: %v", err)
+	}
+	if ledger.BilledNanousd != 500 {
+		t.Fatalf("billed nanousd = %d, want 500", ledger.BilledNanousd)
+	}
+	var snapshot map[string]interface{}
+	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
+		t.Fatalf("decode pricing snapshot: %v", err)
+	}
+	if usage.PricingSnapshotJSON != ledger.PricingSnapshotJSON {
+		t.Fatalf("usage snapshot was not updated after settlement")
+	}
+	covered := int64(snapshot["period_credit_covered_nanousd"].(float64))
+	overage := int64(snapshot["period_overage_billed_nanousd"].(float64))
+	if covered != 200 || overage != 300 {
+		t.Fatalf("snapshot split = covered %d overage %d, want 200/300", covered, overage)
+	}
+	debited := int64(snapshot["period_balance_debited_nanousd"].(float64))
+	delta := int64(snapshot["period_balance_settlement_delta_nanousd"].(float64))
+	if debited != 300 || delta != 300 {
+		t.Fatalf("snapshot balance = debit %d delta %d, want 300/300", debited, delta)
+	}
+}
+
+func TestValidateRedeemableCodeAllowsUsageCodeInPeriodModeOnly(t *testing.T) {
+	db := openBillingSQLiteTestDB(t)
+	now := time.Date(2026, 6, 6, 12, 0, 0, 0, time.UTC)
+
+	usageCode := model.RedemptionCode{
+		Status:         domainbilling.RedemptionCodeStatusActive,
+		Mode:           domainbilling.RedemptionCodeModeUsage,
+		RewardType:     domainbilling.RedemptionRewardTypeBalance,
+		CreditNanousd:  100,
+		PerUserLimit:   1,
+		RedeemedCount:  0,
+		MaxRedemptions: nil,
+	}
+	err := db.Transaction(func(tx *gorm.DB) error {
+		return validateRedeemableCode(tx, usageCode, 1, domainbilling.RedemptionCodeModePeriod, now)
+	})
+	if err != nil {
+		t.Fatalf("validateRedeemableCode(usage code in period mode) error = %v", err)
+	}
+
+	periodCode := model.RedemptionCode{
+		Status:        domainbilling.RedemptionCodeStatusActive,
+		Mode:          domainbilling.RedemptionCodeModePeriod,
+		RewardType:    domainbilling.RedemptionRewardTypeSubscription,
+		PlanID:        2,
+		PerUserLimit:  1,
+		RedeemedCount: 0,
+	}
+	err = db.Transaction(func(tx *gorm.DB) error {
+		return validateRedeemableCode(tx, periodCode, 1, domainbilling.RedemptionCodeModeUsage, now)
+	})
+	if err != repository.ErrRedemptionUnavailable {
+		t.Fatalf("validateRedeemableCode(period code in usage mode) error = %v, want ErrRedemptionUnavailable", err)
+	}
+}
+
 func openBillingSQLiteTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -104,8 +225,8 @@ func openBillingSQLiteTestDB(t *testing.T) *gorm.DB {
 		_ = sqlDB.Close()
 	})
 
-	if err := db.AutoMigrate(&model.UsageLedger{}); err != nil {
-		t.Fatalf("migrate usage ledgers: %v", err)
+	if err := db.AutoMigrate(&model.UsageLedger{}, &model.BillingAccount{}, &model.BalanceTransaction{}, &model.Redemption{}); err != nil {
+		t.Fatalf("migrate billing tables: %v", err)
 	}
 	return db
 }
