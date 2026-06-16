@@ -1,3 +1,4 @@
+import { parseChatContentWidth } from "@/shared/model/chat-content-width";
 import type { ChatInputHeight, ChatSettings, FileMode, ModelVendorGroup, SendShortcut } from "@/features/settings/types/settings";
 import type { UserSettingsMap } from "@/shared/api/user-settings";
 import type { PublicModelDTO } from "@/shared/api/model.types";
@@ -21,12 +22,14 @@ export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   restoreDraftOnFailure: true,
   preserveConversationDrafts: true,
   inputHeight: "standard",
+  contentWidth: "compact",
   fileMode: "auto",
 };
 
 export function parseChatSettings(map: UserSettingsMap): ChatSettings {
   const fileMode = map["chat.file_mode"];
   const inputHeight = map["chat.input_height"];
+  const contentWidth = map["chat.content_width"];
   const sendShortcut = map["chat.send_on_enter"];
 
   return {
@@ -43,6 +46,7 @@ export function parseChatSettings(map: UserSettingsMap): ChatSettings {
     restoreDraftOnFailure: map["chat.restore_draft_on_failure"] !== "false",
     preserveConversationDrafts: map["chat.preserve_conversation_drafts"] !== "false",
     inputHeight: INPUT_HEIGHTS.includes(inputHeight as ChatInputHeight) ? (inputHeight as ChatInputHeight) : "standard",
+    contentWidth: parseChatContentWidth(contentWidth),
     fileMode: FILE_MODES.includes(fileMode as FileMode) ? (fileMode as FileMode) : "auto",
   };
 }

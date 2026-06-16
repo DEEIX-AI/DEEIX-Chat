@@ -103,6 +103,7 @@ type ChatMessageBotProps = {
   onEditImageAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   artifactActions?: MarkdownArtifactActions;
   showBranchNavigator?: boolean;
+  contentWidthClassName?: string;
 };
 
 export function ChatMessageBot({
@@ -126,6 +127,7 @@ export function ChatMessageBot({
   onEditImageAttachment,
   artifactActions,
   showBranchNavigator = true,
+  contentWidthClassName = "max-w-[1080px]",
 }: ChatMessageBotProps) {
   const tCommon = useTranslations("common.actions");
   const submitT = useTranslations("chat.submit");
@@ -223,7 +225,7 @@ export function ChatMessageBot({
 
     return (
       <div className="flex justify-start">
-        <div className="w-full max-w-[760px] rounded-lg bg-muted/40 p-3 text-foreground">
+        <div className={cn("w-full rounded-lg bg-muted/40 p-3 text-foreground", contentWidthClassName)}>
           <Textarea
             autoFocus
             value={editingValue}

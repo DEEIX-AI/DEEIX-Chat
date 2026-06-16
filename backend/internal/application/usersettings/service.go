@@ -35,6 +35,7 @@ var allowedKeys = map[string]string{
 	"chat.restore_draft_on_failure":             "true",
 	"chat.preserve_conversation_drafts":         "true",
 	"chat.input_height":                         "standard",
+	"chat.content_width":                        "compact",
 	"chat.default_mcp_tool_ids":                 "[]",
 }
 
@@ -57,6 +58,7 @@ var enumKeys = map[string]map[string]bool{
 	"chat.file_mode":     {"auto": true, "full_context": true, "rag": true},
 	"chat.send_on_enter": {"enter": true, "ctrl_enter": true, "meta_enter": true},
 	"chat.input_height":  {"compact": true, "standard": true, "loose": true},
+	"chat.content_width": {"compact": true, "standard": true, "wide": true},
 }
 
 // validateValue 校验 key 对应 value 的合法性。

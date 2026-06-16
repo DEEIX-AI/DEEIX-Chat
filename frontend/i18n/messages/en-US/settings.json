@@ -70,8 +70,6 @@
       "colorMode": "Color mode",
       "themePreset": "Theme",
       "fontSize": "Font size",
-      "chatFont": "Chat font",
-      "chatFontWeight": "Chat font weight",
       "preset": {
         "default": "Default",
         "azure": "Azure",
@@ -87,23 +85,11 @@
         "system": "System",
         "dark": "Dark"
       },
-      "font": {
-        "default": "Default",
-        "songti": "Serif",
-        "heiti": "Sans",
-        "mono": "Mono"
-      },
       "fontSizeOption": {
         "small": "Small",
         "standard": "Standard",
         "medium": "Medium",
         "large": "Large"
-      },
-      "fontWeight": {
-        "regular": "Regular",
-        "medium": "Medium",
-        "semibold": "Semibold",
-        "bold": "Bold"
       }
     },
     "avatarDialog": {
@@ -359,7 +345,7 @@
       "description": "The model preselected for new chats. Leave empty to use the first available system-recommended model.",
       "systemRecommended": "System default",
       "autoTitle": "Auto-generate titles",
-      "autoTitleDescription": "When disabled, new chats use the first 20 characters of the first message as the title."
+      "autoTitleDescription": "When disabled, new chats use the first 16 characters of the first message as the title."
     },
     "input": {
       "sectionTitle": "Input and sending",
@@ -391,7 +377,27 @@
       "latencyDescription": "Controls whether total call latency appears below AI replies.",
       "costTitle": "Show total cost",
       "costDescription": "Controls whether total call cost appears below AI replies.",
-      "costDescriptionSelfMode": "Controls whether total call cost appears below AI replies. Hidden in self-use mode."
+      "costDescriptionSelfMode": "Controls whether total call cost appears below AI replies. Hidden in self-use mode.",
+      "widthTitle": "Chat area width",
+      "width": {
+        "compact": "Compact",
+        "standard": "Standard",
+        "wide": "Wide"
+      },
+      "chatFont": "Chat font",
+      "chatFontWeight": "Chat font weight",
+      "font": {
+        "default": "Default",
+        "songti": "Serif",
+        "heiti": "Sans",
+        "mono": "Mono"
+      },
+      "fontWeight": {
+        "regular": "Regular",
+        "medium": "Medium",
+        "semibold": "Semibold",
+        "bold": "Bold"
+      }
     },
     "context": {
       "sectionTitle": "Context management",

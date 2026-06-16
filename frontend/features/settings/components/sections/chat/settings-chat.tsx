@@ -26,7 +26,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import type { ChatContentWidth } from "@/shared/model/chat-content-width";
+import { useAppearancePreferencesPersistence } from "@/features/settings/hooks/use-appearance-preferences-persistence";
 import { useSettingsChat } from "@/features/settings/hooks/use-settings-chat";
+import {
+  type ChatFontOption,
+  type ChatFontWeightOption,
+  useChatFontPreference,
+  useChatFontWeightPreference,
+  writeChatFontPreference,
+  writeChatFontWeightPreference,
+} from "@/features/settings/utils/chat-font";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { listUserMemories, upsertUserMemory, deleteUserMemory } from "@/shared/api/memory";
@@ -43,6 +53,7 @@ import { resolveModelOptionIconUrl, resolveModelOptionLabel } from "@/shared/lib
 import { parseKindsJSON } from "@/shared/model/llm-schema";
 import { platformModifierLabel, platformSendShortcut } from "@/shared/lib/platform-shortcuts";
 import type { SendShortcut } from "@/features/settings/types/settings";
+import { ChatDisplayAppearance } from "./chat-display-appearance";
 
 type ModelOption = ModelSelectOption;
 
@@ -417,6 +428,9 @@ export function SettingsChat() {
     handleDefaultModel,
   } = useSettingsChat();
   const billingEnabled = billingMode !== "self";
+  const chatFont = useChatFontPreference();
+  const chatFontWeight = useChatFontWeightPreference();
+  const persistAppearancePreferences = useAppearancePreferencesPersistence();
   const [modifierLabel, setModifierLabel] = React.useState<"Command" | "Ctrl">("Ctrl");
   const [modifierShortcut, setModifierShortcut] = React.useState<Exclude<SendShortcut, "enter">>("ctrl_enter");
   const modelOptions = React.useMemo<ModelOption[]>(
@@ -445,6 +459,20 @@ export function SettingsChat() {
   }, []);
 
   const sendShortcutLabel = settings.sendShortcut === "enter" ? "Enter" : `${modifierLabel}+Enter`;
+
+  const handleChatFontChange = React.useCallback((value: ChatFontOption) => {
+    writeChatFontPreference(value);
+    persistAppearancePreferences({ chatFont: value });
+  }, [persistAppearancePreferences]);
+
+  const handleChatFontWeightChange = React.useCallback((value: ChatFontWeightOption) => {
+    writeChatFontWeightPreference(value);
+    persistAppearancePreferences({ chatFontWeight: value });
+  }, [persistAppearancePreferences]);
+
+  const handleContentWidthChange = React.useCallback((value: ChatContentWidth) => {
+    handleEnum("chat.content_width", "contentWidth")(value);
+  }, [handleEnum]);
 
   return (
     <SettingsPage>
@@ -640,6 +668,18 @@ export function SettingsChat() {
                 aria-label={t("display.costTitle")}
               />
             </SettingsFieldRow>
+          </div>
+
+          <div className="pt-4">
+            <ChatDisplayAppearance
+              contentWidth={settings.contentWidth}
+              chatFont={chatFont}
+              chatFontWeight={chatFontWeight}
+              onContentWidthChange={handleContentWidthChange}
+              onChatFontChange={handleChatFontChange}
+              onChatFontWeightChange={handleChatFontWeightChange}
+              disabled={loading}
+            />
           </div>
         </SettingsFieldList>
       </SettingsSection>

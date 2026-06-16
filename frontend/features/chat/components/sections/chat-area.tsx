@@ -99,6 +99,7 @@ type ChatAreaProps = {
   showTokenUsage?: boolean;
   showBillingCost?: boolean;
   splitRightInset?: boolean;
+  contentWidthClassName?: string;
 };
 
 function useStableEvent<Args extends unknown[], Return>(callback: (...args: Args) => Return) {
@@ -132,6 +133,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   showLatency,
   showTokenUsage,
   showBillingCost,
+  contentWidthClassName,
 }: {
   item: ChatAreaMessage;
   busy: boolean;
@@ -154,6 +156,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   showLatency: boolean;
   showTokenUsage: boolean;
   showBillingCost: boolean;
+  contentWidthClassName: string;
 }) {
   const t = useTranslations("chat.messages");
   const { copy, isCopied } = useCopyAction({
@@ -218,6 +221,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         showLatency={showLatency}
         showTokenUsage={showTokenUsage}
         showBillingCost={showBillingCost}
+        contentWidthClassName={contentWidthClassName}
       />
     );
   }
@@ -242,6 +246,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   previous.showLatency === next.showLatency &&
   previous.showTokenUsage === next.showTokenUsage &&
   previous.showBillingCost === next.showBillingCost &&
+  previous.contentWidthClassName === next.contentWidthClassName &&
   previous.modelOptions === next.modelOptions &&
   previous.selectedPlatformModelName === next.selectedPlatformModelName &&
   previous.onModelChange === next.onModelChange &&
@@ -289,6 +294,7 @@ export function ChatArea({
   showTokenUsage = true,
   showBillingCost = false,
   splitRightInset = false,
+  contentWidthClassName = "max-w-[1080px]",
 }: ChatAreaProps) {
   const t = useTranslations("chat");
   const { getReaction, onReactAssistantMessage } = useChatMessageFeedback(messages);
@@ -345,7 +351,7 @@ export function ChatArea({
         >
           <div
             ref={messageContentRef}
-            className="mx-auto w-full max-w-[760px]"
+            className={cn("mx-auto w-full", contentWidthClassName)}
             style={{ fontFamily: "var(--font-chat)", fontWeight: "var(--font-chat-weight)" }}
           >
             {messages.map((item, index) => {
@@ -381,6 +387,7 @@ export function ChatArea({
                   showLatency={showLatency}
                   showTokenUsage={showTokenUsage}
                   showBillingCost={showBillingCost}
+                  contentWidthClassName={contentWidthClassName}
                 />
               );
 
@@ -444,7 +451,7 @@ export function ChatAreaSkeleton() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden px-3 pb-8 pt-2 md:px-6">
-        <div className="mx-auto w-full max-w-[760px] space-y-6">
+        <div className="mx-auto w-full max-w-[1080px] space-y-6">
           <ChatUserMessageSkeleton widthClassName="w-[min(26rem,70%)] max-sm:w-[88%]" />
 
           <ChatAssistantMessageSkeleton />

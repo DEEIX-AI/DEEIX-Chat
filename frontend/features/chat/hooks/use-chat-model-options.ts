@@ -11,6 +11,11 @@ import type {
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
 import { sanitizeConversationOptions } from "@/features/chat/model/conversation-options";
+import {
+  DEFAULT_CHAT_CONTENT_WIDTH,
+  parseChatContentWidth,
+  type ChatContentWidth,
+} from "@/shared/model/chat-content-width";
 import { listConversationRuns } from "@/shared/api/conversation";
 import { listPublicModels } from "@/shared/api/model";
 import { getBillingConfig } from "@/shared/api/billing";
@@ -22,6 +27,7 @@ import { parseKindsJSON } from "@/shared/model/llm-schema";
 import type { ConversationOptions } from "@/shared/api/conversation.types";
 import type { SendShortcut } from "@/features/settings/types/settings";
 import { parseSendShortcut } from "@/features/settings/utils/chat-settings";
+import { USER_SETTINGS_UPDATED_EVENT } from "@/features/settings/events/user-settings-events";
 
 type ModelCatalogRefreshResult = {
   models: PublicModelDTO[];
@@ -42,6 +48,10 @@ function parseJSONObject(raw: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+function resolveChatContentWidth(settings: Record<string, string>): ChatContentWidth {
+  return parseChatContentWidth(settings["chat.content_width"]);
 }
 
 function normalizeNativeToolPayload(value: unknown): Record<string, unknown> {
@@ -302,6 +312,7 @@ export function useChatModelOptions({
   const [restoreDraftOnFailure, setRestoreDraftOnFailure] = React.useState(true);
   const [preserveConversationDrafts, setPreserveConversationDrafts] = React.useState(true);
   const [inputHeight, setInputHeight] = React.useState<"compact" | "standard" | "loose">("standard");
+  const [contentWidth, setContentWidth] = React.useState<ChatContentWidth>(DEFAULT_CHAT_CONTENT_WIDTH);
   const [markdownRender, setMarkdownRender] = React.useState(true);
   const [showModelInfo, setShowModelInfo] = React.useState(true);
   const [showLatency, setShowLatency] = React.useState(true);
@@ -406,6 +417,7 @@ export function useChatModelOptions({
             ? settings["chat.input_height"]
             : "standard",
         );
+        setContentWidth(resolveChatContentWidth(settings));
       } catch {
         if (!cancelled) {
           setModelsErrorMsg(t("loadFailed"));
@@ -422,6 +434,21 @@ export function useChatModelOptions({
       cancelled = true;
     };
   }, [applyModelCatalog, loadModelCatalog, t]);
+
+  React.useEffect(() => {
+    const handleUserSettingsUpdated = (event: Event) => {
+      const settings = (event as CustomEvent<Record<string, string>>).detail;
+      if (!settings || typeof settings !== "object") {
+        return;
+      }
+      setContentWidth(resolveChatContentWidth(settings));
+    };
+
+    window.addEventListener(USER_SETTINGS_UPDATED_EVENT, handleUserSettingsUpdated);
+    return () => {
+      window.removeEventListener(USER_SETTINGS_UPDATED_EVENT, handleUserSettingsUpdated);
+    };
+  }, []);
 
   React.useEffect(() => {
     const normalizedConversationID = conversationPublicID?.trim() || null;
@@ -506,6 +533,7 @@ export function useChatModelOptions({
     restoreDraftOnFailure,
     preserveConversationDrafts,
     inputHeight,
+    contentWidth,
     markdownRender,
     showModelInfo,
     showLatency,

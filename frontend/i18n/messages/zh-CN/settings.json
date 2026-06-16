@@ -70,8 +70,6 @@
       "colorMode": "颜色模式",
       "themePreset": "主题",
       "fontSize": "字体大小",
-      "chatFont": "对话字体",
-      "chatFontWeight": "对话字重",
       "preset": {
         "default": "默认",
         "azure": "Azure",
@@ -87,23 +85,11 @@
         "system": "跟随系统",
         "dark": "深色"
       },
-      "font": {
-        "default": "默认",
-        "songti": "衬线",
-        "heiti": "无衬线",
-        "mono": "等宽"
-      },
       "fontSizeOption": {
         "small": "小号",
         "standard": "标准",
         "medium": "中号",
         "large": "大号"
-      },
-      "fontWeight": {
-        "regular": "常规",
-        "medium": "中等",
-        "semibold": "半粗",
-        "bold": "粗体"
       }
     },
     "avatarDialog": {
@@ -359,7 +345,7 @@
       "description": "开启新对话时预选的模型。留空则使用系统推荐的第一个可用模型。",
       "systemRecommended": "系统默认",
       "autoTitle": "自动生成标题",
-      "autoTitleDescription": "关闭后，新对话使用第一条消息的前 20 个字符作为标题。"
+      "autoTitleDescription": "关闭后，新对话使用第一条消息的前 16 个字符作为标题。"
     },
     "input": {
       "sectionTitle": "输入与发送",
@@ -391,7 +377,27 @@
       "latencyDescription": "控制 AI 回复下方是否展示本次调用的总耗时。",
       "costTitle": "显示调用总费用",
       "costDescription": "控制 AI 回复下方是否展示本次调用的总费用。",
-      "costDescriptionSelfMode": "控制 AI 回复下方是否展示本次调用的总费用。自用模式不展示。"
+      "costDescriptionSelfMode": "控制 AI 回复下方是否展示本次调用的总费用。自用模式不展示。",
+      "widthTitle": "对话区域宽度",
+      "width": {
+        "compact": "紧凑",
+        "standard": "标准",
+        "wide": "宽屏"
+      },
+      "chatFont": "对话字体",
+      "chatFontWeight": "对话字重",
+      "font": {
+        "default": "默认",
+        "songti": "衬线",
+        "heiti": "无衬线",
+        "mono": "等宽"
+      },
+      "fontWeight": {
+        "regular": "常规",
+        "medium": "中等",
+        "semibold": "半粗",
+        "bold": "粗体"
+      }
     },
     "context": {
       "sectionTitle": "上下文管理",

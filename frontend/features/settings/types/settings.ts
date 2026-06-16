@@ -1,3 +1,4 @@
+import type { ChatContentWidth } from "@/shared/model/chat-content-width";
 import type { ChatFontOption, ChatFontWeightOption } from "@/features/settings/utils/chat-font";
 import type { FontSizeOption } from "@/features/settings/utils/font-size";
 import type { ThemePreset } from "@/shared/components/theme-provider";
@@ -6,7 +7,6 @@ import type { PublicModelDTO } from "@/shared/api/model.types";
 export type SendShortcut = "enter" | "ctrl_enter" | "meta_enter";
 export type FileMode = "auto" | "full_context" | "rag";
 export type ChatInputHeight = "compact" | "standard" | "loose";
-
 export type ChatSettings = {
   defaultModel: string;
   sendShortcut: SendShortcut;
@@ -21,6 +21,7 @@ export type ChatSettings = {
   restoreDraftOnFailure: boolean;
   preserveConversationDrafts: boolean;
   inputHeight: ChatInputHeight;
+  contentWidth: ChatContentWidth;
   fileMode: FileMode;
 };
 

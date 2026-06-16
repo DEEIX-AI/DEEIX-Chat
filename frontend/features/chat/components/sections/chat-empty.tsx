@@ -5,11 +5,13 @@ import { AnimatePresence, motion } from "motion/react";
 
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 type ChatEmptyStateProps = {
   greetingTitle: string;
   badgeLabel?: string;
   badgeTooltip?: string;
+  contentWidthClassName?: string;
   children?: React.ReactNode;
 };
 
@@ -18,7 +20,7 @@ const CHAT_EMPTY_TEXT_TRANSITION = {
   ease: [0.16, 1, 0.3, 1] as const,
 };
 
-export function ChatEmptyState({ greetingTitle, badgeLabel, badgeTooltip, children }: ChatEmptyStateProps) {
+export function ChatEmptyState({ greetingTitle, badgeLabel, badgeTooltip, contentWidthClassName = "max-w-[1080px]", children }: ChatEmptyStateProps) {
   const badge = badgeLabel ? (
     <span className="absolute left-full top-0 ml-1.5">
       <Badge
@@ -57,7 +59,7 @@ export function ChatEmptyState({ greetingTitle, badgeLabel, badgeTooltip, childr
           </motion.div>
         </AnimatePresence>
       </motion.div>
-      {children ? <div className="mt-7 w-full max-w-[800px] md:mt-8">{children}</div> : null}
+      {children ? <div className={cn("mt-7 w-full md:mt-8", contentWidthClassName)}>{children}</div> : null}
     </div>
   );
 }

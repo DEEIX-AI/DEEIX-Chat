@@ -5,19 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { dispatchUserProfileUpdated } from "@/features/settings/events/user-profile-events";
-import {
-  readLocalAppearancePreferences,
-  serializeAppearancePreferences,
-  type AppearancePreferencePatch,
-} from "@/features/settings/utils/appearance-preferences";
-import {
-  type ChatFontOption,
-  type ChatFontWeightOption,
-  useChatFontPreference,
-  useChatFontWeightPreference,
-  writeChatFontPreference,
-  writeChatFontWeightPreference,
-} from "@/features/settings/utils/chat-font";
+import { useAppearancePreferencesPersistence } from "@/features/settings/hooks/use-appearance-preferences-persistence";
 import {
   type FontSizeOption,
   useFontSizePreference,
@@ -93,8 +81,6 @@ export function SettingsGeneral() {
   const [avatarUploading, setAvatarUploading] = React.useState(false);
   const [avatarUploadPreview, setAvatarUploadPreview] = React.useState<AvatarUploadPreview | null>(null);
   const [themeRuntimeReady, setThemeRuntimeReady] = React.useState(false);
-  const chatFont = useChatFontPreference();
-  const chatFontWeight = useChatFontWeightPreference();
   const fontSize = useFontSizePreference();
   const [notificationRuntimeReady, setNotificationRuntimeReady] = React.useState(false);
   const [notificationSupported, setNotificationSupported] = React.useState(false);
@@ -104,8 +90,7 @@ export function SettingsGeneral() {
   const [saving, setSaving] = React.useState(false);
   const [usernameDraft, setUsernameDraft] = React.useState("");
   const initialUsernameToastShownRef = React.useRef(false);
-  const appearanceSaveTimerRef = React.useRef<number | null>(null);
-  const pendingAppearancePatchRef = React.useRef<AppearancePreferencePatch>({});
+  const persistAppearancePreferences = useAppearancePreferencesPersistence();
 
   React.useEffect(() => {
     if (userStatus === "loading") {
@@ -133,14 +118,6 @@ export function SettingsGeneral() {
     setNotificationSupported(isBrowserNotificationSupported());
     setResponseCompletionNotificationsEnabled(readResponseCompletionNotificationsEnabled());
     setNotificationPermission(getBrowserNotificationPermission());
-  }, []);
-
-  React.useEffect(() => {
-    return () => {
-      if (appearanceSaveTimerRef.current !== null) {
-        window.clearTimeout(appearanceSaveTimerRef.current);
-      }
-    };
   }, []);
 
   React.useEffect(() => {
@@ -376,45 +353,6 @@ export function SettingsGeneral() {
     })();
   }, [notificationSupported, t]);
 
-  const persistAppearancePreferences = React.useCallback(
-    (patch: AppearancePreferencePatch) => {
-      if (!accessToken) {
-        return;
-      }
-
-      pendingAppearancePatchRef.current = {
-        ...pendingAppearancePatchRef.current,
-        ...patch,
-      };
-      if (appearanceSaveTimerRef.current !== null) {
-        window.clearTimeout(appearanceSaveTimerRef.current);
-      }
-
-      appearanceSaveTimerRef.current = window.setTimeout(() => {
-        void (async () => {
-          const pendingPatch = pendingAppearancePatchRef.current;
-          pendingAppearancePatchRef.current = {};
-          appearanceSaveTimerRef.current = null;
-          const appearancePreferences = serializeAppearancePreferences({
-            ...readLocalAppearancePreferences(),
-            ...pendingPatch,
-          });
-          try {
-            const nextViewer = await patchMe(accessToken, { appearancePreferences });
-            setViewer((current) =>
-              current ? { ...current, appearancePreferences: nextViewer.appearancePreferences } : nextViewer,
-            );
-          } catch (error) {
-            toast.error(t("generalPage.toast.saveProfileFailed"), {
-              description: resolveLocalizedErrorMessage(error),
-            });
-          }
-        })();
-      }, 300);
-    },
-    [accessToken, t],
-  );
-
   const notificationHelpText = React.useMemo(() => {
     if (!notificationRuntimeReady) {
       return t("generalPage.notifications.defaultHelp");
@@ -446,16 +384,6 @@ export function SettingsGeneral() {
     },
     [persistAppearancePreferences, setPreset],
   );
-
-  const handleChatFontChange = React.useCallback((value: ChatFontOption) => {
-    writeChatFontPreference(value);
-    persistAppearancePreferences({ chatFont: value });
-  }, [persistAppearancePreferences]);
-
-  const handleChatFontWeightChange = React.useCallback((value: ChatFontWeightOption) => {
-    writeChatFontWeightPreference(value);
-    persistAppearancePreferences({ chatFontWeight: value });
-  }, [persistAppearancePreferences]);
 
   const handleFontSizeChange = React.useCallback((value: FontSizeOption) => {
     writeFontSizePreference(value);
@@ -506,13 +434,9 @@ export function SettingsGeneral() {
         resolvedTheme={resolvedTheme}
         activeThemeMode={activeThemeMode}
         activeThemePreset={activeThemePreset}
-        chatFont={chatFont}
-        chatFontWeight={chatFontWeight}
         fontSize={fontSize}
         onThemeModeChange={handleThemeModeChange}
         onThemePresetChange={handleThemePresetChange}
-        onChatFontChange={handleChatFontChange}
-        onChatFontWeightChange={handleChatFontWeightChange}
         onFontSizeChange={handleFontSizeChange}
       />
     </SettingsPage>
