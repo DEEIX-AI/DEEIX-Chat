@@ -565,7 +565,9 @@ export function AccountsUsers({
   }
 
   const showBalanceColumn = billingMode !== "self";
-  const tableColSpan = 9 + (billingMode === "period" ? 2 : showBalanceColumn ? 1 : 0);
+  const baseColumnCount = 9;
+  const billingColumnCount = (billingMode === "period" ? 1 : 0) + (showBalanceColumn ? 1 : 0);
+  const tableColSpan = baseColumnCount + billingColumnCount;
 
   return (
     <>

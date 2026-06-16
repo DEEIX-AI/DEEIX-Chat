@@ -183,6 +183,7 @@ func (s *Service) buildSendMessageUsageLedger(ctx context.Context, input SendMes
 		LatencyMS:           latencyMS,
 		ServerSideToolUsage: result.ServerSideToolUsage,
 		RawUsageJSON:        result.RawUsageJSON,
+		BillingAt:           result.StartedAt,
 	})
 }
 

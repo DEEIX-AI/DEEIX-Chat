@@ -30,7 +30,7 @@ type User struct {
 	PublicID              string     `gorm:"size:32;not null;default:'';uniqueIndex:idx_identity_users_public_id;comment:公开用户ID"`
 	Username              string     `gorm:"size:64;not null;uniqueIndex:idx_identity_users_username;comment:登录用户名"`
 	DisplayName           string     `gorm:"size:128;not null;default:'';comment:展示名称"`
-	AvatarURL             string     `gorm:"size:2048;not null;default:'';comment:头像地址"`
+	AvatarURL             string     `gorm:"size:2048;not null;default:'';index:idx_identity_users_file_avatar_url,where:avatar_url LIKE 'file:%';comment:头像地址"`
 	Email                 string     `gorm:"size:128;not null;default:'';index:idx_identity_users_email;comment:邮箱"`
 	Phone                 string     `gorm:"size:32;not null;default:'';index:idx_identity_users_phone;comment:手机号"`
 	Role                  string     `gorm:"size:32;not null;default:'user';index:idx_identity_users_role;comment:角色(superadmin/admin/user)"`

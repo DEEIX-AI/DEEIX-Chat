@@ -111,6 +111,7 @@ func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
 		BaseModel:           model.BaseModel{CreatedAt: now.Add(-time.Hour)},
 		UserID:              1,
 		PlatformModelName:   "gpt-before",
+		BillingAt:           now.Add(-time.Hour),
 		UsageDate:           now.Add(-time.Hour),
 		BilledCurrency:      "USD",
 		BilledNanousd:       800,
@@ -122,6 +123,7 @@ func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
 	usage := &domainbilling.UsageLedger{
 		UserID:              1,
 		PlatformModelName:   "gpt-current",
+		BillingAt:           now,
 		UsageDate:           now,
 		BilledCurrency:      "USD",
 		BilledNanousd:       500,
@@ -166,10 +168,72 @@ func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
 	if covered != 200 || overage != 300 {
 		t.Fatalf("snapshot split = covered %d overage %d, want 200/300", covered, overage)
 	}
-	debited := int64(snapshot["period_balance_debited_nanousd"].(float64))
+	charged := int64(snapshot["period_balance_charged_nanousd"].(float64))
 	delta := int64(snapshot["period_balance_settlement_delta_nanousd"].(float64))
-	if debited != 300 || delta != 300 {
-		t.Fatalf("snapshot balance = debit %d delta %d, want 300/300", debited, delta)
+	if charged != 300 || delta != 300 {
+		t.Fatalf("snapshot balance = charged %d delta %d, want 300/300", charged, delta)
+	}
+}
+
+func TestAddPeriodUsageAndSettleOverageUsesBillingAtForPeriodBoundary(t *testing.T) {
+	db := openBillingSQLiteTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	periodStart := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	periodEnd := periodStart.AddDate(0, 1, 0)
+	createdInside := periodStart.Add(5 * time.Second)
+	billedOutside := periodStart.Add(-2 * time.Second)
+
+	account := model.BillingAccount{
+		UserID:         1,
+		Currency:       "USD",
+		BalanceNanousd: 500,
+		Status:         "active",
+	}
+	if err := db.Create(&account).Error; err != nil {
+		t.Fatalf("create billing account: %v", err)
+	}
+	if err := db.Create(&model.UsageLedger{
+		BaseModel:           model.BaseModel{CreatedAt: createdInside},
+		UserID:              1,
+		PlatformModelName:   "gpt-previous-period",
+		BillingAt:           billedOutside,
+		UsageDate:           billedOutside,
+		BilledCurrency:      "USD",
+		BilledNanousd:       800,
+		PricingSnapshotJSON: `{}`,
+	}).Error; err != nil {
+		t.Fatalf("create previous period usage: %v", err)
+	}
+
+	total, err := repo.SumBillableNanousd(ctx, 1, periodStart, periodEnd)
+	if err != nil {
+		t.Fatalf("SumBillableNanousd() error = %v", err)
+	}
+	if total != 0 {
+		t.Fatalf("period total = %d, want 0", total)
+	}
+
+	usage := &domainbilling.UsageLedger{
+		UserID:              1,
+		PlatformModelName:   "gpt-current-period",
+		BillingAt:           periodStart.Add(time.Hour),
+		UsageDate:           periodStart,
+		BilledCurrency:      "USD",
+		BilledNanousd:       500,
+		PricingSnapshotJSON: `{}`,
+	}
+	err = repo.AddPeriodUsageAndSettleOverage(ctx, usage, periodStart, periodEnd, 1000, nil)
+	if err != nil {
+		t.Fatalf("AddPeriodUsageAndSettleOverage() error = %v", err)
+	}
+
+	var refreshed model.BillingAccount
+	if err := db.Where("user_id = ?", 1).First(&refreshed).Error; err != nil {
+		t.Fatalf("load billing account: %v", err)
+	}
+	if refreshed.BalanceNanousd != 500 {
+		t.Fatalf("balance = %d, want unchanged 500", refreshed.BalanceNanousd)
 	}
 }
 

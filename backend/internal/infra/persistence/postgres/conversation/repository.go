@@ -715,7 +715,7 @@ func ensureFileObjectUnreferencedByActiveConversations(tx *gorm.DB, userID uint,
 func ensureFileObjectUnreferencedByUserAvatars(tx *gorm.DB, fileID string) error {
 	var activeReferences int64
 	if err := tx.Model(&models.User{}).
-		Where("avatar_url = ?", domainuser.BuildFileAvatarURL(fileID)).
+		Where("avatar_url LIKE 'file:%' AND avatar_url = ?", domainuser.BuildFileAvatarURL(fileID)).
 		Count(&activeReferences).Error; err != nil {
 		return translateError(err)
 	}

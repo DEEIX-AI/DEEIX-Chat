@@ -204,6 +204,7 @@ type UsageLogResponse struct {
 	RoutedBindingCode   string    `json:"routedBindingCode"`
 	UpstreamModelName   string    `json:"upstreamModelName"`
 	IsFreeModel         bool      `json:"isFreeModel"`
+	BillingAt           time.Time `json:"billingAt"`
 	UsageDate           time.Time `json:"usageDate"`
 	InputTokens         int64     `json:"inputTokens"`
 	CacheReadTokens     int64     `json:"cacheReadTokens"`
@@ -526,6 +527,7 @@ func toUsageLogResponse(item domainbilling.UsageLedger, label appadmin.UserLabel
 		RoutedBindingCode:   item.RoutedBindingCode,
 		UpstreamModelName:   item.UpstreamModelName,
 		IsFreeModel:         item.IsFreeModel,
+		BillingAt:           item.BillingAt,
 		UsageDate:           item.UsageDate,
 		InputTokens:         item.InputTokens,
 		CacheReadTokens:     item.CacheReadTokens,

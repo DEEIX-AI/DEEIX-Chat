@@ -237,6 +237,7 @@ func (s *Service) sendMessageInternal(
 				AssistantMessage: *assistantMessage,
 				Billable:         false,
 				LatencyMS:        latencyMS,
+				StartedAt:        startedAt,
 			}
 			if resolvedRoute != nil {
 				result.UpstreamID = resolvedRoute.UpstreamID
@@ -1346,5 +1347,6 @@ func (s *Service) sendMessageInternal(
 		CacheWrite1hTokens:  totalUsage.CacheWrite1hTokens,
 		ServerSideToolUsage: totalServerSideToolUsage,
 		LatencyMS:           time.Since(startedAt).Milliseconds(),
+		StartedAt:           startedAt,
 	}, nil
 }

@@ -236,8 +236,19 @@ func applyLLMBaselineIndexes(db *gorm.DB) error {
 
 func applyBillingBaselineIndexes(db *gorm.DB) error {
 	statements := []string{
+		`ALTER TABLE "billing_usage_ledgers"
+		ADD COLUMN IF NOT EXISTS "billing_at" timestamptz`,
+		`UPDATE "billing_usage_ledgers"
+		SET "billing_at" = "created_at"
+		WHERE "billing_at" IS NULL`,
+		`ALTER TABLE "billing_usage_ledgers"
+		ALTER COLUMN "billing_at" SET NOT NULL`,
+		`COMMENT ON COLUMN "billing_usage_ledgers"."billing_at" IS '计费归属时间'`,
 		`CREATE INDEX IF NOT EXISTS idx_billing_usage_ledgers_user_date_model
 		ON "billing_usage_ledgers" ("user_id", "usage_date", "platform_model_name")`,
+		`CREATE INDEX IF NOT EXISTS idx_billing_usage_ledgers_user_billing_billable
+		ON "billing_usage_ledgers" ("user_id", "billing_at")
+		WHERE is_free_model = FALSE`,
 		`CREATE INDEX IF NOT EXISTS idx_billing_usage_ledgers_user_created_billable
 		ON "billing_usage_ledgers" ("user_id", "created_at")
 		WHERE is_free_model = FALSE`,
@@ -300,6 +311,9 @@ func applyIdentityBaselineConstraints(db *gorm.DB) error {
 		`ALTER TABLE "identity_users"
 		ADD COLUMN IF NOT EXISTS "appearance_preferences" text NOT NULL DEFAULT ''`,
 		`COMMENT ON COLUMN "identity_users"."appearance_preferences" IS '外观偏好JSON'`,
+		`CREATE INDEX IF NOT EXISTS idx_identity_users_file_avatar_url
+		ON "identity_users" ("avatar_url")
+		WHERE "avatar_url" LIKE 'file:%'`,
 		`DROP INDEX IF EXISTS uk_identity_users_single_superadmin`,
 	}
 	for _, statement := range statements {

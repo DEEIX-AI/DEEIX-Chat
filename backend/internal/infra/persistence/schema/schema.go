@@ -67,7 +67,19 @@ func Migrate(db *gorm.DB) error {
 			return err
 		}
 	}
-	return db.AutoMigrate(Models()...)
+	if err := db.AutoMigrate(Models()...); err != nil {
+		return err
+	}
+	return backfillUsageLedgerBillingAt(db)
+}
+
+func backfillUsageLedgerBillingAt(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&model.UsageLedger{}) || !db.Migrator().HasColumn(&model.UsageLedger{}, "billing_at") {
+		return nil
+	}
+	return db.Model(&model.UsageLedger{}).
+		Where("billing_at IS NULL").
+		Update("billing_at", gorm.Expr("created_at")).Error
 }
 
 // CleanupRemovedColumns drops columns that were removed from the Gorm models.

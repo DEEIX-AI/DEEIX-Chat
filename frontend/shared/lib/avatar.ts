@@ -106,39 +106,15 @@ export function createGithubStyleAvatar(seed: string, variant: number) {
     grid[row][gridSize - 1 - column] = filled;
   };
 
-  const countNeighbors = (row: number, column: number, source: boolean[][]) => {
-    let count = 0;
-    for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
-      for (let columnOffset = -1; columnOffset <= 1; columnOffset += 1) {
-        if (rowOffset === 0 && columnOffset === 0) {
-          continue;
-        }
-        if (source[row + rowOffset]?.[column + columnOffset]) {
-          count += 1;
-        }
-      }
-    }
-    return count;
-  };
+  const mirroredCellWeight = (column: number) => (column === Math.floor(gridSize / 2) ? 1 : 2);
 
   for (let row = 0; row < gridSize; row += 1) {
     for (let column = 0; column < Math.ceil(gridSize / 2); column += 1) {
-      const columnBias = [42, 56, 70][column] ?? 56;
-      const rowBias = [0, 8, 12, 8, 0][row] ?? 0;
+      const columnBias = [34, 30, 28][column] ?? 30;
+      const rowBias = [0, 2, 4, 2, 0][row] ?? 0;
       setMirroredCell(row, column, nextValue() % 100 < columnBias + rowBias);
     }
   }
-
-  grid = grid.map((rowCells, row) =>
-    rowCells.map((filled, column) => {
-      const neighbors = countNeighbors(row, column, grid);
-      if (filled) {
-        return neighbors > 0;
-      }
-
-      return neighbors >= 4;
-    }),
-  );
 
   const countFilledCells = () => {
     let count = 0;
@@ -152,25 +128,34 @@ export function createGithubStyleAvatar(seed: string, variant: number) {
     return count;
   };
 
-  const fillOrder = [
-    [2, 2],
-    [1, 2],
-    [3, 2],
-    [2, 1],
-    [2, 3],
-    [1, 1],
-    [1, 3],
-    [3, 1],
-    [3, 3],
-    [0, 2],
-    [4, 2],
-  ];
+  const shuffledMirroredCells = Array.from({ length: gridSize * Math.ceil(gridSize / 2) }, (_, index) => [
+    Math.floor(index / Math.ceil(gridSize / 2)),
+    index % Math.ceil(gridSize / 2),
+  ] as const);
 
-  for (const [row, column] of fillOrder) {
-    if (countFilledCells() >= 10) {
+  for (let index = shuffledMirroredCells.length - 1; index > 0; index -= 1) {
+    const swapIndex = nextValue() % (index + 1);
+    const current = shuffledMirroredCells[index];
+    shuffledMirroredCells[index] = shuffledMirroredCells[swapIndex];
+    shuffledMirroredCells[swapIndex] = current;
+  }
+
+  for (const [row, column] of shuffledMirroredCells) {
+    if (countFilledCells() >= 8) {
       break;
     }
-    setMirroredCell(row, column, true);
+    if (!grid[row][column]) {
+      setMirroredCell(row, column, true);
+    }
+  }
+
+  for (const [row, column] of shuffledMirroredCells) {
+    if (countFilledCells() <= 11) {
+      break;
+    }
+    if (grid[row][column] && countFilledCells() - mirroredCellWeight(column) >= 8) {
+      setMirroredCell(row, column, false);
+    }
   }
 
   for (let row = 0; row < gridSize; row += 1) {

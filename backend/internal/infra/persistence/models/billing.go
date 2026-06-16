@@ -200,7 +200,7 @@ func (ModelPricing) TableName() string {
 // UsageLedger 记录每日消费与Token使用量，保留计费快照用于审计追溯。
 type UsageLedger struct {
 	BaseModel
-	UserID              uint      `gorm:"not null;index:idx_billing_usage_ledgers_user_id;index:idx_billing_usage_ledgers_user_date,priority:1;comment:用户ID"`
+	UserID              uint      `gorm:"not null;index:idx_billing_usage_ledgers_user_id;index:idx_billing_usage_ledgers_user_date,priority:1;index:idx_billing_usage_ledgers_user_billing_at,priority:1;comment:用户ID"`
 	ConversationID      uint      `gorm:"not null;index:idx_billing_usage_ledgers_conversation_id;comment:会话ID"`
 	ProviderProtocol    string    `gorm:"size:64;not null;default:'';index:idx_billing_usage_ledgers_provider_protocol;comment:协议适配器快照"`
 	UpstreamName        string    `gorm:"size:128;not null;default:'';comment:上游名称"`
@@ -208,6 +208,7 @@ type UsageLedger struct {
 	RoutedBindingCode   string    `gorm:"size:64;not null;default:'';index:idx_billing_usage_ledgers_routed_binding_code;comment:实际路由上游模型绑定编码"`
 	UpstreamModelName   string    `gorm:"size:256;not null;default:'';comment:上游真实模型名"`
 	IsFreeModel         bool      `gorm:"not null;default:false;index:idx_billing_usage_ledgers_is_free_model;comment:是否免费模型用量"`
+	BillingAt           time.Time `gorm:"index:idx_billing_usage_ledgers_billing_at;index:idx_billing_usage_ledgers_user_billing_at,priority:2;comment:计费归属时间"`
 	UsageDate           time.Time `gorm:"type:date;not null;index:idx_billing_usage_ledgers_usage_date;index:idx_billing_usage_ledgers_user_date,priority:2;comment:消费日期"`
 	InputTokens         int64     `gorm:"not null;default:0;comment:输入Token"`
 	CacheReadTokens     int64     `gorm:"not null;default:0;comment:缓存读取Token"`

@@ -252,6 +252,7 @@ type UsageLedgerResponse struct {
 	ModelVendor         string    `json:"modelVendor"`
 	ModelIcon           string    `json:"modelIcon"`
 	IsFreeModel         bool      `json:"isFreeModel"`
+	BillingAt           time.Time `json:"billingAt"`
 	UsageDate           time.Time `json:"usageDate"`
 	InputTokens         int64     `json:"inputTokens"`
 	CacheReadTokens     int64     `json:"cacheReadTokens"`
@@ -904,6 +905,7 @@ func toUsageLedgerResponse(u domainbilling.UsageLedger) UsageLedgerResponse {
 		ModelVendor:         snapshotIdentity.ModelVendor,
 		ModelIcon:           snapshotIdentity.ModelIcon,
 		IsFreeModel:         u.IsFreeModel,
+		BillingAt:           u.BillingAt,
 		UsageDate:           u.UsageDate,
 		InputTokens:         u.InputTokens,
 		CacheReadTokens:     u.CacheReadTokens,

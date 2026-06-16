@@ -123,7 +123,7 @@ func (s *Service) ListRedemptionCodes(ctx context.Context, input RedemptionCodeL
 		if currentMode != domainbilling.RedemptionCodeModeUsage && currentMode != domainbilling.RedemptionCodeModePeriod {
 			return []RedemptionCodeView{}, 0, nil
 		}
-		if mode != "" && !redemptionCodeModeAvailableInBillingMode(mode, currentMode) {
+		if mode != "" && !domainbilling.RedemptionCodeModeAvailableInBillingMode(mode, currentMode) {
 			return []RedemptionCodeView{}, 0, nil
 		}
 		if mode == "" {
@@ -136,7 +136,7 @@ func (s *Service) ListRedemptionCodes(ctx context.Context, input RedemptionCodeL
 	}
 	modes := []string(nil)
 	if availability == "available" && mode == "" {
-		modes = redemptionCodeModesAvailableInBillingMode(currentMode)
+		modes = domainbilling.RedemptionCodeModesAvailableInBillingMode(currentMode)
 	}
 	items, total, err := s.repo.ListRedemptionCodes(ctx, repository.RedemptionCodeListFilter{
 		Mode:         mode,
@@ -522,33 +522,6 @@ func normalizeRedemptionMode(value string) string {
 		return domainbilling.RedemptionCodeModePeriod
 	default:
 		return ""
-	}
-}
-
-func redemptionCodeModeAvailableInBillingMode(codeMode string, billingMode string) bool {
-	switch strings.TrimSpace(billingMode) {
-	case domainbilling.RedemptionCodeModeUsage:
-		return strings.TrimSpace(codeMode) == domainbilling.RedemptionCodeModeUsage
-	case domainbilling.RedemptionCodeModePeriod:
-		switch strings.TrimSpace(codeMode) {
-		case domainbilling.RedemptionCodeModeUsage, domainbilling.RedemptionCodeModePeriod:
-			return true
-		default:
-			return false
-		}
-	default:
-		return false
-	}
-}
-
-func redemptionCodeModesAvailableInBillingMode(billingMode string) []string {
-	switch strings.TrimSpace(billingMode) {
-	case domainbilling.RedemptionCodeModeUsage:
-		return []string{domainbilling.RedemptionCodeModeUsage}
-	case domainbilling.RedemptionCodeModePeriod:
-		return []string{domainbilling.RedemptionCodeModeUsage, domainbilling.RedemptionCodeModePeriod}
-	default:
-		return nil
 	}
 }
 

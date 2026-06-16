@@ -638,6 +638,7 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 	}
 	settledSnapshotJSON := ""
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 余额账户行锁是周期额度结算的串行化锚点，确保同一用户并发请求按提交顺序重算已用额度。
 		account, err := getOrCreateBillingAccountForUpdate(tx, usage.UserID)
 		if err != nil {
 			return err
@@ -646,7 +647,7 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 		var usedBeforeNanousd int64
 		if err = tx.Model(&model.UsageLedger{}).
 			Select("COALESCE(SUM(billed_nanousd), 0)").
-			Where("user_id = ? AND is_free_model = ? AND created_at >= ? AND created_at < ?", usage.UserID, false, periodStart, periodEnd).
+			Where("user_id = ? AND is_free_model = ? AND billing_at >= ? AND billing_at < ?", usage.UserID, false, periodStart, periodEnd).
 			Scan(&usedBeforeNanousd).Error; err != nil {
 			return translateError(err)
 		}
@@ -680,7 +681,7 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 			"period_used_after_nanousd":               usedBeforeNanousd + chargeNanousd,
 			"period_credit_covered_nanousd":           coveredNanousd,
 			"period_overage_billed_nanousd":           overageNanousd,
-			"period_balance_debited_nanousd":          overageNanousd,
+			"period_balance_charged_nanousd":          overageNanousd,
 			"period_balance_reserved_nanousd":         reservedNanousd,
 			"period_balance_settlement_delta_nanousd": deltaNanousd,
 		})
@@ -1843,7 +1844,7 @@ func (r *Repo) SumBillableNanousd(ctx context.Context, userID uint, startAt time
 	err := r.db.WithContext(ctx).
 		Model(&model.UsageLedger{}).
 		Select("COALESCE(SUM(billed_nanousd), 0)").
-		Where("user_id = ? AND is_free_model = ? AND created_at >= ? AND created_at < ?", userID, false, startAt, endAt).
+		Where("user_id = ? AND is_free_model = ? AND billing_at >= ? AND billing_at < ?", userID, false, startAt, endAt).
 		Scan(&total).Error
 	if err != nil {
 		return 0, translateError(err)
@@ -1909,6 +1910,7 @@ func toModelUsageLedger(usage *domainbilling.UsageLedger) model.UsageLedger {
 		RoutedBindingCode:   usage.RoutedBindingCode,
 		UpstreamModelName:   usage.UpstreamModelName,
 		IsFreeModel:         usage.IsFreeModel,
+		BillingAt:           usage.BillingAt,
 		UsageDate:           usage.UsageDate,
 		InputTokens:         usage.InputTokens,
 		CacheReadTokens:     usage.CacheReadTokens,
@@ -1939,6 +1941,7 @@ func toDomainUsageLedger(item model.UsageLedger) domainbilling.UsageLedger {
 		RoutedBindingCode:   item.RoutedBindingCode,
 		UpstreamModelName:   item.UpstreamModelName,
 		IsFreeModel:         item.IsFreeModel,
+		BillingAt:           item.BillingAt,
 		UsageDate:           item.UsageDate,
 		InputTokens:         item.InputTokens,
 		CacheReadTokens:     item.CacheReadTokens,
@@ -2063,7 +2066,7 @@ func toDomainRedemption(item model.Redemption) domainbilling.Redemption {
 
 func validateRedeemableCode(tx *gorm.DB, code model.RedemptionCode, userID uint, currentMode string, now time.Time) error {
 	if code.Status != domainbilling.RedemptionCodeStatusActive ||
-		!redemptionCodeModeAvailableInBillingMode(code.Mode, currentMode) ||
+		!domainbilling.RedemptionCodeModeAvailableInBillingMode(code.Mode, currentMode) ||
 		(code.ExpiresAt != nil && !code.ExpiresAt.After(now)) {
 		return repository.ErrRedemptionUnavailable
 	}
@@ -2674,22 +2677,6 @@ func normalizeRedemptionMode(value string) string {
 		return domainbilling.RedemptionCodeModePeriod
 	default:
 		return domainbilling.RedemptionCodeModeUsage
-	}
-}
-
-func redemptionCodeModeAvailableInBillingMode(codeMode string, billingMode string) bool {
-	switch strings.TrimSpace(billingMode) {
-	case domainbilling.RedemptionCodeModeUsage:
-		return strings.TrimSpace(codeMode) == domainbilling.RedemptionCodeModeUsage
-	case domainbilling.RedemptionCodeModePeriod:
-		switch strings.TrimSpace(codeMode) {
-		case domainbilling.RedemptionCodeModeUsage, domainbilling.RedemptionCodeModePeriod:
-			return true
-		default:
-			return false
-		}
-	default:
-		return false
 	}
 }
 
