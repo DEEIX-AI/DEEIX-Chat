@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google";
 
 import { ChatFontProvider } from "@/features/layouts/components/providers/chat-font-provider";
 import { AppVersionGuard } from "@/features/layouts/components/providers/app-version-guard";
@@ -24,6 +24,11 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-mono",
+  subsets: ["latin"],
+});
+
+const jetBrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
 
@@ -70,7 +75,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} h-full min-h-svh overflow-hidden antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${jetBrainsMono.variable} h-full min-h-svh overflow-hidden antialiased`}
       >
         <AppI18nProvider>
           <ThemeProvider>

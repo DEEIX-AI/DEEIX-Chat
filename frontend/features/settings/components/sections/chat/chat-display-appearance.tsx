@@ -22,7 +22,7 @@ const CHAT_FONT_OPTIONS: ChatFontPreview[] = [
   { label: "Default", value: "default", fontFamily: "var(--font-sans)", sampleText: "Aa" },
   { label: "Serif", value: "songti", fontFamily: "var(--font-songti)", sampleText: "Aa" },
   { label: "Sans", value: "heiti", fontFamily: "var(--font-heiti)", sampleText: "Aa" },
-  { label: "Mono", value: "mono", fontFamily: "var(--font-mono)", sampleText: "Aa" },
+  { label: "Mono", value: "mono", fontFamily: "var(--font-jetbrains-mono)", sampleText: "Aa" },
 ];
 
 const CHAT_FONT_WEIGHT_OPTIONS: ChatFontWeightPreview[] = [

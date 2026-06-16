@@ -344,13 +344,13 @@ export function JsonCodeEditor({
     <div
       id={id}
       className={cn(
-        "relative resize-y overflow-hidden rounded-md border border-input bg-background text-xs shadow-sm focus-within:border-ring/60 focus-within:ring-[1px] focus-within:ring-ring/40",
+        "relative resize-y overflow-hidden rounded-md border border-input/40 bg-transparent text-xs shadow-none transition-[color,box-shadow] focus-within:border-ring/60 focus-within:ring-[1px] focus-within:ring-ring/40 dark:bg-input/30",
         disabled && "opacity-60",
         className,
       )}
       style={{ height }}
     >
-      <div className="flex h-8 items-center justify-between border-b bg-muted/30 px-2">
+      <div className="flex h-8 items-center justify-between border-b border-input/40 bg-muted/25 px-2">
         <span className="font-mono text-[11px] text-muted-foreground">JSON</span>
         <div className="flex items-center gap-2">
           {!loading && markerCount > 0 ? (

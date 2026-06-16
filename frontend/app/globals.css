@@ -1105,7 +1105,7 @@
 }
 
 :root[data-chat-font="mono"] {
-  --font-chat: var(--font-mono);
+  --font-chat: var(--font-jetbrains-mono);
 }
 
 :root[data-chat-font-weight="medium"] {
