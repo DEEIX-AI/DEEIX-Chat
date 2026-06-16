@@ -311,6 +311,9 @@ func applyIdentityBaselineConstraints(db *gorm.DB) error {
 		`ALTER TABLE "identity_users"
 		ADD COLUMN IF NOT EXISTS "appearance_preferences" text NOT NULL DEFAULT ''`,
 		`COMMENT ON COLUMN "identity_users"."appearance_preferences" IS '外观偏好JSON'`,
+		`CREATE INDEX IF NOT EXISTS idx_identity_users_file_avatar_url
+		ON "identity_users" ("avatar_url")
+		WHERE "avatar_url" LIKE 'file:%'`,
 		`DROP INDEX IF EXISTS uk_identity_users_single_superadmin`,
 	}
 	for _, statement := range statements {
