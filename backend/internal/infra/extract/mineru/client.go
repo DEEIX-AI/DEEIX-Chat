@@ -369,10 +369,10 @@ func (c *Client) createBatch(ctx context.Context, req Request) (string, string, 
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 2*1024*1024)).Decode(&parsed); err != nil {
 		return "", "", fmt.Errorf("mineru_invalid_response")
 	}
-	if strings.TrimSpace(parsed.Data.BatchID) == "" || len(parsed.Data.FileURLs) == 0 || strings.TrimSpace(parsed.Data.FileURLs[0].UploadURL) == "" {
+	if strings.TrimSpace(parsed.Data.BatchID) == "" || len(parsed.Data.FileURLs) == 0 || strings.TrimSpace(parsed.Data.FileURLs[0]) == "" {
 		return "", "", fmt.Errorf("mineru_invalid_response")
 	}
-	return strings.TrimSpace(parsed.Data.BatchID), strings.TrimSpace(parsed.Data.FileURLs[0].UploadURL), nil
+	return strings.TrimSpace(parsed.Data.BatchID), strings.TrimSpace(parsed.Data.FileURLs[0]), nil
 }
 
 func (c *Client) uploadFile(ctx context.Context, uploadURL string, absolutePath string) error {
@@ -446,20 +446,27 @@ func (c *Client) pollBatch(ctx context.Context, batchID string) (string, error) 
 		}
 
 		state := strings.ToLower(strings.TrimSpace(parsed.Data.State))
+		var item batchResultItem
+		if len(parsed.Data.ExtractResult) > 0 {
+			item = parsed.Data.ExtractResult[0]
+			if itemState := strings.ToLower(strings.TrimSpace(item.State)); itemState != "" {
+				state = itemState
+			}
+		}
 		switch state {
 		case "done", "success", "completed":
 			if len(parsed.Data.ExtractResult) == 0 {
 				return "", fmt.Errorf("mineru_invalid_response")
 			}
-			zipURL := strings.TrimSpace(parsed.Data.ExtractResult[0].FullZipURL)
+			zipURL := strings.TrimSpace(item.FullZipURL)
 			if zipURL == "" {
 				return "", fmt.Errorf("mineru_invalid_response")
 			}
 			return zipURL, nil
 		case "failed", "error":
 			detail := strings.TrimSpace(parsed.Data.ErrMsg)
-			if detail == "" && len(parsed.Data.ExtractResult) > 0 {
-				detail = strings.TrimSpace(parsed.Data.ExtractResult[0].ErrMsg)
+			if detail == "" {
+				detail = strings.TrimSpace(item.ErrMsg)
 			}
 			if detail == "" {
 				return "", fmt.Errorf("mineru_failed")
@@ -663,10 +670,8 @@ func awaitMultipartWriteError(errCh <-chan error) error {
 
 type batchCreateResponse struct {
 	Data struct {
-		BatchID  string `json:"batch_id"`
-		FileURLs []struct {
-			UploadURL string `json:"upload_url"`
-		} `json:"file_urls"`
+		BatchID  string   `json:"batch_id"`
+		FileURLs []string `json:"file_urls"`
 	} `json:"data"`
 }
 
@@ -689,11 +694,14 @@ func (r selfHostedResponse) firstMarkdown() string {
 
 type batchResultResponse struct {
 	Data struct {
-		State         string `json:"state"`
-		ErrMsg        string `json:"err_msg"`
-		ExtractResult []struct {
-			ErrMsg     string `json:"err_msg"`
-			FullZipURL string `json:"full_zip_url"`
-		} `json:"extract_result"`
+		State         string            `json:"state"`
+		ErrMsg        string            `json:"err_msg"`
+		ExtractResult []batchResultItem `json:"extract_result"`
 	} `json:"data"`
+}
+
+type batchResultItem struct {
+	State      string `json:"state"`
+	ErrMsg     string `json:"err_msg"`
+	FullZipURL string `json:"full_zip_url"`
 }

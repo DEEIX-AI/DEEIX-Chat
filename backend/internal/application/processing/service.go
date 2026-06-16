@@ -20,7 +20,7 @@ const (
 	DefaultExtractorVersion  = "file-pipeline-v1"
 	fileProcessingMaxRetries = 3
 	defaultProcessingPreview = 280
-	fixedExtractTimeout      = 60 * time.Second
+	defaultExtractTimeout    = 60 * time.Second
 	fixedEmbeddingTimeout    = 5 * time.Minute
 	failurePersistTimeout    = 5 * time.Second
 )
@@ -200,7 +200,9 @@ func (s *Service) ProcessFile(ctx context.Context, userID uint, fileID string) e
 		return nil
 	}
 
-	runCtx, cancel := context.WithTimeout(ctx, fixedExtractTimeout+fixedEmbeddingTimeout)
+	cfg := s.snapshot()
+	extractTimeout := resolveProcessingExtractTimeout(cfg, fileObj.FileCategory)
+	runCtx, cancel := context.WithTimeout(ctx, extractTimeout+fixedEmbeddingTimeout)
 	defer cancel()
 
 	startedAt := time.Now()
@@ -221,7 +223,7 @@ func (s *Service) ProcessFile(ctx context.Context, userID uint, fileID string) e
 		return err
 	}
 
-	extractCtx, extractCancel := context.WithTimeout(runCtx, fixedExtractTimeout)
+	extractCtx, extractCancel := context.WithTimeout(runCtx, extractTimeout)
 	extractResult, extractErr := s.extractTextForProcessing(extractCtx, *fileObj)
 	extractCancel()
 	if extractErr != nil {
@@ -640,6 +642,65 @@ func (s *Service) snapshot() config.Config {
 		return config.Config{}
 	}
 	return s.cfg.Snapshot()
+}
+
+func resolveProcessingExtractTimeout(cfg config.Config, fileCategory string) time.Duration {
+	primaryTimeout := resolvePrimaryExtractTimeout(cfg)
+	ocrTimeout := resolveOCRExtractTimeout(cfg)
+
+	switch strings.ToLower(strings.TrimSpace(fileCategory)) {
+	case "image":
+		if cfg.ExtractImageOCREnabled {
+			return ocrTimeout
+		}
+	case "pdf":
+		if cfg.ExtractPDFOCRFallbackEnabled {
+			return primaryTimeout + ocrTimeout
+		}
+	}
+	return primaryTimeout
+}
+
+func resolvePrimaryExtractTimeout(cfg config.Config) time.Duration {
+	timeoutSeconds := 0
+	switch strings.ToLower(strings.TrimSpace(cfg.ExtractEngine)) {
+	case extraction.EngineTika:
+		timeoutSeconds = cfg.ExtractTikaTimeoutSeconds
+	case extraction.EngineDocling:
+		timeoutSeconds = cfg.ExtractDoclingTimeoutSeconds
+	case extraction.EngineMinerU:
+		timeoutSeconds = cfg.ExtractMinerUTimeoutSeconds
+	default:
+		timeoutSeconds = int(defaultExtractTimeout / time.Second)
+	}
+	if timeoutSeconds <= 0 {
+		return defaultExtractTimeout
+	}
+	return time.Duration(timeoutSeconds) * time.Second
+}
+
+func resolveOCRExtractTimeout(cfg config.Config) time.Duration {
+	timeoutSeconds := 0
+	switch strings.ToLower(strings.TrimSpace(cfg.ExtractOCREngine)) {
+	case extraction.OCREngineTesseract:
+		timeoutSeconds = cfg.ExtractTesseractOCRTimeoutSeconds
+	case extraction.OCREngineRapidOCR:
+		timeoutSeconds = cfg.ExtractRapidOCRTimeoutSeconds
+	case extraction.OCREnginePaddle:
+		timeoutSeconds = cfg.ExtractPaddleOCRTimeoutSeconds
+	case extraction.OCREngineTencent:
+		timeoutSeconds = cfg.ExtractTencentOCRTimeoutSeconds
+	case extraction.OCREngineAliyun:
+		timeoutSeconds = cfg.ExtractAliyunOCRTimeoutSeconds
+	case extraction.OCREngineLLM:
+		timeoutSeconds = cfg.ExtractLLMOCRTimeoutSeconds
+	default:
+		timeoutSeconds = int(defaultExtractTimeout / time.Second)
+	}
+	if timeoutSeconds <= 0 {
+		return defaultExtractTimeout
+	}
+	return time.Duration(timeoutSeconds) * time.Second
 }
 
 func (s *Service) version() string {
