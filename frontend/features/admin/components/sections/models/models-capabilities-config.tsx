@@ -77,6 +77,7 @@ type ParameterRow = {
   type: CapabilityControlType;
   options: string;
   defaultValue: string;
+  locked: boolean;
 };
 
 type NativeToolOption = {
@@ -90,7 +91,7 @@ type NativeToolOption = {
   protocols: string[];
 };
 
-type CapabilityRowErrors = Record<string, Partial<Record<"path" | "type" | "options", string>>>;
+type CapabilityRowErrors = Record<string, Partial<Record<"path" | "type" | "options" | "defaultValue", string>>>;
 
 type NativeToolRow = {
   id: string;
@@ -250,6 +251,17 @@ function buildDefaultOptions(rows: ParameterRow[]): Record<string, unknown> {
   return options;
 }
 
+function parseLockedOptionPaths(value: unknown): Set<string> {
+  if (!Array.isArray(value)) {
+    return new Set();
+  }
+  return new Set(
+    value
+      .map((item) => (typeof item === "string" ? optionPathSegments(item).join(".") : ""))
+      .filter(Boolean),
+  );
+}
+
 function normalizeControlType(value: unknown): CapabilityControlType {
   return CAPABILITY_CONTROL_TYPES.includes(value as CapabilityControlType)
     ? (value as CapabilityControlType)
@@ -289,11 +301,13 @@ function parseOptionControls(value: unknown): ParameterRow[] {
       type: normalizeControlType(item.type),
       options,
       defaultValue: "",
+      locked: false,
     }];
   });
 }
 
-function parseParameterRows(defaultOptions: unknown, optionControls: unknown): ParameterRow[] {
+function parseParameterRows(defaultOptions: unknown, optionControls: unknown, lockedOptionPaths: unknown): ParameterRow[] {
+  const lockedPaths = parseLockedOptionPaths(lockedOptionPaths);
   const defaultsByPath = new Map<string, { value: string; rawValue: unknown }>();
   flattenDefaultOptions(defaultOptions).forEach((item) => {
     defaultsByPath.set(item.path, { value: item.value, rawValue: item.rawValue });
@@ -304,6 +318,7 @@ function parseParameterRows(defaultOptions: unknown, optionControls: unknown): P
     return {
       ...row,
       defaultValue: defaultItem?.value ?? "",
+      locked: lockedPaths.has(row.path),
     };
   });
   defaultsByPath.forEach((item, path) => {
@@ -315,6 +330,7 @@ function parseParameterRows(defaultOptions: unknown, optionControls: unknown): P
       type: inferControlType(item.rawValue),
       options: "",
       defaultValue: item.value,
+      locked: lockedPaths.has(path),
     });
   });
   return rows;
@@ -361,6 +377,16 @@ function buildOptionControls(rows: ParameterRow[]): Record<string, unknown>[] {
   });
 }
 
+function buildLockedOptionPaths(rows: ParameterRow[]): string[] {
+  return Array.from(new Set(rows.flatMap((row) => {
+    if (!row.locked || !row.defaultValue.trim()) {
+      return [];
+    }
+    const path = optionPathSegments(row.path);
+    return path.length > 0 ? [path.join(".")] : [];
+  })));
+}
+
 function markDuplicatePathErrors<T extends { id: string; path: string }>(
   rows: T[],
   errors: CapabilityRowErrors,
@@ -395,6 +421,9 @@ function validateParameterRows(rows: ParameterRow[], t: (key: string) => string)
     }
     if (row.type === "select" && parseControlOptions(row.options).length === 0) {
       errors[row.id] = { ...(errors[row.id] ?? {}), options: t("sheet.capabilitiesQuick.selectOptionsRequired") };
+    }
+    if (row.locked && !row.defaultValue.trim()) {
+      errors[row.id] = { ...(errors[row.id] ?? {}), defaultValue: t("sheet.capabilitiesQuick.lockedDefaultRequired") };
     }
   });
   markDuplicatePathErrors(rows, errors, t("sheet.capabilitiesQuick.duplicatePath"));
@@ -859,6 +888,7 @@ function buildCapabilitiesJSON(
   }
   const defaultOptions = buildDefaultOptions(parameterRows);
   const optionControls = buildOptionControls(parameterRows);
+  const lockedOptionPaths = buildLockedOptionPaths(parameterRows);
   if (Object.keys(defaultOptions).length > 0) {
     payload.defaultOptions = defaultOptions;
   } else {
@@ -868,6 +898,11 @@ function buildCapabilitiesJSON(
     payload.optionControls = optionControls;
   } else {
     delete payload.optionControls;
+  }
+  if (lockedOptionPaths.length > 0) {
+    payload.lockedOptionPaths = lockedOptionPaths;
+  } else {
+    delete payload.lockedOptionPaths;
   }
   const nativeTools = buildNativeTools(nativeToolRows);
   if (nativeTools.length > 0) {
@@ -1071,7 +1106,7 @@ export function ModelCapabilitiesQuickConfig({
       toast.error(t("sheet.capabilitiesQuick.invalidJSON"));
       return false;
     }
-    setParameterRows(parseParameterRows(payload.defaultOptions, payload.optionControls));
+    setParameterRows(parseParameterRows(payload.defaultOptions, payload.optionControls, payload.lockedOptionPaths));
     const nextNativeToolRows = parseNativeToolRows(payload, nativeTools, routeProtocols);
     setNativeToolRows(nextNativeToolRows);
     setExpandedNativeToolID("");
@@ -1153,6 +1188,7 @@ export function ModelCapabilitiesQuickConfig({
       type: "text",
       options: "",
       defaultValue: "",
+      locked: false,
     }, ...prev]);
   }
 
@@ -1181,7 +1217,7 @@ export function ModelCapabilitiesQuickConfig({
       toast.error(t("sheet.capabilitiesQuick.invalidJSON"));
       return;
     }
-    setParameterRows(parseParameterRows(payload.defaultOptions, payload.optionControls));
+    setParameterRows(parseParameterRows(payload.defaultOptions, payload.optionControls, payload.lockedOptionPaths));
     setNativeToolRows(parseNativeToolRows(payload, nativeTools, routeProtocols));
     setExpandedNativeToolID("");
     setParameterErrors({});
@@ -1351,17 +1387,29 @@ export function ModelCapabilitiesQuickConfig({
                               />
                               {rowErrors.options ? <p className="truncate px-1 text-[10px] text-destructive">{rowErrors.options}</p> : null}
                             </label>
-                            <label className="min-w-0 space-y-1">
-                              <span className="block truncate px-1 text-[11px] text-muted-foreground">
-                                {t("sheet.capabilitiesQuick.defaultValueColumn")}
-                              </span>
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex min-w-0 items-center justify-between gap-2 px-1">
+                                <span className="min-w-0 truncate text-[11px] text-muted-foreground">
+                                  {t("sheet.capabilitiesQuick.defaultValueColumn")}
+                                </span>
+                                <label className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                                  <Checkbox
+                                    className="size-3.5"
+                                    checked={row.locked}
+                                    onCheckedChange={(checked) => updateParameterRow(row.id, { locked: checked === true })}
+                                  />
+                                  <span>{t("sheet.capabilitiesQuick.lockedColumn")}</span>
+                                </label>
+                              </div>
                               <Input
-                                className="h-8"
+                                aria-invalid={Boolean(rowErrors.defaultValue)}
+                                className={cn("h-8", rowErrors.defaultValue && "border-destructive focus-visible:ring-destructive/30")}
                                 value={row.defaultValue}
                                 placeholder={'"high", 0.7, true, null, {"key":"value"}'}
                                 onChange={(event) => updateParameterRow(row.id, { defaultValue: event.target.value })}
                               />
-                            </label>
+                              {rowErrors.defaultValue ? <p className="truncate px-1 text-[10px] text-destructive">{rowErrors.defaultValue}</p> : null}
+                            </div>
                           </div>
                           <Button
                             type="button"

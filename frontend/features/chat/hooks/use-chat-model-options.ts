@@ -214,12 +214,28 @@ function normalizeOptionControlOptions(value: unknown): string[] | undefined {
   return options.length > 0 ? options : undefined;
 }
 
+function resolveLockedOptionPaths(raw: string): string[] {
+  const parsed = parseJSONObject(raw);
+  const rawPaths = parsed?.lockedOptionPaths;
+  if (!Array.isArray(rawPaths)) {
+    return [];
+  }
+  return Array.from(
+    new Set(
+      rawPaths
+        .map((item) => normalizeOptionControlPath(item))
+        .filter(Boolean),
+    ),
+  );
+}
+
 function resolveOptionControls(raw: string): ModelOptionControl[] {
   const parsed = parseJSONObject(raw);
   const rawControls = parsed?.optionControls;
   if (!Array.isArray(rawControls)) {
     return [];
   }
+  const lockedPaths = new Set(resolveLockedOptionPaths(raw));
 
   const controls = rawControls.flatMap((item): ModelOptionControl[] => {
     if (item === null || Array.isArray(item) || typeof item !== "object") {
@@ -231,6 +247,9 @@ function resolveOptionControls(raw: string): ModelOptionControl[] {
       return [];
     }
     const control: ModelOptionControl = { path };
+    if (lockedPaths.has(path)) {
+      control.locked = true;
+    }
     const type = normalizeOptionControlType(source.type);
     const label = normalizeOptionControlString(source.label);
     const description = normalizeOptionControlString(source.description);
@@ -289,6 +308,7 @@ function toChatModelOption(item: PublicModelDTO): ChatModelOption {
     protocols: parseProtocolsJSON(item.protocolsJSON),
     defaultOptions: resolveDefaultOptions(item.capabilitiesJSON),
     optionControls: resolveOptionControls(item.capabilitiesJSON),
+    lockedOptionPaths: resolveLockedOptionPaths(item.capabilitiesJSON),
     nativeToolKeys: resolveNativeToolKeys(item.capabilitiesJSON),
     nativeTools: resolveNativeTools(item.capabilitiesJSON),
     pricing: item.pricing,

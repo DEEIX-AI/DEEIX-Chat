@@ -99,6 +99,41 @@ func TestFilterModelOptionsAppliesCapabilityDefaultOptions(t *testing.T) {
 	}
 }
 
+func TestFilterModelOptionsAppliesLockedCapabilityDefaultOptions(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"reasoning": map[string]interface{}{
+			"effort": "high",
+		},
+		"text": map[string]interface{}{
+			"verbosity": "high",
+		},
+	}, llm.AdapterOpenAIResponses, modelOptionPolicyConfig{
+		Mode:             modelOptionPolicyAllowlist,
+		AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+		ModelCapabilitiesJSON: `{
+			"defaultOptions": {
+				"reasoning": {"effort": "low"},
+				"text": {"verbosity": "low"},
+				"previous_response_id": "resp_blocked"
+			},
+			"lockedOptionPaths": ["reasoning.effort", "text.verbosity", "previous_response_id"]
+		}`,
+	})
+
+	reasoning := filtered["reasoning"].(map[string]interface{})
+	if reasoning["effort"] != "low" {
+		t.Fatalf("expected locked default reasoning effort to override explicit option, got %#v", reasoning)
+	}
+	text := filtered["text"].(map[string]interface{})
+	if text["verbosity"] != "low" {
+		t.Fatalf("expected locked default text verbosity to override explicit option, got %#v", text)
+	}
+	if _, ok := filtered["previous_response_id"]; ok {
+		t.Fatalf("expected hard-denied locked default option to be removed, got %#v", filtered)
+	}
+}
+
 func TestFilterModelOptionsOnlyInjectsDefaultToolsFromDefaultOptions(t *testing.T) {
 	allowedOnly := filterModelOptions(nil, llm.AdapterOpenAIResponses, modelOptionPolicyConfig{
 		Mode:                  modelOptionPolicyAllowlist,
@@ -126,6 +161,32 @@ func TestFilterModelOptionsOnlyInjectsDefaultToolsFromDefaultOptions(t *testing.
 	}
 	if tools[0]["type"] != "web_search_preview" || tools[0]["search_context_size"] != "low" {
 		t.Fatalf("expected default tool parameters to pass, got %#v", tools[0])
+	}
+}
+
+func TestFilterModelOptionsInjectsLockedDefaultToolsThroughCapabilities(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"tools": []interface{}{
+			map[string]interface{}{"type": "web_search_preview", "search_context_size": "high"},
+		},
+	}, llm.AdapterOpenAIResponses, modelOptionPolicyConfig{
+		Mode:             modelOptionPolicyAllowlist,
+		AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+		ModelCapabilitiesJSON: `{
+			"defaultOptions": {
+				"tools": [{"type": "web_search_preview", "search_context_size": "low"}]
+			},
+			"lockedOptionPaths": ["tools"]
+		}`,
+	})
+
+	tools, ok := filtered["tools"].([]map[string]interface{})
+	if !ok || len(tools) != 1 {
+		t.Fatalf("expected locked default tool to be injected through capabilities, got %#v", filtered)
+	}
+	if tools[0]["type"] != "web_search_preview" || tools[0]["search_context_size"] != "low" {
+		t.Fatalf("expected locked default tool to override explicit tool parameters, got %#v", tools[0])
 	}
 }
 

@@ -224,6 +224,7 @@ OCR 引擎配置由后台文件设置管理，当前支持 RapidOCR、Tesseract 
 模型能力 JSON 支持：
 
 - `defaultOptions`：写入用户侧默认参数 JSON，并作为请求参数来源。
+- `lockedOptionPaths`：声明不可由用户覆盖的参数路径；对应值仍从 `defaultOptions` 读取，后端发送前会恢复为管理员默认值。
 - `optionControls`：定义用户参数配置对话框的可视化控件，不会单独传给上游。
 - `nativeToolKeys`：定义当前模型允许的厂商官方原生工具，例如 OpenAI、xAI、Google 和 Anthropic 的原生搜索、代码执行或图片生成能力。
 - `image.stream`：仅对图像类模型能力生效；未配置时保持默认流式，显式写 `false` 时关闭图像流式调用。
