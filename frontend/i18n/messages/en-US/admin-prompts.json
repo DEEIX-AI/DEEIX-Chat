@@ -1,6 +1,11 @@
 {
   "title": "Prompt Library",
+  "types": {
+    "prompts": "Prompts",
+    "skills": "Skills"
+  },
   "create": "New",
+  "createSkill": "New Skill",
   "edit": "Edit",
   "delete": "Delete",
   "enable": "Enable",
@@ -9,16 +14,24 @@
   "save": "Save",
   "saving": "Saving",
   "searchPlaceholder": "Search name or content",
+  "skillsSearchPlaceholder": "Search skills",
   "createTitle": "New Built-in Prompt",
   "editTitle": "Edit Built-in Prompt",
   "dialogDescription": "A prompt maintained by the platform for quick insertion in chat. Users can view it only and cannot edit it.",
+  "createSkillTitle": "New Built-in Skill",
+  "editSkillTitle": "Edit Built-in Skill",
+  "skillDialogDescription": "A built-in skill is defined by one SKILL.md. When loaded, it is used only as context for the current turn and does not run commands.",
   "deleteTitle": "Delete Built-in Prompt",
   "deleteDescription": "The built-in prompt will no longer be shown to users. User custom prompts are not affected.",
+  "deleteSkillTitle": "Delete Built-in Skill",
+  "deleteSkillDescription": "The built-in skill will no longer be shown to users. User custom skills are not affected.",
   "empty": "No built-in prompts",
+  "skillsEmpty": "No built-in skills",
   "fields": {
     "name": "Name",
     "description": "Description",
     "content": "Content",
+    "skillMarkdown": "SKILL.md",
     "enabled": "Enabled",
     "createdAt": "Created",
     "updatedAt": "Updated"
@@ -26,12 +39,21 @@
   "toast": {
     "loadFailed": "Failed to load prompts",
     "invalid": "Enter a name and content.",
-    "tooLong": "Name can be up to 16 characters, description up to 64 characters, and content up to 16384 characters.",
+    "tooLong": "Name can be up to 64 characters, description up to 256 characters, and content up to 10000 characters.",
     "created": "Prompt created",
     "createFailed": "Failed to create prompt",
     "updated": "Prompt updated",
     "updateFailed": "Failed to update prompt",
     "deleted": "Prompt deleted",
-    "deleteFailed": "Failed to delete prompt"
+    "deleteFailed": "Failed to delete prompt",
+    "skillsLoadFailed": "Failed to load skills",
+    "skillInvalid": "Enter a name and SKILL.md.",
+    "skillTooLong": "Name can be up to 64 characters, description up to 256 characters, and SKILL.md up to 10000 characters.",
+    "skillCreated": "Skill created",
+    "skillCreateFailed": "Failed to create skill",
+    "skillUpdated": "Skill updated",
+    "skillUpdateFailed": "Failed to update skill",
+    "skillDeleted": "Skill deleted",
+    "skillDeleteFailed": "Failed to delete skill"
   }
 }

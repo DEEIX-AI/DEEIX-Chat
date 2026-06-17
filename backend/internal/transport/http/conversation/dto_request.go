@@ -87,6 +87,7 @@ type SendMessageRequest struct {
 	ClientRunID             string                 `json:"clientRunID" binding:"omitempty,max=64"`
 	FileIDs                 []string               `json:"fileIDs" binding:"max=20"`
 	SelectedToolIDs         []uint                 `json:"selectedToolIDs" binding:"max=128"`
+	SkillIDs                []uint                 `json:"skillIDs" binding:"max=128"`
 	HTMLVisualPromptEnabled bool                   `json:"htmlVisualPrompt"`
 	HTMLVisualColorMode     string                 `json:"htmlVisualColorMode" binding:"omitempty,oneof=light dark"`
 	ParentMessagePublicID   string                 `json:"parentMessagePublicID" binding:"omitempty,max=32"`

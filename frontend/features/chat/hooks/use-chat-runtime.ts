@@ -11,6 +11,7 @@ import type {
   ConversationOptions,
   MessageDTO,
 } from "@/shared/api/conversation.types";
+import type { SkillSummaryDTO } from "@/shared/api/skills.types";
 
 export function useChatRuntime({
   conversationID,
@@ -20,6 +21,7 @@ export function useChatRuntime({
   selectedPlatformModelName,
   modelOptions,
   selectedToolIDs,
+  selectedSkills,
   htmlVisualPromptEnabled,
   htmlVisualColorMode,
   options,
@@ -35,6 +37,7 @@ export function useChatRuntime({
   replaceMessage,
   setDraft,
   setAttachments,
+  setSelectedSkills,
   releaseAttachments,
   activeGenerationRunsRef,
   failedGenerationRunsRef,
@@ -47,6 +50,7 @@ export function useChatRuntime({
   selectedPlatformModelName: string;
   modelOptions: ChatModelOption[];
   selectedToolIDs: number[];
+  selectedSkills: SkillSummaryDTO[];
   htmlVisualPromptEnabled: boolean;
   htmlVisualColorMode: "light" | "dark";
   options: ConversationOptions;
@@ -62,6 +66,7 @@ export function useChatRuntime({
   replaceMessage: (message: MessageDTO) => void;
   setDraft: React.Dispatch<React.SetStateAction<string>>;
   setAttachments: React.Dispatch<React.SetStateAction<PendingAttachment[]>>;
+  setSelectedSkills: React.Dispatch<React.SetStateAction<SkillSummaryDTO[]>>;
   releaseAttachments: (items: PendingAttachment[]) => void;
   activeGenerationRunsRef?: React.RefObject<Set<string>>;
   failedGenerationRunsRef?: React.RefObject<Set<string>>;
@@ -89,6 +94,7 @@ export function useChatRuntime({
     selectedPlatformModelName,
     modelOptions,
     selectedToolIDs,
+    selectedSkills,
     htmlVisualPromptEnabled,
     htmlVisualColorMode,
     options,
@@ -104,6 +110,7 @@ export function useChatRuntime({
     replaceMessage,
     setDraft,
     setAttachments,
+    setSelectedSkills,
     releaseAttachments,
     pendingExchange,
     setPendingExchange,

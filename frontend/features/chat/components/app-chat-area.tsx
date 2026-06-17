@@ -52,6 +52,7 @@ import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import type { ConversationDTO, ConversationOptions } from "@/shared/api/conversation.types";
 import type { FileObjectDTO } from "@/shared/api/file.types";
 import type { MCPToolDTO } from "@/shared/api/mcp.types";
+import type { SkillSummaryDTO } from "@/shared/api/skills.types";
 import { useTheme } from "@/shared/components/theme-provider";
 import { cn } from "@/lib/utils";
 
@@ -333,6 +334,7 @@ export function AppChatArea() {
   const [availableTools, setAvailableTools] = React.useState<MCPToolDTO[]>([]);
   const [toolsLoading, setToolsLoading] = React.useState(true);
   const [selectedToolIDs, setSelectedToolIDs] = React.useState<number[]>([]);
+  const [selectedSkills, setSelectedSkills] = React.useState<SkillSummaryDTO[]>([]);
   const [defaultToolIDs, setDefaultToolIDs] = React.useState<number[]>([]);
   const defaultToolIDsRef = React.useRef<number[]>([]);
   const htmlVisualPrompt = useChatVisualPrompt();
@@ -541,6 +543,7 @@ export function AppChatArea() {
     selectedPlatformModelName,
     modelOptions,
     selectedToolIDs,
+    selectedSkills,
     htmlVisualPromptEnabled: htmlVisualPrompt.enabled,
     htmlVisualColorMode: resolvedTheme,
     options: modelOptionPolicyDisabled ? EMPTY_CONVERSATION_OPTIONS : options,
@@ -556,6 +559,7 @@ export function AppChatArea() {
     replaceMessage,
     setDraft,
     setAttachments,
+    setSelectedSkills,
     releaseAttachments,
     activeGenerationRunsRef,
     failedGenerationRunsRef,
@@ -985,6 +989,7 @@ export function AppChatArea() {
     selectedPlatformModelName,
     availableTools,
     selectedToolIDs,
+    selectedSkills,
     defaultToolIDs,
     htmlVisualPromptEnabled: htmlVisualPrompt.enabled,
     maxSelectedTools: mcpMaxSelectedTools,
@@ -998,6 +1003,8 @@ export function AppChatArea() {
     onModelChange: setSelectedPlatformModelName,
     onModelCatalogRefresh: refreshModelCatalogForComposer,
     onSelectedToolsChange: setSelectedToolIDs,
+    maxSelectedSkills: mcpMaxSelectedTools,
+    onSelectedSkillsChange: setSelectedSkills,
     onDefaultToolsChange: onDefaultToolIDsChange,
     onHTMLVisualPromptChange: htmlVisualPrompt.setEnabled,
     onOptionsChange: setModelOptions,

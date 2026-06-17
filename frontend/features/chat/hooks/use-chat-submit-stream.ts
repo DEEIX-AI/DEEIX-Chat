@@ -15,6 +15,7 @@ import type {
   ConversationOptions,
   MessageDTO,
 } from "@/shared/api/conversation.types";
+import type { SkillSummaryDTO } from "@/shared/api/skills.types";
 
 export function useChatSubmitStream({
   conversationID,
@@ -23,6 +24,7 @@ export function useChatSubmitStream({
   selectedPlatformModelName,
   modelOptions,
   selectedToolIDs,
+  selectedSkills,
   htmlVisualPromptEnabled,
   htmlVisualColorMode,
   options,
@@ -38,6 +40,7 @@ export function useChatSubmitStream({
   replaceMessage,
   setDraft,
   setAttachments,
+  setSelectedSkills,
   releaseAttachments,
   pendingExchange,
   setPendingExchange,
@@ -58,6 +61,7 @@ export function useChatSubmitStream({
   selectedPlatformModelName: string;
   modelOptions: ChatModelOption[];
   selectedToolIDs: number[];
+  selectedSkills: SkillSummaryDTO[];
   htmlVisualPromptEnabled: boolean;
   htmlVisualColorMode: "light" | "dark";
   options: ConversationOptions;
@@ -73,6 +77,7 @@ export function useChatSubmitStream({
   replaceMessage: (message: MessageDTO) => void;
   setDraft: React.Dispatch<React.SetStateAction<string>>;
   setAttachments: React.Dispatch<React.SetStateAction<PendingAttachment[]>>;
+  setSelectedSkills: React.Dispatch<React.SetStateAction<SkillSummaryDTO[]>>;
   releaseAttachments: (items: PendingAttachment[]) => void;
   pendingExchange: PendingExchange | null;
   setPendingExchange: React.Dispatch<React.SetStateAction<PendingExchange | null>>;
@@ -97,6 +102,7 @@ export function useChatSubmitStream({
     selectedPlatformModelName,
     modelOptions,
     selectedToolIDs,
+    selectedSkills,
     htmlVisualPromptEnabled,
     htmlVisualColorMode,
     options,
@@ -112,6 +118,7 @@ export function useChatSubmitStream({
     replaceMessage,
     setDraft,
     setAttachments,
+    setSelectedSkills,
     releaseAttachments,
     pendingExchange,
     setPendingExchange,

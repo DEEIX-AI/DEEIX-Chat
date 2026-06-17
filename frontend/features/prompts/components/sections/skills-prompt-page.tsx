@@ -34,7 +34,12 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  SkillsSection,
+  type SkillsSectionHandle,
+} from "@/features/prompts/components/sections/skills-section";
 import {
   promptPresetKey,
   useSkillsPromptPage,
@@ -144,6 +149,8 @@ export function SkillsPromptPage() {
   const t = useTranslations("prompts");
   const commonActionsT = useTranslations("common.actions");
   const commonStatesT = useTranslations("common.states");
+  const [activeTab, setActiveTab] = React.useState("skills");
+  const skillsSectionRef = React.useRef<SkillsSectionHandle>(null);
   const {
     items,
     filteredItems,
@@ -172,13 +179,15 @@ export function SkillsPromptPage() {
   } = useSkillsPromptPage();
 
   const emptyState = (
-    <CenteredEmptyState
-      title={items.length === 0 ? t("empty") : t("noResults")}
-      description={items.length === 0 ? t("emptyDescription") : t("noResultsDescription")}
-    />
+    <div className="flex h-full min-h-0 w-full items-center justify-center">
+      <CenteredEmptyState
+        title={items.length === 0 ? t("empty") : t("noResults")}
+        description={items.length === 0 ? t("emptyDescription") : t("noResultsDescription")}
+      />
+    </div>
   );
   const listContent = (
-    <div className="min-h-0 h-full overflow-y-auto pr-2" data-sidebar-scroll-root="true">
+    <div className="h-full min-h-0 w-full flex-1 overflow-y-auto pr-2" data-sidebar-scroll-root="true">
       {filteredItems.length === 0 ? (
         emptyState
       ) : (
@@ -226,41 +235,67 @@ export function SkillsPromptPage() {
         <header className="ml-0 md:ml-13 md:w-[calc(100%-3.25rem)]">
           <div className="flex items-start justify-between gap-4">
             <h1 className="min-w-0 text-xl font-semibold tracking-[-0.03em] text-foreground md:text-2xl">{t("pageTitle")}</h1>
-            <Button size="sm" variant="default" className="shrink-0" disabled={loading} onClick={openCreate}>
-              <Plus className="size-4" />
-              {t("add")}
-            </Button>
+            {activeTab === "skills" ? (
+              <Button
+                size="sm"
+                variant="default"
+                className="shrink-0"
+                onClick={() => skillsSectionRef.current?.openCreate()}
+              >
+                <Plus className="size-4" />
+                {t("add")}
+              </Button>
+            ) : (
+              <Button size="sm" variant="default" className="shrink-0" disabled={loading} onClick={openCreate}>
+                <Plus className="size-4" />
+                {t("add")}
+              </Button>
+            )}
           </div>
 
-          <div className="relative mt-6 md:mt-10">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-5">
+            <TabsList>
+              <TabsTrigger value="skills">{t("skillsTab")}</TabsTrigger>
+              <TabsTrigger value="prompts">{t("promptsTab")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <div className="relative mt-5 md:mt-8">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder={t("searchPlaceholder")}
+              placeholder={activeTab === "skills" ? t("skillsSearchPlaceholder") : t("searchPlaceholder")}
               className="rounded-xl bg-background pl-9"
             />
           </div>
         </header>
 
-        <section className="mt-6 min-h-0 flex-1 overflow-hidden">
-          {loading ? (
-            <div className="min-h-0 h-full overflow-y-auto pr-2">
-              <PromptPresetListSkeleton />
-            </div>
-          ) : (
-            listContent
-          )}
-        </section>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="min-h-0 flex-1">
+          <TabsContent value="skills" className="flex h-full min-h-0">
+            <SkillsSection ref={skillsSectionRef} query={query} />
+          </TabsContent>
+          <TabsContent value="prompts" className="flex h-full min-h-0">
+            <section className="mt-6 flex min-h-0 flex-1 flex-col overflow-hidden">
+              {loading ? (
+                <div className="h-full min-h-0 flex-1 overflow-y-auto pr-2">
+                  <PromptPresetListSkeleton />
+                </div>
+              ) : (
+                listContent
+              )}
+            </section>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => !saving && setDialogOpen(open)}>
-        <DialogContent className="sm:max-w-[560px]">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+          <DialogHeader className="shrink-0 px-5 pb-3 pt-5">
             <DialogTitle>{form.id ? t("editTitle") : t("createTitle")}</DialogTitle>
             <DialogDescription>{t("dialogDescription")}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-2">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">{t("name")}</p>
               <InputGroup>
@@ -285,7 +320,7 @@ export function SkillsPromptPage() {
               <p className="text-xs text-muted-foreground">{t("content")}</p>
               <Textarea
                 value={form.content}
-                className="min-h-32 resize-y"
+                className="h-64 resize-none overflow-y-auto [field-sizing:fixed]"
                 maxLength={PROMPT_PRESET_LIMITS.content}
                 onChange={(event) => setForm((current) => ({ ...current, content: event.target.value }))}
               />
@@ -300,7 +335,7 @@ export function SkillsPromptPage() {
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0 px-5 py-3">
             <Button variant="ghost" disabled={saving} onClick={() => setDialogOpen(false)}>
               {t("cancel")}
             </Button>
@@ -312,12 +347,12 @@ export function SkillsPromptPage() {
       </Dialog>
 
       <Dialog open={viewTarget !== null} onOpenChange={(open) => !open && setViewTarget(null)}>
-        <DialogContent className="sm:max-w-[560px]">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+          <DialogHeader className="shrink-0 px-5 pb-3 pt-5">
             <DialogTitle>{viewTarget?.trigger || viewTarget?.title}</DialogTitle>
             <DialogDescription>{t("viewDescription")}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-2">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">{t("name")}</p>
               <Input value={viewTarget?.trigger || viewTarget?.title || ""} readOnly />
@@ -328,10 +363,10 @@ export function SkillsPromptPage() {
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">{t("content")}</p>
-              <Textarea value={viewTarget?.content || ""} className="min-h-32 resize-y" readOnly />
+              <Textarea value={viewTarget?.content || ""} className="h-64 resize-none overflow-y-auto [field-sizing:fixed]" readOnly />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0 px-5 py-3">
             <Button variant="ghost" onClick={() => setViewTarget(null)}>
               {t("close")}
             </Button>

@@ -25,6 +25,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	promptpresethttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/promptpreset"
 	settingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/settings"
+	skillhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/skill"
 	userhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/user"
 	usersettingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/usersettings"
 	"github.com/gin-gonic/gin"
@@ -59,6 +60,7 @@ type Modules struct {
 	Admin        *adminhttp.Module
 	Announcement *announcementhttp.Module
 	PromptPreset *promptpresethttp.Module
+	Skill        *skillhttp.Module
 	Settings     *settingshttp.Module
 	User         *userhttp.Module
 	UserSettings *usersettingshttp.Module
@@ -158,6 +160,9 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	if modules.PromptPreset != nil {
 		modules.PromptPreset.RegisterRoutes(authRequired)
 	}
+	if modules.Skill != nil {
+		modules.Skill.RegisterRoutes(authRequired)
+	}
 	if modules.UserSettings != nil {
 		modules.UserSettings.RegisterRoutes(authRequired)
 	}
@@ -167,7 +172,7 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	if modules.User != nil {
 		modules.User.RegisterRoutes(authRequired)
 	}
-	if modules.Admin != nil || modules.Auth != nil || modules.Billing != nil || modules.Channel != nil || modules.MCP != nil || modules.Settings != nil || modules.Announcement != nil || modules.PromptPreset != nil {
+	if modules.Admin != nil || modules.Auth != nil || modules.Billing != nil || modules.Channel != nil || modules.MCP != nil || modules.Settings != nil || modules.Announcement != nil || modules.PromptPreset != nil || modules.Skill != nil {
 		adminGroup := authRequired.Group("/admin")
 		adminGroup.Use(middleware.AdminOnly())
 		if modules.Auth != nil {
@@ -193,6 +198,9 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 		}
 		if modules.PromptPreset != nil {
 			modules.PromptPreset.RegisterAdminRoutes(adminGroup)
+		}
+		if modules.Skill != nil {
+			modules.Skill.RegisterAdminRoutes(adminGroup)
 		}
 	}
 

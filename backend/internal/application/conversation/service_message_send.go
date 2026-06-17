@@ -635,11 +635,35 @@ func (s *Service) sendMessageInternal(
 		RecallChunks:   userCtx.RecallChunks,
 		Memories:       userCtx.Memory,
 	})
+	skillPrompts, err := s.resolveSkillPrompts(ctx, input)
+	if err != nil {
+		retErr = err
+		return nil, err
+	}
+	if traceRecorder != nil && skillPrompts != nil {
+		skillTitles := skillPromptTitles(skillPrompts.Skills)
+		traceRecorder.appendProcessSection(
+			fmt.Sprintf("已提供 %d 个 Skill 上下文", len(skillPrompts.Skills)),
+			formatTraceStep("Skill", fmt.Sprintf("本轮已加载 Skill：%s。包含 SKILL.md 内容，相关时使用。", strings.Join(skillTitles, "、"))),
+			map[string]interface{}{
+				processTracePayloadStage: map[string]interface{}{
+					"kind":   "skill_context",
+					"status": messageTraceStatusStreaming,
+				},
+				"skill_count":    len(skillPrompts.Skills),
+				"skill_ids":      skillPromptIDs(skillPrompts.Skills),
+				"skill_titles":   skillTitles,
+				"skill_triggers": skillPromptTriggers(skillPrompts.Skills),
+			},
+			messageTraceStatusStreaming,
+		)
+	}
 	toolRuntime := s.resolveSelectedToolRuntime(ctx, input.SelectedToolIDs)
 	promptPlan := buildPromptPlan(ctx, promptPlanInput{
 		BaseMessages:      llmMessages,
 		StableAttachments: stableFullContextAttachments,
 		DynamicContext:    userCtx,
+		SkillPrompts:      skillPrompts,
 		ToolRuntime:       toolRuntime,
 		Config:            cfg,
 		StoreProvider:     s.storeProvider,

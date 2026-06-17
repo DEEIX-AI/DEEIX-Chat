@@ -11,6 +11,8 @@ import type { FileObjectDTO } from "@/shared/api/file.types";
 import type { MCPToolDTO } from "@/shared/api/mcp.types";
 import { listVisiblePromptPresets } from "@/shared/api/prompt-presets";
 import type { PromptPresetDTO } from "@/shared/api/prompt-presets.types";
+import { listVisibleSkills } from "@/shared/api/skills";
+import type { SkillSummaryDTO } from "@/shared/api/skills.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { readSessionRevision } from "@/shared/auth/session";
 
@@ -25,9 +27,9 @@ const MENTION_MENU_VIEWPORT_GUTTER = 16;
 const MENTION_MENU_OFFSET = 8;
 const MENTION_MENU_FILE_QUERY_DELAY_MS = 180;
 const MENTION_MENU_PROMPT_QUERY_DELAY_MS = 180;
-const DEFAULT_MENTION_MENU_KINDS: readonly ChatMentionMenuKind[] = ["model", "file", "tool", "prompt"];
+const DEFAULT_MENTION_MENU_KINDS: readonly ChatMentionMenuKind[] = ["model", "file", "tool", "skill", "prompt"];
 
-export type ChatMentionMenuKind = "file" | "tool" | "model" | "prompt";
+export type ChatMentionMenuKind = "file" | "tool" | "model" | "skill" | "prompt";
 
 type ChatMentionFileMenuItem = {
   id: string;
@@ -65,10 +67,20 @@ type ChatMentionPromptMenuItem = {
   selected: boolean;
 };
 
+type ChatMentionSkillMenuItem = {
+  id: string;
+  kind: "skill";
+  label: string;
+  description: string;
+  skill: SkillSummaryDTO;
+  selected: boolean;
+};
+
 export type ChatMentionMenuItem =
   | ChatMentionFileMenuItem
   | ChatMentionToolMenuItem
   | ChatMentionModelMenuItem
+  | ChatMentionSkillMenuItem
   | ChatMentionPromptMenuItem;
 
 export type ChatMentionMenuSection = {
@@ -95,7 +107,9 @@ type ChatMentionMenuControllerArgs = {
   disabled: boolean;
   draft: string;
   maxSelectedTools: number;
+  maxSelectedSkills: number;
   modelOptions: ChatModelOption[];
+  selectedSkills?: SkillSummaryDTO[];
   selectedPlatformModelName: string;
   selectedToolIDs: number[];
   anchorRef: React.RefObject<HTMLElement | null>;
@@ -105,10 +119,12 @@ type ChatMentionMenuControllerArgs = {
   enabledKinds?: readonly ChatMentionMenuKind[];
   onFileSelect: (file: FileObjectDTO) => void | Promise<void>;
   onModelChange: (platformModelName: string) => void;
+  onSelectedSkillsChange?: (skills: SkillSummaryDTO[]) => void;
   placementAnchor?: ChatMentionMenuPlacementAnchor;
   placementPreference?: ChatMentionMenuPlacementPreference;
   onModelCatalogRefresh?: () => void | Promise<void>;
   onSelectedToolsChange: (toolIDs: number[]) => void;
+  onSkillLimitReached?: () => void;
   onToolLimitReached?: () => void;
 };
 
@@ -288,6 +304,18 @@ function promptsToItems(prompts: PromptPresetDTO[]): ChatMentionPromptMenuItem[]
   }));
 }
 
+function skillsToItems(skills: SkillSummaryDTO[], selectedSkills: SkillSummaryDTO[]): ChatMentionSkillMenuItem[] {
+  const selectedIDs = new Set(selectedSkills.map((skill) => skill.id));
+  return skills.map((skill) => ({
+    id: `skill:${skill.id}`,
+    kind: "skill" as const,
+    label: skill.trigger || skill.title,
+    description: skill.description,
+    skill,
+    selected: selectedIDs.has(skill.id),
+  }));
+}
+
 function filterTools(
   availableTools: MCPToolDTO[],
   query: string,
@@ -332,11 +360,14 @@ function buildSections({
   filesQuery,
   fileLoading,
   promptLoading,
+  skillLoading,
   modelOptions,
   prompts,
+  skills,
   query,
   queryKind,
   selectedPlatformModelName,
+  selectedSkills = [],
   selectedToolIDs,
   toolsDisabled,
   enabledKinds,
@@ -350,9 +381,12 @@ function buildSections({
   modelOptions: ChatModelOption[];
   prompts: PromptPresetDTO[];
   promptLoading: boolean;
+  skills: SkillSummaryDTO[];
+  skillLoading: boolean;
   query: string | null;
   queryKind: "mention" | "prompt" | null;
   selectedPlatformModelName: string;
+  selectedSkills: SkillSummaryDTO[];
   selectedToolIDs: number[];
   toolsDisabled: boolean;
   enabledKinds: ReadonlySet<ChatMentionMenuKind>;
@@ -363,11 +397,23 @@ function buildSections({
 
   const normalizedQuery = query.trim().toLowerCase();
   if (queryKind === "prompt") {
-    if (!enabledKinds.has("prompt")) {
+    const sections: ChatMentionMenuSection[] = [];
+    if (enabledKinds.has("skill")) {
+      const skillItems = skillLoading ? [] : skillsToItems(skills, selectedSkills);
+      if (skillItems.length > 0) {
+        sections.push({ kind: "skill" as const, items: skillItems });
+      }
+    }
+    if (enabledKinds.has("prompt")) {
+      const promptItems = promptLoading ? [] : promptsToItems(prompts);
+      if (promptItems.length > 0) {
+        sections.push({ kind: "prompt" as const, items: promptItems });
+      }
+    }
+    if (sections.length === 0) {
       return [];
     }
-    const promptItems = promptLoading ? [] : promptsToItems(prompts);
-    return promptItems.length > 0 ? [{ kind: "prompt" as const, items: promptItems }] : [];
+    return sections;
   }
 
   const fileItems = enabledKinds.has("file") && !fileLoading && filesQuery === normalizedQuery
@@ -489,13 +535,16 @@ export function useChatMentionMenu({
   disabled,
   draft,
   maxSelectedTools,
+  maxSelectedSkills,
   modelOptions,
+  selectedSkills = [],
   selectedPlatformModelName,
   selectedToolIDs,
   anchorRef,
   textareaRef,
   toolsDisabled,
   onDraftChange,
+  onSelectedSkillsChange,
   enabledKinds = DEFAULT_MENTION_MENU_KINDS,
   onFileSelect,
   onModelChange,
@@ -503,6 +552,7 @@ export function useChatMentionMenu({
   placementPreference = "auto",
   onModelCatalogRefresh,
   onSelectedToolsChange,
+  onSkillLimitReached,
   onToolLimitReached,
 }: ChatMentionMenuControllerArgs) {
   const menuRef = React.useRef<HTMLDivElement | null>(null);
@@ -516,6 +566,8 @@ export function useChatMentionMenu({
   const [filesQuery, setFilesQuery] = React.useState("");
   const [prompts, setPrompts] = React.useState<PromptPresetDTO[]>([]);
   const [promptsLoading, setPromptsLoading] = React.useState(false);
+  const [skills, setSkills] = React.useState<SkillSummaryDTO[]>([]);
+  const [skillsLoading, setSkillsLoading] = React.useState(false);
   const modelCatalogRefreshRequestedRef = React.useRef(false);
   const enabledKindSet = React.useMemo(() => new Set(enabledKinds), [enabledKinds]);
   const triggerQuery = resolveTriggerQuery(draft, textareaRef.current?.selectionStart ?? draft.length);
@@ -628,6 +680,44 @@ export function useChatMentionMenu({
     };
   }, [disabled, enabledKindSet, promptQuery]);
 
+  React.useEffect(() => {
+    if (promptQuery === null || disabled || !enabledKindSet.has("skill")) {
+      setSkills([]);
+      setSkillsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setSkillsLoading(true);
+      void (async () => {
+        try {
+          const token = await resolveAccessToken();
+          if (!token || controller.signal.aborted) {
+            return;
+          }
+          const data = await listVisibleSkills(token, { query: promptQuery, page: 1, pageSize: 50 });
+          if (!controller.signal.aborted) {
+            setSkills(data.results);
+          }
+        } catch {
+          if (!controller.signal.aborted) {
+            setSkills([]);
+          }
+        } finally {
+          if (!controller.signal.aborted) {
+            setSkillsLoading(false);
+          }
+        }
+      })();
+    }, MENTION_MENU_PROMPT_QUERY_DELAY_MS);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [disabled, enabledKindSet, promptQuery]);
+
   const sections = React.useMemo(
     () =>
       buildSections({
@@ -640,9 +730,12 @@ export function useChatMentionMenu({
         modelOptions,
         prompts,
         promptLoading: promptsLoading,
+        skills,
+        skillLoading: skillsLoading,
         query,
         queryKind,
         selectedPlatformModelName,
+        selectedSkills,
         selectedToolIDs,
         toolsDisabled,
         enabledKinds: enabledKindSet,
@@ -657,9 +750,12 @@ export function useChatMentionMenu({
       modelOptions,
       prompts,
       promptsLoading,
+      skills,
+      skillsLoading,
       query,
       queryKind,
       selectedPlatformModelName,
+      selectedSkills,
       selectedToolIDs,
       toolsDisabled,
       enabledKindSet,
@@ -770,6 +866,21 @@ export function useChatMentionMenu({
         return;
       }
 
+      if (item.kind === "skill") {
+        const alreadySelected = selectedSkills.some((skill) => skill.id === item.skill.id);
+        if (!alreadySelected && selectedSkills.length >= maxSelectedSkills) {
+          onSkillLimitReached?.();
+          return;
+        }
+        onSelectedSkillsChange?.(
+          alreadySelected
+            ? selectedSkills.filter((skill) => skill.id !== item.skill.id)
+            : [...selectedSkills, item.skill],
+        );
+        finishSelection();
+        return;
+      }
+
       if (item.kind === "tool") {
         const alreadySelected = selectedToolIDs.includes(item.tool.id);
         if (!alreadySelected && selectedToolIDs.length >= maxSelectedTools) {
@@ -790,12 +901,16 @@ export function useChatMentionMenu({
     },
     [
       finishSelection,
+      maxSelectedSkills,
       maxSelectedTools,
       onFileSelect,
       onDraftChange,
       onModelChange,
+      onSelectedSkillsChange,
+      onSkillLimitReached,
       onSelectedToolsChange,
       onToolLimitReached,
+      selectedSkills,
       selectedToolIDs,
       draft,
       focusTextarea,

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import dynamic from "next/dynamic";
-import { Image, ImageOff, ImagePlus } from "lucide-react";
+import { Box, Image, ImageOff, ImagePlus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -50,6 +50,7 @@ import { cn } from "@/lib/utils";
 import type { ConversationOptions } from "@/shared/api/conversation.types";
 import type { FileObjectDTO } from "@/shared/api/file.types";
 import type { MCPToolDTO } from "@/shared/api/mcp.types";
+import type { SkillSummaryDTO } from "@/shared/api/skills.types";
 import type { ModelOptionPolicy } from "@/shared/lib/model-option-policy";
 import type { SendShortcut } from "@/features/settings/types/settings";
 import { isSendShortcutEvent } from "@/shared/lib/platform-shortcuts";
@@ -75,9 +76,11 @@ type ChatInputProps = {
   selectedPlatformModelName: string;
   availableTools: MCPToolDTO[];
   selectedToolIDs: number[];
+  selectedSkills: SkillSummaryDTO[];
   defaultToolIDs: number[];
   htmlVisualPromptEnabled: boolean;
   maxSelectedTools: number;
+  maxSelectedSkills: number;
   toolsLoading: boolean;
   options: ConversationOptions;
   defaultOptions: ConversationOptions;
@@ -89,6 +92,7 @@ type ChatInputProps = {
   onModelChange: (platformModelName: string) => void;
   onModelCatalogRefresh?: () => void | Promise<void>;
   onSelectedToolsChange: (toolIDs: number[]) => void;
+  onSelectedSkillsChange: (skills: SkillSummaryDTO[]) => void;
   onDefaultToolsChange: (toolIDs: number[]) => void | Promise<void>;
   onHTMLVisualPromptChange: (enabled: boolean) => void;
   onOptionsChange: React.Dispatch<React.SetStateAction<ConversationOptions>>;
@@ -184,9 +188,11 @@ function ChatInputComponent({
   selectedPlatformModelName,
   availableTools,
   selectedToolIDs,
+  selectedSkills,
   defaultToolIDs,
   htmlVisualPromptEnabled,
   maxSelectedTools,
+  maxSelectedSkills,
   toolsLoading,
   options,
   defaultOptions,
@@ -198,6 +204,7 @@ function ChatInputComponent({
   onModelChange,
   onModelCatalogRefresh,
   onSelectedToolsChange,
+  onSelectedSkillsChange,
   onDefaultToolsChange,
   onHTMLVisualPromptChange,
   onOptionsChange,
@@ -263,6 +270,9 @@ function ChatInputComponent({
   const modelOptionPolicyDisabled = modelOptionPolicy?.mode?.trim() === "disabled";
   const showMCPToolsButton = availableTools.length > 0 && !isMediaMode;
   const showHTMLVisualPromptButton = !isMediaMode;
+  const hasComposerAttachments = attachments.length > 0 || uploadingAttachments.length > 0;
+  const showSelectedSkills = selectedSkills.length > 0 && !isMediaMode;
+  const overlaySelectedSkills = showSelectedSkills && !hasComposerAttachments;
   const {
     activeIndex: mentionActiveIndex,
     handleBlur: handleMentionBlur,
@@ -283,7 +293,9 @@ function ChatInputComponent({
     disabled: sending || loading || uploading || modelLoading || modelDisabled,
     draft,
     maxSelectedTools,
+    maxSelectedSkills,
     modelOptions,
+    selectedSkills,
     selectedPlatformModelName,
     selectedToolIDs,
     anchorRef: inputGroupRef,
@@ -293,9 +305,15 @@ function ChatInputComponent({
     onFileSelect: onAttachExistingFile,
     onModelCatalogRefresh,
     onModelChange,
+    onSelectedSkillsChange,
     placementAnchor: "container",
     placementPreference: isConversationMode ? "top" : "bottom",
     onSelectedToolsChange,
+    onSkillLimitReached: () => {
+      toast.error(tComposer("skillLimitTitle"), {
+        description: tComposer("skillLimitDescription", { limit: maxSelectedSkills }),
+      });
+    },
     onToolLimitReached: () => {
       toast.error(tComposer("mcpToolLimitTitle"), {
         description: tComposer("mcpToolLimitDescription", { limit: maxSelectedTools }),
@@ -320,7 +338,7 @@ function ChatInputComponent({
   }, [onCaptureScreenshot]);
 
   return (
-    <div className="w-full">
+    <div className="relative w-full">
       <input
         ref={fileInputRef}
         type="file"
@@ -338,12 +356,35 @@ function ChatInputComponent({
       <InputGroup
         ref={inputGroupRef}
         className={cn(
-          "bg-pure rounded-3xl border-[0.5px] border-border/70 shadow-xs has-[[data-slot=input-group-control]:focus-visible]:ring-0 has-[[data-slot=input-group-control]:focus-visible]:border-border",
+          "relative z-10 bg-pure rounded-3xl border-[0.5px] border-border/70 shadow-xs has-[[data-slot=input-group-control]:focus-visible]:ring-0 has-[[data-slot=input-group-control]:focus-visible]:border-border",
           dropActive && "border-dashed border-foreground/30 bg-muted/20 shadow-none",
         )}
       >
-        {attachments.length > 0 || uploadingAttachments.length > 0 ? (
-          <div className="w-full space-y-2 px-2.5 pt-2">
+        {showSelectedSkills && hasComposerAttachments ? (
+          <div className="flex w-full max-h-14 flex-wrap items-center justify-start gap-x-3 gap-y-1 overflow-y-auto px-5 pt-3">
+            {selectedSkills.map((skill) => (
+              <button
+                key={skill.id}
+                type="button"
+                className="group inline-flex h-6 max-w-48 items-center gap-1.5 text-sm font-medium text-primary transition-colors hover:text-primary/85 disabled:opacity-60"
+                disabled={sending || loading || uploading}
+                onClick={() => onSelectedSkillsChange(selectedSkills.filter((item) => item.id !== skill.id))}
+                aria-label={skill.title}
+              >
+                <Box className="size-4 shrink-0" strokeWidth={1.7} />
+                <span className="min-w-0 truncate">{skill.trigger || skill.title}</span>
+                <XIcon
+                  size={12}
+                  strokeWidth={1.7}
+                  className="shrink-0 opacity-45 transition-opacity group-hover:opacity-80"
+                />
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {hasComposerAttachments ? (
+          <div className="w-full space-y-1 px-2.5 pt-1">
             {showRagWarn ? (
               <div className="flex items-center gap-2 rounded-lg border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-[11px] text-amber-700 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-400">
                 <span className="shrink-0">⚠</span>
@@ -359,7 +400,7 @@ function ChatInputComponent({
               </div>
             ) : null}
             <div className="w-full overflow-hidden sm:overflow-x-auto">
-              <div className="flex max-h-[196px] w-full flex-col gap-2 overflow-y-auto pb-1 pl-1.5 pr-2 pt-2 sm:max-h-none sm:w-max sm:flex-row sm:overflow-y-visible sm:pr-1.5">
+              <div className="flex max-h-[196px] w-full flex-col gap-2 overflow-y-auto pb-0 pl-1.5 pr-2 pt-1 sm:max-h-none sm:w-max sm:flex-row sm:overflow-y-visible sm:pr-1.5">
                 {attachments.map((item) => (
                   <div
                     key={item.fileID}
@@ -461,6 +502,29 @@ function ChatInputComponent({
           onSelect={selectMentionItem}
         />
 
+        {overlaySelectedSkills ? (
+          <div className="absolute left-5 right-5 top-4 z-10 flex max-h-14 flex-wrap items-center gap-x-3 gap-y-1 overflow-y-auto">
+            {selectedSkills.map((skill) => (
+              <button
+                key={skill.id}
+                type="button"
+                className="group inline-flex h-6 max-w-48 items-center gap-1.5 text-sm font-medium text-primary transition-colors hover:text-primary/85 disabled:opacity-60"
+                disabled={sending || loading || uploading}
+                onClick={() => onSelectedSkillsChange(selectedSkills.filter((item) => item.id !== skill.id))}
+                aria-label={skill.title}
+              >
+                <Box className="size-4 shrink-0" strokeWidth={1.7} />
+                <span className="min-w-0 truncate">{skill.trigger || skill.title}</span>
+                <XIcon
+                  size={12}
+                  strokeWidth={1.7}
+                  className="shrink-0 opacity-45 transition-opacity group-hover:opacity-80"
+                />
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         <InputGroupTextarea
           ref={textareaRef}
           value={draft}
@@ -472,7 +536,8 @@ function ChatInputComponent({
           aria-expanded={showMentionMenu ? true : undefined}
           style={{ fontFamily: "var(--font-chat)", fontWeight: "var(--font-chat-weight)" }}
           className={cn(
-            "rounded-3xl min-h-12 overflow-y-auto px-5 pt-4 text-[15px] leading-6 placeholder:text-muted-foreground placeholder:font-[inherit] placeholder:leading-[inherit]",
+            "rounded-3xl min-h-12 overflow-y-auto px-5 text-[15px] leading-6 placeholder:text-muted-foreground placeholder:font-[inherit] placeholder:leading-[inherit]",
+            overlaySelectedSkills ? "pt-12" : hasComposerAttachments ? "pt-2" : "pt-4",
             inputHeightClassName,
             speechInput.active ? "placeholder:font-normal placeholder:text-muted-foreground" : "",
           )}
@@ -705,6 +770,7 @@ function ChatInputComponent({
           </div>
         </InputGroupAddon>
       </InputGroup>
+
     </div>
   );
 }

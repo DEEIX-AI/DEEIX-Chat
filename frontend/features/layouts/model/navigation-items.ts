@@ -39,7 +39,7 @@ export const NAVIGATION_ITEMS = [
   },
   {
     id: "skillsPrompt",
-    title: "Skills & Prompt",
+    title: "Skills & Prompts",
     url: "/skills-prompt",
     icon: Blend,
     group: "secondary",

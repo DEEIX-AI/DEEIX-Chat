@@ -363,6 +363,9 @@
     "mcpServerLimitHint": "Max {limit}",
     "mcpToolLimitTitle": "Tool limit reached",
     "mcpToolLimitDescription": "A message can use up to {limit} MCP tools. Clear some tools before selecting more.",
+    "skillLimitTitle": "Skill limit reached",
+    "skillLimitDescription": "A message can load up to {limit} skills. Clear one before selecting more.",
+    "selectedSkillsLabel": "Loaded skills",
     "mcpSetDefaultTool": "Use {tool} by default in new chats",
     "mcpUnsetDefaultTool": "Stop using {tool} by default in new chats",
     "mcpDefaultToolEnabled": "Enabled by default in new chats",
@@ -383,6 +386,7 @@
         "file": "Files",
         "tool": "MCP",
         "model": "Models",
+        "skill": "Skills",
         "prompt": "Prompts"
       }
     },
@@ -605,6 +609,7 @@
       "contentRetrieval": "Content retrieval",
       "fileContext": "File context",
       "contextCompaction": "Context compaction",
+      "skillContext": "Skill context",
       "requestResult": "Request result",
       "upstreamRequestTriggered": "Upstream model request triggered"
     },

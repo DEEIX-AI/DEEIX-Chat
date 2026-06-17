@@ -398,6 +398,7 @@ export type SendMessageRequest = {
   clientRunID?: string;
   fileIDs?: string[];
   selectedToolIDs?: number[];
+  skillIDs?: number[];
   htmlVisualPrompt?: boolean;
   htmlVisualColorMode?: "light" | "dark";
   parentMessagePublicID?: string;

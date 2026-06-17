@@ -1,7 +1,7 @@
 export const PROMPT_PRESET_LIMITS = {
-  name: 16,
-  description: 64,
-  content: 16384,
+  name: 64,
+  description: 256,
+  content: 10000,
 } as const;
 
 export function normalizePromptPresetName(value: string): string {

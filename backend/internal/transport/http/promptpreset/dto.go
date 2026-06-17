@@ -34,20 +34,20 @@ type PromptPresetDeleteDataResponse struct {
 
 // WritePromptPresetRequest 表示创建预制提示词请求。
 type WritePromptPresetRequest struct {
-	Title       string `json:"title" binding:"required,max=16"`
-	Trigger     string `json:"trigger" binding:"required,max=16"`
-	Description string `json:"description" binding:"max=64"`
-	Content     string `json:"content" binding:"required,max=16384"`
+	Title       string `json:"title" binding:"required,max=64"`
+	Trigger     string `json:"trigger" binding:"required,max=64"`
+	Description string `json:"description" binding:"max=256"`
+	Content     string `json:"content" binding:"required,max=10000"`
 	Enabled     bool   `json:"enabled"`
 	SortOrder   int    `json:"sortOrder"`
 }
 
 // PatchPromptPresetRequest 表示更新预制提示词请求。
 type PatchPromptPresetRequest struct {
-	Title       *string `json:"title" binding:"omitempty,max=16"`
-	Trigger     *string `json:"trigger" binding:"omitempty,max=16"`
-	Description *string `json:"description" binding:"omitempty,max=64"`
-	Content     *string `json:"content" binding:"omitempty,max=16384"`
+	Title       *string `json:"title" binding:"omitempty,max=64"`
+	Trigger     *string `json:"trigger" binding:"omitempty,max=64"`
+	Description *string `json:"description" binding:"omitempty,max=256"`
+	Content     *string `json:"content" binding:"omitempty,max=10000"`
 	Enabled     *bool   `json:"enabled"`
 	SortOrder   *int    `json:"sortOrder"`
 }

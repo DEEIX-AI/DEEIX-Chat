@@ -7,6 +7,7 @@ import (
 
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	domainskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/skill"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 )
@@ -19,6 +20,7 @@ const (
 	PromptBlockStableContext      PromptBlockKind = "stable_context"
 	PromptBlockHistoricalEvidence PromptBlockKind = "historical_evidence"
 	PromptBlockDynamicContext     PromptBlockKind = "dynamic_context"
+	PromptBlockSkillContext       PromptBlockKind = "skill_context"
 	PromptBlockToolGuidance       PromptBlockKind = "tool_guidance"
 	PromptBlockTranscript         PromptBlockKind = "transcript"
 )
@@ -57,6 +59,7 @@ type promptPlanInput struct {
 	BaseMessages      []llm.Message
 	StableAttachments []AttachmentInput
 	DynamicContext    userContextInput
+	SkillPrompts      *skillPrompts
 	ToolRuntime       selectedToolRuntime
 	Config            config.Config
 	StoreProvider     appstorage.Provider
@@ -125,6 +128,24 @@ func buildPromptPlan(ctx context.Context, input promptPlanInput) PromptPlan {
 				SourceRefs:    dynamicSourceRefs,
 			})
 		}
+	}
+
+	before = len(messages)
+	messages = injectSkillPrompts(messages, input.SkillPrompts)
+	if len(messages) > before && input.SkillPrompts != nil {
+		inserted := findSkillPromptMessage(messages)
+		tokenEstimate := int64(0)
+		if inserted >= 0 {
+			tokenEstimate = estimateMessageTokens(messages[inserted])
+		}
+		trace.addBlock(PromptBlockTrace{
+			Kind:          PromptBlockSkillContext,
+			Title:         "Skill 上下文",
+			TokenEstimate: tokenEstimate,
+			Cacheable:     true,
+			SourceCount:   len(input.SkillPrompts.Skills),
+			SourceRefs:    skillPromptSourceRefs(input.SkillPrompts.Skills),
+		})
 	}
 
 	before = len(messages)
@@ -301,6 +322,15 @@ func historicalArtifactSourceRefs(artifacts []domainconversation.ContextArtifact
 	refs := make([]PromptSourceRef, 0, len(artifacts))
 	for _, artifact := range artifacts {
 		refs = appendPromptSourceRefWithArtifactID(refs, string(artifact.Kind), artifact.SourceID, artifact.SourceTitle, artifact.ID)
+	}
+	return refs
+}
+
+// skillPromptSourceRefs 提取本轮可用 Skill 的来源引用。
+func skillPromptSourceRefs(skills []domainskill.Skill) []PromptSourceRef {
+	refs := make([]PromptSourceRef, 0, len(skills))
+	for _, skill := range skills {
+		refs = appendPromptSourceRef(refs, "skill", fmt.Sprintf("%d", skill.ID), skill.Title)
 	}
 	return refs
 }

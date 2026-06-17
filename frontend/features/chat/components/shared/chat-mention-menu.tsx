@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, FileText, ScrollText, Wrench } from "lucide-react";
+import { Box, Check, FileText, ScrollText, Wrench } from "lucide-react";
 
 import type {
   ChatMentionMenuItem,
@@ -13,7 +13,6 @@ import type {
 } from "@/features/chat/hooks/use-chat-mention-menu";
 import { LobeHubIcon } from "@/shared/components/lobehub-icon";
 import { resolveLobeHubIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
-import { cn } from "@/lib/utils";
 
 function ChatMentionMenuItemButton({
   item,
@@ -59,22 +58,19 @@ function ChatMentionMenuItemButton({
         <span className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground">
           <Wrench className="size-3.5" strokeWidth={1.7} />
         </span>
+      ) : item.kind === "skill" ? (
+        <span className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground">
+          <Box className="size-3.5" strokeWidth={1.7} />
+        </span>
       ) : (
         <span className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground">
           <ScrollText className="size-3.5" strokeWidth={1.7} />
         </span>
       )}
       <span className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden">
-        <span
-          className={cn(
-            "text-foreground/90",
-            item.kind === "tool" ? "shrink-0 whitespace-nowrap" : "min-w-0 truncate",
-          )}
-        >
-          {item.label}
-        </span>
+        <span className="shrink-0 whitespace-nowrap text-foreground/90">{item.label}</span>
         {item.description ? (
-          <span className="min-w-0 truncate font-normal text-muted-foreground/80">{item.description}</span>
+          <span className="min-w-0 flex-1 truncate font-normal text-muted-foreground/80">{item.description}</span>
         ) : null}
       </span>
       <span className="flex size-3.5 shrink-0 items-center justify-center">

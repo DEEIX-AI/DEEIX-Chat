@@ -27,6 +27,7 @@ import (
 	apprag "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/rag"
 	appruntime "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/runtime"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/settings"
+	appskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/skill"
 	appsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/systemevent"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/usersettings"
@@ -46,6 +47,7 @@ import (
 	memoryrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/memory"
 	promptpresetrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/promptpreset"
 	settingsrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/settings"
+	skillrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/skill"
 	systemeventrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/systemevent"
 	userrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/user"
 	usersettingsrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/usersettings"
@@ -61,6 +63,7 @@ import (
 	memoryhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/memory"
 	promptpresethttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/promptpreset"
 	settingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/settings"
+	skillhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/skill"
 	userhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/user"
 	usersettingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/usersettings"
 	"github.com/gin-gonic/gin"
@@ -274,6 +277,12 @@ func NewApp() (*App, error) {
 	promptPresetService.SetAuditWriter(auditService)
 	promptPresetHandler := promptpresethttp.NewHandler(promptPresetService)
 	promptPresetModule := promptpresethttp.NewModule(promptPresetHandler)
+	skillRepo := skillrepo.NewRepo(db)
+	skillService := appskill.NewService(skillRepo)
+	skillService.SetAuditWriter(auditService)
+	conversationService.SetSkillResolver(skillService)
+	skillHandler := skillhttp.NewHandler(skillService)
+	skillModule := skillhttp.NewModule(skillHandler)
 
 	hc := newHealthChecker(db, cfg.CacheDriver, redisClient)
 	rateLimiter := buildRateLimiter(cfg, redisClient, memoryCache)
@@ -288,6 +297,7 @@ func NewApp() (*App, error) {
 		Admin:        adminModule,
 		Announcement: announcementModule,
 		PromptPreset: promptPresetModule,
+		Skill:        skillModule,
 		Settings:     settingsModule,
 		UserSettings: userSettingsModule,
 		User:         userModule,

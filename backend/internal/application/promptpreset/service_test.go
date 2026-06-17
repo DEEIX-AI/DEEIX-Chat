@@ -3,6 +3,7 @@ package promptpreset
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	domainpromptpreset "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/promptpreset"
@@ -47,7 +48,7 @@ func TestCreateUserAllowsChineseTrigger(t *testing.T) {
 	t.Parallel()
 
 	service := NewService(&fakePromptPresetRepo{items: map[uint]domainpromptpreset.PromptPreset{}})
-	trigger := "一二三四五六七八九十一二三四五六"
+	trigger := strings.Repeat("中", maxPromptPresetNameLength)
 	item, err := service.CreateUser(context.Background(), 1, WriteInput{
 		Title:   trigger,
 		Trigger: "/" + trigger,
@@ -62,8 +63,8 @@ func TestCreateUserAllowsChineseTrigger(t *testing.T) {
 	}
 
 	_, err = service.CreateUser(context.Background(), 1, WriteInput{
-		Title:   trigger + "七",
-		Trigger: trigger + "七",
+		Title:   trigger + "文",
+		Trigger: trigger + "文",
 		Content: "帮助优化中文表达。",
 		Enabled: true,
 	})

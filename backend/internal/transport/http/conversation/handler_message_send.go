@@ -93,6 +93,7 @@ func (h *Handler) parseSendMessageInput(c *gin.Context) (appconversation.SendMes
 		ClientRunID:             req.ClientRunID,
 		FileIDs:                 req.FileIDs,
 		SelectedToolIDs:         req.SelectedToolIDs,
+		SkillIDs:                req.SkillIDs,
 		HTMLVisualPromptEnabled: req.HTMLVisualPromptEnabled,
 		HTMLVisualColorMode:     req.HTMLVisualColorMode,
 		ParentMessagePublicID:   req.ParentMessagePublicID,
@@ -286,6 +287,12 @@ func handleSendMessageError(c *gin.Context, err error) {
 		response.Error(c, http.StatusBadRequest, "too many files in one message")
 	case errors.Is(err, appconversation.ErrTooManySelectedTools):
 		response.Error(c, http.StatusBadRequest, "too many selected tools")
+	case errors.Is(err, appconversation.ErrTooManySelectedSkills):
+		response.Error(c, http.StatusBadRequest, "too many selected skills")
+	case errors.Is(err, appconversation.ErrSkillNotFound):
+		response.Error(c, http.StatusNotFound, "skill not found")
+	case errors.Is(err, appconversation.ErrInvalidSkillUse):
+		response.Error(c, http.StatusBadRequest, "invalid skill use")
 	case errors.Is(err, appconversation.ErrInvalidMessageBranch):
 		response.Error(c, http.StatusBadRequest, "invalid message branch")
 	case errors.Is(err, appconversation.ErrFileProcessingNotReady):

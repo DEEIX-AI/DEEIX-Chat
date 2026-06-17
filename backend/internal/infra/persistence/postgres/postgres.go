@@ -144,6 +144,7 @@ func migrate(db *gorm.DB, cfg config.Config) error {
 		"system_announcements":           "站点公告表",
 		"announcement_user_states":       "用户公告展示状态表",
 		"prompt_presets":                 "内置与用户自定义预制提示词表",
+		"skills":                         "内置与用户自定义技能提示词表",
 		"system_settings":                "系统动态配置表",
 		"user_settings":                  "用户个人偏好配置表",
 		"file_chunks":                    "RAG文件分片表",

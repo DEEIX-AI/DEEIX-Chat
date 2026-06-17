@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	maxPromptPresetNameLength        = 16
-	maxPromptPresetDescriptionLength = 64
-	maxPromptPresetContentLength     = 16384
+	maxPromptPresetNameLength        = 64
+	maxPromptPresetDescriptionLength = 256
+	maxPromptPresetContentLength     = 10000
 )
 
 // Service 封装预制提示词业务逻辑。

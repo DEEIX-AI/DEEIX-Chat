@@ -16,6 +16,7 @@ import (
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
+	domainskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/skill"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
@@ -48,6 +49,10 @@ type memoryRecorder interface {
 	UpsertUserMemoryEmbedding(ctx context.Context, userID uint, memoryKey string, expectedValue string, embedding []float32) error
 }
 
+type skillResolver interface {
+	ResolveAvailable(ctx context.Context, userID uint, id uint) (*domainskill.Skill, error)
+}
+
 type auditWriter interface {
 	Write(ctx context.Context, requestID string, actorUserID uint, action string, resource string, resourceID string, ip string, userAgent string, detail interface{})
 }
@@ -75,6 +80,7 @@ type Service struct {
 	processingSvc     *appprocessing.Service
 	extractSvc        *extraction.Service
 	ragSvc            *apprag.Service
+	skillResolver     skillResolver
 	billingSvc        *appbilling.Service
 	auditWriter       auditWriter
 	storeProvider     appstorage.Provider
@@ -133,6 +139,7 @@ type SendMessageInput struct {
 	ClientRunID             string
 	FileIDs                 []string
 	SelectedToolIDs         []uint
+	SkillIDs                []uint
 	HTMLVisualPromptEnabled bool
 	HTMLVisualColorMode     string
 	ParentMessagePublicID   string
@@ -141,6 +148,11 @@ type SendMessageInput struct {
 	Cancelable              bool
 	// OnEvent 用于向调用方推送中间事件（如 rag_search），流式场景使用。
 	OnEvent func(eventType string, payload map[string]interface{}) error
+}
+
+// SetSkillResolver 注入会话技能解析器。
+func (s *Service) SetSkillResolver(resolver skillResolver) {
+	s.skillResolver = resolver
 }
 
 // SendMessageResult 返回用户消息与 AI 消息。

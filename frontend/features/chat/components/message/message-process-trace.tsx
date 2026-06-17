@@ -26,6 +26,7 @@ const TRACE_KIND_CONTEXT_PLANNING = "context_planning";
 const TRACE_KIND_RAG = "content_retrieval";
 const TRACE_KIND_FILE_CONTEXT = "file_context";
 const TRACE_KIND_CONTEXT_COMPACTION = "context_compaction";
+const TRACE_KIND_SKILL_CONTEXT = "skill_context";
 // Legacy persisted traces only. New traces are rendered from payload_json.trace_stages.
 const TRACE_LABEL_UPSTREAM_RESULT = "\u8bf7\u6c42\u7ed3\u679c";
 const TRACE_TRIGGER_UPSTREAM_REQUEST = "\u4e0a\u6e38\u6a21\u578b\u8bf7\u6c42\u89e6\u53d1";
@@ -177,6 +178,7 @@ type ProcessTraceLabels = {
     contentRetrieval: string;
     fileContext: string;
     contextCompaction: string;
+    skillContext: string;
     requestResult: string;
     upstreamRequestTriggered: string;
   };
@@ -337,6 +339,7 @@ function useProcessTraceLabels(): ProcessTraceLabels {
         contentRetrieval: t("stages.contentRetrieval"),
         fileContext: t("stages.fileContext"),
         contextCompaction: t("stages.contextCompaction"),
+        skillContext: t("stages.skillContext"),
         requestResult: t("stages.requestResult"),
         upstreamRequestTriggered: t("stages.upstreamRequestTriggered"),
       },
@@ -1430,6 +1433,8 @@ function displayTraceStageLabel(label: string, labels: ProcessTraceLabels): stri
     case TRACE_KIND_CONTEXT_COMPACTION:
     case TRACE_LABEL_CONTEXT_COMPACTION:
       return labels.stages.contextCompaction;
+    case TRACE_KIND_SKILL_CONTEXT:
+      return labels.stages.skillContext;
     case TRACE_LABEL_UPSTREAM_RESULT:
       return labels.stages.requestResult;
     default:

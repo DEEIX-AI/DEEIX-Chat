@@ -363,6 +363,9 @@
     "mcpServerLimitHint": "最多 {limit} 个",
     "mcpToolLimitTitle": "工具数量已达上限",
     "mcpToolLimitDescription": "单次消息最多选择 {limit} 个 MCP 工具，请减少选择后再继续。",
+    "skillLimitTitle": "Skills 数量已达上限",
+    "skillLimitDescription": "单次消息最多加载 {limit} 个 Skills，请移除一个后再继续。",
+    "selectedSkillsLabel": "已加载 Skills",
     "mcpSetDefaultTool": "新对话默认使用 {tool}",
     "mcpUnsetDefaultTool": "新对话不再默认使用 {tool}",
     "mcpDefaultToolEnabled": "新对话会默认启用",
@@ -383,7 +386,8 @@
         "file": "文件",
         "tool": "MCP",
         "model": "模型",
-        "prompt": "提示词"
+        "skill": "Skills",
+        "prompt": "Prompts"
       }
     },
     "mediaMode": {
@@ -605,6 +609,7 @@
       "contentRetrieval": "内容检索",
       "fileContext": "文件上下文",
       "contextCompaction": "上下文压缩",
+      "skillContext": "Skill 上下文",
       "requestResult": "请求结果",
       "upstreamRequestTriggered": "上游模型请求触发"
     },

@@ -50,6 +50,7 @@ func Models() []interface{} {
 		&model.Announcement{},
 		&model.AnnouncementUserState{},
 		&model.PromptPreset{},
+		&model.Skill{},
 		&model.SystemSetting{},
 		&model.UserSetting{},
 		&model.FileChunk{},
@@ -84,14 +85,21 @@ func backfillUsageLedgerBillingAt(db *gorm.DB) error {
 
 // CleanupRemovedColumns drops columns that were removed from the Gorm models.
 func CleanupRemovedColumns(db *gorm.DB) error {
-	if !db.Migrator().HasTable(&model.PromptPreset{}) {
+	if err := dropColumns(db, &model.PromptPreset{}, []string{"use_count", "last_used_at", "category", "tags_json"}); err != nil {
+		return err
+	}
+	return dropColumns(db, &model.Skill{}, []string{"content", "sections_json"})
+}
+
+func dropColumns(db *gorm.DB, table interface{}, columns []string) error {
+	if !db.Migrator().HasTable(table) {
 		return nil
 	}
-	for _, column := range []string{"use_count", "last_used_at", "category", "tags_json"} {
-		if !db.Migrator().HasColumn(&model.PromptPreset{}, column) {
+	for _, column := range columns {
+		if !db.Migrator().HasColumn(table, column) {
 			continue
 		}
-		if err := db.Migrator().DropColumn(&model.PromptPreset{}, column); err != nil {
+		if err := db.Migrator().DropColumn(table, column); err != nil {
 			return err
 		}
 	}
