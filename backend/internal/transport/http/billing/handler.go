@@ -253,8 +253,8 @@ func (h *Handler) GetBillingAccount(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/billing/accounts/{user_id}/balance [patch]
 func (h *Handler) UpdateBillingAccountBalance(c *gin.Context) {
-	targetUserID, err := strconv.ParseUint(c.Param("user_id"), 10, 64)
-	if err != nil || targetUserID == 0 {
+	targetUserID, err := uintParam(c, "user_id")
+	if err != nil {
 		response.Error(c, http.StatusBadRequest, "invalid user id")
 		return
 	}
@@ -265,7 +265,7 @@ func (h *Handler) UpdateBillingAccountBalance(c *gin.Context) {
 	}
 	actorUserID := middleware.MustUserID(c)
 	account, err := h.service.SetBillingAccountBalance(c.Request.Context(), appbilling.BillingAccountBalanceInput{
-		UserID:      uint(targetUserID),
+		UserID:      targetUserID,
 		BalanceUSD:  req.BalanceUSD,
 		RefNo:       middleware.MustRequestID(c),
 		Description: req.Description,
@@ -279,7 +279,7 @@ func (h *Handler) UpdateBillingAccountBalance(c *gin.Context) {
 		actorUserID,
 		"update_billing_balance",
 		"billing_account",
-		strconv.FormatUint(targetUserID, 10),
+		strconv.FormatUint(uint64(targetUserID), 10),
 		map[string]interface{}{
 			"user_id":     targetUserID,
 			"balance_usd": req.BalanceUSD,
@@ -414,12 +414,12 @@ func writeRedemptionCodeError(c *gin.Context, err error) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/billing/redemption-codes/{id}/code [get]
 func (h *Handler) RevealRedemptionCode(c *gin.Context) {
-	codeID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || codeID == 0 {
+	codeID, err := uintParam(c, "id")
+	if err != nil {
 		response.Error(c, http.StatusBadRequest, "invalid redemption code id")
 		return
 	}
-	item, err := h.service.RevealRedemptionCode(c.Request.Context(), uint(codeID))
+	item, err := h.service.RevealRedemptionCode(c.Request.Context(), codeID)
 	if err != nil {
 		if errors.Is(err, appbilling.ErrRedemptionCodeUnavailable) {
 			response.Error(c, http.StatusNotFound, "redemption code not found")
@@ -434,7 +434,7 @@ func (h *Handler) RevealRedemptionCode(c *gin.Context) {
 		actorUserID,
 		"reveal_redemption_code",
 		"billing_redemption_code",
-		strconv.FormatUint(codeID, 10),
+		strconv.FormatUint(uint64(codeID), 10),
 		map[string]interface{}{"code_hint": item.CodeHint},
 	)
 	c.Header("Cache-Control", "no-store")
@@ -455,8 +455,8 @@ func (h *Handler) RevealRedemptionCode(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/billing/redemption-codes/{id} [patch]
 func (h *Handler) PatchRedemptionCode(c *gin.Context) {
-	codeID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || codeID == 0 {
+	codeID, err := uintParam(c, "id")
+	if err != nil {
 		response.Error(c, http.StatusBadRequest, "invalid redemption code id")
 		return
 	}
@@ -465,7 +465,7 @@ func (h *Handler) PatchRedemptionCode(c *gin.Context) {
 		response.InvalidRequestBody(c, err)
 		return
 	}
-	item, err := h.service.UpdateRedemptionCode(c.Request.Context(), uint(codeID), appbilling.RedemptionCodeUpdateInput{
+	item, err := h.service.UpdateRedemptionCode(c.Request.Context(), codeID, appbilling.RedemptionCodeUpdateInput{
 		Status:            req.Status,
 		MaxRedemptionsSet: req.MaxRedemptions.Set,
 		MaxRedemptions:    req.MaxRedemptions.Value,
@@ -484,7 +484,7 @@ func (h *Handler) PatchRedemptionCode(c *gin.Context) {
 		actorUserID,
 		"update_redemption_code",
 		"billing_redemption_code",
-		strconv.FormatUint(codeID, 10),
+		strconv.FormatUint(uint64(codeID), 10),
 		map[string]interface{}{
 			"status":          req.Status,
 			"max_redemptions": req.MaxRedemptions.Value,
@@ -508,12 +508,12 @@ func (h *Handler) PatchRedemptionCode(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/billing/redemption-codes/{id} [delete]
 func (h *Handler) DeleteRedemptionCode(c *gin.Context) {
-	codeID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || codeID == 0 {
+	codeID, err := uintParam(c, "id")
+	if err != nil {
 		response.Error(c, http.StatusBadRequest, "invalid redemption code id")
 		return
 	}
-	if err := h.service.DeleteRedemptionCode(c.Request.Context(), uint(codeID)); err != nil {
+	if err := h.service.DeleteRedemptionCode(c.Request.Context(), codeID); err != nil {
 		if errors.Is(err, appbilling.ErrRedemptionCodeUnavailable) {
 			response.Error(c, http.StatusNotFound, "redemption code not found")
 			return
@@ -527,7 +527,7 @@ func (h *Handler) DeleteRedemptionCode(c *gin.Context) {
 		actorUserID,
 		"delete_redemption_code",
 		"billing_redemption_code",
-		strconv.FormatUint(codeID, 10),
+		strconv.FormatUint(uint64(codeID), 10),
 		map[string]interface{}{"deleted": true},
 	)
 	response.Success(c, RedemptionCodeDeleteDataResponse{Deleted: true})
@@ -648,8 +648,8 @@ func (h *Handler) GetBillingOverview(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/billing/plans/{id} [patch]
 func (h *Handler) UpdatePlan(c *gin.Context) {
-	planID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || planID == 0 {
+	planID, err := uintParam(c, "id")
+	if err != nil {
 		response.Error(c, http.StatusBadRequest, "invalid plan id")
 		return
 	}
@@ -660,7 +660,7 @@ func (h *Handler) UpdatePlan(c *gin.Context) {
 		return
 	}
 
-	item, err := h.service.UpdatePlan(c.Request.Context(), uint(planID), planUpdateInputFromRequest(req))
+	item, err := h.service.UpdatePlan(c.Request.Context(), planID, planUpdateInputFromRequest(req))
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "update billing plan failed")
 		return
@@ -672,7 +672,7 @@ func (h *Handler) UpdatePlan(c *gin.Context) {
 		userID,
 		"update_billing_plan",
 		"billing_plan",
-		strconv.FormatUint(planID, 10),
+		strconv.FormatUint(uint64(planID), 10),
 		map[string]interface{}{
 			"plan_id":           planID,
 			"name":              req.Name,
@@ -972,4 +972,12 @@ func pageParams(c *gin.Context) (int, int) {
 	}
 
 	return page, pageSize
+}
+
+func uintParam(c *gin.Context, key string) (uint, error) {
+	value, err := strconv.Atoi(c.Param(key))
+	if err != nil || value <= 0 {
+		return 0, errors.New("invalid uint param")
+	}
+	return uint(value), nil
 }

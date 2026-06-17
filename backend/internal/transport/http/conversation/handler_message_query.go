@@ -165,8 +165,8 @@ func (h *Handler) ListMessages(c *gin.Context) {
 	page, pageSize := messagePageParams(c)
 	var beforeID uint
 	if rawBeforeID := strings.TrimSpace(c.Query("before_id")); rawBeforeID != "" {
-		parsed, parseErr := strconv.ParseUint(rawBeforeID, 10, 64)
-		if parseErr != nil || parsed == 0 {
+		parsed, parseErr := strconv.Atoi(rawBeforeID)
+		if parseErr != nil || parsed <= 0 {
 			response.Error(c, http.StatusBadRequest, "invalid before message id")
 			return
 		}

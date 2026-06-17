@@ -56,8 +56,8 @@ func (h *Handler) ListAnnouncements(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /announcements/{id}/dismiss-today [post]
 func (h *Handler) DismissAnnouncementToday(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || id == 0 {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
 		response.Error(c, http.StatusBadRequest, "invalid announcement id")
 		return
 	}
@@ -91,8 +91,8 @@ func (h *Handler) DismissAnnouncementToday(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /announcements/{id}/close [post]
 func (h *Handler) CloseAnnouncement(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || id == 0 {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
 		response.Error(c, http.StatusBadRequest, "invalid announcement id")
 		return
 	}
@@ -188,8 +188,8 @@ func (h *Handler) CreateAnnouncement(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/announcements/{id} [patch]
 func (h *Handler) PatchAnnouncement(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || id == 0 {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
 		response.Error(c, http.StatusBadRequest, "invalid announcement id")
 		return
 	}
@@ -231,8 +231,8 @@ func (h *Handler) PatchAnnouncement(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/announcements/{id} [delete]
 func (h *Handler) DeleteAnnouncement(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || id == 0 {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
 		response.Error(c, http.StatusBadRequest, "invalid announcement id")
 		return
 	}

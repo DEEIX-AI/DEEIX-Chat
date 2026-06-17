@@ -1469,9 +1469,9 @@ func pageParams(c *gin.Context) (int, int) {
 }
 
 func uintParam(c *gin.Context, key string) (uint, error) {
-	value, err := strconv.ParseUint(c.Param(key), 10, 64)
-	if err != nil {
-		return 0, err
+	value, err := strconv.Atoi(c.Param(key))
+	if err != nil || value <= 0 {
+		return 0, errors.New("invalid uint param")
 	}
 	return uint(value), nil
 }

@@ -212,15 +212,13 @@ func (h *Handler) ImportOpenWebUIUsers(c *gin.Context) {
 func (h *Handler) PatchUser(c *gin.Context) {
 	actorUserID := middleware.MustUserID(c)
 
-	rawID := c.Param("id")
-	parsedID, err := strconv.ParseUint(rawID, 10, 64)
-	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid user id")
+	targetUserID, ok := userIDParam(c)
+	if !ok {
 		return
 	}
 
 	var req PatchUserRequest
-	if err = c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		response.InvalidRequestBody(c, err)
 		return
 	}
@@ -229,7 +227,7 @@ func (h *Handler) PatchUser(c *gin.Context) {
 		c.Request.Context(),
 		middleware.MustRequestID(c),
 		actorUserID,
-		uint(parsedID),
+		targetUserID,
 		toAppPatchUserInput(req),
 		c.ClientIP(),
 		c.Request.UserAgent(),
@@ -584,9 +582,18 @@ func parseOptionalUintQuery(c *gin.Context, key string) (uint, bool) {
 	if raw == "" {
 		return 0, true
 	}
-	parsed, err := strconv.ParseUint(raw, 10, 64)
-	if err != nil || parsed == 0 {
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed <= 0 {
 		response.Error(c, http.StatusBadRequest, "invalid "+key)
+		return 0, false
+	}
+	return uint(parsed), true
+}
+
+func userIDParam(c *gin.Context) (uint, bool) {
+	parsed, err := strconv.Atoi(c.Param("id"))
+	if err != nil || parsed <= 0 {
+		response.Error(c, http.StatusBadRequest, "invalid user id")
 		return 0, false
 	}
 	return uint(parsed), true
@@ -621,18 +628,16 @@ func parseOptionalTimeQuery(c *gin.Context, key string) (*time.Time, bool) {
 func (h *Handler) RevokeUserSessions(c *gin.Context) {
 	actorUserID := middleware.MustUserID(c)
 
-	rawID := c.Param("id")
-	parsedID, err := strconv.ParseUint(rawID, 10, 64)
-	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid user id")
+	targetUserID, ok := userIDParam(c)
+	if !ok {
 		return
 	}
 
-	if err = h.service.RevokeUserSessionsByAdmin(
+	if err := h.service.RevokeUserSessionsByAdmin(
 		c.Request.Context(),
 		middleware.MustRequestID(c),
 		actorUserID,
-		uint(parsedID),
+		targetUserID,
 		c.ClientIP(),
 		c.Request.UserAgent(),
 	); err != nil {
@@ -669,15 +674,13 @@ func (h *Handler) RevokeUserSessions(c *gin.Context) {
 func (h *Handler) UpdateUserStatus(c *gin.Context) {
 	actorUserID := middleware.MustUserID(c)
 
-	rawID := c.Param("id")
-	parsedID, err := strconv.ParseUint(rawID, 10, 64)
-	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid user id")
+	targetUserID, ok := userIDParam(c)
+	if !ok {
 		return
 	}
 
 	var req UpdateUserStatusRequest
-	if err = c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		response.InvalidRequestBody(c, err)
 		return
 	}
@@ -686,7 +689,7 @@ func (h *Handler) UpdateUserStatus(c *gin.Context) {
 		c.Request.Context(),
 		middleware.MustRequestID(c),
 		actorUserID,
-		uint(parsedID),
+		targetUserID,
 		req.Status,
 		req.Reason,
 		c.ClientIP(),
@@ -740,15 +743,13 @@ func (h *Handler) UpdateUserStatus(c *gin.Context) {
 func (h *Handler) ResetUserPassword(c *gin.Context) {
 	actorUserID := middleware.MustUserID(c)
 
-	rawID := c.Param("id")
-	parsedID, err := strconv.ParseUint(rawID, 10, 64)
-	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid user id")
+	targetUserID, ok := userIDParam(c)
+	if !ok {
 		return
 	}
 
 	var req ResetUserPasswordRequest
-	if err = c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		response.InvalidRequestBody(c, err)
 		return
 	}
@@ -758,11 +759,11 @@ func (h *Handler) ResetUserPassword(c *gin.Context) {
 		mustResetPassword = *req.MustResetPassword
 	}
 
-	if err = h.service.ResetUserPasswordByAdmin(
+	if err := h.service.ResetUserPasswordByAdmin(
 		c.Request.Context(),
 		middleware.MustRequestID(c),
 		actorUserID,
-		uint(parsedID),
+		targetUserID,
 		req.NewPassword,
 		mustResetPassword,
 		c.ClientIP(),
@@ -793,17 +794,15 @@ func (h *Handler) ResetUserPassword(c *gin.Context) {
 
 func (h *Handler) ResetUserTwoFactor(c *gin.Context) {
 	actorUserID := middleware.MustUserID(c)
-	rawID := c.Param("id")
-	parsedID, err := strconv.ParseUint(rawID, 10, 64)
-	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid user id")
+	targetUserID, ok := userIDParam(c)
+	if !ok {
 		return
 	}
-	if err = h.service.ResetUserTwoFactorByAdmin(
+	if err := h.service.ResetUserTwoFactorByAdmin(
 		c.Request.Context(),
 		middleware.MustRequestID(c),
 		actorUserID,
-		uint(parsedID),
+		targetUserID,
 		c.ClientIP(),
 		c.Request.UserAgent(),
 	); err != nil {
@@ -842,18 +841,16 @@ func (h *Handler) ResetUserTwoFactor(c *gin.Context) {
 func (h *Handler) DeleteUser(c *gin.Context) {
 	actorUserID := middleware.MustUserID(c)
 
-	rawID := c.Param("id")
-	parsedID, err := strconv.ParseUint(rawID, 10, 64)
-	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid user id")
+	targetUserID, ok := userIDParam(c)
+	if !ok {
 		return
 	}
 
-	if err = h.service.DeleteUserByAdmin(
+	if err := h.service.DeleteUserByAdmin(
 		c.Request.Context(),
 		middleware.MustRequestID(c),
 		actorUserID,
-		uint(parsedID),
+		targetUserID,
 		c.ClientIP(),
 		c.Request.UserAgent(),
 	); err != nil {
@@ -895,14 +892,9 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/user-auth-events [get]
 func (h *Handler) ListUserAuthEvents(c *gin.Context) {
-	var userID uint
-	if raw := c.Query("user_id"); raw != "" {
-		parsedID, err := strconv.ParseUint(raw, 10, 64)
-		if err != nil || parsedID == 0 {
-			response.Error(c, http.StatusBadRequest, "invalid user_id")
-			return
-		}
-		userID = uint(parsedID)
+	userID, ok := parseOptionalUintQuery(c, "user_id")
+	if !ok {
+		return
 	}
 
 	page, pageSize := pageParams(c)

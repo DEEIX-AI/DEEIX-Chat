@@ -1153,17 +1153,21 @@ func (s *Service) sendEmailVerificationCode(to string, code string, template ver
 	if err != nil {
 		return fmt.Errorf("smtp from is invalid")
 	}
+	parsedTo, err := mail.ParseAddress(strings.TrimSpace(to))
+	if err != nil {
+		return fmt.Errorf("smtp to is invalid")
+	}
 
 	addr := net.JoinHostPort(strings.TrimSpace(cfg.SMTPHost), fmt.Sprintf("%d", cfg.SMTPPort))
 	var auth smtp.Auth
 	if strings.TrimSpace(cfg.SMTPUsername) != "" || strings.TrimSpace(cfg.SMTPPassword) != "" {
 		auth = smtp.PlainAuth("", strings.TrimSpace(cfg.SMTPUsername), strings.TrimSpace(cfg.SMTPPassword), strings.TrimSpace(cfg.SMTPHost))
 	}
-	message := buildVerificationEmailMessage(parsedFrom.String(), to, code, template, publicAssetURL(cfg.PublicWebBaseURL, "logo.svg"))
-	if err := sendSMTPMail(addr, strings.TrimSpace(cfg.SMTPHost), cfg.SMTPPort, auth, parsedFrom.Address, []string{to}, []byte(message)); err != nil {
+	message := buildVerificationEmailMessage(parsedFrom.String(), parsedTo.String(), code, template, publicAssetURL(cfg.PublicWebBaseURL, "logo.svg"))
+	if err := sendSMTPMail(addr, strings.TrimSpace(cfg.SMTPHost), cfg.SMTPPort, auth, parsedFrom.Address, []string{parsedTo.Address}, []byte(message)); err != nil {
 		s.warn("email_verification_send_failed",
 			zap.String("label", strings.TrimSpace(logLabel)),
-			zap.String("email", to),
+			zap.String("email", parsedTo.Address),
 			zap.Error(err),
 		)
 		return err

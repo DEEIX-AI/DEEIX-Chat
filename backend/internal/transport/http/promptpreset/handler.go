@@ -296,8 +296,8 @@ func patchInputFromRequest(req PatchPromptPresetRequest) apppromptpreset.PatchIn
 }
 
 func idParam(c *gin.Context) (uint, bool) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || id == 0 {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
 		response.Error(c, http.StatusBadRequest, "invalid prompt preset id")
 		return 0, false
 	}

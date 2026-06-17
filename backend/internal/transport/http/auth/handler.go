@@ -489,12 +489,12 @@ func (h *Handler) DeleteCurrentUserIdentity(c *gin.Context) {
 		return
 	}
 	rawID := c.Param("identity_id")
-	parsedID, err := strconv.ParseUint(rawID, 10, 64)
-	if err != nil || parsedID == 0 {
+	parsedID, err := strconv.Atoi(rawID)
+	if err != nil || parsedID <= 0 {
 		response.Error(c, http.StatusBadRequest, "invalid identity id")
 		return
 	}
-	if err = h.service.UnlinkCurrentUserIdentity(c.Request.Context(), userID, uint(parsedID)); err != nil {
+	if err := h.service.UnlinkCurrentUserIdentity(c.Request.Context(), userID, uint(parsedID)); err != nil {
 		if errors.Is(err, appauth.ErrIdentityNotFound) {
 			response.Error(c, http.StatusNotFound, "identity not found")
 			return
