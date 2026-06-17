@@ -71,6 +71,8 @@ var (
 	ErrUpstreamRequestFailed = errors.New("upstream request failed")
 	// ErrUpstreamEmptyResponse 上游返回空响应。
 	ErrUpstreamEmptyResponse = errors.New("upstream returned empty response")
+	// ErrToolRunFinalAnswerMissing 工具循环结束后上游仍未产出最终回答。
+	ErrToolRunFinalAnswerMissing = errors.New("tool run ended without a final answer")
 	// ErrMessageGenerationCanceled 用户主动停止生成。
 	ErrMessageGenerationCanceled = errors.New("message generation canceled")
 	// ErrInvalidMediaGenerationTask 媒体生成任务类型或输入不合法。

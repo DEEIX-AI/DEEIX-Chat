@@ -266,3 +266,11 @@ func buildFinalToolSynthesisMessages(messages []llm.Message, instruction string)
 	})
 	return result
 }
+
+// toolRunFinalAnswerMissing 判断工具循环在预算耗尽时是否只剩未执行的结构化工具调用。
+func toolRunFinalAnswerMissing(output *llm.GenerateOutput, toolLoopStarted bool, llmCallCount int, maxLLMCalls int, remainingToolCalls int) bool {
+	if output == nil || !toolLoopStarted {
+		return false
+	}
+	return len(output.ToolCalls) > 0 && (llmCallCount >= maxLLMCalls || remainingToolCalls <= 0)
+}

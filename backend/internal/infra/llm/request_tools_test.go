@@ -90,7 +90,7 @@ func TestParseChatCompletionsOutputSeparatesReasoningContentParts(t *testing.T) 
 				},
 			},
 		},
-	}, result)
+	}, result, false)
 
 	if result.Text != "visible answer" {
 		t.Fatalf("expected only visible content, got %q", result.Text)
@@ -124,7 +124,7 @@ func TestApplyChatStreamEventSeparatesReasoningContentParts(t *testing.T) {
 			reasoning += event.Reasoning.Text
 		}
 		return nil
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("apply chat stream event: %v", err)
 	}
@@ -572,7 +572,7 @@ func TestChatStreamToolCallArgumentsAreConcatenatedWithoutDefaultPrefix(t *testi
 	}
 
 	for _, chunk := range chunks {
-		if err := applyChatStreamEvent(AdapterOpenAIChatCompletions, chunk, result, nil); err != nil {
+		if err := applyChatStreamEvent(AdapterOpenAIChatCompletions, chunk, result, nil, false); err != nil {
 			t.Fatalf("apply stream event: %v", err)
 		}
 	}
@@ -629,7 +629,7 @@ func TestChatStreamCustomToolCallInputIsConcatenated(t *testing.T) {
 	}
 
 	for _, chunk := range chunks {
-		if err := applyChatStreamEvent(AdapterOpenAIChatCompletions, chunk, result, nil); err != nil {
+		if err := applyChatStreamEvent(AdapterOpenAIChatCompletions, chunk, result, nil, false); err != nil {
 			t.Fatalf("apply stream event: %v", err)
 		}
 	}
@@ -662,11 +662,187 @@ func TestParseChatCompletionsCustomToolCall(t *testing.T) {
 	}
 }
 
+func TestParseChatCompletionsDSMLToolCalls(t *testing.T) {
+	payload := mustDecodeObject(t, `{
+		"id": "chatcmpl_1",
+		"choices": [{
+			"message": {
+				"role": "assistant",
+				"content": "<｜DSML｜tool_calls>\n<｜DSML｜invoke name=\"searchGitHub\">\n<｜DSML｜parameter name=\"query\" string=\"true\">默认启用MCP DEEIX</｜DSML｜parameter>\n</｜DSML｜invoke>\n</｜DSML｜tool_calls>"
+			}
+		}]
+	}`)
+
+	result := buildGenerateOutputFromParsedForAdapter(EndpointChatCompletions, AdapterOpenAIChatCompletions, payload, true)
+	if result.Text != "" {
+		t.Fatalf("expected DSML envelope to be removed from visible text, got %q", result.Text)
+	}
+	if len(result.ToolCalls) != 1 {
+		t.Fatalf("expected one parsed DSML tool call, got %#v", result.ToolCalls)
+	}
+	call := result.ToolCalls[0]
+	if call.ToolCallID != "dsml_call_1" || call.ToolType != "function" || call.ToolName != "searchGitHub" || call.Status != "requested" {
+		t.Fatalf("unexpected DSML tool call: %#v", call)
+	}
+	if call.ArgumentsJSON != `{"query":"默认启用MCP DEEIX"}` {
+		t.Fatalf("unexpected DSML arguments: %q", call.ArgumentsJSON)
+	}
+}
+
+func TestParseChatCompletionsDSMLToolCallsDecodesJSONParameters(t *testing.T) {
+	payload := mustDecodeObject(t, `{
+		"id": "chatcmpl_1",
+		"choices": [{
+			"message": {
+				"role": "assistant",
+				"content": "<｜DSML｜tool_calls>\n<｜DSML｜invoke name=\"searchGitHub\">\n<｜DSML｜parameter name=\"query\" string=\"true\">DEEIX</｜DSML｜parameter>\n<｜DSML｜parameter name=\"limit\" string=\"false\">3</｜DSML｜parameter>\n<｜DSML｜parameter name=\"filters\" string=\"false\">{\"language\":\"Go\"}</｜DSML｜parameter>\n</｜DSML｜invoke>\n</｜DSML｜tool_calls>"
+			}
+		}]
+	}`)
+
+	result := buildGenerateOutputFromParsedForAdapter(EndpointChatCompletions, AdapterOpenAIChatCompletions, payload, true)
+	if len(result.ToolCalls) != 1 {
+		t.Fatalf("expected one parsed DSML tool call, got %#v", result.ToolCalls)
+	}
+	if result.ToolCalls[0].ArgumentsJSON != `{"filters":{"language":"Go"},"limit":3,"query":"DEEIX"}` {
+		t.Fatalf("unexpected DSML arguments: %q", result.ToolCalls[0].ArgumentsJSON)
+	}
+}
+
+func TestParseChatCompletionsDSMLToolCallsDisabledByDefault(t *testing.T) {
+	payload := mustDecodeObject(t, `{
+		"id": "chatcmpl_1",
+		"choices": [{
+			"message": {
+				"role": "assistant",
+				"content": "<｜DSML｜tool_calls><｜DSML｜invoke name=\"searchGitHub\"><｜DSML｜parameter name=\"query\" string=\"true\">DEEIX</｜DSML｜parameter></｜DSML｜invoke></｜DSML｜tool_calls>"
+			}
+		}]
+	}`)
+
+	result := buildGenerateOutputFromParsed(EndpointChatCompletions, payload)
+	if !strings.Contains(result.Text, "DSML") {
+		t.Fatalf("expected default chat completions path to keep DSML as text, got %q", result.Text)
+	}
+	if len(result.ToolCalls) != 0 {
+		t.Fatalf("expected default chat completions path not to parse DSML tool calls, got %#v", result.ToolCalls)
+	}
+}
+
+func TestTextEncodedToolCallsOnlyEnabledForDeepSeekChatCompletions(t *testing.T) {
+	if !deepSeekTextEncodedToolCallsEnabled(RouteConfig{
+		Protocol:      AdapterOpenAIChatCompletions,
+		UpstreamModel: "deepseek-v4-flash",
+	}) {
+		t.Fatalf("expected DeepSeek chat completions route to enable text-encoded tool calls")
+	}
+	if deepSeekTextEncodedToolCallsEnabled(RouteConfig{
+		Protocol:      AdapterOpenAIChatCompletions,
+		UpstreamModel: "gpt-5.4",
+	}) {
+		t.Fatalf("expected non-DeepSeek chat completions route to keep text-encoded tool calls disabled")
+	}
+	if deepSeekTextEncodedToolCallsEnabled(RouteConfig{
+		Protocol:      AdapterOpenAIResponses,
+		UpstreamModel: "deepseek-v4-flash",
+	}) {
+		t.Fatalf("expected non-chat-completions route to keep text-encoded tool calls disabled")
+	}
+}
+
+func TestConsumeChatStreamDSMLToolCallsAreNotEmittedAsText(t *testing.T) {
+	rawStream := strings.Join([]string{
+		`data: {"id":"chatcmpl_1","choices":[{"delta":{"content":"<｜DSML｜tool_calls>\n<｜DSML｜invoke name=\"searchGitHub\">\n"}}]}`,
+		`data: {"id":"chatcmpl_1","choices":[{"delta":{"content":"<｜DSML｜parameter name=\"query\" string=\"true\">DEEIX MCP</｜DSML｜parameter>\n</｜DSML｜invoke>\n</｜DSML｜tool_calls>"}}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n\n")
+	result := &GenerateOutput{ToolCalls: make([]ToolCall, 0)}
+	var deltas []string
+
+	err := consumeOpenAIGenerateStream(EndpointChatCompletions, AdapterOpenAIChatCompletions, strings.NewReader(rawStream), result, func(event GenerateStreamEvent) error {
+		if event.Delta != "" {
+			deltas = append(deltas, event.Delta)
+		}
+		return nil
+	}, true)
+	if err != nil {
+		t.Fatalf("consume stream: %v", err)
+	}
+	if len(deltas) != 0 || result.Text != "" {
+		t.Fatalf("expected DSML stream to stay out of visible text, deltas=%#v text=%q", deltas, result.Text)
+	}
+	if len(result.ToolCalls) != 1 || result.ToolCalls[0].ToolName != "searchGitHub" || result.ToolCalls[0].ArgumentsJSON != `{"query":"DEEIX MCP"}` {
+		t.Fatalf("unexpected DSML stream tool calls: %#v", result.ToolCalls)
+	}
+}
+
+func TestConsumeChatStreamIncompleteDSMLToolCallsReturnsError(t *testing.T) {
+	rawStream := strings.Join([]string{
+		`data: {"id":"chatcmpl_1","choices":[{"delta":{"content":"<｜DSML｜tool_calls>\n<｜DSML｜invoke name=\"searchGitHub\">\n"}}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n\n")
+	result := &GenerateOutput{ToolCalls: make([]ToolCall, 0)}
+
+	err := consumeOpenAIGenerateStream(EndpointChatCompletions, AdapterOpenAIChatCompletions, strings.NewReader(rawStream), result, nil, true)
+	if !errors.Is(err, errDeepSeekDSMLToolCallsIncomplete) {
+		t.Fatalf("expected incomplete DSML error, got %v", err)
+	}
+	if result.Text != "" || len(result.ToolCalls) != 0 {
+		t.Fatalf("expected incomplete DSML to stay out of output, text=%q toolCalls=%#v", result.Text, result.ToolCalls)
+	}
+}
+
+func TestParseOpenAIGenerateOutputIncompleteDSMLToolCallsReturnsError(t *testing.T) {
+	body := []byte(`{
+		"id": "chatcmpl_1",
+		"choices": [{
+			"message": {
+				"role": "assistant",
+				"content": "<｜DSML｜tool_calls>\n<｜DSML｜invoke name=\"searchGitHub\">"
+			}
+		}]
+	}`)
+
+	_, err := parseOpenAIGenerateOutput(EndpointChatCompletions, AdapterOpenAIChatCompletions, body, true)
+	if !errors.Is(err, errDeepSeekDSMLToolCallsIncomplete) {
+		t.Fatalf("expected incomplete DSML error, got %v", err)
+	}
+}
+
+func TestConsumeChatStreamAngleBracketTextStillEmits(t *testing.T) {
+	rawStream := strings.Join([]string{
+		`data: {"id":"chatcmpl_1","choices":[{"delta":{"content":"<"}}]}`,
+		`data: {"id":"chatcmpl_1","choices":[{"delta":{"content":"not-dsml> ok"}}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n\n")
+	result := &GenerateOutput{ToolCalls: make([]ToolCall, 0)}
+	var deltas []string
+
+	err := consumeOpenAIGenerateStream(EndpointChatCompletions, AdapterOpenAIChatCompletions, strings.NewReader(rawStream), result, func(event GenerateStreamEvent) error {
+		if event.Delta != "" {
+			deltas = append(deltas, event.Delta)
+		}
+		return nil
+	}, true)
+	if err != nil {
+		t.Fatalf("consume stream: %v", err)
+	}
+	if got := strings.Join(deltas, ""); got != "<not-dsml> ok" || result.Text != got {
+		t.Fatalf("expected ordinary angle bracket text to stream, deltas=%#v text=%q", deltas, result.Text)
+	}
+	if len(result.ToolCalls) != 0 {
+		t.Fatalf("expected no tool calls, got %#v", result.ToolCalls)
+	}
+}
+
 func TestConsumeChatStreamErrorPayloadReturnsUpstreamError(t *testing.T) {
 	result := &GenerateOutput{ToolCalls: make([]ToolCall, 0)}
 	stream := bytes.NewBufferString("data: {\"error\":{\"message\":\"Param Incorrect\",\"code\":400}}\n\n")
 
-	err := consumeOpenAIGenerateStream(EndpointChatCompletions, AdapterOpenAIChatCompletions, stream, result, nil)
+	err := consumeOpenAIGenerateStream(EndpointChatCompletions, AdapterOpenAIChatCompletions, stream, result, nil, false)
 	var upstreamErr *UpstreamError
 	if !errors.As(err, &upstreamErr) {
 		t.Fatalf("expected upstream error, got %T %v", err, err)
@@ -754,7 +930,7 @@ func TestStreamDebugSnapshotPreservesRawSSEBody(t *testing.T) {
 	rawStream := "event: response.error\ndata: {\"type\":\"response.error\",\"error\":{\"message\":\"Argument not supported: metadata\"}}\n\n"
 	recorder := newUpstreamBodyRecorder(bytes.NewBufferString(rawStream))
 
-	err := consumeOpenAIGenerateStream(EndpointResponses, AdapterXAIResponses, recorder, result, nil)
+	err := consumeOpenAIGenerateStream(EndpointResponses, AdapterXAIResponses, recorder, result, nil, false)
 	req, reqErr := http.NewRequest(http.MethodPost, "https://api.x.ai/v1/responses", strings.NewReader(`{"model":"grok-4.3"}`))
 	if reqErr != nil {
 		t.Fatal(reqErr)
@@ -787,7 +963,7 @@ func TestResponsesStreamReasoningSummaryDeltaIsEmittedAndStored(t *testing.T) {
 			reasoningText += event.Reasoning.Text
 		}
 		return nil
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("consume stream: %v", err)
 	}
@@ -813,7 +989,7 @@ func TestResponsesCompletedReasoningSummaryIsEmittedWhenNoDeltaArrived(t *testin
 			reasoningText += event.Reasoning.Text
 		}
 		return nil
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("consume stream: %v", err)
 	}
@@ -842,7 +1018,7 @@ func TestResponsesStreamDoneEventsAreMergedWithoutDuplicateText(t *testing.T) {
 		``,
 	}, "\n")
 
-	if err := consumeOpenAIGenerateStream(EndpointResponses, AdapterOpenAIResponses, strings.NewReader(rawStream), result, nil); err != nil {
+	if err := consumeOpenAIGenerateStream(EndpointResponses, AdapterOpenAIResponses, strings.NewReader(rawStream), result, nil, false); err != nil {
 		t.Fatalf("consume stream: %v", err)
 	}
 	if result.Text != "Hello" {
@@ -1136,7 +1312,7 @@ func TestResponsesOutputItemDoneCapturesServerSideToolCall(t *testing.T) {
 		``,
 	}, "\n")
 
-	err := consumeOpenAIGenerateStream(EndpointResponses, AdapterOpenAIResponses, strings.NewReader(rawStream), result, nil)
+	err := consumeOpenAIGenerateStream(EndpointResponses, AdapterOpenAIResponses, strings.NewReader(rawStream), result, nil, false)
 	if err != nil {
 		t.Fatalf("consume stream: %v", err)
 	}
@@ -1168,7 +1344,7 @@ func TestResponsesStreamEmitsServerSideToolStatusEvents(t *testing.T) {
 			statuses = append(statuses, event.ServerToolCall.Status)
 		}
 		return nil
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("consume stream: %v", err)
 	}
@@ -1191,7 +1367,7 @@ func TestResponsesServerToolFinalItemReplacesStreamingPlaceholder(t *testing.T) 
 		``,
 	}, "\n")
 
-	if err := consumeOpenAIGenerateStream(EndpointResponses, AdapterOpenAIResponses, strings.NewReader(rawStream), result, nil); err != nil {
+	if err := consumeOpenAIGenerateStream(EndpointResponses, AdapterOpenAIResponses, strings.NewReader(rawStream), result, nil, false); err != nil {
 		t.Fatalf("consume stream: %v", err)
 	}
 	if len(result.ServerToolCalls) != 1 {
@@ -1218,7 +1394,7 @@ func TestResponsesStreamStatusEventCapturesNestedServerToolItem(t *testing.T) {
 			streamed = &value
 		}
 		return nil
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("consume stream: %v", err)
 	}
@@ -1253,7 +1429,7 @@ func TestResponsesStreamCapturesXSearchCustomToolInput(t *testing.T) {
 			events = append(events, *event.ServerToolCall)
 		}
 		return nil
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("consume stream: %v", err)
 	}

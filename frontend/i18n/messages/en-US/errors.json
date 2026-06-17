@@ -154,6 +154,9 @@
   "internal": {
     "error": "Internal server error. Please try again later."
   },
+  "toolRun": {
+    "finalAnswerMissing": "The tool run reached its limit before the model produced a final answer. Retry or enable fewer tools for this message."
+  },
   "llm": {
     "apiKeysRequired": "API keys are required.",
     "emptyResponse": "The model returned an empty response.",

@@ -1172,6 +1172,10 @@ func (s *Service) sendMessageInternal(
 		effectiveOutputTokens = estimateTokens(assistantText)
 	}
 
+	if toolRunFinalAnswerMissing(upstreamOutput, len(toolCallRows) > 0, llmCallCount, maxLLMCalls, remainingToolCalls) {
+		retErr = ErrToolRunFinalAnswerMissing
+		return nil, retErr
+	}
 	if strings.TrimSpace(assistantText) == "" {
 		retErr = ErrUpstreamEmptyResponse
 		return nil, retErr

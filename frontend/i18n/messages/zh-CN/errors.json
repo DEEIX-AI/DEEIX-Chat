@@ -154,6 +154,9 @@
   "internal": {
     "error": "服务器内部错误，请稍后重试。"
   },
+  "toolRun": {
+    "finalAnswerMissing": "工具调用已到达运行上限，但模型没有生成最终回答。请重试或减少本次启用的工具。"
+  },
   "llm": {
     "apiKeysRequired": "API Keys 不能为空。",
     "emptyResponse": "模型返回了空响应。",

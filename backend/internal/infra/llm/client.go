@@ -633,6 +633,8 @@ type GenerateOutput struct {
 	GeneratedImages     []GeneratedImage
 	RawJSON             string
 	Debug               *UpstreamDebugSnapshot `json:"-"`
+
+	chatTextBuffer string
 }
 
 // GeneratedImage 表示图片生成/编辑接口返回的一张图片。

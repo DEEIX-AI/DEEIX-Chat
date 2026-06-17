@@ -136,3 +136,27 @@ func TestOutputReasoningContentPrefersStructuredReasoning(t *testing.T) {
 		t.Fatalf("expected parsed thinking fallback, got %q", got)
 	}
 }
+
+func TestToolRunFinalAnswerMissingWhenBudgetEndsWithStructuredToolCall(t *testing.T) {
+	output := &llm.GenerateOutput{
+		ToolCalls: []llm.ToolCall{{
+			ToolCallID:    "call_1",
+			ToolType:      "function",
+			ToolName:      "search",
+			ArgumentsJSON: `{"query":"mcp"}`,
+			Status:        "requested",
+		}},
+	}
+
+	if !toolRunFinalAnswerMissing(output, true, 5, 5, 1) {
+		t.Fatalf("expected exhausted tool run with pending tool call to be missing a final answer")
+	}
+}
+
+func TestToolRunFinalAnswerMissingAcceptsNaturalFinalAnswer(t *testing.T) {
+	text := "没有更多工具调用空间时，应基于已获取的结果直接回答。"
+
+	if toolRunFinalAnswerMissing(&llm.GenerateOutput{Text: text}, true, 5, 5, 1) {
+		t.Fatalf("expected natural final answer to be accepted")
+	}
+}
