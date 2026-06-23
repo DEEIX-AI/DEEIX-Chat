@@ -47,6 +47,11 @@ type UserImportRecord struct {
 	BillingBalanceDescription string
 }
 
+// UserListFilter 定义管理员用户列表过滤条件。
+type UserListFilter struct {
+	Query string
+}
+
 // UpdateSessionActivityInput 定义会话活动元数据更新字段。
 type UpdateSessionActivityInput struct {
 	LastSeenAt       *time.Time
@@ -196,7 +201,7 @@ type UserRepository interface {
 	ListUsersByLowerEmails(ctx context.Context, emails []string) (map[string]domainuser.User, error)
 	ListAllUsernames(ctx context.Context) ([]string, error)
 	UpdateFields(ctx context.Context, userID uint, input UpdateUserFieldsInput) (*domainuser.User, error)
-	ListUsers(ctx context.Context, offset int, limit int) ([]domainuser.User, int64, error)
+	ListUsers(ctx context.Context, offset int, limit int, filter UserListFilter) ([]domainuser.User, int64, error)
 	CountSuperAdmins(ctx context.Context) (int64, error)
 	GetActivePlanByCode(ctx context.Context, code string) (*domainbilling.Plan, error)
 	GetActiveDefaultPriceByPlanID(ctx context.Context, planID uint) (*domainbilling.Price, error)

@@ -13,9 +13,14 @@ type UseAdminAccountsState = {
   users: UserDTO[];
   total: number;
   page: number;
+  setPage: (value: number) => void;
   pageSize: number;
+  setPageSize: (value: number) => void;
+  pageCount: number;
+  query: string;
+  setQuery: (value: string) => void;
   loading: boolean;
-  loadUsers: (page: number, pageSize?: number) => Promise<void>;
+  loadUsers: () => Promise<void>;
   setUsersOptimistic: React.Dispatch<React.SetStateAction<UserDTO[]>>;
   setTotalOptimistic: React.Dispatch<React.SetStateAction<number>>;
 };
@@ -25,13 +30,22 @@ export function useAdminAccounts(): UseAdminAccountsState {
   const [users, setUsers] = React.useState<UserDTO[]>([]);
   const [total, setTotal] = React.useState(0);
   const [page, setPage] = React.useState(1);
-  const [pageSize, setPageSize] = React.useState(USERS_PAGE_SIZE_DEFAULT);
+  const [pageSize, setPageSizeState] = React.useState(USERS_PAGE_SIZE_DEFAULT);
+  const [query, setQueryState] = React.useState("");
+  const [debouncedQuery, setDebouncedQuery] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   const [, startTableTransition] = React.useTransition();
   const requestSeqRef = React.useRef(0);
 
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedQuery(query.trim());
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
   const loadUsers = React.useCallback(
-    async (nextPage = 1, nextPageSize = pageSize) => {
+    async () => {
       const requestSeq = requestSeqRef.current + 1;
       requestSeqRef.current = requestSeq;
       setLoading(true);
@@ -43,8 +57,9 @@ export function useAdminAccounts(): UseAdminAccountsState {
         }
 
         const data = await listAdminUsers(token, {
-          page: nextPage,
-          pageSize: nextPageSize,
+          page,
+          pageSize,
+          query: debouncedQuery,
         });
         if (requestSeq !== requestSeqRef.current) {
           return;
@@ -52,8 +67,6 @@ export function useAdminAccounts(): UseAdminAccountsState {
         startTableTransition(() => {
           setUsers(data.results);
           setTotal(data.total);
-          setPage(nextPage);
-          setPageSize(nextPageSize);
         });
       } catch (error) {
         toast.error(t("usersLoadFailed"), { description: resolveAdminErrorMessage(error) });
@@ -63,18 +76,35 @@ export function useAdminAccounts(): UseAdminAccountsState {
         }
       }
     },
-    [pageSize, startTableTransition, t],
+    [debouncedQuery, page, pageSize, startTableTransition, t],
   );
 
   React.useEffect(() => {
-    void loadUsers(1);
+    void loadUsers();
   }, [loadUsers]);
+
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+
+  const setQuery = React.useCallback((value: string) => {
+    setQueryState(value);
+    setPage(1);
+  }, []);
+
+  const setPageSize = React.useCallback((value: number) => {
+    setPageSizeState(value);
+    setPage(1);
+  }, []);
 
   return {
     users,
     total,
     page,
+    setPage,
     pageSize,
+    setPageSize,
+    pageCount,
+    query,
+    setQuery,
     loading,
     loadUsers,
     setUsersOptimistic: setUsers,

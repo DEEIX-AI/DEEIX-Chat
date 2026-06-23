@@ -200,9 +200,14 @@ type AccountsUsersProps = {
   items: UserDTO[];
   total: number;
   page: number;
+  setPage: (value: number) => void;
   pageSize: number;
+  setPageSize: (value: number) => void;
+  pageCount: number;
+  query: string;
+  setQuery: (value: string) => void;
   loading: boolean;
-  onLoadUsers: (page: number, pageSize?: number) => Promise<void>;
+  onLoadUsers: () => Promise<void>;
   onSetUsers: React.Dispatch<React.SetStateAction<UserDTO[]>>;
   onSetTotal: React.Dispatch<React.SetStateAction<number>>;
 };
@@ -406,7 +411,12 @@ export function AccountsUsers({
   items,
   total,
   page,
+  setPage,
   pageSize,
+  setPageSize,
+  pageCount,
+  query,
+  setQuery,
   loading,
   onLoadUsers,
   onSetUsers,
@@ -439,8 +449,6 @@ export function AccountsUsers({
     setDeleteDialogTarget,
     resetTwoFactorDialogTarget,
     setResetTwoFactorDialogTarget,
-    query,
-    setQuery,
     roleFilter,
     setRoleFilter,
     statusFilter,
@@ -469,7 +477,6 @@ export function AccountsUsers({
     createAvatarSource,
     avatarDialogPreviewSrc,
     editStatusChanged,
-    pageCount,
     filteredItems,
     selectAllState,
     resolveInlineKey,
@@ -494,7 +501,19 @@ export function AccountsUsers({
     onBulkApplyTimezone,
     onBulkApplyBalance,
     handleRandomizeAvatarDialog,
-  } = useAdminUsersPage({ items, total, page, pageSize, viewerRole: viewer?.role, onLoadUsers, onSetUsers, onSetTotal });
+  } = useAdminUsersPage({
+    items,
+    total,
+    page,
+    pageSize,
+    query,
+    setQuery,
+    viewerRole: viewer?.role,
+    onLoadUsers,
+    onSetPage: setPage,
+    onSetUsers,
+    onSetTotal,
+  });
   const virtualRows = useVirtualTableRows(filteredItems, {
     enabled: filteredItems.length > 100,
     estimateSize: 40,
@@ -556,7 +575,11 @@ export function AccountsUsers({
         skipped: result.skippedExistingEmail + result.skippedDuplicateSourceEmail,
       }));
       setOpenWebUIImportOpen(false);
-      await onLoadUsers(1, pageSize);
+      if (page === 1) {
+        await onLoadUsers();
+      } else {
+        setPage(1);
+      }
     } catch (error) {
       toast.error(t("importOpenWebUI.toastFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
@@ -824,12 +847,12 @@ export function AccountsUsers({
         </Table>
 
         <TablePagination
-          total={filteredItems.length}
+          total={total}
           page={page}
           pageCount={pageCount}
           pageSize={pageSize}
-          onPageChange={(nextPage) => void onLoadUsers(nextPage, pageSize)}
-          onPageSizeChange={(nextPageSize) => void onLoadUsers(1, nextPageSize)}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
           loading={loading || Boolean(pendingAction) || openWebUIImportPending}
         />
       </div>

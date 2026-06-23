@@ -12,7 +12,12 @@ export function AdminAccountsPage() {
         items={accounts.users}
         total={accounts.total}
         page={accounts.page}
+        setPage={accounts.setPage}
         pageSize={accounts.pageSize}
+        setPageSize={accounts.setPageSize}
+        pageCount={accounts.pageCount}
+        query={accounts.query}
+        setQuery={accounts.setQuery}
         loading={accounts.loading}
         onLoadUsers={accounts.loadUsers}
         onSetUsers={accounts.setUsersOptimistic}

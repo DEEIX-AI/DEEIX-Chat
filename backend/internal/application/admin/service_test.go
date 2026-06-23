@@ -299,7 +299,7 @@ func newAdminUserServiceFake(users map[uint]domainuser.User) *adminUserServiceFa
 	return &adminUserServiceFake{users: copied}
 }
 
-func (s *adminUserServiceFake) ListUsers(context.Context, int, int) ([]domainuser.User, int64, error) {
+func (s *adminUserServiceFake) ListUsers(context.Context, int, int, repository.UserListFilter) ([]domainuser.User, int64, error) {
 	return nil, 0, nil
 }
 

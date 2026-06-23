@@ -52,8 +52,11 @@ type UseAdminUsersPageParams = {
   total: number;
   page: number;
   pageSize: number;
+  query: string;
+  setQuery: (value: string) => void;
   viewerRole?: string;
-  onLoadUsers: (page: number, pageSize?: number) => Promise<void>;
+  onLoadUsers: () => Promise<void>;
+  onSetPage: (value: number) => void;
   onSetUsers: React.Dispatch<React.SetStateAction<UserDTO[]>>;
   onSetTotal: React.Dispatch<React.SetStateAction<number>>;
 };
@@ -107,7 +110,6 @@ type UseAdminUsersPageState = {
   createAvatarSource: Pick<CreateUserPayload, "username" | "displayName">;
   avatarDialogPreviewSrc: string | undefined;
   editStatusChanged: boolean;
-  pageCount: number;
   batchTimezoneOptions: { label: string; value: string }[];
   filteredItems: UserDTO[];
   selectAllState: boolean | "indeterminate";
@@ -194,8 +196,11 @@ export function useAdminUsersPage({
   total,
   page,
   pageSize,
+  query,
+  setQuery,
   viewerRole,
   onLoadUsers,
+  onSetPage,
   onSetUsers,
   onSetTotal,
 }: UseAdminUsersPageParams): UseAdminUsersPageState {
@@ -214,8 +219,6 @@ export function useAdminUsersPage({
   const [deleteDialogTarget, setDeleteDialogTarget] = React.useState<UserDTO | null>(null);
   const [resetTwoFactorDialogTarget, setResetTwoFactorDialogTarget] = React.useState<UserDTO | null>(null);
   const {
-    query,
-    setQuery,
     roleFilter,
     setRoleFilter,
     statusFilter,
@@ -283,7 +286,6 @@ export function useAdminUsersPage({
   }, [avatarDialog, createAvatarSource]);
 
   const editStatusChanged = editDialogTarget ? editPayload.status !== editDialogTarget.status : false;
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const batchTimezoneOptions = React.useMemo(
     () => timeZoneOptions.map((timeZone) => ({ label: timeZone, value: timeZone })),
     [timeZoneOptions],
@@ -334,12 +336,16 @@ export function useAdminUsersPage({
     async (nextPage = page) => {
       setPendingAction("refresh");
       try {
-        await onLoadUsers(nextPage, pageSize);
+        if (nextPage !== page) {
+          onSetPage(nextPage);
+          return;
+        }
+        await onLoadUsers();
       } finally {
         setPendingAction("");
       }
     },
-    [onLoadUsers, page, pageSize],
+    [onLoadUsers, onSetPage, page],
   );
 
   const handleOpenEditDialog = React.useCallback((user: UserDTO) => {
@@ -463,14 +469,18 @@ export function useAdminUsersPage({
         setAvatarDialog({ mode: "closed" });
         setCreateDialogOpen(false);
         toast.success(t("toast.createSucceeded"));
-        await onLoadUsers(1, pageSize);
+        if (page === 1) {
+          await onLoadUsers();
+        } else {
+          onSetPage(1);
+        }
       } catch (error) {
         toast.error(t("toast.createFailed"), { description: resolveAdminErrorMessage(error) });
       } finally {
         setPendingAction("");
       }
     },
-    [billingMode, createPayload, onLoadUsers, pageSize, pendingAction, t],
+    [billingMode, createPayload, onLoadUsers, onSetPage, page, pendingAction, t],
   );
 
   const handleSaveAvatarDialog = React.useCallback(async () => {
@@ -1144,7 +1154,6 @@ export function useAdminUsersPage({
     createAvatarSource,
     avatarDialogPreviewSrc,
     editStatusChanged,
-    pageCount,
     batchTimezoneOptions,
     filteredItems,
     selectAllState,

@@ -135,9 +135,9 @@ func (s *Service) OpenAvatarContent(ctx context.Context, publicID string) (*Avat
 }
 
 // ListUsers 分页查询用户列表。
-func (s *Service) ListUsers(ctx context.Context, page int, pageSize int) ([]domainuser.User, int64, error) {
+func (s *Service) ListUsers(ctx context.Context, page int, pageSize int, filter repository.UserListFilter) ([]domainuser.User, int64, error) {
 	offset, limit := normalizePage(page, pageSize)
-	return s.repo.ListUsers(ctx, offset, limit)
+	return s.repo.ListUsers(ctx, offset, limit, filter)
 }
 
 // ListLatestSessionActivityByUserIDs 批量查询用户最近会话活跃时间。

@@ -25,7 +25,7 @@ import (
 )
 
 type userService interface {
-	ListUsers(ctx context.Context, page int, pageSize int) ([]domainuser.User, int64, error)
+	ListUsers(ctx context.Context, page int, pageSize int, filter repository.UserListFilter) ([]domainuser.User, int64, error)
 	ListLatestSessionActivityByUserIDs(ctx context.Context, userIDs []uint) (map[uint]time.Time, error)
 	CountSuperAdmins(ctx context.Context) (int64, error)
 	CreateUser(
@@ -186,8 +186,8 @@ func (s *Service) SetSubscriptionResolver(resolver subscriptionResolver) {
 }
 
 // ListUsers 查询用户分页列表。
-func (s *Service) ListUsers(ctx context.Context, page int, pageSize int) ([]userview.UserView, int64, error) {
-	items, total, err := s.userService.ListUsers(ctx, page, pageSize)
+func (s *Service) ListUsers(ctx context.Context, page int, pageSize int, filter repository.UserListFilter) ([]userview.UserView, int64, error) {
+	items, total, err := s.userService.ListUsers(ctx, page, pageSize, filter)
 	if err != nil {
 		return nil, 0, err
 	}

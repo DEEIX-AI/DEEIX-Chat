@@ -17,6 +17,8 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+var userListSearchEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
 // translateError 将 gorm 底层错误统一映射为仓储语义错误。
 func translateError(err error) error {
 	if err == nil {
@@ -306,14 +308,26 @@ func userFieldUpdates(input repository.UpdateUserFieldsInput) map[string]interfa
 }
 
 // ListUsers 分页查询用户。
-func (r *Repo) ListUsers(ctx context.Context, offset int, limit int) ([]domainuser.User, int64, error) {
+func (r *Repo) ListUsers(ctx context.Context, offset int, limit int, filter repository.UserListFilter) ([]domainuser.User, int64, error) {
 	items := make([]model.User, 0)
 	var total int64
 
-	if err := r.db.WithContext(ctx).Model(&model.User{}).Count(&total).Error; err != nil {
+	query := r.db.WithContext(ctx).Model(&model.User{})
+	if keyword := strings.TrimSpace(filter.Query); keyword != "" {
+		like := "%" + userListSearchEscaper.Replace(strings.ToLower(keyword)) + "%"
+		query = query.Where(
+			"LOWER(username) LIKE ? ESCAPE '\\' OR LOWER(display_name) LIKE ? ESCAPE '\\' OR LOWER(email) LIKE ? ESCAPE '\\' OR LOWER(public_id) LIKE ? ESCAPE '\\'",
+			like,
+			like,
+			like,
+			like,
+		)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, translateError(err)
 	}
-	if err := r.db.WithContext(ctx).
+	if err := query.
 		Order("id DESC").
 		Offset(offset).
 		Limit(limit).
