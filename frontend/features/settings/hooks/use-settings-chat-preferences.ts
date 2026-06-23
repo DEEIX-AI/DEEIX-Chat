@@ -9,11 +9,17 @@ import { useAuthSession } from "@/shared/auth/auth-session-context";
 type ChatPreferences = {
   autoGenerateTitle: boolean;
   deleteFilesByDefault: boolean;
+  reuseModelOptions: boolean;
+};
+
+type ChatPreferencesState = ChatPreferences & {
+  loaded: boolean;
 };
 
 const DEFAULT_CHAT_PREFERENCES: ChatPreferences = {
   autoGenerateTitle: true,
   deleteFilesByDefault: false,
+  reuseModelOptions: true,
 };
 
 let cachedAccessToken: string | null = null;
@@ -25,6 +31,7 @@ function resolveChatPreferences(settings: Record<string, string>): ChatPreferenc
   return {
     autoGenerateTitle: settings["chat.auto_generate_title"] !== "false",
     deleteFilesByDefault: settings["chat.delete_conversation_files_by_default"] === "true",
+    reuseModelOptions: settings["chat.reuse_model_options"] !== "false",
   };
 }
 
@@ -64,24 +71,31 @@ function loadChatPreferences(accessToken: string): Promise<ChatPreferences> {
   return pendingPreferences;
 }
 
-export function useSettingsChatPreferences(): ChatPreferences {
+export function useSettingsChatPreferences(): ChatPreferencesState {
   const { accessToken } = useAuthSession();
+  const preferencesVersionRef = React.useRef(0);
   const [preferences, setPreferences] = React.useState<ChatPreferences>(() =>
     accessToken && cachedAccessToken === accessToken ? cachedPreferences : DEFAULT_CHAT_PREFERENCES,
   );
+  const [loaded, setLoaded] = React.useState(() => !accessToken || cachedAccessToken === accessToken);
 
   React.useEffect(() => {
     let cancelled = false;
+    const requestVersion = preferencesVersionRef.current;
 
     void (async () => {
       if (!accessToken) {
+        preferencesVersionRef.current += 1;
         resetChatPreferencesCache();
         setPreferences(DEFAULT_CHAT_PREFERENCES);
+        setLoaded(true);
         return;
       }
+      setLoaded(cachedAccessToken === accessToken);
       const nextPreferences = await loadChatPreferences(accessToken);
-      if (!cancelled) {
+      if (!cancelled && requestVersion === preferencesVersionRef.current) {
         setPreferences(nextPreferences);
+        setLoaded(true);
       }
     })();
 
@@ -94,9 +108,18 @@ export function useSettingsChatPreferences(): ChatPreferences {
     const handleUserSettingsUpdated = (event: Event) => {
       const settings = (event as CustomEvent<Record<string, string>>).detail;
       if (settings && typeof settings === "object") {
+        preferencesVersionRef.current += 1;
         const nextPreferences = resolveChatPreferences(settings);
+        if (accessToken) {
+          if (pendingAccessToken === accessToken) {
+            pendingAccessToken = null;
+            pendingPreferences = null;
+          }
+          cachedAccessToken = accessToken;
+        }
         cachedPreferences = nextPreferences;
         setPreferences(nextPreferences);
+        setLoaded(true);
       }
     };
 
@@ -104,7 +127,7 @@ export function useSettingsChatPreferences(): ChatPreferences {
     return () => {
       window.removeEventListener(USER_SETTINGS_UPDATED_EVENT, handleUserSettingsUpdated);
     };
-  }, []);
+  }, [accessToken]);
 
-  return preferences;
+  return { ...preferences, loaded };
 }

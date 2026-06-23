@@ -362,6 +362,8 @@
       "restoreDraftDescription": "控制发送失败时是否自动恢复本次发送的文字和附件。",
       "preserveDraftTitle": "保留会话草稿",
       "preserveDraftDescription": "控制切换会话后是否保留并恢复当前会话的未发送内容。",
+      "reuseModelOptionsTitle": "复用模型配置",
+      "reuseModelOptionsDescription": "开启后，新会话选择同一模型时会自动填充上次使用的模型参数。",
       "deleteFilesDefaultTitle": "删除会话时默认删除文件",
       "deleteFilesDefaultDescription": "开启后，删除会话确认框会默认勾选同时删除文件；仍被其他会话引用的文件会保留。"
     },

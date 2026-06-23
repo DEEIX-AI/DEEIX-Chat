@@ -362,6 +362,8 @@
       "restoreDraftDescription": "Controls whether failed sends automatically restore the text and attachments from that attempt.",
       "preserveDraftTitle": "Preserve conversation drafts",
       "preserveDraftDescription": "Controls whether unsent content is kept and restored when switching conversations.",
+      "reuseModelOptionsTitle": "Reuse model configuration",
+      "reuseModelOptionsDescription": "When enabled, new chats using the same model automatically fill the model parameters used last time.",
       "deleteFilesDefaultTitle": "Delete files by default when deleting chats",
       "deleteFilesDefaultDescription": "When enabled, delete confirmations select file deletion by default. Files still referenced by other conversations are kept."
     },

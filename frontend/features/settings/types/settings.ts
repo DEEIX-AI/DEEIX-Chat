@@ -20,6 +20,7 @@ export type ChatSettings = {
   contextCompactAuto: boolean;
   restoreDraftOnFailure: boolean;
   preserveConversationDrafts: boolean;
+  reuseModelOptions: boolean;
   inputHeight: ChatInputHeight;
   contentWidth: ChatContentWidth;
   fileMode: FileMode;

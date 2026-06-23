@@ -58,3 +58,19 @@ func TestContentWidthSettingIsAllowed(t *testing.T) {
 		t.Fatal("expected invalid chat.content_width to be rejected")
 	}
 }
+
+func TestReuseModelOptionsSettingIsAllowed(t *testing.T) {
+	t.Parallel()
+
+	if got := allowedKeys["chat.reuse_model_options"]; got != "true" {
+		t.Fatalf("expected chat.reuse_model_options default to be true, got %q", got)
+	}
+	for _, value := range []string{"true", "false"} {
+		if err := validateValue("chat.reuse_model_options", value); err != nil {
+			t.Fatalf("expected chat.reuse_model_options=%s to be accepted, got %v", value, err)
+		}
+	}
+	if err := validateValue("chat.reuse_model_options", "yes"); err == nil {
+		t.Fatal("expected invalid chat.reuse_model_options to be rejected")
+	}
+}

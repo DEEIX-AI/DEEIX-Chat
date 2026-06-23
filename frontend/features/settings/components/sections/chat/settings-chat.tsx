@@ -582,6 +582,19 @@ export function SettingsChat() {
           </div>
           <div className="pt-4">
             <SettingsFieldRow
+              title={t("input.reuseModelOptionsTitle")}
+              description={t("input.reuseModelOptionsDescription")}
+            >
+              <Switch
+                checked={settings.reuseModelOptions}
+                onCheckedChange={handleBool("chat.reuse_model_options", "reuseModelOptions")}
+                disabled={loading}
+                aria-label={t("input.reuseModelOptionsTitle")}
+              />
+            </SettingsFieldRow>
+          </div>
+          <div className="pt-4">
+            <SettingsFieldRow
               title={t("input.deleteFilesDefaultTitle")}
               description={t("input.deleteFilesDefaultDescription")}
             >
