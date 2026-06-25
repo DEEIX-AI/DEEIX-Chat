@@ -57,6 +57,7 @@
     "docx-preview": "^0.3.7",
     "katex": "^0.16.45",
     "lucide-react": "^1.12.0",
+    "modern-screenshot": "4.6.5",
     "monaco-editor": "^0.55.1",
     "motion": "^12.38.0",
     "next": "16.2.6",

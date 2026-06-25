@@ -18,8 +18,10 @@ import { useChatRuntime } from "@/features/chat/hooks/use-chat-runtime";
 import { useChatScrollController } from "@/features/chat/hooks/use-chat-scroll-controller";
 import { useChatViewerProfile } from "@/features/chat/hooks/use-chat-viewer-profile";
 import { useChatConversationExport } from "@/features/chat/hooks/use-chat-conversation-export";
+import { useChatScreenshot } from "@/features/chat/hooks/use-chat-screenshot";
 import { useChatVisualPrompt } from "@/features/chat/hooks/use-chat-visual-prompt";
 import { ChatInput } from "@/features/chat/components/sections/chat-input";
+import { ChatScreenshotPreviewDialog } from "@/features/chat/components/sections/chat-screenshot-preview-dialog";
 import { resolveChatContentWidthClassName } from "@/shared/model/chat-content-width";
 import {
   ConversationShareDialog,
@@ -158,6 +160,7 @@ function filterAvailableMCPToolIDs(toolIDs: number[], tools: MCPToolDTO[], limit
 export function AppChatArea() {
   const t = useTranslations("chat");
   const tRecent = useTranslations("recent");
+  const tScreenshot = useTranslations("chat.screenshot");
   const router = useRouter();
   const searchParams = useSearchParams();
   const routeConversationID = searchParams.get("conversation_id")?.trim() || null;
@@ -227,6 +230,7 @@ export function AppChatArea() {
     errorMsg,
     hasOlder,
     loadOlderMessages,
+    loadAllOlderMessages,
     messages,
     reload,
     replaceMessage,
@@ -726,6 +730,28 @@ export function AppChatArea() {
     [visibleMessages],
   );
 
+  const screenshotMessages = React.useMemo(
+    () => ({
+      emptySelection: tScreenshot("emptySelection"),
+      generating: tScreenshot("generating"),
+      ready: tScreenshot("ready"),
+      failed: tScreenshot("failed"),
+      loadLimitReached: tScreenshot("loadLimitReached"),
+      downloaded: tScreenshot("downloaded"),
+      copied: tScreenshot("copied"),
+      copyFailed: tScreenshot("copyFailed"),
+      copyUnsupported: tScreenshot("copyUnsupported"),
+    }),
+    [tScreenshot],
+  );
+  const screenshot = useChatScreenshot({
+    conversationID: actionConversationID || null,
+    messageContentRef,
+    conversationTitle: activeConversationTitle,
+    onLoadAllMessages: loadAllOlderMessages,
+    messages: screenshotMessages,
+  });
+
   const onToggleActiveConversationStar = React.useCallback(async () => {
     if (!canOperateConversation) {
       return;
@@ -1128,6 +1154,19 @@ export function AppChatArea() {
                   billingDisplayUsdToCnyRate={billingDisplayUsdToCnyRate}
                   splitRightInset={hasInlineArtifact}
                   contentWidthClassName={chatContentWidthClassName}
+                  onScreenshotFull={screenshot.captureFullConversation}
+                  onScreenshotSelect={screenshot.startSelectionScreenshot}
+                  screenshot={{
+                    selectionMode: screenshot.selectionMode,
+                    selectedIDs: screenshot.selectedIDs,
+                    selectedCount: screenshot.selectedCount,
+                    capturing: screenshot.capturing,
+                    onToggleSelection: screenshot.toggleSelection,
+                    onSelectAll: screenshot.selectMany,
+                    onClearSelection: screenshot.clearSelection,
+                    onCapture: screenshot.captureSelectedMessages,
+                    onExit: screenshot.exitSelectionMode,
+                  }}
                 />
               )}
             </div>
@@ -1152,6 +1191,19 @@ export function AppChatArea() {
           />
         </div>
       )}
+
+      <ChatScreenshotPreviewDialog
+        open={Boolean(screenshot.preview)}
+        onOpenChange={(open) => {
+          if (!open) {
+            screenshot.closePreview();
+          }
+        }}
+        previewURL={screenshot.preview?.url ?? null}
+        clipboardSupported={screenshot.clipboardSupported}
+        onDownload={screenshot.downloadPreview}
+        onCopy={screenshot.copyPreviewToClipboard}
+      />
 
       {canOperateConversation ? (
         <>

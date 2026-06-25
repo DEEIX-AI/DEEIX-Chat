@@ -21,6 +21,8 @@ import type { OpenCodeArtifactInput } from "@/features/chat/model/chat-artifacts
 import { CenteredEmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConversationShareExportIconDropdown } from "@/shared/components/conversation-share-export-menu";
+import { ChatScreenshotSelectionBar } from "@/features/chat/components/sections/chat-screenshot-selection-bar";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useCopyAction } from "@/shared/components/copy-action";
 import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
 import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
@@ -103,6 +105,19 @@ type ChatAreaProps = {
   billingDisplayUsdToCnyRate?: number | null;
   splitRightInset?: boolean;
   contentWidthClassName?: string;
+  onScreenshotFull?: () => void;
+  onScreenshotSelect?: () => void;
+  screenshot?: {
+    selectionMode: boolean;
+    selectedIDs: Set<string>;
+    selectedCount: number;
+    capturing: boolean;
+    onToggleSelection: (publicID: string) => void;
+    onSelectAll: (publicIDs: string[]) => void;
+    onClearSelection: () => void;
+    onCapture: () => void;
+    onExit: () => void;
+  };
 };
 
 function useStableEvent<Args extends unknown[], Return>(callback: (...args: Args) => Return) {
@@ -308,6 +323,9 @@ export function ChatArea({
   billingDisplayUsdToCnyRate = null,
   splitRightInset = false,
   contentWidthClassName = "max-w-[1080px]",
+  onScreenshotFull,
+  onScreenshotSelect,
+  screenshot,
 }: ChatAreaProps) {
   const t = useTranslations("chat");
   const { getReaction, onReactAssistantMessage } = useChatMessageFeedback(messages);
@@ -326,6 +344,18 @@ export function ChatArea({
   const editImageAttachmentHandler = onEditImageAttachment ? stableOnEditImageAttachment : undefined;
   const shareLabel = shareActive ? t("manageShare") : t("shareConversation");
   const shareExportLabel = t("labelMenu.shareAndExport");
+  const tScreenshot = useTranslations("chat.screenshot");
+  const selectableMessagePublicIDs = React.useMemo(
+    () =>
+      messages
+        .filter((item) => !item.isPending && Boolean(item.publicID?.trim()))
+        .map((item) => item.publicID.trim()),
+    [messages],
+  );
+  const selectionMode = screenshot?.selectionMode ?? false;
+  const onSelectAllMessages = React.useCallback(() => {
+    screenshot?.onSelectAll(selectableMessagePublicIDs);
+  }, [screenshot, selectableMessagePublicIDs]);
 
   return (
     <>
@@ -342,6 +372,10 @@ export function ChatArea({
             shareActive={shareActive}
             onExport={canOperateConversation ? onExport : undefined}
             onDelete={canOperateConversation ? onDelete : undefined}
+            screenshotFullLabel={tScreenshot("captureFull")}
+            screenshotSelectLabel={tScreenshot("captureSelect")}
+            onScreenshotFull={onScreenshotFull}
+            onScreenshotSelect={onScreenshotSelect}
           />
           {canOperateConversation ? (
             <ConversationShareExportIconDropdown
@@ -351,10 +385,30 @@ export function ChatArea({
               active={shareActive}
               onShare={onShare}
               onExport={onExport}
+              screenshotFullLabel={tScreenshot("captureFull")}
+              screenshotSelectLabel={tScreenshot("captureSelect")}
+              onScreenshotFull={onScreenshotFull}
+              onScreenshotSelect={onScreenshotSelect}
             />
           ) : null}
         </div>
       </div>
+
+      {selectionMode && screenshot ? (
+        <div className={cn("px-3 pb-1 md:px-6")} data-screenshot-exclude="true">
+          <div className={cn("mx-auto w-full", contentWidthClassName)}>
+            <ChatScreenshotSelectionBar
+              selectedCount={screenshot.selectedCount}
+              totalCount={selectableMessagePublicIDs.length}
+              capturing={screenshot.capturing}
+              onSelectAll={onSelectAllMessages}
+              onClearSelection={screenshot.onClearSelection}
+              onCapture={screenshot.onCapture}
+              onExit={screenshot.onExit}
+            />
+          </div>
+        </div>
+      ) : null}
 
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <div
@@ -376,6 +430,9 @@ export function ChatArea({
                     ? "mt-6 md:mt-12"
                     : "mt-4";
               const shouldAnimateLayout = !item.isPending && !item.isStreaming;
+              const publicID = item.publicID?.trim() ?? "";
+              const selectable = selectionMode && Boolean(publicID) && !item.isPending;
+              const isSelected = selectable && (screenshot?.selectedIDs.has(publicID) ?? false);
 
               const row = (
                 <ChatMessageRow
@@ -406,15 +463,46 @@ export function ChatArea({
                 />
               );
 
+              const rowContent = selectable ? (
+                <div
+                  data-screenshot-selectable="true"
+                  className="chat-screenshot-selectable group relative rounded-xl"
+                >
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute inset-0 z-0 rounded-xl transition-colors",
+                      isSelected ? "bg-primary/5 ring-1 ring-primary/40" : "group-hover:bg-muted/40",
+                    )}
+                    data-screenshot-exclude="true"
+                    aria-hidden="true"
+                  />
+                  <div
+                    className="absolute left-1 top-2 z-10 flex items-center"
+                    data-screenshot-exclude="true"
+                  >
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => screenshot?.onToggleSelection(publicID)}
+                      aria-label={tScreenshot("selectMessage")}
+                    />
+                  </div>
+                  <div className="chat-screenshot-selectable-content pointer-events-none relative z-[1] pl-7" inert>
+                    {row}
+                  </div>
+                </div>
+              ) : (
+                row
+              );
+
               const compactDivider = item.compactDone ? (
                 <CompactDivider summaryPreview={item.compactDone.summary_preview} />
               ) : null;
 
               if (!shouldAnimateLayout) {
                 return (
-                  <div key={item.key} className={spacingClass}>
+                  <div key={item.key} className={spacingClass} data-message-public-id={publicID || undefined}>
                     {compactDivider}
-                    {row}
+                    {rowContent}
                   </div>
                 );
               }
@@ -424,11 +512,12 @@ export function ChatArea({
                   key={item.key}
                   layout="position"
                   className={spacingClass}
+                  data-message-public-id={publicID || undefined}
                   transition={MESSAGE_SWITCH_TRANSITION}
                   style={{ willChange: "transform" }}
                 >
                   {compactDivider}
-                  {row}
+                  {rowContent}
                 </motion.div>
               );
             })}

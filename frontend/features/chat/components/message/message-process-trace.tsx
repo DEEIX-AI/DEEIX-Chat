@@ -37,7 +37,7 @@ const TRACE_LABEL_CONTEXT_COMPACTION = "\u4e0a\u4e0b\u6587\u538b\u7f29";
 const TRACE_TRIGGER_DETAIL_RE = /^([^；]+\u89e6\u53d1)；\s*(.*)$/;
 const TRACE_BENIGN_UNSUPPORTED_RE = /\u534f\u8bae\u6216\u5206\u652f\u4e0d\u652f\u6301/;
 const TRACE_ERROR_DETAIL_RE = /\u5931\u8d25|\u9519\u8bef|\u4e0d\u652f\u6301/;
-const TRACE_ROOT_CLASS = "mb-2 w-full pr-4 sm:pr-6";
+const TRACE_ROOT_CLASS = "chat-screenshot-omit mb-2 w-full pr-4 sm:pr-6";
 
 type ProcessTraceLabels = {
   fileBadges: {

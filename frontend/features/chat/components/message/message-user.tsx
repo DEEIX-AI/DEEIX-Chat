@@ -278,7 +278,7 @@ export function ChatMessageUser({
             <div className="relative">
               <motion.div
                 ref={contentRef}
-                className="overflow-hidden"
+                className="chat-user-message-collapsible overflow-hidden"
                 initial={false}
                 animate={measured && canCollapse ? { maxHeight: contentMaxHeight } : undefined}
                 transition={USER_MESSAGE_EXPAND_TRANSITION}
@@ -290,6 +290,7 @@ export function ChatMessageUser({
             {measured && canCollapse ? (
               <button
                 type="button"
+                data-screenshot-exclude="true"
                 className="mt-1 inline-flex items-center gap-1 rounded-md p-0 text-[15px] font-medium leading-8 text-foreground/80 transition-colors hover:text-foreground"
                 aria-expanded={expanded}
                 onClick={() =>

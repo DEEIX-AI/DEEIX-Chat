@@ -50,6 +50,10 @@ type ChatLabelProps = {
   shareActive?: boolean;
   onExport?: () => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
+  screenshotFullLabel?: string;
+  screenshotSelectLabel?: string;
+  onScreenshotFull?: () => void;
+  onScreenshotSelect?: () => void;
 };
 
 export function ChatLabel({
@@ -64,6 +68,10 @@ export function ChatLabel({
   shareActive = false,
   onExport,
   onDelete,
+  screenshotFullLabel,
+  screenshotSelectLabel,
+  onScreenshotFull,
+  onScreenshotSelect,
 }: ChatLabelProps) {
   const t = useTranslations("chat.labelMenu");
   const common = useTranslations("common.actions");
@@ -188,6 +196,10 @@ export function ChatLabel({
             exportLabel={t("exportJSON")}
             onShare={onShare}
             onExport={onExport}
+            screenshotFullLabel={screenshotFullLabel}
+            screenshotSelectLabel={screenshotSelectLabel}
+            onScreenshotFull={onScreenshotFull}
+            onScreenshotSelect={onScreenshotSelect}
             onCloseMenu={() => setMenuOpen(false)}
           />
           <DropdownMenuSeparator />

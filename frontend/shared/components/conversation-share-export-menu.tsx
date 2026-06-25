@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Download, Share2 } from "lucide-react";
+import { Camera, Download, MousePointerClick, Share2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuItemIcon,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -21,6 +22,10 @@ type ConversationShareExportActionsProps = {
   exportLabel: string;
   onShare?: () => void;
   onExport?: () => void | Promise<void>;
+  screenshotFullLabel?: string;
+  screenshotSelectLabel?: string;
+  onScreenshotFull?: () => void;
+  onScreenshotSelect?: () => void;
 };
 
 type ConversationShareExportMenuItemsProps = ConversationShareExportActionsProps & {
@@ -32,8 +37,13 @@ export function ConversationShareExportMenuItems({
   exportLabel,
   onShare,
   onExport,
+  screenshotFullLabel,
+  screenshotSelectLabel,
+  onScreenshotFull,
+  onScreenshotSelect,
   onCloseMenu,
 }: ConversationShareExportMenuItemsProps) {
+  const hasScreenshot = Boolean(onScreenshotFull || onScreenshotSelect);
   return (
     <>
       <DropdownMenuItem
@@ -64,6 +74,39 @@ export function ConversationShareExportMenuItems({
         <DropdownMenuItemIcon icon={Download} />
         {exportLabel}
       </DropdownMenuItem>
+      {hasScreenshot ? (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            disabled={!onScreenshotFull}
+            onSelect={(event) => {
+              event.preventDefault();
+              if (!onScreenshotFull) {
+                return;
+              }
+              onCloseMenu?.();
+              onScreenshotFull();
+            }}
+          >
+            <DropdownMenuItemIcon icon={Camera} />
+            {screenshotFullLabel}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!onScreenshotSelect}
+            onSelect={(event) => {
+              event.preventDefault();
+              if (!onScreenshotSelect) {
+                return;
+              }
+              onCloseMenu?.();
+              onScreenshotSelect();
+            }}
+          >
+            <DropdownMenuItemIcon icon={MousePointerClick} />
+            {screenshotSelectLabel}
+          </DropdownMenuItem>
+        </>
+      ) : null}
     </>
   );
 }
@@ -82,8 +125,13 @@ export function ConversationShareExportIconDropdown({
   className,
   onShare,
   onExport,
+  screenshotFullLabel,
+  screenshotSelectLabel,
+  onScreenshotFull,
+  onScreenshotSelect,
 }: ConversationShareExportIconDropdownProps) {
   const [open, setOpen] = React.useState(false);
+  const hasAction = Boolean(onShare || onExport || onScreenshotFull || onScreenshotSelect);
 
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
@@ -97,7 +145,7 @@ export function ConversationShareExportIconDropdown({
             active && "text-foreground",
             className,
           )}
-          disabled={!onShare && !onExport}
+          disabled={!hasAction}
           aria-label={label}
           title={label}
         >
@@ -110,6 +158,10 @@ export function ConversationShareExportIconDropdown({
           exportLabel={exportLabel}
           onShare={onShare}
           onExport={onExport}
+          screenshotFullLabel={screenshotFullLabel}
+          screenshotSelectLabel={screenshotSelectLabel}
+          onScreenshotFull={onScreenshotFull}
+          onScreenshotSelect={onScreenshotSelect}
           onCloseMenu={() => setOpen(false)}
         />
       </DropdownMenuContent>
@@ -123,11 +175,16 @@ export function ConversationShareExportSubmenu({
   exportLabel,
   onShare,
   onExport,
+  screenshotFullLabel,
+  screenshotSelectLabel,
+  onScreenshotFull,
+  onScreenshotSelect,
   onCloseMenu,
 }: { label: string } & ConversationShareExportMenuItemsProps) {
+  const hasAction = Boolean(onShare || onExport || onScreenshotFull || onScreenshotSelect);
   return (
     <DropdownMenuSub>
-      <DropdownMenuSubTrigger disabled={!onShare && !onExport}>
+      <DropdownMenuSubTrigger disabled={!hasAction}>
         <DropdownMenuItemIcon icon={Share2} />
         {label}
       </DropdownMenuSubTrigger>
@@ -137,6 +194,10 @@ export function ConversationShareExportSubmenu({
           exportLabel={exportLabel}
           onShare={onShare}
           onExport={onExport}
+          screenshotFullLabel={screenshotFullLabel}
+          screenshotSelectLabel={screenshotSelectLabel}
+          onScreenshotFull={onScreenshotFull}
+          onScreenshotSelect={onScreenshotSelect}
           onCloseMenu={onCloseMenu}
         />
       </DropdownMenuSubContent>

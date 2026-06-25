@@ -91,6 +91,8 @@ export function useChatData(
   });
   const [reloadToken, setReloadToken] = React.useState(0);
   const [resumingRunID, setResumingRunID] = React.useState("");
+  const stateRef = React.useRef(state);
+  stateRef.current = state;
   const previousConversationIDRef = React.useRef<string | null>(conversationID);
   const resumeSeqByRunRef = React.useRef<Record<string, number>>({});
   const pendingAssistantContentRef = React.useRef("");
@@ -188,21 +190,34 @@ export function useChatData(
   }, []);
 
   const loadOlderMessages = React.useCallback(async () => {
-    if (!conversationID || state.loading || state.loadingOlder || !state.hasOlder || state.messages.length === 0) {
+    const current = stateRef.current;
+    if (!conversationID || current.loading || current.loadingOlder || !current.hasOlder || current.messages.length === 0) {
       return false;
     }
 
-    const beforeID = state.messages[0]?.id ?? 0;
+    const beforeID = current.messages[0]?.id ?? 0;
     if (beforeID <= 0) {
-      setState((prev) => ({ ...prev, hasOlder: false }));
+      setState((prev) => {
+        const next = { ...prev, hasOlder: false };
+        stateRef.current = next;
+        return next;
+      });
       return false;
     }
 
-    setState((prev) => ({ ...prev, loadingOlder: true }));
+    setState((prev) => {
+      const next = { ...prev, loadingOlder: true };
+      stateRef.current = next;
+      return next;
+    });
     try {
       const token = await resolveAccessToken();
       if (!token) {
-        setState((prev) => ({ ...prev, loadingOlder: false, hasOlder: false }));
+        setState((prev) => {
+          const next = { ...prev, loadingOlder: false, hasOlder: false };
+          stateRef.current = next;
+          return next;
+        });
         return false;
       }
 
@@ -219,20 +234,39 @@ export function useChatData(
         const olderMessages = data.results.filter((message) => !existingPublicIDs.has(message.publicID));
         const messages = [...olderMessages, ...prev.messages];
         loaded = olderMessages.length > 0;
-        return {
+        const next = {
           ...prev,
           loadingOlder: false,
           messages,
           total: data.total,
           hasOlder: loaded && messages.length < data.total,
         };
+        stateRef.current = next;
+        return next;
       });
       return loaded;
     } catch {
-      setState((prev) => ({ ...prev, loadingOlder: false }));
+      setState((prev) => {
+        const next = { ...prev, loadingOlder: false };
+        stateRef.current = next;
+        return next;
+      });
       return false;
     }
-  }, [conversationID, state.hasOlder, state.loading, state.loadingOlder, state.messages]);
+  }, [conversationID]);
+
+  const loadAllOlderMessages = React.useCallback(async ({ maxPages = 50 }: { maxPages?: number } = {}) => {
+    for (let iteration = 0; iteration < maxPages; iteration += 1) {
+      if (!stateRef.current.hasOlder) {
+        return true;
+      }
+      const loaded = await loadOlderMessages();
+      if (!loaded) {
+        return !stateRef.current.hasOlder;
+      }
+    }
+    return !stateRef.current.hasOlder;
+  }, [loadOlderMessages]);
 
   const cancelResumedGeneration = React.useCallback(async () => {
     const active = activeResumeStreamRef.current;
@@ -466,6 +500,7 @@ export function useChatData(
     ...state,
     cancelResumedGeneration,
     loadOlderMessages,
+    loadAllOlderMessages,
     reload,
     replaceMessage,
     resumingRunID,
