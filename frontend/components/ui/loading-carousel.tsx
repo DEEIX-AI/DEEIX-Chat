@@ -343,6 +343,7 @@ function TextScramble({
   )
   const [displayText, setDisplayText] = useState(children)
   const isAnimatingRef = React.useRef(false)
+  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
   const text = children
 
   const scramble = useCallback(() => {
@@ -352,7 +353,11 @@ function TextScramble({
     const steps = duration / speed
     let step = 0
 
-    const interval = setInterval(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+    }
+
+    intervalRef.current = setInterval(() => {
       let scrambled = ""
       const progress = step / steps
 
@@ -374,7 +379,10 @@ function TextScramble({
       step++
 
       if (step > steps) {
-        clearInterval(interval)
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
+        }
         setDisplayText(text)
         isAnimatingRef.current = false
         onScrambleComplete?.()
@@ -386,6 +394,13 @@ function TextScramble({
     if (!trigger) return
 
     scramble()
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+      isAnimatingRef.current = false
+    }
   }, [scramble, trigger])
 
   return (

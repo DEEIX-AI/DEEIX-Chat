@@ -66,6 +66,7 @@ export const LiveWaveform = ({
   const animationRef = useRef<number>(0)
   const lastUpdateRef = useRef<number>(0)
   const processingAnimationRef = useRef<number | null>(null)
+  const fadeAnimationRef = useRef<number | null>(null)
   const lastActiveDataRef = useRef<number[]>([])
   const transitionProgressRef = useRef(0)
   const staticBarsRef = useRef<number[]>([])
@@ -105,6 +106,11 @@ export const LiveWaveform = ({
   }, [])
 
   useEffect(() => {
+    if (fadeAnimationRef.current) {
+      cancelAnimationFrame(fadeAnimationRef.current)
+      fadeAnimationRef.current = null
+    }
+
     if (processing && !active) {
       let time = 0
       transitionProgressRef.current = 0
@@ -197,6 +203,7 @@ export const LiveWaveform = ({
       return () => {
         if (processingAnimationRef.current) {
           cancelAnimationFrame(processingAnimationRef.current)
+          processingAnimationRef.current = null
         }
       }
     } else if (!active && !processing) {
@@ -220,16 +227,25 @@ export const LiveWaveform = ({
               )
             }
             needsRedrawRef.current = true
-            requestAnimationFrame(fadeToIdle)
+            fadeAnimationRef.current = requestAnimationFrame(fadeToIdle)
           } else {
             if (mode === "static") {
               staticBarsRef.current = []
             } else {
               historyRef.current = []
             }
+            needsRedrawRef.current = true
+            fadeAnimationRef.current = null
           }
         }
         fadeToIdle()
+
+        return () => {
+          if (fadeAnimationRef.current) {
+            cancelAnimationFrame(fadeAnimationRef.current)
+            fadeAnimationRef.current = null
+          }
+        }
       }
     }
   }, [processing, active, barWidth, barGap, mode])
@@ -335,9 +351,17 @@ export const LiveWaveform = ({
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    let rafId: number
+    let rafId = 0
+    let stopped = false
+
+    const hasWaveformData = () =>
+      mode === "static"
+        ? staticBarsRef.current.length > 0
+        : historyRef.current.length > 0
 
     const animate = (currentTime: number) => {
+      if (stopped) return
+
       // Render waveform
       const rect = canvas.getBoundingClientRect()
 
@@ -413,7 +437,11 @@ export const LiveWaveform = ({
 
       // Only redraw if needed
       if (!needsRedrawRef.current && !active) {
-        rafId = requestAnimationFrame(animate)
+        if (processing || hasWaveformData()) {
+          rafId = requestAnimationFrame(animate)
+        } else {
+          rafId = 0
+        }
         return
       }
 
@@ -512,12 +540,17 @@ export const LiveWaveform = ({
 
       ctx.globalAlpha = 1
 
-      rafId = requestAnimationFrame(animate)
+      if (active || processing || hasWaveformData() || needsRedrawRef.current) {
+        rafId = requestAnimationFrame(animate)
+      } else {
+        rafId = 0
+      }
     }
 
     rafId = requestAnimationFrame(animate)
 
     return () => {
+      stopped = true
       if (rafId) {
         cancelAnimationFrame(rafId)
       }

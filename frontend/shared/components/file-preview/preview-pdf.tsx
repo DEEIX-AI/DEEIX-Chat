@@ -17,6 +17,7 @@ type PreviewPdfProps = {
 
 type PdfModule = typeof import("pdfjs-dist/build/pdf.mjs");
 type PdfDocument = Awaited<ReturnType<PdfModule["getDocument"]>["promise"]>;
+type PdfPage = Awaited<ReturnType<PdfDocument["getPage"]>>;
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 1;
@@ -68,6 +69,10 @@ export function PreviewPdf({ source, toolbarContainer }: PreviewPdfProps) {
   const [status, setStatus] = React.useState<"loading" | "ready" | "error">("loading");
   const [errorMessage, setErrorMessage] = React.useState(t("pdfLoadFailed"));
   const measureKey = status === "ready" ? pageCount : 0;
+
+  React.useEffect(() => {
+    canvasRefs.current.length = pageCount;
+  }, [pageCount]);
 
   React.useEffect(() => {
     const handleFullscreenChange = () => {
@@ -200,6 +205,7 @@ export function PreviewPdf({ source, toolbarContainer }: PreviewPdfProps) {
     const currentToken = renderTokenRef.current + 1;
     renderTokenRef.current = currentToken;
     const renderTasks: Array<{ cancel: () => void }> = [];
+    const renderedPages: PdfPage[] = [];
 
     void (async () => {
       for (let pageNumber = 1; pageNumber <= documentProxy.numPages; pageNumber += 1) {
@@ -213,11 +219,18 @@ export function PreviewPdf({ source, toolbarContainer }: PreviewPdfProps) {
         }
 
         const page = await documentProxy.getPage(pageNumber);
+        if (renderTokenRef.current !== currentToken) {
+          page.cleanup();
+          break;
+        }
+        renderedPages.push(page);
         const naturalViewport = page.getViewport({ scale: 1 });
         const fitScale = naturalViewport.width > 0 ? availableWidth / naturalViewport.width : 1;
         const viewport = page.getViewport({ scale: fitScale * zoom });
         const context = canvas.getContext("2d");
         if (!context) {
+          page.cleanup();
+          renderedPages.splice(renderedPages.indexOf(page), 1);
           continue;
         }
 
@@ -241,6 +254,9 @@ export function PreviewPdf({ source, toolbarContainer }: PreviewPdfProps) {
           if (renderTokenRef.current !== currentToken) {
             break;
           }
+        } finally {
+          page.cleanup();
+          renderedPages.splice(renderedPages.indexOf(page), 1);
         }
       }
     })();
@@ -248,6 +264,7 @@ export function PreviewPdf({ source, toolbarContainer }: PreviewPdfProps) {
     return () => {
       renderTokenRef.current += 1;
       renderTasks.forEach((task) => task.cancel());
+      renderedPages.forEach((page) => page.cleanup());
     };
   }, [availableWidth, documentProxy, status, zoom]);
 

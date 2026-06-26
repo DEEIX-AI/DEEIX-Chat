@@ -10,7 +10,6 @@ import { DevtoolsBrandBanner } from "@/shared/components/devtools-brand-banner";
 import { ThemeProvider } from "@/shared/components/theme-provider";
 import { PWAServiceWorkerRegister } from "@/shared/components/pwa-service-worker-register";
 import { pwaAsset } from "@/shared/pwa/assets";
-import { WebVitals } from "@/shared/observability/web-vitals";
 import { Toaster } from "@/components/ui/sonner";
 
 import "./globals.css";
@@ -31,8 +30,6 @@ const jetBrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
-
-const webVitalsEnabled = process.env.NEXT_PUBLIC_WEB_VITALS_DEBUG === "true";
 
 export const metadata: Metadata = {
   applicationName: "DEEIX Chat",
@@ -89,7 +86,6 @@ export default function RootLayout({
                 <AppVersionGuard />
                 <PWAServiceWorkerRegister />
                 <Toaster />
-                {webVitalsEnabled ? <WebVitals /> : null}
                 <DevtoolsBrandBanner />
               </ChatFontProvider>
             </FontSizeProvider>

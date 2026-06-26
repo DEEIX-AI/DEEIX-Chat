@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/shared/components/theme-provider";
 
-type JsonCodeEditorProps = {
+export type JsonCodeEditorProps = {
   id?: string;
   value: string;
   placeholder?: string;
@@ -108,7 +108,11 @@ function configureMonacoWorkers() {
 function loadMonaco(): Promise<MonacoModule> {
   if (!monacoLoadPromise) {
     configureMonacoWorkers();
-    monacoLoadPromise = import("monaco-editor");
+    monacoLoadPromise = Promise.all([
+      import("monaco-editor/esm/vs/editor/editor.all.js"),
+      import("monaco-editor/esm/vs/language/json/monaco.contribution.js"),
+      import("monaco-editor/esm/vs/editor/editor.api.js"),
+    ]).then(([, , monaco]) => monaco);
   }
   return monacoLoadPromise;
 }

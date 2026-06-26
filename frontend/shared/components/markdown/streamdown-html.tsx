@@ -33,6 +33,9 @@ type MarkdownHTMLMarkdownRenderer = (source: string) => React.ReactNode;
 export const MarkdownHTMLMarkdownRendererContext = React.createContext<MarkdownHTMLMarkdownRenderer | null>(null);
 
 const INLINE_MARKDOWN_STRONG_RE = /(\*\*|__)([\s\S]+?)\1/g;
+const HTML_MARKDOWN_SOURCE_MAX_LENGTH = 64_000;
+const HTML_MARKDOWN_SOURCE_MAX_LINES = 800;
+const INLINE_MARKDOWN_SOURCE_MAX_LENGTH = 64_000;
 
 const KATEX_SPAN_CLASS_NAMES = [
   "katex",
@@ -92,6 +95,9 @@ function getPlainReactNodeText(node: React.ReactNode): string | null {
 
     if (typeof child === "string" || typeof child === "number") {
       text += String(child);
+      if (text.length > HTML_MARKDOWN_SOURCE_MAX_LENGTH) {
+        plain = false;
+      }
       return;
     }
 
@@ -102,6 +108,9 @@ function getPlainReactNodeText(node: React.ReactNode): string | null {
         return;
       }
       text += fragmentText;
+      if (text.length > HTML_MARKDOWN_SOURCE_MAX_LENGTH) {
+        plain = false;
+      }
       return;
     }
 
@@ -130,7 +139,7 @@ function normalizeHTMLMarkdownText(source: string): string {
 }
 
 function renderInlineStrongMarkdownText(source: string): React.ReactNode {
-  if (!containsMarkdownInlineFormatting(source)) {
+  if (source.length > INLINE_MARKDOWN_SOURCE_MAX_LENGTH || !containsMarkdownInlineFormatting(source)) {
     return source;
   }
 
@@ -197,13 +206,24 @@ function useHTMLMarkdownChildren(children: React.ReactNode): React.ReactNode {
     () => (source == null ? "" : normalizeHTMLMarkdownText(source)),
     [source],
   );
+  const renderedInlineChildren = React.useMemo(() => {
+    if (source != null && !containsMarkdownInlineFormatting(source)) {
+      return children;
+    }
+    return renderHTMLInlineMarkdownChildren(children);
+  }, [children, source]);
 
   if (!renderMarkdown || !normalizedSource.trim()) {
-    return renderHTMLInlineMarkdownChildren(children);
+    return renderedInlineChildren;
   }
 
-  if (!containsGFMTable(normalizedSource) && !containsMarkdownMath(normalizedSource)) {
-    return renderHTMLInlineMarkdownChildren(children);
+  const sourceLineCount = normalizedSource.split("\n", HTML_MARKDOWN_SOURCE_MAX_LINES + 1).length;
+  if (
+    normalizedSource.length > HTML_MARKDOWN_SOURCE_MAX_LENGTH ||
+    sourceLineCount > HTML_MARKDOWN_SOURCE_MAX_LINES ||
+    (!containsGFMTable(normalizedSource) && !containsMarkdownMath(normalizedSource))
+  ) {
+    return renderedInlineChildren;
   }
 
   return renderMarkdown(normalizedSource);
