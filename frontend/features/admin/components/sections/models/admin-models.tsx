@@ -442,7 +442,8 @@ export function AdminModelsPage() {
           onDelete={models.setDeleteTarget}
           onTestModel={handleTestModel}
           onTestSource={handleTestSource}
-          onSourceStatusChange={models.handleSourceStatusChange}
+          onRefreshModels={() => void models.loadModels(models.page, models.pageSize)}
+          onSourceAvailabilityChange={models.handleSourceAvailabilityChange}
           onSourceDeleteChange={models.handleSourceDeleteChange}
         />
 
@@ -503,7 +504,7 @@ export function AdminModelsPage() {
           model={models.sourcesModel}
           onClose={() => models.setSourcesModel(null)}
           onRefreshModel={() => void models.loadModels(models.page, models.pageSize)}
-          onSourceStatusChange={models.handleSourceStatusChange}
+          onSourceAvailabilityChange={models.handleSourceAvailabilityChange}
         />
       ) : null}
 

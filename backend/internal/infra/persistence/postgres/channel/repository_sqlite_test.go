@@ -81,6 +81,112 @@ func TestListModelsSQLiteUsesPortableRouteStats(t *testing.T) {
 	}
 	assertProtocolsJSON(t, items[0].ProtocolsJSON, []string{"openai_responses", "xai_responses"})
 	assertProtocolsJSON(t, items[1].ProtocolsJSON, []string{})
+
+	codes, err := NewRepo(db).ListActiveRouteBindingCodesForUpstream(ctx, activeUpstream.ID)
+	if err != nil {
+		t.Fatalf("ListActiveRouteBindingCodesForUpstream() error = %v", err)
+	}
+	if !reflect.DeepEqual(codes, []string{"active-a", "active-b"}) {
+		t.Fatalf("expected distinct active binding codes, got %v", codes)
+	}
+}
+
+func TestListUpstreamsSQLiteExcludesInactiveUpstreamFromActiveModelCount(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	ctx := context.Background()
+
+	inactiveUpstream := model.LLMUpstream{Name: "inactive-upstream", Status: "inactive"}
+	if err := db.Create(&inactiveUpstream).Error; err != nil {
+		t.Fatalf("create inactive upstream: %v", err)
+	}
+	upstreamModels := []model.LLMUpstreamModel{
+		{UpstreamID: inactiveUpstream.ID, BindingCode: "model-a", UpstreamModelName: "model-a", Status: "active"},
+		{UpstreamID: inactiveUpstream.ID, BindingCode: "model-b", UpstreamModelName: "model-b", Status: "active"},
+	}
+	if err := db.Create(&upstreamModels).Error; err != nil {
+		t.Fatalf("create upstream models: %v", err)
+	}
+	platformModel := model.LLMPlatformModel{Name: "gpt-test", Vendor: "openai", Status: "active", SortOrder: 1}
+	if err := db.Create(&platformModel).Error; err != nil {
+		t.Fatalf("create platform model: %v", err)
+	}
+	routes := []model.LLMPlatformModelRoute{
+		{PlatformModelID: platformModel.ID, UpstreamModelID: upstreamModels[0].ID, Protocol: "openai_responses", Status: "active"},
+		{PlatformModelID: platformModel.ID, UpstreamModelID: upstreamModels[1].ID, Protocol: "openai_responses", Status: "active"},
+	}
+	if err := db.Create(&routes).Error; err != nil {
+		t.Fatalf("create routes: %v", err)
+	}
+
+	items, _, err := NewRepo(db).ListUpstreams(ctx, repository.ListChannelUpstreamsInput{
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("ListUpstreams() error = %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 upstream, got %d", len(items))
+	}
+	if items[0].ModelsCount != 2 {
+		t.Fatalf("expected total model count 2, got %d", items[0].ModelsCount)
+	}
+	if items[0].ActiveModelsCount != 0 {
+		t.Fatalf("expected inactive upstream active model count 0, got %d", items[0].ActiveModelsCount)
+	}
+}
+
+func TestListUpstreamsSQLiteExcludesInactivePlatformModelFromActiveModelCount(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	ctx := context.Background()
+
+	upstream := model.LLMUpstream{Name: "openrouter", Status: "active"}
+	if err := db.Create(&upstream).Error; err != nil {
+		t.Fatalf("create upstream: %v", err)
+	}
+	upstreamModels := []model.LLMUpstreamModel{
+		{UpstreamID: upstream.ID, BindingCode: "model-a", UpstreamModelName: "model-a", Status: "active"},
+		{UpstreamID: upstream.ID, BindingCode: "model-b", UpstreamModelName: "model-b", Status: "active"},
+	}
+	if err := db.Create(&upstreamModels).Error; err != nil {
+		t.Fatalf("create upstream models: %v", err)
+	}
+	platformModels := []model.LLMPlatformModel{
+		{Name: "model-a", Vendor: "openai", Status: "inactive", SortOrder: 1},
+		{Name: "model-b", Vendor: "openai", Status: "inactive", SortOrder: 2},
+	}
+	if err := db.Create(&platformModels).Error; err != nil {
+		t.Fatalf("create platform models: %v", err)
+	}
+	routes := []model.LLMPlatformModelRoute{
+		{PlatformModelID: platformModels[0].ID, UpstreamModelID: upstreamModels[0].ID, Protocol: "openai_responses", Status: "active"},
+		{PlatformModelID: platformModels[1].ID, UpstreamModelID: upstreamModels[1].ID, Protocol: "openai_responses", Status: "active"},
+	}
+	if err := db.Create(&routes).Error; err != nil {
+		t.Fatalf("create routes: %v", err)
+	}
+
+	items, _, err := NewRepo(db).ListUpstreams(ctx, repository.ListChannelUpstreamsInput{
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("ListUpstreams() error = %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 upstream, got %d", len(items))
+	}
+	if items[0].ModelsCount != 2 {
+		t.Fatalf("expected total model count 2, got %d", items[0].ModelsCount)
+	}
+	if items[0].ActiveModelsCount != 0 {
+		t.Fatalf("expected inactive platform models to produce active model count 0, got %d", items[0].ActiveModelsCount)
+	}
+	codes, err := NewRepo(db).ListActiveRouteBindingCodesForUpstream(ctx, upstream.ID)
+	if err != nil {
+		t.Fatalf("ListActiveRouteBindingCodesForUpstream() error = %v", err)
+	}
+	if len(codes) != 0 {
+		t.Fatalf("expected inactive platform models to be excluded from active binding codes, got %v", codes)
+	}
 }
 
 func TestListModelsSQLiteSortOrderKeepsVendorGroups(t *testing.T) {

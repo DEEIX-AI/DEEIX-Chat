@@ -86,6 +86,7 @@ import {
   resolveValue,
 } from "@/features/admin/types/llm";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
+import { isAdminLLMSourceAvailable } from "@/features/admin/utils/llm-source-availability";
 import { sortProtocolsForDisplay } from "@/features/admin/utils/llm-display";
 import { parseKindsJSON } from "@/shared/model/llm-schema";
 import {
@@ -216,6 +217,7 @@ function ModelAvailabilityBadge({ availability }: { availability: ModelAvailabil
 }
 
 function SourceStatusText({
+  modelStatus,
   status,
   upstreamStatus,
   upstreamModelStatus,
@@ -223,6 +225,7 @@ function SourceStatusText({
   circuitUntil,
   circuitScope,
 }: {
+  modelStatus: AdminLLMStatus;
   status: AdminLLMStatus;
   upstreamStatus: AdminLLMStatus;
   upstreamModelStatus: AdminLLMStatus;
@@ -233,7 +236,9 @@ function SourceStatusText({
   const t = useTranslations("adminModels");
   const locale = useLocale();
   const inactiveReason =
-    upstreamStatus === "inactive"
+    modelStatus === "inactive"
+      ? t("sources.platformModelInactive")
+      : upstreamStatus === "inactive"
       ? t("sources.upstreamInactive")
       : upstreamModelStatus === "inactive"
         ? t("sources.upstreamModelInactive")
@@ -256,7 +261,7 @@ function SourceStatusText({
       </Tooltip>
     );
   }
-  if (status === "inactive" || upstreamStatus === "inactive" || upstreamModelStatus === "inactive") {
+  if (modelStatus === "inactive" || status === "inactive" || upstreamStatus === "inactive" || upstreamModelStatus === "inactive") {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
@@ -307,7 +312,8 @@ type ModelsTableProps = {
   onDelete: (item: AdminLLMModelDTO) => void;
   onTestModel?: (item: AdminLLMModelDTO) => void;
   onTestSource?: (source: AdminLLMModelUpstreamSourceDTO) => void;
-  onSourceStatusChange?: (modelID: number, previous: AdminLLMStatus, next: AdminLLMStatus) => void;
+  onRefreshModels?: () => void;
+  onSourceAvailabilityChange?: (modelID: number, previousAvailable: boolean, nextAvailable: boolean) => void;
   onSourceDeleteChange?: (modelID: number, source: AdminLLMModelUpstreamSourceDTO, deleted: boolean) => void;
 };
 
@@ -609,6 +615,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
                   >
                     <div className="flex h-7 items-center justify-center">
                       <SourceStatusText
+                        modelStatus={item.status}
                         status={source.status}
                         upstreamStatus={source.upstreamStatus}
                         upstreamModelStatus={source.upstreamModelStatus}
@@ -735,7 +742,8 @@ export function ModelsTable({
   onDelete,
   onTestModel,
   onTestSource,
-  onSourceStatusChange,
+  onRefreshModels,
+  onSourceAvailabilityChange,
   onSourceDeleteChange,
 }: ModelsTableProps) {
   const t = useTranslations("adminModels");
@@ -929,6 +937,9 @@ export function ModelsTable({
               circuitScope: "source" as const,
             }
           : { ...source, circuitOpen: false, circuitUntil: "", circuitScope: "" as const };
+      const modelStatus = items.find((item) => item.id === modelId)?.status ?? "inactive";
+      const previousAvailable = isAdminLLMSourceAvailable(source, modelStatus);
+      const nextAvailable = isAdminLLMSourceAvailable(nextSource, modelStatus);
       setInlineSources((prev) => ({
         ...prev,
         [modelId]: {
@@ -936,6 +947,7 @@ export function ModelsTable({
           items: (prev[modelId]?.items ?? []).map((item) => (item.id === source.id ? nextSource : item)),
         },
       }));
+      onSourceAvailabilityChange?.(modelId, previousAvailable, nextAvailable);
       try {
         if (action === "open") {
           await openAdminLLMUpstreamModelCircuit(token, source.upstreamID, source.id);
@@ -947,6 +959,7 @@ export function ModelsTable({
           await resetAdminLLMUpstreamModelCircuit(token, source.upstreamID, source.id);
           toast.success(t("toast.circuitReset"));
         }
+        onRefreshModels?.();
       } catch (error) {
         setInlineSources((prev) => ({
           ...prev,
@@ -955,10 +968,11 @@ export function ModelsTable({
             items: (prev[modelId]?.items ?? []).map((item) => (item.id === source.id ? source : item)),
           },
         }));
+        onSourceAvailabilityChange?.(modelId, nextAvailable, previousAvailable);
         toast.error(t("toast.operationFailed"), { description: resolveAdminErrorMessage(error) });
       }
     },
-    [t],
+    [items, onRefreshModels, onSourceAvailabilityChange, t],
   );
 
   const handleInlineStatusToggle = React.useCallback(
@@ -967,16 +981,20 @@ export function ModelsTable({
       if (!token) return;
 
       const nextStatus = source.status === "active" ? "inactive" : "active";
+      const modelStatus = items.find((item) => item.id === modelId)?.status ?? "inactive";
+      const nextSource = { ...source, status: nextStatus };
+      const previousAvailable = isAdminLLMSourceAvailable(source, modelStatus);
+      const nextAvailable = isAdminLLMSourceAvailable(nextSource, modelStatus);
       setInlineSources((prev) => ({
         ...prev,
         [modelId]: {
           ...(prev[modelId] ?? { items: [], loading: false }),
           items: (prev[modelId]?.items ?? []).map((item) =>
-            item.id === source.id ? { ...item, status: nextStatus } : item,
+            item.id === source.id ? nextSource : item,
           ),
         },
       }));
-      onSourceStatusChange?.(modelId, source.status, nextStatus);
+      onSourceAvailabilityChange?.(modelId, previousAvailable, nextAvailable);
       try {
         const data = await updateAdminLLMModelUpstreamSource(token, modelId, source.id, {
           status: nextStatus,
@@ -997,11 +1015,11 @@ export function ModelsTable({
             items: (prev[modelId]?.items ?? []).map((item) => (item.id === source.id ? source : item)),
           },
         }));
-        onSourceStatusChange?.(modelId, nextStatus, source.status);
+        onSourceAvailabilityChange?.(modelId, nextAvailable, previousAvailable);
         toast.error(t("toast.operationFailed"), { description: resolveAdminErrorMessage(error) });
       }
     },
-    [onSourceStatusChange, t],
+    [items, onSourceAvailabilityChange, t],
   );
 
   const handleInlineCircuitSettingsSave = React.useCallback(async (payload: ModelSourceCircuitPayload) => {

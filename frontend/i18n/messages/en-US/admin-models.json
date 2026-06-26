@@ -154,6 +154,7 @@
     "circuitWindow": "Rolling window (minutes)",
     "circuitScopeUpstream": "Upstream circuit",
     "circuitScopeSource": "Source circuit",
+    "platformModelInactive": "Platform model is disabled",
     "upstreamInactive": "Upstream is disabled",
     "upstreamModelInactive": "Upstream model is disabled",
     "circuitInheritHint": "Use 0 to inherit the parent model fallback. If that fallback is also 0, the system default is used.",

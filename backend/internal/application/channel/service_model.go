@@ -50,6 +50,9 @@ func (s *Service) ListModels(ctx context.Context, page int, pageSize int, input 
 	for _, item := range items {
 		views = append(views, toModelView(item))
 	}
+	if err := s.normalizeModelAvailability(ctx, views); err != nil {
+		return nil, 0, err
+	}
 	return views, total, nil
 }
 
@@ -193,6 +196,39 @@ func filterPricedModelViews(items []ModelView, pricingByPlatformModelName map[st
 		results = append(results, item)
 	}
 	return results
+}
+
+func (s *Service) normalizeModelAvailability(ctx context.Context, items []ModelView) error {
+	for index := range items {
+		if items[index].Status != "active" {
+			items[index].ActiveSourceCount = 0
+			continue
+		}
+		if s.cache == nil || items[index].SourceCount <= 0 || items[index].ActiveSourceCount <= 0 {
+			continue
+		}
+		sources, _, err := s.repo.ListModelUpstreamSources(ctx, items[index].PlatformModelName, 0, int(items[index].SourceCount))
+		if err != nil {
+			return err
+		}
+		var active int64
+		for _, source := range sources {
+			view := toModelUpstreamSourceView(source)
+			s.applyModelSourceCircuitStatus(ctx, &view)
+			if modelSourceAvailable(view) {
+				active++
+			}
+		}
+		items[index].ActiveSourceCount = active
+	}
+	return nil
+}
+
+func modelSourceAvailable(view ModelUpstreamSourceView) bool {
+	return view.Status == "active" &&
+		view.UpstreamStatus == "active" &&
+		view.UpstreamModelStatus == "active" &&
+		!view.CircuitOpen
 }
 
 // ResolvePlatformModelIdentity 将平台模型名解析为统一平台身份。
@@ -394,6 +430,11 @@ func (s *Service) getModelViewByID(ctx context.Context, modelID uint) (*ModelVie
 		return nil, err
 	}
 	view := toModelView(*item)
+	views := []ModelView{view}
+	if err := s.normalizeModelAvailability(ctx, views); err != nil {
+		return nil, err
+	}
+	view = views[0]
 	return &view, nil
 }
 

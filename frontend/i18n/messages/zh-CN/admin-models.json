@@ -154,6 +154,7 @@
     "circuitWindow": "滑动窗口（分钟）",
     "circuitScopeUpstream": "上游熔断",
     "circuitScopeSource": "来源熔断",
+    "platformModelInactive": "平台模型已停用",
     "upstreamInactive": "上游已停用",
     "upstreamModelInactive": "上游模型已停用",
     "circuitInheritHint": "填 0 表示继承主模型的兜底配置；主模型也为 0 时使用系统默认。",

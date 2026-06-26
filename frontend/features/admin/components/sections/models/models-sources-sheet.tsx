@@ -75,6 +75,7 @@ import {
   resolveValue,
 } from "@/features/admin/types/llm";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
+import { isAdminLLMSourceAvailable } from "@/features/admin/utils/llm-source-availability";
 import { PROTOCOL_OPTIONS, sortProtocolsForDisplay } from "@/features/admin/utils/llm-display";
 import { ModelProbeDialog } from "./models-probe-dialog";
 import {
@@ -92,7 +93,7 @@ type UpstreamSourcesSheetProps = {
   model: AdminLLMModelDTO | null;
   onClose: () => void;
   onRefreshModel: () => void;
-  onSourceStatusChange?: (modelID: number, previous: AdminLLMStatus, next: AdminLLMStatus) => void;
+  onSourceAvailabilityChange?: (modelID: number, previousAvailable: boolean, nextAvailable: boolean) => void;
 };
 
 type RouteDraft = {
@@ -172,7 +173,7 @@ export function UpstreamSourcesSheet({
   model,
   onClose,
   onRefreshModel,
-  onSourceStatusChange,
+  onSourceAvailabilityChange,
 }: UpstreamSourcesSheetProps) {
   const t = useTranslations("adminModels.sources");
   const probeT = useTranslations("adminModels");
@@ -469,9 +470,11 @@ export function UpstreamSourcesSheet({
 
       const previousSource = source;
       const nextSource = { ...source, status: nextStatus };
+      const previousAvailable = isAdminLLMSourceAvailable(source, model.status);
+      const nextAvailable = isAdminLLMSourceAvailable(nextSource, model.status);
       setActionSourceID(source.id);
       setSources((current) => current.map((item) => (item.id === source.id ? nextSource : item)));
-      onSourceStatusChange?.(model.id, source.status, nextStatus);
+      onSourceAvailabilityChange?.(model.id, previousAvailable, nextAvailable);
       try {
         const data = await updateAdminLLMModelUpstreamSource(token, model.id, source.id, {
           status: nextStatus,
@@ -481,13 +484,13 @@ export function UpstreamSourcesSheet({
         onRefreshModel();
       } catch (error) {
         setSources((current) => current.map((item) => (item.id === source.id ? previousSource : item)));
-        onSourceStatusChange?.(model.id, nextStatus, source.status);
+        onSourceAvailabilityChange?.(model.id, nextAvailable, previousAvailable);
         toast.error(toastT("sourceStatusUpdateFailed"), { description: resolveAdminErrorMessage(error) });
       } finally {
         setActionSourceID(null);
       }
     },
-    [model, onRefreshModel, onSourceStatusChange, toastT],
+    [model, onRefreshModel, onSourceAvailabilityChange, toastT],
   );
 
   const handleCircuitAction = React.useCallback(
@@ -510,8 +513,11 @@ export function UpstreamSourcesSheet({
               circuitScope: "source" as const,
             }
           : { ...source, circuitOpen: false, circuitUntil: "", circuitScope: "" as const };
+      const previousAvailable = isAdminLLMSourceAvailable(source, model.status);
+      const nextAvailable = isAdminLLMSourceAvailable(nextSource, model.status);
       setActionSourceID(source.id);
       setSources((current) => current.map((item) => (item.id === source.id ? nextSource : item)));
+      onSourceAvailabilityChange?.(model.id, previousAvailable, nextAvailable);
       try {
         if (action === "open") {
           await openAdminLLMUpstreamModelCircuit(token, source.upstreamID, source.id);
@@ -523,14 +529,16 @@ export function UpstreamSourcesSheet({
           await resetAdminLLMUpstreamModelCircuit(token, source.upstreamID, source.id);
           toast.success(toastT("circuitReset"));
         }
+        onRefreshModel();
       } catch (error) {
         setSources((current) => current.map((item) => (item.id === source.id ? previousSource : item)));
+        onSourceAvailabilityChange?.(model.id, nextAvailable, previousAvailable);
         toast.error(toastT("operationFailed"), { description: resolveAdminErrorMessage(error) });
       } finally {
         setActionSourceID(null);
       }
     },
-    [model, toastT],
+    [model, onRefreshModel, onSourceAvailabilityChange, toastT],
   );
 
   const handleTestSource = React.useCallback(
@@ -894,10 +902,12 @@ export function UpstreamSourcesSheet({
                                   circuitUntil={source.circuitUntil}
                                   circuitScope={source.circuitScope}
                                 />
-                              ) : source.upstreamStatus === "inactive" || source.upstreamModelStatus === "inactive" ? (
+                              ) : model.status === "inactive" || source.upstreamStatus === "inactive" || source.upstreamModelStatus === "inactive" ? (
                                 <SourceInactiveStatus
                                   reason={
-                                    source.upstreamStatus === "inactive"
+                                    model.status === "inactive"
+                                      ? t("platformModelInactive")
+                                      : source.upstreamStatus === "inactive"
                                       ? t("upstreamInactive")
                                       : t("upstreamModelInactive")
                                   }

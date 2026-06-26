@@ -24,6 +24,10 @@ import {
 } from "@/features/admin/types/llm";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { resolveKindsDisplayForProtocols } from "@/features/admin/utils/llm-display";
+import {
+  applySourceAvailabilityDelta,
+  isAdminLLMSourceAvailable,
+} from "@/features/admin/utils/llm-source-availability";
 import { patchByID, removeByID, removeManyByID, replaceByID } from "@/shared/lib/optimistic-list";
 import { runSettledBulkItems } from "@/shared/lib/bulk-action";
 
@@ -72,7 +76,7 @@ type UseAdminModelsState = {
   handleBulkApplyProtocol: () => Promise<void>;
   handleBulkApplyVendor: () => Promise<void>;
   handleBulkApplyStatus: () => Promise<void>;
-  handleSourceStatusChange: (modelID: number, previous: AdminLLMStatus, next: AdminLLMStatus) => void;
+  handleSourceAvailabilityChange: (modelID: number, previousAvailable: boolean, nextAvailable: boolean) => void;
   handleSourceDeleteChange: (modelID: number, source: AdminLLMModelUpstreamSourceDTO, deleted: boolean) => void;
   handleRequestBulkDelete: () => void;
   handleDeleted: () => void;
@@ -187,7 +191,12 @@ export function useAdminModels(): UseAdminModelsState {
         return;
       }
       const previousItem = items.find((model) => model.id === item.id) ?? item;
-      setItems((current) => patchByID(current, item.id, (model) => model.id, { status: nextStatus }));
+      setItems((current) =>
+        patchByID(current, item.id, (model) => model.id, {
+          status: nextStatus,
+          ...(nextStatus === "inactive" ? { activeSourceCount: 0 } : {}),
+        }),
+      );
       try {
         const data = await updateAdminLLMModel(token, item.id, { status: nextStatus });
         const leavesCurrentStatusFilter = statusFilter !== "" && statusFilter !== nextStatus;
@@ -234,17 +243,18 @@ export function useAdminModels(): UseAdminModelsState {
     [items, loadModels, page, pageSize, sortValue, t],
   );
 
-  const handleSourceStatusChange = React.useCallback((modelID: number, previous: AdminLLMStatus, next: AdminLLMStatus) => {
-    if (previous === next) {
-      return;
-    }
-    const delta = next === "active" ? 1 : -1;
+  const handleSourceAvailabilityChange = React.useCallback((modelID: number, previousAvailable: boolean, nextAvailable: boolean) => {
     setItems((current) =>
       current.map((item) =>
         item.id === modelID
           ? {
               ...item,
-              activeSourceCount: Math.max(0, item.activeSourceCount + delta),
+              activeSourceCount: applySourceAvailabilityDelta(
+                item.activeSourceCount,
+                item.sourceCount,
+                previousAvailable,
+                nextAvailable,
+              ),
             }
           : item,
       ),
@@ -253,17 +263,24 @@ export function useAdminModels(): UseAdminModelsState {
 
   const handleSourceDeleteChange = React.useCallback((modelID: number, source: AdminLLMModelUpstreamSourceDTO, deleted: boolean) => {
     const sourceDelta = deleted ? -1 : 1;
-    const activeDelta = source.status === "active" ? sourceDelta : 0;
     setItems((current) =>
-      current.map((item) =>
-        item.id === modelID
-          ? {
-              ...item,
-              sourceCount: Math.max(0, item.sourceCount + sourceDelta),
-              activeSourceCount: Math.max(0, item.activeSourceCount + activeDelta),
-            }
-          : item,
-      ),
+      current.map((item) => {
+        if (item.id !== modelID) {
+          return item;
+        }
+        const nextSourceCount = Math.max(0, item.sourceCount + sourceDelta);
+        const wasAvailable = isAdminLLMSourceAvailable(source, item.status);
+        return {
+          ...item,
+          sourceCount: nextSourceCount,
+          activeSourceCount: applySourceAvailabilityDelta(
+            item.activeSourceCount,
+            nextSourceCount,
+            deleted ? wasAvailable : false,
+            deleted ? false : wasAvailable,
+          ),
+        };
+      }),
     );
   }, []);
 
@@ -645,7 +662,7 @@ export function useAdminModels(): UseAdminModelsState {
     handleBulkApplyProtocol,
     handleBulkApplyVendor,
     handleBulkApplyStatus,
-    handleSourceStatusChange,
+    handleSourceAvailabilityChange,
     handleSourceDeleteChange,
     handleRequestBulkDelete,
     handleDeleted,

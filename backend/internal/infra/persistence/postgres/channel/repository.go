@@ -156,16 +156,7 @@ func (r *Repo) ListUpstreams(ctx context.Context, input repository.ListChannelUp
 		Select(
 			"u.*, COALESCE(stats.models_count, 0) AS models_count, COALESCE(stats.active_models_count, 0) AS active_models_count",
 		).
-		Joins(
-			`LEFT JOIN (
-				SELECT um.upstream_id,
-					COUNT(DISTINCT um.id) AS models_count,
-					COUNT(DISTINCT CASE WHEN r.status = 'active' AND um.status = 'active' THEN um.id END) AS active_models_count
-				FROM llm_upstream_models um
-				LEFT JOIN llm_model_routes r ON r.upstream_model_id = um.id
-				GROUP BY um.upstream_id
-			) AS stats ON stats.upstream_id = u.id`,
-		)
+		Joins(upstreamListStatsJoinSQL())
 	listQuery = applyUpstreamListFilters(listQuery, input)
 	if err := listQuery.
 		Order(upstreamListOrder(input.Sort)).
@@ -175,6 +166,38 @@ func (r *Repo) ListUpstreams(ctx context.Context, input repository.ListChannelUp
 		return nil, 0, translateError(err)
 	}
 	return items, total, nil
+}
+
+func (r *Repo) GetUpstreamListRowByID(ctx context.Context, upstreamID uint) (*UpstreamListRow, error) {
+	var item UpstreamListRow
+	result := r.db.WithContext(ctx).
+		Table("llm_upstreams AS u").
+		Select(
+			"u.*, COALESCE(stats.models_count, 0) AS models_count, COALESCE(stats.active_models_count, 0) AS active_models_count",
+		).
+		Joins(upstreamListStatsJoinSQL()).
+		Where("u.id = ?", upstreamID).
+		Scan(&item)
+	if result.Error != nil {
+		return nil, translateError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return nil, ErrUpstreamNotFound
+	}
+	return &item, nil
+}
+
+func upstreamListStatsJoinSQL() string {
+	return `LEFT JOIN (
+		SELECT um.upstream_id,
+			COUNT(DISTINCT um.id) AS models_count,
+			COUNT(DISTINCT CASE WHEN u.status = 'active' AND r.status = 'active' AND um.status = 'active' AND pm.status = 'active' THEN um.id END) AS active_models_count
+		FROM llm_upstream_models um
+		LEFT JOIN llm_upstreams u ON u.id = um.upstream_id
+		LEFT JOIN llm_model_routes r ON r.upstream_model_id = um.id
+		LEFT JOIN llm_platform_models pm ON pm.id = r.platform_model_id
+		GROUP BY um.upstream_id
+	) AS stats ON stats.upstream_id = u.id`
 }
 
 func applyUpstreamListFilters(query *gorm.DB, input repository.ListChannelUpstreamsInput) *gorm.DB {
@@ -1260,9 +1283,11 @@ func (r *Repo) ListActiveRouteBindingCodesForUpstream(ctx context.Context, upstr
 	var codes []string
 	if err := r.db.WithContext(ctx).
 		Table("llm_model_routes AS r").
-		Select("um.binding_code").
+		Distinct("um.binding_code").
 		Joins("JOIN llm_upstream_models um ON um.id = r.upstream_model_id").
-		Where("um.upstream_id = ? AND r.status = ? AND um.status = ?", upstreamID, "active", "active").
+		Joins("JOIN llm_platform_models pm ON pm.id = r.platform_model_id").
+		Where("um.upstream_id = ? AND r.status = ? AND um.status = ? AND pm.status = ?", upstreamID, "active", "active", "active").
+		Order("um.binding_code ASC").
 		Pluck("um.binding_code", &codes).Error; err != nil {
 		return nil, translateError(err)
 	}
