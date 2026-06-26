@@ -254,6 +254,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 	userMessage.ParentPublicID = branchState.ParentPublicID
 	userMessage.SourcePublicID = branchState.SourcePublicID
 	assistantMessage.ParentPublicID = userMessage.PublicID
+	s.maybeGenerateConversationMetadataAsync(*conversation, *userMessage)
 	traceRecorder := newMessageTraceRecorder(s, ctx, assistantMessage, input.OnEvent)
 	defer func() {
 		if retErr != nil && traceRecorder != nil {
@@ -427,13 +428,11 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 	run.CacheReadTokens = usage.CacheReadTokens
 	run.CacheWriteTokens = usage.CacheWriteTokens
 	run.ReasoningTokens = usage.ReasoningTokens
-	// 图片会话首轮没有文本 assistant 回复，标题/标签只使用用户第一条气泡内容生成。
-	s.maybeGenerateConversationMetadataAsync(*conversation, *userMessage, model.Message{})
 
 	return &SendMessageResult{
 		UserMessage:         *userMessage,
 		AssistantMessage:    *assistantMessage,
-		MetadataRefreshHint: conversationMetadataRefreshHint(*conversation, *userMessage, model.Message{}),
+		MetadataRefreshHint: conversationMetadataRefreshHint(*conversation, *userMessage),
 		UpstreamID:          route.UpstreamID,
 		UpstreamName:        route.UpstreamName,
 		PlatformModelName:   route.PlatformModelName,

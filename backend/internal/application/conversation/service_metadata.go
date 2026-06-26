@@ -67,16 +67,30 @@ type conversationMetadataLLMResult struct {
 	LatencyMS         int64
 }
 
-func (s *Service) maybeGenerateConversationMetadataAsync(conversation model.Conversation, userMsg model.Message, assistantMsg model.Message) {
+func (s *Service) maybeGenerateConversationMetadataAsync(conversation model.Conversation, userMsg model.Message) {
 	if !shouldGenerateConversationMetadata(conversation) {
 		return
+	}
+	fallbackTitle := ""
+	if shouldAutoReplaceConversationTitle(conversation.Title) {
+		fallbackTitle = conversationTitleFromFirstUserMessage(userMsg.Content)
 	}
 
 	go func() {
 		asyncCtx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
 
-		if _, err := s.generateConversationMetadata(asyncCtx, conversation, userMsg, assistantMsg); err != nil && s.logger != nil {
+		if fallbackTitle != "" {
+			if _, err := s.repo.UpdateConversationMetadata(asyncCtx, conversation.ID, repository.ConversationMetadataPatch{Title: fallbackTitle}); err != nil && s.logger != nil {
+				s.logger.Warn("conversation_fallback_title_update_failed",
+					zap.Uint("conversation_id", conversation.ID),
+					zap.String("model", conversation.Model),
+					zap.Error(err),
+				)
+			}
+		}
+
+		if _, err := s.generateConversationMetadata(asyncCtx, conversation, userMsg); err != nil && s.logger != nil {
 			if errors.Is(err, ErrInvalidConversationTitle) {
 				s.logger.Info("conversation_metadata_skipped",
 					zap.Uint("conversation_id", conversation.ID),
@@ -94,15 +108,14 @@ func (s *Service) maybeGenerateConversationMetadataAsync(conversation model.Conv
 	}()
 }
 
-func (s *Service) generateConversationMetadata(ctx context.Context, conversation model.Conversation, userMsg model.Message, assistantMsg model.Message) (*model.Conversation, error) {
+func (s *Service) generateConversationMetadata(ctx context.Context, conversation model.Conversation, userMsg model.Message) (*model.Conversation, error) {
 	cfg := s.cfg.Snapshot()
-	messages := buildConversationMetadataMessages(userMsg, assistantMsg)
+	messages := buildConversationMetadataMessages(userMsg)
 	hasTitleableMessages := strings.TrimSpace(messages) != ""
 
-	title := ""
-	labelsJSON := ""
 	var titleErr error
 	var labelsErr error
+	var updated *model.Conversation
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
@@ -126,12 +139,18 @@ func (s *Service) generateConversationMetadata(ctx context.Context, conversation
 			labelsErr = err
 		}
 	}
+	setUpdated := func(item *model.Conversation) {
+		if item == nil {
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		updated = item
+	}
 
 	shouldReplaceTitle := shouldAutoReplaceConversationTitle(conversation.Title)
 	shouldGenerateTitle := shouldReplaceTitle && s.autoGenerateConversationTitleEnabled(ctx, conversation.UserID)
-	if shouldReplaceTitle && !shouldGenerateTitle {
-		title = conversationTitleFromFirstUserMessage(userMsg.Content)
-	}
+	fallbackTitle := conversationTitleFromFirstUserMessage(userMsg.Content)
 
 	if shouldGenerateTitle && !hasTitleableMessages {
 		setTitleErr(ErrInvalidConversationTitle)
@@ -147,9 +166,26 @@ func (s *Service) generateConversationMetadata(ctx context.Context, conversation
 				return
 			}
 			s.recordBasicServiceUsage(ctx, conversation.UserID, conversation.ID, "title", "标题", out.PlatformModelName, out.RoutedBindingCode, out.ProviderProtocol, out.UpstreamName, out.UpstreamModel, "5m", out.Usage, out.Messages, out.Text, out.LatencyMS)
-			mu.Lock()
-			title = sanitizeGeneratedConversationTitle(parseGeneratedConversationTitle(out.Text))
-			mu.Unlock()
+			title := resolveConversationMetadataTitle(shouldReplaceTitle, sanitizeGeneratedConversationTitle(parseGeneratedConversationTitle(out.Text)), userMsg.Content)
+			if title == "" {
+				return
+			}
+			updated, err := s.repo.UpdateConversationMetadata(ctx, conversation.ID, repository.ConversationMetadataPatch{
+				Title:             title,
+				ReplaceableTitles: []string{fallbackTitle},
+			})
+			if err != nil {
+				setTitleErr(fmt.Errorf("update conversation title metadata: %w", err))
+				return
+			}
+			setUpdated(updated)
+			if s.logger != nil {
+				s.logger.Info("conversation_metadata_updated",
+					zap.Uint("conversation_id", conversation.ID),
+					zap.String("conversation_model", conversation.Model),
+					zap.Bool("title_updated", true),
+				)
+			}
 		}()
 	}
 
@@ -177,44 +213,40 @@ func (s *Service) generateConversationMetadata(ctx context.Context, conversation
 				setLabelsErr(marshalErr)
 				return
 			}
-			mu.Lock()
-			labelsJSON = string(raw)
-			mu.Unlock()
+			updated, err := s.repo.UpdateConversationMetadata(ctx, conversation.ID, repository.ConversationMetadataPatch{LabelsJSON: string(raw)})
+			if err != nil {
+				setLabelsErr(fmt.Errorf("update conversation labels metadata: %w", err))
+				return
+			}
+			setUpdated(updated)
+			if s.logger != nil {
+				s.logger.Info("conversation_metadata_updated",
+					zap.Uint("conversation_id", conversation.ID),
+					zap.String("conversation_model", conversation.Model),
+					zap.Bool("labels_updated", true),
+				)
+			}
 		}()
 	}
 
 	wg.Wait()
 	mu.Lock()
-	resolvedTitle := strings.TrimSpace(title)
-	resolvedLabelsJSON := strings.TrimSpace(labelsJSON)
 	resolvedTitleErr := titleErr
 	resolvedLabelsErr := labelsErr
+	resolvedUpdated := updated
 	mu.Unlock()
 
-	resolvedTitle = resolveConversationMetadataTitle(shouldReplaceTitle, resolvedTitle, userMsg.Content)
-	resolvedErr := resolveConversationMetadataError(resolvedTitle, resolvedLabelsJSON, resolvedTitleErr, resolvedLabelsErr)
-
-	if resolvedTitle == "" && resolvedLabelsJSON == "" {
-		return nil, resolvedErr
+	if resolvedUpdated != nil {
+		return resolvedUpdated, nil
 	}
-	updated, err := s.repo.UpdateConversationMetadata(ctx, conversation.ID, resolvedTitle, resolvedLabelsJSON)
-	if err != nil {
-		return nil, fmt.Errorf("update conversation metadata: %w", err)
+	if shouldReplaceTitle && !shouldGenerateTitle && fallbackTitle != "" {
+		updated, err := s.repo.UpdateConversationMetadata(ctx, conversation.ID, repository.ConversationMetadataPatch{Title: fallbackTitle})
+		if err != nil {
+			return nil, fmt.Errorf("update conversation fallback title metadata: %w", err)
+		}
+		return updated, nil
 	}
-	if s.logger != nil {
-		fields := []zap.Field{
-			zap.Uint("conversation_id", conversation.ID),
-			zap.String("conversation_model", conversation.Model),
-		}
-		if resolvedTitle != "" {
-			fields = append(fields, zap.Bool("title_updated", true))
-		}
-		if resolvedLabelsJSON != "" {
-			fields = append(fields, zap.Bool("labels_updated", true))
-		}
-		s.logger.Info("conversation_metadata_updated", fields...)
-	}
-	return updated, resolvedErr
+	return nil, resolveConversationMetadataError("", "", resolvedTitleErr, resolvedLabelsErr)
 }
 
 // RegenerateConversationTitle 根据已有会话正文强制重新生成标题。
@@ -274,25 +306,20 @@ func (s *Service) RegenerateConversationTitle(ctx context.Context, userID uint, 
 	return updated, nil
 }
 
-func buildConversationMetadataMessages(userMsg model.Message, assistantMsg model.Message) string {
+func buildConversationMetadataMessages(userMsg model.Message) string {
 	var sb strings.Builder
 	if content := strings.TrimSpace(userMsg.Content); content != "" {
 		sb.WriteString("user:\n")
-		sb.WriteString(content)
-		sb.WriteString("\n\n")
-	}
-	if content := strings.TrimSpace(assistantMsg.Content); content != "" {
-		sb.WriteString("assistant:\n")
 		sb.WriteString(content)
 	}
 	return truncateByEstimatedTokens(strings.TrimSpace(sb.String()), conversationMetadataMessageMaxTokens)
 }
 
-func conversationMetadataRefreshHint(conversation model.Conversation, userMsg model.Message, assistantMsg model.Message) string {
+func conversationMetadataRefreshHint(conversation model.Conversation, userMsg model.Message) string {
 	if !shouldGenerateConversationMetadata(conversation) {
 		return conversationMetadataRefreshNotNeeded
 	}
-	if strings.TrimSpace(buildConversationMetadataMessages(userMsg, assistantMsg)) == "" {
+	if strings.TrimSpace(buildConversationMetadataMessages(userMsg)) == "" {
 		return conversationMetadataRefreshNoContent
 	}
 	return conversationMetadataRefreshPending
@@ -607,7 +634,7 @@ func (s *Service) autoGenerateConversationTitleEnabled(ctx context.Context, user
 func shouldAutoReplaceConversationTitle(title string) bool {
 	value := strings.TrimSpace(strings.ToLower(title))
 	switch value {
-	case "", "new conversation", "new chat", "untitled", "新会话", "新对话", "新的对话":
+	case "new chat", "新会话":
 		return true
 	default:
 		return false

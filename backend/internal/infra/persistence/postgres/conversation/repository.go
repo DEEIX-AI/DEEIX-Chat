@@ -493,17 +493,24 @@ func (r *Repo) UpdateConversationTitleByPublicID(
 }
 
 // UpdateConversationMetadata 更新自动生成的会话元数据。
-func (r *Repo) UpdateConversationMetadata(ctx context.Context, conversationID uint, title string, labelsJSON string) (*domainconversation.Conversation, error) {
+func (r *Repo) UpdateConversationMetadata(ctx context.Context, conversationID uint, patch repository.ConversationMetadataPatch) (*domainconversation.Conversation, error) {
 	updates := map[string]interface{}{}
-	if strings.TrimSpace(title) != "" {
+	if strings.TrimSpace(patch.Title) != "" {
+		replaceable := []string{"new chat", "新会话"}
+		for _, item := range patch.ReplaceableTitles {
+			value := strings.TrimSpace(strings.ToLower(item))
+			if value != "" {
+				replaceable = append(replaceable, value)
+			}
+		}
 		updates["title"] = gorm.Expr(
 			fmt.Sprintf("CASE WHEN lower(%s(title)) IN ? THEN ? ELSE title END", r.trimFunctionName()),
-			[]string{"", "new conversation", "new chat", "untitled", "新会话", "新对话", "新的对话"},
-			strings.TrimSpace(title),
+			replaceable,
+			strings.TrimSpace(patch.Title),
 		)
 	}
-	if strings.TrimSpace(labelsJSON) != "" {
-		updates["labels_json"] = strings.TrimSpace(labelsJSON)
+	if strings.TrimSpace(patch.LabelsJSON) != "" {
+		updates["labels_json"] = strings.TrimSpace(patch.LabelsJSON)
 	}
 	if len(updates) == 0 {
 		var current models.Conversation

@@ -29,6 +29,13 @@ type AssistantMessageCompletionUpdate struct {
 	ErrorMessage    string
 }
 
+// ConversationMetadataPatch 定义自动生成会话元数据的更新字段。
+type ConversationMetadataPatch struct {
+	Title             string
+	LabelsJSON        string
+	ReplaceableTitles []string
+}
+
 // ConversationMetadataRepository 封装会话元信息与用户访问能力。
 type ConversationMetadataRepository interface {
 	CreateConversation(ctx context.Context, item *domainconversation.Conversation) error
@@ -51,7 +58,7 @@ type ConversationMetadataRepository interface {
 	RevokeActiveConversationShares(ctx context.Context, userID uint, conversationIDs []uint) error
 	TouchConversationShareAccess(ctx context.Context, shareID string, accessedAt time.Time) error
 	UpdateConversationTitleByPublicID(ctx context.Context, userID uint, publicID string, title string) (*domainconversation.Conversation, error)
-	UpdateConversationMetadata(ctx context.Context, conversationID uint, title string, labelsJSON string) (*domainconversation.Conversation, error)
+	UpdateConversationMetadata(ctx context.Context, conversationID uint, patch ConversationMetadataPatch) (*domainconversation.Conversation, error)
 	UpdateConversationStarByPublicID(ctx context.Context, userID uint, publicID string, starred bool) (*domainconversation.Conversation, error)
 	UpdateConversationArchiveByPublicID(ctx context.Context, userID uint, publicID string, archived bool) (*domainconversation.Conversation, error)
 	DeleteConversationByPublicID(ctx context.Context, userID uint, publicID string, deleteFiles bool) ([]string, error)

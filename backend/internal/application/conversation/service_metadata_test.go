@@ -10,9 +10,8 @@ import (
 
 func TestBuildConversationMetadataMessagesTruncatesToBudget(t *testing.T) {
 	userMsg := model.Message{Content: strings.Repeat("用户输入内容", 6000)}
-	assistantMsg := model.Message{Content: strings.Repeat("助手回复内容", 6000)}
 
-	got := buildConversationMetadataMessages(userMsg, assistantMsg)
+	got := buildConversationMetadataMessages(userMsg)
 
 	if tokens := estimateTokens(got); tokens > conversationMetadataMessageMaxTokens {
 		t.Fatalf("metadata messages exceeded budget: got %d, want <= %d", tokens, conversationMetadataMessageMaxTokens)
@@ -26,6 +25,19 @@ func TestBuildConversationMetadataMessagesTruncatesToBudget(t *testing.T) {
 	}
 	if !strings.Contains(got, "[truncated]") {
 		t.Fatal("expected metadata messages to mark truncated content")
+	}
+}
+
+func TestBuildConversationMetadataMessagesUsesOnlyUserMessage(t *testing.T) {
+	userMsg := model.Message{Content: "帮我设计一套灰度发布方案"}
+
+	got := buildConversationMetadataMessages(userMsg)
+
+	if !strings.Contains(got, "user:\n帮我设计一套灰度发布方案") {
+		t.Fatalf("expected metadata messages to include user bubble, got %q", got)
+	}
+	if strings.Contains(got, "assistant:") {
+		t.Fatalf("expected metadata messages to exclude assistant content, got %q", got)
 	}
 }
 
@@ -106,7 +118,7 @@ func TestConversationFallbackTitleUsesUnifiedLimit(t *testing.T) {
 }
 
 func TestBuildConversationMetadataMessagesEmptyWhenNoText(t *testing.T) {
-	got := buildConversationMetadataMessages(model.Message{}, model.Message{})
+	got := buildConversationMetadataMessages(model.Message{})
 	if got != "" {
 		t.Fatalf("expected no metadata prompt body for empty messages, got %q", got)
 	}
@@ -117,7 +129,6 @@ func TestConversationMetadataRefreshHint(t *testing.T) {
 		name         string
 		conversation model.Conversation
 		userMsg      model.Message
-		assistantMsg model.Message
 		want         string
 	}{
 		{
@@ -141,7 +152,7 @@ func TestConversationMetadataRefreshHint(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := conversationMetadataRefreshHint(tc.conversation, tc.userMsg, tc.assistantMsg)
+			got := conversationMetadataRefreshHint(tc.conversation, tc.userMsg)
 			if got != tc.want {
 				t.Fatalf("unexpected metadata refresh hint: got %q, want %q", got, tc.want)
 			}
@@ -201,11 +212,11 @@ func TestConversationTitleFromMessagesPrefersLatestUserMessage(t *testing.T) {
 
 func TestConversationMetadataFallsBackToFirstUserMessageTitle(t *testing.T) {
 	resolvedTitle := resolveConversationMetadataTitle(
-		shouldAutoReplaceConversationTitle("新对话"),
+		shouldAutoReplaceConversationTitle("新会话"),
 		"",
 		"设置为跟随后，Grok 4.3 对话标题没有自动生成",
 	)
-	if resolvedTitle == "" || resolvedTitle == "新对话" {
+	if resolvedTitle == "" || resolvedTitle == "新会话" {
 		t.Fatalf("expected first user message fallback title, got %q", resolvedTitle)
 	}
 }
@@ -213,6 +224,9 @@ func TestConversationMetadataFallsBackToFirstUserMessageTitle(t *testing.T) {
 func TestShouldAutoReplaceConversationTitleIncludesEnglishNewChat(t *testing.T) {
 	if !shouldAutoReplaceConversationTitle("New chat") {
 		t.Fatal("expected English localized new chat title to be replaceable")
+	}
+	if shouldAutoReplaceConversationTitle("新对话") {
+		t.Fatal("expected non-persisted Chinese navigation label not to be replaceable")
 	}
 }
 

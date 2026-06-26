@@ -163,7 +163,15 @@ function normalizeLabelsJSON(value: string | null | undefined): string {
 
 function isPlaceholderConversationTitle(title: string): boolean {
   const value = title.trim().toLowerCase();
-  return ["", "new conversation", "new chat", "untitled", "新会话", "新对话", "新的对话"].includes(value);
+  return ["new chat", "新会话"].includes(value);
+}
+
+function conversationTitleFromFirstUserMessage(content: string): string {
+  const value = content.trim().replace(/\s+/g, " ").replace(/^[\s"'`“”‘’]+|[\s"'`“”‘’]+$/g, "");
+  if (!value) {
+    return "";
+  }
+  return Array.from(value).slice(0, 16).join("").trim();
 }
 
 function hasPendingGeneratedConversationMetadata(item: ConversationDTO | null): boolean {
@@ -208,6 +216,7 @@ async function refreshGeneratedConversationMetadata(
 ): Promise<void> {
   let elapsedMS = 0;
   let delayMS = CONVERSATION_METADATA_REFRESH_INITIAL_DELAY_MS;
+  let current = previous;
 
   while (elapsedMS < CONVERSATION_METADATA_REFRESH_MAX_WAIT_MS) {
     const nextDelayMS = Math.min(delayMS, CONVERSATION_METADATA_REFRESH_MAX_WAIT_MS - elapsedMS);
@@ -220,9 +229,12 @@ async function refreshGeneratedConversationMetadata(
     } catch {
       continue;
     }
-    if (hasGeneratedConversationMetadataChanged(previous, latest)) {
+    if (hasGeneratedConversationMetadataChanged(current, latest)) {
       touchByPublicID(conversationPublicID, latest);
-      return;
+      current = latest;
+      if (!hasPendingGeneratedConversationMetadata(latest)) {
+        return;
+      }
     }
 
     delayMS = Math.min(
@@ -487,6 +499,7 @@ export function useChatMessageSubmit({
         submitTask === "chat" ? undefined : resolveImageLoadingAspectRatio(sanitizedOptions);
       let targetConversationID = conversationIDRef.current;
       let targetConversation = activeConversationRef.current;
+      let metadataRefreshInFlight = false;
 
       activeGenerationRunsRef?.current.add(clientRunID);
       setShowConversationLayout(true);
@@ -545,6 +558,28 @@ export function useChatMessageSubmit({
             accessToken: token,
           };
         }
+        const startMetadataRefresh = (result?: SendMessageResult | null) => {
+          if (
+            !targetConversationID ||
+            metadataRefreshInFlight ||
+            !shouldPollGeneratedConversationMetadata(targetConversation, result)
+          ) {
+            return;
+          }
+          metadataRefreshInFlight = true;
+          void refreshGeneratedConversationMetadata(
+            token,
+            targetConversationID,
+            targetConversation,
+            touchByPublicID,
+          )
+            .catch(() => {
+              // Metadata refresh failure does not affect this turn; the next list load will fetch server state.
+            })
+            .finally(() => {
+              metadataRefreshInFlight = false;
+            });
+        };
 
         if (!targetConversationID) {
           const created = await prependNewConversation(requestPlatformModelName);
@@ -570,6 +605,22 @@ export function useChatMessageSubmit({
           window.history.replaceState(null, "", `/chat?conversation_id=${created.publicID}`);
           onConversationCreated?.(created.publicID);
         }
+        const optimisticTitle = conversationTitleFromFirstUserMessage(payloadContent);
+        if (
+          targetConversationID &&
+          optimisticTitle &&
+          (!targetConversation || isPlaceholderConversationTitle(targetConversation.title))
+        ) {
+          if (targetConversation) {
+            targetConversation = {
+              ...targetConversation,
+              title: optimisticTitle,
+            };
+            activeConversationRef.current = targetConversation;
+          }
+          touchByPublicID(targetConversationID, { title: optimisticTitle });
+        }
+        startMetadataRefresh(null);
         const commonStreamPayload = {
           model: requestPlatformModelName,
           options: Object.keys(sanitizedOptions).length > 0 ? sanitizedOptions : undefined,
@@ -802,15 +853,8 @@ export function useChatMessageSubmit({
           targetConversationID,
           toConversationPatch(targetConversation, requestPlatformModelName),
         );
-        if (assistantMessageSucceeded && shouldPollGeneratedConversationMetadata(targetConversation, completed)) {
-          void refreshGeneratedConversationMetadata(
-            token,
-            targetConversationID,
-            targetConversation,
-            touchByPublicID,
-          ).catch(() => {
-            // Metadata refresh failure does not affect this turn; the next list load will fetch server state.
-          });
+        if (assistantMessageSucceeded) {
+          startMetadataRefresh(completed);
         }
         releaseAttachments(effectiveAttachments);
         if (assistantMessageSucceeded) {

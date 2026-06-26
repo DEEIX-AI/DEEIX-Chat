@@ -368,6 +368,7 @@ func (s *Service) sendMessageInternal(
 			return nil, err
 		}
 	}
+	s.maybeGenerateConversationMetadataAsync(*conversation, *userMessage)
 	run.Endpoint = llm.DefaultEndpointForAdapter(route.Protocol)
 	run.ProviderProtocol = route.Protocol
 	run.UpstreamID = route.UpstreamID
@@ -1344,7 +1345,7 @@ func (s *Service) sendMessageInternal(
 	return &SendMessageResult{
 		UserMessage:         *userMessage,
 		AssistantMessage:    *assistantMessage,
-		MetadataRefreshHint: conversationMetadataRefreshHint(*conversation, *userMessage, *assistantMessage),
+		MetadataRefreshHint: conversationMetadataRefreshHint(*conversation, *userMessage),
 		Billable:            true,
 		UpstreamID:          run.UpstreamID,
 		UpstreamName:        run.UpstreamName,

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -179,7 +180,7 @@ func TestUpdateConversationMetadataSQLiteUsesPortableTrim(t *testing.T) {
 	conversation := model.Conversation{
 		UserID:     1,
 		PublicID:   "conv_metadata_sqlite",
-		Title:      " 新对话 ",
+		Title:      " 新会话 ",
 		LabelsJSON: "[]",
 		SessionKey: "session_metadata_sqlite",
 		Status:     "active",
@@ -188,7 +189,10 @@ func TestUpdateConversationMetadataSQLiteUsesPortableTrim(t *testing.T) {
 		t.Fatalf("create conversation: %v", err)
 	}
 
-	updated, err := repo.UpdateConversationMetadata(ctx, conversation.ID, "SQLite 标题", `["技术"]`)
+	updated, err := repo.UpdateConversationMetadata(ctx, conversation.ID, repository.ConversationMetadataPatch{
+		Title:      "SQLite 标题",
+		LabelsJSON: `["技术"]`,
+	})
 	if err != nil {
 		t.Fatalf("UpdateConversationMetadata() error = %v", err)
 	}
@@ -197,6 +201,49 @@ func TestUpdateConversationMetadataSQLiteUsesPortableTrim(t *testing.T) {
 	}
 	if updated.LabelsJSON != `["技术"]` {
 		t.Fatalf("updated labels = %q, want %q", updated.LabelsJSON, `["技术"]`)
+	}
+}
+
+func TestUpdateConversationMetadataCanReplaceAutomaticFallbackTitle(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+
+	conversation := model.Conversation{
+		UserID:     1,
+		PublicID:   "conv_metadata_fallback",
+		Title:      "画一张城市夜景",
+		LabelsJSON: "[]",
+		SessionKey: "session_metadata_fallback",
+		Status:     "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	updated, err := repo.UpdateConversationMetadata(ctx, conversation.ID, repository.ConversationMetadataPatch{
+		Title:             "城市夜景图像生成",
+		ReplaceableTitles: []string{"画一张城市夜景"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateConversationMetadata() error = %v", err)
+	}
+	if updated.Title != "城市夜景图像生成" {
+		t.Fatalf("updated title = %q, want %q", updated.Title, "城市夜景图像生成")
+	}
+
+	if err := db.Model(&model.Conversation{}).Where("id = ?", conversation.ID).Update("title", "手动标题").Error; err != nil {
+		t.Fatalf("set manual title: %v", err)
+	}
+	updated, err = repo.UpdateConversationMetadata(ctx, conversation.ID, repository.ConversationMetadataPatch{
+		Title:             "不应覆盖",
+		ReplaceableTitles: []string{"画一张城市夜景"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateConversationMetadata() error = %v", err)
+	}
+	if updated.Title != "手动标题" {
+		t.Fatalf("manual title was overwritten: got %q", updated.Title)
 	}
 }
 

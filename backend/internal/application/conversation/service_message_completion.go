@@ -176,7 +176,6 @@ func (s *Service) finishSuccessfulMessageGeneration(ctx context.Context, input p
 	}
 
 	s.updateStatefulResponseAsync(input.SendInput.ConversationID, input.ResponseID, input.StatefulPromptFingerprint)
-	s.maybeGenerateConversationMetadataAsync(*input.Conversation, *input.UserMessage, *input.AssistantMessage)
 	s.embedMessagePairAsync(input.SendInput, input.UserMessage, input.AssistantMessage)
 
 	return nil
