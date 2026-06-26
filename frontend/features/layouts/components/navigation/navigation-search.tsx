@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/command"
 import type { ConversationSearchResult } from "@/features/layouts/types/navigation"
 import { formatUpdatedAtLabel } from "@/features/layouts/utils/navigation-search"
-import { useAppLocale } from "@/i18n/app-i18n-provider"
 
 function NavigationSearchResultItem({
   item,
@@ -26,8 +25,7 @@ function NavigationSearchResultItem({
   item: ConversationSearchResult
   onSelect: (href: string) => void
 }) {
-  const t = useTranslations("common.navigation")
-  const { locale } = useAppLocale()
+  const timeT = useTranslations("common.time")
   const [isHovered, setIsHovered] = React.useState(false)
 
   return (
@@ -49,9 +47,9 @@ function NavigationSearchResultItem({
         className="min-w-0 flex-1"
         textClassName="text-current"
       />
-      <span className="relative flex h-4 w-12 shrink-0 items-center justify-end">
-        <span className="text-xs font-normal text-foreground/55 transition-opacity group-hover/search-item:opacity-0 group-data-[selected=true]/search-item:opacity-0">
-          {formatUpdatedAtLabel(item.updatedAt, locale, t("today"), t("yesterday"))}
+      <span className="relative flex h-4 min-w-[5.5rem] shrink-0 items-center justify-end">
+        <span className="text-xs font-normal tabular-nums text-foreground/55 transition-opacity group-hover/search-item:opacity-0 group-data-[selected=true]/search-item:opacity-0">
+          {formatUpdatedAtLabel(item.updatedAt, (key, values) => timeT(key, values))}
         </span>
         <ArrowRight
           size={12}

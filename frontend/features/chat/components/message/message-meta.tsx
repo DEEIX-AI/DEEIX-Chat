@@ -45,7 +45,6 @@ import {
 } from "@/shared/lib/billing-display";
 import type { BillingDisplayCurrency, BillingDisplayLabels, BillingDisplayOptions } from "@/shared/lib/billing-display";
 import type { ChatBillingCost, ChatMessageBranchNavigator } from "@/features/chat/types/messages";
-import { useAppLocale } from "@/i18n/app-i18n-provider";
 import { usePointerInteraction } from "@/shared/hooks/use-pointer-interaction";
 import { cn } from "@/lib/utils";
 
@@ -71,27 +70,69 @@ export type ChatMetaMessage = {
 
 export type AssistantReaction = "up" | "down" | null;
 
-function formatMessageDate(value: string | undefined, locale: string): string {
+type MessageTimestampLabel = {
+  label: string;
+  title: string;
+};
+
+type MessageTimestampValues = {
+  year: number;
+  month: number;
+  day: number;
+  time: string;
+};
+
+type MessageTimestampFormatter = (
+  key: "todayTime" | "thisYearDateTime" | "fullDateTime",
+  values: MessageTimestampValues,
+) => string;
+
+function formatMessageTimestamp(value: string | undefined, formatLabel: MessageTimestampFormatter): MessageTimestampLabel | null {
   if (!value) {
-    return "";
+    return null;
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "";
+    return null;
   }
 
+  const now = new Date();
   const year = date.getFullYear();
   const month = date.getMonth() + 1;
   const day = date.getDate();
-  const isCurrentYear = year === new Date().getFullYear();
-  const isChinese = locale.toLowerCase().startsWith("zh");
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const seconds = date.getSeconds();
+  const isToday =
+    year === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    day === now.getDate();
+  const isCurrentYear = year === now.getFullYear();
+  const timeLabel = [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
+  const values = { year, month, day, time: timeLabel };
+  const title = formatLabel("fullDateTime", values);
 
-  if (isChinese) {
-    return isCurrentYear ? `${month}月${day}日` : `${year}年${month}月${day}日`;
+  if (isToday) {
+    return { label: formatLabel("todayTime", values), title };
   }
 
-  return isCurrentYear ? `${month}/${day}` : `${year}/${month}/${day}`;
+  return {
+    label: formatLabel(isCurrentYear ? "thisYearDateTime" : "fullDateTime", values),
+    title,
+  };
+}
+
+function MessageTimestamp({ timestamp }: { timestamp: MessageTimestampLabel | null }) {
+  if (!timestamp) {
+    return null;
+  }
+
+  return (
+    <span className="inline-flex h-6 shrink-0 items-center leading-none tabular-nums" title={timestamp.title}>
+      {timestamp.label}
+    </span>
+  );
 }
 
 function BranchSwitcher({
@@ -227,14 +268,14 @@ export function UserMessageMeta({
   showBranchNavigator?: boolean;
 }) {
   const t = useTranslations("chat.messages");
-  const { locale } = useAppLocale();
-  const dateLabel = formatMessageDate(item.createdAt, locale);
+  const timeT = useTranslations("common.time");
+  const timestamp = formatMessageTimestamp(item.createdAt, (key, values) => timeT(key, values));
   const hasPersistedMessage = Boolean(resolvePersistedPublicID(item.publicID));
   const canShowBranchNavigator = Boolean(showBranchNavigator && item.branchNavigator && !busy && !item.isPending);
 
   return (
     <MetaContainer align="end" alwaysVisible={alwaysVisible}>
-      {dateLabel ? <span className="mr-1 shrink-0 tabular-nums">{dateLabel}</span> : null}
+      <MessageTimestamp timestamp={timestamp} />
       {!readOnly ? (
         <div className="flex items-center">
           {showRetry && hasPersistedMessage ? (
@@ -937,7 +978,12 @@ export function AssistantMessageMeta({
   showBranchNavigator?: boolean;
 }) {
   const t = useTranslations("chat.messages");
+  const timeT = useTranslations("common.time");
   const isLive = Boolean(item.isPending || item.isStreaming);
+  const timestamp = formatMessageTimestamp(
+    isLive ? item.createdAt : item.updatedAt || item.createdAt,
+    (key, values) => timeT(key, values),
+  );
   const canRetry = !readOnly && !busy && !isLive;
   const canEdit = Boolean(canRetry && onEdit && resolvePersistedPublicID(item.publicID));
   const canContinue = Boolean(canRetry && resolvePersistedPublicID(item.publicID) && item.status === "interrupted");
@@ -964,7 +1010,6 @@ export function AssistantMessageMeta({
     item.editedAt ||
     (showBillingCost && item.billingCost && item.billingCost.billingMode !== "self"),
   );
-  const hasActionRow = Boolean(!readOnly || canShowBranchNavigator);
   const billingDisplay = React.useMemo<BillingDisplayOptions>(
     () => ({
       currency: billingDisplayCurrency,
@@ -972,6 +1017,7 @@ export function AssistantMessageMeta({
     }),
     [billingDisplayCurrency, billingDisplayUsdToCnyRate],
   );
+  const hasActionRow = Boolean(timestamp || !readOnly || canShowBranchNavigator);
 
   return (
     <MetaContainer align="start" alwaysVisible={alwaysVisible}>
@@ -1052,6 +1098,7 @@ export function AssistantMessageMeta({
               </>
             ) : null}
             {canShowBranchNavigator ? <BranchSwitcher item={item} onCycle={onCycleBranch} /> : null}
+            <MessageTimestamp timestamp={timestamp} />
           </div>
         ) : null}
       </div>

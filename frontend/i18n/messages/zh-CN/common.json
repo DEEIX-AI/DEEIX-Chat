@@ -66,6 +66,11 @@
     "today": "今天",
     "yesterday": "昨天"
   },
+  "time": {
+    "todayTime": "{time}",
+    "thisYearDateTime": "{month}月{day}日 {time}",
+    "fullDateTime": "{year}年{month}月{day}日 {time}"
+  },
   "table": {
     "search": "搜索",
     "searchPlaceholder": "搜索关键词",

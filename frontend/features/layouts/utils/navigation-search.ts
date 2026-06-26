@@ -30,27 +30,43 @@ export function filterConversationSearchResults(
   return typeof maxResults === "number" ? results.slice(0, maxResults) : results
 }
 
-export function formatUpdatedAtLabel(value: string, locale = "en-US", todayLabel = "Today", yesterdayLabel = "Yesterday") {
+type UpdatedAtLabelValues = {
+  year: number
+  month: number
+  day: number
+  time: string
+}
+
+type UpdatedAtLabelFormatter = (
+  key: "todayTime" | "thisYearDateTime" | "fullDateTime",
+  values: UpdatedAtLabelValues,
+) => string
+
+export function formatUpdatedAtLabel(value: string, formatLabel: UpdatedAtLabelFormatter) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {
     return ""
   }
 
   const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-  const diffDays = Math.round((today.getTime() - target.getTime()) / 86400000)
-
-  if (diffDays === 0) {
-    return todayLabel
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  const isCurrentYear = date.getFullYear() === now.getFullYear()
+  const timeLabel = [date.getHours(), date.getMinutes(), date.getSeconds()]
+    .map((part) => String(part).padStart(2, "0"))
+    .join(":")
+  const values = {
+    year: date.getFullYear(),
+    month: date.getMonth() + 1,
+    day: date.getDate(),
+    time: timeLabel,
   }
 
-  if (diffDays === 1) {
-    return yesterdayLabel
+  if (isToday) {
+    return formatLabel("todayTime", values)
   }
 
-  return new Intl.DateTimeFormat(locale, {
-    month: "short",
-    day: "numeric",
-  }).format(date)
+  return formatLabel(isCurrentYear ? "thisYearDateTime" : "fullDateTime", values)
 }
