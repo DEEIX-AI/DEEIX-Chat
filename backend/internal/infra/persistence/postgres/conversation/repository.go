@@ -496,7 +496,7 @@ func (r *Repo) UpdateConversationTitleByPublicID(
 func (r *Repo) UpdateConversationMetadata(ctx context.Context, conversationID uint, patch repository.ConversationMetadataPatch) (*domainconversation.Conversation, error) {
 	updates := map[string]interface{}{}
 	if strings.TrimSpace(patch.Title) != "" {
-		replaceable := []string{"new chat", "新会话"}
+		replaceable := []string{"", "new conversation", "new chat", "untitled", "新会话", "新对话", "新的对话"}
 		for _, item := range patch.ReplaceableTitles {
 			value := strings.TrimSpace(strings.ToLower(item))
 			if value != "" {

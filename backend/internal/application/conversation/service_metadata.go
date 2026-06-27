@@ -634,7 +634,7 @@ func (s *Service) autoGenerateConversationTitleEnabled(ctx context.Context, user
 func shouldAutoReplaceConversationTitle(title string) bool {
 	value := strings.TrimSpace(strings.ToLower(title))
 	switch value {
-	case "new chat", "新会话":
+	case "", "new conversation", "new chat", "untitled", "新会话", "新对话", "新的对话":
 		return true
 	default:
 		return false

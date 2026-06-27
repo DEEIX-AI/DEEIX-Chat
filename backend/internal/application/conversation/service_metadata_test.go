@@ -225,8 +225,8 @@ func TestShouldAutoReplaceConversationTitleIncludesEnglishNewChat(t *testing.T) 
 	if !shouldAutoReplaceConversationTitle("New chat") {
 		t.Fatal("expected English localized new chat title to be replaceable")
 	}
-	if shouldAutoReplaceConversationTitle("新对话") {
-		t.Fatal("expected non-persisted Chinese navigation label not to be replaceable")
+	if !shouldAutoReplaceConversationTitle("新对话") {
+		t.Fatal("expected Chinese localized new chat title to be replaceable")
 	}
 }
 
