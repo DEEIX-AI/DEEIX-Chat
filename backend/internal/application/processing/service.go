@@ -1045,7 +1045,7 @@ func truncateError(message string, limit int) string {
 
 func supportsExtraction(category string) bool {
 	switch category {
-	case "pdf", "word", "excel", "text", "image":
+	case "pdf", "word", "presentation", "excel", "text", "image":
 		return true
 	default:
 		return false
@@ -1054,7 +1054,7 @@ func supportsExtraction(category string) bool {
 
 func supportsRAG(category string) bool {
 	switch category {
-	case "pdf", "word", "excel", "text", "image":
+	case "pdf", "word", "presentation", "excel", "text", "image":
 		return true
 	default:
 		return false

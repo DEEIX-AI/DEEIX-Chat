@@ -215,6 +215,8 @@ geoip:
 - 文本类文件：小文件可全文注入；超出阈值时按配置走 RAG 或回退策略。
 - PDF/Office 等文档：通过内置提取、Tika、Docling、MinerU 或 OCR 引擎提取文本；PDF OCR 回退可单独控制。
 
+MinerU 可在设置中选择处理的文件类型；云端 MinerU 支持 `.doc/.docx/.ppt/.pptx/.xls/.xlsx`，自部署 MinerU 支持 `.docx/.pptx/.xlsx`。
+
 OCR 引擎配置由后台文件设置管理，当前支持 RapidOCR、Tesseract OCR、Paddle OCR、腾讯云 OCR、阿里云 OCR 与 LLM OCR。服务地址、鉴权密钥和超时时间按具体引擎配置。
 
 用户文件存储配额由运行时设置 `storage:user_storage_quota_bytes` 管理，单位为字节。值为 `0` 表示不限制；非零时，上传、分享克隆和文件复用链路都会按用户维度校验并同步最新配额。前端 `/files` 页支持单个删除和批量删除，后端会在删除后释放对应配额。

@@ -244,6 +244,8 @@ func (r *RuntimeSettings) applyItem(cfg *config.Config, item domainsettings.Syst
 		cfg.ExtractMinerUSource = item.Value
 	case "extract:mineru_base_url":
 		cfg.ExtractMinerUBaseURL = item.Value
+	case "extract:mineru_file_types":
+		cfg.ExtractMinerUFileTypes = item.Value
 	case "extract:mineru_timeout_seconds":
 		cfg.ExtractMinerUTimeoutSeconds = toInt(item.Value, cfg.ExtractMinerUTimeoutSeconds)
 	case "extract:mineru_auth_token":
