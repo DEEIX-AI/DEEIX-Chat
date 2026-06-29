@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "motion/react";
 import { ArrowDownToLine, Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -63,17 +62,6 @@ function CompactDivider({ summaryPreview }: { summaryPreview: string }) {
     </div>
   );
 }
-
-const MESSAGE_SWITCH_TRANSITION = {
-  layout: {
-    duration: 0.22,
-    ease: [0.16, 1, 0.3, 1] as const,
-  },
-  opacity: {
-    duration: 0.16,
-    ease: "easeOut" as const,
-  },
-};
 
 type ChatAreaProps = {
   title: string;
@@ -479,7 +467,6 @@ export function ChatArea({
     [messages],
   );
   const messageViewportBoundaryRef = React.useRef<HTMLDivElement | null>(null);
-  const alignMessagesToBottom = !hasLiveMessage;
   const liveAnchorMessageKey = React.useMemo(() => {
     if (!hasLiveMessage) {
       return "";
@@ -548,7 +535,7 @@ export function ChatArea({
       ) : null}
 
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        <MessageScrollerProvider autoScroll defaultScrollPosition="end" scrollEdgeThreshold={96}>
+        <MessageScrollerProvider autoScroll defaultScrollPosition="end" scrollEdgeThreshold={16}>
           <MessageScroller>
             <MessageScrollerViewport
               ref={messageViewportBoundaryRef}
@@ -558,7 +545,7 @@ export function ChatArea({
             >
               <MessageScrollerContent
                 ref={messageContentRef}
-                className={cn("mx-auto w-full gap-0", alignMessagesToBottom && "justify-end", contentWidthClassName)}
+                className={cn("mx-auto w-full gap-0", contentWidthClassName)}
                 style={{ fontFamily: "var(--font-chat)", fontWeight: "var(--font-chat-weight)" }}
               >
                 <ChatScreenshotBrandMark placement="top" />
@@ -570,7 +557,6 @@ export function ChatArea({
                       : previousItem.role === "assistant" && item.role === "user"
                         ? "mt-6 md:mt-12"
                         : "mt-4";
-                  const animateLayout = alignMessagesToBottom && !item.isPending && !item.isStreaming;
                   const publicID = item.publicID?.trim() ?? "";
                   const selectable = selectionMode && Boolean(publicID) && !item.isPending;
                   const isSelected = selectable && (screenshot?.selectedIDs.has(publicID) ?? false);
@@ -670,14 +656,10 @@ export function ChatArea({
                       className={spacingClass}
                       data-message-public-id={publicID || undefined}
                     >
-                      <motion.div
-                        layout={animateLayout ? "position" : false}
-                        transition={MESSAGE_SWITCH_TRANSITION}
-                        style={animateLayout ? { willChange: "transform" } : undefined}
-                      >
+                      <div>
                         {compactDivider}
                         {rowContent}
-                      </motion.div>
+                      </div>
                     </MessageScrollerItem>
                   );
                 })}
@@ -699,7 +681,11 @@ export function ChatArea({
   );
 }
 
-export function ChatAreaSkeleton() {
+export function ChatAreaSkeleton({
+  contentWidthClassName,
+}: {
+  contentWidthClassName: string;
+}) {
   return (
     <div aria-hidden="true" className="flex h-full min-h-0 flex-col">
       <div className="shrink-0 px-3 py-2.5 md:px-0">
@@ -713,7 +699,7 @@ export function ChatAreaSkeleton() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden px-3 pb-8 pt-2 md:px-6">
-        <div className="mx-auto w-full max-w-[1080px] space-y-6">
+        <div className={cn("mx-auto w-full space-y-6", contentWidthClassName)}>
           <ChatUserMessageSkeleton widthClassName="w-[min(26rem,70%)] max-sm:w-[88%]" />
 
           <ChatAssistantMessageSkeleton />

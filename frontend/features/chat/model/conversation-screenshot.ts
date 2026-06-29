@@ -1,6 +1,6 @@
 "use client";
 
-import { domToPng } from "modern-screenshot";
+import { domToBlob } from "modern-screenshot";
 
 function safeFileNamePart(value: string) {
   const normalized = value
@@ -45,7 +45,7 @@ function resolveCaptureBackgroundColor(element: HTMLElement) {
 const SCREENSHOT_SCALE = 2;
 const SCREENSHOT_PADDING = 24;
 const MAX_CANVAS_DIMENSION = 16384;
-const MIN_SCREENSHOT_SCALE = 0.25;
+const MIN_SCREENSHOT_SCALE = 1;
 
 export class ConversationScreenshotTooLargeError extends Error {
   constructor() {
@@ -81,11 +81,15 @@ export async function captureElementToPngBlob(element: HTMLElement): Promise<Blo
   const safeScale = resolveSafeScale(element, SCREENSHOT_SCALE, padding);
   const width = element.scrollWidth + padding * 2;
   const height = element.scrollHeight + padding * 2;
-  const dataUrl = await domToPng(element, {
+  const blob = await domToBlob(element, {
     scale: safeScale,
     width,
     height,
     backgroundColor: resolveCaptureBackgroundColor(element),
+    maximumCanvasSize: MAX_CANVAS_DIMENSION,
+    features: {
+      copyScrollbar: false,
+    },
     style: {
       boxSizing: "content-box",
       padding: `${padding}px`,
@@ -98,8 +102,10 @@ export async function captureElementToPngBlob(element: HTMLElement): Promise<Blo
       return !node.matches(SCREENSHOT_OMIT_SELECTOR);
     },
   });
-  const response = await fetch(dataUrl);
-  return response.blob();
+  if (!blob) {
+    throw new Error("Failed to generate screenshot");
+  }
+  return blob;
 }
 
 export function downloadPngBlob(blob: Blob, fileName: string) {

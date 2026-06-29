@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   MessageScroller as MessageScrollerPrimitive,
   useMessageScroller,
+  useMessageScrollerScrollable,
   useMessageScrollerVisibility,
 } from "@shadcn/react/message-scroller";
 
@@ -20,6 +21,7 @@ function MessageScroller({
   children,
   ...props
 }: React.ComponentProps<typeof MessageScrollerPrimitive.Root>) {
+  const scrollable = useMessageScrollerScrollable();
   return (
     <MessageScrollerPrimitive.Root
       data-slot="message-scroller"
@@ -32,11 +34,17 @@ function MessageScroller({
       {children}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-background from-0% to-transparent to-100%"
+        className={cn(
+          "pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-background from-0% to-transparent to-100% opacity-0 transition-opacity duration-150",
+          scrollable.start && "opacity-100",
+        )}
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-12 bg-gradient-to-t from-background from-0% to-transparent to-100%"
+        className={cn(
+          "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-12 bg-gradient-to-t from-background from-0% to-transparent to-100% opacity-0 transition-opacity duration-150",
+          scrollable.end && "opacity-100",
+        )}
       />
     </MessageScrollerPrimitive.Root>
   );
@@ -130,5 +138,6 @@ export {
   MessageScrollerItem,
   MessageScrollerButton,
   useMessageScroller,
+  useMessageScrollerScrollable,
   useMessageScrollerVisibility,
 };

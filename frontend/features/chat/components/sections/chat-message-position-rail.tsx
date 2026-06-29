@@ -341,7 +341,7 @@ function ChatMessagePositionRailComponent({
 
   return (
     <div
-      className="pointer-events-none absolute bottom-3 left-2 top-3 z-30 hidden w-6 md:block"
+      className="pointer-events-none absolute bottom-3 left-2 top-3 z-30 hidden w-6 lg:block"
       data-screenshot-exclude="true"
       onMouseLeave={clearPreview}
     >

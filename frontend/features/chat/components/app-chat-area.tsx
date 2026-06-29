@@ -61,6 +61,7 @@ const MODEL_OPTIONS_STORAGE_PREFIX = "deeix-chat:chat-model-options:";
 const DEFAULT_MCP_TOOLS_SETTING_KEY = "chat.default_mcp_tool_ids";
 const EMPTY_CONVERSATION_OPTIONS: ConversationOptions = {};
 const TOP_LOAD_OLDER_MESSAGES_THRESHOLD_PX = 48;
+const SCREENSHOT_PREVIEW_CLOSE_DELAY_MS = 220;
 function dragEventContainsFiles(event: React.DragEvent<HTMLElement>): boolean {
   return Array.from(event.dataTransfer.types ?? []).includes("Files");
 }
@@ -749,6 +750,38 @@ export function AppChatArea() {
     onLoadAllMessages: loadAllOlderMessages,
     messages: screenshotMessages,
   });
+  const screenshotPreview = screenshot.preview;
+  const closeScreenshotPreview = screenshot.closePreview;
+  const [screenshotPreviewOpen, setScreenshotPreviewOpen] = React.useState(false);
+  const screenshotPreviewCloseTimerRef = React.useRef<number | null>(null);
+
+  const clearScreenshotPreviewCloseTimer = React.useCallback(() => {
+    if (screenshotPreviewCloseTimerRef.current === null) {
+      return;
+    }
+    window.clearTimeout(screenshotPreviewCloseTimerRef.current);
+    screenshotPreviewCloseTimerRef.current = null;
+  }, []);
+
+  React.useEffect(() => {
+    if (!screenshotPreview) {
+      setScreenshotPreviewOpen(false);
+      return;
+    }
+    clearScreenshotPreviewCloseTimer();
+    setScreenshotPreviewOpen(true);
+  }, [clearScreenshotPreviewCloseTimer, screenshotPreview]);
+
+  React.useEffect(() => clearScreenshotPreviewCloseTimer, [clearScreenshotPreviewCloseTimer]);
+
+  const closeScreenshotPreviewDialog = React.useCallback(() => {
+    setScreenshotPreviewOpen(false);
+    clearScreenshotPreviewCloseTimer();
+    screenshotPreviewCloseTimerRef.current = window.setTimeout(() => {
+      screenshotPreviewCloseTimerRef.current = null;
+      closeScreenshotPreview();
+    }, SCREENSHOT_PREVIEW_CLOSE_DELAY_MS);
+  }, [clearScreenshotPreviewCloseTimer, closeScreenshotPreview]);
 
   const onToggleActiveConversationStar = React.useCallback(async () => {
     if (!canOperateConversation) {
@@ -1101,7 +1134,7 @@ export function AppChatArea() {
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               {isConversationLoading ? (
-                <ChatAreaSkeleton />
+                <ChatAreaSkeleton contentWidthClassName={chatContentWidthClassName} />
               ) : isConversationLoadFailed ? (
                 <ChatAreaLoadError onRefresh={reload} onNewConversation={onNewConversationFromLoadError} />
               ) : (
@@ -1188,13 +1221,13 @@ export function AppChatArea() {
       )}
 
       <ChatScreenshotPreviewDialog
-        open={Boolean(screenshot.preview)}
+        open={screenshotPreviewOpen}
         onOpenChange={(open) => {
           if (!open) {
-            screenshot.closePreview();
+            closeScreenshotPreviewDialog();
           }
         }}
-        previewURL={screenshot.preview?.url ?? null}
+        previewURL={screenshotPreview?.url ?? null}
         clipboardSupported={screenshot.clipboardSupported}
         onDownload={screenshot.downloadPreview}
         onCopy={screenshot.copyPreviewToClipboard}

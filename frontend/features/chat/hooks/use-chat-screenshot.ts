@@ -51,6 +51,19 @@ type PreparedScreenshotDom = {
   restore: () => void;
 };
 
+function forEachElementInRoots(
+  roots: HTMLElement[],
+  selector: string,
+  callback: (element: HTMLElement) => void,
+) {
+  roots.forEach((root) => {
+    if (root.matches(selector)) {
+      callback(root);
+    }
+    root.querySelectorAll<HTMLElement>(selector).forEach(callback);
+  });
+}
+
 function prepareConversationScreenshotDom(
   target: HTMLElement,
   {
@@ -61,42 +74,59 @@ function prepareConversationScreenshotDom(
     selectedIDs: Set<string>;
   },
 ): PreparedScreenshotDom {
+  const previousCapturing = target.dataset.screenshotCapturing;
   const restoreDisplays: Array<{ element: HTMLElement; display: string }> = [];
+  const restoreExcludeAttributes: Array<{ element: HTMLElement; value: string | null }> = [];
   const restorePaddings: Array<{ element: HTMLElement; paddingLeft: string }> = [];
   const restoreMaxHeights: Array<{ element: HTMLElement; maxHeight: string }> = [];
   const restoreMetaDisplays: Array<{ element: HTMLElement; display: string }> = [];
   const restoreScreenshotOnlyDisplays: Array<{ element: HTMLElement; display: string }> = [];
+  let screenshotRoots = [target];
 
-  const collapsibles = target.querySelectorAll<HTMLElement>(".chat-user-message-collapsible");
-  collapsibles.forEach((element) => {
+  target.dataset.screenshotCapturing = "true";
+
+  if (selectedOnly) {
+    const selectedRows: HTMLElement[] = [];
+    const rows = target.querySelectorAll<HTMLElement>("[data-message-public-id]");
+    rows.forEach((row) => {
+      const publicID = row.dataset.messagePublicId ?? "";
+      if (selectedIDs.has(publicID)) {
+        selectedRows.push(row);
+        return;
+      }
+
+      restoreDisplays.push({ element: row, display: row.style.display });
+      restoreExcludeAttributes.push({ element: row, value: row.getAttribute("data-screenshot-exclude") });
+      row.style.display = "none";
+      row.setAttribute("data-screenshot-exclude", "true");
+    });
+    screenshotRoots = selectedRows;
+  }
+
+  forEachElementInRoots(screenshotRoots, ".chat-user-message-collapsible", (element) => {
     restoreMaxHeights.push({ element, maxHeight: element.style.maxHeight });
     element.style.maxHeight = "none";
   });
 
-  const metaRows = target.querySelectorAll<HTMLElement>(".chat-message-meta");
-  metaRows.forEach((element) => {
+  forEachElementInRoots(screenshotRoots, ".chat-message-meta", (element) => {
     restoreMetaDisplays.push({ element, display: element.style.display });
     element.style.display = "none";
   });
 
-  const screenshotOnlyElements = target.querySelectorAll<HTMLElement>("[data-screenshot-only='true']");
-  screenshotOnlyElements.forEach((element) => {
+  forEachElementInRoots(screenshotRoots, "[data-screenshot-only='true']", (element) => {
     restoreScreenshotOnlyDisplays.push({ element, display: element.style.display });
     element.style.display = "flex";
   });
 
   if (selectedOnly) {
-    const rows = target.querySelectorAll<HTMLElement>("[data-message-public-id]");
-    rows.forEach((row) => {
-      const publicID = row.dataset.messagePublicId ?? "";
-      if (!selectedIDs.has(publicID)) {
-        restoreDisplays.push({ element: row, display: row.style.display });
-        row.style.display = "none";
-      }
+    target.querySelectorAll<HTMLElement>(".chat-screenshot-brand").forEach((element) => {
+      restoreScreenshotOnlyDisplays.push({ element, display: element.style.display });
+      element.style.display = "flex";
     });
+  }
 
-    const contents = target.querySelectorAll<HTMLElement>(".chat-screenshot-selectable-content");
-    contents.forEach((content) => {
+  if (selectedOnly) {
+    forEachElementInRoots(screenshotRoots, ".chat-screenshot-selectable-content", (content) => {
       restorePaddings.push({ element: content, paddingLeft: content.style.paddingLeft });
       content.style.paddingLeft = "0px";
     });
@@ -104,8 +134,20 @@ function prepareConversationScreenshotDom(
 
   return {
     restore: () => {
+      if (previousCapturing === undefined) {
+        delete target.dataset.screenshotCapturing;
+      } else {
+        target.dataset.screenshotCapturing = previousCapturing;
+      }
       restoreDisplays.forEach(({ element, display }) => {
         element.style.display = display;
+      });
+      restoreExcludeAttributes.forEach(({ element, value }) => {
+        if (value === null) {
+          element.removeAttribute("data-screenshot-exclude");
+        } else {
+          element.setAttribute("data-screenshot-exclude", value);
+        }
       });
       restorePaddings.forEach(({ element, paddingLeft }) => {
         element.style.paddingLeft = paddingLeft;

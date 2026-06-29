@@ -1250,6 +1250,13 @@
     white-space: nowrap !important;
   }
 
+  [data-screenshot-capturing="true"],
+  [data-screenshot-capturing="true"] * {
+    animation: none !important;
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+
   .from-bg-200\/5 {
     --tw-gradient-from: color-mix(in oklch, var(--background) 5%, transparent) var(--tw-gradient-from-position);
     --tw-gradient-to: color-mix(in oklch, var(--background) 0%, transparent) var(--tw-gradient-to-position);
