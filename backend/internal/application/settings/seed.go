@@ -121,6 +121,7 @@ func defaultSettings() []domainsettings.SystemSetting {
 		{Namespace: "extract", Key: "aliyun_ocr_timeout_seconds", Value: "60", ValueType: "int", Description: "阿里云 OCR 请求超时(秒)，默认 60s"},
 		{Namespace: "extract", Key: "mineru_source", Value: "cloud", ValueType: "string", Description: "MinerU 服务类型(cloud/self_hosted)"},
 		{Namespace: "extract", Key: "mineru_base_url", Value: "https://mineru.net/api/v4", ValueType: "string", Description: "MinerU 服务地址，默认 https://mineru.net/api/v4"},
+		{Namespace: "extract", Key: "mineru_file_types", Value: "pdf,word,presentation", ValueType: "string", Description: "MinerU 处理的文件类型，逗号分隔：pdf,word,presentation,excel"},
 		{Namespace: "extract", Key: "mineru_auth_token", Value: "", ValueType: "string", Description: "MinerU 鉴权 Token"},
 		{Namespace: "extract", Key: "mineru_timeout_seconds", Value: "180", ValueType: "int", Description: "MinerU 请求超时(秒)，默认 180s"},
 		{Namespace: "extract", Key: "llm_ocr_base_url", Value: "", ValueType: "string", Description: "LLM OCR 服务地址（OpenAI 兼容 chat/completions 视觉模型）"},

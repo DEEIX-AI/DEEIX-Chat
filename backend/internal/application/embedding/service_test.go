@@ -76,6 +76,39 @@ func TestShouldTriggerDoesNotRequireRAGEnabled(t *testing.T) {
 	}
 }
 
+func TestShouldTriggerIncludesPresentations(t *testing.T) {
+	service := NewService(config.Config{
+		EmbeddingEnabled:     true,
+		EmbedTriggerOnUpload: true,
+		RAGModel:             "text-embedding-test",
+		EmbeddingHost:        "http://127.0.0.1:8081",
+	}, nil, nil, nil, nil)
+
+	cases := []domainconversation.FileObject{
+		{
+			FileID:       "file_pptx",
+			FileName:     "deck.pptx",
+			MimeType:     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+			FileCategory: "presentation",
+			StoragePath:  "uploads/deck.pptx",
+			Status:       "active",
+		},
+		{
+			FileID:       "file_ppt",
+			FileName:     "legacy.ppt",
+			MimeType:     "application/vnd.ms-powerpoint",
+			FileCategory: "presentation",
+			StoragePath:  "uploads/legacy.ppt",
+			Status:       "active",
+		},
+	}
+	for _, fileObj := range cases {
+		if !service.ShouldTrigger(fileObj) {
+			t.Fatalf("expected %s to trigger embedding", fileObj.FileName)
+		}
+	}
+}
+
 func TestIndexingAvailableDoesNotRequireRAGEnabled(t *testing.T) {
 	repo := &reindexRepo{vectorAvailable: true}
 	service := NewService(config.Config{
@@ -112,6 +145,60 @@ func TestReindexStaleFilesDoesNotRequireRAGEnabled(t *testing.T) {
 	}
 }
 
+func TestCanEmbedFileDoesNotRequireAutoTrigger(t *testing.T) {
+	cfg := config.Config{
+		EmbeddingEnabled:     true,
+		EmbedTriggerOnUpload: false,
+		RAGModel:             "text-embedding-test",
+		EmbeddingHost:        "http://127.0.0.1:8081",
+	}
+	fileObj := domainconversation.FileObject{
+		FileID:      "file_pptx",
+		FileName:    "deck.pptx",
+		MimeType:    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		StoragePath: "uploads/deck.pptx",
+		Status:      "active",
+	}
+
+	service := NewService(cfg, nil, nil, nil, nil)
+	if service.ShouldTrigger(fileObj) {
+		t.Fatal("auto-trigger should honor EmbedTriggerOnUpload=false")
+	}
+	if !canEmbedFile(cfg, fileObj) {
+		t.Fatal("manual reindex eligibility should not depend on EmbedTriggerOnUpload")
+	}
+}
+
+func TestReindexStaleFilesSkipsUnsupportedCandidates(t *testing.T) {
+	repo := &reindexRepo{
+		vectorAvailable: true,
+		files: []domainconversation.FileObject{
+			{
+				ID:          2,
+				UserID:      1,
+				FileID:      "file_bin",
+				FileName:    "archive.bin",
+				MimeType:    "application/octet-stream",
+				StoragePath: "uploads/archive.bin",
+				Status:      "active",
+			},
+		},
+	}
+	service := NewService(config.Config{
+		EmbeddingEnabled: true,
+		RAGModel:         "text-embedding-test",
+		EmbeddingHost:    "http://127.0.0.1:8081",
+	}, repo, nil, infraembedding.New(), nil)
+
+	submitted, err := service.ReindexStaleFiles(context.Background())
+	if err != nil {
+		t.Fatalf("expected reindex to succeed, got %v", err)
+	}
+	if submitted != 0 {
+		t.Fatalf("expected no unsupported files submitted, got %d", submitted)
+	}
+}
+
 func TestProcessFileDoesNotRequireRAGEnabled(t *testing.T) {
 	repo := &reindexRepo{vectorAvailable: true}
 	service := NewService(config.Config{
@@ -138,6 +225,7 @@ func TestProcessFileDoesNotRequireRAGEnabled(t *testing.T) {
 
 type reindexRepo struct {
 	vectorAvailable   bool
+	files             []domainconversation.FileObject
 	listCalls         int
 	updateStatusCalls int
 }
@@ -175,7 +263,14 @@ func (r *reindexRepo) CountFilesByEmbedStatus(context.Context, string) (int64, e
 	return 0, nil
 }
 
-func (r *reindexRepo) ListFilesForReindex(context.Context, int, int) ([]domainconversation.FileObject, error) {
+func (r *reindexRepo) ListFilesForReindex(_ context.Context, limit int, offset int) ([]domainconversation.FileObject, error) {
 	r.listCalls++
-	return nil, nil
+	if offset >= len(r.files) {
+		return nil, nil
+	}
+	end := offset + limit
+	if end > len(r.files) {
+		end = len(r.files)
+	}
+	return r.files[offset:end], nil
 }

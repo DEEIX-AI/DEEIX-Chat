@@ -1,7 +1,7 @@
 import type { SettingsGrouped } from "@/shared/api/settings.types";
 import type { AdminServiceRuntimeView } from "@/features/admin/api/admin.types";
 
-export type SettingsFieldType = "int" | "bool" | "string" | "password" | "textarea" | "select" | "tabs" | "button";
+export type SettingsFieldType = "int" | "bool" | "string" | "password" | "textarea" | "select" | "tabs" | "multi-check" | "button";
 
 export type VisibilityRule =
   | { field: string; equals: string }
@@ -92,6 +92,61 @@ export const MINERU_SERVICE_SOURCES = {
   SELF_HOSTED: "self_hosted",
 } as const;
 
+export const MINERU_FILE_TYPES = {
+  PDF: "pdf",
+  WORD: "word",
+  PRESENTATION: "presentation",
+  EXCEL: "excel",
+} as const;
+
+export const DEFAULT_MINERU_FILE_TYPES = [
+  MINERU_FILE_TYPES.PDF,
+  MINERU_FILE_TYPES.WORD,
+  MINERU_FILE_TYPES.PRESENTATION,
+].join(",");
+
+export type MinerUFileType = (typeof MINERU_FILE_TYPES)[keyof typeof MINERU_FILE_TYPES];
+
+export type MinerUMIMERequirement = {
+  type: MinerUFileType;
+  format: string;
+  mime: string;
+};
+
+const MINERU_MIME_REQUIREMENTS: Record<MinerUFileType, Record<string, MinerUMIMERequirement[]>> = {
+  [MINERU_FILE_TYPES.PDF]: {
+    cloud: [{ type: MINERU_FILE_TYPES.PDF, format: "PDF", mime: "application/pdf" }],
+    self_hosted: [{ type: MINERU_FILE_TYPES.PDF, format: "PDF", mime: "application/pdf" }],
+  },
+  [MINERU_FILE_TYPES.WORD]: {
+    cloud: [
+      { type: MINERU_FILE_TYPES.WORD, format: "DOC", mime: "application/msword" },
+      { type: MINERU_FILE_TYPES.WORD, format: "DOCX", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+    ],
+    self_hosted: [
+      { type: MINERU_FILE_TYPES.WORD, format: "DOCX", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+    ],
+  },
+  [MINERU_FILE_TYPES.PRESENTATION]: {
+    cloud: [
+      { type: MINERU_FILE_TYPES.PRESENTATION, format: "PPT", mime: "application/vnd.ms-powerpoint" },
+      { type: MINERU_FILE_TYPES.PRESENTATION, format: "PPTX", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation" },
+    ],
+    self_hosted: [
+      { type: MINERU_FILE_TYPES.PRESENTATION, format: "PPTX", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation" },
+    ],
+  },
+  [MINERU_FILE_TYPES.EXCEL]: {
+    cloud: [
+      { type: MINERU_FILE_TYPES.EXCEL, format: "XLS", mime: "application/vnd.ms-excel" },
+      { type: MINERU_FILE_TYPES.EXCEL, format: "XLSX", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+    ],
+    self_hosted: [
+      { type: MINERU_FILE_TYPES.EXCEL, format: "XLSX", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+    ],
+  },
+};
+
 export const EMBEDDING_READY_RULE: VisibilityRule = {
   all: [
     { field: "file.embedding_enabled", equals: EMBEDDING_MODES.ON },
@@ -121,7 +176,7 @@ export const SERVICE_LABELS: Record<ServiceName, string> = {
 export const SERVICE_DIRTY_FIELDS: Record<ServiceName, string[]> = {
   tika: ["extract.engine", "extract.tika_base_url", "extract.tika_timeout_seconds", "extract.tika_auth_token"],
   docling: ["extract.engine", "extract.docling_base_url", "extract.docling_timeout_seconds", "extract.docling_auth_token"],
-  mineru: ["extract.engine", "extract.mineru_source", "extract.mineru_base_url", "extract.mineru_timeout_seconds", "extract.mineru_auth_token"],
+  mineru: ["extract.engine", "extract.mineru_source", "extract.mineru_file_types", "extract.mineru_base_url", "extract.mineru_timeout_seconds", "extract.mineru_auth_token"],
   tesseract: ["extract.tesseract_ocr_base_url", "extract.tesseract_ocr_timeout_seconds", "extract.tesseract_ocr_auth_token"],
   rapidocr: ["extract.rapidocr_base_url", "extract.rapidocr_timeout_seconds", "extract.rapidocr_auth_token"],
   embedding: ["file.embedding_enabled", "file.embedding_host", "file.embedding_key", "file.rag_model", "file.embedding_timeout_seconds"],
@@ -280,6 +335,21 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         visibleWhen: { field: "extract.engine", equals: EXTRACT_ENGINE_POLICIES.MINERU },
         subgroupKey: "mineru",
         runtimeService: "mineru",
+      },
+      {
+        namespace: "extract",
+        key: "mineru_file_types",
+        label: "MinerU file types",
+        description: "Select file categories sent to MinerU.",
+        type: "multi-check",
+        options: [
+          { label: "PDF", value: MINERU_FILE_TYPES.PDF },
+          { label: "Word", value: MINERU_FILE_TYPES.WORD },
+          { label: "Presentation", value: MINERU_FILE_TYPES.PRESENTATION },
+          { label: "Excel", value: MINERU_FILE_TYPES.EXCEL },
+        ],
+        visibleWhen: { field: "extract.engine", equals: EXTRACT_ENGINE_POLICIES.MINERU },
+        subgroupKey: "mineru",
       },
       {
         namespace: "extract",
@@ -809,10 +879,73 @@ export function resolveMinerUSource(source: string): string {
   return source === MINERU_SERVICE_SOURCES.SELF_HOSTED ? MINERU_SERVICE_SOURCES.SELF_HOSTED : MINERU_SERVICE_SOURCES.CLOUD;
 }
 
+export function normalizeMinerUFileTypes(raw: string): string {
+  const allowed = new Set<string>(Object.values(MINERU_FILE_TYPES));
+  const selected: string[] = [];
+  const source = raw.trim() ? raw : DEFAULT_MINERU_FILE_TYPES;
+  for (const item of source.split(",")) {
+    const value = item.trim().toLowerCase();
+    if (!allowed.has(value) || selected.includes(value)) {
+      continue;
+    }
+    selected.push(value);
+  }
+  return selected.length > 0 ? selected.join(",") : DEFAULT_MINERU_FILE_TYPES;
+}
+
 export function resolveMinerUDefaultBaseURL(source: string): string {
   return resolveMinerUSource(source) === MINERU_SERVICE_SOURCES.SELF_HOSTED
     ? "http://127.0.0.1:8000"
     : "https://mineru.net/api/v4";
+}
+
+export function resolveMinerUMIMERequirements(settings: Record<string, string>): MinerUMIMERequirement[] {
+  const source = resolveMinerUSource(settings["extract.mineru_source"] ?? "");
+  const selected = normalizeMinerUFileTypes(settings["extract.mineru_file_types"] ?? "").split(",");
+  const result: MinerUMIMERequirement[] = [];
+  for (const type of selected) {
+    const requirements = MINERU_MIME_REQUIREMENTS[type as MinerUFileType]?.[source] ?? [];
+    result.push(...requirements);
+  }
+  return result;
+}
+
+export function parseAllowedMIMETypes(raw: string): Set<string> {
+  const result = new Set<string>();
+  for (const item of raw.split(",")) {
+    const value = item.trim().toLowerCase();
+    if (value) {
+      result.add(value);
+    }
+  }
+  return result;
+}
+
+export function resolveMissingMinerUMIMETypes(settings: Record<string, string>): MinerUMIMERequirement[] {
+  const allowlist = settings["file.allowed_mime_types"] ?? "";
+  if (!allowlist.trim()) {
+    return [];
+  }
+  const allowed = parseAllowedMIMETypes(allowlist);
+  return resolveMinerUMIMERequirements(settings).filter((item) => !allowed.has(item.mime.toLowerCase()));
+}
+
+export function mergeAllowedMIMETypes(raw: string, items: MinerUMIMERequirement[]): string {
+  const existing = raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const seen = new Set(existing.map((item) => item.toLowerCase()));
+  const merged = [...existing];
+  for (const item of items) {
+    const mime = item.mime.trim();
+    if (!mime || seen.has(mime.toLowerCase())) {
+      continue;
+    }
+    merged.push(mime);
+    seen.add(mime.toLowerCase());
+  }
+  return merged.join(",");
 }
 
 export function resolveActiveServices(settings: Record<string, string>): Set<ServiceName> {
@@ -998,6 +1131,7 @@ export function applySettingsDefaults(next: Record<string, string>): Record<stri
   }
   if ((result["extract.engine"] ?? "") === EXTRACT_ENGINE_POLICIES.MINERU) {
     result["extract.mineru_source"] = resolveMinerUSource(result["extract.mineru_source"] ?? "");
+    result["extract.mineru_file_types"] = normalizeMinerUFileTypes(result["extract.mineru_file_types"] ?? "");
     if (!(result["extract.mineru_timeout_seconds"] ?? "").trim()) {
       result["extract.mineru_timeout_seconds"] = "180";
     }

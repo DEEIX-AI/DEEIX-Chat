@@ -62,7 +62,7 @@ type EmbeddingRepository interface {
 	MarkAllEmbeddedFilesStale(ctx context.Context) (int64, error)
 	// CountFilesByEmbedStatus 统计指定 embed_status 的文件数量。
 	CountFilesByEmbedStatus(ctx context.Context, status string) (int64, error)
-	// ListFilesForReindex 分页返回需要重建向量的文件（embed_status 为 stale 或 failed）。
+	// ListFilesForReindex 分页返回需要重建向量的文件（embed_status 为 none、stale 或 failed）。
 	ListFilesForReindex(ctx context.Context, limit int, offset int) ([]domainconversation.FileObject, error)
 }
 

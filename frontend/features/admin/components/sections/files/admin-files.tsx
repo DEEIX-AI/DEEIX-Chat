@@ -31,7 +31,10 @@ import {
   isEmbeddingServiceConfigured,
   isServiceDirty,
   isSettingsValueField,
+  mergeAllowedMIMETypes,
+  normalizeMinerUFileTypes,
   OCR_ENGINES,
+  resolveMissingMinerUMIMETypes,
   resolveActiveServices,
   resolveFieldID,
   resolveMinerUSource,
@@ -226,10 +229,13 @@ export function AdminFilesSettingsPage() {
 
   const handleFieldChange = React.useCallback((fieldID: string, value: string) => {
     setSettingsMap((prev) => {
-      let next =
-        fieldID === "extract.mineru_source"
-          ? { ...prev, [fieldID]: value }
-          : { ...prev, [fieldID]: value };
+      let next = { ...prev, [fieldID]: value };
+      if (fieldID === "extract.engine" && value === EXTRACT_ENGINE_POLICIES.MINERU) {
+        next["extract.mineru_file_types"] = normalizeMinerUFileTypes(next["extract.mineru_file_types"] ?? "");
+      }
+      if (fieldID === "extract.mineru_file_types") {
+        next["extract.mineru_file_types"] = normalizeMinerUFileTypes(value);
+      }
       if ((fieldID === "file.embedding_enabled" || fieldID === "file.embedding_host" || fieldID === "file.rag_model") && !isEmbeddingServiceConfigured(next)) {
         next = {
           ...next,
@@ -259,6 +265,37 @@ export function AdminFilesSettingsPage() {
       return next;
     });
   }, [t]);
+
+  const handleSaveAllowedMIMETypes = React.useCallback(
+    async (nextValue: string) => {
+      setSaving(true);
+      try {
+        const token = await resolveAccessToken();
+        if (!token) {
+          toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
+          return;
+        }
+        const grouped = await patchAdminSettings(token, {
+          items: [{ namespace: "file", key: "allowed_mime_types", value: nextValue }],
+        });
+        const flattened = applySettingsDefaults(flattenSettings(SETTINGS_GROUPS, grouped));
+        const savedValue = flattened["file.allowed_mime_types"] ?? nextValue;
+        setConfiguredMap(configuredSettingsMap(grouped));
+        setSettingsMap((current) => ({
+          ...current,
+          "file.allowed_mime_types": savedValue,
+        }));
+        setSavedMap(flattened);
+        syncServiceRuntimes(flattened);
+        toast.success(t("toast.mimeTypesUpdated"));
+      } catch (error) {
+        toast.error(t("toast.saveFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
+      } finally {
+        setSaving(false);
+      }
+    },
+    [syncServiceRuntimes, t],
+  );
 
   const resolveServiceRuntime = React.useCallback(
     (name: ServiceName): SettingsFieldServiceRuntime => {
@@ -399,6 +436,7 @@ export function AdminFilesSettingsPage() {
         for (const item of [
           { namespace: "extract", key: "mineru_source", value: resolveMinerUSource(nextSettingsMap["extract.mineru_source"] ?? "") },
           { namespace: "extract", key: "mineru_base_url", value: nextSettingsMap["extract.mineru_base_url"] ?? "" },
+          { namespace: "extract", key: "mineru_file_types", value: nextSettingsMap["extract.mineru_file_types"] ?? "" },
           { namespace: "extract", key: "mineru_timeout_seconds", value: nextSettingsMap["extract.mineru_timeout_seconds"] ?? "180" },
         ] as PatchSettingItem[]) {
           if (!existingKeys.has(`${item.namespace}.${item.key}`)) items.push(item);
@@ -499,6 +537,35 @@ export function AdminFilesSettingsPage() {
     void handleSaveGroup(group);
   }, [handleSaveGroup]);
 
+  const minerUMIMEHint = React.useMemo(() => {
+    if ((settingsMap["extract.engine"] ?? "") !== EXTRACT_ENGINE_POLICIES.MINERU) {
+      return null;
+    }
+    const missing = resolveMissingMinerUMIMETypes(settingsMap);
+    if (missing.length === 0) {
+      return null;
+    }
+    const labels = missing.map((item) => item.format).join(", ");
+    const nextAllowlist = mergeAllowedMIMETypes(settingsMap["file.allowed_mime_types"] ?? "", missing);
+    return (
+      <div className="min-w-0 rounded-md border border-amber-200/70 bg-amber-50/60 p-3 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="min-w-0">{t("mineruMimeHint.missing", { formats: labels })}</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 shrink-0 rounded-md border-amber-300/70 bg-background/70 px-2.5 text-[11px] font-normal text-amber-800 shadow-none hover:bg-amber-100/70 dark:border-amber-800/60 dark:text-amber-300 dark:hover:bg-amber-950/40"
+            disabled={loading || saving}
+            onClick={() => void handleSaveAllowedMIMETypes(nextAllowlist)}
+          >
+            {t("mineruMimeHint.addAndSave")}
+          </Button>
+        </div>
+      </div>
+    );
+  }, [handleSaveAllowedMIMETypes, loading, saving, settingsMap, t]);
+
   const embeddingEnabled = settingsMap["file.embedding_enabled"] === EMBEDDING_MODES.ON;
 
   return (
@@ -539,6 +606,7 @@ export function AdminFilesSettingsPage() {
                               configured={configuredMap[fieldID]}
                               dirty={(settingsMap[fieldID] ?? "") !== (savedMap[fieldID] ?? "")}
                               disabled={loading || saving}
+                              afterControl={fieldID === "extract.mineru_file_types" ? minerUMIMEHint : undefined}
                               onChange={(value) => handleFieldChange(fieldID, value)}
                             />
                           </SettingsFieldItem>
@@ -574,6 +642,7 @@ export function AdminFilesSettingsPage() {
                                         configured={configuredMap[fieldID]}
                                         dirty={(settingsMap[fieldID] ?? "") !== (savedMap[fieldID] ?? "")}
                                         disabled={loading || saving}
+                                        afterControl={fieldID === "extract.mineru_file_types" ? minerUMIMEHint : undefined}
                                         onChange={(value) => handleFieldChange(fieldID, value)}
                                       />
                                     );
