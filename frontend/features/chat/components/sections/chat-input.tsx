@@ -602,7 +602,7 @@ function ChatInputComponent({
                   </button>
                 </div>
               ) : null}
-              <div className="w-full overflow-hidden sm:overflow-x-auto">
+              <div className="w-full overflow-hidden sm:scroll-fade-x sm:scroll-fade-12 sm:overflow-x-auto sm:[-ms-overflow-style:none] sm:[scrollbar-width:none] sm:[&::-webkit-scrollbar]:hidden">
                 <div className="flex max-h-[196px] w-full flex-col gap-2 overflow-y-auto pb-0 pl-1.5 pr-2 pt-1 sm:max-h-none sm:w-max sm:flex-row sm:overflow-y-visible sm:pr-1.5">
                   {attachments.map((item) => (
                     <div

@@ -79,7 +79,7 @@ function ChatMessagePositionPreview({
       style={{ left: position.left, maxHeight: position.maxHeight, top }}
       data-screenshot-exclude="true"
     >
-      <div className="max-h-full overflow-y-auto rounded-lg border border-border bg-background px-3 py-2 text-left text-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="max-h-full scroll-fade-y scroll-fade-12 overflow-y-auto rounded-lg border border-border bg-background px-3 py-2 text-left text-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <span
           className="block text-sm font-medium leading-5 text-foreground"
           style={{
