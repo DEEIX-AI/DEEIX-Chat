@@ -10,12 +10,18 @@ type Server struct {
 	AuthTokenEnc    string
 	HeadersJSON     string
 	Status          string
+	SortOrder       int
 	ToolCount       int
 	ActiveToolCount int
 	LastSyncedAt    *time.Time
 	LastError       string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+}
+
+type ServerWithTools struct {
+	Server Server
+	Tools  []Tool
 }
 
 // Tool 表示从 MCP 服务发现并由管理员控制可用性的工具。
@@ -28,6 +34,7 @@ type Tool struct {
 	Description     string
 	InputSchemaJSON string
 	Status          string
+	SortOrder       int
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }

@@ -5,6 +5,9 @@ import type {
   AdminMCPServerDTO,
   AdminMCPServerDataResponse,
   AdminMCPServerListResponse,
+  AdminMCPOrderItemPayload,
+  AdminMCPOrderListResponse,
+  AdminMCPOrderGroupDTO,
   AdminMCPServerPayload,
   AdminMCPToolListResponse,
 } from "@/features/admin/api/mcp.types";
@@ -123,6 +126,22 @@ export async function updateAdminMCPServerToolsStatus(
       method: "PATCH",
       accessToken,
       body: { status, toolIDs },
+    },
+    true,
+  );
+  return data.results ?? [];
+}
+
+export async function reorderAdminMCPServers(
+  accessToken: string,
+  servers: AdminMCPOrderItemPayload[],
+): Promise<AdminMCPOrderGroupDTO[]> {
+  const data = await authedRequest<AdminMCPOrderListResponse>(
+    "/api/v1/admin/mcp/servers/order",
+    {
+      method: "PATCH",
+      accessToken,
+      body: { servers },
     },
     true,
   );

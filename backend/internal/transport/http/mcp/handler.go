@@ -184,6 +184,38 @@ func (h *Handler) UpdateServerToolsStatus(c *gin.Context) {
 	response.Success(c, ToolListResponse{Results: results})
 }
 
+func (h *Handler) ReorderServers(c *gin.Context) {
+	var req ReorderServersRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.InvalidRequestBody(c, err)
+		return
+	}
+	input := make([]appmcp.ReorderServerInput, 0, len(req.Servers))
+	for _, item := range req.Servers {
+		input = append(input, appmcp.ReorderServerInput{
+			ServerID: item.ServerID,
+			ToolIDs:  item.ToolIDs,
+		})
+	}
+	items, err := h.service.ReorderServersWithTools(c.Request.Context(), input)
+	if err != nil {
+		writeServiceError(c, err)
+		return
+	}
+	results := make([]ServerToolOrderResponse, 0, len(items))
+	for _, item := range items {
+		tools := make([]ToolResponse, 0, len(item.Tools))
+		for _, tool := range item.Tools {
+			tools = append(tools, toToolResponse(tool))
+		}
+		results = append(results, ServerToolOrderResponse{
+			Server: toServerResponse(item.Server),
+			Tools:  tools,
+		})
+	}
+	response.Success(c, ServerToolOrderListResponse{Results: results})
+}
+
 func parseIDParam(c *gin.Context, key string, resource string) (uint, bool) {
 	raw := c.Param(key)
 	parsed, err := strconv.ParseUint(raw, 10, strconv.IntSize)
@@ -217,6 +249,7 @@ func toServerResponse(item domainmcp.Server) ServerResponse {
 		BaseURL:         item.BaseURL,
 		HeadersJSON:     security.RedactHeadersJSON(item.HeadersJSON),
 		Status:          item.Status,
+		SortOrder:       item.SortOrder,
 		ToolCount:       item.ToolCount,
 		ActiveToolCount: item.ActiveToolCount,
 		LastSyncedAt:    item.LastSyncedAt,
@@ -236,6 +269,7 @@ func toToolResponse(item domainmcp.Tool) ToolResponse {
 		Description:     item.Description,
 		InputSchemaJSON: item.InputSchemaJSON,
 		Status:          item.Status,
+		SortOrder:       item.SortOrder,
 		CreatedAt:       item.CreatedAt,
 		UpdatedAt:       item.UpdatedAt,
 	}

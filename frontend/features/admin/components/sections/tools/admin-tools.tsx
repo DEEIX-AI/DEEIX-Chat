@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, FileBraces, Pencil, Plus, RefreshCw, Save, Trash2, Wrench, XCircle } from "lucide-react";
+import { CheckCircle2, FileBraces, ListOrdered, Pencil, Plus, RefreshCw, Save, Trash2, Wrench, XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -50,6 +50,7 @@ import { Table, TableBody, TableCell, TableEmptyRow, TableHead, TableHeader, Tab
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
 import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
+import { MCPOrderSheet } from "@/features/admin/components/sections/tools/mcp-order-sheet";
 import {
   TOOL_SETTINGS_FIELDS,
   applyToolSettingsDefaults,
@@ -98,6 +99,7 @@ const EMPTY_SERVER_FORM: ServerFormState = {
 const DEFAULT_SERVER_PAGE_SIZE = 25;
 const DEFAULT_TOOL_PAGE_SIZE = 25;
 const TOOL_SORT_OPTIONS = [
+  { labelKey: "sort.customOrder", value: "custom_order" },
   { labelKey: "sort.nameAsc", value: "name_asc" },
   { labelKey: "sort.nameDesc", value: "name_desc" },
   { labelKey: "sort.statusAsc", value: "status_asc" },
@@ -177,11 +179,12 @@ export function AdminToolsPage() {
   const [toolStatusFilter, setToolStatusFilter] = React.useState("");
   const [toolPage, setToolPage] = React.useState(1);
   const [toolPageSize, setToolPageSize] = React.useState(DEFAULT_TOOL_PAGE_SIZE);
-  const [toolSortValue, setToolSortValue] = React.useState<(typeof TOOL_SORT_OPTIONS)[number]["value"]>("name_asc");
+  const [toolSortValue, setToolSortValue] = React.useState<(typeof TOOL_SORT_OPTIONS)[number]["value"]>("custom_order");
   const [selectedToolIDs, setSelectedToolIDs] = React.useState<Set<number>>(new Set());
   const [toolBulkAction, setToolBulkAction] = React.useState<ToolBulkAction | null>(null);
   const [toolBulkApplying, setToolBulkApplying] = React.useState(false);
   const [syncingServerID, setSyncingServerID] = React.useState<number | null>(null);
+  const [mcpOrderOpen, setMCPOrderOpen] = React.useState(false);
   const [schemaTool, setSchemaTool] = React.useState<MCPToolDTO | null>(null);
   const [toolForm, setToolForm] = React.useState<ToolFormState | null>(null);
   const [toolSaving, setToolSaving] = React.useState(false);
@@ -258,6 +261,8 @@ export function AdminToolsPage() {
     const updatedTimestamps = new Map(result.map((tool) => [tool.id, new Date(tool.updatedAt || 0).getTime()]));
     result.sort((left, right) => {
       switch (toolSortValue) {
+        case "custom_order":
+          return (left.sortOrder ?? 0) - (right.sortOrder ?? 0) || toolDisplayName(left).localeCompare(toolDisplayName(right), locale) || left.id - right.id;
         case "name_desc":
           return toolDisplayName(right).localeCompare(toolDisplayName(left), locale);
         case "status_asc":
@@ -759,6 +764,17 @@ export function AdminToolsPage() {
               <Button
                 type="button"
                 size="sm"
+                variant="outline"
+                className="h-7 gap-1 text-xs"
+                onClick={() => setMCPOrderOpen(true)}
+                disabled={serversLoading || servers.length === 0}
+              >
+                <ListOrdered className="size-3.5 stroke-1" />
+                {t("toolbar.order")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
                 className="h-7 gap-1 text-xs"
                 onClick={openCreateServerDialog}
                 disabled={serversLoading}
@@ -1067,6 +1083,24 @@ export function AdminToolsPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      {mcpOrderOpen ? (
+        <MCPOrderSheet
+          open
+          servers={servers}
+          onClose={() => setMCPOrderOpen(false)}
+          onSaved={(groups) => {
+            setServers(groups.map((group) => group.server));
+            if (toolSheetServerID) {
+              const currentGroup = groups.find((group) => group.server.id === toolSheetServerID);
+              if (currentGroup) {
+                setTools(currentGroup.tools);
+              }
+            }
+            setToolSortValue("custom_order");
+          }}
+        />
+      ) : null}
 
       <Dialog open={serverDialogOpen} onOpenChange={setServerDialogOpen}>
         <DialogContent className="flex max-h-[min(86vh,760px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">

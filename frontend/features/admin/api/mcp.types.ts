@@ -6,6 +6,7 @@ export type AdminMCPServerDTO = {
   baseURL: string;
   headersJSON: string;
   status: string;
+  sortOrder: number;
   toolCount: number;
   activeToolCount: number;
   lastSyncedAt?: string | null;
@@ -32,4 +33,18 @@ export type AdminMCPServerDataResponse = {
 
 export type AdminMCPToolListResponse = {
   results: MCPToolDTO[];
+};
+
+export type AdminMCPOrderItemPayload = {
+  serverID: number;
+  toolIDs: number[];
+};
+
+export type AdminMCPOrderGroupDTO = {
+  server: AdminMCPServerDTO;
+  tools: MCPToolDTO[];
+};
+
+export type AdminMCPOrderListResponse = {
+  results: AdminMCPOrderGroupDTO[];
 };

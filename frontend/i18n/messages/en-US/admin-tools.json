@@ -48,6 +48,7 @@
     "disabled": "Disabled"
   },
   "sort": {
+    "customOrder": "Custom order",
     "nameAsc": "Name A-Z",
     "nameDesc": "Name Z-A",
     "statusAsc": "Status",
@@ -87,7 +88,25 @@
     "viewToolSchema": "View {name} schema",
     "toggleTool": "Toggle tool {name}",
     "activateSelected": "Enable",
-    "deactivateSelected": "Disable"
+    "deactivateSelected": "Disable",
+    "order": "Order"
+  },
+  "order": {
+    "title": "MCP display order",
+    "description": "Configure how MCP servers and their tools appear in the conversation selector.",
+    "loading": "Loading MCP order",
+    "empty": "No MCP servers to order",
+    "loadFailed": "Failed to load MCP order",
+    "serverHeader": "MCP servers",
+    "toolHeader": "Tools",
+    "itemCount": "{count}",
+    "dragServer": "Drag to reorder MCP server {name}",
+    "dragTool": "Drag to reorder {name}",
+    "statusActive": "Enabled",
+    "statusInactive": "Disabled",
+    "emptyTools": "This server has no tools to order",
+    "saveSuccess": "MCP display order saved",
+    "saveFailed": "Failed to save MCP display order"
   },
   "bulkConfirm": {
     "title": "Confirm bulk action",

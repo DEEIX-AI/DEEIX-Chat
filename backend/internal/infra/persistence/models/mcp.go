@@ -10,6 +10,7 @@ type MCPServer struct {
 	AuthTokenEnc string     `gorm:"type:text;not null;default:'';comment:加密后的鉴权Token"`
 	HeadersJSON  string     `gorm:"type:text;not null;default:'{}';comment:附加请求头JSON"`
 	Status       string     `gorm:"size:32;not null;default:'active';index:idx_mcp_servers_status;comment:服务状态(active/inactive)"`
+	SortOrder    int        `gorm:"not null;default:0;index:idx_mcp_servers_sort_order;comment:展示顺序"`
 	ToolCount    int        `gorm:"not null;default:0;comment:最近发现工具数量"`
 	LastSyncedAt *time.Time `gorm:"comment:最近同步工具时间"`
 	LastError    string     `gorm:"type:text;not null;default:'';comment:最近同步或调用错误"`
@@ -28,6 +29,7 @@ type MCPTool struct {
 	Description     string `gorm:"type:text;not null;default:'';comment:工具说明"`
 	InputSchemaJSON string `gorm:"type:text;not null;default:'{}';comment:输入JSON Schema"`
 	Status          string `gorm:"size:32;not null;default:'inactive';index:idx_mcp_tools_status;comment:工具状态(active/inactive)"`
+	SortOrder       int    `gorm:"not null;default:0;index:idx_mcp_tools_sort_order;comment:展示顺序"`
 }
 
 func (MCPTool) TableName() string {

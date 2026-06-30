@@ -8,6 +8,7 @@ type ServerResponse struct {
 	BaseURL         string     `json:"baseURL"`
 	HeadersJSON     string     `json:"headersJSON"`
 	Status          string     `json:"status"`
+	SortOrder       int        `json:"sortOrder"`
 	ToolCount       int        `json:"toolCount"`
 	ActiveToolCount int        `json:"activeToolCount"`
 	LastSyncedAt    *time.Time `json:"lastSyncedAt"`
@@ -25,6 +26,7 @@ type ToolResponse struct {
 	Description     string    `json:"description"`
 	InputSchemaJSON string    `json:"inputSchemaJSON"`
 	Status          string    `json:"status"`
+	SortOrder       int       `json:"sortOrder"`
 	CreatedAt       time.Time `json:"createdAt"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
@@ -48,6 +50,15 @@ type UpdateServerToolsStatusRequest struct {
 	Status  string `json:"status"`
 }
 
+type ReorderServerOrderItem struct {
+	ServerID uint   `json:"serverID"`
+	ToolIDs  []uint `json:"toolIDs"`
+}
+
+type ReorderServersRequest struct {
+	Servers []ReorderServerOrderItem `json:"servers"`
+}
+
 type ServerDataResponse struct {
 	Server ServerResponse `json:"server"`
 }
@@ -62,4 +73,13 @@ type ServerListResponse struct {
 
 type ToolListResponse struct {
 	Results []ToolResponse `json:"results"`
+}
+
+type ServerToolOrderResponse struct {
+	Server ServerResponse `json:"server"`
+	Tools  []ToolResponse `json:"tools"`
+}
+
+type ServerToolOrderListResponse struct {
+	Results []ServerToolOrderResponse `json:"results"`
 }

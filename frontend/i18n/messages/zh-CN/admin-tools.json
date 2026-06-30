@@ -48,6 +48,7 @@
     "disabled": "已停用"
   },
   "sort": {
+    "customOrder": "自定义顺序",
     "nameAsc": "名称 A-Z",
     "nameDesc": "名称 Z-A",
     "statusAsc": "状态",
@@ -87,7 +88,25 @@
     "viewToolSchema": "查看工具 {name} 的 Schema",
     "toggleTool": "切换工具 {name}",
     "activateSelected": "启用",
-    "deactivateSelected": "停用"
+    "deactivateSelected": "停用",
+    "order": "顺序"
+  },
+  "order": {
+    "title": "MCP 展示顺序",
+    "description": "配置 MCP 服务与服务内工具在对话选择器中的展示顺序。",
+    "loading": "正在加载 MCP 顺序",
+    "empty": "暂无可排序的 MCP 服务",
+    "loadFailed": "MCP 顺序加载失败",
+    "serverHeader": "MCP 服务",
+    "toolHeader": "工具",
+    "itemCount": "{count} 个",
+    "dragServer": "拖拽调整 MCP 服务 {name} 的顺序",
+    "dragTool": "拖拽调整 {name} 的顺序",
+    "statusActive": "已启用",
+    "statusInactive": "已停用",
+    "emptyTools": "该服务暂无可排序的工具",
+    "saveSuccess": "MCP 展示顺序已保存",
+    "saveFailed": "保存 MCP 展示顺序失败"
   },
   "bulkConfirm": {
     "title": "确认批量操作",

@@ -230,6 +230,28 @@ export function ChatMCP({
     [defaultToolIDs, defaultToolIDSet, onDefaultToolsChange, selectionLimit, showToolLimitToast],
   );
 
+  const toggleDefaultToolGroup = React.useCallback(
+    (tools: MCPToolDTO[]) => {
+      const toolIDs = tools.map((tool) => tool.id);
+      if (toolIDs.length === 0) {
+        return;
+      }
+      const allDefault = toolIDs.every((toolID) => defaultToolIDSet.has(toolID));
+      if (allDefault) {
+        const removeSet = new Set(toolIDs);
+        void onDefaultToolsChange(defaultToolIDs.filter((id) => !removeSet.has(id)));
+        return;
+      }
+      const missingIDs = toolIDs.filter((toolID) => !defaultToolIDSet.has(toolID));
+      if (defaultToolIDs.length + missingIDs.length > selectionLimit) {
+        showToolLimitToast();
+        return;
+      }
+      void onDefaultToolsChange([...defaultToolIDs, ...missingIDs]);
+    },
+    [defaultToolIDs, defaultToolIDSet, onDefaultToolsChange, selectionLimit, showToolLimitToast],
+  );
+
   const toggleServerExpanded = React.useCallback((serverKey: string) => {
     setExpandedServerKeys((current) => {
       const next = new Set(current);
@@ -332,6 +354,9 @@ export function ChatMCP({
             const overLimit = group.tools.length > selectionLimit;
             const groupRowKey = `server:${group.key}`;
             const groupInteractive = hoveredRowKey === groupRowKey || focusedRowKey === groupRowKey;
+            const defaultCount = group.tools.filter((tool) => defaultToolIDSet.has(tool.id)).length;
+            const allDefault = group.tools.length > 0 && defaultCount === group.tools.length;
+            const hasDefault = defaultCount > 0;
             return (
               <div key={group.key} className="mb-1">
                 <div
@@ -369,6 +394,36 @@ export function ChatMCP({
                       ) : null}
                     </span>
                   </button>
+                  <Tooltip disableHoverableContent>
+                    <TooltipTrigger asChild>
+                      <MCPToolRowAction
+                        label={allDefault
+                          ? tComposer("mcpUnsetDefaultServerTools", { server: group.serverName })
+                          : tComposer("mcpSetDefaultServerTools", { server: group.serverName })}
+                        className={cn("-mr-2", hasDefault && "text-amber-500 hover:text-amber-500 focus-visible:text-amber-500")}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleDefaultToolGroup(group.tools);
+                        }}
+                      >
+                        <Star
+                          className="size-3.5"
+                          strokeWidth={1.8}
+                          fill={allDefault ? "currentColor" : "none"}
+                        />
+                      </MCPToolRowAction>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="right"
+                      align="center"
+                      sideOffset={6}
+                      className="text-xs data-[state=closed]:[animation-duration:60ms] data-[state=open]:[animation-duration:90ms]"
+                    >
+                      {allDefault
+                        ? tComposer("mcpDefaultServerToolsEnabled")
+                        : tComposer("mcpDefaultServerToolsDisabled")}
+                    </TooltipContent>
+                  </Tooltip>
                   <button
                     type="button"
                     className="-mr-2 flex size-8 shrink-0 items-center justify-center rounded-md text-foreground/45 outline-none transition-[background-color,color] duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"

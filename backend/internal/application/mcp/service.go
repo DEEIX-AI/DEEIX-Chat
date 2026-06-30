@@ -38,6 +38,11 @@ type Service struct {
 	systemEventWriter systemEventWriter
 }
 
+type ReorderServerInput struct {
+	ServerID uint
+	ToolIDs  []uint
+}
+
 type systemEventWriter interface {
 	Write(ctx context.Context, input systemeventapp.WriteInput)
 }
@@ -261,6 +266,70 @@ func (s *Service) UpdateServerToolsStatus(ctx context.Context, serverID uint, to
 		return nil, ErrInvalidToolSelection
 	}
 	return s.repo.UpdateServerToolsStatus(ctx, serverID, toolIDs, normalized)
+}
+
+func (s *Service) ReorderServersWithTools(ctx context.Context, order []ReorderServerInput) ([]domainmcp.ServerWithTools, error) {
+	if len(order) == 0 {
+		return nil, ErrInvalidToolSelection
+	}
+	currentServers, err := s.repo.ListServers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(order) != len(currentServers) {
+		return nil, ErrInvalidToolSelection
+	}
+
+	allowedServers := make(map[uint]struct{}, len(currentServers))
+	for _, server := range currentServers {
+		allowedServers[server.ID] = struct{}{}
+	}
+	seenServers := make(map[uint]struct{}, len(order))
+	for _, item := range order {
+		if item.ServerID == 0 {
+			return nil, ErrInvalidToolSelection
+		}
+		if _, ok := allowedServers[item.ServerID]; !ok {
+			return nil, ErrInvalidToolSelection
+		}
+		if _, ok := seenServers[item.ServerID]; ok {
+			return nil, ErrInvalidToolSelection
+		}
+		seenServers[item.ServerID] = struct{}{}
+
+		currentTools, err := s.repo.ListTools(ctx, item.ServerID, false)
+		if err != nil {
+			return nil, err
+		}
+		if len(item.ToolIDs) != len(currentTools) {
+			return nil, ErrInvalidToolSelection
+		}
+		allowedTools := make(map[uint]struct{}, len(currentTools))
+		for _, tool := range currentTools {
+			allowedTools[tool.ID] = struct{}{}
+		}
+		seenTools := make(map[uint]struct{}, len(item.ToolIDs))
+		for _, toolID := range item.ToolIDs {
+			if toolID == 0 {
+				return nil, ErrInvalidToolSelection
+			}
+			if _, ok := allowedTools[toolID]; !ok {
+				return nil, ErrInvalidToolSelection
+			}
+			if _, ok := seenTools[toolID]; ok {
+				return nil, ErrInvalidToolSelection
+			}
+			seenTools[toolID] = struct{}{}
+		}
+	}
+	repoOrder := make([]repository.ReorderMCPServerInput, 0, len(order))
+	for _, item := range order {
+		repoOrder = append(repoOrder, repository.ReorderMCPServerInput{
+			ServerID: item.ServerID,
+			ToolIDs:  item.ToolIDs,
+		})
+	}
+	return s.repo.ReorderServersWithTools(ctx, repoOrder)
 }
 
 func (s *Service) normalizeServerInput(input ServerInput, requireToken bool) (ServerInput, error) {

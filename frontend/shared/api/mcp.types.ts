@@ -7,6 +7,7 @@ export type MCPToolDTO = {
   description: string;
   inputSchemaJSON: string;
   status: string;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 };
