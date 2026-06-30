@@ -595,6 +595,59 @@ func (r *messageTraceRecorder) snapshot() *model.MessageProcessTrace {
 	}
 }
 
+func (r *messageTraceRecorder) streamingSnapshot() *model.MessageProcessTrace {
+	trace := r.snapshot()
+	if trace == nil {
+		return nil
+	}
+	lightEvents := make([]model.MessageTraceEvent, len(trace.Events))
+	for i, event := range trace.Events {
+		lightEvents[i] = event
+		lightEvents[i].PayloadJSON = stripLargeTracePayloadFields(event.PayloadJSON)
+	}
+	trace.Events = lightEvents
+	return trace
+}
+
+const streamingTraceFieldMaxBytes = 512
+
+func stripLargeTracePayloadFields(payloadJSON string) string {
+	if len(payloadJSON) <= streamingTraceFieldMaxBytes {
+		return payloadJSON
+	}
+	var payload map[string]interface{}
+	if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
+		return payloadJSON
+	}
+	toolCalls, ok := payload["tool_calls"].([]interface{})
+	if !ok || len(toolCalls) == 0 {
+		return payloadJSON
+	}
+	modified := false
+	for _, tc := range toolCalls {
+		call, ok := tc.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		for _, key := range []string{"output", "output_text", "input"} {
+			if val, exists := call[key]; exists {
+				if str, ok := val.(string); ok && len(str) > streamingTraceFieldMaxBytes {
+					delete(call, key)
+					modified = true
+				}
+			}
+		}
+	}
+	if !modified {
+		return payloadJSON
+	}
+	result, err := json.Marshal(payload)
+	if err != nil {
+		return payloadJSON
+	}
+	return string(result)
+}
+
 func (r *messageTraceRecorder) persistDraft(draft *messageTraceDraft, force bool) {
 	r.persistDraftCtx(r.ctx, draft, force)
 }
@@ -771,7 +824,7 @@ func (r *messageTraceRecorder) emitProcessUpdate() {
 	emitEvent(r.onEvent, "process_update", map[string]interface{}{
 		"status": r.process.status,
 		"block":  traceDraftToBlock(r.process),
-		"trace":  r.snapshot(),
+		"trace":  r.streamingSnapshot(),
 	})
 }
 
@@ -782,7 +835,7 @@ func (r *messageTraceRecorder) emitToolUpdate() {
 	emitEvent(r.onEvent, "process_update", map[string]interface{}{
 		"status": r.tools.status,
 		"block":  traceDraftToBlock(r.tools),
-		"trace":  r.snapshot(),
+		"trace":  r.streamingSnapshot(),
 	})
 }
 
@@ -793,7 +846,7 @@ func (r *messageTraceRecorder) emitUpstreamThinkDelta(reasoning map[string]inter
 	payload := map[string]interface{}{
 		"status": r.upstreamThink.status,
 		"block":  traceDraftToBlock(r.upstreamThink),
-		"trace":  r.snapshot(),
+		"trace":  r.streamingSnapshot(),
 	}
 	if len(reasoning) > 0 {
 		payload["reasoning"] = reasoning

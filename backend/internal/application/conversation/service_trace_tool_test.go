@@ -455,3 +455,47 @@ func TestBudgetToolOutputForModelWrapsLargeResults(t *testing.T) {
 		t.Fatalf("expected retention note, got %q", got)
 	}
 }
+
+func TestStripLargeTracePayloadFieldsRemovesOversizedToolOutput(t *testing.T) {
+	largeOutput := strings.Repeat("x", 2000)
+	payload := map[string]interface{}{
+		"tool_calls": []interface{}{
+			map[string]interface{}{
+				"name":           "fetch",
+				"output":         largeOutput,
+				"output_text":    largeOutput,
+				"output_preview": "short preview",
+				"input":          "small input",
+			},
+		},
+	}
+	raw, _ := json.Marshal(payload)
+	got := stripLargeTracePayloadFields(string(raw))
+
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(got), &result); err != nil {
+		t.Fatalf("invalid JSON after strip: %v", err)
+	}
+	calls := result["tool_calls"].([]interface{})
+	call := calls[0].(map[string]interface{})
+	if _, exists := call["output"]; exists {
+		t.Fatal("expected 'output' to be stripped from streaming payload")
+	}
+	if _, exists := call["output_text"]; exists {
+		t.Fatal("expected 'output_text' to be stripped from streaming payload")
+	}
+	if preview, ok := call["output_preview"].(string); !ok || preview != "short preview" {
+		t.Fatalf("expected output_preview to be preserved, got %v", call["output_preview"])
+	}
+	if input, ok := call["input"].(string); !ok || input != "small input" {
+		t.Fatal("expected small input to be preserved")
+	}
+}
+
+func TestStripLargeTracePayloadFieldsPreservesSmallPayloads(t *testing.T) {
+	payload := `{"tool_calls":[{"name":"echo","output":"ok","input":"hi"}]}`
+	got := stripLargeTracePayloadFields(payload)
+	if got != payload {
+		t.Fatalf("expected small payload to be unchanged, got %q", got)
+	}
+}
