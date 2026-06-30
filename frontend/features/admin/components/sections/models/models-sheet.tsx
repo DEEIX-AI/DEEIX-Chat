@@ -124,6 +124,7 @@ type FormState = {
   capabilitiesJSON: string;
   systemPrompt: string;
   accessScope: AdminLLMModelAccessScope;
+  allowedTiers: string[];
   status: AdminLLMStatus;
   description: string;
   cbPolicyMode: AdminLLMModelCbPolicyMode;
@@ -131,6 +132,8 @@ type FormState = {
   cbDurationMin: string;
   cbWindowMin: string;
 };
+
+const SUBSCRIPTION_TIERS = ["free", "pro", "max", "ultra"] as const;
 
 type VendorOption = {
   value: AdminLLMModelVendor;
@@ -178,6 +181,23 @@ function formatCircuitUntil(until: string, locale: string): string {
   }).format(date);
 }
 
+function parseAllowedTiersJSON(raw: string | null | undefined): string[] {
+  const trimmed = raw?.trim() ?? "";
+  if (!trimmed) return [];
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string" && SUBSCRIPTION_TIERS.includes(item as typeof SUBSCRIPTION_TIERS[number]))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function stringifyAllowedTiers(tiers: string[]): string {
+  return tiers.length > 0 ? JSON.stringify(tiers) : "";
+}
+
 function buildInitialState(target: AdminLLMModelDTO | null): FormState {
   if (!target) {
     return {
@@ -188,6 +208,7 @@ function buildInitialState(target: AdminLLMModelDTO | null): FormState {
       capabilitiesJSON: "",
       systemPrompt: "",
       accessScope: "public",
+      allowedTiers: [],
       status: "active",
       description: "",
       cbPolicyMode: "default",
@@ -206,6 +227,7 @@ function buildInitialState(target: AdminLLMModelDTO | null): FormState {
     capabilitiesJSON: normalizeCapabilitiesText(target.capabilitiesJSON),
     systemPrompt: target.systemPrompt ?? "",
     accessScope: target.accessScope === "internal" ? "internal" : "public",
+    allowedTiers: parseAllowedTiersJSON(target.allowedTiersJSON),
     status: target.status,
     description: target.description ?? "",
     cbPolicyMode: target.cbPolicyMode === "enforced" ? "enforced" : "default",
@@ -620,6 +642,7 @@ export function ModelSheet({ open, mode, target, models, onClose, onSuccess }: M
           capabilitiesJSON: normalizeModelCapabilitiesJSON(form.capabilitiesJSON, nativeTools, routeProtocols) || undefined,
           systemPrompt: form.systemPrompt.trim() || undefined,
           accessScope: form.accessScope,
+          allowedTiersJSON: stringifyAllowedTiers(form.allowedTiers) || undefined,
           status: form.status,
           description: form.description.trim() || undefined,
           cbPolicyMode: form.cbPolicyMode,
@@ -665,6 +688,7 @@ export function ModelSheet({ open, mode, target, models, onClose, onSuccess }: M
         capabilitiesJSON: normalizeModelCapabilitiesJSON(form.capabilitiesJSON, nativeTools, routeProtocols),
         systemPrompt: form.systemPrompt.trim(),
         accessScope: form.accessScope,
+        allowedTiersJSON: stringifyAllowedTiers(form.allowedTiers),
         status: form.status,
         description: form.description.trim() || undefined,
         cbPolicyMode: form.cbPolicyMode,
@@ -1042,6 +1066,31 @@ export function ModelSheet({ open, mode, target, models, onClose, onSuccess }: M
                         <SelectItem value="internal">{t("accessScope.internal")}</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-normal text-muted-foreground">{t("sheet.allowedTiers")}</Label>
+                    <div className="flex flex-wrap gap-x-4 gap-y-2">
+                      {SUBSCRIPTION_TIERS.map((tier) => (
+                        <label key={tier} className="flex items-center gap-1.5 text-xs">
+                          <Checkbox
+                            className="size-3.5"
+                            checked={form.allowedTiers.includes(tier)}
+                            disabled={pending}
+                            onCheckedChange={(checked) => {
+                              setForm((prev) => ({
+                                ...prev,
+                                allowedTiers: checked
+                                  ? [...prev.allowedTiers, tier]
+                                  : prev.allowedTiers.filter((item) => item !== tier),
+                              }));
+                            }}
+                          />
+                          <span>{t(`tiers.${tier}`)}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">{t("sheet.allowedTiersDescription")}</p>
                   </div>
 
                   <div className="space-y-1">

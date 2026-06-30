@@ -139,6 +139,7 @@ type ModelView struct {
 	CapabilitiesJSON   string
 	SystemPrompt       string
 	AccessScope        string
+	AllowedTiersJSON   string
 	Status             string
 	Description        string
 	CbPolicyMode       string

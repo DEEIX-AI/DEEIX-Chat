@@ -176,6 +176,8 @@ func classifyRunErrorCode(err error) string {
 		return "file_too_large"
 	case errors.Is(err, ErrModelRouteNotConfigured):
 		return "model_route_not_configured"
+	case errors.Is(err, ErrModelTierAccessDenied):
+		return "model_tier_access_denied"
 	case errors.Is(err, ErrUpstreamEmptyResponse):
 		return "upstream_empty_response"
 	case errors.Is(err, ErrToolRunFinalAnswerMissing):

@@ -2,6 +2,7 @@ package channel
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -57,14 +58,17 @@ func (s *Service) ListModels(ctx context.Context, page int, pageSize int, input 
 }
 
 // ListActiveModels 查询全部启用模型目录（用于公开接口）。
-func (s *Service) ListActiveModels(ctx context.Context) ([]ModelView, error) {
+//
+// userID 用于按订阅等级过滤模型；传 0 表示不做等级过滤（内部调用）。
+func (s *Service) ListActiveModels(ctx context.Context, userID uint) ([]ModelView, error) {
 	now := time.Now()
 	if s.modelPricingFilter == nil {
 		items, err := s.listAllActiveModelRows(ctx)
 		if err != nil {
 			return nil, err
 		}
-		return filterPublicRoutableModels(items), nil
+		views := filterPublicRoutableModels(items)
+		return s.filterModelViewsByTier(ctx, views, userID), nil
 	}
 	mode, err := s.modelPricingFilter.GetBillingMode(ctx)
 	if err != nil {
@@ -75,14 +79,15 @@ func (s *Service) ListActiveModels(ctx context.Context) ([]ModelView, error) {
 		if err != nil {
 			return nil, err
 		}
-		return filterPublicRoutableModels(items), nil
+		views := filterPublicRoutableModels(items)
+		return s.filterModelViewsByTier(ctx, views, userID), nil
 	}
 
 	s.modelCatalogMu.RLock()
 	if s.modelCatalog != nil && now.Before(s.modelCatalogValidUntil) {
 		result := cloneModelViews(s.modelCatalog)
 		s.modelCatalogMu.RUnlock()
-		return result, nil
+		return s.filterModelViewsByTier(ctx, result, userID), nil
 	}
 	s.modelCatalogMu.RUnlock()
 
@@ -97,7 +102,8 @@ func (s *Service) ListActiveModels(ctx context.Context) ([]ModelView, error) {
 	}
 	views = filterPricedModelViews(views, pricingByPlatformModelName)
 	s.storeModelCatalog(now, views)
-	return cloneModelViews(views), nil
+	result := cloneModelViews(views)
+	return s.filterModelViewsByTier(ctx, result, userID), nil
 }
 
 func (s *Service) listAllActiveModelRows(ctx context.Context) ([]repository.ChannelModelListRow, error) {
@@ -196,6 +202,45 @@ func filterPricedModelViews(items []ModelView, pricingByPlatformModelName map[st
 		results = append(results, item)
 	}
 	return results
+}
+
+// filterModelViewsByTier 按用户订阅等级过滤模型列表。
+// userID 为 0 或 tierResolver 未注入时跳过过滤。
+func (s *Service) filterModelViewsByTier(ctx context.Context, views []ModelView, userID uint) []ModelView {
+	if userID == 0 || s.tierResolver == nil {
+		return views
+	}
+	tier := s.tierResolver.GetUserTier(ctx, userID)
+	results := make([]ModelView, 0, len(views))
+	for _, v := range views {
+		if modelAllowsTier(v.AllowedTiersJSON, tier) {
+			results = append(results, v)
+		}
+	}
+	return results
+}
+
+// modelAllowsTier 判断模型是否允许指定订阅等级使用。
+// 空字符串或 "[]" 表示所有等级均可使用。
+func modelAllowsTier(allowedTiersJSON string, tier string) bool {
+	raw := strings.TrimSpace(allowedTiersJSON)
+	if raw == "" || raw == "[]" {
+		return true
+	}
+	var tiers []string
+	if err := json.Unmarshal([]byte(raw), &tiers); err != nil {
+		return true // 解析失败视为不限制
+	}
+	if len(tiers) == 0 {
+		return true
+	}
+	normalizedTier := strings.TrimSpace(strings.ToLower(tier))
+	for _, allowed := range tiers {
+		if strings.TrimSpace(strings.ToLower(allowed)) == normalizedTier {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) normalizeModelAvailability(ctx context.Context, items []ModelView) error {
@@ -305,6 +350,7 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 		CapabilitiesJSON:   strings.TrimSpace(input.CapabilitiesJSON),
 		SystemPrompt:       systemPrompt,
 		AccessScope:        accessScope,
+		AllowedTiersJSON:   strings.TrimSpace(input.AllowedTiersJSON),
 		Status:             normalizeStatus(input.Status),
 		Description:        strings.TrimSpace(input.Description),
 		CbPolicyMode:       cbPolicyMode,
@@ -376,6 +422,10 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 			return nil, err
 		}
 		update.AccessScope = &accessScope
+	}
+	if input.AllowedTiersJSON != nil {
+		value := strings.TrimSpace(*input.AllowedTiersJSON)
+		update.AllowedTiersJSON = &value
 	}
 	if input.Status != nil {
 		status := normalizeStatus(*input.Status)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -122,6 +123,9 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 		RequestID:         strings.TrimSpace(input.RequestID),
 	})
 	if err != nil {
+		if errors.Is(err, channel.ErrModelTierAccessDenied) {
+			return nil, ErrModelTierAccessDenied
+		}
 		return nil, ErrModelRouteNotConfigured
 	}
 	if input.TaskType == MediaImageTaskGeneration && !llm.IsImageGenerationAdapter(route.Protocol) {

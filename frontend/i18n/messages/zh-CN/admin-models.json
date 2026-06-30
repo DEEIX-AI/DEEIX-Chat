@@ -23,6 +23,12 @@
     "public": "全平台",
     "internal": "内部任务"
   },
+  "tiers": {
+    "free": "Free",
+    "pro": "Pro",
+    "max": "Max",
+    "ultra": "Ultra"
+  },
   "kinds": {
     "chat": "对话",
     "audio": "语音",
@@ -267,6 +273,8 @@
     "selectKind": "选择类别",
     "otherInfo": "其他信息",
     "accessScope": "可用范围",
+    "allowedTiers": "可用订阅等级",
+    "allowedTiersDescription": "限制此模型仅对特定订阅等级可用。留空表示所有等级均可使用。",
     "icon": "图标（LobeHub icon 名）",
     "iconAutoDescription": "未填写时将优先按模型名自动匹配模型 icon；当前归类为 {vendor}。",
     "description": "描述",

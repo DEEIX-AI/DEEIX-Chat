@@ -54,6 +54,7 @@ type CreateModelRequest struct {
 	CapabilitiesJSON   string `json:"capabilitiesJSON" binding:"max=10000"`
 	SystemPrompt       string `json:"systemPrompt" binding:"max=20000"`
 	AccessScope        string `json:"accessScope" binding:"omitempty,oneof=public internal"`
+	AllowedTiersJSON   string `json:"allowedTiersJSON" binding:"max=1000"`
 	Status             string `json:"status" binding:"omitempty,oneof=active inactive"`
 	Description        string `json:"description" binding:"max=10000"`
 	CbPolicyMode       string `json:"cbPolicyMode" binding:"omitempty,oneof=default enforced"`
@@ -71,6 +72,7 @@ type UpdateModelRequest struct {
 	CapabilitiesJSON   *string `json:"capabilitiesJSON" binding:"omitempty,max=10000"`
 	SystemPrompt       *string `json:"systemPrompt" binding:"omitempty,max=20000"`
 	AccessScope        *string `json:"accessScope" binding:"omitempty,oneof=public internal"`
+	AllowedTiersJSON   *string `json:"allowedTiersJSON" binding:"omitempty,max=1000"`
 	Status             *string `json:"status" binding:"omitempty,oneof=active inactive"`
 	Description        *string `json:"description" binding:"omitempty,max=10000"`
 	CbPolicyMode       *string `json:"cbPolicyMode" binding:"omitempty,oneof=default enforced"`

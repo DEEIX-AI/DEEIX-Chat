@@ -38,6 +38,7 @@ type LLMPlatformModel struct {
 	CapabilitiesJSON   string `gorm:"type:text;not null;default:'{}';comment:平台能力配置JSON"`
 	SystemPrompt       string `gorm:"type:text;not null;default:'';comment:模型级系统提示词"`
 	AccessScope        string `gorm:"size:32;not null;default:'public';index:idx_llm_platform_models_access_scope;comment:模型使用范围: public用户可用 internal仅内部任务"`
+	AllowedTiersJSON   string `gorm:"type:text;not null;default:'';comment:允许使用的订阅等级JSON数组,空或[]表示全部"`
 	Icon               string `gorm:"size:64;comment:模型图标标识"`
 	Description        string `gorm:"type:text;comment:模型说明"`
 	CbPolicyMode       string `gorm:"size:16;not null;default:'default';comment:具体模型熔断策略模式: default默认配置 enforced统一覆盖"`

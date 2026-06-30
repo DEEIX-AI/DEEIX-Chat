@@ -67,6 +67,8 @@ var (
 	ErrMessageEditStateInvalid = errors.New("invalid message edit state")
 	// ErrModelRouteNotConfigured 模型路由未配置。
 	ErrModelRouteNotConfigured = errors.New("model route not configured")
+	// ErrModelTierAccessDenied 用户订阅等级不允许使用此模型。
+	ErrModelTierAccessDenied = errors.New("model not available for your subscription tier")
 	// ErrUpstreamRequestFailed 上游请求失败。
 	ErrUpstreamRequestFailed = errors.New("upstream request failed")
 	// ErrUpstreamEmptyResponse 上游返回空响应。

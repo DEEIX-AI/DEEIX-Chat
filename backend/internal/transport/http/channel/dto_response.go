@@ -97,6 +97,7 @@ type ModelResponse struct {
 	CapabilitiesJSON   string `json:"capabilitiesJSON"`
 	SystemPrompt       string `json:"systemPrompt"`
 	AccessScope        string `json:"accessScope"`
+	AllowedTiersJSON   string `json:"allowedTiersJSON"`
 	Status             string `json:"status"`
 	Description        string `json:"description"`
 	CbPolicyMode       string `json:"cbPolicyMode"`
@@ -121,6 +122,7 @@ func toModelResponse(v appchannel.ModelView) ModelResponse {
 		CapabilitiesJSON:   v.CapabilitiesJSON,
 		SystemPrompt:       v.SystemPrompt,
 		AccessScope:        v.AccessScope,
+		AllowedTiersJSON:   v.AllowedTiersJSON,
 		Status:             v.Status,
 		Description:        v.Description,
 		CbPolicyMode:       v.CbPolicyMode,

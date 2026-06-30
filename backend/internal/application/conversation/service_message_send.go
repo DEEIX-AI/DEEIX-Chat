@@ -352,6 +352,10 @@ func (s *Service) sendMessageInternal(
 			retErr = ErrModelRouteNotConfigured
 			return nil, retErr
 		}
+		if errors.Is(err, channel.ErrModelTierAccessDenied) {
+			retErr = ErrModelTierAccessDenied
+			return nil, retErr
+		}
 		if errors.Is(err, channel.ErrAllRoutesUnavailable) {
 			retErr = wrapUpstreamRequestError(err)
 			return nil, retErr

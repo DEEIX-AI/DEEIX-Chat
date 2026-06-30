@@ -8,6 +8,7 @@ import (
 
 	appchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -68,7 +69,7 @@ func upstreamConfigErrorMessage(err error) string {
 // @Failure 500 {object} ErrorDoc
 // @Router /models [get]
 func (h *Handler) ListPublicModels(c *gin.Context) {
-	items, err := h.service.ListActiveModels(c.Request.Context())
+	items, err := h.service.ListActiveModels(c.Request.Context(), middleware.MustUserID(c))
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "list models failed")
 		return
@@ -962,6 +963,7 @@ func (h *Handler) CreateModel(c *gin.Context) {
 		CapabilitiesJSON:   req.CapabilitiesJSON,
 		SystemPrompt:       req.SystemPrompt,
 		AccessScope:        req.AccessScope,
+		AllowedTiersJSON:   req.AllowedTiersJSON,
 		Status:             req.Status,
 		Description:        req.Description,
 		CbPolicyMode:       req.CbPolicyMode,
@@ -1026,6 +1028,7 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 		CapabilitiesJSON:   req.CapabilitiesJSON,
 		SystemPrompt:       req.SystemPrompt,
 		AccessScope:        req.AccessScope,
+		AllowedTiersJSON:   req.AllowedTiersJSON,
 		Status:             req.Status,
 		Description:        req.Description,
 		CbPolicyMode:       req.CbPolicyMode,

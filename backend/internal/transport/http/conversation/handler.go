@@ -150,6 +150,9 @@ func mapStreamError(err error) streamError {
 	case errors.Is(err, appconversation.ErrModelRouteNotConfigured):
 		status = http.StatusServiceUnavailable
 		message = "model route not configured"
+	case errors.Is(err, appconversation.ErrModelTierAccessDenied):
+		status = http.StatusForbidden
+		message = "model not available for your subscription tier"
 	case errors.Is(err, appconversation.ErrUpstreamEmptyResponse):
 		status = http.StatusBadGateway
 		message = "model returned empty response"

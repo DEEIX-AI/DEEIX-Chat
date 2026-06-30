@@ -206,6 +206,7 @@ func NewApp() (*App, error) {
 	channelService := channel.NewServiceWithRuntime(runtimeCfg, channelRepo, channelCache, llmClient)
 	channelService.SetLogger(log)
 	channelService.SetBillingModelPricingFilter(billingService)
+	channelService.SetSubscriptionTierResolver(&billingTierAdapter{billing: billingService})
 	billingService.SetModelPricingInvalidator(channelService.InvalidateModelCatalog)
 	billingService.SetPlatformModelIdentityResolver(channelService)
 	billingService.SetModelPricingCatalogProvider(channelService)
@@ -413,4 +414,22 @@ func (a *App) Close() {
 	defer cancel()
 	platformtracing.Shutdown(shutdownCtx)
 	a.logger.Sync() //nolint:errcheck
+}
+
+// billingTierAdapter 将 billing.Service 适配为 channel 服务所需的 subscriptionTierResolver 接口。
+type billingTierAdapter struct {
+	billing *billing.Service
+}
+
+// GetUserTier 查询用户当前订阅等级，失败时返回 "free"。
+func (a *billingTierAdapter) GetUserTier(ctx context.Context, userID uint) string {
+	snap, err := a.billing.GetCurrentSubscriptionSnapshot(ctx, userID, time.Now())
+	if err != nil || snap == nil {
+		return "free"
+	}
+	tier := snap.Tier
+	if tier == "" {
+		return "free"
+	}
+	return tier
 }

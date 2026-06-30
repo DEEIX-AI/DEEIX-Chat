@@ -17,6 +17,11 @@ type billingModelPricingFilter interface {
 	ListPublicModelPricing(ctx context.Context) (map[string]appbilling.PublicModelPricing, error)
 }
 
+// subscriptionTierResolver 用于查询用户当前订阅等级。
+type subscriptionTierResolver interface {
+	GetUserTier(ctx context.Context, userID uint) string
+}
+
 // Service 封装上游、平台模型与路由绑定业务能力。
 type Service struct {
 	cfg                *config.Runtime
@@ -24,6 +29,7 @@ type Service struct {
 	cache              repository.ChannelCacheRepository
 	llmClient          *llm.Client
 	modelPricingFilter billingModelPricingFilter
+	tierResolver       subscriptionTierResolver
 	logger             *zap.Logger
 
 	modelCatalogMu         sync.RWMutex
@@ -131,6 +137,11 @@ func NewServiceWithRuntime(cfg *config.Runtime, repo repository.ChannelRepositor
 // SetBillingModelPricingFilter 注入计费模型过滤器，用于用户侧模型选择列表。
 func (s *Service) SetBillingModelPricingFilter(filter billingModelPricingFilter) {
 	s.modelPricingFilter = filter
+}
+
+// SetSubscriptionTierResolver 注入订阅等级解析器，用于按订阅等级过滤模型。
+func (s *Service) SetSubscriptionTierResolver(resolver subscriptionTierResolver) {
+	s.tierResolver = resolver
 }
 
 // SetLogger 注入结构化日志记录器。

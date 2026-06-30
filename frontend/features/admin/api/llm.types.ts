@@ -73,6 +73,7 @@ export type AdminLLMModelDTO = {
   capabilitiesJSON: string;
   systemPrompt: string;
   accessScope: AdminLLMModelAccessScope;
+  allowedTiersJSON: string;
   status: AdminLLMStatus;
   description: string;
   cbPolicyMode: AdminLLMModelCbPolicyMode;
@@ -273,6 +274,7 @@ export type CreateAdminLLMModelRequest = {
   capabilitiesJSON?: string;
   systemPrompt?: string;
   accessScope?: AdminLLMModelAccessScope;
+  allowedTiersJSON?: string;
   status?: AdminLLMStatus;
   description?: string;
   cbPolicyMode?: AdminLLMModelCbPolicyMode;
@@ -289,6 +291,7 @@ export type UpdateAdminLLMModelRequest = {
   capabilitiesJSON?: string;
   systemPrompt?: string;
   accessScope?: AdminLLMModelAccessScope;
+  allowedTiersJSON?: string;
   status?: AdminLLMStatus;
   description?: string;
   cbPolicyMode?: AdminLLMModelCbPolicyMode;

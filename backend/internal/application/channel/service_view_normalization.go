@@ -77,6 +77,7 @@ func toModelView(item repository.ChannelModelListRow) ModelView {
 		CapabilitiesJSON:   item.CapabilitiesJSON,
 		SystemPrompt:       item.SystemPrompt,
 		AccessScope:        normalizeModelAccessScopeValue(item.AccessScope),
+		AllowedTiersJSON:   item.AllowedTiersJSON,
 		Status:             item.Status,
 		Description:        item.Description,
 		CbPolicyMode:       normalizeModelCircuitPolicyMode(item.CbPolicyMode),

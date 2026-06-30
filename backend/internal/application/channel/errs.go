@@ -39,6 +39,8 @@ var (
 	ErrInvalidModelAccessScope = errors.New("invalid model access scope")
 	// ErrModelAccessDenied 模型不允许当前调用范围使用。
 	ErrModelAccessDenied = errors.New("model access denied")
+	// ErrModelTierAccessDenied 用户订阅等级不允许使用此模型。
+	ErrModelTierAccessDenied = errors.New("model not available for your subscription tier")
 	// ErrSystemPromptTooLong 系统提示词长度超过允许范围。
 	ErrSystemPromptTooLong = errors.New("system prompt too long")
 	// ErrInvalidModelOrder 模型排序参数无效。

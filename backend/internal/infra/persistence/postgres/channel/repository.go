@@ -303,6 +303,9 @@ func (r *Repo) UpdateModel(ctx context.Context, modelID uint, input repository.U
 	if input.CbWindowMin != nil {
 		updates["cb_window_min"] = *input.CbWindowMin
 	}
+	if input.AllowedTiersJSON != nil {
+		updates["allowed_tiers_json"] = *input.AllowedTiersJSON
+	}
 	if len(updates) == 0 {
 		return nil
 	}
@@ -1467,6 +1470,7 @@ func toPlatformModelDomain(item model.LLMPlatformModel) domainchannel.PlatformMo
 		CapabilitiesJSON:   item.CapabilitiesJSON,
 		SystemPrompt:       item.SystemPrompt,
 		AccessScope:        item.AccessScope,
+		AllowedTiersJSON:   item.AllowedTiersJSON,
 		Status:             item.Status,
 		Description:        item.Description,
 		CbPolicyMode:       item.CbPolicyMode,
@@ -1491,6 +1495,7 @@ func toPlatformModelModel(item *domainchannel.PlatformModel) model.LLMPlatformMo
 		CapabilitiesJSON:   item.CapabilitiesJSON,
 		SystemPrompt:       item.SystemPrompt,
 		AccessScope:        item.AccessScope,
+		AllowedTiersJSON:   item.AllowedTiersJSON,
 		Status:             item.Status,
 		Description:        item.Description,
 		CbPolicyMode:       item.CbPolicyMode,

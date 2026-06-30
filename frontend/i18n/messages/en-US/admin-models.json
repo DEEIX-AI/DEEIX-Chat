@@ -23,6 +23,12 @@
     "public": "Platform-wide",
     "internal": "Internal tasks"
   },
+  "tiers": {
+    "free": "Free",
+    "pro": "Pro",
+    "max": "Max",
+    "ultra": "Ultra"
+  },
   "kinds": {
     "chat": "Chat",
     "audio": "Audio",
@@ -267,6 +273,8 @@
     "selectKind": "Select kind",
     "otherInfo": "Other information",
     "accessScope": "Availability",
+    "allowedTiers": "Allowed tiers",
+    "allowedTiersDescription": "Restrict this model to specific subscription tiers. Leave empty to make it available to all tiers.",
     "icon": "Icon (LobeHub icon name)",
     "iconAutoDescription": "When empty, the icon is inferred from the model name first. Current vendor category: {vendor}.",
     "description": "Description",

@@ -303,6 +303,8 @@ func handleSendMessageError(c *gin.Context, err error) {
 		response.Error(c, http.StatusBadRequest, "embedding unavailable for current file capability")
 	case errors.Is(err, appconversation.ErrModelRouteNotConfigured):
 		response.Error(c, http.StatusServiceUnavailable, "model route not configured")
+	case errors.Is(err, appconversation.ErrModelTierAccessDenied):
+		response.Error(c, http.StatusForbidden, "model not available for your subscription tier")
 	case errors.Is(err, appconversation.ErrUpstreamEmptyResponse):
 		response.Error(c, http.StatusBadGateway, "model returned empty response")
 	case errors.Is(err, appconversation.ErrUpstreamRequestFailed):
