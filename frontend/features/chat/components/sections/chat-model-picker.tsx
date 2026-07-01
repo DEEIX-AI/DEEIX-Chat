@@ -32,9 +32,6 @@ type ChatModelPickerProps = {
   onModelChange: (platformModelName: string) => void;
 };
 
-const DESKTOP_MODEL_SUBMENU_GAP = 8;
-const DESKTOP_MODEL_MENU_COLLISION_PADDING = 24;
-
 function resolveVendorGroups(modelOptions: ChatModelOption[]) {
   const groupMap = new Map<string, ChatModelOption[]>();
   for (const item of modelOptions) {
@@ -150,7 +147,7 @@ function ModelMenuScrollContainer({
     <div className="relative">
       <div
         ref={viewportRef}
-        className="max-h-[min(20rem,var(--radix-popover-content-available-height))] overflow-y-auto overscroll-contain pr-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="max-h-[min(20rem,var(--model-menu-scroll-max-height,var(--radix-popover-content-available-height)))] overflow-y-auto overscroll-contain pr-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onScroll={handleScroll}
       >
         {children}
@@ -443,6 +440,7 @@ export function ChatModelPicker({
   const [mobileVendorKey, setMobileVendorKey] = React.useState<string | null>(null);
   const [desktopSubmenuSide, setDesktopSubmenuSide] = React.useState<"right" | "left">("right");
   const [desktopSubmenuTop, setDesktopSubmenuTop] = React.useState(0);
+  const [desktopSubmenuMaxHeight, setDesktopSubmenuMaxHeight] = React.useState(320);
   const desktopMenuRootRef = React.useRef<HTMLDivElement | null>(null);
   const desktopVendorMenuRef = React.useRef<HTMLDivElement | null>(null);
   const desktopSubmenuRef = React.useRef<HTMLDivElement | null>(null);
@@ -522,11 +520,13 @@ export function ChatModelPicker({
     if (!open || isMobile || !hasDesktopModelSubmenu) {
       setDesktopSubmenuSide("right");
       setDesktopSubmenuTop(0);
+      setDesktopSubmenuMaxHeight(320);
       return;
     }
 
     const menuRoot = desktopMenuRootRef.current;
     const vendorMenu = desktopVendorMenuRef.current;
+    const submenu = desktopSubmenuRef.current;
     const activeVendorButton = activeDesktopVendorGroup
       ? desktopVendorItemRefs.current.get(activeDesktopVendorGroup.vendor)
       : null;
@@ -536,11 +536,19 @@ export function ChatModelPicker({
 
     const menuRootRect = menuRoot.getBoundingClientRect();
     const vendorMenuRect = vendorMenu.getBoundingClientRect();
+    const submenuRect = submenu?.getBoundingClientRect();
     const activeVendorRect = activeVendorButton.getBoundingClientRect();
-    const rightAvailableWidth = window.innerWidth - vendorMenuRect.right - DESKTOP_MODEL_MENU_COLLISION_PADDING;
-    const requiredRightWidth = vendorMenuRect.width + DESKTOP_MODEL_SUBMENU_GAP;
+    const rightAvailableWidth = window.innerWidth - vendorMenuRect.right - 24;
+    const requiredRightWidth = vendorMenuRect.width + 8;
+    const viewportTop = 24;
+    const viewportBottom = window.innerHeight - 24;
+    const submenuHeight = submenuRect?.height ?? 320;
+    const submenuMaxHeight = Math.max(96, viewportBottom - viewportTop);
+    const maxViewportTop = Math.max(viewportTop, viewportBottom - Math.min(submenuHeight, submenuMaxHeight));
+    const viewportAlignedTop = Math.min(Math.max(activeVendorRect.top, viewportTop), maxViewportTop);
     setDesktopSubmenuSide(rightAvailableWidth >= requiredRightWidth ? "right" : "left");
-    setDesktopSubmenuTop(Math.max(0, activeVendorRect.top - menuRootRect.top));
+    setDesktopSubmenuTop(Math.max(0, viewportAlignedTop - menuRootRect.top));
+    setDesktopSubmenuMaxHeight(submenuMaxHeight);
   }, [activeDesktopVendorGroup, hasDesktopModelSubmenu, isMobile, open]);
 
   React.useLayoutEffect(() => {
@@ -721,7 +729,10 @@ export function ChatModelPicker({
                 {hasDesktopModelSubmenu ? (
                   <div
                     ref={desktopSubmenuRef}
-                    style={{ top: desktopSubmenuTop }}
+                    style={{
+                      top: desktopSubmenuTop,
+                      "--model-menu-scroll-max-height": `${desktopSubmenuMaxHeight}px`,
+                    } as React.CSSProperties}
                     className={cn(
                       "absolute w-full rounded-xl border-[0.5px] border-border bg-popover p-1.5 shadow-xs",
                       desktopSubmenuSide === "right" ? "left-[calc(100%+0.5rem)]" : "right-[calc(100%+0.5rem)]",
