@@ -24,6 +24,8 @@
     "create": "新建项目",
     "newChatInProject": "在项目中新建对话",
     "menu": "项目菜单",
+    "dragToReorder": "拖拽以调整「{name}」排序",
+    "reorderFailed": "保存项目排序失败",
     "empty": "暂无项目",
     "unassigned": "默认",
     "untitled": "未命名项目",
