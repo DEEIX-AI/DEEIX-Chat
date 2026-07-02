@@ -35,6 +35,17 @@ func (s *Service) ResolveRoute(ctx context.Context, input ResolveRouteInput) (*R
 		if err != nil {
 			return nil, err
 		}
+		if !accessible && s.subGroupResolver != nil {
+			if subGroupID := s.subGroupResolver.GetUserSubscriptionGroupID(ctx, input.UserID); subGroupID != nil {
+				modelGroups, _ := s.permGroupRepo.ListModelGroupIDs(ctx, platformModel.ID)
+				for _, gid := range modelGroups {
+					if gid == *subGroupID {
+						accessible = true
+						break
+					}
+				}
+			}
+		}
 		if !accessible {
 			return nil, ErrModelAccessDenied
 		}

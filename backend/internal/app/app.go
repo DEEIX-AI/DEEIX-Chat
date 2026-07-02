@@ -85,6 +85,18 @@ type App struct {
 	backgroundCancel context.CancelFunc
 }
 
+type subscriptionGroupAdapter struct {
+	billing *billing.Service
+}
+
+func (a *subscriptionGroupAdapter) GetUserSubscriptionGroupID(ctx context.Context, userID uint) *uint {
+	snap, err := a.billing.GetCurrentSubscriptionSnapshot(ctx, userID, time.Now())
+	if err != nil || snap == nil {
+		return nil
+	}
+	return snap.PermissionGroupID
+}
+
 type avatarContentOpener struct {
 	conversationService *conversation.Service
 }
@@ -207,6 +219,7 @@ func NewApp() (*App, error) {
 	channelService.SetLogger(log)
 	channelService.SetBillingModelPricingFilter(billingService)
 	channelService.SetPermissionGroupRepo(channelRepo)
+	channelService.SetSubscriptionGroupResolver(&subscriptionGroupAdapter{billing: billingService})
 	billingService.SetModelPricingInvalidator(channelService.InvalidateModelCatalog)
 	billingService.SetPlatformModelIdentityResolver(channelService)
 	billingService.SetModelPricingCatalogProvider(channelService)

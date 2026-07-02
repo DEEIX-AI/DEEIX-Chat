@@ -78,19 +78,7 @@ func (r *Repo) ListActivePlans(ctx context.Context) ([]domainbilling.Plan, error
 	}
 	results := make([]domainbilling.Plan, 0, len(items))
 	for _, item := range items {
-		results = append(results, domainbilling.Plan{
-			ID:                  item.ID,
-			Code:                item.Code,
-			Name:                item.Name,
-			Description:         item.Description,
-			FeatureJSON:         item.FeatureJSON,
-			PeriodCreditNanousd: item.PeriodCreditNanousd,
-			DiscountPercent:     item.DiscountPercent,
-			SortOrder:           item.SortOrder,
-			IsActive:            item.IsActive,
-			CreatedAt:           item.CreatedAt,
-			UpdatedAt:           item.UpdatedAt,
-		})
+		results = append(results, toPlanDomain(item))
 	}
 	return results, nil
 }
@@ -153,19 +141,8 @@ func (r *Repo) GetPlanByID(ctx context.Context, planID uint) (*domainbilling.Pla
 	if err := r.db.WithContext(ctx).Where("id = ?", planID).First(&item).Error; err != nil {
 		return nil, translateError(err)
 	}
-	return &domainbilling.Plan{
-		ID:                  item.ID,
-		Code:                item.Code,
-		Name:                item.Name,
-		Description:         item.Description,
-		FeatureJSON:         item.FeatureJSON,
-		PeriodCreditNanousd: item.PeriodCreditNanousd,
-		DiscountPercent:     item.DiscountPercent,
-		SortOrder:           item.SortOrder,
-		IsActive:            item.IsActive,
-		CreatedAt:           item.CreatedAt,
-		UpdatedAt:           item.UpdatedAt,
-	}, nil
+	result := toPlanDomain(item)
+	return &result, nil
 }
 
 // ListPlansByIDs 查询一批套餐。
@@ -181,19 +158,7 @@ func (r *Repo) ListPlansByIDs(ctx context.Context, planIDs []uint) ([]domainbill
 	}
 	results := make([]domainbilling.Plan, 0, len(items))
 	for _, item := range items {
-		results = append(results, domainbilling.Plan{
-			ID:                  item.ID,
-			Code:                item.Code,
-			Name:                item.Name,
-			Description:         item.Description,
-			FeatureJSON:         item.FeatureJSON,
-			PeriodCreditNanousd: item.PeriodCreditNanousd,
-			DiscountPercent:     item.DiscountPercent,
-			SortOrder:           item.SortOrder,
-			IsActive:            item.IsActive,
-			CreatedAt:           item.CreatedAt,
-			UpdatedAt:           item.UpdatedAt,
-		})
+		results = append(results, toPlanDomain(item))
 	}
 	return results, nil
 }
@@ -206,19 +171,8 @@ func (r *Repo) GetActivePlanByCode(ctx context.Context, code string) (*domainbil
 		First(&item).Error; err != nil {
 		return nil, translateError(err)
 	}
-	return &domainbilling.Plan{
-		ID:                  item.ID,
-		Code:                item.Code,
-		Name:                item.Name,
-		Description:         item.Description,
-		FeatureJSON:         item.FeatureJSON,
-		PeriodCreditNanousd: item.PeriodCreditNanousd,
-		DiscountPercent:     item.DiscountPercent,
-		SortOrder:           item.SortOrder,
-		IsActive:            item.IsActive,
-		CreatedAt:           item.CreatedAt,
-		UpdatedAt:           item.UpdatedAt,
-	}, nil
+	result := toPlanDomain(item)
+	return &result, nil
 }
 
 // UpdatePlanWithDefaultPrice 更新套餐与默认价格。
@@ -2771,4 +2725,21 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func toPlanDomain(item model.BillingPlan) domainbilling.Plan {
+	return domainbilling.Plan{
+		ID:                  item.ID,
+		Code:                item.Code,
+		Name:                item.Name,
+		Description:         item.Description,
+		FeatureJSON:         item.FeatureJSON,
+		PeriodCreditNanousd: item.PeriodCreditNanousd,
+		DiscountPercent:     item.DiscountPercent,
+		SortOrder:           item.SortOrder,
+		IsActive:            item.IsActive,
+		PermissionGroupID:   item.PermissionGroupID,
+		CreatedAt:           item.CreatedAt,
+		UpdatedAt:           item.UpdatedAt,
+	}
 }

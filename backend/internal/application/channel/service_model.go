@@ -141,6 +141,11 @@ func (s *Service) filterModelsByPermission(ctx context.Context, userID uint, vie
 	for _, id := range defaultGroupIDs {
 		userGroups[id] = struct{}{}
 	}
+	if s.subGroupResolver != nil {
+		if subGroupID := s.subGroupResolver.GetUserSubscriptionGroupID(ctx, userID); subGroupID != nil {
+			userGroups[*subGroupID] = struct{}{}
+		}
+	}
 
 	results := make([]ModelView, 0, len(views))
 	for _, view := range views {
