@@ -17,6 +17,14 @@ type billingModelPricingFilter interface {
 	ListPublicModelPricing(ctx context.Context) (map[string]appbilling.PublicModelPricing, error)
 }
 
+// permissionGroupRepo 提供模型访问权限组的查询能力。
+type permissionGroupRepo interface {
+	ListModelsWithGroupAccess(ctx context.Context) (map[uint][]uint, error)
+	ListUserGroupIDs(ctx context.Context, userID uint) ([]uint, error)
+	IsModelAccessibleByUser(ctx context.Context, platformModelID uint, userID uint) (bool, error)
+	ListDefaultGroupIDs(ctx context.Context) ([]uint, error)
+}
+
 // Service 封装上游、平台模型与路由绑定业务能力。
 type Service struct {
 	cfg                *config.Runtime
@@ -24,6 +32,7 @@ type Service struct {
 	cache              repository.ChannelCacheRepository
 	llmClient          *llm.Client
 	modelPricingFilter billingModelPricingFilter
+	permGroupRepo      permissionGroupRepo
 	logger             *zap.Logger
 
 	modelCatalogMu         sync.RWMutex
@@ -131,6 +140,11 @@ func NewServiceWithRuntime(cfg *config.Runtime, repo repository.ChannelRepositor
 // SetBillingModelPricingFilter 注入计费模型过滤器，用于用户侧模型选择列表。
 func (s *Service) SetBillingModelPricingFilter(filter billingModelPricingFilter) {
 	s.modelPricingFilter = filter
+}
+
+// SetPermissionGroupRepo 注入模型访问权限组仓储，用于按用户过滤模型访问。
+func (s *Service) SetPermissionGroupRepo(repo permissionGroupRepo) {
+	s.permGroupRepo = repo
 }
 
 // SetLogger 注入结构化日志记录器。

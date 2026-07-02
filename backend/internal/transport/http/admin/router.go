@@ -21,4 +21,12 @@ func (m *Module) RegisterRoutes(adminGroup *gin.RouterGroup) {
 	adminGroup.GET("/system-events", m.Handler.ListSystemEvents)
 	adminGroup.POST("/logs/cleanup", m.Handler.CleanupLogs)
 	adminGroup.GET("/conversations/export", m.Handler.ExportConversations)
+	adminGroup.GET("/permission-groups", m.Handler.ListPermissionGroups)
+	adminGroup.POST("/permission-groups", m.Handler.CreatePermissionGroup)
+	adminGroup.PATCH("/permission-groups/:id", m.Handler.UpdatePermissionGroup)
+	adminGroup.DELETE("/permission-groups/:id", m.Handler.DeletePermissionGroup)
+	adminGroup.GET("/permission-groups/:id/models", m.Handler.ListGroupModels)
+	adminGroup.PUT("/permission-groups/:id/models", m.Handler.SetGroupModels)
+	adminGroup.GET("/permission-groups/:id/users", m.Handler.ListGroupUsers)
+	adminGroup.PUT("/permission-groups/:id/users", m.Handler.SetGroupUsers)
 }

@@ -43,4 +43,12 @@ var (
 	ErrInvalidImportMultiplier = errors.New("invalid import credit multiplier")
 	// ErrOpenWebUIImportFailed 表示 OpenWebUI 导入失败。
 	ErrOpenWebUIImportFailed = errors.New("openwebui import failed")
+	// ErrPermissionGroupRepoUnavailable 表示权限组仓储未注入。
+	ErrPermissionGroupRepoUnavailable = errors.New("permission group repo unavailable")
+	// ErrInvalidPermissionGroupCode 表示权限组编码不合法。
+	ErrInvalidPermissionGroupCode = errors.New("invalid permission group code")
+	// ErrInvalidPermissionGroupName 表示权限组名称不合法。
+	ErrInvalidPermissionGroupName = errors.New("invalid permission group name")
+	// ErrDefaultPermissionGroupDeleteNotAllowed 表示默认权限组不可删除。
+	ErrDefaultPermissionGroupDeleteNotAllowed = errors.New("default permission group delete not allowed")
 )
