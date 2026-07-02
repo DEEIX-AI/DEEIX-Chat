@@ -24,6 +24,8 @@
     "create": "New project",
     "newChatInProject": "New chat in project",
     "menu": "Project menu",
+    "dragToReorder": "Drag to reorder {name}",
+    "reorderFailed": "Failed to save project order",
     "empty": "No projects yet",
     "unassigned": "Default",
     "untitled": "Untitled project",

@@ -2,9 +2,28 @@
 
 import * as React from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  type DragEndEvent,
+  type DragStartEvent,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 import { AnimatePresence, motion, type Transition } from "motion/react"
-import { ChevronDown, PencilLine, Star, StarOff, Trash } from "lucide-react"
+import { ChevronDown, GripVertical, PencilLine, Star, StarOff, Trash } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { toast } from "sonner"
 
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis"
 import { FolderArchiveIcon } from "@/components/ui/folder-archive"
@@ -61,6 +80,7 @@ import {
 import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content"
 import { useChatConversationExport } from "@/features/chat/hooks/use-chat-conversation-export"
 import { useChatSession } from "@/features/chat/context/chat-session-context"
+import { useLocalizedErrorMessage } from "@/i18n/use-localized-error"
 import { DeleteFilesOption } from "@/shared/components/delete-files-option"
 import { useSettingsChatPreferences } from "@/features/settings/hooks/use-settings-chat-preferences"
 import { useLayoutActiveConversation } from "@/features/layouts/hooks/use-layout-active-conversation"
@@ -239,7 +259,7 @@ function ProjectTreeButton({
         active
           ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
           : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-        "pr-16",
+        "pr-24",
       )}
       aria-controls={contentID}
       aria-expanded={expanded}
@@ -330,9 +350,102 @@ const ProjectInlineAction = React.forwardRef<HTMLButtonElement, ProjectInlineAct
   )
 })
 
+type ProjectSortableRenderProps = {
+  attributes: ReturnType<typeof useSortable>["attributes"]
+  listeners: ReturnType<typeof useSortable>["listeners"]
+  isDragging: boolean
+}
+
+function ProjectSortableItem({
+  children,
+  disabled,
+  projectID,
+}: {
+  children: (props: ProjectSortableRenderProps) => React.ReactNode
+  disabled: boolean
+  projectID: string
+}) {
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    id: projectID,
+    disabled,
+  })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  } satisfies React.CSSProperties
+
+  return (
+    <SidebarMenuItem
+      ref={setNodeRef}
+      data-sidebar-motion-key={`project-${projectID}`}
+      style={style}
+      className={cn("transition-opacity", isDragging && "opacity-45")}
+    >
+      {children({ attributes, isDragging, listeners })}
+    </SidebarMenuItem>
+  )
+}
+
+function ProjectDragHandle({
+  active,
+  attributes,
+  disabled,
+  label,
+  listeners,
+  onHoverChange,
+  visible,
+}: {
+  active: boolean
+  attributes: ProjectSortableRenderProps["attributes"]
+  disabled: boolean
+  label: string
+  listeners: ProjectSortableRenderProps["listeners"]
+  onHoverChange?: (hovered: boolean) => void
+  visible: boolean
+}) {
+  return (
+    <button
+      {...attributes}
+      {...listeners}
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      className={cn(
+        "absolute right-0 top-0 z-20 flex h-8 w-8 cursor-grab items-center justify-center rounded-md text-sidebar-foreground opacity-0 transition-[background-color,color,opacity] duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:cursor-grabbing group-hover/project-row:opacity-100 group-focus-within/project-row:opacity-100 disabled:cursor-not-allowed disabled:opacity-30",
+        visible && "opacity-100",
+      )}
+      style={{ touchAction: "none" }}
+      onMouseEnter={() => onHoverChange?.(true)}
+      onMouseLeave={() => onHoverChange?.(false)}
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }}
+    >
+      <motion.span
+        initial={false}
+        animate={active ? { scale: [1, 1.12, 1], y: [0, -1, 1, 0] } : { scale: 1, y: 0 }}
+        transition={active ? { duration: 0.55, ease: "easeInOut" } : { duration: 0.12 }}
+        className="flex size-4 items-center justify-center"
+      >
+        <GripVertical className="size-3.5 stroke-1.5" />
+      </motion.span>
+    </button>
+  )
+}
+
 export function NavProjects() {
   const t = useTranslations("recent.projects")
   const tRecent = useTranslations("recent")
+  const resolveErrorMessage = useLocalizedErrorMessage()
   const { isMobile, setOpenMobile } = useSidebar()
   const router = useRouter()
   const onNavigate = useMobileSidebarNavigation()
@@ -351,6 +464,7 @@ export function NavProjects() {
     createProject,
     updateProject,
     deleteProject,
+    reorderProjects,
     renameByPublicID,
     regenerateTitleByPublicID,
     setStarByPublicID,
@@ -374,8 +488,11 @@ export function NavProjects() {
   const [openProjectMenuID, setOpenProjectMenuID] = React.useState<string | null>(null)
   const [hoveredProjectMenuID, setHoveredProjectMenuID] = React.useState<string | null>(null)
   const [hoveredProjectCreateID, setHoveredProjectCreateID] = React.useState<string | null>(null)
+  const [hoveredProjectDragID, setHoveredProjectDragID] = React.useState<string | null>(null)
   const [hoveredProjectRowID, setHoveredProjectRowID] = React.useState<string | null>(null)
   const [focusedProjectRowID, setFocusedProjectRowID] = React.useState<string | null>(null)
+  const [draggingProjectID, setDraggingProjectID] = React.useState<string | null>(null)
+  const [savingProjectOrder, setSavingProjectOrder] = React.useState(false)
   const [projectsOpen, setProjectsOpen] = useStoredBoolean(PROJECTS_OPEN_STORAGE_KEY, true)
   const projectConversationStateRef = React.useRef(projectConversationState)
   const expandedProjectIDsRef = React.useRef(expandedProjectIDs)
@@ -393,6 +510,17 @@ export function NavProjects() {
     successMessage: tRecent("exported"),
     failureMessage: tRecent("exportFailed"),
   })
+  const projectIDs = React.useMemo(() => projects.map((project) => project.publicID), [projects])
+  const projectSortSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 4,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
 
   const updateProjectConversationState = React.useCallback((updater: (prev: ProjectConversationStateMap) => ProjectConversationStateMap) => {
     const next = updater(projectConversationStateRef.current)
@@ -611,6 +739,43 @@ export function NavProjects() {
     [ensureProjectExpanded, isMobile, requestNewConversation, router, setOpenMobile],
   )
 
+  const onProjectDragStart = React.useCallback((event: DragStartEvent) => {
+    setDraggingProjectID(String(event.active.id))
+  }, [])
+
+  const onProjectDragEnd = React.useCallback(async (event: DragEndEvent) => {
+    setDraggingProjectID(null)
+
+    const { active, over } = event
+    if (!over || active.id === over.id || savingProjectOrder) {
+      return
+    }
+
+    const activeProjectID = String(active.id)
+    const overProjectID = String(over.id)
+    const fromIndex = projectIDs.indexOf(activeProjectID)
+    const toIndex = projectIDs.indexOf(overProjectID)
+    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+      return
+    }
+
+    const orderedProjectIDs = arrayMove(projectIDs, fromIndex, toIndex)
+    setSavingProjectOrder(true)
+    try {
+      await reorderProjects(orderedProjectIDs)
+    } catch (error) {
+      toast.error(t("reorderFailed"), {
+        description: resolveErrorMessage(error, t("reorderFailed")),
+      })
+    } finally {
+      setSavingProjectOrder(false)
+    }
+  }, [projectIDs, reorderProjects, resolveErrorMessage, savingProjectOrder, t])
+
+  const onProjectDragCancel = React.useCallback(() => {
+    setDraggingProjectID(null)
+  }, [])
+
   React.useEffect(() => {
     if (!activeProjectID || hasStoredExpandedProjectIDsRef.current || activeRevealedProjectIDsRef.current.has(activeProjectID)) {
       return
@@ -797,25 +962,42 @@ export function NavProjects() {
               toggleLabel={projectsOpen ? t("collapseSection") : t("expandSection")}
             />
             <CollapsibleMotionContent id={projectsContentID} open={projectsOpen}>
-              <SidebarMenu>
-                {projects.map((project) => {
-                  const expanded = expandedProjectIDs.has(project.publicID)
-                  const conversationState = projectConversationState[project.publicID]
-                  const conversationLoading = expanded && (!conversationState || conversationState.loading)
-                  const hasActiveChild = Boolean(conversationState?.items.some((item) => item.publicID === activeConversationID))
-                  const active =
-                    ((pathname === "/recent" || pathname === "/chat") && activeProjectID === project.publicID) ||
-                    activeConversationProjectID === project.publicID ||
-                    hasActiveChild
-                  const rowHovered = hoveredProjectRowID === project.publicID
-                  const rowFocused = focusedProjectRowID === project.publicID
-                  const createHovered = hoveredProjectCreateID === project.publicID
-                  const menuHovered = hoveredProjectMenuID === project.publicID
-                  const menuOpen = openProjectMenuID === project.publicID
-                  const showProjectActions = rowHovered || rowFocused || menuHovered || menuOpen
-                  const projectConversationContentID = `sidebar-project-${project.publicID}-conversations`
-                  return (
-                    <SidebarMenuItem key={project.publicID}>
+              <DndContext
+                sensors={projectSortSensors}
+                collisionDetection={closestCenter}
+                onDragStart={onProjectDragStart}
+                onDragEnd={(event) => void onProjectDragEnd(event)}
+                onDragCancel={onProjectDragCancel}
+              >
+                <SortableContext items={projectIDs} strategy={verticalListSortingStrategy}>
+                  <SidebarMenu>
+                    {projects.map((project) => {
+                      const expanded = expandedProjectIDs.has(project.publicID)
+                      const conversationState = projectConversationState[project.publicID]
+                      const conversationLoading = expanded && (!conversationState || conversationState.loading)
+                      const hasActiveChild = Boolean(conversationState?.items.some((item) => item.publicID === activeConversationID))
+                      const active =
+                        ((pathname === "/recent" || pathname === "/chat") && activeProjectID === project.publicID) ||
+                        activeConversationProjectID === project.publicID ||
+                        hasActiveChild
+                      const rowHovered = hoveredProjectRowID === project.publicID
+                      const rowFocused = focusedProjectRowID === project.publicID
+                      const createHovered = hoveredProjectCreateID === project.publicID
+                      const menuHovered = hoveredProjectMenuID === project.publicID
+                      const dragHovered = hoveredProjectDragID === project.publicID
+                      const menuOpen = openProjectMenuID === project.publicID
+                      const rowDragging = draggingProjectID === project.publicID
+                      const projectSortDisabled = savingProjectOrder || projects.length < 2
+                      const showProjectActions = !rowDragging && (rowHovered || rowFocused || menuHovered || menuOpen)
+                      const projectConversationContentID = `sidebar-project-${project.publicID}-conversations`
+                      return (
+                        <ProjectSortableItem
+                          key={project.publicID}
+                          projectID={project.publicID}
+                          disabled={projectSortDisabled}
+                        >
+                          {({ attributes, isDragging, listeners }) => (
+                            <>
                   <div
                     className="group/project-row relative"
                     onFocus={() => setFocusedProjectRowID(project.publicID)}
@@ -826,6 +1008,15 @@ export function NavProjects() {
                       }
                     }}
                   >
+                    <ProjectDragHandle
+                      active={dragHovered || isDragging}
+                      attributes={attributes}
+                      disabled={projectSortDisabled}
+                      label={t("dragToReorder", { name: project.name || t("untitled") })}
+                      listeners={listeners}
+                      onHoverChange={(hovered) => setHoveredProjectDragID(hovered ? project.publicID : null)}
+                      visible={rowHovered || rowFocused || isDragging}
+                    />
                     <ProjectTreeButton
                       active={active}
                       contentID={projectConversationContentID}
@@ -837,7 +1028,7 @@ export function NavProjects() {
                     <ProjectInlineAction
                       label={t("newChatInProject")}
                       visible={showProjectActions}
-                      className="right-8"
+                      className="right-16"
                       onHoverChange={(hovered) => setHoveredProjectCreateID(hovered ? project.publicID : null)}
                       onClick={() => startProjectConversation(project.publicID)}
                     >
@@ -852,7 +1043,7 @@ export function NavProjects() {
                         <ProjectInlineAction
                           label={t("menu")}
                           visible={showProjectActions}
-                          className="right-0"
+                          className="right-8"
                           onHoverChange={(hovered) => setHoveredProjectMenuID(hovered ? project.publicID : null)}
                         >
                           <Ellipsis size={16} strokeWidth={1.4} animate={menuHovered ? "pulse" : undefined} />
@@ -972,10 +1163,14 @@ export function NavProjects() {
                       </motion.div>
                     ) : null}
                   </AnimatePresence>
-                    </SidebarMenuItem>
-                  )
-                })}
-              </SidebarMenu>
+                            </>
+                          )}
+                        </ProjectSortableItem>
+                      )
+                    })}
+                  </SidebarMenu>
+                </SortableContext>
+              </DndContext>
             </CollapsibleMotionContent>
           </SidebarGroup>
         </Collapsible>
