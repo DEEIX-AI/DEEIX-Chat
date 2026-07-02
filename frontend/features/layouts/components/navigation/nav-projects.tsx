@@ -114,7 +114,7 @@ const PROJECT_TREE_ACCORDION_MASK_STYLE = {
   overflow: "hidden",
 } satisfies React.CSSProperties
 const PROJECT_CREATE_ACTION_CLASS =
-  "static size-7 shrink-0 opacity-0 transition-[background-color,color,opacity,transform] duration-150 group-hover/project-create:opacity-100 group-focus-within/project-create:opacity-100"
+  "relative top-auto right-auto size-7 shrink-0 opacity-100 transition-[background-color,color,opacity,transform] duration-150 after:pointer-events-none md:opacity-0 md:group-hover/project-create:opacity-100 md:group-focus-within/project-create:opacity-100"
 const PROJECTS_OPEN_STORAGE_KEY = "deeix.sidebar.projects.open"
 const PROJECT_EXPANDED_IDS_STORAGE_KEY = "deeix.sidebar.projects.expanded"
 
