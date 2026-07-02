@@ -144,9 +144,8 @@ func (s *Service) filterModelsByPermission(ctx context.Context, userID uint, vie
 
 	results := make([]ModelView, 0, len(views))
 	for _, view := range views {
-		groups, restricted := modelsWithGroups[view.ID]
-		if !restricted {
-			results = append(results, view)
+		groups, inGroup := modelsWithGroups[view.ID]
+		if !inGroup {
 			continue
 		}
 		for _, gid := range groups {

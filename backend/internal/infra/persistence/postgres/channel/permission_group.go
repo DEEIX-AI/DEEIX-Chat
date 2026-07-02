@@ -225,15 +225,24 @@ func (r *Repo) ListDefaultGroupIDs(ctx context.Context) ([]uint, error) {
 // 模型未加入任何权限组 => 所有人可访问；否则用户须归属某个授权组
 // （默认组视为所有用户隐式归属）。
 func (r *Repo) IsModelAccessibleByUser(ctx context.Context, platformModelID uint, userID uint) (bool, error) {
-	var groupCount int64
+	var totalAssignments int64
+	if err := r.db.WithContext(ctx).
+		Model(&model.PermissionGroupModelAccess{}).
+		Count(&totalAssignments).Error; err != nil {
+		return false, translateError(err)
+	}
+	if totalAssignments == 0 {
+		return true, nil
+	}
+	var modelGroupCount int64
 	if err := r.db.WithContext(ctx).
 		Model(&model.PermissionGroupModelAccess{}).
 		Where("platform_model_id = ?", platformModelID).
-		Count(&groupCount).Error; err != nil {
+		Count(&modelGroupCount).Error; err != nil {
 		return false, translateError(err)
 	}
-	if groupCount == 0 {
-		return true, nil
+	if modelGroupCount == 0 {
+		return false, nil
 	}
 	var accessCount int64
 	if err := r.db.WithContext(ctx).Raw(`
