@@ -304,13 +304,11 @@ function ChatMessagePositionRailComponent({
       >
         {items.map((item, index) => {
           const distance = Math.abs(index - activeIndex);
-          const focused = distance === 0;
           const lineClassName = cn(
-            "h-0.5 rounded-full bg-current opacity-35 transition-[opacity,width]",
-            focused && "w-6 text-foreground opacity-100",
-            distance === 1 && "w-4 opacity-70",
-            distance === 2 && "w-3.5 opacity-50",
-            distance > 2 && (index === 0 || index === items.length - 1 ? "w-2.5" : "w-3"),
+            "h-0.5 w-4 rounded-full bg-current opacity-35 transition-opacity",
+            distance === 0 && "text-foreground opacity-100",
+            distance === 1 && "opacity-70",
+            distance === 2 && "opacity-50",
           );
           return (
             <div key={item.id} className="relative flex w-6 justify-center">
