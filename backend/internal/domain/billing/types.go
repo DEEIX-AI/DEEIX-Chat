@@ -31,6 +31,7 @@ type Plan struct {
 	DiscountPercent     int
 	SortOrder           int
 	IsActive            bool
+	PermissionGroupID   *uint
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 }

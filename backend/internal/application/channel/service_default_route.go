@@ -10,7 +10,7 @@ import (
 // 内部服务任务使用 follow 时，如果当前会话模型不支持该任务类型，会走这里兜底；
 // 兜底仍必须经过任务类型过滤和真实路由解析，避免把图片模型误用于文本任务。
 func (s *Service) ResolveDefaultRoute(ctx context.Context, input ResolveRouteInput) (*ResolvedRoute, error) {
-	models, err := s.ListActiveModels(ctx)
+	models, err := s.ListActiveModels(ctx, 0)
 	if err != nil {
 		return nil, err
 	}

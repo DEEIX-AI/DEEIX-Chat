@@ -7,6 +7,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/userview"
 	domainaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/audit"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
+	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/systemevent"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
@@ -67,6 +68,29 @@ type ImportOpenWebUIUsersRequest struct {
 type CleanupLogsRequest struct {
 	Type   string `json:"type" binding:"required"`
 	Before string `json:"before" binding:"required"`
+}
+
+// CreatePermissionGroupRequest 创建权限组请求。
+type CreatePermissionGroupRequest struct {
+	Code        string `json:"code" binding:"required,max=64"`
+	Name        string `json:"name" binding:"required,max=128"`
+	Description string `json:"description" binding:"max=512"`
+}
+
+// UpdatePermissionGroupRequest 更新权限组请求。
+type UpdatePermissionGroupRequest struct {
+	Name        string `json:"name" binding:"required,max=128"`
+	Description string `json:"description" binding:"max=512"`
+}
+
+// SetGroupModelsRequest 设置权限组模型请求。
+type SetGroupModelsRequest struct {
+	ModelIDs []uint `json:"modelIDs"`
+}
+
+// SetGroupUsersRequest 设置权限组用户请求。
+type SetGroupUsersRequest struct {
+	UserIDs []uint `json:"userIDs"`
 }
 
 // ── 响应 DTO ────────────────────────────────────────────────────────────────
@@ -304,6 +328,37 @@ type ConversationEventResponse struct {
 	EndedAt         *time.Time `json:"endedAt"`
 	CreatedAt       time.Time  `json:"createdAt"`
 	UpdatedAt       time.Time  `json:"updatedAt"`
+}
+
+// PermissionGroupResponse 权限组响应。
+type PermissionGroupResponse struct {
+	ID          uint      `json:"id"`
+	Code        string    `json:"code"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	IsDefault   bool      `json:"isDefault"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// PermissionGroupListResponse 权限组列表响应。
+type PermissionGroupListResponse struct {
+	Results []PermissionGroupResponse `json:"results"`
+}
+
+// PermissionGroupDataResponse 单个权限组响应。
+type PermissionGroupDataResponse struct {
+	Group PermissionGroupResponse `json:"group"`
+}
+
+// GroupModelsResponse 权限组模型 ID 响应。
+type GroupModelsResponse struct {
+	ModelIDs []uint `json:"modelIDs"`
+}
+
+// GroupUsersResponse 权限组用户 ID 响应。
+type GroupUsersResponse struct {
+	UserIDs []uint `json:"userIDs"`
 }
 
 // ── Swagger 文档 DTO ────────────────────────────────────────────────────────
@@ -636,6 +691,18 @@ func toConversationEventResponse(item domainconversation.EventLog, label appadmi
 		EndedAt:         item.EndedAt,
 		CreatedAt:       item.CreatedAt,
 		UpdatedAt:       item.UpdatedAt,
+	}
+}
+
+func toPermissionGroupResponse(item domainchannel.PermissionGroup) PermissionGroupResponse {
+	return PermissionGroupResponse{
+		ID:          item.ID,
+		Code:        item.Code,
+		Name:        item.Name,
+		Description: item.Description,
+		IsDefault:   item.IsDefault,
+		CreatedAt:   item.CreatedAt,
+		UpdatedAt:   item.UpdatedAt,
 	}
 }
 

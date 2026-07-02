@@ -22,6 +22,7 @@ type BillingPlan struct {
 	DiscountPercent     int    `gorm:"not null;default:0;comment:默认折扣百分比"`
 	SortOrder           int    `gorm:"not null;default:0;comment:排序权重"`
 	IsActive            bool   `gorm:"not null;default:false;index:idx_billing_plans_active;comment:是否启用"`
+	PermissionGroupID   *uint  `gorm:"comment:绑定的权限组ID"`
 }
 
 // TableName 指定表名。

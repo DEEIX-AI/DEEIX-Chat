@@ -46,6 +46,9 @@ func New(cfg config.Config) (*gorm.DB, error) {
 	if err = schema.SeedBillingCatalog(db); err != nil {
 		return nil, err
 	}
+	if err = schema.SeedPermissionGroups(db); err != nil {
+		return nil, err
+	}
 	return db, nil
 }
 

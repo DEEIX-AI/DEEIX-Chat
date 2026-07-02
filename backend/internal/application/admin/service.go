@@ -122,6 +122,7 @@ type Service struct {
 	logCleanupService    logCleanupService
 	authSecurityService  authSecurityService
 	subscriptionResolver subscriptionResolver
+	permissionGroupRepo  permissionGroupRepo
 }
 
 type subscriptionResolver interface {

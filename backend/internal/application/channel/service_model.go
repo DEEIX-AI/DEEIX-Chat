@@ -57,7 +57,17 @@ func (s *Service) ListModels(ctx context.Context, page int, pageSize int, input 
 }
 
 // ListActiveModels 查询全部启用模型目录（用于公开接口）。
-func (s *Service) ListActiveModels(ctx context.Context) ([]ModelView, error) {
+//
+// userID > 0 时按权限组过滤模型访问；userID == 0 表示内部调用，不做权限过滤。
+func (s *Service) ListActiveModels(ctx context.Context, userID uint) ([]ModelView, error) {
+	views, err := s.listActiveModelViews(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.filterModelsByPermission(ctx, userID, views)
+}
+
+func (s *Service) listActiveModelViews(ctx context.Context) ([]ModelView, error) {
 	now := time.Now()
 	if s.modelPricingFilter == nil {
 		items, err := s.listAllActiveModelRows(ctx)
@@ -98,6 +108,59 @@ func (s *Service) ListActiveModels(ctx context.Context) ([]ModelView, error) {
 	views = filterPricedModelViews(views, pricingByPlatformModelName)
 	s.storeModelCatalog(now, views)
 	return cloneModelViews(views), nil
+}
+
+// filterModelsByPermission 按权限组过滤用户可访问的模型。
+//
+// 未加入任何权限组的模型对所有人可见；加入权限组的模型仅对归属组成员可见，
+// 默认组（is_default）视为所有用户隐式归属。
+func (s *Service) filterModelsByPermission(ctx context.Context, userID uint, views []ModelView) ([]ModelView, error) {
+	if s.permGroupRepo == nil || userID == 0 {
+		return views, nil
+	}
+	modelsWithGroups, err := s.permGroupRepo.ListModelsWithGroupAccess(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(modelsWithGroups) == 0 {
+		return views, nil
+	}
+
+	userGroups := make(map[uint]struct{})
+	userGroupIDs, err := s.permGroupRepo.ListUserGroupIDs(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range userGroupIDs {
+		userGroups[id] = struct{}{}
+	}
+	defaultGroupIDs, err := s.permGroupRepo.ListDefaultGroupIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range defaultGroupIDs {
+		userGroups[id] = struct{}{}
+	}
+	if s.subGroupResolver != nil {
+		if subGroupID := s.subGroupResolver.GetUserSubscriptionGroupID(ctx, userID); subGroupID != nil {
+			userGroups[*subGroupID] = struct{}{}
+		}
+	}
+
+	results := make([]ModelView, 0, len(views))
+	for _, view := range views {
+		groups, inGroup := modelsWithGroups[view.ID]
+		if !inGroup {
+			continue
+		}
+		for _, gid := range groups {
+			if _, ok := userGroups[gid]; ok {
+				results = append(results, view)
+				break
+			}
+		}
+	}
+	return results, nil
 }
 
 func (s *Service) listAllActiveModelRows(ctx context.Context) ([]repository.ChannelModelListRow, error) {

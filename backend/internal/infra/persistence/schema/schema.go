@@ -55,6 +55,9 @@ func Models() []interface{} {
 		&model.UserSetting{},
 		&model.FileChunk{},
 		&model.MessageChunk{},
+		&model.PermissionGroup{},
+		&model.PermissionGroupModelAccess{},
+		&model.PermissionGroupUserAccess{},
 	}
 }
 
@@ -146,6 +149,17 @@ func SeedLLMSettings(db *gorm.DB) error {
 		}
 	}
 	return nil
+}
+
+// SeedPermissionGroups inserts the built-in default permission group if it does not exist.
+func SeedPermissionGroups(db *gorm.DB) error {
+	return db.Where(model.PermissionGroup{Code: "default"}).
+		Attrs(model.PermissionGroup{
+			Name:        "Default",
+			Description: "All users implicitly belong to this group",
+			IsDefault:   true,
+		}).
+		FirstOrCreate(&model.PermissionGroup{}).Error
 }
 
 // SeedBillingCatalog inserts the default plans and prices if the billing catalog is empty.

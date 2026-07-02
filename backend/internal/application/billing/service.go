@@ -28,12 +28,13 @@ const (
 
 // UserSubscriptionSnapshot 描述用户当前订阅的派生结果。
 type UserSubscriptionSnapshot struct {
-	UserID    uint
-	PlanID    *uint
-	PlanName  string
-	Tier      string
-	Status    string
-	ExpiresAt *time.Time
+	UserID            uint
+	PlanID            *uint
+	PlanName          string
+	Tier              string
+	Status            string
+	ExpiresAt         *time.Time
+	PermissionGroupID *uint
 }
 
 // UserBillingAccountSnapshot 描述用户按量余额的派生结果。
@@ -523,9 +524,11 @@ func (s *Service) ListCurrentSubscriptionSnapshots(
 		planID := subscription.PlanID
 		planCode := ""
 		planName := ""
+		var permGroupID *uint
 		if plan, ok := planMap[planID]; ok {
 			planCode = strings.TrimSpace(plan.Code)
 			planName = strings.TrimSpace(plan.Name)
+			permGroupID = plan.PermissionGroupID
 		}
 
 		status := strings.TrimSpace(subscription.Status)
@@ -536,12 +539,13 @@ func (s *Service) ListCurrentSubscriptionSnapshots(
 		}
 
 		results[userID] = UserSubscriptionSnapshot{
-			UserID:    userID,
-			PlanID:    &planID,
-			PlanName:  firstNonEmpty(planName, strings.ToUpper(planCode)),
-			Tier:      firstNonEmpty(planCode, "free"),
-			Status:    firstNonEmpty(status, "free"),
-			ExpiresAt: expiresAt,
+			UserID:            userID,
+			PlanID:            &planID,
+			PlanName:          firstNonEmpty(planName, strings.ToUpper(planCode)),
+			Tier:              firstNonEmpty(planCode, "free"),
+			Status:            firstNonEmpty(status, "free"),
+			ExpiresAt:         expiresAt,
+			PermissionGroupID: permGroupID,
 		}
 	}
 
