@@ -89,12 +89,15 @@ type subscriptionGroupAdapter struct {
 	billing *billing.Service
 }
 
-func (a *subscriptionGroupAdapter) GetUserSubscriptionGroupID(ctx context.Context, userID uint) *uint {
+func (a *subscriptionGroupAdapter) GetUserSubscriptionGroupID(ctx context.Context, userID uint) (*uint, error) {
 	snap, err := a.billing.GetCurrentSubscriptionSnapshot(ctx, userID, time.Now())
-	if err != nil || snap == nil {
-		return nil
+	if err != nil {
+		return nil, err
 	}
-	return snap.PermissionGroupID
+	if snap == nil {
+		return nil, nil
+	}
+	return snap.PermissionGroupID, nil
 }
 
 type avatarContentOpener struct {

@@ -181,7 +181,14 @@ var exactErrorSpecs = map[string]errorSpec{
 	"file too large for full context":                      {Code: "file.too_large_for_context", Message: "file is too large for full context"},
 	"at least one of file_name or rag_opt_out is required": {Code: CodeRequestRequired, Message: "at least one of file_name or rag_opt_out is required"},
 
+	"invalid permission group code":                {Code: "admin.invalid_permission_group_code", Message: "invalid permission group code"},
+	"invalid permission group name":                {Code: "admin.invalid_permission_group_name", Message: "invalid permission group name"},
+	"invalid permission group rate multiplier":     {Code: "admin.invalid_permission_group_rate_multiplier", Message: "invalid permission group rate multiplier"},
+	"default permission group delete not allowed":  {Code: "admin.default_permission_group_delete_not_allowed", Message: "default permission group cannot be deleted"},
+	"permission group is referenced by billing plan": {Code: "admin.permission_group_referenced_by_plan", Message: "permission group is referenced by a billing plan"},
+
 	"model route not configured":                  {Code: "llm.model_route_not_configured", Message: "model route is not configured"},
+	"model access denied by group policy":         {Code: "llm.model_access_denied", Message: "you do not have access to this model"},
 	"model returned empty response":               {Code: "llm.empty_response", Message: "model returned empty response"},
 	"upstream returned empty response":            {Code: "llm.empty_response", Message: "model returned empty response"},
 	"remote models unavailable":                   {Code: "llm.remote_models_unavailable", Message: "remote models unavailable"},
@@ -314,6 +321,8 @@ func InferErrorCode(status int, msg string) string {
 		return CodeFileNotReady
 	case strings.Contains(text, "mime blocked") || strings.Contains(text, "dangerous file type"):
 		return CodeFileTypeBlocked
+	case strings.Contains(text, "model access denied by group policy"):
+		return "llm.model_access_denied"
 	case strings.Contains(text, "remote models unavailable") || strings.Contains(text, "model route not configured"):
 		return CodeUpstreamUnavailable
 	case strings.Contains(text, "verification code"):
@@ -542,7 +551,13 @@ var fallbackMessages = map[string]string{
 	"file.invalid_reference":                          "invalid file reference",
 	"context_artifact.invalid_id":                     "invalid context artifact id",
 	"context_artifact.not_found":                      "context artifact not found",
+	"admin.invalid_permission_group_code":              "invalid permission group code",
+	"admin.invalid_permission_group_name":              "invalid permission group name",
+	"admin.invalid_permission_group_rate_multiplier":   "invalid permission group rate multiplier",
+	"admin.default_permission_group_delete_not_allowed": "default permission group cannot be deleted",
+	"admin.permission_group_referenced_by_plan":        "permission group is referenced by a billing plan",
 	"llm.model_route_not_configured":                  "model route is not configured",
+	"llm.model_access_denied":                         "you do not have access to this model",
 	"llm.remote_models_unavailable":                   "remote models unavailable",
 	"llm.no_active_api_key":                           "no active api key",
 	"llm.invalid_adapter":                             "invalid adapter",

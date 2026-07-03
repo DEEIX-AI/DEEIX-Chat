@@ -127,7 +127,10 @@ func (s *Service) filterModelsByPermission(ctx context.Context, userID uint, vie
 		return views, nil
 	}
 
-	userGroups := s.resolveUserGroupIDs(ctx, userID)
+	userGroups, err := s.resolveUserGroupIDs(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
 
 	results := make([]ModelView, 0, len(views))
 	for _, view := range views {

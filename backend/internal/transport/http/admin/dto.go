@@ -364,6 +364,11 @@ type GroupUsersResponse struct {
 	UserIDs []uint `json:"userIDs"`
 }
 
+// DeletePermissionGroupResponse 删除权限组响应。
+type DeletePermissionGroupResponse struct {
+	Deleted bool `json:"deleted"`
+}
+
 // ── Swagger 文档 DTO ────────────────────────────────────────────────────────
 
 // UserListResponseDoc 用户分页响应。

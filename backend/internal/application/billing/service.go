@@ -71,18 +71,21 @@ func (s *Service) SetGroupRateMultiplierResolver(resolver groupRateMultiplierRes
 	s.groupRateResolver = resolver
 }
 
-// applyGroupRateMultiplier 将用户分组倍率叠加到基础倍率。
-// subscriptionGroupID 由调用方传入以避免重复查询订阅快照。
-func (s *Service) applyGroupRateMultiplier(ctx context.Context, userID uint, subscriptionGroupID *uint, base billingRateMultiplier) billingRateMultiplier {
+// resolveGroupRatePercent 返回用户分组计费倍率百分比（100 = 1.0x）。
+func (s *Service) resolveGroupRatePercent(ctx context.Context, userID uint, subscriptionGroupID *uint) (int, error) {
 	if s.groupRateResolver == nil || userID == 0 {
-		return base
+		return 100, nil
 	}
 	var extraGroupIDs []uint
 	if subscriptionGroupID != nil {
 		extraGroupIDs = append(extraGroupIDs, *subscriptionGroupID)
 	}
-	percent, err := s.groupRateResolver.GetUserGroupRateMultiplierPercent(ctx, userID, extraGroupIDs)
-	if err != nil || percent <= 0 || percent == 100 {
+	return s.groupRateResolver.GetUserGroupRateMultiplierPercent(ctx, userID, extraGroupIDs)
+}
+
+// composeGroupRatePercent 将分组倍率百分比叠加到基础倍率。
+func composeGroupRatePercent(base billingRateMultiplier, percent int) billingRateMultiplier {
+	if percent <= 0 || percent == 100 {
 		return base
 	}
 	base = normalizeBillingRateMultiplier(base)
@@ -90,6 +93,16 @@ func (s *Service) applyGroupRateMultiplier(ctx context.Context, userID uint, sub
 		Numerator:   base.Numerator * int64(percent),
 		Denominator: base.Denominator * 100,
 	}
+}
+
+// applyGroupRateMultiplier 将用户分组倍率叠加到基础倍率。
+// subscriptionGroupID 由调用方传入以避免重复查询订阅快照。
+func (s *Service) applyGroupRateMultiplier(ctx context.Context, userID uint, subscriptionGroupID *uint, base billingRateMultiplier) (billingRateMultiplier, error) {
+	percent, err := s.resolveGroupRatePercent(ctx, userID, subscriptionGroupID)
+	if err != nil {
+		return base, err
+	}
+	return composeGroupRatePercent(base, percent), nil
 }
 
 type platformModelIdentityResolver interface {
@@ -1410,12 +1423,22 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 	if err != nil {
 		return nil, err
 	}
+	var groupRatePercent int = 100
 	if mode != "self" {
 		var subGroupID *uint
-		if snap, snapErr := s.GetCurrentSubscriptionSnapshot(ctx, input.UserID, time.Now()); snapErr == nil && snap != nil {
+		snap, snapErr := s.GetCurrentSubscriptionSnapshot(ctx, input.UserID, time.Now())
+		if snapErr != nil {
+			return nil, snapErr
+		}
+		if snap != nil {
 			subGroupID = snap.PermissionGroupID
 		}
-		rateMultiplier = s.applyGroupRateMultiplier(ctx, input.UserID, subGroupID, rateMultiplier)
+		var grpErr error
+		groupRatePercent, grpErr = s.resolveGroupRatePercent(ctx, input.UserID, subGroupID)
+		if grpErr != nil {
+			return nil, grpErr
+		}
+		rateMultiplier = composeGroupRatePercent(rateMultiplier, groupRatePercent)
 	}
 	identity, err := s.resolvePlatformModelIdentity(ctx, platformModelName)
 	if err != nil && !errors.Is(err, repository.ErrNotFound) {
@@ -1565,7 +1588,7 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 			outputBilledNanousd = calcNanousdByToken(input.OutputTokens+input.ReasoningTokens, outputNanousdPerMTokens)
 		}
 	}
-	serviceItems, serviceBilledNanousd, err := s.buildUsageServiceItems(ctx, input.ServiceItems, mode)
+	serviceItems, serviceBilledNanousd, err := s.buildUsageServiceItems(ctx, input.ServiceItems, mode, groupRatePercent)
 	if err != nil {
 		return nil, err
 	}
@@ -1902,14 +1925,14 @@ func (s *Service) UpsertModelPricing(ctx context.Context, input ModelPricingInpu
 	return &view, nil
 }
 
-func (s *Service) buildUsageServiceItems(ctx context.Context, inputs []ServiceUsageInput, billingMode string) ([]domainbilling.UsageServiceItem, int64, error) {
+func (s *Service) buildUsageServiceItems(ctx context.Context, inputs []ServiceUsageInput, billingMode string, groupRatePercent int) ([]domainbilling.UsageServiceItem, int64, error) {
 	if len(inputs) == 0 {
 		return []domainbilling.UsageServiceItem{}, 0, nil
 	}
 	results := make([]domainbilling.UsageServiceItem, 0, len(inputs))
 	var total int64
 	for _, input := range inputs {
-		item, err := s.buildUsageServiceItem(ctx, input, billingMode)
+		item, err := s.buildUsageServiceItem(ctx, input, billingMode, groupRatePercent)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -1970,7 +1993,7 @@ func usageServiceItemSnapshots(items []domainbilling.UsageServiceItem) []map[str
 	return results
 }
 
-func (s *Service) buildUsageServiceItem(ctx context.Context, input ServiceUsageInput, billingMode string) (domainbilling.UsageServiceItem, error) {
+func (s *Service) buildUsageServiceItem(ctx context.Context, input ServiceUsageInput, billingMode string, groupRatePercent int) (domainbilling.UsageServiceItem, error) {
 	usageSpeed := normalizeUsageSpeed(input.UsageSpeed)
 	requestSpeed := normalizeUsageSpeed(input.RequestSpeed)
 	billingSpeed := resolveBillingSpeed(input.ProviderProtocol, usageSpeed, requestSpeed)
@@ -1978,7 +2001,10 @@ func (s *Service) buildUsageServiceItem(ctx context.Context, input ServiceUsageI
 	usageServiceTier := normalizeOpenAIServiceTier(input.UsageServiceTier)
 	billingServiceTier := resolveBillingServiceTier(input.ProviderProtocol, usageServiceTier)
 	fastMode := isAnthropicFastMode(input.ProviderProtocol, usageSpeed, requestSpeed)
-	rateMultiplier := resolveUsageRateMultiplier(input.ProviderProtocol, input.PlatformModelName, input.UpstreamModelName, fastMode, billingServiceTier)
+	rateMultiplier := composeGroupRatePercent(
+		resolveUsageRateMultiplier(input.ProviderProtocol, input.PlatformModelName, input.UpstreamModelName, fastMode, billingServiceTier),
+		groupRatePercent,
+	)
 	cacheWriteTokens, cacheWrite5mTokens, cacheWrite1hTokens := normalizeCacheWriteTokenBreakdown(
 		input.CacheWriteTokens,
 		input.CacheWrite5mTokens,

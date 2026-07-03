@@ -17,7 +17,7 @@ func (PermissionGroup) TableName() string {
 // PermissionGroupModelAccess 权限组与平台模型的多对多关联。
 type PermissionGroupModelAccess struct {
 	GroupID         uint `gorm:"primaryKey;comment:权限组ID"`
-	PlatformModelID uint `gorm:"primaryKey;comment:平台模型ID"`
+	PlatformModelID uint `gorm:"primaryKey;index:idx_pgma_platform_model_id;comment:平台模型ID"`
 }
 
 func (PermissionGroupModelAccess) TableName() string {
@@ -27,7 +27,7 @@ func (PermissionGroupModelAccess) TableName() string {
 // PermissionGroupUserAccess 权限组与用户的多对多关联。
 type PermissionGroupUserAccess struct {
 	GroupID uint `gorm:"primaryKey;comment:权限组ID"`
-	UserID  uint `gorm:"primaryKey;comment:用户ID"`
+	UserID  uint `gorm:"primaryKey;index:idx_pgua_user_id;comment:用户ID"`
 }
 
 func (PermissionGroupUserAccess) TableName() string {

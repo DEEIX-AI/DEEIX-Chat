@@ -20,6 +20,7 @@ type permissionGroupRepo interface {
 	SetGroupModels(ctx context.Context, groupID uint, modelIDs []uint) error
 	ListGroupUserIDs(ctx context.Context, groupID uint) ([]uint, error)
 	SetGroupUsers(ctx context.Context, groupID uint, userIDs []uint) error
+	CountBillingPlansWithGroupID(ctx context.Context, groupID uint) (int64, error)
 }
 
 // SetPermissionGroupRepo 注入权限组仓储能力。
@@ -91,7 +92,7 @@ func normalizePermissionGroupRatePercent(value int) (int, error) {
 	return value, nil
 }
 
-// DeletePermissionGroup 删除权限组，默认组不可删除。
+// DeletePermissionGroup 删除权限组，默认组不可删除，被套餐引用时不可删除。
 func (s *Service) DeletePermissionGroup(ctx context.Context, id uint) error {
 	if s.permissionGroupRepo == nil {
 		return ErrPermissionGroupRepoUnavailable
@@ -103,6 +104,13 @@ func (s *Service) DeletePermissionGroup(ctx context.Context, id uint) error {
 	if group.IsDefault {
 		return ErrDefaultPermissionGroupDeleteNotAllowed
 	}
+	planCount, err := s.permissionGroupRepo.CountBillingPlansWithGroupID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if planCount > 0 {
+		return ErrPermissionGroupReferencedByPlan
+	}
 	return s.permissionGroupRepo.DeletePermissionGroup(ctx, id)
 }
 
@@ -110,6 +118,9 @@ func (s *Service) DeletePermissionGroup(ctx context.Context, id uint) error {
 func (s *Service) ListGroupModels(ctx context.Context, groupID uint) ([]uint, error) {
 	if s.permissionGroupRepo == nil {
 		return nil, ErrPermissionGroupRepoUnavailable
+	}
+	if _, err := s.permissionGroupRepo.GetPermissionGroup(ctx, groupID); err != nil {
+		return nil, err
 	}
 	return s.permissionGroupRepo.ListGroupModelIDs(ctx, groupID)
 }
@@ -129,6 +140,9 @@ func (s *Service) SetGroupModels(ctx context.Context, groupID uint, modelIDs []u
 func (s *Service) ListGroupUsers(ctx context.Context, groupID uint) ([]uint, error) {
 	if s.permissionGroupRepo == nil {
 		return nil, ErrPermissionGroupRepoUnavailable
+	}
+	if _, err := s.permissionGroupRepo.GetPermissionGroup(ctx, groupID); err != nil {
+		return nil, err
 	}
 	return s.permissionGroupRepo.ListGroupUserIDs(ctx, groupID)
 }

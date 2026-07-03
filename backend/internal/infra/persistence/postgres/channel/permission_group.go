@@ -222,42 +222,16 @@ func (r *Repo) ListDefaultGroupIDs(ctx context.Context) ([]uint, error) {
 	return ids, nil
 }
 
-// IsModelAccessibleByUser 判断用户是否可访问指定平台模型。
-//
-// 模型未加入任何权限组 => 所有人可访问；否则用户须归属某个授权组
-// （默认组视为所有用户隐式归属）。
-func (r *Repo) IsModelAccessibleByUser(ctx context.Context, platformModelID uint, userID uint) (bool, error) {
-	var totalAssignments int64
+// CountBillingPlansWithGroupID 统计引用指定权限组的计费套餐数量。
+func (r *Repo) CountBillingPlansWithGroupID(ctx context.Context, groupID uint) (int64, error) {
+	var count int64
 	if err := r.db.WithContext(ctx).
-		Model(&model.PermissionGroupModelAccess{}).
-		Count(&totalAssignments).Error; err != nil {
-		return false, translateError(err)
+		Table("billing_plans").
+		Where("permission_group_id = ?", groupID).
+		Count(&count).Error; err != nil {
+		return 0, translateError(err)
 	}
-	if totalAssignments == 0 {
-		return true, nil
-	}
-	var modelGroupCount int64
-	if err := r.db.WithContext(ctx).
-		Model(&model.PermissionGroupModelAccess{}).
-		Where("platform_model_id = ?", platformModelID).
-		Count(&modelGroupCount).Error; err != nil {
-		return false, translateError(err)
-	}
-	if modelGroupCount == 0 {
-		return false, nil
-	}
-	var accessCount int64
-	if err := r.db.WithContext(ctx).Raw(`
-		SELECT COUNT(*) FROM permission_group_model_access pgma
-		WHERE pgma.platform_model_id = ?
-		AND (
-			EXISTS (SELECT 1 FROM permission_groups pg WHERE pg.id = pgma.group_id AND pg.is_default = true)
-			OR EXISTS (SELECT 1 FROM permission_group_user_access pgua WHERE pgua.group_id = pgma.group_id AND pgua.user_id = ?)
-		)
-	`, platformModelID, userID).Scan(&accessCount).Error; err != nil {
-		return false, translateError(err)
-	}
-	return accessCount > 0, nil
+	return count, nil
 }
 
 // ---------------------------------------------------------------------------

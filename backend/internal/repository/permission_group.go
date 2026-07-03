@@ -24,6 +24,6 @@ type PermissionGroupRepository interface {
 	ListModelGroupIDs(ctx context.Context, platformModelID uint) ([]uint, error)
 	ListModelsWithGroupAccess(ctx context.Context) (map[uint][]uint, error)
 	ListDefaultGroupIDs(ctx context.Context) ([]uint, error)
-	IsModelAccessibleByUser(ctx context.Context, platformModelID uint, userID uint) (bool, error)
 	GetUserGroupRateMultiplierPercent(ctx context.Context, userID uint, extraGroupIDs []uint) (int, error)
+	CountBillingPlansWithGroupID(ctx context.Context, groupID uint) (int64, error)
 }

@@ -26,7 +26,8 @@ func (h *Handler) writePermissionGroupError(c *gin.Context, err error) {
 		errors.Is(err, appadmin.ErrInvalidPermissionGroupName),
 		errors.Is(err, appadmin.ErrInvalidPermissionGroupRateMultiplier):
 		response.ErrorFrom(c, http.StatusBadRequest, err)
-	case errors.Is(err, appadmin.ErrDefaultPermissionGroupDeleteNotAllowed):
+	case errors.Is(err, appadmin.ErrDefaultPermissionGroupDeleteNotAllowed),
+		errors.Is(err, appadmin.ErrPermissionGroupReferencedByPlan):
 		response.ErrorFrom(c, http.StatusConflict, err)
 	case errors.Is(err, repository.ErrNotFound):
 		response.Error(c, http.StatusNotFound, "permission group not found")
@@ -93,7 +94,7 @@ func (h *Handler) DeletePermissionGroup(c *gin.Context) {
 		h.writePermissionGroupError(c, err)
 		return
 	}
-	response.Success(c, DeleteUserResponse{Deleted: true})
+	response.Success(c, DeletePermissionGroupResponse{Deleted: true})
 }
 
 // ListGroupModels 列出权限组授权的平台模型 ID。
@@ -125,7 +126,12 @@ func (h *Handler) SetGroupModels(c *gin.Context) {
 		h.writePermissionGroupError(c, err)
 		return
 	}
-	response.Success(c, GroupModelsResponse{ModelIDs: req.ModelIDs})
+	ids, err := h.service.ListGroupModels(c.Request.Context(), groupID)
+	if err != nil {
+		h.writePermissionGroupError(c, err)
+		return
+	}
+	response.Success(c, GroupModelsResponse{ModelIDs: ids})
 }
 
 // ListGroupUsers 列出权限组内的用户 ID。
@@ -157,5 +163,10 @@ func (h *Handler) SetGroupUsers(c *gin.Context) {
 		h.writePermissionGroupError(c, err)
 		return
 	}
-	response.Success(c, GroupUsersResponse{UserIDs: req.UserIDs})
+	ids, err := h.service.ListGroupUsers(c.Request.Context(), groupID)
+	if err != nil {
+		h.writePermissionGroupError(c, err)
+		return
+	}
+	response.Success(c, GroupUsersResponse{UserIDs: ids})
 }

@@ -31,7 +31,11 @@ func (s *Service) ResolveRoute(ctx context.Context, input ResolveRouteInput) (*R
 		return nil, ErrModelAccessDenied
 	}
 	if normalizeRouteScope(input.Scope) == RouteScopeUser && input.UserID > 0 {
-		if !s.isModelAccessible(ctx, platformModel.ID, input.UserID) {
+		accessible, err := s.isModelAccessible(ctx, platformModel.ID, input.UserID)
+		if err != nil {
+			return nil, err
+		}
+		if !accessible {
 			return nil, ErrModelAccessDenied
 		}
 	}

@@ -369,7 +369,11 @@ func (s *Service) sendMessageInternal(
 		RequestID:         strings.TrimSpace(input.RequestID),
 	})
 	if err != nil {
-		if errors.Is(err, channel.ErrRouteNotFound) || errors.Is(err, channel.ErrModelNotFound) || errors.Is(err, channel.ErrModelAccessDenied) {
+		if errors.Is(err, channel.ErrModelAccessDenied) {
+			retErr = ErrModelAccessDenied
+			return nil, retErr
+		}
+		if errors.Is(err, channel.ErrRouteNotFound) || errors.Is(err, channel.ErrModelNotFound) {
 			retErr = ErrModelRouteNotConfigured
 			return nil, retErr
 		}

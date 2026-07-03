@@ -1,4 +1,11 @@
 {
+  "admin": {
+    "defaultPermissionGroupDeleteNotAllowed": "The default group cannot be deleted.",
+    "invalidPermissionGroupCode": "Invalid group code. Only lowercase letters, digits, and hyphens are allowed.",
+    "invalidPermissionGroupName": "Group name is required.",
+    "invalidPermissionGroupRateMultiplier": "Invalid rate multiplier. Must be between 1 and 10000.",
+    "permissionGroupReferencedByPlan": "This group is referenced by a billing plan. Unbind it before deleting."
+  },
   "auth": {
     "adminRequired": "Administrator permission is required.",
     "authorizationCodeRequired": "Authorization code is required.",
@@ -169,6 +176,7 @@
     "invalidRouteProtocolCombination": "This protocol combination is not available. A binding can use one protocol, or image generation and image editing protocols from the same provider.",
     "systemPromptTooLong": "System prompt must be at most 20000 characters.",
     "invalidProtocolDefaultsConfig": "Invalid protocol defaults configuration.",
+    "modelAccessDenied": "You do not have access to this model.",
     "modelRouteNotConfigured": "Model route is not configured.",
     "noActiveApiKey": "No active API key is available.",
     "platformModelNameExists": "Platform model name already exists.",

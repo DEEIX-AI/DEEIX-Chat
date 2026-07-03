@@ -53,4 +53,6 @@ var (
 	ErrDefaultPermissionGroupDeleteNotAllowed = errors.New("default permission group delete not allowed")
 	// ErrInvalidPermissionGroupRateMultiplier 表示分组计费倍率不合法。
 	ErrInvalidPermissionGroupRateMultiplier = errors.New("invalid permission group rate multiplier")
+	// ErrPermissionGroupReferencedByPlan 表示权限组被计费套餐引用，不可删除。
+	ErrPermissionGroupReferencedByPlan = errors.New("permission group is referenced by billing plan")
 )

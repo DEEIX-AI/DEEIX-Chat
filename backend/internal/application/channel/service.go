@@ -21,56 +21,72 @@ type billingModelPricingFilter interface {
 type permissionGroupRepo interface {
 	ListModelsWithGroupAccess(ctx context.Context) (map[uint][]uint, error)
 	ListUserGroupIDs(ctx context.Context, userID uint) ([]uint, error)
-	IsModelAccessibleByUser(ctx context.Context, platformModelID uint, userID uint) (bool, error)
 	ListDefaultGroupIDs(ctx context.Context) ([]uint, error)
 	ListModelGroupIDs(ctx context.Context, platformModelID uint) ([]uint, error)
 }
 
 type subscriptionGroupResolver interface {
-	GetUserSubscriptionGroupID(ctx context.Context, userID uint) *uint
+	GetUserSubscriptionGroupID(ctx context.Context, userID uint) (*uint, error)
 }
 
 // resolveUserGroupIDs 返回用户的全部归属分组 ID（直接分组 + 默认组 + 订阅绑定组）。
-func (s *Service) resolveUserGroupIDs(ctx context.Context, userID uint) map[uint]struct{} {
+func (s *Service) resolveUserGroupIDs(ctx context.Context, userID uint) (map[uint]struct{}, error) {
 	groups := make(map[uint]struct{})
 	if s.permGroupRepo == nil || userID == 0 {
-		return groups
+		return groups, nil
 	}
-	if ids, err := s.permGroupRepo.ListUserGroupIDs(ctx, userID); err == nil {
-		for _, id := range ids {
-			groups[id] = struct{}{}
-		}
+	ids, err := s.permGroupRepo.ListUserGroupIDs(ctx, userID)
+	if err != nil {
+		return nil, err
 	}
-	if ids, err := s.permGroupRepo.ListDefaultGroupIDs(ctx); err == nil {
-		for _, id := range ids {
-			groups[id] = struct{}{}
-		}
+	for _, id := range ids {
+		groups[id] = struct{}{}
+	}
+	defaultIDs, err := s.permGroupRepo.ListDefaultGroupIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range defaultIDs {
+		groups[id] = struct{}{}
 	}
 	if s.subGroupResolver != nil {
-		if subGroupID := s.subGroupResolver.GetUserSubscriptionGroupID(ctx, userID); subGroupID != nil {
+		subGroupID, err := s.subGroupResolver.GetUserSubscriptionGroupID(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		if subGroupID != nil {
 			groups[*subGroupID] = struct{}{}
 		}
 	}
-	return groups
+	return groups, nil
 }
 
 // isModelAccessible 判断用户是否可访问指定模型（基于分组归属）。
-func (s *Service) isModelAccessible(ctx context.Context, platformModelID uint, userID uint) bool {
+func (s *Service) isModelAccessible(ctx context.Context, platformModelID uint, userID uint) (bool, error) {
 	if s.permGroupRepo == nil || userID == 0 {
-		return true
+		return true, nil
 	}
 	modelGroups, err := s.permGroupRepo.ListModelGroupIDs(ctx, platformModelID)
-	if err != nil || len(modelGroups) == 0 {
-		allAssigned, _ := s.permGroupRepo.ListModelsWithGroupAccess(ctx)
-		return len(allAssigned) == 0
+	if err != nil {
+		return false, err
 	}
-	userGroups := s.resolveUserGroupIDs(ctx, userID)
+	if len(modelGroups) == 0 {
+		allAssigned, err := s.permGroupRepo.ListModelsWithGroupAccess(ctx)
+		if err != nil {
+			return false, err
+		}
+		return len(allAssigned) == 0, nil
+	}
+	userGroups, err := s.resolveUserGroupIDs(ctx, userID)
+	if err != nil {
+		return false, err
+	}
 	for _, gid := range modelGroups {
 		if _, ok := userGroups[gid]; ok {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // Service 封装上游、平台模型与路由绑定业务能力。

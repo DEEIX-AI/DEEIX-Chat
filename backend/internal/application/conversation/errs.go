@@ -67,6 +67,8 @@ var (
 	ErrMessageEditStateInvalid = errors.New("invalid message edit state")
 	// ErrModelRouteNotConfigured 模型路由未配置。
 	ErrModelRouteNotConfigured = errors.New("model route not configured")
+	// ErrModelAccessDenied 当前用户无权使用此模型。
+	ErrModelAccessDenied = errors.New("model access denied by group policy")
 	// ErrUpstreamRequestFailed 上游请求失败。
 	ErrUpstreamRequestFailed = errors.New("upstream request failed")
 	// ErrUpstreamEmptyResponse 上游返回空响应。

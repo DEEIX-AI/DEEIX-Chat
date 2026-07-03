@@ -1,4 +1,11 @@
 {
+  "admin": {
+    "defaultPermissionGroupDeleteNotAllowed": "默认分组不可删除。",
+    "invalidPermissionGroupCode": "分组编码无效，仅允许小写字母、数字和连字符。",
+    "invalidPermissionGroupName": "分组名称不能为空。",
+    "invalidPermissionGroupRateMultiplier": "计费倍率无效，范围 1-10000。",
+    "permissionGroupReferencedByPlan": "该分组已被计费套餐引用，请先解除绑定再删除。"
+  },
   "auth": {
     "adminRequired": "需要管理员权限。",
     "authorizationCodeRequired": "缺少授权码。",
@@ -169,6 +176,7 @@
     "invalidRouteProtocolCombination": "当前协议组合不可用。同一绑定只能选择单个协议，或同时选择同一厂商的图像生成与图像编辑协议。",
     "systemPromptTooLong": "系统提示词不能超过 20000 个字符。",
     "invalidProtocolDefaultsConfig": "协议默认配置无效。",
+    "modelAccessDenied": "当前分组无权使用此模型。",
     "modelRouteNotConfigured": "模型路由未配置。",
     "noActiveApiKey": "没有可用的 API Key。",
     "platformModelNameExists": "平台模型名称已存在。",
