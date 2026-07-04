@@ -678,8 +678,8 @@ func (s *Service) readGeneratedImage(ctx context.Context, image llm.GeneratedIma
 	if url == "" {
 		return nil, mimeType, ErrUpstreamEmptyResponse
 	}
-	if _, _, ok := geminiGeneratedFileURLs(url); ok {
-		return nil, mimeType, fmt.Errorf("Gemini Files generated image URI is unsupported")
+	if isGeminiFilesURL(url) {
+		return nil, mimeType, fmt.Errorf("Gemini Files generated image URI is not supported")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

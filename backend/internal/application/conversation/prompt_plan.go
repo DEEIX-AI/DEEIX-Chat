@@ -229,10 +229,7 @@ func estimateTranscriptTokens(messages []llm.Message) int64 {
 func countStableTextAttachments(attachments []AttachmentInput) int {
 	count := 0
 	for _, att := range attachments {
-		if normalizeAttachmentKind(att.Kind, att.MimeType) == "image" {
-			continue
-		}
-		if strings.TrimSpace(att.ExtractedText) == "" {
+		if !isStableTextAttachment(att) {
 			continue
 		}
 		count++
@@ -245,10 +242,7 @@ func stableAttachmentSourceRefs(attachments []AttachmentInput, currentArtifacts 
 	refs := make([]PromptSourceRef, 0, countStableTextAttachments(attachments))
 	fallbackArtifacts := contextArtifactsByKindAndSourceID(currentArtifacts, domainconversation.ContextArtifactFileRAGFallback)
 	for _, att := range attachments {
-		if normalizeAttachmentKind(att.Kind, att.MimeType) == "image" {
-			continue
-		}
-		if strings.TrimSpace(att.ExtractedText) == "" {
+		if !isStableTextAttachment(att) {
 			continue
 		}
 		sourceID := stableAttachmentSourceID(att)

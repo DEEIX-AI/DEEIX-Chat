@@ -1435,8 +1435,7 @@ func buildAttachmentProcessTrace(
 		payload.FileNames = append(payload.FileNames, name)
 		ref := newAttachmentTraceFileRef(item, name)
 		payload.FileRefs = append(payload.FileRefs, ref)
-		kind := normalizeAttachmentKind(item.Kind, item.MimeType)
-		if kind == "image" {
+		if item.ContextMode == fileContextModeDirectImage {
 			payload.FileGroups.DirectImages = append(payload.FileGroups.DirectImages, name)
 			payload.FileGroupRefs.DirectImages = append(payload.FileGroupRefs.DirectImages, ref)
 			continue

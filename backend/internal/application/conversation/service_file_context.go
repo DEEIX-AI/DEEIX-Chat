@@ -96,6 +96,25 @@ func filterAttachmentsByContextMode(items []AttachmentInput, contextMode string)
 	return result
 }
 
+func isStableTextAttachment(item AttachmentInput) bool {
+	if strings.EqualFold(strings.TrimSpace(item.ContextMode), fileContextModeDirectImage) {
+		return false
+	}
+	return strings.TrimSpace(item.ExtractedText) != ""
+}
+
+func shouldShowAttachmentProcessTrace(items []AttachmentInput) bool {
+	for _, item := range items {
+		if item.Current {
+			return true
+		}
+		if !strings.EqualFold(strings.TrimSpace(item.ContextMode), fileContextModeSkipped) {
+			return true
+		}
+	}
+	return false
+}
+
 func buildConversationFileContextPlan(
 	attachments []AttachmentInput,
 	fileMode string,
@@ -109,7 +128,7 @@ func buildConversationFileContextPlan(
 	}
 	for _, item := range attachments {
 		kind := normalizeAttachmentKind(item.Kind, item.DetectedMIME)
-		if kind == "image" {
+		if kind == "image" && item.Current {
 			item.ContextMode = fileContextModeDirectImage
 			plan.Attachments = append(plan.Attachments, item)
 			plan.FullAttachments = append(plan.FullAttachments, item)

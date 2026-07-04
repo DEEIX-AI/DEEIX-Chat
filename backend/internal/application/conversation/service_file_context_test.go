@@ -94,18 +94,39 @@ func TestPrependStableFileContextKeepsFilesAtPromptTop(t *testing.T) {
 	}
 }
 
-func TestPrependStableFileContextSkipsImages(t *testing.T) {
+func TestPrependStableFileContextIncludesHistoricalImageOCRText(t *testing.T) {
+	messages := []llm.Message{{Role: "user", Content: "继续看图"}}
+	attachments := []AttachmentInput{{
+		Kind:          "image",
+		MimeType:      "image/png",
+		FileName:      "photo.png",
+		ExtractedText: "图片 OCR 文字",
+		ContextMode:   fileContextModeFull,
+	}}
+
+	got := prependStableFileContext(messages, attachments)
+	if len(got) != len(messages)+1 {
+		t.Fatalf("expected historical image OCR text to be prepended, got %#v", got)
+	}
+	if !strings.Contains(got[0].Content, `<file name="photo.png">图片 OCR 文字</file>`) {
+		t.Fatalf("expected stable context to contain OCR text, got %q", got[0].Content)
+	}
+}
+
+func TestPrependStableFileContextSkipsCurrentDirectImageOCRText(t *testing.T) {
 	messages := []llm.Message{{Role: "user", Content: "看图"}}
 	attachments := []AttachmentInput{{
 		Kind:          "image",
 		MimeType:      "image/png",
 		FileName:      "photo.png",
-		ExtractedText: "image text should not be injected as stable file",
+		ExtractedText: "本轮图片 OCR 不应重复注入",
+		ContextMode:   fileContextModeDirectImage,
+		Current:       true,
 	}}
 
 	got := prependStableFileContext(messages, attachments)
 	if len(got) != len(messages) {
-		t.Fatalf("expected image attachment to stay out of stable text context, got %#v", got)
+		t.Fatalf("expected current direct image OCR text to stay out of stable context, got %#v", got)
 	}
 }
 
@@ -149,6 +170,142 @@ func TestBuildConversationFileContextPlanSkipsOversizedFileWhenRAGUnavailable(t 
 	}
 	if plan.Skipped[0].ContextMode != fileContextModeSkipped {
 		t.Fatalf("expected skipped context mode, got %#v", plan.Skipped[0])
+	}
+}
+
+func TestBuildConversationFileContextPlanOnlyDirectUploadsCurrentImages(t *testing.T) {
+	cfg := config.Config{RAGEnabled: true, EmbeddingEnabled: true}
+	plan := buildConversationFileContextPlan([]AttachmentInput{
+		{
+			FileID:       "file_current_image",
+			Kind:         "image",
+			MimeType:     "image/png",
+			DetectedMIME: "image/png",
+			Current:      true,
+		},
+		{
+			FileID:       "file_history_image",
+			Kind:         "image",
+			MimeType:     "image/png",
+			DetectedMIME: "image/png",
+			EmbedStatus:  "ready",
+		},
+	}, "auto", cfg, "gpt-5.5", "", true)
+
+	if len(plan.FullAttachments) != 1 || plan.FullAttachments[0].FileID != "file_current_image" {
+		t.Fatalf("expected only current image to be direct/full context, got %#v", plan.FullAttachments)
+	}
+	if plan.FullAttachments[0].ContextMode != fileContextModeDirectImage {
+		t.Fatalf("expected current image to use direct image mode, got %#v", plan.FullAttachments[0])
+	}
+	if len(plan.RAGAttachments) != 1 || plan.RAGAttachments[0].FileID != "file_history_image" {
+		t.Fatalf("expected historical OCR image to use RAG instead of direct upload, got %#v", plan.RAGAttachments)
+	}
+	if plan.RAGAttachments[0].ContextMode != fileContextModeRAG {
+		t.Fatalf("expected historical image context mode RAG, got %#v", plan.RAGAttachments[0])
+	}
+}
+
+func TestBuildConversationFileContextPlanUsesRAGForHistoricalImageOCRWhenRequested(t *testing.T) {
+	cfg := config.Config{RAGEnabled: true, EmbeddingEnabled: true}
+	plan := buildConversationFileContextPlan([]AttachmentInput{{
+		FileID:        "file_history_image",
+		Kind:          "image",
+		MimeType:      "image/png",
+		DetectedMIME:  "image/png",
+		EmbedStatus:   "ready",
+		ExtractedText: "historical image OCR",
+	}}, "rag", cfg, "gpt-5.5", "", true)
+
+	if len(plan.RAGAttachments) != 1 || plan.RAGAttachments[0].FileID != "file_history_image" {
+		t.Fatalf("expected historical image OCR to use RAG in rag mode, got %#v", plan.RAGAttachments)
+	}
+	if len(plan.FullAttachments) != 0 {
+		t.Fatalf("expected no full attachments while RAG is available in rag mode, got %#v", plan.FullAttachments)
+	}
+}
+
+func TestBuildConversationFileContextPlanUsesHistoricalImageOCRTextAsFullContext(t *testing.T) {
+	plan := buildConversationFileContextPlan([]AttachmentInput{{
+		FileID:        "file_history_image",
+		Kind:          "image",
+		MimeType:      "image/png",
+		DetectedMIME:  "image/png",
+		ExtractedText: "historical image OCR",
+		EmbedStatus:   "pending",
+	}}, "auto", config.Config{}, "gpt-5.5", "", false)
+
+	if len(plan.FullAttachments) != 1 || plan.FullAttachments[0].FileID != "file_history_image" {
+		t.Fatalf("expected historical image OCR text to use full context, got %#v", plan.FullAttachments)
+	}
+	if plan.FullAttachments[0].ContextMode != fileContextModeFull {
+		t.Fatalf("expected historical image OCR text context mode full, got %#v", plan.FullAttachments[0])
+	}
+	if len(plan.RAGAttachments) != 0 {
+		t.Fatalf("expected no RAG attachments when retrieval is unavailable, got %#v", plan.RAGAttachments)
+	}
+}
+
+func TestBuildConversationFileContextPlanKeepsVideoOutOfTextContext(t *testing.T) {
+	plan := buildConversationFileContextPlan([]AttachmentInput{{
+		FileID:        "file_video",
+		Kind:          "video",
+		MimeType:      "video/mp4",
+		DetectedMIME:  "video/mp4",
+		FileCategory:  fileCategoryVideo,
+		ExtractedText: "unexpected video text",
+	}}, "auto", config.Config{}, "gpt-5.5", "", false)
+
+	if len(plan.FullAttachments) != 0 || len(plan.RAGAttachments) != 0 {
+		t.Fatalf("expected video to stay out of text context, got %#v", plan)
+	}
+	if len(plan.Skipped) != 1 || plan.Skipped[0].ContextMode != fileContextModeSkipped {
+		t.Fatalf("expected video to be skipped, got %#v", plan.Skipped)
+	}
+}
+
+func TestImageAttachmentsForCurrentUserSkipsHistoricalImages(t *testing.T) {
+	got := imageAttachmentsForCurrentUser([]AttachmentInput{
+		{
+			FileID:   "file_history_image",
+			Kind:     "image",
+			MimeType: "image/png",
+		},
+		{
+			FileID:   "file_current_image",
+			Kind:     "image",
+			MimeType: "image/png",
+			Current:  true,
+		},
+	})
+
+	if len(got) != 1 || got[0].FileID != "file_current_image" {
+		t.Fatalf("expected only current image to be injected as image part, got %#v", got)
+	}
+}
+
+func TestShouldShowAttachmentProcessTraceSkipsHistoricalSkippedOnly(t *testing.T) {
+	if shouldShowAttachmentProcessTrace([]AttachmentInput{{
+		FileID:      "file_history_image",
+		ContextMode: fileContextModeSkipped,
+	}}) {
+		t.Fatal("expected historical skipped-only attachments to stay out of process trace")
+	}
+}
+
+func TestShouldShowAttachmentProcessTraceKeepsCurrentOrIncludedFiles(t *testing.T) {
+	if !shouldShowAttachmentProcessTrace([]AttachmentInput{{
+		FileID:      "file_current_image",
+		ContextMode: fileContextModeSkipped,
+		Current:     true,
+	}}) {
+		t.Fatal("expected current skipped attachments to be visible in process trace")
+	}
+	if !shouldShowAttachmentProcessTrace([]AttachmentInput{{
+		FileID:      "file_history_image",
+		ContextMode: fileContextModeRAG,
+	}}) {
+		t.Fatal("expected included historical attachments to be visible in process trace")
 	}
 }
 

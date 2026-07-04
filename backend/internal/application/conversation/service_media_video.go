@@ -542,6 +542,11 @@ func (s *Service) waitGeminiGeneratedVideoFileReady(ctx context.Context, metadat
 	return mimeType, nil
 }
 
+func isGeminiFilesURL(rawURL string) bool {
+	_, _, ok := geminiGeneratedFileURLs(rawURL)
+	return ok
+}
+
 func geminiGeneratedFileURLs(rawURL string) (string, string, bool) {
 	parsed, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" || !isGeminiFilesHost(parsed.Hostname()) {

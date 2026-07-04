@@ -520,7 +520,7 @@ func (s *Service) sendMessageInternal(
 		}
 	}
 	llmMessages, _ := assembler.Assemble(historyMsgs)
-	if traceRecorder != nil {
+	if traceRecorder != nil && shouldShowAttachmentProcessTrace(fileContextPlan.Attachments) {
 		summary, markdown, payload := buildAttachmentProcessTrace(fileMode, fileContextPlan.Attachments)
 		traceRecorder.appendProcessSection(summary, markdown, payload, messageTraceStatusStreaming)
 	}

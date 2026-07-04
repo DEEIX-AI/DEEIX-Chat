@@ -690,8 +690,7 @@ func buildStableFileContextXML(attachments []AttachmentInput) userContextXML {
 	}
 	items := make([]AttachmentInput, 0, len(attachments))
 	for _, att := range attachments {
-		kind := normalizeAttachmentKind(att.Kind, att.MimeType)
-		if kind == "image" || strings.TrimSpace(att.ExtractedText) == "" {
+		if !isStableTextAttachment(att) {
 			continue
 		}
 		items = append(items, att)
@@ -728,7 +727,7 @@ func imageAttachmentsForCurrentUser(attachments []AttachmentInput) []AttachmentI
 	}
 	result := make([]AttachmentInput, 0)
 	for _, att := range attachments {
-		if normalizeAttachmentKind(att.Kind, att.MimeType) == "image" {
+		if att.Current && normalizeAttachmentKind(att.Kind, att.MimeType) == "image" {
 			result = append(result, att)
 		}
 	}

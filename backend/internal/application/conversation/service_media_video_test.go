@@ -1,6 +1,12 @@
 package conversation
 
-import "testing"
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+)
 
 func TestGeminiGeneratedFileURLsBuildsMetadataAndDownloadURLs(t *testing.T) {
 	metadataURL, downloadURL, ok := geminiGeneratedFileURLs("https://generativelanguage.googleapis.com/v1beta/files/video_123?alt=media&key=secret")
@@ -55,6 +61,17 @@ func TestGeminiGeneratedFileStateHelpers(t *testing.T) {
 	}
 	if geminiGeneratedFileReady("PROCESSING") || geminiGeneratedFileFailed("PROCESSING") {
 		t.Fatal("expected processing to stay pending")
+	}
+}
+
+func TestReadGeneratedVideoRequiresAPIKeyForGeminiFilesURL(t *testing.T) {
+	service := &Service{}
+	_, _, err := service.readGeneratedVideo(context.Background(), llm.GeneratedVideo{
+		URL:      "https://generativelanguage.googleapis.com/v1beta/files/video_123:download?alt=media",
+		MIMEType: "video/mp4",
+	}, "")
+	if err == nil || !strings.Contains(err.Error(), "requires an API key") {
+		t.Fatalf("expected missing Gemini API key to be rejected, got %v", err)
 	}
 }
 
