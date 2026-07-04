@@ -98,13 +98,12 @@ export function OptionSelect<TOption extends OptionSelectOption>({
         : "text-left md:text-right";
 
   React.useEffect(() => {
-    if (fallbackValue && !disabled && normalizedValue && !hasCurrentValue && normalizedValue !== fallbackValue) {
+    if (fallbackValue !== undefined && !disabled && normalizedValue && !hasCurrentValue && normalizedValue !== fallbackValue) {
       onChange(fallbackValue);
     }
   }, [disabled, fallbackValue, hasCurrentValue, normalizedValue, onChange]);
 
   const selectedItem = React.useMemo(() => {
-    if (!selectedValue) return undefined;
     return options.find((item) => item.value === selectedValue);
   }, [options, selectedValue]);
 

@@ -120,7 +120,6 @@ type ConversationTraceRepository interface {
 	CreateConversationToolCall(ctx context.Context, item *domainconversation.ToolCall) error
 	CreateConversationToolCalls(ctx context.Context, items []domainconversation.ToolCall) error
 	ListConversationRuns(ctx context.Context, userID uint, conversationID uint, offset int, limit int) ([]domainconversation.Run, int64, error)
-	GetLatestConversationRunModel(ctx context.Context, userID uint) (*domainconversation.Run, error)
 	ListConversationRunsByRunIDs(ctx context.Context, userID uint, conversationID uint, runIDs []string) ([]domainconversation.Run, error)
 	ListConversationEventLogs(ctx context.Context, filter ConversationEventLogListFilter, offset int, limit int) ([]domainconversation.EventLog, int64, error)
 }

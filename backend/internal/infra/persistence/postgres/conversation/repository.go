@@ -1699,20 +1699,6 @@ func (r *Repo) ListConversationRuns(
 	return toConversationRunDomains(items), total, nil
 }
 
-// GetLatestConversationRunModel 查询用户最近一次成功运行的模型记录。
-func (r *Repo) GetLatestConversationRunModel(ctx context.Context, userID uint) (*domainconversation.Run, error) {
-	var item models.ConversationRun
-	if err := r.db.WithContext(ctx).
-		Model(&models.ConversationRun{}).
-		Where("user_id = ? AND status = ? AND platform_model_name <> ?", userID, "success", "").
-		Order("id DESC").
-		First(&item).Error; err != nil {
-		return nil, translateError(err)
-	}
-	result := toConversationRunDomain(item)
-	return &result, nil
-}
-
 // ListConversationEventLogs 分页查询管理员对话事件日志。
 func (r *Repo) ListConversationEventLogs(
 	ctx context.Context,

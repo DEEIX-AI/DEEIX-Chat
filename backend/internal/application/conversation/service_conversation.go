@@ -448,16 +448,13 @@ func (s *Service) ListConversationRuns(
 	return s.repo.ListConversationRuns(ctx, userID, conversationID, offset, limit)
 }
 
-// GetLatestConversationRunModel 查询当前用户最近一次真实使用的模型。
-func (s *Service) GetLatestConversationRunModel(ctx context.Context, userID uint) (*model.Run, error) {
-	run, err := s.repo.GetLatestConversationRunModel(ctx, userID)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return nil, nil
-		}
-		return nil, err
+// GetConversationSystemDefaultModel 返回后台配置的新会话系统推荐模型。
+func (s *Service) GetConversationSystemDefaultModel() string {
+	if s == nil || s.cfg == nil {
+		return ""
 	}
-	return run, nil
+	cfg := s.cfg.Snapshot()
+	return strings.TrimSpace(cfg.ConversationDefaultModel)
 }
 
 // EventLogListFilter 描述管理员对话事件筛选和排序条件。

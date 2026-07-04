@@ -12,6 +12,7 @@ export type ConversationSettingsField = {
   section: ConversationSettingsSection;
   namespace: "chat";
   key:
+    | "conversation_default_model"
     | "conversation_task_model"
     | "default_system_prompt"
     | "conversation_title_prompt"
@@ -43,6 +44,7 @@ export type ConversationSettingsField = {
 };
 
 export const CONVERSATION_TASK_MODEL_FOLLOW = "follow";
+export const CONVERSATION_DEFAULT_MODEL_SYSTEM = "";
 
 export const CONTEXT_COMPACT_ENABLED_RULE: ConversationVisibilityRule = {
   field: "chat.context_compact_enabled",
@@ -193,6 +195,15 @@ type ConversationSettingsTranslator = (key: string) => string;
 
 export function buildConversationSettingsFields(t: ConversationSettingsTranslator): ConversationSettingsField[] {
   return [
+    {
+      section: "conversation",
+      namespace: "chat",
+      key: "conversation_default_model",
+      label: t("fields.defaultModel.label"),
+      description: t("fields.defaultModel.description"),
+      type: "select",
+      options: [{ label: t("defaultModel.systemRecommended"), value: CONVERSATION_DEFAULT_MODEL_SYSTEM }],
+    },
     {
       section: "conversation",
       namespace: "chat",

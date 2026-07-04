@@ -368,6 +368,7 @@ type Config struct {
 	ContextCompactEnabled    bool
 	ContextCompactTrigger    int
 	ContextCompactPreserve   int
+	ConversationDefaultModel string
 	ConversationTaskModel    string
 	ConversationTitlePrompt  string
 	ConversationLabelsPrompt string
@@ -588,6 +589,7 @@ func Load() Config {
 		ContextCompactEnabled:             false,
 		ContextCompactTrigger:             65536,
 		ContextCompactPreserve:            8,
+		ConversationDefaultModel:          "",
 		ConversationTaskModel:             "follow",
 		ConversationTitlePrompt:           "",
 		ConversationLabelsPrompt:          "",

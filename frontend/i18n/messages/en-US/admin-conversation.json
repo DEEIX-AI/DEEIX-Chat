@@ -5,6 +5,9 @@
     "optionPassthrough": "Option passthrough",
     "dataExport": "Data export"
   },
+  "defaultModel": {
+    "systemRecommended": "System recommended"
+  },
   "taskModel": {
     "follow": "Follow current model"
   },
@@ -14,6 +17,10 @@
     "disabled": "Disabled"
   },
   "fields": {
+    "defaultModel": {
+      "label": "New conversation default model",
+      "description": "Used first when users choose System recommended or have no personal default model. Leave empty to fall back to the first available model."
+    },
     "taskModel": {
       "label": "Task model",
       "description": "Chat model used to generate conversation titles and labels."

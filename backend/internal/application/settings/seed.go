@@ -67,6 +67,7 @@ func defaultSettings() []domainsettings.SystemSetting {
 		{Namespace: "chat", Key: "context_compact_enabled", Value: "false", ValueType: "bool", Description: "是否允许上下文压缩功能"},
 		{Namespace: "chat", Key: "context_compact_trigger_tokens", Value: "65536", ValueType: "int", Description: "压缩触发阈值"},
 		{Namespace: "chat", Key: "context_compact_preserve_recent_turns", Value: "8", ValueType: "int", Description: "压缩保留轮次"},
+		{Namespace: "chat", Key: "conversation_default_model", Value: "", ValueType: "string", Description: "新会话系统推荐模型；留空时回退到第一个可用模型"},
 		{Namespace: "chat", Key: "conversation_task_model", Value: "follow", ValueType: "string", Description: "会话标题/标签生成任务使用的聊天模型，follow 表示跟随当前会话模型；图片模型不会用于标题/标签生成"},
 		{Namespace: "chat", Key: "conversation_title_prompt", Value: "", ValueType: "string", Description: "会话标题生成提示词，支持 {{MESSAGES}} 占位符；空串使用内置默认值"},
 		{Namespace: "chat", Key: "conversation_labels_prompt", Value: "", ValueType: "string", Description: "会话标签生成提示词，支持 {{MESSAGES}} 占位符；空串使用内置默认值"},

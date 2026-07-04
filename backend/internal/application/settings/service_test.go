@@ -309,6 +309,17 @@ func TestRuntimeSettingsAppliesCustomPromptSettings(t *testing.T) {
 	}
 }
 
+func TestRuntimeSettingsAppliesConversationDefaultModel(t *testing.T) {
+	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	cfg := config.Config{}
+
+	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "chat", Key: "conversation_default_model", Value: " gpt-5-mini "})
+
+	if cfg.ConversationDefaultModel != "gpt-5-mini" {
+		t.Fatalf("expected conversation default model to be applied, got %q", cfg.ConversationDefaultModel)
+	}
+}
+
 func TestValidateFullContextLimitsAllowUnlimitedValues(t *testing.T) {
 	cases := []PatchItem{
 		{Namespace: "file", Key: "full_context_limit_enabled", Value: "true"},

@@ -138,6 +138,8 @@ func (r *RuntimeSettings) applyItem(cfg *config.Config, item domainsettings.Syst
 		cfg.ContextCompactTrigger = toInt(item.Value, cfg.ContextCompactTrigger)
 	case "chat:context_compact_preserve_recent_turns":
 		cfg.ContextCompactPreserve = toInt(item.Value, cfg.ContextCompactPreserve)
+	case "chat:conversation_default_model":
+		cfg.ConversationDefaultModel = strings.TrimSpace(item.Value)
 	case "chat:conversation_task_model":
 		cfg.ConversationTaskModel = item.Value
 	case "chat:conversation_title_prompt":
