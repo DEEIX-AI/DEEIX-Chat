@@ -28,6 +28,7 @@ import {
 import {
   applyBranchSelectionPath,
   buildChildrenIndex,
+  parseAttachments,
   resolveBranchSelectionPath,
   toBranchKey,
 } from "@/features/chat/model/chat-thread";
@@ -41,6 +42,7 @@ import {
   streamImageEdit,
   streamImageGeneration,
   streamMessage as streamConversationMessage,
+  streamVideoGeneration,
   updateMessage,
   type ConversationStreamOptions,
 } from "@/shared/api/conversation";
@@ -48,6 +50,7 @@ import type {
   ConversationDTO,
   ConversationOptions,
   MediaImageRequest,
+  MediaVideoRequest,
   MessageDTO,
   SendMessageRequest,
   SendMessageResult,
@@ -107,14 +110,24 @@ function resolveInputSideUsageValue(...values: Array<number | null | undefined>)
 function resolveMediaStatusLabel(
   status: string,
   fallbackMessage: string,
+  contentType: string | undefined,
   t: ReturnType<typeof useTranslations>,
 ): string {
   switch (status.trim()) {
     case "queued":
+      if (contentType === "video") {
+        return t("mediaStatus.videoQueued");
+      }
       return t("mediaStatus.queued");
     case "running":
+      if (contentType === "video") {
+        return t("mediaStatus.videoRunning");
+      }
       return t("mediaStatus.running");
     case "saving_artifact":
+      if (contentType === "video") {
+        return t("mediaStatus.videoSavingArtifact");
+      }
       return t("mediaStatus.savingArtifact");
     default:
       return fallbackMessage.trim() || status.trim();
@@ -480,7 +493,8 @@ export function useChatMessageSubmit({
           description: t("attachmentsTruncatedDescription", { count: maxFilesPerMessage }),
         });
       }
-      const submitDecision = resolveChatSubmitDecision(selectedModel, effectiveAttachments);
+      const sanitizedOptions = sanitizeConversationOptions(requestOptions);
+      const submitDecision = resolveChatSubmitDecision(selectedModel, effectiveAttachments, sanitizedOptions);
       if (submitDecision.blockedReason) {
         toast.error(t("mediaInputUnsupported"), {
           description: resolveSubmitBlockDescription(submitDecision.blockedReason, t),
@@ -510,9 +524,12 @@ export function useChatMessageSubmit({
       let shouldKeepConversationLayout = false;
       const streamAbortController = new AbortController();
       const clientRunID = createClientRunID();
-      const sanitizedOptions = sanitizeConversationOptions(requestOptions);
       const assistantImageAspectRatio =
-        submitTask === "chat" ? undefined : resolveImageLoadingAspectRatio(sanitizedOptions);
+        submitTask === "image_generation" || submitTask === "image_edit"
+          ? resolveImageLoadingAspectRatio(sanitizedOptions)
+          : undefined;
+      const assistantContentType =
+        submitTask === "chat" ? "markdown" : submitTask === "video_generation" ? "video" : "image";
       let targetConversationID = conversationIDRef.current;
       let targetConversation = activeConversationRef.current;
       let metadataRefreshInFlight = false;
@@ -547,7 +564,7 @@ export function useChatMessageSubmit({
         assistantText: "",
         assistantPending: true,
         assistantStreaming: true,
-        assistantContentType: submitTask === "chat" ? "markdown" : "image",
+        assistantContentType,
         assistantImageAspectRatio,
         assistantInlineAlert: undefined,
         assistantCreatedAt: createdAt,
@@ -670,7 +687,7 @@ export function useChatMessageSubmit({
             );
           },
           onMediaStatus: (event) => {
-            const activityLabel = resolveMediaStatusLabel(event.status, event.message, t);
+            const activityLabel = resolveMediaStatusLabel(event.status, event.message, event.content_type, t);
             setPendingExchange((prev) =>
               prev && prev.key === exchangeKey
                 ? { ...prev, assistantFileProc: true, assistantActivityLabel: activityLabel }
@@ -756,6 +773,12 @@ export function useChatMessageSubmit({
             htmlVisualColorMode: requestHTMLVisualPromptEnabled ? requestHTMLVisualColorMode : undefined,
           };
           completed = await streamConversationMessage(token, targetConversationID, chatPayload, streamOptions);
+        } else if (submitTask === "video_generation") {
+          const mediaPayload: MediaVideoRequest = {
+            ...commonStreamPayload,
+            prompt: payloadContent,
+          };
+          completed = await streamVideoGeneration(token, targetConversationID, mediaPayload, streamOptions);
         } else {
           const mediaPayload: MediaImageRequest = {
             ...commonStreamPayload,
@@ -810,6 +833,7 @@ export function useChatMessageSubmit({
             assistantCreatedAt: completed.assistantMessage.createdAt,
             assistantUpdatedAt: completed.assistantMessage.updatedAt,
             assistantContentType: completed.assistantMessage.contentType || prev.assistantContentType,
+            assistantAttachments: parseAttachments(completed.assistantMessage.attachments),
             assistantInputTokens: resolveInputSideUsageValue(
               completed.assistantMessage.inputTokens,
               completed.userMessage.inputTokens,

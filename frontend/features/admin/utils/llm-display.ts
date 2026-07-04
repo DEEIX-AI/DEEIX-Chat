@@ -43,6 +43,7 @@ export const PROTOCOL_OPTIONS: ReadonlyArray<ProtocolOption> = [
   { value: "anthropic_messages", label: "Messages (Anthropic)", kinds: ["chat"] },
   { value: "google_generate_content", label: "Generate Content (Google)", kinds: ["chat"] },
   { value: "google_image_generation", label: "Image Generation (Google)", kinds: ["image_gen", "image_edit"] },
+  { value: "gemini_interactions", label: "Interactions (Google)", kinds: ["chat", "image_gen", "image_edit", "video_gen"] },
   { value: "xai_responses", label: "Responses (xAI)", kinds: ["chat"] },
   { value: "xai_image", label: "Images Generations (xAI)", kinds: ["image_gen"] },
   { value: "xai_image_edits", label: "Images Edits (xAI)", kinds: ["image_edit"] },

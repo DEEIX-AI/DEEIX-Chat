@@ -48,6 +48,8 @@ func defaultRouteModelMatchesTask(kindsJSON string, taskType string) bool {
 		return hasModelKind(kinds, modelKindImageGen)
 	case TaskTypeImageEdit:
 		return hasModelKind(kinds, modelKindImageEdit)
+	case TaskTypeVideoGeneration:
+		return hasModelKind(kinds, modelKindVideoGen)
 	default:
 		return hasModelKind(kinds, modelKindChat)
 	}

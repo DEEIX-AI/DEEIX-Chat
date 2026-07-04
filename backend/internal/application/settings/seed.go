@@ -7,9 +7,10 @@ import (
 )
 
 const (
-	defaultAllowedMIMETypes = "image/jpeg,image/png,image/webp,image/gif,text/plain,text/markdown,text/csv,text/yaml,application/json,application/yaml,application/x-yaml,application/toml,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-	defaultRAGModel         = "sentence-transformers/all-MiniLM-L6-v2"
-	defaultLoginPageTitle   = "Sign in to DEEIX Chat"
+	legacyDefaultAllowedMIMETypes = "image/jpeg,image/png,image/webp,image/gif,text/plain,text/markdown,text/csv,text/yaml,application/json,application/yaml,application/x-yaml,application/toml,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+	defaultAllowedMIMETypes       = "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,text/plain,text/markdown,text/csv,text/yaml,application/json,application/yaml,application/x-yaml,application/toml,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+	defaultRAGModel               = "sentence-transformers/all-MiniLM-L6-v2"
+	defaultLoginPageTitle         = "Sign in to DEEIX Chat"
 )
 
 // defaultSettings 返回所有动态配置的默认种子数据。

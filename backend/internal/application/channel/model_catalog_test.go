@@ -101,6 +101,25 @@ func TestProtocolDefaultsForGoogleUsesGoogleImageGeneration(t *testing.T) {
 	if defaults[modelKindImageEdit] != "google_image_generation" {
 		t.Fatalf("expected Google image edit default, got %q in %s", defaults[modelKindImageEdit], raw)
 	}
+	if defaults[modelKindVideoGen] != "gemini_interactions" {
+		t.Fatalf("expected Google video generation default, got %q in %s", defaults[modelKindVideoGen], raw)
+	}
+}
+
+func TestNormalizeProtocolDefaultsJSONAcceptsGeminiInteractionsForVideo(t *testing.T) {
+	normalized, err := normalizeProtocolDefaultsJSON(`{"chat":"gemini_interactions","image_gen":"gemini_interactions","image_edit":"gemini_interactions","video_gen":"gemini_interactions"}`)
+	if err != nil {
+		t.Fatalf("normalize Gemini Interactions defaults: %v", err)
+	}
+	var defaults map[string]string
+	if err := json.Unmarshal([]byte(normalized), &defaults); err != nil {
+		t.Fatalf("unmarshal normalized defaults: %v", err)
+	}
+	for _, kind := range []string{modelKindChat, modelKindImageGen, modelKindImageEdit, modelKindVideoGen} {
+		if defaults[kind] != "gemini_interactions" {
+			t.Fatalf("expected Gemini Interactions %s default, got %s", kind, normalized)
+		}
+	}
 }
 
 func TestNormalizeCompatibleOnlyAllowsSupportedUpstreamProviders(t *testing.T) {
@@ -323,6 +342,22 @@ func TestInferKindsJSONRecognizesGeminiImageModels(t *testing.T) {
 	}
 }
 
+func TestInferKindsJSONRecognizesGeminiOmniInteractionsModel(t *testing.T) {
+	for _, modelName := range []string{"gemini-omni-flash-preview"} {
+		if got := inferKindsJSON(modelName); got != `["chat","image_gen","image_edit","video_gen"]` {
+			t.Fatalf("expected %s to infer Interactions universal kinds, got %s", modelName, got)
+		}
+	}
+}
+
+func TestInferKindsJSONRecognizesVideoOnlyModels(t *testing.T) {
+	for _, modelName := range []string{"veo-3.1-fast"} {
+		if got := inferKindsJSON(modelName); got != `["video_gen"]` {
+			t.Fatalf("expected %s to infer video generation kind, got %s", modelName, got)
+		}
+	}
+}
+
 func TestInferKindsJSONRecognizesXAIImageModels(t *testing.T) {
 	for _, modelName := range []string{
 		"grok-imagine-image",
@@ -361,6 +396,10 @@ func TestNormalizeProtocolDefaultsJSONRejectsProtocolKindMismatch(t *testing.T) 
 	_, err := normalizeProtocolDefaultsJSON(`{"image_gen":"openai_responses"}`)
 	if !errors.Is(err, ErrInvalidAdapter) {
 		t.Fatalf("expected ErrInvalidAdapter, got %v", err)
+	}
+	_, err = normalizeProtocolDefaultsJSON(`{"audio":"gemini_interactions"}`)
+	if !errors.Is(err, ErrInvalidAdapter) {
+		t.Fatalf("expected ErrInvalidAdapter for audio Gemini Interactions default, got %v", err)
 	}
 }
 
@@ -430,6 +469,26 @@ func TestResolveRouteProtocolsKeepsSingleGoogleProtocolForDualImageKinds(t *test
 	}
 	if len(protocols) != 1 || protocols[0] != "google_image_generation" {
 		t.Fatalf("expected single Google image protocol, got %#v", protocols)
+	}
+}
+
+func TestResolveRouteProtocolsUsesGeminiInteractionsForUniversalOmniKinds(t *testing.T) {
+	kindsJSON := `["chat","image_gen","image_edit","video_gen"]`
+
+	protocol, err := resolveRouteProtocol("", compatibleGoogle, "", kindsJSON)
+	if err != nil {
+		t.Fatalf("resolve route protocol: %v", err)
+	}
+	if protocol != "gemini_interactions" {
+		t.Fatalf("expected Gemini Interactions unified protocol, got %q", protocol)
+	}
+
+	protocols, err := resolveRouteProtocols(nil, compatibleGoogle, "", kindsJSON)
+	if err != nil {
+		t.Fatalf("resolve route protocols: %v", err)
+	}
+	if len(protocols) != 1 || protocols[0] != "gemini_interactions" {
+		t.Fatalf("expected single Gemini Interactions protocol, got %#v", protocols)
 	}
 }
 
@@ -512,6 +571,9 @@ func TestIsRouteAllowedForTaskSeparatesChatAndImageProtocols(t *testing.T) {
 	if !IsRouteAllowedForTask(TaskTypeImageGeneration, `["image_gen"]`, "google_image_generation") {
 		t.Fatalf("expected image generation task to allow Google image generation protocol")
 	}
+	if !IsRouteAllowedForTask(TaskTypeImageGeneration, `["image_gen"]`, "gemini_interactions") {
+		t.Fatalf("expected image generation task to allow Gemini Interactions protocol")
+	}
 	if !IsRouteAllowedForTask(TaskTypeImageGeneration, `["image_gen"]`, "xai_image") {
 		t.Fatalf("expected image generation task to allow xAI image protocol")
 	}
@@ -524,11 +586,32 @@ func TestIsRouteAllowedForTaskSeparatesChatAndImageProtocols(t *testing.T) {
 	if !IsRouteAllowedForTask(TaskTypeImageEdit, `["image_edit"]`, "google_image_generation") {
 		t.Fatalf("expected image edit task to allow Google image protocol")
 	}
+	if !IsRouteAllowedForTask(TaskTypeImageEdit, `["image_edit"]`, "gemini_interactions") {
+		t.Fatalf("expected image edit task to allow Gemini Interactions protocol")
+	}
 	if !IsRouteAllowedForTask(TaskTypeImageEdit, `["image_edit"]`, "xai_image_edits") {
 		t.Fatalf("expected image edit task to allow xAI image edits protocol")
 	}
 	if IsRouteAllowedForTask(TaskTypeImageEdit, `["image_edit"]`, "xai_image") {
 		t.Fatalf("expected image edit task to reject xAI image generation protocol")
+	}
+	if !IsRouteAllowedForTask(TaskTypeVideoGeneration, `["video_gen"]`, "gemini_interactions") {
+		t.Fatalf("expected video generation task to allow Gemini Interactions protocol")
+	}
+	if !IsRouteAllowedForTask(TaskTypeVideoGeneration, `["video_gen"]`, "openai_video_generations") {
+		t.Fatalf("expected video generation task to allow OpenAI video protocol")
+	}
+	if IsRouteAllowedForTask(TaskTypeVideoGeneration, `["chat"]`, "openai_responses") {
+		t.Fatalf("expected video generation task to reject chat protocol")
+	}
+	if IsRouteAllowedForTask(TaskTypeChat, `["video_gen"]`, "gemini_interactions") {
+		t.Fatalf("expected chat task to reject video generation protocol")
+	}
+	if !IsRouteAllowedForTask(TaskTypeChat, `["chat"]`, "gemini_interactions") {
+		t.Fatalf("expected chat task to allow Gemini Interactions protocol")
+	}
+	if IsRouteAllowedForTask(TaskTypeChat, `["audio"]`, "gemini_interactions") {
+		t.Fatalf("expected audio task to reject Gemini Interactions protocol")
 	}
 }
 
@@ -544,6 +627,12 @@ func TestDefaultRouteModelMatchesTaskFiltersByKind(t *testing.T) {
 	}
 	if defaultRouteModelMatchesTask(`["chat"]`, TaskTypeImageGeneration) {
 		t.Fatal("expected image generation default route to reject chat model")
+	}
+	if !defaultRouteModelMatchesTask(`["video_gen"]`, TaskTypeVideoGeneration) {
+		t.Fatal("expected video generation default route to accept video generation model")
+	}
+	if defaultRouteModelMatchesTask(`["chat"]`, TaskTypeVideoGeneration) {
+		t.Fatal("expected video generation default route to reject chat model")
 	}
 }
 

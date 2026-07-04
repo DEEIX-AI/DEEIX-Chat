@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, CircleAlert } from "lucide-react";
+import { ChevronDown, CircleAlert, Film } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AssistantMessageMeta } from "@/features/chat/components/message/message-meta";
@@ -16,6 +16,7 @@ import type {
 } from "@/features/chat/types/messages";
 import { MarkdownImage, type MarkdownArtifactActions } from "@/shared/components/markdown/streamdown-components";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
+import { PreviewMedia } from "@/shared/components/file-preview/preview-media";
 import {
   Accordion,
   AccordionContent,
@@ -31,8 +32,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { isUpstreamStreamingDebugBody, summarizeUpstreamError } from "@/features/chat/utils/chat-runtime";
-import type { FileContentResult } from "@/shared/api/file";
+import { fetchFileContent, type FileContentResult } from "@/shared/api/file";
 import type { PreviewDialogFile } from "@/shared/components/file-preview/file-preview-dialog";
+import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { resolveLeadingImagePreview } from "@/features/chat/model/media-image-preview";
 import {
   clearLiveUpstreamThinkTrace,
@@ -54,6 +57,16 @@ function isEditableImageAttachment(attachment: MessageAttachment): boolean {
   );
 }
 
+function isVideoAttachment(attachment: MessageAttachment): boolean {
+  const mimeType = attachment.mimeType.toLowerCase();
+  const detectedMime = attachment.detectedMime?.toLowerCase() || "";
+  return (
+    attachment.fileCategory === "video" ||
+    mimeType.startsWith("video/") ||
+    detectedMime.startsWith("video/")
+  );
+}
+
 function resolveFileIDFromImageSrc(src: string): string | null {
   if (typeof window === "undefined") {
     return null;
@@ -65,6 +78,27 @@ function resolveFileIDFromImageSrc(src: string): string | null {
   } catch {
     return null;
   }
+}
+
+function isGeneratedVideoMarkdownContent(content: string, attachments: MessageAttachment[]): boolean {
+  const blocks = content
+    .trim()
+    .split(/\n{2,}/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (blocks.length === 0) {
+    return false;
+  }
+
+  const videoFileIDs = new Set(attachments.filter(isVideoAttachment).map((attachment) => attachment.fileID));
+  if (videoFileIDs.size === 0) {
+    return false;
+  }
+
+  return blocks.every((block) => {
+    const match = block.match(/^\[Generated video(?: \d+)?\]\(\/api\/v1\/files\/([^/)]+)\/content\)$/);
+    return Boolean(match?.[1] && videoFileIDs.has(match[1]));
+  });
 }
 
 function resolveEditableImageAttachment(
@@ -183,15 +217,33 @@ export function ChatMessageBot({
   const toolTrace = processTrace?.tools;
   const traceEvents = processTrace?.events ?? EMPTY_TRACE_EVENTS;
   const messageStreaming = Boolean(item.isStreaming);
-  const hasStreamdownContent = item.content.trim().length > 0;
-  const leadingImagePreview = React.useMemo(() => resolveLeadingImagePreview(item.content), [item.content]);
+  const inlineVideoAttachment = React.useMemo(
+    () =>
+      !item.isStreaming && item.contentType === "video"
+        ? (item.attachments ?? []).find(isVideoAttachment) ?? null
+        : null,
+    [item.attachments, item.contentType, item.isStreaming],
+  );
+  const visibleAttachments = React.useMemo(
+    () =>
+      inlineVideoAttachment
+        ? (item.attachments ?? []).filter((attachment) => attachment.fileID !== inlineVideoAttachment.fileID)
+        : item.attachments ?? [],
+    [inlineVideoAttachment, item.attachments],
+  );
+  const hideGeneratedVideoMarkdown = inlineVideoAttachment
+    ? isGeneratedVideoMarkdownContent(item.content, item.attachments ?? [])
+    : false;
+  const renderableContent = hideGeneratedVideoMarkdown ? "" : item.content;
+  const hasStreamdownContent = renderableContent.trim().length > 0;
+  const leadingImagePreview = React.useMemo(() => resolveLeadingImagePreview(renderableContent), [renderableContent]);
   const leadingImageAlt = React.useMemo(
     () => leadingImagePreview?.alt || submitT("imagePreviewAlt"),
     [leadingImagePreview?.alt, submitT],
   );
   const leadingImageReady = Boolean(leadingImagePreview?.complete);
   const leadingImagePending = Boolean(leadingImagePreview && item.isStreaming && !leadingImagePreview.complete);
-  const streamdownContent = leadingImagePreview?.rest ?? item.content;
+  const streamdownContent = leadingImagePreview?.rest ?? renderableContent;
   const hasInlineContent = streamdownContent.trim().length > 0;
   const postProcessEvents = React.useMemo(
     () =>
@@ -207,6 +259,7 @@ export function ChatMessageBot({
   const hasTraceEvents = postProcessEvents.length > 0;
   const hasTraceBlocks = hasTraceEvents || Boolean(upstreamThink) || Boolean(toolTrace);
   const isImageGenerationLoading = item.contentType === "image" && item.isStreaming && !hasStreamdownContent;
+  const isVideoGenerationLoading = item.contentType === "video" && item.isStreaming && !hasStreamdownContent;
   const editableImageAttachments = React.useMemo(
     () => (item.attachments ?? []).filter(isEditableImageAttachment),
     [item.attachments],
@@ -294,6 +347,8 @@ export function ChatMessageBot({
       >
         {isImageGenerationLoading && !item.inlineAlert ? (
           <AssistantImageGenerationSkeleton label={item.activityLabel} aspectRatio={item.imageAspectRatio} />
+        ) : isVideoGenerationLoading && !item.inlineAlert ? (
+          <AssistantVideoGenerationSkeleton label={item.activityLabel} />
         ) : item.isStreaming && !hasStreamdownContent && !item.inlineAlert ? (
           <AssistantMessageSkeleton fileProc={item.isFileProc} label={item.activityLabel} />
         ) : leadingImagePending ? (
@@ -324,14 +379,18 @@ export function ChatMessageBot({
         ) : null}
       </div>
 
+      {inlineVideoAttachment ? (
+        <MessageInlineVideoPreview attachment={inlineVideoAttachment} loadContent={attachmentContentLoader} />
+      ) : null}
+
       {item.inlineAlert ? (
         <ChatInlineAlertCard alert={item.inlineAlert} className={hasStreamdownContent ? "my-4" : "mb-4"} />
       ) : null}
 
-      {item.attachments && item.attachments.length > 0 ? (
+      {visibleAttachments.length > 0 ? (
         <div className="mt-2 flex w-full justify-start">
           <MessageAttachmentRow
-            attachments={item.attachments}
+            attachments={visibleAttachments}
             loadContent={attachmentContentLoader}
             allowDownload={!readOnly}
             align="start"
@@ -569,6 +628,169 @@ export function AssistantImageGenerationSkeleton({
           </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+export function AssistantVideoGenerationSkeleton({ label }: { label?: string }) {
+  const t = useTranslations("chat.messages");
+  return (
+    <div className="my-4 w-full max-w-[32rem] space-y-2.5">
+      <div className="flex items-center gap-2 pt-1 text-[13px] text-muted-foreground">
+        <span className="inline-block size-3.5 animate-spin rounded-full border-2 border-muted border-t-foreground/50" />
+        {label?.trim() || t("processing")}
+      </div>
+      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted/20 text-primary">
+        <GrainientBackground
+          className="absolute inset-0 text-primary/75"
+          color1="#FDE68A"
+          color2="#FDA4AF"
+          color3="#FB7185"
+          contrast={1.48}
+          saturation={1.0}
+          timeSpeed={2.6}
+          warpAmplitude={72}
+          warpSpeed={2.1}
+        />
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-5 text-white/30 mix-blend-overlay drop-shadow-sm">
+            <Film className="size-14" strokeWidth={1.4} />
+            <span className="select-none text-[clamp(1.75rem,7vw,4rem)] font-semibold tracking-[0.18em]">
+              DEEIX
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type InlineVideoPreviewState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; source: string; contentType: string };
+
+function MessageInlineVideoPreview({
+  attachment,
+  loadContent,
+}: {
+  attachment: MessageAttachment;
+  loadContent?: (file: PreviewDialogFile) => Promise<FileContentResult>;
+}) {
+  const tPreview = useTranslations("files.previewDialog");
+  const tMessages = useTranslations("chat.messages");
+  const resolveErrorMessage = useLocalizedErrorMessage();
+  const objectURLRef = React.useRef<string | null>(null);
+  const [state, setState] = React.useState<InlineVideoPreviewState>({ status: "loading" });
+  const fileID = attachment.fileID;
+  const fileName = attachment.fileName;
+  const mimeType = attachment.mimeType;
+  const detectedMime = attachment.detectedMime;
+  const previewURL = attachment.previewURL;
+  const sizeBytes = attachment.sizeBytes;
+
+  const revokeObjectURL = React.useCallback(() => {
+    if (!objectURLRef.current) {
+      return;
+    }
+    URL.revokeObjectURL(objectURLRef.current);
+    objectURLRef.current = null;
+  }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    revokeObjectURL();
+
+    if (previewURL) {
+      setState({
+        status: "ready",
+        source: previewURL,
+        contentType: detectedMime || mimeType,
+      });
+      return undefined;
+    }
+
+    setState({ status: "loading" });
+    void (async () => {
+      try {
+        const file = {
+          fileID,
+          fileName,
+          mimeType,
+          sizeBytes,
+        };
+        const result = loadContent
+          ? await loadContent(file)
+          : await (async () => {
+              const token = await resolveAccessToken();
+              if (!token) {
+                throw new Error(tPreview("sessionExpired"));
+              }
+              return fetchFileContent(token, fileID);
+            })();
+        const objectURL = URL.createObjectURL(result.blob);
+        objectURLRef.current = objectURL;
+
+        if (cancelled) {
+          URL.revokeObjectURL(objectURL);
+          if (objectURLRef.current === objectURL) {
+            objectURLRef.current = null;
+          }
+          return;
+        }
+
+        setState({
+          status: "ready",
+          source: objectURL,
+          contentType: result.contentType || detectedMime || mimeType,
+        });
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setState({ status: "error", message: resolveErrorMessage(error, tPreview("loadFailed")) });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      revokeObjectURL();
+    };
+  }, [
+    detectedMime,
+    fileID,
+    fileName,
+    loadContent,
+    mimeType,
+    previewURL,
+    resolveErrorMessage,
+    revokeObjectURL,
+    sizeBytes,
+    tPreview,
+  ]);
+
+  if (state.status === "loading") {
+    return <AssistantVideoGenerationSkeleton label={tMessages("processing")} />;
+  }
+
+  if (state.status === "error") {
+    return (
+      <Alert className="my-4 max-w-[36rem]" variant="destructive">
+        <CircleAlert className="size-4" />
+        <AlertDescription>{state.message}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <div className="my-4 w-full max-w-[40rem]">
+      <PreviewMedia
+        kind="video"
+        source={state.source}
+        alt={attachment.fileName}
+        contentType={state.contentType}
+        inline
+      />
     </div>
   );
 }

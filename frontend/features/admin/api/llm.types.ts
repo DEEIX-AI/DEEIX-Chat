@@ -13,6 +13,7 @@ export type AdminLLMAdapter =
   | "anthropic_messages"
   | "google_generate_content"
   | "google_image_generation"
+  | "gemini_interactions"
   | "xai_responses"
   | "xai_image"
   | "xai_image_edits";

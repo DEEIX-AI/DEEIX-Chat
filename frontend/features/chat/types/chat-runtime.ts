@@ -1,6 +1,7 @@
 import type {
   ChatInlineAlert,
   ImageLoadingAspectRatio,
+  MessageAttachment,
   ChatMessageProcessTrace,
 } from "@/features/chat/types/messages";
 import type { ConversationOptions } from "@/shared/api/conversation.types";
@@ -95,6 +96,7 @@ export type PendingExchange = {
   assistantCreatedAt: string;
   assistantUpdatedAt?: string;
   assistantContentType?: string;
+  assistantAttachments?: MessageAttachment[];
   assistantInputTokens?: number;
   assistantOutputTokens?: number;
   assistantCacheReadTokens?: number;

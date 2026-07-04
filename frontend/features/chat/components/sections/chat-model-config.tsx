@@ -389,6 +389,7 @@ const PROTOCOL_LABELS: Record<string, string> = {
   fal_queue: "Queue",
   google_generate_content: "Generate Content",
   google_image_generation: "Image Generation",
+  gemini_interactions: "Interactions",
   openai_chat_completions: "Chat Completions",
   openrouter_chat_completions: "OpenRouter Chat Completions",
   openai_image_edits: "Images Edits",

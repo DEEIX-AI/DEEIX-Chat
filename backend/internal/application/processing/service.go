@@ -128,10 +128,14 @@ func (s *Service) InitializeUploadedFile(ctx context.Context, fileObj *domaincon
 		return nil
 	}
 	now := time.Now()
-	if fileObj.FileCategory == "image" && !s.snapshot().ExtractImageOCREnabled {
+	if fileObj.FileCategory == "video" || (fileObj.FileCategory == "image" && !s.snapshot().ExtractImageOCREnabled) {
 		fileObj.ProcessingStatus = "ready"
 		fileObj.ProcessingReady = true
 		fileObj.ExtractStatus = "none"
+		ragReason := "image_not_applicable"
+		if fileObj.FileCategory == "video" {
+			ragReason = "video_not_applicable"
+		}
 		processingStatus := "ready"
 		processingReady := true
 		processingErrorCode := ""
@@ -154,7 +158,7 @@ func (s *Service) InitializeUploadedFile(ctx context.Context, fileObj *domaincon
 			ProcessingStatus: "ready",
 			ExtractStatus:    "none",
 			RAGReady:         false,
-			RAGReason:        "image_not_applicable",
+			RAGReason:        ragReason,
 			ExtractorVersion: s.version(),
 			StartedAt:        &now,
 			CompletedAt:      &now,

@@ -548,6 +548,8 @@ func modelOptionPolicyProtocolKey(protocol string) string {
 		return "gemini_generate_content"
 	case llm.AdapterGoogleImageGeneration:
 		return "google_image_generation"
+	case llm.AdapterGeminiInteractions:
+		return "gemini_interactions"
 	case llm.AdapterOpenAIChatCompletions:
 		return "openai_chat_completions"
 	case llm.AdapterOpenRouterChat:
@@ -600,11 +602,94 @@ func splitModelOptionPath(value string) []string {
 }
 
 func copyModelOptionPath(dst map[string]interface{}, src map[string]interface{}, path []string) {
-	value, ok := readModelOptionPath(src, path)
+	value, ok := copyModelOptionValueAtPath(src, path)
 	if !ok {
 		return
 	}
-	writeModelOptionPath(dst, path, cloneModelOptionValue(value))
+	mergeModelOptionPathValue(dst, value)
+}
+
+func copyModelOptionValueAtPath(value interface{}, path []string) (interface{}, bool) {
+	if len(path) == 0 {
+		return cloneModelOptionValue(value), true
+	}
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		child, ok := typed[path[0]]
+		if !ok {
+			return nil, false
+		}
+		copied, ok := copyModelOptionValueAtPath(child, path[1:])
+		if !ok {
+			return nil, false
+		}
+		return map[string]interface{}{path[0]: copied}, true
+	case []interface{}:
+		items := make([]interface{}, len(typed))
+		matched := false
+		for index, item := range typed {
+			copied, ok := copyModelOptionValueAtPath(item, path)
+			if ok {
+				items[index] = copied
+				matched = true
+			} else {
+				items[index] = map[string]interface{}{}
+			}
+		}
+		if !matched {
+			return nil, false
+		}
+		return items, true
+	default:
+		return nil, false
+	}
+}
+
+func mergeModelOptionPathValue(dst map[string]interface{}, value interface{}) {
+	payload, ok := value.(map[string]interface{})
+	if !ok {
+		return
+	}
+	mergeModelOptionPathMap(dst, payload)
+}
+
+func mergeModelOptionPathMap(dst map[string]interface{}, src map[string]interface{}) {
+	for key, value := range src {
+		if existingMap, ok := dst[key].(map[string]interface{}); ok {
+			if incomingMap, ok := value.(map[string]interface{}); ok {
+				mergeModelOptionPathMap(existingMap, incomingMap)
+				continue
+			}
+		}
+		if existingItems, ok := dst[key].([]interface{}); ok {
+			if incomingItems, ok := value.([]interface{}); ok {
+				dst[key] = mergeModelOptionPathArray(existingItems, incomingItems)
+				continue
+			}
+		}
+		dst[key] = cloneModelOptionValue(value)
+	}
+}
+
+func mergeModelOptionPathArray(existing []interface{}, incoming []interface{}) []interface{} {
+	result := make([]interface{}, len(existing))
+	for index, item := range existing {
+		result[index] = cloneModelOptionValue(item)
+	}
+	for index, item := range incoming {
+		if index >= len(result) {
+			result = append(result, cloneModelOptionValue(item))
+			continue
+		}
+		existingMap, existingOK := result[index].(map[string]interface{})
+		incomingMap, incomingOK := item.(map[string]interface{})
+		if existingOK && incomingOK {
+			mergeModelOptionPathMap(existingMap, incomingMap)
+			continue
+		}
+		result[index] = cloneModelOptionValue(item)
+	}
+	return result
 }
 
 func readModelOptionPath(src map[string]interface{}, path []string) (interface{}, bool) {

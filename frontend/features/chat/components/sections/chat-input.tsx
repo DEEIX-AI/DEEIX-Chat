@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import dynamic from "next/dynamic";
-import { Box, CornerDownRight, Image, ImageOff, ImagePlus, LoaderCircle, PencilLine, Trash2 } from "lucide-react";
+import { Box, CornerDownRight, Film, Image, ImageOff, ImagePlus, LoaderCircle, PencilLine, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -141,7 +141,10 @@ function resolveComposerModeIndicator(
   decision: ChatSubmitDecision,
   t: (key: string) => string,
 ): ComposerModeIndicator | null {
-  if (decision.blockedReason === "image_task_rejects_non_image_attachments") {
+  if (
+    decision.blockedReason === "image_task_rejects_non_image_attachments" ||
+    decision.blockedReason === "video_task_rejects_non_image_attachments"
+  ) {
     return {
       label: t("mediaMode.invalidFile"),
       intro: t("mediaMode.invalidFileIntro"),
@@ -169,6 +172,17 @@ function resolveComposerModeIndicator(
         ? t(`mediaMode.blockedDescriptions.${decision.blockedReason}`)
         : t("mediaMode.imageEditDescription"),
       icon: ImagePlus,
+      tone: "default",
+    };
+  }
+  if (decision.task === "video_generation") {
+    return {
+      label: t("mediaMode.videoGeneration"),
+      intro: t("mediaMode.videoGenerationIntro"),
+      description: decision.blockedReason
+        ? t(`mediaMode.blockedDescriptions.${decision.blockedReason}`)
+        : t("mediaMode.videoGenerationDescription"),
+      icon: Film,
       tone: "default",
     };
   }
@@ -342,7 +356,7 @@ function ChatInputComponent({
   );
   const selectedProtocol = selectedModel?.protocols[0]?.trim() ?? "";
   const selectedModelName = selectedModel?.platformModelName || selectedPlatformModelName;
-  const submitDecision = resolveChatSubmitDecision(selectedModel, attachments);
+  const submitDecision = resolveChatSubmitDecision(selectedModel, attachments, options);
   const submitTask = submitDecision.task;
   const isMediaMode = isMediaSubmitTask(submitTask);
   const composerModeIndicator = resolveComposerModeIndicator(submitDecision, tComposer);

@@ -89,6 +89,12 @@ var (
 	ErrMediaImageEditTooManyInputs = errors.New("too many image edit input images")
 	// ErrMediaImageEditInputInvalid 图片编辑输入图不合法。
 	ErrMediaImageEditInputInvalid = errors.New("image edit input image is invalid")
+	// ErrMediaVideoPromptRequired 视频任务提示词不能为空。
+	ErrMediaVideoPromptRequired = errors.New("video prompt is required")
+	// ErrMediaVideoInputInvalid 视频生成输入不合法。
+	ErrMediaVideoInputInvalid = errors.New("video generation input is invalid")
+	// ErrMediaVideoTooManyInputs 视频生成输入图数量超限。
+	ErrMediaVideoTooManyInputs = errors.New("too many video generation input images")
 	// ErrMediaRouteProtocolMismatch 图片任务命中的路由协议与任务类型不匹配。
 	ErrMediaRouteProtocolMismatch = errors.New("media route protocol does not match task")
 	// ErrDuplicateMessageGenerationRun 表示客户端重复提交同一个生成 run。

@@ -289,7 +289,7 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (*Uploa
 		StoragePath:      relativePath,
 		Status:           "active",
 		ProcessingStatus: "uploaded",
-		ProcessingReady:  category == fileCategoryImage && !cfg.ExtractImageOCREnabled,
+		ProcessingReady:  category == fileCategoryVideo || (category == fileCategoryImage && !cfg.ExtractImageOCREnabled),
 		ExtractStatus:    "none",
 		EmbedStatus:      "none",
 		ExtractorVersion: s.resolveExtractorVersion(),
@@ -325,7 +325,7 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (*Uploa
 				zap.Error(initErr),
 			)
 		}
-	} else if category != fileCategoryImage {
+	} else if fileCategoryRequiresProcessing(category) {
 		fileItem.ProcessingStatus = "queued"
 		fileItem.ProcessingReady = false
 		fileItem.ProcessingErrorCode = ""
@@ -579,6 +579,7 @@ func (s *Service) OpenFileContent(ctx context.Context, userID uint, fileID strin
 
 const (
 	fileCategoryImage   = "image"
+	fileCategoryVideo   = "video"
 	fileCategoryPDF     = "pdf"
 	fileCategoryWord    = "word"
 	fileCategoryExcel   = "excel"
@@ -717,6 +718,10 @@ func normalizeDetectedMIME(detected string, fileName string) string {
 		return "text/yaml"
 	case "toml":
 		return "application/toml"
+	case "mp4":
+		return "video/mp4"
+	case "webm":
+		return "video/webm"
 	}
 	if ext != "" && isTextMIMEForEmbed("", "sample."+ext) {
 		return "text/plain"
@@ -781,6 +786,8 @@ func inferFileCategory(mimeType string, fileName string) string {
 	switch {
 	case strings.HasPrefix(mimeType, "image/"):
 		return fileCategoryImage
+	case strings.HasPrefix(mimeType, "video/"):
+		return fileCategoryVideo
 	case mimeType == "application/pdf" || ext == "pdf":
 		return fileCategoryPDF
 	case strings.Contains(mimeType, "wordprocessingml") || strings.Contains(mimeType, "msword") || ext == "docx" || ext == "doc":
@@ -815,12 +822,24 @@ func maxBytesForCategory(category string, cfg config.Config) int64 {
 	if category == fileCategoryImage {
 		return cfg.FileImageMaxBytes
 	}
+	if category == fileCategoryVideo {
+		return 0
+	}
 	return cfg.FileDocMaxBytes
+}
+
+func fileCategoryRequiresProcessing(category string) bool {
+	switch category {
+	case fileCategoryPDF, fileCategoryWord, fileCategoryExcel, fileCategoryText:
+		return true
+	default:
+		return false
+	}
 }
 
 func supportsRAG(category string) bool {
 	switch category {
-	case fileCategoryPDF, fileCategoryWord, fileCategoryExcel, fileCategoryText:
+	case fileCategoryPDF, fileCategoryWord, fileCategoryExcel, fileCategoryText, fileCategoryImage:
 		return true
 	default:
 		return false

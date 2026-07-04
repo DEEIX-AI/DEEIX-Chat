@@ -79,6 +79,7 @@ const PROTOCOL_OPTIONS_BY_KIND: Record<(typeof PROTOCOL_DEFAULT_KINDS)[number], 
     "openai_chat_completions",
     "anthropic_messages",
     "google_generate_content",
+    "gemini_interactions",
     "xai_responses",
   ],
   audio: [
@@ -93,15 +94,18 @@ const PROTOCOL_OPTIONS_BY_KIND: Record<(typeof PROTOCOL_DEFAULT_KINDS)[number], 
   image_gen: [
     "openai_image_generations",
     "google_image_generation",
+    "gemini_interactions",
     "xai_image",
   ],
   image_edit: [
     "openai_image_edits",
     "google_image_generation",
+    "gemini_interactions",
     "xai_image_edits",
   ],
   video_gen: [
     "openai_video_generations",
+    "gemini_interactions",
   ],
 };
 

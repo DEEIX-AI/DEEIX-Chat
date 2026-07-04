@@ -357,6 +357,7 @@ func isLightweightModelProbeProtocol(protocol string) bool {
 		llm.AdapterOpenAIChatCompletions,
 		llm.AdapterAnthropicMessages,
 		llm.AdapterGoogleGenerateContent,
+		llm.AdapterGeminiInteractions,
 		llm.AdapterXAIResponses:
 		return true
 	default:

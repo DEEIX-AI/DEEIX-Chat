@@ -24,6 +24,8 @@ import { ChatScreenshotSelectionBar } from "@/features/chat/components/sections/
 import { useCopyAction } from "@/shared/components/copy-action";
 import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
 import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
+import type { FileContentResult } from "@/shared/api/file";
+import type { PreviewDialogFile } from "@/shared/components/file-preview/file-preview-dialog";
 import {
   MessageScroller,
   MessageScrollerButton,
@@ -80,6 +82,7 @@ type ChatAreaProps = {
   selectedPlatformModelName: string;
   onModelChange: (platformModelName: string) => void;
   onModelCatalogRefresh?: () => void | Promise<void>;
+  attachmentContentLoader?: (file: PreviewDialogFile) => Promise<FileContentResult>;
   onEditImageAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onOpenCodeArtifact?: (message: ChatAreaMessage, artifact: OpenCodeArtifactInput) => void;
   onCycleMessageBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
@@ -224,6 +227,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   selectedPlatformModelName,
   onModelChange,
   onModelCatalogRefresh,
+  attachmentContentLoader,
   onEditImageAttachment,
   onCycleMessageBranch,
   onReactAssistantMessage,
@@ -252,6 +256,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   selectedPlatformModelName: string;
   onModelChange: (platformModelName: string) => void;
   onModelCatalogRefresh?: () => void | Promise<void>;
+  attachmentContentLoader?: (file: PreviewDialogFile) => Promise<FileContentResult>;
   onEditImageAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onCycleMessageBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
   onReactAssistantMessage: (publicID: string, reaction: AssistantReaction) => void;
@@ -315,6 +320,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         onCycleMessageBranch={onCycleMessageBranch}
         onCopy={() => void onCopy()}
         copySucceeded={isCopied(copyKey)}
+        attachmentContentLoader={attachmentContentLoader}
         screenshotMeta={screenshotMeta}
       />
     );
@@ -333,6 +339,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         onReactAssistantMessage={onReactAssistantMessage}
         onCopy={() => void onCopy()}
         copySucceeded={isCopied(copyKey)}
+        attachmentContentLoader={attachmentContentLoader}
         onEditImageAttachment={onEditImageAttachment}
         artifactActions={artifactActions}
         markdownRender={markdownRender}
@@ -379,6 +386,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   previous.selectedPlatformModelName === next.selectedPlatformModelName &&
   previous.onModelChange === next.onModelChange &&
   previous.onModelCatalogRefresh === next.onModelCatalogRefresh &&
+  previous.attachmentContentLoader === next.attachmentContentLoader &&
   previous.onEditImageAttachment === next.onEditImageAttachment &&
   previous.onOpenCodeArtifact === next.onOpenCodeArtifact &&
   areChatAreaMessagesRenderEqual(previous.item, next.item)
@@ -401,6 +409,7 @@ export function ChatArea({
   selectedPlatformModelName,
   onModelChange,
   onModelCatalogRefresh,
+  attachmentContentLoader,
   onEditImageAttachment,
   onOpenCodeArtifact,
   onCycleMessageBranch,
@@ -579,6 +588,7 @@ export function ChatArea({
                       selectedPlatformModelName={selectedPlatformModelName}
                       onModelChange={stableOnModelChange}
                       onModelCatalogRefresh={onModelCatalogRefresh ? stableOnModelCatalogRefresh : undefined}
+                      attachmentContentLoader={attachmentContentLoader}
                       onEditImageAttachment={editImageAttachmentHandler}
                       onCycleMessageBranch={stableOnCycleMessageBranch}
                       onReactAssistantMessage={stableOnReactAssistantMessage}

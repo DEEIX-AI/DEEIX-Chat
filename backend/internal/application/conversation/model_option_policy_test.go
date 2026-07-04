@@ -68,6 +68,31 @@ func TestFilterModelOptionsAllowlistUsesDefaultAndProtocolPaths(t *testing.T) {
 	}
 }
 
+func TestFilterModelOptionsAllowsGeminiInteractionResponseFormatArray(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"response_format": []interface{}{
+			map[string]interface{}{"type": "text"},
+			map[string]interface{}{"type": "image", "image_size": "1K", "delivery": "b64_json"},
+		},
+	}, llm.AdapterGeminiInteractions, modelOptionPolicyConfig{
+		Mode:             modelOptionPolicyAllowlist,
+		AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+	})
+
+	formats, ok := filtered["response_format"].([]interface{})
+	if !ok || len(formats) != 2 {
+		t.Fatalf("expected Gemini Interactions response_format array to pass, got %#v", filtered)
+	}
+	imageFormat := formats[1].(map[string]interface{})
+	if imageFormat["image_size"] != "1K" {
+		t.Fatalf("expected whitelisted image_size to pass, got %#v", imageFormat)
+	}
+	if _, ok := imageFormat["delivery"]; ok {
+		t.Fatalf("expected non-whitelisted delivery to be filtered, got %#v", imageFormat)
+	}
+}
+
 func TestFilterModelOptionsAppliesCapabilityDefaultOptions(t *testing.T) {
 	filtered := filterModelOptions(map[string]interface{}{
 		"reasoning": map[string]interface{}{
@@ -911,6 +936,77 @@ func TestFilterModelOptionsOpenAIImageEditsAllowsEditParams(t *testing.T) {
 		if _, ok := filtered[key]; ok {
 			t.Fatalf("expected %s to be hard denied, got %#v", key, filtered)
 		}
+	}
+}
+
+func TestFilterModelOptionsGeminiInteractionsAllowsVideoParams(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"response_format": map[string]interface{}{
+			"aspect_ratio": "16:9",
+			"image_size":   "1K",
+			"mime_type":    "image/png",
+			"delivery":     "b64_json",
+		},
+		"generation_config": map[string]interface{}{
+			"temperature":    0.3,
+			"thinking_level": "low",
+			"video_config": map[string]interface{}{
+				"task": "image_to_video",
+			},
+		},
+		"model": "override",
+		"input": "override",
+	}, llm.AdapterGeminiInteractions, modelOptionPolicyConfig{
+		Mode:             modelOptionPolicyAllowlist,
+		AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+	})
+
+	responseFormat, ok := filtered["response_format"].(map[string]interface{})
+	if !ok || responseFormat["aspect_ratio"] != "16:9" || responseFormat["image_size"] != "1K" || responseFormat["mime_type"] != "image/png" {
+		t.Fatalf("expected Gemini response_format aspect ratio to pass, got %#v", filtered)
+	}
+	if _, ok := responseFormat["delivery"]; ok {
+		t.Fatalf("expected delivery override to be filtered, got %#v", responseFormat)
+	}
+	generationConfig, ok := filtered["generation_config"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected Gemini generation_config to pass, got %#v", filtered)
+	}
+	videoConfig, ok := generationConfig["video_config"].(map[string]interface{})
+	if generationConfig["temperature"] != 0.3 || generationConfig["thinking_level"] != "low" {
+		t.Fatalf("expected Gemini generation config fields to pass, got %#v", generationConfig)
+	}
+	if !ok || videoConfig["task"] != "image_to_video" {
+		t.Fatalf("expected Gemini video task to pass, got %#v", filtered)
+	}
+	for _, key := range []string{"model", "input"} {
+		if _, ok := filtered[key]; ok {
+			t.Fatalf("expected %s override to be hard denied, got %#v", key, filtered)
+		}
+	}
+}
+
+func TestFilterModelOptionsGeminiInteractionsAllowsCamelCaseVideoConfig(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"generationConfig": map[string]interface{}{
+			"videoConfig": map[string]interface{}{
+				"task": "text_to_video",
+			},
+		},
+	}, llm.AdapterGeminiInteractions, modelOptionPolicyConfig{
+		Mode:             modelOptionPolicyAllowlist,
+		AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+	})
+
+	generationConfig, ok := filtered["generationConfig"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected camelCase Gemini generationConfig to pass, got %#v", filtered)
+	}
+	videoConfig, ok := generationConfig["videoConfig"].(map[string]interface{})
+	if !ok || videoConfig["task"] != "text_to_video" {
+		t.Fatalf("expected camelCase Gemini video task to pass, got %#v", filtered)
 	}
 }
 

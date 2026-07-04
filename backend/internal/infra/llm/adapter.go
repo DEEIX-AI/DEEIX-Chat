@@ -18,6 +18,7 @@ const (
 	AdapterAnthropicMessages      = "anthropic_messages"          // POST /v1/messages
 	AdapterGoogleGenerateContent  = "google_generate_content"     // POST /v1beta/models/{model}:generateContent
 	AdapterGoogleImageGeneration  = "google_image_generation"     // POST /v1beta/models/{model}:generateContent
+	AdapterGeminiInteractions     = "gemini_interactions"         // POST /v1beta/interactions
 	AdapterXAIResponses           = "xai_responses"               // POST /v1/responses（OpenAI 兼容）
 	AdapterXAIImage               = "xai_image"                   // POST /v1/images/generations
 	AdapterXAIImageEdits          = "xai_image_edits"             // POST /v1/images/edits
@@ -58,6 +59,7 @@ func IsKnownAdapter(raw string) bool {
 		AdapterAnthropicMessages,
 		AdapterGoogleGenerateContent,
 		AdapterGoogleImageGeneration,
+		AdapterGeminiInteractions,
 		AdapterXAIResponses,
 		AdapterXAIImage,
 		AdapterXAIImageEdits:
@@ -71,7 +73,7 @@ func IsKnownAdapter(raw string) bool {
 func IsImplementedAdapter(raw string) bool {
 	switch NormalizeAdapter(raw) {
 	case AdapterOpenAIResponses, AdapterOpenRouterChat, AdapterOpenRouterResponses, AdapterOpenAIChatCompletions, AdapterOpenAIImageGenerations, AdapterOpenAIImageEdits, AdapterXAIResponses,
-		AdapterAnthropicMessages, AdapterGoogleGenerateContent, AdapterGoogleImageGeneration, AdapterXAIImage, AdapterXAIImageEdits:
+		AdapterAnthropicMessages, AdapterGoogleGenerateContent, AdapterGoogleImageGeneration, AdapterGeminiInteractions, AdapterXAIImage, AdapterXAIImageEdits:
 		return true
 	default:
 		return false
@@ -90,6 +92,7 @@ func SupportsStreamingAdapter(raw string) bool {
 		AdapterAnthropicMessages,
 		AdapterGoogleGenerateContent,
 		AdapterGoogleImageGeneration,
+		AdapterGeminiInteractions,
 		AdapterXAIResponses:
 		return true
 	default:
@@ -104,6 +107,8 @@ func SupportsImageGenerationStream(protocol string, model string) bool {
 		return openAIImageGenerationModelSupportsStream(model)
 	case AdapterGoogleImageGeneration:
 		return true
+	case AdapterGeminiInteractions:
+		return true
 	case AdapterOpenAIImageEdits:
 		return openAIImageEditModelSupportsStream(model)
 	default:
@@ -114,7 +119,7 @@ func SupportsImageGenerationStream(protocol string, model string) bool {
 // IsImageGenerationAdapter 返回协议是否属于独立图片生成链路。
 func IsImageGenerationAdapter(raw string) bool {
 	switch NormalizeAdapter(raw) {
-	case AdapterOpenAIImageGenerations, AdapterGoogleImageGeneration, AdapterXAIImage:
+	case AdapterOpenAIImageGenerations, AdapterGoogleImageGeneration, AdapterGeminiInteractions, AdapterXAIImage:
 		return true
 	default:
 		return false
@@ -124,11 +129,16 @@ func IsImageGenerationAdapter(raw string) bool {
 // IsImageEditAdapter 返回协议是否属于独立图片编辑链路。
 func IsImageEditAdapter(raw string) bool {
 	switch NormalizeAdapter(raw) {
-	case AdapterOpenAIImageEdits, AdapterGoogleImageGeneration, AdapterXAIImageEdits:
+	case AdapterOpenAIImageEdits, AdapterGoogleImageGeneration, AdapterGeminiInteractions, AdapterXAIImageEdits:
 		return true
 	default:
 		return false
 	}
+}
+
+// IsVideoGenerationAdapter 返回协议是否属于独立视频生成链路。
+func IsVideoGenerationAdapter(raw string) bool {
+	return NormalizeAdapter(raw) == AdapterGeminiInteractions
 }
 
 // DefaultEndpointForAdapter 返回协议对应的固定端点标识。
@@ -140,6 +150,8 @@ func DefaultEndpointForAdapter(adapter string) string {
 		return EndpointImageGenerations
 	case AdapterOpenAIImageEdits, AdapterXAIImageEdits:
 		return EndpointImageEdits
+	case AdapterGeminiInteractions:
+		return EndpointInteractions
 	default:
 		// openai_responses、openrouter_responses、xai_responses 及所有未知值均使用 Responses 端点。
 		return EndpointResponses

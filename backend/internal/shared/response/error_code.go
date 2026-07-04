@@ -161,6 +161,9 @@ var exactErrorSpecs = map[string]errorSpec{
 	"image edit requires at least one input image":            {Code: "media.image_edit_input_required", Message: "image edit requires at least one input image"},
 	"too many image edit input images":                        {Code: "media.image_edit_too_many_inputs", Message: "too many image edit input images"},
 	"image edit input image is invalid":                       {Code: "media.image_edit_input_invalid", Message: "image edit input image is invalid"},
+	"video prompt is required":                                {Code: "media.video_prompt_required", Message: "video prompt is required"},
+	"video generation input is invalid":                       {Code: "media.video_input_invalid", Message: "video generation input is invalid"},
+	"too many video generation input images":                  {Code: "media.video_too_many_inputs", Message: "too many video generation input images"},
 	"media route protocol does not match task":                {Code: "media.route_protocol_mismatch", Message: "media route protocol does not match task"},
 	"invalid media generation task":                           {Code: "media.invalid_task", Message: "invalid media generation task"},
 

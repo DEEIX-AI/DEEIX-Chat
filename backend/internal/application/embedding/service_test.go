@@ -55,6 +55,28 @@ func TestShouldTriggerSkipsImagesWhenOCRDisabled(t *testing.T) {
 	}
 }
 
+func TestShouldTriggerSkipsVideos(t *testing.T) {
+	service := NewService(config.Config{
+		RAGEnabled:           true,
+		EmbeddingEnabled:     true,
+		EmbedTriggerOnUpload: true,
+		RAGModel:             "text-embedding-test",
+		EmbeddingHost:        "http://127.0.0.1:8081",
+	}, nil, nil, nil, nil)
+
+	fileObj := domainconversation.FileObject{
+		FileID:       "file_video",
+		FileName:     "clip.mp4",
+		MimeType:     "video/mp4",
+		FileCategory: "video",
+		StoragePath:  "uploads/clip.mp4",
+		Status:       "active",
+	}
+	if service.ShouldTrigger(fileObj) {
+		t.Fatal("expected videos to skip embedding")
+	}
+}
+
 func TestShouldTriggerDoesNotRequireRAGEnabled(t *testing.T) {
 	service := NewService(config.Config{
 		RAGEnabled:           false,
@@ -133,6 +155,57 @@ func TestProcessFileDoesNotRequireRAGEnabled(t *testing.T) {
 
 	if repo.updateStatusCalls == 0 {
 		t.Fatal("expected ProcessFile to start embedding even when chat RAG is disabled")
+	}
+}
+
+func TestProcessFileIncludesOCRImages(t *testing.T) {
+	repo := &reindexRepo{vectorAvailable: true}
+	service := NewService(config.Config{
+		RAGEnabled:             true,
+		EmbeddingEnabled:       true,
+		RAGModel:               "text-embedding-test",
+		EmbeddingHost:          "http://127.0.0.1:8081",
+		ExtractImageOCREnabled: true,
+	}, repo, nil, infraembedding.New(), nil)
+
+	_ = service.ProcessFile(context.Background(), domainconversation.FileObject{
+		ID:           1,
+		UserID:       1,
+		FileID:       "file_image",
+		FileName:     "photo.png",
+		MimeType:     "image/png",
+		FileCategory: "image",
+		StoragePath:  "uploads/photo.png",
+		Status:       "active",
+	})
+
+	if repo.updateStatusCalls == 0 {
+		t.Fatal("expected ProcessFile to allow OCR image embedding")
+	}
+}
+
+func TestProcessFileSkipsVideos(t *testing.T) {
+	repo := &reindexRepo{vectorAvailable: true}
+	service := NewService(config.Config{
+		RAGEnabled:       true,
+		EmbeddingEnabled: true,
+		RAGModel:         "text-embedding-test",
+		EmbeddingHost:    "http://127.0.0.1:8081",
+	}, repo, nil, infraembedding.New(), nil)
+
+	_ = service.ProcessFile(context.Background(), domainconversation.FileObject{
+		ID:           1,
+		UserID:       1,
+		FileID:       "file_video",
+		FileName:     "clip.mp4",
+		MimeType:     "video/mp4",
+		FileCategory: "video",
+		StoragePath:  "uploads/clip.mp4",
+		Status:       "active",
+	})
+
+	if repo.updateStatusCalls != 0 {
+		t.Fatal("expected ProcessFile to skip video embedding")
 	}
 }
 

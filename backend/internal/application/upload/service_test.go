@@ -261,6 +261,64 @@ func TestNormalizeDetectedMIMEDowngradesActiveContent(t *testing.T) {
 	}
 }
 
+func TestNormalizeDetectedMIMERecognizesVideoExtensions(t *testing.T) {
+	tests := []struct {
+		detected string
+		fileName string
+		want     string
+	}{
+		{detected: "application/octet-stream", fileName: "clip.mp4", want: "video/mp4"},
+		{detected: "application/octet-stream", fileName: "clip.webm", want: "video/webm"},
+	}
+	for _, tt := range tests {
+		if got := normalizeDetectedMIME(tt.detected, tt.fileName); got != tt.want {
+			t.Fatalf("normalizeDetectedMIME(%q, %q) = %q, want %q", tt.detected, tt.fileName, got, tt.want)
+		}
+	}
+}
+
+func TestUploadFileAllowsMP4WhenVideoMP4IsAllowed(t *testing.T) {
+	ctx := context.Background()
+	repo := newUploadTestRepo()
+	store := newUploadTestStore()
+	cfg := config.Config{
+		MaxUploadFileBytes:    1024 * 1024,
+		UserStorageQuotaBytes: 10 * 1024 * 1024,
+		FileAllowedMIMETypes:  "video/mp4",
+	}
+	service := NewServiceWithRuntime(config.NewRuntime(cfg), repo, nil, Hooks{}, ErrorSet{
+		InvalidFileReference: repository.ErrInvalidInput,
+		InvalidFileName:      repository.ErrInvalidInput,
+		StorageQuotaExceeded: repository.ErrConflict,
+		FileTooLarge:         repository.ErrInvalidInput,
+		MIMEBlocked:          repository.ErrInvalidInput,
+		DangerousMIMEType:    repository.ErrInvalidInput,
+	}, "test")
+	service.SetObjectStoreProvider(uploadTestStoreProvider{store: store})
+
+	content := []byte("not a real mp4 but uploaded with a .mp4 extension")
+	result, err := service.UploadFile(ctx, UploadFileInput{
+		UserID:       1,
+		Purpose:      "chat",
+		FileName:     "clip.mp4",
+		MimeType:     "video/mp4",
+		DeclaredSize: int64(len(content)),
+		Reader:       bytes.NewReader(content),
+	})
+	if err != nil {
+		t.Fatalf("mp4 upload should be allowed: %v", err)
+	}
+	if result.File.DetectedMIME != "video/mp4" {
+		t.Fatalf("DetectedMIME = %q, want video/mp4", result.File.DetectedMIME)
+	}
+	if result.File.FileCategory != fileCategoryVideo {
+		t.Fatalf("FileCategory = %q, want %q", result.File.FileCategory, fileCategoryVideo)
+	}
+	if result.File.ProcessingStatus != "uploaded" || !result.File.ProcessingReady {
+		t.Fatalf("video processing state = %q ready=%v, want uploaded ready=true", result.File.ProcessingStatus, result.File.ProcessingReady)
+	}
+}
+
 func TestValidateImageFile(t *testing.T) {
 	repo := newUploadTestRepo()
 	store := newUploadTestStore()

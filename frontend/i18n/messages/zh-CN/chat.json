@@ -267,12 +267,17 @@
       "image_edit_unsupported": "该模型不支持图像编辑，请移除图片或切换到支持编辑的模型。",
       "image_generation_rejects_attachments": "图像生成仅接受文字提示词，请移除附件或切换到可处理附件的模型。",
       "image_task_rejects_non_image_attachments": "图像任务仅支持图片附件，请移除非图片文件。",
+      "video_generation_too_many_images": "视频生成最多支持一张输入图片，请保留一张图片后重试。",
+      "video_task_rejects_non_image_attachments": "视频生成仅支持文字提示和图片附件，请移除非图片文件。",
       "model_task_unsupported": "该模型无法处理当前输入，请切换模型后重试。"
     },
     "mediaStatus": {
       "queued": "图片任务已排队",
       "running": "正在生成图片",
-      "savingArtifact": "正在保存图片"
+      "savingArtifact": "正在保存图片",
+      "videoQueued": "视频任务已排队",
+      "videoRunning": "正在生成视频",
+      "videoSavingArtifact": "正在保存视频"
     },
     "generationInterrupted": "生成中断",
     "sendFailed": "发送失败",
@@ -437,13 +442,18 @@
       "imageEdit": "图像编辑",
       "imageEditIntro": "当前为图像编辑模式。",
       "imageEditDescription": "将基于已上传图片和文字提示进行编辑。",
+      "videoGeneration": "视频生成",
+      "videoGenerationIntro": "当前为视频生成模式。",
+      "videoGenerationDescription": "将根据文字提示生成视频；上传一张图片后会作为视频参考输入。",
       "invalidFile": "监测到无效文件",
-      "invalidFileIntro": "当前文件无法用于图像任务。",
+      "invalidFileIntro": "当前文件无法用于媒体任务。",
       "blockedDescriptions": {
         "image_edit_input_required": "请先上传需要编辑的图片。",
         "image_edit_unsupported": "当前模型不支持图像编辑，请移除图片或切换模型。",
         "image_generation_rejects_attachments": "图像生成仅接收文字提示，请移除附件。",
         "image_task_rejects_non_image_attachments": "图像任务仅支持图片附件，请移除非图片文件。",
+        "video_generation_too_many_images": "视频生成最多支持一张输入图片。",
+        "video_task_rejects_non_image_attachments": "视频生成仅支持文字提示和图片附件，请移除非图片文件。",
         "model_task_unsupported": "当前模型不支持此输入，请切换模型后重试。"
       }
     },

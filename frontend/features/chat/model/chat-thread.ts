@@ -1,7 +1,7 @@
 import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import type { MessageDTO, UpstreamDebugInfo } from "@/shared/api/conversation.types";
 
-function parseAttachments(raw: string): MessageAttachment[] {
+export function parseAttachments(raw: string): MessageAttachment[] {
   if (!raw) return [];
   try {
     const parsed: unknown = JSON.parse(raw);

@@ -108,6 +108,18 @@ type MediaImageRequest struct {
 	BranchReason          string                 `json:"branchReason" binding:"omitempty,oneof=default retry edit"`
 }
 
+// MediaVideoRequest 视频生成请求。
+type MediaVideoRequest struct {
+	Prompt                string                 `json:"prompt" binding:"required"`
+	Model                 string                 `json:"model" binding:"omitempty,max=128"`
+	Options               map[string]interface{} `json:"options"`
+	ClientRunID           string                 `json:"clientRunID" binding:"omitempty,max=64"`
+	FileIDs               []string               `json:"fileIDs" binding:"max=1"`
+	ParentMessagePublicID string                 `json:"parentMessagePublicID" binding:"omitempty,max=32"`
+	SourceMessagePublicID string                 `json:"sourceMessagePublicID" binding:"omitempty,max=32"`
+	BranchReason          string                 `json:"branchReason" binding:"omitempty,oneof=default retry edit"`
+}
+
 // SetMessageFeedbackRequest 设置消息反馈请求。
 type SetMessageFeedbackRequest struct {
 	Feedback string `json:"feedback" binding:"omitempty,oneof=up down"`

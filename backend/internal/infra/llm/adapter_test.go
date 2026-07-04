@@ -29,6 +29,9 @@ func TestSupportsImageGenerationStream(t *testing.T) {
 	if !SupportsImageGenerationStream(AdapterGoogleImageGeneration, "gemini-3-pro-image") {
 		t.Fatalf("expected google image generation adapter to support image generation streaming")
 	}
+	if !SupportsImageGenerationStream(AdapterGeminiInteractions, "gemini-3.5-flash") {
+		t.Fatalf("expected Gemini Interactions adapter to support image generation streaming")
+	}
 	if SupportsStreamingAdapter(AdapterXAIImage) {
 		t.Fatalf("expected xAI image adapter to use non-streaming media flow")
 	}

@@ -193,7 +193,8 @@ func isMessageGenerationRoute(method string, route string) bool {
 }
 
 func isMediaGenerationRoute(method string, route string) bool {
-	return method == http.MethodPost && strings.Contains(route, "/media/images/")
+	return method == http.MethodPost && (strings.Contains(route, "/media/images/") ||
+		strings.Contains(route, "/media/videos/"))
 }
 
 func isFileUploadRoute(method string, route string) bool {

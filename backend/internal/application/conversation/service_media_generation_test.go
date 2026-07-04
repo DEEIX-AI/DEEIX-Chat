@@ -117,6 +117,12 @@ func TestMediaImageStreamEnabledUsesModelCapabilitiesOverride(t *testing.T) {
 			want:             true,
 		},
 		{
+			name:          "gemini interactions streams image media",
+			protocol:      llm.AdapterGeminiInteractions,
+			upstreamModel: "gemini-3.5-flash",
+			want:          true,
+		},
+		{
 			name:             "unsupported protocol cannot be enabled by capabilities",
 			protocol:         llm.AdapterXAIImage,
 			upstreamModel:    "grok-2-image",

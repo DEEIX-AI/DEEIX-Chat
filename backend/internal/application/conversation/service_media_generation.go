@@ -302,6 +302,11 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 		DeniedPathsJSON:       cfg.ModelOptionDeniedPaths,
 		ModelCapabilitiesJSON: route.ModelCapabilitiesJSON,
 	})
+	if llm.NormalizeAdapter(route.Protocol) == llm.AdapterGeminiInteractions {
+		filteredOptions = withGeminiInteractionResponseType(filteredOptions, "image")
+		routeConfig.Endpoint = llm.EndpointInteractions
+		run.Endpoint = llm.EndpointInteractions
+	}
 
 	emitMediaEvent(input.OnEvent, "running", mediaImageRunningMessage(input.TaskType))
 	generateInput := llm.GenerateInput{
@@ -587,14 +592,18 @@ func (s *Service) readMediaImageEditFile(ctx context.Context, userID uint, fileI
 }
 
 // emitMediaEvent 输出媒体任务状态事件；失败不影响主流程。
-func emitMediaEvent(onEvent func(string, map[string]interface{}) error, status string, message string) {
+func emitMediaEvent(onEvent func(string, map[string]interface{}) error, status string, message string, contentType ...string) {
 	if onEvent == nil {
 		return
 	}
-	_ = onEvent("media_status", map[string]interface{}{
+	payload := map[string]interface{}{
 		"status":  status,
 		"message": message,
-	})
+	}
+	if len(contentType) > 0 && strings.TrimSpace(contentType[0]) != "" {
+		payload["content_type"] = strings.TrimSpace(contentType[0])
+	}
+	_ = onEvent("media_status", payload)
 }
 
 func emitMediaImageDelta(onEvent func(string, map[string]interface{}) error, event llm.GenerateStreamEvent) error {
@@ -615,6 +624,28 @@ func emitMediaImageDelta(onEvent func(string, map[string]interface{}) error, eve
 
 func mediaImageStreamEnabled(protocol string, upstreamModel string, capabilitiesJSON string) bool {
 	return llm.SupportsImageGenerationStream(protocol, upstreamModel) && !mediaImageStreamExplicitlyDisabled(capabilitiesJSON)
+}
+
+func withGeminiInteractionResponseType(options map[string]interface{}, responseType string) map[string]interface{} {
+	next := make(map[string]interface{}, len(options)+1)
+	for key, value := range options {
+		next[key] = value
+	}
+	format := map[string]interface{}{}
+	if raw, ok := next["response_format"].(map[string]interface{}); ok {
+		for key, value := range raw {
+			format[key] = value
+		}
+	}
+	if raw, ok := next["responseFormat"].(map[string]interface{}); ok {
+		for key, value := range raw {
+			format[key] = value
+		}
+		delete(next, "responseFormat")
+	}
+	format["type"] = strings.TrimSpace(responseType)
+	next["response_format"] = format
+	return next
 }
 
 func mediaImageStreamExplicitlyDisabled(capabilitiesJSON string) bool {
@@ -647,6 +678,9 @@ func (s *Service) readGeneratedImage(ctx context.Context, image llm.GeneratedIma
 	if url == "" {
 		return nil, mimeType, ErrUpstreamEmptyResponse
 	}
+	if _, _, ok := geminiGeneratedFileURLs(url); ok {
+		return nil, mimeType, fmt.Errorf("Gemini Files generated image URI is unsupported")
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, mimeType, err
@@ -664,7 +698,7 @@ func (s *Service) readGeneratedImage(ctx context.Context, image llm.GeneratedIma
 	if contentType := strings.TrimSpace(resp.Header.Get("Content-Type")); strings.HasPrefix(strings.ToLower(contentType), "image/") {
 		mimeType = strings.Split(contentType, ";")[0]
 	}
-	limit := s.cfg.Snapshot().MaxUploadFileBytes
+	limit := cfg.MaxUploadFileBytes
 	if limit <= 0 {
 		limit = 20 * 1024 * 1024
 	}

@@ -267,12 +267,17 @@
       "image_edit_unsupported": "This model does not support image editing. Remove the image or select an editing-capable model.",
       "image_generation_rejects_attachments": "Image generation accepts text prompts only. Remove attachments or select a model that handles them.",
       "image_task_rejects_non_image_attachments": "Image tasks only support image attachments. Remove non-image files.",
+      "video_generation_too_many_images": "Video generation supports one input image at most. Keep one image and try again.",
+      "video_task_rejects_non_image_attachments": "Video generation only supports text prompts and image attachments. Remove non-image files.",
       "model_task_unsupported": "This model cannot process the current input. Select another model and try again."
     },
     "mediaStatus": {
       "queued": "Image task queued",
       "running": "Generating image",
-      "savingArtifact": "Saving image"
+      "savingArtifact": "Saving image",
+      "videoQueued": "Video task queued",
+      "videoRunning": "Generating video",
+      "videoSavingArtifact": "Saving video"
     },
     "generationInterrupted": "Generation interrupted",
     "sendFailed": "Send failed",
@@ -437,13 +442,18 @@
       "imageEdit": "Image editing",
       "imageEditIntro": "Image editing mode is active.",
       "imageEditDescription": "Edits the uploaded image using the text prompt.",
+      "videoGeneration": "Video generation",
+      "videoGenerationIntro": "Video generation mode is active.",
+      "videoGenerationDescription": "Creates a video from the text prompt. Upload one image to use it as a reference input.",
       "invalidFile": "Invalid file detected",
-      "invalidFileIntro": "This file cannot be used for an image task.",
+      "invalidFileIntro": "This file cannot be used for a media task.",
       "blockedDescriptions": {
         "image_edit_input_required": "Upload an image to edit first.",
         "image_edit_unsupported": "The selected model does not support image editing. Remove the image or switch models.",
         "image_generation_rejects_attachments": "Image generation only accepts text prompts. Remove attachments.",
         "image_task_rejects_non_image_attachments": "Image tasks only support image attachments. Remove non-image files.",
+        "video_generation_too_many_images": "Video generation supports one input image at most.",
+        "video_task_rejects_non_image_attachments": "Video generation only supports text prompts and image attachments. Remove non-image files.",
         "model_task_unsupported": "The selected model cannot process this input. Switch models and try again."
       }
     },

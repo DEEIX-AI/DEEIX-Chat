@@ -27,6 +27,8 @@ const (
 	EndpointImageGenerations = "image_generations"
 	// EndpointImageEdits 表示 OpenAI Images API 编辑端点。
 	EndpointImageEdits = "image_edits"
+	// EndpointInteractions 表示 Gemini Interactions API 端点。
+	EndpointInteractions = "interactions"
 )
 
 // 超时默认值。
@@ -635,6 +637,7 @@ type GenerateOutput struct {
 	ServerSideToolUsage map[string]int64
 	Citations           []string
 	GeneratedImages     []GeneratedImage
+	GeneratedVideos     []GeneratedVideo
 	RawJSON             string
 	Debug               *UpstreamDebugSnapshot `json:"-"`
 
@@ -647,6 +650,14 @@ type GeneratedImage struct {
 	B64JSON       string
 	MIMEType      string
 	RevisedPrompt string
+}
+
+// GeneratedVideo 表示视频生成接口返回的一个视频结果。
+type GeneratedVideo struct {
+	URL      string
+	B64JSON  string
+	MIMEType string
+	FileName string
 }
 
 // ReasoningDelta 定义流式 reasoning 增量。
@@ -748,6 +759,7 @@ func NewClientWithEnv(env string, ssrfProtectionEnabled bool) *Client {
 		AdapterAnthropicMessages:      &anthropicMessagesAdapter{client: client},
 		AdapterGoogleGenerateContent:  &geminiGenerateContentAdapter{client: client},
 		AdapterGoogleImageGeneration:  &geminiImageGenerationAdapter{client: client},
+		AdapterGeminiInteractions:     &geminiInteractionsAdapter{client: client},
 	}
 	return client
 }
@@ -1491,6 +1503,8 @@ func normalizeEndpoint(raw string) string {
 		return EndpointImageGenerations
 	case EndpointImageEdits:
 		return EndpointImageEdits
+	case EndpointInteractions:
+		return EndpointInteractions
 	default:
 		return EndpointResponses
 	}

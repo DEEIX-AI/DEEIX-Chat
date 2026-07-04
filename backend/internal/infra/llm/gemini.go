@@ -726,11 +726,11 @@ func buildGeminiParts(msg Message) []map[string]interface{} {
 
 func (c *Client) newGeminiRequest(
 	ctx context.Context,
-	method, url string,
+	method, requestURL string,
 	body io.Reader,
 	route RouteConfig,
 ) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	req, err := http.NewRequestWithContext(ctx, method, requestURL, body)
 	if err != nil {
 		return nil, err
 	}

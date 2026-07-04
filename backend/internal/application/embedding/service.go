@@ -103,12 +103,7 @@ func (s *Service) ShouldTrigger(fileObj domainconversation.FileObject) bool {
 	if strings.TrimSpace(fileObj.StoragePath) == "" || strings.ToLower(strings.TrimSpace(fileObj.Status)) != "active" {
 		return false
 	}
-	if strings.EqualFold(strings.TrimSpace(fileObj.FileCategory), "image") {
-		return cfg.ExtractImageOCREnabled
-	}
-	mime := strings.ToLower(strings.TrimSpace(fileObj.MimeType))
-	name := strings.TrimSpace(fileObj.FileName)
-	return isTextMIMEForEmbed(mime, name) || isPDFMIME(mime, name) || isDocxMIME(mime, name) || isExcelMIME(mime, name)
+	return supportsEmbeddingSource(fileObj, cfg)
 }
 
 // MaybeTrigger 在满足条件时异步触发 embedding。
@@ -143,6 +138,9 @@ func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.Fi
 		return nil
 	}
 	if s.repo == nil {
+		return nil
+	}
+	if !supportsEmbeddingSource(fileObj, cfg) {
 		return nil
 	}
 
@@ -399,6 +397,9 @@ func (s *Service) ReindexStaleFiles(ctx context.Context) (int, error) {
 			break
 		}
 		for _, f := range files {
+			if !supportsEmbeddingSource(f, cfg) {
+				continue
+			}
 			s.Trigger(f)
 			submitted++
 		}
@@ -408,6 +409,18 @@ func (s *Service) ReindexStaleFiles(ctx context.Context) (int, error) {
 		offset += pageSize
 	}
 	return submitted, nil
+}
+
+func supportsEmbeddingSource(fileObj domainconversation.FileObject, cfg config.Config) bool {
+	switch strings.ToLower(strings.TrimSpace(fileObj.FileCategory)) {
+	case "video":
+		return false
+	case "image":
+		return cfg.ExtractImageOCREnabled
+	}
+	mime := strings.ToLower(strings.TrimSpace(fileObj.MimeType))
+	name := strings.TrimSpace(fileObj.FileName)
+	return isTextMIMEForEmbed(mime, name) || isPDFMIME(mime, name) || isDocxMIME(mime, name) || isExcelMIME(mime, name)
 }
 
 // postProcessEmbeddings 对批量向量做两步后处理：

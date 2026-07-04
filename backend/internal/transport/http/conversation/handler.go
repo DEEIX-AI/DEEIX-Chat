@@ -171,6 +171,15 @@ func mapStreamError(err error) streamError {
 	case errors.Is(err, appconversation.ErrMediaImageEditInputInvalid):
 		status = http.StatusBadRequest
 		message = "image edit input image is invalid"
+	case errors.Is(err, appconversation.ErrMediaVideoPromptRequired):
+		status = http.StatusBadRequest
+		message = "video prompt is required"
+	case errors.Is(err, appconversation.ErrMediaVideoInputInvalid):
+		status = http.StatusBadRequest
+		message = "video generation input is invalid"
+	case errors.Is(err, appconversation.ErrMediaVideoTooManyInputs):
+		status = http.StatusBadRequest
+		message = "too many video generation input images"
 	case errors.Is(err, appconversation.ErrMediaRouteProtocolMismatch):
 		status = http.StatusServiceUnavailable
 		message = "media route protocol does not match task"
