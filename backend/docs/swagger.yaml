@@ -10320,7 +10320,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: 返回当前用户最近一次真实运行使用的模型，用于系统默认的新会话模型选择
+      description: 返回后台配置的系统推荐模型，未配置时回退当前用户最近一次真实运行使用的模型
       produces:
       - application/json
       responses:

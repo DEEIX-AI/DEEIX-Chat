@@ -34,6 +34,7 @@ import { exportAllConversations, getAdminReferenceData, listAdminSettings, patch
 import {
   applyConversationDefaults,
   buildConversationSettingsFields,
+  CONVERSATION_DEFAULT_MODEL_SYSTEM,
   CONVERSATION_TASK_MODEL_FOLLOW,
   fieldID,
   flattenConversationSettings,
@@ -364,11 +365,18 @@ export function AdminConversationSettingsPage() {
   const [saving, setSaving] = React.useState(false);
   const [settingsMap, setSettingsMap] = React.useState<Record<string, string>>({});
   const [savedMap, setSavedMap] = React.useState<Record<string, string>>({});
-  const [modelOptions, setModelOptions] = React.useState<ModelOption[]>(() =>
+  const [taskModelOptions, setTaskModelOptions] = React.useState<ModelOption[]>(() =>
     buildTaskModelOptions({
       models: [],
       followLabel: t("taskModel.follow"),
       followValue: CONVERSATION_TASK_MODEL_FOLLOW,
+    }),
+  );
+  const [defaultModelOptions, setDefaultModelOptions] = React.useState<ModelOption[]>(() =>
+    buildTaskModelOptions({
+      models: [],
+      followLabel: t("defaultModel.systemRecommended"),
+      followValue: CONVERSATION_DEFAULT_MODEL_SYSTEM,
     }),
   );
   const [exporting, setExporting] = React.useState(false);
@@ -412,8 +420,14 @@ export function AdminConversationSettingsPage() {
         followLabel: t("taskModel.follow"),
         followValue: CONVERSATION_TASK_MODEL_FOLLOW,
       });
+      const nextDefaultModelOptions = buildTaskModelOptions({
+        models: referenceData?.models ?? [],
+        followLabel: t("defaultModel.systemRecommended"),
+        followValue: CONVERSATION_DEFAULT_MODEL_SYSTEM,
+      });
       const flattened = flattenConversationSettings(grouped);
-      setModelOptions(nextModelOptions);
+      setTaskModelOptions(nextModelOptions);
+      setDefaultModelOptions(nextDefaultModelOptions);
       setSettingsMap(flattened);
       setSavedMap(flattened);
     } catch (error) {
@@ -542,7 +556,19 @@ export function AdminConversationSettingsPage() {
           t={t}
         />
       ) : undefined;
-    const content = id === "chat.conversation_task_model" || id === "chat.compact_task_model" ? (
+    const content = id === "chat.conversation_default_model" ? (
+      <TaskModelField
+        id={id}
+        label={field.label}
+        description={field.description}
+        value={settingsMap[id] ?? ""}
+        fallbackValue={CONVERSATION_DEFAULT_MODEL_SYSTEM}
+        dirty={(settingsMap[id] ?? "") !== (savedMap[id] ?? "")}
+        disabled={loading || saving}
+        modelOptions={defaultModelOptions}
+        onChange={(value) => setSettingsMap((prev) => ({ ...prev, [id]: value }))}
+      />
+    ) : id === "chat.conversation_task_model" || id === "chat.compact_task_model" ? (
       <TaskModelField
         id={id}
         label={field.label}
@@ -551,7 +577,7 @@ export function AdminConversationSettingsPage() {
         fallbackValue={CONVERSATION_TASK_MODEL_FOLLOW}
         dirty={(settingsMap[id] ?? "") !== (savedMap[id] ?? "")}
         disabled={loading || saving}
-        modelOptions={modelOptions}
+        modelOptions={taskModelOptions}
         onChange={(value) => setSettingsMap((prev) => ({ ...prev, [id]: value }))}
       />
     ) : (

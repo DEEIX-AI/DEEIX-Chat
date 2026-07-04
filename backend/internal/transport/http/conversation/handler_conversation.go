@@ -93,7 +93,7 @@ func (h *Handler) ListConversations(c *gin.Context) {
 
 // GetConversationDefaultModelCandidate godoc
 // @Summary 查询新会话默认模型候选
-// @Description 返回当前用户最近一次真实运行使用的模型，用于系统默认的新会话模型选择
+// @Description 返回后台配置的系统推荐模型，未配置时回退当前用户最近一次真实运行使用的模型
 // @Tags chat
 // @Accept json
 // @Produce json
@@ -103,6 +103,14 @@ func (h *Handler) ListConversations(c *gin.Context) {
 // @Router /conversations/default-model-candidate [get]
 func (h *Handler) GetConversationDefaultModelCandidate(c *gin.Context) {
 	userID := middleware.MustUserID(c)
+
+	if systemDefaultModel := h.service.GetConversationSystemDefaultModel(); systemDefaultModel != "" {
+		response.Success(c, ConversationDefaultModelCandidateResponse{
+			PlatformModelName: systemDefaultModel,
+			Source:            "system_default",
+		})
+		return
+	}
 
 	run, err := h.service.GetLatestConversationRunModel(c.Request.Context(), userID)
 	if err != nil {

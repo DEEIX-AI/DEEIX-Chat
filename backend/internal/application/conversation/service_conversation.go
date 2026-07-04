@@ -460,6 +460,15 @@ func (s *Service) GetLatestConversationRunModel(ctx context.Context, userID uint
 	return run, nil
 }
 
+// GetConversationSystemDefaultModel 返回后台配置的新会话系统推荐模型。
+func (s *Service) GetConversationSystemDefaultModel() string {
+	if s == nil || s.cfg == nil {
+		return ""
+	}
+	cfg := s.cfg.Snapshot()
+	return strings.TrimSpace(cfg.ConversationDefaultModel)
+}
+
 // EventLogListFilter 描述管理员对话事件筛选和排序条件。
 type EventLogListFilter struct {
 	Query          string
