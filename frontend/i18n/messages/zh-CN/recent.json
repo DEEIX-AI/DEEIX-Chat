@@ -1,5 +1,11 @@
 {
   "title": "最近",
+  "timeGroup": {
+    "today": "今天",
+    "yesterday": "昨天",
+    "lastSevenDays": "7 天内",
+    "lastThirtyDays": "30 天内"
+  },
   "collapseSection": "折叠最近对话",
   "expandSection": "展开最近对话",
   "collapseStarredSection": "折叠已星标对话",
