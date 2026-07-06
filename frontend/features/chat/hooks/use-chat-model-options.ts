@@ -484,8 +484,8 @@ export function useChatModelOptions({
   React.useEffect(() => {
     const normalizedConversationID = conversationPublicID?.trim() || null;
     if (!normalizedConversationID) {
+      // 无会话状态也可能来自当前页点击“新对话”，要保留用户刚在选择器里切换的模型。
       activeConversationRef.current = null;
-      userSelectedModelRef.current = false;
       return;
     }
 
