@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, CircleAlert, Copy, Download, Pencil, Plus, Save, Trash2, Upload, X } from "lucide-react";
+import { Check, CircleAlert, Copy, Download, Pencil, Plus, Save, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { motion } from "motion/react";
 import { useLocale, useMessages, useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -70,11 +70,12 @@ import {
   updateAdminRedemptionCode,
   updateAdminBillingPlan,
   upsertAdminModelPricing,
+  fetchOfficialModelPricing,
   listPermissionGroups,
 } from "@/features/admin/api";
 import type { PermissionGroup } from "@/features/admin/api/permission-groups";
 import { listAllAdminPages } from "@/features/admin/api/shared";
-import type { AdminBillingMode, AdminBillingPlanDTO, AdminModelPricingDTO, AdminRedemptionCodeDTO, NativeToolPricingDTO } from "@/features/admin/api/billing.types";
+import type { AdminBillingMode, AdminBillingPlanDTO, AdminModelPricingDTO, AdminRedemptionCodeDTO, NativeToolPricingDTO, OfficialPricingSuggestion } from "@/features/admin/api/billing.types";
 import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import {
@@ -92,6 +93,7 @@ import {
   createPlanFormState,
   flattenPaymentSettings,
   formatCreditUSD,
+  formatUSD,
   formatDateTime,
   mergeModelPricingItem,
   normalizePaymentProviders,
@@ -345,6 +347,10 @@ export function AdminBillingPage() {
   const [redemptionDeleteTarget, setRedemptionDeleteTarget] = React.useState<AdminRedemptionCodeDTO | null>(null);
   const [createdRedemptionCodes, setCreatedRedemptionCodes] = React.useState<string[]>([]);
   const [redemptionStatusPendingID, setRedemptionStatusPendingID] = React.useState<number | null>(null);
+  const [officialPricingOpen, setOfficialPricingOpen] = React.useState(false);
+  const [officialPricingSuggestions, setOfficialPricingSuggestions] = React.useState<OfficialPricingSuggestion[]>([]);
+  const [officialPricingSelected, setOfficialPricingSelected] = React.useState<Set<string>>(new Set());
+  const [officialPricingLoading, setOfficialPricingLoading] = React.useState(false);
   const stripeWebhookEndpoint = React.useMemo(() => `${resolveApiBaseURL()}/api/v1/billing/payments/stripe/webhook`, []);
 
   const loadData = React.useCallback(async () => {
@@ -1347,6 +1353,79 @@ export function AdminBillingPage() {
     }
   }
 
+  async function openOfficialPricingDialog() {
+    setOfficialPricingLoading(true);
+    try {
+      const token = await resolveAccessToken();
+      if (!token) {
+        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
+        return;
+      }
+      const data = await fetchOfficialModelPricing(token);
+      const suggestions = data.suggestions ?? [];
+      if (suggestions.length === 0) {
+        toast.info(t("toast.officialPricingEmpty"));
+        return;
+      }
+      const sorted = [...suggestions].sort((a, b) => a.platformModelName.localeCompare(b.platformModelName));
+      setOfficialPricingSuggestions(sorted);
+      setOfficialPricingSelected(new Set(sorted.map((s) => s.platformModelName)));
+      setOfficialPricingOpen(true);
+    } catch (error) {
+      toast.error(t("toast.officialPricingFailed"), { description: resolveAdminErrorMessage(error) });
+    } finally {
+      setOfficialPricingLoading(false);
+    }
+  }
+
+  async function applySelectedOfficialPricing() {
+    const selected = officialPricingSuggestions.filter((s) => officialPricingSelected.has(s.platformModelName));
+    if (selected.length === 0) return;
+    setOfficialPricingLoading(true);
+    const token = await resolveAccessToken();
+    if (!token) {
+      toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
+      setOfficialPricingLoading(false);
+      return;
+    }
+    const savedItems: AdminModelPricingDTO[] = [];
+    let failedCount = 0;
+    for (const suggestion of selected) {
+      try {
+        const result = await upsertAdminModelPricing(token, {
+          platformModelName: suggestion.platformModelName,
+          currency: "USD",
+          isFree: false,
+          pricingMode: "token",
+          inputUSDPerMTokens: suggestion.inputUSDPerMTokens,
+          cacheReadUSDPerMTokens: suggestion.cacheReadUSDPerMTokens,
+          cacheWriteUSDPerMTokens: suggestion.cacheWriteUSDPerMTokens,
+          outputUSDPerMTokens: suggestion.outputUSDPerMTokens,
+          callUSDPerCall: 0,
+          durationUSDPerSecond: 0,
+        });
+        savedItems.push(result.modelPricing);
+      } catch {
+        failedCount++;
+      }
+    }
+    if (savedItems.length > 0) {
+      setPricingItems((current) =>
+        savedItems.reduce((items, item) => mergeModelPricingItem(items, item), current),
+      );
+      invalidateAdminReferenceDataCache();
+    }
+    if (failedCount === 0) {
+      toast.success(t("toast.officialPricingApplied", { count: savedItems.length }));
+    } else if (savedItems.length > 0) {
+      toast.warning(t("toast.officialPricingPartial", { success: savedItems.length, failed: failedCount }));
+    } else {
+      toast.error(t("toast.officialPricingFailed"));
+    }
+    setOfficialPricingOpen(false);
+    setOfficialPricingLoading(false);
+  }
+
   async function toggleModelFree(row: BillingModelPricingRow, checked: boolean) {
     if (freeSwitchPendingModel) {
       return;
@@ -2058,6 +2137,18 @@ export function AdminBillingPage() {
             >
               <Upload className="size-3.5 stroke-1" />
             </Button>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              className="size-8 text-muted-foreground shadow-none hover:bg-muted hover:text-foreground"
+              disabled={loading || saving || officialPricingLoading}
+              onClick={() => void openOfficialPricingDialog()}
+              aria-label={t("actions.fetchOfficialPricing")}
+              title={t("actions.fetchOfficialPricing")}
+            >
+              <Sparkles className="size-3.5 stroke-1" />
+            </Button>
           </TableToolbar>
 
           <Table
@@ -2550,6 +2641,91 @@ export function AdminBillingPage() {
         pendingLabel={t("redemption.deleting")}
         onConfirm={() => void deleteSingleRedemptionCode()}
       />
+
+      <Dialog open={officialPricingOpen} onOpenChange={(open) => { if (!officialPricingLoading) setOfficialPricingOpen(open); }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{t("officialPricing.title")}</DialogTitle>
+            <DialogDescription>{t("officialPricing.description")}</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={
+                        officialPricingSuggestions.length > 0 &&
+                        officialPricingSelected.size === officialPricingSuggestions.length
+                          ? true
+                          : officialPricingSelected.size > 0
+                            ? "indeterminate"
+                            : false
+                      }
+                      onCheckedChange={(checked) => {
+                        setOfficialPricingSelected(
+                          checked
+                            ? new Set(officialPricingSuggestions.map((s) => s.platformModelName))
+                            : new Set(),
+                        );
+                      }}
+                    />
+                  </TableHead>
+                  <TableHead>{t("officialPricing.model")}</TableHead>
+                  <TableHead className="text-right">{t("officialPricing.input")}</TableHead>
+                  <TableHead className="text-right">{t("officialPricing.output")}</TableHead>
+                  <TableHead className="text-right">{t("officialPricing.cacheRead")}</TableHead>
+                  <TableHead className="text-right">{t("officialPricing.cacheWrite")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {officialPricingSuggestions.map((suggestion) => (
+                  <TableRow key={suggestion.platformModelName}>
+                    <TableCell>
+                      <Checkbox
+                        checked={officialPricingSelected.has(suggestion.platformModelName)}
+                        onCheckedChange={(checked) => {
+                          setOfficialPricingSelected((prev) => {
+                            const next = new Set(prev);
+                            if (checked) {
+                              next.add(suggestion.platformModelName);
+                            } else {
+                              next.delete(suggestion.platformModelName);
+                            }
+                            return next;
+                          });
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium text-sm">{suggestion.platformModelName}</TableCell>
+                    <TableCell className="text-right text-sm tabular-nums">{formatUSD(suggestion.inputUSDPerMTokens)}</TableCell>
+                    <TableCell className="text-right text-sm tabular-nums">{formatUSD(suggestion.outputUSDPerMTokens)}</TableCell>
+                    <TableCell className="text-right text-sm tabular-nums">{formatUSD(suggestion.cacheReadUSDPerMTokens)}</TableCell>
+                    <TableCell className="text-right text-sm tabular-nums">{formatUSD(suggestion.cacheWriteUSDPerMTokens)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <DialogFooter className="flex items-center justify-between sm:justify-between">
+            <span className="text-sm text-muted-foreground">
+              {t("officialPricing.selectedCount", { selected: officialPricingSelected.size, total: officialPricingSuggestions.length })}
+            </span>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" disabled={officialPricingLoading} onClick={() => setOfficialPricingOpen(false)}>
+                {tActions("cancel")}
+              </Button>
+              <Button
+                type="button"
+                disabled={officialPricingLoading || officialPricingSelected.size === 0}
+                onClick={() => void applySelectedOfficialPricing()}
+              >
+                {officialPricingLoading ? <SpinnerLabel>{tActions("saving")}</SpinnerLabel> : t("officialPricing.apply", { count: officialPricingSelected.size })}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

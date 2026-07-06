@@ -641,6 +641,20 @@ type RedemptionApplyResponseDoc struct {
 	Data     RedemptionApplyDataResponse `json:"data"`
 }
 
+// OfficialPricingSuggestionResponse 官方定价建议响应。
+type OfficialPricingSuggestionResponse struct {
+	PlatformModelName       string  `json:"platformModelName"`
+	InputUSDPerMTokens      float64 `json:"inputUSDPerMTokens"`
+	OutputUSDPerMTokens     float64 `json:"outputUSDPerMTokens"`
+	CacheReadUSDPerMTokens  float64 `json:"cacheReadUSDPerMTokens"`
+	CacheWriteUSDPerMTokens float64 `json:"cacheWriteUSDPerMTokens"`
+}
+
+// OfficialPricingDataResponse 官方定价建议列表响应。
+type OfficialPricingDataResponse struct {
+	Suggestions []OfficialPricingSuggestionResponse `json:"suggestions"`
+}
+
 // ErrorDoc 错误响应。
 type ErrorDoc struct {
 	ErrorMsg  string      `json:"errorMsg"`

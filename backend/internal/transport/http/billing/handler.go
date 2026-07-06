@@ -983,6 +983,35 @@ func (h *Handler) UpsertModelPricing(c *gin.Context) {
 	})
 }
 
+// FetchOfficialPricing godoc
+// @Summary 获取官方模型定价建议
+// @Description 返回所有未配置定价的平台模型对应的官方公开定价
+// @Tags admin-billing
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} OfficialPricingDataResponse
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/billing/model-prices/official [get]
+func (h *Handler) FetchOfficialPricing(c *gin.Context) {
+	suggestions, err := h.service.FetchOfficialPricingSuggestions(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "fetch official pricing failed")
+		return
+	}
+	results := make([]OfficialPricingSuggestionResponse, 0, len(suggestions))
+	for _, s := range suggestions {
+		results = append(results, OfficialPricingSuggestionResponse{
+			PlatformModelName:       s.PlatformModelName,
+			InputUSDPerMTokens:      s.InputUSDPerMTokens,
+			OutputUSDPerMTokens:     s.OutputUSDPerMTokens,
+			CacheReadUSDPerMTokens:  s.CacheReadUSDPerMTokens,
+			CacheWriteUSDPerMTokens: s.CacheWriteUSDPerMTokens,
+		})
+	}
+	response.Success(c, OfficialPricingDataResponse{Suggestions: results})
+}
+
 func pageParams(c *gin.Context) (int, int) {
 	page := 1
 	pageSize := 20

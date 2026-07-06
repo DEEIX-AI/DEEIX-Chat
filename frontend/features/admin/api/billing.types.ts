@@ -216,3 +216,15 @@ export type AdminRedemptionCodeBatchDeleteData = {
 };
 
 export type AdminModelPricingPage = PagePayload<AdminModelPricingDTO>;
+
+export type OfficialPricingSuggestion = {
+  platformModelName: string;
+  inputUSDPerMTokens: number;
+  outputUSDPerMTokens: number;
+  cacheReadUSDPerMTokens: number;
+  cacheWriteUSDPerMTokens: number;
+};
+
+export type OfficialPricingSuggestionsData = {
+  suggestions: OfficialPricingSuggestion[];
+};

@@ -21,6 +21,7 @@ import type {
   UpdateAdminBillingPlanRequest,
   UpdateAdminBillingAccountBalanceRequest,
   UpsertAdminModelPricingRequest,
+  OfficialPricingSuggestionsData,
 } from "@/features/admin/api/billing.types";
 
 import { normalizeAdminPagePayload, resolveAdminPage, type AdminPageOptions } from "./shared";
@@ -180,6 +181,16 @@ export async function upsertAdminModelPricing(
   return authedRequest<AdminModelPricingData>(
     "/api/v1/admin/billing/model-prices",
     { method: "PUT", accessToken, body: payload },
+    true,
+  );
+}
+
+export async function fetchOfficialModelPricing(
+  accessToken: string,
+): Promise<OfficialPricingSuggestionsData> {
+  return authedRequest<OfficialPricingSuggestionsData>(
+    "/api/v1/admin/billing/model-prices/official",
+    { accessToken },
     true,
   );
 }

@@ -8,7 +8,8 @@
     "exportPricing": "导出模型定价",
     "editPlan": "编辑周期套餐",
     "editPricing": "编辑模型基础价格",
-    "editRedemptionCode": "编辑兑换码"
+    "editRedemptionCode": "编辑兑换码",
+    "fetchOfficialPricing": "获取官方定价"
   },
   "billingConfig": {
     "title": "计费方式",
@@ -267,6 +268,10 @@
     "importEmpty": "导入失败：没有可导入的模型定价",
     "imported": "已导入 {count} 个模型定价",
     "importFailed": "导入模型定价失败",
+    "officialPricingEmpty": "没有未定价模型匹配到官方定价",
+    "officialPricingApplied": "已为 {count} 个模型应用官方定价",
+    "officialPricingPartial": "已应用 {success} 个，{failed} 个失败",
+    "officialPricingFailed": "获取官方定价失败",
     "freeEnabled": "已设为免费模型",
     "freeDisabled": "已关闭免费模型",
     "freeSaveFailed": "免费状态保存失败",
@@ -315,5 +320,16 @@
     "invalidNumber": "{model}.{field} 必须是大于等于 0 的数字",
     "invalidTieredPricing": "{model}.{field} 需要包含非空 tiers 数组",
     "invalidTieredPricingJSON": "{model}.tieredPricingJSON 不是合法 JSON"
+  },
+  "officialPricing": {
+    "title": "获取官方定价",
+    "description": "以下未定价模型已匹配到官方定价，请勾选需要填充的模型。",
+    "model": "模型",
+    "input": "输入 /M",
+    "output": "输出 /M",
+    "cacheRead": "缓存读 /M",
+    "cacheWrite": "缓存写 /M",
+    "selectedCount": "已选 {selected} / {total}",
+    "apply": "应用 ({count})"
   }
 }

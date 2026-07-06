@@ -8,7 +8,8 @@
     "exportPricing": "Export",
     "editPlan": "Edit plan",
     "editPricing": "Edit pricing",
-    "editRedemptionCode": "Edit redemption code"
+    "editRedemptionCode": "Edit redemption code",
+    "fetchOfficialPricing": "Fetch official pricing"
   },
   "billingConfig": {
     "title": "Billing mode",
@@ -267,6 +268,10 @@
     "importEmpty": "Import failed: no model pricing entries to import",
     "imported": "Imported {count} model pricing entries",
     "importFailed": "Failed to import model pricing",
+    "officialPricingEmpty": "No unpriced models match official pricing",
+    "officialPricingApplied": "Applied official pricing to {count} models",
+    "officialPricingPartial": "Applied {success} models, {failed} failed",
+    "officialPricingFailed": "Failed to fetch official pricing",
     "freeEnabled": "Set as free model",
     "freeDisabled": "Free model disabled",
     "freeSaveFailed": "Failed to save free status",
@@ -315,5 +320,16 @@
     "invalidNumber": "{model}.{field} must be a number greater than or equal to 0",
     "invalidTieredPricing": "{model}.{field} must contain a non-empty tiers array",
     "invalidTieredPricingJSON": "{model}.tieredPricingJSON is not valid JSON"
+  },
+  "officialPricing": {
+    "title": "Fetch official pricing",
+    "description": "The following unpriced models have been matched to official pricing. Select the ones you want to apply.",
+    "model": "Model",
+    "input": "Input /M",
+    "output": "Output /M",
+    "cacheRead": "Cache read /M",
+    "cacheWrite": "Cache write /M",
+    "selectedCount": "{selected} / {total} selected",
+    "apply": "Apply ({count})"
   }
 }

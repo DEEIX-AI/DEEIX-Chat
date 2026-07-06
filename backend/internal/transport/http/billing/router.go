@@ -37,5 +37,6 @@ func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup) {
 	adminGroup.PATCH("/billing/redemption-codes/:id", m.Handler.PatchRedemptionCode)
 	adminGroup.DELETE("/billing/redemption-codes/:id", m.Handler.DeleteRedemptionCode)
 	adminGroup.GET("/billing/model-prices", m.Handler.ListModelPricing)
+	adminGroup.GET("/billing/model-prices/official", m.Handler.FetchOfficialPricing)
 	adminGroup.PUT("/billing/model-prices", m.Handler.UpsertModelPricing)
 }
