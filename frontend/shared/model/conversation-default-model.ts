@@ -2,8 +2,9 @@ import { getConversationDefaultModelCandidate } from "@/shared/api/conversation"
 import { listPublicModels } from "@/shared/api/model";
 import type { PublicModelDTO } from "@/shared/api/model.types";
 import { getUserSettings } from "@/shared/api/user-settings";
+import { readLastSelectedModel } from "@/shared/model/last-selected-model";
 
-export type ConversationDefaultModelSource = "explicit" | "user_default" | "system_default" | "recommended" | "none";
+export type ConversationDefaultModelSource = "explicit" | "last_selected" | "user_default" | "system_default" | "recommended" | "none";
 
 export type ConversationDefaultModelResult = {
   platformModelName: string;
@@ -15,6 +16,7 @@ type ResolveConversationDefaultModelInput = {
   explicitModel?: string;
   availableModels?: PublicModelDTO[];
   userDefaultModel?: string;
+  lastSelectedModel?: string;
 };
 
 function findAvailableModel(models: PublicModelDTO[], platformModelName: string): string {
@@ -30,11 +32,17 @@ export async function resolveConversationDefaultModel({
   explicitModel,
   availableModels,
   userDefaultModel,
+  lastSelectedModel,
 }: ResolveConversationDefaultModelInput): Promise<ConversationDefaultModelResult> {
   const models = availableModels ?? await listPublicModels(accessToken);
   const explicit = findAvailableModel(models, explicitModel ?? "");
   if (explicit) {
     return { platformModelName: explicit, source: "explicit" };
+  }
+
+  const lastSelected = findAvailableModel(models, lastSelectedModel ?? readLastSelectedModel());
+  if (lastSelected) {
+    return { platformModelName: lastSelected, source: "last_selected" };
   }
 
   const defaultModel = userDefaultModel ?? (await getUserSettings(accessToken).catch(() => ({})))["chat.default_model"];

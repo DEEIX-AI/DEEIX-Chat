@@ -25,6 +25,7 @@ import type { PublicModelDTO } from "@/shared/api/model.types";
 import type { ModelNativeToolConfig, ModelOptionPolicy } from "@/shared/lib/model-option-policy";
 import { parseKindsJSON } from "@/shared/model/llm-schema";
 import { resolveConversationDefaultModel } from "@/shared/model/conversation-default-model";
+import { writeLastSelectedModel } from "@/shared/model/last-selected-model";
 import type { ConversationOptions } from "@/shared/api/conversation.types";
 import type { SendShortcut } from "@/features/settings/types/settings";
 import { parseSendShortcut } from "@/features/settings/utils/chat-settings";
@@ -357,6 +358,7 @@ export function useChatModelOptions({
   const selectPlatformModelName = React.useCallback((platformModelName: string) => {
     userSelectedModelRef.current = true;
     setSelectedPlatformModelName(platformModelName);
+    writeLastSelectedModel(platformModelName);
   }, []);
 
   const loadModelCatalog = React.useCallback((accessToken?: string): Promise<ModelCatalogRefreshResult> => {
