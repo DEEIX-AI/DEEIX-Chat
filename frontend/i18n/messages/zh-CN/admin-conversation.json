@@ -155,6 +155,8 @@
     "title": "全部对话",
     "description": "导出所有对话、消息和元数据为 JSONL 文件。",
     "exportButton": "导出",
+    "success": "已导出 {count} 个对话",
+    "partial": "已导出 {exported} 个对话，{failed} 个失败",
     "failed": "导出失败，请重试。"
   }
 }

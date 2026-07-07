@@ -73,6 +73,7 @@
   "toast": {
     "exportAllSuccess": "Exported {count} conversations",
     "exportAllPartial": "Exported {exported} conversations, {failed} failed",
+    "exportAllDownloaded": "Conversation export downloaded",
     "exportAllFailed": "Failed to export conversations"
   },
   "conversationCount": "{count}",

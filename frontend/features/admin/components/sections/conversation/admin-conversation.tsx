@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { downloadBlob, readExportManifest } from "@/shared/lib/export-download";
 import {
   SettingsFieldInset,
   SettingsFieldItem,
@@ -387,15 +388,13 @@ export function AdminConversationSettingsPage() {
       const token = await resolveAccessToken();
       if (!token) return;
       const { blob, fileName } = await exportAllConversations(token);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      link.rel = "noopener";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      const manifest = await readExportManifest(blob);
+      downloadBlob(blob, fileName);
+      if (manifest && (!manifest.complete || (manifest.failed ?? 0) > 0)) {
+        toast.warning(t("dataExport.partial", { exported: manifest.exported ?? 0, failed: manifest.failed ?? 0 }));
+      } else if (manifest) {
+        toast.success(t("dataExport.success", { count: manifest.exported ?? 0 }));
+      }
     } catch {
       toast.error(t("dataExport.failed"));
     } finally {

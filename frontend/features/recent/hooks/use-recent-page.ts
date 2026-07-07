@@ -11,6 +11,7 @@ import { useSidebarRecents } from "@/features/recent/context/sidebar-recents-con
 import { useSettingsChatPreferences } from "@/features/settings/hooks/use-settings-chat-preferences";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { runBulkActionInChunks } from "@/shared/lib/bulk-action";
+import { downloadBlob, readExportManifest } from "@/shared/lib/export-download";
 import {
   exportConversation,
   exportAllConversations,
@@ -318,36 +319,15 @@ export function useRecentPage() {
       const token = await resolveAccessToken();
       if (!token) return;
       const blob = await exportAllConversations(token);
-      const text = await blob.text();
-      const lines = text.trimEnd().split("\n");
-      const lastLine = lines[lines.length - 1];
-      let manifest: { _type?: string; complete?: boolean; exported?: number; failed?: number } | null = null;
-      try {
-        const parsed = JSON.parse(lastLine) as Record<string, unknown>;
-        if (parsed._type === "export_manifest") {
-          manifest = parsed as typeof manifest;
-        }
-      } catch {
-        // not valid JSON — treat as no manifest
-      }
+      const manifest = await readExportManifest(blob);
+      downloadBlob(blob, `my-conversations-${new Date().toISOString().slice(0, 10)}.jsonl`);
 
-      const downloadBlob = new Blob([text], { type: "application/x-ndjson" });
-      const url = URL.createObjectURL(downloadBlob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `my-conversations-${new Date().toISOString().slice(0, 10)}.jsonl`;
-      link.rel = "noopener";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-
-      if (manifest && !manifest.complete) {
+      if (manifest && (!manifest.complete || (manifest.failed ?? 0) > 0)) {
         toast.warning(t("toast.exportAllPartial", { exported: manifest.exported ?? 0, failed: manifest.failed ?? 0 }));
-      } else if (manifest && (manifest.failed ?? 0) > 0) {
-        toast.warning(t("toast.exportAllPartial", { exported: manifest.exported ?? 0, failed: manifest.failed ?? 0 }));
+      } else if (!manifest) {
+        toast.success(t("toast.exportAllDownloaded"));
       } else {
-        toast.success(t("toast.exportAllSuccess", { count: manifest?.exported ?? lines.length }));
+        toast.success(t("toast.exportAllSuccess", { count: manifest.exported ?? 0 }));
       }
     } catch {
       toast.error(t("toast.exportAllFailed"));

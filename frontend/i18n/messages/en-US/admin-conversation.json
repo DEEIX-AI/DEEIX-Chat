@@ -155,6 +155,8 @@
     "title": "All conversations",
     "description": "Export all conversations, messages, and metadata as a JSONL file.",
     "exportButton": "Export",
+    "success": "Exported {count} conversations",
+    "partial": "Exported {exported} conversations, {failed} failed",
     "failed": "Export failed. Please try again."
   }
 }

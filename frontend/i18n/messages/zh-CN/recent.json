@@ -73,6 +73,7 @@
   "toast": {
     "exportAllSuccess": "已导出 {count} 个对话",
     "exportAllPartial": "已导出 {exported} 个对话，{failed} 个失败",
+    "exportAllDownloaded": "对话导出文件已下载",
     "exportAllFailed": "导出对话失败"
   },
   "conversationCount": "{count} 个",

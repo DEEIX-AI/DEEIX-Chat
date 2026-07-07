@@ -140,6 +140,9 @@ function contentDispositionFileName(value: string | null): string | null {
 
 export async function exportAllConversations(accessToken: string): Promise<AdminConversationExportFile> {
   const response = await authedFetch("/api/v1/admin/conversations/export", { accessToken });
+  if (!response.ok) {
+    throw new Error(`export failed: ${response.status}`);
+  }
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   return {
     blob: await response.blob(),
