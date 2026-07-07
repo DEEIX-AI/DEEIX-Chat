@@ -318,7 +318,21 @@ export function useRecentPage() {
       const token = await resolveAccessToken();
       if (!token) return;
       const blob = await exportAllConversations(token);
-      const url = URL.createObjectURL(blob);
+      const text = await blob.text();
+      const lines = text.trimEnd().split("\n");
+      const lastLine = lines[lines.length - 1];
+      let manifest: { _type?: string; complete?: boolean; exported?: number; failed?: number } | null = null;
+      try {
+        const parsed = JSON.parse(lastLine) as Record<string, unknown>;
+        if (parsed._type === "export_manifest") {
+          manifest = parsed as typeof manifest;
+        }
+      } catch {
+        // not valid JSON — treat as no manifest
+      }
+
+      const downloadBlob = new Blob([text], { type: "application/x-ndjson" });
+      const url = URL.createObjectURL(downloadBlob);
       const link = document.createElement("a");
       link.href = url;
       link.download = `my-conversations-${new Date().toISOString().slice(0, 10)}.jsonl`;
@@ -327,7 +341,14 @@ export function useRecentPage() {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      toast.success(t("toast.exportAllSuccess"));
+
+      if (manifest && !manifest.complete) {
+        toast.warning(t("toast.exportAllPartial", { exported: manifest.exported ?? 0, failed: manifest.failed ?? 0 }));
+      } else if (manifest && (manifest.failed ?? 0) > 0) {
+        toast.warning(t("toast.exportAllPartial", { exported: manifest.exported ?? 0, failed: manifest.failed ?? 0 }));
+      } else {
+        toast.success(t("toast.exportAllSuccess", { count: manifest?.exported ?? lines.length }));
+      }
     } catch {
       toast.error(t("toast.exportAllFailed"));
     } finally {

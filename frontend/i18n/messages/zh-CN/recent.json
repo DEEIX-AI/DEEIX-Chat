@@ -71,7 +71,8 @@
   "exportFailed": "导出对话失败",
   "exportAll": "导出全部对话",
   "toast": {
-    "exportAllSuccess": "已导出全部对话",
+    "exportAllSuccess": "已导出 {count} 个对话",
+    "exportAllPartial": "已导出 {exported} 个对话，{failed} 个失败",
     "exportAllFailed": "导出对话失败"
   },
   "conversationCount": "{count} 个",
