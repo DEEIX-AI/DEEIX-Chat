@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"encoding/json"
 	"errors"
 	"net/url"
 	"strings"
@@ -54,6 +55,43 @@ func supportsPreviousResponseIDRoute(route *channel.ResolvedRoute) bool {
 	return route != nil &&
 		llm.SupportsPreviousResponseID(route.Protocol) &&
 		isOfficialOpenAIBaseURL(route.BaseURL)
+}
+
+func supportsOpenAIResponsesBackgroundMode(route *channel.ResolvedRoute) bool {
+	if route == nil ||
+		!strings.EqualFold(strings.TrimSpace(route.Protocol), llm.AdapterOpenAIResponses) ||
+		!isOfficialOpenAIBaseURL(route.BaseURL) {
+		return false
+	}
+	capabilities := decodeModelCapabilities(route.ModelCapabilitiesJSON)
+	return boolCapability(capabilities, "responsesBackgroundMode") ||
+		nestedBoolCapability(capabilities, "responses", "backgroundMode")
+}
+
+func decodeModelCapabilities(raw string) map[string]interface{} {
+	parsed := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &parsed); err != nil {
+		return nil
+	}
+	return parsed
+}
+
+func boolCapability(capabilities map[string]interface{}, key string) bool {
+	value, ok := capabilities[key]
+	if !ok {
+		return false
+	}
+	enabled, ok := value.(bool)
+	return ok && enabled
+}
+
+func nestedBoolCapability(capabilities map[string]interface{}, parentKey string, childKey string) bool {
+	parent, ok := capabilities[parentKey].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	enabled, ok := parent[childKey].(bool)
+	return ok && enabled
 }
 
 func isOfficialOpenAIBaseURL(raw string) bool {
@@ -148,4 +186,29 @@ func shouldRetryWithoutPreviousResponseID(err error) bool {
 		strings.Contains(text, "previous response") ||
 		strings.Contains(text, "response_id") ||
 		strings.Contains(text, "unknown parameter")
+}
+
+func shouldRetryWithoutResponsesBackground(err error) bool {
+	if err == nil {
+		return false
+	}
+	var upstreamErr *llm.UpstreamError
+	if !errors.As(err, &upstreamErr) {
+		return false
+	}
+	if upstreamErr.StatusCode != 400 && upstreamErr.StatusCode != 409 && upstreamErr.StatusCode != 422 {
+		return false
+	}
+	text := strings.ToLower(upstreamErr.Message + "\n" + upstreamErr.Body)
+	if !strings.Contains(text, "background") && !strings.Contains(text, "store") &&
+		!strings.Contains(text, "zero data retention") && !strings.Contains(text, "zdr") {
+		return false
+	}
+	return strings.Contains(text, "unsupported") ||
+		strings.Contains(text, "not supported") ||
+		strings.Contains(text, "unknown parameter") ||
+		strings.Contains(text, "unrecognized") ||
+		strings.Contains(text, "invalid") ||
+		strings.Contains(text, "zero data retention") ||
+		strings.Contains(text, "zdr")
 }

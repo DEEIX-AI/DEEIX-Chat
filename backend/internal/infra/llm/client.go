@@ -141,6 +141,9 @@ type GenerateInput struct {
 	// 非空时：仅在 input 中发送本轮新消息，服务端从存储状态续接历史。
 	// 空串时：退回全量发送模式，适用于所有 adapter。
 	PreviousResponseID string
+	// ResponsesBackground 表示官方 OpenAI Responses 请求使用 background mode。
+	// 这是服务端能力开关，不从用户 Options 透传，避免改变未显式启用模型的数据保留语义。
+	ResponsesBackground bool
 	// ImageEditMask 仅供图片编辑 adapter 使用，表示透明区域掩码。
 	ImageEditMask *ContentPart
 }

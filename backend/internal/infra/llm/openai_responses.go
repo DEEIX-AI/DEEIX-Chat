@@ -47,6 +47,10 @@ func buildResponsesRequestBody(
 		"input":  items,
 		"stream": stream,
 	}
+	if adapter == AdapterOpenAIResponses && input.ResponsesBackground {
+		payload["background"] = true
+		payload["store"] = true
+	}
 	if instructions := strings.TrimSpace(input.Instructions); adapter == AdapterOpenAIResponses && instructions != "" {
 		payload["instructions"] = instructions
 	}
@@ -100,6 +104,9 @@ func responsesProtectedProviderOptionKeys(adapter string, hasManagedInstructions
 		"systemInstruction",
 		"text",
 		"tools",
+	}
+	if adapter == AdapterOpenAIResponses {
+		keys = append(keys, "background", "store")
 	}
 	if adapter != AdapterOpenAIResponses {
 		keys = append(keys, "instructions", "metadata", "prompt")
@@ -314,12 +321,17 @@ func applyResponsesStreamEvent(
 
 	switch eventType {
 	case "response.created":
+		var eventErr error
 		if responseID := strings.TrimSpace(getStringFromPath(parsed, "response", "id")); responseID != "" {
 			result.ResponseID = responseID
+			if onEvent != nil {
+				eventErr = onEvent(GenerateStreamEvent{ResponseID: responseID})
+			}
 		}
 		if serviceTier := strings.TrimSpace(getStringFromPath(parsed, "response", "service_tier")); serviceTier != "" {
 			result.Usage.ServiceTier = serviceTier
 		}
+		return eventErr
 	case "response.output_item.added", "response.output_item.in_progress":
 		return mergeResponsesStreamOutputItem(result, asMap(parsed["item"]), onEvent)
 	case "response.output_item.done":

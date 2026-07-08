@@ -71,6 +71,66 @@ func TestSupportsPreviousResponseIDRouteOnlyAllowsOfficialOpenAIResponses(t *tes
 	}
 }
 
+func TestSupportsOpenAIResponsesBackgroundModeRequiresOfficialRouteAndCapability(t *testing.T) {
+	if !supportsOpenAIResponsesBackgroundMode(&channel.ResolvedRoute{
+		Protocol:              llm.AdapterOpenAIResponses,
+		BaseURL:               "https://api.openai.com/v1",
+		ModelCapabilitiesJSON: `{"responsesBackgroundMode":true}`,
+	}) {
+		t.Fatalf("expected explicit official OpenAI Responses capability to enable background")
+	}
+	if !supportsOpenAIResponsesBackgroundMode(&channel.ResolvedRoute{
+		Protocol:              llm.AdapterOpenAIResponses,
+		BaseURL:               "https://api.openai.com/v1",
+		ModelCapabilitiesJSON: `{"responses":{"backgroundMode":true}}`,
+	}) {
+		t.Fatalf("expected nested official OpenAI Responses capability to enable background")
+	}
+	if supportsOpenAIResponsesBackgroundMode(&channel.ResolvedRoute{
+		Protocol:              llm.AdapterOpenAIResponses,
+		BaseURL:               "https://reverse.example.com/v1",
+		ModelCapabilitiesJSON: `{"responsesBackgroundMode":true}`,
+	}) {
+		t.Fatalf("expected custom Responses-compatible route to disable background")
+	}
+	if supportsOpenAIResponsesBackgroundMode(&channel.ResolvedRoute{
+		Protocol:              llm.AdapterOpenRouterResponses,
+		BaseURL:               "https://openrouter.ai/api/v1",
+		ModelCapabilitiesJSON: `{"responsesBackgroundMode":true}`,
+	}) {
+		t.Fatalf("expected non-official protocol to disable background")
+	}
+	if supportsOpenAIResponsesBackgroundMode(&channel.ResolvedRoute{
+		Protocol:              llm.AdapterOpenAIResponses,
+		BaseURL:               "https://api.openai.com/v1",
+		ModelCapabilitiesJSON: `{"responsesBackgroundMode":"true"}`,
+	}) {
+		t.Fatalf("expected non-boolean capability to disable background")
+	}
+}
+
+func TestShouldRetryWithoutResponsesBackground(t *testing.T) {
+	err := &llm.UpstreamError{
+		StatusCode: 400,
+		Message:    "Unknown parameter: background",
+	}
+	if !shouldRetryWithoutResponsesBackground(err) {
+		t.Fatalf("expected unsupported background error to be retryable")
+	}
+	if shouldRetryWithoutResponsesBackground(&llm.UpstreamError{
+		StatusCode: 429,
+		Message:    "rate limit",
+	}) {
+		t.Fatalf("expected rate limit to stay non-retryable")
+	}
+	if shouldRetryWithoutResponsesBackground(&llm.UpstreamError{
+		StatusCode: 400,
+		Message:    "invalid temperature",
+	}) {
+		t.Fatalf("expected unrelated validation error to stay non-retryable")
+	}
+}
+
 func TestBuildStatefulResponseMessagesKeepsLatestUserOnly(t *testing.T) {
 	messages := []llm.Message{
 		{Role: "system", Content: "behavior"},

@@ -215,6 +215,8 @@ func (s *Service) sendMessageInternal(
 	var resolvedRoute *channel.ResolvedRoute
 	var filteredOptions map[string]interface{}
 	var totalServerSideToolUsage map[string]int64
+	var responsesBackgroundRouteConfig llm.RouteConfig
+	var responsesBackgroundRecovery openAIResponsesBackgroundRecoveryState
 	userContentEstimatedInputTokens := int64(0)
 	usageAccumulator := &messageUsageAccumulator{}
 	upstreamCallStarted := false
@@ -224,6 +226,13 @@ func (s *Service) sendMessageInternal(
 	runState.bind(&userMessage, &assistantMessage, &traceRecorder, &result, ctx)
 	defer func() {
 		if retErr != nil {
+			if errors.Is(retErr, ErrMessageGenerationCanceled) {
+				if usage, ok := s.recoverOpenAIResponsesBackgroundUsage(responsesBackgroundRouteConfig, responsesBackgroundRecovery); ok {
+					if delta := diffLLMUsage(usage, responsesBackgroundRecovery.ObservedUsage); delta != (llm.Usage{}) {
+						usageAccumulator.addObservedUsage(delta)
+					}
+				}
+			}
 			if retained := s.persistInterruptedMessageGeneration(ctx, persistInterruptedMessageGenerationInput{
 				SendInput:             input,
 				UserMessage:           userMessage,
@@ -728,6 +737,7 @@ func (s *Service) sendMessageInternal(
 		AttributionReferer:  attributionReferer,
 		AttributionTitle:    attributionTitle,
 	}
+	responsesBackgroundRouteConfig = routeConfig
 	filteredOptions = filterModelOptions(input.Options, route.Protocol, modelOptionPolicyConfig{
 		Mode:                  cfg.ModelOptionPolicyMode,
 		AllowedPathsJSON:      cfg.ModelOptionAllowedPaths,
@@ -740,6 +750,10 @@ func (s *Service) sendMessageInternal(
 		Messages:       llmMessages,
 		Tools:          toolRuntime.definitions,
 		Options:        filteredOptions,
+	}
+	if supportsOpenAIResponsesBackgroundMode(route) {
+		generateInput.ResponsesBackground = true
+		sendSpan.SetAttributes(attribute.Bool("conversation.responses_background", true))
 	}
 	fullLLMMessages := llmMessages
 	applyOpenAIResponsesInstructions(route, routeConfig.Endpoint, &generateInput)
@@ -838,6 +852,11 @@ func (s *Service) sendMessageInternal(
 		}
 		callPromptShape := summarizePromptShape(callPromptMode, currentInput.Messages, currentInput.Messages, currentInput.PreviousResponseID)
 		usageAccumulator.beginCall(currentInput)
+		if currentInput.ResponsesBackground {
+			responsesBackgroundRecovery = openAIResponsesBackgroundRecoveryState{Enabled: true}
+		} else {
+			responsesBackgroundRecovery = openAIResponsesBackgroundRecoveryState{}
+		}
 		generationCtx, generationSpan := platformtracing.Start(ctx, "conversation.llm.generate",
 			trace.WithAttributes(append([]attribute.KeyValue{
 				attribute.Int64("conversation.id", int64(input.ConversationID)),
@@ -846,6 +865,7 @@ func (s *Service) sendMessageInternal(
 				attribute.String("llm.endpoint", routeConfig.Endpoint),
 				attribute.Bool("llm.stream", streamRequested && streamSupported),
 				attribute.Bool("llm.tools_disabled", currentInput.DisableTools),
+				attribute.Bool("llm.responses_background", currentInput.ResponsesBackground),
 				attribute.Int("llm.message_count", len(currentInput.Messages)),
 				attribute.Int("llm.tool_count", len(currentInput.Tools)),
 			}, promptShapeTraceAttributes("llm.prompt", callPromptShape)...)...),
@@ -908,6 +928,11 @@ func (s *Service) sendMessageInternal(
 		callStreamUsage := llm.Usage{}
 		upstreamCallStarted = true
 		output, streamErr := s.llmClient.GenerateStream(generationCtx, routeConfig, currentInput, func(event llm.GenerateStreamEvent) error {
+			if currentInput.ResponsesBackground {
+				if responseID := strings.TrimSpace(event.ResponseID); responseID != "" {
+					responsesBackgroundRecovery.ResponseID = responseID
+				}
+			}
 			if s.isMessageGenerationCanceled(generationCtx, runID) {
 				return ErrMessageGenerationCanceled
 			}
@@ -916,6 +941,9 @@ func (s *Service) sendMessageInternal(
 				// 这里先换算成本次调用内增量，再累加成本轮消息总量，保证实时展示和最终账单口径一致。
 				usageDelta := diffLLMUsage(event.Usage, callStreamUsage)
 				callStreamUsage = event.Usage
+				if currentInput.ResponsesBackground {
+					responsesBackgroundRecovery.ObservedUsage = callStreamUsage
+				}
 				currentUsage := usageAccumulator.addObservedUsage(usageDelta)
 				if input.OnEvent != nil {
 					if err := emitLLMUsageEvent(input.OnEvent, currentUsage); err != nil {
@@ -1010,6 +1038,25 @@ func (s *Service) sendMessageInternal(
 	upstreamOutput, err = runGenerate(generateInput)
 	if handleCanceledGeneration(err) {
 		return nil, retErr
+	}
+	if err != nil && generateInput.ResponsesBackground &&
+		strings.TrimSpace(streamedText.String()) == "" &&
+		shouldRetryWithoutResponsesBackground(err) {
+		if s.logger != nil {
+			s.logger.Warn("openai_responses_background_rejected_retry_standard",
+				zap.String("trace_id", traceid.FromContext(ctx)),
+				zap.Uint("conversation_id", input.ConversationID),
+				zap.String("protocol", route.Protocol),
+				zap.String("upstream_name", route.UpstreamName),
+				zap.Error(err),
+			)
+		}
+		generateInput.ResponsesBackground = false
+		responsesBackgroundRecovery = openAIResponsesBackgroundRecoveryState{}
+		upstreamOutput, err = runGenerate(generateInput)
+		if handleCanceledGeneration(err) {
+			return nil, retErr
+		}
 	}
 	if err != nil && strings.TrimSpace(generateInput.PreviousResponseID) != "" &&
 		strings.TrimSpace(streamedText.String()) == "" &&

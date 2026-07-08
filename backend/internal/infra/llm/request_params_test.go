@@ -38,6 +38,63 @@ func TestBuildOpenAIResponsesMinimalRequestHasOnlyProtocolDefaults(t *testing.T)
 	}
 }
 
+func TestBuildOpenAIResponsesBackgroundRequestSetsStore(t *testing.T) {
+	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5", EndpointResponses, GenerateInput{
+		Messages:            []Message{{Role: "user", Content: "hello"}},
+		ResponsesBackground: true,
+	}, true)
+
+	if payload["background"] != true || payload["store"] != true {
+		t.Fatalf("expected background store request, got %#v", payload)
+	}
+}
+
+func TestBuildOpenAIResponsesBackgroundIgnoresProviderOverride(t *testing.T) {
+	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5", EndpointResponses, GenerateInput{
+		Messages:            []Message{{Role: "user", Content: "hello"}},
+		ResponsesBackground: true,
+		Options: map[string]interface{}{
+			"background": false,
+			"store":      false,
+		},
+	}, true)
+
+	if payload["background"] != true || payload["store"] != true {
+		t.Fatalf("expected internal background fields to win, got %#v", payload)
+	}
+}
+
+func TestOpenAIResponsesCreatedEventEmitsResponseID(t *testing.T) {
+	result := &GenerateOutput{}
+	var got string
+	err := applyResponsesStreamEvent(
+		AdapterOpenAIResponses,
+		"response.created",
+		map[string]interface{}{
+			"type": "response.created",
+			"response": map[string]interface{}{
+				"id":           "resp_123",
+				"service_tier": "default",
+			},
+		},
+		"",
+		result,
+		func(event GenerateStreamEvent) error {
+			got = event.ResponseID
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected event error: %v", err)
+	}
+	if got != "resp_123" || result.ResponseID != "resp_123" {
+		t.Fatalf("expected response id event and result, got event=%q result=%q", got, result.ResponseID)
+	}
+	if result.Usage.ServiceTier != "default" {
+		t.Fatalf("expected service tier to continue parsing, got %q", result.Usage.ServiceTier)
+	}
+}
+
 func TestBuildOpenAIResponsesUsesOutputTextForAssistantHistory(t *testing.T) {
 	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5", EndpointResponses, GenerateInput{
 		Messages: []Message{
