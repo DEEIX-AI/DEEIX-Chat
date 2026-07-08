@@ -185,6 +185,14 @@ func defaultSettings() []domainsettings.SystemSetting {
 		{Namespace: "circuit", Key: "channel_failure_threshold", Value: "3", ValueType: "int", Description: "熔断触发次数"},
 		{Namespace: "circuit", Key: "channel_failure_window_seconds", Value: "120", ValueType: "int", Description: "计数窗口(秒)"},
 		{Namespace: "circuit", Key: "channel_circuit_open_seconds", Value: "60", ValueType: "int", Description: "熔断持续时间(秒)"},
+
+		// 品牌配置
+		{Namespace: "branding", Key: "site_name", Value: "DEEIX Chat", ValueType: "string", Description: "网站名称"},
+		{Namespace: "branding", Key: "site_title", Value: "DEEIX Chat", ValueType: "string", Description: "网站标题"},
+		{Namespace: "branding", Key: "favicon_url", Value: "", ValueType: "string", Description: "Favicon 图标 URL"},
+		{Namespace: "branding", Key: "logo_light_url", Value: "", ValueType: "string", Description: "浅色主题 Logo URL"},
+		{Namespace: "branding", Key: "logo_dark_url", Value: "", ValueType: "string", Description: "深色主题 Logo URL"},
+		{Namespace: "branding", Key: "theme_color", Value: "#0f172a", ValueType: "string", Description: "主题颜色"},
 	}
 }
 
