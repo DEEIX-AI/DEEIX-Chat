@@ -190,6 +190,41 @@ func (h *Handler) GetMCPPolicy(c *gin.Context) {
 	response.Success(c, MCPPolicyResponse{MaxSelectedToolsPerMessage: limit})
 }
 
+// GetPublicBranding godoc
+// @Summary 查询公开品牌配置
+// @Tags settings
+// @Produce json
+// @Success 200 {object} response.Envelope
+// @Router /settings/branding [get]
+func (h *Handler) GetPublicBranding(c *gin.Context) {
+	items, err := h.service.ListByNamespace(c.Request.Context(), "branding")
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "list branding settings failed")
+		return
+	}
+	defaults := map[string]string{
+		"site_name":     "DEEIX Chat",
+		"site_title":    "DEEIX Chat",
+		"favicon_url":   "",
+		"logo_light_url": "",
+		"logo_dark_url": "",
+		"theme_color":   "#0f172a",
+	}
+	for _, item := range items {
+		if _, ok := defaults[item.Key]; ok && strings.TrimSpace(item.Value) != "" {
+			defaults[item.Key] = item.Value
+		}
+	}
+	response.Success(c, PublicBrandingResponse{
+		SiteName:     defaults["site_name"],
+		SiteTitle:    defaults["site_title"],
+		FaviconURL:   defaults["favicon_url"],
+		LogoLightURL: defaults["logo_light_url"],
+		LogoDarkURL:  defaults["logo_dark_url"],
+		ThemeColor:   defaults["theme_color"],
+	})
+}
+
 // GetChatContextPolicy godoc
 // @Summary 查询聊天上下文策略
 // @Tags settings

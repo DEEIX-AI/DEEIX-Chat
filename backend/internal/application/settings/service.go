@@ -201,7 +201,8 @@ var validNamespaces = map[string]bool{
 	"file":    true,
 	"extract": true,
 	"mcp":     true,
-	"circuit": true,
+	"circuit":   true,
+	"branding":  true,
 }
 
 // IsValidNamespace 判断 namespace 是否允许被动态配置。

@@ -4,6 +4,7 @@ import "github.com/gin-gonic/gin"
 
 func (m *Module) RegisterPublicRoutes(api *gin.RouterGroup) {
 	api.GET("/settings/login-page", m.Handler.GetLoginPageSettings)
+	api.GET("/settings/branding", m.Handler.GetPublicBranding)
 }
 
 func (m *Module) RegisterRoutes(api *gin.RouterGroup) {

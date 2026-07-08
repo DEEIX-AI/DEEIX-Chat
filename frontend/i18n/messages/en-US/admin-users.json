@@ -2,6 +2,7 @@
   "adminTitle": "Admin",
   "sections": {
     "accounts": "Accounts",
+    "branding": "Branding",
     "upstreams": "Upstreams",
     "models": "Models",
     "groups": "Permission Groups",

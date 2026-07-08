@@ -33,7 +33,7 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
     // 从 API 或 localStorage 加载品牌设置
     const loadBranding = async () => {
       try {
-        const response = await fetch("/api/v1/public/branding");
+        const response = await fetch("/api/v1/settings/branding");
         if (response.ok) {
           const data = await response.json();
           const config: BrandingConfig = {

@@ -8,6 +8,7 @@ import { WorkspaceShell } from "@/features/layouts/components/sections/workspace
 import { AppI18nProvider } from "@/i18n/app-i18n-provider";
 import { DevtoolsBrandBanner } from "@/shared/components/devtools-brand-banner";
 import { ThemeProvider } from "@/shared/components/theme-provider";
+import { BrandingProvider } from "@/shared/components/branding-provider";
 import { PWAServiceWorkerRegister } from "@/shared/components/pwa-service-worker-register";
 import { pwaAsset } from "@/shared/pwa/assets";
 import { Toaster } from "@/components/ui/sonner";
@@ -80,15 +81,17 @@ export default function RootLayout({
       >
         <AppI18nProvider>
           <ThemeProvider>
-            <FontSizeProvider>
-              <ChatFontProvider>
-                <WorkspaceShell>{children}</WorkspaceShell>
-                <AppVersionGuard />
-                <PWAServiceWorkerRegister />
-                <Toaster />
-                <DevtoolsBrandBanner />
-              </ChatFontProvider>
-            </FontSizeProvider>
+            <BrandingProvider>
+              <FontSizeProvider>
+                <ChatFontProvider>
+                  <WorkspaceShell>{children}</WorkspaceShell>
+                  <AppVersionGuard />
+                  <PWAServiceWorkerRegister />
+                  <Toaster />
+                  <DevtoolsBrandBanner />
+                </ChatFontProvider>
+              </FontSizeProvider>
+            </BrandingProvider>
           </ThemeProvider>
         </AppI18nProvider>
       </body>

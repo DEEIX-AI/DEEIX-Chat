@@ -74,6 +74,16 @@ type ChatContextPolicyResponse struct {
 	ContextCompactEnabled bool `json:"contextCompactEnabled"`
 }
 
+// PublicBrandingResponse 公开品牌配置。
+type PublicBrandingResponse struct {
+	SiteName     string `json:"site_name"`
+	SiteTitle    string `json:"site_title"`
+	FaviconURL   string `json:"favicon_url"`
+	LogoLightURL string `json:"logo_light_url"`
+	LogoDarkURL  string `json:"logo_dark_url"`
+	ThemeColor   string `json:"theme_color"`
+}
+
 // ── mapping 函数 ─────────────────────────────────────────────────────────────
 
 func toAppPatchItems(items []PatchItem) []appsettings.PatchItem {

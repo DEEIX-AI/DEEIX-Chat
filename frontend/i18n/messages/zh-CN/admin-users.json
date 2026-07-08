@@ -2,6 +2,7 @@
   "adminTitle": "管理",
   "sections": {
     "accounts": "账户",
+    "branding": "品牌",
     "upstreams": "上游",
     "models": "模型",
     "groups": "权限组",
