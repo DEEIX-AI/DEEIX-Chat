@@ -524,7 +524,12 @@ function RemoteModelsDialog({
     try {
       const token = await resolveAccessToken();
       const data = await listAdminLLMRemoteModels(token, upstream.id);
-      const syncableItems = dedupeRemoteModels(data.items.filter((i) => !i.alreadyBound));
+      // 过滤掉空模型名和已绑定的模型
+      const validItems = data.items.filter((i) => {
+        const modelName = i.upstreamModelName?.trim();
+        return modelName && modelName.length > 0 && !i.alreadyBound;
+      });
+      const syncableItems = dedupeRemoteModels(validItems);
       setRemoteItems(syncableItems);
       setSelected(new Set(syncableItems.map((i) => i.upstreamModelName)));
       setDraftPlatformModelNames(createDraftPlatformModelNameMap(syncableItems));

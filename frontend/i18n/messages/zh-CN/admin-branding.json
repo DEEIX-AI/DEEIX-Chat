@@ -1,0 +1,23 @@
+{
+  "title": "品牌设置",
+  "description": "自定义网站的品牌元素，包括名称、图标和主题色",
+  "loading": "加载中",
+  "siteName": "网站名称",
+  "siteNameHint": "显示在页面标题和关于页面中的网站名称",
+  "siteTitle": "浏览器标题",
+  "siteTitleHint": "显示在浏览器标签页上的标题",
+  "favicon": "网站图标（Favicon）",
+  "faviconHint": "建议使用 32x32 或 64x64 像素的 PNG/ICO 图片",
+  "logoLight": "Logo（浅色模式）",
+  "logoLightHint": "在浅色主题下显示的 Logo，建议使用透明背景的 SVG 或 PNG",
+  "logoDark": "Logo（深色模式）",
+  "logoDarkHint": "在深色主题下显示的 Logo，建议使用透明背景的 SVG 或 PNG",
+  "themeColor": "主题色",
+  "themeColorHint": "PWA 应用和移动端浏览器地址栏的主题颜色",
+  "toast": {
+    "sessionExpired": "登录已过期，请重新登录",
+    "loadFailed": "加载品牌设置失败",
+    "saved": "品牌设置已保存，页面即将刷新",
+    "saveFailed": "保存品牌设置失败"
+  }
+}

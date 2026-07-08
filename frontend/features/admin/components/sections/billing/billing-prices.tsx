@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDownToLine, ArrowUpFromLine, DatabaseSearch, DatabaseZap, Download, Pencil, RefreshCw, Upload } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, DatabaseSearch, DatabaseZap, Download, Pencil, RefreshCw, Upload, Zap } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -151,6 +151,9 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
   const [officialPricingCatalogHasError, setOfficialPricingCatalogHasError] = React.useState(false);
   const [officialPricingSingleDialogOpen, setOfficialPricingSingleDialogOpen] = React.useState(false);
   const [freeSwitchPendingModel, setFreeSwitchPendingModel] = React.useState("");
+  const [quickConfigDialogOpen, setQuickConfigDialogOpen] = React.useState(false);
+  const [quickConfiguring, setQuickConfiguring] = React.useState(false);
+  const [quickConfigMultiplier, setQuickConfigMultiplier] = React.useState("1");
   const stableEditRow = useDialogSnapshot(editRow);
   const stableForm = useDialogSnapshot(form);
   const stableOfficialPricingImportSuggestion = useDialogSnapshot(officialPricingImportSuggestion);
@@ -460,6 +463,101 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
     }
   }
 
+  async function handleQuickConfig() {
+    const multiplier = parseOfficialPricingMultiplier(quickConfigMultiplier);
+    if (!Number.isFinite(multiplier) || multiplier <= 0) {
+      toast.error(t("toast.invalidMultiplier"));
+      return;
+    }
+
+    // 获取未配置价格的模型
+    const unconfiguredModels = rows.filter(row => !row.pricing || row.pricing.inputUSDPerMTokens === 0);
+
+    if (unconfiguredModels.length === 0) {
+      toast.info(t("toast.noUnconfiguredModels"));
+      setQuickConfigDialogOpen(false);
+      return;
+    }
+
+    setQuickConfiguring(true);
+    try {
+      const token = await resolveAccessToken();
+      if (!token) {
+        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
+        return;
+      }
+
+      // 加载官方价格目录
+      if (officialPricingCatalog.length === 0 || officialPricingCatalogStale) {
+        await refreshOfficialPricingCatalog({ quiet: true });
+      }
+
+      let successCount = 0;
+      let skippedCount = 0;
+
+      // 为每个未配置的模型设置价格
+      for (const row of unconfiguredModels) {
+        try {
+          // 尝试从官方价格目录中找到匹配的价格
+          const suggestions = findOfficialPricingSuggestions(row, officialPricingCatalog, 1);
+
+          let payload;
+          if (suggestions.length > 0 && suggestions[0].score >= 80) {
+            // 使用官方价格
+            const suggestion = suggestions[0];
+            payload = {
+              platformModelName: row.platformModelName,
+              currency: "USD",
+              pricingMode: "token" as const,
+              inputUSDPerMTokens: suggestion.payload.inputUSDPerMTokens * multiplier,
+              cacheReadUSDPerMTokens: suggestion.payload.cacheReadUSDPerMTokens * multiplier,
+              cacheWriteUSDPerMTokens: suggestion.payload.cacheWriteUSDPerMTokens * multiplier,
+              outputUSDPerMTokens: suggestion.payload.outputUSDPerMTokens * multiplier,
+              callUSDPerCall: 0,
+              durationUSDPerSecond: 0,
+              isFree: false,
+            };
+          } else {
+            // 使用默认价格 (Claude Sonnet 级别)
+            payload = {
+              platformModelName: row.platformModelName,
+              currency: "USD",
+              pricingMode: "token" as const,
+              inputUSDPerMTokens: 3.0 * multiplier,
+              cacheReadUSDPerMTokens: 0.3 * multiplier,
+              cacheWriteUSDPerMTokens: 3.75 * multiplier,
+              outputUSDPerMTokens: 15.0 * multiplier,
+              callUSDPerCall: 0,
+              durationUSDPerSecond: 0,
+              isFree: false,
+            };
+          }
+
+          const data = await upsertAdminModelPricing(token, payload);
+          setPricingItems((current) => mergeModelPricingItem(current, data.modelPricing));
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to configure pricing for ${row.platformModelName}:`, error);
+          skippedCount++;
+        }
+      }
+
+      invalidateAdminReferenceDataCache();
+
+      if (skippedCount > 0) {
+        toast.success(t("toast.quickConfigPartialSuccess", { successCount, skippedCount }));
+      } else {
+        toast.success(t("toast.quickConfigSuccess", { count: successCount }));
+      }
+
+      setQuickConfigDialogOpen(false);
+    } catch (error) {
+      toast.error(t("toast.quickConfigFailed"), { description: resolveAdminErrorMessage(error) });
+    } finally {
+      setQuickConfiguring(false);
+    }
+  }
+
   async function toggleModelFree(row: BillingModelPricingRow, checked: boolean) {
     if (freeSwitchPendingModel) {
       return;
@@ -591,6 +689,18 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
             title={t("actions.importPricing")}
           >
             <Upload className="size-3.5 stroke-1" />
+          </Button>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className="size-8 text-muted-foreground shadow-none hover:bg-muted hover:text-foreground"
+            disabled={loading || saving}
+            onClick={() => setQuickConfigDialogOpen(true)}
+            aria-label={t("modelPricing.quickConfig")}
+            title={t("modelPricing.quickConfig")}
+          >
+            <Zap className="size-3.5 stroke-1" />
           </Button>
         </TableToolbar>
 
@@ -917,6 +1027,78 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
               onClick={confirmOfficialPricingImport}
             >
               {t("modelPricing.officialPricingImport")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={quickConfigDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && !quickConfiguring) {
+            setQuickConfigDialogOpen(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>{t("modelPricing.quickConfigTitle")}</DialogTitle>
+            <DialogDescription>{t("modelPricing.quickConfigDescription")}</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                {t("modelPricing.quickConfigInfo", {
+                  count: rows.filter(row => !row.pricing || row.pricing.inputUSDPerMTokens === 0).length
+                })}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="quick-config-multiplier" className="text-sm font-medium">
+                {t("modelPricing.quickConfigMultiplier")}
+              </label>
+              <Input
+                id="quick-config-multiplier"
+                type="number"
+                step="0.1"
+                min="0.1"
+                value={quickConfigMultiplier}
+                onChange={(e) => setQuickConfigMultiplier(e.target.value)}
+                placeholder="1.0"
+                disabled={quickConfiguring}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("modelPricing.quickConfigMultiplierHint")}
+              </p>
+            </div>
+
+            <div className="rounded-md border border-border/50 bg-muted/30 p-3 text-xs text-muted-foreground">
+              <p className="font-medium">{t("modelPricing.quickConfigNote")}</p>
+              <ul className="mt-2 space-y-1 pl-4">
+                <li>• {t("modelPricing.quickConfigNote1")}</li>
+                <li>• {t("modelPricing.quickConfigNote2")}</li>
+                <li>• {t("modelPricing.quickConfigNote3")}</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setQuickConfigDialogOpen(false)}
+              disabled={quickConfiguring}
+            >
+              {tActions("cancel")}
+            </Button>
+            <Button
+              type="button"
+              onClick={handleQuickConfig}
+              disabled={quickConfiguring}
+            >
+              {quickConfiguring ? <SpinnerLabel>{t("modelPricing.quickConfiguring")}</SpinnerLabel> : t("modelPricing.quickConfigApply")}
             </Button>
           </DialogFooter>
         </DialogContent>

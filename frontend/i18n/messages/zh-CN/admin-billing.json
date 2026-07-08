@@ -223,7 +223,19 @@
       "output": "/ 1M 输出",
       "cacheRead": "/ 1M 缓存读",
       "cacheWrite": "/ 1M 缓存写"
-    }
+    },
+    "quickConfig": "一键快速配置",
+    "quickConfigTitle": "一键快速配置",
+    "quickConfigDescription": "为所有未配置价格的模型批量设置默认价格",
+    "quickConfigInfo": "将为 {count} 个未配置的模型设置价格",
+    "quickConfigMultiplier": "价格倍率",
+    "quickConfigMultiplierHint": "官方价格或默认价格将乘以此倍率",
+    "quickConfigNote": "配置规则：",
+    "quickConfigNote1": "优先使用 OpenRouter 官方价格（相似度 ≥ 80%）",
+    "quickConfigNote2": "无匹配时使用默认价格（输入 $3/M，输出 $15/M）",
+    "quickConfigNote3": "已配置价格的模型不受影响",
+    "quickConfigApply": "应用配置",
+    "quickConfiguring": "配置中"
   },
   "toolPricing": {
     "title": "工具定价",
@@ -324,7 +336,12 @@
     "redemptionDeleted": "已删除 {count} 个兑换码",
     "redemptionDeleteFailed": "删除兑换码失败",
     "redemptionDeletePartialFailed": "部分兑换码删除失败",
-    "redemptionDeleteSummary": "成功 {successCount} 个，未找到 {notFoundCount} 个，失败 {failedCount} 个。"
+    "redemptionDeleteSummary": "成功 {successCount} 个，未找到 {notFoundCount} 个，失败 {failedCount} 个。",
+    "invalidMultiplier": "价格倍率无效，请输入大于 0 的数字",
+    "noUnconfiguredModels": "所有模型已配置价格",
+    "quickConfigSuccess": "成功配置 {count} 个模型的价格",
+    "quickConfigPartialSuccess": "成功配置 {successCount} 个，跳过 {skippedCount} 个",
+    "quickConfigFailed": "批量配置失败"
   },
   "importErrors": {
     "invalidJSON": "文件内容不是合法 JSON",

@@ -1,0 +1,23 @@
+{
+  "title": "Branding",
+  "description": "Customize website branding elements including name, icons, and theme colors",
+  "loading": "Loading",
+  "siteName": "Site Name",
+  "siteNameHint": "Site name displayed in page titles and about page",
+  "siteTitle": "Browser Title",
+  "siteTitleHint": "Title displayed in browser tabs",
+  "favicon": "Favicon",
+  "faviconHint": "Recommended: 32x32 or 64x64 pixels PNG/ICO image",
+  "logoLight": "Logo (Light Mode)",
+  "logoLightHint": "Logo displayed in light theme, recommend transparent SVG or PNG",
+  "logoDark": "Logo (Dark Mode)",
+  "logoDarkHint": "Logo displayed in dark theme, recommend transparent SVG or PNG",
+  "themeColor": "Theme Color",
+  "themeColorHint": "Theme color for PWA and mobile browser address bar",
+  "toast": {
+    "sessionExpired": "Session expired, please login again",
+    "loadFailed": "Failed to load branding settings",
+    "saved": "Branding settings saved, page will reload",
+    "saveFailed": "Failed to save branding settings"
+  }
+}
