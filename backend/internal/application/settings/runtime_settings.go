@@ -11,6 +11,11 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
+const (
+	defaultMCPToolTimeoutSeconds = 10
+	maxMCPToolTimeoutSeconds     = 1800
+)
+
 // RuntimeSettings 负责把数据库中的动态配置应用到运行时配置，并维护配置缓存。
 type RuntimeSettings struct {
 	repo              repository.SettingsRepository
@@ -398,6 +403,12 @@ func (r *RuntimeSettings) normalizeConfig(cfg *config.Config) {
 	}
 	if cfg.MCPMaxSelectedToolsPerMessage > config.MaxMCPSelectedToolsPerMessage {
 		cfg.MCPMaxSelectedToolsPerMessage = config.MaxMCPSelectedToolsPerMessage
+	}
+	if cfg.MCPToolTimeoutSeconds <= 0 {
+		cfg.MCPToolTimeoutSeconds = defaultMCPToolTimeoutSeconds
+	}
+	if cfg.MCPToolTimeoutSeconds > maxMCPToolTimeoutSeconds {
+		cfg.MCPToolTimeoutSeconds = maxMCPToolTimeoutSeconds
 	}
 	if !cfg.FileFullContextLimitEnabled {
 		cfg.FileFullContextMaxBytes = 0

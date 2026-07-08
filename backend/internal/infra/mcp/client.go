@@ -18,7 +18,11 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
-const protocolVersion = "2025-06-18"
+const (
+	protocolVersion         = "2025-06-18"
+	defaultRequestTimeoutMS = 10000
+	defaultConnectTimeout   = 10 * time.Second
+)
 
 // Client 封装 MCP Streamable HTTP JSON-RPC 客户端。
 type Client struct {
@@ -58,10 +62,9 @@ func NewClient() *Client {
 
 // NewClientWithEnv 创建带运行环境的 MCP 客户端。
 func NewClientWithEnv(env string, ssrfProtectionEnabled bool) *Client {
-	transport := security.NewOutboundHTTPTransport(env, ssrfProtectionEnabled, 10*time.Second)
+	transport := security.NewOutboundHTTPTransport(env, ssrfProtectionEnabled, defaultConnectTimeout)
 	return &Client{
 		httpClient: &http.Client{
-			Timeout:   30 * time.Second,
 			Transport: platformtracing.NewHTTPTransport(transport),
 		},
 	}
@@ -168,11 +171,7 @@ func (c *Client) rpcWithSession(
 		return nil, sessionID, err
 	}
 
-	timeoutMS := cfg.TimeoutMS
-	if timeoutMS <= 0 {
-		timeoutMS = 10000
-	}
-	requestCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMS)*time.Millisecond)
+	requestCtx, cancel := context.WithTimeout(ctx, time.Duration(resolveRequestTimeoutMS(cfg.TimeoutMS))*time.Millisecond)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, endpoint, bytes.NewReader(raw))
@@ -219,6 +218,13 @@ func (c *Client) rpcWithSession(
 		return nil, sessionID, err
 	}
 	return result, sessionID, nil
+}
+
+func resolveRequestTimeoutMS(timeoutMS int) int {
+	if timeoutMS <= 0 {
+		return defaultRequestTimeoutMS
+	}
+	return timeoutMS
 }
 
 func (c *Client) nextRequestID() int64 {
