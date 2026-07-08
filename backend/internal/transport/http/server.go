@@ -29,8 +29,7 @@ import (
 	userhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/user"
 	usersettingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/usersettings"
 	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
+
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
 )
@@ -102,9 +101,10 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "version": info.Version})
 	})
 	engine.GET("/readyz", readyzHandler(hc))
-	if swaggerEnabled(snapshot.Env) {
-		engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	}
+	// Swagger API 文档仅在开发环境启用，注释掉以永久禁用
+	// if swaggerEnabled(snapshot.Env) {
+	// 	engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// }
 
 	api := engine.Group("/api/v1")
 	api.GET("/version", func(c *gin.Context) {
@@ -268,15 +268,6 @@ func registerFrontendStatic(engine *gin.Engine, distDir string, log *zap.Logger)
 	})
 }
 
-func swaggerEnabled(env string) bool {
-	switch strings.ToLower(strings.TrimSpace(env)) {
-	case "dev", "development":
-		return true
-	default:
-		return false
-	}
-}
-
 func cleanFrontendPath(rawPath string) string {
 	if rawPath == "" || rawPath == "/" {
 		return "/"
@@ -287,8 +278,6 @@ func cleanFrontendPath(rawPath string) string {
 func isBackendOnlyPath(requestPath string) bool {
 	return requestPath == "/api" ||
 		strings.HasPrefix(requestPath, "/api/") ||
-		requestPath == "/swagger" ||
-		strings.HasPrefix(requestPath, "/swagger/") ||
 		requestPath == "/healthz" ||
 		requestPath == "/readyz"
 }

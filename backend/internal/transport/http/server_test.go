@@ -135,24 +135,3 @@ func TestFrontendStaticFallbackSkipsAPIPaths(t *testing.T) {
 	}
 }
 
-func TestSwaggerEnabledByEnvironment(t *testing.T) {
-	tests := []struct {
-		env  string
-		want bool
-	}{
-		{env: "", want: false},
-		{env: "dev", want: true},
-		{env: " DEV ", want: true},
-		{env: "development", want: true},
-		{env: "staging", want: false},
-		{env: "prod", want: false},
-		{env: "production", want: false},
-		{env: " PROD ", want: false},
-	}
-
-	for _, tt := range tests {
-		if got := swaggerEnabled(tt.env); got != tt.want {
-			t.Fatalf("swaggerEnabled(%q) = %v, want %v", tt.env, got, tt.want)
-		}
-	}
-}

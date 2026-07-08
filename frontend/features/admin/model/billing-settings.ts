@@ -566,6 +566,10 @@ export function buildPricingRows(models: AdminLLMModelDTO[], pricingItems: Admin
     });
 }
 
+export function needsDefaultModelPricing(row: BillingModelPricingRow): boolean {
+  return row.pricing == null;
+}
+
 export function parseIntValue(value: string): number {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed < 0) {

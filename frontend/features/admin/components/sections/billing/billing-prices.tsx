@@ -29,6 +29,7 @@ import {
   downloadJSONFile,
   formatDateTime,
   mergeModelPricingItem,
+  needsDefaultModelPricing,
   normalizePricingMode,
   parseModelPricingImportJSON,
   parsePrice,
@@ -210,6 +211,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
     const parsed = Number(officialPricingMultiplier.trim());
     return Number.isFinite(parsed) && parsed > 0;
   }, [officialPricingMultiplier]);
+  const quickConfigRows = React.useMemo(() => rows.filter(needsDefaultModelPricing), [rows]);
 
   React.useEffect(() => {
     setPage(1);
@@ -471,7 +473,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
     }
 
     // 获取未配置价格的模型
-    const unconfiguredModels = rows.filter(row => !row.pricing || row.pricing.inputUSDPerMTokens === 0);
+    const unconfiguredModels = quickConfigRows;
 
     if (unconfiguredModels.length === 0) {
       toast.info(t("toast.noUnconfiguredModels"));
@@ -1050,7 +1052,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">
                 {t("modelPricing.quickConfigInfo", {
-                  count: rows.filter(row => !row.pricing || row.pricing.inputUSDPerMTokens === 0).length
+                  count: quickConfigRows.length
                 })}
               </p>
             </div>
