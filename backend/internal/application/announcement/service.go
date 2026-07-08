@@ -6,7 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	domainannouncement "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/announcement"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
@@ -17,12 +20,28 @@ const (
 
 // Service 封装公告业务逻辑。
 type Service struct {
-	repo repository.AnnouncementRepository
+	repo          repository.AnnouncementRepository
+	cfg           *config.Runtime
+	routeResolver announcementAIRouteResolver
+	llmClient     *llm.Client
 }
 
 // NewService 创建公告服务。
 func NewService(repo repository.AnnouncementRepository) *Service {
 	return &Service{repo: repo}
+}
+
+// SetAIGenerator configures the model route used for AI announcement drafts.
+func (s *Service) SetAIGenerator(cfg *config.Runtime, routeResolver announcementAIRouteResolver, llmClient *llm.Client) {
+	s.cfg = cfg
+	s.routeResolver = routeResolver
+	s.llmClient = llmClient
+}
+
+type announcementAIRouteResolver interface {
+	ResolveDefaultRoute(ctx context.Context, input channel.ResolveRouteInput) (*channel.ResolvedRoute, error)
+	MarkRouteFailure(ctx context.Context, route *channel.ResolvedRoute, cause error)
+	MarkRouteSuccess(ctx context.Context, route *channel.ResolvedRoute)
 }
 
 // ListActive 查询当前用户可展示公告。

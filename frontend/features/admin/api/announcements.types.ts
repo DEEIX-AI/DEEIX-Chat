@@ -22,6 +22,23 @@ export type AdminAnnouncementData = {
   announcement: AdminAnnouncementDTO;
 };
 
+export type GenerateAdminAnnouncementDraftRequest = {
+  requirement: string;
+  locale?: string;
+};
+
+export type AdminAnnouncementDraftDTO = {
+  title: string;
+  contentMarkdown: string;
+  type: "critical" | "warning" | "info" | "normal" | "general" | string;
+  pinned: boolean;
+  priority: number;
+};
+
+export type AdminAnnouncementDraftData = {
+  draft: AdminAnnouncementDraftDTO;
+};
+
 export type AdminAnnouncementDeleteData = {
   deleted: boolean;
 };

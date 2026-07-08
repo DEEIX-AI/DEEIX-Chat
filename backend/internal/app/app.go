@@ -300,6 +300,7 @@ func NewApp() (*App, error) {
 	userSettingsModule := usersettingshttp.NewModule(userSettingsHandler)
 	announcementRepo := announcementrepo.NewRepo(db)
 	announcementService := announcement.NewService(announcementRepo)
+	announcementService.SetAIGenerator(runtimeCfg, channelService, llmClient)
 	announcementHandler := announcementhttp.NewHandler(announcementService)
 	announcementModule := announcementhttp.NewModule(announcementHandler)
 	promptPresetRepo := promptpresetrepo.NewRepo(db)

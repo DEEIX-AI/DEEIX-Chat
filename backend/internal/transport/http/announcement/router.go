@@ -12,6 +12,7 @@ func (m *Module) RegisterRoutes(authRequired *gin.RouterGroup) {
 // RegisterAdminRoutes 注册公告管理路由。
 func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup) {
 	adminGroup.GET("/announcements", m.Handler.ListAdminAnnouncements)
+	adminGroup.POST("/announcements/generate", m.Handler.GenerateAnnouncementDraft)
 	adminGroup.POST("/announcements", m.Handler.CreateAnnouncement)
 	adminGroup.PATCH("/announcements/:id", m.Handler.PatchAnnouncement)
 	adminGroup.DELETE("/announcements/:id", m.Handler.DeleteAnnouncement)

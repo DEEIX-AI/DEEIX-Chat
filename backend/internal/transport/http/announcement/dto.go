@@ -76,6 +76,19 @@ type AnnouncementStateRequest struct {
 	UpdatedAt time.Time `json:"updatedAt" binding:"required"`
 }
 
+type GenerateAnnouncementDraftRequest struct {
+	Requirement string `json:"requirement" binding:"required,min=1,max=4000"`
+	Locale      string `json:"locale" binding:"omitempty,max=32"`
+}
+
+type AnnouncementDraftResponse struct {
+	Title           string `json:"title"`
+	ContentMarkdown string `json:"contentMarkdown"`
+	Type            string `json:"type"`
+	Pinned          bool   `json:"pinned"`
+	Priority        int    `json:"priority"`
+}
+
 type nullableTimeRequest struct {
 	Set   bool
 	Value *time.Time
@@ -124,10 +137,19 @@ type AnnouncementDataResponse struct {
 	Announcement AnnouncementResponse `json:"announcement"`
 }
 
+type AnnouncementDraftDataResponse struct {
+	Draft AnnouncementDraftResponse `json:"draft"`
+}
+
 // AnnouncementResponseDoc 公告操作响应文档。
 type AnnouncementResponseDoc struct {
 	ErrorMsg string                   `json:"errorMsg"`
 	Data     AnnouncementDataResponse `json:"data"`
+}
+
+type AnnouncementDraftResponseDoc struct {
+	ErrorMsg string                        `json:"errorMsg"`
+	Data     AnnouncementDraftDataResponse `json:"data"`
 }
 
 // AnnouncementDeleteDataResponse 公告删除响应。
@@ -203,5 +225,18 @@ func createInputFromRequest(req CreateAnnouncementRequest) appannouncement.Write
 		Priority:        req.Priority,
 		StartsAt:        req.StartsAt,
 		ExpiresAt:       req.ExpiresAt,
+	}
+}
+
+func toAnnouncementDraftResponse(item *appannouncement.GenerateDraftResult) AnnouncementDraftResponse {
+	if item == nil {
+		return AnnouncementDraftResponse{}
+	}
+	return AnnouncementDraftResponse{
+		Title:           item.Title,
+		ContentMarkdown: item.ContentMarkdown,
+		Type:            item.Type,
+		Pinned:          item.Pinned,
+		Priority:        item.Priority,
 	}
 }

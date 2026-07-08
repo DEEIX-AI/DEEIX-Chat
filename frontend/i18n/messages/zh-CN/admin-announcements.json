@@ -55,7 +55,9 @@
     "startsAt": "开始时间",
     "expiresAt": "过期时间",
     "contentMarkdown": "内容",
-    "preview": "预览"
+    "preview": "预览",
+    "aiRequirement": "AI 草稿",
+    "aiRequirementPlaceholder": "描述公告目的、面向用户、时间、语气和重点内容。"
   },
   "toast": {
     "loadFailed": "公告加载失败",
@@ -67,6 +69,11 @@
     "priorityInvalid": "优先级必须是数字",
     "statusFailed": "状态更新失败",
     "deleted": "公告已删除",
-    "deleteFailed": "删除公告失败"
-  }
+    "deleteFailed": "删除公告失败",
+    "aiRequirementEmpty": "请先输入公告需求。",
+    "aiGenerated": "公告草稿已生成",
+    "aiGenerateFailed": "生成公告失败"
+  },
+  "aiGenerate": "AI 生成",
+  "aiGenerating": "生成中"
 }

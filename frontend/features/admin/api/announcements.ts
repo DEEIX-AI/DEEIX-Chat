@@ -4,9 +4,11 @@ import type { PagePayload } from "@/shared/api/common.types";
 import type {
   AdminAnnouncementDTO,
   AdminAnnouncementData,
+  AdminAnnouncementDraftData,
   AdminAnnouncementDeleteData,
   AdminAnnouncementPage,
   CreateAdminAnnouncementRequest,
+  GenerateAdminAnnouncementDraftRequest,
   UpdateAdminAnnouncementRequest,
 } from "@/features/admin/api/announcements.types";
 import { normalizeAdminPagePayload, resolveAdminPage, type AdminListQueryOptions } from "./shared";
@@ -38,6 +40,17 @@ export async function createAdminAnnouncement(
 ): Promise<AdminAnnouncementData> {
   return authedRequest<AdminAnnouncementData>(
     "/api/v1/admin/announcements",
+    { method: "POST", accessToken, body: payload },
+    true,
+  );
+}
+
+export async function generateAdminAnnouncementDraft(
+  accessToken: string,
+  payload: GenerateAdminAnnouncementDraftRequest,
+): Promise<AdminAnnouncementDraftData> {
+  return authedRequest<AdminAnnouncementDraftData>(
+    "/api/v1/admin/announcements/generate",
     { method: "POST", accessToken, body: payload },
     true,
   );

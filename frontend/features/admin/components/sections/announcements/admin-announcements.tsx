@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Edit3, Pin, Plus, Trash2 } from "lucide-react";
+import { Edit3, Pin, Plus, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -53,11 +53,13 @@ import { adminDateTimeFormValue, adminDateTimeValueToISOString } from "@/feature
 import {
   createAdminAnnouncement,
   deleteAdminAnnouncement,
+  generateAdminAnnouncementDraft,
   listAdminAnnouncements,
   updateAdminAnnouncement,
 } from "@/features/admin/api";
 import type {
   AdminAnnouncementDTO,
+  AdminAnnouncementDraftDTO,
   CreateAdminAnnouncementRequest,
   UpdateAdminAnnouncementRequest,
 } from "@/features/admin/api/announcements.types";
@@ -205,6 +207,8 @@ export function AdminAnnouncementsPage() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [form, setForm] = React.useState<AnnouncementForm>(emptyForm);
+  const [aiRequirement, setAIRequirement] = React.useState("");
+  const [aiGenerating, setAIGenerating] = React.useState(false);
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<AdminAnnouncementDTO | null>(null);
   const [priorityDrafts, setPriorityDrafts] = React.useState<Record<number, string>>({});
@@ -236,12 +240,47 @@ export function AdminAnnouncementsPage() {
 
   function openCreate() {
     setForm(emptyForm);
+    setAIRequirement("");
     setDialogOpen(true);
   }
 
   function openEdit(item: AdminAnnouncementDTO) {
     setForm(formFromAnnouncement(item));
+    setAIRequirement("");
     setDialogOpen(true);
+  }
+
+  function applyAnnouncementDraft(draft: AdminAnnouncementDraftDTO) {
+    setForm((current) => ({
+      ...current,
+      title: draft.title,
+      contentMarkdown: draft.contentMarkdown,
+      type: normalizeAnnouncementType(draft.type),
+      pinned: Boolean(draft.pinned),
+      priority: String(Number.isFinite(draft.priority) ? draft.priority : 0),
+      status: "active",
+    }));
+  }
+
+  async function generateDraft() {
+    const requirement = aiRequirement.trim();
+    if (!requirement) {
+      toast.error(t("toast.aiRequirementEmpty"));
+      return;
+    }
+    setAIGenerating(true);
+    try {
+      const data = await generateAdminAnnouncementDraft(accessToken, {
+        requirement,
+        locale,
+      });
+      applyAnnouncementDraft(data.draft);
+      toast.success(t("toast.aiGenerated"));
+    } catch (error) {
+      toast.error(t("toast.aiGenerateFailed"), { description: resolveAdminErrorMessage(error) });
+    } finally {
+      setAIGenerating(false);
+    }
   }
 
   async function save() {
@@ -571,7 +610,7 @@ export function AdminAnnouncementsPage() {
         />
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={(nextOpen) => !saving && setDialogOpen(nextOpen)}>
+      <Dialog open={dialogOpen} onOpenChange={(nextOpen) => !saving && !aiGenerating && setDialogOpen(nextOpen)}>
         <DialogContent className="flex max-h-[min(90vh,820px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[720px]">
           <DialogHeader className="shrink-0 px-4 py-4">
             <DialogTitle>{form.id ? t("editTitle") : t("createTitle")}</DialogTitle>
@@ -586,16 +625,44 @@ export function AdminAnnouncementsPage() {
             }}
           >
             <div className="grid min-h-0 flex-1 grid-cols-2 gap-5 overflow-y-auto px-4 py-2">
+              {!form.id ? (
+                <div className="col-span-2 grid gap-3 rounded-md border border-border/70 bg-muted/20 p-3 md:grid-cols-[1fr_auto] md:items-end">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">{t("fields.aiRequirement")}</p>
+                    <Textarea
+                      value={aiRequirement}
+                      onChange={(event) => setAIRequirement(event.target.value)}
+                      disabled={saving || aiGenerating}
+                      placeholder={t("fields.aiRequirementPlaceholder")}
+                      className="h-20 resize-none overflow-y-auto text-xs [field-sizing:fixed]"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => void generateDraft()}
+                    disabled={saving || aiGenerating}
+                    className="h-9 md:w-28"
+                  >
+                    {aiGenerating ? <SpinnerLabel>{t("aiGenerating")}</SpinnerLabel> : (
+                      <>
+                        <Sparkles className="size-3.5 stroke-1" />
+                        {t("aiGenerate")}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              ) : null}
+
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{t("fields.title")}</p>
-                <Input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} disabled={saving} />
+                <Input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} disabled={saving || aiGenerating} />
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{t("fields.timeRange")}</p>
                 <AdminDateRangeFilter
                   fromValue={toDateRangeValue(form.startsAt)}
                   toValue={toDateRangeValue(form.expiresAt)}
-                  disabled={saving}
+                  disabled={saving || aiGenerating}
                   placeholder={t("fields.alwaysActive")}
                   onFromChange={(value) => setForm((current) => ({ ...current, startsAt: dateRangeBoundaryValue(value, "start") }))}
                   onToChange={(value) => setForm((current) => ({ ...current, expiresAt: dateRangeBoundaryValue(value, "end") }))}
@@ -604,7 +671,7 @@ export function AdminAnnouncementsPage() {
 
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{t("fields.type")}</p>
-                <Select value={form.type} onValueChange={(value) => setForm({ ...form, type: normalizeAnnouncementType(value) })} disabled={saving}>
+                <Select value={form.type} onValueChange={(value) => setForm({ ...form, type: normalizeAnnouncementType(value) })} disabled={saving || aiGenerating}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -619,7 +686,7 @@ export function AdminAnnouncementsPage() {
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{t("fields.priority")}</p>
-                <Input type="number" value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} disabled={saving} />
+                <Input type="number" value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} disabled={saving || aiGenerating} />
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{t("fields.pinned")}</p>
@@ -628,7 +695,7 @@ export function AdminAnnouncementsPage() {
                     size="sm"
                     checked={form.pinned}
                     onCheckedChange={(checked) => setForm({ ...form, pinned: checked })}
-                    disabled={saving}
+                    disabled={saving || aiGenerating}
                     aria-label={t("fields.pinned")}
                   />
                 </div>
@@ -640,7 +707,7 @@ export function AdminAnnouncementsPage() {
                     size="sm"
                     checked={form.status === "active"}
                     onCheckedChange={(checked) => setForm({ ...form, status: checked ? "active" : "inactive" })}
-                    disabled={saving}
+                    disabled={saving || aiGenerating}
                     aria-label={t("fields.status")}
                   />
                 </div>
@@ -651,7 +718,7 @@ export function AdminAnnouncementsPage() {
                 <Textarea
                   value={form.contentMarkdown}
                   onChange={(event) => setForm({ ...form, contentMarkdown: event.target.value })}
-                  disabled={saving}
+                  disabled={saving || aiGenerating}
                   className="h-32 resize-none overflow-y-auto text-xs [field-sizing:fixed]"
                 />
               </div>
@@ -665,10 +732,10 @@ export function AdminAnnouncementsPage() {
             </div>
 
             <DialogFooter className="shrink-0 px-4 py-3">
-              <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
+              <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving || aiGenerating}>
                 {common("actions.cancel")}
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" disabled={saving || aiGenerating}>
                 {saving ? <SpinnerLabel>{common("actions.saving")}</SpinnerLabel> : common("actions.save")}
               </Button>
             </DialogFooter>

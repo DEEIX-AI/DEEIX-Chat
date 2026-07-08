@@ -6,6 +6,8 @@
   "delete": "Delete",
   "enable": "Enable",
   "disable": "Disable",
+  "aiGenerate": "Generate",
+  "aiGenerating": "Generating",
   "deleting": "Deleting",
   "searchPlaceholder": "Search title or content",
   "statusFilter": "Status",
@@ -55,7 +57,9 @@
     "startsAt": "Starts at",
     "expiresAt": "Expires at",
     "contentMarkdown": "Content",
-    "preview": "Preview"
+    "preview": "Preview",
+    "aiRequirement": "AI draft",
+    "aiRequirementPlaceholder": "Describe the announcement goal, audience, timing, tone, and key points."
   },
   "toast": {
     "loadFailed": "Failed to load announcements",
@@ -66,6 +70,9 @@
     "updateFailed": "Failed to update announcement",
     "priorityInvalid": "Priority must be a number",
     "statusFailed": "Failed to update status",
+    "aiRequirementEmpty": "Enter what the announcement should say.",
+    "aiGenerated": "Draft generated",
+    "aiGenerateFailed": "Failed to generate announcement",
     "deleted": "Announcement deleted",
     "deleteFailed": "Failed to delete announcement"
   }

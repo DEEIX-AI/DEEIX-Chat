@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	appannouncement "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/announcement"
@@ -175,6 +176,35 @@ func (h *Handler) CreateAnnouncement(c *gin.Context) {
 	response.Success(c, AnnouncementDataResponse{Announcement: toAnnouncementResponse(*item)})
 }
 
+// GenerateAnnouncementDraft godoc
+// @Summary AI 生成公告草稿
+// @Description 管理员输入需求后生成可编辑的 Markdown 公告草稿
+// @Tags admin-announcements
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body GenerateAnnouncementDraftRequest true "公告生成需求"
+// @Success 200 {object} AnnouncementDraftResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/announcements/generate [post]
+func (h *Handler) GenerateAnnouncementDraft(c *gin.Context) {
+	var req GenerateAnnouncementDraftRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.InvalidRequestBody(c, err)
+		return
+	}
+	draft, err := h.service.GenerateDraft(c.Request.Context(), appannouncement.GenerateDraftInput{
+		Requirement: req.Requirement,
+		Locale:      strings.TrimSpace(req.Locale),
+	})
+	if err != nil {
+		writeAnnouncementError(c, err)
+		return
+	}
+	response.Success(c, AnnouncementDraftDataResponse{Draft: toAnnouncementDraftResponse(draft)})
+}
+
 // PatchAnnouncement godoc
 // @Summary 管理员更新公告
 // @Description 更新公告标题、内容、状态、优先级和有效期
@@ -252,6 +282,10 @@ func writeAnnouncementError(c *gin.Context, err error) {
 	}
 	if errors.Is(err, appannouncement.ErrInvalidAnnouncement) {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
+		return
+	}
+	if errors.Is(err, appannouncement.ErrAnnouncementAIGenerationUnavailable) {
+		response.ErrorFrom(c, http.StatusServiceUnavailable, err)
 		return
 	}
 	response.Error(c, http.StatusInternalServerError, "announcement operation failed")
