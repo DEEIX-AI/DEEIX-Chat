@@ -910,6 +910,10 @@ export function resolveMinerUMIMERequirements(settings: Record<string, string>):
   return result;
 }
 
+export function resolveMinerUFileTypeFormats(type: string, source: string): string[] {
+  return (MINERU_MIME_REQUIREMENTS[type as MinerUFileType]?.[resolveMinerUSource(source)] ?? []).map((item) => item.format);
+}
+
 export function parseAllowedMIMETypes(raw: string): Set<string> {
   const result = new Set<string>();
   for (const item of raw.split(",")) {

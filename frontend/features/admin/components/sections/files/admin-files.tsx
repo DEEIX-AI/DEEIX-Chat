@@ -37,6 +37,7 @@ import {
   resolveMissingMinerUMIMETypes,
   resolveActiveServices,
   resolveFieldID,
+  resolveMinerUFileTypeFormats,
   resolveMinerUSource,
   resolveOCREngine,
   resolveVisibleFieldBlocks,
@@ -79,19 +80,33 @@ const SERVICE_LOADERS: Record<ServiceName, (token: string) => Promise<ServiceRun
   embedding: getAdminEmbeddingRuntime,
 };
 
-function toEditorField(field: SettingsField, translate: (key: string) => string) {
+function resolveMinerUFileTypeOptionMeta(value: string, label: string, settingsMap: Record<string, string>) {
+  const meta = resolveMinerUFileTypeFormats(value, settingsMap["extract.mineru_source"] ?? "").join("/");
+  return meta && meta !== label ? meta : undefined;
+}
+
+function toEditorField(field: SettingsField, translate: (key: string) => string, settingsMap: Record<string, string>) {
   const fieldKey = `fields.${field.namespace}.${field.key}`;
+  const fieldID = resolveFieldID(field);
   return {
-    id: resolveFieldID(field),
+    id: fieldID,
     label: translate(`${fieldKey}.label`),
     description: translate(`${fieldKey}.description`),
     type: field.type,
     placeholder: field.placeholder ? translate(`${fieldKey}.placeholder`) : undefined,
     valueUnit: field.valueUnit,
-    options: field.options?.map((option) => ({
-      ...option,
-      label: translate(`${fieldKey}.options.${option.value}`),
-    })),
+    options: field.options?.map((option) => {
+      const label = translate(`${fieldKey}.options.${option.value}`);
+      const meta =
+        fieldID === "extract.mineru_file_types"
+          ? resolveMinerUFileTypeOptionMeta(option.value, label, settingsMap)
+          : undefined;
+      return {
+        ...option,
+        label,
+        meta,
+      };
+    }),
   } as const;
 }
 
@@ -597,7 +612,7 @@ export function AdminFilesSettingsPage() {
                           <SettingsFieldItem key={fieldID} index={blockIndex}>
                             <SettingsFieldEditor
                               field={{
-                                ...toEditorField(block.field, t),
+                                ...toEditorField(block.field, t, settingsMap),
                                 ...(block.field.runtimeService
                                   ? { serviceRuntime: resolveServiceRuntime(block.field.runtimeService) }
                                   : {}),
@@ -633,7 +648,7 @@ export function AdminFilesSettingsPage() {
                                       <SettingsFieldEditor
                                         key={fieldID}
                                         field={{
-                                          ...toEditorField(field, t),
+                                          ...toEditorField(field, t, settingsMap),
                                           ...(field.runtimeService
                                             ? { serviceRuntime: resolveServiceRuntime(field.runtimeService) }
                                             : {}),

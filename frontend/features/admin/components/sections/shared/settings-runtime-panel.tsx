@@ -24,6 +24,7 @@ export type SettingsFieldType = "int" | "bool" | "string" | "password" | "textar
 export type SettingsFieldOption = {
   label: string;
   value: string;
+  meta?: string;
 };
 
 export type SettingsFieldAction = {
@@ -293,6 +294,7 @@ function MultiCheckField({ field, value, disabled, onChange }: MultiCheckFieldPr
       {(field.options ?? []).map((option) => {
         const checked = selected.has(option.value);
         const optionDisabled = disabled || (checked && selected.size <= 1);
+        const label = option.meta ? `${option.label} ${option.meta}` : option.label;
         return (
           <label
             key={option.value}
@@ -301,11 +303,16 @@ function MultiCheckField({ field, value, disabled, onChange }: MultiCheckFieldPr
               optionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
             )}
           >
-            <span className="truncate">{option.label}</span>
+            <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+              <span className="truncate">{option.label}</span>
+              {option.meta ? (
+                <span className="shrink-0 whitespace-nowrap text-[10px] leading-none text-muted-foreground">{option.meta}</span>
+              ) : null}
+            </span>
             <Checkbox
               checked={checked}
               disabled={optionDisabled}
-              aria-label={option.label}
+              aria-label={label}
               onCheckedChange={(nextChecked) => {
                 const next = new Set(selected);
                 if (nextChecked) {

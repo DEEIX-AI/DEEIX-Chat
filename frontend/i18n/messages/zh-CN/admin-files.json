@@ -249,7 +249,7 @@
         "options": {
           "pdf": "PDF",
           "word": "Word",
-          "presentation": "演示文稿",
+          "presentation": "PowerPoint",
           "excel": "Excel"
         }
       },
