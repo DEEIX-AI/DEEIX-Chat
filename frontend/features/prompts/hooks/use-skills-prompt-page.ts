@@ -157,7 +157,6 @@ export function useSkillsPromptPage() {
   const [deleteTarget, setDeleteTarget] = React.useState<PromptPresetDTO | null>(null);
   const [query, setQuery] = React.useState("");
   const [debouncedQuery, setDebouncedQuery] = React.useState("");
-  const loadMoreRef = React.useRef<HTMLDivElement | null>(null);
   const loadingMoreRef = React.useRef(false);
   const loadMoreFailedRef = React.useRef(false);
 
@@ -269,9 +268,8 @@ export function useSkillsPromptPage() {
     }
   }, [fetchPage, hasMore, loading, pagination, resolveErrorMessage, t]);
 
-  useLoadMoreSentinel({
+  const loadMoreRef = useLoadMoreSentinel<HTMLDivElement>({
     enabled: hasMore && !loading && !loadingMore && !loadMoreFailed,
-    targetRef: loadMoreRef,
     rootMargin: "160px",
     onLoadMore: loadMore,
   });

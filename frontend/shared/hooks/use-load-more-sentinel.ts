@@ -6,7 +6,6 @@ type UseLoadMoreSentinelOptions = {
   enabled: boolean;
   rootMargin?: string;
   rootRef?: React.RefObject<HTMLElement | null>;
-  targetRef: React.RefObject<Element | null>;
   onLoadMore: () => void | Promise<void>;
 };
 
@@ -20,14 +19,17 @@ function rootMarginToPixels(rootMargin: string): number {
   return Number(match[1]) || 0;
 }
 
-export function useLoadMoreSentinel({
+export function useLoadMoreSentinel<T extends Element = HTMLElement>({
   enabled,
   rootMargin = "120px",
   rootRef,
-  targetRef,
   onLoadMore,
-}: UseLoadMoreSentinelOptions) {
+}: UseLoadMoreSentinelOptions): React.RefCallback<T> {
+  const [target, setTarget] = React.useState<T | null>(null);
   const onLoadMoreRef = React.useRef(onLoadMore);
+  const targetRef = React.useCallback((node: T | null) => {
+    setTarget(node);
+  }, []);
 
   React.useEffect(() => {
     onLoadMoreRef.current = onLoadMore;
@@ -38,7 +40,6 @@ export function useLoadMoreSentinel({
       return;
     }
 
-    const target = targetRef.current;
     if (!target) {
       return;
     }
@@ -103,5 +104,7 @@ export function useLoadMoreSentinel({
         window.cancelAnimationFrame(animationFrame);
       }
     };
-  }, [enabled, rootMargin, rootRef, targetRef]);
+  }, [enabled, rootMargin, rootRef, target]);
+
+  return targetRef;
 }

@@ -86,7 +86,7 @@ export function ProjectLayout({
       <AnnouncementDialogHost />
       <SidebarProvider className="h-svh overflow-hidden" defaultOpen={defaultSidebarOpen}>
         <SidebarConversationsProvider
-          bulkPendingTitle={tRecent("labelMenu.bulk.pending")}
+          bulkPendingTitle={tRecent("dialogs.bulk.pending")}
           newConversationTitle={tRecent("newChat")}
         >
           <ChatSessionProvider>

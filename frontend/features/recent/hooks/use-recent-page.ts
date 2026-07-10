@@ -135,7 +135,6 @@ export function useRecentPage() {
   const { deleteFilesByDefault } = useSettingsChatPreferences();
   const [shareTarget, setShareTarget] = React.useState<ConversationDTO | null>(null);
   const [exportingAll, setExportingAll] = React.useState(false);
-  const loadMoreRef = React.useRef<HTMLDivElement | null>(null);
   const pageRef = React.useRef(1);
   const requestVersionRef = React.useRef(0);
   const loadingMoreRef = React.useRef(false);
@@ -299,9 +298,8 @@ export function useRecentPage() {
     }
   }, [hasMore, loadPage, loadingInitial, resolveErrorMessage, t]);
 
-  useLoadMoreSentinel({
+  const loadMoreRef = useLoadMoreSentinel<HTMLDivElement>({
     enabled: hasMore && !loadingInitial && !loadingMore && !loadMoreFailed,
-    targetRef: loadMoreRef,
     rootMargin: "160px",
     onLoadMore: loadMore,
   });
@@ -546,7 +544,7 @@ export function useRecentPage() {
     await runBulkActionInChunks({
       chunkSize: 10,
       items: deleteTarget.ids,
-      title: t("labelMenu.bulk.pending"),
+      title: t("dialogs.bulk.pending"),
       runChunk: async (ids) => {
         for (const id of ids) {
           await deleteByPublicID(id, deleteFiles ? { deleteFiles: true } : undefined);
@@ -618,7 +616,7 @@ export function useRecentPage() {
     const updates = (await runBulkActionInChunks({
       chunkSize: 10,
       items: targets,
-      title: t("labelMenu.bulk.pending"),
+      title: t("dialogs.bulk.pending"),
       runChunk: async (chunk) => {
         const updatedItems: Array<ConversationDTO | null> = [];
         for (const item of chunk) {
@@ -661,7 +659,7 @@ export function useRecentPage() {
     const ids = selectedSharedItems.map((item) => item.publicID);
     await runBulkActionInChunks({
       items: ids,
-      title: t("labelMenu.bulk.pending"),
+      title: t("dialogs.bulk.pending"),
       runChunk: (conversationPublicIDs) => revokeConversationShares(token, { conversationPublicIDs }),
     });
     const patch: Partial<ConversationDTO> = {

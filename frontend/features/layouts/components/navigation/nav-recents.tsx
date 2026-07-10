@@ -88,7 +88,6 @@ export function NavRecents() {
   const [renameValue, setRenameValue] = React.useState("");
   const [autoRenamingPublicID, setAutoRenamingPublicID] = React.useState<string | null>(null);
   const [recentsOpen, setRecentsOpen] = useStoredBoolean(RECENTS_OPEN_STORAGE_KEY, true);
-  const loadMoreRef = React.useRef<HTMLLIElement | null>(null);
   const listContainerRef = React.useRef<HTMLDivElement | null>(null);
   const deleteFilesID = React.useId();
   const stableDeleteTarget = useDialogSnapshot(deleteTarget);
@@ -99,9 +98,8 @@ export function NavRecents() {
     failureMessage: t("exportFailed"),
   });
 
-  useLoadMoreSentinel({
+  const loadMoreRef = useLoadMoreSentinel<HTMLLIElement>({
     enabled: recentsOpen && hasMore && !loadingInitial && !loadingMore && !loadMoreFailed,
-    targetRef: loadMoreRef,
     onLoadMore: loadMore,
   });
 

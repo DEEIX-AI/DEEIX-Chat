@@ -218,14 +218,12 @@ export function SidebarList({
 }: SidebarListProps) {
   const t = useTranslations("files");
   const scrollAreaRef = React.useRef<HTMLDivElement | null>(null);
-  const loadMoreRef = React.useRef<HTMLDivElement | null>(null);
   const selectedFileIDSet = React.useMemo(() => new Set(selectedFileIDs), [selectedFileIDs]);
 
-  useLoadMoreSentinel({
+  const loadMoreRef = useLoadMoreSentinel<HTMLDivElement>({
     enabled: hasMore && !loading && !loadingMore,
     rootMargin: "0px 0px 200px 0px",
     rootRef: scrollAreaRef,
-    targetRef: loadMoreRef,
     onLoadMore,
   });
 
