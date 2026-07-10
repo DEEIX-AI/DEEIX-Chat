@@ -1,48 +1,46 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { LayoutGroup, motion } from "motion/react"
+import type { ComponentProps } from "react";
+import { LayoutGroup, motion } from "motion/react";
+import { useTranslations } from "next-intl";
 
-import { useLayoutSidebarData } from "@/features/layouts/hooks/use-layout-sidebar-data"
-import { NavControl } from "@/features/layouts/components/navigation/nav-control"
-import { NavMain } from "@/features/layouts/components/navigation/nav-main"
-import { NavProjects } from "@/features/layouts/components/navigation/nav-projects"
-import { NavStarred } from "@/features/layouts/components/navigation/nav-starred"
-import { NavRecents } from "@/features/layouts/components/navigation/nav-recents"
-import { NavUser } from "@/features/layouts/components/navigation/nav-user"
-import { Spinner } from "@/components/ui/spinner"
-import { brandText } from "@/shared/lib/branding"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-} from "@/components/ui/sidebar"
-
-const data = {
-  user: {
-    name: brandText.title,
-    email: "deeix.com",
-    avatar: "",
-  },
-}
-
-function SidebarSectionFallback() {
-  return (
-    <div className="px-2 py-2">
-      <Spinner className="size-3.5" />
-    </div>
-  )
-}
+} from "@/components/ui/sidebar";
+import { NavControl } from "@/features/layouts/components/navigation/nav-control";
+import { NavMain } from "@/features/layouts/components/navigation/nav-main";
+import { NavProjects } from "@/features/layouts/components/navigation/nav-projects";
+import { NavRecents } from "@/features/layouts/components/navigation/nav-recents";
+import { NavStarred } from "@/features/layouts/components/navigation/nav-starred";
+import { NavUser } from "@/features/layouts/components/navigation/nav-user";
+import { useOptionalAuthSession } from "@/shared/auth/auth-session-context";
+import { resolveAvatarImageSrc } from "@/shared/lib/avatar";
+import { brandText } from "@/shared/lib/branding";
 
 export function AppSidebar({
   onCreateConversation,
   ...props
-}: React.ComponentProps<typeof Sidebar> & {
-  onCreateConversation: () => void
+}: ComponentProps<typeof Sidebar> & {
+  onCreateConversation: () => void;
 }) {
-  const sidebarData = useLayoutSidebarData()
-  const user = sidebarData.user ?? data.user
+  const t = useTranslations("common.navigation");
+  const sessionUser = useOptionalAuthSession()?.user;
+  const username = sessionUser?.username.trim() ?? "";
+  const user = sessionUser
+    ? {
+        name: sessionUser.displayName || username || t("fallbackUser"),
+        email: sessionUser.email || username || t("fallbackUser"),
+        avatar: resolveAvatarImageSrc(sessionUser.avatarURL, sessionUser),
+        role: sessionUser.role,
+      }
+    : {
+        name: brandText.title,
+        email: "deeix.com",
+        avatar: "",
+      };
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -57,15 +55,9 @@ export function AppSidebar({
           className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         >
           <LayoutGroup id="sidebar-conversations">
-            <React.Suspense fallback={<SidebarSectionFallback />}>
-              <NavProjects />
-            </React.Suspense>
-            <React.Suspense fallback={<SidebarSectionFallback />}>
-              <NavStarred />
-            </React.Suspense>
-            <React.Suspense fallback={<SidebarSectionFallback />}>
-              <NavRecents />
-            </React.Suspense>
+            <NavProjects />
+            <NavStarred />
+            <NavRecents />
           </LayoutGroup>
         </motion.div>
       </SidebarContent>
@@ -73,5 +65,5 @@ export function AppSidebar({
         <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }
