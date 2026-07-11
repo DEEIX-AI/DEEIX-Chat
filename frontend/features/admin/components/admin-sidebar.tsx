@@ -30,6 +30,7 @@ const ADMIN_SECTION_LABEL_KEYS: Record<AdminSection, string> = {
   "login-settings": "sections.loginSettings",
   "conversation-settings": "sections.conversationSettings",
   "chat-files": "sections.chatFiles",
+  database: "sections.database",
   about: "sections.about",
 };
 

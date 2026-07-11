@@ -41,6 +41,7 @@ type conversationExportManifest struct {
 type Handler struct {
 	service            *appadmin.Service
 	conversationExport conversationExporter
+	databaseBackup     *databaseBackupManager
 }
 
 // NewHandler 创建处理器。
@@ -51,6 +52,10 @@ func NewHandler(service *appadmin.Service) *Handler {
 // SetConversationExporter 注入会话导出能力。
 func (h *Handler) SetConversationExporter(exporter conversationExporter) {
 	h.conversationExport = exporter
+}
+
+func (h *Handler) SetDatabaseBackupManager(manager *databaseBackupManager) {
+	h.databaseBackup = manager
 }
 
 // ListUsers godoc
