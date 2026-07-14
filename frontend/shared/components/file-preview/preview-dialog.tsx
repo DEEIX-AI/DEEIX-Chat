@@ -7,11 +7,11 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { formatBytes, resolveFileExtension, resolveFilePreviewKind } from "@/shared/lib/file-display";
 import { fetchFileContent, type FileContentResult } from "@/shared/api/file";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { PreviewLoading } from "@/shared/components/file-preview/preview-loading";
 
 export type PreviewDialogFile = {
   fileID: string;
@@ -51,14 +51,7 @@ type PreviewTextProps = {
 };
 
 function PreviewRendererFallback() {
-  return (
-    <div className="flex min-h-[320px] flex-col gap-3 px-1 py-4">
-      <Skeleton className="h-4 w-2/3 rounded-md" />
-      <Skeleton className="h-4 w-full rounded-md" />
-      <Skeleton className="h-4 w-4/5 rounded-md" />
-      <Skeleton className="h-4 w-3/5 rounded-md" />
-    </div>
-  );
+  return <PreviewLoading className="min-h-[320px]" />;
 }
 
 const PreviewDocx = dynamic<PreviewSourceProps>(
@@ -231,14 +224,7 @@ export function FilePreviewDialog({
     }
 
     if (state.status === "loading") {
-      return (
-        <div className="flex min-h-[180px] flex-col gap-3 px-1 py-4 sm:min-h-[320px]">
-          <Skeleton className="h-4 w-2/3 rounded-md" />
-          <Skeleton className="h-4 w-full rounded-md" />
-          <Skeleton className="h-4 w-4/5 rounded-md" />
-          <Skeleton className="h-4 w-3/5 rounded-md" />
-        </div>
-      );
+      return <PreviewLoading className="min-h-[180px] sm:min-h-[320px]" />;
     }
 
     if (state.status === "error") {
@@ -259,7 +245,7 @@ export function FilePreviewDialog({
 
     if (kind === "image") {
       return (
-        <div className="overflow-hidden rounded-xl">
+        <div className="overflow-hidden rounded-md">
           <PreviewMedia kind="image" source={objectURL} alt={file.fileName} contentType={contentType} />
         </div>
       );

@@ -90,6 +90,47 @@ func TestNormalizeProviderInputProtectsSuperAdminDefaultRole(t *testing.T) {
 	}
 }
 
+func TestNormalizeProviderInputValidatesLogoURL(t *testing.T) {
+	service := NewService(config.Config{JWTSecret: "test-secret"}, &providerLoginRepo{}, nil)
+
+	cases := []struct {
+		name    string
+		logoURL string
+		wantErr bool
+	}{
+		{name: "https url", logoURL: "https://example.com/logo.svg"},
+		{name: "http url", logoURL: "http://example.com/logo.svg"},
+		{name: "absolute path", logoURL: "/identity-providers/acme.svg"},
+		{name: "protocol relative url", logoURL: "//example.com/logo.svg", wantErr: true},
+		{name: "data url", logoURL: "data:image/svg+xml,<svg/>", wantErr: true},
+		{name: "javascript url", logoURL: "javascript:alert(1)", wantErr: true},
+		{name: "relative path", logoURL: "identity-providers/acme.svg", wantErr: true},
+		{name: "backslash path", logoURL: `/\example.svg`, wantErr: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := service.normalizeProviderInput(UpsertIdentityProviderInput{
+				ActorRole:           domainuser.RoleAdmin,
+				Type:                domainuser.IdentityProviderTypeOIDC,
+				Name:                "Acme SSO",
+				LogoURL:             tc.logoURL,
+				ClientID:            "client",
+				ClientSecret:        "secret",
+				DiscoveryURL:        "https://example.com/.well-known/openid-configuration",
+				RegistrationEnabled: boolPtr(true),
+				DefaultRole:         domainuser.RoleUser,
+			}, nil)
+			if tc.wantErr && err == nil {
+				t.Fatalf("expected logo URL %q to be rejected", tc.logoURL)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("expected logo URL %q to be accepted, got %v", tc.logoURL, err)
+			}
+		})
+	}
+}
+
 func TestResolveProviderUserAutoRegistrationAddsUsernameSuffixOnCollision(t *testing.T) {
 	repo := &providerLoginRepo{duplicateUsernameAttempts: 1}
 	service := NewService(config.Config{JWTSecret: "test-secret"}, repo, nil)

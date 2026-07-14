@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useTranslations } from "next-intl";
 
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { readAccessToken } from "@/shared/auth/session";
@@ -35,15 +34,15 @@ import type {
   DeleteConversationOptions,
   DeleteConversationProjectOptions,
   SidebarConversationChange,
-  SidebarRecentsControllerValue,
-} from "@/features/recent/types/sidebar-recents";
+  SidebarConversationsControllerValue,
+} from "@/entities/conversation/types/sidebar-conversations";
 import {
   mergeUniqueByPublicID,
   removeByPublicID,
   sortByStarredAtDesc,
   sortByUpdatedAtDesc,
   upsertByPublicID,
-} from "@/features/recent/utils/conversation-list";
+} from "@/entities/conversation/model/conversation-list";
 
 const RECENT_PAGE_SIZE = 50;
 const STARRED_VISIBLE_LIMIT = 5;
@@ -51,7 +50,7 @@ const STARRED_BUFFER_SIZE = 3;
 const STARRED_WINDOW_SIZE = STARRED_VISIBLE_LIMIT + STARRED_BUFFER_SIZE;
 const STARRED_DIALOG_PAGE_SIZE = 100;
 
-type SidebarRecentsCache = {
+type SidebarConversationsCache = {
   accessToken: string;
   recentItems: ConversationDTO[];
   starredItems: ConversationDTO[];
@@ -61,22 +60,22 @@ type SidebarRecentsCache = {
   page: number;
 };
 
-let sidebarRecentsCache: SidebarRecentsCache | null = null;
+let sidebarConversationsCache: SidebarConversationsCache | null = null;
 
-function readSidebarRecentsCache(): SidebarRecentsCache | null {
+function readSidebarConversationsCache(): SidebarConversationsCache | null {
   const accessToken = readAccessToken();
-  if (!accessToken || sidebarRecentsCache?.accessToken !== accessToken) {
+  if (!accessToken || sidebarConversationsCache?.accessToken !== accessToken) {
     return null;
   }
-  return sidebarRecentsCache;
+  return sidebarConversationsCache;
 }
 
-function writeSidebarRecentsCache(next: Omit<SidebarRecentsCache, "accessToken">): void {
+function writeSidebarConversationsCache(next: Omit<SidebarConversationsCache, "accessToken">): void {
   const accessToken = readAccessToken();
   if (!accessToken) {
     return;
   }
-  sidebarRecentsCache = {
+  sidebarConversationsCache = {
     accessToken,
     ...next,
   };
@@ -226,9 +225,14 @@ async function fetchActiveProjects(accessToken: string): Promise<ConversationPro
   return listConversationProjects(accessToken, { status: "active" });
 }
 
-export function useRecentSidebarRecentsController(): SidebarRecentsControllerValue {
-  const t = useTranslations("recent");
-  const initialCache = React.useMemo(() => readSidebarRecentsCache(), []);
+export function useSidebarConversationsController({
+  bulkPendingTitle,
+  newConversationTitle,
+}: {
+  bulkPendingTitle: string;
+  newConversationTitle: string;
+}): SidebarConversationsControllerValue {
+  const initialCache = React.useMemo(() => readSidebarConversationsCache(), []);
   const [recentItems, setRecentItems] = React.useState<ConversationDTO[]>(() => initialCache?.recentItems ?? []);
   const [starredItems, setStarredItems] = React.useState<ConversationDTO[]>(() => initialCache?.starredItems ?? []);
   const [projects, setProjects] = React.useState<ConversationProjectDTO[]>(() => initialCache?.projects ?? []);
@@ -288,7 +292,7 @@ export function useRecentSidebarRecentsController(): SidebarRecentsControllerVal
   }, []);
 
   React.useEffect(() => {
-    writeSidebarRecentsCache({
+    writeSidebarConversationsCache({
       recentItems,
       starredItems,
       projects,
@@ -478,14 +482,14 @@ export function useRecentSidebarRecentsController(): SidebarRecentsControllerVal
     const modelName = explicitModel || (await resolveConversationDefaultModel({ accessToken: token })).platformModelName;
 
     const item = await createConversation(token, {
-      title: t("newChat"),
+      title: newConversationTitle,
       model: modelName,
       projectID: projectID?.trim() || "",
     });
     setRecentItems((prev) => mergeUniqueByPublicID([item], prev, sortByUpdatedAtDesc));
     publishChange({ type: "upsert", publicID: item.publicID, item });
     return item;
-  }, [publishChange, t]);
+  }, [newConversationTitle, publishChange]);
 
   const renameByPublicID = React.useCallback(
     async (publicID: string, title: string): Promise<ConversationDTO | null> => {
@@ -654,7 +658,7 @@ export function useRecentSidebarRecentsController(): SidebarRecentsControllerVal
       const projectIDValue = projectID?.trim() || "";
       const results = await runBulkActionInChunks({
         items: publicIDs,
-        title: t("labelMenu.bulk.pending"),
+        title: bulkPendingTitle,
         runChunk: (conversationPublicIDs) => batchSetConversationProject(token, {
           conversationPublicIDs,
           projectID: projectIDValue,
@@ -672,7 +676,7 @@ export function useRecentSidebarRecentsController(): SidebarRecentsControllerVal
       }
       return results.reduce((total, result) => total + result.updated, 0);
     },
-    [projects, publishChange, t],
+    [bulkPendingTitle, projects, publishChange],
   );
 
   const setStarByPublicID = React.useCallback(

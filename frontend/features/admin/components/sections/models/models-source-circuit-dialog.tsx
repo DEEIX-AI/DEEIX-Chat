@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SpinnerLabel } from "@/components/ui/spinner";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import type {
   AdminLLMModelUpstreamSourceDTO,
   AdminLLMModelCbPolicyMode,
@@ -54,6 +55,7 @@ export function ModelSourceCircuitDialog({
     cbDurationMin: "0",
     cbWindowMin: "0",
   });
+  const stableSource = useDialogSnapshot(source);
 
   React.useEffect(() => {
     if (!source) return;
@@ -68,7 +70,7 @@ export function ModelSourceCircuitDialog({
     setDraft((current) => ({ ...current, [field]: value }));
   }
 
-  const sourceName = source ? [source.upstreamName, source.upstreamModelName].filter(Boolean).join(" / ") : "";
+  const sourceName = stableSource ? [stableSource.upstreamName, stableSource.upstreamModelName].filter(Boolean).join(" / ") : "";
 
   async function handleSave() {
     await onSave({

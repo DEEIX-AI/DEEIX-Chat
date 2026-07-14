@@ -80,6 +80,8 @@
   "billing": {
     "insufficientBalance": "余额不足。",
     "insufficientFunds": "余额不足。",
+    "concurrencyLimitExceeded": "最多同时运行 5 个付费请求。",
+    "reservationConflict": "该请求已提交，请勿重复发送。",
     "invalidPlan": "计费套餐无效。",
     "planNotFound": "计费套餐不存在。",
     "invalidPermissionGroup": "权限组无效。",

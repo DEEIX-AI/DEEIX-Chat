@@ -6,14 +6,16 @@ import { Maximize2, Minimize2, Minus, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import { LoadingReveal } from "@/shared/components/loading-reveal";
-import { PreviewStageSkeleton } from "@/shared/components/file-preview/preview-skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useFileScale } from "@/shared/components/file-preview/file-scale";
+import { PreviewLoading } from "@/shared/components/file-preview/preview-loading";
 
 type PreviewSheetProps = {
   source: string;
   toolbarContainer?: HTMLElement | null;
+  showLoading?: boolean;
+  onLoadingChange?: (loading: boolean) => void;
 };
 
 type WorkbookState = {
@@ -21,13 +23,12 @@ type WorkbookState = {
   sheets: Record<string, string[][]>;
 };
 
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 2;
-const ZOOM_STEP = 0.1;
-
-function clampZoom(value: number): number {
-  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
-}
+const SHEET_ZOOM = {
+  min: 0.5,
+  max: 2,
+  step: 0.1,
+  initial: 0.8,
+};
 
 function detectDelimiter(text: string): "," | "\t" {
   const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
@@ -85,8 +86,9 @@ function parseDelimitedRows(text: string): string[][] {
   return rows;
 }
 
-export function PreviewSheet({ source, toolbarContainer }: PreviewSheetProps) {
+export function PreviewSheet({ source, toolbarContainer, showLoading = true, onLoadingChange }: PreviewSheetProps) {
   const t = useTranslations("files.previewErrors");
+  const tPreview = useTranslations("files.preview");
   const resolveErrorMessage = useLocalizedErrorMessage();
   const previewRef = React.useRef<HTMLDivElement | null>(null);
   const scrollRegionRef = React.useRef<HTMLDivElement | null>(null);
@@ -95,11 +97,21 @@ export function PreviewSheet({ source, toolbarContainer }: PreviewSheetProps) {
   const [errorMessage, setErrorMessage] = React.useState(t("sheetLoadFailed"));
   const [workbook, setWorkbook] = React.useState<WorkbookState>({ sheetNames: [], sheets: {} });
   const [activeSheet, setActiveSheet] = React.useState("");
-  const [zoom, setZoom] = React.useState(0.8);
+  const {
+    scale: zoom,
+    zoomOut,
+    zoomIn,
+    canZoomOut,
+    canZoomIn,
+  } = useFileScale(SHEET_ZOOM, { scrollRef: scrollRegionRef });
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const [contentWidth, setContentWidth] = React.useState(0);
   const [contentHeight, setContentHeight] = React.useState(0);
   const [availableWidth, setAvailableWidth] = React.useState(0);
+
+  React.useEffect(() => {
+    onLoadingChange?.(status === "loading");
+  }, [onLoadingChange, status]);
 
   React.useEffect(() => {
     const handleFullscreenChange = () => {
@@ -219,14 +231,38 @@ export function PreviewSheet({ source, toolbarContainer }: PreviewSheetProps) {
 
   const toolbar = (
     <div className="flex items-center gap-1.5">
-      <Button type="button" variant="ghost" size="icon" className="size-7 rounded-full" onClick={() => setZoom((value) => clampZoom(value - ZOOM_STEP))} disabled={status !== "ready" || zoom <= MIN_ZOOM}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-7 rounded-full"
+        aria-label={tPreview("zoomOut")}
+        onClick={zoomOut}
+        disabled={status !== "ready" || !canZoomOut}
+      >
         <Minus className="size-3.5" />
       </Button>
       <span className="min-w-11 text-center text-[11px] text-muted-foreground">{Math.round(zoom * 100)}%</span>
-      <Button type="button" variant="ghost" size="icon" className="size-7 rounded-full" onClick={() => setZoom((value) => clampZoom(value + ZOOM_STEP))} disabled={status !== "ready" || zoom >= MAX_ZOOM}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-7 rounded-full"
+        aria-label={tPreview("zoomIn")}
+        onClick={zoomIn}
+        disabled={status !== "ready" || !canZoomIn}
+      >
         <Plus className="size-3.5" />
       </Button>
-      <Button type="button" variant="ghost" size="icon" className="size-7 rounded-full" onClick={() => void toggleFullscreen()} disabled={status !== "ready"}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-7 rounded-full"
+        aria-label={isFullscreen ? tPreview("exitFullscreen") : tPreview("enterFullscreen")}
+        onClick={() => void toggleFullscreen()}
+        disabled={status !== "ready"}
+      >
         {isFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
       </Button>
     </div>
@@ -248,7 +284,7 @@ export function PreviewSheet({ source, toolbarContainer }: PreviewSheetProps) {
         {status === "ready" ? (
           <>
             <div ref={scrollRegionRef} className="min-h-0 flex-1 overflow-auto">
-                <div className="flex min-w-full justify-center px-1 pb-2">
+                <div className="mx-auto flex min-w-full w-max justify-center px-1 pb-2">
                   <div
                     className="relative shrink-0"
                     style={{
@@ -297,17 +333,19 @@ export function PreviewSheet({ source, toolbarContainer }: PreviewSheetProps) {
               <div className="mt-2 shrink-0 overflow-x-auto whitespace-nowrap">
                 <div className="flex w-max items-center gap-1 px-1 pb-1">
                   {workbook.sheetNames.map((sheetName) => (
-                    <button
+                    <Button
                       key={sheetName}
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       className={cn(
-                        "shrink-0 rounded-full px-3 py-1 text-xs transition-colors",
+                        "h-7 shrink-0 rounded-full px-3 text-xs shadow-none",
                         activeSheet === sheetName ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent",
                       )}
                       onClick={() => setActiveSheet(sheetName)}
                     >
                       {sheetName}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -316,15 +354,9 @@ export function PreviewSheet({ source, toolbarContainer }: PreviewSheetProps) {
           </>
         ) : null}
 
-        <LoadingReveal
-          loading={status === "loading"}
-          className="pointer-events-none absolute inset-0 z-10"
-          contentClassName="h-full"
-          skeletonClassName="h-full"
-          skeleton={<PreviewStageSkeleton className="h-full" />}
-        >
-          <div className="h-full" />
-        </LoadingReveal>
+        {showLoading && status === "loading" ? (
+          <PreviewLoading className="pointer-events-none absolute inset-0 z-10" />
+        ) : null}
       </div>
     </div>
   );

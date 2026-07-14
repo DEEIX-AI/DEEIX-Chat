@@ -1,13 +1,13 @@
-import { SidebarMenu, SidebarMenuSkeleton } from "@/components/ui/sidebar"
+import { SidebarMenu, SidebarMenuSkeleton } from "@/components/ui/sidebar";
 
 export function SidebarConversationSkeleton({
   count,
   widths,
   prefix,
 }: {
-  count: number
-  widths: readonly string[]
-  prefix: string
+  count: number;
+  widths: readonly string[];
+  prefix: string;
 }) {
   return (
     <SidebarMenu aria-hidden="true">
@@ -17,5 +17,5 @@ export function SidebarConversationSkeleton({
         </li>
       ))}
     </SidebarMenu>
-  )
+  );
 }

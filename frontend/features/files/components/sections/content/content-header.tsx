@@ -1,14 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { LoaderCircle } from "lucide-react";
+import { ChevronLeft, Download, ExternalLink, LoaderCircle, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { ChevronLeft } from "lucide-react";
-
-import { ExternalLink } from "@/components/animate-ui/icons/external-link";
-import { Download } from "@/components/animate-ui/icons/download";
-import { Trash2 } from "@/components/animate-ui/icons/trash-2";
 import { formatBytes, formatDateTime, resolveFileExtension, resolveFileIcon } from "@/shared/lib/file-display";
 import type { FilePreviewState } from "@/features/files/hooks/use-file-preview";
 import { Button } from "@/components/ui/button";
@@ -16,6 +11,7 @@ import { resolveFileProcessingBadge, resolveFileProcessingToneClass } from "@/sh
 import type { FileObjectDTO } from "@/shared/api/file.types";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
+import { cn } from "@/lib/utils";
 
 type ContentHeaderProps = {
   file: FileObjectDTO | null;
@@ -52,10 +48,10 @@ export function ContentHeader({
   onDeleteRequest,
   onToggleRagOptOut,
 }: ContentHeaderProps) {
+  const tCommon = useTranslations("common.actions");
   const t = useTranslations("files");
   const tStatus = useTranslations("files.status");
   const { locale } = useAppLocale();
-  const [hoveredAction, setHoveredAction] = React.useState<"open" | "download" | "delete" | null>(null);
 
   if (!file) {
     return null;
@@ -65,6 +61,7 @@ export function ContentHeader({
   const fileTypeLabel = resolveRawFileTypeLabel(file);
   const isReady = preview.status === "ready";
   const thumbnail = isReady && preview.isImage ? preview.objectURL : null;
+  const avatarFallback = file.fileName.slice(0, 2).toUpperCase() || "?";
   const processingBadge = resolveFileProcessingBadge({
     fileCategory: file.fileCategory,
     processingStatus: file.processingStatus,
@@ -80,15 +77,23 @@ export function ContentHeader({
     <div className="flex min-w-0 shrink-0 items-center justify-between gap-4 border-b border-border/40 px-3 py-4 md:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {onBack ? (
-          <Button type="button" variant="ghost" size="icon" className="size-7 shrink-0 md:hidden" onClick={onBack}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="-ml-1 size-8 shrink-0 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+            aria-label={tCommon("back")}
+            onClick={onBack}
+          >
             <ChevronLeft className="size-4" />
           </Button>
         ) : null}
-        <div className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-background/70">
+
+        <div className={cn("flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-background/70", onBack && "hidden md:flex")}>
           {thumbnail ? (
             <Avatar className="h-7 w-7 rounded-md">
               <AvatarImage src={thumbnail} alt={file.fileName} />
-              <AvatarFallback className="text-base font-medium rounded-md bg-background text-foreground">{file.fileName.charAt(0).toUpperCase() + file.fileName.charAt(1).toUpperCase()}</AvatarFallback>
+              <AvatarFallback className="rounded-md bg-background text-base font-medium text-foreground">{avatarFallback}</AvatarFallback>
             </Avatar>
           ) : (
             React.createElement(fileIcon, { className: "size-5 text-muted-foreground" })
@@ -106,25 +111,31 @@ export function ContentHeader({
               {formatBytes(file.sizeBytes)}
             </p>
             <span
-              className={`inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${resolveFileProcessingToneClass(processingBadge.tone)}`}
+              className={cn(
+                "inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+                resolveFileProcessingToneClass(processingBadge.tone),
+              )}
               title={processingBadge.detail}
             >
               {processingBadge.label}
             </span>
             {file.embedStatus === "ready" ? (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => onToggleRagOptOut(file.fileID, file.ragOptOut)}
                 title={file.ragOptOut ? t("rag.disabledTitle") : t("rag.enabledTitle")}
-                className={`inline-flex items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+                className={cn(
+                  "h-auto gap-0.5 rounded-md border px-1.5 py-0.5 text-[10px] font-medium shadow-none",
                   file.ragOptOut
                     ? "border-border/50 text-muted-foreground/60 hover:border-border hover:text-muted-foreground"
-                    : "border-emerald-500/30 bg-emerald-50/50 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-950/20 dark:text-emerald-400"
-                }`}
+                    : "border-primary/25 bg-primary/10 text-primary hover:bg-primary/15",
+                )}
               >
                 <span>⚡</span>
                 <span>{file.ragOptOut ? t("rag.disabled") : t("rag.enabled")}</span>
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>
@@ -140,10 +151,8 @@ export function ContentHeader({
           disabled={!isReady}
           aria-label={t("actions.open")}
           title={t("actions.open")}
-          onMouseEnter={() => setHoveredAction("open")}
-          onMouseLeave={() => setHoveredAction((current) => (current === "open" ? null : current))}
         >
-          <ExternalLink className="size-3.5" strokeWidth={1.6} animate={hoveredAction === "open" ? "default" : false} />
+          <ExternalLink className="size-3.5" strokeWidth={1.6} />
         </Button>
         <Button
           type="button"
@@ -154,10 +163,8 @@ export function ContentHeader({
           disabled={!isReady}
           aria-label={t("actions.download")}
           title={t("actions.download")}
-          onMouseEnter={() => setHoveredAction("download")}
-          onMouseLeave={() => setHoveredAction((current) => (current === "download" ? null : current))}
         >
-          <Download className="size-3.5" strokeWidth={1.6} animate={hoveredAction === "download" ? "default-loop" : false} />
+          <Download className="size-3.5" strokeWidth={1.6} />
         </Button>
         <Button
           type="button"
@@ -168,10 +175,8 @@ export function ContentHeader({
           disabled={deleting}
           aria-label={t("actions.delete")}
           title={t("actions.delete")}
-          onMouseEnter={() => setHoveredAction("delete")}
-          onMouseLeave={() => setHoveredAction((current) => (current === "delete" ? null : current))}
         >
-          {deleting ? <LoaderCircle className="size-3.5 animate-spin" strokeWidth={1.6} /> : <Trash2 className="size-3.5" strokeWidth={1.6} animate={hoveredAction === "delete" ? "default" : false} />}
+          {deleting ? <LoaderCircle className="size-3.5 animate-spin" strokeWidth={1.6} /> : <Trash2 className="size-3.5" strokeWidth={1.6} />}
         </Button>
       </div>
     </div>

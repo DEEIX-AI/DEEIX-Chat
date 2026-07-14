@@ -48,74 +48,24 @@ import { createQRCodeSVG } from "@/shared/lib/qr-code";
 import { detectCurrentTimeZone } from "@/shared/lib/time-zone";
 import { cn } from "@/lib/utils";
 
-type OnboardingTip = {
-  key: string;
-};
-
-const adminOnboardingTips: OnboardingTip[] = [
-  { key: "adminTips.upstreams" },
-  { key: "adminTips.mcp" },
-  { key: "adminTips.files" },
-  { key: "adminTips.context" },
-  { key: "adminTips.trace" },
-  { key: "adminTips.billing" },
-  { key: "adminTips.admin" },
-  { key: "adminTips.ops" },
+const ADMIN_ONBOARDING_TIPS = [
+  "adminTips.upstreams",
+  "adminTips.mcp",
+  "adminTips.files",
+  "adminTips.context",
+  "adminTips.trace",
+  "adminTips.billing",
+  "adminTips.admin",
+  "adminTips.ops",
 ];
 
-const userOnboardingTips: OnboardingTip[] = [
-  { key: "userTips.profile" },
-  { key: "userTips.models" },
-  { key: "userTips.files" },
-  { key: "userTips.conversation" },
-  { key: "userTips.twoFactor" },
+const USER_ONBOARDING_TIPS = [
+  "userTips.profile",
+  "userTips.models",
+  "userTips.files",
+  "userTips.conversation",
+  "userTips.twoFactor",
 ];
-
-function buildLogoCarouselItems(): LogoCarouselLogo[] {
-  const supportedIconSlugs = [
-    "openai",
-    "codex",
-    "anthropic",
-    "claude",
-    "google",
-    "gemini",
-    "gemma",
-    "xai",
-    "grok",
-    "moonshot",
-    "kimi",
-    "alibaba",
-    "alibabacloud",
-    "qwen",
-    "deepseek",
-    "xiaomimimo",
-    "zhipu",
-    "chatglm",
-    "minimax",
-    "doubao",
-    "mistral",
-    "hunyuan",
-    "longcat",
-    "openrouter",
-    "copilot",
-    "replicate",
-    "fal",
-    "stability",
-    "runway",
-    "luma",
-    "ideogram",
-    "midjourney",
-    "suno",
-    "elevenlabs",
-  ];
-  return supportedIconSlugs.map((slug, index) => {
-    return {
-      id: `${slug}-${index}`,
-      name: titleFromIconSlug(slug),
-      src: `/vendor/lobehub-icons/${slug}.svg`,
-    };
-  });
-}
 
 function titleFromIconSlug(slug: string): string {
   return slug
@@ -126,8 +76,48 @@ function titleFromIconSlug(slug: string): string {
     .join(" ");
 }
 
-const onboardingLogoItems = buildLogoCarouselItems();
-const onboardingThemePresets: ThemePreset[] = [
+const ONBOARDING_LOGO_ITEMS: LogoCarouselLogo[] = [
+  "openai",
+  "codex",
+  "anthropic",
+  "claude",
+  "google",
+  "gemini",
+  "gemma",
+  "xai",
+  "grok",
+  "moonshot",
+  "kimi",
+  "alibaba",
+  "alibabacloud",
+  "qwen",
+  "deepseek",
+  "xiaomimimo",
+  "zhipu",
+  "chatglm",
+  "minimax",
+  "doubao",
+  "mistral",
+  "hunyuan",
+  "longcat",
+  "openrouter",
+  "copilot",
+  "replicate",
+  "fal",
+  "stability",
+  "runway",
+  "luma",
+  "ideogram",
+  "midjourney",
+  "suno",
+  "elevenlabs",
+].map((slug, index) => ({
+  id: `${slug}-${index}`,
+  name: titleFromIconSlug(slug),
+  src: `/vendor/lobehub-icons/${slug}.svg`,
+}));
+
+const ONBOARDING_THEME_PRESETS: ThemePreset[] = [
   "default",
   "azure",
   "cobalt",
@@ -145,11 +135,10 @@ function OnboardingFeatureCarousel({
 }: {
   activeIndex: number;
   logos: LogoCarouselLogo[];
-  tips: OnboardingTip[];
+  tips: string[];
 }) {
   const t = useTranslations("guide");
   const activeTip = tips[activeIndex] ?? tips[0];
-  const progressDurationSeconds = 4.2;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -172,7 +161,7 @@ function OnboardingFeatureCarousel({
                   className="block h-full origin-left rounded-full bg-foreground/75"
                   initial={{ scaleX: 0 }}
                   animate={{ scaleX: 1 }}
-                  transition={{ duration: progressDurationSeconds, ease: "linear" }}
+                  transition={{ duration: 4.2, ease: "linear" }}
                 />
               ) : null}
             </div>
@@ -180,14 +169,14 @@ function OnboardingFeatureCarousel({
         </div>
         <div className="flex h-[3.75rem] items-start overflow-hidden">
           <motion.p
-            key={activeTip.key}
+            key={activeTip}
             className="text-xs font-medium leading-5 tracking-normal text-foreground"
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
           >
-            {t(activeTip.key)}
+            {t(activeTip)}
           </motion.p>
         </div>
       </div>
@@ -228,7 +217,7 @@ export function InitialSecurityGuard() {
   );
   const qrCodeUnavailable = Boolean(twoFactorSetup?.otpauthURL && !qrCodeSVG);
   const isAdminGuide = viewer?.role === "admin" || viewer?.role === "superadmin";
-  const activeOnboardingTips = isAdminGuide ? adminOnboardingTips : userOnboardingTips;
+  const activeOnboardingTips = isAdminGuide ? ADMIN_ONBOARDING_TIPS : USER_ONBOARDING_TIPS;
 
   React.useEffect(() => {
     setViewer(user);
@@ -582,7 +571,11 @@ export function InitialSecurityGuard() {
         className="grid w-full max-w-[820px] animate-in gap-0 overflow-hidden rounded-2xl border border-border/60 bg-background p-0 shadow-xl fade-in-0 zoom-in-95 duration-200 md:h-[430px] md:grid-cols-[0.95fr_1.05fr]"
       >
         <div className="hidden h-full flex-col bg-muted/15 p-4 md:flex">
-          <OnboardingFeatureCarousel activeIndex={activeTipIndex} logos={onboardingLogoItems} tips={activeOnboardingTips} />
+          <OnboardingFeatureCarousel
+            activeIndex={activeTipIndex}
+            logos={ONBOARDING_LOGO_ITEMS}
+            tips={activeOnboardingTips}
+          />
         </div>
 
         <div className="flex h-full flex-col p-5">
@@ -838,7 +831,7 @@ export function InitialSecurityGuard() {
                 </Onboarding.Header>
 
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {onboardingThemePresets.map((item) => (
+                  {ONBOARDING_THEME_PRESETS.map((item) => (
                     <Button
                       key={item}
                       type="button"

@@ -155,11 +155,6 @@ function extractInlineAlertDetails(item: MessageDTO): UpstreamDebugInfo | undefi
 
 const ROOT_BRANCH_KEY = "__root__";
 
-export type BranchSelectionPathItem = {
-  parentPublicID?: string | null;
-  publicID?: string | null;
-};
-
 type MessageLabels = {
   generationInterrupted: string;
   streamInterrupted?: string;
@@ -257,63 +252,6 @@ export function buildChildrenIndex(messages: ChatAreaMessage[]) {
     children.set(parentKey, siblings);
   }
   return children;
-}
-
-export function applyBranchSelectionPath(
-  previous: Record<string, string>,
-  path: BranchSelectionPathItem[],
-  obsoletePublicIDs: Array<string | null | undefined> = [],
-): Record<string, string> {
-  const obsolete = new Set(obsoletePublicIDs.map((item) => item?.trim() || "").filter(Boolean));
-  let changed = false;
-  const next = { ...previous };
-
-  for (const [key, value] of Object.entries(next)) {
-    if (obsolete.has(key) || obsolete.has(value)) {
-      delete next[key];
-      changed = true;
-    }
-  }
-
-  for (const item of path) {
-    const publicID = item.publicID?.trim() || "";
-    if (!publicID) {
-      continue;
-    }
-    const parentKey = toBranchKey(item.parentPublicID);
-    if (next[parentKey] !== publicID) {
-      next[parentKey] = publicID;
-      changed = true;
-    }
-  }
-
-  return changed ? next : previous;
-}
-
-export function resolveBranchSelectionPath(
-  messages: ChatAreaMessage[],
-  leafPublicID: string | null | undefined,
-): BranchSelectionPathItem[] {
-  const leafID = leafPublicID?.trim() || "";
-  if (!leafID) {
-    return [];
-  }
-
-  const byPublicID = new Map(messages.map((item) => [item.publicID, item]));
-  const path: BranchSelectionPathItem[] = [];
-  const visited = new Set<string>();
-  let current = byPublicID.get(leafID) ?? null;
-
-  while (current && !visited.has(current.publicID)) {
-    visited.add(current.publicID);
-    path.push({
-      parentPublicID: current.parentPublicID,
-      publicID: current.publicID,
-    });
-    current = current.parentPublicID ? byPublicID.get(current.parentPublicID) ?? null : null;
-  }
-
-  return path;
 }
 
 export function reconcileBranchSelections(messages: ChatAreaMessage[], previous: Record<string, string>) {

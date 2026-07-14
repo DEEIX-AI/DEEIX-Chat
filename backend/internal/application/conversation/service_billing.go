@@ -12,24 +12,21 @@ import (
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
-type messageBillingUpdateError struct {
-	err error
-}
-
-func (e *messageBillingUpdateError) Error() string {
-	return e.err.Error()
-}
-
-func (e *messageBillingUpdateError) Unwrap() error {
-	return e.err
-}
+const (
+	usageReconciliationBuildLedger = "build_usage_ledger_failed"
+	usageReconciliationSettlement  = "settle_usage_ledger_failed"
+	usageBillingRetryAttempts      = 3
+	usageBillingRetryBaseDelay     = 100 * time.Millisecond
+)
 
 // SendMessageBillingInput 描述一次消息发送对应的计费上下文。
 type SendMessageBillingInput struct {
 	UserID            uint
 	ConversationID    uint
+	Conversation      *model.Conversation
 	PlatformModelName string
 	ConversationModel string
 	ClientRunID       string
@@ -72,59 +69,159 @@ func (s *Service) UpdateMessageBilling(ctx context.Context, messageID uint, usag
 	return s.repo.UpdateMessageBilling(ctx, messageID, usage.BilledCurrency, usage.BilledNanousd, usage.PricingSnapshotJSON)
 }
 
-// EnsureSendMessageBillingAccess 校验本次发送在当前计费策略下是否可用。
-func (s *Service) EnsureSendMessageBillingAccess(ctx context.Context, input SendMessageBillingInput) error {
+// AuthorizeSendMessageUsage 在模型调用前固定计费策略并预留可用预算。
+func (s *Service) AuthorizeSendMessageUsage(ctx context.Context, input SendMessageBillingInput) (*domainbilling.UsageAuthorization, error) {
 	if s.billingSvc == nil {
-		return nil
+		return &domainbilling.UsageAuthorization{Mode: "self"}, nil
 	}
-	return s.billingSvc.EnsureModelUsable(ctx, input.UserID, sendMessageBillingPlatformModelName(input), time.Now())
+	return s.billingSvc.AuthorizeUsage(ctx, input.UserID, sendMessageBillingPlatformModelName(input), strings.TrimSpace(input.ClientRunID))
 }
 
-// ReserveSendMessageUsageBalance 在模型调用前执行按量预扣。
-func (s *Service) ReserveSendMessageUsageBalance(ctx context.Context, input SendMessageBillingInput) (*domainbilling.UsageBalanceReservation, error) {
-	if s.billingSvc == nil {
-		return nil, nil
-	}
-	return s.billingSvc.ReserveUsageBalance(ctx, input.UserID, sendMessageBillingPlatformModelName(input), strings.TrimSpace(input.ClientRunID))
-}
-
-// ReleaseSendMessageUsageReservation 在调用失败或计费失败时退回预扣。
-func (s *Service) ReleaseSendMessageUsageReservation(ctx context.Context, reservation *domainbilling.UsageBalanceReservation, description string) error {
-	if s.billingSvc == nil || reservation == nil {
+// ReleaseSendMessageUsageAuthorization 在调用未产生可计费用量时释放预留预算。
+func (s *Service) ReleaseSendMessageUsageAuthorization(ctx context.Context, authorization *domainbilling.UsageAuthorization) error {
+	if s.billingSvc == nil || authorization == nil {
 		return nil
 	}
-	return s.billingSvc.ReleaseUsageBalanceReservation(ctx, reservation, description)
+	return s.billingSvc.ReleaseUsageAuthorization(ctx, authorization)
+}
+
+// RenewSendMessageUsageAuthorization 延长仍在运行的付费调用预算租约。
+func (s *Service) RenewSendMessageUsageAuthorization(ctx context.Context, authorization *domainbilling.UsageAuthorization) error {
+	if s.billingSvc == nil || authorization == nil {
+		return nil
+	}
+	return s.billingSvc.RenewUsageAuthorization(ctx, authorization)
 }
 
 // RecordSendMessageBilling 记录发送消息产生的用量账本，并把账单快照回写到 assistant 消息。
 func (s *Service) RecordSendMessageBilling(
 	ctx context.Context,
 	input SendMessageBillingInput,
-	reservation *domainbilling.UsageBalanceReservation,
+	authorization *domainbilling.UsageAuthorization,
 ) (*domainbilling.UsageLedger, error) {
-	if s.billingSvc == nil || input.Result == nil {
+	if input.Result == nil {
 		return nil, nil
 	}
-	usageLedger, err := s.buildSendMessageUsageLedger(ctx, input)
+	if s.billingSvc == nil {
+		s.runPostBillingTasks(input)
+		return nil, nil
+	}
+	var usageLedger *domainbilling.UsageLedger
+	err := retryUsageBillingOperation(ctx, func() error {
+		var buildErr error
+		usageLedger, buildErr = s.buildSendMessageUsageLedger(ctx, input, authorization)
+		return buildErr
+	})
 	if err != nil {
-		return nil, err
+		s.discardPostBillingCompaction(input.Result)
+		return nil, s.markUsageAuthorizationForReconciliation(ctx, authorization, usageReconciliationBuildLedger, err)
 	}
 	if usageLedger == nil {
 		return nil, nil
 	}
-	if err = s.billingSvc.RecordUsageWithReservation(ctx, usageLedger, reservation); err != nil {
+	if err = s.recordUsageWithRetry(ctx, usageLedger, authorization); err != nil {
+		s.discardPostBillingCompaction(input.Result)
+		return nil, s.markUsageAuthorizationForReconciliation(ctx, authorization, usageReconciliationSettlement, err)
+	}
+	if err = retryUsageBillingOperation(ctx, func() error {
+		return s.UpdateMessageBilling(ctx, input.Result.AssistantMessage.ID, usageLedger)
+	}); err != nil {
+		s.discardPostBillingCompaction(input.Result)
 		return nil, err
 	}
-	if err = s.UpdateMessageBilling(ctx, input.Result.AssistantMessage.ID, usageLedger); err != nil {
-		return nil, &messageBillingUpdateError{err: err}
-	}
+	s.runPostBillingTasks(input)
 	return usageLedger, nil
 }
 
-// ShouldReleaseSendMessageUsageReservationAfterBillingError 判断计费失败后是否应退回预扣。
-func ShouldReleaseSendMessageUsageReservationAfterBillingError(err error) bool {
-	var updateErr *messageBillingUpdateError
-	return !errors.As(err, &updateErr)
+// scheduleConversationMetadataAfterBilling 仅在主调用完成计费后安排标题与标签生成。
+func (s *Service) scheduleConversationMetadataAfterBilling(input SendMessageBillingInput) {
+	if input.Conversation == nil || input.Result == nil || input.Result.MetadataRefreshHint != conversationMetadataRefreshPending {
+		return
+	}
+	if strings.TrimSpace(input.Result.UserMessage.RunID) != strings.TrimSpace(input.ClientRunID) {
+		return
+	}
+	conversation := *input.Conversation
+	if platformModelName := strings.TrimSpace(input.Result.PlatformModelName); platformModelName != "" {
+		conversation.Model = platformModelName
+	}
+	s.maybeGenerateConversationMetadataAsync(conversation, input.Result.UserMessage)
+}
+
+// markUsageAuthorizationForReconciliation 将已产生上游费用的结算失败转为保守阻断状态。
+func (s *Service) markUsageAuthorizationForReconciliation(
+	ctx context.Context,
+	authorization *domainbilling.UsageAuthorization,
+	failureCode string,
+	cause error,
+) error {
+	if s.billingSvc == nil || authorization == nil || authorization.Reservation == nil {
+		return cause
+	}
+	if err := retryUsageBillingOperation(ctx, func() error {
+		return s.billingSvc.MarkUsageAuthorizationForReconciliation(ctx, authorization, failureCode)
+	}); err != nil {
+		return errors.Join(cause, fmt.Errorf("mark usage reconciliation: %w", err))
+	}
+	return cause
+}
+
+// recordUsageWithRetry 仅对持有持久化 reservation 的结算执行安全重试。
+func (s *Service) recordUsageWithRetry(ctx context.Context, usage *domainbilling.UsageLedger, authorization *domainbilling.UsageAuthorization) error {
+	operation := func() error {
+		return s.billingSvc.RecordUsageWithAuthorization(ctx, usage, authorization)
+	}
+	if authorization == nil || authorization.Reservation == nil {
+		return operation()
+	}
+	return retryUsageBillingOperation(ctx, operation)
+}
+
+// retryUsageBillingOperation 对临时账务错误进行短暂退避重试，不重试业务语义错误。
+func retryUsageBillingOperation(ctx context.Context, operation func() error) error {
+	var err error
+	for attempt := 0; attempt < usageBillingRetryAttempts; attempt++ {
+		if err = operation(); err == nil || !isRetryableUsageBillingError(err) {
+			return err
+		}
+		if attempt == usageBillingRetryAttempts-1 {
+			break
+		}
+		delay := usageBillingRetryBaseDelay << attempt
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return errors.Join(err, ctx.Err())
+		case <-timer.C:
+		}
+	}
+	return err
+}
+
+// isRetryableUsageBillingError 排除重试无法改变结果的业务与状态错误。
+func isRetryableUsageBillingError(err error) bool {
+	if err == nil {
+		return false
+	}
+	nonRetryable := []error{
+		context.Canceled,
+		context.DeadlineExceeded,
+		appbilling.ErrUsageBalanceInsufficient,
+		appbilling.ErrUsageReservationConflict,
+		appbilling.ErrModelPricingRequired,
+		repository.ErrInvalidInput,
+		repository.ErrNotFound,
+		repository.ErrDuplicate,
+		repository.ErrConflict,
+		repository.ErrInsufficientBalance,
+	}
+	for _, target := range nonRetryable {
+		if errors.Is(err, target) {
+			return false
+		}
+	}
+	return true
 }
 
 // RecordSendMessageAudit 记录发送消息审计日志。
@@ -150,7 +247,8 @@ func (s *Service) RecordSendMessageAudit(ctx context.Context, input SendMessageA
 	)
 }
 
-func (s *Service) buildSendMessageUsageLedger(ctx context.Context, input SendMessageBillingInput) (*domainbilling.UsageLedger, error) {
+// buildSendMessageUsageLedger 根据请求开始时的授权快照构建主调用账本。
+func (s *Service) buildSendMessageUsageLedger(ctx context.Context, input SendMessageBillingInput, authorization *domainbilling.UsageAuthorization) (*domainbilling.UsageLedger, error) {
 	result := input.Result
 	if result == nil {
 		return nil, nil
@@ -160,6 +258,7 @@ func (s *Service) buildSendMessageUsageLedger(ctx context.Context, input SendMes
 		latencyMS = result.AssistantMessage.LatencyMS
 	}
 	return s.billingSvc.BuildUsageLedger(ctx, appbilling.UsagePricingInput{
+		Authorization:       authorization,
 		UserID:              input.UserID,
 		ConversationID:      input.ConversationID,
 		PlatformModelName:   sendMessageBillingPlatformModelName(input),

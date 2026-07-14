@@ -19,7 +19,7 @@ import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { FileContentResult } from "@/shared/api/file";
-import type { PreviewDialogFile } from "@/shared/components/file-preview/file-preview-dialog";
+import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
 
 const USER_MESSAGE_COLLAPSED_LINES = 6;
 const USER_MESSAGE_LINE_HEIGHT_REM = 2;
@@ -35,7 +35,6 @@ const EDIT_MESSAGE_EMPTY_TOOL_IDS = [];
 
 type ChatMessageUserProps = {
   item: ChatAreaMessage;
-  busy: boolean;
   onRetryUserMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onEditUserMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
   modelOptions?: ChatModelOption[];
@@ -53,7 +52,6 @@ type ChatMessageUserProps = {
 
 export function ChatMessageUser({
   item,
-  busy,
   onRetryUserMessage,
   onEditUserMessage,
   modelOptions = [],
@@ -164,7 +162,7 @@ export function ChatMessageUser({
     attachments: EDIT_MESSAGE_EMPTY_ATTACHMENTS,
     availableTools: EDIT_MESSAGE_EMPTY_TOOLS,
     defaultFileLabel: "",
-    disabled: busy || readOnly || !isEditing,
+    disabled: readOnly || !isEditing,
     draft: editingValue,
     enabledKinds: EDIT_MESSAGE_MENTION_KINDS,
     maxSelectedSkills: 0,
@@ -250,7 +248,7 @@ export function ChatMessageUser({
               <Button
                 variant="default"
                 className="rounded-lg text-xs font-medium shadow-none hover:bg-primary/60"
-                disabled={busy || nextContent.length === 0 || unchanged}
+                disabled={nextContent.length === 0 || unchanged}
                 onClick={() => void onEditSave()}
               >
                 {tCommon("save")}
@@ -315,8 +313,7 @@ export function ChatMessageUser({
       {screenshotMeta}
       <UserMessageMeta
         item={item}
-        busy={busy}
-        showRetry={!busy && !item.isPending}
+        showRetry={!item.isPending && item.status?.trim().toLowerCase() !== "pending"}
         onCycleBranch={onCycleMessageBranch}
         onRetry={onRetry}
         onEdit={() => setIsEditing(true)}

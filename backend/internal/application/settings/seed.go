@@ -10,7 +10,6 @@ const (
 	legacyDefaultAllowedMIMETypes = "image/jpeg,image/png,image/webp,image/gif,text/plain,text/markdown,text/csv,text/yaml,application/json,application/yaml,application/x-yaml,application/toml,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
 	defaultAllowedMIMETypes       = "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,text/plain,text/markdown,text/csv,text/yaml,application/json,application/yaml,application/x-yaml,application/toml,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
 	defaultRAGModel               = "sentence-transformers/all-MiniLM-L6-v2"
-	defaultLoginPageTitle         = "Sign in to DEEIX Chat"
 )
 
 // defaultSettings 返回所有动态配置的默认种子数据。
@@ -24,7 +23,6 @@ func defaultSettings() []domainsettings.SystemSetting {
 		{Namespace: "auth", Key: "rate_limit_enabled", Value: "false", ValueType: "bool", Description: "是否启用平台 HTTP 429 限流"},
 		{Namespace: "auth", Key: "rate_limit_rpm", Value: "60", ValueType: "int", Description: "全局限流 RPM"},
 		{Namespace: "auth", Key: "public_auth_rate_limit_rpm", Value: "30", ValueType: "int", Description: "公开鉴权接口限流 RPM"},
-		{Namespace: "auth", Key: "login_page_title", Value: defaultLoginPageTitle, ValueType: "string", Description: "登录页面标题"},
 		{Namespace: "auth", Key: "login_default_next_path", Value: "/chat", ValueType: "string", Description: "无 next 参数时登录成功后的默认跳转路径"},
 		{Namespace: "auth", Key: "username_login_enabled", Value: "true", ValueType: "bool", Description: "是否允许用户名密码登录"},
 		{Namespace: "auth", Key: "email_login_enabled", Value: "true", ValueType: "bool", Description: "是否允许邮箱登录"},
@@ -46,7 +44,7 @@ func defaultSettings() []domainsettings.SystemSetting {
 
 		// 计费配置
 		{Namespace: "billing", Key: "mode", Value: "self", ValueType: "string", Description: "计费方式：self=自用模式，period=周期计费，usage=按量计费"},
-		{Namespace: "billing", Key: "prepaid_amount_usd", Value: "0", ValueType: "string", Description: "按量调用前要求账户保留的最低预付余额(美元)"},
+		{Namespace: "billing", Key: "prepaid_amount_usd", Value: "0", ValueType: "string", Description: "每个付费调用预留的风险预算(美元)，0表示按剩余槽位动态分配可用预算，最多5个并发调用"},
 		{Namespace: "billing", Key: "native_tool_billing_enabled", Value: "true", ValueType: "bool", Description: "是否按官方默认价格计费模型原生工具调用"},
 		{Namespace: "billing", Key: "native_tool_pricing_json", Value: nativetool.DefaultPricingJSON(), ValueType: "json", Description: "官方原生工具计费覆盖 JSON，按 toolKey 配置 priceNanousd、unit、priceLabel、billable"},
 		{Namespace: "billing", Key: "usd_to_cny_rate", Value: "7.2", ValueType: "string", Description: "易支付美元兑人民币汇率"},
@@ -124,6 +122,7 @@ func defaultSettings() []domainsettings.SystemSetting {
 		{Namespace: "extract", Key: "aliyun_ocr_timeout_seconds", Value: "60", ValueType: "int", Description: "阿里云 OCR 请求超时(秒)，默认 60s"},
 		{Namespace: "extract", Key: "mineru_source", Value: "cloud", ValueType: "string", Description: "MinerU 服务类型(cloud/self_hosted)"},
 		{Namespace: "extract", Key: "mineru_base_url", Value: "https://mineru.net/api/v4", ValueType: "string", Description: "MinerU 服务地址，默认 https://mineru.net/api/v4"},
+		{Namespace: "extract", Key: "mineru_file_types", Value: "pdf,word,presentation", ValueType: "string", Description: "MinerU 处理的文件类型，逗号分隔：pdf,word,presentation,excel"},
 		{Namespace: "extract", Key: "mineru_auth_token", Value: "", ValueType: "string", Description: "MinerU 鉴权 Token"},
 		{Namespace: "extract", Key: "mineru_timeout_seconds", Value: "180", ValueType: "int", Description: "MinerU 请求超时(秒)，默认 180s"},
 		{Namespace: "extract", Key: "llm_ocr_base_url", Value: "", ValueType: "string", Description: "LLM OCR 服务地址（OpenAI 兼容 chat/completions 视觉模型）"},

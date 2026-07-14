@@ -35,6 +35,8 @@ func TestInferErrorCode(t *testing.T) {
 		{name: "auth email", status: http.StatusBadRequest, msg: "invalid email", want: "auth.invalid_email"},
 		{name: "superadmin delete protected", status: http.StatusConflict, msg: "superadmin delete not allowed", want: "user.superadmin_delete_protected"},
 		{name: "billing pricing invalid", status: http.StatusBadRequest, msg: "invalid model pricing", want: "billing.invalid_model_pricing"},
+		{name: "billing reservation conflict", status: http.StatusConflict, msg: "usage reservation already exists", want: "billing.reservation_conflict"},
+		{name: "billing concurrency limit", status: http.StatusTooManyRequests, msg: "usage concurrency limit exceeded", want: "billing.concurrency_limit_exceeded"},
 		{name: "billing redemption conflict", status: http.StatusConflict, msg: "redemption code already exists", want: "billing.redemption_code_conflict"},
 		{name: "billing redemption unavailable", status: http.StatusBadRequest, msg: "redemption code is unavailable", want: "billing.redemption_code_unavailable"},
 		{name: "settings nested namespace", status: http.StatusBadRequest, msg: "invalid setting: invalid namespace: foo", want: "settings.invalid_namespace"},

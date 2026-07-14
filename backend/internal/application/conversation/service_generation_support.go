@@ -9,8 +9,10 @@ import (
 
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
+	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -152,13 +154,26 @@ func (s *Service) callCompactLLM(ctx context.Context, platformModelName string, 
 	}
 	startedAt := time.Now()
 	generateInput := buildTextTaskGenerateInput(route, s.cfg.Snapshot(), llmMsgs)
+	var authorization *domainbilling.UsageAuthorization
+	billingCtx, hasBillingContext := ctx.Value(basicServiceBillingContextKey{}).(basicServiceBillingContext)
+	if hasBillingContext {
+		authorization, err = s.authorizeBasicServiceUsage(ctx, billingCtx.UserID, route.PlatformModelName, "compact")
+		if err != nil {
+			return "", fmt.Errorf("compact usage authorization: %w", err)
+		}
+	}
 	out, err := s.llmClient.Generate(ctx, routeConfig, generateInput)
 	if err != nil {
+		if releaseErr := s.releaseBasicServiceUsageAuthorization(ctx, authorization); releaseErr != nil {
+			return "", errors.Join(fmt.Errorf("compact llm generate: %w", err), fmt.Errorf("release compact usage authorization: %w", releaseErr))
+		}
 		return "", fmt.Errorf("compact llm generate: %w", err)
 	}
 	text := strings.TrimSpace(out.Text)
-	if billingCtx, ok := ctx.Value(basicServiceBillingContextKey{}).(basicServiceBillingContext); ok {
-		s.recordBasicServiceUsage(ctx, billingCtx.UserID, billingCtx.ConversationID, "compact", "上下文压缩", code, route.BindingCode, route.Protocol, route.UpstreamName, route.UpstreamModel, "5m", out.Usage, generateInput.Messages, text, time.Since(startedAt).Milliseconds())
+	if hasBillingContext {
+		if err = s.recordBasicServiceUsage(ctx, authorization, billingCtx.UserID, billingCtx.ConversationID, "compact", "上下文压缩", route.PlatformModelName, route.BindingCode, route.Protocol, route.UpstreamName, route.UpstreamModel, "5m", out.Usage, generateInput.Messages, text, time.Since(startedAt).Milliseconds()); err != nil {
+			return "", fmt.Errorf("compact usage settlement: %w", err)
+		}
 	}
 	return text, nil
 }
@@ -170,8 +185,26 @@ func withBasicServiceBillingContext(ctx context.Context, userID uint, conversati
 	})
 }
 
+// authorizeBasicServiceUsage 为标题、标签和压缩等内部模型调用分配独立预算。
+func (s *Service) authorizeBasicServiceUsage(ctx context.Context, userID uint, platformModelName string, serviceCode string) (*domainbilling.UsageAuthorization, error) {
+	if s.billingSvc == nil {
+		return &domainbilling.UsageAuthorization{Mode: "self"}, nil
+	}
+	refNo := "basic_" + strings.TrimSpace(serviceCode) + "_" + uuid.NewString()
+	return s.billingSvc.AuthorizeUsage(ctx, userID, platformModelName, refNo)
+}
+
+// releaseBasicServiceUsageAuthorization 释放未产生可计费用量的内部调用预算。
+func (s *Service) releaseBasicServiceUsageAuthorization(ctx context.Context, authorization *domainbilling.UsageAuthorization) error {
+	if s.billingSvc == nil || authorization == nil {
+		return nil
+	}
+	return s.billingSvc.ReleaseUsageAuthorization(ctx, authorization)
+}
+
 func (s *Service) recordBasicServiceUsage(
 	ctx context.Context,
+	authorization *domainbilling.UsageAuthorization,
 	userID uint,
 	conversationID uint,
 	serviceCode string,
@@ -186,9 +219,9 @@ func (s *Service) recordBasicServiceUsage(
 	fallbackMessages []llm.Message,
 	fallbackOutput string,
 	latencyMS int64,
-) {
+) error {
 	if s.billingSvc == nil || userID == 0 || conversationID == 0 || strings.TrimSpace(platformModelName) == "" {
-		return
+		return nil
 	}
 	billingCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
@@ -218,7 +251,8 @@ func (s *Service) recordBasicServiceUsage(
 		ReasoningTokens:    usage.ReasoningTokens,
 		CallCount:          1,
 	}
-	ledger, err := s.billingSvc.BuildUsageLedger(billingCtx, appbilling.UsagePricingInput{
+	pricingInput := appbilling.UsagePricingInput{
+		Authorization:      authorization,
 		UserID:             userID,
 		ConversationID:     conversationID,
 		PlatformModelName:  item.PlatformModelName,
@@ -241,8 +275,15 @@ func (s *Service) recordBasicServiceUsage(
 		LatencyMS:          latencyMS,
 		ServiceItems:       []appbilling.ServiceUsageInput{item},
 		RawUsageJSON:       usage.RawUsageJSON,
+	}
+	var ledger *domainbilling.UsageLedger
+	err := retryUsageBillingOperation(billingCtx, func() error {
+		var buildErr error
+		ledger, buildErr = s.billingSvc.BuildUsageLedger(billingCtx, pricingInput)
+		return buildErr
 	})
 	if err != nil {
+		err = s.markUsageAuthorizationForReconciliation(billingCtx, authorization, "basic_build_usage_failed", err)
 		if s.logger != nil {
 			s.logger.Warn("basic_service_usage_build_failed",
 				zap.Uint("user_id", userID),
@@ -252,15 +293,20 @@ func (s *Service) recordBasicServiceUsage(
 				zap.Error(err),
 			)
 		}
-		return
+		return err
 	}
-	if err := s.billingSvc.RecordUsage(billingCtx, ledger); err != nil && s.logger != nil {
-		s.logger.Warn("basic_service_usage_record_failed",
-			zap.Uint("user_id", userID),
-			zap.Uint("conversation_id", conversationID),
-			zap.String("service", item.ServiceCode),
-			zap.String("model", item.PlatformModelName),
-			zap.Error(err),
-		)
+	if err := s.recordUsageWithRetry(billingCtx, ledger, authorization); err != nil {
+		err = s.markUsageAuthorizationForReconciliation(billingCtx, authorization, "basic_settle_usage_failed", err)
+		if s.logger != nil {
+			s.logger.Warn("basic_service_usage_record_failed",
+				zap.Uint("user_id", userID),
+				zap.Uint("conversation_id", conversationID),
+				zap.String("service", item.ServiceCode),
+				zap.String("model", item.PlatformModelName),
+				zap.Error(err),
+			)
+		}
+		return err
 	}
+	return nil
 }

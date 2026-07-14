@@ -260,6 +260,7 @@
     "processingAttachments": "Processing attachments...",
     "retrievingContent": "Retrieving relevant content...",
     "retryLater": "Please try again later.",
+    "concurrentGenerationLimit": "Up to {count} generations can run at once. Wait for an active generation to finish.",
     "imagePreviewAlt": "Generated image preview",
     "mediaInputUnsupported": "The selected model cannot process this input",
     "mediaInputBlocked": {
@@ -493,32 +494,6 @@
     "perSecond": "Per second",
     "callUnit": "call",
     "secondUnit": "second"
-  },
-  "shareDialog": {
-    "title": "Share this conversation",
-    "statusShared": "Shared",
-    "statusNotShared": "Not shared",
-    "publicLink": "Public link",
-    "emptyLink": "No public link has been created",
-    "copyLink": "Copy link",
-    "openLink": "Open link",
-    "loadFailed": "Failed to load share status",
-    "noMessages": "There are no messages to share",
-    "signInRequired": "Sign in to continue",
-    "closed": "Share closed",
-    "regenerated": "Share link regenerated",
-    "created": "Share link created",
-    "operationFailed": "Action failed",
-    "linkCopied": "Link copied",
-    "copyFailed": "Copy failed",
-    "closing": "Closing",
-    "closeShare": "Stop sharing",
-    "regenerating": "Regenerating",
-    "regenerate": "Regenerate",
-    "copyAndClose": "Copy and close",
-    "creating": "Creating",
-    "createLink": "Create",
-    "snapshotMessages": "{title} - {count} snapshot messages"
   },
   "processTrace": {
     "fileBadges": {

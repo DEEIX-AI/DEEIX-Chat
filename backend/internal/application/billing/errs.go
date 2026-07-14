@@ -17,6 +17,10 @@ var (
 	ErrPaymentProviderUnavailable = errors.New("payment provider is unavailable")
 	// ErrUsageBalanceInsufficient 按量余额不足。
 	ErrUsageBalanceInsufficient = errors.New("usage balance is insufficient")
+	// ErrUsageReservationConflict 表示调用编号已被使用，不能重复消费同一预算。
+	ErrUsageReservationConflict = errors.New("usage reservation already exists")
+	// ErrUsageConcurrencyLimitExceeded 表示用户同时运行的付费调用数量达到上限。
+	ErrUsageConcurrencyLimitExceeded = errors.New("usage concurrency limit exceeded")
 	// ErrInvalidSubscriptionTier 非法订阅套餐。
 	ErrInvalidSubscriptionTier = errors.New("invalid subscription tier")
 	// ErrSubscriptionExpiryRequired 付费订阅必须指定到期时间。

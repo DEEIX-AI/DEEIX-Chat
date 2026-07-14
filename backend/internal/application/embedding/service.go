@@ -100,6 +100,10 @@ func (s *Service) ShouldTrigger(fileObj domainconversation.FileObject) bool {
 	if !cfg.EmbeddingEnabled || !cfg.EmbedTriggerOnUpload || strings.TrimSpace(cfg.RAGModel) == "" || strings.TrimSpace(cfg.EmbeddingHost) == "" {
 		return false
 	}
+	return canEmbedFile(cfg, fileObj)
+}
+
+func canEmbedFile(cfg config.Config, fileObj domainconversation.FileObject) bool {
 	if strings.TrimSpace(fileObj.StoragePath) == "" || strings.ToLower(strings.TrimSpace(fileObj.Status)) != "active" {
 		return false
 	}
@@ -370,7 +374,7 @@ func (s *Service) MarkAllFilesStale(ctx context.Context) (int64, error) {
 	return s.repo.MarkAllEmbeddedFilesStale(ctx)
 }
 
-// ReindexStaleFiles 异步触发所有 stale/failed 文件的重新向量化，返回提交任务数。
+// ReindexStaleFiles 异步触发所有可向量化的 none/stale/failed 文件，返回提交任务数。
 // 实际 embedding 在 goroutine 中执行，调用方立即返回。
 func (s *Service) ReindexStaleFiles(ctx context.Context) (int, error) {
 	if s.repo == nil {
@@ -387,9 +391,9 @@ func (s *Service) ReindexStaleFiles(ctx context.Context) (int, error) {
 
 	const pageSize = 100
 	submitted := 0
-	offset := 0
+	var afterID uint
 	for {
-		files, err := s.repo.ListFilesForReindex(ctx, pageSize, offset)
+		files, err := s.repo.ListFilesForReindex(ctx, pageSize, afterID)
 		if err != nil {
 			return submitted, err
 		}
@@ -397,7 +401,7 @@ func (s *Service) ReindexStaleFiles(ctx context.Context) (int, error) {
 			break
 		}
 		for _, f := range files {
-			if !supportsEmbeddingSource(f, cfg) {
+			if !canEmbedFile(cfg, f) {
 				continue
 			}
 			s.Trigger(f)
@@ -406,7 +410,7 @@ func (s *Service) ReindexStaleFiles(ctx context.Context) (int, error) {
 		if len(files) < pageSize {
 			break
 		}
-		offset += pageSize
+		afterID = files[len(files)-1].ID
 	}
 	return submitted, nil
 }
@@ -420,7 +424,7 @@ func supportsEmbeddingSource(fileObj domainconversation.FileObject, cfg config.C
 	}
 	mime := strings.ToLower(strings.TrimSpace(fileObj.MimeType))
 	name := strings.TrimSpace(fileObj.FileName)
-	return isTextMIMEForEmbed(mime, name) || isPDFMIME(mime, name) || isDocxMIME(mime, name) || isExcelMIME(mime, name)
+	return isTextMIMEForEmbed(mime, name) || isPDFMIME(mime, name) || isWordMIME(mime, name) || isPresentationMIME(mime, name) || isExcelMIME(mime, name)
 }
 
 // postProcessEmbeddings 对批量向量做两步后处理：
@@ -541,7 +545,7 @@ func isTextMIMEForEmbed(mimeType, fileName string) bool {
 	return false
 }
 
-func isDocxMIME(mimeType, fileName string) bool {
+func isWordMIME(mimeType, fileName string) bool {
 	m := strings.ToLower(strings.TrimSpace(mimeType))
 	ext := ""
 	if idx := strings.LastIndex(fileName, "."); idx >= 0 {
@@ -549,6 +553,16 @@ func isDocxMIME(mimeType, fileName string) bool {
 	}
 	return strings.Contains(m, "wordprocessingml") || strings.Contains(m, "msword") ||
 		ext == "docx" || ext == "doc"
+}
+
+func isPresentationMIME(mimeType, fileName string) bool {
+	m := strings.ToLower(strings.TrimSpace(mimeType))
+	ext := ""
+	if idx := strings.LastIndex(fileName, "."); idx >= 0 {
+		ext = strings.ToLower(fileName[idx+1:])
+	}
+	return strings.Contains(m, "presentationml") || strings.Contains(m, "ms-powerpoint") ||
+		ext == "pptx" || ext == "ppt"
 }
 
 func isExcelMIME(mimeType, fileName string) bool {

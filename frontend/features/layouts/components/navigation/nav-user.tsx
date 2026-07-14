@@ -1,18 +1,18 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useRouter } from "next/navigation"
-import { useTranslations } from "next-intl"
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   Check,
   ChevronDown,
-} from "lucide-react"
+} from "lucide-react";
 
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-} from "@/components/ui/avatar"
+} from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,116 +25,116 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 import {
   SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
-} from "@/components/ui/sidebar"
-import { SpinnerLabel } from "@/components/ui/spinner"
-import { logout, patchMe } from "@/shared/api/auth"
-import { useAuthSession } from "@/shared/auth/auth-session-context"
-import { clearSessionAndRedirectToLogin } from "@/shared/auth/session"
-import { dispatchUserProfileUpdated } from "@/shared/auth/user-profile-events"
-import { dispatchOpenAnnouncements, getAnnouncementUnread, subscribeAnnouncementUnreadChanged } from "@/shared/events/announcement-events"
-import { useAppLocale } from "@/i18n/app-i18n-provider"
-import { APP_LOCALE_LABELS, APP_LOCALES, type AppLocale } from "@/i18n/config"
+} from "@/components/ui/sidebar";
+import { SpinnerLabel } from "@/components/ui/spinner";
+import { logout, patchMe } from "@/shared/api/auth";
+import { useAuthSession } from "@/shared/auth/auth-session-context";
+import { clearSessionAndRedirectToLogin } from "@/shared/auth/session";
+import { dispatchUserProfileUpdated } from "@/shared/auth/user-profile-events";
+import { dispatchOpenAnnouncements, getAnnouncementUnread, subscribeAnnouncementUnreadChanged } from "@/shared/events/announcement-events";
+import { useAppLocale } from "@/i18n/app-i18n-provider";
+import { APP_LOCALE_LABELS, APP_LOCALES, type AppLocale } from "@/i18n/config";
 
 export function NavUser({
   user,
 }: {
   user: {
-    name: string
-    email: string
-    avatar: string
-    role?: string
-  }
+    name: string;
+    email: string;
+    avatar: string;
+    role?: string;
+  };
 }) {
-  const t = useTranslations("common.navigation")
-  const { isMobile } = useSidebar()
-  const { locale, setLocale } = useAppLocale()
-  const router = useRouter()
-  const { accessToken, user: sessionUser } = useAuthSession()
-  const [open, setOpen] = React.useState(false)
-  const [loggingOut, setLoggingOut] = React.useState(false)
-  const [savingLocale, setSavingLocale] = React.useState<AppLocale | null>(null)
-  const [hasUnreadAnnouncement, setHasUnreadAnnouncement] = React.useState(() => getAnnouncementUnread())
-  const skipTriggerFocusRef = React.useRef(false)
-  const isAdmin = user.role === "admin" || user.role === "superadmin"
+  const t = useTranslations("common.navigation");
+  const { locale, setLocale } = useAppLocale();
+  const router = useRouter();
+  const { accessToken, user: sessionUser } = useAuthSession();
+  const [open, setOpen] = React.useState(false);
+  const [loggingOut, setLoggingOut] = React.useState(false);
+  const [savingLocale, setSavingLocale] = React.useState<AppLocale | null>(null);
+  const [hasUnreadAnnouncement, setHasUnreadAnnouncement] = React.useState(() => getAnnouncementUnread());
+  const skipTriggerFocusRef = React.useRef(false);
+  const isAdmin = user.role === "admin" || user.role === "superadmin";
 
-  React.useEffect(() => subscribeAnnouncementUnreadChanged(setHasUnreadAnnouncement), [])
+  React.useEffect(() => subscribeAnnouncementUnreadChanged(setHasUnreadAnnouncement), []);
 
   const onLogout = React.useCallback(async () => {
     if (loggingOut) {
-      return
+      return;
     }
-    setLoggingOut(true)
+    setLoggingOut(true);
     try {
       if (accessToken) {
-        await logout(accessToken)
+        await logout(accessToken);
       }
     } catch {
       // Ignore logout API errors and clear local session to ensure exit.
     } finally {
-      clearSessionAndRedirectToLogin()
-      setLoggingOut(false)
+      clearSessionAndRedirectToLogin();
+      setLoggingOut(false);
     }
-  }, [accessToken, loggingOut])
+  }, [accessToken, loggingOut]);
 
   const navigateFromMenu = React.useCallback(
     (href: string) => (event: Event) => {
-      event.preventDefault()
-      skipTriggerFocusRef.current = true
-      setOpen(false)
-      router.push(href)
+      event.preventDefault();
+      skipTriggerFocusRef.current = true;
+      setOpen(false);
+      router.push(href);
     },
     [router],
-  )
+  );
 
   const openAnnouncementsFromMenu = React.useCallback((event: Event) => {
-    event.preventDefault()
-    skipTriggerFocusRef.current = true
-    setOpen(false)
-    dispatchOpenAnnouncements()
-  }, [])
+    event.preventDefault();
+    skipTriggerFocusRef.current = true;
+    setOpen(false);
+    dispatchOpenAnnouncements();
+  }, []);
 
   const onLocaleSelect = React.useCallback(
     async (nextLocale: AppLocale) => {
       if (nextLocale === locale && !savingLocale) {
-        return
+        return;
       }
 
       if (sessionUser) {
-        dispatchUserProfileUpdated({ ...sessionUser, locale: nextLocale })
+        dispatchUserProfileUpdated({ ...sessionUser, locale: nextLocale });
       }
-      void setLocale(nextLocale)
+      void setLocale(nextLocale);
 
       if (!accessToken) {
-        return
+        return;
       }
 
-      setSavingLocale(nextLocale)
+      setSavingLocale(nextLocale);
       try {
-        const nextUser = await patchMe(accessToken, { locale: nextLocale })
-        dispatchUserProfileUpdated(nextUser)
+        const nextUser = await patchMe(accessToken, { locale: nextLocale });
+        dispatchUserProfileUpdated(nextUser);
       } catch {
         // Keep the local language selection; a later profile refresh may retry or restore the server value.
       } finally {
-        setSavingLocale((current) => (current === nextLocale ? null : current))
+        setSavingLocale((current) => (current === nextLocale ? null : current));
       }
     },
     [accessToken, locale, savingLocale, sessionUser, setLocale],
-  )
+  );
 
   return (
     <SidebarMenu className="group-data-[collapsible=icon]:items-center">
       <SidebarMenuItem className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center">
         <DropdownMenu open={open} onOpenChange={setOpen}>
           <DropdownMenuTrigger asChild>
-            <button
+            <SidebarMenuButton
               id="sidebar-user-menu-trigger"
               type="button"
-              className="peer/menu-button mb-1 flex h-12 w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-[background-color,color,width,height,padding,margin] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:mb-0 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:overflow-visible group-data-[collapsible=icon]:p-0!"
+              size="lg"
+              className="mb-1 transition-[background-color,color,width,height,padding,margin] data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:mb-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:overflow-visible"
               aria-label={user.name}
             >
               <Avatar className="size-7 shrink-0 rounded-full">
@@ -144,23 +144,23 @@ export function NavUser({
               <div className="grid min-w-0 flex-1 gap-0.5 overflow-hidden pl-1.5 text-left text-sm leading-tight transition-opacity duration-200 ease-linear group-data-[collapsible=icon]:hidden">
                 <span className="truncate font-medium text-foreground/95">{user.name}</span>
               </div>
-              <ChevronDown className="ml-auto size-4 stroke-1 transition-opacity duration-200 ease-linear group-data-[collapsible=icon]:hidden" />
-            </button>
+              <ChevronDown aria-hidden className="ml-auto size-4 stroke-1 transition-opacity duration-200 ease-linear group-data-[collapsible=icon]:hidden" />
+            </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
-            side={isMobile ? "top" : "top"}
-            align="end"
+            side="top"
+            align="start"
             sideOffset={4}
             onCloseAutoFocus={(event) => {
               if (!skipTriggerFocusRef.current) {
-                return
+                return;
               }
-              event.preventDefault()
-              skipTriggerFocusRef.current = false
+              event.preventDefault();
+              skipTriggerFocusRef.current = false;
               requestAnimationFrame(() => {
-                document.getElementById("sidebar-user-menu-trigger")?.blur()
-              })
+                document.getElementById("sidebar-user-menu-trigger")?.blur();
+              });
             }}
           >
             <DropdownMenuLabel className="px-2 py-2 font-normal text-muted-foreground">
@@ -175,7 +175,7 @@ export function NavUser({
               <DropdownMenuItem onSelect={openAnnouncementsFromMenu}>
                 <span className="min-w-0 flex-1 truncate">{t("announcements")}</span>
                 <span className="ml-auto flex size-4 shrink-0 items-center justify-center">
-                  {hasUnreadAnnouncement ? <span aria-hidden="true" className="size-1.5 rounded-full bg-red-500" /> : null}
+                  {hasUnreadAnnouncement ? <span aria-hidden="true" className="size-1.5 rounded-full bg-destructive" /> : null}
                 </span>
               </DropdownMenuItem>
               <DropdownMenuSub>
@@ -188,8 +188,8 @@ export function NavUser({
                       key={item}
                       disabled={savingLocale === item}
                       onSelect={(event) => {
-                        event.preventDefault()
-                        void onLocaleSelect(item as AppLocale)
+                        event.preventDefault();
+                        void onLocaleSelect(item);
                       }}
                     >
                       {APP_LOCALE_LABELS[item]}
@@ -213,8 +213,8 @@ export function NavUser({
             ) : null}
             <DropdownMenuItem
               onSelect={(event) => {
-                event.preventDefault()
-                void onLogout()
+                event.preventDefault();
+                void onLogout();
               }}
               disabled={loggingOut}
             >
@@ -224,5 +224,5 @@ export function NavUser({
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
-  )
+  );
 }

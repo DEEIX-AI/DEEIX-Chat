@@ -112,7 +112,6 @@ export type PasswordChangeVerificationStartData = {
 };
 
 export type LoginPageSettings = {
-  title: string;
   defaultNextPath: string;
 };
 

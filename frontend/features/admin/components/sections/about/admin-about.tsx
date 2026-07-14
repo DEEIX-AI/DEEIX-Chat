@@ -28,6 +28,7 @@ import {
   writeCachedLatestRelease,
 } from "@/features/admin/model/update-check";
 import { AboutSettingsContent } from "@/shared/components/about-settings-content";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { cn } from "@/lib/utils";
 
 type GitHubRelease = {
@@ -133,30 +134,31 @@ function UpdateResultDialog({
 }) {
   const t = useTranslations("adminUsers.aboutPage");
   const currentVersion = formatReleaseVersion(packageMeta.version);
-  const latestVersion = state?.type === "available" ? formatReleaseVersion(state.release.version) : "";
+  const stableState = useDialogSnapshot(state);
+  const latestVersion = stableState?.type === "available" ? formatReleaseVersion(stableState.release.version) : "";
 
   return (
     <Dialog open={state !== null} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[420px]">
         <DialogHeader className="shrink-0 px-4 py-4">
           <DialogTitle>
-            {state?.type === "available"
+            {stableState?.type === "available"
               ? t("updateDialog.availableTitle")
-              : state?.type === "failed"
+              : stableState?.type === "failed"
                 ? t("updateDialog.failedTitle")
                 : t("updateDialog.currentTitle")}
           </DialogTitle>
           <DialogDescription>
-            {state?.type === "available"
+            {stableState?.type === "available"
               ? t("updateDialog.availableDescription", { current: currentVersion, latest: latestVersion })
-              : state?.type === "failed"
+              : stableState?.type === "failed"
                 ? t("updateDialog.failedDescription")
                 : t("updateDialog.currentDescription", { current: currentVersion })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
-          {state?.type === "available" ? (
+          {stableState?.type === "available" ? (
             <div className="rounded-md bg-muted/50 px-3 py-2 text-xs">
               <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
                 <span className="text-muted-foreground">{t("updateDialog.currentVersion")}</span>
@@ -174,14 +176,14 @@ function UpdateResultDialog({
               {t("updateDialog.close")}
             </Button>
           </DialogClose>
-          {state?.type === "failed" ? (
+          {stableState?.type === "failed" ? (
             <Button type="button" onClick={onRetry}>
               {t("updateDialog.retry")}
             </Button>
           ) : null}
-          {state?.type === "available" ? (
+          {stableState?.type === "available" ? (
             <Button asChild type="button">
-              <a href={state.release.url} target="_blank" rel="noopener noreferrer">
+              <a href={stableState.release.url} target="_blank" rel="noopener noreferrer">
                 {t("updateDialog.openRelease")}
               </a>
             </Button>

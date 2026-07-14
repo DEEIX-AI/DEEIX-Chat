@@ -24,15 +24,17 @@ import type {
   PublicSharedMessageDTO,
 } from "@/shared/api/conversation.types";
 import { fetchSharedFileContent, type FileContentResult } from "@/shared/api/file";
-import type { PreviewDialogFile } from "@/shared/components/file-preview/file-preview-dialog";
+import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
 import { CenteredEmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AppLogo } from "@/shared/components/app-logo";
+import { AppLogo, DeeixLogo } from "@/shared/components/app-logo";
+import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
 import { useOptionalAuthSession } from "@/shared/auth/auth-session-context";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
+import { brandAssets, brandText } from "@/shared/lib/branding";
 
 function formatSharedAt(value: string, locale: string): string {
   const date = new Date(value);
@@ -164,7 +166,6 @@ function PublicSharedMessage({
     return (
       <ChatMessageUser
         item={item}
-        busy={false}
         onRetryUserMessage={noopAsync}
         onEditUserMessage={async () => false}
         onCycleMessageBranch={onCycleBranch}
@@ -180,7 +181,6 @@ function PublicSharedMessage({
     return (
       <ChatMessageBot
         item={item}
-        busy={false}
         reaction={null}
         onRetryAssistantMessage={noopAsync}
         onEditAssistantMessage={async () => false}
@@ -376,7 +376,19 @@ export function PublicSharePage() {
   return (
     <main className="h-full min-h-0 w-full overflow-y-auto bg-background text-foreground">
       <div className="mx-auto min-h-full w-full max-w-[820px] px-4 pb-24 pt-5 md:pt-6">
-        <header className="flex items-start justify-between gap-4 pb-5">
+        <header className="flex items-center border-b border-border/50 pb-3">
+          {brandAssets.logo ? (
+            <span className="inline-flex h-8 shrink-0 items-center">
+              <AppLogo width={78} height={24} priority className="h-6 w-auto" />
+            </span>
+          ) : (
+            <Link href="/" aria-label={brandText.title} className="inline-flex h-8 shrink-0 items-center">
+              <AppLogo width={78} height={24} priority className="h-6 w-auto" />
+            </Link>
+          )}
+        </header>
+
+        <div className="pb-5 pt-4">
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-base font-semibold leading-6">{data.title || t("title")}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -384,10 +396,7 @@ export function PublicSharePage() {
               <span>{t("snapshotMessages", { count: data.messages.length })}</span>
             </div>
           </div>
-          <Link href="/" aria-label="DEEIX Chat" className="mt-0.5 inline-flex h-8 shrink-0 items-center">
-            <AppLogo width={78} height={24} priority className="h-6 w-auto" />
-          </Link>
-        </header>
+        </div>
 
         <div className="space-y-7">
           {visibleMessages.map((message) => (
@@ -401,6 +410,28 @@ export function PublicSharePage() {
           ))}
         </div>
 
+        <div className="mt-12 flex items-center justify-center border-t border-border/50 pt-3">
+          <div className="inline-flex items-center gap-3">
+            {brandAssets.logo ? (
+              <>
+                <span className="inline-flex h-8 shrink-0 items-center">
+                  <AppLogo width={78} height={24} className="h-6 w-auto opacity-75" />
+                </span>
+                <span aria-hidden="true" className="h-4 w-px bg-border" />
+              </>
+            ) : null}
+            <a
+              href="https://github.com/DEEIX-AI/DEEIX-Chat"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="DEEIX Chat on GitHub"
+              className="inline-flex h-8 shrink-0 items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2"
+            >
+              <DeeixLogo width={78} height={24} className="h-6 w-auto opacity-75" />
+            </a>
+          </div>
+        </div>
+
         <div className="pointer-events-none fixed inset-x-0 bottom-5 z-30 flex justify-center">
           <Button
             type="button"
@@ -411,6 +442,12 @@ export function PublicSharePage() {
             {accessToken ? (cloning ? t("continuing") : t("continueConversation")) : t("signInToContinue")}
           </Button>
         </div>
+
+        {brandAssets.logo ? (
+          <div className="fixed bottom-4 right-4">
+            <PoweredByDeeix />
+          </div>
+        ) : null}
       </div>
     </main>
   );

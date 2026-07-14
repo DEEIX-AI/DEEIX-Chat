@@ -49,6 +49,7 @@ import {
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { LobeHubIcon } from "@/shared/components/lobehub-icon";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { cn } from "@/lib/utils";
 import { KNOWN_VENDOR_OPTIONS, resolveLobeHubIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
 
@@ -150,6 +151,9 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
   const [officialPricingCatalogHasError, setOfficialPricingCatalogHasError] = React.useState(false);
   const [officialPricingSingleDialogOpen, setOfficialPricingSingleDialogOpen] = React.useState(false);
   const [freeSwitchPendingModel, setFreeSwitchPendingModel] = React.useState("");
+  const stableEditRow = useDialogSnapshot(editRow);
+  const stableForm = useDialogSnapshot(form);
+  const stableOfficialPricingImportSuggestion = useDialogSnapshot(officialPricingImportSuggestion);
 
   const rows = React.useMemo(() => buildPricingRows(models, pricingItems), [models, pricingItems]);
   const vendorFilterOptions = React.useMemo(() => {
@@ -689,7 +693,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
       <PricingBillingDialog
         open={!!editRow && !!form}
         saving={saving}
-        form={form}
+        form={stableForm}
         setForm={setForm}
         onOpenChange={(open) => {
           if (!open && !saving) {
@@ -729,7 +733,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
           </DialogHeader>
 
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-4 py-2">
-            {editRow ? (
+            {stableEditRow ? (
               <>
                 <div className="shrink-0 space-y-2">
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
@@ -909,7 +913,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
             </Button>
             <Button
               type="button"
-              disabled={!officialPricingMultiplierValid}
+              disabled={!officialPricingMultiplierValid || !stableOfficialPricingImportSuggestion}
               onClick={confirmOfficialPricingImport}
             >
               {t("modelPricing.officialPricingImport")}

@@ -1,35 +1,35 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useLocale, useTranslations } from "next-intl"
+import * as React from "react";
+import { useLocale, useTranslations } from "next-intl";
 
-import { ArrowRight } from "@/components/animate-ui/icons/arrow-right"
-import { MessageCircleMore } from "@/components/animate-ui/icons/message-circle-more"
-import { Search } from "@/components/animate-ui/icons/search"
-import { AnimatedText } from "@/components/ui/animated-text"
-import { SpinnerLabel } from "@/components/ui/spinner"
+import { ArrowRight } from "@/components/animate-ui/icons/arrow-right";
+import { MessageCircleMore } from "@/components/animate-ui/icons/message-circle-more";
+import { Search } from "@/components/animate-ui/icons/search";
+import { AnimatedText } from "@/components/ui/animated-text";
+import { SpinnerLabel } from "@/components/ui/spinner";
 import {
   CommandDialog,
   CommandEmpty,
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command"
-import type { ConversationSearchResult } from "@/features/layouts/types/navigation"
+} from "@/components/ui/command";
+import type { ConversationSearchResult } from "@/features/layouts/types/navigation";
 import {
   formatUpdatedAtLabel,
   groupConversationSearchResultsByDate,
-} from "@/features/layouts/utils/navigation-search"
+} from "@/features/layouts/model/navigation-search";
 
 function NavigationSearchResultItem({
   item,
   onSelect,
 }: {
-  item: ConversationSearchResult
-  onSelect: (href: string) => void
+  item: ConversationSearchResult;
+  onSelect: (href: string) => void;
 }) {
-  const timeT = useTranslations("common.time")
-  const [isHovered, setIsHovered] = React.useState(false)
+  const timeT = useTranslations("common.time");
+  const [isHovered, setIsHovered] = React.useState(false);
 
   return (
     <CommandItem
@@ -41,6 +41,7 @@ function NavigationSearchResultItem({
       onSelect={() => onSelect(item.href)}
     >
       <MessageCircleMore
+        aria-hidden
         strokeWidth={1.2}
         animate={isHovered ? "default" : undefined}
         className="size-4 text-current"
@@ -55,14 +56,15 @@ function NavigationSearchResultItem({
           {formatUpdatedAtLabel(item.updatedAt, (key, values) => timeT(key, values))}
         </span>
         <ArrowRight
+          aria-hidden
           size={12}
           strokeWidth={1.2}
           animate={isHovered ? "default" : undefined}
-          className="absolute right-0 translate-x-[-2px] opacity-0 transition-all duration-150 group-hover/search-item:translate-x-0 group-hover/search-item:opacity-100 group-data-[selected=true]/search-item:translate-x-0 group-data-[selected=true]/search-item:opacity-100"
+          className="absolute right-0 translate-x-[-2px] opacity-0 transition-[transform,opacity] duration-150 group-hover/search-item:translate-x-0 group-hover/search-item:opacity-100 group-data-[selected=true]/search-item:translate-x-0 group-data-[selected=true]/search-item:opacity-100"
         />
       </span>
     </CommandItem>
-  )
+  );
 }
 
 export function NavigationSearch({
@@ -79,36 +81,36 @@ export function NavigationSearch({
   emptyText,
   onSelect,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  query: string
-  onQueryChange: (value: string) => void
-  results: readonly ConversationSearchResult[]
-  title: string
-  description: string
-  placeholder: string
-  loading: boolean
-  loadingText: string
-  emptyText: string
-  onSelect: (href: string) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  query: string;
+  onQueryChange: (value: string) => void;
+  results: readonly ConversationSearchResult[];
+  title: string;
+  description: string;
+  placeholder: string;
+  loading: boolean;
+  loadingText: string;
+  emptyText: string;
+  onSelect: (href: string) => void;
 }) {
-  const [hasMounted, setHasMounted] = React.useState(false)
-  const locale = useLocale()
-  const navigationT = useTranslations("common.navigation")
+  const [hasMounted, setHasMounted] = React.useState(false);
+  const locale = useLocale();
+  const navigationT = useTranslations("common.navigation");
   const resultGroups = React.useMemo(
     () => groupConversationSearchResultsByDate(results, {
       locale,
       todayLabel: navigationT("today"),
     }),
     [locale, navigationT, results],
-  )
+  );
 
   React.useEffect(() => {
-    setHasMounted(true)
-  }, [])
+    setHasMounted(true);
+  }, []);
 
   if (!hasMounted) {
-    return null
+    return null;
   }
 
   return (
@@ -118,7 +120,7 @@ export function NavigationSearch({
       title={title}
       description={description}
       commandProps={{ shouldFilter: false }}
-      className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border/60 bg-background p-0 sm:w-full sm:max-w-xl lg:max-w-2xl"
+      className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-hidden rounded-lg border border-border/60 bg-background p-0 sm:w-full sm:max-w-xl lg:max-w-2xl"
     >
       <CommandInput
         autoFocus
@@ -127,7 +129,7 @@ export function NavigationSearch({
         placeholder={placeholder}
         className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-foreground/45"
         wrapperClassName="gap-4 border-b border-border/60 px-4"
-        icon={<Search size={18} strokeWidth={1.2} />}
+        icon={<Search aria-hidden size={18} strokeWidth={1.2} />}
       />
 
       <CommandList
@@ -164,5 +166,5 @@ export function NavigationSearch({
         </div>
       </CommandList>
     </CommandDialog>
-  )
+  );
 }

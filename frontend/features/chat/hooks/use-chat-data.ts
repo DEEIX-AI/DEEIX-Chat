@@ -151,13 +151,24 @@ export function useChatData(
           return;
         }
 
-        setState({
-          loading: false,
-          loadingOlder: false,
-          errorMsg: "",
-          messages: data.results,
-          total: data.total,
-          hasOlder: data.results.length < data.total,
+        setState((prev) => {
+          const firstTailMessageID = data.results[0]?.id ?? 0;
+          // 只有已加载过额外历史页时才保留旧区间，避免普通 reload 无限累积 tail 消息。
+          const loadedOlderMessages =
+            isConversationSwitch ||
+            firstTailMessageID <= 0 ||
+            prev.messages.length <= MESSAGE_PAGE_SIZE
+              ? []
+              : prev.messages.filter((message) => message.id < firstTailMessageID);
+          const messages = [...loadedOlderMessages, ...data.results];
+          return {
+            loading: false,
+            loadingOlder: false,
+            errorMsg: "",
+            messages,
+            total: data.total,
+            hasOlder: messages.length < data.total,
+          };
         });
       } catch {
         if (!cancelled) {

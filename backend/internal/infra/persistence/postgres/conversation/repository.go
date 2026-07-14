@@ -1779,7 +1779,47 @@ func (r *Repo) ListConversationEventLogs(
 		Find(&items).Error; err != nil {
 		return nil, 0, translateError(err)
 	}
-	return toConversationEventLogDomains(items), total, nil
+	results := toConversationEventLogDomains(items)
+	runIDs := make([]string, 0, len(results))
+	seenRunIDs := make(map[string]struct{}, len(results))
+	for _, item := range results {
+		runID := strings.TrimSpace(item.RunID)
+		if runID == "" {
+			continue
+		}
+		if _, exists := seenRunIDs[runID]; exists {
+			continue
+		}
+		seenRunIDs[runID] = struct{}{}
+		runIDs = append(runIDs, runID)
+	}
+	if len(runIDs) == 0 {
+		return results, total, nil
+	}
+
+	runs := make([]models.ConversationRun, 0, len(runIDs))
+	if err := r.db.WithContext(ctx).
+		Select("run_id", "provider_protocol", "upstream_name", "platform_model_name", "routed_binding_code", "upstream_model_name").
+		Where("run_id IN ?", runIDs).
+		Find(&runs).Error; err != nil {
+		return nil, 0, translateError(err)
+	}
+	runsByID := make(map[string]models.ConversationRun, len(runs))
+	for _, run := range runs {
+		runsByID[run.RunID] = run
+	}
+	for index := range results {
+		run, exists := runsByID[results[index].RunID]
+		if !exists {
+			continue
+		}
+		results[index].ProviderProtocol = run.ProviderProtocol
+		results[index].UpstreamName = run.UpstreamName
+		results[index].PlatformModelName = run.PlatformModelName
+		results[index].RoutedBindingCode = run.RoutedBindingCode
+		results[index].UpstreamModelName = run.UpstreamModelName
+	}
+	return results, total, nil
 }
 
 // ListConversationRunsByRunIDs 按运行 ID 查询会话运行快照。
@@ -4156,17 +4196,16 @@ func (r *Repo) MarkTimedOutFileEmbeddingsFailed(ctx context.Context, userID uint
 	return result.RowsAffected, translateError(result.Error)
 }
 
-// ListFilesForReindex 分页返回需要重建向量的文件（embed_status 为 stale 或 failed）。
-func (r *Repo) ListFilesForReindex(ctx context.Context, limit int, offset int) ([]domainconversation.FileObject, error) {
+// ListFilesForReindex 分页返回需要重建向量的文件（embed_status 为 none、stale 或 failed）。
+func (r *Repo) ListFilesForReindex(ctx context.Context, limit int, afterID uint) ([]domainconversation.FileObject, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 	var entities []models.FileObject
 	err := r.db.WithContext(ctx).
-		Where("embed_status IN ? AND status = ?", []string{"stale", "failed"}, "active").
-		Order("updated_at ASC").
+		Where("id > ? AND embed_status IN ? AND status = ?", afterID, []string{"none", "stale", "failed"}, "active").
+		Order("id ASC").
 		Limit(limit).
-		Offset(offset).
 		Find(&entities).Error
 	if err != nil {
 		return nil, translateError(err)

@@ -171,6 +171,7 @@ func (c *Client) listModelsOpenAICompatible(ctx context.Context, route RouteConf
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Content-Type", "application/json")
 	if apiKey := strings.TrimSpace(route.APIKey); apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
@@ -192,6 +193,57 @@ func (c *Client) listModelsOpenAICompatible(ctx context.Context, route RouteConf
 	}
 
 	return parseOpenAIModelList(body)
+}
+
+// RetrieveOpenAIResponse 获取官方 OpenAI Responses 后台任务结果。
+func (c *Client) RetrieveOpenAIResponse(ctx context.Context, route RouteConfig, responseID string) (*GenerateOutput, error) {
+	return c.fetchOpenAIResponse(ctx, route, http.MethodGet, responseID, "")
+}
+
+// CancelOpenAIResponse 取消官方 OpenAI Responses 后台任务，并解析上游返回的 response。
+func (c *Client) CancelOpenAIResponse(ctx context.Context, route RouteConfig, responseID string) (*GenerateOutput, error) {
+	return c.fetchOpenAIResponse(ctx, route, http.MethodPost, responseID, "cancel")
+}
+
+func (c *Client) fetchOpenAIResponse(ctx context.Context, route RouteConfig, method string, responseID string, action string) (*GenerateOutput, error) {
+	requestURL := buildOpenAIResponseResourceURL(route.BaseURL, responseID, action)
+	if requestURL == "" {
+		return nil, fmt.Errorf("invalid response url")
+	}
+
+	requestCtx, cancel := context.WithTimeout(ctx, resolveReadTimeout(route.ReadTimeoutMS))
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(requestCtx, method, requestURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	if apiKey := strings.TrimSpace(route.APIKey); apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	setAdditionalHeaders(req, route.HeadersJSON)
+
+	resp, err := c.httpClientForRoute(route).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	body, err := readUpstreamBody(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, parseUpstreamError(resp.StatusCode, body, upstreamDebugSnapshot(req, nil, resp, body))
+	}
+
+	debug := upstreamDebugSnapshot(req, nil, resp, body)
+	output, err := parseOpenAIGenerateOutput(EndpointResponses, AdapterOpenAIResponses, body, false)
+	if err != nil {
+		return nil, attachUpstreamDebug(err, debug)
+	}
+	output.Debug = debug
+	return output, nil
 }
 
 func buildOpenAIRequestBody(protocol string, model string, endpoint string, input GenerateInput, stream bool) (map[string]interface{}, error) {
@@ -320,6 +372,18 @@ func buildOpenAIModelsURL(baseURL string) string {
 	return buildVersionedEndpointURL(baseURL, "v1", "/models")
 }
 
+func buildOpenAIResponseResourceURL(baseURL string, responseID string, action string) string {
+	id := strings.TrimSpace(responseID)
+	if id == "" {
+		return ""
+	}
+	path := "/responses/" + url.PathEscape(id)
+	if suffix := strings.Trim(strings.TrimSpace(action), "/"); suffix != "" {
+		path += "/" + suffix
+	}
+	return buildVersionedEndpointURL(baseURL, "v1", path)
+}
+
 func setOpenRouterAttributionHeaders(req *http.Request, route RouteConfig) {
 	if req == nil || !isOpenRouterBaseURL(route.BaseURL) {
 		return
@@ -387,7 +451,7 @@ func consumeOpenAIGenerateStream(
 	allowTextEncodedToolCalls bool,
 ) error {
 	scanner := bufio.NewScanner(reader)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxUpstreamBodyBytes)
 
 	var eventName string
 	dataLines := make([]string, 0, 4)
@@ -564,6 +628,9 @@ func mergeGenerateOutput(dst *GenerateOutput, src *GenerateOutput) {
 	}
 	if len(src.Citations) > 0 {
 		dst.Citations = append(dst.Citations[:0], src.Citations...)
+	}
+	if len(src.GeneratedImages) > 0 {
+		dst.GeneratedImages = append(dst.GeneratedImages[:0], src.GeneratedImages...)
 	}
 	if strings.TrimSpace(src.RawJSON) != "" {
 		dst.RawJSON = src.RawJSON

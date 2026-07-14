@@ -320,37 +320,42 @@ type PaymentOrderResponse struct {
 
 // ConversationEventResponse 对话事件响应。
 type ConversationEventResponse struct {
-	ID              uint       `json:"id"`
-	MessageID       uint       `json:"messageID"`
-	ConversationID  uint       `json:"conversationID"`
-	UserID          uint       `json:"userID"`
-	Username        string     `json:"username"`
-	UserDisplayName string     `json:"userDisplayName"`
-	UserLabel       string     `json:"userLabel"`
-	RunID           string     `json:"runID"`
-	EventScope      string     `json:"eventScope"`
-	EventID         string     `json:"eventID"`
-	EventType       string     `json:"eventType"`
-	Phase           string     `json:"phase"`
-	Stage           string     `json:"stage"`
-	RoundID         string     `json:"roundID"`
-	ParentEventID   string     `json:"parentEventID"`
-	Status          string     `json:"status"`
-	Title           string     `json:"title"`
-	Summary         string     `json:"summary"`
-	ContentMarkdown string     `json:"contentMarkdown"`
-	PayloadJSON     string     `json:"payloadJSON"`
-	Seq             int        `json:"seq"`
-	ToolCallID      string     `json:"toolCallID"`
-	ToolName        string     `json:"toolName"`
-	LatencyMS       int64      `json:"latencyMS"`
-	InputJSON       string     `json:"inputJSON"`
-	OutputJSON      string     `json:"outputJSON"`
-	ErrorJSON       string     `json:"errorJSON"`
-	StartedAt       time.Time  `json:"startedAt"`
-	EndedAt         *time.Time `json:"endedAt"`
-	CreatedAt       time.Time  `json:"createdAt"`
-	UpdatedAt       time.Time  `json:"updatedAt"`
+	ID                uint       `json:"id"`
+	MessageID         uint       `json:"messageID"`
+	ConversationID    uint       `json:"conversationID"`
+	UserID            uint       `json:"userID"`
+	Username          string     `json:"username"`
+	UserDisplayName   string     `json:"userDisplayName"`
+	UserLabel         string     `json:"userLabel"`
+	RunID             string     `json:"runID"`
+	ProviderProtocol  string     `json:"providerProtocol"`
+	UpstreamName      string     `json:"upstreamName"`
+	PlatformModelName string     `json:"platformModelName"`
+	RoutedBindingCode string     `json:"routedBindingCode"`
+	UpstreamModelName string     `json:"upstreamModelName"`
+	EventScope        string     `json:"eventScope"`
+	EventID           string     `json:"eventID"`
+	EventType         string     `json:"eventType"`
+	Phase             string     `json:"phase"`
+	Stage             string     `json:"stage"`
+	RoundID           string     `json:"roundID"`
+	ParentEventID     string     `json:"parentEventID"`
+	Status            string     `json:"status"`
+	Title             string     `json:"title"`
+	Summary           string     `json:"summary"`
+	ContentMarkdown   string     `json:"contentMarkdown"`
+	PayloadJSON       string     `json:"payloadJSON"`
+	Seq               int        `json:"seq"`
+	ToolCallID        string     `json:"toolCallID"`
+	ToolName          string     `json:"toolName"`
+	LatencyMS         int64      `json:"latencyMS"`
+	InputJSON         string     `json:"inputJSON"`
+	OutputJSON        string     `json:"outputJSON"`
+	ErrorJSON         string     `json:"errorJSON"`
+	StartedAt         time.Time  `json:"startedAt"`
+	EndedAt           *time.Time `json:"endedAt"`
+	CreatedAt         time.Time  `json:"createdAt"`
+	UpdatedAt         time.Time  `json:"updatedAt"`
 }
 
 // PermissionGroupResponse 权限组响应。
@@ -769,37 +774,42 @@ func toPaymentOrderResponse(item domainbilling.PaymentOrder, label appadmin.User
 
 func toConversationEventResponse(item domainconversation.EventLog, label appadmin.UserLabel) ConversationEventResponse {
 	return ConversationEventResponse{
-		ID:              item.ID,
-		MessageID:       item.MessageID,
-		ConversationID:  item.ConversationID,
-		UserID:          item.UserID,
-		Username:        label.Username,
-		UserDisplayName: label.DisplayName,
-		UserLabel:       label.Label,
-		RunID:           item.RunID,
-		EventScope:      item.EventScope,
-		EventID:         item.EventID,
-		EventType:       item.EventType,
-		Phase:           item.Phase,
-		Stage:           item.Stage,
-		RoundID:         item.RoundID,
-		ParentEventID:   item.ParentEventID,
-		Status:          item.Status,
-		Title:           item.Title,
-		Summary:         item.Summary,
-		ContentMarkdown: item.ContentMarkdown,
-		PayloadJSON:     item.PayloadJSON,
-		Seq:             item.Seq,
-		ToolCallID:      item.ToolCallID,
-		ToolName:        item.ToolName,
-		LatencyMS:       item.LatencyMS,
-		InputJSON:       item.InputJSON,
-		OutputJSON:      item.OutputJSON,
-		ErrorJSON:       item.ErrorJSON,
-		StartedAt:       item.StartedAt,
-		EndedAt:         item.EndedAt,
-		CreatedAt:       item.CreatedAt,
-		UpdatedAt:       item.UpdatedAt,
+		ID:                item.ID,
+		MessageID:         item.MessageID,
+		ConversationID:    item.ConversationID,
+		UserID:            item.UserID,
+		Username:          label.Username,
+		UserDisplayName:   label.DisplayName,
+		UserLabel:         label.Label,
+		RunID:             item.RunID,
+		ProviderProtocol:  item.ProviderProtocol,
+		UpstreamName:      item.UpstreamName,
+		PlatformModelName: item.PlatformModelName,
+		RoutedBindingCode: item.RoutedBindingCode,
+		UpstreamModelName: item.UpstreamModelName,
+		EventScope:        item.EventScope,
+		EventID:           item.EventID,
+		EventType:         item.EventType,
+		Phase:             item.Phase,
+		Stage:             item.Stage,
+		RoundID:           item.RoundID,
+		ParentEventID:     item.ParentEventID,
+		Status:            item.Status,
+		Title:             item.Title,
+		Summary:           item.Summary,
+		ContentMarkdown:   item.ContentMarkdown,
+		PayloadJSON:       item.PayloadJSON,
+		Seq:               item.Seq,
+		ToolCallID:        item.ToolCallID,
+		ToolName:          item.ToolName,
+		LatencyMS:         item.LatencyMS,
+		InputJSON:         item.InputJSON,
+		OutputJSON:        item.OutputJSON,
+		ErrorJSON:         item.ErrorJSON,
+		StartedAt:         item.StartedAt,
+		EndedAt:           item.EndedAt,
+		CreatedAt:         item.CreatedAt,
+		UpdatedAt:         item.UpdatedAt,
 	}
 }
 

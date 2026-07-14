@@ -262,97 +262,12 @@ func TestCreateTopUpPaymentOrderAllowsPeriodModeOverageBalance(t *testing.T) {
 	}
 }
 
-func TestEnsureModelUsableAllowsPeriodOverageWhenBalanceIsAvailable(t *testing.T) {
-	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
-	endAt := now.Add(30 * 24 * time.Hour)
-	repo := &billingRepositoryStub{
-		mode:            "period",
-		prepaidNanousd:  300,
-		billableNanousd: 1000,
-		account:         &domainbilling.BillingAccount{UserID: 1, BalanceNanousd: 500, Currency: "USD", Status: "active"},
-		pricing: &domainbilling.ModelPricing{
-			PlatformModelName:       "gpt-test",
-			Currency:                "USD",
-			InputNanousdPerMTokens:  1,
-			OutputNanousdPerMTokens: 1,
-		},
-		plans: []domainbilling.Plan{
-			{ID: 2, Code: "pro", Name: "Pro", PeriodCreditNanousd: 1000, IsActive: true},
-		},
-		subscriptions: []domainbilling.Subscription{
-			{ID: 20, UserID: 1, PlanID: 2, Status: "active", CurrentPeriodStartAt: now, CurrentPeriodEndAt: &endAt},
-		},
-	}
-	service := NewService(repo)
-
-	if err := service.EnsureModelUsable(context.Background(), 1, "gpt-test", now); err != nil {
-		t.Fatalf("EnsureModelUsable() error = %v", err)
-	}
-}
-
-func TestEnsureModelUsableRejectsPeriodOverageWhenBalanceIsInsufficient(t *testing.T) {
-	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
-	endAt := now.Add(30 * 24 * time.Hour)
-	repo := &billingRepositoryStub{
-		mode:            "period",
-		prepaidNanousd:  300,
-		billableNanousd: 1000,
-		account:         &domainbilling.BillingAccount{UserID: 1, BalanceNanousd: 100, Currency: "USD", Status: "active"},
-		pricing: &domainbilling.ModelPricing{
-			PlatformModelName:       "gpt-test",
-			Currency:                "USD",
-			InputNanousdPerMTokens:  1,
-			OutputNanousdPerMTokens: 1,
-		},
-		plans: []domainbilling.Plan{
-			{ID: 2, Code: "pro", Name: "Pro", PeriodCreditNanousd: 1000, IsActive: true},
-		},
-		subscriptions: []domainbilling.Subscription{
-			{ID: 20, UserID: 1, PlanID: 2, Status: "active", CurrentPeriodStartAt: now, CurrentPeriodEndAt: &endAt},
-		},
-	}
-	service := NewService(repo)
-
-	err := service.EnsureModelUsable(context.Background(), 1, "gpt-test", now)
-	if !errors.Is(err, ErrUsageBalanceInsufficient) {
-		t.Fatalf("EnsureModelUsable() error = %v, want ErrUsageBalanceInsufficient", err)
-	}
-}
-
-func TestEnsureModelUsableAllowsZeroCreditPeriodPlanWhenBalanceIsAvailable(t *testing.T) {
-	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+func TestReserveUsageBalancePassesPeriodBudgetSnapshot(t *testing.T) {
+	now := time.Now()
 	endAt := now.Add(30 * 24 * time.Hour)
 	repo := &billingRepositoryStub{
 		mode:           "period",
 		prepaidNanousd: 300,
-		account:        &domainbilling.BillingAccount{UserID: 1, BalanceNanousd: 500, Currency: "USD", Status: "active"},
-		pricing: &domainbilling.ModelPricing{
-			PlatformModelName:       "gpt-test",
-			Currency:                "USD",
-			InputNanousdPerMTokens:  1,
-			OutputNanousdPerMTokens: 1,
-		},
-		plans: []domainbilling.Plan{
-			{ID: 2, Code: "pro", Name: "Pro", PeriodCreditNanousd: 0, IsActive: true},
-		},
-		subscriptions: []domainbilling.Subscription{
-			{ID: 20, UserID: 1, PlanID: 2, Status: "active", CurrentPeriodStartAt: now, CurrentPeriodEndAt: &endAt},
-		},
-	}
-	service := NewService(repo)
-
-	if err := service.EnsureModelUsable(context.Background(), 1, "gpt-test", now); err != nil {
-		t.Fatalf("EnsureModelUsable() error = %v", err)
-	}
-}
-
-func TestReserveUsageBalancePeriodModeReservesOnlyPotentialOverage(t *testing.T) {
-	now := time.Now()
-	endAt := now.Add(30 * 24 * time.Hour)
-	repo := &billingRepositoryStub{
-		mode:            "period",
-		prepaidNanousd:  300,
-		billableNanousd: 900,
 		pricing: &domainbilling.ModelPricing{
 			PlatformModelName:       "gpt-test",
 			Currency:                "USD",
@@ -368,12 +283,93 @@ func TestReserveUsageBalancePeriodModeReservesOnlyPotentialOverage(t *testing.T)
 	}
 	service := NewService(repo)
 
-	reservation, err := service.ReserveUsageBalance(context.Background(), 1, "gpt-test", "run_1")
+	authorization, err := service.AuthorizeUsage(context.Background(), 1, "gpt-test", "run_1")
 	if err != nil {
-		t.Fatalf("ReserveUsageBalance() error = %v", err)
+		t.Fatalf("AuthorizeUsage() error = %v", err)
 	}
-	if reservation == nil || reservation.AmountNanousd != 200 || repo.reservedNanousd != 200 {
-		t.Fatalf("reservation = %+v, reserved = %d, want 200", reservation, repo.reservedNanousd)
+	if authorization == nil || authorization.Reservation == nil || repo.reservationRequest == nil {
+		t.Fatalf("authorization = %+v, request = %+v", authorization, repo.reservationRequest)
+	}
+	if repo.reservationRequest.RequestedNanousd != 300 || repo.reservationRequest.PeriodCreditNanousd != 1000 {
+		t.Fatalf("reservation request = %+v, want requested 300 and period credit 1000", repo.reservationRequest)
+	}
+	if repo.reservationRequest.PeriodStartAt == nil || repo.reservationRequest.PeriodEndAt == nil {
+		t.Fatalf("reservation period is missing: %+v", repo.reservationRequest)
+	}
+}
+
+func TestReserveUsageBalanceUsesRepositoryFallbackWhenPrepaidIsDisabled(t *testing.T) {
+	repo := &billingRepositoryStub{
+		mode:           "usage",
+		prepaidNanousd: 0,
+		pricing: &domainbilling.ModelPricing{
+			PlatformModelName:       "gpt-test",
+			Currency:                "USD",
+			InputNanousdPerMTokens:  1,
+			OutputNanousdPerMTokens: 1,
+		},
+	}
+	service := NewService(repo)
+
+	authorization, err := service.AuthorizeUsage(context.Background(), 1, "gpt-test", "run_default_budget")
+	if err != nil {
+		t.Fatalf("AuthorizeUsage() error = %v", err)
+	}
+	if authorization == nil || authorization.Reservation == nil || repo.reservationRequest == nil {
+		t.Fatalf("authorization = %+v, request = %+v", authorization, repo.reservationRequest)
+	}
+	if repo.reservationRequest.Mode != "usage" || repo.reservationRequest.RequestedNanousd != 0 {
+		t.Fatalf("reservation request = %+v, want usage fallback budget", repo.reservationRequest)
+	}
+}
+
+func TestRecordUsageUsesReservationModeSnapshot(t *testing.T) {
+	periodStart := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	periodEnd := periodStart.Add(30 * 24 * time.Hour)
+	usage := &domainbilling.UsageLedger{
+		UserID:            1,
+		PlatformModelName: "gpt-test",
+		BillingAt:         periodStart.Add(time.Hour),
+		UsageDate:         periodStart,
+		BilledCurrency:    "USD",
+		BilledNanousd:     100,
+	}
+
+	periodRepo := &billingRepositoryStub{mode: "usage"}
+	periodService := NewService(periodRepo)
+	err := periodService.RecordUsageWithAuthorization(context.Background(), usage, &domainbilling.UsageAuthorization{
+		Mode: "period",
+		Reservation: &domainbilling.UsageBalanceReservation{
+			UserID:             1,
+			RefNo:              "run_period_snapshot",
+			Mode:               "period",
+			PeriodLimitNanousd: 1000,
+			PeriodStartAt:      &periodStart,
+			PeriodEndAt:        &periodEnd,
+		},
+	})
+	if err != nil {
+		t.Fatalf("period snapshot settlement error = %v", err)
+	}
+	if !periodRepo.periodUsageSettled || periodRepo.usageSettled || periodRepo.periodCreditNanousd != 1000 {
+		t.Fatalf("period settlement state = %+v", periodRepo)
+	}
+
+	usageRepo := &billingRepositoryStub{mode: "period"}
+	usageService := NewService(usageRepo)
+	err = usageService.RecordUsageWithAuthorization(context.Background(), usage, &domainbilling.UsageAuthorization{
+		Mode: "usage",
+		Reservation: &domainbilling.UsageBalanceReservation{
+			UserID: 1,
+			RefNo:  "run_usage_snapshot",
+			Mode:   "usage",
+		},
+	})
+	if err != nil {
+		t.Fatalf("usage snapshot settlement error = %v", err)
+	}
+	if !usageRepo.usageSettled || usageRepo.periodUsageSettled {
+		t.Fatalf("usage settlement state = %+v", usageRepo)
 	}
 }
 

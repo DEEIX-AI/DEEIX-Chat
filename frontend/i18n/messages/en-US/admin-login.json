@@ -22,11 +22,6 @@
     }
   },
   "fields": {
-    "loginPageTitle": {
-      "label": "Browser title",
-      "description": "Shown in the browser tab for the sign-in page.",
-      "placeholder": "Sign in to DEEIX Chat"
-    },
     "loginDefaultNextPath": {
       "label": "Default redirect path",
       "description": "Default destination after sign-in when /login has no next parameter."

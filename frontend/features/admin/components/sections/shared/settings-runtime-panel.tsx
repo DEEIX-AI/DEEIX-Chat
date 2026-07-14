@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,11 +19,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";
 
-export type SettingsFieldType = "int" | "bool" | "string" | "password" | "textarea" | "json" | "select" | "tabs" | "button";
+export type SettingsFieldType = "int" | "bool" | "string" | "password" | "textarea" | "json" | "select" | "tabs" | "multi-check" | "button";
 
 export type SettingsFieldOption = {
   label: string;
   value: string;
+  meta?: string;
 };
 
 export type SettingsFieldAction = {
@@ -46,6 +48,13 @@ export type SettingsFieldDefinition = {
   statusBadge?: ServiceRuntimeStatusBadge;
   loading?: boolean;
   serviceRuntime?: SettingsFieldServiceRuntime;
+};
+
+type MultiCheckFieldProps = {
+  field: SettingsFieldDefinition;
+  value: string;
+  disabled?: boolean;
+  onChange?: (value: string) => void;
 };
 
 export type ServiceRuntimeAction = SettingsFieldAction;
@@ -274,6 +283,57 @@ function resolveRuntimeIcon(icon: ServiceRuntimeIconKey) {
   return RUNTIME_ICON_MAP[icon];
 }
 
+function MultiCheckField({ field, value, disabled, onChange }: MultiCheckFieldProps) {
+  const selected = React.useMemo(
+    () => new Set(value.split(",").map((item) => item.trim()).filter(Boolean)),
+    [value],
+  );
+
+  return (
+    <div className="grid min-w-0 gap-1">
+      {(field.options ?? []).map((option) => {
+        const checked = selected.has(option.value);
+        const optionDisabled = disabled || (checked && selected.size <= 1);
+        const label = option.meta ? `${option.label} ${option.meta}` : option.label;
+        return (
+          <label
+            key={option.value}
+            className={cn(
+              "flex min-h-6 min-w-0 items-center justify-between gap-2 text-[12px] text-muted-foreground",
+              checked && "text-foreground",
+              optionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+            )}
+          >
+            <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+              <span className="truncate">{option.label}</span>
+              {option.meta ? (
+                <span className="shrink-0 whitespace-nowrap text-[10px] leading-none text-muted-foreground">{option.meta}</span>
+              ) : null}
+            </span>
+            <Checkbox
+              checked={checked}
+              disabled={optionDisabled}
+              aria-label={label}
+              onCheckedChange={(nextChecked) => {
+                const next = new Set(selected);
+                if (nextChecked) {
+                  next.add(option.value);
+                } else {
+                  next.delete(option.value);
+                }
+                const ordered = (field.options ?? [])
+                  .map((item) => item.value)
+                  .filter((item) => next.has(item));
+                onChange?.(ordered.join(","));
+              }}
+            />
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 const layoutTransition = { duration: 0.2, ease: [0.22, 1, 0.36, 1] } as const;
 
 function SettingsFieldFrame({
@@ -444,99 +504,104 @@ export function SettingsFieldEditor({
   return (
     <SettingsFieldFrame animateLayout={animateLayout}>
       <Field>
-        <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-start md:gap-4 xl:gap-6">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <FieldLabel htmlFor={field.id}>{field.label}</FieldLabel>
-              {labelMetaNode}
-              {dirtyBadge}
+        <div className="min-w-0 space-y-2">
+          <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-start md:gap-4 xl:gap-6">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <FieldLabel htmlFor={field.id}>{field.label}</FieldLabel>
+                {labelMetaNode}
+                {dirtyBadge}
+              </div>
+              {field.description ? <FieldDescription className="text-[11px]">{field.description}</FieldDescription> : null}
             </div>
-            {field.description ? <FieldDescription className="text-[11px]">{field.description}</FieldDescription> : null}
-          </div>
 
-          <div className="w-full min-w-0 md:w-44 md:shrink-0 xl:w-52">
-            {field.type === "bool" ? (
-              <div className="flex items-end justify-start md:justify-end">
-                <Switch id={field.id} checked={value === "true"} onCheckedChange={(checked) => onChange?.(checked ? "true" : "false")} disabled={disabled} />
-              </div>
-            ) : field.type === "tabs" ? (
-              <Tabs value={value} onValueChange={(next) => onChange?.(next)} className="w-full">
-                <TabsList className="grid h-8 w-full grid-cols-2">
-                  {(field.options ?? []).map((option) => (
-                    <TabsTrigger key={option.value} value={option.value} disabled={disabled}>
-                      {option.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-            ) : field.type === "button" ? (
-              <div className="flex items-center justify-start gap-2 md:justify-end">
-                {(inlineRuntimeActions ?? []).map((action) => {
-                  const Icon = action.icon;
-                  return (
-                    <Button
-                      key={action.key}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 rounded-md border-border/50 px-2.5 text-[12px] font-normal shadow-none hover:bg-accent/40"
-                      disabled={disabled || action.disabled}
-                      onClick={action.onClick}
-                    >
-                      {Icon ? <Icon className={cn("size-3.5 stroke-1", action.spinning ? "animate-spin" : "")} /> : null}
-                      {action.label}
-                    </Button>
-                  );
-                })}
-              </div>
-            ) : field.type === "select" ? (
-              <Select value={value} onValueChange={(next) => onChange?.(next)} disabled={disabled}>
-                <SelectTrigger
-                  id={field.id}
-                  size="sm"
-                  className="text-left md:text-right *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:justify-start md:*:data-[slot=select-value]:justify-end"
-                >
-                  <SelectValue placeholder={field.placeholder ?? t("select.placeholder")} />
-                </SelectTrigger>
-                <SelectContent align="start">
-                  {(field.options ?? []).map((option) => (
-                    <SelectItem key={option.value} value={option.value} className="text-left md:text-right">
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
-                <Input
-                  id={field.id}
-                  type={field.type === "password" ? "password" : "text"}
-                  value={value}
-                  onChange={(event) => onChange?.(event.target.value)}
-                  placeholder={field.type === "password" && configured && !value ? t("input.configuredPasswordPlaceholder") : field.placeholder}
-                  inputMode={field.valueUnit === "mb" ? "decimal" : field.type === "int" ? "numeric" : "text"}
-                  disabled={disabled}
-                  className="min-w-0 text-left md:text-right"
-                />
-                {(inlineRuntimeActions ?? []).map((action) => {
-                  const Icon = action.icon;
-                  return (
-                    <Button
-                      key={action.key}
-                      type="button"
-                      variant="secondary"
-                      size="icon"
-                      className="size-8 shrink-0 rounded-md shadow-none active:scale-90 transition-transform"
-                      disabled={disabled || action.disabled}
-                      onClick={action.onClick}
-                    >
-                      {Icon ? <Icon className={cn("size-3.5 stroke-1", action.spinning ? "animate-spin" : "")} /> : null}
-                    </Button>
-                  );
-                })}
-              </div>
-            )}
+            <div className="w-full min-w-0 md:w-44 md:shrink-0 xl:w-52">
+              {field.type === "bool" ? (
+                <div className="flex items-end justify-start md:justify-end">
+                  <Switch id={field.id} checked={value === "true"} onCheckedChange={(checked) => onChange?.(checked ? "true" : "false")} disabled={disabled} />
+                </div>
+              ) : field.type === "multi-check" ? (
+                <MultiCheckField field={field} value={value} disabled={disabled} onChange={onChange} />
+              ) : field.type === "tabs" ? (
+                <Tabs value={value} onValueChange={(next) => onChange?.(next)} className="w-full">
+                  <TabsList className="grid h-8 w-full grid-cols-2">
+                    {(field.options ?? []).map((option) => (
+                      <TabsTrigger key={option.value} value={option.value} disabled={disabled}>
+                        {option.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+              ) : field.type === "button" ? (
+                <div className="flex items-center justify-start gap-2 md:justify-end">
+                  {(inlineRuntimeActions ?? []).map((action) => {
+                    const Icon = action.icon;
+                    return (
+                      <Button
+                        key={action.key}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-md border-border/50 px-2.5 text-[12px] font-normal shadow-none hover:bg-accent/40"
+                        disabled={disabled || action.disabled}
+                        onClick={action.onClick}
+                      >
+                        {Icon ? <Icon className={cn("size-3.5 stroke-1", action.spinning ? "animate-spin" : "")} /> : null}
+                        {action.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              ) : field.type === "select" ? (
+                <Select value={value} onValueChange={(next) => onChange?.(next)} disabled={disabled}>
+                  <SelectTrigger
+                    id={field.id}
+                    size="sm"
+                    className="text-left md:text-right *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:justify-start md:*:data-[slot=select-value]:justify-end"
+                  >
+                    <SelectValue placeholder={field.placeholder ?? t("select.placeholder")} />
+                  </SelectTrigger>
+                  <SelectContent align="start">
+                    {(field.options ?? []).map((option) => (
+                      <SelectItem key={option.value} value={option.value} className="text-left md:text-right">
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
+                  <Input
+                    id={field.id}
+                    type={field.type === "password" ? "password" : "text"}
+                    value={value}
+                    onChange={(event) => onChange?.(event.target.value)}
+                    placeholder={field.type === "password" && configured && !value ? t("input.configuredPasswordPlaceholder") : field.placeholder}
+                    inputMode={field.valueUnit === "mb" ? "decimal" : field.type === "int" ? "numeric" : "text"}
+                    disabled={disabled}
+                    className="min-w-0 text-left md:text-right"
+                  />
+                  {(inlineRuntimeActions ?? []).map((action) => {
+                    const Icon = action.icon;
+                    return (
+                      <Button
+                        key={action.key}
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        className="size-8 shrink-0 rounded-md shadow-none transition-transform active:scale-90"
+                        disabled={disabled || action.disabled}
+                        onClick={action.onClick}
+                      >
+                        {Icon ? <Icon className={cn("size-3.5 stroke-1", action.spinning ? "animate-spin" : "")} /> : null}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
+          {afterControl}
         </div>
       </Field>
     </SettingsFieldFrame>

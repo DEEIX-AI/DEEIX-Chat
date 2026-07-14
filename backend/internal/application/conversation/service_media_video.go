@@ -216,7 +216,6 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		userMessage.ParentPublicID = branchState.ParentPublicID
 		userMessage.SourcePublicID = branchState.SourcePublicID
 		assistantMessage.ParentPublicID = userMessage.PublicID
-		s.maybeGenerateConversationMetadataAsync(*conversation, *userMessage)
 	}
 	traceRecorder := newMessageTraceRecorder(s, ctx, assistantMessage, input.OnEvent)
 	defer func() {
@@ -252,6 +251,20 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		filteredOptions = withGeminiInteractionResponseType(filteredOptions, "video")
 	}
 	durationSeconds := mediaDurationSecondsFromOptions(filteredOptions)
+	buildBillableFailure := func(failure error, usage llm.Usage) *SendMessageResult {
+		result := buildFailedMediaBillingResult(failedMediaBillingResultInput{
+			UserMessage:      userMessage,
+			AssistantMessage: assistantMessage,
+			Route:            *route,
+			EffectiveOptions: filteredOptions,
+			Usage:            usage,
+			StartedAt:        startedAt,
+			DurationSeconds:  durationSeconds,
+			Failure:          failure,
+		})
+		applyMediaRunUsage(run, result)
+		return result
+	}
 
 	emitMediaEvent(input.OnEvent, "running", "generating video", "video")
 	generateInput := llm.GenerateInput{
@@ -290,7 +303,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 				retErr = cancelErr
 				return nil, cancelErr
 			}
-			applyCanceledMediaRunUsage(run, result)
+			applyMediaRunUsage(run, result)
 			return result, nil
 		}
 		s.routeResolver.MarkRouteFailure(ctx, route, err)
@@ -302,7 +315,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	if output == nil || len(output.GeneratedVideos) == 0 {
 		retErr = ErrUpstreamEmptyResponse
 		_ = s.repo.UpdateMessageState(ctx, assistantMessage.ID, "error", classifyRunErrorCode(retErr), truncateError(messageErrorSummary(retErr), 255))
-		return nil, retErr
+		return buildBillableFailure(retErr, mediaOutputUsage(output)), retErr
 	}
 
 	emitMediaEvent(input.OnEvent, "saving_artifact", "saving video", "video")
@@ -314,7 +327,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		if readErr != nil {
 			retErr = readErr
 			_ = s.repo.UpdateMessageState(ctx, assistantMessage.ID, "error", classifyRunErrorCode(retErr), truncateError(messageErrorSummary(retErr), 255))
-			return nil, readErr
+			return buildBillableFailure(readErr, output.Usage), readErr
 		}
 		fileName := generatedVideoFileName(route.PlatformModelName, now, i, len(output.GeneratedVideos), mimeType)
 		uploadResult, uploadErr := s.UploadFile(ctx, appupload.UploadFileInput{
@@ -328,7 +341,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		if uploadErr != nil {
 			retErr = uploadErr
 			_ = s.repo.UpdateMessageState(ctx, assistantMessage.ID, "error", classifyRunErrorCode(retErr), truncateError(messageErrorSummary(retErr), 255))
-			return nil, uploadErr
+			return buildBillableFailure(uploadErr, output.Usage), uploadErr
 		}
 		file := uploadResult.File
 		uploaded = append(uploaded, file)
@@ -400,7 +413,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	}
 	if err != nil {
 		retErr = err
-		return nil, err
+		return buildBillableFailure(err, output.Usage), err
 	}
 
 	assistantMessage.Content = content
@@ -423,6 +436,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		UserMessage:         *userMessage,
 		AssistantMessage:    *assistantMessage,
 		MetadataRefreshHint: conversationMetadataRefreshHint(*conversation, *userMessage),
+		Billable:            true,
 		UpstreamID:          route.UpstreamID,
 		UpstreamName:        route.UpstreamName,
 		PlatformModelName:   route.PlatformModelName,

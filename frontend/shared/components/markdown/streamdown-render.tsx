@@ -47,6 +47,7 @@ import {
   MarkdownHTMLSpan,
   MarkdownHTMLSummary,
 } from "./streamdown-html";
+import { renderRawHTMLMathRehypePlugin } from "./streamdown-html-math";
 import {
   normalizeContent,
   normalizeCurrencyDollars,
@@ -146,6 +147,7 @@ function buildStreamdownRehypePlugins(): StreamdownRehypePlugins {
   const sanitizeWithAllowedTags = [sanitizePlugin, schema] as StreamdownRehypePlugin;
 
   return [
+    renderRawHTMLMathRehypePlugin,
     defaultRehypePlugins.raw,
     sanitizeWithAllowedTags,
     normalizeBareURLRehypePlugin,

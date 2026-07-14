@@ -1,4 +1,4 @@
-import type { ConversationDTO, UpstreamDebugInfo } from "@/shared/api/conversation.types";
+import type { UpstreamDebugInfo } from "@/shared/api/conversation.types";
 import { resolveLocalizedErrorMessage } from "@/i18n/resolve-error-message";
 
 const DEFAULT_MAX_FILES_PER_MESSAGE = 10;
@@ -180,12 +180,4 @@ function isUpstreamDebugInfo(value: unknown): value is UpstreamDebugInfo {
   }
   const candidate = value as UpstreamDebugInfo;
   return typeof candidate.request === "object" || typeof candidate.response === "object";
-}
-
-export function toConversationPatch(item: ConversationDTO | null, platformModelName: string): Partial<ConversationDTO> {
-  return {
-    model: platformModelName,
-    updatedAt: new Date().toISOString(),
-    messageCount: (item?.messageCount ?? 0) + 2,
-  };
 }

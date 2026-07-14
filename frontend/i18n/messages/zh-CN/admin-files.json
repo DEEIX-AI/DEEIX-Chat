@@ -54,7 +54,12 @@
     "reindexFailed": "重建索引失败",
     "embeddingModelChanged": "Embedding 模型已变更",
     "embeddingModelChangedDescription": "旧向量已标记为失效，请在索引状态面板中点击「重建索引」以重新向量化所有文件。",
+    "mimeTypesUpdated": "附件 MIME 白名单已更新",
     "groupUpdated": "{group}已更新"
+  },
+  "mineruMimeHint": {
+    "missing": "上传白名单缺少已选 MinerU 格式所需的 MIME 类型：{formats}。",
+    "addAndSave": "补充并保存缺失 MIME"
   },
   "validation": {
     "embeddingRequired": "请先在「向量化检索」中开启并配置 Embedding 服务地址和请求模型。",
@@ -237,6 +242,16 @@
         "label": "MinerU 服务地址 *",
         "description": "用于配置 MinerU 服务地址。",
         "placeholder": "服务地址"
+      },
+      "mineru_file_types": {
+        "label": "MinerU 文件类型",
+        "description": "用于选择哪些文件类型交给 MinerU 解析。",
+        "options": {
+          "pdf": "PDF",
+          "word": "Word",
+          "presentation": "PowerPoint",
+          "excel": "Excel"
+        }
       },
       "mineru_auth_token": {
         "label": "MinerU 鉴权密钥",

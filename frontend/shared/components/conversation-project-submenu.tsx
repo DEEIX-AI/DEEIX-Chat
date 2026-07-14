@@ -34,7 +34,7 @@ export function ConversationProjectSubmenu({
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger>
-        <Folder className="size-3.5 text-muted-foreground" strokeWidth={1.6} />
+        <Folder className="size-3.5 text-current" strokeWidth={1.6} />
         {label}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="max-h-[min(18rem,var(--radix-dropdown-menu-content-available-height))] min-w-44 overflow-y-auto p-1.5">
@@ -45,7 +45,7 @@ export function ConversationProjectSubmenu({
           }}
         >
           <span className="flex min-w-0 items-center gap-2">
-            <Folder className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
+            <Folder className="size-3.5 shrink-0 text-current" strokeWidth={1.6} />
             <span className="min-w-0 truncate">{unassignedLabel}</span>
           </span>
           <Check
@@ -66,7 +66,7 @@ export function ConversationProjectSubmenu({
               }}
             >
               <span className="flex min-w-0 items-center gap-2">
-                <Folder className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
+                <Folder className="size-3.5 shrink-0 text-current" strokeWidth={1.6} />
                 <span className="min-w-0 truncate">{project.name}</span>
               </span>
               <Check

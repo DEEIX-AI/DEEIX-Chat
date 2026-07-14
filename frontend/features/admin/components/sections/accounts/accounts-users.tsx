@@ -47,6 +47,7 @@ import type { ImportOpenWebUIUsersData, ImportOpenWebUIUsersRequest } from "@/fe
 import { resolveAvatarImageSrc } from "@/shared/lib/avatar";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { TimeZoneSelect } from "@/shared/components/time-zone-select";
 import type { AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin.types";
 import type { AdminBillingMode } from "@/features/admin/api/billing.types";
@@ -514,6 +515,8 @@ export function AccountsUsers({
     onSetUsers,
     onSetTotal,
   });
+  const stableEditDialogTarget = useDialogSnapshot(editDialogTarget);
+  const stableResetPasswordDraft = useDialogSnapshot(resetDialogTarget ? resetPasswordDraft : null) ?? "";
   const virtualRows = useVirtualTableRows(filteredItems, {
     enabled: filteredItems.length > 100,
     estimateSize: 40,
@@ -945,16 +948,16 @@ export function AccountsUsers({
         onSubmit={handleImportOpenWebUI}
       />
 
-      {editDialogTarget ? (
+      {stableEditDialogTarget ? (
         <EditUserSheet
-          open
+          open={Boolean(editDialogTarget)}
           onOpenChange={(open) => {
             if (!open && pendingAction !== "edit") {
               setEditDialogTarget(null);
             }
           }}
           pending={pendingAction === "edit"}
-          editDialogTarget={editDialogTarget}
+          editDialogTarget={stableEditDialogTarget}
           editPayload={editPayload}
           setEditPayload={setEditPayload}
           billingMode={billingMode}
@@ -966,27 +969,27 @@ export function AccountsUsers({
           onOpenEditAvatarDialog={() => {
             setAvatarDialog({
               mode: "edit",
-              target: editDialogTarget,
-              value: editPayload.avatarURL.trim() || editDialogTarget.avatarURL.trim(),
+              target: stableEditDialogTarget,
+              value: editPayload.avatarURL.trim() || stableEditDialogTarget.avatarURL.trim(),
             });
           }}
           onOpenResetPasswordDialog={() => {
-            setResetDialogTarget(editDialogTarget);
+            setResetDialogTarget(stableEditDialogTarget);
             setResetPasswordDraft("");
           }}
           onOpenResetTwoFactorDialog={() => {
-            setResetTwoFactorDialogTarget(editDialogTarget);
+            setResetTwoFactorDialogTarget(stableEditDialogTarget);
           }}
           onOpenRevokeDialog={() => {
-            setRevokeDialogTarget(editDialogTarget);
+            setRevokeDialogTarget(stableEditDialogTarget);
           }}
           onOpenDeleteDialog={() => {
-            setDeleteDialogTarget(editDialogTarget);
+            setDeleteDialogTarget(stableEditDialogTarget);
           }}
-          resetPasswordPending={pendingAction === "reset-password" && actionUserID === editDialogTarget.id}
-          resetTwoFactorPending={pendingAction === "reset-2fa" && actionUserID === editDialogTarget.id}
-          revokePending={pendingAction === "revoke-sessions" && actionUserID === editDialogTarget.id}
-          deletePending={pendingAction === "delete" && actionUserID === editDialogTarget.id}
+          resetPasswordPending={pendingAction === "reset-password" && actionUserID === stableEditDialogTarget.id}
+          resetTwoFactorPending={pendingAction === "reset-2fa" && actionUserID === stableEditDialogTarget.id}
+          revokePending={pendingAction === "revoke-sessions" && actionUserID === stableEditDialogTarget.id}
+          deletePending={pendingAction === "delete" && actionUserID === stableEditDialogTarget.id}
           resolveUserInitial={resolveUserInitial}
         />
       ) : null}
@@ -1000,7 +1003,7 @@ export function AccountsUsers({
           }
         }}
         pending={pendingAction === "reset-password"}
-        password={resetPasswordDraft}
+        password={stableResetPasswordDraft}
         onPasswordChange={setResetPasswordDraft}
         onConfirm={() => void onResetPassword()}
         onCancel={() => {

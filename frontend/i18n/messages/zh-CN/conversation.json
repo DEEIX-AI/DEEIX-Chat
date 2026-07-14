@@ -1,0 +1,29 @@
+{
+  "untitled": "新对话",
+  "shareDialog": {
+    "title": "分享此对话",
+    "statusShared": "已分享",
+    "statusNotShared": "未分享",
+    "publicLink": "公开链接",
+    "emptyLink": "未创建公开链接",
+    "copyLink": "复制分享链接",
+    "openLink": "打开分享链接",
+    "loadFailed": "分享状态加载失败",
+    "noMessages": "当前没有可分享的消息",
+    "signInRequired": "请先登录",
+    "closed": "分享已关闭",
+    "regenerated": "分享链接已重新生成",
+    "created": "分享链接已创建",
+    "operationFailed": "操作失败",
+    "linkCopied": "链接已复制",
+    "copyFailed": "复制失败",
+    "closing": "关闭中",
+    "closeShare": "取消分享",
+    "regenerating": "生成中",
+    "regenerate": "重新生成",
+    "copyAndClose": "复制并关闭",
+    "creating": "创建中",
+    "createLink": "创建链接",
+    "snapshotMessages": "{title} - {count} 条快照消息"
+  }
+}

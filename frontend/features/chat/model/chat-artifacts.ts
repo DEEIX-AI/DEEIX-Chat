@@ -3,6 +3,7 @@ import {
   resolveArtifactPreviewKind,
   type ArtifactPreviewKind,
 } from "@/shared/lib/artifact-preview";
+import { brandText } from "@/shared/lib/branding";
 
 export type { ArtifactPreviewKind } from "@/shared/lib/artifact-preview";
 
@@ -166,7 +167,7 @@ ${previewHead("CSS Preview")}
 <body>
   <main class="artifact-preview">
     <section class="preview-panel">
-      <p class="eyebrow">DEEIX Artifact</p>
+      <p class="eyebrow">${escapeHTML(brandText.shortName)} Artifact</p>
       <h1>Preview Surface</h1>
       <p>Generated CSS is applied to this isolated document.</p>
       <div class="preview-row">

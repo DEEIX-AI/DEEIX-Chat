@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -92,7 +93,7 @@ export function SidebarHeader({
 
   return (
     <div className="min-w-0 overflow-hidden pt-2">
-      <div className="flex min-w-0 h-8 items-center gap-2 px-2">
+      <div className="flex h-8 min-w-0 items-center gap-2 px-2">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[15px] font-medium text-foreground">{t("title")}</h1>
         </div>
@@ -100,7 +101,7 @@ export function SidebarHeader({
         <div className="flex shrink-0 items-center gap-1">
           {showCollapseButton ? (
             <Button type="button" variant="ghost" size="icon" className="size-6" onClick={onToggleCollapsed} aria-label={t("actions.collapseSidebar")} title={t("actions.collapseSidebar")}>
-              <PanelLeftClose className="size-4 stroke-1 " />
+              <PanelLeftClose className="size-4 stroke-1" />
             </Button>
           ) : null}
           <Button type="button" variant="ghost" size="icon" className="size-6" onClick={onToggleSearch} aria-label={t("actions.search")} title={t("actions.search")}>
@@ -113,7 +114,7 @@ export function SidebarHeader({
       </div>
 
       {searchOpen ? (
-        <div className="pt-2 px-1">
+        <div className="px-1 pt-2">
           <Input
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
@@ -123,7 +124,7 @@ export function SidebarHeader({
         </div>
       ) : null}
 
-      <div className="flex min-w-0 items-center gap-0.5 overflow-hidden px-0 pt-1.5 pb-1.5">
+      <div className="flex min-w-0 items-center gap-0.5 overflow-hidden px-0 py-1.5">
         <Button
           type="button"
           variant="ghost"
@@ -153,18 +154,20 @@ export function SidebarHeader({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-40 p-1.5">
             <div className="space-y-1">
-              <button
-                type="button"
+              <DropdownMenuItem
                 className={cn(
-                  "flex h-6 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] transition-colors",
+                  "h-6 gap-2 px-2 py-0 text-[10px]",
                   !hasActiveFilters ? "bg-muted/55 text-foreground" : "text-foreground/70 hover:bg-muted hover:text-foreground",
                 )}
-                onClick={() => onFilterToggle("all")}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  onFilterToggle("all");
+                }}
               >
                 <AllFilterIcon className="size-3 stroke-1 text-muted-foreground" />
                 <span className="flex-1 truncate">{t("filters.all")}</span>
                 {!hasActiveFilters ? <Check className="size-3 stroke-1 text-muted-foreground" /> : null}
-              </button>
+              </DropdownMenuItem>
 
               <DropdownMenuSeparator className="mx-0 my-1" />
 
@@ -172,19 +175,21 @@ export function SidebarHeader({
                 const value = item.value as FileFilterValue;
                 const active = activeFilterSet.has(value);
                 return (
-                  <button
+                  <DropdownMenuItem
                     key={value}
-                    type="button"
                     className={cn(
-                      "flex h-6 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] transition-colors",
+                      "h-6 gap-2 px-2 py-0 text-[10px]",
                       active ? "bg-muted/55 text-foreground" : "text-foreground/70 hover:bg-muted hover:text-foreground",
                     )}
-                    onClick={() => onFilterToggle(value)}
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      onFilterToggle(value);
+                    }}
                   >
                     <item.icon className="size-3 stroke-1 text-muted-foreground" />
                     <span className="flex-1 truncate">{t(`filters.${item.value}`)}</span>
                     {active ? <Check className="size-3 stroke-1 text-muted-foreground" /> : null}
-                  </button>
+                  </DropdownMenuItem>
                 );
               })}
             </div>
@@ -208,19 +213,18 @@ export function SidebarHeader({
               {FILE_SORT_OPTIONS.map((item) => {
                 const active = item.value === sortKey;
                 return (
-                  <button
+                  <DropdownMenuItem
                     key={item.value}
-                    type="button"
                     className={cn(
-                      "flex h-6 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] transition-colors",
+                      "h-6 gap-2 px-2 py-0 text-[10px]",
                       active ? "bg-muted/55 text-foreground" : "text-foreground/70 hover:bg-muted hover:text-foreground",
                     )}
-                    onClick={() => onSortChange(item.value)}
+                    onSelect={() => onSortChange(item.value)}
                   >
                     <ArrowDownUp className="size-3 stroke-1 text-muted-foreground" />
                     <span className="flex-1 truncate">{t(item.value === "last_used" ? "sort.lastUsed" : `sort.${item.value}`)}</span>
                     {active ? <Check className="size-3 stroke-1 text-muted-foreground" /> : null}
-                  </button>
+                  </DropdownMenuItem>
                 );
               })}
             </div>

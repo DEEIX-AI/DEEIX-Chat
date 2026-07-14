@@ -132,6 +132,31 @@ func (BalanceTransaction) TableName() string {
 	return "billing_balance_transactions"
 }
 
+// UsageReservation 记录模型调用在结算前占用的余额与周期额度预算。
+type UsageReservation struct {
+	BaseModel
+	UserID              uint       `gorm:"not null;uniqueIndex:idx_billing_usage_reservations_user_ref,priority:1;index:idx_billing_usage_reservations_user_status;comment:用户ID"`
+	RefNo               string     `gorm:"size:128;not null;uniqueIndex:idx_billing_usage_reservations_user_ref,priority:2;comment:调用幂等编号"`
+	Mode                string     `gorm:"size:16;not null;index:idx_billing_usage_reservations_mode;comment:计费模式"`
+	BalanceNanousd      int64      `gorm:"not null;default:0;comment:预留余额预算(纳美元)"`
+	PeriodCreditNanousd int64      `gorm:"not null;default:0;comment:预留周期额度预算(纳美元)"`
+	PeriodLimitNanousd  int64      `gorm:"not null;default:0;comment:周期总额度快照(纳美元)"`
+	PeriodStartAt       *time.Time `gorm:"index:idx_billing_usage_reservations_period;comment:周期开始时间"`
+	PeriodEndAt         *time.Time `gorm:"index:idx_billing_usage_reservations_period;comment:周期结束时间"`
+	Status              string     `gorm:"size:24;not null;index:idx_billing_usage_reservations_user_status;comment:状态(active/settled/released/reconciliation)"`
+	UsageLedgerID       uint       `gorm:"not null;default:0;index:idx_billing_usage_reservations_ledger_id;comment:结算用量账本ID"`
+	ExpiresAt           time.Time  `gorm:"not null;index:idx_billing_usage_reservations_expires_at;comment:预算占用过期时间"`
+	SettledAt           *time.Time `gorm:"comment:结算时间"`
+	ReleasedAt          *time.Time `gorm:"comment:释放时间"`
+	ReconciliationAt    *time.Time `gorm:"comment:进入待核对状态时间"`
+	FailureCode         string     `gorm:"size:64;not null;default:'';comment:待核对原因代码"`
+}
+
+// TableName 指定表名。
+func (UsageReservation) TableName() string {
+	return "billing_usage_reservations"
+}
+
 // RedemptionCode 记录管理员创建的兑换码定义。
 type RedemptionCode struct {
 	BaseModel

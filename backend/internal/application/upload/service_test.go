@@ -277,6 +277,34 @@ func TestNormalizeDetectedMIMERecognizesVideoExtensions(t *testing.T) {
 	}
 }
 
+func TestNormalizeDetectedMIMERecognizesPresentations(t *testing.T) {
+	tests := []struct {
+		detected string
+		fileName string
+		wantMIME string
+	}{
+		{
+			detected: "application/octet-stream",
+			fileName: "slides.ppt",
+			wantMIME: "application/vnd.ms-powerpoint",
+		},
+		{
+			detected: "application/zip",
+			fileName: "slides.pptx",
+			wantMIME: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		},
+	}
+
+	for _, tt := range tests {
+		if got := normalizeDetectedMIME(tt.detected, tt.fileName); got != tt.wantMIME {
+			t.Fatalf("normalizeDetectedMIME(%q, %q) = %q, want %q", tt.detected, tt.fileName, got, tt.wantMIME)
+		}
+		if got := inferFileCategory(tt.wantMIME, tt.fileName); got != fileCategoryPresentation {
+			t.Fatalf("inferFileCategory(%q, %q) = %q, want %q", tt.wantMIME, tt.fileName, got, fileCategoryPresentation)
+		}
+	}
+}
+
 func TestUploadFileAllowsMP4WhenVideoMP4IsAllowed(t *testing.T) {
 	ctx := context.Background()
 	repo := newUploadTestRepo()

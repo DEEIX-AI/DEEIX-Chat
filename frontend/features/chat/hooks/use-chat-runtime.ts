@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import type { PendingAttachment, PendingExchange } from "@/features/chat/types/chat-runtime";
+import type { PendingAttachment, PendingExchangeMap } from "@/features/chat/types/chat-runtime";
 import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
 import { useChatBranchState } from "@/features/chat/hooks/use-chat-branch-state";
 import { useChatSubmitStream } from "@/features/chat/hooks/use-chat-submit-stream";
@@ -71,7 +71,7 @@ export function useChatRuntime({
   resumingRunID?: string;
 }) {
   const [showConversationLayout, setShowConversationLayout] = React.useState(false);
-  const [pendingExchange, setPendingExchange] = React.useState<PendingExchange | null>(null);
+  const [pendingExchanges, setPendingExchanges] = React.useState<PendingExchangeMap>({});
   const previousResetTokenRef = React.useRef(resetToken);
   const liveServerRunIDs = React.useMemo(() => {
     const normalized = resumingRunID.trim();
@@ -82,7 +82,7 @@ export function useChatRuntime({
     conversationID,
     resetToken,
     messages,
-    pendingExchange,
+    pendingExchanges,
     liveRunIDs: liveServerRunIDs,
   });
 
@@ -109,8 +109,8 @@ export function useChatRuntime({
     setDraft,
     setAttachments,
     releaseAttachments,
-    pendingExchange,
-    setPendingExchange,
+    pendingExchanges,
+    setPendingExchanges,
     setBranchSelections: branchState.setBranchSelections,
     showConversationLayout,
     setShowConversationLayout,
@@ -140,7 +140,6 @@ export function useChatRuntime({
       return;
     }
     previousResetTokenRef.current = resetToken;
-    setPendingExchange(null);
     setShowConversationLayout(false);
   }, [resetToken]);
 

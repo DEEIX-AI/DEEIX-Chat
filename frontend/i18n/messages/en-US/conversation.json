@@ -1,0 +1,29 @@
+{
+  "untitled": "New chat",
+  "shareDialog": {
+    "title": "Share this conversation",
+    "statusShared": "Shared",
+    "statusNotShared": "Not shared",
+    "publicLink": "Public link",
+    "emptyLink": "No public link has been created",
+    "copyLink": "Copy link",
+    "openLink": "Open link",
+    "loadFailed": "Failed to load share status",
+    "noMessages": "There are no messages to share",
+    "signInRequired": "Sign in to continue",
+    "closed": "Share closed",
+    "regenerated": "Share link regenerated",
+    "created": "Share link created",
+    "operationFailed": "Action failed",
+    "linkCopied": "Link copied",
+    "copyFailed": "Copy failed",
+    "closing": "Closing",
+    "closeShare": "Stop sharing",
+    "regenerating": "Regenerating",
+    "regenerate": "Regenerate",
+    "copyAndClose": "Copy and close",
+    "creating": "Creating",
+    "createLink": "Create",
+    "snapshotMessages": "{title} - {count} snapshot messages"
+  }
+}

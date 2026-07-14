@@ -1,4 +1,4 @@
-import { AppRecent } from "@/features/recent/components/app-recent";
+import { AppRecent } from "@/features/recent";
 
 export default function RecentPage() {
   return <AppRecent />;

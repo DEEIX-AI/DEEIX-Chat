@@ -109,6 +109,7 @@
     "type": "Type",
     "provider": "Provider",
     "status": "Status",
+    "upstream": "Upstream",
     "amount": "Amount",
     "scope": "Scope",
     "tool": "Tool",

@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useRouter } from "next/navigation"
-import { ChevronDown, Star } from "lucide-react"
-import { useTranslations } from "next-intl"
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, Star } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import {
   AlertDialog,
@@ -14,50 +14,50 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import {
-  Collapsible,
-} from "@/components/ui/collapsible"
-import { Spinner } from "@/components/ui/spinner"
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Collapsible } from "@/components/ui/collapsible";
+import { Spinner } from "@/components/ui/spinner";
 import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
   useSidebar,
-} from "@/components/ui/sidebar"
-import { LoadingReveal } from "@/shared/components/loading-reveal"
-import { SidebarConversationItem } from "@/features/layouts/components/navigation/sidebar-conversation-item"
-import { SidebarConversationSkeleton } from "@/features/layouts/components/navigation/sidebar-conversation-skeleton"
+} from "@/components/ui/sidebar";
 import {
   ConversationShareDialog,
   sharePatchFromDTO,
-} from "@/features/chat/components/sections/chat-share-dialog"
-import { useChatConversationExport } from "@/features/chat/hooks/use-chat-conversation-export"
-import { DeleteFilesOption } from "@/shared/components/delete-files-option"
-import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content"
-import { useSettingsChatPreferences } from "@/features/settings/hooks/use-settings-chat-preferences"
-import { useLayoutActiveConversation } from "@/features/layouts/hooks/use-layout-active-conversation"
-import { useLayoutSidebarListFlip } from "@/features/layouts/hooks/use-layout-sidebar-list-flip"
-import { useMobileSidebarNavigation } from "@/features/layouts/hooks/use-mobile-sidebar-navigation"
+  useConversationExport,
+  useSidebarConversations,
+} from "@/entities/conversation";
+import { LoadingReveal } from "@/shared/components/loading-reveal";
+import { SidebarConversationItem } from "@/features/layouts/components/navigation/sidebar-conversation-item";
+import { SidebarConversationSkeleton } from "@/features/layouts/components/navigation/sidebar-conversation-skeleton";
+import { DeleteFilesOption } from "@/shared/components/delete-files-option";
+import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import { useSettingsChatPreferences } from "@/features/settings";
+import { useLayoutActiveConversation } from "@/features/layouts/hooks/use-layout-active-conversation";
+import { useLayoutSidebarListFlip } from "@/features/layouts/hooks/use-layout-sidebar-list-flip";
+import { useSidebarConversationNavigation } from "@/features/layouts/hooks/use-sidebar-conversation-navigation";
+import { groupConversationsByTime } from "@/features/layouts/model/conversation-time-groups";
 import type {
   SidebarConversationDeleteTarget,
   SidebarConversationRenameTarget,
-} from "@/features/layouts/types/navigation"
-import { useSidebarRecents } from "@/features/recent/context/sidebar-recents-context"
-import { groupConversationsByTime } from "@/features/recent/utils/conversation-time-groups"
-import { useLoadMoreSentinel } from "@/shared/hooks/use-load-more-sentinel"
-import { useStoredBoolean } from "@/shared/hooks/use-stored-boolean"
-import { cn } from "@/lib/utils"
+} from "@/features/layouts/types/navigation";
+import { useLoadMoreSentinel } from "@/shared/hooks/use-load-more-sentinel";
+import { useStoredBoolean } from "@/shared/hooks/use-stored-boolean";
+import { cn } from "@/lib/utils";
 
-const RECENT_SKELETON_WIDTHS = ["74%", "61%", "69%", "57%", "72%"] as const
-const RECENTS_OPEN_STORAGE_KEY = "deeix.sidebar.recents.open"
+const RECENT_SKELETON_WIDTHS = ["74%", "61%", "69%", "57%", "72%"] as const;
+const RECENTS_OPEN_STORAGE_KEY = "deeix.sidebar.recents.open";
 
 export function NavRecents() {
-  const t = useTranslations("recent")
-  const onNavigate = useMobileSidebarNavigation()
-  const router = useRouter()
-  const activeConversationID = useLayoutActiveConversation()
-  const { deleteFilesByDefault } = useSettingsChatPreferences()
+  const t = useTranslations("recent");
+  const onNavigate = useSidebarConversationNavigation();
+  const router = useRouter();
+  const activeConversationID = useLayoutActiveConversation();
+  const { deleteFilesByDefault } = useSettingsChatPreferences();
 
   const {
     recentItems,
@@ -76,120 +76,123 @@ export function NavRecents() {
     deleteByPublicID,
     touchByPublicID,
     setProjectByPublicID,
-  } = useSidebarRecents()
+  } = useSidebarConversations();
 
-  const [deleteTarget, setDeleteTarget] = React.useState<SidebarConversationDeleteTarget>(null)
-  const [deleteFiles, setDeleteFiles] = React.useState(false)
-  const [renameTarget, setRenameTarget] = React.useState<SidebarConversationRenameTarget>(null)
-  const [shareTarget, setShareTarget] = React.useState<{ publicID: string; title: string } | null>(null)
-  const [renameValue, setRenameValue] = React.useState("")
-  const [autoRenamingPublicID, setAutoRenamingPublicID] = React.useState<string | null>(null)
-  const [recentsOpen, setRecentsOpen] = useStoredBoolean(RECENTS_OPEN_STORAGE_KEY, true)
-  const loadMoreRef = React.useRef<HTMLLIElement | null>(null)
-  const listContainerRef = React.useRef<HTMLDivElement | null>(null)
-  const deleteFilesID = React.useId()
-  const recentsContentID = React.useId()
-  const onExport = useChatConversationExport({
+  const [deleteTarget, setDeleteTarget] = React.useState<SidebarConversationDeleteTarget>(null);
+  const [deleteFiles, setDeleteFiles] = React.useState(false);
+  const [renameTarget, setRenameTarget] = React.useState<SidebarConversationRenameTarget>(null);
+  const [shareTarget, setShareTarget] = React.useState<{
+    publicID: string;
+    title: string;
+  } | null>(null);
+  const [renameValue, setRenameValue] = React.useState("");
+  const [autoRenamingPublicID, setAutoRenamingPublicID] = React.useState<string | null>(null);
+  const [recentsOpen, setRecentsOpen] = useStoredBoolean(RECENTS_OPEN_STORAGE_KEY, true);
+  const listContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const deleteFilesID = React.useId();
+  const stableDeleteTarget = useDialogSnapshot(deleteTarget);
+  const stableShareTarget = useDialogSnapshot(shareTarget);
+  const recentsContentID = React.useId();
+  const onExport = useConversationExport({
     successMessage: t("exported"),
     failureMessage: t("exportFailed"),
-  })
+  });
 
-  useLoadMoreSentinel({
+  const loadMoreRef = useLoadMoreSentinel<HTMLLIElement>({
     enabled: recentsOpen && hasMore && !loadingInitial && !loadingMore && !loadMoreFailed,
-    targetRef: loadMoreRef,
     onLoadMore: loadMore,
-  })
+  });
 
   const onRename = React.useCallback((publicID: string, currentTitle: string) => {
-    setRenameTarget({ publicID, currentTitle })
-    setRenameValue(currentTitle)
-  }, [])
+    setRenameTarget({ publicID, currentTitle });
+    setRenameValue(currentTitle);
+  }, []);
 
   const onRenameCancel = React.useCallback(() => {
-    setRenameTarget(null)
-    setRenameValue("")
-  }, [])
+    setRenameTarget(null);
+    setRenameValue("");
+  }, []);
 
   const onRenameCommit = React.useCallback(
     async (publicID: string, currentTitle: string) => {
-      const nextTitle = renameValue.trim()
+      const nextTitle = renameValue.trim();
       if (!nextTitle || nextTitle === currentTitle) {
-        onRenameCancel()
-        return
+        onRenameCancel();
+        return;
       }
-      await renameByPublicID(publicID, nextTitle)
-      onRenameCancel()
+      await renameByPublicID(publicID, nextTitle);
+      onRenameCancel();
     },
     [onRenameCancel, renameByPublicID, renameValue],
-  )
+  );
 
   const onAutoRename = React.useCallback(
     async (publicID: string) => {
       if (autoRenamingPublicID) {
-        return
+        return;
       }
-      setAutoRenamingPublicID(publicID)
+      setAutoRenamingPublicID(publicID);
       try {
-        const updated = await regenerateTitleByPublicID(publicID)
+        const updated = await regenerateTitleByPublicID(publicID);
         if (updated) {
-          onRenameCancel()
+          onRenameCancel();
         }
       } catch {
         // Keep the current rename input open so the user can retry or edit manually.
       } finally {
-        setAutoRenamingPublicID(null)
+        setAutoRenamingPublicID(null);
       }
     },
     [autoRenamingPublicID, onRenameCancel, regenerateTitleByPublicID],
-  )
+  );
 
   const onToggleStar = React.useCallback(
     (publicID: string, nextStarred: boolean) => {
-      void setStarByPublicID(publicID, nextStarred)
+      void setStarByPublicID(publicID, nextStarred);
     },
     [setStarByPublicID],
-  )
+  );
 
   const onArchive = React.useCallback(
     async (publicID: string) => {
-      await archiveByPublicID(publicID, true)
+      await archiveByPublicID(publicID, true);
       if (activeConversationID === publicID) {
-        router.push("/chat")
+        router.push("/chat");
       }
     },
     [activeConversationID, archiveByPublicID, router],
-  )
+  );
 
   const onDelete = React.useCallback((publicID: string, title: string) => {
-    setDeleteFiles(deleteFilesByDefault)
-    setDeleteTarget({ publicID, title })
-  }, [deleteFilesByDefault])
+    setDeleteFiles(deleteFilesByDefault);
+    setDeleteTarget({ publicID, title });
+  }, [deleteFilesByDefault]);
 
   const onShare = React.useCallback((publicID: string, title: string) => {
-    setShareTarget({ publicID, title })
-  }, [])
+    setShareTarget({ publicID, title });
+  }, []);
 
   const confirmDelete = React.useCallback(async () => {
     if (!deleteTarget) {
-      return
+      return;
     }
-    const ok = await deleteByPublicID(deleteTarget.publicID, { deleteFiles })
+    const ok = await deleteByPublicID(deleteTarget.publicID, { deleteFiles });
     if (ok && activeConversationID === deleteTarget.publicID) {
-      router.push("/chat")
+      router.push("/chat");
     }
-    setDeleteTarget(null)
-    setDeleteFiles(false)
-  }, [activeConversationID, deleteByPublicID, deleteFiles, deleteTarget, router])
+    setDeleteTarget(null);
+    setDeleteFiles(false);
+  }, [activeConversationID, deleteByPublicID, deleteFiles, deleteTarget, router]);
 
   const visibleItemsSignature = React.useMemo(
     () => recentItems.filter((item) => !item.projectID).map((item) => item.publicID).join("|"),
     [recentItems],
-  )
-  const showInitialSkeleton = loadingInitial && recentItems.length === 0
+  );
+  const showInitialSkeleton = loadingInitial && recentItems.length === 0;
   const visibleRecentItems = React.useMemo(
     () => recentItems.filter((item) => !item.projectID),
     [recentItems],
-  )
+  );
   const timeGroups = React.useMemo(
     () => groupConversationsByTime(visibleRecentItems, {
       yesterday: t("timeGroup.yesterday"),
@@ -197,25 +200,27 @@ export function NavRecents() {
       earlier: t("timeGroup.earlier"),
     }),
     [visibleRecentItems, t],
-  )
+  );
 
   useLayoutSidebarListFlip(listContainerRef, {
     enabled: recentsOpen && Boolean(transferringStarPublicID),
     signature: visibleItemsSignature,
     excludeKey: transferringStarPublicID,
-  })
+  });
 
   return (
     <>
-      <div className={cn("relative z-0 group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0")}>
+      <div className="relative z-0 group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
         <Collapsible open={recentsOpen} onOpenChange={setRecentsOpen}>
-          <SidebarGroup>
+          <SidebarGroup className="px-2 py-2">
             <SidebarGroupLabel
               asChild
               className="w-fit max-w-full self-start cursor-pointer gap-1 pr-1 transition-[color,margin,opacity] hover:text-sidebar-foreground"
             >
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                className="h-8 gap-1 py-0 pl-2 pr-1 text-xs hover:bg-transparent has-[>svg]:pl-2 has-[>svg]:pr-1 dark:hover:bg-transparent"
                 aria-controls={recentsContentID}
                 aria-expanded={recentsOpen}
                 aria-label={recentsOpen ? t("collapseSection") : t("expandSection")}
@@ -223,12 +228,13 @@ export function NavRecents() {
               >
                 <span className="min-w-0 truncate text-left">{t("title")}</span>
                 <ChevronDown
+                  aria-hidden
                   className={cn(
                     "!size-3 stroke-1.5 transition-transform duration-200",
                     !recentsOpen && "-rotate-90",
                   )}
                 />
-              </button>
+              </Button>
             </SidebarGroupLabel>
             <CollapsibleMotionContent id={recentsContentID} open={recentsOpen}>
               <div ref={listContainerRef} className="relative">
@@ -237,7 +243,7 @@ export function NavRecents() {
                   skeleton={<SidebarConversationSkeleton count={6} widths={RECENT_SKELETON_WIDTHS} prefix="sidebar-recent" />}
                   className="min-h-0"
                 >
-                  <SidebarMenu>
+                  <SidebarMenu className="gap-0.5">
                     {visibleRecentItems.length === 0 ? (
                       <li className="px-2 py-2 text-xs text-muted-foreground">
                         {t("empty")}
@@ -252,8 +258,8 @@ export function NavRecents() {
                           </li>
                         ) : null}
                         {group.items.map((item) => {
-                          const title = item.title || t("untitled")
-                          const publicID = item.publicID
+                          const title = item.title || t("untitled");
+                          const publicID = item.publicID;
 
                           return (
                             <SidebarConversationItem
@@ -263,7 +269,6 @@ export function NavRecents() {
                                 publicID,
                                 title,
                                 url: `/chat?conversation_id=${publicID}`,
-                                starred: item.isStarred,
                                 shareActive: item.shareStatus === "active" && Boolean(item.shareID?.trim()),
                               }}
                               starAction={{
@@ -277,7 +282,7 @@ export function NavRecents() {
                                 currentProjectID: item.projectID,
                                 projects,
                                 onSelect: (targetPublicID, projectID) => {
-                                  void setProjectByPublicID(targetPublicID, projectID)
+                                  void setProjectByPublicID(targetPublicID, projectID);
                                 },
                               }}
                               isTransferring={transferringStarPublicID === publicID}
@@ -296,7 +301,7 @@ export function NavRecents() {
                               onNavigate={onNavigate}
                               menuTriggerID={`recent-item-menu-trigger-${publicID}`}
                             />
-                          )
+                          );
                         })}
                       </React.Fragment>
                     ))}
@@ -314,13 +319,15 @@ export function NavRecents() {
                     {loadMoreFailed ? (
                       <li className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
                         <span>{t("loadMoreFailed")}</span>
-                        <button
+                        <Button
                           type="button"
-                          className="underline underline-offset-4 transition-colors hover:text-foreground"
+                          variant="link"
+                          size="xs"
+                          className="h-auto p-0 text-xs font-normal text-muted-foreground underline hover:text-foreground"
                           onClick={() => void retryLoadMore()}
                         >
                           {t("retry")}
-                        </button>
+                        </Button>
                       </li>
                     ) : null}
                   </SidebarMenu>
@@ -335,8 +342,8 @@ export function NavRecents() {
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => {
           if (!open) {
-            setDeleteTarget(null)
-            setDeleteFiles(false)
+            setDeleteTarget(null);
+            setDeleteFiles(false);
           }
         }}
       >
@@ -344,7 +351,7 @@ export function NavRecents() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t("dialogs.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("dialogs.deleteDescription", { label: t("deleteConversationLabel", { title: deleteTarget?.title || t("untitled") }) })}
+              {t("dialogs.deleteDescription", { label: t("deleteConversationLabel", { title: stableDeleteTarget?.title || t("untitled") }) })}
             </AlertDialogDescription>
             <DeleteFilesOption
               id={deleteFilesID}
@@ -361,17 +368,17 @@ export function NavRecents() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {shareTarget ? (
+      {stableShareTarget ? (
         <ConversationShareDialog
           open={Boolean(shareTarget)}
           onOpenChange={(open) => !open && setShareTarget(null)}
-          conversationPublicID={shareTarget.publicID}
-          conversationTitle={shareTarget.title}
+          conversationPublicID={stableShareTarget.publicID}
+          conversationTitle={stableShareTarget.title}
           onShareChange={(share) => {
-            touchByPublicID(shareTarget.publicID, sharePatchFromDTO(share))
+            touchByPublicID(stableShareTarget.publicID, sharePatchFromDTO(share));
           }}
         />
       ) : null}
     </>
-  )
+  );
 }

@@ -41,6 +41,7 @@ import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { listUserMemories, upsertUserMemory, deleteUserMemory } from "@/shared/api/memory";
 import type { UserMemoryDTO } from "@/shared/api/memory.types";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { ModelSelect, type ModelSelectOption } from "@/shared/components/model-select";
 import {
   SettingsFieldList,
@@ -192,6 +193,9 @@ function AddPreferenceDialog({
   onAdd: () => void;
 }) {
   const t = useTranslations("settings.chatPage.memory");
+  const stableAddKey = useDialogSnapshot(open ? addKey : null) ?? "";
+  const stableAddValue = useDialogSnapshot(open ? addValue : null) ?? "";
+
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => {
       if (!adding) {
@@ -220,7 +224,7 @@ function AddPreferenceDialog({
                 id="preference-key"
                 autoFocus
                 placeholder={t("namePlaceholder")}
-                value={addKey}
+                value={stableAddKey}
                 disabled={adding || atLimit}
                 onChange={(event) => onKeyChange(event.target.value)}
               />
@@ -231,7 +235,7 @@ function AddPreferenceDialog({
               <Textarea
                 id="preference-value"
                 placeholder={t("contentPlaceholder")}
-                value={addValue}
+                value={stableAddValue}
                 disabled={adding || atLimit}
                 className="h-24 resize-none overflow-y-auto [field-sizing:fixed]"
                 onChange={(event) => onValueChange(event.target.value)}

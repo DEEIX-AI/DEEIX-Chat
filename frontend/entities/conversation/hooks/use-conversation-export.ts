@@ -3,19 +3,19 @@
 import * as React from "react";
 import { toast } from "sonner";
 
-import { downloadConversationExport } from "@/features/chat/model/conversation-export";
+import { downloadConversationExport } from "@/entities/conversation/lib/conversation-export";
 import { exportConversation } from "@/shared/api/conversation";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
-type UseChatConversationExportOptions = {
+type UseConversationExportOptions = {
   successMessage: string;
   failureMessage: string;
 };
 
-export function useChatConversationExport({
+export function useConversationExport({
   successMessage,
   failureMessage,
-}: UseChatConversationExportOptions) {
+}: UseConversationExportOptions) {
   return React.useCallback(
     async (conversationPublicID: string) => {
       const token = await resolveAccessToken();

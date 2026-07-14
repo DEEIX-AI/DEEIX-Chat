@@ -62,6 +62,7 @@ import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { cn } from "@/lib/utils";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { CopyActionButton } from "@/shared/components/copy-action";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import {
   SettingsFieldItem,
   SettingsFieldList,
@@ -206,6 +207,10 @@ export function AdminToolsPage() {
     () => servers.find((item) => item.id === toolSheetServerID) ?? null,
     [servers, toolSheetServerID],
   );
+  const stableToolSheetServer = useDialogSnapshot(toolSheetServer);
+  const stableToolForm = useDialogSnapshot(toolForm);
+  const stableSchemaTool = useDialogSnapshot(schemaTool);
+  const stableServerDeleteTarget = useDialogSnapshot(serverDeleteTarget);
   const activeToolCount = React.useMemo(() => countActiveTools(tools), [tools]);
 
   React.useEffect(() => {
@@ -660,7 +665,7 @@ export function AdminToolsPage() {
   }, [t, toolForm]);
 
   const schemaText = React.useMemo(() => {
-    const raw = schemaTool?.inputSchemaJSON?.trim();
+    const raw = stableSchemaTool?.inputSchemaJSON?.trim();
     if (!raw) {
       return "{}";
     }
@@ -669,7 +674,7 @@ export function AdminToolsPage() {
     } catch {
       return raw;
     }
-  }, [schemaTool]);
+  }, [stableSchemaTool]);
 
   const mcpEnableFieldID = mcpEnableField ? toolFieldID(mcpEnableField) : "";
   const mcpToolPromptFieldID = mcpToolPromptField ? toolFieldID(mcpToolPromptField) : "";
@@ -897,7 +902,7 @@ export function AdminToolsPage() {
           <SheetHeader className="px-4 pb-4">
             <SheetTitle>{t("sections.tools")}</SheetTitle>
             <SheetDescription>
-              {toolSheetServer?.name ?? ""}
+              {stableToolSheetServer?.name ?? ""}
             </SheetDescription>
           </SheetHeader>
 
@@ -962,9 +967,9 @@ export function AdminToolsPage() {
                 </Button>
               ) : null}
             </TableToolbar>
-            {toolSheetServer?.lastError ? (
+            {stableToolSheetServer?.lastError ? (
               <div className="mb-3 rounded-md bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive">
-                {toolSheetServer.lastError}
+                {stableToolSheetServer.lastError}
               </div>
             ) : null}
 
@@ -1210,7 +1215,7 @@ export function AdminToolsPage() {
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{t("toolDialog.displayName")}</p>
                 <Input
-                  value={toolForm?.displayName ?? ""}
+                  value={stableToolForm?.displayName ?? ""}
                   placeholder={t("toolDialog.displayNamePlaceholder")}
                   maxLength={160}
                   onChange={(event) => setToolForm((prev) => (prev ? { ...prev, displayName: event.target.value } : prev))}
@@ -1219,7 +1224,7 @@ export function AdminToolsPage() {
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{t("toolDialog.toolDescription")}</p>
                 <Textarea
-                  value={toolForm?.description ?? ""}
+                  value={stableToolForm?.description ?? ""}
                   className="h-28 resize-none text-xs leading-5"
                   placeholder={t("toolDialog.toolDescriptionPlaceholder")}
                   maxLength={4096}
@@ -1243,9 +1248,9 @@ export function AdminToolsPage() {
       <Dialog open={Boolean(schemaTool)} onOpenChange={(open) => !open && setSchemaTool(null)}>
         <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
           <DialogHeader className="shrink-0 px-4 py-4">
-            <DialogTitle>{schemaTool?.displayName || schemaTool?.name || t("schemaDialog.fallbackTitle")}</DialogTitle>
+            <DialogTitle>{stableSchemaTool?.displayName || stableSchemaTool?.name || t("schemaDialog.fallbackTitle")}</DialogTitle>
             <DialogDescription>
-              {schemaTool?.name ? t("schemaDialog.description", { name: schemaTool.name }) : t("schemaDialog.fallbackDescription")}
+              {stableSchemaTool?.name ? t("schemaDialog.description", { name: stableSchemaTool.name }) : t("schemaDialog.fallbackDescription")}
             </DialogDescription>
           </DialogHeader>
           <pre className="mx-4 min-h-0 flex-1 overflow-auto rounded-md border border-border/60 bg-muted/35 p-3 text-xs leading-5 text-foreground/86">
@@ -1259,7 +1264,7 @@ export function AdminToolsPage() {
               type="button"
               value={schemaText}
               messages={{ copied: t("toast.schemaCopied"), failed: t("toast.copyFailed") }}
-              disabled={!schemaTool}
+              disabled={!stableSchemaTool}
             >
               {tActions("copy")}
             </CopyActionButton>
@@ -1303,7 +1308,7 @@ export function AdminToolsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t("toolbar.deleteServer")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("confirm.deleteServer", { name: serverDeleteTarget?.name ?? "" })}
+              {t("confirm.deleteServer", { name: stableServerDeleteTarget?.name ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

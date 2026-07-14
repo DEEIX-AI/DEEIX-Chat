@@ -17,6 +17,8 @@ var (
 	ErrInvalidInput = errors.New("invalid input")
 	// ErrInsufficientBalance 表示余额不足，无法完成扣费。
 	ErrInsufficientBalance = errors.New("insufficient balance")
+	// ErrUsageReservationLimitExceeded 表示用户活跃付费调用数量达到上限。
+	ErrUsageReservationLimitExceeded = errors.New("usage reservation limit exceeded")
 	// ErrRedemptionUnavailable 表示兑换码不可用。
 	ErrRedemptionUnavailable = errors.New("redemption unavailable")
 	// ErrRedemptionExhausted 表示兑换码总次数耗尽。

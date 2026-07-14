@@ -46,6 +46,7 @@ import {
 } from "@/features/prompts/hooks/use-skills-prompt-page";
 import { cn } from "@/lib/utils";
 import type { PromptPresetDTO } from "@/shared/api/prompt-presets.types";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { PROMPT_PRESET_LIMITS } from "@/shared/model/prompt-presets";
 
 function PromptPresetCard({
@@ -177,6 +178,7 @@ export function SkillsPromptPage() {
     retryLoadMore,
     toggleEnabled,
   } = useSkillsPromptPage();
+  const stableViewTarget = useDialogSnapshot(viewTarget);
 
   const emptyState = (
     <div className="flex h-full min-h-0 w-full items-center justify-center">
@@ -349,21 +351,21 @@ export function SkillsPromptPage() {
       <Dialog open={viewTarget !== null} onOpenChange={(open) => !open && setViewTarget(null)}>
         <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
           <DialogHeader className="shrink-0 px-5 pb-3 pt-5">
-            <DialogTitle>{viewTarget?.trigger || viewTarget?.title}</DialogTitle>
+            <DialogTitle>{stableViewTarget?.trigger || stableViewTarget?.title}</DialogTitle>
             <DialogDescription>{t("viewDescription")}</DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-2">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">{t("name")}</p>
-              <Input value={viewTarget?.trigger || viewTarget?.title || ""} readOnly />
+              <Input value={stableViewTarget?.trigger || stableViewTarget?.title || ""} readOnly />
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">{t("promptDescription")}</p>
-              <Input value={viewTarget?.description || ""} readOnly />
+              <Input value={stableViewTarget?.description || ""} readOnly />
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">{t("content")}</p>
-              <Textarea value={viewTarget?.content || ""} className="h-64 resize-none overflow-y-auto [field-sizing:fixed]" readOnly />
+              <Textarea value={stableViewTarget?.content || ""} className="h-64 resize-none overflow-y-auto [field-sizing:fixed]" readOnly />
             </div>
           </div>
           <DialogFooter className="shrink-0 px-5 py-3">

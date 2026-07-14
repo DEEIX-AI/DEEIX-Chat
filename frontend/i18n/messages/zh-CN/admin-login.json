@@ -22,11 +22,6 @@
     }
   },
   "fields": {
-    "loginPageTitle": {
-      "label": "标签页标题",
-      "description": "显示在浏览器标签页中的标题。",
-      "placeholder": "Sign in to DEEIX Chat"
-    },
     "loginDefaultNextPath": {
       "label": "默认跳转路径",
       "description": "访问 /login 且没有 next 参数时，登录成功后的默认跳转路径。"

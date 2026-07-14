@@ -203,6 +203,11 @@ export type AdminConversationEventDTO = {
   userDisplayName: string;
   userLabel: string;
   runID: string;
+  providerProtocol: string;
+  upstreamName: string;
+  platformModelName: string;
+  routedBindingCode: string;
+  upstreamModelName: string;
   eventScope: string;
   eventID: string;
   eventType: string;

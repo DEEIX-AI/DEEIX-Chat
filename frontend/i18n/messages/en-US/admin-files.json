@@ -54,7 +54,12 @@
     "reindexFailed": "Failed to rebuild index",
     "embeddingModelChanged": "Embedding model changed",
     "embeddingModelChangedDescription": "Existing vectors were marked stale. Rebuild the index in the status panel to vectorize all files again.",
+    "mimeTypesUpdated": "Attachment MIME allowlist updated",
     "groupUpdated": "{group} updated"
+  },
+  "mineruMimeHint": {
+    "missing": "Upload allowlist is missing MIME types required for selected MinerU formats: {formats}.",
+    "addAndSave": "Add and save missing MIME types"
   },
   "validation": {
     "embeddingRequired": "Enable vector retrieval and configure both the Embedding service URL and model first.",
@@ -237,6 +242,16 @@
         "label": "MinerU service URL *",
         "description": "MinerU service URL.",
         "placeholder": "Service URL"
+      },
+      "mineru_file_types": {
+        "label": "MinerU file types",
+        "description": "Select file categories sent to MinerU.",
+        "options": {
+          "pdf": "PDF",
+          "word": "Word",
+          "presentation": "PowerPoint",
+          "excel": "Excel"
+        }
       },
       "mineru_auth_token": {
         "label": "MinerU auth key",

@@ -47,6 +47,10 @@ func buildResponsesRequestBody(
 		"input":  items,
 		"stream": stream,
 	}
+	if adapter == AdapterOpenAIResponses && input.ResponsesBackground {
+		payload["background"] = true
+		payload["store"] = true
+	}
 	if instructions := strings.TrimSpace(input.Instructions); adapter == AdapterOpenAIResponses && instructions != "" {
 		payload["instructions"] = instructions
 	}
@@ -100,6 +104,9 @@ func responsesProtectedProviderOptionKeys(adapter string, hasManagedInstructions
 		"systemInstruction",
 		"text",
 		"tools",
+	}
+	if adapter == AdapterOpenAIResponses {
+		keys = append(keys, "background", "store")
 	}
 	if adapter != AdapterOpenAIResponses {
 		keys = append(keys, "instructions", "metadata", "prompt")
@@ -314,12 +321,17 @@ func applyResponsesStreamEvent(
 
 	switch eventType {
 	case "response.created":
+		var eventErr error
 		if responseID := strings.TrimSpace(getStringFromPath(parsed, "response", "id")); responseID != "" {
 			result.ResponseID = responseID
+			if onEvent != nil {
+				eventErr = onEvent(GenerateStreamEvent{ResponseID: responseID})
+			}
 		}
 		if serviceTier := strings.TrimSpace(getStringFromPath(parsed, "response", "service_tier")); serviceTier != "" {
 			result.Usage.ServiceTier = serviceTier
 		}
+		return eventErr
 	case "response.output_item.added", "response.output_item.in_progress":
 		return mergeResponsesStreamOutputItem(result, asMap(parsed["item"]), onEvent)
 	case "response.output_item.done":
@@ -360,6 +372,17 @@ func applyResponsesStreamEvent(
 		if text != "" && !strings.Contains(result.Text, text) {
 			result.Text += text
 		}
+	case "response.image_generation_call.partial_image":
+		image, ok := parseResponsesPartialImage(parsed)
+		if !ok || onEvent == nil {
+			return nil
+		}
+		return onEvent(GenerateStreamEvent{
+			GeneratedImage:        &image,
+			GeneratedImageIndex:   toInt64(parsed["partial_image_index"]),
+			GeneratedImagePartial: true,
+			ResponseID:            result.ResponseID,
+		})
 	case "response.reasoning_summary_text.delta", "response.reasoning_text.delta", "response.thinking.delta":
 		reasoning := parseResponsesReasoningDelta(eventType, parsed)
 		if reasoning == nil || reasoning.Text == "" {
@@ -419,7 +442,7 @@ func parseResponsesServerToolStatusEvent(eventType string, parsed map[string]int
 		return ToolCall{}, false
 	}
 	status := ""
-	for _, suffix := range []string{".in_progress", ".searching", ".completed", ".failed", ".error"} {
+	for _, suffix := range []string{".in_progress", ".searching", ".generating", ".completed", ".failed", ".error"} {
 		if strings.HasSuffix(value, suffix) {
 			status = strings.TrimPrefix(suffix, ".")
 			value = strings.TrimSuffix(strings.TrimPrefix(value, "response."), suffix)
@@ -727,6 +750,9 @@ func mergeResponsesOutputItem(result *GenerateOutput, item map[string]interface{
 	case itemType == "reasoning":
 		mergeReasoningOutput(&result.Reasoning, parseReasoningOutputItem(item))
 	case isResponsesServerToolCallItem(item):
+		if image, ok := parseResponsesGeneratedImage(item); ok {
+			result.GeneratedImages = appendUniqueGeneratedImage(result.GeneratedImages, image)
+		}
 		appendUniqueToolCall(&result.ServerToolCalls, parseResponseServerToolCall(item))
 		result.Citations = appendUniqueStrings(result.Citations, parseResponseCitations(item)...)
 	case isResponsesClientToolCallType(itemType):
@@ -807,6 +833,9 @@ func parseResponseServerToolCall(item map[string]interface{}) ToolCall {
 		normalizeJSONString(item["result"]),
 		actionOutputJSON,
 	)
+	if isResponsesImageGenerationCallType(itemType) {
+		outputJSON = responsesImageGenerationToolOutputJSON(item)
+	}
 	errorJSON := normalizeJSONString(item["error"])
 	return ToolCall{
 		ToolCallID:    toolCallID,
@@ -817,6 +846,87 @@ func parseResponseServerToolCall(item map[string]interface{}) ToolCall {
 		OutputJSON:    outputJSON,
 		ErrorJSON:     errorJSON,
 	}
+}
+
+// parseResponsesPartialImage 解析 Responses 图片生成过程中的预览帧。
+func parseResponsesPartialImage(parsed map[string]interface{}) (GeneratedImage, bool) {
+	b64 := strings.TrimSpace(getString(parsed["partial_image_b64"]))
+	if b64 == "" {
+		return GeneratedImage{}, false
+	}
+	return GeneratedImage{
+		B64JSON:  b64,
+		MIMEType: openAIImageMIMEType(getString(parsed["output_format"])),
+	}, true
+}
+
+// parseResponsesGeneratedImage 从最终 image_generation_call 中提取可持久化图片。
+func parseResponsesGeneratedImage(item map[string]interface{}) (GeneratedImage, bool) {
+	if !isResponsesImageGenerationCallType(getString(item["type"])) {
+		return GeneratedImage{}, false
+	}
+	outputFormat := getString(item["output_format"])
+	revisedPrompt := strings.TrimSpace(getString(item["revised_prompt"]))
+	if b64 := strings.TrimSpace(getString(item["result"])); b64 != "" {
+		return GeneratedImage{
+			B64JSON:       b64,
+			MIMEType:      openAIImageMIMEType(outputFormat),
+			RevisedPrompt: revisedPrompt,
+		}, true
+	}
+	image, ok := parseOpenAIImagePayload(asMap(item["result"]), outputFormat)
+	if !ok {
+		image, ok = parseOpenAIImagePayload(item, outputFormat)
+	}
+	if !ok {
+		return GeneratedImage{}, false
+	}
+	if image.RevisedPrompt == "" {
+		image.RevisedPrompt = revisedPrompt
+	}
+	return image, true
+}
+
+// appendUniqueGeneratedImage 合并同一响应内重复出现的最终图片结果。
+func appendUniqueGeneratedImage(images []GeneratedImage, image GeneratedImage) []GeneratedImage {
+	for _, existing := range images {
+		if existing.B64JSON != "" && existing.B64JSON == image.B64JSON {
+			return images
+		}
+		if existing.URL != "" && existing.URL == image.URL {
+			return images
+		}
+	}
+	return append(images, image)
+}
+
+// isResponsesImageGenerationCallType 判断 Responses 输出项是否为图片生成结果。
+func isResponsesImageGenerationCallType(itemType string) bool {
+	switch strings.TrimSpace(itemType) {
+	case "image_generation_call", "image_generation_call_output":
+		return true
+	default:
+		return false
+	}
+}
+
+// responsesImageGenerationToolOutputJSON 只保留图片工具元数据，避免把 base64 写入 trace。
+func responsesImageGenerationToolOutputJSON(item map[string]interface{}) string {
+	payload := make(map[string]interface{})
+	for _, key := range []string{"background", "output_format", "quality", "revised_prompt", "size", "status"} {
+		if value, ok := item[key]; ok {
+			payload[key] = value
+		}
+	}
+	if _, ok := parseResponsesGeneratedImage(item); ok {
+		payload["image_generated"] = true
+	}
+	if result := asMap(item["result"]); len(result) > 0 {
+		if imageURL := strings.TrimSpace(getString(result["url"])); imageURL != "" {
+			payload["url"] = imageURL
+		}
+	}
+	return normalizeJSONString(payload)
 }
 
 func responseServerToolCallID(item map[string]interface{}, itemType string) string {

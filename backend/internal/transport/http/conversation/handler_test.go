@@ -2,9 +2,11 @@ package conversation
 
 import (
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/gin-gonic/gin"
@@ -99,6 +101,13 @@ func TestMapStreamErrorDoesNotExposeUpstreamUnauthorizedAsPlatformUnauthorized(t
 	}
 	if mapped.Code == "auth.unauthorized" || mapped.Code == "auth.invalid_token" || mapped.Code == "auth.session_invalid" {
 		t.Fatalf("expected upstream 401 to avoid platform auth codes, got %#v", mapped)
+	}
+}
+
+func TestMapBillingStreamErrorReturnsConcurrencyLimit(t *testing.T) {
+	mapped := mapBillingStreamError(appbilling.ErrUsageConcurrencyLimitExceeded)
+	if mapped.Status != http.StatusTooManyRequests || mapped.Code != "billing.concurrency_limit_exceeded" {
+		t.Fatalf("billing stream error = %#v", mapped)
 	}
 }
 

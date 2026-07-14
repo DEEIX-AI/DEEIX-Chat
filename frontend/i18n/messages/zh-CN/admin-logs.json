@@ -109,6 +109,7 @@
     "type": "类型",
     "provider": "渠道",
     "status": "状态",
+    "upstream": "上游",
     "amount": "金额",
     "scope": "范围",
     "tool": "工具",

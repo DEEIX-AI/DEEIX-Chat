@@ -12,12 +12,12 @@ import {
   AttachmentTrigger,
 } from "@/components/ui/attachment";
 import type { MessageAttachment } from "@/features/chat/types/messages";
-import type { PreviewDialogFile } from "@/shared/components/file-preview/file-preview-dialog";
+import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
 import { formatBytes, resolveFileExtension, resolveFileIcon } from "@/shared/lib/file-display";
 import type { FileContentResult } from "@/shared/api/file";
 
 const FilePreviewDialog = dynamic(
-  () => import("@/shared/components/file-preview/file-preview-dialog").then((module) => module.FilePreviewDialog),
+  () => import("@/shared/components/file-preview/preview-dialog").then((module) => module.FilePreviewDialog),
   { ssr: false },
 );
 

@@ -320,6 +320,26 @@ func TestRuntimeSettingsAppliesConversationDefaultModel(t *testing.T) {
 	}
 }
 
+func TestValidateMinerUFileTypesSetting(t *testing.T) {
+	if err := validatePatchItem(PatchItem{Namespace: "extract", Key: "mineru_file_types", Value: "pdf,word,presentation,excel"}); err != nil {
+		t.Fatalf("expected mineru file types to pass, got %v", err)
+	}
+	if err := validatePatchItem(PatchItem{Namespace: "extract", Key: "mineru_file_types", Value: "pdf,slides"}); err == nil {
+		t.Fatal("expected unsupported mineru file type to fail")
+	}
+}
+
+func TestRuntimeSettingsAppliesMinerUFileTypes(t *testing.T) {
+	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	cfg := config.Config{ExtractMinerUFileTypes: "pdf,word,presentation"}
+
+	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "extract", Key: "mineru_file_types", Value: "pdf,excel"})
+
+	if cfg.ExtractMinerUFileTypes != "pdf,excel" {
+		t.Fatalf("expected mineru file types to apply, got %q", cfg.ExtractMinerUFileTypes)
+	}
+}
+
 func TestValidateFullContextLimitsAllowUnlimitedValues(t *testing.T) {
 	cases := []PatchItem{
 		{Namespace: "file", Key: "full_context_limit_enabled", Value: "true"},

@@ -598,13 +598,8 @@ func (s *Service) normalizeProviderInput(input UpsertIdentityProviderInput, curr
 		return nil, ErrIdentityProviderSuperAdminDefaultRoleNotAllowed
 	}
 	logoURL := strings.TrimSpace(input.LogoURL)
-	if logoURL != "" {
-		parsedLogoURL, err := url.Parse(logoURL)
-		isHTTPLogoURL := (parsedLogoURL.Scheme == "http" || parsedLogoURL.Scheme == "https") && parsedLogoURL.Host != ""
-		isAbsolutePathLogoURL := strings.HasPrefix(logoURL, "/")
-		if err != nil || (!isHTTPLogoURL && !isAbsolutePathLogoURL) {
-			return nil, fmt.Errorf("logo url must be a valid http(s) or absolute path")
-		}
+	if logoURL != "" && !isValidProviderLogoURL(logoURL) {
+		return nil, fmt.Errorf("logo url must be a valid http(s) or absolute path")
 	}
 	provider := &domainuser.IdentityProvider{
 		Type:                providerType,
@@ -658,6 +653,21 @@ func (s *Service) normalizeProviderInput(input UpsertIdentityProviderInput, curr
 		return nil, fmt.Errorf("OAuth2 auth url, token url and userinfo url are required")
 	}
 	return provider, nil
+}
+
+func isValidProviderLogoURL(value string) bool {
+	parsedLogoURL, err := url.Parse(value)
+	if err != nil {
+		return false
+	}
+	if (parsedLogoURL.Scheme == "http" || parsedLogoURL.Scheme == "https") && parsedLogoURL.Host != "" {
+		return true
+	}
+	return parsedLogoURL.Scheme == "" &&
+		parsedLogoURL.Host == "" &&
+		strings.HasPrefix(value, "/") &&
+		!strings.HasPrefix(value, "//") &&
+		!strings.Contains(value, "\\")
 }
 
 func toProviderViews(items []domainuser.IdentityProvider, includeSensitive bool) []IdentityProviderView {

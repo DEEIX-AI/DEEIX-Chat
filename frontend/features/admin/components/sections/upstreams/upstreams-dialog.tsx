@@ -24,6 +24,7 @@ import {
   mergeBatchResultData,
   runBulkActionInChunks,
 } from "@/shared/lib/bulk-action";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import type { AdminBatchDeleteData, AdminLLMUpstreamView } from "@/features/admin/api/llm.types";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { toast } from "sonner";
@@ -58,6 +59,7 @@ export function DeleteUpstreamDialog({
   const tActions = useTranslations("common.actions");
   const resolveErrorMessage = useLocalizedErrorMessage();
   const [pending, setPending] = useState(false);
+  const stableUpstream = useDialogSnapshot(upstream);
 
   async function handleConfirm() {
     if (!upstream) return;
@@ -81,7 +83,7 @@ export function DeleteUpstreamDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>{t("deleteDialog.title")}</AlertDialogTitle>
           <AlertDialogDescription>
-            {t("deleteDialog.description", { name: upstream?.name ?? "" })}
+            {t("deleteDialog.description", { name: stableUpstream?.name ?? "" })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -212,12 +214,13 @@ export function CircuitActionDialog({
   const tActions = useTranslations("common.actions");
   const resolveErrorMessage = useLocalizedErrorMessage();
   const [pending, setPending] = useState(false);
+  const stableUpstream = useDialogSnapshot(upstream);
 
   const isOpen = action === "open";
   const title = isOpen ? t("circuitDialog.openTitle") : t("circuitDialog.resetTitle");
   const description = isOpen
-    ? t("circuitDialog.openDescription", { name: upstream?.name ?? "" })
-    : t("circuitDialog.resetDescription", { name: upstream?.name ?? "" });
+    ? t("circuitDialog.openDescription", { name: stableUpstream?.name ?? "" })
+    : t("circuitDialog.resetDescription", { name: stableUpstream?.name ?? "" });
 
   async function handleConfirm() {
     if (!upstream) return;

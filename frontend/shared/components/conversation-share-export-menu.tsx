@@ -57,7 +57,7 @@ export function ConversationShareExportMenuItems({
           onShare();
         }}
       >
-        <DropdownMenuItemIcon icon={Share2} />
+        <DropdownMenuItemIcon icon={Share2} className="text-current" />
         {shareLabel}
       </DropdownMenuItem>
       <DropdownMenuItem
@@ -71,7 +71,7 @@ export function ConversationShareExportMenuItems({
           void onExport();
         }}
       >
-        <DropdownMenuItemIcon icon={Download} />
+        <DropdownMenuItemIcon icon={Download} className="text-current" />
         {exportLabel}
       </DropdownMenuItem>
       {hasScreenshot ? (
@@ -88,7 +88,7 @@ export function ConversationShareExportMenuItems({
               onScreenshotSelect();
             }}
           >
-            <DropdownMenuItemIcon icon={MousePointerClick} />
+            <DropdownMenuItemIcon icon={MousePointerClick} className="text-current" />
             {screenshotSelectLabel}
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -102,7 +102,7 @@ export function ConversationShareExportMenuItems({
               onScreenshotFull();
             }}
           >
-            <DropdownMenuItemIcon icon={Camera} />
+            <DropdownMenuItemIcon icon={Camera} className="text-current" />
             {screenshotFullLabel}
           </DropdownMenuItem>
         </>
@@ -185,7 +185,7 @@ export function ConversationShareExportSubmenu({
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger disabled={!hasAction}>
-        <DropdownMenuItemIcon icon={Share2} />
+        <DropdownMenuItemIcon icon={Share2} className="text-current" />
         {label}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="min-w-40 p-1.5">

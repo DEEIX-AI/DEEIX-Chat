@@ -109,7 +109,7 @@ func normalizeStreamServerToolStatus(status string) string {
 	switch strings.TrimSpace(status) {
 	case "", "completed", "success":
 		return "success"
-	case "in_progress", "queued", "searching":
+	case "in_progress", "queued", "searching", "generating":
 		return "streaming"
 	case "failed", "error":
 		return "error"

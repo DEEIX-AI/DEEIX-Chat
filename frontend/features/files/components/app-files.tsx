@@ -18,14 +18,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-
-const FILES_SIDEBAR_WIDTH_CLASS = "md:w-64 md:basis-64 md:max-w-64 lg:w-72 lg:basis-72 lg:max-w-72";
-const FILES_SIDEBAR_COLLAPSED_WIDTH_CLASS = "md:w-12 md:basis-12 md:max-w-12";
 
 export function AppFiles() {
   const tCommon = useTranslations("common.actions");
   const t = useTranslations("files");
+  const isMobileViewport = useIsMobile();
   const {
     fileInputRef,
     mobileView,
@@ -82,6 +82,11 @@ export function AppFiles() {
     onBackToList,
     onToggleRagOptOut,
   } = useFilesPage();
+  const stableDeleteTarget = useDialogSnapshot(deleteTarget);
+  const selectedCount = selectedFileIDs.length;
+  const sidebarCollapsed = !isMobileViewport && isSidebarCollapsed;
+  const selectAllDisabled = loading || files.length === 0 || bulkDeleting;
+  const contentDeleting = Boolean(selectedFile && deletingFileID === selectedFile.fileID);
 
   return (
     <>
@@ -92,61 +97,37 @@ export function AppFiles() {
           className={cn(
             "h-full min-h-0 min-w-0 shrink-0 overflow-hidden border-border/45 bg-transparent transition-[width,max-width,flex-basis] duration-200",
             "w-full border-r-0 md:border-r",
-            isSidebarCollapsed ? FILES_SIDEBAR_COLLAPSED_WIDTH_CLASS : FILES_SIDEBAR_WIDTH_CLASS,
+            sidebarCollapsed
+              ? "md:w-12 md:basis-12 md:max-w-12"
+              : "md:w-64 md:basis-64 md:max-w-64 lg:w-72 lg:basis-72 lg:max-w-72",
             mobileView === "detail" ? "hidden md:flex" : "flex",
           )}
         >
-          <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col px-3 md:px-2", isSidebarCollapsed && "md:px-0")}>
-            <div className="hidden md:block">
-              <SidebarHeader
-                collapsed={isSidebarCollapsed}
-                total={total}
-                query={query}
-                searchOpen={isSearchOpen}
-                filterKeys={filterKeys}
-                sortKey={sortKey}
-                uploading={uploading}
-                selectedCount={selectedFileIDs.length}
-                selectAllDisabled={loading || files.length === 0 || bulkDeleting}
-                bulkDeleteDisabled={bulkDeleting}
-                onToggleCollapsed={onToggleSidebarCollapsed}
-                onToggleSearch={onToggleSearch}
-                onQueryChange={onQueryChange}
-                onFilterToggle={onFilterToggle}
-                onSortChange={onSortChange}
-                onSelectLoaded={onSelectLoadedFiles}
-                onClearSelection={onClearFileSelection}
-                onBulkDeleteRequest={onBulkDeleteRequest}
-                onUpload={onOpenUploadPicker}
-              />
-            </div>
+          <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col px-3 md:px-2", sidebarCollapsed && "md:px-0")}>
+            <SidebarHeader
+              total={total}
+              query={query}
+              searchOpen={isSearchOpen}
+              filterKeys={filterKeys}
+              sortKey={sortKey}
+              uploading={uploading}
+              selectedCount={selectedCount}
+              selectAllDisabled={selectAllDisabled}
+              bulkDeleteDisabled={bulkDeleting}
+              collapsed={sidebarCollapsed}
+              showCollapseButton={!isMobileViewport}
+              onToggleCollapsed={onToggleSidebarCollapsed}
+              onToggleSearch={onToggleSearch}
+              onQueryChange={onQueryChange}
+              onFilterToggle={onFilterToggle}
+              onSortChange={onSortChange}
+              onSelectLoaded={onSelectLoadedFiles}
+              onClearSelection={onClearFileSelection}
+              onBulkDeleteRequest={onBulkDeleteRequest}
+              onUpload={onOpenUploadPicker}
+            />
 
-            <div className="md:hidden">
-              <SidebarHeader
-                collapsed={false}
-                showCollapseButton={false}
-                total={total}
-                query={query}
-                searchOpen={isSearchOpen}
-                filterKeys={filterKeys}
-                sortKey={sortKey}
-                uploading={uploading}
-                selectedCount={selectedFileIDs.length}
-                selectAllDisabled={loading || files.length === 0 || bulkDeleting}
-                bulkDeleteDisabled={bulkDeleting}
-                onToggleCollapsed={onToggleSidebarCollapsed}
-                onToggleSearch={onToggleSearch}
-                onQueryChange={onQueryChange}
-                onFilterToggle={onFilterToggle}
-                onSortChange={onSortChange}
-                onSelectLoaded={onSelectLoadedFiles}
-                onClearSelection={onClearFileSelection}
-                onBulkDeleteRequest={onBulkDeleteRequest}
-                onUpload={onOpenUploadPicker}
-              />
-            </div>
-
-            {!isSidebarCollapsed ? (
+            {!sidebarCollapsed ? (
               <SidebarList
                 items={files}
                 selectedFileID={selectedFileID}
@@ -167,7 +148,7 @@ export function AppFiles() {
                 onDeleteRequest={onDeleteRequest}
               />
             ) : null}
-            {!isSidebarCollapsed ? <StorageQuotaPanel quota={quota} /> : null}
+            {!sidebarCollapsed ? <StorageQuotaPanel quota={quota} /> : null}
           </div>
         </aside>
 
@@ -178,7 +159,7 @@ export function AppFiles() {
           <ContentHeader
             file={selectedFile}
             preview={preview}
-            deleting={Boolean(selectedFile && deletingFileID === selectedFile.fileID)}
+            deleting={contentDeleting}
             onBack={mobileView === "detail" ? onBackToList : undefined}
             onOpen={openPreview}
             onDownload={downloadPreview}
@@ -187,6 +168,7 @@ export function AppFiles() {
           />
           <ContentPreview
             file={selectedFile}
+            deferEmptyState={loading || syncing}
             preview={preview}
             extract={extract}
             contentTab={contentTab}
@@ -207,7 +189,7 @@ export function AppFiles() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t("deleteDialog.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("deleteDialog.description", { name: deleteTarget?.fileName || t("deleteDialog.fallbackName") })}
+              {t("deleteDialog.description", { name: stableDeleteTarget?.fileName || t("deleteDialog.fallbackName") })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -234,7 +216,7 @@ export function AppFiles() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t("bulkDeleteDialog.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("bulkDeleteDialog.description", { count: selectedFileIDs.length })}
+              {t("bulkDeleteDialog.description", { count: selectedCount })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

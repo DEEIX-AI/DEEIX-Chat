@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useFileScale } from "@/shared/components/file-preview/file-scale";
 
 type PreviewMediaProps = {
   kind: "image" | "audio" | "video";
@@ -18,18 +19,18 @@ type PreviewMediaProps = {
   inline?: boolean;
 };
 
-const IMAGE_MIN_ZOOM = 0.5;
-const IMAGE_MAX_ZOOM = 2;
-const IMAGE_ZOOM_STEP = 0.1;
-const IMAGE_DEFAULT_ZOOM = 0.8;
-const IMAGE_FALLBACK_SIZE = {
-  width: 1200,
-  height: 900,
+const IMAGE_PREVIEW = {
+  zoom: {
+    min: 0.5,
+    max: 2,
+    step: 0.1,
+    initial: 0.8,
+  },
+  fallbackSize: {
+    width: 1200,
+    height: 900,
+  },
 };
-
-function clampImageZoom(value: number): number {
-  return Math.min(IMAGE_MAX_ZOOM, Math.max(IMAGE_MIN_ZOOM, value));
-}
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) {
@@ -71,6 +72,7 @@ function resolveAudioLabel(contentType?: string, name?: string): string {
 
 export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer, inline = false }: PreviewMediaProps) {
   const t = useTranslations("files.previewErrors");
+  const tPreview = useTranslations("files.preview");
   const mediaRef = React.useRef<HTMLAudioElement | HTMLVideoElement | null>(null);
   const imagePreviewRef = React.useRef<HTMLDivElement | null>(null);
   const imageScrollRegionRef = React.useRef<HTMLDivElement | null>(null);
@@ -78,14 +80,22 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
   const videoPointerInsideRef = React.useRef(false);
   const videoFocusInsideRef = React.useRef(false);
   const videoControlsHideTimerRef = React.useRef<number | null>(null);
+  const imageCenterKeyRef = React.useRef("");
   const [playing, setPlaying] = React.useState(false);
   const [videoControlsVisible, setVideoControlsVisible] = React.useState(true);
   const [duration, setDuration] = React.useState(0);
   const [currentTime, setCurrentTime] = React.useState(0);
-  const [imageZoom, setImageZoom] = React.useState(IMAGE_DEFAULT_ZOOM);
+  const {
+    scale: imageZoom,
+    setScale: setImageZoom,
+    zoomOut: zoomImageOut,
+    zoomIn: zoomImageIn,
+    canZoomOut: canZoomImageOut,
+    canZoomIn: canZoomImageIn,
+  } = useFileScale(IMAGE_PREVIEW.zoom, { scrollRef: imageScrollRegionRef });
   const [imageIsFullscreen, setImageIsFullscreen] = React.useState(false);
   const [videoIsFullscreen, setVideoIsFullscreen] = React.useState(false);
-  const [imageSize, setImageSize] = React.useState<{ width: number; height: number }>(IMAGE_FALLBACK_SIZE);
+  const [imageSize, setImageSize] = React.useState<{ width: number; height: number }>(IMAGE_PREVIEW.fallbackSize);
   const [imageViewport, setImageViewport] = React.useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const isSVG = kind === "image" && (contentType?.split(";")[0]?.trim().toLowerCase() === "image/svg+xml");
   const progress = duration > 0 ? Math.min(currentTime / duration, 1) : 0;
@@ -136,8 +146,8 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
       }
 
       setImageSize({
-        width: probe.naturalWidth || IMAGE_FALLBACK_SIZE.width,
-        height: probe.naturalHeight || IMAGE_FALLBACK_SIZE.height,
+        width: probe.naturalWidth || IMAGE_PREVIEW.fallbackSize.width,
+        height: probe.naturalHeight || IMAGE_PREVIEW.fallbackSize.height,
       });
     };
 
@@ -146,18 +156,18 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
         return;
       }
 
-      setImageSize(IMAGE_FALLBACK_SIZE);
+      setImageSize(IMAGE_PREVIEW.fallbackSize);
     };
 
     probe.src = source;
-    setImageZoom(IMAGE_DEFAULT_ZOOM);
+    setImageZoom(IMAGE_PREVIEW.zoom.initial);
 
     return () => {
       cancelled = true;
       probe.onload = null;
       probe.onerror = null;
     };
-  }, [kind, source]);
+  }, [kind, setImageZoom, source]);
 
   React.useEffect(() => {
     if (kind !== "image") {
@@ -365,6 +375,12 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
       return;
     }
 
+    const centerKey = `${source}:${imageViewport.width}:${imageViewport.height}`;
+    if (imageCenterKeyRef.current === centerKey) {
+      return;
+    }
+    imageCenterKeyRef.current = centerKey;
+
     const nextScrollLeft = Math.max((scaledImageWidth - viewport.clientWidth) / 2, 0);
     const nextScrollTop = Math.max((scaledImageHeight - viewport.clientHeight) / 2, 0);
 
@@ -410,8 +426,9 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
         variant="ghost"
         size="icon"
         className="size-7 rounded-full"
-        onClick={() => setImageZoom((value) => clampImageZoom(value - IMAGE_ZOOM_STEP))}
-        disabled={imageZoom <= IMAGE_MIN_ZOOM}
+        aria-label={tPreview("zoomOut")}
+        onClick={zoomImageOut}
+        disabled={!canZoomImageOut}
       >
         <Minus className="size-3.5" />
       </Button>
@@ -421,12 +438,20 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
         variant="ghost"
         size="icon"
         className="size-7 rounded-full"
-        onClick={() => setImageZoom((value) => clampImageZoom(value + IMAGE_ZOOM_STEP))}
-        disabled={imageZoom >= IMAGE_MAX_ZOOM}
+        aria-label={tPreview("zoomIn")}
+        onClick={zoomImageIn}
+        disabled={!canZoomImageIn}
       >
         <Plus className="size-3.5" />
       </Button>
-      <Button type="button" variant="ghost" size="icon" className="size-7 rounded-full" onClick={() => void toggleImageFullscreen()}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-7 rounded-full"
+        aria-label={imageIsFullscreen ? tPreview("exitFullscreen") : tPreview("enterFullscreen")}
+        onClick={() => void toggleImageFullscreen()}
+      >
         {imageIsFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
       </Button>
     </div>
@@ -442,7 +467,7 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
 
           <div ref={imageScrollRegionRef} className="min-h-0 flex-1 overflow-auto">
             <div
-              className="flex min-h-full min-w-full w-max items-center justify-center box-border px-4 py-6"
+              className="flex min-h-full min-w-full w-max items-center justify-center px-4 py-6"
               style={{ minHeight: imageViewport.height > 0 ? `${imageViewport.height}px` : undefined }}
             >
               <div
@@ -464,14 +489,14 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
                     <object
                       data={source}
                       type="image/svg+xml"
-                      aria-label={alt || "SVG preview"}
-                      className="block rounded-lg"
+                      aria-label={alt || tPreview("svgPreview")}
+                      className="block rounded-md"
                       style={{ width: `${imageSize.width}px`, height: `${imageSize.height}px` }}
                     >
                       <Image
                         src={source}
-                        alt={alt || "SVG preview"}
-                        className="block rounded-lg object-contain"
+                        alt={alt || tPreview("svgPreview")}
+                        className="block rounded-md object-contain"
                         width={imageSize.width}
                         height={imageSize.height}
                         sizes="100vw"
@@ -482,8 +507,8 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
                   ) : (
                     <Image
                       src={source}
-                      alt={alt || "Image preview"}
-                      className="block rounded-lg object-contain"
+                      alt={alt || tPreview("imagePreview")}
+                      className="block rounded-md object-contain"
                       width={imageSize.width}
                       height={imageSize.height}
                       sizes="100vw"
@@ -509,7 +534,7 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
               className={cn(
                 "relative max-w-full",
                 !inline && "mx-auto",
-                videoIsFullscreen ? "flex h-full w-full items-center justify-center bg-[oklch(0.9791_0.0041_91.45)] p-6" : "w-full",
+                videoIsFullscreen ? "flex h-full w-full items-center justify-center bg-neutral-950 p-6" : "w-full",
               )}
             >
               <div
@@ -529,7 +554,7 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
                   preload="metadata"
                   playsInline
                   className={cn(
-                    "block h-auto max-w-full rounded-[24px] bg-transparent object-contain shadow-[0_18px_44px_-34px_color-mix(in_oklch,var(--foreground)_30%,transparent)]",
+                    "block h-auto max-w-full rounded-md bg-transparent object-contain",
                     inline ? "w-full" : "w-auto",
                     videoIsFullscreen ? "max-h-[calc(100vh-48px)]" : "max-h-[min(62vh,720px)]",
                   )}
@@ -543,13 +568,16 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
                 />
 
                 {!playing ? (
-                  <button
+                  <Button
                     type="button"
-                    className="absolute left-1/2 top-1/2 z-20 flex size-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/28 text-white/90 shadow-[0_14px_32px_-20px_rgba(0,0,0,0.7)] backdrop-blur-md transition hover:bg-black/38 hover:text-white"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={tPreview("playVideo")}
+                    className="absolute left-1/2 top-1/2 z-20 size-12 -translate-x-1/2 -translate-y-1/2 rounded-full bg-neutral-950/75 text-neutral-50 backdrop-blur-md hover:bg-neutral-950/90 hover:text-neutral-50"
                     onClick={() => void togglePlay()}
                   >
                     <Play className="ml-0.5 size-5" strokeWidth={1.9} />
-                  </button>
+                  </Button>
                 ) : null}
 
                 <div
@@ -558,20 +586,22 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
                     videoControlsVisible ? "opacity-100" : "pointer-events-none opacity-0",
                   )}
                 >
-                  <div className="rounded-full bg-black/28 px-3 py-2 text-white shadow-[0_14px_30px_-22px_rgba(0,0,0,0.7)] backdrop-blur-md">
-                    <div className="flex items-center gap-3 text-[10px] text-white/82">
-                      <button
+                  <div className="rounded-full bg-neutral-950/82 px-3 py-2 text-neutral-50 backdrop-blur-md">
+                    <div className="flex items-center gap-3 text-[10px] text-neutral-300">
+                      <Button
                         type="button"
-                        aria-label={playing ? "Pause video" : "Play video"}
-                        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/12 text-white/90 transition hover:bg-white/20"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={playing ? tPreview("pauseVideo") : tPreview("playVideo")}
+                        className="size-7 shrink-0 rounded-full text-neutral-50 hover:bg-neutral-50/10 hover:text-neutral-50"
                         onClick={() => void togglePlay()}
                       >
                         {playing ? <Pause className="size-3.5" strokeWidth={1.9} /> : <Play className="ml-0.5 size-3.5" strokeWidth={1.9} />}
-                      </button>
+                      </Button>
                       <span className="shrink-0 tabular-nums">{formatTime(currentTime)}</span>
-                      <div className="relative h-1 flex-1 rounded-full bg-white/24">
+                      <div className="relative h-1 flex-1 rounded-full bg-neutral-700/80">
                         <div
-                          className="absolute inset-y-0 left-0 w-full origin-left rounded-full bg-white/86"
+                          className="absolute inset-y-0 left-0 w-full origin-left rounded-full bg-neutral-50/90"
                           style={{ transform: `scaleX(${progress})` }}
                         />
                         <input
@@ -585,14 +615,16 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
                         />
                       </div>
                       <span className="shrink-0 tabular-nums">{formatTime(duration)}</span>
-                      <button
+                      <Button
                         type="button"
-                        aria-label={videoIsFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                        className="flex size-7 shrink-0 items-center justify-center rounded-full text-white/80 transition hover:bg-white/14 hover:text-white"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={videoIsFullscreen ? tPreview("exitFullscreen") : tPreview("enterFullscreen")}
+                        className="size-7 shrink-0 rounded-full text-neutral-300 hover:bg-neutral-50/10 hover:text-neutral-50"
                         onClick={() => void toggleVideoFullscreen()}
                       >
                         {videoIsFullscreen ? <Minimize2 className="size-3.5" strokeWidth={1.7} /> : <Maximize2 className="size-3.5" strokeWidth={1.7} />}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -613,9 +645,9 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
               onPause={handleMediaPause}
               onEnded={handleMediaEnded}
             />
-            <div className="relative mx-auto flex w-full max-w-[520px] items-center gap-4 rounded-xl bg-muted/60 px-4 py-4">
+            <div className="relative mx-auto flex w-full max-w-[520px] items-center gap-4 rounded-md bg-neutral-950/88 px-4 py-4 text-neutral-50">
               <div className="flex shrink-0 flex-col items-center">
-                <div className="group relative flex size-20 items-center justify-center overflow-hidden rounded-xl bg-foreground/5">
+                <div className="group relative flex size-20 items-center justify-center overflow-hidden rounded-md bg-neutral-900">
                   <div className="relative z-10 flex items-center justify-center rounded-full">
                     <FileAudio2 className="size-8" />
                   </div>
@@ -623,7 +655,8 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="absolute inset-0 z-20 size-full rounded-xl border-0 bg-background/28 text-foreground opacity-0 shadow-none backdrop-blur-md transition-opacity duration-200 hover:bg-background/36 group-hover:opacity-100 focus-visible:opacity-100"
+                    aria-label={playing ? tPreview("pauseVideo") : tPreview("playVideo")}
+                    className="absolute inset-0 z-20 size-full rounded-md bg-neutral-950/55 text-neutral-50 opacity-0 backdrop-blur-md transition-opacity duration-200 hover:bg-neutral-950/70 hover:text-neutral-50 group-hover:opacity-100 focus-visible:opacity-100"
                     onClick={() => void togglePlay()}
                   >
                     {playing ? <Pause className="size-8" strokeWidth={1.8} /> : <Play className="ml-1 size-8" strokeWidth={1.8} />}
@@ -633,14 +666,14 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h3 className="truncate text-2xl font-medium text-foreground">{audioTitle}</h3>
-                  <p className="truncate text-xs text-muted-foreground">｜{audioLabel}</p>
+                  <h3 className="truncate text-base font-medium text-neutral-50">{audioTitle}</h3>
+                  <p className="truncate text-xs text-neutral-400">｜{audioLabel}</p>
                 </div>
 
                 <div className="mt-2">
-                  <div className="relative h-1.5 rounded-full bg-foreground/10">
+                  <div className="relative h-1.5 rounded-full bg-neutral-700/80">
                     <div
-                      className="absolute inset-y-0 left-0 rounded-full bg-foreground/70 transition-[width] duration-200 ease-out"
+                      className="absolute inset-y-0 left-0 rounded-full bg-neutral-50/90 transition-[width] duration-200 ease-out"
                       style={{ width: `${progress * 100}%` }}
                     />
                     <input
@@ -654,7 +687,7 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
                     />
                   </div>
 
-                  <div className="mt-1.5 flex items-center justify-between gap-3 text-[10px] text-muted-foreground">
+                  <div className="mt-1.5 flex items-center justify-between gap-3 text-[10px] text-neutral-400">
                     <span>{formatTime(currentTime)}</span>
                     <span>{formatTime(duration)}</span>
                   </div>

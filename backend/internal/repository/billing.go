@@ -24,11 +24,12 @@ type BillingRepository interface {
 	GetPaymentOrderByOrderNo(ctx context.Context, orderNo string) (*domainbilling.PaymentOrder, error)
 	MarkPaymentOrderPaidAndGrantSubscription(ctx context.Context, orderNo string, externalPaymentID string, paidAt time.Time, subscription *domainbilling.Subscription) (*domainbilling.PaymentOrder, bool, error)
 	AddUsage(ctx context.Context, usage *domainbilling.UsageLedger) error
-	AddUsageAndDebitBalance(ctx context.Context, usage *domainbilling.UsageLedger) error
 	AddUsageAndSettleBalance(ctx context.Context, usage *domainbilling.UsageLedger, reservation *domainbilling.UsageBalanceReservation) error
 	AddPeriodUsageAndSettleOverage(ctx context.Context, usage *domainbilling.UsageLedger, periodStart time.Time, periodEnd time.Time, periodCreditNanousd int64, reservation *domainbilling.UsageBalanceReservation) error
-	ReserveUsageBalance(ctx context.Context, userID uint, amountNanousd int64, refNo string) (*domainbilling.UsageBalanceReservation, error)
-	ReleaseUsageBalanceReservation(ctx context.Context, userID uint, refNo string, description string) error
+	ReserveUsageBalance(ctx context.Context, input domainbilling.UsageBalanceReservationRequest) (*domainbilling.UsageBalanceReservation, error)
+	RenewUsageBalanceReservation(ctx context.Context, userID uint, refNo string) error
+	ReleaseUsageBalanceReservation(ctx context.Context, userID uint, refNo string) error
+	MarkUsageReservationReconciliationRequired(ctx context.Context, userID uint, refNo string, failureCode string) error
 	GetOrCreateBillingAccount(ctx context.Context, userID uint) (*domainbilling.BillingAccount, error)
 	ListBillingAccountsByUserIDs(ctx context.Context, userIDs []uint) ([]domainbilling.BillingAccount, error)
 	SetBillingAccountBalance(ctx context.Context, userID uint, balanceNanousd int64, refNo string, description string) (*domainbilling.BillingAccount, error)

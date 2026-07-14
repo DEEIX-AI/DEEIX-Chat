@@ -38,6 +38,7 @@ import { Table, TableBody, TableCell, TableEmptyRow, TableHead, TableHeader, Tab
 import { ApiError } from "@/shared/api/http-client";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { CopyActionButton } from "@/shared/components/copy-action";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { configuredSettingsMap } from "@/shared/lib/settings-meta";
 import type { IdentityProviderDTO } from "@/shared/api/auth.types";
 import type { PatchSettingItem } from "@/shared/api/settings.types";
@@ -106,6 +107,7 @@ export function AdminLoginSettingsPage() {
   const [frontendOrigin, setFrontendOrigin] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
+  const stableDeleteProviderTarget = useDialogSnapshot(deleteProviderTarget);
 
   const loadData = React.useCallback(async () => {
     setLoading(true);
@@ -857,7 +859,7 @@ export function AdminLoginSettingsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t("deleteDialog.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("deleteDialog.description", { name: deleteProviderTarget?.name ?? t("deleteDialog.thisProvider") })}
+              {t("deleteDialog.description", { name: stableDeleteProviderTarget?.name ?? t("deleteDialog.thisProvider") })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -11,6 +11,7 @@ import (
 
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 )
 
 const maxAssistantImageContentItems = 8
@@ -28,6 +29,11 @@ type assistantImageCandidate struct {
 	MIMEType string
 }
 
+type assistantImagePayload struct {
+	Bytes    []byte
+	MIMEType string
+}
+
 func (s *Service) normalizeAssistantImageContent(
 	ctx context.Context,
 	userID uint,
@@ -40,23 +46,68 @@ func (s *Service) normalizeAssistantImageContent(
 	if len(candidates) == 0 {
 		return nil, nil
 	}
-
-	uploaded := make([]model.FileObject, 0, len(candidates))
-	attachmentRows := make([]model.Attachment, 0, len(candidates))
-	now := time.Now()
+	images := make([]assistantImagePayload, 0, len(candidates))
 	for _, candidate := range candidates {
 		data, mimeType, ok := decodeAssistantImageCandidate(candidate)
 		if !ok {
 			continue
 		}
-		fileName := generatedImageFileName(modelName, now, len(uploaded), len(candidates), mimeType)
+		images = append(images, assistantImagePayload{Bytes: data, MIMEType: mimeType})
+		if len(images) >= maxAssistantImageContentItems {
+			break
+		}
+	}
+	return s.saveAssistantImages(ctx, userID, conversationID, assistantMessageID, modelName, images)
+}
+
+// normalizeAssistantGeneratedImages 将协议层结构化图片结果转换为消息附件。
+func (s *Service) normalizeAssistantGeneratedImages(
+	ctx context.Context,
+	userID uint,
+	conversationID uint,
+	assistantMessageID uint,
+	modelName string,
+	generatedImages []llm.GeneratedImage,
+) (*assistantImageContentNormalization, error) {
+	images := make([]assistantImagePayload, 0, len(generatedImages))
+	for _, image := range generatedImages {
+		data, mimeType, err := s.readGeneratedImage(ctx, image)
+		if err != nil {
+			return nil, err
+		}
+		images = append(images, assistantImagePayload{Bytes: data, MIMEType: mimeType})
+		if len(images) >= maxAssistantImageContentItems {
+			break
+		}
+	}
+	return s.saveAssistantImages(ctx, userID, conversationID, assistantMessageID, modelName, images)
+}
+
+// saveAssistantImages 统一保存助手生成的图片，并构造消息附件快照。
+func (s *Service) saveAssistantImages(
+	ctx context.Context,
+	userID uint,
+	conversationID uint,
+	assistantMessageID uint,
+	modelName string,
+	images []assistantImagePayload,
+) (*assistantImageContentNormalization, error) {
+	if len(images) == 0 {
+		return nil, nil
+	}
+
+	uploaded := make([]model.FileObject, 0, len(images))
+	attachmentRows := make([]model.Attachment, 0, len(images))
+	now := time.Now()
+	for _, image := range images {
+		fileName := generatedImageFileName(modelName, now, len(uploaded), len(images), image.MIMEType)
 		uploadResult, uploadErr := s.UploadFile(ctx, appupload.UploadFileInput{
 			UserID:       userID,
 			Purpose:      "generated_image",
 			FileName:     fileName,
-			MimeType:     mimeType,
-			DeclaredSize: int64(len(data)),
-			Reader:       bytes.NewReader(data),
+			MimeType:     image.MIMEType,
+			DeclaredSize: int64(len(image.Bytes)),
+			Reader:       bytes.NewReader(image.Bytes),
 		})
 		if uploadErr != nil {
 			return nil, uploadErr
@@ -77,9 +128,6 @@ func (s *Service) normalizeAssistantImageContent(
 			Status:         "active",
 			UploadedAt:     now,
 		})
-		if len(uploaded) >= maxAssistantImageContentItems {
-			break
-		}
 	}
 	if len(uploaded) == 0 {
 		return nil, nil

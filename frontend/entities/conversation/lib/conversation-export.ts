@@ -27,7 +27,7 @@ function formatExportTimestamp(value: string) {
   ].join("");
 }
 
-export function resolveConversationExportFileName(data: ConversationExportDTO) {
+function resolveConversationExportFileName(data: ConversationExportDTO) {
   const title = data.conversation?.title?.trim() || data.conversation?.publicID || "conversation";
   return `conversation-${safeFileNamePart(title)}-${formatExportTimestamp(data.exportedAt)}.json`;
 }

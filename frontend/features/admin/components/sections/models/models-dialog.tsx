@@ -29,6 +29,7 @@ import type {
   AdminBatchDeleteData,
   AdminLLMModelDTO,
 } from "@/features/admin/api/llm.types";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 
@@ -54,6 +55,7 @@ export function DeleteModelDialog({
   const t = useTranslations("adminModels");
   const commonT = useTranslations("common");
   const [pending, setPending] = React.useState(false);
+  const stableTarget = useDialogSnapshot(target);
 
   const handleDelete = React.useCallback(async () => {
     if (!target) return;
@@ -82,7 +84,7 @@ export function DeleteModelDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>{t("deleteDialog.title")}</AlertDialogTitle>
           <AlertDialogDescription>
-            {t("deleteDialog.description", { model: target?.platformModelName ?? "" })}
+            {t("deleteDialog.description", { model: stableTarget?.platformModelName ?? "" })}
           </AlertDialogDescription>
         </AlertDialogHeader>
 

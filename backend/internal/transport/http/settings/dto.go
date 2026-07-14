@@ -35,7 +35,6 @@ type SettingResponse struct {
 }
 
 type LoginPageSettingsResponse struct {
-	Title           string `json:"title"`
 	DefaultNextPath string `json:"defaultNextPath"`
 }
 

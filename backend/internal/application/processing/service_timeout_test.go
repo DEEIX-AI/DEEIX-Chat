@@ -47,6 +47,15 @@ func TestResolveProcessingExtractTimeoutUsesImageOCRConfig(t *testing.T) {
 	}
 }
 
+func TestProcessingSupportsPresentationExtractionAndRAG(t *testing.T) {
+	if !supportsExtraction("presentation") {
+		t.Fatal("presentation should support extraction")
+	}
+	if !supportsRAG("presentation") {
+		t.Fatal("presentation should support RAG")
+	}
+}
+
 func TestResolveProcessingExtractTimeoutAddsPDFOCRFallbackWindow(t *testing.T) {
 	cfg := config.Config{
 		ExtractEngine:                     extraction.EngineTika,

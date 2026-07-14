@@ -173,6 +173,8 @@
     "protocolUpdated": "Protocol updated",
     "priorityMustBePositive": "Priority must be greater than 0",
     "weightMustBePositive": "Weight must be greater than 0",
+    "priorityDesc": "Smaller value = higher priority. Traffic is routed to the source with the smallest priority first. Must be a positive integer.",
+    "weightDesc": "Among sources that share the same priority, larger value = higher share of traffic. Must be a positive integer.",
     "priorityUpdated": "Priority updated",
     "weightUpdated": "Weight updated",
     "circuitUpdated": "Circuit settings updated"

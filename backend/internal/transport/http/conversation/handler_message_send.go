@@ -19,7 +19,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const resumeActiveCheckInterval = 5 * time.Second
+const (
+	resumeActiveCheckInterval         = 5 * time.Second
+	usageAuthorizationRenewalInterval = 30 * time.Minute
+)
 
 var reservedMessageOptionKeys = map[string]struct{}{
 	"contents":          {},
@@ -119,16 +122,26 @@ func sendMessageBillingInput(
 	if conversation != nil {
 		input.ConversationID = conversation.ID
 		input.ConversationModel = conversation.Model
+		input.Conversation = conversation
 	}
 	return input
 }
 
-func (h *Handler) reserveSendMessageUsageBalance(c *gin.Context, conversation *model.Conversation, req *SendMessageRequest) (*domainbilling.UsageBalanceReservation, error) {
-	reservation, err := h.service.ReserveSendMessageUsageBalance(
+// authorizeUsage 在写入流式响应头前完成请求级计费授权。
+func (h *Handler) authorizeUsage(c *gin.Context, input appconversation.SendMessageBillingInput) (*domainbilling.UsageAuthorization, error) {
+	authorization, err := h.service.AuthorizeSendMessageUsage(
 		c.Request.Context(),
-		sendMessageBillingInput(middleware.MustUserID(c), conversation, req, nil),
+		input,
 	)
 	if err != nil {
+		if errors.Is(err, billing.ErrUsageConcurrencyLimitExceeded) {
+			response.Error(c, http.StatusTooManyRequests, "usage concurrency limit exceeded")
+			return nil, err
+		}
+		if errors.Is(err, billing.ErrUsageReservationConflict) {
+			response.Error(c, http.StatusConflict, "usage reservation already exists")
+			return nil, err
+		}
 		if errors.Is(err, billing.ErrUsageBalanceInsufficient) {
 			response.Error(c, http.StatusPaymentRequired, "usage balance is insufficient")
 			return nil, err
@@ -140,20 +153,43 @@ func (h *Handler) reserveSendMessageUsageBalance(c *gin.Context, conversation *m
 		response.Error(c, http.StatusInternalServerError, "usage balance reservation failed")
 		return nil, err
 	}
-	return reservation, nil
+	return authorization, nil
 }
 
-func shouldReleaseReservationAfterBillingError(err error) bool {
-	return appconversation.ShouldReleaseSendMessageUsageReservationAfterBillingError(err)
-}
-
-func (h *Handler) releaseSendMessageUsageReservation(reservation *domainbilling.UsageBalanceReservation, description string) error {
-	if reservation == nil {
+// releaseSendMessageUsageAuthorization 使用独立短上下文释放未消费的预算。
+func (h *Handler) releaseSendMessageUsageAuthorization(authorization *domainbilling.UsageAuthorization) error {
+	if authorization == nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return h.service.ReleaseSendMessageUsageReservation(ctx, reservation, description)
+	return h.service.ReleaseSendMessageUsageAuthorization(ctx, authorization)
+}
+
+// startUsageAuthorizationRenewal 为长时间运行的调用持续刷新预算租约。
+func (h *Handler) startUsageAuthorizationRenewal(authorization *domainbilling.UsageAuthorization) func() {
+	if authorization == nil || authorization.Reservation == nil {
+		return func() {}
+	}
+	stop := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(usageAuthorizationRenewalInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				err := h.service.RenewSendMessageUsageAuthorization(ctx, authorization)
+				cancel()
+				if err != nil {
+					continue
+				}
+			case <-stop:
+				return
+			}
+		}
+	}()
+	return func() { close(stop) }
 }
 
 // recordAndApplySendMessageBilling 统一记录账单并把快照回填到当前响应消息，避免流式和非流式口径分叉。
@@ -163,12 +199,12 @@ func (h *Handler) recordAndApplySendMessageBilling(
 	conversation *model.Conversation,
 	req *SendMessageRequest,
 	result *appconversation.SendMessageResult,
-	reservation *domainbilling.UsageBalanceReservation,
+	authorization *domainbilling.UsageAuthorization,
 ) error {
 	usageLedger, err := h.service.RecordSendMessageBilling(
 		ctx,
 		sendMessageBillingInput(userID, conversation, req, result),
-		reservation,
+		authorization,
 	)
 	if err != nil {
 		return err
@@ -237,6 +273,14 @@ func (h *Handler) recordSendMessageAuditCtx(
 }
 
 func handleSendMessageBillingError(c *gin.Context, err error) {
+	if errors.Is(err, billing.ErrUsageConcurrencyLimitExceeded) {
+		response.Error(c, http.StatusTooManyRequests, "usage concurrency limit exceeded")
+		return
+	}
+	if errors.Is(err, billing.ErrUsageReservationConflict) {
+		response.Error(c, http.StatusConflict, "usage reservation already exists")
+		return
+	}
 	if errors.Is(err, billing.ErrUsageBalanceInsufficient) {
 		response.Error(c, http.StatusPaymentRequired, "usage balance is insufficient")
 		return
@@ -251,6 +295,14 @@ func handleSendMessageBillingError(c *gin.Context, err error) {
 func mapBillingStreamError(err error) streamError {
 	status := http.StatusInternalServerError
 	message := "record billing failed"
+	if errors.Is(err, billing.ErrUsageConcurrencyLimitExceeded) {
+		status = http.StatusTooManyRequests
+		message = "usage concurrency limit exceeded"
+	}
+	if errors.Is(err, billing.ErrUsageReservationConflict) {
+		status = http.StatusConflict
+		message = "usage reservation already exists"
+	}
 	if errors.Is(err, billing.ErrUsageBalanceInsufficient) {
 		status = http.StatusPaymentRequired
 		message = "usage balance is insufficient"
@@ -336,29 +388,25 @@ func (h *Handler) SendMessage(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	if err = h.ensureBillingModelAccess(c, conversation, req); err != nil {
-		return
-	}
-	reservation, err := h.reserveSendMessageUsageBalance(c, conversation, req)
+	authorization, err := h.authorizeUsage(c, sendMessageBillingInput(middleware.MustUserID(c), conversation, req, nil))
 	if err != nil {
 		return
 	}
+	stopAuthorizationRenewal := h.startUsageAuthorizationRenewal(authorization)
+	defer stopAuthorizationRenewal()
 
 	result, err := h.service.SendMessage(c.Request.Context(), input)
 	if err != nil {
 		if result != nil {
 			if !result.Billable {
-				if releaseErr := h.releaseSendMessageUsageReservation(reservation, "模型调用失败退回预扣"); releaseErr != nil {
+				if releaseErr := h.releaseSendMessageUsageAuthorization(authorization); releaseErr != nil {
 					handleSendMessageBillingError(c, releaseErr)
 					return
 				}
 				handleSendMessageError(c, err)
 				return
 			}
-			if billingErr := h.recordAndApplySendMessageBilling(c.Request.Context(), middleware.MustUserID(c), conversation, req, result, reservation); billingErr != nil {
-				if shouldReleaseReservationAfterBillingError(billingErr) {
-					_ = h.releaseSendMessageUsageReservation(reservation, "计费失败退回预扣")
-				}
+			if billingErr := h.recordAndApplySendMessageBilling(c.Request.Context(), middleware.MustUserID(c), conversation, req, result, authorization); billingErr != nil {
 				handleSendMessageBillingError(c, billingErr)
 				return
 			}
@@ -366,7 +414,7 @@ func (h *Handler) SendMessage(c *gin.Context) {
 			response.Success(c, toSendMessageResponse(result))
 			return
 		}
-		if releaseErr := h.releaseSendMessageUsageReservation(reservation, "模型调用失败退回预扣"); releaseErr != nil {
+		if releaseErr := h.releaseSendMessageUsageAuthorization(authorization); releaseErr != nil {
 			handleSendMessageBillingError(c, releaseErr)
 			return
 		}
@@ -374,10 +422,7 @@ func (h *Handler) SendMessage(c *gin.Context) {
 		return
 	}
 
-	if err := h.recordAndApplySendMessageBilling(c.Request.Context(), middleware.MustUserID(c), conversation, req, result, reservation); err != nil {
-		if shouldReleaseReservationAfterBillingError(err) {
-			_ = h.releaseSendMessageUsageReservation(reservation, "计费失败退回预扣")
-		}
+	if err := h.recordAndApplySendMessageBilling(c.Request.Context(), middleware.MustUserID(c), conversation, req, result, authorization); err != nil {
 		handleSendMessageBillingError(c, err)
 		return
 	}
@@ -404,13 +449,12 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	if err = h.ensureBillingModelAccess(c, conversation, req); err != nil {
-		return
-	}
-	reservation, err := h.reserveSendMessageUsageBalance(c, conversation, req)
+	authorization, err := h.authorizeUsage(c, sendMessageBillingInput(middleware.MustUserID(c), conversation, req, nil))
 	if err != nil {
 		return
 	}
+	stopAuthorizationRenewal := h.startUsageAuthorizationRenewal(authorization)
+	defer stopAuthorizationRenewal()
 
 	c.Header("Content-Type", "application/x-ndjson; charset=utf-8")
 	c.Header("Cache-Control", "no-cache, no-transform")
@@ -460,7 +504,7 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 	if err != nil {
 		if result != nil {
 			if !result.Billable {
-				if releaseErr := h.releaseSendMessageUsageReservation(reservation, "模型调用失败退回预扣"); releaseErr != nil {
+				if releaseErr := h.releaseSendMessageUsageAuthorization(authorization); releaseErr != nil {
 					_ = flushStreamEvent(billingStreamErrorPayload(releaseErr))
 					h.service.FinishMessageGeneration(input.ClientRunID)
 					return
@@ -476,12 +520,9 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 				return
 			}
 			billingCtx, billingCancel := context.WithTimeout(context.Background(), 10*time.Second)
-			billingErr := h.recordAndApplySendMessageBilling(billingCtx, middleware.MustUserID(c), conversation, req, result, reservation)
+			billingErr := h.recordAndApplySendMessageBilling(billingCtx, middleware.MustUserID(c), conversation, req, result, authorization)
 			billingCancel()
 			if billingErr != nil {
-				if shouldReleaseReservationAfterBillingError(billingErr) {
-					_ = h.releaseSendMessageUsageReservation(reservation, "计费失败退回预扣")
-				}
 				payload := billingStreamErrorPayload(billingErr)
 				payload["data"] = toSendMessageResponse(result)
 				_ = flushStreamEvent(payload)
@@ -498,7 +539,7 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 			h.recordStreamSendMessageAuditAsync(c, conversation, req, result, "stream_message")
 			return
 		}
-		if releaseErr := h.releaseSendMessageUsageReservation(reservation, "模型调用失败退回预扣"); releaseErr != nil {
+		if releaseErr := h.releaseSendMessageUsageAuthorization(authorization); releaseErr != nil {
 			_ = flushStreamEvent(billingStreamErrorPayload(releaseErr))
 			h.service.FinishMessageGeneration(input.ClientRunID)
 			return
@@ -513,12 +554,9 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 	}
 
 	billingCtx, billingCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	billingErr := h.recordAndApplySendMessageBilling(billingCtx, middleware.MustUserID(c), conversation, req, result, reservation)
+	billingErr := h.recordAndApplySendMessageBilling(billingCtx, middleware.MustUserID(c), conversation, req, result, authorization)
 	billingCancel()
 	if billingErr != nil {
-		if shouldReleaseReservationAfterBillingError(billingErr) {
-			_ = h.releaseSendMessageUsageReservation(reservation, "计费失败退回预扣")
-		}
 		_ = flushStreamEvent(billingStreamErrorPayload(billingErr))
 		h.service.FinishMessageGeneration(input.ClientRunID)
 		return
@@ -661,27 +699,4 @@ func (h *Handler) ResumeMessageGenerationStream(c *gin.Context) {
 			}
 		}
 	}
-}
-
-func (h *Handler) ensureBillingModelAccess(c *gin.Context, conversation *model.Conversation, req *SendMessageRequest) error {
-	if err := h.service.EnsureSendMessageBillingAccess(
-		c.Request.Context(),
-		sendMessageBillingInput(middleware.MustUserID(c), conversation, req, nil),
-	); err != nil {
-		if errors.Is(err, billing.ErrPeriodCreditExceeded) {
-			response.Error(c, http.StatusPaymentRequired, "period usage credit exceeded")
-			return err
-		}
-		if errors.Is(err, billing.ErrModelPricingRequired) {
-			response.Error(c, http.StatusPaymentRequired, "model pricing is required")
-			return err
-		}
-		if errors.Is(err, billing.ErrUsageBalanceInsufficient) {
-			response.Error(c, http.StatusPaymentRequired, "usage balance is insufficient")
-			return err
-		}
-		response.Error(c, http.StatusInternalServerError, "billing access check failed")
-		return err
-	}
-	return nil
 }

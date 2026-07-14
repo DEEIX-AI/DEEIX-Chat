@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 
 import { SettingsSidebar } from "@/features/settings/components/settings-sidebar";
+import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
+import { brandAssets } from "@/shared/lib/branding";
 
 export function AppSettingsPanel({
   children,
@@ -19,6 +21,12 @@ export function AppSettingsPanel({
           </div>
         </main>
       </div>
+
+      {brandAssets.logo ? (
+        <div className="fixed bottom-4 right-4">
+          <PoweredByDeeix />
+        </div>
+      ) : null}
     </div>
   );
 }

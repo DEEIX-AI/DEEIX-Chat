@@ -1,32 +1,29 @@
-"use client"
+"use client";
 
-import { useTranslations } from "next-intl"
+import { useTranslations } from "next-intl";
 
-import { PanelLeft } from "@/components/animate-ui/icons/panel-left"
-import { PanelRight } from "@/components/animate-ui/icons/panel-right"
-import { useSidebar } from "@/components/ui/sidebar"
-import { SidebarMenu, SidebarMenuItem } from "@/components/ui/sidebar"
+import { PanelLeft } from "@/components/animate-ui/icons/panel-left";
+import { PanelRight } from "@/components/animate-ui/icons/panel-right";
+import { Button } from "@/components/ui/button";
+import { useSidebar } from "@/components/ui/sidebar";
+import { SidebarMenu, SidebarMenuItem } from "@/components/ui/sidebar";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { cn } from "@/lib/utils"
-import { AppLogo } from "@/shared/components/app-logo"
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+import { AppLogo } from "@/shared/components/app-logo";
 
 export function NavControl() {
-  const t = useTranslations("common.navigation")
-  const { toggleSidebar, state } = useSidebar()
-  const isCollapsed = state === "collapsed"
+  const t = useTranslations("common.navigation");
+  const { toggleSidebar, state } = useSidebar();
+  const isCollapsed = state === "collapsed";
 
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <div
-          className={cn(
-            "relative flex h-8 w-full items-center rounded-md text-sm",
-          )}
-        >
+        <div className="relative flex h-8 w-full items-center rounded-md text-sm">
           <span
             className={cn(
               "flex min-w-0 items-center overflow-hidden whitespace-nowrap pl-2 transition-[max-width,opacity,transform,padding-left] ease-linear",
@@ -45,15 +42,23 @@ export function NavControl() {
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={t("toggleSidebar")}
                 onClick={toggleSidebar}
                 className={cn(
-                  "flex size-8 shrink-0 items-center justify-center rounded-md transition-[colors,margin-left] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground outline-hidden ring-sidebar-ring focus-visible:ring-2",
+                  "shrink-0 text-sidebar-foreground transition-[background-color,color,margin-left] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-sidebar-ring/50 [&_svg]:pointer-events-auto",
                   isCollapsed ? "ml-0" : "ml-auto",
                 )}
               >
-                {(isCollapsed ? <PanelRight size={18} animateOnHover strokeWidth={1.4} /> : <PanelLeft size={18} animateOnHover strokeWidth={1.4} />)}
-              </button>
+                {isCollapsed ? (
+                  <PanelRight aria-hidden size={18} animateOnHover strokeWidth={1.4} />
+                ) : (
+                  <PanelLeft aria-hidden size={18} animateOnHover strokeWidth={1.4} />
+                )}
+              </Button>
             </TooltipTrigger>
             <TooltipContent side="right" hidden={!isCollapsed}>
               {t("toggleSidebar")}
@@ -62,5 +67,5 @@ export function NavControl() {
         </div>
       </SidebarMenuItem>
     </SidebarMenu>
-  )
+  );
 }

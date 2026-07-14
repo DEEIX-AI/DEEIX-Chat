@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/table";
 import { TablePagination, TableToolbar, type TableToolbarFilter } from "@/components/ui/table-tools";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { invalidateAdminReferenceDataCache } from "@/features/admin/api/reference-data";
 import { listAllAdminPages } from "@/features/admin/api/shared";
@@ -160,6 +161,7 @@ export function AdminGroupsPage() {
   const [createOpen, setCreateOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<PermissionGroup | null>(null);
   const [deleting, setDeleting] = React.useState<PermissionGroup | null>(null);
+  const stableDeleting = useDialogSnapshot(deleting);
   const [deletePending, setDeletePending] = React.useState(false);
 
   const fetchGroups = React.useCallback(async () => {
@@ -413,11 +415,11 @@ export function AdminGroupsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t("confirmDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleting
+              {stableDeleting
                 ? t("confirmDeleteWithImpact", {
-                    models: deleting.manualModelCount ?? 0,
-                    rules: deleting.ruleModelCount ?? 0,
-                    users: deleting.manualUserCount ?? 0,
+                    models: stableDeleting.manualModelCount ?? 0,
+                    rules: stableDeleting.ruleModelCount ?? 0,
+                    users: stableDeleting.manualUserCount ?? 0,
                   })
                 : null}
             </AlertDialogDescription>
@@ -586,35 +588,13 @@ function GroupEditSheet({
   const [userBulkLoading, setUserBulkLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [accessDialog, setAccessDialog] = React.useState<"models" | "users" | null>(null);
+  const stableGroup = useDialogSnapshot(group);
 
   React.useEffect(() => {
     if (!group) {
-      setModelIDs(new Set());
-      setModelRules([]);
-      setUserIDs(new Set());
       setSelectionLoading(false);
-      setSelectionLoaded(false);
-      setModelRows([]);
-      setModelTotal(0);
-      setModelPage(1);
-      setModelPageSizeState(GROUP_PICKER_PAGE_SIZE_DEFAULT);
-      setModelQuery("");
-      setModelUpstreamOptions([]);
-      setModelUpstreamFilter("");
-      setModelVendorFilter("");
-      setModelProtocolFilter("");
-      setModelReloadKey(0);
       setModelLoading(false);
       setModelBulkLoading(false);
-      setUserRows([]);
-      setUserTotal(0);
-      setUserPage(1);
-      setUserPageSizeState(GROUP_PICKER_PAGE_SIZE_DEFAULT);
-      setUserQuery("");
-      setUserSubscriptionFilter("");
-      setUserIdentityFilter("");
-      setUserIdentityProviderOptions([]);
-      setUserReloadKey(0);
       setUserLoading(false);
       setUserBulkLoading(false);
       setAccessDialog(null);
@@ -1032,9 +1012,9 @@ function GroupEditSheet({
     ],
   );
 
-  const isDefaultGroup = group?.isDefault ?? false;
-  const groupUserCount = group?.userCount ?? 0;
-  const subscriptionUserCount = group?.subscriptionUserCount ?? 0;
+  const isDefaultGroup = stableGroup?.isDefault ?? false;
+  const groupUserCount = stableGroup?.userCount ?? 0;
+  const subscriptionUserCount = stableGroup?.subscriptionUserCount ?? 0;
 
   return (
     <>

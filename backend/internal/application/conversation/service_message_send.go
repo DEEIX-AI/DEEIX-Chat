@@ -215,6 +215,8 @@ func (s *Service) sendMessageInternal(
 	var resolvedRoute *channel.ResolvedRoute
 	var filteredOptions map[string]interface{}
 	var totalServerSideToolUsage map[string]int64
+	var responsesBackgroundRouteConfig llm.RouteConfig
+	var responsesBackgroundRecovery openAIResponsesBackgroundRecoveryState
 	userContentEstimatedInputTokens := int64(0)
 	usageAccumulator := &messageUsageAccumulator{}
 	upstreamCallStarted := false
@@ -224,6 +226,13 @@ func (s *Service) sendMessageInternal(
 	runState.bind(&userMessage, &assistantMessage, &traceRecorder, &result, ctx)
 	defer func() {
 		if retErr != nil {
+			if errors.Is(retErr, ErrMessageGenerationCanceled) {
+				if usage, ok := s.recoverOpenAIResponsesBackgroundUsage(responsesBackgroundRouteConfig, responsesBackgroundRecovery); ok {
+					if delta := diffLLMUsage(usage, responsesBackgroundRecovery.ObservedUsage); delta != (llm.Usage{}) {
+						usageAccumulator.addObservedUsage(delta)
+					}
+				}
+			}
 			if retained := s.persistInterruptedMessageGeneration(ctx, persistInterruptedMessageGenerationInput{
 				SendInput:             input,
 				UserMessage:           userMessage,
@@ -403,9 +412,6 @@ func (s *Service) sendMessageInternal(
 			retErr = err
 			return nil, err
 		}
-	}
-	if !reuseUserMessage {
-		s.maybeGenerateConversationMetadataAsync(*conversation, *userMessage)
 	}
 	run.Endpoint = llm.DefaultEndpointForAdapter(route.Protocol)
 	run.ProviderProtocol = route.Protocol
@@ -728,6 +734,7 @@ func (s *Service) sendMessageInternal(
 		AttributionReferer:  attributionReferer,
 		AttributionTitle:    attributionTitle,
 	}
+	responsesBackgroundRouteConfig = routeConfig
 	filteredOptions = filterModelOptions(input.Options, route.Protocol, modelOptionPolicyConfig{
 		Mode:                  cfg.ModelOptionPolicyMode,
 		AllowedPathsJSON:      cfg.ModelOptionAllowedPaths,
@@ -740,6 +747,10 @@ func (s *Service) sendMessageInternal(
 		Messages:       llmMessages,
 		Tools:          toolRuntime.definitions,
 		Options:        filteredOptions,
+	}
+	if supportsOpenAIResponsesBackgroundMode(route) {
+		generateInput.ResponsesBackground = true
+		sendSpan.SetAttributes(attribute.Bool("conversation.responses_background", true))
 	}
 	fullLLMMessages := llmMessages
 	applyOpenAIResponsesInstructions(route, routeConfig.Endpoint, &generateInput)
@@ -838,6 +849,11 @@ func (s *Service) sendMessageInternal(
 		}
 		callPromptShape := summarizePromptShape(callPromptMode, currentInput.Messages, currentInput.Messages, currentInput.PreviousResponseID)
 		usageAccumulator.beginCall(currentInput)
+		if currentInput.ResponsesBackground {
+			responsesBackgroundRecovery = openAIResponsesBackgroundRecoveryState{Enabled: true}
+		} else {
+			responsesBackgroundRecovery = openAIResponsesBackgroundRecoveryState{}
+		}
 		generationCtx, generationSpan := platformtracing.Start(ctx, "conversation.llm.generate",
 			trace.WithAttributes(append([]attribute.KeyValue{
 				attribute.Int64("conversation.id", int64(input.ConversationID)),
@@ -846,6 +862,7 @@ func (s *Service) sendMessageInternal(
 				attribute.String("llm.endpoint", routeConfig.Endpoint),
 				attribute.Bool("llm.stream", streamRequested && streamSupported),
 				attribute.Bool("llm.tools_disabled", currentInput.DisableTools),
+				attribute.Bool("llm.responses_background", currentInput.ResponsesBackground),
 				attribute.Int("llm.message_count", len(currentInput.Messages)),
 				attribute.Int("llm.tool_count", len(currentInput.Tools)),
 			}, promptShapeTraceAttributes("llm.prompt", callPromptShape)...)...),
@@ -908,6 +925,11 @@ func (s *Service) sendMessageInternal(
 		callStreamUsage := llm.Usage{}
 		upstreamCallStarted = true
 		output, streamErr := s.llmClient.GenerateStream(generationCtx, routeConfig, currentInput, func(event llm.GenerateStreamEvent) error {
+			if currentInput.ResponsesBackground {
+				if responseID := strings.TrimSpace(event.ResponseID); responseID != "" {
+					responsesBackgroundRecovery.ResponseID = responseID
+				}
+			}
 			if s.isMessageGenerationCanceled(generationCtx, runID) {
 				return ErrMessageGenerationCanceled
 			}
@@ -916,11 +938,19 @@ func (s *Service) sendMessageInternal(
 				// 这里先换算成本次调用内增量，再累加成本轮消息总量，保证实时展示和最终账单口径一致。
 				usageDelta := diffLLMUsage(event.Usage, callStreamUsage)
 				callStreamUsage = event.Usage
+				if currentInput.ResponsesBackground {
+					responsesBackgroundRecovery.ObservedUsage = callStreamUsage
+				}
 				currentUsage := usageAccumulator.addObservedUsage(usageDelta)
 				if input.OnEvent != nil {
 					if err := emitLLMUsageEvent(input.OnEvent, currentUsage); err != nil {
 						return err
 					}
+				}
+			}
+			if event.GeneratedImage != nil {
+				if err := emitMediaImageDelta(input.OnEvent, event); err != nil {
+					return err
 				}
 			}
 			if traceRecorder != nil && event.Reasoning != nil && event.Reasoning.Text != "" {
@@ -1010,6 +1040,25 @@ func (s *Service) sendMessageInternal(
 	upstreamOutput, err = runGenerate(generateInput)
 	if handleCanceledGeneration(err) {
 		return nil, retErr
+	}
+	if err != nil && generateInput.ResponsesBackground &&
+		strings.TrimSpace(streamedText.String()) == "" &&
+		shouldRetryWithoutResponsesBackground(err) {
+		if s.logger != nil {
+			s.logger.Warn("openai_responses_background_rejected_retry_standard",
+				zap.String("trace_id", traceid.FromContext(ctx)),
+				zap.Uint("conversation_id", input.ConversationID),
+				zap.String("protocol", route.Protocol),
+				zap.String("upstream_name", route.UpstreamName),
+				zap.Error(err),
+			)
+		}
+		generateInput.ResponsesBackground = false
+		responsesBackgroundRecovery = openAIResponsesBackgroundRecoveryState{}
+		upstreamOutput, err = runGenerate(generateInput)
+		if handleCanceledGeneration(err) {
+			return nil, retErr
+		}
 	}
 	if err != nil && strings.TrimSpace(generateInput.PreviousResponseID) != "" &&
 		strings.TrimSpace(streamedText.String()) == "" &&
@@ -1208,7 +1257,7 @@ func (s *Service) sendMessageInternal(
 		retErr = ErrToolRunFinalAnswerMissing
 		return nil, retErr
 	}
-	if strings.TrimSpace(assistantText) == "" {
+	if strings.TrimSpace(assistantText) == "" && len(upstreamOutput.GeneratedImages) == 0 {
 		retErr = ErrUpstreamEmptyResponse
 		return nil, retErr
 	}
@@ -1285,6 +1334,7 @@ func (s *Service) sendMessageInternal(
 		AssistantMessage:          assistantMessage,
 		AssistantText:             assistantText,
 		AssistantReasoningContent: assistantReasoningContent,
+		GeneratedImages:           upstreamOutput.GeneratedImages,
 		InputTokens:               effectiveInputTokens,
 		CacheReadTokens:           totalUsage.CacheReadTokens,
 		CacheWriteTokens:          totalUsage.CacheWriteTokens,
@@ -1316,33 +1366,9 @@ func (s *Service) sendMessageInternal(
 		Messages:            compactMessages,
 		PromptTokenEstimate: estimatedPromptTokens,
 	}
+	var postBillingCompaction *postBillingCompactionTask
 	if !compactPolicy.EffectiveEnabled() {
 		// 用户已关闭自动压缩，仅完成 trace 记录
-		if traceRecorder != nil {
-			traceRecorder.complete()
-			traceRecorder.attachToMessage(assistantMessage)
-		}
-	} else if compactCfg.CompactAsyncEnabled {
-		// 异步压缩：移出响应关键路径，不阻塞流式返回
-		compactPlatformModelName := s.resolveTextTaskModel(ctx, compactCfg.CompactTaskModel, conversation.Model, input.UserID, input.ConversationID, strings.TrimSpace(input.RequestID))
-		compactInput.PlatformModelName = compactPlatformModelName
-		go func() {
-			asyncCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-			defer cancel()
-			asyncCtx = withBasicServiceBillingContext(asyncCtx, input.UserID, input.ConversationID)
-			if compactSnapshot, compactErr := s.compactSvc.MaybeCompactConversation(asyncCtx, compactInput); compactErr == nil && compactSnapshot != nil {
-				// 压缩后清空 LastResponseID：Responses API 有状态会话链已失效，需重传
-				s.invalidateSnapshotCache(input.ConversationID) // 新 Snapshot 已生成，失效缓存
-				_ = s.repo.UpdateConversationLastResponseID(asyncCtx, input.ConversationID, "")
-				s.persistSnapshotContextArtifact(asyncCtx, snapshotContextArtifactInput{
-					ConversationID: input.ConversationID,
-					UserID:         input.UserID,
-					MessageID:      assistantMessage.ID,
-					RunID:          runID,
-					Snapshot:       compactSnapshot,
-				})
-			}
-		}()
 		if traceRecorder != nil {
 			traceRecorder.complete()
 			traceRecorder.attachToMessage(assistantMessage)
@@ -1350,37 +1376,22 @@ func (s *Service) sendMessageInternal(
 	} else {
 		compactPlatformModelName := s.resolveTextTaskModel(ctx, compactCfg.CompactTaskModel, conversation.Model, input.UserID, input.ConversationID, strings.TrimSpace(input.RequestID))
 		compactInput.PlatformModelName = compactPlatformModelName
-		compactCtx := withBasicServiceBillingContext(ctx, input.UserID, input.ConversationID)
-		if snapshot, snapshotErr := s.compactSvc.MaybeCompactConversation(compactCtx, compactInput); snapshotErr == nil && snapshot != nil {
-			// 压缩后清空 LastResponseID：Responses API 有状态会话链已失效，需重传
-			s.invalidateSnapshotCache(input.ConversationID) // 新 Snapshot 已生成，失效缓存
-			_ = s.repo.UpdateConversationLastResponseID(compactCtx, input.ConversationID, "")
-			s.persistSnapshotContextArtifact(compactCtx, snapshotContextArtifactInput{
-				ConversationID: input.ConversationID,
-				UserID:         input.UserID,
-				MessageID:      assistantMessage.ID,
-				RunID:          runID,
-				Snapshot:       snapshot,
-			})
-			if traceRecorder != nil {
-				summary, markdown, payload := buildCompactionProcessTrace(snapshot)
-				traceRecorder.appendProcessSection(summary, markdown, payload, messageTraceStatusStreaming)
-			}
-			// 通知前端压缩完成（同步路径仍在 SSE 流中，可发送事件）
-			previewLen := len([]rune(snapshot.SummaryText))
-			if previewLen > 80 {
-				previewLen = 80
-			}
-			emitEvent(input.OnEvent, "compact_done", map[string]interface{}{
-				"method":          snapshot.Strategy,
-				"freed_tokens":    snapshot.SourceTokens - snapshot.SummaryTokens,
-				"kept_turns":      compactCfg.ContextCompactPreserve,
-				"summary_preview": string([]rune(snapshot.SummaryText)[:previewLen]),
-			})
+		postBillingCompaction = &postBillingCompactionTask{
+			Async:          compactCfg.CompactAsyncEnabled,
+			Input:          compactInput,
+			ConversationID: input.ConversationID,
+			UserID:         input.UserID,
+			MessageID:      assistantMessage.ID,
+			RunID:          runID,
+			PreserveTurns:  compactCfg.ContextCompactPreserve,
+			OnEvent:        input.OnEvent,
+			TraceRecorder:  traceRecorder,
 		}
-		if traceRecorder != nil {
+		if compactCfg.CompactAsyncEnabled && traceRecorder != nil {
 			traceRecorder.complete()
 			traceRecorder.attachToMessage(assistantMessage)
+			postBillingCompaction.TraceRecorder = nil
+			postBillingCompaction.OnEvent = nil
 		}
 	}
 
@@ -1396,24 +1407,25 @@ func (s *Service) sendMessageInternal(
 	}
 
 	return &SendMessageResult{
-		UserMessage:         *userMessage,
-		AssistantMessage:    *assistantMessage,
-		MetadataRefreshHint: conversationMetadataRefreshHint(*conversation, *userMessage),
-		Billable:            true,
-		UpstreamID:          run.UpstreamID,
-		UpstreamName:        run.UpstreamName,
-		PlatformModelName:   route.PlatformModelName,
-		RoutedBindingCode:   route.BindingCode,
-		UpstreamModelName:   route.UpstreamModel,
-		UpstreamProtocol:    route.Protocol,
-		EffectiveOptions:    filteredOptions,
-		UsageSpeed:          totalUsage.Speed,
-		UsageServiceTier:    totalUsage.ServiceTier,
-		RawUsageJSON:        totalUsage.RawUsageJSON,
-		CacheWrite5mTokens:  totalUsage.CacheWrite5mTokens,
-		CacheWrite1hTokens:  totalUsage.CacheWrite1hTokens,
-		ServerSideToolUsage: totalServerSideToolUsage,
-		LatencyMS:           time.Since(startedAt).Milliseconds(),
-		StartedAt:           startedAt,
+		UserMessage:           *userMessage,
+		AssistantMessage:      *assistantMessage,
+		MetadataRefreshHint:   conversationMetadataRefreshHint(*conversation, *userMessage),
+		Billable:              true,
+		UpstreamID:            run.UpstreamID,
+		UpstreamName:          run.UpstreamName,
+		PlatformModelName:     route.PlatformModelName,
+		RoutedBindingCode:     route.BindingCode,
+		UpstreamModelName:     route.UpstreamModel,
+		UpstreamProtocol:      route.Protocol,
+		EffectiveOptions:      filteredOptions,
+		UsageSpeed:            totalUsage.Speed,
+		UsageServiceTier:      totalUsage.ServiceTier,
+		RawUsageJSON:          totalUsage.RawUsageJSON,
+		CacheWrite5mTokens:    totalUsage.CacheWrite5mTokens,
+		CacheWrite1hTokens:    totalUsage.CacheWrite1hTokens,
+		ServerSideToolUsage:   totalServerSideToolUsage,
+		LatencyMS:             time.Since(startedAt).Milliseconds(),
+		StartedAt:             startedAt,
+		postBillingCompaction: postBillingCompaction,
 	}, nil
 }

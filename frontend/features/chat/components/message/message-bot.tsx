@@ -33,7 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { isUpstreamStreamingDebugBody, summarizeUpstreamError } from "@/features/chat/utils/chat-runtime";
 import { fetchFileContent, type FileContentResult } from "@/shared/api/file";
-import type { PreviewDialogFile } from "@/shared/components/file-preview/file-preview-dialog";
+import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { resolveLeadingImagePreview } from "@/features/chat/model/media-image-preview";
@@ -43,6 +43,7 @@ import {
   useLiveUpstreamThinkTrace,
 } from "@/features/chat/model/upstream-think-store";
 import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
+import { brandText } from "@/shared/lib/branding";
 
 const EMPTY_TRACE_EVENTS: NonNullable<ChatAreaMessage["processTrace"]>["events"] = [];
 
@@ -124,7 +125,7 @@ function resolveEditableImageAttachment(
 
 type ChatMessageBotProps = {
   item: ChatAreaMessage;
-  busy: boolean;
+  busy?: boolean;
   reaction: AssistantReaction;
   onRetryAssistantMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onContinueAssistantMessage?: (message: ChatAreaMessage) => Promise<void> | void;
@@ -151,7 +152,7 @@ type ChatMessageBotProps = {
 
 export function ChatMessageBot({
   item,
-  busy,
+  busy = false,
   reaction,
   onRetryAssistantMessage,
   onContinueAssistantMessage,
@@ -624,7 +625,7 @@ export function AssistantImageGenerationSkeleton({
         />
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <span className="select-none text-[clamp(1.75rem,7vw,4rem)] font-semibold tracking-[0.18em] text-white/30 mix-blend-overlay drop-shadow-sm">
-            DEEIX
+            {brandText.shortName}
           </span>
         </div>
       </div>
@@ -656,7 +657,7 @@ export function AssistantVideoGenerationSkeleton({ label }: { label?: string }) 
           <div className="flex flex-col items-center gap-5 text-white/30 mix-blend-overlay drop-shadow-sm">
             <Film className="size-14" strokeWidth={1.4} />
             <span className="select-none text-[clamp(1.75rem,7vw,4rem)] font-semibold tracking-[0.18em]">
-              DEEIX
+              {brandText.shortName}
             </span>
           </div>
         </div>

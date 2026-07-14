@@ -110,6 +110,7 @@ export function useFilesPage(): UseFilesPageResult {
   const totalRef = React.useRef(0);
   const isMountedRef = React.useRef(false);
   const loadRequestSeqRef = React.useRef(0);
+  const hasLoadedOnceRef = React.useRef(false);
 
   const [files, setFiles] = React.useState<FileObjectDTO[]>([]);
   const [total, setTotal] = React.useState(0);
@@ -199,13 +200,14 @@ export function useFilesPage(): UseFilesPageResult {
         setLoading(false);
         setLoadingMore(false);
         setSyncing(false);
+        hasLoadedOnceRef.current = true;
         toast.error(t("toasts.sessionExpired"), { description: t("toasts.viewAfterLogin") });
         return;
       }
 
       if (options.append) {
         setLoadingMore(true);
-      } else if (options.silent) {
+      } else if (options.silent || hasLoadedOnceRef.current) {
         if (!options.background) {
           setSyncing(true);
         }
@@ -226,9 +228,11 @@ export function useFilesPage(): UseFilesPageResult {
         }
 
         const currentFiles = filesRef.current;
-        let nextItems = options.append
-          ? [...currentFiles, ...data.results.filter((item) => !currentFiles.some((current) => current.fileID === item.fileID))]
-          : data.results;
+        let nextItems = data.results;
+        if (options.append) {
+          const currentFileIDs = new Set(currentFiles.map((item) => item.fileID));
+          nextItems = [...currentFiles, ...data.results.filter((item) => !currentFileIDs.has(item.fileID))];
+        }
         const explicitPreferredFileID = options.preferredFileID?.trim() || "";
         if (options.ensurePreferred && explicitPreferredFileID && !nextItems.some((item) => item.fileID === explicitPreferredFileID)) {
           const preferredData = await listFiles(token, {
@@ -271,6 +275,7 @@ export function useFilesPage(): UseFilesPageResult {
         if (!isMountedRef.current || !isLatestRequest()) {
           return;
         }
+        hasLoadedOnceRef.current = true;
         setLoading(false);
         setLoadingMore(false);
         setSyncing(false);
@@ -372,6 +377,7 @@ export function useFilesPage(): UseFilesPageResult {
           const reusedCount = successResults.filter((item) => item.reused).length;
           const uploadedCount = successResults.length - reusedCount;
           const currentFileIDs = new Set(filesRef.current.map((item) => item.fileID));
+          const normalizedQuery = debouncedQuery.toLowerCase();
           const seenUploadedFileIDs = new Set<string>();
           const nextUploadedFiles = successResults
             .map((item) => item.file)
@@ -380,7 +386,7 @@ export function useFilesPage(): UseFilesPageResult {
                 return false;
               }
               seenUploadedFileIDs.add(item.fileID);
-              if (debouncedQuery && !item.fileName.toLowerCase().includes(debouncedQuery.toLowerCase())) {
+              if (normalizedQuery && !item.fileName.toLowerCase().includes(normalizedQuery)) {
                 return false;
               }
               return filterKeys.length === 0 || filterKeys.includes(resolveFileFilter(item) as FileFilterValue);
@@ -495,7 +501,8 @@ export function useFilesPage(): UseFilesPageResult {
   }, [bulkDeleting]);
 
   const onConfirmBulkDelete = React.useCallback(async () => {
-    const fileIDs = selectedFileIDs.filter((fileID) => filesRef.current.some((item) => item.fileID === fileID));
+    const visibleFileIDs = new Set(filesRef.current.map((item) => item.fileID));
+    const fileIDs = selectedFileIDs.filter((fileID) => visibleFileIDs.has(fileID));
     if (fileIDs.length === 0) {
       setBulkDeleteOpen(false);
       return;
@@ -533,10 +540,11 @@ export function useFilesPage(): UseFilesPageResult {
     setSelectedFileIDs([]);
     setBulkDeleteOpen(false);
     setBulkDeleting(false);
-    if (fileIDs.includes(selectedFileID ?? "")) {
+    const selectedFileDeleted = selectedFileID ? fileIDs.includes(selectedFileID) : false;
+    if (selectedFileDeleted) {
       setSelectedFileID(null);
     }
-    await loadFiles({ preferredFileID: fileIDs.includes(selectedFileID ?? "") ? null : selectedFileID, silent: true, background: true });
+    await loadFiles({ preferredFileID: selectedFileDeleted ? null : selectedFileID, silent: true, background: true });
 
     if (failedCount > 0) {
       toast.error(t("toasts.bulkDeletePartialFailed"), {

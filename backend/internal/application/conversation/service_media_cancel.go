@@ -27,6 +27,68 @@ type canceledMediaGenerationInput struct {
 	MetadataRefreshHint string
 }
 
+// failedMediaBillingResultInput 描述媒体上游成功后本地处理失败时需要保留的计费信息。
+type failedMediaBillingResultInput struct {
+	UserMessage      *model.Message
+	AssistantMessage *model.Message
+	Route            channel.ResolvedRoute
+	EffectiveOptions map[string]interface{}
+	Usage            llm.Usage
+	StartedAt        time.Time
+	DurationSeconds  int64
+	Failure          error
+}
+
+// buildFailedMediaBillingResult 保留上游成功后发生本地处理错误时的真实计费上下文。
+func buildFailedMediaBillingResult(input failedMediaBillingResultInput) *SendMessageResult {
+	if input.UserMessage == nil || input.AssistantMessage == nil {
+		return nil
+	}
+	userMessage := *input.UserMessage
+	assistantMessage := *input.AssistantMessage
+	if assistantMessage.SourceMessageID != nil {
+		assistantMessage.InputTokens = input.Usage.InputTokens
+		assistantMessage.CacheReadTokens = input.Usage.CacheReadTokens
+		assistantMessage.CacheWriteTokens = input.Usage.CacheWriteTokens
+	} else {
+		userMessage.InputTokens = input.Usage.InputTokens
+		userMessage.CacheReadTokens = input.Usage.CacheReadTokens
+		userMessage.CacheWriteTokens = input.Usage.CacheWriteTokens
+		userMessage.TokenUsage = input.Usage.InputTokens + input.Usage.CacheReadTokens + input.Usage.CacheWriteTokens
+	}
+	assistantMessage.OutputTokens = input.Usage.OutputTokens
+	assistantMessage.ReasoningTokens = input.Usage.ReasoningTokens
+	assistantMessage.TokenUsage = assistantMessage.InputTokens + assistantMessage.CacheReadTokens + assistantMessage.CacheWriteTokens + assistantMessage.OutputTokens + assistantMessage.ReasoningTokens
+	assistantMessage.LatencyMS = time.Since(input.StartedAt).Milliseconds()
+	if assistantMessage.LatencyMS < 0 {
+		assistantMessage.LatencyMS = 0
+	}
+	assistantMessage.Status = "error"
+	assistantMessage.ErrorCode = classifyRunErrorCode(input.Failure)
+	assistantMessage.ErrorMessage = truncateError(messageErrorSummary(input.Failure), 255)
+
+	return &SendMessageResult{
+		UserMessage:        userMessage,
+		AssistantMessage:   assistantMessage,
+		Billable:           true,
+		UpstreamID:         input.Route.UpstreamID,
+		UpstreamName:       input.Route.UpstreamName,
+		PlatformModelName:  input.Route.PlatformModelName,
+		RoutedBindingCode:  input.Route.BindingCode,
+		UpstreamModelName:  input.Route.UpstreamModel,
+		UpstreamProtocol:   input.Route.Protocol,
+		EffectiveOptions:   input.EffectiveOptions,
+		UsageSpeed:         input.Usage.Speed,
+		UsageServiceTier:   input.Usage.ServiceTier,
+		RawUsageJSON:       input.Usage.RawUsageJSON,
+		CacheWrite5mTokens: input.Usage.CacheWrite5mTokens,
+		CacheWrite1hTokens: input.Usage.CacheWrite1hTokens,
+		LatencyMS:          assistantMessage.LatencyMS,
+		DurationSeconds:    input.DurationSeconds,
+		StartedAt:          input.StartedAt,
+	}
+}
+
 func (s *Service) completeCanceledMediaGeneration(input canceledMediaGenerationInput) (*SendMessageResult, error) {
 	if input.Context == nil || input.UserMessage == nil || input.AssistantMessage == nil {
 		return nil, ErrMessageGenerationCanceled
@@ -114,7 +176,8 @@ func (s *Service) isCanceledMediaGeneration(ctx context.Context, runID string, e
 		isMessageGenerationCanceledError(err)
 }
 
-func applyCanceledMediaRunUsage(run *model.Run, result *SendMessageResult) {
+// applyMediaRunUsage 将可计费媒体结果同步到运行日志。
+func applyMediaRunUsage(run *model.Run, result *SendMessageResult) {
 	if run == nil || result == nil {
 		return
 	}

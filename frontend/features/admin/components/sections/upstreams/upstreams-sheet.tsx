@@ -58,6 +58,7 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { RotateCcw, Trash2 } from "lucide-react";
 import { COMPATIBLE_OPTIONS, resolveProtocolLabel } from "@/features/admin/utils/llm-display";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 
@@ -314,6 +315,7 @@ export function UpstreamSheet({
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
   const [pendingDeleteAPIKeyIDs, setPendingDeleteAPIKeyIDs] = useState<Set<string>>(() => new Set());
   const [deleteAPIKeyTarget, setDeleteAPIKeyTarget] = useState<MaskedAPIKeyItem | null>(null);
+  const stableDeleteAPIKeyTarget = useDialogSnapshot(deleteAPIKeyTarget);
 
   useEffect(() => {
     if (open) {
@@ -848,7 +850,7 @@ export function UpstreamSheet({
               <AlertDialogTitle>{t("sheet.apiKeyDeleteTitle")}</AlertDialogTitle>
               <AlertDialogDescription>
                 {t("sheet.apiKeyDeleteDescription", {
-                  key: deleteAPIKeyTarget?.keyMasked ?? "",
+                  key: stableDeleteAPIKeyTarget?.keyMasked ?? "",
                 })}
               </AlertDialogDescription>
             </AlertDialogHeader>

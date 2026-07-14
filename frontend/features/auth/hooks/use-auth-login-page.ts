@@ -155,10 +155,6 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
   }, []);
 
   React.useEffect(() => {
-    document.title = settings.title?.trim() || t("title");
-  }, [settings.title, t]);
-
-  React.useEffect(() => {
     if (mode === "login" && !passwordLoginEnabled && loginProviders.length === 0 && canShowRegister) {
       setMode("register");
     } else if (mode === "register" && !canShowRegister) {

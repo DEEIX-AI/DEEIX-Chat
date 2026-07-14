@@ -40,6 +40,7 @@ import {
 import { CopyActionButton, useCopyAction } from "@/shared/components/copy-action";
 import { mergeBatchResultData, runBulkActionInChunks } from "@/shared/lib/bulk-action";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { cn } from "@/lib/utils";
 
 type BillingRedemptionSectionProps = {
@@ -150,9 +151,11 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
   const [redemptionPageSize, setRedemptionPageSize] = React.useState(DEFAULT_PAGE_SIZE);
   const [redemptionTotal, setRedemptionTotal] = React.useState(0);
   const [redemptionForm, setRedemptionForm] = React.useState<RedemptionFormState | null>(null);
+  const redemptionDialogForm = useDialogSnapshot(redemptionForm);
   const [redemptionSaving, setRedemptionSaving] = React.useState(false);
   const [selectedRedemptionIDs, setSelectedRedemptionIDs] = React.useState<Set<number>>(new Set());
   const [redemptionBulkAction, setRedemptionBulkAction] = React.useState<RedemptionBulkAction | null>(null);
+  const stableRedemptionBulkAction = useDialogSnapshot(redemptionBulkAction);
   const [redemptionBulkPending, setRedemptionBulkPending] = React.useState(false);
   const [redemptionDeleteTarget, setRedemptionDeleteTarget] = React.useState<AdminRedemptionCodeDTO | null>(null);
   const [createdRedemptionCodes, setCreatedRedemptionCodes] = React.useState<string[]>([]);
@@ -1002,24 +1005,24 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
           }
         }}
       >
-        {redemptionForm ? (
+        {redemptionDialogForm ? (
           <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0">
             <DialogHeader className="shrink-0 px-4 py-4">
-              <DialogTitle>{redemptionForm.id ? t("redemption.editTitle") : t("redemption.createTitle")}</DialogTitle>
+              <DialogTitle>{redemptionDialogForm.id ? t("redemption.editTitle") : t("redemption.createTitle")}</DialogTitle>
               <DialogDescription>
-                {redemptionForm.id ? t("redemption.editDescription") : t("redemption.createDescription")}
+                {redemptionDialogForm.id ? t("redemption.editDescription") : t("redemption.createDescription")}
               </DialogDescription>
             </DialogHeader>
 
             <motion.form layout transition={DIALOG_LAYOUT_TRANSITION} onSubmit={(event) => void saveRedemptionCode(event)} className="flex min-h-0 flex-1 flex-col">
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
-                {!redemptionForm.id ? (
+                {!redemptionDialogForm.id ? (
                   <div className="grid grid-cols-2 gap-5">
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">{t("redemption.code")}</p>
                       <Input
                         id="redemption-code"
-                        value={redemptionForm.code}
+                        value={redemptionDialogForm.code}
                         placeholder={t("redemption.codePlaceholder")}
                         disabled={redemptionSaving}
                         onChange={(event) => setRedemptionForm((current) => current ? { ...current, code: event.target.value } : current)}
@@ -1032,20 +1035,20 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
                         type="number"
                         min={1}
                         max={100}
-                        value={redemptionForm.quantity}
-                        disabled={redemptionSaving || Boolean(redemptionForm.code.trim())}
+                        value={redemptionDialogForm.quantity}
+                        disabled={redemptionSaving || Boolean(redemptionDialogForm.code.trim())}
                         onChange={(event) => setRedemptionForm((current) => current ? { ...current, quantity: event.target.value } : current)}
                       />
                     </div>
                   </div>
                 ) : null}
 
-                <div className={cn("grid gap-5", redemptionForm.id && "grid-cols-2")}>
+                <div className={cn("grid gap-5", redemptionDialogForm.id && "grid-cols-2")}>
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">{t("redemption.mode")}</p>
                     <Select
-                      value={redemptionForm.mode}
-                      disabled={redemptionSaving || Boolean(redemptionForm.id)}
+                      value={redemptionDialogForm.mode}
+                      disabled={redemptionSaving || Boolean(redemptionDialogForm.id)}
                       onValueChange={(value) => {
                         const mode = value === "period" ? "period" : "usage";
                         setRedemptionForm((current) => current ? {
@@ -1065,23 +1068,23 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
                     </Select>
                   </div>
 
-                  {redemptionForm.id ? (
+                  {redemptionDialogForm.id ? (
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">{t("redemption.status")}</p>
                       <div className="flex h-8 items-center px-1">
                         <Switch
                           size="sm"
-                          checked={redemptionForm.status === "active"}
+                          checked={redemptionDialogForm.status === "active"}
                           disabled={redemptionSaving}
                           onCheckedChange={(checked) => setRedemptionForm((current) => current ? { ...current, status: checked ? "active" : "inactive" } : current)}
-                          aria-label={redemptionForm.status === "active" ? t("redemption.disable") : t("redemption.enable")}
+                          aria-label={redemptionDialogForm.status === "active" ? t("redemption.disable") : t("redemption.enable")}
                         />
                       </div>
                     </div>
                   ) : null}
                 </div>
 
-                {redemptionForm.mode === "usage" ? (
+                {redemptionDialogForm.mode === "usage" ? (
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">{t("redemption.creditUSD")}</p>
                     <Input
@@ -1089,8 +1092,8 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
                       type="number"
                       min="0"
                       step="0.01"
-                      value={redemptionForm.creditUSD}
-                      disabled={redemptionSaving || Boolean(redemptionForm.id)}
+                      value={redemptionDialogForm.creditUSD}
+                      disabled={redemptionSaving || Boolean(redemptionDialogForm.id)}
                       onChange={(event) => setRedemptionForm((current) => current ? { ...current, creditUSD: event.target.value } : current)}
                     />
                   </div>
@@ -1099,8 +1102,8 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">{t("redemption.plan")}</p>
                       <Select
-                        value={redemptionForm.planID}
-                        disabled={redemptionSaving || Boolean(redemptionForm.id) || activePlanOptions.length === 0}
+                        value={redemptionDialogForm.planID}
+                        disabled={redemptionSaving || Boolean(redemptionDialogForm.id) || activePlanOptions.length === 0}
                         onValueChange={(value) => setRedemptionForm((current) => current ? { ...current, planID: value } : current)}
                       >
                         <SelectTrigger>
@@ -1119,8 +1122,8 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
                         id="redemption-duration"
                         type="number"
                         min={1}
-                        value={redemptionForm.durationDays}
-                        disabled={redemptionSaving || Boolean(redemptionForm.id)}
+                        value={redemptionDialogForm.durationDays}
+                        disabled={redemptionSaving || Boolean(redemptionDialogForm.id)}
                         onChange={(event) => setRedemptionForm((current) => current ? { ...current, durationDays: event.target.value } : current)}
                       />
                     </div>
@@ -1134,7 +1137,7 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
                       id="redemption-max"
                       type="number"
                       min={1}
-                      value={redemptionForm.maxRedemptions}
+                      value={redemptionDialogForm.maxRedemptions}
                       placeholder={t("redemption.unlimited")}
                       disabled={redemptionSaving}
                       onChange={(event) => setRedemptionForm((current) => current ? { ...current, maxRedemptions: event.target.value } : current)}
@@ -1146,8 +1149,8 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
                       id="redemption-per-user"
                       type="number"
                       min={1}
-                      max={redemptionForm.maxRedemptions.trim() || undefined}
-                      value={redemptionForm.perUserLimit}
+                      max={redemptionDialogForm.maxRedemptions.trim() || undefined}
+                      value={redemptionDialogForm.perUserLimit}
                       disabled={redemptionSaving}
                       onChange={(event) => setRedemptionForm((current) => current ? { ...current, perUserLimit: event.target.value } : current)}
                     />
@@ -1155,7 +1158,7 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
                 </div>
 
                 <AdminDateTimePicker
-                  value={redemptionForm.expiresAt}
+                  value={redemptionDialogForm.expiresAt}
                   disabled={redemptionSaving}
                   label={t("redemption.expiresAt")}
                   placeholder={t("redemption.never")}
@@ -1166,7 +1169,7 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
                   <p className="text-xs text-muted-foreground">{t("redemption.description")}</p>
                   <Textarea
                     id="redemption-description"
-                    value={redemptionForm.description}
+                    value={redemptionDialogForm.description}
                     className="h-20 resize-none"
                     disabled={redemptionSaving}
                     onChange={(event) => setRedemptionForm((current) => current ? { ...current, description: event.target.value } : current)}
@@ -1248,9 +1251,9 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
           if (!open && !redemptionBulkPending) setRedemptionBulkAction(null);
         }}
         pending={redemptionBulkPending}
-        title={redemptionBulkConfirmTitle(redemptionBulkAction)}
+        title={redemptionBulkConfirmTitle(stableRedemptionBulkAction)}
         description={t("redemption.bulkConfirmDescription", { count: selectedRedemptionIDs.size })}
-        confirmLabel={redemptionBulkConfirmLabel(redemptionBulkAction)}
+        confirmLabel={redemptionBulkConfirmLabel(stableRedemptionBulkAction)}
         pendingLabel={t("redemption.bulkPending")}
         onConfirm={confirmRedemptionBulkAction}
       />

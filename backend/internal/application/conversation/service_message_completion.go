@@ -21,6 +21,7 @@ type persistMessageGenerationInput struct {
 	AssistantMessage          *model.Message
 	AssistantText             string
 	AssistantReasoningContent string
+	GeneratedImages           []llm.GeneratedImage
 	InputTokens               int64
 	CacheReadTokens           int64
 	CacheWriteTokens          int64
@@ -152,17 +153,37 @@ func assistantCompletionCacheWriteTokens(input persistMessageGenerationInput) in
 	return 0
 }
 
+// persistAssistantImagePayloadIfPresent 保存结构化图片或兼容旧文本图片载荷。
 func (s *Service) persistAssistantImagePayloadIfPresent(ctx context.Context, input persistMessageGenerationInput) (bool, error) {
-	normalized, err := s.normalizeAssistantImageContent(
-		ctx,
-		input.SendInput.UserID,
-		input.SendInput.ConversationID,
-		input.AssistantMessage.ID,
-		successfulMessageGenerationModelName(input),
-		input.AssistantText,
-	)
+	var normalized *assistantImageContentNormalization
+	var err error
+	if len(input.GeneratedImages) > 0 {
+		normalized, err = s.normalizeAssistantGeneratedImages(
+			ctx,
+			input.SendInput.UserID,
+			input.SendInput.ConversationID,
+			input.AssistantMessage.ID,
+			successfulMessageGenerationModelName(input),
+			input.GeneratedImages,
+		)
+	} else {
+		normalized, err = s.normalizeAssistantImageContent(
+			ctx,
+			input.SendInput.UserID,
+			input.SendInput.ConversationID,
+			input.AssistantMessage.ID,
+			successfulMessageGenerationModelName(input),
+			input.AssistantText,
+		)
+	}
 	if err != nil || normalized == nil {
 		return false, err
+	}
+	contentType := "image"
+	content := normalized.Content
+	if len(input.GeneratedImages) > 0 && strings.TrimSpace(input.AssistantText) != "" {
+		contentType = "mixed"
+		content = strings.TrimSpace(input.AssistantText) + "\n\n" + normalized.Content
 	}
 
 	if input.ReuseUserMessage {
@@ -170,8 +191,9 @@ func (s *Service) persistAssistantImagePayloadIfPresent(ctx context.Context, inp
 			ctx,
 			input.AssistantMessage.ID,
 			repository.AssistantMessageCompletionUpdate{
-				ContentType:      "image",
-				Content:          normalized.Content,
+				ContentType:      contentType,
+				Content:          content,
+				ReasoningContent: input.AssistantReasoningContent,
 				InputTokens:      input.InputTokens,
 				OutputTokens:     input.OutputTokens,
 				CacheReadTokens:  input.CacheReadTokens,
@@ -195,12 +217,13 @@ func (s *Service) persistAssistantImagePayloadIfPresent(ctx context.Context, inp
 			},
 			input.AssistantMessage.ID,
 			repository.AssistantMessageCompletionUpdate{
-				ContentType:     "image",
-				Content:         normalized.Content,
-				OutputTokens:    input.OutputTokens,
-				ReasoningTokens: input.ReasoningTokens,
-				LatencyMS:       input.AssistantLatency,
-				Status:          "success",
+				ContentType:      contentType,
+				Content:          content,
+				ReasoningContent: input.AssistantReasoningContent,
+				OutputTokens:     input.OutputTokens,
+				ReasoningTokens:  input.ReasoningTokens,
+				LatencyMS:        input.AssistantLatency,
+				Status:           "success",
 			},
 			normalized.AttachmentRows,
 		); err != nil {
@@ -208,8 +231,9 @@ func (s *Service) persistAssistantImagePayloadIfPresent(ctx context.Context, inp
 		}
 	}
 
-	input.AssistantMessage.ContentType = "image"
-	input.AssistantMessage.Content = normalized.Content
+	input.AssistantMessage.ContentType = contentType
+	input.AssistantMessage.Content = content
+	input.AssistantMessage.ReasoningContent = input.AssistantReasoningContent
 	if input.ReuseUserMessage {
 		input.AssistantMessage.InputTokens = input.InputTokens
 		input.AssistantMessage.CacheReadTokens = input.CacheReadTokens
@@ -248,7 +272,10 @@ func (s *Service) finishSuccessfulMessageGeneration(ctx context.Context, input p
 		return err
 	}
 
-	s.updateStatefulResponseAsync(input.SendInput.ConversationID, input.ResponseID, input.StatefulPromptFingerprint)
+	// 非默认分支不代表会话主链，不能覆盖后续默认消息使用的 Responses 状态。
+	if normalizeBranchReason(input.SendInput.BranchReason) == "default" {
+		s.updateStatefulResponseAsync(input.SendInput.ConversationID, input.ResponseID, input.StatefulPromptFingerprint)
+	}
 	if input.ReuseUserMessage {
 		s.embedMessagePairAsync(input.SendInput, nil, input.AssistantMessage)
 	} else {

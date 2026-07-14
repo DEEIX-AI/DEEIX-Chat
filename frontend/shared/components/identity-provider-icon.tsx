@@ -17,7 +17,10 @@ function resolveCustomIdentityProviderLogoURL(logoURL: string | undefined, slug:
   if (/^https?:\/\//i.test(trimmed)) {
     return `/api/v1/auth/providers/${encodeURIComponent(slug)}/logo`;
   }
-  return trimmed;
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//") && !trimmed.includes("\\")) {
+    return trimmed;
+  }
+  return "";
 }
 
 export function IdentityProviderIcon({

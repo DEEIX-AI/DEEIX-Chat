@@ -34,7 +34,16 @@ export function groupConversationsByTime(
   const sevenDaysAgo = new Date(todayStart);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  const buckets = new Map<string, { key: string; label: string; showLabel: boolean; items: ConversationDTO[]; order: number }>();
+  const buckets = new Map<
+    string,
+    {
+      key: string;
+      label: string;
+      showLabel: boolean;
+      items: ConversationDTO[];
+      order: number;
+    }
+  >();
 
   for (const item of items) {
     const updatedAt = new Date(item.updatedAt);

@@ -17,7 +17,7 @@
   "finishing": "Finishing",
   "ready": "Ready",
   "aria": {
-    "onboarding": "DEEIX Chat onboarding",
+    "onboarding": "Onboarding",
     "welcomeNavigation": "Welcome step navigation",
     "accountNavigation": "Account setup navigation",
     "twoFactorNavigation": "Two-factor setup navigation",
@@ -36,7 +36,7 @@
   "adminTwoFactorTitle": "Protect admin account",
   "userTwoFactorTitle": "Set up 2FA",
   "themePresetDescription": "Choose an interface theme. You can change it later in settings.",
-  "personalizationTitle": "Personalize DEEIX Chat",
+  "personalizationTitle": "Personalization",
   "personalizationDescription": "Confirm your regional timezone and color mode.",
   "bootstrapReadyDescription": "Use the new administrator credentials to sign in again.",
   "adminReadyDescription": "You can now enter the admin console.",

@@ -80,6 +80,8 @@
   "billing": {
     "insufficientBalance": "Insufficient balance.",
     "insufficientFunds": "Insufficient balance.",
+    "concurrencyLimitExceeded": "Up to 5 paid requests can run at the same time.",
+    "reservationConflict": "This request has already been submitted.",
     "invalidPlan": "Invalid billing plan.",
     "planNotFound": "Billing plan not found.",
     "invalidPermissionGroup": "Invalid permission group.",

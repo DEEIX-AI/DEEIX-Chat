@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { SpinnerLabel } from "@/components/ui/spinner";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import {
   billingDisplayAmountToUSD,
   billingDisplayInputSymbol,
@@ -184,6 +185,7 @@ export function RedemptionDialog({
   onSubmit,
 }: RedemptionDialogProps) {
   const t = useTranslations("settings.subscriptionPage");
+  const stableCode = useDialogSnapshot(open ? code : null) ?? "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -195,7 +197,7 @@ export function RedemptionDialog({
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground">{t("redemption.code")}</p>
           <Input
-            value={code}
+            value={stableCode}
             autoComplete="off"
             className="font-mono"
             disabled={billingLoading || redemptionLoading}

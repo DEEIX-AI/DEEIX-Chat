@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/sqlite"
@@ -15,6 +17,79 @@ import (
 func TestTranslateErrorAllowsNil(t *testing.T) {
 	if err := translateError(nil); err != nil {
 		t.Fatalf("translateError(nil) = %v, want nil", err)
+	}
+}
+
+func TestListConversationEventLogsHydratesRunRouteSnapshot(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	now := time.Now()
+
+	run := model.ConversationRun{
+		RunID:             "run_with_route",
+		UserID:            1,
+		ConversationID:    2,
+		ProviderProtocol:  "openai_responses",
+		UpstreamName:      "OpenAI Official",
+		PlatformModelName: "gpt-5.5",
+		RoutedBindingCode: "binding_openai",
+		UpstreamModelName: "gpt-5.5-pro",
+		Status:            "error",
+		StartedAt:         now,
+	}
+	if err := db.Create(&run).Error; err != nil {
+		t.Fatalf("create conversation run: %v", err)
+	}
+
+	events := []model.ChatRunEvent{
+		{
+			ConversationID: 2,
+			UserID:         1,
+			RunID:          run.RunID,
+			EventScope:     "trace_event",
+			EventID:        "event_with_route",
+			EventType:      "error",
+			Status:         "error",
+			StartedAt:      now,
+		},
+		{
+			ConversationID: 2,
+			UserID:         1,
+			RunID:          "run_before_route",
+			EventScope:     "trace_event",
+			EventID:        "event_without_route",
+			EventType:      "error",
+			Status:         "error",
+			StartedAt:      now,
+		},
+	}
+	if err := db.Create(&events).Error; err != nil {
+		t.Fatalf("create conversation events: %v", err)
+	}
+
+	items, total, err := repo.ListConversationEventLogs(ctx, repository.ConversationEventLogListFilter{}, 0, 10)
+	if err != nil {
+		t.Fatalf("ListConversationEventLogs() error = %v", err)
+	}
+	if total != 2 || len(items) != 2 {
+		t.Fatalf("got total=%d len=%d, want 2", total, len(items))
+	}
+	itemsByRunID := make(map[string]domainconversation.EventLog, len(items))
+	for _, item := range items {
+		itemsByRunID[item.RunID] = item
+	}
+	withRoute := itemsByRunID[run.RunID]
+	if withRoute.UpstreamName != run.UpstreamName ||
+		withRoute.ProviderProtocol != run.ProviderProtocol ||
+		withRoute.PlatformModelName != run.PlatformModelName ||
+		withRoute.RoutedBindingCode != run.RoutedBindingCode ||
+		withRoute.UpstreamModelName != run.UpstreamModelName {
+		t.Fatalf("route snapshot = %#v, want run snapshot %#v", withRoute, run)
+	}
+	withoutRoute := itemsByRunID["run_before_route"]
+	if withoutRoute.UpstreamName != "" || withoutRoute.ProviderProtocol != "" || withoutRoute.UpstreamModelName != "" {
+		t.Fatalf("unexpected route snapshot for unmatched run: %#v", withoutRoute)
 	}
 }
 
@@ -419,7 +494,7 @@ func openConversationRepositoryTestDB(t *testing.T) *gorm.DB {
 			_ = sqlDB.Close()
 		}
 	})
-	if err := db.AutoMigrate(&model.Conversation{}, &model.ConversationProject{}, &model.ConversationShare{}, &model.Message{}, &model.Attachment{}, &model.FileObject{}, &model.ConversationRun{}); err != nil {
+	if err := db.AutoMigrate(&model.Conversation{}, &model.ConversationProject{}, &model.ConversationShare{}, &model.Message{}, &model.Attachment{}, &model.FileObject{}, &model.ConversationRun{}, &model.ChatRunEvent{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	return db

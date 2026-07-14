@@ -156,7 +156,7 @@ type FileObject struct {
 	FileName               string     `gorm:"size:255;not null;default:'';comment:文件名"`
 	MimeType               string     `gorm:"size:128;not null;default:'';comment:客户端声明媒体类型"`
 	DetectedMIME           string     `gorm:"size:128;not null;default:'';index:idx_file_objects_detected_mime;comment:后端探测媒体类型"`
-	FileCategory           string     `gorm:"size:32;not null;default:'unknown';index:idx_file_objects_file_category;comment:文件分类(image/pdf/word/excel/text/unknown)"`
+	FileCategory           string     `gorm:"size:32;not null;default:'unknown';index:idx_file_objects_file_category;comment:文件分类(image/pdf/word/presentation/excel/text/unknown)"`
 	SizeBytes              int64      `gorm:"not null;default:0;comment:文件大小(Byte)"`
 	SHA256                 string     `gorm:"size:64;not null;default:'';index:idx_file_objects_sha256;comment:文件SHA256"`
 	StoragePath            string     `gorm:"size:512;not null;default:'';comment:存储路径"`

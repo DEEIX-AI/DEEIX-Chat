@@ -10,6 +10,7 @@ import type { PermissionGroup } from "@/features/admin/api/permission-groups";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { createPlanFormState, parseIntValue, parsePrice, type PlanFormState } from "@/features/admin/model/billing-settings";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { PlanBillingDialog } from "@/features/admin/components/sections/billing/billing-dialogs";
 import { PeriodBillingTable } from "@/features/admin/components/sections/billing/billing-tables";
 
@@ -25,6 +26,7 @@ export function BillingPlanSection({ plans, setPlans, permissionGroups, loading 
   const [saving, setSaving] = React.useState(false);
   const [editPlan, setEditPlan] = React.useState<AdminBillingPlanDTO | null>(null);
   const [planForm, setPlanForm] = React.useState<PlanFormState | null>(null);
+  const stablePlanForm = useDialogSnapshot(planForm);
 
   function openPlanEdit(plan: AdminBillingPlanDTO) {
     setEditPlan(plan);
@@ -73,7 +75,7 @@ export function BillingPlanSection({ plans, setPlans, permissionGroups, loading 
       <PlanBillingDialog
         open={!!editPlan && !!planForm}
         saving={saving}
-        planForm={planForm}
+        planForm={stablePlanForm}
         setPlanForm={setPlanForm}
         permissionGroups={permissionGroups}
         onOpenChange={(open) => {

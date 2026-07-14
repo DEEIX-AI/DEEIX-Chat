@@ -75,6 +75,6 @@ func (testEmbeddingRepo) CountFilesByEmbedStatus(context.Context, string) (int64
 	return 0, nil
 }
 
-func (testEmbeddingRepo) ListFilesForReindex(context.Context, int, int) ([]domainconversation.FileObject, error) {
+func (testEmbeddingRepo) ListFilesForReindex(context.Context, int, uint) ([]domainconversation.FileObject, error) {
 	return nil, nil
 }

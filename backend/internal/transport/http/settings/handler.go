@@ -107,7 +107,6 @@ func (h *Handler) GetLoginPageSettings(c *gin.Context) {
 		return
 	}
 	values := map[string]string{
-		"login_page_title":        "Sign in to DEEIX Chat",
 		"login_default_next_path": "/chat",
 	}
 	for _, item := range items {
@@ -115,16 +114,12 @@ func (h *Handler) GetLoginPageSettings(c *gin.Context) {
 			values[item.Key] = item.Value
 		}
 	}
-	if strings.TrimSpace(values["login_page_title"]) == "" {
-		values["login_page_title"] = "Sign in to DEEIX Chat"
-	}
 	if strings.TrimSpace(values["login_default_next_path"]) == "" ||
 		!strings.HasPrefix(values["login_default_next_path"], "/") ||
 		strings.HasPrefix(values["login_default_next_path"], "//") {
 		values["login_default_next_path"] = "/chat"
 	}
 	response.Success(c, LoginPageSettingsResponse{
-		Title:           values["login_page_title"],
 		DefaultNextPath: values["login_default_next_path"],
 	})
 }

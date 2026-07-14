@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/input-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { resolveFileProcessingBadge } from "@/shared/lib/file-processing";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { cn } from "@/lib/utils";
 import type { ConversationOptions } from "@/shared/api/conversation.types";
 import type { FileObjectDTO } from "@/shared/api/file.types";
@@ -67,7 +68,7 @@ import { isSendShortcutEvent } from "@/shared/lib/platform-shortcuts";
 import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
 
 const FilePreviewDialog = dynamic(
-  () => import("@/shared/components/file-preview/file-preview-dialog").then((module) => module.FilePreviewDialog),
+  () => import("@/shared/components/file-preview/preview-dialog").then((module) => module.FilePreviewDialog),
   { ssr: false },
 );
 
@@ -286,6 +287,7 @@ function ChatInputComponent({
   const [hoveredTool, setHoveredTool] = React.useState<"upload" | "screenshot" | null>(null);
   const [ragWarnDismissed, setRagWarnDismissed] = React.useState(false);
   const [previewAttachment, setPreviewAttachment] = React.useState<PendingAttachment | null>(null);
+  const stablePreviewAttachment = useDialogSnapshot(previewAttachment);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const inputGroupRef = React.useRef<HTMLDivElement | null>(null);
   const inputGroupMeasureRef = React.useRef<HTMLDivElement | null>(null);
@@ -366,8 +368,6 @@ function ChatInputComponent({
   const showHTMLVisualPromptButton = !isMediaMode;
   const hasComposerAttachments = attachments.length > 0 || uploadingAttachments.length > 0;
   const showSelectedSkills = selectedSkills.length > 0 && !isMediaMode;
-  const inlineSelectedSkills = showSelectedSkills && (hasComposerAttachments || queuedMessages.length > 0);
-  const overlaySelectedSkills = showSelectedSkills && !hasComposerAttachments && queuedMessages.length === 0;
   const {
     activeIndex: mentionActiveIndex,
     handleBlur: handleMentionBlur,
@@ -595,7 +595,7 @@ function ChatInputComponent({
         style={inputGroupHeight === null ? undefined : { height: inputGroupHeight }}
       >
         <div ref={inputGroupMeasureRef} className="flex w-full flex-col">
-          {inlineSelectedSkills ? (
+          {showSelectedSkills ? (
             <div className="flex w-full max-h-14 flex-wrap items-center justify-start gap-x-3 gap-y-1 overflow-y-auto px-5 pt-3">
               {selectedSkills.map((skill) => (
                 <button
@@ -712,9 +712,9 @@ function ChatInputComponent({
                   </Attachment>
                 ))}
               </AttachmentGroup>
-              {previewAttachment ? (
+              {stablePreviewAttachment ? (
                 <FilePreviewDialog
-                  file={previewAttachment}
+                  file={stablePreviewAttachment}
                   open={previewAttachment !== null}
                   onOpenChange={closePreviewDialog}
                 />
@@ -735,29 +735,6 @@ function ChatInputComponent({
             onSelect={selectMentionItem}
           />
 
-          {overlaySelectedSkills ? (
-            <div className="absolute left-5 right-5 top-4 z-10 flex max-h-14 flex-wrap items-center gap-x-3 gap-y-1 overflow-y-auto">
-              {selectedSkills.map((skill) => (
-                <button
-                  key={skill.id}
-                  type="button"
-                  className="group inline-flex h-6 max-w-48 items-center gap-1.5 text-sm font-medium text-primary transition-colors hover:text-primary/85 disabled:opacity-60"
-                  disabled={loading || uploading}
-                  onClick={() => onSelectedSkillsChange(selectedSkills.filter((item) => item.id !== skill.id))}
-                  aria-label={skill.title}
-                >
-                  <Box className="size-4 shrink-0" strokeWidth={1.7} />
-                  <span className="min-w-0 truncate">{skill.trigger || skill.title}</span>
-                  <XIcon
-                    size={12}
-                    strokeWidth={1.7}
-                    className="shrink-0 opacity-45 transition-opacity group-hover:opacity-80"
-                  />
-                </button>
-              ))}
-            </div>
-          ) : null}
-
           <InputGroupTextarea
             ref={textareaRef}
             value={draft}
@@ -770,7 +747,7 @@ function ChatInputComponent({
             style={{ fontFamily: "var(--font-chat)", fontWeight: "var(--font-chat-weight)" }}
             className={cn(
               "rounded-3xl min-h-12 overflow-y-auto px-5 text-[15px] leading-6 placeholder:text-muted-foreground placeholder:font-[inherit] placeholder:leading-[inherit]",
-              overlaySelectedSkills ? "pt-12" : hasComposerAttachments ? "pt-2" : "pt-4",
+              showSelectedSkills || hasComposerAttachments ? "pt-2" : "pt-4",
               inputHeightClassName,
               speechInput.active ? "placeholder:font-normal placeholder:text-muted-foreground" : "",
             )}

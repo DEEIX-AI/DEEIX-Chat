@@ -8,22 +8,24 @@ import {
   useChatFontPreference,
   useChatFontWeightPreference,
 } from "@/features/settings/utils/chat-font";
+import {
+  applyFontSizePreference,
+  useFontSizePreference,
+} from "@/features/settings/utils/font-size";
 
-export function ChatFontProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function AppearancePreferencesProvider({ children }: { children: React.ReactNode }) {
   const chatFont = useChatFontPreference();
   const chatFontWeight = useChatFontWeightPreference();
+  const fontSize = useFontSizePreference();
 
   React.useEffect(() => {
     applyChatFontPreference(chatFont);
-  }, [chatFont]);
+    applyChatFontWeightPreference(chatFontWeight);
+  }, [chatFont, chatFontWeight]);
 
   React.useEffect(() => {
-    applyChatFontWeightPreference(chatFontWeight);
-  }, [chatFontWeight]);
+    applyFontSizePreference(fontSize);
+  }, [fontSize]);
 
   return children;
 }

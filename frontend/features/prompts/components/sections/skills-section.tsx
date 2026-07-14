@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { createMySkill, deleteMySkill, getVisibleSkill, listMySkills, listVisibleSkills, updateMySkill } from "@/shared/api/skills";
 import type { SkillDTO, SkillSummaryDTO } from "@/shared/api/skills.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import {
   EMPTY_SKILL_FORM,
   SKILL_LIMITS,
@@ -179,6 +180,7 @@ export const SkillsSection = React.forwardRef<SkillsSectionHandle, { query: stri
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [viewTarget, setViewTarget] = React.useState<SkillDTO | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<SkillDTO | null>(null);
+  const stableViewTarget = useDialogSnapshot(viewTarget);
 
   const filteredItems = React.useMemo(
     () => orderSkills(items.filter((item) => skillMatchesQuery(item, query))),
@@ -390,21 +392,21 @@ export const SkillsSection = React.forwardRef<SkillsSectionHandle, { query: stri
       <Dialog open={viewTarget !== null} onOpenChange={(open) => !open && setViewTarget(null)}>
         <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
           <DialogHeader className="shrink-0 px-5 pb-3 pt-5">
-            <DialogTitle>{viewTarget?.trigger || viewTarget?.title}</DialogTitle>
+            <DialogTitle>{stableViewTarget?.trigger || stableViewTarget?.title}</DialogTitle>
             <DialogDescription>{t("skillViewDescription")}</DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-2">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">{t("name")}</p>
-              <Input value={viewTarget?.trigger || viewTarget?.title || ""} readOnly />
+              <Input value={stableViewTarget?.trigger || stableViewTarget?.title || ""} readOnly />
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">{t("promptDescription")}</p>
-              <Input value={viewTarget?.description || ""} readOnly />
+              <Input value={stableViewTarget?.description || ""} readOnly />
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">{t("skillMarkdown")}</p>
-              <Textarea value={viewTarget?.markdown || ""} className="h-64 resize-none overflow-y-auto [field-sizing:fixed]" readOnly />
+              <Textarea value={stableViewTarget?.markdown || ""} className="h-64 resize-none overflow-y-auto [field-sizing:fixed]" readOnly />
             </div>
           </div>
           <DialogFooter className="shrink-0 px-5 py-3">

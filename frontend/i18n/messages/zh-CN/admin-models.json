@@ -173,6 +173,8 @@
     "protocolUpdated": "协议已更新",
     "priorityMustBePositive": "优先级必须大于 0",
     "weightMustBePositive": "权重必须大于 0",
+    "priorityDesc": "数字越小优先级越高，会优先路由到该来源。必须为正整数。",
+    "weightDesc": "同优先级内按权重占比分配流量，数字越大流量越高。必须为正整数。",
     "priorityUpdated": "优先级已更新",
     "weightUpdated": "权重已更新",
     "circuitUpdated": "熔断设置已更新"

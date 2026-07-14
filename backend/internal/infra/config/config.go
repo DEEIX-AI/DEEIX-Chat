@@ -423,6 +423,7 @@ type Config struct {
 	ExtractAliyunOCRTimeoutSeconds    int    // 阿里云 OCR 请求超时(秒)
 	ExtractMinerUSource               string // MinerU 服务类型(cloud/self_hosted)
 	ExtractMinerUBaseURL              string // MinerU 服务地址
+	ExtractMinerUFileTypes            string // MinerU 处理的文件类型（逗号分隔）
 	ExtractMinerUTimeoutSeconds       int    // MinerU 请求超时(秒)
 	ExtractMinerUAuthToken            string // MinerU 鉴权 Token
 	ExtractLLMOCRBaseURL              string // LLM OCR 服务地址
@@ -642,6 +643,7 @@ func Load() Config {
 		ExtractAliyunOCRTimeoutSeconds:    60,
 		ExtractMinerUSource:               "cloud",
 		ExtractMinerUBaseURL:              "https://mineru.net/api/v4",
+		ExtractMinerUFileTypes:            "pdf,word,presentation",
 		ExtractMinerUTimeoutSeconds:       180,
 		ExtractMinerUAuthToken:            "",
 		ExtractLLMOCRBaseURL:              "",

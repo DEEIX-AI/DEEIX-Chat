@@ -22,7 +22,7 @@ export type DeleteConversationProjectOptions = {
   deleteFiles?: boolean;
 };
 
-export type SidebarRecentsControllerValue = {
+export type SidebarConversationsControllerValue = {
   items: ConversationDTO[];
   recentItems: ConversationDTO[];
   starredItems: ConversationDTO[];

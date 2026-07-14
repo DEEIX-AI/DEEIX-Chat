@@ -223,6 +223,8 @@ var exactErrorSpecs = map[string]errorSpec{
 	"api_keys is required":                        {Code: "llm.api_keys_required", Message: "api_keys is required"},
 
 	"usage balance is insufficient":                                {Code: CodeBillingInsufficientFunds, Message: "insufficient balance"},
+	"usage concurrency limit exceeded":                             {Code: "billing.concurrency_limit_exceeded", Message: "too many concurrent paid requests"},
+	"usage reservation already exists":                             {Code: "billing.reservation_conflict", Message: "usage request already exists"},
 	"model pricing is required":                                    {Code: CodeBillingPricingRequired, Message: "model pricing is required"},
 	"period usage credit exceeded":                                 {Code: "billing.period_credit_exceeded", Message: "period usage credit exceeded"},
 	"invalid subscription tier":                                    {Code: "billing.invalid_subscription_tier", Message: "invalid subscription tier"},

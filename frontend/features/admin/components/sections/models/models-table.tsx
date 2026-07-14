@@ -88,6 +88,7 @@ import {
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { isAdminLLMSourceAvailable } from "@/features/admin/utils/llm-source-availability";
 import { sortProtocolsForDisplay } from "@/features/admin/utils/llm-display";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { parseKindsJSON } from "@/shared/model/llm-schema";
 import {
   ModelSourceCircuitDialog,
@@ -754,6 +755,7 @@ export function ModelsTable({
   const [inlineSources, setInlineSources] = React.useState<Record<number, InlineSourceEntry>>({});
   const [deleteSourceTarget, setDeleteSourceTarget] = React.useState<InlineSourceDeleteTarget | null>(null);
   const [deleteSourcePending, setDeleteSourcePending] = React.useState(false);
+  const stableDeleteSourceTarget = useDialogSnapshot(deleteSourceTarget);
   const [circuitTarget, setCircuitTarget] = React.useState<InlineSourceCircuitTarget | null>(null);
   const [circuitPending, setCircuitPending] = React.useState(false);
   const inlineSourcesRef = React.useRef(inlineSources);
@@ -1174,7 +1176,7 @@ export function ModelsTable({
           <AlertDialogTitle>{t("sources.deleteTitle")}</AlertDialogTitle>
           <AlertDialogDescription>
             {t("sources.deleteDescription", {
-              name: deleteSourceTarget?.source.upstreamModelName ?? "",
+              name: stableDeleteSourceTarget?.source.upstreamModelName ?? "",
             })}
           </AlertDialogDescription>
         </AlertDialogHeader>

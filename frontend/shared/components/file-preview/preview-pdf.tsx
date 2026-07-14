@@ -6,26 +6,27 @@ import { Maximize2, Minimize2, Minus, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { resolveLocalizedErrorMessage } from "@/i18n/resolve-error-message";
-import { LoadingReveal } from "@/shared/components/loading-reveal";
-import { PreviewStageSkeleton } from "@/shared/components/file-preview/preview-skeleton";
 import { Button } from "@/components/ui/button";
+import { useFileScale } from "@/shared/components/file-preview/file-scale";
+import { PreviewLoading } from "@/shared/components/file-preview/preview-loading";
 
 type PreviewPdfProps = {
   source: string;
   toolbarContainer?: HTMLElement | null;
+  showLoading?: boolean;
+  onLoadingChange?: (loading: boolean) => void;
 };
 
 type PdfModule = typeof import("pdfjs-dist/build/pdf.mjs");
 type PdfDocument = Awaited<ReturnType<PdfModule["getDocument"]>["promise"]>;
 type PdfPage = Awaited<ReturnType<PdfDocument["getPage"]>>;
 
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 1;
-const ZOOM_STEP = 0.1;
-
-function clampZoom(value: number): number {
-  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
-}
+const PDF_ZOOM = {
+  min: 0.5,
+  max: 1,
+  step: 0.1,
+  initial: 0.8,
+};
 
 function resolvePdfErrorMessage(error: unknown, t: (key: string) => string): string {
   if (!(error instanceof Error)) {
@@ -54,8 +55,9 @@ function resolvePdfErrorMessage(error: unknown, t: (key: string) => string): str
   return t("pdfLoadFailed");
 }
 
-export function PreviewPdf({ source, toolbarContainer }: PreviewPdfProps) {
+export function PreviewPdf({ source, toolbarContainer, showLoading = true, onLoadingChange }: PreviewPdfProps) {
   const t = useTranslations("files.previewErrors");
+  const tPreview = useTranslations("files.preview");
   const canvasRefs = React.useRef<Array<HTMLCanvasElement | null>>([]);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const scrollRegionRef = React.useRef<HTMLDivElement | null>(null);
@@ -63,12 +65,22 @@ export function PreviewPdf({ source, toolbarContainer }: PreviewPdfProps) {
   const [pdfModule, setPdfModule] = React.useState<PdfModule | null>(null);
   const [documentProxy, setDocumentProxy] = React.useState<PdfDocument | null>(null);
   const [pageCount, setPageCount] = React.useState(0);
-  const [zoom, setZoom] = React.useState(0.8);
+  const {
+    scale: zoom,
+    zoomOut,
+    zoomIn,
+    canZoomOut,
+    canZoomIn,
+  } = useFileScale(PDF_ZOOM);
   const [availableWidth, setAvailableWidth] = React.useState(0);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const [status, setStatus] = React.useState<"loading" | "ready" | "error">("loading");
   const [errorMessage, setErrorMessage] = React.useState(t("pdfLoadFailed"));
   const measureKey = status === "ready" ? pageCount : 0;
+
+  React.useEffect(() => {
+    onLoadingChange?.(status === "loading");
+  }, [onLoadingChange, status]);
 
   React.useEffect(() => {
     canvasRefs.current.length = pageCount;
@@ -292,14 +304,38 @@ export function PreviewPdf({ source, toolbarContainer }: PreviewPdfProps) {
 
   const toolbar = (
     <div className="flex items-center gap-1.5">
-      <Button type="button" variant="ghost" size="icon" className="size-7 rounded-full" onClick={() => setZoom((value) => clampZoom(value - ZOOM_STEP))} disabled={status !== "ready" || zoom <= MIN_ZOOM}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-7 rounded-full"
+        aria-label={tPreview("zoomOut")}
+        onClick={zoomOut}
+        disabled={status !== "ready" || !canZoomOut}
+      >
         <Minus className="size-3.5" />
       </Button>
       <span className="min-w-11 text-center text-[11px] text-muted-foreground">{Math.round(zoom * 100)}%</span>
-      <Button type="button" variant="ghost" size="icon" className="size-7 rounded-full" onClick={() => setZoom((value) => clampZoom(value + ZOOM_STEP))} disabled={status !== "ready" || zoom >= MAX_ZOOM}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-7 rounded-full"
+        aria-label={tPreview("zoomIn")}
+        onClick={zoomIn}
+        disabled={status !== "ready" || !canZoomIn}
+      >
         <Plus className="size-3.5" />
       </Button>
-      <Button type="button" variant="ghost" size="icon" className="size-7 rounded-full" onClick={() => void toggleFullscreen()} disabled={status !== "ready"}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-7 rounded-full"
+        aria-label={isFullscreen ? tPreview("exitFullscreen") : tPreview("enterFullscreen")}
+        onClick={() => void toggleFullscreen()}
+        disabled={status !== "ready"}
+      >
         {isFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
       </Button>
     </div>
@@ -348,15 +384,9 @@ export function PreviewPdf({ source, toolbarContainer }: PreviewPdfProps) {
           </div>
         ) : null}
 
-        <LoadingReveal
-          loading={status === "loading"}
-          className="pointer-events-none absolute inset-0 z-10"
-          contentClassName="h-full"
-          skeletonClassName="h-full"
-          skeleton={<PreviewStageSkeleton className="h-full" />}
-        >
-          <div className="h-full" />
-        </LoadingReveal>
+        {showLoading && status === "loading" ? (
+          <PreviewLoading className="pointer-events-none absolute inset-0 z-10" />
+        ) : null}
       </div>
     </div>
   );

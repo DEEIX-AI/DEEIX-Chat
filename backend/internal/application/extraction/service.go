@@ -46,6 +46,8 @@ const (
 	defaultOCREngine   = OCREngineRapidOCR
 )
 
+const defaultMinerUFileTypes = "pdf,word,presentation"
+
 // Service 封装文件提取与文本产物读写能力。
 type Service struct {
 	cfg           *config.Runtime
@@ -268,7 +270,8 @@ func (s *Service) resolvePrimaryEngine() engine {
 		return nil
 	case EngineDocling:
 		return documentParserEngine{
-			name: EngineDocling,
+			name:     EngineDocling,
+			supports: supportsPDFDocumentParser,
 			extract: func(ctx context.Context, input ExtractInput) (string, error) {
 				client := doclingextract.New(doclingextract.ClientConfig{
 					BaseURL:        strings.TrimSpace(snapshot.ExtractDoclingBaseURL),
@@ -288,6 +291,9 @@ func (s *Service) resolvePrimaryEngine() engine {
 	case EngineMinerU:
 		return documentParserEngine{
 			name: EngineMinerU,
+			supports: func(file domainconversation.FileObject) bool {
+				return supportsMinerUFile(file, snapshot.ExtractMinerUSource, snapshot.ExtractMinerUFileTypes)
+			},
 			extract: func(ctx context.Context, input ExtractInput) (string, error) {
 				client := mineruextract.New(mineruextract.ClientConfig{
 					Source:                strings.TrimSpace(snapshot.ExtractMinerUSource),
@@ -340,6 +346,93 @@ func normalizeTikaSource(raw string) string {
 // NormalizeTikaSourceForRuntime 供其他模块复用 Tika 服务来源的标准化逻辑。
 func NormalizeTikaSourceForRuntime(raw string) string {
 	return normalizeTikaSource(raw)
+}
+
+func supportsPDFDocumentParser(file domainconversation.FileObject) bool {
+	return file.FileCategory == "pdf"
+}
+
+func supportsMinerUFile(file domainconversation.FileObject, source string, selectedTypes string) bool {
+	selected := parseMinerUFileTypes(selectedTypes)
+	switch file.FileCategory {
+	case "pdf":
+		return selected["pdf"]
+	case "word":
+		if !selected["word"] {
+			return false
+		}
+		format := documentOfficeFormat(file)
+		return format == "docx" || (format == "doc" && normalizeMinerUSource(source) == mineruextract.SourceCloud)
+	case "presentation":
+		if !selected["presentation"] {
+			return false
+		}
+		format := documentOfficeFormat(file)
+		return format == "pptx" || (format == "ppt" && normalizeMinerUSource(source) == mineruextract.SourceCloud)
+	case "excel":
+		if !selected["excel"] {
+			return false
+		}
+		format := documentOfficeFormat(file)
+		return format == "xlsx" || (format == "xls" && normalizeMinerUSource(source) == mineruextract.SourceCloud)
+	default:
+		return false
+	}
+}
+
+func parseMinerUFileTypes(raw string) map[string]bool {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		value = defaultMinerUFileTypes
+	}
+	result := make(map[string]bool, 4)
+	for _, item := range strings.Split(value, ",") {
+		switch strings.ToLower(strings.TrimSpace(item)) {
+		case "pdf":
+			result["pdf"] = true
+		case "word":
+			result["word"] = true
+		case "presentation":
+			result["presentation"] = true
+		case "excel":
+			result["excel"] = true
+		}
+	}
+	return result
+}
+
+func normalizeMinerUSource(raw string) string {
+	if strings.EqualFold(strings.TrimSpace(raw), mineruextract.SourceSelfHosted) {
+		return mineruextract.SourceSelfHosted
+	}
+	return mineruextract.SourceCloud
+}
+
+func documentExtension(file domainconversation.FileObject) string {
+	return strings.ToLower(strings.TrimPrefix(filepath.Ext(strings.TrimSpace(file.FileName)), "."))
+}
+
+func documentOfficeFormat(file domainconversation.FileObject) string {
+	if ext := documentExtension(file); ext != "" {
+		return ext
+	}
+	mime := strings.ToLower(strings.TrimSpace(file.DetectedMIME))
+	switch {
+	case strings.Contains(mime, "wordprocessingml"):
+		return "docx"
+	case strings.Contains(mime, "msword"):
+		return "doc"
+	case strings.Contains(mime, "presentationml"):
+		return "pptx"
+	case strings.Contains(mime, "ms-powerpoint"):
+		return "ppt"
+	case strings.Contains(mime, "spreadsheetml"):
+		return "xlsx"
+	case strings.Contains(mime, "ms-excel"):
+		return "xls"
+	default:
+		return ""
+	}
 }
 
 func normalizeOCREngine(raw string) string {
@@ -511,7 +604,7 @@ func (e tikaEngine) Supports(file domainconversation.FileObject) bool {
 		return false
 	}
 	switch file.FileCategory {
-	case "text", "word", "excel", "pdf":
+	case "text", "word", "presentation", "excel", "pdf":
 		return true
 	default:
 		return false
@@ -538,8 +631,9 @@ func (e tikaEngine) Extract(ctx context.Context, input ExtractInput) (Result, er
 }
 
 type documentParserEngine struct {
-	name    string
-	extract func(ctx context.Context, input ExtractInput) (string, error)
+	name     string
+	supports func(file domainconversation.FileObject) bool
+	extract  func(ctx context.Context, input ExtractInput) (string, error)
 }
 
 func (e documentParserEngine) Name() string {
@@ -547,7 +641,13 @@ func (e documentParserEngine) Name() string {
 }
 
 func (e documentParserEngine) Supports(file domainconversation.FileObject) bool {
-	return e.extract != nil && file.FileCategory == "pdf"
+	if e.extract == nil {
+		return false
+	}
+	if e.supports == nil {
+		return supportsPDFDocumentParser(file)
+	}
+	return e.supports(file)
 }
 
 func (e documentParserEngine) Extract(ctx context.Context, input ExtractInput) (Result, error) {
