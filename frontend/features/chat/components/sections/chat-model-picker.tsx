@@ -365,6 +365,7 @@ function ChatModelMenuItem({
   pricingLabels,
   viewPricingLabel,
   pricingTooltipSide,
+  buttonRef,
 }: {
   model: ChatModelOption;
   selected: boolean;
@@ -373,6 +374,7 @@ function ChatModelMenuItem({
   pricingLabels: React.ComponentProps<typeof ModelPricingTooltipContent>["labels"];
   viewPricingLabel: string;
   pricingTooltipSide: "right";
+  buttonRef?: React.Ref<HTMLButtonElement>;
 }) {
   const platformModelName = model.platformModelName.trim();
   const identity = React.useMemo(
@@ -392,6 +394,7 @@ function ChatModelMenuItem({
       className="group flex h-7 items-center rounded-md text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-within:bg-accent focus-within:text-accent-foreground data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
     >
       <button
+        ref={buttonRef}
         type="button"
         className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md bg-transparent py-0 pl-2 pr-1 text-left text-[11px] font-medium leading-none text-inherit outline-none"
         onClick={onSelect}
@@ -462,6 +465,7 @@ export function ChatModelPicker({
   const desktopMenuRootRef = React.useRef<HTMLDivElement | null>(null);
   const desktopVendorMenuRef = React.useRef<HTMLDivElement | null>(null);
   const desktopSubmenuRef = React.useRef<HTMLDivElement | null>(null);
+  const selectedModelButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const desktopVendorItemRefs = React.useRef(new Map<string, HTMLButtonElement>());
   const selectedModel = React.useMemo(
     () => modelOptions.find((item) => item.platformModelName === selectedPlatformModelName) ?? null,
@@ -695,6 +699,12 @@ export function ChatModelPicker({
             side="bottom"
             sideOffset={8}
             collisionPadding={24}
+            onOpenAutoFocus={(event) => {
+              if (!isMobile && selectedModelButtonRef.current) {
+                event.preventDefault();
+                selectedModelButtonRef.current.focus();
+              }
+            }}
             className={cn(
               "relative overflow-visible rounded-xl",
               isMobile
@@ -796,6 +806,7 @@ export function ChatModelPicker({
                             key={item.platformModelName}
                             model={item}
                             selected={item.platformModelName === selectedPlatformModelName}
+                            buttonRef={item.platformModelName === selectedPlatformModelName ? selectedModelButtonRef : undefined}
                             onSelect={() => {
                               onModelChange(item.platformModelName);
                               closeMenu();
