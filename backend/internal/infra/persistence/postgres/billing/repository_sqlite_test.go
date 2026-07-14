@@ -90,6 +90,203 @@ func TestUsageQueriesUseSQLitePortableExpressions(t *testing.T) {
 	}
 }
 
+func TestAddUsageAndSettleBalanceRecordsDebtWithoutReservation(t *testing.T) {
+	db := openBillingSQLiteTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
+
+	account := model.BillingAccount{
+		UserID:         1,
+		Currency:       "USD",
+		BalanceNanousd: 100,
+		Status:         "active",
+	}
+	if err := db.Create(&account).Error; err != nil {
+		t.Fatalf("create billing account: %v", err)
+	}
+	usage := &domainbilling.UsageLedger{
+		UserID:            1,
+		PlatformModelName: "gpt-test",
+		BillingAt:         now,
+		UsageDate:         now,
+		BilledCurrency:    "USD",
+		BilledNanousd:     300,
+	}
+
+	if err := repo.AddUsageAndSettleBalance(ctx, usage, nil); err != nil {
+		t.Fatalf("AddUsageAndSettleBalance() error = %v", err)
+	}
+
+	assertUsageSettlement(t, db, 1, "gpt-test", -200, -300, -200, "")
+}
+
+func TestAddUsageAndSettleBalanceRecordsDebtBeyondReservation(t *testing.T) {
+	db := openBillingSQLiteTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
+
+	account := model.BillingAccount{
+		UserID:         1,
+		Currency:       "USD",
+		BalanceNanousd: 200,
+		Status:         "active",
+	}
+	if err := db.Create(&account).Error; err != nil {
+		t.Fatalf("create billing account: %v", err)
+	}
+	reservation, err := repo.ReserveUsageBalance(ctx, 1, 100, "run-debt")
+	if err != nil {
+		t.Fatalf("ReserveUsageBalance() error = %v", err)
+	}
+	usage := &domainbilling.UsageLedger{
+		UserID:            1,
+		PlatformModelName: "gpt-reserved",
+		BillingAt:         now,
+		UsageDate:         now,
+		BilledCurrency:    "USD",
+		BilledNanousd:     350,
+	}
+
+	if err = repo.AddUsageAndSettleBalance(ctx, usage, reservation); err != nil {
+		t.Fatalf("AddUsageAndSettleBalance() error = %v", err)
+	}
+
+	assertUsageSettlement(t, db, 1, "gpt-reserved", -150, -250, -150, "run-debt")
+}
+
+func TestAddUsageAndSettleBalanceRefundsUnusedReservation(t *testing.T) {
+	db := openBillingSQLiteTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
+
+	account := model.BillingAccount{
+		UserID:         1,
+		Currency:       "USD",
+		BalanceNanousd: 300,
+		Status:         "active",
+	}
+	if err := db.Create(&account).Error; err != nil {
+		t.Fatalf("create billing account: %v", err)
+	}
+	reservation, err := repo.ReserveUsageBalance(ctx, 1, 200, "run-refund")
+	if err != nil {
+		t.Fatalf("ReserveUsageBalance() error = %v", err)
+	}
+	usage := &domainbilling.UsageLedger{
+		UserID:            1,
+		PlatformModelName: "gpt-refund",
+		BillingAt:         now,
+		UsageDate:         now,
+		BilledCurrency:    "USD",
+		BilledNanousd:     50,
+	}
+
+	if err = repo.AddUsageAndSettleBalance(ctx, usage, reservation); err != nil {
+		t.Fatalf("AddUsageAndSettleBalance() error = %v", err)
+	}
+
+	assertUsageSettlement(t, db, 1, "gpt-refund", 250, 150, 250, "run-refund")
+}
+
+func TestAddUsageAndSettleBalanceLeavesFreeModelBalanceUnchanged(t *testing.T) {
+	db := openBillingSQLiteTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
+
+	account := model.BillingAccount{
+		UserID:         1,
+		Currency:       "USD",
+		BalanceNanousd: 100,
+		Status:         "active",
+	}
+	if err := db.Create(&account).Error; err != nil {
+		t.Fatalf("create billing account: %v", err)
+	}
+	usage := &domainbilling.UsageLedger{
+		UserID:            1,
+		PlatformModelName: "free-model",
+		IsFreeModel:       true,
+		BillingAt:         now,
+		UsageDate:         now,
+		BilledCurrency:    "USD",
+		BilledNanousd:     0,
+	}
+
+	if err := repo.AddUsageAndSettleBalance(ctx, usage, nil); err != nil {
+		t.Fatalf("AddUsageAndSettleBalance() error = %v", err)
+	}
+
+	var refreshed model.BillingAccount
+	if err := db.Where("user_id = ?", 1).First(&refreshed).Error; err != nil {
+		t.Fatalf("load billing account: %v", err)
+	}
+	if refreshed.BalanceNanousd != 100 {
+		t.Fatalf("balance = %d, want unchanged 100", refreshed.BalanceNanousd)
+	}
+	var ledger model.UsageLedger
+	if err := db.Where("user_id = ? AND platform_model_name = ?", 1, "free-model").First(&ledger).Error; err != nil {
+		t.Fatalf("load usage ledger: %v", err)
+	}
+	var transactionCount int64
+	if err := db.Model(&model.BalanceTransaction{}).Where("user_id = ?", 1).Count(&transactionCount).Error; err != nil {
+		t.Fatalf("count balance transactions: %v", err)
+	}
+	if transactionCount != 0 {
+		t.Fatalf("balance transaction count = %d, want 0", transactionCount)
+	}
+}
+
+func assertUsageSettlement(
+	t *testing.T,
+	db *gorm.DB,
+	userID uint,
+	platformModelName string,
+	wantBalance int64,
+	wantTransactionAmount int64,
+	wantTransactionBalance int64,
+	wantRefNo string,
+) {
+	t.Helper()
+
+	var account model.BillingAccount
+	if err := db.Where("user_id = ?", userID).First(&account).Error; err != nil {
+		t.Fatalf("load billing account: %v", err)
+	}
+	if account.BalanceNanousd != wantBalance {
+		t.Fatalf("balance = %d, want %d", account.BalanceNanousd, wantBalance)
+	}
+
+	var ledger model.UsageLedger
+	if err := db.Where("user_id = ? AND platform_model_name = ?", userID, platformModelName).First(&ledger).Error; err != nil {
+		t.Fatalf("load usage ledger: %v", err)
+	}
+
+	transactionType := domainbilling.BalanceTransactionTypeUsage
+	if wantTransactionAmount > 0 {
+		transactionType = domainbilling.BalanceTransactionTypeUsageRefund
+	}
+	var transaction model.BalanceTransaction
+	if err := db.Where("user_id = ? AND type = ? AND ref_id = ?", userID, transactionType, ledger.ID).First(&transaction).Error; err != nil {
+		t.Fatalf("load settlement transaction: %v", err)
+	}
+	if transaction.AmountNanousd != wantTransactionAmount || transaction.BalanceAfterNanousd != wantTransactionBalance {
+		t.Fatalf(
+			"transaction amount/balance = %d/%d, want %d/%d",
+			transaction.AmountNanousd,
+			transaction.BalanceAfterNanousd,
+			wantTransactionAmount,
+			wantTransactionBalance,
+		)
+	}
+	if transaction.RefNo != wantRefNo {
+		t.Fatalf("transaction ref no = %q, want %q", transaction.RefNo, wantRefNo)
+	}
+}
+
 func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
 	db := openBillingSQLiteTestDB(t)
 	repo := NewRepo(db)
@@ -172,6 +369,62 @@ func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
 	delta := int64(snapshot["period_balance_settlement_delta_nanousd"].(float64))
 	if charged != 300 || delta != 300 {
 		t.Fatalf("snapshot balance = charged %d delta %d, want 300/300", charged, delta)
+	}
+}
+
+func TestAddPeriodUsageAndSettleOverageRecordsDebt(t *testing.T) {
+	db := openBillingSQLiteTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+	periodStart := now.Add(-2 * time.Hour)
+	periodEnd := now.Add(2 * time.Hour)
+
+	account := model.BillingAccount{
+		UserID:         1,
+		Currency:       "USD",
+		BalanceNanousd: 100,
+		Status:         "active",
+	}
+	if err := db.Create(&account).Error; err != nil {
+		t.Fatalf("create billing account: %v", err)
+	}
+	if err := db.Create(&model.UsageLedger{
+		BaseModel:           model.BaseModel{CreatedAt: now.Add(-time.Hour)},
+		UserID:              1,
+		PlatformModelName:   "gpt-before-debt",
+		BillingAt:           now.Add(-time.Hour),
+		UsageDate:           now.Add(-time.Hour),
+		BilledCurrency:      "USD",
+		BilledNanousd:       900,
+		PricingSnapshotJSON: `{}`,
+	}).Error; err != nil {
+		t.Fatalf("create previous usage: %v", err)
+	}
+	usage := &domainbilling.UsageLedger{
+		UserID:              1,
+		PlatformModelName:   "gpt-period-debt",
+		BillingAt:           now,
+		UsageDate:           now,
+		BilledCurrency:      "USD",
+		BilledNanousd:       500,
+		PricingSnapshotJSON: `{"pricing_mode":"token"}`,
+	}
+
+	if err := repo.AddPeriodUsageAndSettleOverage(ctx, usage, periodStart, periodEnd, 1000, nil); err != nil {
+		t.Fatalf("AddPeriodUsageAndSettleOverage() error = %v", err)
+	}
+
+	assertUsageSettlement(t, db, 1, "gpt-period-debt", -300, -400, -300, "")
+	var snapshot map[string]interface{}
+	if err := json.Unmarshal([]byte(usage.PricingSnapshotJSON), &snapshot); err != nil {
+		t.Fatalf("decode pricing snapshot: %v", err)
+	}
+	if got := int64(snapshot["period_credit_covered_nanousd"].(float64)); got != 100 {
+		t.Fatalf("period credit covered = %d, want 100", got)
+	}
+	if got := int64(snapshot["period_overage_billed_nanousd"].(float64)); got != 400 {
+		t.Fatalf("period overage = %d, want 400", got)
 	}
 }
 

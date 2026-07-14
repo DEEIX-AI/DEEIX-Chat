@@ -547,9 +547,6 @@ func (r *Repo) AddUsageAndSettleBalance(ctx context.Context, usage *domainbillin
 			if err != nil {
 				return err
 			}
-			if deltaNanousd > 0 && account.BalanceNanousd < deltaNanousd {
-				return repository.ErrInsufficientBalance
-			}
 		}
 
 		if err := tx.Create(&record).Error; err != nil {
@@ -559,6 +556,7 @@ func (r *Repo) AddUsageAndSettleBalance(ctx context.Context, usage *domainbillin
 			return nil
 		}
 
+		// 上游已产生真实用量时必须完整入账；允许余额为负，后续调用会被余额校验拦截。
 		nextBalance := account.BalanceNanousd - deltaNanousd
 		if err := tx.Model(account).Updates(map[string]interface{}{
 			"balance_nanousd": nextBalance,
@@ -637,9 +635,6 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 			}
 		}
 		deltaNanousd := overageNanousd - reservedNanousd
-		if deltaNanousd > 0 && account.BalanceNanousd < deltaNanousd {
-			return repository.ErrInsufficientBalance
-		}
 
 		ledger := *usage
 		ledger.PricingSnapshotJSON = withPeriodSettlementSnapshot(ledger.PricingSnapshotJSON, map[string]interface{}{
@@ -661,6 +656,7 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 			return nil
 		}
 
+		// 上游已产生真实用量时必须完整入账；允许余额为负，后续调用会被余额校验拦截。
 		nextBalance := account.BalanceNanousd - deltaNanousd
 		if err := tx.Model(account).Updates(map[string]interface{}{
 			"balance_nanousd": nextBalance,

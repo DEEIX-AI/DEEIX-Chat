@@ -319,6 +319,26 @@ func TestEnsureModelUsableRejectsPeriodOverageWhenBalanceIsInsufficient(t *testi
 	}
 }
 
+func TestEnsureModelUsableRejectsUsageAccountWithNegativeBalance(t *testing.T) {
+	repo := &billingRepositoryStub{
+		mode:           "usage",
+		account:        &domainbilling.BillingAccount{UserID: 1, BalanceNanousd: -200, Currency: "USD", Status: "active"},
+		prepaidNanousd: 0,
+		pricing: &domainbilling.ModelPricing{
+			PlatformModelName:       "gpt-test",
+			Currency:                "USD",
+			InputNanousdPerMTokens:  1,
+			OutputNanousdPerMTokens: 1,
+		},
+	}
+	service := NewService(repo)
+
+	err := service.EnsureModelUsable(context.Background(), 1, "gpt-test", time.Now())
+	if !errors.Is(err, ErrUsageBalanceInsufficient) {
+		t.Fatalf("EnsureModelUsable() error = %v, want ErrUsageBalanceInsufficient", err)
+	}
+}
+
 func TestEnsureModelUsableAllowsZeroCreditPeriodPlanWhenBalanceIsAvailable(t *testing.T) {
 	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	endAt := now.Add(30 * 24 * time.Hour)
