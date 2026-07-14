@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -11,10 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
 	"net/http"
 	"net/url"
-	"path"
 	"regexp"
 	"strings"
 	"time"
@@ -78,11 +75,6 @@ type UserIdentityView struct {
 	EmailVerified       bool
 	LinkedAt            time.Time
 	LastLoginAt         *time.Time
-}
-
-type IdentityProviderLogoAsset struct {
-	ContentType string
-	Content     []byte
 }
 
 type UpsertIdentityProviderInput struct {
@@ -745,7 +737,6 @@ const (
 	providerIntentRegister = "register"
 	providerIntentBind     = "bind"
 	providerHTTPTimeout    = 10 * time.Second
-	providerLogoMaxBytes   = 2 << 20
 )
 
 func normalizeProviderSlug(value string) string {
@@ -765,124 +756,6 @@ func normalizeProviderIntent(value string) string {
 	default:
 		return providerIntentLogin
 	}
-}
-
-func (s *Service) GetIdentityProviderLogo(ctx context.Context, slug string) (*IdentityProviderLogoAsset, error) {
-	provider, err := s.repo.GetIdentityProviderBySlug(ctx, normalizeProviderSlug(slug))
-	if err != nil {
-		return nil, ErrIdentityProviderLogoUnavailable
-	}
-	logoURL := strings.TrimSpace(provider.LogoURL)
-	parsed, err := url.Parse(logoURL)
-	if err != nil || parsed == nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return nil, ErrIdentityProviderLogoUnavailable
-	}
-
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-	request.Header.Set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
-
-	response, err := s.providerHTTPClient.Do(request)
-	if err != nil {
-		return nil, err
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, ErrIdentityProviderLogoUnavailable
-	}
-
-	content, err := io.ReadAll(io.LimitReader(response.Body, providerLogoMaxBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(content) == 0 || len(content) > providerLogoMaxBytes {
-		return nil, ErrIdentityProviderLogoUnavailable
-	}
-	contentType := resolveIdentityProviderLogoContentType(response.Header.Get("Content-Type"), parsed.Path, content)
-	if contentType == "" {
-		return nil, ErrIdentityProviderLogoUnavailable
-	}
-	return &IdentityProviderLogoAsset{
-		ContentType: contentType,
-		Content:     content,
-	}, nil
-}
-
-func resolveIdentityProviderLogoContentType(headerValue string, requestPath string, content []byte) string {
-	contentType := normalizeIdentityProviderLogoContentType(headerValue)
-	if isAllowedIdentityProviderLogoContentType(contentType) {
-		return contentType
-	}
-	if contentType == "" || contentType == "application/octet-stream" {
-		contentType = normalizeIdentityProviderLogoContentType(http.DetectContentType(content))
-		if isAllowedIdentityProviderLogoContentType(contentType) {
-			return contentType
-		}
-		contentType = providerLogoContentTypeByExtension(requestPath)
-		if contentType == "image/svg+xml" && !looksLikeSVG(content) {
-			return ""
-		}
-		if isAllowedIdentityProviderLogoContentType(contentType) {
-			return contentType
-		}
-	}
-	return ""
-}
-
-func normalizeIdentityProviderLogoContentType(value string) string {
-	contentType, _, err := mime.ParseMediaType(strings.TrimSpace(value))
-	if err != nil {
-		contentType = strings.TrimSpace(value)
-	}
-	return strings.ToLower(contentType)
-}
-
-func isAllowedIdentityProviderLogoContentType(contentType string) bool {
-	switch contentType {
-	case "image/avif",
-		"image/gif",
-		"image/jpeg",
-		"image/png",
-		"image/svg+xml",
-		"image/vnd.microsoft.icon",
-		"image/webp",
-		"image/x-icon":
-		return true
-	default:
-		return false
-	}
-}
-
-func providerLogoContentTypeByExtension(requestPath string) string {
-	switch strings.ToLower(path.Ext(requestPath)) {
-	case ".avif":
-		return "image/avif"
-	case ".gif":
-		return "image/gif"
-	case ".ico":
-		return "image/x-icon"
-	case ".jpg", ".jpeg":
-		return "image/jpeg"
-	case ".png":
-		return "image/png"
-	case ".svg":
-		return "image/svg+xml"
-	case ".webp":
-		return "image/webp"
-	default:
-		return ""
-	}
-}
-
-func looksLikeSVG(content []byte) bool {
-	trimmed := bytes.TrimSpace(content)
-	if len(trimmed) == 0 {
-		return false
-	}
-	lowered := bytes.ToLower(trimmed)
-	return bytes.HasPrefix(lowered, []byte("<svg")) || (bytes.HasPrefix(lowered, []byte("<?xml")) && bytes.Contains(lowered, []byte("<svg")))
 }
 
 func firstNonEmpty(values ...string) string {
