@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const defaultContentSecurityPolicy = "default-src 'self'; base-uri 'self'; object-src 'self' blob:; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com; connect-src 'self' http: https: ws: wss: blob:; worker-src 'self' blob:; frame-src 'self' blob: https://challenges.cloudflare.com"
+const defaultContentSecurityPolicy = "default-src 'self'; base-uri 'self'; object-src 'self' blob:; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://worldloom.top https://cdn.ldstatic.com; media-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com; connect-src 'self' http: https: ws: wss: blob:; worker-src 'self' blob:; frame-src 'self' blob: https://challenges.cloudflare.com"
 
 // SecurityHeaders 为所有 HTTP 响应补充安全响应头；文件内容响应可在 handler 中覆盖为更严格策略。
 func SecurityHeaders(env string) gin.HandlerFunc {

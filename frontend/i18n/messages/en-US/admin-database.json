@@ -1,0 +1,8 @@
+{
+  "title": "Database backup",
+  "description": "Download a consistent database backup or restore this instance from a backup file.",
+  "superadminOnly": "Only super administrators can manage database backups.",
+  "cancel": "Cancel",
+  "backup": { "title": "Backup and download", "description": "Create a consistent {extension} backup of the current database and download it.", "action": "Create backup", "downloading": "Creating backup", "success": "Database backup downloaded", "failed": "Database backup failed" },
+  "restore": { "title": "Restore backup", "description": "Upload a {extension} backup created by the same database driver. Current data will be replaced.", "action": "Restore backup", "restoring": "Restoring", "confirmTitle": "Replace the current database?", "confirmDescription": "Restoring {filename} replaces current data. Active sessions and in-flight requests may be affected. Restart the service after restoration.", "confirmAction": "Restore and replace", "success": "Database restored. Restart the service now.", "failed": "Database restore failed" }
+}

@@ -293,6 +293,7 @@ func NewApp() (*App, error) {
 	adminService.SetPermissionGroupBillingPlanReferenceChecker(billingService)
 	adminHandler := adminhttp.NewHandler(adminService)
 	adminHandler.SetConversationExporter(conversationService)
+	adminHandler.SetDatabaseBackupManager(adminhttp.NewDatabaseBackupManager(db, cfg))
 	adminModule := adminhttp.NewModule(adminHandler)
 	userSettingsRepo := usersettingsrepo.NewRepo(db)
 	userSettingsService := usersettings.NewService(userSettingsRepo)
