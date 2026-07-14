@@ -6,8 +6,8 @@ import { AppearancePreferencesProvider } from "@/features/settings";
 import { AppI18nProvider } from "@/i18n/app-i18n-provider";
 import { DevtoolsBrandBanner } from "@/shared/components/devtools-brand-banner";
 import { ThemeProvider } from "@/shared/components/theme-provider";
-import { PWAServiceWorkerRegister } from "@/shared/components/pwa-service-worker-register";
 import { brandAssets, brandText } from "@/shared/lib/branding";
+import { LegacyPWAServiceWorkerMigration } from "@/shared/pwa/migrations/legacy-service-worker-migration";
 import { Toaster } from "@/components/ui/sonner";
 
 import "./globals.css";
@@ -81,7 +81,7 @@ export default function RootLayout({
             <AppearancePreferencesProvider>
               {children}
               <AppVersionGuard />
-              <PWAServiceWorkerRegister />
+              <LegacyPWAServiceWorkerMigration />
               <Toaster />
               <DevtoolsBrandBanner />
             </AppearancePreferencesProvider>
