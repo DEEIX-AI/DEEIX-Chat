@@ -9763,6 +9763,16 @@
                         "in": "query"
                     },
                     {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "collectionFormat": "multi",
+                        "description": "按技能 ID 筛选，可重复传递",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "页码",
                         "name": "page",
@@ -9780,6 +9790,12 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/internal_transport_http_skill.SkillSummaryPageResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_skill.ErrorDoc"
                         }
                     },
                     "500": {
@@ -16009,10 +16025,25 @@
                 "createdAt": {
                     "type": "string"
                 },
+                "defaultMCPToolIDs": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "defaultSkillIDs": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },
                 "icon": {
+                    "type": "string"
+                },
+                "mcpDefaultMode": {
                     "type": "string"
                 },
                 "name": {
@@ -16203,6 +16234,20 @@
                     "type": "string",
                     "maxLength": 32
                 },
+                "defaultMCPToolIDs": {
+                    "type": "array",
+                    "maxItems": 128,
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "defaultSkillIDs": {
+                    "type": "array",
+                    "maxItems": 128,
+                    "items": {
+                        "type": "integer"
+                    }
+                },
                 "description": {
                     "type": "string",
                     "maxLength": 255
@@ -16210,6 +16255,13 @@
                 "icon": {
                     "type": "string",
                     "maxLength": 32
+                },
+                "mcpDefaultMode": {
+                    "type": "string",
+                    "enum": [
+                        "inherit",
+                        "custom"
+                    ]
                 },
                 "name": {
                     "type": "string",
@@ -17271,6 +17323,20 @@
                     "type": "string",
                     "maxLength": 32
                 },
+                "defaultMCPToolIDs": {
+                    "type": "array",
+                    "maxItems": 128,
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "defaultSkillIDs": {
+                    "type": "array",
+                    "maxItems": 128,
+                    "items": {
+                        "type": "integer"
+                    }
+                },
                 "description": {
                     "type": "string",
                     "maxLength": 255
@@ -17278,6 +17344,13 @@
                 "icon": {
                     "type": "string",
                     "maxLength": 32
+                },
+                "mcpDefaultMode": {
+                    "type": "string",
+                    "enum": [
+                        "inherit",
+                        "custom"
+                    ]
                 },
                 "name": {
                     "type": "string",

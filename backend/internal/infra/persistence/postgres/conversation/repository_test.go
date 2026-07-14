@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,69 @@ import (
 func TestTranslateErrorAllowsNil(t *testing.T) {
 	if err := translateError(nil); err != nil {
 		t.Fatalf("translateError(nil) = %v, want nil", err)
+	}
+}
+
+func TestConversationProjectDefaultsRoundTripAndDelete(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	project := domainconversation.ConversationProject{
+		UserID:            1,
+		PublicID:          "project_defaults",
+		Name:              "Project defaults",
+		MCPDefaultMode:    domainconversation.ConversationProjectMCPDefaultModeCustom,
+		DefaultMCPToolIDs: []uint{7, 3},
+		DefaultSkillIDs:   []uint{11, 5},
+		Status:            "active",
+	}
+	if err := repo.CreateConversationProject(ctx, &project); err != nil {
+		t.Fatalf("CreateConversationProject() error = %v", err)
+	}
+	if !reflect.DeepEqual(project.DefaultMCPToolIDs, []uint{7, 3}) || !reflect.DeepEqual(project.DefaultSkillIDs, []uint{11, 5}) {
+		t.Fatalf("created defaults = MCP %v Skills %v", project.DefaultMCPToolIDs, project.DefaultSkillIDs)
+	}
+
+	loaded, err := repo.GetConversationProjectByPublicID(ctx, 1, project.PublicID)
+	if err != nil {
+		t.Fatalf("GetConversationProjectByPublicID() error = %v", err)
+	}
+	if loaded.MCPDefaultMode != domainconversation.ConversationProjectMCPDefaultModeCustom ||
+		!reflect.DeepEqual(loaded.DefaultMCPToolIDs, []uint{7, 3}) ||
+		!reflect.DeepEqual(loaded.DefaultSkillIDs, []uint{11, 5}) {
+		t.Fatalf("loaded project defaults = %#v", loaded)
+	}
+
+	nextMCPToolIDs := []uint{}
+	nextSkillIDs := []uint{5}
+	inheritMode := domainconversation.ConversationProjectMCPDefaultModeInherit
+	updated, err := repo.UpdateConversationProjectMetadataByPublicID(ctx, 1, project.PublicID, domainconversation.ConversationProjectPatch{
+		MCPDefaultMode:    &inheritMode,
+		DefaultMCPToolIDs: &nextMCPToolIDs,
+		DefaultSkillIDs:   &nextSkillIDs,
+	})
+	if err != nil {
+		t.Fatalf("UpdateConversationProjectMetadataByPublicID() error = %v", err)
+	}
+	if updated.MCPDefaultMode != inheritMode || len(updated.DefaultMCPToolIDs) != 0 || !reflect.DeepEqual(updated.DefaultSkillIDs, nextSkillIDs) {
+		t.Fatalf("updated project defaults = %#v", updated)
+	}
+
+	if _, err = repo.DeleteConversationProjectByPublicID(ctx, 1, project.PublicID, false, false); err != nil {
+		t.Fatalf("DeleteConversationProjectByPublicID() error = %v", err)
+	}
+	var associationCount int64
+	if err = db.Model(&model.ConversationProjectMCPTool{}).Where("project_id = ?", project.ID).Count(&associationCount).Error; err != nil {
+		t.Fatalf("count project MCP associations: %v", err)
+	}
+	if associationCount != 0 {
+		t.Fatalf("project MCP association count = %d, want 0", associationCount)
+	}
+	if err = db.Model(&model.ConversationProjectSkill{}).Where("project_id = ?", project.ID).Count(&associationCount).Error; err != nil {
+		t.Fatalf("count project Skill associations: %v", err)
+	}
+	if associationCount != 0 {
+		t.Fatalf("project Skill association count = %d, want 0", associationCount)
 	}
 }
 
@@ -494,7 +558,7 @@ func openConversationRepositoryTestDB(t *testing.T) *gorm.DB {
 			_ = sqlDB.Close()
 		}
 	})
-	if err := db.AutoMigrate(&model.Conversation{}, &model.ConversationProject{}, &model.ConversationShare{}, &model.Message{}, &model.Attachment{}, &model.FileObject{}, &model.ConversationRun{}, &model.ChatRunEvent{}); err != nil {
+	if err := db.AutoMigrate(&model.Conversation{}, &model.ConversationProject{}, &model.ConversationProjectMCPTool{}, &model.ConversationProjectSkill{}, &model.ConversationShare{}, &model.Message{}, &model.Attachment{}, &model.FileObject{}, &model.ConversationRun{}, &model.ChatRunEvent{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	return db

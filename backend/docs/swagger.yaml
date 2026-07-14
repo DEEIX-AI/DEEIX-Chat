@@ -3903,9 +3903,19 @@ definitions:
         type: string
       createdAt:
         type: string
+      defaultMCPToolIDs:
+        items:
+          type: integer
+        type: array
+      defaultSkillIDs:
+        items:
+          type: integer
+        type: array
       description:
         type: string
       icon:
+        type: string
+      mcpDefaultMode:
         type: string
       name:
         type: string
@@ -4028,11 +4038,26 @@ definitions:
       color:
         maxLength: 32
         type: string
+      defaultMCPToolIDs:
+        items:
+          type: integer
+        maxItems: 128
+        type: array
+      defaultSkillIDs:
+        items:
+          type: integer
+        maxItems: 128
+        type: array
       description:
         maxLength: 255
         type: string
       icon:
         maxLength: 32
+        type: string
+      mcpDefaultMode:
+        enum:
+        - inherit
+        - custom
         type: string
       name:
         maxLength: 80
@@ -4739,11 +4764,26 @@ definitions:
       color:
         maxLength: 32
         type: string
+      defaultMCPToolIDs:
+        items:
+          type: integer
+        maxItems: 128
+        type: array
+      defaultSkillIDs:
+        items:
+          type: integer
+        maxItems: 128
+        type: array
       description:
         maxLength: 255
         type: string
       icon:
         maxLength: 32
+        type: string
+      mcpDefaultMode:
+        enum:
+        - inherit
+        - custom
         type: string
       name:
         maxLength: 80
@@ -11351,6 +11391,13 @@ paths:
         in: query
         name: q
         type: string
+      - collectionFormat: multi
+        description: 按技能 ID 筛选，可重复传递
+        in: query
+        items:
+          type: integer
+        name: id
+        type: array
       - description: 页码
         in: query
         name: page
@@ -11366,6 +11413,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/internal_transport_http_skill.SkillSummaryPageResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_skill.ErrorDoc'
         "500":
           description: Internal Server Error
           schema:

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
+	domainskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/skill"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
@@ -882,6 +883,8 @@ func (r *Repo) ListLatestSessionActivityByUserIDs(ctx context.Context, userIDs [
 func (r *Repo) DeleteAccountHard(ctx context.Context, userID uint) error {
 	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		conversationSubQuery := tx.Unscoped().Model(&model.Conversation{}).Select("id").Where("user_id = ?", userID)
+		projectSubQuery := tx.Unscoped().Model(&model.ConversationProject{}).Select("id").Where("user_id = ?", userID)
+		userSkillSubQuery := tx.Model(&model.Skill{}).Select("id").Where("scope = ? AND owner_user_id = ?", domainskill.ScopeUser, userID)
 		runSubQuery := tx.Unscoped().Model(&model.ConversationRun{}).Select("run_id").Where("user_id = ?", userID)
 
 		steps := []struct {
@@ -976,6 +979,31 @@ func (r *Repo) DeleteAccountHard(ctx context.Context, userID uint) error {
 				label: "chat_conversations",
 				run: func(db *gorm.DB) error {
 					return db.Unscoped().Where("user_id = ?", userID).Delete(&model.Conversation{}).Error
+				},
+			},
+			{
+				label: "chat_conversation_project_mcp_tools",
+				run: func(db *gorm.DB) error {
+					return db.Where("project_id IN (?)", projectSubQuery).Delete(&model.ConversationProjectMCPTool{}).Error
+				},
+			},
+			{
+				label: "chat_conversation_project_skills",
+				run: func(db *gorm.DB) error {
+					return db.Where("project_id IN (?) OR skill_id IN (?)", projectSubQuery, userSkillSubQuery).
+						Delete(&model.ConversationProjectSkill{}).Error
+				},
+			},
+			{
+				label: "chat_conversation_projects",
+				run: func(db *gorm.DB) error {
+					return db.Unscoped().Where("user_id = ?", userID).Delete(&model.ConversationProject{}).Error
+				},
+			},
+			{
+				label: "skills",
+				run: func(db *gorm.DB) error {
+					return db.Where("scope = ? AND owner_user_id = ?", domainskill.ScopeUser, userID).Delete(&model.Skill{}).Error
 				},
 			},
 			{

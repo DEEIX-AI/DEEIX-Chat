@@ -42,14 +42,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible } from "@/components/ui/collapsible";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { GripVerticalIcon, type GripVerticalIconHandle } from "@/components/ui/grip-vertical";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -60,8 +52,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   SidebarGroup,
   SidebarGroupAction,
@@ -79,27 +69,22 @@ import {
   useSidebarConversations,
 } from "@/entities/conversation";
 import { useChatSession } from "@/features/chat";
-import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
-import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import { DeleteFilesOption } from "@/shared/components/delete-files-option";
-import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import { useSettingsChatPreferences } from "@/features/settings";
+import { ProjectDialog, type ProjectDraft } from "@/features/layouts/components/navigation/project-dialog";
+import { SidebarConversationItem } from "@/features/layouts/components/navigation/sidebar-conversation-item";
 import { useLayoutActiveConversation } from "@/features/layouts/hooks/use-layout-active-conversation";
 import { useLayoutProjectConversations } from "@/features/layouts/hooks/use-layout-project-conversations";
 import { useSidebarConversationNavigation } from "@/features/layouts/hooks/use-sidebar-conversation-navigation";
-import { SidebarConversationItem } from "@/features/layouts/components/navigation/sidebar-conversation-item";
 import type {
   SidebarConversationDeleteTarget,
   SidebarConversationRenameTarget,
 } from "@/features/layouts/types/navigation";
-import { useStoredBoolean } from "@/shared/hooks/use-stored-boolean";
+import { useSettingsChatPreferences } from "@/features/settings";
+import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { cn } from "@/lib/utils";
-
-type ProjectDraft = {
-  publicID?: string;
-  name: string;
-  systemPrompt: string;
-};
+import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
+import { DeleteFilesOption } from "@/shared/components/delete-files-option";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import { useStoredBoolean } from "@/shared/hooks/use-stored-boolean";
 
 type ProjectActionTarget = {
   publicID?: string;
@@ -109,12 +94,6 @@ type ProjectActionTarget = {
 const PROJECT_TREE_ACCORDION_TRANSITION: Transition = {
   duration: 0.26,
   ease: [0.22, 1, 0.36, 1],
-};
-const PROJECT_DIALOG_LAYOUT_TRANSITION = {
-  layout: {
-    duration: 0.22,
-    ease: [0.16, 1, 0.3, 1] as const,
-  },
 };
 const PROJECT_TREE_ACCORDION_MASK_STYLE = {
   maskImage: "linear-gradient(black var(--mask-stop), transparent var(--mask-stop))",
@@ -620,9 +599,21 @@ export function NavProjects() {
       return;
     }
     if (draft.publicID) {
-      await updateProject(draft.publicID, { name, systemPrompt: draft.systemPrompt.trim() });
+      await updateProject(draft.publicID, {
+        name,
+        systemPrompt: draft.systemPrompt.trim(),
+        mcpDefaultMode: draft.mcpDefaultMode,
+        defaultMCPToolIDs: draft.mcpDefaultMode === "custom" ? draft.defaultMCPToolIDs : [],
+        defaultSkillIDs: draft.defaultSkillIDs,
+      });
     } else {
-      await createProject({ name, systemPrompt: draft.systemPrompt.trim() });
+      await createProject({
+        name,
+        systemPrompt: draft.systemPrompt.trim(),
+        mcpDefaultMode: draft.mcpDefaultMode,
+        defaultMCPToolIDs: draft.mcpDefaultMode === "custom" ? draft.defaultMCPToolIDs : [],
+        defaultSkillIDs: draft.defaultSkillIDs,
+      });
     }
     closeDraft();
   }, [closeDraft, createProject, draft, updateProject]);
@@ -698,7 +689,13 @@ export function NavProjects() {
                 createLabel={t("create")}
                 contentID={projectsContentID}
                 open={projectsOpen}
-                onCreate={() => setDraft({ name: "", systemPrompt: "" })}
+                onCreate={() => setDraft({
+                  name: "",
+                  systemPrompt: "",
+                  mcpDefaultMode: "inherit",
+                  defaultMCPToolIDs: [],
+                  defaultSkillIDs: [],
+                })}
                 onOpenChange={setProjectsOpen}
                 toggleLabel={projectsOpen ? t("collapseSection") : t("expandSection")}
               />
@@ -723,7 +720,13 @@ export function NavProjects() {
               createLabel={t("create")}
               contentID={projectsContentID}
               open={projectsOpen}
-              onCreate={() => setDraft({ name: "", systemPrompt: "" })}
+              onCreate={() => setDraft({
+                name: "",
+                systemPrompt: "",
+                mcpDefaultMode: "inherit",
+                defaultMCPToolIDs: [],
+                defaultSkillIDs: [],
+              })}
               onOpenChange={setProjectsOpen}
               toggleLabel={projectsOpen ? t("collapseSection") : t("expandSection")}
             />
@@ -827,7 +830,14 @@ export function NavProjects() {
                                     <DropdownMenuItem
                                       onSelect={(event) => {
                                         event.preventDefault();
-                                        setDraft({ publicID: project.publicID, name: project.name, systemPrompt: project.systemPrompt ?? "" });
+                                        setDraft({
+                                          publicID: project.publicID,
+                                          name: project.name,
+                                          systemPrompt: project.systemPrompt ?? "",
+                                          mcpDefaultMode: project.mcpDefaultMode ?? "inherit",
+                                          defaultMCPToolIDs: project.defaultMCPToolIDs ?? [],
+                                          defaultSkillIDs: project.defaultSkillIDs ?? [],
+                                        });
                                       }}
                                     >
                                       <DropdownMenuItemIcon icon={PencilLine} className="text-current" />
@@ -1050,89 +1060,5 @@ export function NavProjects() {
         />
       ) : null}
     </>
-  );
-}
-
-function ProjectDialog({
-  draft,
-  setDraft,
-  onOpenChange,
-  onSubmit,
-}: {
-  draft: ProjectDraft | null;
-  setDraft: (draft: ProjectDraft | null) => void;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: () => void | Promise<void>;
-}) {
-  const t = useTranslations("recent.projects");
-  const [submitting, setSubmitting] = React.useState(false);
-  const stableDraft = useDialogSnapshot(draft);
-
-  React.useEffect(() => {
-    if (!draft) {
-      setSubmitting(false);
-    }
-  }, [draft]);
-
-  const handleSubmit = React.useCallback<React.FormEventHandler<HTMLFormElement>>(
-    async (event) => {
-      event.preventDefault();
-      if (!draft?.name.trim() || submitting) {
-        return;
-      }
-      setSubmitting(true);
-      try {
-        await onSubmit();
-      } finally {
-        setSubmitting(false);
-      }
-    },
-    [draft?.name, onSubmit, submitting],
-  );
-
-  return (
-    <Dialog open={Boolean(draft)} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{stableDraft?.publicID ? t("editTitle") : t("createTitle")}</DialogTitle>
-          <DialogDescription>{stableDraft?.publicID ? t("editDescription") : t("createDescription")}</DialogDescription>
-        </DialogHeader>
-
-        <motion.form layout transition={PROJECT_DIALOG_LAYOUT_TRANSITION} onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">{t("nameLabel")}</p>
-            <Input
-              autoFocus
-              value={stableDraft?.name ?? ""}
-              maxLength={80}
-              placeholder={t("namePlaceholder")}
-              onChange={(event) => draft && setDraft({ ...draft, name: event.target.value })}
-              disabled={submitting}
-              required
-            />
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">{t("systemPromptLabel")}</p>
-            <Textarea
-              value={stableDraft?.systemPrompt ?? ""}
-              maxLength={12000}
-              placeholder={t("systemPromptPlaceholder")}
-              className="min-h-32 resize-y"
-              onChange={(event) => draft && setDraft({ ...draft, systemPrompt: event.target.value })}
-              disabled={submitting}
-            />
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
-              {t("cancel")}
-            </Button>
-            <Button type="submit" disabled={!draft?.name.trim() || submitting}>
-              {t("save")}
-            </Button>
-          </DialogFooter>
-        </motion.form>
-      </DialogContent>
-    </Dialog>
   );
 }
