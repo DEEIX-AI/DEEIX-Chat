@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
@@ -13,31 +14,20 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mcp"
 )
 
-const (
-	toolResultModelBudgetChars        = 12000
-	toolResultReferenceThresholdChars = 50000
-	toolResultReferencePreviewChars   = 2000
-	toolResultAggregateBudgetChars    = 200000
-)
-
-const (
-	toolResultBudgetRetainedIn = "server-side tool call record"
-	toolResultOpaquePreviewMax = 512
-)
-
 type executeAssistantToolCallsInput struct {
-	UserID         uint
-	ConversationID uint
-	MessageID      uint
-	RequestID      string
-	RunID          string
-	ToolCalls      []llm.ToolCall
-	ToolCallLimit  int
-	TraceRecorder  *messageTraceRecorder
-	ToolNameMap    map[string]string
-	MCPConfigs     map[string]mcp.CallConfig
-	ToolSchemas    map[string]json.RawMessage
-	Ledger         *toolExecutionLedger
+	UserID            uint
+	ConversationID    uint
+	MessageID         uint
+	RequestID         string
+	RunID             string
+	ToolCalls         []llm.ToolCall
+	ToolCallLimit     int
+	TraceRecorder     *messageTraceRecorder
+	ToolNameMap       map[string]string
+	MCPConfigs        map[string]mcp.CallConfig
+	ToolSchemas       map[string]json.RawMessage
+	Ledger            *toolExecutionLedger
+	ResultTokenBudget int64
 }
 
 type executeAssistantToolCallsResult struct {
@@ -107,7 +97,7 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 			row.ErrorJSON = toolNotEnabledForRunMessage(modelToolName)
 			slots[i] = toolExecutionSlot{
 				row:    row,
-				result: buildToolResultForModel(row, modelToolName, false),
+				result: buildToolResultForModel(row, modelToolName),
 			}
 			if fatalErr == nil {
 				fatalErr = fmt.Errorf("model requested tool %q, but it is not enabled for this run", modelToolName)
@@ -124,7 +114,7 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 			row.ErrorJSON = validationErr.Error()
 			slots[i] = toolExecutionSlot{
 				row:    row,
-				result: buildToolResultForModel(row, modelToolName, false),
+				result: buildToolResultForModel(row, modelToolName),
 			}
 			if input.Ledger != nil {
 				input.Ledger.store(row.ToolName, row.InputJSON, toolExecutionRecord{row: row, result: slots[i].result})
@@ -137,7 +127,7 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 			if previous, ok := input.Ledger.lookup(row.ToolName, row.InputJSON); ok {
 				slot := buildRepeatedToolSlot(row, modelToolName, previous)
 				persisted := s.persistToolCallResult(ctx, &slot.row)
-				slot.result = buildToolResultForModel(slot.row, modelToolName, persisted)
+				slot.result = buildToolResultForModel(slot.row, modelToolName)
 				slot.persisted = persisted
 				slots[i] = slot
 				continue
@@ -168,7 +158,7 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 			}
 		}
 		persisted := s.persistToolCallResult(ctx, &row)
-		result := buildToolResultForModel(row, modelToolName, persisted)
+		result := buildToolResultForModel(row, modelToolName)
 		slots[i] = toolExecutionSlot{
 			row:       row,
 			result:    result,
@@ -182,7 +172,7 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 	rows := make([]model.ToolCall, 0, len(slots))
 	toolResults := make([]llm.ToolResult, 0, len(slots))
 	persistedToolCallKeys := make(map[string]struct{})
-	enforceToolResultAggregateBudget(slots)
+	enforceToolResultAggregateBudget(slots, input.ResultTokenBudget)
 	for _, slot := range slots {
 		rows = append(rows, slot.row)
 		toolResults = append(toolResults, slot.result)
@@ -268,49 +258,101 @@ func (s *Service) persistToolCallResult(ctx context.Context, row *model.ToolCall
 	return row.ID > 0
 }
 
-func buildToolResultForModel(row model.ToolCall, modelToolName string, persisted bool) llm.ToolResult {
+func buildToolResultForModel(row model.ToolCall, modelToolName string) llm.ToolResult {
 	return llm.ToolResult{
 		ToolCallID: row.ToolCallID,
 		ToolName:   modelToolName,
-		OutputJSON: budgetToolOutputForModel(row, toolResultModelBudgetChars, persisted),
+		OutputJSON: modelToolOutputForModel(row.OutputJSON),
 		Status:     row.Status,
-		Error:      row.ErrorJSON,
+		Error:      modelToolOutputForModel(row.ErrorJSON),
 	}
 }
 
-func enforceToolResultAggregateBudget(slots []toolExecutionSlot) {
-	total := 0
-	for _, slot := range slots {
-		total += len([]rune(strings.TrimSpace(slot.result.OutputJSON)))
-	}
-	if total <= toolResultAggregateBudgetChars {
+// enforceToolResultAggregateBudget 在模型可用 token 内分配本批工具结果。
+// 小结果优先完整保留，剩余预算由较大结果均分，避免单个工具吞掉整批上下文。
+func enforceToolResultAggregateBudget(slots []toolExecutionSlot, maxTokens int64) {
+	if len(slots) == 0 {
 		return
 	}
-	candidates := make([]int, 0, len(slots))
+	if maxTokens < 0 {
+		maxTokens = 0
+	}
+	total := int64(0)
+	type candidate struct {
+		index  int
+		tokens int64
+	}
+	candidates := make([]candidate, 0, len(slots))
 	for index, slot := range slots {
-		if !slot.persisted || strings.TrimSpace(slot.row.OutputJSON) == "" || strings.HasPrefix(strings.TrimSpace(slot.result.OutputJSON), "<persisted-tool-output") {
+		tokens := toolResultModelTokens(slot.result)
+		total += tokens
+		if tokens <= 0 {
 			continue
 		}
-		status := strings.TrimSpace(slot.row.Status)
-		if status != "success" && status != "reused" {
-			continue
-		}
-		candidates = append(candidates, index)
+		candidates = append(candidates, candidate{index: index, tokens: tokens})
 	}
+	if total <= maxTokens || len(candidates) == 0 {
+		return
+	}
+
 	sort.Slice(candidates, func(i, j int) bool {
-		left := len([]rune(strings.TrimSpace(slots[candidates[i]].result.OutputJSON)))
-		right := len([]rune(strings.TrimSpace(slots[candidates[j]].result.OutputJSON)))
-		return left > right
+		return candidates[i].tokens < candidates[j].tokens
 	})
-	for _, index := range candidates {
-		if total <= toolResultAggregateBudgetChars {
-			break
+
+	allocations := make(map[int]int64, len(candidates))
+	remaining := maxTokens
+	for position, item := range candidates {
+		count := int64(len(candidates) - position)
+		share := remaining / count
+		if item.tokens <= share {
+			allocations[item.index] = item.tokens
+			remaining -= item.tokens
+			continue
 		}
-		current := strings.TrimSpace(slots[index].result.OutputJSON)
-		replacement := buildPersistedToolOutputForModel(slots[index].row, toolResultReferencePreviewChars)
-		slots[index].result.OutputJSON = replacement
-		total = total - len([]rune(current)) + len([]rune(replacement))
+		for next := position; next < len(candidates); next++ {
+			count = int64(len(candidates) - next)
+			share = remaining / count
+			allocations[candidates[next].index] = share
+			remaining -= share
+		}
+		break
 	}
+
+	for index, tokenBudget := range allocations {
+		if toolResultModelTokens(slots[index].result) <= tokenBudget {
+			continue
+		}
+		applyToolResultTokenBudget(&slots[index].result, tokenBudget)
+	}
+}
+
+// toolResultModelTokens 估算单个工具结果实际占用的模型 token。
+func toolResultModelTokens(result llm.ToolResult) int64 {
+	return estimateTokens(result.OutputJSON) + estimateTokens(result.Error)
+}
+
+// applyToolResultTokenBudget 按同一配额约束工具正文和错误信息。
+func applyToolResultTokenBudget(result *llm.ToolResult, maxTokens int64) {
+	if result == nil {
+		return
+	}
+	outputTokens := estimateTokens(result.OutputJSON)
+	errorTokens := estimateTokens(result.Error)
+	total := outputTokens + errorTokens
+	if total <= maxTokens {
+		return
+	}
+	if outputTokens == 0 {
+		result.Error = budgetToolOutputForModel(result.Error, maxTokens)
+		return
+	}
+	if errorTokens == 0 {
+		result.OutputJSON = budgetToolOutputForModel(result.OutputJSON, maxTokens)
+		return
+	}
+	outputBudget := maxTokens * outputTokens / total
+	result.OutputJSON = budgetToolOutputForModel(result.OutputJSON, outputBudget)
+	result.Error = budgetToolOutputForModel(result.Error, maxTokens-outputBudget)
 }
 
 func toolNotEnabledForRunMessage(toolName string) string {
@@ -321,137 +363,95 @@ func toolNotEnabledForRunMessage(toolName string) string {
 	return fmt.Sprintf("tool %s is not enabled for this run", name)
 }
 
-func budgetToolOutputForModel(row model.ToolCall, maxChars int, persisted bool) string {
-	value := strings.TrimSpace(row.OutputJSON)
-	if value == "" || maxChars <= 0 || len([]rune(value)) <= maxChars {
-		return value
-	}
-	if persisted && len([]rune(value)) > toolResultReferenceThresholdChars {
-		return buildPersistedToolOutputForModel(row, toolResultReferencePreviewChars)
-	}
-	modelText, metadata := budgetToolOutputText(value, maxChars, persisted)
-	if truncated, _ := metadata["truncated_for_model"].(bool); !truncated {
-		return modelText
-	}
-	note := "\n\n[Tool result truncated for model context.]"
-	if persisted {
-		note = "\n\n[Tool result truncated for model context. The full result is retained in the " + toolResultBudgetRetainedIn + ".]"
-	}
-	payload := map[string]interface{}{
-		"content": []map[string]string{{
-			"type": "text",
-			"text": modelText + note,
-		}},
-		"structuredContent": metadata,
-	}
-	if encoded, err := json.Marshal(payload); err == nil {
-		return string(encoded)
-	}
-	return modelText
-}
-
-func buildPersistedToolOutputForModel(row model.ToolCall, previewChars int) string {
-	output := strings.TrimSpace(row.OutputJSON)
-	preview := firstCharsAtLineBoundary(output, previewChars)
-	size := len([]rune(output))
-	toolCallID := strings.TrimSpace(row.ToolCallID)
-	runID := strings.TrimSpace(row.RunID)
-	toolName := strings.TrimSpace(row.ToolName)
-	var builder strings.Builder
-	builder.WriteString(`<persisted-tool-output`)
-	if toolCallID != "" {
-		builder.WriteString(` id="`)
-		builder.WriteString(xmlEscapeAttr(toolCallID))
-		builder.WriteString(`"`)
-	}
-	if runID != "" {
-		builder.WriteString(` run_id="`)
-		builder.WriteString(xmlEscapeAttr(runID))
-		builder.WriteString(`"`)
-	}
-	if toolName != "" {
-		builder.WriteString(` tool="`)
-		builder.WriteString(xmlEscapeAttr(toolName))
-		builder.WriteString(`"`)
-	}
-	builder.WriteString(">\n")
-	builder.WriteString(fmt.Sprintf("Output too large (%d characters). Full output is stored outside the model context in the conversation tool result store.\n\n", size))
-	builder.WriteString(fmt.Sprintf("Preview (first %d characters):\n", previewChars))
-	builder.WriteString(xmlEscapeText(preview))
-	if len([]rune(output)) > len([]rune(preview)) {
-		builder.WriteString("\n...")
-	}
-	builder.WriteString("\n</persisted-tool-output>")
-	return builder.String()
-}
-
-func firstCharsAtLineBoundary(value string, maxChars int) string {
-	text := strings.TrimSpace(value)
-	if maxChars <= 0 {
+// modelToolOutputForModel 保留可读文本，并从 JSON 中移除不适合进入模型上下文的不透明载荷。
+func modelToolOutputForModel(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
 		return ""
 	}
-	runes := []rune(text)
-	if len(runes) <= maxChars {
+	if looksLikeOpaqueToolOutput(value) {
+		return opaqueToolOutputSummary(len([]rune(value)))
+	}
+	if len(value) < 1024 {
+		return value
+	}
+	decoder := json.NewDecoder(strings.NewReader(value))
+	decoder.UseNumber()
+	var payload interface{}
+	if err := decoder.Decode(&payload); err != nil {
+		return value
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return value
+	}
+	sanitized, changed := sanitizeOpaqueToolOutputJSON(payload)
+	if !changed {
+		return value
+	}
+	encoded, err := json.Marshal(sanitized)
+	if err != nil {
+		return value
+	}
+	return string(encoded)
+}
+
+// budgetToolOutputForModel 仅在文本超过本批 token 配额时保留头尾片段。
+func budgetToolOutputForModel(value string, maxTokens int64) string {
+	text := strings.TrimSpace(value)
+	if text == "" || estimateTokens(text) <= maxTokens {
 		return text
 	}
-	truncated := string(runes[:maxChars])
-	if lastNewline := strings.LastIndex(truncated, "\n"); lastNewline > maxChars/2 {
-		truncated = truncated[:lastNewline]
-	}
-	return strings.TrimSpace(truncated)
+	return headTailToolOutputByTokens(text, maxTokens)
 }
 
-func budgetToolOutputText(value string, maxChars int, persisted bool) (string, map[string]interface{}) {
-	normalized := strings.TrimSpace(value)
-	contentType := "text"
-	if jsonText, ok := normalizedToolOutputJSON(normalized); ok {
-		normalized = jsonText
-		contentType = "json"
+// sanitizeOpaqueToolOutputJSON 递归替换 JSON 内的 base64 等大块不透明字符串。
+func sanitizeOpaqueToolOutputJSON(value interface{}) (interface{}, bool) {
+	switch item := value.(type) {
+	case string:
+		if looksLikeOpaqueToolOutput(item) {
+			return opaqueToolOutputSummary(len([]rune(item))), true
+		}
+		return item, false
+	case []interface{}:
+		changed := false
+		for index, child := range item {
+			sanitized, childChanged := sanitizeOpaqueToolOutputJSON(child)
+			if childChanged {
+				item[index] = sanitized
+			}
+			changed = changed || childChanged
+		}
+		return item, changed
+	case map[string]interface{}:
+		changed := false
+		for key, child := range item {
+			sanitized, childChanged := sanitizeOpaqueToolOutputJSON(child)
+			if childChanged {
+				item[key] = sanitized
+			}
+			changed = changed || childChanged
+		}
+		return item, changed
+	default:
+		return value, false
 	}
-	originalChars := len([]rune(value))
-	normalizedChars := len([]rune(normalized))
-	metadata := map[string]interface{}{
-		"truncated_for_model": true,
-		"original_chars":      originalChars,
-		"model_chars":         maxChars,
-		"content_type":        contentType,
-		"selection":           "head_tail",
-	}
-	if persisted {
-		metadata["retained_in"] = toolResultBudgetRetainedIn
-	}
-	if contentType != "json" && looksLikeOpaqueToolOutput(normalized) {
-		contentType = "opaque"
-		metadata["content_type"] = contentType
-		metadata["selection"] = "metadata_preview"
-		return opaqueToolOutputPreview(normalized, originalChars), metadata
-	}
-	if normalizedChars <= maxChars {
-		metadata["model_chars"] = normalizedChars
-		metadata["selection"] = "normalized"
-		metadata["truncated_for_model"] = false
-		return normalized, metadata
-	}
-	return headTailToolOutput(normalized, maxChars), metadata
 }
 
-func normalizedToolOutputJSON(value string) (string, bool) {
-	var payload interface{}
-	if err := json.Unmarshal([]byte(value), &payload); err != nil {
-		return "", false
-	}
-	formatted, err := json.Marshal(payload)
-	if err != nil {
-		return "", false
-	}
-	text := strings.TrimSpace(string(formatted))
-	return text, text != ""
-}
-
+// looksLikeOpaqueToolOutput 识别 data URI 和高密度 base64 风格内容。
 func looksLikeOpaqueToolOutput(value string) bool {
 	text := strings.TrimSpace(value)
 	runes := []rune(text)
-	if len(runes) < 1024 || strings.ContainsAny(text, " \n\t{}[],:") {
+	if len(runes) < 1024 {
+		return false
+	}
+	prefix := text
+	if len(prefix) > 128 {
+		prefix = prefix[:128]
+	}
+	if strings.HasPrefix(strings.ToLower(prefix), "data:") && strings.Contains(strings.ToLower(prefix), ";base64,") {
+		return true
+	}
+	if strings.ContainsAny(text, " \n\t{}[],:") {
 		return false
 	}
 	base64ish := 0
@@ -466,9 +466,77 @@ func looksLikeOpaqueToolOutput(value string) bool {
 	return float64(base64ish)/float64(len(runes)) > 0.95
 }
 
-func opaqueToolOutputPreview(value string, originalChars int) string {
-	preview := headTailToolOutput(value, toolResultOpaquePreviewMax)
-	return fmt.Sprintf("Large opaque tool result omitted from model context.\nOriginal characters: %d\nPreview:\n%s", originalChars, preview)
+// opaqueToolOutputSummary 为被移除的不透明载荷生成可读说明。
+func opaqueToolOutputSummary(originalChars int) string {
+	return fmt.Sprintf("[Opaque tool payload omitted from model context: %d characters]", originalChars)
+}
+
+// headTailToolOutputByTokens 按项目 token 估算保留文本头尾。
+func headTailToolOutputByTokens(value string, maxTokens int64) string {
+	text := strings.TrimSpace(value)
+	if text == "" || maxTokens <= 0 {
+		return ""
+	}
+	if estimateTokens(text) <= maxTokens {
+		return text
+	}
+	runes := []rune(text)
+	marker := fmt.Sprintf("\n\n[... %d characters omitted to fit the model context ...]\n\n", len(runes))
+	contentTokens := maxTokens - estimateTokens(marker) - 4
+	if contentTokens <= 0 {
+		summary := "[Tool result omitted to fit the model context]"
+		if estimateTokens(summary) <= maxTokens {
+			return summary
+		}
+		return toolOutputPrefixByTokenBudget(runes, maxTokens)
+	}
+
+	headUnits := contentTokens * 6
+	tailUnits := contentTokens*12 - headUnits
+	headEnd := toolOutputPrefixRuneCount(runes, headUnits)
+	tailStart := toolOutputSuffixRuneIndex(runes[headEnd:], tailUnits) + headEnd
+	omitted := tailStart - headEnd
+	marker = fmt.Sprintf("\n\n[... %d characters omitted to fit the model context ...]\n\n", omitted)
+	return strings.TrimSpace(string(runes[:headEnd])) + marker + strings.TrimSpace(string(runes[tailStart:]))
+}
+
+// toolOutputPrefixByTokenBudget 在预算不足以容纳截断标记时保留安全前缀。
+func toolOutputPrefixByTokenBudget(runes []rune, maxTokens int64) string {
+	return strings.TrimSpace(string(runes[:toolOutputPrefixRuneCount(runes, maxTokens*12)]))
+}
+
+// toolOutputPrefixRuneCount 返回给定估算单位内可保留的前缀长度。
+func toolOutputPrefixRuneCount(runes []rune, maxUnits int64) int {
+	used := int64(0)
+	for index, r := range runes {
+		units := toolOutputRuneTokenUnits(r)
+		if used+units > maxUnits {
+			return index
+		}
+		used += units
+	}
+	return len(runes)
+}
+
+// toolOutputSuffixRuneIndex 返回给定估算单位内可保留的后缀起点。
+func toolOutputSuffixRuneIndex(runes []rune, maxUnits int64) int {
+	used := int64(0)
+	for index := len(runes) - 1; index >= 0; index-- {
+		units := toolOutputRuneTokenUnits(runes[index])
+		if used+units > maxUnits {
+			return index + 1
+		}
+		used += units
+	}
+	return 0
+}
+
+// toolOutputRuneTokenUnits 使用十二分之一 token 表示单个字符的估算权重。
+func toolOutputRuneTokenUnits(r rune) int64 {
+	if isCJKRune(r) {
+		return 8
+	}
+	return 3
 }
 
 func headTailToolOutput(value string, maxChars int) string {
