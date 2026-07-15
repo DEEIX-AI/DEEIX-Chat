@@ -24,7 +24,7 @@ import enRecent from "@/i18n/messages/en-US/recent.json";
 import enSettings from "@/i18n/messages/en-US/settings.json";
 import enShare from "@/i18n/messages/en-US/share.json";
 import type { AppLocale } from "@/i18n/config";
-import { replaceDefaultBrandTitle } from "@/shared/lib/branding";
+import { replaceDefaultBrandTitle } from "@/shared/config/branding";
 
 const ENGLISH_MESSAGES = {
   common: enCommon,
@@ -56,28 +56,28 @@ const ENGLISH_MESSAGES = {
 
 export type AppMessages = typeof ENGLISH_MESSAGES;
 
-function prepareMessages(messages: AppMessages): AppMessages {
+export function applyBrandingToMessages(messages: AppMessages, brandTitle: string): AppMessages {
   return {
     ...messages,
     guide: {
       ...messages.guide,
-      userWelcomeTitle: replaceDefaultBrandTitle(messages.guide.userWelcomeTitle),
+      userWelcomeTitle: replaceDefaultBrandTitle(messages.guide.userWelcomeTitle, brandTitle),
     },
     recent: {
       ...messages.recent,
-      allConversationsDescription: replaceDefaultBrandTitle(messages.recent.allConversationsDescription),
+      allConversationsDescription: replaceDefaultBrandTitle(messages.recent.allConversationsDescription, brandTitle),
     },
     login: {
       ...messages.login,
-      title: replaceDefaultBrandTitle(messages.login.title),
+      title: replaceDefaultBrandTitle(messages.login.title, brandTitle),
     },
     share: {
       ...messages.share,
-      signInToContinue: replaceDefaultBrandTitle(messages.share.signInToContinue),
+      signInToContinue: replaceDefaultBrandTitle(messages.share.signInToContinue, brandTitle),
     },
     chat: {
       ...messages.chat,
-      placeholder: replaceDefaultBrandTitle(messages.chat.placeholder),
+      placeholder: replaceDefaultBrandTitle(messages.chat.placeholder, brandTitle),
     },
     settings: {
       ...messages.settings,
@@ -91,6 +91,7 @@ function prepareMessages(messages: AppMessages): AppMessages {
               ...messages.settings.accountPage.securityDialog.email.description,
               change: replaceDefaultBrandTitle(
                 messages.settings.accountPage.securityDialog.email.description.change,
+                brandTitle,
               ),
             },
           },
@@ -100,7 +101,7 @@ function prepareMessages(messages: AppMessages): AppMessages {
   };
 }
 
-export const DEFAULT_MESSAGES: AppMessages = prepareMessages(ENGLISH_MESSAGES);
+export const DEFAULT_MESSAGES: AppMessages = ENGLISH_MESSAGES;
 
 export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages> {
   if (locale === "en-US") {
@@ -161,7 +162,7 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     import("@/i18n/messages/zh-CN/admin-users.json"),
   ]);
 
-  return prepareMessages({
+  return {
     common: common.default,
     conversation: conversation.default,
     errors: errors.default,
@@ -187,5 +188,5 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     adminTools: adminTools.default,
     adminUpstreams: adminUpstreams.default,
     adminUsers: adminUsers.default,
-  });
+  };
 }

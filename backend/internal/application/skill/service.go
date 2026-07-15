@@ -72,6 +72,7 @@ func (s *Service) ListVisible(ctx context.Context, userID uint, input ListInput)
 	}
 	page, pageSize := normalizePage(input.Page, input.PageSize)
 	return s.repo.ListSkills(ctx, repository.SkillListFilter{
+		IDs:           input.IDs,
 		Query:         strings.TrimSpace(input.Query),
 		VisibleUserID: &userID,
 	}, (page-1)*pageSize, pageSize)
@@ -210,6 +211,7 @@ func (s *Service) DeleteBuiltin(ctx context.Context, actorUserID uint, id uint) 
 
 // ListInput 定义技能列表入参。
 type ListInput struct {
+	IDs      []uint
 	Query    string
 	Enabled  *bool
 	Page     int

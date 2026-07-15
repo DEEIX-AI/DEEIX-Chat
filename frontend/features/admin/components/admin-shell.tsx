@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
 
 import { AdminSidebar } from "@/features/admin/components/admin-sidebar";
-import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
-import { brandAssets } from "@/shared/lib/branding";
+import { CustomBrandAttribution } from "@/shared/components/powered-by-deeix";
 
 export function AdminShell({
   children,
@@ -22,11 +21,7 @@ export function AdminShell({
         </main>
       </div>
 
-      {brandAssets.logo ? (
-        <div className="fixed bottom-4 right-4">
-          <PoweredByDeeix />
-        </div>
-      ) : null}
+      <CustomBrandAttribution className="fixed bottom-4 right-4" />
     </div>
   );
 }

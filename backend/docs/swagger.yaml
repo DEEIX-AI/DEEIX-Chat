@@ -4101,9 +4101,19 @@ definitions:
         type: string
       createdAt:
         type: string
+      defaultMCPToolIDs:
+        items:
+          type: integer
+        type: array
+      defaultSkillIDs:
+        items:
+          type: integer
+        type: array
       description:
         type: string
       icon:
+        type: string
+      mcpDefaultMode:
         type: string
       name:
         type: string
@@ -4226,11 +4236,26 @@ definitions:
       color:
         maxLength: 32
         type: string
+      defaultMCPToolIDs:
+        items:
+          type: integer
+        maxItems: 128
+        type: array
+      defaultSkillIDs:
+        items:
+          type: integer
+        maxItems: 128
+        type: array
       description:
         maxLength: 255
         type: string
       icon:
         maxLength: 32
+        type: string
+      mcpDefaultMode:
+        enum:
+        - inherit
+        - custom
         type: string
       name:
         maxLength: 80
@@ -4937,11 +4962,26 @@ definitions:
       color:
         maxLength: 32
         type: string
+      defaultMCPToolIDs:
+        items:
+          type: integer
+        maxItems: 128
+        type: array
+      defaultSkillIDs:
+        items:
+          type: integer
+        maxItems: 128
+        type: array
       description:
         maxLength: 255
         type: string
       icon:
         maxLength: 32
+        type: string
+      mcpDefaultMode:
+        enum:
+        - inherit
+        - custom
         type: string
       name:
         maxLength: 80
@@ -5157,6 +5197,78 @@ definitions:
     - content
     - title
     - trigger
+    type: object
+  internal_transport_http_settings.BrandingManifestIcon:
+    properties:
+      purpose:
+        type: string
+      sizes:
+        type: string
+      src:
+        type: string
+      type:
+        type: string
+    type: object
+  internal_transport_http_settings.BrandingManifestResponse:
+    properties:
+      background_color:
+        type: string
+      categories:
+        items:
+          type: string
+        type: array
+      description:
+        type: string
+      display:
+        type: string
+      icons:
+        items:
+          $ref: '#/definitions/internal_transport_http_settings.BrandingManifestIcon'
+        type: array
+      id:
+        type: string
+      lang:
+        type: string
+      name:
+        type: string
+      orientation:
+        type: string
+      scope:
+        type: string
+      short_name:
+        type: string
+      start_url:
+        type: string
+      theme_color:
+        type: string
+    type: object
+  internal_transport_http_settings.BrandingResponse:
+    properties:
+      appleTouchIcon180URL:
+        type: string
+      description:
+        type: string
+      faviconURL:
+        type: string
+      logoURL:
+        type: string
+      pwaIcon192URL:
+        type: string
+      pwaIcon512URL:
+        type: string
+      pwaMaskableIcon512URL:
+        type: string
+      shortName:
+        type: string
+      title:
+        type: string
+    type: object
+  internal_transport_http_settings.BrandingResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_settings.BrandingResponse'
+      errorMsg:
+        type: string
     type: object
   internal_transport_http_settings.PatchItem:
     properties:
@@ -9647,6 +9759,30 @@ paths:
       summary: 查询月度用量
       tags:
       - billing
+  /branding:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_settings.BrandingResponseDoc'
+      summary: 查询公开品牌配置
+      tags:
+      - settings
+  /branding/manifest.webmanifest:
+    get:
+      produces:
+      - application/manifest+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_settings.BrandingManifestResponse'
+      summary: 查询品牌 Web App Manifest
+      tags:
+      - settings
   /context-artifacts/{id}:
     get:
       consumes:
@@ -11660,6 +11796,13 @@ paths:
         in: query
         name: q
         type: string
+      - collectionFormat: multi
+        description: 按技能 ID 筛选，可重复传递
+        in: query
+        items:
+          type: integer
+        name: id
+        type: array
       - description: 页码
         in: query
         name: page
@@ -11675,6 +11818,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/internal_transport_http_skill.SkillSummaryPageResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_skill.ErrorDoc'
         "500":
           description: Internal Server Error
           schema:

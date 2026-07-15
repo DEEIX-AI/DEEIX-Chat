@@ -145,16 +145,19 @@ func ToConversationExportResponse(item *appconversation.ConversationExportResult
 
 // ConversationProjectResponse 对外会话项目响应 DTO。
 type ConversationProjectResponse struct {
-	PublicID     string    `json:"publicID"`
-	Name         string    `json:"name"`
-	Description  string    `json:"description"`
-	SystemPrompt string    `json:"systemPrompt"`
-	Color        string    `json:"color"`
-	Icon         string    `json:"icon"`
-	SortOrder    int       `json:"sortOrder"`
-	Status       string    `json:"status"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	PublicID          string    `json:"publicID"`
+	Name              string    `json:"name"`
+	Description       string    `json:"description"`
+	SystemPrompt      string    `json:"systemPrompt"`
+	MCPDefaultMode    string    `json:"mcpDefaultMode"`
+	DefaultMCPToolIDs []uint    `json:"defaultMCPToolIDs"`
+	DefaultSkillIDs   []uint    `json:"defaultSkillIDs"`
+	Color             string    `json:"color"`
+	Icon              string    `json:"icon"`
+	SortOrder         int       `json:"sortOrder"`
+	Status            string    `json:"status"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 func toConversationProjectResponse(item *model.ConversationProject) ConversationProjectResponse {
@@ -162,16 +165,19 @@ func toConversationProjectResponse(item *model.ConversationProject) Conversation
 		return ConversationProjectResponse{}
 	}
 	return ConversationProjectResponse{
-		PublicID:     item.PublicID,
-		Name:         item.Name,
-		Description:  item.Description,
-		SystemPrompt: item.SystemPrompt,
-		Color:        item.Color,
-		Icon:         item.Icon,
-		SortOrder:    item.SortOrder,
-		Status:       item.Status,
-		CreatedAt:    item.CreatedAt,
-		UpdatedAt:    item.UpdatedAt,
+		PublicID:          item.PublicID,
+		Name:              item.Name,
+		Description:       item.Description,
+		SystemPrompt:      item.SystemPrompt,
+		MCPDefaultMode:    item.MCPDefaultMode,
+		DefaultMCPToolIDs: append([]uint{}, item.DefaultMCPToolIDs...),
+		DefaultSkillIDs:   append([]uint{}, item.DefaultSkillIDs...),
+		Color:             item.Color,
+		Icon:              item.Icon,
+		SortOrder:         item.SortOrder,
+		Status:            item.Status,
+		CreatedAt:         item.CreatedAt,
+		UpdatedAt:         item.UpdatedAt,
 	}
 }
 

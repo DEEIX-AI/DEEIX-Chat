@@ -125,7 +125,7 @@ func TestListUsersFiltersByIdentityProviderAndSubscriptionStatus(t *testing.T) {
 	}
 }
 
-func TestDeleteAccountHardRemovesPermissionGroupUserAccess(t *testing.T) {
+func TestDeleteAccountHardRemovesUserScopedAssociations(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:delete_user_permission_groups?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -158,6 +158,26 @@ func TestDeleteAccountHardRemovesPermissionGroupUserAccess(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatalf("seed permission group user access: %v", err)
 	}
+	project := model.ConversationProject{UserID: user.ID, PublicID: "project_delete_user", Name: "Delete user project"}
+	if err = db.Create(&project).Error; err != nil {
+		t.Fatalf("seed conversation project: %v", err)
+	}
+	skill := model.Skill{
+		Scope:       "user",
+		OwnerUserID: user.ID,
+		Title:       "Delete user skill",
+		Trigger:     "delete-user-skill",
+		Enabled:     true,
+	}
+	if err = db.Create(&skill).Error; err != nil {
+		t.Fatalf("seed user skill: %v", err)
+	}
+	if err = db.Create(&model.ConversationProjectMCPTool{ProjectID: project.ID, ToolID: 7}).Error; err != nil {
+		t.Fatalf("seed project MCP association: %v", err)
+	}
+	if err = db.Create(&model.ConversationProjectSkill{ProjectID: project.ID, SkillID: skill.ID}).Error; err != nil {
+		t.Fatalf("seed project Skill association: %v", err)
+	}
 
 	if err = NewRepo(db).DeleteAccountHard(context.Background(), user.ID); err != nil {
 		t.Fatalf("DeleteAccountHard() error = %v", err)
@@ -169,6 +189,19 @@ func TestDeleteAccountHardRemovesPermissionGroupUserAccess(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("permission group user access count = %d, want 0", count)
+	}
+	for label, item := range map[string]interface{}{
+		"conversation projects":      &model.ConversationProject{},
+		"project MCP associations":   &model.ConversationProjectMCPTool{},
+		"project Skill associations": &model.ConversationProjectSkill{},
+		"user Skills":                &model.Skill{},
+	} {
+		if err = db.Model(item).Count(&count).Error; err != nil {
+			t.Fatalf("count %s: %v", label, err)
+		}
+		if count != 0 {
+			t.Fatalf("%s count = %d, want 0", label, count)
+		}
 	}
 }
 

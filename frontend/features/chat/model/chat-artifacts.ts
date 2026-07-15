@@ -3,7 +3,7 @@ import {
   resolveArtifactPreviewKind,
   type ArtifactPreviewKind,
 } from "@/shared/lib/artifact-preview";
-import { brandText } from "@/shared/lib/branding";
+import { getBrandingSnapshot } from "@/shared/config/branding";
 
 export type { ArtifactPreviewKind } from "@/shared/lib/artifact-preview";
 
@@ -158,6 +158,7 @@ function htmlPreviewDocument(code: string): string {
 }
 
 function cssPreviewDocument(code: string): string {
+  const branding = getBrandingSnapshot();
   return `<!doctype html>
 <html>
 <head>
@@ -167,7 +168,7 @@ ${previewHead("CSS Preview")}
 <body>
   <main class="artifact-preview">
     <section class="preview-panel">
-      <p class="eyebrow">${escapeHTML(brandText.shortName)} Artifact</p>
+      <p class="eyebrow">${escapeHTML(branding.shortName)} Artifact</p>
       <h1>Preview Surface</h1>
       <p>Generated CSS is applied to this isolated document.</p>
       <div class="preview-row">

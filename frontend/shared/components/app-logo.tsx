@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 
+import { useBranding } from "@/shared/config/branding-provider";
 import { useTheme } from "@/shared/components/theme-provider";
-import { brandAssets, brandText } from "@/shared/lib/branding";
 
 type AppLogoProps = {
   alt?: string;
@@ -14,18 +14,19 @@ type AppLogoProps = {
 };
 
 export function AppLogo({
-  alt = brandText.title,
+  alt,
   width,
   height,
   priority,
   className,
 }: AppLogoProps) {
+  const branding = useBranding();
   const { resolvedTheme } = useTheme();
 
   return (
     <Image
-      src={brandAssets.logo ?? (resolvedTheme === "dark" ? "/logo-white.svg" : "/logo.svg")}
-      alt={alt}
+      src={branding.logoURL || (resolvedTheme === "dark" ? "/logo-white.svg" : "/logo.svg")}
+      alt={alt ?? branding.title}
       width={width}
       height={height}
       priority={priority}

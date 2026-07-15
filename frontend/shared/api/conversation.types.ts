@@ -36,12 +36,16 @@ export type ConversationStarredFilter = "all" | "starred" | "unstarred";
 export type ConversationShareFilter = "all" | "shared" | "unshared";
 export type ConversationProjectFilter = "all" | "unassigned" | string;
 export type ConversationProjectStatusFilter = "active" | "archived" | "all";
+export type ConversationProjectMCPDefaultMode = "inherit" | "custom";
 
 export type ConversationProjectDTO = {
   publicID: string;
   name: string;
   description: string;
   systemPrompt: string;
+  mcpDefaultMode: ConversationProjectMCPDefaultMode;
+  defaultMCPToolIDs: number[];
+  defaultSkillIDs: number[];
   color: string;
   icon: string;
   sortOrder: number;
@@ -252,6 +256,9 @@ export type CreateConversationProjectRequest = {
   name: string;
   description?: string;
   systemPrompt?: string;
+  mcpDefaultMode?: ConversationProjectMCPDefaultMode;
+  defaultMCPToolIDs?: number[];
+  defaultSkillIDs?: number[];
   color?: string;
   icon?: string;
 };
@@ -260,6 +267,9 @@ export type UpdateConversationProjectRequest = {
   name?: string;
   description?: string;
   systemPrompt?: string;
+  mcpDefaultMode?: ConversationProjectMCPDefaultMode;
+  defaultMCPToolIDs?: number[];
+  defaultSkillIDs?: number[];
   color?: string;
   icon?: string;
   status?: "active" | "archived";

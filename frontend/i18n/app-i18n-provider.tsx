@@ -4,7 +4,8 @@ import * as React from "react";
 import { NextIntlClientProvider } from "next-intl";
 
 import { DEFAULT_LOCALE, LOCALE_COOKIE_NAME, normalizeAppLocale, resolveBrowserLocale, type AppLocale } from "@/i18n/config";
-import { DEFAULT_MESSAGES, loadLocaleMessages, type AppMessages } from "@/i18n/messages";
+import { applyBrandingToMessages, DEFAULT_MESSAGES, loadLocaleMessages, type AppMessages } from "@/i18n/messages";
+import { useBranding } from "@/shared/config/branding-provider";
 
 type AppI18nContextValue = {
   locale: AppLocale;
@@ -49,8 +50,9 @@ function applyDocumentLocale(locale: AppLocale): void {
 }
 
 export function AppI18nProvider({ children }: { children: React.ReactNode }) {
+  const branding = useBranding();
   const [locale, setLocaleState] = React.useState<AppLocale>(DEFAULT_LOCALE);
-  const [messages, setMessages] = React.useState<AppMessages>(DEFAULT_MESSAGES);
+  const [localeMessages, setLocaleMessages] = React.useState<AppMessages>(DEFAULT_MESSAGES);
   const localeRef = React.useRef<AppLocale>(DEFAULT_LOCALE);
 
   const applyLocale = React.useCallback(async (nextLocale: AppLocale, persist: boolean) => {
@@ -66,7 +68,7 @@ export function AppI18nProvider({ children }: { children: React.ReactNode }) {
     const nextMessages = await loadLocaleMessages(normalized);
     localeRef.current = normalized;
     setLocaleState(normalized);
-    setMessages(nextMessages);
+    setLocaleMessages(nextMessages);
     if (persist) {
       writeLocaleCookie(normalized);
     }
@@ -88,6 +90,10 @@ export function AppI18nProvider({ children }: { children: React.ReactNode }) {
       setLocale,
     }),
     [locale, setLocale],
+  );
+  const messages = React.useMemo(
+    () => applyBrandingToMessages(localeMessages, branding.title),
+    [branding.title, localeMessages],
   );
 
   return (

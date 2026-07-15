@@ -166,17 +166,25 @@ func (r *Repo) DeleteSkill(ctx context.Context, id uint) error {
 	if id == 0 {
 		return repository.ErrInvalidInput
 	}
-	result := r.db.WithContext(ctx).Delete(&model.Skill{}, id)
-	if result.Error != nil {
-		return translateError(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return repository.ErrNotFound
+	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Delete(&model.Skill{}, id)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return repository.ErrNotFound
+		}
+		return tx.Where("skill_id = ?", id).Delete(&model.ConversationProjectSkill{}).Error
+	}); err != nil {
+		return translateError(err)
 	}
 	return nil
 }
 
 func applySkillFilter(query *gorm.DB, filter repository.SkillListFilter) *gorm.DB {
+	if len(filter.IDs) > 0 {
+		query = query.Where("id IN ?", filter.IDs)
+	}
 	if filter.VisibleUserID != nil {
 		userID := *filter.VisibleUserID
 		query = query.Where(

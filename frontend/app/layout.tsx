@@ -4,10 +4,10 @@ import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google";
 import { AppVersionGuard } from "@/features/layouts";
 import { AppearancePreferencesProvider } from "@/features/settings";
 import { AppI18nProvider } from "@/i18n/app-i18n-provider";
+import { BrandingProvider } from "@/shared/config/branding-provider";
 import { DevtoolsBrandBanner } from "@/shared/components/devtools-brand-banner";
 import { ThemeProvider } from "@/shared/components/theme-provider";
-import { PWAServiceWorkerRegister } from "@/shared/components/pwa-service-worker-register";
-import { brandAssets, brandText } from "@/shared/lib/branding";
+import { LegacyPWAServiceWorkerMigration } from "@/shared/pwa/migrations/legacy-service-worker-migration";
 import { Toaster } from "@/components/ui/sonner";
 
 import "./globals.css";
@@ -30,27 +30,12 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  applicationName: brandText.title,
-  title: brandText.title,
-  description: brandText.description,
-  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: brandText.title,
   },
   formatDetection: {
     telephone: false,
-  },
-  icons: {
-    icon: [
-      { url: brandAssets.favicon },
-      { url: brandAssets.pwaIcon192, sizes: "192x192", type: "image/png" },
-      { url: brandAssets.pwaIcon512, sizes: "512x512", type: "image/png" },
-    ],
-    apple: [
-      { url: brandAssets.appleTouchIcon180, sizes: "180x180", type: "image/png" },
-    ],
   },
 };
 
@@ -71,22 +56,25 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${jetBrainsMono.variable} h-full`}
+      data-branding-pending="true"
       suppressHydrationWarning
     >
       <body
         className="h-full min-h-svh overflow-hidden antialiased"
       >
-        <AppI18nProvider>
-          <ThemeProvider>
-            <AppearancePreferencesProvider>
-              {children}
-              <AppVersionGuard />
-              <PWAServiceWorkerRegister />
-              <Toaster />
-              <DevtoolsBrandBanner />
-            </AppearancePreferencesProvider>
-          </ThemeProvider>
-        </AppI18nProvider>
+        <BrandingProvider>
+          <AppI18nProvider>
+            <ThemeProvider>
+              <AppearancePreferencesProvider>
+                {children}
+                <AppVersionGuard />
+                <LegacyPWAServiceWorkerMigration />
+                <Toaster />
+                <DevtoolsBrandBanner />
+              </AppearancePreferencesProvider>
+            </ThemeProvider>
+          </AppI18nProvider>
+        </BrandingProvider>
       </body>
     </html>
   );

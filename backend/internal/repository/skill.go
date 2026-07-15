@@ -17,6 +17,7 @@ type SkillRepository interface {
 
 // SkillListFilter 描述技能列表筛选条件。
 type SkillListFilter struct {
+	IDs            []uint
 	Query          string
 	SearchMarkdown bool
 	Scope          string

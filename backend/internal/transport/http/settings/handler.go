@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -122,6 +123,79 @@ func (h *Handler) GetLoginPageSettings(c *gin.Context) {
 	response.Success(c, LoginPageSettingsResponse{
 		DefaultNextPath: values["login_default_next_path"],
 	})
+}
+
+// GetBranding godoc
+// @Summary 查询公开品牌配置
+// @Tags settings
+// @Produce json
+// @Success 200 {object} BrandingResponseDoc
+// @Router /branding [get]
+func (h *Handler) GetBranding(c *gin.Context) {
+	c.Header("Cache-Control", "no-cache")
+	response.Success(c, brandingResponse(h.runtime.Snapshot()))
+}
+
+// GetBrandingManifest godoc
+// @Summary 查询品牌 Web App Manifest
+// @Tags settings
+// @Produce application/manifest+json
+// @Success 200 {object} BrandingManifestResponse
+// @Router /branding/manifest.webmanifest [get]
+func (h *Handler) GetBrandingManifest(c *gin.Context) {
+	cfg := h.runtime.Snapshot()
+	branding := brandingResponse(cfg)
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Content-Type", "application/manifest+json; charset=utf-8")
+	c.JSON(http.StatusOK, BrandingManifestResponse{
+		Name:            branding.Title,
+		ShortName:       branding.ShortName,
+		Description:     branding.Description,
+		ID:              publicBrandURL(cfg.PublicWebBaseURL, "/"),
+		StartURL:        publicBrandURL(cfg.PublicWebBaseURL, "/chat"),
+		Scope:           publicBrandURL(cfg.PublicWebBaseURL, "/"),
+		Display:         "standalone",
+		BackgroundColor: "#ffffff",
+		ThemeColor:      "#0f172a",
+		Orientation:     "any",
+		Categories:      []string{"productivity", "business", "utilities"},
+		Lang:            "en",
+		Icons: []BrandingManifestIcon{
+			{Src: publicBrandURL(cfg.PublicWebBaseURL, branding.PWAIcon192URL), Sizes: "192x192", Type: "image/png", Purpose: "any"},
+			{Src: publicBrandURL(cfg.PublicWebBaseURL, branding.PWAIcon512URL), Sizes: "512x512", Type: "image/png", Purpose: "any"},
+			{Src: publicBrandURL(cfg.PublicWebBaseURL, branding.PWAMaskableIcon512URL), Sizes: "512x512", Type: "image/png", Purpose: "maskable"},
+		},
+	})
+}
+
+func publicBrandURL(baseURL string, value string) string {
+	normalized := strings.TrimSpace(value)
+	if normalized == "" {
+		return normalized
+	}
+	reference, err := url.Parse(normalized)
+	if err != nil || reference.IsAbs() {
+		return normalized
+	}
+	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(baseURL), "/") + "/")
+	if err != nil || base.Host == "" {
+		return normalized
+	}
+	return base.ResolveReference(reference).String()
+}
+
+func brandingResponse(cfg config.Config) BrandingResponse {
+	return BrandingResponse{
+		Title:                 cfg.BrandTitle,
+		ShortName:             cfg.BrandShortName,
+		Description:           cfg.BrandDescription,
+		LogoURL:               cfg.BrandLogoURL,
+		FaviconURL:            cfg.BrandFaviconURL,
+		PWAIcon192URL:         cfg.BrandPWAIcon192URL,
+		PWAIcon512URL:         cfg.BrandPWAIcon512URL,
+		PWAMaskableIcon512URL: cfg.BrandPWAMaskableIcon512URL,
+		AppleTouchIcon180URL:  cfg.BrandAppleTouchIcon180URL,
+	}
 }
 
 // GetModelOptionPolicy godoc

@@ -1,6 +1,9 @@
+"use client";
+
 import Image from "next/image";
 
 import { cn } from "@/lib/utils";
+import { useBranding } from "@/shared/config/branding-provider";
 
 export function PoweredByDeeix({ className }: { className?: string }) {
   return (
@@ -36,5 +39,17 @@ export function PoweredByDeeix({ className }: { className?: string }) {
         />
       </a>
     </span>
+  );
+}
+
+export function CustomBrandAttribution({ className }: { className?: string }) {
+  const branding = useBranding();
+  if (!branding.logoURL) {
+    return null;
+  }
+  return (
+    <div className={className}>
+      <PoweredByDeeix />
+    </div>
   );
 }

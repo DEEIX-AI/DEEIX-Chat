@@ -155,6 +155,8 @@ func migrate(db *gorm.DB, cfg config.Config) error {
 		"file_chunks":                    "RAG文件分片表",
 		"chat_message_chunks":            "会话消息向量分片表(历史对话语义检索)",
 	}
+	tableComments["chat_conversation_project_mcp_tools"] = "项目默认 MCP 工具关联表"
+	tableComments["chat_conversation_project_skills"] = "项目默认 Skill 关联表"
 
 	for table, comment := range tableComments {
 		statement := fmt.Sprintf(`COMMENT ON TABLE "%s" IS '%s'`, table, escapeSQLLiteral(comment))

@@ -43,7 +43,7 @@ import {
   useLiveUpstreamThinkTrace,
 } from "@/features/chat/model/upstream-think-store";
 import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
-import { brandText } from "@/shared/lib/branding";
+import { useBranding } from "@/shared/config/branding-provider";
 
 const EMPTY_TRACE_EVENTS: NonNullable<ChatAreaMessage["processTrace"]>["events"] = [];
 
@@ -601,6 +601,7 @@ export function AssistantImageGenerationSkeleton({
   aspectRatio?: ChatAreaMessage["imageAspectRatio"];
 }) {
   const t = useTranslations("chat.messages");
+  const branding = useBranding();
   const frameClassName =
     aspectRatio === "portrait" ? "max-w-[18rem]" : aspectRatio === "square" ? "max-w-[24rem]" : "max-w-[32rem]";
   const aspectClassName =
@@ -625,7 +626,7 @@ export function AssistantImageGenerationSkeleton({
         />
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <span className="select-none text-[clamp(1.75rem,7vw,4rem)] font-semibold tracking-[0.18em] text-white/30 mix-blend-overlay drop-shadow-sm">
-            {brandText.shortName}
+            {branding.shortName}
           </span>
         </div>
       </div>
@@ -635,6 +636,7 @@ export function AssistantImageGenerationSkeleton({
 
 export function AssistantVideoGenerationSkeleton({ label }: { label?: string }) {
   const t = useTranslations("chat.messages");
+  const branding = useBranding();
   return (
     <div className="my-4 w-full max-w-[32rem] space-y-2.5">
       <div className="flex items-center gap-2 pt-1 text-[13px] text-muted-foreground">
@@ -657,7 +659,7 @@ export function AssistantVideoGenerationSkeleton({ label }: { label?: string }) 
           <div className="flex flex-col items-center gap-5 text-white/30 mix-blend-overlay drop-shadow-sm">
             <Film className="size-14" strokeWidth={1.4} />
             <span className="select-none text-[clamp(1.75rem,7vw,4rem)] font-semibold tracking-[0.18em]">
-              {brandText.shortName}
+              {branding.shortName}
             </span>
           </div>
         </div>
