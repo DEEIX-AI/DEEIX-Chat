@@ -120,9 +120,9 @@ APP_ENV=dev DATABASE_DRIVER=sqlite CACHE_DRIVER=memory SQLITE_PATH=../data/deeix
 
 ```bash
 cd frontend
-pnpm install
+bun install
 cp .env.example .env.local
-pnpm dev
+bun run dev
 ```
 
 访问地址：
@@ -141,17 +141,17 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 
 常用前端环境变量：
 
-- `NEXT_PUBLIC_API_BASE_URL`：后端 API 地址；分离部署时必须在 `pnpm build` 前设置。
+- `NEXT_PUBLIC_API_BASE_URL`：后端 API 地址；分离部署时必须在 `bun run build` 前设置。
 
 ## 常用命令
 
 ```bash
-pnpm dev
-pnpm check
-pnpm lint
-pnpm lint:fix
-pnpm build
-pnpm start
+bun run dev
+bun run check
+bun run lint
+bun run lint:fix
+bun run build
+bun run start
 ```
 
 `check` 依次运行 Biome 静态检查和 TypeScript 7 类型检查。规则范围、严重级别和框架例外见 [BIOME.md](./BIOME.md)。
@@ -172,11 +172,11 @@ pnpm start
 ## 提交前验证
 
 ```bash
-pnpm check
+bun run check
 ```
 
 涉及构建、路由、依赖或 Next.js 配置变更时再执行：
 
 ```bash
-pnpm build
+bun run build
 ```

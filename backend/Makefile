@@ -8,10 +8,10 @@ LDFLAGS := -X github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/buildinfo.V
 SWAG := $(shell command -v swag 2>/dev/null || echo "$(shell go env GOPATH)/bin/swag")
 
 sync-version:
-	node ../scripts/sync-version.mjs backend
+	bun ../scripts/sync-version.mjs backend
 
 check-version:
-	node ../scripts/sync-version.mjs --check backend
+	bun ../scripts/sync-version.mjs --check backend
 
 build: check-version
 	mkdir -p ../.cache/deeix-chat

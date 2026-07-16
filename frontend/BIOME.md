@@ -5,13 +5,13 @@ DEEIX Chat uses Biome as the frontend linter. TypeScript 7 remains responsible f
 ## Commands
 
 ```bash
-pnpm check
-pnpm typecheck
-pnpm lint
-pnpm lint:fix
+bun run check
+bun run typecheck
+bun run lint
+bun run lint:fix
 ```
 
-`pnpm check` is the required non-mutating local and CI gate. It runs `pnpm lint` followed by `pnpm typecheck`. `lint:fix` applies safe Biome lint fixes only.
+`bun run check` is the required non-mutating local and CI gate. It runs `bun run lint` followed by `bun run typecheck`. `lint:fix` applies safe Biome lint fixes only.
 
 Formatting is intentionally outside this migration. Enabling a repository-wide formatter requires a separate mechanical baseline so lint-tooling changes remain reviewable and do not rewrite unrelated application files.
 
@@ -19,7 +19,7 @@ Formatting is intentionally outside this migration. Enabling a repository-wide f
 
 Biome's recommended preset and the recommended React and Next.js domains are enabled in `biome.jsonc`. Project-specific deviations are listed explicitly so an upgrade cannot silently change the pull request gate.
 
-- `error`: correctness, React hook ordering, duplicate JSX props, invalid React attributes, unsafe script usage, and concrete security defects. Errors fail `pnpm lint`.
+- `error`: correctness, React hook ordering, duplicate JSX props, invalid React attributes, unsafe script usage, and concrete security defects. Errors fail `bun run lint`.
 - `warn`: accessibility guidance, exhaustive hook dependencies, framework performance guidance, and Next.js conventions that can require project-specific exceptions. Warnings stay visible without blocking an otherwise valid build.
 - `off`: only for rules that are not reliable with the project's component abstractions. `useAriaPropsSupportedByRole` is disabled because Radix and polymorphic controls expose roles and ARIA attributes through runtime composition that Biome cannot resolve statically. `performance/noImgElement` is disabled because the application deliberately renders administrator-configured provider icons, arbitrary Markdown/tool images, and local previews whose URLs cannot be declared in a fixed Next image domain list.
 

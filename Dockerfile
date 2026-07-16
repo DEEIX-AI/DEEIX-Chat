@@ -1,32 +1,30 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24-bookworm-slim AS frontend-builder
+FROM oven/bun:1.3.14-debian AS frontend-builder
 
-WORKDIR /src/frontend
-
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
+WORKDIR /src
 
 ARG NEXT_PUBLIC_API_BASE_URL=""
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 
 COPY VERSION /src/VERSION
 COPY scripts /src/scripts
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
-COPY frontend/scripts ./scripts
-COPY frontend/public/pwa ./public/pwa
+COPY package.json bun.lock ./
+COPY frontend/package.json ./frontend/package.json
+COPY backend/package.json ./backend/package.json
+COPY frontend/scripts ./frontend/scripts
+COPY frontend/public/pwa ./frontend/public/pwa
 
-RUN corepack enable
+RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile --filter @deeix/web
 
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm config set store-dir /pnpm/store \
-    && pnpm install --frozen-lockfile
+COPY frontend ./frontend
 
-COPY frontend ./
+WORKDIR /src/frontend
 
 # 如果你的 Next 版本支持，可以在 next.config 里开启 turbopack build filesystem cache
 RUN --mount=type=cache,id=next-cache,target=/src/frontend/.next/cache \
-    pnpm build
+    bun run build
 
 
 FROM golang:1.26-bookworm AS backend-builder

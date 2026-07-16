@@ -10,21 +10,21 @@ Thank you for contributing to DEEIX Chat.
 
 ## Development Setup
 
-Backend:
+Install all workspace dependencies:
 
 ```bash
-cd backend
-go test ./...
+bun install
 ```
 
-Frontend:
+Run the shared quality and test pipelines:
 
 ```bash
-cd frontend
-pnpm install
-pnpm lint
-pnpm build
+bun run check
+bun run test
+bun run build
 ```
+
+Use `bun run dev`, `bun run dev:web`, or `bun run dev:api` for local development.
 
 Use the example configuration files for local development. Do not commit local secrets or production credentials.
 
@@ -107,7 +107,7 @@ Core expectations:
 - keep API access inside `shared/api` or feature-level API modules
 - do not hard-code provider-private model behavior in the frontend
 - keep authentication tokens aligned with the existing session model
-- run `pnpm lint`, and run `pnpm build` for routing, dependency, or Next.js changes
+- run `bun run lint`, and run `bun run build` for routing, dependency, or Next.js changes
 
 ## Code Style
 
