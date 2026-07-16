@@ -130,21 +130,20 @@ cp config.example.yaml config.yaml
 
 根据本机环境调整 `config.yaml` 中的 `database.postgres.dsn`、`database.redis.*` 和公开访问地址。
 
-2. 启动后端：
+2. 安装工作区依赖并准备前端环境：
 
 ```bash
-cd backend
-make run
+pnpm install
+cp frontend/.env.example frontend/.env.local
 ```
 
-3. 启动前端：
+3. 同时启动前端和后端：
 
 ```bash
-cd frontend
-pnpm install
-cp .env.example .env.local
 pnpm dev
 ```
+
+只启动单个工作区时，使用 `pnpm dev:web` 或 `pnpm dev:api`。
 
 前端请求后端使用 `NEXT_PUBLIC_API_BASE_URL`。本地开发时确认 `frontend/.env.local` 中包含：
 
@@ -268,9 +267,8 @@ docker compose -f docker/docling/docker-compose.yml up -d --build
 2. 构建并发布前端。
 
    ```bash
-   cd frontend
    pnpm install
-   NEXT_PUBLIC_API_BASE_URL=https://api.example.com pnpm build
+   NEXT_PUBLIC_API_BASE_URL=https://api.example.com pnpm --filter @deeix/web build
    ```
 
    静态产物在 `frontend/out`，可由 Nginx、CDN、对象存储或任意静态服务托管。如需由 Go 后端托管前端，把 `frontend/out` 放到 `server.frontend_dist_dir` 指向的目录；Docker 镜像默认是 `/app/frontend/out`。

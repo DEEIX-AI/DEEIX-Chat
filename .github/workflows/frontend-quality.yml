@@ -1,4 +1,4 @@
-name: Frontend Quality
+name: Workspace Quality
 
 on:
   push:
@@ -6,7 +6,12 @@ on:
       - main
       - dev
     paths:
+      - "backend/**"
       - "frontend/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
       - "scripts/sync-version.mjs"
       - "VERSION"
       - ".github/workflows/frontend-quality.yml"
@@ -15,7 +20,12 @@ on:
       - main
       - dev
     paths:
+      - "backend/**"
       - "frontend/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
       - "scripts/sync-version.mjs"
       - "VERSION"
       - ".github/workflows/frontend-quality.yml"
@@ -26,11 +36,8 @@ permissions:
 
 jobs:
   quality:
-    name: Biome and TypeScript
+    name: Frontend and backend checks
     runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: frontend
 
     steps:
       - name: Checkout
@@ -40,17 +47,24 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           version: 10.17.0
-          run_install: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run frontend checks
+      - name: Run workspace checks
         run: pnpm check
+
+      - name: Run workspace tests
+        run: pnpm test

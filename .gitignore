@@ -93,6 +93,9 @@ web_modules/
 .cache
 .parcel-cache
 
+# Turborepo cache
+.turbo/
+
 # Next.js build output
 .next
 out

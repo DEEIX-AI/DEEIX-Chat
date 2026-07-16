@@ -130,21 +130,20 @@ cp config.example.yaml config.yaml
 
 Adjust `database.postgres.dsn`, `database.redis.*`, and public URLs in `config.yaml` for your local environment.
 
-2. Start the backend:
+2. Install workspace dependencies and prepare the frontend environment:
 
 ```bash
-cd backend
-make run
+pnpm install
+cp frontend/.env.example frontend/.env.local
 ```
 
-3. Start the frontend:
+3. Start the frontend and backend together:
 
 ```bash
-cd frontend
-pnpm install
-cp .env.example .env.local
 pnpm dev
 ```
+
+Use `pnpm dev:web` or `pnpm dev:api` to start only one workspace.
 
 The frontend uses `NEXT_PUBLIC_API_BASE_URL` for API requests. For local development, confirm that `frontend/.env.local` contains:
 
@@ -268,9 +267,8 @@ Use this mode when the frontend and backend are served from different public ori
 2. Build and publish the frontend.
 
    ```bash
-   cd frontend
    pnpm install
-   NEXT_PUBLIC_API_BASE_URL=https://api.example.com pnpm build
+   NEXT_PUBLIC_API_BASE_URL=https://api.example.com pnpm --filter @deeix/web build
    ```
 
    The static output is `frontend/out`. Serve it with Nginx, CDN, object storage, or any static web server. To let the Go backend serve the frontend, place `frontend/out` under `server.frontend_dist_dir`; the Docker image defaults to `/app/frontend/out`.
