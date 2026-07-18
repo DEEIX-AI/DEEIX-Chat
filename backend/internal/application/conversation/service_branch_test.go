@@ -12,15 +12,20 @@ func TestNormalizeDefaultBranchContextKeepsHistoryAfterSuccessfulAssistantRetry(
 	rootAssistantID := uint(2)
 	failedUserID := uint(3)
 	retryAssistantID := uint(4)
-	attachments, err := json.Marshal([]attachmentSnapshotRef{{FileID: "file_from_history"}})
+	failedAssistantID := uint(5)
+	historicalAttachments, err := json.Marshal([]attachmentSnapshotRef{{FileID: "file_from_history"}})
 	if err != nil {
 		t.Fatalf("marshal attachments: %v", err)
 	}
+	retriedAttachments, err := json.Marshal([]attachmentSnapshotRef{{FileID: "file_from_retried_user"}})
+	if err != nil {
+		t.Fatalf("marshal retried user attachments: %v", err)
+	}
 	ancestors := []model.Message{
-		{ID: rootUserID, PublicID: "msg_root_user", Role: "user", Status: "success", Attachments: string(attachments)},
+		{ID: rootUserID, PublicID: "msg_root_user", Role: "user", Status: "success", Attachments: string(historicalAttachments)},
 		{ID: rootAssistantID, PublicID: "msg_root_assistant", ParentMessageID: &rootUserID, Role: "assistant", Status: "success"},
-		{ID: failedUserID, PublicID: "msg_failed_user", ParentMessageID: &rootAssistantID, Role: "user", Status: "error"},
-		{ID: retryAssistantID, PublicID: "msg_retry_assistant", ParentMessageID: &failedUserID, Role: "assistant", BranchReason: "retry", Status: "success"},
+		{ID: failedUserID, PublicID: "msg_failed_user", ParentMessageID: &rootAssistantID, Role: "user", Status: "error", Attachments: string(retriedAttachments)},
+		{ID: retryAssistantID, PublicID: "msg_retry_assistant", ParentMessageID: &failedUserID, SourceMessageID: &failedAssistantID, Role: "assistant", BranchReason: "retry", Status: "success"},
 	}
 
 	normalized, parent := normalizeDefaultBranchContext(ancestors, &ancestors[3])
@@ -43,7 +48,7 @@ func TestNormalizeDefaultBranchContextKeepsHistoryAfterSuccessfulAssistantRetry(
 		t.Fatalf("expected normalization to leave persisted message state unchanged, got status %q", ancestors[2].Status)
 	}
 	fileIDs := collectConversationFileIDs(normalized, nil)
-	if len(fileIDs) != 1 || fileIDs[0] != "file_from_history" {
+	if len(fileIDs) != 2 || fileIDs[0] != "file_from_history" || fileIDs[1] != "file_from_retried_user" {
 		t.Fatalf("expected historical attachment to remain in context, got %#v", fileIDs)
 	}
 }
@@ -52,11 +57,12 @@ func TestNormalizeDefaultBranchContextDoesNotRecoverFailedRetry(t *testing.T) {
 	rootUserID := uint(1)
 	rootAssistantID := uint(2)
 	failedUserID := uint(3)
+	failedAssistantID := uint(5)
 	ancestors := []model.Message{
 		{ID: rootUserID, PublicID: "msg_root_user", Role: "user", Status: "success"},
 		{ID: rootAssistantID, PublicID: "msg_root_assistant", ParentMessageID: &rootUserID, Role: "assistant", Status: "success"},
 		{ID: failedUserID, PublicID: "msg_failed_user", ParentMessageID: &rootAssistantID, Role: "user", Status: "error"},
-		{ID: 4, PublicID: "msg_failed_retry", ParentMessageID: &failedUserID, Role: "assistant", BranchReason: "retry", Status: "error"},
+		{ID: 4, PublicID: "msg_failed_retry", ParentMessageID: &failedUserID, SourceMessageID: &failedAssistantID, Role: "assistant", BranchReason: "retry", Status: "error"},
 	}
 
 	normalized, parent := normalizeDefaultBranchContext(ancestors, &ancestors[3])
@@ -66,6 +72,65 @@ func TestNormalizeDefaultBranchContextDoesNotRecoverFailedRetry(t *testing.T) {
 	}
 	if len(normalized) != 2 || normalized[0].ID != rootUserID || normalized[1].ID != rootAssistantID {
 		t.Fatalf("expected failed retry tail removed from context, got %#v", normalized)
+	}
+}
+
+func TestIsRecoveredAssistantRetryUserRequiresGenuineUsableRetry(t *testing.T) {
+	failedUserID := uint(10)
+	sourceAssistantID := uint(11)
+	otherUserID := uint(12)
+	tests := []struct {
+		name      string
+		user      model.Message
+		assistant model.Message
+		expected  bool
+	}{
+		{
+			name:      "successful retry",
+			user:      model.Message{ID: failedUserID, Role: "user", Status: "error"},
+			assistant: model.Message{Role: "assistant", ParentMessageID: &failedUserID, SourceMessageID: &sourceAssistantID, BranchReason: "retry", Status: "success"},
+			expected:  true,
+		},
+		{
+			name:      "interrupted retry",
+			user:      model.Message{ID: failedUserID, Role: "user", Status: "error"},
+			assistant: model.Message{Role: "assistant", ParentMessageID: &failedUserID, SourceMessageID: &sourceAssistantID, BranchReason: "retry", Status: "interrupted"},
+			expected:  true,
+		},
+		{
+			name:      "failed retry",
+			user:      model.Message{ID: failedUserID, Role: "user", Status: "error"},
+			assistant: model.Message{Role: "assistant", ParentMessageID: &failedUserID, SourceMessageID: &sourceAssistantID, BranchReason: "retry", Status: "error"},
+		},
+		{
+			name:      "non-retry assistant",
+			user:      model.Message{ID: failedUserID, Role: "user", Status: "error"},
+			assistant: model.Message{Role: "assistant", ParentMessageID: &failedUserID, SourceMessageID: &sourceAssistantID, BranchReason: "default", Status: "success"},
+		},
+		{
+			name:      "retry without source",
+			user:      model.Message{ID: failedUserID, Role: "user", Status: "error"},
+			assistant: model.Message{Role: "assistant", ParentMessageID: &failedUserID, BranchReason: "retry", Status: "success"},
+		},
+		{
+			name:      "retry with different parent",
+			user:      model.Message{ID: failedUserID, Role: "user", Status: "error"},
+			assistant: model.Message{Role: "assistant", ParentMessageID: &otherUserID, SourceMessageID: &sourceAssistantID, BranchReason: "retry", Status: "success"},
+		},
+		{
+			name:      "already successful user",
+			user:      model.Message{ID: failedUserID, Role: "user", Status: "success"},
+			assistant: model.Message{Role: "assistant", ParentMessageID: &failedUserID, SourceMessageID: &sourceAssistantID, BranchReason: "retry", Status: "success"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			messages := []model.Message{test.user, test.assistant}
+			if actual := isRecoveredAssistantRetryUser(messages, 0); actual != test.expected {
+				t.Fatalf("expected recovered=%v, got %v", test.expected, actual)
+			}
+		})
 	}
 }
 

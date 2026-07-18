@@ -195,6 +195,7 @@ func isRecoveredAssistantRetryUser(messages []model.Message, index int) bool {
 	}
 	if retryAssistant.Role != "assistant" ||
 		!strings.EqualFold(strings.TrimSpace(retryAssistant.BranchReason), "retry") ||
+		retryAssistant.SourceMessageID == nil ||
 		!isContextMessage(retryAssistant) {
 		return false
 	}
