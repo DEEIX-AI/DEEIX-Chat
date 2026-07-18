@@ -147,8 +147,21 @@ func normalizeDefaultBranchContext(
 		return nil, nil
 	}
 
-	end := len(ancestors)
-	for end > 0 && !isContextMessage(&ancestors[end-1]) {
+	contextMessages := append([]model.Message(nil), ancestors...)
+	for index := range contextMessages {
+		if isRecoveredAssistantRetryUser(contextMessages, index) {
+			// A successful assistant retry makes the reused user message valid context.
+			// Promote only the in-memory copy so existing conversations recover without
+			// rewriting historical rows, while downstream attachment collection also
+			// sees the retried user message as usable context.
+			contextMessages[index].Status = "success"
+			contextMessages[index].ErrorCode = ""
+			contextMessages[index].ErrorMessage = ""
+		}
+	}
+
+	end := len(contextMessages)
+	for end > 0 && !isContextMessage(&contextMessages[end-1]) {
 		end--
 	}
 	if end == 0 {
@@ -157,18 +170,35 @@ func normalizeDefaultBranchContext(
 
 	start := 0
 	for index := end - 1; index >= 0; index-- {
-		if !isContextMessage(&ancestors[index]) {
+		if !isContextMessage(&contextMessages[index]) {
 			start = index + 1
 			break
 		}
 	}
 
-	normalized := append([]model.Message(nil), ancestors[start:end]...)
+	normalized := append([]model.Message(nil), contextMessages[start:end]...)
 	if len(normalized) == 0 {
 		return nil, nil
 	}
 	nextParent := normalized[len(normalized)-1]
 	return normalized, &nextParent
+}
+
+func isRecoveredAssistantRetryUser(messages []model.Message, index int) bool {
+	if index < 0 || index+1 >= len(messages) {
+		return false
+	}
+	userMessage := &messages[index]
+	retryAssistant := &messages[index+1]
+	if userMessage.Role != "user" || !strings.EqualFold(strings.TrimSpace(userMessage.Status), "error") {
+		return false
+	}
+	if retryAssistant.Role != "assistant" ||
+		!strings.EqualFold(strings.TrimSpace(retryAssistant.BranchReason), "retry") ||
+		!isContextMessage(retryAssistant) {
+		return false
+	}
+	return retryAssistant.ParentMessageID != nil && *retryAssistant.ParentMessageID == userMessage.ID
 }
 
 func isContextMessage(item *model.Message) bool {
