@@ -14,6 +14,7 @@ import {
   upsertByPublicID,
   useSidebarConversations,
 } from "@/entities/conversation";
+import { useChatSession } from "@/features/chat";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { useLoadMoreSentinel } from "@/shared/hooks/use-load-more-sentinel";
 import { useSettingsChatPreferences } from "@/features/settings";
@@ -100,8 +101,8 @@ export function useRecentPage() {
   const t = useTranslations("recent");
   const resolveErrorMessage = useLocalizedErrorMessage();
   const router = useRouter();
+  const { requestNewConversation } = useChatSession();
   const {
-    prependNewConversation,
     renameByPublicID,
     regenerateTitleByPublicID,
     updateLabelsByPublicID,
@@ -338,15 +339,11 @@ export function useRecentPage() {
     }
   }, [exportingAll, t]);
 
-  const onCreateConversation = React.useCallback(async () => {
+  const onCreateConversation = React.useCallback(() => {
     const currentProjectID = projectFilter !== "all" && projectFilter !== "unassigned" ? projectFilter : "";
-    const created = await prependNewConversation(undefined, currentProjectID);
-    if (created?.publicID) {
-      router.push(`/chat?conversation_id=${created.publicID}`);
-      return;
-    }
-    router.push("/chat");
-  }, [prependNewConversation, projectFilter, router]);
+    requestNewConversation({ projectID: currentProjectID });
+    router.push(currentProjectID ? `/chat?project_id=${encodeURIComponent(currentProjectID)}` : "/chat");
+  }, [projectFilter, requestNewConversation, router]);
 
   const onProjectFilterChange = React.useCallback(
     (value: ConversationProjectFilter) => {
