@@ -68,10 +68,14 @@ export function AppRecent() {
           starredFilter={controller.starredFilter}
           shareFilter={controller.shareFilter}
           allSelectedArchived={controller.allSelectedArchived}
+          projects={controller.projects}
+          selectedProjectID={controller.selectedProjectID}
+          movingSelectedToProject={controller.movingSelectedToProject}
           onToggleSelectionMode={controller.toggleSelectionMode}
           onEnterSelectionMode={controller.enterSelectionMode}
           onExitSelectionMode={controller.exitSelectionMode}
           onArchiveSelected={requestArchiveSelected}
+          onMoveSelectedToProject={controller.moveSelectedToProject}
           onRevokeSelectedShares={requestRevokeSelectedShares}
           onRequestDeleteSelected={controller.requestDeleteSelected}
           onExportAll={controller.onExportAll}

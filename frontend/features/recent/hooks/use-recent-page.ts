@@ -110,6 +110,7 @@ export function useRecentPage() {
     deleteByPublicID,
     projects,
     setProjectByPublicID,
+    batchSetProjectByPublicIDs,
     touchByPublicID,
     lastChange,
   } = useSidebarConversations();
@@ -137,6 +138,7 @@ export function useRecentPage() {
   const { deleteFilesByDefault } = useSettingsChatPreferences();
   const [shareTarget, setShareTarget] = React.useState<ConversationDTO | null>(null);
   const [exportingAll, setExportingAll] = React.useState(false);
+  const [movingSelectedToProject, setMovingSelectedToProject] = React.useState(false);
   const pageRef = React.useRef(1);
   const requestVersionRef = React.useRef(0);
   const loadingMoreRef = React.useRef(false);
@@ -614,6 +616,61 @@ export function useRecentPage() {
     [items, selectedConversationIDs],
   );
 
+  const selectedProjectID = React.useMemo<string | null>(() => {
+    if (selectedItems.length === 0) {
+      return null;
+    }
+    const firstProjectID = selectedItems[0]?.projectID ?? "";
+    return selectedItems.every((item) => (item.projectID ?? "") === firstProjectID) ? firstProjectID : null;
+  }, [selectedItems]);
+
+  const moveSelectedToProject = React.useCallback(async (projectID?: string) => {
+    if (selectedConversationIDs.length === 0 || movingSelectedToProject) {
+      return;
+    }
+
+    const targetIDs = [...selectedConversationIDs];
+    const targetIDSet = new Set(targetIDs);
+    const targetProject = projects.find((project) => project.publicID === projectID);
+    const patch: Partial<ConversationDTO> = {
+      projectID: targetProject?.publicID ?? "",
+      projectName: targetProject?.name ?? "",
+    };
+    setMovingSelectedToProject(true);
+    try {
+      const updated = await batchSetProjectByPublicIDs(targetIDs, projectID);
+      if (updated !== targetIDs.length) {
+        throw new Error("not all selected conversations were moved");
+      }
+      setItems((current) => current
+        .map((item) => (targetIDSet.has(item.publicID) ? { ...item, ...patch } : item))
+        .filter((item) => conversationMatchesRecentFilters(item, statusFilter, starredFilter, shareFilter, projectFilter)));
+      setSelectedConversationIDs([]);
+      setSelectionMode(false);
+      toast.success(t("moveSelectedSuccess", {
+        count: updated,
+        project: targetProject?.name ?? t("projects.unassigned"),
+      }));
+    } catch (error) {
+      toast.error(t("moveSelectedFailed"), {
+        description: resolveErrorMessage(error, t("moveSelectedFailed")),
+      });
+    } finally {
+      setMovingSelectedToProject(false);
+    }
+  }, [
+    batchSetProjectByPublicIDs,
+    movingSelectedToProject,
+    projectFilter,
+    projects,
+    resolveErrorMessage,
+    selectedConversationIDs,
+    shareFilter,
+    starredFilter,
+    statusFilter,
+    t,
+  ]);
+
   const selectedSharedItems = React.useMemo(
     () => selectedItems.filter(isSharedConversation),
     [selectedItems],
@@ -759,6 +816,8 @@ export function useRecentPage() {
     query,
     isSelectionMode,
     selectedConversationIDs,
+    selectedProjectID,
+    movingSelectedToProject,
     hoveredConversationID,
     renameTarget,
     renameValue,
@@ -805,6 +864,7 @@ export function useRecentPage() {
     onShareChange,
     toggleSelectionMode,
     archiveSelected,
+    moveSelectedToProject,
     revokeSelectedShares,
     requestDeleteSelected,
     exitSelectionMode,
