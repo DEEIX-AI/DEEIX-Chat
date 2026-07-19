@@ -39,22 +39,9 @@ import type {
 } from "@deeix/api-contract";
 import type { UserStorageQuotaDTO } from "@/shared/api/file.types";
 
-export type ConversationDTO = Omit<
-  Required<ConversationResponse>,
-  "lastCompactedAt" | "lastShareAccessedAt" | "sharedAt" | "starredAt"
-> & {
-  starredAt: string | null;
-  lastCompactedAt: string | null;
-  sharedAt: string | null;
-  lastShareAccessedAt: string | null;
-};
+export type ConversationDTO = ConversationResponse;
 
-export type ConversationDefaultModelCandidateDTO = Omit<
-  Required<ConversationDefaultModelCandidateResponse>,
-  "usedAt"
-> & {
-  usedAt: string | null;
-};
+export type ConversationDefaultModelCandidateDTO = ConversationDefaultModelCandidateResponse;
 
 export type ConversationStatusFilter = "active" | "archived" | "all";
 export type ConversationStarredFilter = "all" | "starred" | "unstarred";
@@ -63,25 +50,20 @@ export type ConversationProjectFilter = "all" | "unassigned" | string;
 export type ConversationProjectStatusFilter = "active" | "archived" | "all";
 export type ConversationProjectMCPDefaultMode = "inherit" | "custom";
 
-export type ConversationProjectDTO = Omit<Required<ConversationProjectResponse>, "mcpDefaultMode"> & {
+export type ConversationProjectDTO = Omit<ConversationProjectResponse, "mcpDefaultMode"> & {
   mcpDefaultMode: ConversationProjectMCPDefaultMode;
 };
 
 export type MessageDTO = Omit<
-  Required<MessageResponse>,
+  MessageResponse,
   | "billingCost"
-  | "editedAt"
   | "modelIcon"
   | "modelVendor"
-  | "parentMessageID"
   | "platformModelName"
   | "processTrace"
-  | "sourceMessageID"
   | "upstreamModelName"
 > & {
-  parentMessageID: number | null;
   branchReason: "default" | "retry" | "edit";
-  sourceMessageID: number | null;
   platformModelName?: string;
   upstreamModelName?: string;
   modelVendor?: string;
@@ -89,44 +71,33 @@ export type MessageDTO = Omit<
   processTrace?: MessageProcessTraceDTO;
   myFeedback: "up" | "down" | "";
   billingCost?: MessageBillingCostDTO;
-  editedAt: string | null;
 };
 
-export type ConversationRunDTO = Omit<Required<RunResponse>, "endedAt" | "taskType"> & {
-  endedAt: string | null;
-};
+export type ConversationRunDTO = Omit<RunResponse, "taskType">;
 
 export type ConversationExportDTO = Omit<
-  Required<ConversationExportResponse>,
+  ConversationExportResponse,
   "compatibility" | "conversation" | "messages" | "runs"
 > & {
   conversation: ConversationDTO;
   messages: MessageDTO[];
   runs: ConversationRunDTO[];
-  compatibility: Required<NonNullable<ConversationExportResponse["compatibility"]>>;
+  compatibility: ConversationExportResponse["compatibility"];
 };
 
-export type MessageBillingCostDTO = Required<MessageBillingCostResponse>;
+export type MessageBillingCostDTO = MessageBillingCostResponse;
 
-export type TraceBlockDTO = Required<
-  Pick<MessageTraceBlockResponse, "contentMarkdown" | "status" | "summary" | "title" | "updatedAt">
-> &
-  Omit<MessageTraceBlockResponse, "contentMarkdown" | "status" | "summary" | "title" | "updatedAt">;
+export type TraceBlockDTO = MessageTraceBlockResponse;
 
-export type PromptTraceBlockDTO = Omit<Required<MessagePromptTraceBlockResponse>, "sourceRefs"> & {
+export type PromptTraceBlockDTO = Omit<MessagePromptTraceBlockResponse, "sourceRefs"> & {
   sourceRefs?: PromptTraceSourceDTO[];
 };
 
-export type PromptTraceSourceDTO = Required<
-  Pick<MessagePromptTraceSourceResponse, "sourceID" | "sourceType" | "title">
-> &
-  Omit<MessagePromptTraceSourceResponse, "sourceID" | "sourceType" | "title">;
+export type PromptTraceSourceDTO = MessagePromptTraceSourceResponse;
 
-export type ContextArtifactDTO = Omit<Required<ContextArtifactResponse>, "expiresAt"> & {
-  expiresAt?: string | null;
-};
+export type ContextArtifactDTO = ContextArtifactResponse;
 
-export type PromptTraceDTO = Omit<Required<MessagePromptTraceResponse>, "blocks"> & {
+export type PromptTraceDTO = Omit<MessagePromptTraceResponse, "blocks"> & {
   blocks: PromptTraceBlockDTO[];
 };
 
@@ -139,8 +110,10 @@ export type ReasoningDeltaDTO = {
   encrypted_content?: string;
 };
 
-export type MessageProcessTraceDTO = Required<Pick<MessageProcessTraceResponse, "enabled" | "status">> &
-  Omit<MessageProcessTraceResponse, "enabled" | "events" | "process" | "promptTrace" | "status" | "tools" | "upstreamThink"> & {
+export type MessageProcessTraceDTO = Omit<
+  MessageProcessTraceResponse,
+  "events" | "process" | "promptTrace" | "tools" | "upstreamThink"
+> & {
   process?: TraceBlockDTO;
   tools?: TraceBlockDTO;
   upstreamThink?: TraceBlockDTO;
@@ -148,16 +121,7 @@ export type MessageProcessTraceDTO = Required<Pick<MessageProcessTraceResponse, 
   events?: TraceEventDTO[];
 };
 
-export type TraceEventDTO = Required<
-  Pick<
-    MessageTraceEventResponse,
-    "contentMarkdown" | "eventID" | "eventType" | "phase" | "seq" | "startedAt" | "status" | "summary" | "title" | "updatedAt"
-  >
-> &
-  Omit<
-    MessageTraceEventResponse,
-    "contentMarkdown" | "eventID" | "eventType" | "phase" | "seq" | "startedAt" | "status" | "summary" | "title" | "updatedAt"
-  >;
+export type TraceEventDTO = MessageTraceEventResponse;
 
 export type CreateConversationRequest = ContractCreateConversationRequest;
 
@@ -175,7 +139,7 @@ export type SetConversationProjectRequest = ContractSetConversationProjectReques
 
 export type BatchSetConversationProjectRequest = ContractBatchSetConversationProjectRequest;
 
-export type BatchSetConversationProjectResult = Required<BatchSetConversationProjectResponse>;
+export type BatchSetConversationProjectResult = BatchSetConversationProjectResponse;
 
 export type ConversationOptions = Record<string, unknown>;
 
@@ -183,36 +147,27 @@ export type UpstreamDebugInfo = ModelProbeDebugResponse;
 
 export type RenameConversationRequest = ContractRenameConversationRequest;
 
-export type SetConversationStarRequest = Required<ContractSetConversationStarRequest>;
+export type SetConversationStarRequest = ContractSetConversationStarRequest;
 
-export type SetConversationArchiveRequest = Required<ContractSetConversationArchiveRequest>;
+export type SetConversationArchiveRequest = ContractSetConversationArchiveRequest;
 
-export type DeleteConversationData = Omit<ConversationDeleteResponse, "deleted" | "quota"> & {
-  deleted: NonNullable<ConversationDeleteResponse["deleted"]>;
+export type DeleteConversationData = Omit<ConversationDeleteResponse, "quota"> & {
   quota?: UserStorageQuotaDTO;
 };
 
 export type CreateConversationShareRequest = ContractCreateConversationShareRequest;
 
-export type ConversationShareDTO = Omit<Required<ConversationShareResponse>, "lastAccessedAt" | "revokedAt"> & {
-  revokedAt: string | null;
-  lastAccessedAt: string | null;
-};
+export type ConversationShareDTO = ConversationShareResponse;
 
 export type RevokeConversationSharesRequest = ContractRevokeConversationSharesRequest;
 
-export type RevokeConversationSharesResult = Required<RevokeConversationSharesResponse>;
+export type RevokeConversationSharesResult = RevokeConversationSharesResponse;
 
-export type PublicSharedMessageDTO = Omit<Required<PublicSharedMessageResponse>, "editedAt" | "processTrace"> & {
+export type PublicSharedMessageDTO = Omit<PublicSharedMessageResponse, "processTrace"> & {
   processTrace?: MessageProcessTraceDTO;
-  editedAt: string | null;
 };
 
-export type PublicSharedConversationDTO = Omit<
-  Required<PublicSharedConversationResponse>,
-  "lastAccessedAt" | "messages"
-> & {
-  lastAccessedAt: string | null;
+export type PublicSharedConversationDTO = Omit<PublicSharedConversationResponse, "messages"> & {
   messages: PublicSharedMessageDTO[];
 };
 
@@ -220,7 +175,7 @@ export type SetMessageFeedbackRequest = ContractSetMessageFeedbackRequest;
 
 export type UpdateMessageRequest = ContractUpdateMessageRequest;
 
-export type MessageFeedbackResult = Omit<Required<MessageFeedbackResponse>, "myFeedback"> & {
+export type MessageFeedbackResult = Omit<MessageFeedbackResponse, "myFeedback"> & {
   myFeedback: "up" | "down" | "";
 };
 
@@ -251,7 +206,7 @@ export type MediaVideoRequest = {
   branchReason?: "default" | "retry" | "edit";
 };
 
-export type SendMessageResult = Omit<Required<SendMessageResponse>, "assistantMessage" | "metadataRefreshHint" | "userMessage"> & {
+export type SendMessageResult = Omit<SendMessageResponse, "assistantMessage" | "metadataRefreshHint" | "userMessage"> & {
   userMessage: MessageDTO;
   assistantMessage: MessageDTO;
   metadataRefreshHint?: "pending" | "not_needed" | "skipped_no_titleable_content" | string;

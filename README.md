@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  English | <a href="./README.zh-CN.md">简体中文</a>
+  English | <a href="./docs/README.zh-CN.md">简体中文</a>
 </p>
 
 <p align="center">
@@ -409,8 +409,8 @@ Authentication, registration, conversation settings, model option policies, file
 - Backend guide: [backend/README.md](./backend/README.md)
 - Backend standards: [backend/docs/README.md](./backend/docs/README.md)
 - Frontend guide: [frontend/README.md](./frontend/README.md)
-- Contributing: [CONTRIBUTING.md](./CONTRIBUTING.md)
-- Security policy: [SECURITY.md](./SECURITY.md)
+- Contributing: [CONTRIBUTING.md](./.github/CONTRIBUTING.md)
+- Security policy: [SECURITY.md](./.github/SECURITY.md)
 - Swagger UI: `http://localhost:8080/swagger/index.html`
 
 ## Acknowledgements

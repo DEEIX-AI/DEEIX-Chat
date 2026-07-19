@@ -18,8 +18,8 @@ type PatchSettingsRequest struct {
 type PatchItem struct {
 	Namespace string `json:"namespace" binding:"required"`
 	Key       string `json:"key" binding:"required"`
-	Value     string `json:"value"`
-	Clear     bool   `json:"clear"`
+	Value     string `json:"value,omitempty"`
+	Clear     bool   `json:"clear,omitempty"`
 }
 
 // ── 响应 DTO ─────────────────────────────────────────────────────────────────

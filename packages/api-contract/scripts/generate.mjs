@@ -7,6 +7,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -14,9 +15,11 @@ import { fileURLToPath } from "node:url";
 
 const packageDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const workspaceDir = resolve(packageDir, "../..");
-const sourceFile = join(workspaceDir, "backend/docs/swagger.json");
+const backendDir = join(workspaceDir, "backend");
+const committedSwaggerDir = join(backendDir, "docs");
 const targetFile = join(packageDir, "src/types.generated.ts");
 const outputName = "types.generated.ts";
+const swaggerOutputNames = ["docs.go", "swagger.json", "swagger.yaml"];
 const checkOnly = process.argv.includes("--check");
 const unknownArguments = process.argv.slice(2).filter((argument) => argument !== "--check");
 
@@ -121,21 +124,129 @@ function normalizeText(value) {
   return value.replaceAll("\r\n", "\n");
 }
 
+function runCommand(executable, arguments_, cwd) {
+  const result = spawnSync(executable, arguments_, {
+    cwd,
+    encoding: "utf8",
+    stdio: "inherit",
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`${executable} exited with status ${result.status}`);
+  }
+}
+
+function syncVersions() {
+  const arguments_ = [join(workspaceDir, "scripts/sync-version.mjs")];
+  if (checkOnly) {
+    arguments_.push("--check");
+  }
+  arguments_.push("all");
+  runCommand(process.execPath, arguments_, workspaceDir);
+}
+
+function generateSwagger(outputDir) {
+  const goExecutable = process.platform === "win32" ? "go.exe" : "go";
+  runCommand(
+    goExecutable,
+    [
+      "tool",
+      "swag",
+      "init",
+      "-g",
+      "cmd/server/main.go",
+      "-o",
+      outputDir,
+      "--packageName",
+      "docs",
+      "--parseDependency",
+      "--parseInternal",
+      "--requiredByDefault",
+      "--quiet",
+    ],
+    backendDir,
+  );
+}
+
+function normalizeGeneratedSwagger(outputDir) {
+  const jsonFile = join(outputDir, "swagger.json");
+  const yamlFile = join(outputDir, "swagger.yaml");
+  const swagger = JSON.parse(readFileSync(jsonFile, "utf8"));
+  const version = swagger.info?.version;
+
+  writeFileSync(jsonFile, `${JSON.stringify(swagger, null, 4)}\n`);
+  if (typeof version === "string" && version !== "") {
+    const yaml = readFileSync(yamlFile, "utf8");
+    const normalizedYaml = yaml.replace(/^  version: .+$/mu, `  version: "${version}"`);
+    if (normalizedYaml === yaml && !yaml.includes(`  version: "${version}"`)) {
+      throw new Error("Unable to normalize generated Swagger YAML version");
+    }
+    writeFileSync(yamlFile, normalizedYaml);
+  }
+}
+
+function swaggerTypescriptCLI() {
+  const require = createRequire(import.meta.url);
+  const packageJSONFile = require.resolve("swagger-typescript-api/package.json");
+  const packageJSON = JSON.parse(readFileSync(packageJSONFile, "utf8"));
+  const binPath = packageJSON.bin?.["swagger-typescript-api"];
+  if (typeof binPath !== "string" || binPath.trim() === "") {
+    throw new Error("Unable to resolve swagger-typescript-api CLI entrypoint");
+  }
+  return resolve(dirname(packageJSONFile), binPath);
+}
+
+function assertGeneratedFilesMatch(expectedFiles) {
+  const staleFiles = [];
+  for (const [committedFile, generatedFile] of expectedFiles) {
+    if (!existsSync(committedFile)) {
+      staleFiles.push(committedFile);
+      continue;
+    }
+    const committed = normalizeText(readFileSync(committedFile, "utf8"));
+    const expected = normalizeText(readFileSync(generatedFile, "utf8"));
+    if (committed !== expected) {
+      staleFiles.push(committedFile);
+    }
+  }
+
+  if (staleFiles.length > 0) {
+    const relativeFiles = staleFiles.map((file) => `- ${file.slice(workspaceDir.length + 1)}`);
+    throw new Error(
+      [
+        "Generated API contract is stale:",
+        ...relativeFiles,
+        "Run `pnpm api:generate` from the workspace root and commit the result.",
+      ].join("\n"),
+    );
+  }
+}
+
 const temporaryDir = mkdtempSync(join(tmpdir(), "deeix-api-contract-"));
 
 try {
+  syncVersions();
+
+  const generatedSwaggerDir = join(temporaryDir, "swagger");
   const normalizedSwaggerFile = join(temporaryDir, "swagger.normalized.json");
   const generatedDir = join(temporaryDir, "generated");
   const generatedFile = join(generatedDir, outputName);
-  const swagger = JSON.parse(readFileSync(sourceFile, "utf8"));
+  generateSwagger(generatedSwaggerDir);
+  normalizeGeneratedSwagger(generatedSwaggerDir);
+
+  const generatedSwaggerFile = join(generatedSwaggerDir, "swagger.json");
+  const swagger = JSON.parse(readFileSync(generatedSwaggerFile, "utf8"));
 
   mkdirSync(generatedDir, { recursive: true });
   writeFileSync(normalizedSwaggerFile, `${JSON.stringify(normalizeSwagger(swagger), null, 2)}\n`);
 
-  const executable = process.platform === "win32" ? "swagger-typescript-api.cmd" : "swagger-typescript-api";
-  const result = spawnSync(
-    executable,
+  runCommand(
+    process.execPath,
     [
+      swaggerTypescriptCLI(),
       "generate",
       "--path",
       normalizedSwaggerFile,
@@ -148,15 +259,8 @@ try {
       "--sort-types",
       "--silent",
     ],
-    { cwd: packageDir, encoding: "utf8", stdio: "inherit" },
+    packageDir,
   );
-
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(`swagger-typescript-api exited with status ${result.status}`);
-  }
 
   const generated = normalizeText(readFileSync(generatedFile, "utf8")).replace("// @ts-nocheck\n", "");
   const banner = [
@@ -167,19 +271,18 @@ try {
   writeFileSync(generatedFile, `${banner}${generated}`);
 
   if (checkOnly) {
-    if (!existsSync(targetFile)) {
-      throw new Error("Generated API contract is missing. Run `pnpm api:generate`.");
-    }
-    const committed = normalizeText(readFileSync(targetFile, "utf8"));
-    const expected = normalizeText(readFileSync(generatedFile, "utf8"));
-    if (committed !== expected) {
-      throw new Error("Generated API contract is stale. Run `pnpm api:generate` and commit the result.");
-    }
-    console.log("API contract is up to date.");
+    assertGeneratedFilesMatch([
+      ...swaggerOutputNames.map((name) => [join(committedSwaggerDir, name), join(generatedSwaggerDir, name)]),
+      [targetFile, generatedFile],
+    ]);
+    console.log("Swagger and TypeScript API contracts are up to date.");
   } else {
+    for (const name of swaggerOutputNames) {
+      copyFileSync(join(generatedSwaggerDir, name), join(committedSwaggerDir, name));
+    }
     mkdirSync(dirname(targetFile), { recursive: true });
     copyFileSync(generatedFile, targetFile);
-    console.log(`Generated ${targetFile.slice(workspaceDir.length + 1)}.`);
+    console.log("Generated backend Swagger and TypeScript API contracts.");
   }
 } finally {
   rmSync(temporaryDir, { force: true, recursive: true });

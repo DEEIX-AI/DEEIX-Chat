@@ -12,169 +12,169 @@
  */
 
 export interface ActiveSessionListResponse {
-  results?: ActiveSessionResponse[];
-  total?: number;
+  results: ActiveSessionResponse[];
+  total: number;
 }
 
 export interface ActiveSessionListResponseDoc {
-  data?: ActiveSessionListResponse;
-  errorMsg?: string;
+  data: ActiveSessionListResponse;
+  errorMsg: string;
 }
 
 export interface ActiveSessionResponse {
-  browserName?: string;
-  cityName?: string;
-  clientIP?: string;
-  countryCode?: string;
-  createdAt?: string;
-  current?: boolean;
-  deviceLabel?: string;
-  deviceName?: string;
-  deviceType?: string;
-  expiresAt?: string;
-  geoAccuracy?: string;
-  geoSource?: string;
-  ipLatitude?: number;
-  ipLongitude?: number;
-  lastSeenAt?: string;
-  locationLabel?: string;
-  osName?: string;
-  preciseAccuracyMeters?: number;
-  preciseLatitude?: number;
-  preciseLocatedAt?: string;
-  preciseLongitude?: number;
-  regionName?: string;
-  sessionID?: string;
-  timezoneName?: string;
-  updatedAt?: string;
+  browserName: string;
+  cityName: string;
+  clientIP: string;
+  countryCode: string;
+  createdAt: string;
+  current: boolean;
+  deviceLabel: string;
+  deviceName: string;
+  deviceType: string;
+  expiresAt: string;
+  geoAccuracy: string;
+  geoSource: string;
+  ipLatitude: number | null;
+  ipLongitude: number | null;
+  lastSeenAt: string | null;
+  locationLabel: string;
+  osName: string;
+  preciseAccuracyMeters: number | null;
+  preciseLatitude: number | null;
+  preciseLocatedAt: string | null;
+  preciseLongitude: number | null;
+  regionName: string;
+  sessionID: string;
+  timezoneName: string;
+  updatedAt: string;
 }
 
 export interface AdminAnnouncementListResponseDoc {
-  data?: {
-    results?: AnnouncementResponse[];
-    total?: number;
+  data: {
+    results: AnnouncementResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface AdminErrorDoc {
-  data?: any;
+  data: any;
   details?: any;
   errorCode?: string;
-  errorMsg?: string;
+  errorMsg: string;
   requestId?: string;
 }
 
 export interface AdminUserIdentityProviderSummaryResponse {
-  id?: number;
-  logoURL?: string;
-  name?: string;
-  slug?: string;
-  type?: string;
+  id: number;
+  logoURL: string;
+  name: string;
+  slug: string;
+  type: string;
 }
 
 export interface AdminUserResponse {
-  appearancePreferences?: string;
-  avatarURL?: string;
-  billingAccountCurrency?: string;
-  billingAccountStatus?: string;
-  billingBalanceNanousd?: number;
-  billingBalanceUSD?: number;
-  createdAt?: string;
-  displayName?: string;
-  email?: string;
-  emailVerifiedAt?: string;
-  id?: number;
-  identityProviders?: AdminUserIdentityProviderSummaryResponse[];
-  lastActiveAt?: string;
-  lastLoginAt?: string;
-  locale?: string;
-  phone?: string;
-  phoneVerifiedAt?: string;
-  profilePreferences?: string;
-  publicID?: string;
-  role?: string;
-  status?: string;
-  subscriptionExpiresAt?: string;
-  subscriptionPlanID?: number;
-  subscriptionPlanName?: string;
-  subscriptionStatus?: string;
-  subscriptionTier?: string;
-  timezone?: string;
-  twoFactorAvailable?: boolean;
-  twoFactorEnabled?: boolean;
-  twoFactorRecoveryCount?: number;
-  twoFactorRequired?: boolean;
-  updatedAt?: string;
-  username?: string;
+  appearancePreferences: string;
+  avatarURL: string;
+  billingAccountCurrency: string;
+  billingAccountStatus: string;
+  billingBalanceNanousd: number;
+  billingBalanceUSD: number;
+  createdAt: string;
+  displayName: string;
+  email: string;
+  emailVerifiedAt: string | null;
+  id: number;
+  identityProviders: AdminUserIdentityProviderSummaryResponse[];
+  lastActiveAt: string | null;
+  lastLoginAt: string | null;
+  locale: string;
+  phone: string;
+  phoneVerifiedAt: string | null;
+  profilePreferences: string;
+  publicID: string;
+  role: string;
+  status: string;
+  subscriptionExpiresAt: string | null;
+  subscriptionPlanID: number | null;
+  subscriptionPlanName: string;
+  subscriptionStatus: string;
+  subscriptionTier: string;
+  timezone: string;
+  twoFactorAvailable: boolean;
+  twoFactorEnabled: boolean;
+  twoFactorRecoveryCount: number;
+  twoFactorRequired: boolean;
+  updatedAt: string;
+  username: string;
 }
 
 export interface AnnouncementCloseDataResponse {
-  closed?: boolean;
+  closed: boolean;
 }
 
 export interface AnnouncementCloseResponseDoc {
-  data?: AnnouncementCloseDataResponse;
-  errorMsg?: string;
+  data: AnnouncementCloseDataResponse;
+  errorMsg: string;
 }
 
 export interface AnnouncementDataResponse {
-  announcement?: AnnouncementResponse;
+  announcement: AnnouncementResponse;
 }
 
 export interface AnnouncementDeleteDataResponse {
-  deleted?: boolean;
+  deleted: boolean;
 }
 
 export interface AnnouncementDeleteResponseDoc {
-  data?: AnnouncementDeleteDataResponse;
-  errorMsg?: string;
+  data: AnnouncementDeleteDataResponse;
+  errorMsg: string;
 }
 
 export interface AnnouncementDismissDataResponse {
-  dismissed?: boolean;
+  dismissed: boolean;
 }
 
 export interface AnnouncementDismissResponseDoc {
-  data?: AnnouncementDismissDataResponse;
-  errorMsg?: string;
+  data: AnnouncementDismissDataResponse;
+  errorMsg: string;
 }
 
 export interface AnnouncementErrorDoc {
-  data?: any;
+  data: any;
   details?: any;
   /** @example "invalid_request" */
   errorCode?: string;
   /** @example "invalid request" */
-  errorMsg?: string;
+  errorMsg: string;
   /** @example "" */
   requestId?: string;
 }
 
 export interface AnnouncementListResponseDoc {
-  data?: AnnouncementResponse[];
-  errorMsg?: string;
+  data: AnnouncementResponse[];
+  errorMsg: string;
 }
 
 export interface AnnouncementResponse {
-  closedAt?: string;
-  contentMarkdown?: string;
-  createdAt?: string;
-  createdByUserID?: number;
-  expiresAt?: string;
-  id?: number;
-  pinned?: boolean;
-  priority?: number;
-  startsAt?: string;
-  status?: string;
-  title?: string;
-  type?: string;
-  updatedAt?: string;
+  closedAt: string | null;
+  contentMarkdown: string;
+  createdAt: string;
+  createdByUserID: number;
+  expiresAt: string | null;
+  id: number;
+  pinned: boolean;
+  priority: number;
+  startsAt: string | null;
+  status: string;
+  title: string;
+  type: string;
+  updatedAt: string;
 }
 
 export interface AnnouncementResponseDoc {
-  data?: AnnouncementDataResponse;
-  errorMsg?: string;
+  data: AnnouncementDataResponse;
+  errorMsg: string;
 }
 
 export interface AnnouncementStateRequest {
@@ -182,112 +182,112 @@ export interface AnnouncementStateRequest {
 }
 
 export interface AuditLogListResponseDoc {
-  data?: {
-    results?: AuditLogResponse[];
-    total?: number;
+  data: {
+    results: AuditLogResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface AuditLogResponse {
-  action?: string;
-  actorDisplayName?: string;
-  actorLabel?: string;
-  actorUserID?: number;
-  actorUsername?: string;
-  createdAt?: string;
-  detailJSON?: string;
-  id?: number;
-  ip?: string;
-  requestID?: string;
-  resource?: string;
-  resourceID?: string;
-  updatedAt?: string;
-  userAgent?: string;
+  action: string;
+  actorDisplayName: string;
+  actorLabel: string;
+  actorUserID: number;
+  actorUsername: string;
+  createdAt: string;
+  detailJSON: string;
+  id: number;
+  ip: string;
+  requestID: string;
+  resource: string;
+  resourceID: string;
+  updatedAt: string;
+  userAgent: string;
 }
 
 export interface AuthErrorDoc {
-  data?: any;
+  data: any;
   details?: any;
   errorCode?: string;
-  errorMsg?: string;
+  errorMsg: string;
   requestId?: string;
 }
 
 export interface AuthEventResponse {
-  clientIP?: string;
-  createdAt?: string;
-  detailJSON?: string;
-  eventType?: string;
-  id?: number;
-  occurredAt?: string;
-  reason?: string;
-  requestID?: string;
-  result?: string;
-  updatedAt?: string;
-  userAgent?: string;
-  userDisplayName?: string;
-  userID?: number;
-  userLabel?: string;
-  username?: string;
+  clientIP: string;
+  createdAt: string;
+  detailJSON: string;
+  eventType: string;
+  id: number;
+  occurredAt: string;
+  reason: string;
+  requestID: string;
+  result: string;
+  updatedAt: string;
+  userAgent: string;
+  userDisplayName: string;
+  userID: number;
+  userLabel: string;
+  username: string;
 }
 
 export interface AuthUserIdentityProviderSummaryResponse {
-  id?: number;
-  logoURL?: string;
-  name?: string;
-  slug?: string;
-  type?: string;
+  id: number;
+  logoURL: string;
+  name: string;
+  slug: string;
+  type: string;
 }
 
 export interface AuthUserResponse {
-  appearancePreferences?: string;
-  avatarURL?: string;
-  createdAt?: string;
-  displayName?: string;
-  email?: string;
-  emailBootstrapUsedAt?: string;
-  emailSource?: string;
-  emailVerifiedAt?: string;
-  id?: number;
-  identityProviders?: AuthUserIdentityProviderSummaryResponse[];
-  initialSecurityRequired?: boolean;
-  initialUsernameRequired?: boolean;
-  lastActiveAt?: string;
-  lastLoginAt?: string;
-  locale?: string;
-  mustResetPassword?: boolean;
-  onboardingCompletedAt?: string;
-  passwordEnabled?: boolean;
-  passwordOrigin?: string;
-  passwordSetAt?: string;
-  phone?: string;
-  phoneVerifiedAt?: string;
-  profilePreferences?: string;
-  publicID?: string;
-  role?: string;
-  status?: string;
-  subscriptionExpiresAt?: string;
-  subscriptionPlanID?: number;
-  subscriptionPlanName?: string;
-  subscriptionStatus?: string;
-  subscriptionTier?: string;
-  timezone?: string;
-  twoFactorAvailable?: boolean;
-  twoFactorEnabled?: boolean;
-  twoFactorRecoveryCount?: number;
-  twoFactorRequired?: boolean;
-  updatedAt?: string;
-  username?: string;
-  usernameChangedAt?: string;
+  appearancePreferences: string;
+  avatarURL: string;
+  createdAt: string;
+  displayName: string;
+  email: string;
+  emailBootstrapUsedAt: string | null;
+  emailSource: string;
+  emailVerifiedAt: string | null;
+  id: number;
+  identityProviders: AuthUserIdentityProviderSummaryResponse[];
+  initialSecurityRequired: boolean;
+  initialUsernameRequired: boolean;
+  lastActiveAt: string | null;
+  lastLoginAt: string | null;
+  locale: string;
+  mustResetPassword: boolean;
+  onboardingCompletedAt: string | null;
+  passwordEnabled: boolean;
+  passwordOrigin: string;
+  passwordSetAt: string | null;
+  phone: string;
+  phoneVerifiedAt: string | null;
+  profilePreferences: string;
+  publicID: string;
+  role: string;
+  status: string;
+  subscriptionExpiresAt: string | null;
+  subscriptionPlanID: number | null;
+  subscriptionPlanName: string;
+  subscriptionStatus: string;
+  subscriptionTier: string;
+  timezone: string;
+  twoFactorAvailable: boolean;
+  twoFactorEnabled: boolean;
+  twoFactorRecoveryCount: number;
+  twoFactorRequired: boolean;
+  updatedAt: string;
+  username: string;
+  usernameChangedAt: string | null;
 }
 
 export interface BatchDeleteRedemptionCodeDataResponse {
-  failedCount?: number;
-  notFoundCount?: number;
-  results?: BatchDeleteRedemptionCodeResultResponse[];
-  successCount?: number;
-  total?: number;
+  failedCount: number;
+  notFoundCount: number;
+  results: BatchDeleteRedemptionCodeResultResponse[];
+  successCount: number;
+  total: number;
 }
 
 export interface BatchDeleteRedemptionCodeRequest {
@@ -296,14 +296,14 @@ export interface BatchDeleteRedemptionCodeRequest {
 }
 
 export interface BatchDeleteRedemptionCodeResponseDoc {
-  data?: BatchDeleteRedemptionCodeDataResponse;
-  errorMsg?: string;
+  data: BatchDeleteRedemptionCodeDataResponse;
+  errorMsg: string;
 }
 
 export interface BatchDeleteRedemptionCodeResultResponse {
   error?: string;
-  id?: number;
-  status?: string;
+  id: number;
+  status: string;
 }
 
 export interface BatchDeleteRequest {
@@ -312,22 +312,22 @@ export interface BatchDeleteRequest {
 }
 
 export interface BatchDeleteResponse {
-  failedCount?: number;
-  notFoundCount?: number;
-  results?: BatchDeleteResultResponse[];
-  successCount?: number;
-  total?: number;
+  failedCount: number;
+  notFoundCount: number;
+  results: BatchDeleteResultResponse[];
+  successCount: number;
+  total: number;
 }
 
 export interface BatchDeleteResponseDoc {
-  data?: BatchDeleteResponse;
-  errorMsg?: string;
+  data: BatchDeleteResponse;
+  errorMsg: string;
 }
 
 export interface BatchDeleteResultResponse {
   error?: string;
-  id?: number;
-  status?: string;
+  id: number;
+  status: string;
 }
 
 export interface BatchSetConversationProjectRequest {
@@ -338,34 +338,34 @@ export interface BatchSetConversationProjectRequest {
 }
 
 export interface BatchSetConversationProjectResponse {
-  updated?: number;
+  updated: number;
 }
 
 export interface BatchSetConversationProjectResponseDoc {
-  data?: BatchSetConversationProjectResponse;
-  errorMsg?: string;
+  data: BatchSetConversationProjectResponse;
+  errorMsg: string;
 }
 
 export interface BillingAccountDataResponse {
-  account?: BillingAccountResponse;
+  account: BillingAccountResponse;
 }
 
 export interface BillingAccountResponse {
-  balanceNanousd?: number;
-  balanceUSD?: number;
-  currency?: string;
-  status?: string;
-  updatedAt?: string;
-  userID?: number;
+  balanceNanousd: number;
+  balanceUSD: number;
+  currency: string;
+  status: string;
+  updatedAt: string;
+  userID: number;
 }
 
 export interface BillingAccountResponseDoc {
-  data?: BillingAccountDataResponse;
-  errorMsg?: string;
+  data: BillingAccountDataResponse;
+  errorMsg: string;
 }
 
 export interface BillingConfigDataResponse {
-  config?: BillingConfigResponse;
+  config: BillingConfigResponse;
 }
 
 export interface BillingConfigRequest {
@@ -379,86 +379,86 @@ export interface BillingConfigRequest {
 }
 
 export interface BillingConfigResponse {
-  displayCurrency?: string;
-  epayTypes?: PaymentTypeResponse[];
-  mode?: string;
-  nativeToolBillingEnabled?: boolean;
-  nativeToolPricing?: NativeToolPricingResponse[];
-  paymentProviders?: string[];
-  prepaidAmountNanousd?: number;
-  prepaidAmountUSD?: number;
-  usdToCNYRate?: number;
+  displayCurrency: string;
+  epayTypes: PaymentTypeResponse[];
+  mode: string;
+  nativeToolBillingEnabled: boolean;
+  nativeToolPricing: NativeToolPricingResponse[];
+  paymentProviders: string[];
+  prepaidAmountNanousd: number;
+  prepaidAmountUSD: number;
+  usdToCNYRate: number;
 }
 
 export interface BillingConfigResponseDoc {
-  data?: BillingConfigDataResponse;
-  errorMsg?: string;
+  data: BillingConfigDataResponse;
+  errorMsg: string;
 }
 
 export interface BillingErrorDoc {
-  data?: any;
+  data: any;
   details?: any;
   errorCode?: string;
-  errorMsg?: string;
+  errorMsg: string;
   requestId?: string;
 }
 
 export interface BillingOverviewDataResponse {
-  overview?: BillingOverviewResponse;
+  overview: BillingOverviewResponse;
 }
 
 export interface BillingOverviewResponse {
-  account?: BillingAccountResponse;
-  mode?: string;
-  periodCreditNanousd?: number;
-  periodCreditUSD?: number;
-  periodEndAt?: string;
-  periodRemainingNanousd?: number;
-  periodRemainingUSD?: number;
-  periodStartAt?: string;
-  periodUsedNanousd?: number;
-  periodUsedUSD?: number;
-  plan?: BillingPlanResponse;
-  subscriptionEntitlements?: SubscriptionEntitlementResponse[];
+  account: BillingAccountResponse | null;
+  mode: string;
+  periodCreditNanousd: number;
+  periodCreditUSD: number;
+  periodEndAt: string | null;
+  periodRemainingNanousd: number;
+  periodRemainingUSD: number;
+  periodStartAt: string | null;
+  periodUsedNanousd: number;
+  periodUsedUSD: number;
+  plan: BillingPlanResponse | null;
+  subscriptionEntitlements: SubscriptionEntitlementResponse[];
 }
 
 export interface BillingOverviewResponseDoc {
-  data?: BillingOverviewDataResponse;
-  errorMsg?: string;
+  data: BillingOverviewDataResponse;
+  errorMsg: string;
 }
 
 export interface BillingPlanDataResponse {
-  plan?: BillingPlanResponse;
+  plan: BillingPlanResponse;
 }
 
 export interface BillingPlanResponse {
-  code?: string;
-  description?: string;
-  discountPercent?: number;
-  featureJSON?: string;
-  id?: number;
-  isActive?: boolean;
-  name?: string;
-  periodCreditNanousd?: number;
-  periodCreditUSD?: number;
-  permissionGroupID?: number;
-  prices?: BillingPriceResponse[];
-  sortOrder?: number;
+  code: string;
+  description: string;
+  discountPercent: number;
+  featureJSON: string;
+  id: number;
+  isActive: boolean;
+  name: string;
+  periodCreditNanousd: number;
+  periodCreditUSD: number;
+  permissionGroupID: number | null;
+  prices: BillingPriceResponse[];
+  sortOrder: number;
 }
 
 export interface BillingPlanResponseDoc {
-  data?: BillingPlanDataResponse;
-  errorMsg?: string;
+  data: BillingPlanDataResponse;
+  errorMsg: string;
 }
 
 export interface BillingPriceResponse {
-  amountCents?: number;
-  billingInterval?: string;
-  code?: string;
-  currency?: string;
-  id?: number;
-  isDefault?: boolean;
-  planID?: number;
+  amountCents: number;
+  billingInterval: string;
+  code: string;
+  currency: string;
+  id: number;
+  isDefault: boolean;
+  planID: number;
 }
 
 export interface BindModelUpstreamSourceRequest {
@@ -478,81 +478,81 @@ export interface BindModelUpstreamSourceRequest {
 }
 
 export interface BrandingManifestIcon {
-  purpose?: string;
-  sizes?: string;
-  src?: string;
-  type?: string;
+  purpose: string;
+  sizes: string;
+  src: string;
+  type: string;
 }
 
 export interface BrandingManifestResponse {
-  background_color?: string;
-  categories?: string[];
-  description?: string;
-  display?: string;
-  icons?: BrandingManifestIcon[];
-  id?: string;
-  lang?: string;
-  name?: string;
-  orientation?: string;
-  scope?: string;
-  short_name?: string;
-  start_url?: string;
-  theme_color?: string;
+  background_color: string;
+  categories: string[];
+  description: string;
+  display: string;
+  icons: BrandingManifestIcon[];
+  id: string;
+  lang: string;
+  name: string;
+  orientation: string;
+  scope: string;
+  short_name: string;
+  start_url: string;
+  theme_color: string;
 }
 
 export interface BrandingResponse {
-  appleTouchIcon180URL?: string;
-  pwaIcon192URL?: string;
-  pwaIcon512URL?: string;
-  pwaMaskableIcon512URL?: string;
-  description?: string;
-  faviconURL?: string;
-  logoURL?: string;
-  shortName?: string;
-  title?: string;
+  appleTouchIcon180URL: string;
+  pwaIcon192URL: string;
+  pwaIcon512URL: string;
+  pwaMaskableIcon512URL: string;
+  description: string;
+  faviconURL: string;
+  logoURL: string;
+  shortName: string;
+  title: string;
 }
 
 export interface BrandingResponseDoc {
-  data?: BrandingResponse;
-  errorMsg?: string;
+  data: BrandingResponse;
+  errorMsg: string;
 }
 
 export interface ChannelErrorDoc {
-  data?: any;
+  data: any;
   details?: any;
   errorCode?: string;
-  errorMsg?: string;
+  errorMsg: string;
   requestId?: string;
 }
 
 export interface CheckoutDataResponse {
-  checkout?: CheckoutResponse;
+  checkout: CheckoutResponse;
 }
 
 export interface CheckoutResponse {
-  baseAmountCents?: number;
-  baseCurrency?: string;
-  checkoutURL?: string;
-  creditNanousd?: number;
-  creditUSD?: number;
-  expiredAt?: string;
-  externalCheckoutID?: string;
-  fxRate?: string;
-  orderNo?: string;
-  orderType?: string;
-  payAmountCents?: number;
-  payCurrency?: string;
-  provider?: string;
-  status?: string;
+  baseAmountCents: number;
+  baseCurrency: string;
+  checkoutURL: string;
+  creditNanousd: number;
+  creditUSD: number;
+  expiredAt: string | null;
+  externalCheckoutID: string;
+  fxRate: string;
+  orderNo: string;
+  orderType: string;
+  payAmountCents: number;
+  payCurrency: string;
+  provider: string;
+  status: string;
 }
 
 export interface CheckoutResponseDoc {
-  data?: CheckoutDataResponse;
-  errorMsg?: string;
+  data: CheckoutDataResponse;
+  errorMsg: string;
 }
 
 export interface CircuitResetResponse {
-  reset?: boolean;
+  reset: boolean;
 }
 
 export interface CleanupLogsRequest {
@@ -561,229 +561,229 @@ export interface CleanupLogsRequest {
 }
 
 export interface CleanupLogsResponse {
-  before?: string;
-  deletedCount?: number;
-  type?: string;
+  before: string;
+  deletedCount: number;
+  type: string;
 }
 
 export interface CleanupLogsResponseDoc {
-  data?: CleanupLogsResponse;
-  errorMsg?: string;
+  data: CleanupLogsResponse;
+  errorMsg: string;
 }
 
 export interface ContextArtifactResponse {
-  content?: string;
-  createdAt?: string;
+  content: string;
+  createdAt: string;
   expiresAt?: string;
-  id?: number;
-  kind?: string;
-  messageID?: number;
-  metadataJSON?: string;
-  runID?: string;
-  score?: number;
-  sourceID?: string;
-  sourceTitle?: string;
-  sourceType?: string;
-  tokenEstimate?: number;
+  id: number;
+  kind: string;
+  messageID: number;
+  metadataJSON: string;
+  runID: string;
+  score: number;
+  sourceID: string;
+  sourceTitle: string;
+  sourceType: string;
+  tokenEstimate: number;
 }
 
 export interface ContextArtifactResponseDoc {
-  data?: ContextArtifactResponse;
-  errorMsg?: string;
+  data: ContextArtifactResponse;
+  errorMsg: string;
 }
 
 export interface ConversationCreateResponseDoc {
-  data?: ConversationResponse;
-  errorMsg?: string;
+  data: ConversationResponse;
+  errorMsg: string;
 }
 
 export interface ConversationDefaultModelCandidateResponse {
-  platformModelName?: string;
-  source?: string;
-  usedAt?: string;
+  platformModelName: string;
+  source: string;
+  usedAt: string | null;
 }
 
 export interface ConversationDefaultModelCandidateResponseDoc {
-  data?: ConversationDefaultModelCandidateResponse;
-  errorMsg?: string;
+  data: ConversationDefaultModelCandidateResponse;
+  errorMsg: string;
 }
 
 export interface ConversationDeleteResponse {
-  deleted?: boolean;
+  deleted: boolean;
   deletedFileCount?: number;
   quota?: StorageQuotaResponse;
 }
 
 export interface ConversationDeleteResponseDoc {
-  data?: ConversationDeleteResponse;
-  errorMsg?: string;
+  data: ConversationDeleteResponse;
+  errorMsg: string;
 }
 
 export interface ConversationErrorDoc {
-  data?: any;
+  data: any;
   details?: any;
   errorCode?: string;
-  errorMsg?: string;
+  errorMsg: string;
   requestId?: string;
 }
 
 export interface ConversationEventListResponseDoc {
-  data?: {
-    results?: ConversationEventResponse[];
-    total?: number;
+  data: {
+    results: ConversationEventResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface ConversationEventResponse {
-  contentMarkdown?: string;
-  conversationID?: number;
-  createdAt?: string;
-  endedAt?: string;
-  errorJSON?: string;
-  eventID?: string;
-  eventScope?: string;
-  eventType?: string;
-  id?: number;
-  inputJSON?: string;
-  latencyMS?: number;
-  messageID?: number;
-  outputJSON?: string;
-  parentEventID?: string;
-  payloadJSON?: string;
-  phase?: string;
-  platformModelName?: string;
-  providerProtocol?: string;
-  roundID?: string;
-  routedBindingCode?: string;
-  runID?: string;
-  seq?: number;
-  stage?: string;
-  startedAt?: string;
-  status?: string;
-  summary?: string;
-  title?: string;
-  toolCallID?: string;
-  toolName?: string;
-  updatedAt?: string;
-  upstreamModelName?: string;
-  upstreamName?: string;
-  userDisplayName?: string;
-  userID?: number;
-  userLabel?: string;
-  username?: string;
+  contentMarkdown: string;
+  conversationID: number;
+  createdAt: string;
+  endedAt: string | null;
+  errorJSON: string;
+  eventID: string;
+  eventScope: string;
+  eventType: string;
+  id: number;
+  inputJSON: string;
+  latencyMS: number;
+  messageID: number;
+  outputJSON: string;
+  parentEventID: string;
+  payloadJSON: string;
+  phase: string;
+  platformModelName: string;
+  providerProtocol: string;
+  roundID: string;
+  routedBindingCode: string;
+  runID: string;
+  seq: number;
+  stage: string;
+  startedAt: string;
+  status: string;
+  summary: string;
+  title: string;
+  toolCallID: string;
+  toolName: string;
+  updatedAt: string;
+  upstreamModelName: string;
+  upstreamName: string;
+  userDisplayName: string;
+  userID: number;
+  userLabel: string;
+  username: string;
 }
 
 export interface ConversationExportCompatibilityResponse {
-  format?: string;
-  notes?: string;
+  format: string;
+  notes: string;
 }
 
 export interface ConversationExportResponse {
-  compatibility?: ConversationExportCompatibilityResponse;
-  conversation?: ConversationResponse;
-  defaultMessagePublicIDs?: string[];
-  exportScope?: string;
-  exportedAt?: string;
-  messages?: MessageResponse[];
-  runs?: RunResponse[];
-  totalMessages?: number;
-  totalRuns?: number;
-  version?: number;
+  compatibility: ConversationExportCompatibilityResponse;
+  conversation: ConversationResponse;
+  defaultMessagePublicIDs: string[];
+  exportScope: string;
+  exportedAt: string;
+  messages: MessageResponse[];
+  runs: RunResponse[];
+  totalMessages: number;
+  totalRuns: number;
+  version: number;
 }
 
 export interface ConversationExportResponseDoc {
-  data?: ConversationExportResponse;
-  errorMsg?: string;
+  data: ConversationExportResponse;
+  errorMsg: string;
 }
 
 export interface ConversationListResponseDoc {
-  data?: {
-    results?: ConversationResponse[];
-    total?: number;
+  data: {
+    results: ConversationResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface ConversationProjectListResponseDoc {
-  data?: ConversationProjectResponse[];
-  errorMsg?: string;
+  data: ConversationProjectResponse[];
+  errorMsg: string;
 }
 
 export interface ConversationProjectResponse {
-  color?: string;
-  createdAt?: string;
-  defaultMCPToolIDs?: number[];
-  defaultSkillIDs?: number[];
-  description?: string;
-  icon?: string;
-  mcpDefaultMode?: string;
-  name?: string;
-  publicID?: string;
-  sortOrder?: number;
-  status?: string;
-  systemPrompt?: string;
-  updatedAt?: string;
+  color: string;
+  createdAt: string;
+  defaultMCPToolIDs: number[];
+  defaultSkillIDs: number[];
+  description: string;
+  icon: string;
+  mcpDefaultMode: string;
+  name: string;
+  publicID: string;
+  sortOrder: number;
+  status: string;
+  systemPrompt: string;
+  updatedAt: string;
 }
 
 export interface ConversationProjectResponseDoc {
-  data?: ConversationProjectResponse;
-  errorMsg?: string;
+  data: ConversationProjectResponse;
+  errorMsg: string;
 }
 
 export interface ConversationResponse {
-  contextPolicyJSON?: string;
-  createdAt?: string;
-  isStarred?: boolean;
-  labelsJSON?: string;
-  lastCompactedAt?: string;
-  lastResponseID?: string;
-  lastShareAccessedAt?: string;
-  messageCount?: number;
-  model?: string;
-  projectID?: string;
-  projectName?: string;
-  provider?: string;
-  publicID?: string;
-  sessionKey?: string;
-  shareID?: string;
-  shareStatus?: string;
-  sharedAt?: string;
-  starredAt?: string;
-  status?: string;
-  title?: string;
-  updatedAt?: string;
-  userID?: number;
+  contextPolicyJSON: string;
+  createdAt: string;
+  isStarred: boolean;
+  labelsJSON: string;
+  lastCompactedAt: string | null;
+  lastResponseID: string;
+  lastShareAccessedAt: string | null;
+  messageCount: number;
+  model: string;
+  projectID: string;
+  projectName: string;
+  provider: string;
+  publicID: string;
+  sessionKey: string;
+  shareID: string;
+  shareStatus: string;
+  sharedAt: string | null;
+  starredAt: string | null;
+  status: string;
+  title: string;
+  updatedAt: string;
+  userID: number;
 }
 
 export interface ConversationRunListResponseDoc {
-  data?: {
-    results?: RunResponse[];
-    total?: number;
+  data: {
+    results: RunResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface ConversationShareResponse {
-  createdAt?: string;
-  lastAccessedAt?: string;
-  messageCount?: number;
-  modelSnapshot?: string;
-  revokedAt?: string;
-  shareID?: string;
-  status?: string;
-  titleSnapshot?: string;
-  updatedAt?: string;
+  createdAt: string;
+  lastAccessedAt: string | null;
+  messageCount: number;
+  modelSnapshot: string;
+  revokedAt: string | null;
+  shareID: string;
+  status: string;
+  titleSnapshot: string;
+  updatedAt: string;
 }
 
 export interface ConversationShareResponseDoc {
-  data?: ConversationShareResponse;
-  errorMsg?: string;
+  data: ConversationShareResponse;
+  errorMsg: string;
 }
 
 export interface ConversationUpdateResponseDoc {
-  data?: ConversationResponse;
-  errorMsg?: string;
+  data: ConversationResponse;
+  errorMsg: string;
 }
 
 export interface CreateAnnouncementRequest {
@@ -792,10 +792,10 @@ export interface CreateAnnouncementRequest {
    * @maxLength 20000
    */
   contentMarkdown: string;
-  expiresAt?: string;
+  expiresAt?: string | null;
   pinned?: boolean;
   priority?: number;
-  startsAt?: string;
+  startsAt?: string | null;
   status?: "active" | "inactive";
   /**
    * @minLength 1
@@ -887,8 +887,8 @@ export interface CreateModelRequest {
 }
 
 export interface CreateModelResponseDoc {
-  data?: ModelDataResponse;
-  errorMsg?: string;
+  data: ModelDataResponse;
+  errorMsg: string;
 }
 
 export interface CreatePermissionGroupRequest {
@@ -918,7 +918,7 @@ export interface CreateRedemptionCodeRequest {
    * @max 3660
    */
   durationDays?: number;
-  expiresAt?: string;
+  expiresAt?: string | null;
   /** @min 1 */
   maxRedemptions?: number;
   mode: "usage" | "period";
@@ -934,6 +934,14 @@ export interface CreateRedemptionCodeRequest {
    * @max 100
    */
   quantity?: number;
+}
+
+export interface CreateServerRequest {
+  authToken?: string;
+  baseURL: string;
+  headersJSON?: string;
+  name: string;
+  status?: string;
 }
 
 export interface CreateUpstreamRequest {
@@ -972,8 +980,8 @@ export interface CreateUpstreamRequest {
 }
 
 export interface CreateUpstreamResponseDoc {
-  data?: UpstreamDataResponse;
-  errorMsg?: string;
+  data: UpstreamDataResponse;
+  errorMsg: string;
 }
 
 export interface CreateUserRequest {
@@ -1008,8 +1016,8 @@ export interface CreateUserRequest {
 }
 
 export interface CreateUserResponseDoc {
-  data?: UserDataResponse;
-  errorMsg?: string;
+  data: UserDataResponse;
+  errorMsg: string;
 }
 
 export interface DeleteAccountRequest {
@@ -1022,42 +1030,51 @@ export interface DeleteAccountRequest {
 }
 
 export interface DeleteAccountResponse {
-  deleted?: boolean;
+  deleted: boolean;
 }
 
 export interface DeleteAccountResponseDoc {
-  data?: DeleteAccountResponse;
-  errorMsg?: string;
+  data: DeleteAccountResponse;
+  errorMsg: string;
 }
 
 export interface DeleteFileResponse {
-  deleted?: boolean;
-  fileID?: string;
-  quota?: StorageQuotaResponse;
+  deleted: boolean;
+  fileID: string;
+  quota: StorageQuotaResponse;
 }
 
 export interface DeleteFileResponseDoc {
-  data?: DeleteFileResponse;
-  errorMsg?: string;
+  data: DeleteFileResponse;
+  errorMsg: string;
 }
 
 export interface DeletePermissionGroupResponse {
-  deleted?: boolean;
-  summary?: PermissionGroupDeleteSummaryResponse;
+  deleted: boolean;
+  summary: PermissionGroupDeleteSummaryResponse;
 }
 
 export interface DeletePermissionGroupResponseDoc {
-  data?: DeletePermissionGroupResponse;
-  errorMsg?: string;
+  data: DeletePermissionGroupResponse;
+  errorMsg: string;
+}
+
+export interface DeleteServerResponse {
+  deleted: boolean;
+}
+
+export interface DeleteServerResponseDoc {
+  data: DeleteServerResponse;
+  errorMsg: string;
 }
 
 export interface DeleteUserResponse {
-  deleted?: boolean;
+  deleted: boolean;
 }
 
 export interface DeleteUserResponseDoc {
-  data?: DeleteUserResponse;
-  errorMsg?: string;
+  data: DeleteUserResponse;
+  errorMsg: string;
 }
 
 export interface EmailRegistrationCompleteRequest {
@@ -1081,125 +1098,158 @@ export interface EmailRegistrationStartRequest {
 }
 
 export interface EmailRegistrationStartResponse {
-  expiresAt?: string;
-  sent?: boolean;
+  expiresAt: string;
+  sent: boolean;
 }
 
 export interface EmailRegistrationStartResponseDoc {
-  data?: EmailRegistrationStartResponse;
-  errorMsg?: string;
+  data: EmailRegistrationStartResponse;
+  errorMsg: string;
 }
 
 export interface EmailVerificationStartResponse {
-  availableMethods?: string[];
-  expiresAt?: string;
-  sent?: boolean;
-  verificationMethod?: string;
+  availableMethods: string[];
+  expiresAt: string;
+  sent: boolean;
+  verificationMethod: string;
 }
 
 export interface EmailVerificationStartResponseDoc {
-  data?: EmailVerificationStartResponse;
-  errorMsg?: string;
+  data: EmailVerificationStartResponse;
+  errorMsg: string;
 }
 
 export interface Envelope {
-  data?: any;
+  data: any;
   details?: any;
   errorCode?: string;
-  errorMsg?: string;
+  errorMsg: string;
   requestId?: string;
 }
 
 export interface FileListResponse {
-  quota?: StorageQuotaResponse;
-  results?: FileObjectResponse[];
-  total?: number;
+  quota: StorageQuotaResponse;
+  results: FileObjectResponse[];
+  total: number;
 }
 
 export interface FileListResponseDoc {
-  data?: FileListResponse;
-  errorMsg?: string;
+  data: FileListResponse;
+  errorMsg: string;
 }
 
 export interface FileObjectResponse {
-  sha256?: string;
-  chunkCount?: number;
-  createdAt?: string;
-  detectedMIME?: string;
-  embedError?: string;
-  embedStatus?: string;
-  expiresAt?: string;
-  extractStatus?: string;
-  fileCategory?: string;
-  fileID?: string;
-  fileName?: string;
-  lastAccessedAt?: string;
-  mimeType?: string;
-  processingErrorCode?: string;
-  processingErrorMessage?: string;
-  processingReady?: boolean;
-  processingStatus?: string;
-  purpose?: string;
-  ragOptOut?: boolean;
-  sizeBytes?: number;
-  status?: string;
-  updatedAt?: string;
+  sha256: string;
+  chunkCount: number;
+  createdAt: string;
+  detectedMIME: string;
+  embedError: string;
+  embedStatus: string;
+  expiresAt: string | null;
+  extractStatus: string;
+  fileCategory: string;
+  fileID: string;
+  fileName: string;
+  lastAccessedAt: string | null;
+  mimeType: string;
+  processingErrorCode: string;
+  processingErrorMessage: string;
+  processingReady: boolean;
+  processingStatus: string;
+  purpose: string;
+  ragOptOut: boolean;
+  sizeBytes: number;
+  status: string;
+  updatedAt: string;
 }
 
 export interface FileUpdateResponseDoc {
-  data?: FileObjectResponse;
-  errorMsg?: string;
+  data: FileObjectResponse;
+  errorMsg: string;
 }
 
 export interface FileUploadResponse {
-  file?: FileObjectResponse;
-  quota?: StorageQuotaResponse;
-  reused?: boolean;
+  file: FileObjectResponse;
+  quota: StorageQuotaResponse;
+  reused: boolean;
 }
 
 export interface GroupModelsResponse {
-  modelIDs?: number[];
-  rules?: PermissionGroupModelRuleResponse[];
+  modelIDs: number[];
+  rules: PermissionGroupModelRuleResponse[];
 }
 
 export interface GroupModelsResponseDoc {
-  data?: GroupModelsResponse;
-  errorMsg?: string;
+  data: GroupModelsResponse;
+  errorMsg: string;
 }
 
 export interface GroupUsersResponse {
-  userIDs?: number[];
+  userIDs: number[];
 }
 
 export interface GroupUsersResponseDoc {
-  data?: GroupUsersResponse;
-  errorMsg?: string;
+  data: GroupUsersResponse;
+  errorMsg: string;
+}
+
+export interface IdentityProviderDeleteResponse {
+  deleted: boolean;
+}
+
+export interface IdentityProviderDeleteResponseDoc {
+  data: IdentityProviderDeleteResponse;
+  errorMsg: string;
+}
+
+export interface IdentityProviderListResponse {
+  results: IdentityProviderResponse[];
+  total: number;
+}
+
+export interface IdentityProviderListResponseDoc {
+  data: IdentityProviderListResponse;
+  errorMsg: string;
+}
+
+export interface IdentityProviderReorderResponse {
+  updated: boolean;
+}
+
+export interface IdentityProviderReorderResponseDoc {
+  data: IdentityProviderReorderResponse;
+  errorMsg: string;
 }
 
 export interface IdentityProviderResponse {
   authURL?: string;
-  avatarField?: string;
+  avatarField: string;
   clientID?: string;
-  createdAt?: string;
-  defaultRole?: string;
+  createdAt: string;
+  defaultRole: "user" | "admin" | "superadmin";
   discoveryURL?: string;
-  emailField?: string;
-  emailVerifiedField?: string;
+  emailField: string;
+  emailVerifiedField: string;
   issuerURL?: string;
   jwksURL?: string;
-  loginEnabled?: boolean;
-  logoURL?: string;
-  name?: string;
-  nameField?: string;
-  publicID?: string;
-  registrationEnabled?: boolean;
-  scopes?: string;
-  slug?: string;
-  subjectField?: string;
+  loginEnabled: boolean;
+  logoURL: string;
+  name: string;
+  nameField: string;
+  publicID: string;
+  registrationEnabled: boolean;
+  scopes: string;
+  slug: string;
+  subjectField: string;
   tokenURL?: string;
-  type?: string;
-  updatedAt?: string;
+  type: "oidc" | "oauth2";
+  updatedAt: string;
   userinfoURL?: string;
+}
+
+export interface IdentityProviderResponseDoc {
+  data: IdentityProviderResponse;
+  errorMsg: string;
 }
 
 export interface ImportOpenWebUIUsersRequest {
@@ -1210,20 +1260,20 @@ export interface ImportOpenWebUIUsersRequest {
 }
 
 export interface ImportOpenWebUIUsersResponse {
-  dedupeField?: string;
-  dedupeRule?: string;
-  imported?: number;
-  scanned?: number;
-  skippedDuplicateSourceEmail?: number;
-  skippedExistingEmail?: number;
-  skippedInvalidEmail?: number;
-  skippedInvalidRow?: number;
-  source?: string;
+  dedupeField: string;
+  dedupeRule: string;
+  imported: number;
+  scanned: number;
+  skippedDuplicateSourceEmail: number;
+  skippedExistingEmail: number;
+  skippedInvalidEmail: number;
+  skippedInvalidRow: number;
+  source: string;
 }
 
 export interface ImportOpenWebUIUsersResponseDoc {
-  data?: ImportOpenWebUIUsersResponse;
-  errorMsg?: string;
+  data: ImportOpenWebUIUsersResponse;
+  errorMsg: string;
 }
 
 export interface ImportUpstreamModelItemRequest {
@@ -1247,16 +1297,16 @@ export interface ImportUpstreamModelItemRequest {
 }
 
 export interface ImportUpstreamModelResultResponse {
-  bindingCode?: string;
-  createdPlatform?: boolean;
-  createdRoute?: boolean;
-  createdRoutes?: number;
+  bindingCode: string;
+  createdPlatform: boolean;
+  createdRoute: boolean;
+  createdRoutes: number;
   error?: string;
-  existingRoutes?: number;
-  platformModelName?: string;
-  protocols?: string[];
-  status?: string;
-  upstreamModelName?: string;
+  existingRoutes: number;
+  platformModelName: string;
+  protocols: string[];
+  status: string;
+  upstreamModelName: string;
 }
 
 export interface ImportUpstreamModelsRequest {
@@ -1266,34 +1316,34 @@ export interface ImportUpstreamModelsRequest {
 }
 
 export interface ImportUpstreamModelsResponse {
-  createdPlatform?: number;
-  createdRoutes?: number;
-  existingRoutes?: number;
-  failedCount?: number;
-  importedCount?: number;
-  results?: ImportUpstreamModelResultResponse[];
-  total?: number;
+  createdPlatform: number;
+  createdRoutes: number;
+  existingRoutes: number;
+  failedCount: number;
+  importedCount: number;
+  results: ImportUpstreamModelResultResponse[];
+  total: number;
 }
 
 export interface ImportUpstreamModelsResponseDoc {
-  data?: ImportUpstreamModelsResponse;
-  errorMsg?: string;
+  data: ImportUpstreamModelsResponse;
+  errorMsg: string;
 }
 
 export interface LoginOptionsResponse {
-  emailEnabled?: boolean;
-  emailRegistrationEnabled?: boolean;
-  emailVerificationEnabled?: boolean;
-  passwordResetEnabled?: boolean;
-  providers?: IdentityProviderResponse[];
-  turnstileRegistrationEnabled?: boolean;
-  turnstileSiteKey?: string;
-  usernameEnabled?: boolean;
+  emailEnabled: boolean;
+  emailRegistrationEnabled: boolean;
+  emailVerificationEnabled: boolean;
+  passwordResetEnabled: boolean;
+  providers: IdentityProviderResponse[];
+  turnstileRegistrationEnabled: boolean;
+  turnstileSiteKey: string;
+  usernameEnabled: boolean;
 }
 
 export interface LoginOptionsResponseDoc {
-  data?: LoginOptionsResponse;
-  errorMsg?: string;
+  data: LoginOptionsResponse;
+  errorMsg: string;
 }
 
 export interface LoginRequest {
@@ -1310,280 +1360,284 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  accessToken?: string;
-  expiresAt?: string;
-  refreshExpiresAt?: string;
-  sessionID?: string;
+  accessToken: string;
+  expiresAt: string;
+  refreshExpiresAt: string;
+  sessionID: string;
   twoFactorChallengeToken?: string;
-  twoFactorRequired?: boolean;
-  user?: AuthUserResponse;
+  twoFactorRequired: boolean;
+  user: AuthUserResponse;
   verificationMethods?: string[];
 }
 
 export interface LoginResponseDoc {
-  data?: LoginResponse;
-  errorMsg?: string;
+  data: LoginResponse;
+  errorMsg: string;
 }
 
 export interface LogoutResponse {
-  revoked?: boolean;
+  revoked: boolean;
 }
 
 export interface LogoutResponseDoc {
-  data?: LogoutResponse;
-  errorMsg?: string;
+  data: LogoutResponse;
+  errorMsg: string;
+}
+
+export interface McpErrorDoc {
+  errorMsg: string;
 }
 
 export interface MeResponse {
-  user?: AuthUserResponse;
+  user: AuthUserResponse;
 }
 
 export interface MeResponseDoc {
-  data?: MeResponse;
-  errorMsg?: string;
+  data: MeResponse;
+  errorMsg: string;
 }
 
 export interface MemoryErrorDoc {
-  data?: any;
+  data: any;
   details?: any;
   errorCode?: string;
-  errorMsg?: string;
+  errorMsg: string;
   requestId?: string;
 }
 
 export interface MessageBillingCostResponse {
-  billedCurrency?: string;
-  billedNanousd?: number;
-  billedUSD?: number;
-  billingMode?: string;
-  pricingSnapshotJSON?: string;
+  billedCurrency: string;
+  billedNanousd: number;
+  billedUSD: number;
+  billingMode: string;
+  pricingSnapshotJSON: string;
 }
 
 export interface MessageFeedbackResponse {
-  messageID?: number;
-  messagePublicID?: string;
-  myFeedback?: string;
-  thumbsDownCount?: number;
-  thumbsUpCount?: number;
+  messageID: number;
+  messagePublicID: string;
+  myFeedback: string;
+  thumbsDownCount: number;
+  thumbsUpCount: number;
 }
 
 export interface MessageFeedbackResponseDoc {
-  data?: MessageFeedbackResponse;
-  errorMsg?: string;
+  data: MessageFeedbackResponse;
+  errorMsg: string;
 }
 
 export interface MessageListResponseDoc {
-  data?: {
-    results?: MessageResponse[];
-    total?: number;
+  data: {
+    results: MessageResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface MessageProcessTraceResponse {
-  enabled?: boolean;
+  enabled: boolean;
   events?: MessageTraceEventResponse[];
   process?: MessageTraceBlockResponse;
   promptTrace?: MessagePromptTraceResponse;
-  status?: string;
+  status: string;
   tools?: MessageTraceBlockResponse;
   upstreamThink?: MessageTraceBlockResponse;
 }
 
 export interface MessagePromptTraceBlockResponse {
-  cacheable?: boolean;
-  kind?: string;
-  sourceCount?: number;
+  cacheable: boolean;
+  kind: string;
+  sourceCount: number;
   sourceRefs?: MessagePromptTraceSourceResponse[];
-  title?: string;
-  tokenEstimate?: number;
+  title: string;
+  tokenEstimate: number;
 }
 
 export interface MessagePromptTraceResponse {
-  blocks?: MessagePromptTraceBlockResponse[];
-  fullMessageCount?: number;
-  mode?: string;
-  promptFingerprint?: string;
-  sentMessageCount?: number;
-  sentTokenEstimate?: number;
-  statefulDisabledReason?: string;
-  statefulSavedMessages?: number;
-  statefulSavedTokens?: number;
-  statefulUsed?: boolean;
-  totalTokenEstimate?: number;
+  blocks: MessagePromptTraceBlockResponse[];
+  fullMessageCount: number;
+  mode: string;
+  promptFingerprint: string;
+  sentMessageCount: number;
+  sentTokenEstimate: number;
+  statefulDisabledReason: string;
+  statefulSavedMessages: number;
+  statefulSavedTokens: number;
+  statefulUsed: boolean;
+  totalTokenEstimate: number;
 }
 
 export interface MessagePromptTraceSourceResponse {
   artifactID?: number;
-  sourceID?: string;
-  sourceType?: string;
-  title?: string;
+  sourceID: string;
+  sourceType: string;
+  title: string;
 }
 
 export interface MessageResponse {
-  attachments?: string;
+  attachments: string;
   billingCost?: MessageBillingCostResponse;
-  branchReason?: string;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  content?: string;
-  contentType?: string;
-  conversationID?: number;
-  createdAt?: string;
-  editedAt?: string;
-  errorCode?: string;
-  errorMessage?: string;
-  id?: number;
-  inputTokens?: number;
-  latencyMS?: number;
-  modelIcon?: string;
-  modelVendor?: string;
-  myFeedback?: string;
-  outputTokens?: number;
-  parentMessageID?: number;
-  parentPublicID?: string;
-  platformModelName?: string;
+  branchReason: string;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  content: string;
+  contentType: string;
+  conversationID: number;
+  createdAt: string;
+  editedAt: string | null;
+  errorCode: string;
+  errorMessage: string;
+  id: number;
+  inputTokens: number;
+  latencyMS: number;
+  modelIcon: string;
+  modelVendor: string;
+  myFeedback: string;
+  outputTokens: number;
+  parentMessageID: number | null;
+  parentPublicID: string;
+  platformModelName: string;
   processTrace?: MessageProcessTraceResponse;
-  publicID?: string;
-  reasoningTokens?: number;
-  role?: string;
-  runID?: string;
-  sourceMessageID?: number;
-  sourcePublicID?: string;
-  status?: string;
-  thumbsDownCount?: number;
-  thumbsUpCount?: number;
-  tokenUsage?: number;
-  updatedAt?: string;
-  upstreamModelName?: string;
-  userID?: number;
+  publicID: string;
+  reasoningTokens: number;
+  role: string;
+  runID: string;
+  sourceMessageID: number | null;
+  sourcePublicID: string;
+  status: string;
+  thumbsDownCount: number;
+  thumbsUpCount: number;
+  tokenUsage: number;
+  updatedAt: string;
+  upstreamModelName: string;
+  userID: number;
 }
 
 export interface MessageResponseDoc {
-  data?: MessageResponse;
-  errorMsg?: string;
+  data: MessageResponse;
+  errorMsg: string;
 }
 
 export interface MessageTraceBlockResponse {
-  contentMarkdown?: string;
+  contentMarkdown: string;
   parentEventID?: string;
   payloadJSON?: string;
   roundID?: string;
   stage?: string;
-  status?: string;
-  summary?: string;
-  title?: string;
-  updatedAt?: string;
+  status: string;
+  summary: string;
+  title: string;
+  updatedAt: string;
 }
 
 export interface MessageTraceEventResponse {
-  contentMarkdown?: string;
+  contentMarkdown: string;
   endedAt?: string;
-  eventID?: string;
-  eventType?: string;
+  eventID: string;
+  eventType: string;
   parentEventID?: string;
   payloadJSON?: string;
-  phase?: string;
+  phase: string;
   roundID?: string;
-  seq?: number;
+  seq: number;
   stage?: string;
-  startedAt?: string;
-  status?: string;
-  summary?: string;
-  title?: string;
-  updatedAt?: string;
+  startedAt: string;
+  status: string;
+  summary: string;
+  title: string;
+  updatedAt: string;
 }
 
 export interface ModelDataResponse {
-  model?: ModelResponse;
+  model: ModelResponse;
 }
 
 export interface ModelListResponseDoc {
-  data?: {
-    results?: ModelResponse[];
-    total?: number;
+  data: {
+    results: ModelResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface ModelPermissionGroupsResponse {
-  effectiveGroupIDs?: number[];
-  manualGroupIDs?: number[];
-  matchedGroupIDs?: number[];
-  unassigned?: boolean;
+  effectiveGroupIDs: number[];
+  manualGroupIDs: number[];
+  matchedGroupIDs: number[];
+  unassigned: boolean;
 }
 
 export interface ModelPermissionGroupsResponseDoc {
-  data?: ModelPermissionGroupsResponse;
-  errorMsg?: string;
+  data: ModelPermissionGroupsResponse;
+  errorMsg: string;
 }
 
 export interface ModelPricingDataResponse {
-  modelPricing?: ModelPricingResponse;
+  modelPricing: ModelPricingResponse;
 }
 
 export interface ModelPricingListResponseDoc {
-  data?: {
-    results?: ModelPricingResponse[];
-    total?: number;
+  data: {
+    results: ModelPricingResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface ModelPricingResponse {
-  cacheReadNanousdPerMTokens?: number;
-  cacheReadUSDPerMTokens?: number;
-  cacheWriteNanousdPerMTokens?: number;
-  cacheWriteUSDPerMTokens?: number;
-  callNanousdPerCall?: number;
-  callUSDPerCall?: number;
-  createdAt?: string;
-  currency?: string;
-  durationNanousdPerSecond?: number;
-  durationUSDPerSecond?: number;
-  id?: number;
-  inputNanousdPerMTokens?: number;
-  inputUSDPerMTokens?: number;
-  isFree?: boolean;
-  modelIcon?: string;
-  modelVendor?: string;
-  outputNanousdPerMTokens?: number;
-  outputUSDPerMTokens?: number;
-  platformModelName?: string;
-  pricingMode?: string;
-  tieredPricingJSON?: string;
-  updatedAt?: string;
+  cacheReadNanousdPerMTokens: number;
+  cacheReadUSDPerMTokens: number;
+  cacheWriteNanousdPerMTokens: number;
+  cacheWriteUSDPerMTokens: number;
+  callNanousdPerCall: number;
+  callUSDPerCall: number;
+  createdAt: string;
+  currency: string;
+  durationNanousdPerSecond: number;
+  durationUSDPerSecond: number;
+  id: number;
+  inputNanousdPerMTokens: number;
+  inputUSDPerMTokens: number;
+  isFree: boolean;
+  modelIcon: string;
+  modelVendor: string;
+  outputNanousdPerMTokens: number;
+  outputUSDPerMTokens: number;
+  platformModelName: string;
+  pricingMode: string;
+  tieredPricingJSON: string;
+  updatedAt: string;
 }
 
 export interface ModelProbeBatchResponse {
-  failedCount?: number;
-  results?: ModelProbeResponse[];
-  successCount?: number;
-  totalCount?: number;
-  unsupportedCount?: number;
+  failedCount: number;
+  results: ModelProbeResponse[];
+  successCount: number;
+  totalCount: number;
+  unsupportedCount: number;
 }
 
 export interface ModelProbeBatchResponseDoc {
-  data?: ModelProbeBatchResponse;
-  errorMsg?: string;
+  data: ModelProbeBatchResponse;
+  errorMsg: string;
 }
 
 export interface ModelProbeDebugRequestResponse {
-  body?: string;
+  body: string;
   headers?: Record<string, string>;
-  method?: string;
-  path?: string;
+  method: string;
+  path: string;
 }
 
 export interface ModelProbeDebugResponse {
-  request?: ModelProbeDebugRequestResponse;
-  response?: ModelProbeDebugResponseResponse;
+  request: ModelProbeDebugRequestResponse;
+  response: ModelProbeDebugResponseResponse;
 }
 
 export interface ModelProbeDebugResponseResponse {
-  body?: string;
+  body: string;
   headers?: Record<string, string>;
-  statusCode?: number;
+  statusCode: number;
 }
 
 export interface ModelProbeRequest {
@@ -1591,93 +1645,93 @@ export interface ModelProbeRequest {
 }
 
 export interface ModelProbeResponse {
-  bindingCode?: string;
+  bindingCode: string;
   debug?: ModelProbeDebugResponse;
-  endpoint?: string;
+  endpoint: string;
   errorCode?: string;
   errorMessage?: string;
-  latencyMS?: number;
-  platformModelID?: number;
-  platformModelName?: string;
-  protocol?: string;
-  routeID?: number;
-  status?: string;
-  success?: boolean;
-  upstreamID?: number;
-  upstreamModelID?: number;
-  upstreamModelName?: string;
-  upstreamName?: string;
+  latencyMS: number;
+  platformModelID: number;
+  platformModelName: string;
+  protocol: string;
+  routeID: number;
+  status: string;
+  success: boolean;
+  upstreamID: number;
+  upstreamModelID: number;
+  upstreamModelName: string;
+  upstreamName: string;
   upstreamStatusCode?: number;
 }
 
 export interface ModelProbeResponseDoc {
-  data?: ModelProbeResponse;
-  errorMsg?: string;
+  data: ModelProbeResponse;
+  errorMsg: string;
 }
 
 export interface ModelResponse {
-  accessScope?: string;
-  activeSourceCount?: number;
-  capabilitiesJSON?: string;
-  cbDurationMin?: number;
-  cbFailureThreshold?: number;
-  cbPolicyMode?: string;
-  cbWindowMin?: number;
-  createdAt?: string;
-  description?: string;
-  icon?: string;
-  id?: number;
-  kindsJSON?: string;
-  platformModelName?: string;
-  protocolsJSON?: string;
-  sortOrder?: number;
-  sourceCount?: number;
-  status?: string;
-  systemPrompt?: string;
-  updatedAt?: string;
-  upstreamNamesJSON?: string;
-  vendor?: string;
+  accessScope: string;
+  activeSourceCount: number;
+  capabilitiesJSON: string;
+  cbDurationMin: number;
+  cbFailureThreshold: number;
+  cbPolicyMode: string;
+  cbWindowMin: number;
+  createdAt: string;
+  description: string;
+  icon: string;
+  id: number;
+  kindsJSON: string;
+  platformModelName: string;
+  protocolsJSON: string;
+  sortOrder: number;
+  sourceCount: number;
+  status: string;
+  systemPrompt: string;
+  updatedAt: string;
+  upstreamNamesJSON: string;
+  vendor: string;
 }
 
 export interface ModelUpstreamSourceDataResponse {
-  source?: ModelUpstreamSourceResponse;
+  source: ModelUpstreamSourceResponse;
 }
 
 export interface ModelUpstreamSourceListResponseDoc {
-  data?: {
-    results?: ModelUpstreamSourceResponse[];
-    total?: number;
+  data: {
+    results: ModelUpstreamSourceResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface ModelUpstreamSourceResponse {
-  baseURL?: string;
-  bindingCode?: string;
-  cbDurationMin?: number;
-  cbFailureThreshold?: number;
-  cbWindowMin?: number;
-  circuitOpen?: boolean;
-  circuitScope?: string;
-  circuitUntil?: string;
-  createdAt?: string;
-  headersJSON?: string;
-  id?: number;
-  priority?: number;
-  protocol?: string;
-  source?: string;
-  status?: string;
-  suggestedProtocol?: string;
-  updatedAt?: string;
-  upstreamID?: number;
-  upstreamModelIcon?: string;
-  upstreamModelKindsJSON?: string;
-  upstreamModelName?: string;
-  upstreamModelStatus?: string;
-  upstreamModelVendor?: string;
-  upstreamName?: string;
-  upstreamStatus?: string;
-  weight?: number;
+  baseURL: string;
+  bindingCode: string;
+  cbDurationMin: number;
+  cbFailureThreshold: number;
+  cbWindowMin: number;
+  circuitOpen: boolean;
+  circuitScope: string;
+  circuitUntil: string;
+  createdAt: string;
+  headersJSON: string;
+  id: number;
+  priority: number;
+  protocol: string;
+  source: string;
+  status: string;
+  suggestedProtocol: string;
+  updatedAt: string;
+  upstreamID: number;
+  upstreamModelIcon: string;
+  upstreamModelKindsJSON: string;
+  upstreamModelName: string;
+  upstreamModelStatus: string;
+  upstreamModelVendor: string;
+  upstreamName: string;
+  upstreamStatus: string;
+  weight: number;
 }
 
 export interface NativeToolPricingRequest {
@@ -1689,41 +1743,41 @@ export interface NativeToolPricingRequest {
 }
 
 export interface NativeToolPricingResponse {
-  billable?: boolean;
-  description?: string;
-  label?: string;
-  priceLabel?: string;
-  priceNanousd?: number;
-  provider?: string;
-  toolKey?: string;
-  type?: string;
-  unit?: string;
+  billable: boolean;
+  description: string;
+  label: string;
+  priceLabel: string;
+  priceNanousd: number;
+  provider: string;
+  toolKey: string;
+  type: string;
+  unit: string;
 }
 
 export interface OpenRouterOfficialPricingDataResponse {
-  cached?: boolean;
-  fetchedAt?: string;
-  items?: OpenRouterOfficialPricingItemResponse[];
-  stale?: boolean;
+  cached: boolean;
+  fetchedAt: string;
+  items: OpenRouterOfficialPricingItemResponse[];
+  stale: boolean;
 }
 
 export interface OpenRouterOfficialPricingItemResponse {
-  canonicalSlug?: string;
-  id?: string;
-  name?: string;
-  pricing?: OpenRouterOfficialPricingUnitPricingResponse;
+  canonicalSlug: string;
+  id: string;
+  name: string;
+  pricing: OpenRouterOfficialPricingUnitPricingResponse;
 }
 
 export interface OpenRouterOfficialPricingResponseDoc {
-  data?: OpenRouterOfficialPricingDataResponse;
-  errorMsg?: string;
+  data: OpenRouterOfficialPricingDataResponse;
+  errorMsg: string;
 }
 
 export interface OpenRouterOfficialPricingUnitPricingResponse {
-  completion?: string;
-  inputCacheRead?: string;
-  inputCacheWrite?: string;
-  prompt?: string;
+  completion: string;
+  inputCacheRead: string;
+  inputCacheWrite: string;
+  prompt: string;
 }
 
 export interface PasswordResetCompleteRequest {
@@ -1738,12 +1792,12 @@ export interface PasswordResetCompleteRequest {
 }
 
 export interface PasswordResetCompleteResponse {
-  changed?: boolean;
+  changed: boolean;
 }
 
 export interface PasswordResetCompleteResponseDoc {
-  data?: PasswordResetCompleteResponse;
-  errorMsg?: string;
+  data: PasswordResetCompleteResponse;
+  errorMsg: string;
 }
 
 export interface PasswordResetStartRequest {
@@ -1752,22 +1806,22 @@ export interface PasswordResetStartRequest {
 }
 
 export interface PasswordResetStartResponse {
-  expiresAt?: string;
-  sent?: boolean;
+  expiresAt: string;
+  sent: boolean;
 }
 
 export interface PasswordResetStartResponseDoc {
-  data?: PasswordResetStartResponse;
-  errorMsg?: string;
+  data: PasswordResetStartResponse;
+  errorMsg: string;
 }
 
 export interface PatchAnnouncementRequestDoc {
   /** @maxLength 20000 */
   contentMarkdown?: string;
-  expiresAt?: string;
+  expiresAt?: string | null;
   pinned?: boolean;
   priority?: number;
-  startsAt?: string;
+  startsAt?: string | null;
   status?: "active" | "inactive";
   /** @maxLength 120 */
   title?: string;
@@ -1800,8 +1854,8 @@ export interface PatchMeRequest {
 }
 
 export interface PatchMeResponseDoc {
-  data?: MeResponse;
-  errorMsg?: string;
+  data: MeResponse;
+  errorMsg: string;
 }
 
 export interface PatchPromptPresetRequest {
@@ -1820,8 +1874,8 @@ export interface PatchPromptPresetRequest {
 export interface PatchRedemptionCodeRequestDoc {
   /** @maxLength 255 */
   description?: string;
-  expiresAt?: string;
-  maxRedemptions?: number;
+  expiresAt?: string | null;
+  maxRedemptions?: number | null;
   /**
    * @min 1
    * @max 100
@@ -1881,71 +1935,71 @@ export interface PatchUsernameRequest {
 }
 
 export interface PaymentOrderListResponseDoc {
-  data?: {
-    results?: PaymentOrderResponse[];
-    total?: number;
+  data: {
+    results: PaymentOrderResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface PaymentOrderResponse {
-  baseAmountCents?: number;
-  baseCurrency?: string;
-  billingInterval?: string;
-  createdAt?: string;
-  creditNanousd?: number;
-  creditUSD?: number;
-  cycles?: number;
-  expiredAt?: string;
-  externalCheckoutID?: string;
-  externalPaymentID?: string;
-  fxRate?: string;
-  id?: number;
-  orderNo?: string;
-  orderType?: string;
-  paidAt?: string;
-  payAmountCents?: number;
-  payCurrency?: string;
-  planID?: number;
-  priceID?: number;
-  provider?: string;
-  snapshotJSON?: string;
-  status?: string;
-  updatedAt?: string;
-  userDisplayName?: string;
-  userID?: number;
-  userLabel?: string;
-  username?: string;
+  baseAmountCents: number;
+  baseCurrency: string;
+  billingInterval: string;
+  createdAt: string;
+  creditNanousd: number;
+  creditUSD: number;
+  cycles: number;
+  expiredAt: string | null;
+  externalCheckoutID: string;
+  externalPaymentID: string;
+  fxRate: string;
+  id: number;
+  orderNo: string;
+  orderType: string;
+  paidAt: string | null;
+  payAmountCents: number;
+  payCurrency: string;
+  planID: number;
+  priceID: number;
+  provider: string;
+  snapshotJSON: string;
+  status: string;
+  updatedAt: string;
+  userDisplayName: string;
+  userID: number;
+  userLabel: string;
+  username: string;
 }
 
 export interface PaymentTypeResponse {
-  name?: string;
-  type?: string;
+  name: string;
+  type: string;
 }
 
 export interface PermissionGroupDataResponse {
-  group?: PermissionGroupResponse;
+  group: PermissionGroupResponse;
 }
 
 export interface PermissionGroupDataResponseDoc {
-  data?: PermissionGroupDataResponse;
-  errorMsg?: string;
+  data: PermissionGroupDataResponse;
+  errorMsg: string;
 }
 
 export interface PermissionGroupDeleteSummaryResponse {
-  manualModelCount?: number;
-  manualUserCount?: number;
-  planCount?: number;
-  ruleCount?: number;
+  manualModelCount: number;
+  manualUserCount: number;
+  planCount: number;
+  ruleCount: number;
 }
 
 export interface PermissionGroupListResponse {
-  results?: PermissionGroupResponse[];
+  results: PermissionGroupResponse[];
 }
 
 export interface PermissionGroupListResponseDoc {
-  data?: PermissionGroupListResponse;
-  errorMsg?: string;
+  data: PermissionGroupListResponse;
+  errorMsg: string;
 }
 
 export interface PermissionGroupModelRuleRequest {
@@ -1956,158 +2010,158 @@ export interface PermissionGroupModelRuleRequest {
 }
 
 export interface PermissionGroupModelRuleResponse {
-  type?: string;
-  value?: string;
+  type: string;
+  value: string;
 }
 
 export interface PermissionGroupResponse {
-  createdAt?: string;
-  description?: string;
-  id?: number;
-  isDefault?: boolean;
-  manualModelCount?: number;
-  manualUserCount?: number;
-  modelCount?: number;
-  name?: string;
-  rateMultiplierPercent?: number;
-  ruleModelCount?: number;
-  subscriptionUserCount?: number;
-  updatedAt?: string;
-  userCount?: number;
+  createdAt: string;
+  description: string;
+  id: number;
+  isDefault: boolean;
+  manualModelCount: number;
+  manualUserCount: number;
+  modelCount: number;
+  name: string;
+  rateMultiplierPercent: number;
+  ruleModelCount: number;
+  subscriptionUserCount: number;
+  updatedAt: string;
+  userCount: number;
 }
 
 export interface PlanListResponseDoc {
-  data?: BillingPlanResponse[];
-  errorMsg?: string;
+  data: BillingPlanResponse[];
+  errorMsg: string;
 }
 
 export interface PromptPresetDataResponse {
-  promptPreset?: PromptPresetResponse;
+  promptPreset: PromptPresetResponse;
 }
 
 export interface PromptPresetDeleteDataResponse {
-  deleted?: boolean;
+  deleted: boolean;
 }
 
 export interface PromptPresetDeleteResponseDoc {
-  data?: PromptPresetDeleteDataResponse;
-  errorMsg?: string;
+  data: PromptPresetDeleteDataResponse;
+  errorMsg: string;
 }
 
 export interface PromptPresetErrorDoc {
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface PromptPresetPageResponseDoc {
-  data?: {
-    results?: PromptPresetResponse[];
-    total?: number;
+  data: {
+    results: PromptPresetResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface PromptPresetResponse {
-  content?: string;
-  createdAt?: string;
-  createdByUserID?: number;
-  description?: string;
-  enabled?: boolean;
-  id?: number;
-  scope?: string;
-  sortOrder?: number;
-  title?: string;
-  trigger?: string;
-  updatedAt?: string;
-  updatedByUserID?: number;
+  content: string;
+  createdAt: string;
+  createdByUserID: number;
+  description: string;
+  enabled: boolean;
+  id: number;
+  scope: string;
+  sortOrder: number;
+  title: string;
+  trigger: string;
+  updatedAt: string;
+  updatedByUserID: number;
 }
 
 export interface PromptPresetResponseDoc {
-  data?: PromptPresetDataResponse;
-  errorMsg?: string;
+  data: PromptPresetDataResponse;
+  errorMsg: string;
 }
 
 export interface PublicModelListResponseDoc {
-  data?: PublicModelResponse[];
-  errorMsg?: string;
+  data: PublicModelResponse[];
+  errorMsg: string;
 }
 
 export interface PublicModelPricingResponse {
-  cacheReadUSDPerMTokens?: number;
-  cacheWriteUSDPerMTokens?: number;
-  callUSDPerCall?: number;
-  currency?: string;
-  durationUSDPerSecond?: number;
-  inputUSDPerMTokens?: number;
-  isFree?: boolean;
-  mode?: string;
-  outputUSDPerMTokens?: number;
-  tiers?: PublicModelPricingTierResponse[];
+  cacheReadUSDPerMTokens: number;
+  cacheWriteUSDPerMTokens: number;
+  callUSDPerCall: number;
+  currency: string;
+  durationUSDPerSecond: number;
+  inputUSDPerMTokens: number;
+  isFree: boolean;
+  mode: string;
+  outputUSDPerMTokens: number;
+  tiers: PublicModelPricingTierResponse[];
 }
 
 export interface PublicModelPricingTierResponse {
-  cacheReadUSDPerMTokens?: number;
-  cacheWriteUSDPerMTokens?: number;
-  fromTokens?: number;
-  inputUSDPerMTokens?: number;
-  outputUSDPerMTokens?: number;
-  upToTokens?: number;
+  cacheReadUSDPerMTokens: number;
+  cacheWriteUSDPerMTokens: number;
+  fromTokens: number;
+  inputUSDPerMTokens: number;
+  outputUSDPerMTokens: number;
+  upToTokens: number | null;
 }
 
 export interface PublicModelResponse {
-  capabilitiesJSON?: string;
-  description?: string;
-  icon?: string;
-  kindsJSON?: string;
-  platformModelName?: string;
-  pricing?: PublicModelPricingResponse;
-  protocolsJSON?: string;
-  sortOrder?: number;
-  vendor?: string;
+  capabilitiesJSON: string;
+  description: string;
+  icon: string;
+  kindsJSON: string;
+  platformModelName: string;
+  pricing: PublicModelPricingResponse | null;
+  protocolsJSON: string;
+  sortOrder: number;
+  vendor: string;
 }
 
 export interface PublicSharedConversationResponse {
-  createdAt?: string;
-  defaultMessagePublicIDs?: string[];
-  lastAccessedAt?: string;
-  messages?: PublicSharedMessageResponse[];
-  model?: string;
-  shareID?: string;
-  title?: string;
+  createdAt: string;
+  defaultMessagePublicIDs: string[];
+  lastAccessedAt: string | null;
+  messages: PublicSharedMessageResponse[];
+  model: string;
+  shareID: string;
+  title: string;
 }
 
 export interface PublicSharedConversationResponseDoc {
-  data?: PublicSharedConversationResponse;
-  errorMsg?: string;
+  data: PublicSharedConversationResponse;
+  errorMsg: string;
 }
 
 export interface PublicSharedMessageResponse {
-  attachments?: string;
-  branchReason?: string;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  content?: string;
-  contentType?: string;
-  createdAt?: string;
-  editedAt?: string;
-  errorCode?: string;
-  errorMessage?: string;
-  inputTokens?: number;
-  latencyMS?: number;
-  modelIcon?: string;
-  modelVendor?: string;
-  outputTokens?: number;
-  parentPublicID?: string;
-  platformModelName?: string;
+  attachments: string;
+  branchReason: string;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  content: string;
+  contentType: string;
+  createdAt: string;
+  editedAt: string | null;
+  errorCode: string;
+  errorMessage: string;
+  inputTokens: number;
+  latencyMS: number;
+  modelIcon: string;
+  modelVendor: string;
+  outputTokens: number;
+  parentPublicID: string;
+  platformModelName: string;
   processTrace?: MessageProcessTraceResponse;
-  publicID?: string;
-  reasoningTokens?: number;
-  role?: string;
-  runID?: string;
-  sourcePublicID?: string;
-  status?: string;
-  tokenUsage?: number;
-  updatedAt?: string;
-  upstreamModelName?: string;
+  publicID: string;
+  reasoningTokens: number;
+  role: string;
+  runID: string;
+  sourcePublicID: string;
+  status: string;
+  tokenUsage: number;
+  updatedAt: string;
+  upstreamModelName: string;
 }
 
 export interface RedeemCodeRequest {
@@ -2120,92 +2174,92 @@ export interface RedeemCodeRequest {
 
 export interface RedemptionApplyDataResponse {
   account?: BillingAccountResponse;
-  overview?: BillingOverviewResponse;
-  redemption?: RedemptionResponse;
+  overview: BillingOverviewResponse;
+  redemption: RedemptionResponse;
   subscription?: SubscriptionResponse;
 }
 
 export interface RedemptionApplyResponseDoc {
-  data?: RedemptionApplyDataResponse;
-  errorMsg?: string;
+  data: RedemptionApplyDataResponse;
+  errorMsg: string;
 }
 
 export interface RedemptionCodeCreateDataResponse {
-  results?: RedemptionCodeResponse[];
+  results: RedemptionCodeResponse[];
 }
 
 export interface RedemptionCodeCreateResponseDoc {
-  data?: RedemptionCodeCreateDataResponse;
-  errorMsg?: string;
+  data: RedemptionCodeCreateDataResponse;
+  errorMsg: string;
 }
 
 export interface RedemptionCodeDataResponse {
-  code?: RedemptionCodeResponse;
+  code: RedemptionCodeResponse;
 }
 
 export interface RedemptionCodeDeleteDataResponse {
-  deleted?: boolean;
+  deleted: boolean;
 }
 
 export interface RedemptionCodeDeleteResponseDoc {
-  data?: RedemptionCodeDeleteDataResponse;
-  errorMsg?: string;
+  data: RedemptionCodeDeleteDataResponse;
+  errorMsg: string;
 }
 
 export interface RedemptionCodeListDataResponse {
-  results?: RedemptionCodeResponse[];
-  total?: number;
+  results: RedemptionCodeResponse[];
+  total: number;
 }
 
 export interface RedemptionCodeListResponseDoc {
-  data?: RedemptionCodeListDataResponse;
-  errorMsg?: string;
+  data: RedemptionCodeListDataResponse;
+  errorMsg: string;
 }
 
 export interface RedemptionCodeResponse {
   code?: string;
-  codeHint?: string;
-  createdAt?: string;
-  createdByUserID?: number;
-  creditNanousd?: number;
-  creditUSD?: number;
-  description?: string;
-  durationDays?: number;
-  expiresAt?: string;
-  id?: number;
-  maxRedemptions?: number;
-  mode?: string;
-  perUserLimit?: number;
-  planID?: number;
-  redeemedCount?: number;
-  remainingRedemptions?: number;
-  rewardType?: string;
-  status?: string;
-  updatedAt?: string;
+  codeHint: string;
+  createdAt: string;
+  createdByUserID: number;
+  creditNanousd: number;
+  creditUSD: number;
+  description: string;
+  durationDays: number;
+  expiresAt: string | null;
+  id: number;
+  maxRedemptions: number | null;
+  mode: string;
+  perUserLimit: number;
+  planID: number;
+  redeemedCount: number;
+  remainingRedemptions: number | null;
+  rewardType: string;
+  status: string;
+  updatedAt: string;
 }
 
 export interface RedemptionCodeResponseDoc {
-  data?: RedemptionCodeDataResponse;
-  errorMsg?: string;
+  data: RedemptionCodeDataResponse;
+  errorMsg: string;
 }
 
 export interface RedemptionResponse {
-  balanceTransactionID?: number;
-  codeID?: number;
-  createdAt?: string;
-  creditNanousd?: number;
-  creditUSD?: number;
-  id?: number;
-  mode?: string;
-  planID?: number;
-  rewardType?: string;
-  subscriptionID?: number;
-  userID?: number;
+  balanceTransactionID: number;
+  codeID: number;
+  createdAt: string;
+  creditNanousd: number;
+  creditUSD: number;
+  id: number;
+  mode: string;
+  planID: number;
+  rewardType: string;
+  subscriptionID: number;
+  userID: number;
 }
 
 export interface RefreshTokenResponseDoc {
-  data?: LoginResponse;
-  errorMsg?: string;
+  data: LoginResponse;
+  errorMsg: string;
 }
 
 export interface RenameConversationRequest {
@@ -2218,14 +2272,27 @@ export interface ReorderConversationProjectsRequest {
   projectIDs: string[];
 }
 
+export interface ReorderIdentityProvidersRequest {
+  providerIDs: string[];
+}
+
 export interface ReorderModelsRequest {
   /** @minItems 1 */
   modelIDs: number[];
 }
 
+export interface ReorderServerOrderItem {
+  serverID: number;
+  toolIDs: number[];
+}
+
+export interface ReorderServersRequest {
+  servers: ReorderServerOrderItem[];
+}
+
 export interface ResetUpstreamCircuitResponseDoc {
-  data?: CircuitResetResponse;
-  errorMsg?: string;
+  data: CircuitResetResponse;
+  errorMsg: string;
 }
 
 export interface ResetUserPasswordRequest {
@@ -2238,12 +2305,12 @@ export interface ResetUserPasswordRequest {
 }
 
 export interface ResetUserPasswordResponse {
-  reset?: boolean;
+  reset: boolean;
 }
 
 export interface ResetUserPasswordResponseDoc {
-  data?: ResetUserPasswordResponse;
-  errorMsg?: string;
+  data: ResetUserPasswordResponse;
+  errorMsg: string;
 }
 
 export interface RevokeConversationSharesRequest {
@@ -2252,56 +2319,56 @@ export interface RevokeConversationSharesRequest {
 }
 
 export interface RevokeConversationSharesResponse {
-  revoked?: boolean;
+  revoked: boolean;
 }
 
 export interface RevokeConversationSharesResponseDoc {
-  data?: RevokeConversationSharesResponse;
-  errorMsg?: string;
+  data: RevokeConversationSharesResponse;
+  errorMsg: string;
 }
 
 export interface RevokeUserSessionsResponse {
-  revoked?: boolean;
+  revoked: boolean;
 }
 
 export interface RevokeUserSessionsResponseDoc {
-  data?: RevokeUserSessionsResponse;
-  errorMsg?: string;
+  data: RevokeUserSessionsResponse;
+  errorMsg: string;
 }
 
 export interface RunResponse {
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  conversationID?: number;
-  createdAt?: string;
-  endedAt?: string;
-  endpoint?: string;
-  errorCode?: string;
-  errorMessage?: string;
-  firstTokenLatencyMS?: number;
-  id?: number;
-  inputTokens?: number;
-  modelIcon?: string;
-  modelVendor?: string;
-  outputTokens?: number;
-  platformModelName?: string;
-  provider?: string;
-  providerProtocol?: string;
-  reasoningTokens?: number;
-  requestID?: string;
-  requestedModelName?: string;
-  routedBindingCode?: string;
-  runID?: string;
-  startedAt?: string;
-  status?: string;
-  taskType?: string;
-  toolCallsCount?: number;
-  totalLatencyMS?: number;
-  updatedAt?: string;
-  upstreamID?: number;
-  upstreamModelID?: number;
-  upstreamModelName?: string;
-  userID?: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  conversationID: number;
+  createdAt: string;
+  endedAt: string | null;
+  endpoint: string;
+  errorCode: string;
+  errorMessage: string;
+  firstTokenLatencyMS: number;
+  id: number;
+  inputTokens: number;
+  modelIcon: string;
+  modelVendor: string;
+  outputTokens: number;
+  platformModelName: string;
+  provider: string;
+  providerProtocol: string;
+  reasoningTokens: number;
+  requestID: string;
+  requestedModelName: string;
+  routedBindingCode: string;
+  runID: string;
+  startedAt: string;
+  status: string;
+  taskType: string;
+  toolCallsCount: number;
+  totalLatencyMS: number;
+  updatedAt: string;
+  upstreamID: number;
+  upstreamModelID: number;
+  upstreamModelName: string;
+  userID: number;
 }
 
 export interface SecurityVerificationStartRequest {
@@ -2332,18 +2399,65 @@ export interface SendMessageRequest {
 }
 
 export interface SendMessageResponse {
-  assistantMessage?: MessageResponse;
+  assistantMessage: MessageResponse;
   metadataRefreshHint?: string;
-  userMessage?: MessageResponse;
+  userMessage: MessageResponse;
 }
 
 export interface SendMessageResponseDoc {
-  data?: SendMessageResponse;
-  errorMsg?: string;
+  data: SendMessageResponse;
+  errorMsg: string;
+}
+
+export interface ServerDataResponse {
+  server: ServerResponse;
+}
+
+export interface ServerDataResponseDoc {
+  data: ServerDataResponse;
+  errorMsg: string;
+}
+
+export interface ServerListResponse {
+  results: ServerResponse[];
+}
+
+export interface ServerListResponseDoc {
+  data: ServerListResponse;
+  errorMsg: string;
+}
+
+export interface ServerResponse {
+  activeToolCount: number;
+  baseURL: string;
+  createdAt: string;
+  headersJSON: string;
+  id: number;
+  lastError: string;
+  lastSyncedAt: string | null;
+  name: string;
+  sortOrder: number;
+  status: string;
+  toolCount: number;
+  updatedAt: string;
+}
+
+export interface ServerToolOrderListResponse {
+  results: ServerToolOrderResponse[];
+}
+
+export interface ServerToolOrderListResponseDoc {
+  data: ServerToolOrderListResponse;
+  errorMsg: string;
+}
+
+export interface ServerToolOrderResponse {
+  server: ServerResponse;
+  tools: ToolResponse[];
 }
 
 export interface SetConversationArchiveRequest {
-  archived?: boolean;
+  archived: boolean;
 }
 
 export interface SetConversationProjectRequest {
@@ -2352,7 +2466,7 @@ export interface SetConversationProjectRequest {
 }
 
 export interface SetConversationStarRequest {
-  starred?: boolean;
+  starred: boolean;
 }
 
 export interface SetGroupModelsRequest {
@@ -2378,78 +2492,78 @@ export interface SettingsPatchSettingsRequest {
 }
 
 export interface SkillDataResponse {
-  skill?: SkillResponse;
+  skill: SkillResponse;
 }
 
 export interface SkillDeleteDataResponse {
-  deleted?: boolean;
+  deleted: boolean;
 }
 
 export interface SkillDeleteResponseDoc {
-  data?: SkillDeleteDataResponse;
-  errorMsg?: string;
+  data: SkillDeleteDataResponse;
+  errorMsg: string;
 }
 
 export interface SkillErrorDoc {
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface SkillPageResponseDoc {
-  data?: {
-    results?: SkillResponse[];
-    total?: number;
+  data: {
+    results: SkillResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface SkillResponse {
-  createdAt?: string;
-  createdByUserID?: number;
-  description?: string;
-  enabled?: boolean;
-  id?: number;
-  markdown?: string;
-  scope?: string;
-  sortOrder?: number;
-  title?: string;
-  trigger?: string;
-  updatedAt?: string;
-  updatedByUserID?: number;
+  createdAt: string;
+  createdByUserID: number;
+  description: string;
+  enabled: boolean;
+  id: number;
+  markdown: string;
+  scope: string;
+  sortOrder: number;
+  title: string;
+  trigger: string;
+  updatedAt: string;
+  updatedByUserID: number;
 }
 
 export interface SkillResponseDoc {
-  data?: SkillDataResponse;
-  errorMsg?: string;
+  data: SkillDataResponse;
+  errorMsg: string;
 }
 
 export interface SkillSummaryPageResponseDoc {
-  data?: {
-    results?: SkillSummaryResponse[];
-    total?: number;
+  data: {
+    results: SkillSummaryResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface SkillSummaryResponse {
-  createdAt?: string;
-  description?: string;
-  enabled?: boolean;
-  id?: number;
-  scope?: string;
-  sortOrder?: number;
-  title?: string;
-  trigger?: string;
-  updatedAt?: string;
+  createdAt: string;
+  description: string;
+  enabled: boolean;
+  id: number;
+  scope: string;
+  sortOrder: number;
+  title: string;
+  trigger: string;
+  updatedAt: string;
 }
 
 export interface StorageQuotaResponse {
-  createdAt?: string;
-  id?: number;
-  quotaBytes?: number;
-  reservedBytes?: number;
-  updatedAt?: string;
-  usedBytes?: number;
-  userID?: number;
+  createdAt: string;
+  id: number;
+  quotaBytes: number;
+  reservedBytes: number;
+  updatedAt: string;
+  usedBytes: number;
+  userID: number;
 }
 
 export interface SubscribeRequest {
@@ -2463,118 +2577,146 @@ export interface SubscribeRequest {
 }
 
 export interface SubscribeResponseDoc {
-  data?: SubscriptionDataResponse;
-  errorMsg?: string;
+  data: SubscriptionDataResponse;
+  errorMsg: string;
 }
 
 export interface SubscriptionDataResponse {
-  subscription?: SubscriptionResponse;
+  subscription: SubscriptionResponse;
 }
 
 export interface SubscriptionEntitlementResponse {
-  autoRenew?: boolean;
-  cancelAtPeriodEnd?: boolean;
-  currentPeriodEndAt?: string;
-  currentPeriodStartAt?: string;
-  id?: number;
-  isCurrent?: boolean;
-  plan?: BillingPlanResponse;
-  planID?: number;
-  priceID?: number;
-  startAt?: string;
-  status?: string;
-  userID?: number;
+  autoRenew: boolean;
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEndAt: string | null;
+  currentPeriodStartAt: string;
+  id: number;
+  isCurrent: boolean;
+  plan: BillingPlanResponse;
+  planID: number;
+  priceID: number;
+  startAt: string;
+  status: string;
+  userID: number;
 }
 
 export interface SubscriptionResponse {
-  autoRenew?: boolean;
-  cancelAtPeriodEnd?: boolean;
-  currentPeriodEndAt?: string;
-  currentPeriodStartAt?: string;
-  id?: number;
-  planID?: number;
-  priceID?: number;
-  startAt?: string;
-  status?: string;
-  userID?: number;
+  autoRenew: boolean;
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEndAt: string | null;
+  currentPeriodStartAt: string;
+  id: number;
+  planID: number;
+  priceID: number;
+  startAt: string;
+  status: string;
+  userID: number;
 }
 
 export interface SuccessDoc {
-  data?: any;
+  data: any;
   details?: any;
   /** @example "" */
   errorCode?: string;
   /** @example "" */
-  errorMsg?: string;
+  errorMsg: string;
   /** @example "" */
   requestId?: string;
 }
 
 export interface SyncUpstreamModelsResponse {
-  createdUpstreamModels?: number;
-  existingUpstreamModels?: number;
-  inactivatedModels?: number;
-  skippedUpstreamModels?: number;
-  syncedModels?: UpstreamSyncModelResponse[];
-  totalUpstream?: number;
+  createdUpstreamModels: number;
+  existingUpstreamModels: number;
+  inactivatedModels: number;
+  skippedUpstreamModels: number;
+  syncedModels: UpstreamSyncModelResponse[];
+  totalUpstream: number;
 }
 
 export interface SyncUpstreamModelsResponseDoc {
-  data?: SyncUpstreamModelsResponse;
-  errorMsg?: string;
+  data: SyncUpstreamModelsResponse;
+  errorMsg: string;
 }
 
 export interface SystemEventListResponseDoc {
-  data?: {
-    results?: SystemEventResponse[];
-    total?: number;
+  data: {
+    results: SystemEventResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface SystemEventResponse {
-  createdAt?: string;
-  detailJSON?: string;
-  event?: string;
-  id?: number;
-  level?: string;
-  message?: string;
-  requestID?: string;
-  resource?: string;
-  resourceID?: string;
-  source?: string;
-  traceID?: string;
-  updatedAt?: string;
+  createdAt: string;
+  detailJSON: string;
+  event: string;
+  id: number;
+  level: string;
+  message: string;
+  requestID: string;
+  resource: string;
+  resourceID: string;
+  source: string;
+  traceID: string;
+  updatedAt: string;
+}
+
+export interface ToolListResponse {
+  results: ToolResponse[];
+}
+
+export interface ToolListResponseDoc {
+  data: ToolListResponse;
+  errorMsg: string;
+}
+
+export interface ToolResponse {
+  createdAt: string;
+  description: string;
+  displayName: string;
+  id: number;
+  inputSchemaJSON: string;
+  name: string;
+  serverID: number;
+  serverName: string;
+  sortOrder: number;
+  status: string;
+  updatedAt: string;
+}
+
+export interface ToolResponseDoc {
+  data: ToolResponse;
+  errorMsg: string;
 }
 
 export interface UpdateBillingAccountBalanceRequest {
   /** @min 0 */
-  balanceUSD?: number;
+  balanceUSD: number;
   /** @maxLength 255 */
   description?: string;
 }
 
 export interface UpdateBillingPlanRequest {
   /** @min 0 */
-  amountUSD?: number;
+  amountUSD: number;
   billingInterval: "month" | "year" | "lifetime";
   /** @maxLength 16 */
   currency?: string;
   /** @maxLength 255 */
-  description?: string;
+  description: string;
   /**
    * @min 0
    * @max 100
    */
-  discountPercent?: number;
+  discountPercent: number;
   /**
    * @minLength 1
    * @maxLength 64
    */
   name: string;
   /** @min 0 */
-  periodCreditUSD?: number;
-  permissionGroupID?: number;
+  periodCreditUSD: number;
+  permissionGroupID?: number | null;
 }
 
 export interface UpdateConversationProjectRequest {
@@ -2609,8 +2751,8 @@ export interface UpdateCurrentSessionLocationRequest {
 }
 
 export interface UpdateCurrentSessionLocationResponseDoc {
-  data?: ActiveSessionResponse;
-  errorMsg?: string;
+  data: ActiveSessionResponse;
+  errorMsg: string;
 }
 
 export interface UpdateFileRequest {
@@ -2652,8 +2794,8 @@ export interface UpdateModelRequest {
 }
 
 export interface UpdateModelResponseDoc {
-  data?: ModelDataResponse;
-  errorMsg?: string;
+  data: ModelDataResponse;
+  errorMsg: string;
 }
 
 export interface UpdateModelUpstreamSourceRequest {
@@ -2671,8 +2813,8 @@ export interface UpdateModelUpstreamSourceRequest {
 }
 
 export interface UpdateModelUpstreamSourceResponseDoc {
-  data?: ModelUpstreamSourceDataResponse;
-  errorMsg?: string;
+  data: ModelUpstreamSourceDataResponse;
+  errorMsg: string;
 }
 
 export interface UpdatePermissionGroupRequest {
@@ -2685,6 +2827,17 @@ export interface UpdatePermissionGroupRequest {
    * @max 10000
    */
   rateMultiplierPercent?: number;
+}
+
+export interface UpdateServerToolsStatusRequest {
+  status: string;
+  toolIDs: number[];
+}
+
+export interface UpdateToolRequest {
+  description?: string;
+  displayName?: string;
+  status?: string;
 }
 
 export interface UpdateUpstreamRequest {
@@ -2729,8 +2882,8 @@ export interface UpdateUpstreamRequest {
 }
 
 export interface UpdateUpstreamResponseDoc {
-  data?: UpstreamDataResponse;
-  errorMsg?: string;
+  data: UpstreamDataResponse;
+  errorMsg: string;
 }
 
 export interface UpdateUserStatusRequest {
@@ -2741,38 +2894,79 @@ export interface UpdateUserStatusRequest {
 }
 
 export interface UpdateUserStatusResponseDoc {
-  data?: UserDataResponse;
-  errorMsg?: string;
+  data: UserDataResponse;
+  errorMsg: string;
 }
 
 export interface UploadFileResponseDoc {
-  data?: FileUploadResponse;
-  errorMsg?: string;
+  data: FileUploadResponse;
+  errorMsg: string;
+}
+
+export interface UpsertIdentityProviderRequest {
+  /** @maxLength 512 */
+  authURL?: string;
+  /** @maxLength 64 */
+  avatarField?: string;
+  /** @maxLength 255 */
+  clientID: string;
+  /** @maxLength 4096 */
+  clientSecret?: string;
+  defaultRole?: "user" | "admin" | "superadmin";
+  /** @maxLength 512 */
+  discoveryURL?: string;
+  /** @maxLength 64 */
+  emailField?: string;
+  /** @maxLength 64 */
+  emailVerifiedField?: string;
+  /** @maxLength 512 */
+  issuerURL?: string;
+  /** @maxLength 512 */
+  jwksURL?: string;
+  loginEnabled?: boolean;
+  /** @maxLength 512 */
+  logoURL?: string;
+  /** @maxLength 80 */
+  name: string;
+  /** @maxLength 64 */
+  nameField?: string;
+  registrationEnabled?: boolean;
+  /** @maxLength 255 */
+  scopes?: string;
+  /** @maxLength 64 */
+  slug?: string;
+  /** @maxLength 64 */
+  subjectField?: string;
+  /** @maxLength 512 */
+  tokenURL?: string;
+  type: "oidc" | "oauth2";
+  /** @maxLength 512 */
+  userinfoURL?: string;
 }
 
 export interface UpsertMemoryResponse {
-  saved?: boolean;
+  saved: boolean;
 }
 
 export interface UpsertModelPricingRequest {
   /** @min 0 */
-  cacheReadUSDPerMTokens?: number;
+  cacheReadUSDPerMTokens: number;
   /** @min 0 */
-  cacheWriteUSDPerMTokens?: number;
+  cacheWriteUSDPerMTokens: number;
   /** @min 0 */
-  callUSDPerCall?: number;
+  callUSDPerCall: number;
   /** @maxLength 16 */
   currency?: string;
   /** @min 0 */
-  durationUSDPerSecond?: number;
+  durationUSDPerSecond: number;
   /** @min 0 */
-  inputUSDPerMTokens?: number;
-  isFree?: boolean;
+  inputUSDPerMTokens: number;
+  isFree: boolean;
   /** @min 0 */
-  outputUSDPerMTokens?: number;
+  outputUSDPerMTokens: number;
   /** @maxLength 128 */
   platformModelName: string;
-  pricingMode?: "token" | "call" | "duration" | "tiered";
+  pricingMode: "token" | "call" | "duration" | "tiered";
   /** @maxLength 20000 */
   tieredPricingJSON?: string;
 }
@@ -2806,8 +3000,8 @@ export interface UpsertUpstreamModelRequest {
 }
 
 export interface UpsertUpstreamModelResponseDoc {
-  data?: UpstreamModelDataResponse;
-  errorMsg?: string;
+  data: UpstreamModelDataResponse;
+  errorMsg: string;
 }
 
 export interface UpsertUserMemoryRequest {
@@ -2819,390 +3013,390 @@ export interface UpsertUserMemoryRequest {
 }
 
 export interface UpsertUserMemoryResponseDoc {
-  data?: UpsertMemoryResponse;
-  errorMsg?: string;
+  data: UpsertMemoryResponse;
+  errorMsg: string;
 }
 
 export interface UpstreamAPIKeyResponse {
-  id?: string;
-  index?: number;
-  keyMasked?: string;
-  note?: string;
-  status?: string;
+  id: string;
+  index: number;
+  keyMasked: string;
+  note: string;
+  status: string;
 }
 
 export interface UpstreamDataResponse {
-  upstream?: UpstreamResponse;
+  upstream: UpstreamResponse;
 }
 
 export interface UpstreamListResponseDoc {
-  data?: {
-    results?: UpstreamResponse[];
-    total?: number;
+  data: {
+    results: UpstreamResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface UpstreamModelDataResponse {
-  binding?: UpstreamModelResponse;
+  binding: UpstreamModelResponse;
 }
 
 export interface UpstreamModelListResponseDoc {
-  data?: {
-    results?: UpstreamModelResponse[];
-    total?: number;
+  data: {
+    results: UpstreamModelResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface UpstreamModelResponse {
-  bindingCode?: string;
-  cbDurationMin?: number;
-  cbFailureThreshold?: number;
-  cbWindowMin?: number;
-  circuitOpen?: boolean;
-  circuitUntil?: string;
-  createdAt?: string;
-  headersJSON?: string;
-  id?: number;
-  modelIcon?: string;
-  modelKindsJSON?: string;
-  modelVendor?: string;
-  platformModelID?: number;
-  platformModelName?: string;
-  priority?: number;
-  protocol?: string;
-  routeID?: number;
-  routeStatus?: string;
-  source?: string;
-  suggestedProtocol?: string;
-  updatedAt?: string;
-  upstreamID?: number;
-  upstreamModelIcon?: string;
-  upstreamModelKindsJSON?: string;
-  upstreamModelName?: string;
-  upstreamModelStatus?: string;
-  upstreamModelVendor?: string;
-  weight?: number;
+  bindingCode: string;
+  cbDurationMin: number;
+  cbFailureThreshold: number;
+  cbWindowMin: number;
+  circuitOpen: boolean;
+  circuitUntil: string;
+  createdAt: string;
+  headersJSON: string;
+  id: number;
+  modelIcon: string;
+  modelKindsJSON: string;
+  modelVendor: string;
+  platformModelID: number;
+  platformModelName: string;
+  priority: number;
+  protocol: string;
+  routeID: number;
+  routeStatus: string;
+  source: string;
+  suggestedProtocol: string;
+  updatedAt: string;
+  upstreamID: number;
+  upstreamModelIcon: string;
+  upstreamModelKindsJSON: string;
+  upstreamModelName: string;
+  upstreamModelStatus: string;
+  upstreamModelVendor: string;
+  weight: number;
 }
 
 export interface UpstreamRemoteModelResponse {
-  alreadyBound?: boolean;
-  alreadySynced?: boolean;
-  bindingCode?: string;
-  boundPlatformModels?: string[];
-  suggestedKindsJSON?: string;
-  suggestedPlatformModelName?: string;
-  suggestedProtocol?: string;
-  suggestedProtocols?: string[];
-  upstreamModelName?: string;
-  upstreamModelStatus?: string;
+  alreadyBound: boolean;
+  alreadySynced: boolean;
+  bindingCode: string;
+  boundPlatformModels: string[];
+  suggestedKindsJSON: string;
+  suggestedPlatformModelName: string;
+  suggestedProtocol: string;
+  suggestedProtocols: string[];
+  upstreamModelName: string;
+  upstreamModelStatus: string;
 }
 
 export interface UpstreamRemoteModelsResponse {
-  items?: UpstreamRemoteModelResponse[];
-  total?: number;
+  items: UpstreamRemoteModelResponse[];
+  total: number;
 }
 
 export interface UpstreamRemoteModelsResponseDoc {
-  data?: UpstreamRemoteModelsResponse;
-  errorMsg?: string;
+  data: UpstreamRemoteModelsResponse;
+  errorMsg: string;
 }
 
 export interface UpstreamResponse {
-  activeModelsCount?: number;
-  apiKeyItems?: UpstreamAPIKeyResponse[];
-  apiKeysMasked?: string;
-  baseURL?: string;
-  cbDurationMin?: number;
-  cbFailureThreshold?: number;
-  cbModelThreshold?: number;
-  cbThresholdLogic?: string;
-  cbWindowMin?: number;
-  circuitOpen?: boolean;
-  circuitUntil?: string;
-  compatible?: string;
-  connectTimeoutMS?: number;
-  createdAt?: string;
-  headersJSON?: string;
-  id?: number;
-  modelsCount?: number;
-  name?: string;
-  protocolDefaultsJSON?: string;
-  readTimeoutMS?: number;
-  status?: string;
-  streamIdleTimeoutMS?: number;
-  updatedAt?: string;
+  activeModelsCount: number;
+  apiKeyItems: UpstreamAPIKeyResponse[];
+  apiKeysMasked: string;
+  baseURL: string;
+  cbDurationMin: number;
+  cbFailureThreshold: number;
+  cbModelThreshold: number;
+  cbThresholdLogic: string;
+  cbWindowMin: number;
+  circuitOpen: boolean;
+  circuitUntil: string;
+  compatible: string;
+  connectTimeoutMS: number;
+  createdAt: string;
+  headersJSON: string;
+  id: number;
+  modelsCount: number;
+  name: string;
+  protocolDefaultsJSON: string;
+  readTimeoutMS: number;
+  status: string;
+  streamIdleTimeoutMS: number;
+  updatedAt: string;
 }
 
 export interface UpstreamSyncModelResponse {
-  bindingCode?: string;
-  created?: boolean;
-  kindsJSON?: string;
-  status?: string;
-  suggestedProtocol?: string;
-  upstreamModelName?: string;
+  bindingCode: string;
+  created: boolean;
+  kindsJSON: string;
+  status: string;
+  suggestedProtocol: string;
+  upstreamModelName: string;
 }
 
 export interface UsageDailyListResponseDoc {
-  data?: UsageDailyResponse[];
-  errorMsg?: string;
+  data: UsageDailyResponse[];
+  errorMsg: string;
 }
 
 export interface UsageDailyModelResponse {
-  avgLatencyMS?: number;
-  billedNanousd?: number;
-  billedUSD?: number;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  callCount?: number;
-  durationSeconds?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  platformModelName?: string;
-  reasoningTokens?: number;
-  recordCount?: number;
-  totalTokens?: number;
+  avgLatencyMS: number;
+  billedNanousd: number;
+  billedUSD: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  callCount: number;
+  durationSeconds: number;
+  inputTokens: number;
+  outputTokens: number;
+  platformModelName: string;
+  reasoningTokens: number;
+  recordCount: number;
+  totalTokens: number;
 }
 
 export interface UsageDailyResponse {
-  avgLatencyMS?: number;
-  billedNanousd?: number;
-  billedUSD?: number;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  callCount?: number;
-  durationSeconds?: number;
-  inputTokens?: number;
-  models?: UsageDailyModelResponse[];
-  outputTokens?: number;
-  reasoningTokens?: number;
-  recordCount?: number;
-  totalTokens?: number;
-  usageDate?: string;
+  avgLatencyMS: number;
+  billedNanousd: number;
+  billedUSD: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  callCount: number;
+  durationSeconds: number;
+  inputTokens: number;
+  models: UsageDailyModelResponse[];
+  outputTokens: number;
+  reasoningTokens: number;
+  recordCount: number;
+  totalTokens: number;
+  usageDate: string;
 }
 
 export interface UsageLedgerListResponseDoc {
-  data?: {
-    results?: UsageLedgerResponse[];
-    total?: number;
+  data: {
+    results: UsageLedgerResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface UsageLedgerResponse {
-  cacheWrite1hTokens?: number;
-  cacheWrite5mTokens?: number;
-  billedCurrency?: string;
-  billedNanousd?: number;
-  billedUSD?: number;
-  billingAt?: string;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  callCount?: number;
-  conversationID?: number;
-  createdAt?: string;
-  durationSeconds?: number;
-  id?: number;
-  inputTokens?: number;
-  isFreeModel?: boolean;
-  latencyMS?: number;
-  modelIcon?: string;
-  modelVendor?: string;
-  outputTokens?: number;
-  platformModelName?: string;
-  pricingSnapshotJSON?: string;
-  providerProtocol?: string;
-  reasoningTokens?: number;
-  routedBindingCode?: string;
-  serviceTier?: string;
-  updatedAt?: string;
-  upstreamModelName?: string;
-  usageDate?: string;
-  usageSpeed?: string;
-  userID?: number;
+  cacheWrite1hTokens: number;
+  cacheWrite5mTokens: number;
+  billedCurrency: string;
+  billedNanousd: number;
+  billedUSD: number;
+  billingAt: string;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  callCount: number;
+  conversationID: number;
+  createdAt: string;
+  durationSeconds: number;
+  id: number;
+  inputTokens: number;
+  isFreeModel: boolean;
+  latencyMS: number;
+  modelIcon: string;
+  modelVendor: string;
+  outputTokens: number;
+  platformModelName: string;
+  pricingSnapshotJSON: string;
+  providerProtocol: string;
+  reasoningTokens: number;
+  routedBindingCode: string;
+  serviceTier: string;
+  updatedAt: string;
+  upstreamModelName: string;
+  usageDate: string;
+  usageSpeed: string;
+  userID: number;
 }
 
 export interface UsageLogListResponseDoc {
-  data?: {
-    results?: UsageLogResponse[];
-    total?: number;
+  data: {
+    results: UsageLogResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface UsageLogResponse {
-  cacheWrite1hTokens?: number;
-  cacheWrite5mTokens?: number;
-  billedCurrency?: string;
-  billedNanousd?: number;
-  billedUSD?: number;
-  billingAt?: string;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  callCount?: number;
-  conversationID?: number;
-  createdAt?: string;
-  durationSeconds?: number;
-  id?: number;
-  inputTokens?: number;
-  isFreeModel?: boolean;
-  latencyMS?: number;
-  outputTokens?: number;
-  platformModelName?: string;
-  pricingSnapshotJSON?: string;
-  providerProtocol?: string;
-  reasoningTokens?: number;
-  routedBindingCode?: string;
-  serviceTier?: string;
-  updatedAt?: string;
-  upstreamModelName?: string;
-  upstreamName?: string;
-  usageDate?: string;
-  usageSpeed?: string;
-  userDisplayName?: string;
-  userID?: number;
-  userLabel?: string;
-  username?: string;
+  cacheWrite1hTokens: number;
+  cacheWrite5mTokens: number;
+  billedCurrency: string;
+  billedNanousd: number;
+  billedUSD: number;
+  billingAt: string;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  callCount: number;
+  conversationID: number;
+  createdAt: string;
+  durationSeconds: number;
+  id: number;
+  inputTokens: number;
+  isFreeModel: boolean;
+  latencyMS: number;
+  outputTokens: number;
+  platformModelName: string;
+  pricingSnapshotJSON: string;
+  providerProtocol: string;
+  reasoningTokens: number;
+  routedBindingCode: string;
+  serviceTier: string;
+  updatedAt: string;
+  upstreamModelName: string;
+  upstreamName: string;
+  usageDate: string;
+  usageSpeed: string;
+  userDisplayName: string;
+  userID: number;
+  userLabel: string;
+  username: string;
 }
 
 export interface UsageMonthlyListResponseDoc {
-  data?: UsageMonthlyResponse[];
-  errorMsg?: string;
+  data: UsageMonthlyResponse[];
+  errorMsg: string;
 }
 
 export interface UsageMonthlyResponse {
-  avgLatencyMS?: number;
-  billedNanousd?: number;
-  billedUSD?: number;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  callCount?: number;
-  durationSeconds?: number;
-  inputTokens?: number;
-  monthStartAt?: string;
-  outputTokens?: number;
-  reasoningTokens?: number;
-  recordCount?: number;
-  totalTokens?: number;
+  avgLatencyMS: number;
+  billedNanousd: number;
+  billedUSD: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  callCount: number;
+  durationSeconds: number;
+  inputTokens: number;
+  monthStartAt: string;
+  outputTokens: number;
+  reasoningTokens: number;
+  recordCount: number;
+  totalTokens: number;
 }
 
 export interface UsageStatisticsMetricsResponse {
-  avgLatencyMS?: number;
-  billedNanousd?: number;
-  billedUSD?: number;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  callCount?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  reasoningTokens?: number;
-  recordCount?: number;
-  totalTokens?: number;
+  avgLatencyMS: number;
+  billedNanousd: number;
+  billedUSD: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  callCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  recordCount: number;
+  totalTokens: number;
 }
 
 export interface UsageStatisticsModelRankResponse {
-  avgLatencyMS?: number;
-  billedNanousd?: number;
-  billedUSD?: number;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  callCount?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  platformModelName?: string;
-  reasoningTokens?: number;
-  recordCount?: number;
-  totalTokens?: number;
-  trend?: UsageStatisticsTrendResponse[];
+  avgLatencyMS: number;
+  billedNanousd: number;
+  billedUSD: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  callCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  platformModelName: string;
+  reasoningTokens: number;
+  recordCount: number;
+  totalTokens: number;
+  trend: UsageStatisticsTrendResponse[];
 }
 
 export interface UsageStatisticsResponse {
-  range?: {
-    endDate?: string;
-    granularity?: string;
-    startDate?: string;
+  range: {
+    endDate: string;
+    granularity: string;
+    startDate: string;
   };
-  section?: string;
-  topModels?: UsageStatisticsModelRankResponse[];
-  topUsers?: UsageStatisticsUserRankResponse[];
-  totals?: UsageStatisticsMetricsResponse;
-  trend?: UsageStatisticsTrendResponse[];
+  section: string;
+  topModels: UsageStatisticsModelRankResponse[];
+  topUsers: UsageStatisticsUserRankResponse[];
+  totals: UsageStatisticsMetricsResponse;
+  trend: UsageStatisticsTrendResponse[];
 }
 
 export interface UsageStatisticsResponseDoc {
-  data?: UsageStatisticsResponse;
-  errorMsg?: string;
+  data: UsageStatisticsResponse;
+  errorMsg: string;
 }
 
 export interface UsageStatisticsTrendResponse {
-  avgLatencyMS?: number;
-  billedNanousd?: number;
-  billedUSD?: number;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  callCount?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  periodStart?: string;
-  reasoningTokens?: number;
-  recordCount?: number;
-  totalTokens?: number;
+  avgLatencyMS: number;
+  billedNanousd: number;
+  billedUSD: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  callCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  periodStart: string;
+  reasoningTokens: number;
+  recordCount: number;
+  totalTokens: number;
 }
 
 export interface UsageStatisticsUserRankResponse {
-  avgLatencyMS?: number;
-  billedNanousd?: number;
-  billedUSD?: number;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  callCount?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  reasoningTokens?: number;
-  recordCount?: number;
-  totalTokens?: number;
-  trend?: UsageStatisticsTrendResponse[];
-  userDisplayName?: string;
-  userID?: number;
-  userLabel?: string;
-  username?: string;
+  avgLatencyMS: number;
+  billedNanousd: number;
+  billedUSD: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  callCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  recordCount: number;
+  totalTokens: number;
+  trend: UsageStatisticsTrendResponse[];
+  userDisplayName: string;
+  userID: number;
+  userLabel: string;
+  username: string;
 }
 
 export interface UserAuthEventListResponseDoc {
-  data?: {
-    results?: AuthEventResponse[];
-    total?: number;
+  data: {
+    results: AuthEventResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface UserDataResponse {
-  user?: AdminUserResponse;
+  user: AdminUserResponse;
 }
 
 export interface UserListResponseDoc {
-  data?: {
-    results?: AdminUserResponse[];
-    total?: number;
+  data: {
+    results: AdminUserResponse[];
+    total: number;
   };
-  errorMsg?: string;
+  errorMsg: string;
 }
 
 export interface UserMemoryListResponseDoc {
-  data?: UserMemoryResponse[];
-  errorMsg?: string;
+  data: UserMemoryResponse[];
+  errorMsg: string;
 }
 
 export interface UserMemoryResponse {
-  createdAt?: string;
-  id?: number;
-  memoryKey?: string;
-  scope?: string;
-  updatedAt?: string;
-  updatedBy?: string;
-  userID?: number;
-  value?: string;
+  createdAt: string;
+  id: number;
+  memoryKey: string;
+  scope: string;
+  updatedAt: string;
+  updatedBy: string;
+  userID: number;
+  value: string;
 }
 
 export interface UserSettingsPatchSettingsRequest {
@@ -3210,12 +3404,12 @@ export interface UserSettingsPatchSettingsRequest {
 }
 
 export interface UserSettingsResponse {
-  settings?: Record<string, string>;
+  settings: Record<string, string>;
 }
 
 export interface UserSettingsResponseDoc {
-  data?: UserSettingsResponse;
-  errorMsg?: string;
+  data: UserSettingsResponse;
+  errorMsg: string;
 }
 
 export interface WritePromptPresetRequest {
@@ -3361,6 +3555,95 @@ export namespace Admin {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = AuditLogListResponseDoc;
+  }
+
+  /**
+   * @description 管理员保存第三方身份源的展示顺序
+   * @tags admin-auth
+   * @name AuthProviderOrderPartialUpdate
+   * @summary 调整第三方身份源顺序
+   * @request PATCH:/admin/auth/provider-order
+   * @secure
+   */
+  export namespace AuthProviderOrderPartialUpdate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = ReorderIdentityProvidersRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = IdentityProviderReorderResponseDoc;
+  }
+
+  /**
+   * @description 管理员查看已配置的 OIDC 和 OAuth2 身份源
+   * @tags admin-auth
+   * @name AuthProvidersList
+   * @summary 获取第三方身份源列表
+   * @request GET:/admin/auth/providers
+   * @secure
+   */
+  export namespace AuthProvidersList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = IdentityProviderListResponseDoc;
+  }
+
+  /**
+   * @description 管理员创建一个 OIDC 或 OAuth2 身份源
+   * @tags admin-auth
+   * @name AuthProvidersCreate
+   * @summary 创建第三方身份源
+   * @request POST:/admin/auth/providers
+   * @secure
+   */
+  export namespace AuthProvidersCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = UpsertIdentityProviderRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = IdentityProviderResponseDoc;
+  }
+
+  /**
+   * @description 管理员删除第三方身份源；force=true 时允许删除仍有关联用户的身份源
+   * @tags admin-auth
+   * @name AuthProvidersDelete
+   * @summary 删除第三方身份源
+   * @request DELETE:/admin/auth/providers/{provider_id}
+   * @secure
+   */
+  export namespace AuthProvidersDelete {
+    export type RequestParams = {
+      /** 身份源 ID */
+      providerId: string;
+    };
+    export type RequestQuery = {
+      /** 是否强制删除 */
+      force?: boolean;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = IdentityProviderDeleteResponseDoc;
+  }
+
+  /**
+   * @description 管理员更新一个 OIDC 或 OAuth2 身份源
+   * @tags admin-auth
+   * @name AuthProvidersPartialUpdate
+   * @summary 更新第三方身份源
+   * @request PATCH:/admin/auth/providers/{provider_id}
+   * @secure
+   */
+  export namespace AuthProvidersPartialUpdate {
+    export type RequestParams = {
+      /** 身份源 ID */
+      providerId: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = UpsertIdentityProviderRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = IdentityProviderResponseDoc;
   }
 
   /**
@@ -4365,6 +4648,168 @@ export namespace Admin {
     export type RequestBody = CleanupLogsRequest;
     export type RequestHeaders = {};
     export type ResponseBody = CleanupLogsResponseDoc;
+  }
+
+  /**
+   * @description 管理员查看已配置的 MCP 服务及其工具统计
+   * @tags admin-mcp
+   * @name McpServersList
+   * @summary 获取 MCP 服务列表
+   * @request GET:/admin/mcp/servers
+   * @secure
+   */
+  export namespace McpServersList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ServerListResponseDoc;
+  }
+
+  /**
+   * @description 管理员创建一个 MCP 服务配置
+   * @tags admin-mcp
+   * @name McpServersCreate
+   * @summary 创建 MCP 服务
+   * @request POST:/admin/mcp/servers
+   * @secure
+   */
+  export namespace McpServersCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = CreateServerRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ServerDataResponseDoc;
+  }
+
+  /**
+   * @description 管理员保存 MCP 服务及其工具的展示顺序
+   * @tags admin-mcp
+   * @name McpServersOrderPartialUpdate
+   * @summary 调整 MCP 服务及工具顺序
+   * @request PATCH:/admin/mcp/servers/order
+   * @secure
+   */
+  export namespace McpServersOrderPartialUpdate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = ReorderServersRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ServerToolOrderListResponseDoc;
+  }
+
+  /**
+   * @description 管理员删除一个 MCP 服务及其工具
+   * @tags admin-mcp
+   * @name McpServersDelete
+   * @summary 删除 MCP 服务
+   * @request DELETE:/admin/mcp/servers/{id}
+   * @secure
+   */
+  export namespace McpServersDelete {
+    export type RequestParams = {
+      /** MCP 服务 ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = DeleteServerResponseDoc;
+  }
+
+  /**
+   * @description 管理员更新一个 MCP 服务配置
+   * @tags admin-mcp
+   * @name McpServersPartialUpdate
+   * @summary 更新 MCP 服务
+   * @request PATCH:/admin/mcp/servers/{id}
+   * @secure
+   */
+  export namespace McpServersPartialUpdate {
+    export type RequestParams = {
+      /** MCP 服务 ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = CreateServerRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ServerDataResponseDoc;
+  }
+
+  /**
+   * @description 管理员从 MCP 服务同步工具定义
+   * @tags admin-mcp
+   * @name McpServersSyncCreate
+   * @summary 同步 MCP 工具
+   * @request POST:/admin/mcp/servers/{id}/sync
+   * @secure
+   */
+  export namespace McpServersSyncCreate {
+    export type RequestParams = {
+      /** MCP 服务 ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ToolListResponseDoc;
+  }
+
+  /**
+   * @description 管理员查看指定 MCP 服务已同步的工具
+   * @tags admin-mcp
+   * @name McpServersToolsList
+   * @summary 获取 MCP 服务工具
+   * @request GET:/admin/mcp/servers/{id}/tools
+   * @secure
+   */
+  export namespace McpServersToolsList {
+    export type RequestParams = {
+      /** MCP 服务 ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ToolListResponseDoc;
+  }
+
+  /**
+   * @description 管理员批量启用或停用指定 MCP 服务的工具
+   * @tags admin-mcp
+   * @name McpServersToolsStatusPartialUpdate
+   * @summary 批量更新 MCP 工具状态
+   * @request PATCH:/admin/mcp/servers/{id}/tools/status
+   * @secure
+   */
+  export namespace McpServersToolsStatusPartialUpdate {
+    export type RequestParams = {
+      /** MCP 服务 ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = UpdateServerToolsStatusRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ToolListResponseDoc;
+  }
+
+  /**
+   * @description 管理员更新 MCP 工具的展示信息或状态
+   * @tags admin-mcp
+   * @name McpToolsPartialUpdate
+   * @summary 更新 MCP 工具
+   * @request PATCH:/admin/mcp/tools/{id}
+   * @secure
+   */
+  export namespace McpToolsPartialUpdate {
+    export type RequestParams = {
+      /** MCP 工具 ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = UpdateToolRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ToolResponseDoc;
   }
 
   /**
@@ -6446,6 +6891,24 @@ export namespace Files {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = Blob;
+  }
+}
+
+export namespace Mcp {
+  /**
+   * @description 获取当前聊天侧可选择的 MCP 工具
+   * @tags mcp
+   * @name ToolsList
+   * @summary 获取可用 MCP 工具
+   * @request GET:/mcp/tools
+   * @secure
+   */
+  export namespace ToolsList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ToolListResponseDoc;
   }
 }
 

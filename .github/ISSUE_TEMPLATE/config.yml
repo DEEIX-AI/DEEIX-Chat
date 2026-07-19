@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability report
-    url: https://github.com/DEEIX-AI/DEEIX-Chat/blob/main/SECURITY.md
+        url: https://github.com/DEEIX-AI/DEEIX-Chat/blob/main/.github/SECURITY.md
     about: Please do not report security vulnerabilities through public GitHub issues. Email support@deeix.com instead.
   - name: Contribution guidelines
-    url: https://github.com/DEEIX-AI/DEEIX-Chat/blob/main/CONTRIBUTING.md
+        url: https://github.com/DEEIX-AI/DEEIX-Chat/blob/main/.github/CONTRIBUTING.md
     about: Read the contribution guidelines before opening an issue or pull request.

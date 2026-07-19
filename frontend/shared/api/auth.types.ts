@@ -6,7 +6,7 @@ import type {
   DeleteAccountRequest,
   EmailRegistrationStartResponse,
   EmailVerificationStartResponse,
-  IdentityProviderResponse,
+	IdentityProviderResponse,
   LoginOptionsResponse,
   LoginResponse,
   LogoutResponse,
@@ -16,40 +16,11 @@ import type {
   UpdateCurrentSessionLocationRequest,
 } from "@deeix/api-contract";
 
-export type UserIdentityProviderSummaryDTO = Required<AuthUserIdentityProviderSummaryResponse>;
+export type UserIdentityProviderSummaryDTO = AuthUserIdentityProviderSummaryResponse;
 
-export type UserDTO = Omit<
-  Required<AuthUserResponse>,
-  | "emailBootstrapUsedAt"
-  | "emailVerifiedAt"
-  | "identityProviders"
-  | "lastActiveAt"
-  | "lastLoginAt"
-  | "onboardingCompletedAt"
-  | "passwordSetAt"
-  | "phoneVerifiedAt"
-  | "subscriptionExpiresAt"
-  | "subscriptionPlanID"
-  | "usernameChangedAt"
-> & {
-  onboardingCompletedAt: string | null;
-  emailVerifiedAt: string | null;
-  emailBootstrapUsedAt: string | null;
-  phoneVerifiedAt: string | null;
-  usernameChangedAt: string | null;
-  passwordSetAt: string | null;
-  lastLoginAt: string | null;
-  lastActiveAt: string | null;
-  subscriptionPlanID: number | null;
-  subscriptionExpiresAt: string | null;
-  billingAccountCurrency: string;
-  billingBalanceNanousd: number;
-  billingBalanceUSD: number;
-  billingAccountStatus: string;
-  identityProviders: UserIdentityProviderSummaryDTO[];
-};
+export type UserDTO = AuthUserResponse;
 
-export type LoginData = Omit<Required<LoginResponse>, "twoFactorChallengeToken" | "user" | "verificationMethods"> & {
+export type LoginData = Omit<LoginResponse, "user" | "verificationMethods"> & {
   user: UserDTO;
   twoFactorChallengeToken?: string;
   verificationMethods?: SecurityVerificationMethod[];
@@ -80,15 +51,15 @@ export type TwoFactorDisableData = {
 
 export type SecurityVerificationMethod = "none" | "two_factor" | "email";
 
-export type EmailRegistrationStartData = Required<EmailRegistrationStartResponse> & {
+export type EmailRegistrationStartData = EmailRegistrationStartResponse & {
   debugCode?: string;
 };
 
-export type PasswordResetStartData = Required<PasswordResetStartResponse>;
+export type PasswordResetStartData = PasswordResetStartResponse;
 
-export type PasswordResetCompleteData = Required<PasswordResetCompleteResponse>;
+export type PasswordResetCompleteData = PasswordResetCompleteResponse;
 
-export type PasswordChangeVerificationStartData = Omit<Required<EmailVerificationStartResponse>, "availableMethods" | "verificationMethod"> & {
+export type PasswordChangeVerificationStartData = Omit<EmailVerificationStartResponse, "availableMethods" | "verificationMethod"> & {
   verificationMethod: SecurityVerificationMethod;
   availableMethods: SecurityVerificationMethod[];
   debugCode?: string;
@@ -98,11 +69,7 @@ export type LoginPageSettings = {
   defaultNextPath: string;
 };
 
-export type IdentityProviderDTO = Omit<Required<IdentityProviderResponse>, "logoURL" | "type"> & {
-  type: "oidc" | "oauth2";
-  logoURL?: string;
-  defaultRole: "user" | "admin" | "superadmin";
-};
+export type IdentityProviderDTO = IdentityProviderResponse;
 
 export type UserIdentityDTO = {
   id: number;
@@ -126,7 +93,7 @@ export type UserIdentityData = {
   identity: UserIdentityDTO;
 };
 
-export type LoginOptionsData = Omit<Required<LoginOptionsResponse>, "providers"> & {
+export type LoginOptionsData = Omit<LoginOptionsResponse, "providers"> & {
   providers: IdentityProviderDTO[];
 };
 
@@ -155,7 +122,7 @@ export type CompleteOnboardingPayload = {
   newPassword?: string;
 };
 
-export type EmailVerificationStartData = Omit<Required<EmailVerificationStartResponse>, "availableMethods" | "verificationMethod"> & {
+export type EmailVerificationStartData = Omit<EmailVerificationStartResponse, "availableMethods" | "verificationMethod"> & {
   verificationMethod: SecurityVerificationMethod;
   availableMethods: SecurityVerificationMethod[];
   debugCode?: string;
@@ -177,28 +144,11 @@ export type DeleteAccountPayload = Omit<DeleteAccountRequest, "verificationMetho
   verificationMethod: SecurityVerificationMethod;
 };
 
-export type LogoutData = Required<LogoutResponse>;
+export type LogoutData = LogoutResponse;
 
-export type ActiveSessionDTO = Omit<
-  Required<ActiveSessionResponse>,
-  | "ipLatitude"
-  | "ipLongitude"
-  | "lastSeenAt"
-  | "preciseAccuracyMeters"
-  | "preciseLatitude"
-  | "preciseLocatedAt"
-  | "preciseLongitude"
-> & {
-  ipLatitude: number | null;
-  ipLongitude: number | null;
-  preciseLatitude: number | null;
-  preciseLongitude: number | null;
-  preciseAccuracyMeters: number | null;
-  preciseLocatedAt: string | null;
-  lastSeenAt: string | null;
-};
+export type ActiveSessionDTO = ActiveSessionResponse;
 
-export type ActiveSessionListData = Omit<Required<ActiveSessionListResponse>, "results"> & {
+export type ActiveSessionListData = Omit<ActiveSessionListResponse, "results"> & {
   results: ActiveSessionDTO[];
 };
 

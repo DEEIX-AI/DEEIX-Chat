@@ -17,7 +17,7 @@ export async function upsertUserMemory(
   scope: Memories.ProfileUpdate.RequestBody["scope"],
 ): Promise<{ saved: boolean }> {
   const body: Memories.ProfileUpdate.RequestBody = { memoryKey: key, value, scope };
-  return authedRequest<Required<NonNullable<Memories.ProfileUpdate.ResponseBody["data"]>>>("/api/v1/memories/profile", {
+  return authedRequest<Memories.ProfileUpdate.ResponseBody["data"]>("/api/v1/memories/profile", {
     method: "PUT",
     accessToken,
     body,
@@ -28,7 +28,7 @@ export async function deleteUserMemory(
   accessToken: string,
   memoryKey: string,
 ): Promise<{ saved: boolean }> {
-  return authedRequest<Required<NonNullable<Memories.ProfileDelete.ResponseBody["data"]>>>(`/api/v1/memories/profile/${pathParam(memoryKey)}`, {
+  return authedRequest<Memories.ProfileDelete.ResponseBody["data"]>(`/api/v1/memories/profile/${pathParam(memoryKey)}`, {
     method: "DELETE",
     accessToken,
   });

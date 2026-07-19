@@ -51,8 +51,7 @@ import { resolveAvatarImageSrc } from "@/shared/lib/avatar";
 import { TimeZoneSelect } from "@/shared/components/time-zone-select";
 import { cn } from "@/lib/utils";
 import { AdminDateTimePicker } from "@/features/admin/components/admin-date-time-picker";
-import type { UserDTO } from "@/shared/api/auth.types";
-import type { AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin.types";
+import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin.types";
 import {
   USER_STATUS_OPTIONS,
   type CreateUserPayload,
@@ -284,7 +283,7 @@ type EditUserSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   pending: boolean;
-  editDialogTarget: UserDTO | null;
+  editDialogTarget: AdminUserDTO | null;
   editPayload: EditUserPayload;
   setEditPayload: React.Dispatch<React.SetStateAction<EditUserPayload>>;
   billingMode: AdminBillingMode;
@@ -302,7 +301,7 @@ type EditUserSheetProps = {
   resetTwoFactorPending: boolean;
   revokePending: boolean;
   deletePending: boolean;
-  resolveUserInitial: (user: UserDTO) => string;
+  resolveUserInitial: (user: AdminUserDTO) => string;
 };
 
 function SheetSection({

@@ -1,6 +1,15 @@
 {
   "$schema": "https://turborepo.com/schema.json",
-  "globalDependencies": ["VERSION", "backend/docs/swagger.json", "scripts/sync-version.mjs"],
+  "globalDependencies": [
+    "VERSION",
+    "backend/cmd/server/main.go",
+    "backend/internal/shared/response/**/*.go",
+    "backend/internal/transport/http/**/*.go",
+    "backend/go.mod",
+    "backend/go.sum",
+    "backend/docs/swagger.json",
+    "scripts/sync-version.mjs"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

@@ -24,13 +24,13 @@ import {
   type BillingDisplayOptions,
 } from "@/shared/lib/billing-display";
 import { resolveModelOptionIconUrl } from "@/shared/lib/model-option-display";
-import type { UserDTO } from "@/shared/api/auth.types";
+import type { AdminUserDTO } from "@/features/admin/api/admin.types";
 
 export type AdminStatisticsRangePreset = "7" | "30" | "90" | "custom";
 export type AdminStatisticsRangeError = "incomplete" | "invalid" | "tooLong" | null;
 export type AdminStatisticsSubject =
   | { type: "all" }
-  | { type: "user"; user: UserDTO }
+  | { type: "user"; user: AdminUserDTO }
   | { type: "permission-group"; permissionGroup: PermissionGroup };
 
 function formatLocalDate(date: Date): string {

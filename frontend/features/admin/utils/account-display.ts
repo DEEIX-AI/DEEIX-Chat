@@ -1,4 +1,4 @@
-import type { UserDTO } from "@/shared/api/auth.types";
+import type { AdminUserDTO } from "@/features/admin/api/admin.types";
 
 const USER_STATUS_LABELS: Record<string, string> = {
   pending_activation: "Pending activation",
@@ -115,7 +115,7 @@ export function resolveBillingAccountStatusLabel(value: string | null | undefine
   return BILLING_ACCOUNT_STATUS_LABELS[key] ?? resolveValue(value);
 }
 
-export function resolveUserInitial(user: UserDTO): string {
+export function resolveUserInitial(user: AdminUserDTO): string {
   const source = user.displayName.trim() || user.username.trim() || user.publicID.trim() || String(user.id);
   return source.charAt(0).toUpperCase();
 }

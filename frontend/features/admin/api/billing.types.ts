@@ -14,6 +14,7 @@ import type {
   ModelPricingDataResponse,
   ModelPricingResponse,
   NativeToolPricingResponse,
+  NativeToolPricingRequest,
   OpenRouterOfficialPricingDataResponse,
   OpenRouterOfficialPricingItemResponse,
   PatchRedemptionCodeRequestDoc,
@@ -27,24 +28,23 @@ import type {
 } from "@deeix/api-contract";
 import type { PagePayload } from "@/shared/api/common.types";
 
-export type AdminBillingPlanPriceDTO = Required<BillingPriceResponse>;
+export type AdminBillingPlanPriceDTO = BillingPriceResponse;
 
-export type AdminBillingPlanDTO = Omit<Required<BillingPlanResponse>, "permissionGroupID" | "prices"> & {
-  permissionGroupID: number | null;
+export type AdminBillingPlanDTO = Omit<BillingPlanResponse, "prices"> & {
   prices: AdminBillingPlanPriceDTO[];
 };
 
-export type AdminModelPricingDTO = Required<ModelPricingResponse>;
+export type AdminModelPricingDTO = ModelPricingResponse;
 
 export type UpsertAdminModelPricingRequest = UpsertModelPricingRequest;
 
-export type AdminModelPricingData = Omit<Required<ModelPricingDataResponse>, "modelPricing"> & {
+export type AdminModelPricingData = Omit<ModelPricingDataResponse, "modelPricing"> & {
   modelPricing: AdminModelPricingDTO;
 };
 
-export type AdminOfficialPricingCatalogItemDTO = Required<OpenRouterOfficialPricingItemResponse>;
+export type AdminOfficialPricingCatalogItemDTO = OpenRouterOfficialPricingItemResponse;
 
-export type AdminOfficialPricingCatalogData = Omit<Required<OpenRouterOfficialPricingDataResponse>, "items"> & {
+export type AdminOfficialPricingCatalogData = Omit<OpenRouterOfficialPricingDataResponse, "items"> & {
   items: AdminOfficialPricingCatalogItemDTO[];
 };
 
@@ -53,15 +53,16 @@ export type UpdateAdminBillingPlanRequest = Omit<UpdateBillingPlanRequest, "bill
   permissionGroupID?: number | null;
 };
 
-export type AdminBillingPlanData = Omit<Required<BillingPlanDataResponse>, "plan"> & {
+export type AdminBillingPlanData = Omit<BillingPlanDataResponse, "plan"> & {
   plan: AdminBillingPlanDTO;
 };
 
 export type AdminBillingMode = "self" | "period" | "usage";
 
-export type NativeToolPricingDTO = Required<NativeToolPricingResponse>;
+export type NativeToolPricingDTO = NativeToolPricingResponse;
+export type AdminNativeToolPricingPayload = NativeToolPricingRequest;
 
-export type AdminBillingConfigDTO = Omit<Required<BillingConfigResponse>, "epayTypes" | "mode" | "nativeToolPricing"> & {
+export type AdminBillingConfigDTO = Omit<BillingConfigResponse, "epayTypes" | "mode" | "nativeToolPricing"> & {
   mode: AdminBillingMode;
   nativeToolPricing: NativeToolPricingDTO[];
   epayTypes: Array<{ name: string; type: string }>;
@@ -69,61 +70,52 @@ export type AdminBillingConfigDTO = Omit<Required<BillingConfigResponse>, "epayT
 
 export type UpdateAdminBillingConfigRequest = Omit<BillingConfigRequest, "mode" | "nativeToolPricing"> & {
   mode: AdminBillingMode;
-  nativeToolPricing?: NativeToolPricingDTO[];
+  nativeToolPricing?: AdminNativeToolPricingPayload[];
 };
 
-export type AdminBillingConfigData = Omit<Required<BillingConfigDataResponse>, "config"> & {
+export type AdminBillingConfigData = Omit<BillingConfigDataResponse, "config"> & {
   config: AdminBillingConfigDTO;
 };
 
-export type AdminBillingAccountDTO = Required<BillingAccountResponse>;
+export type AdminBillingAccountDTO = BillingAccountResponse;
 
-export type AdminBillingAccountData = Omit<Required<BillingAccountDataResponse>, "account"> & {
+export type AdminBillingAccountData = Omit<BillingAccountDataResponse, "account"> & {
   account: AdminBillingAccountDTO;
 };
 
 export type UpdateAdminBillingAccountBalanceRequest = UpdateBillingAccountBalanceRequest;
 
 export type AdminRedemptionCodeDTO = Omit<
-  Required<RedemptionCodeResponse>,
-  "code" | "expiresAt" | "maxRedemptions" | "remainingRedemptions"
+  RedemptionCodeResponse,
+  "code"
 > & {
   code?: string;
-  maxRedemptions: number | null;
-  remainingRedemptions: number | null;
-  expiresAt: string | null;
 };
 
-export type CreateAdminRedemptionCodeRequest = Omit<CreateRedemptionCodeRequest, "expiresAt" | "maxRedemptions"> & {
-  maxRedemptions?: number | null;
-  expiresAt?: string | null;
-};
+export type CreateAdminRedemptionCodeRequest = CreateRedemptionCodeRequest;
 
-export type UpdateAdminRedemptionCodeRequest = Omit<PatchRedemptionCodeRequestDoc, "expiresAt" | "maxRedemptions"> & {
-  maxRedemptions?: number | null;
-  expiresAt?: string | null;
-};
+export type UpdateAdminRedemptionCodeRequest = PatchRedemptionCodeRequestDoc;
 
 export type AdminRedemptionCodePage = PagePayload<AdminRedemptionCodeDTO>;
 
-export type AdminRedemptionCodeCreateData = Omit<Required<RedemptionCodeCreateDataResponse>, "results"> & {
+export type AdminRedemptionCodeCreateData = Omit<RedemptionCodeCreateDataResponse, "results"> & {
   results: AdminRedemptionCodeDTO[];
 };
 
-export type AdminRedemptionCodeData = Omit<Required<RedemptionCodeDataResponse>, "code"> & {
+export type AdminRedemptionCodeData = Omit<RedemptionCodeDataResponse, "code"> & {
   code: AdminRedemptionCodeDTO;
 };
 
-export type AdminRedemptionCodeDeleteData = Required<RedemptionCodeDeleteDataResponse>;
+export type AdminRedemptionCodeDeleteData = RedemptionCodeDeleteDataResponse;
 
 export type AdminRedemptionCodeBatchDeleteRequest = BatchDeleteRedemptionCodeRequest;
 
-export type AdminRedemptionCodeBatchDeleteResult = Omit<Required<BatchDeleteRedemptionCodeResultResponse>, "error"> & {
+export type AdminRedemptionCodeBatchDeleteResult = Omit<BatchDeleteRedemptionCodeResultResponse, "status"> & {
   status: "deleted" | "not_found" | "failed" | string;
   error?: string;
 };
 
-export type AdminRedemptionCodeBatchDeleteData = Omit<Required<BatchDeleteRedemptionCodeDataResponse>, "results"> & {
+export type AdminRedemptionCodeBatchDeleteData = Omit<BatchDeleteRedemptionCodeDataResponse, "results"> & {
   results: AdminRedemptionCodeBatchDeleteResult[];
 };
 

@@ -11,31 +11,31 @@ import type {
 
 export type SkillScope = "builtin" | "user";
 
-export type SkillSummaryDTO = Omit<Required<SkillSummaryResponse>, "scope"> & {
+export type SkillSummaryDTO = Omit<SkillSummaryResponse, "scope"> & {
   scope: SkillScope;
 };
 
-export type SkillDTO = Omit<Required<SkillResponse>, "scope"> & {
+export type SkillDTO = Omit<SkillResponse, "scope"> & {
   scope: SkillScope;
 };
 
-type ContractSkillSummaryPage = NonNullable<SkillSummaryPageResponseDoc["data"]>;
-type ContractSkillPage = NonNullable<SkillPageResponseDoc["data"]>;
+type ContractSkillSummaryPage = SkillSummaryPageResponseDoc["data"];
+type ContractSkillPage = SkillPageResponseDoc["data"];
 
-export type SkillSummaryPage = Omit<Required<ContractSkillSummaryPage>, "results"> & {
+export type SkillSummaryPage = Omit<ContractSkillSummaryPage, "results"> & {
   results: SkillSummaryDTO[];
 };
 
-export type SkillPage = Omit<Required<ContractSkillPage>, "results"> & {
+export type SkillPage = Omit<ContractSkillPage, "results"> & {
   results: SkillDTO[];
 };
 
-export type WriteSkillRequest = Required<ContractWriteSkillRequest>;
+export type WriteSkillRequest = ContractWriteSkillRequest;
 
 export type PatchSkillRequest = ContractPatchSkillRequest;
 
-export type SkillData = Omit<Required<SkillDataResponse>, "skill"> & {
+export type SkillData = Omit<SkillDataResponse, "skill"> & {
   skill: SkillDTO;
 };
 
-export type SkillDeleteData = Required<SkillDeleteDataResponse>;
+export type SkillDeleteData = SkillDeleteDataResponse;

@@ -285,10 +285,11 @@ func (h *Handler) UpdateBillingAccountBalance(c *gin.Context) {
 		response.InvalidRequestBody(c, err)
 		return
 	}
+	balanceUSD := *req.BalanceUSD
 	actorUserID := middleware.MustUserID(c)
 	account, err := h.service.SetBillingAccountBalance(c.Request.Context(), appbilling.BillingAccountBalanceInput{
 		UserID:      uint(targetUserID),
-		BalanceUSD:  req.BalanceUSD,
+		BalanceUSD:  balanceUSD,
 		RefNo:       middleware.MustRequestID(c),
 		Description: req.Description,
 	})
@@ -304,7 +305,7 @@ func (h *Handler) UpdateBillingAccountBalance(c *gin.Context) {
 		strconv.FormatUint(targetUserID, 10),
 		map[string]interface{}{
 			"user_id":     targetUserID,
-			"balance_usd": req.BalanceUSD,
+			"balance_usd": balanceUSD,
 		},
 	)
 	response.Success(c, BillingAccountDataResponse{Account: toBillingAccountResponse(account)})
@@ -707,9 +708,9 @@ func (h *Handler) UpdatePlan(c *gin.Context) {
 		map[string]interface{}{
 			"plan_id":           planID,
 			"name":              req.Name,
-			"period_credit_usd": req.PeriodCreditUSD,
-			"discount_percent":  req.DiscountPercent,
-			"amount_usd":        req.AmountUSD,
+			"period_credit_usd": *req.PeriodCreditUSD,
+			"discount_percent":  *req.DiscountPercent,
+			"amount_usd":        *req.AmountUSD,
 			"billing_interval":  req.BillingInterval,
 		},
 	)
@@ -738,7 +739,8 @@ func (h *Handler) Subscribe(c *gin.Context) {
 		return
 	}
 
-	item, err := h.service.Subscribe(c.Request.Context(), userID, req.PriceID, req.Cycles)
+	cycles := optionalIntValue(req.Cycles)
+	item, err := h.service.Subscribe(c.Request.Context(), userID, req.PriceID, cycles)
 	if err != nil {
 		if errors.Is(err, appbilling.ErrPaymentRequired) {
 			response.Error(c, http.StatusBadRequest, "payment is required")
@@ -756,7 +758,7 @@ func (h *Handler) Subscribe(c *gin.Context) {
 		strconv.FormatUint(uint64(item.ID), 10),
 		map[string]interface{}{
 			"price_id": req.PriceID,
-			"cycles":   req.Cycles,
+			"cycles":   cycles,
 		},
 	)
 

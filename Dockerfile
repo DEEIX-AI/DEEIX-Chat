@@ -6,12 +6,11 @@ WORKDIR /src
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 ARG NEXT_PUBLIC_API_BASE_URL=""
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 
-COPY VERSION /src/VERSION
-COPY scripts /src/scripts
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY frontend/package.json ./frontend/package.json
 COPY backend/package.json ./backend/package.json
@@ -19,12 +18,14 @@ COPY packages/api-contract/package.json ./packages/api-contract/package.json
 COPY frontend/scripts ./frontend/scripts
 COPY frontend/public/pwa ./frontend/public/pwa
 
-RUN npm install --global pnpm@10.17.0
+RUN corepack enable
 
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store \
-    && pnpm install --frozen-lockfile --filter @deeix/web...
+    && pnpm install --frozen-lockfile --prefer-offline --filter @deeix/web
 
+COPY VERSION /src/VERSION
+COPY scripts /src/scripts
 COPY frontend ./frontend
 COPY packages/api-contract ./packages/api-contract
 

@@ -11,7 +11,11 @@ import { SpinnerLabel } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { invalidateAdminReferenceDataCache, patchAdminBillingConfig } from "@/features/admin/api";
-import type { AdminBillingConfigDTO, NativeToolPricingDTO } from "@/features/admin/api/billing.types";
+import type {
+  AdminBillingConfigDTO,
+  AdminNativeToolPricingPayload,
+  NativeToolPricingDTO,
+} from "@/features/admin/api/billing.types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
 import {
@@ -61,9 +65,10 @@ function nativeToolPricingSignature(items: NativeToolPricingDTO[]): string {
   })).sort((left, right) => left.toolKey.localeCompare(right.toolKey)));
 }
 
-function normalizeNativeToolPricingForSave(items: NativeToolPricingDTO[]): NativeToolPricingDTO[] {
+function normalizeNativeToolPricingForSave(items: NativeToolPricingDTO[]): AdminNativeToolPricingPayload[] {
   return items.map((item) => ({
-    ...item,
+    toolKey: item.toolKey,
+    priceNanousd: item.priceNanousd,
     unit: "call",
     priceLabel: "",
     billable: item.priceNanousd > 0,

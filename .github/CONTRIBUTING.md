@@ -70,6 +70,8 @@ Commit message subjects that do not match this format will fail CI.
 - `docker/` contains optional local services for document extraction, OCR, and related runtime dependencies.
 - The frontend should not duplicate backend authorization, billing, provider routing, or file-processing business rules.
 - Shared API contracts should stay explicit through backend DTOs, generated Swagger files, and frontend API types.
+- After changing an HTTP DTO or Swagger annotation, run `pnpm api:generate`; `make swagger` invokes the same complete contract pipeline.
+- Generated transport requiredness and nullability belong in backend DTO tags; frontend API types may narrow domain values but must not repair generated contracts with `Required<>`.
 - Keep cross-cutting concerns such as security, tracing, storage, and provider clients behind backend infrastructure boundaries.
 - Backend startup flows through `cmd -> internal/cli -> internal/app`.
 - Backend requests flow through `transport/http -> application -> repository interfaces -> infra implementations`.
@@ -84,7 +86,7 @@ Commit message subjects that do not match this format will fail CI.
 
 Read the backend documentation index before making backend changes:
 
-- [Backend docs](./backend/docs/README.md)
+- [Backend docs](../backend/docs/README.md)
 
 Core expectations:
 
@@ -98,7 +100,7 @@ Core expectations:
 
 Read the frontend documentation before making frontend changes:
 
-- [Frontend docs](./frontend/README.md)
+- [Frontend docs](../frontend/README.md)
 
 Core expectations:
 

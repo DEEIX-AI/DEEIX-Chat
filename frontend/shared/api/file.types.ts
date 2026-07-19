@@ -6,10 +6,7 @@ import type {
   StorageQuotaResponse,
 } from "@deeix/api-contract";
 
-export type FileObjectDTO = Omit<Required<FileObjectResponse>, "expiresAt" | "lastAccessedAt"> & {
-  lastAccessedAt: string | null;
-  expiresAt: string | null;
-};
+export type FileObjectDTO = FileObjectResponse;
 
 export type FileProcessingStatusDTO = {
   fileID: string;
@@ -57,18 +54,18 @@ export type ChatFilePolicyDTO = {
   fileMode: "auto" | "full_context" | "rag";
 };
 
-export type UserStorageQuotaDTO = Required<Omit<StorageQuotaResponse, "id">>;
+export type UserStorageQuotaDTO = Omit<StorageQuotaResponse, "id">;
 
-export type FileListResult = Omit<Required<FileListResponse>, "quota" | "results"> & {
+export type FileListResult = Omit<FileListResponse, "quota" | "results"> & {
   results: FileObjectDTO[];
   quota: UserStorageQuotaDTO;
 };
 
-export type UploadFileResult = Omit<Required<FileUploadResponse>, "file" | "quota"> & {
+export type UploadFileResult = Omit<FileUploadResponse, "file" | "quota"> & {
   file: FileObjectDTO;
   quota: UserStorageQuotaDTO;
 };
 
-export type DeleteFileResult = Omit<Required<DeleteFileResponse>, "quota"> & {
+export type DeleteFileResult = Omit<DeleteFileResponse, "quota"> & {
   quota: UserStorageQuotaDTO;
 };

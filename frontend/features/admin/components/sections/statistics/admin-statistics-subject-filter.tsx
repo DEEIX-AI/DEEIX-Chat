@@ -21,7 +21,7 @@ import { listAdminUsers, type PermissionGroup } from "@/features/admin/api";
 import type { AdminStatisticsSubject } from "@/features/admin/hooks/use-admin-statistics";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { cn } from "@/lib/utils";
-import type { UserDTO } from "@/shared/api/auth.types";
+import type { AdminUserDTO } from "@/features/admin/api/admin.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { resolveAvatarImageSrc } from "@/shared/lib/avatar";
 
@@ -29,16 +29,16 @@ type SubjectMode = "user" | "permission-group";
 
 type SubjectFilterOption =
   | { key: "all"; type: "all" }
-  | { key: string; type: "user"; user: UserDTO }
+  | { key: string; type: "user"; user: AdminUserDTO }
   | { key: string; type: "permission-group"; permissionGroup: PermissionGroup };
 
 const ALL_SUBJECT_OPTION: SubjectFilterOption = { key: "all", type: "all" };
 
-function userPrimaryLabel(user: UserDTO): string {
+function userPrimaryLabel(user: AdminUserDTO): string {
   return user.displayName.trim() || user.username.trim() || `#${user.id}`;
 }
 
-function userSecondaryLabel(user: UserDTO): string {
+function userSecondaryLabel(user: AdminUserDTO): string {
   const values = [user.username.trim(), user.email.trim(), `#${user.id}`].filter(Boolean);
   return values.join(" · ");
 }
@@ -69,7 +69,7 @@ export function AdminStatisticsSubjectFilter({
   const [mode, setMode] = React.useState<SubjectMode>("user");
   const [query, setQuery] = React.useState("");
   const [debouncedQuery, setDebouncedQuery] = React.useState("");
-  const [users, setUsers] = React.useState<UserDTO[]>([]);
+  const [users, setUsers] = React.useState<AdminUserDTO[]>([]);
   const [loading, setLoading] = React.useState(false);
   const requestSequenceRef = React.useRef(0);
 

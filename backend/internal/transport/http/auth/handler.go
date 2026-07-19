@@ -796,6 +796,15 @@ func (h *Handler) RegenerateCurrentTwoFactorRecoveryCodes(c *gin.Context) {
 	})
 }
 
+// ListIdentityProviders godoc
+// @Summary 获取第三方身份源列表
+// @Description 管理员查看已配置的 OIDC 和 OAuth2 身份源
+// @Tags admin-auth
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} IdentityProviderListResponseDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/auth/providers [get]
 func (h *Handler) ListIdentityProviders(c *gin.Context) {
 	items, err := h.service.ListIdentityProviders(c.Request.Context())
 	if err != nil {
@@ -805,6 +814,18 @@ func (h *Handler) ListIdentityProviders(c *gin.Context) {
 	response.Success(c, IdentityProviderListResponse{Results: toIdentityProviderResponses(items), Total: len(items)})
 }
 
+// CreateIdentityProvider godoc
+// @Summary 创建第三方身份源
+// @Description 管理员创建一个 OIDC 或 OAuth2 身份源
+// @Tags admin-auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body UpsertIdentityProviderRequest true "身份源配置"
+// @Success 200 {object} IdentityProviderResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 403 {object} ErrorDoc
+// @Router /admin/auth/providers [post]
 func (h *Handler) CreateIdentityProvider(c *gin.Context) {
 	var req UpsertIdentityProviderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -823,6 +844,19 @@ func (h *Handler) CreateIdentityProvider(c *gin.Context) {
 	response.Success(c, toIdentityProviderResponse(*item))
 }
 
+// UpdateIdentityProvider godoc
+// @Summary 更新第三方身份源
+// @Description 管理员更新一个 OIDC 或 OAuth2 身份源
+// @Tags admin-auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param provider_id path string true "身份源 ID"
+// @Param body body UpsertIdentityProviderRequest true "身份源配置"
+// @Success 200 {object} IdentityProviderResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 403 {object} ErrorDoc
+// @Router /admin/auth/providers/{provider_id} [patch]
 func (h *Handler) UpdateIdentityProvider(c *gin.Context) {
 	var req UpsertIdentityProviderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -841,6 +875,17 @@ func (h *Handler) UpdateIdentityProvider(c *gin.Context) {
 	response.Success(c, toIdentityProviderResponse(*item))
 }
 
+// ReorderIdentityProviders godoc
+// @Summary 调整第三方身份源顺序
+// @Description 管理员保存第三方身份源的展示顺序
+// @Tags admin-auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body ReorderIdentityProvidersRequest true "身份源顺序"
+// @Success 200 {object} IdentityProviderReorderResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Router /admin/auth/provider-order [patch]
 func (h *Handler) ReorderIdentityProviders(c *gin.Context) {
 	var req ReorderIdentityProvidersRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -854,6 +899,18 @@ func (h *Handler) ReorderIdentityProviders(c *gin.Context) {
 	response.Success(c, IdentityProviderReorderResponse{Updated: true})
 }
 
+// DeleteIdentityProvider godoc
+// @Summary 删除第三方身份源
+// @Description 管理员删除第三方身份源；force=true 时允许删除仍有关联用户的身份源
+// @Tags admin-auth
+// @Produce json
+// @Security BearerAuth
+// @Param provider_id path string true "身份源 ID"
+// @Param force query bool false "是否强制删除"
+// @Success 200 {object} IdentityProviderDeleteResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Router /admin/auth/providers/{provider_id} [delete]
 func (h *Handler) DeleteIdentityProvider(c *gin.Context) {
 	force := c.Query("force") == "true"
 	if err := h.service.DeleteIdentityProvider(c.Request.Context(), c.Param("provider_id"), force); err != nil {

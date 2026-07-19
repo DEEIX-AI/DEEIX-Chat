@@ -14,36 +14,34 @@ import type {
 import { authedRequest } from "@/shared/api/authed-client";
 import { pathParam } from "@/shared/api/http-client";
 
-export type PermissionGroup = Required<PermissionGroupResponse>;
+export type PermissionGroup = PermissionGroupResponse;
 
 export type PermissionGroupModelRuleType = "all" | "vendor" | "protocol" | "upstream";
 
-export type PermissionGroupModelRule = Omit<Required<PermissionGroupModelRuleResponse>, "type"> & {
+export type PermissionGroupModelRule = Omit<PermissionGroupModelRuleResponse, "type"> & {
   type: PermissionGroupModelRuleType;
 };
 
-export type CreatePermissionGroupRequest = Required<ContractCreatePermissionGroupRequest>;
+export type CreatePermissionGroupRequest = ContractCreatePermissionGroupRequest;
 
-export type UpdatePermissionGroupRequest = Required<ContractUpdatePermissionGroupRequest>;
+export type UpdatePermissionGroupRequest = ContractUpdatePermissionGroupRequest;
 
-type PermissionGroupListData = Omit<Required<PermissionGroupListResponse>, "results"> & {
+type PermissionGroupListData = Omit<PermissionGroupListResponse, "results"> & {
   results: PermissionGroup[];
 };
 
-type PermissionGroupData = Omit<Required<PermissionGroupDataResponse>, "group"> & {
+type PermissionGroupData = Omit<PermissionGroupDataResponse, "group"> & {
   group: PermissionGroup;
 };
 
-type GroupModelsData = Omit<Required<GroupModelsResponse>, "rules"> & {
-  rules?: PermissionGroupModelRule[];
-};
+type GroupModelsData = Omit<GroupModelsResponse, "rules"> & { rules: PermissionGroupModelRule[] };
 
-type GroupUsersData = Required<GroupUsersResponse>;
+type GroupUsersData = GroupUsersResponse;
 
-type ModelPermissionGroupsData = Required<ModelPermissionGroupsResponse>;
+type ModelPermissionGroupsData = ModelPermissionGroupsResponse;
 
-export type DeletePermissionGroupResult = Omit<Required<DeletePermissionGroupResponse>, "summary"> & {
-  summary: Required<PermissionGroupDeleteSummaryResponse>;
+export type DeletePermissionGroupResult = Omit<DeletePermissionGroupResponse, "summary"> & {
+  summary: PermissionGroupDeleteSummaryResponse;
 };
 
 export async function listPermissionGroups(accessToken: string): Promise<PermissionGroup[]> {

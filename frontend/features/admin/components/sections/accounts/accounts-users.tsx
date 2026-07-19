@@ -49,9 +49,8 @@ import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { TimeZoneSelect } from "@/shared/components/time-zone-select";
-import type { AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin.types";
+import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin.types";
 import type { AdminBillingMode } from "@/features/admin/api/billing.types";
-import type { UserDTO } from "@/shared/api/auth.types";
 
 import { AccountAvatarEditorDialog } from "./accounts-avatar-dialog";
 import { AccountConfirmationDialog } from "./accounts-confirm-dialog";
@@ -198,7 +197,7 @@ function BulkActionControlRow({
 }
 
 type AccountsUsersProps = {
-  items: UserDTO[];
+  items: AdminUserDTO[];
   total: number;
   page: number;
   setPage: (value: number) => void;
@@ -209,12 +208,12 @@ type AccountsUsersProps = {
   setQuery: (value: string) => void;
   loading: boolean;
   onLoadUsers: () => Promise<void>;
-  onSetUsers: React.Dispatch<React.SetStateAction<UserDTO[]>>;
+  onSetUsers: React.Dispatch<React.SetStateAction<AdminUserDTO[]>>;
   onSetTotal: React.Dispatch<React.SetStateAction<number>>;
 };
 
 type UserTableRowProps = {
-  item: UserDTO;
+  item: AdminUserDTO;
   checked: boolean;
   billingMode: AdminBillingMode;
   inlineRolePending: boolean;
@@ -225,12 +224,12 @@ type UserTableRowProps = {
   canManage: boolean;
   onToggleSelectedUser: (userID: number, checked: boolean) => void;
   onInlinePatch: (
-    item: UserDTO,
+    item: AdminUserDTO,
     field: "role" | "status",
-    payload: Partial<Pick<UserDTO, "role" | "status">>,
+    payload: Partial<Pick<AdminUserDTO, "role" | "status">>,
   ) => Promise<void>;
-  onOpenAvatar: (user: UserDTO) => void;
-  onOpenEdit: (user: UserDTO) => void;
+  onOpenAvatar: (user: AdminUserDTO) => void;
+  onOpenEdit: (user: AdminUserDTO) => void;
 };
 
 const UserTableRow = React.memo(function UserTableRow({
@@ -302,7 +301,7 @@ const UserTableRow = React.memo(function UserTableRow({
           <Combobox
             items={rowRoleOptions}
             value={item.role}
-            onValueChange={(value) => void onInlinePatch(item, "role", { role: value as UserDTO["role"] })}
+            onValueChange={(value) => void onInlinePatch(item, "role", { role: value as AdminUserDTO["role"] })}
             disabled={disabled || inlineRolePending}
           >
             <ComboboxInput
@@ -330,7 +329,7 @@ const UserTableRow = React.memo(function UserTableRow({
             items={USER_STATUS_OPTIONS}
             value={item.status}
             itemToStringLabel={resolveUserStatusLabel}
-            onValueChange={(value) => void onInlinePatch(item, "status", { status: value as UserDTO["status"] })}
+            onValueChange={(value) => void onInlinePatch(item, "status", { status: value as AdminUserDTO["status"] })}
             disabled={disabled || inlineStatusPending}
           >
             <ComboboxInput

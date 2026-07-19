@@ -1,66 +1,52 @@
 import { authedRequest } from "@/shared/api/authed-client";
 import { pathParam } from "@/shared/api/http-client";
+import type {
+	IdentityProviderDeleteResponse,
+	IdentityProviderListResponse,
+	IdentityProviderReorderResponse,
+	IdentityProviderResponse,
+	UpsertIdentityProviderRequest,
+} from "@deeix/api-contract";
 import type { IdentityProviderDTO } from "@/shared/api/auth.types";
 
-export type IdentityProviderPayload = {
-  type: "oidc" | "oauth2";
-  name: string;
-  slug?: string;
-  logoURL?: string;
-  loginEnabled: boolean;
-  registrationEnabled: boolean;
-  clientID: string;
-  clientSecret?: string;
-  issuerURL?: string;
-  discoveryURL?: string;
-  authURL?: string;
-  tokenURL?: string;
-  userinfoURL?: string;
-  jwksURL?: string;
-  scopes?: string;
-  defaultRole?: "user" | "admin" | "superadmin";
-  subjectField?: string;
-  emailField?: string;
-  emailVerifiedField?: string;
-  nameField?: string;
-  avatarField?: string;
-};
-
 export async function listAdminIdentityProviders(accessToken: string): Promise<{ total: number; results: IdentityProviderDTO[] }> {
-  return authedRequest<{ total: number; results: IdentityProviderDTO[] }>(
+  const data = await authedRequest<IdentityProviderListResponse>(
     "/api/v1/admin/auth/providers",
     { accessToken },
     true,
   );
+  return data;
 }
 
-export async function createAdminIdentityProvider(accessToken: string, payload: IdentityProviderPayload): Promise<IdentityProviderDTO> {
-  return authedRequest<IdentityProviderDTO>(
+export async function createAdminIdentityProvider(accessToken: string, payload: UpsertIdentityProviderRequest): Promise<IdentityProviderDTO> {
+  const data = await authedRequest<IdentityProviderResponse>(
     "/api/v1/admin/auth/providers",
     { method: "POST", accessToken, body: payload },
     true,
   );
+  return data;
 }
 
-export async function updateAdminIdentityProvider(accessToken: string, providerID: string, payload: IdentityProviderPayload): Promise<IdentityProviderDTO> {
-  return authedRequest<IdentityProviderDTO>(
+export async function updateAdminIdentityProvider(accessToken: string, providerID: string, payload: UpsertIdentityProviderRequest): Promise<IdentityProviderDTO> {
+  const data = await authedRequest<IdentityProviderResponse>(
     `/api/v1/admin/auth/providers/${pathParam(providerID)}`,
     { method: "PATCH", accessToken, body: payload },
     true,
   );
+  return data;
 }
 
-export async function reorderAdminIdentityProviders(accessToken: string, providerIDs: string[]): Promise<{ updated: boolean }> {
-  return authedRequest<{ updated: boolean }>(
+export async function reorderAdminIdentityProviders(accessToken: string, providerIDs: string[]): Promise<IdentityProviderReorderResponse> {
+  return authedRequest<IdentityProviderReorderResponse>(
     "/api/v1/admin/auth/provider-order",
     { method: "PATCH", accessToken, body: { providerIDs } },
     true,
   );
 }
 
-export async function deleteAdminIdentityProvider(accessToken: string, providerID: string, options: { force?: boolean } = {}): Promise<{ deleted: boolean }> {
+export async function deleteAdminIdentityProvider(accessToken: string, providerID: string, options: { force?: boolean } = {}): Promise<IdentityProviderDeleteResponse> {
   const query = options.force ? "?force=true" : "";
-  return authedRequest<{ deleted: boolean }>(
+  return authedRequest<IdentityProviderDeleteResponse>(
     `/api/v1/admin/auth/providers/${pathParam(providerID)}${query}`,
     { method: "DELETE", accessToken },
     true,

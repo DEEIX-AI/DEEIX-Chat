@@ -93,7 +93,7 @@ func (h *Handler) CreateCheckout(c *gin.Context) {
 		order, plan, price, err = h.service.CreatePaymentOrder(c.Request.Context(), appbilling.PaymentOrderInput{
 			UserID:               userID,
 			PriceID:              req.PriceID,
-			Cycles:               req.Cycles,
+			Cycles:               optionalIntValue(req.Cycles),
 			Provider:             provider,
 			USDToCNYRate:         settings.USDToCNYRate,
 			PreferredPayCurrency: settings.DisplayCurrency,

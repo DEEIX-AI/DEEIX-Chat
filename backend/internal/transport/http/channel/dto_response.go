@@ -605,7 +605,7 @@ type PublicModelResponse struct {
 	CapabilitiesJSON  string                      `json:"capabilitiesJSON"`
 	Description       string                      `json:"description"`
 	SortOrder         int                         `json:"sortOrder"`
-	Pricing           *PublicModelPricingResponse `json:"pricing"`
+	Pricing           *PublicModelPricingResponse `json:"pricing" extensions:"x-nullable,!x-omitempty"`
 }
 
 // PublicModelPricingResponse 面向前端的模型价格 DTO。
@@ -625,7 +625,7 @@ type PublicModelPricingResponse struct {
 // PublicModelPricingTierResponse 面向前端的模型阶梯价格 DTO。
 type PublicModelPricingTierResponse struct {
 	FromTokens              int64   `json:"fromTokens"`
-	UpToTokens              *int64  `json:"upToTokens"`
+	UpToTokens              *int64  `json:"upToTokens" extensions:"x-nullable,!x-omitempty"`
 	InputUSDPerMTokens      float64 `json:"inputUSDPerMTokens"`
 	CacheReadUSDPerMTokens  float64 `json:"cacheReadUSDPerMTokens"`
 	CacheWriteUSDPerMTokens float64 `json:"cacheWriteUSDPerMTokens"`

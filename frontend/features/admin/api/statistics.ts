@@ -11,24 +11,24 @@ export type AdminUsageStatisticsRankBy = "cost" | "tokens" | "calls";
 export type AdminUsageStatisticsBillingScope = "all" | "free" | "billable";
 export type AdminUsageStatisticsSection = "all" | "models" | "users";
 
-export type AdminUsageStatisticsMetricsDTO = Required<UsageStatisticsMetricsResponse>;
+export type AdminUsageStatisticsMetricsDTO = UsageStatisticsMetricsResponse;
 
-export type AdminUsageStatisticsTrendDTO = Required<UsageStatisticsTrendResponse>;
+export type AdminUsageStatisticsTrendDTO = UsageStatisticsTrendResponse;
 
-export type AdminUsageStatisticsModelRankDTO = Omit<Required<UsageStatisticsModelRankResponse>, "trend"> & {
+export type AdminUsageStatisticsModelRankDTO = Omit<UsageStatisticsModelRankResponse, "trend"> & {
   trend: AdminUsageStatisticsTrendDTO[];
 };
 
-export type AdminUsageStatisticsUserRankDTO = Omit<Required<UsageStatisticsUserRankResponse>, "trend"> & {
+export type AdminUsageStatisticsUserRankDTO = Omit<UsageStatisticsUserRankResponse, "trend"> & {
   trend: AdminUsageStatisticsTrendDTO[];
 };
 
 export type AdminUsageStatisticsData = Omit<
-  Required<UsageStatisticsResponse>,
+  UsageStatisticsResponse,
   "range" | "section" | "topModels" | "topUsers" | "totals" | "trend"
 > & {
   section: AdminUsageStatisticsSection;
-  range: Required<NonNullable<UsageStatisticsResponse["range"]>>;
+  range: UsageStatisticsResponse["range"];
   totals: AdminUsageStatisticsMetricsDTO;
   trend: AdminUsageStatisticsTrendDTO[];
   topModels: AdminUsageStatisticsModelRankDTO[];

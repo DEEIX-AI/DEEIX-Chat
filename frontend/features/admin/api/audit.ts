@@ -79,7 +79,7 @@ export type AdminLogCleanupType =
   | "conversation"
   | "system";
 
-export type AdminLogCleanupResult = Omit<Required<CleanupLogsResponse>, "type"> & {
+export type AdminLogCleanupResult = Omit<CleanupLogsResponse, "type"> & {
   type: AdminLogCleanupType;
 };
 

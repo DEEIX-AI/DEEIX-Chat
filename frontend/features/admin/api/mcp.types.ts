@@ -1,50 +1,21 @@
-import type { MCPToolDTO } from "@/shared/api/mcp.types";
+import type {
+  CreateServerRequest,
+  ReorderServerOrderItem,
+  ServerDataResponse,
+  ServerListResponse,
+  ServerResponse,
+  ServerToolOrderListResponse,
+  ServerToolOrderResponse,
+  ToolListResponse,
+  UpdateToolRequest,
+} from "@deeix/api-contract";
 
-export type AdminMCPServerDTO = {
-  id: number;
-  name: string;
-  baseURL: string;
-  headersJSON: string;
-  status: string;
-  sortOrder: number;
-  toolCount: number;
-  activeToolCount: number;
-  lastSyncedAt?: string | null;
-  lastError: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type AdminMCPServerPayload = {
-  name: string;
-  baseURL: string;
-  authToken?: string;
-  headersJSON: string;
-  status: string;
-};
-
-export type AdminMCPServerListResponse = {
-  results: AdminMCPServerDTO[];
-};
-
-export type AdminMCPServerDataResponse = {
-  server: AdminMCPServerDTO;
-};
-
-export type AdminMCPToolListResponse = {
-  results: MCPToolDTO[];
-};
-
-export type AdminMCPOrderItemPayload = {
-  serverID: number;
-  toolIDs: number[];
-};
-
-export type AdminMCPOrderGroupDTO = {
-  server: AdminMCPServerDTO;
-  tools: MCPToolDTO[];
-};
-
-export type AdminMCPOrderListResponse = {
-  results: AdminMCPOrderGroupDTO[];
-};
+export type AdminMCPServerDTO = ServerResponse;
+export type AdminMCPServerPayload = CreateServerRequest;
+export type AdminMCPServerListResponse = ServerListResponse;
+export type AdminMCPServerDataResponse = ServerDataResponse;
+export type AdminMCPToolListResponse = ToolListResponse;
+export type AdminMCPToolPayload = UpdateToolRequest;
+export type AdminMCPOrderItemPayload = ReorderServerOrderItem;
+export type AdminMCPOrderGroupDTO = ServerToolOrderResponse;
+export type AdminMCPOrderListResponse = ServerToolOrderListResponse;

@@ -10,6 +10,9 @@ definitions:
         type: string
       requestId:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.SuccessDoc:
     properties:
@@ -24,6 +27,9 @@ definitions:
       requestId:
         example: ""
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.AuditLogListResponseDoc:
     properties:
@@ -35,9 +41,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.AuditLogResponse:
     properties:
@@ -69,6 +81,21 @@ definitions:
         type: string
       userAgent:
         type: string
+    required:
+    - action
+    - actorDisplayName
+    - actorLabel
+    - actorUserID
+    - actorUsername
+    - createdAt
+    - detailJSON
+    - id
+    - ip
+    - requestID
+    - resource
+    - resourceID
+    - updatedAt
+    - userAgent
     type: object
   internal_transport_http_admin.AuthEventResponse:
     properties:
@@ -102,6 +129,22 @@ definitions:
         type: string
       username:
         type: string
+    required:
+    - clientIP
+    - createdAt
+    - detailJSON
+    - eventType
+    - id
+    - occurredAt
+    - reason
+    - requestID
+    - result
+    - updatedAt
+    - userAgent
+    - userDisplayName
+    - userID
+    - userLabel
+    - username
     type: object
   internal_transport_http_admin.CleanupLogsRequest:
     properties:
@@ -121,6 +164,10 @@ definitions:
         type: integer
       type:
         type: string
+    required:
+    - before
+    - deletedCount
+    - type
     type: object
   internal_transport_http_admin.CleanupLogsResponseDoc:
     properties:
@@ -128,6 +175,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_admin.CleanupLogsResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.ConversationEventListResponseDoc:
     properties:
@@ -139,9 +189,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.ConversationEventResponse:
     properties:
@@ -153,6 +209,8 @@ definitions:
         type: string
       endedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       errorJSON:
         type: string
       eventID:
@@ -217,6 +275,43 @@ definitions:
         type: string
       username:
         type: string
+    required:
+    - contentMarkdown
+    - conversationID
+    - createdAt
+    - endedAt
+    - errorJSON
+    - eventID
+    - eventScope
+    - eventType
+    - id
+    - inputJSON
+    - latencyMS
+    - messageID
+    - outputJSON
+    - parentEventID
+    - payloadJSON
+    - phase
+    - platformModelName
+    - providerProtocol
+    - roundID
+    - routedBindingCode
+    - runID
+    - seq
+    - stage
+    - startedAt
+    - status
+    - summary
+    - title
+    - toolCallID
+    - toolName
+    - updatedAt
+    - upstreamModelName
+    - upstreamName
+    - userDisplayName
+    - userID
+    - userLabel
+    - username
     type: object
   internal_transport_http_admin.CreatePermissionGroupRequest:
     properties:
@@ -277,6 +372,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_admin.UserDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.DeletePermissionGroupResponse:
     properties:
@@ -284,6 +382,9 @@ definitions:
         type: boolean
       summary:
         $ref: '#/definitions/internal_transport_http_admin.PermissionGroupDeleteSummaryResponse'
+    required:
+    - deleted
+    - summary
     type: object
   internal_transport_http_admin.DeletePermissionGroupResponseDoc:
     properties:
@@ -291,11 +392,16 @@ definitions:
         $ref: '#/definitions/internal_transport_http_admin.DeletePermissionGroupResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.DeleteUserResponse:
     properties:
       deleted:
         type: boolean
+    required:
+    - deleted
     type: object
   internal_transport_http_admin.DeleteUserResponseDoc:
     properties:
@@ -303,6 +409,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_admin.DeleteUserResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.ErrorDoc:
     properties:
@@ -314,6 +423,9 @@ definitions:
         type: string
       requestId:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.GroupModelsResponse:
     properties:
@@ -325,6 +437,9 @@ definitions:
         items:
           $ref: '#/definitions/internal_transport_http_admin.PermissionGroupModelRuleResponse'
         type: array
+    required:
+    - modelIDs
+    - rules
     type: object
   internal_transport_http_admin.GroupModelsResponseDoc:
     properties:
@@ -332,6 +447,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_admin.GroupModelsResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.GroupUsersResponse:
     properties:
@@ -339,6 +457,8 @@ definitions:
         items:
           type: integer
         type: array
+    required:
+    - userIDs
     type: object
   internal_transport_http_admin.GroupUsersResponseDoc:
     properties:
@@ -346,6 +466,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_admin.GroupUsersResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.ImportOpenWebUIUsersRequest:
     properties:
@@ -380,6 +503,16 @@ definitions:
         type: integer
       source:
         type: string
+    required:
+    - dedupeField
+    - dedupeRule
+    - imported
+    - scanned
+    - skippedDuplicateSourceEmail
+    - skippedExistingEmail
+    - skippedInvalidEmail
+    - skippedInvalidRow
+    - source
     type: object
   internal_transport_http_admin.ImportOpenWebUIUsersResponseDoc:
     properties:
@@ -387,6 +520,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_admin.ImportOpenWebUIUsersResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.ModelPermissionGroupsResponse:
     properties:
@@ -404,6 +540,11 @@ definitions:
         type: array
       unassigned:
         type: boolean
+    required:
+    - effectiveGroupIDs
+    - manualGroupIDs
+    - matchedGroupIDs
+    - unassigned
     type: object
   internal_transport_http_admin.ModelPermissionGroupsResponseDoc:
     properties:
@@ -411,6 +552,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_admin.ModelPermissionGroupsResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.PatchUserRequest:
     properties:
@@ -461,9 +605,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.PaymentOrderResponse:
     properties:
@@ -483,6 +633,8 @@ definitions:
         type: integer
       expiredAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       externalCheckoutID:
         type: string
       externalPaymentID:
@@ -497,6 +649,8 @@ definitions:
         type: string
       paidAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       payAmountCents:
         type: integer
       payCurrency:
@@ -521,11 +675,41 @@ definitions:
         type: string
       username:
         type: string
+    required:
+    - baseAmountCents
+    - baseCurrency
+    - billingInterval
+    - createdAt
+    - creditNanousd
+    - creditUSD
+    - cycles
+    - expiredAt
+    - externalCheckoutID
+    - externalPaymentID
+    - fxRate
+    - id
+    - orderNo
+    - orderType
+    - paidAt
+    - payAmountCents
+    - payCurrency
+    - planID
+    - priceID
+    - provider
+    - snapshotJSON
+    - status
+    - updatedAt
+    - userDisplayName
+    - userID
+    - userLabel
+    - username
     type: object
   internal_transport_http_admin.PermissionGroupDataResponse:
     properties:
       group:
         $ref: '#/definitions/internal_transport_http_admin.PermissionGroupResponse'
+    required:
+    - group
     type: object
   internal_transport_http_admin.PermissionGroupDataResponseDoc:
     properties:
@@ -533,6 +717,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_admin.PermissionGroupDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.PermissionGroupDeleteSummaryResponse:
     properties:
@@ -544,6 +731,11 @@ definitions:
         type: integer
       ruleCount:
         type: integer
+    required:
+    - manualModelCount
+    - manualUserCount
+    - planCount
+    - ruleCount
     type: object
   internal_transport_http_admin.PermissionGroupListResponse:
     properties:
@@ -551,6 +743,8 @@ definitions:
         items:
           $ref: '#/definitions/internal_transport_http_admin.PermissionGroupResponse'
         type: array
+    required:
+    - results
     type: object
   internal_transport_http_admin.PermissionGroupListResponseDoc:
     properties:
@@ -558,6 +752,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_admin.PermissionGroupListResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.PermissionGroupModelRuleRequest:
     properties:
@@ -576,6 +773,9 @@ definitions:
         type: string
       value:
         type: string
+    required:
+    - type
+    - value
     type: object
   internal_transport_http_admin.PermissionGroupResponse:
     properties:
@@ -605,6 +805,20 @@ definitions:
         type: string
       userCount:
         type: integer
+    required:
+    - createdAt
+    - description
+    - id
+    - isDefault
+    - manualModelCount
+    - manualUserCount
+    - modelCount
+    - name
+    - rateMultiplierPercent
+    - ruleModelCount
+    - subscriptionUserCount
+    - updatedAt
+    - userCount
     type: object
   internal_transport_http_admin.ResetUserPasswordRequest:
     properties:
@@ -621,6 +835,8 @@ definitions:
     properties:
       reset:
         type: boolean
+    required:
+    - reset
     type: object
   internal_transport_http_admin.ResetUserPasswordResponseDoc:
     properties:
@@ -628,11 +844,16 @@ definitions:
         $ref: '#/definitions/internal_transport_http_admin.ResetUserPasswordResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.RevokeUserSessionsResponse:
     properties:
       revoked:
         type: boolean
+    required:
+    - revoked
     type: object
   internal_transport_http_admin.RevokeUserSessionsResponseDoc:
     properties:
@@ -640,6 +861,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_admin.RevokeUserSessionsResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.SetGroupModelsRequest:
     properties:
@@ -676,9 +900,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.SystemEventResponse:
     properties:
@@ -706,6 +936,19 @@ definitions:
         type: string
       updatedAt:
         type: string
+    required:
+    - createdAt
+    - detailJSON
+    - event
+    - id
+    - level
+    - message
+    - requestID
+    - resource
+    - resourceID
+    - source
+    - traceID
+    - updatedAt
     type: object
   internal_transport_http_admin.UpdatePermissionGroupRequest:
     properties:
@@ -739,6 +982,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_admin.UserDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.UsageLogListResponseDoc:
     properties:
@@ -750,9 +996,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.UsageLogResponse:
     properties:
@@ -820,6 +1072,39 @@ definitions:
         type: string
       username:
         type: string
+    required:
+    - billedCurrency
+    - billedNanousd
+    - billedUSD
+    - billingAt
+    - cacheReadTokens
+    - cacheWrite1hTokens
+    - cacheWrite5mTokens
+    - cacheWriteTokens
+    - callCount
+    - conversationID
+    - createdAt
+    - durationSeconds
+    - id
+    - inputTokens
+    - isFreeModel
+    - latencyMS
+    - outputTokens
+    - platformModelName
+    - pricingSnapshotJSON
+    - providerProtocol
+    - reasoningTokens
+    - routedBindingCode
+    - serviceTier
+    - updatedAt
+    - upstreamModelName
+    - upstreamName
+    - usageDate
+    - usageSpeed
+    - userDisplayName
+    - userID
+    - userLabel
+    - username
     type: object
   internal_transport_http_admin.UsageStatisticsMetricsResponse:
     properties:
@@ -845,6 +1130,18 @@ definitions:
         type: integer
       totalTokens:
         type: integer
+    required:
+    - avgLatencyMS
+    - billedNanousd
+    - billedUSD
+    - cacheReadTokens
+    - cacheWriteTokens
+    - callCount
+    - inputTokens
+    - outputTokens
+    - reasoningTokens
+    - recordCount
+    - totalTokens
     type: object
   internal_transport_http_admin.UsageStatisticsModelRankResponse:
     properties:
@@ -876,6 +1173,20 @@ definitions:
         items:
           $ref: '#/definitions/internal_transport_http_admin.UsageStatisticsTrendResponse'
         type: array
+    required:
+    - avgLatencyMS
+    - billedNanousd
+    - billedUSD
+    - cacheReadTokens
+    - cacheWriteTokens
+    - callCount
+    - inputTokens
+    - outputTokens
+    - platformModelName
+    - reasoningTokens
+    - recordCount
+    - totalTokens
+    - trend
     type: object
   internal_transport_http_admin.UsageStatisticsResponse:
     properties:
@@ -887,6 +1198,10 @@ definitions:
             type: string
           startDate:
             type: string
+        required:
+        - endDate
+        - granularity
+        - startDate
         type: object
       section:
         type: string
@@ -904,6 +1219,13 @@ definitions:
         items:
           $ref: '#/definitions/internal_transport_http_admin.UsageStatisticsTrendResponse'
         type: array
+    required:
+    - range
+    - section
+    - topModels
+    - topUsers
+    - totals
+    - trend
     type: object
   internal_transport_http_admin.UsageStatisticsResponseDoc:
     properties:
@@ -911,6 +1233,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_admin.UsageStatisticsResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.UsageStatisticsTrendResponse:
     properties:
@@ -938,6 +1263,19 @@ definitions:
         type: integer
       totalTokens:
         type: integer
+    required:
+    - avgLatencyMS
+    - billedNanousd
+    - billedUSD
+    - cacheReadTokens
+    - cacheWriteTokens
+    - callCount
+    - inputTokens
+    - outputTokens
+    - periodStart
+    - reasoningTokens
+    - recordCount
+    - totalTokens
     type: object
   internal_transport_http_admin.UsageStatisticsUserRankResponse:
     properties:
@@ -975,6 +1313,23 @@ definitions:
         type: string
       username:
         type: string
+    required:
+    - avgLatencyMS
+    - billedNanousd
+    - billedUSD
+    - cacheReadTokens
+    - cacheWriteTokens
+    - callCount
+    - inputTokens
+    - outputTokens
+    - reasoningTokens
+    - recordCount
+    - totalTokens
+    - trend
+    - userDisplayName
+    - userID
+    - userLabel
+    - username
     type: object
   internal_transport_http_admin.UserAuthEventListResponseDoc:
     properties:
@@ -986,14 +1341,22 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.UserDataResponse:
     properties:
       user:
         $ref: '#/definitions/internal_transport_http_admin.UserResponse'
+    required:
+    - user
     type: object
   internal_transport_http_admin.UserIdentityProviderSummaryResponse:
     properties:
@@ -1007,6 +1370,12 @@ definitions:
         type: string
       type:
         type: string
+    required:
+    - id
+    - logoURL
+    - name
+    - slug
+    - type
     type: object
   internal_transport_http_admin.UserListResponseDoc:
     properties:
@@ -1018,9 +1387,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_admin.UserResponse:
     properties:
@@ -1044,6 +1419,8 @@ definitions:
         type: string
       emailVerifiedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       id:
         type: integer
       identityProviders:
@@ -1052,14 +1429,20 @@ definitions:
         type: array
       lastActiveAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       lastLoginAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       locale:
         type: string
       phone:
         type: string
       phoneVerifiedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       profilePreferences:
         type: string
       publicID:
@@ -1070,8 +1453,12 @@ definitions:
         type: string
       subscriptionExpiresAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       subscriptionPlanID:
         type: integer
+        x-nullable: true
+        x-omitempty: false
       subscriptionPlanName:
         type: string
       subscriptionStatus:
@@ -1092,6 +1479,40 @@ definitions:
         type: string
       username:
         type: string
+    required:
+    - appearancePreferences
+    - avatarURL
+    - billingAccountCurrency
+    - billingAccountStatus
+    - billingBalanceNanousd
+    - billingBalanceUSD
+    - createdAt
+    - displayName
+    - email
+    - emailVerifiedAt
+    - id
+    - identityProviders
+    - lastActiveAt
+    - lastLoginAt
+    - locale
+    - phone
+    - phoneVerifiedAt
+    - profilePreferences
+    - publicID
+    - role
+    - status
+    - subscriptionExpiresAt
+    - subscriptionPlanID
+    - subscriptionPlanName
+    - subscriptionStatus
+    - subscriptionTier
+    - timezone
+    - twoFactorAvailable
+    - twoFactorEnabled
+    - twoFactorRecoveryCount
+    - twoFactorRequired
+    - updatedAt
+    - username
     type: object
   internal_transport_http_announcement.AdminAnnouncementListResponseDoc:
     properties:
@@ -1103,14 +1524,22 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_announcement.AnnouncementCloseDataResponse:
     properties:
       closed:
         type: boolean
+    required:
+    - closed
     type: object
   internal_transport_http_announcement.AnnouncementCloseResponseDoc:
     properties:
@@ -1118,16 +1547,23 @@ definitions:
         $ref: '#/definitions/internal_transport_http_announcement.AnnouncementCloseDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_announcement.AnnouncementDataResponse:
     properties:
       announcement:
         $ref: '#/definitions/internal_transport_http_announcement.AnnouncementResponse'
+    required:
+    - announcement
     type: object
   internal_transport_http_announcement.AnnouncementDeleteDataResponse:
     properties:
       deleted:
         type: boolean
+    required:
+    - deleted
     type: object
   internal_transport_http_announcement.AnnouncementDeleteResponseDoc:
     properties:
@@ -1135,11 +1571,16 @@ definitions:
         $ref: '#/definitions/internal_transport_http_announcement.AnnouncementDeleteDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_announcement.AnnouncementDismissDataResponse:
     properties:
       dismissed:
         type: boolean
+    required:
+    - dismissed
     type: object
   internal_transport_http_announcement.AnnouncementDismissResponseDoc:
     properties:
@@ -1147,6 +1588,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_announcement.AnnouncementDismissDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_announcement.AnnouncementListResponseDoc:
     properties:
@@ -1156,11 +1600,16 @@ definitions:
         type: array
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_announcement.AnnouncementResponse:
     properties:
       closedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       contentMarkdown:
         type: string
       createdAt:
@@ -1169,6 +1618,8 @@ definitions:
         type: integer
       expiresAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       id:
         type: integer
       pinned:
@@ -1177,6 +1628,8 @@ definitions:
         type: integer
       startsAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       status:
         type: string
       title:
@@ -1185,6 +1638,20 @@ definitions:
         type: string
       updatedAt:
         type: string
+    required:
+    - closedAt
+    - contentMarkdown
+    - createdAt
+    - createdByUserID
+    - expiresAt
+    - id
+    - pinned
+    - priority
+    - startsAt
+    - status
+    - title
+    - type
+    - updatedAt
     type: object
   internal_transport_http_announcement.AnnouncementResponseDoc:
     properties:
@@ -1192,6 +1659,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_announcement.AnnouncementDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_announcement.AnnouncementStateRequest:
     properties:
@@ -1208,12 +1678,14 @@ definitions:
         type: string
       expiresAt:
         type: string
+        x-nullable: true
       pinned:
         type: boolean
       priority:
         type: integer
       startsAt:
         type: string
+        x-nullable: true
       status:
         enum:
         - active
@@ -1248,6 +1720,9 @@ definitions:
       requestId:
         example: ""
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_announcement.PatchAnnouncementRequestDoc:
     properties:
@@ -1256,12 +1731,14 @@ definitions:
         type: string
       expiresAt:
         type: string
+        x-nullable: true
       pinned:
         type: boolean
       priority:
         type: integer
       startsAt:
         type: string
+        x-nullable: true
       status:
         enum:
         - active
@@ -1287,6 +1764,9 @@ definitions:
         type: array
       total:
         type: integer
+    required:
+    - results
+    - total
     type: object
   internal_transport_http_auth.ActiveSessionListResponseDoc:
     properties:
@@ -1294,6 +1774,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_auth.ActiveSessionListResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_auth.ActiveSessionResponse:
     properties:
@@ -1323,22 +1806,36 @@ definitions:
         type: string
       ipLatitude:
         type: number
+        x-nullable: true
+        x-omitempty: false
       ipLongitude:
         type: number
+        x-nullable: true
+        x-omitempty: false
       lastSeenAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       locationLabel:
         type: string
       osName:
         type: string
       preciseAccuracyMeters:
         type: number
+        x-nullable: true
+        x-omitempty: false
       preciseLatitude:
         type: number
+        x-nullable: true
+        x-omitempty: false
       preciseLocatedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       preciseLongitude:
         type: number
+        x-nullable: true
+        x-omitempty: false
       regionName:
         type: string
       sessionID:
@@ -1347,6 +1844,32 @@ definitions:
         type: string
       updatedAt:
         type: string
+    required:
+    - browserName
+    - cityName
+    - clientIP
+    - countryCode
+    - createdAt
+    - current
+    - deviceLabel
+    - deviceName
+    - deviceType
+    - expiresAt
+    - geoAccuracy
+    - geoSource
+    - ipLatitude
+    - ipLongitude
+    - lastSeenAt
+    - locationLabel
+    - osName
+    - preciseAccuracyMeters
+    - preciseLatitude
+    - preciseLocatedAt
+    - preciseLongitude
+    - regionName
+    - sessionID
+    - timezoneName
+    - updatedAt
     type: object
   internal_transport_http_auth.DeleteAccountRequest:
     properties:
@@ -1367,6 +1890,8 @@ definitions:
     properties:
       deleted:
         type: boolean
+    required:
+    - deleted
     type: object
   internal_transport_http_auth.DeleteAccountResponseDoc:
     properties:
@@ -1374,6 +1899,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_auth.DeleteAccountResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_auth.EmailRegistrationCompleteRequest:
     properties:
@@ -1410,6 +1938,9 @@ definitions:
         type: string
       sent:
         type: boolean
+    required:
+    - expiresAt
+    - sent
     type: object
   internal_transport_http_auth.EmailRegistrationStartResponseDoc:
     properties:
@@ -1417,6 +1948,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_auth.EmailRegistrationStartResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_auth.EmailVerificationStartResponse:
     properties:
@@ -1430,6 +1964,11 @@ definitions:
         type: boolean
       verificationMethod:
         type: string
+    required:
+    - availableMethods
+    - expiresAt
+    - sent
+    - verificationMethod
     type: object
   internal_transport_http_auth.EmailVerificationStartResponseDoc:
     properties:
@@ -1437,6 +1976,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_auth.EmailVerificationStartResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_auth.ErrorDoc:
     properties:
@@ -1448,6 +1990,65 @@ definitions:
         type: string
       requestId:
         type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  internal_transport_http_auth.IdentityProviderDeleteResponse:
+    properties:
+      deleted:
+        type: boolean
+    required:
+    - deleted
+    type: object
+  internal_transport_http_auth.IdentityProviderDeleteResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_auth.IdentityProviderDeleteResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  internal_transport_http_auth.IdentityProviderListResponse:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/internal_transport_http_auth.IdentityProviderResponse'
+        type: array
+      total:
+        type: integer
+    required:
+    - results
+    - total
+    type: object
+  internal_transport_http_auth.IdentityProviderListResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_auth.IdentityProviderListResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  internal_transport_http_auth.IdentityProviderReorderResponse:
+    properties:
+      updated:
+        type: boolean
+    required:
+    - updated
+    type: object
+  internal_transport_http_auth.IdentityProviderReorderResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_auth.IdentityProviderReorderResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_auth.IdentityProviderResponse:
     properties:
@@ -1460,6 +2061,10 @@ definitions:
       createdAt:
         type: string
       defaultRole:
+        enum:
+        - user
+        - admin
+        - superadmin
         type: string
       discoveryURL:
         type: string
@@ -1492,11 +2097,41 @@ definitions:
       tokenURL:
         type: string
       type:
+        enum:
+        - oidc
+        - oauth2
         type: string
       updatedAt:
         type: string
       userinfoURL:
         type: string
+    required:
+    - avatarField
+    - createdAt
+    - defaultRole
+    - emailField
+    - emailVerifiedField
+    - loginEnabled
+    - logoURL
+    - name
+    - nameField
+    - publicID
+    - registrationEnabled
+    - scopes
+    - slug
+    - subjectField
+    - type
+    - updatedAt
+    type: object
+  internal_transport_http_auth.IdentityProviderResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_auth.IdentityProviderResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_auth.LoginOptionsResponse:
     properties:
@@ -1518,6 +2153,15 @@ definitions:
         type: string
       usernameEnabled:
         type: boolean
+    required:
+    - emailEnabled
+    - emailRegistrationEnabled
+    - emailVerificationEnabled
+    - passwordResetEnabled
+    - providers
+    - turnstileRegistrationEnabled
+    - turnstileSiteKey
+    - usernameEnabled
     type: object
   internal_transport_http_auth.LoginOptionsResponseDoc:
     properties:
@@ -1525,6 +2169,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_auth.LoginOptionsResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_auth.LoginRequest:
     properties:
@@ -1560,6 +2207,13 @@ definitions:
         items:
           type: string
         type: array
+    required:
+    - accessToken
+    - expiresAt
+    - refreshExpiresAt
+    - sessionID
+    - twoFactorRequired
+    - user
     type: object
   internal_transport_http_auth.LoginResponseDoc:
     properties:
@@ -1567,11 +2221,16 @@ definitions:
         $ref: '#/definitions/internal_transport_http_auth.LoginResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_auth.LogoutResponse:
     properties:
       revoked:
         type: boolean
+    required:
+    - revoked
     type: object
   internal_transport_http_auth.LogoutResponseDoc:
     properties:
@@ -1579,11 +2238,16 @@ definitions:
         $ref: '#/definitions/internal_transport_http_auth.LogoutResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_auth.MeResponse:
     properties:
       user:
         $ref: '#/definitions/internal_transport_http_auth.UserResponse'
+    required:
+    - user
     type: object
   internal_transport_http_auth.MeResponseDoc:
     properties:
@@ -1591,6 +2255,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_auth.MeResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_auth.PasswordResetCompleteRequest:
     properties:
@@ -1612,6 +2279,8 @@ definitions:
     properties:
       changed:
         type: boolean
+    required:
+    - changed
     type: object
   internal_transport_http_auth.PasswordResetCompleteResponseDoc:
     properties:
@@ -1619,6 +2288,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_auth.PasswordResetCompleteResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_auth.PasswordResetStartRequest:
     properties:
@@ -1634,6 +2306,9 @@ definitions:
         type: string
       sent:
         type: boolean
+    required:
+    - expiresAt
+    - sent
     type: object
   internal_transport_http_auth.PasswordResetStartResponseDoc:
     properties:
@@ -1641,6 +2316,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_auth.PasswordResetStartResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_auth.PatchMeRequest:
     properties:
@@ -1670,6 +2348,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_auth.MeResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_auth.PatchUsernameRequest:
     properties:
@@ -1686,6 +2367,18 @@ definitions:
         $ref: '#/definitions/internal_transport_http_auth.LoginResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  internal_transport_http_auth.ReorderIdentityProvidersRequest:
+    properties:
+      providerIDs:
+        items:
+          type: string
+        type: array
+    required:
+    - providerIDs
     type: object
   internal_transport_http_auth.SecurityVerificationStartRequest:
     properties:
@@ -1719,6 +2412,82 @@ definitions:
         $ref: '#/definitions/internal_transport_http_auth.ActiveSessionResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  internal_transport_http_auth.UpsertIdentityProviderRequest:
+    properties:
+      authURL:
+        maxLength: 512
+        type: string
+      avatarField:
+        maxLength: 64
+        type: string
+      clientID:
+        maxLength: 255
+        type: string
+      clientSecret:
+        maxLength: 4096
+        type: string
+      defaultRole:
+        enum:
+        - user
+        - admin
+        - superadmin
+        type: string
+      discoveryURL:
+        maxLength: 512
+        type: string
+      emailField:
+        maxLength: 64
+        type: string
+      emailVerifiedField:
+        maxLength: 64
+        type: string
+      issuerURL:
+        maxLength: 512
+        type: string
+      jwksURL:
+        maxLength: 512
+        type: string
+      loginEnabled:
+        type: boolean
+      logoURL:
+        maxLength: 512
+        type: string
+      name:
+        maxLength: 80
+        type: string
+      nameField:
+        maxLength: 64
+        type: string
+      registrationEnabled:
+        type: boolean
+      scopes:
+        maxLength: 255
+        type: string
+      slug:
+        maxLength: 64
+        type: string
+      subjectField:
+        maxLength: 64
+        type: string
+      tokenURL:
+        maxLength: 512
+        type: string
+      type:
+        enum:
+        - oidc
+        - oauth2
+        type: string
+      userinfoURL:
+        maxLength: 512
+        type: string
+    required:
+    - clientID
+    - name
+    - type
     type: object
   internal_transport_http_auth.UserIdentityProviderSummaryResponse:
     properties:
@@ -1732,6 +2501,12 @@ definitions:
         type: string
       type:
         type: string
+    required:
+    - id
+    - logoURL
+    - name
+    - slug
+    - type
     type: object
   internal_transport_http_auth.UserResponse:
     properties:
@@ -1747,10 +2522,14 @@ definitions:
         type: string
       emailBootstrapUsedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       emailSource:
         type: string
       emailVerifiedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       id:
         type: integer
       identityProviders:
@@ -1763,24 +2542,34 @@ definitions:
         type: boolean
       lastActiveAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       lastLoginAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       locale:
         type: string
       mustResetPassword:
         type: boolean
       onboardingCompletedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       passwordEnabled:
         type: boolean
       passwordOrigin:
         type: string
       passwordSetAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       phone:
         type: string
       phoneVerifiedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       profilePreferences:
         type: string
       publicID:
@@ -1791,8 +2580,12 @@ definitions:
         type: string
       subscriptionExpiresAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       subscriptionPlanID:
         type: integer
+        x-nullable: true
+        x-omitempty: false
       subscriptionPlanName:
         type: string
       subscriptionStatus:
@@ -1815,6 +2608,48 @@ definitions:
         type: string
       usernameChangedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
+    required:
+    - appearancePreferences
+    - avatarURL
+    - createdAt
+    - displayName
+    - email
+    - emailBootstrapUsedAt
+    - emailSource
+    - emailVerifiedAt
+    - id
+    - identityProviders
+    - initialSecurityRequired
+    - initialUsernameRequired
+    - lastActiveAt
+    - lastLoginAt
+    - locale
+    - mustResetPassword
+    - onboardingCompletedAt
+    - passwordEnabled
+    - passwordOrigin
+    - passwordSetAt
+    - phone
+    - phoneVerifiedAt
+    - profilePreferences
+    - publicID
+    - role
+    - status
+    - subscriptionExpiresAt
+    - subscriptionPlanID
+    - subscriptionPlanName
+    - subscriptionStatus
+    - subscriptionTier
+    - timezone
+    - twoFactorAvailable
+    - twoFactorEnabled
+    - twoFactorRecoveryCount
+    - twoFactorRequired
+    - updatedAt
+    - username
+    - usernameChangedAt
     type: object
   internal_transport_http_billing.BatchDeleteRedemptionCodeDataResponse:
     properties:
@@ -1830,6 +2665,12 @@ definitions:
         type: integer
       total:
         type: integer
+    required:
+    - failedCount
+    - notFoundCount
+    - results
+    - successCount
+    - total
     type: object
   internal_transport_http_billing.BatchDeleteRedemptionCodeRequest:
     properties:
@@ -1847,6 +2688,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_billing.BatchDeleteRedemptionCodeDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.BatchDeleteRedemptionCodeResultResponse:
     properties:
@@ -1856,11 +2700,16 @@ definitions:
         type: integer
       status:
         type: string
+    required:
+    - id
+    - status
     type: object
   internal_transport_http_billing.BillingAccountDataResponse:
     properties:
       account:
         $ref: '#/definitions/internal_transport_http_billing.BillingAccountResponse'
+    required:
+    - account
     type: object
   internal_transport_http_billing.BillingAccountResponse:
     properties:
@@ -1876,6 +2725,13 @@ definitions:
         type: string
       userID:
         type: integer
+    required:
+    - balanceNanousd
+    - balanceUSD
+    - currency
+    - status
+    - updatedAt
+    - userID
     type: object
   internal_transport_http_billing.BillingAccountResponseDoc:
     properties:
@@ -1883,11 +2739,16 @@ definitions:
         $ref: '#/definitions/internal_transport_http_billing.BillingAccountDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.BillingConfigDataResponse:
     properties:
       config:
         $ref: '#/definitions/internal_transport_http_billing.BillingConfigResponse'
+    required:
+    - config
     type: object
   internal_transport_http_billing.BillingConfigRequest:
     properties:
@@ -1942,6 +2803,16 @@ definitions:
         type: number
       usdToCNYRate:
         type: number
+    required:
+    - displayCurrency
+    - epayTypes
+    - mode
+    - nativeToolBillingEnabled
+    - nativeToolPricing
+    - paymentProviders
+    - prepaidAmountNanousd
+    - prepaidAmountUSD
+    - usdToCNYRate
     type: object
   internal_transport_http_billing.BillingConfigResponseDoc:
     properties:
@@ -1949,16 +2820,24 @@ definitions:
         $ref: '#/definitions/internal_transport_http_billing.BillingConfigDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.BillingOverviewDataResponse:
     properties:
       overview:
         $ref: '#/definitions/internal_transport_http_billing.BillingOverviewResponse'
+    required:
+    - overview
     type: object
   internal_transport_http_billing.BillingOverviewResponse:
     properties:
       account:
-        $ref: '#/definitions/internal_transport_http_billing.BillingAccountResponse'
+        allOf:
+        - $ref: '#/definitions/internal_transport_http_billing.BillingAccountResponse'
+        x-nullable: true
+        x-omitempty: false
       mode:
         type: string
       periodCreditNanousd:
@@ -1967,22 +2846,42 @@ definitions:
         type: number
       periodEndAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       periodRemainingNanousd:
         type: integer
       periodRemainingUSD:
         type: number
       periodStartAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       periodUsedNanousd:
         type: integer
       periodUsedUSD:
         type: number
       plan:
-        $ref: '#/definitions/internal_transport_http_billing.BillingPlanResponse'
+        allOf:
+        - $ref: '#/definitions/internal_transport_http_billing.BillingPlanResponse'
+        x-nullable: true
+        x-omitempty: false
       subscriptionEntitlements:
         items:
           $ref: '#/definitions/internal_transport_http_billing.SubscriptionEntitlementResponse'
         type: array
+    required:
+    - account
+    - mode
+    - periodCreditNanousd
+    - periodCreditUSD
+    - periodEndAt
+    - periodRemainingNanousd
+    - periodRemainingUSD
+    - periodStartAt
+    - periodUsedNanousd
+    - periodUsedUSD
+    - plan
+    - subscriptionEntitlements
     type: object
   internal_transport_http_billing.BillingOverviewResponseDoc:
     properties:
@@ -1990,11 +2889,16 @@ definitions:
         $ref: '#/definitions/internal_transport_http_billing.BillingOverviewDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.BillingPlanDataResponse:
     properties:
       plan:
         $ref: '#/definitions/internal_transport_http_billing.BillingPlanResponse'
+    required:
+    - plan
     type: object
   internal_transport_http_billing.BillingPlanResponse:
     properties:
@@ -2018,12 +2922,27 @@ definitions:
         type: number
       permissionGroupID:
         type: integer
+        x-nullable: true
+        x-omitempty: false
       prices:
         items:
           $ref: '#/definitions/internal_transport_http_billing.BillingPriceResponse'
         type: array
       sortOrder:
         type: integer
+    required:
+    - code
+    - description
+    - discountPercent
+    - featureJSON
+    - id
+    - isActive
+    - name
+    - periodCreditNanousd
+    - periodCreditUSD
+    - permissionGroupID
+    - prices
+    - sortOrder
     type: object
   internal_transport_http_billing.BillingPlanResponseDoc:
     properties:
@@ -2031,6 +2950,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_billing.BillingPlanDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.BillingPriceResponse:
     properties:
@@ -2048,11 +2970,21 @@ definitions:
         type: boolean
       planID:
         type: integer
+    required:
+    - amountCents
+    - billingInterval
+    - code
+    - currency
+    - id
+    - isDefault
+    - planID
     type: object
   internal_transport_http_billing.CheckoutDataResponse:
     properties:
       checkout:
         $ref: '#/definitions/internal_transport_http_billing.CheckoutResponse'
+    required:
+    - checkout
     type: object
   internal_transport_http_billing.CheckoutResponse:
     properties:
@@ -2068,6 +3000,8 @@ definitions:
         type: number
       expiredAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       externalCheckoutID:
         type: string
       fxRate:
@@ -2084,6 +3018,21 @@ definitions:
         type: string
       status:
         type: string
+    required:
+    - baseAmountCents
+    - baseCurrency
+    - checkoutURL
+    - creditNanousd
+    - creditUSD
+    - expiredAt
+    - externalCheckoutID
+    - fxRate
+    - orderNo
+    - orderType
+    - payAmountCents
+    - payCurrency
+    - provider
+    - status
     type: object
   internal_transport_http_billing.CheckoutResponseDoc:
     properties:
@@ -2091,6 +3040,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_billing.CheckoutDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.CreateCheckoutRequest:
     properties:
@@ -2142,6 +3094,7 @@ definitions:
         type: integer
       expiresAt:
         type: string
+        x-nullable: true
       maxRedemptions:
         minimum: 1
         type: integer
@@ -2174,11 +3127,16 @@ definitions:
         type: string
       requestId:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.ModelPricingDataResponse:
     properties:
       modelPricing:
         $ref: '#/definitions/internal_transport_http_billing.ModelPricingResponse'
+    required:
+    - modelPricing
     type: object
   internal_transport_http_billing.ModelPricingListResponseDoc:
     properties:
@@ -2190,9 +3148,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.ModelPricingResponse:
     properties:
@@ -2240,6 +3204,29 @@ definitions:
         type: string
       updatedAt:
         type: string
+    required:
+    - cacheReadNanousdPerMTokens
+    - cacheReadUSDPerMTokens
+    - cacheWriteNanousdPerMTokens
+    - cacheWriteUSDPerMTokens
+    - callNanousdPerCall
+    - callUSDPerCall
+    - createdAt
+    - currency
+    - durationNanousdPerSecond
+    - durationUSDPerSecond
+    - id
+    - inputNanousdPerMTokens
+    - inputUSDPerMTokens
+    - isFree
+    - modelIcon
+    - modelVendor
+    - outputNanousdPerMTokens
+    - outputUSDPerMTokens
+    - platformModelName
+    - pricingMode
+    - tieredPricingJSON
+    - updatedAt
     type: object
   internal_transport_http_billing.NativeToolPricingRequest:
     properties:
@@ -2274,6 +3261,16 @@ definitions:
         type: string
       unit:
         type: string
+    required:
+    - billable
+    - description
+    - label
+    - priceLabel
+    - priceNanousd
+    - provider
+    - toolKey
+    - type
+    - unit
     type: object
   internal_transport_http_billing.OpenRouterOfficialPricingDataResponse:
     properties:
@@ -2287,6 +3284,11 @@ definitions:
         type: array
       stale:
         type: boolean
+    required:
+    - cached
+    - fetchedAt
+    - items
+    - stale
     type: object
   internal_transport_http_billing.OpenRouterOfficialPricingItemResponse:
     properties:
@@ -2298,6 +3300,11 @@ definitions:
         type: string
       pricing:
         $ref: '#/definitions/internal_transport_http_billing.OpenRouterOfficialPricingUnitPricingResponse'
+    required:
+    - canonicalSlug
+    - id
+    - name
+    - pricing
     type: object
   internal_transport_http_billing.OpenRouterOfficialPricingResponseDoc:
     properties:
@@ -2305,6 +3312,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_billing.OpenRouterOfficialPricingDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.OpenRouterOfficialPricingUnitPricingResponse:
     properties:
@@ -2316,6 +3326,11 @@ definitions:
         type: string
       prompt:
         type: string
+    required:
+    - completion
+    - inputCacheRead
+    - inputCacheWrite
+    - prompt
     type: object
   internal_transport_http_billing.PatchRedemptionCodeRequestDoc:
     properties:
@@ -2324,8 +3339,10 @@ definitions:
         type: string
       expiresAt:
         type: string
+        x-nullable: true
       maxRedemptions:
         type: integer
+        x-nullable: true
       perUserLimit:
         maximum: 100
         minimum: 1
@@ -2342,6 +3359,9 @@ definitions:
         type: string
       type:
         type: string
+    required:
+    - name
+    - type
     type: object
   internal_transport_http_billing.PlanListResponseDoc:
     properties:
@@ -2351,6 +3371,9 @@ definitions:
         type: array
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.RedeemCodeRequest:
     properties:
@@ -2371,6 +3394,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_billing.RedemptionResponse'
       subscription:
         $ref: '#/definitions/internal_transport_http_billing.SubscriptionResponse'
+    required:
+    - overview
+    - redemption
     type: object
   internal_transport_http_billing.RedemptionApplyResponseDoc:
     properties:
@@ -2378,6 +3404,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_billing.RedemptionApplyDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.RedemptionCodeCreateDataResponse:
     properties:
@@ -2385,6 +3414,8 @@ definitions:
         items:
           $ref: '#/definitions/internal_transport_http_billing.RedemptionCodeResponse'
         type: array
+    required:
+    - results
     type: object
   internal_transport_http_billing.RedemptionCodeCreateResponseDoc:
     properties:
@@ -2392,16 +3423,23 @@ definitions:
         $ref: '#/definitions/internal_transport_http_billing.RedemptionCodeCreateDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.RedemptionCodeDataResponse:
     properties:
       code:
         $ref: '#/definitions/internal_transport_http_billing.RedemptionCodeResponse'
+    required:
+    - code
     type: object
   internal_transport_http_billing.RedemptionCodeDeleteDataResponse:
     properties:
       deleted:
         type: boolean
+    required:
+    - deleted
     type: object
   internal_transport_http_billing.RedemptionCodeDeleteResponseDoc:
     properties:
@@ -2409,6 +3447,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_billing.RedemptionCodeDeleteDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.RedemptionCodeListDataResponse:
     properties:
@@ -2418,6 +3459,9 @@ definitions:
         type: array
       total:
         type: integer
+    required:
+    - results
+    - total
     type: object
   internal_transport_http_billing.RedemptionCodeListResponseDoc:
     properties:
@@ -2425,6 +3469,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_billing.RedemptionCodeListDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.RedemptionCodeResponse:
     properties:
@@ -2446,10 +3493,14 @@ definitions:
         type: integer
       expiresAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       id:
         type: integer
       maxRedemptions:
         type: integer
+        x-nullable: true
+        x-omitempty: false
       mode:
         type: string
       perUserLimit:
@@ -2460,12 +3511,33 @@ definitions:
         type: integer
       remainingRedemptions:
         type: integer
+        x-nullable: true
+        x-omitempty: false
       rewardType:
         type: string
       status:
         type: string
       updatedAt:
         type: string
+    required:
+    - codeHint
+    - createdAt
+    - createdByUserID
+    - creditNanousd
+    - creditUSD
+    - description
+    - durationDays
+    - expiresAt
+    - id
+    - maxRedemptions
+    - mode
+    - perUserLimit
+    - planID
+    - redeemedCount
+    - remainingRedemptions
+    - rewardType
+    - status
+    - updatedAt
     type: object
   internal_transport_http_billing.RedemptionCodeResponseDoc:
     properties:
@@ -2473,6 +3545,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_billing.RedemptionCodeDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.RedemptionResponse:
     properties:
@@ -2498,6 +3573,18 @@ definitions:
         type: integer
       userID:
         type: integer
+    required:
+    - balanceTransactionID
+    - codeID
+    - createdAt
+    - creditNanousd
+    - creditUSD
+    - id
+    - mode
+    - planID
+    - rewardType
+    - subscriptionID
+    - userID
     type: object
   internal_transport_http_billing.SubscribeRequest:
     properties:
@@ -2517,11 +3604,16 @@ definitions:
         $ref: '#/definitions/internal_transport_http_billing.SubscriptionDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.SubscriptionDataResponse:
     properties:
       subscription:
         $ref: '#/definitions/internal_transport_http_billing.SubscriptionResponse'
+    required:
+    - subscription
     type: object
   internal_transport_http_billing.SubscriptionEntitlementResponse:
     properties:
@@ -2531,6 +3623,8 @@ definitions:
         type: boolean
       currentPeriodEndAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       currentPeriodStartAt:
         type: string
       id:
@@ -2549,6 +3643,19 @@ definitions:
         type: string
       userID:
         type: integer
+    required:
+    - autoRenew
+    - cancelAtPeriodEnd
+    - currentPeriodEndAt
+    - currentPeriodStartAt
+    - id
+    - isCurrent
+    - plan
+    - planID
+    - priceID
+    - startAt
+    - status
+    - userID
     type: object
   internal_transport_http_billing.SubscriptionResponse:
     properties:
@@ -2558,6 +3665,8 @@ definitions:
         type: boolean
       currentPeriodEndAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       currentPeriodStartAt:
         type: string
       id:
@@ -2572,6 +3681,17 @@ definitions:
         type: string
       userID:
         type: integer
+    required:
+    - autoRenew
+    - cancelAtPeriodEnd
+    - currentPeriodEndAt
+    - currentPeriodStartAt
+    - id
+    - planID
+    - priceID
+    - startAt
+    - status
+    - userID
     type: object
   internal_transport_http_billing.UpdateBillingAccountBalanceRequest:
     properties:
@@ -2581,6 +3701,8 @@ definitions:
       description:
         maxLength: 255
         type: string
+    required:
+    - balanceUSD
     type: object
   internal_transport_http_billing.UpdateBillingPlanRequest:
     properties:
@@ -2612,9 +3734,14 @@ definitions:
         type: number
       permissionGroupID:
         type: integer
+        x-nullable: true
     required:
+    - amountUSD
     - billingInterval
+    - description
+    - discountPercent
     - name
+    - periodCreditUSD
     type: object
   internal_transport_http_billing.UpsertModelPricingRequest:
     properties:
@@ -2655,7 +3782,15 @@ definitions:
         maxLength: 20000
         type: string
     required:
+    - cacheReadUSDPerMTokens
+    - cacheWriteUSDPerMTokens
+    - callUSDPerCall
+    - durationUSDPerSecond
+    - inputUSDPerMTokens
+    - isFree
+    - outputUSDPerMTokens
     - platformModelName
+    - pricingMode
     type: object
   internal_transport_http_billing.UsageDailyListResponseDoc:
     properties:
@@ -2665,6 +3800,9 @@ definitions:
         type: array
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.UsageDailyModelResponse:
     properties:
@@ -2694,6 +3832,20 @@ definitions:
         type: integer
       totalTokens:
         type: integer
+    required:
+    - avgLatencyMS
+    - billedNanousd
+    - billedUSD
+    - cacheReadTokens
+    - cacheWriteTokens
+    - callCount
+    - durationSeconds
+    - inputTokens
+    - outputTokens
+    - platformModelName
+    - reasoningTokens
+    - recordCount
+    - totalTokens
     type: object
   internal_transport_http_billing.UsageDailyResponse:
     properties:
@@ -2727,6 +3879,21 @@ definitions:
         type: integer
       usageDate:
         type: string
+    required:
+    - avgLatencyMS
+    - billedNanousd
+    - billedUSD
+    - cacheReadTokens
+    - cacheWriteTokens
+    - callCount
+    - durationSeconds
+    - inputTokens
+    - models
+    - outputTokens
+    - reasoningTokens
+    - recordCount
+    - totalTokens
+    - usageDate
     type: object
   internal_transport_http_billing.UsageLedgerListResponseDoc:
     properties:
@@ -2738,9 +3905,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.UsageLedgerResponse:
     properties:
@@ -2804,6 +3977,37 @@ definitions:
         type: string
       userID:
         type: integer
+    required:
+    - billedCurrency
+    - billedNanousd
+    - billedUSD
+    - billingAt
+    - cacheReadTokens
+    - cacheWrite1hTokens
+    - cacheWrite5mTokens
+    - cacheWriteTokens
+    - callCount
+    - conversationID
+    - createdAt
+    - durationSeconds
+    - id
+    - inputTokens
+    - isFreeModel
+    - latencyMS
+    - modelIcon
+    - modelVendor
+    - outputTokens
+    - platformModelName
+    - pricingSnapshotJSON
+    - providerProtocol
+    - reasoningTokens
+    - routedBindingCode
+    - serviceTier
+    - updatedAt
+    - upstreamModelName
+    - usageDate
+    - usageSpeed
+    - userID
     type: object
   internal_transport_http_billing.UsageMonthlyListResponseDoc:
     properties:
@@ -2813,6 +4017,9 @@ definitions:
         type: array
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_billing.UsageMonthlyResponse:
     properties:
@@ -2842,6 +4049,20 @@ definitions:
         type: integer
       totalTokens:
         type: integer
+    required:
+    - avgLatencyMS
+    - billedNanousd
+    - billedUSD
+    - cacheReadTokens
+    - cacheWriteTokens
+    - callCount
+    - durationSeconds
+    - inputTokens
+    - monthStartAt
+    - outputTokens
+    - reasoningTokens
+    - recordCount
+    - totalTokens
     type: object
   internal_transport_http_channel.BatchDeleteRequest:
     properties:
@@ -2867,6 +4088,12 @@ definitions:
         type: integer
       total:
         type: integer
+    required:
+    - failedCount
+    - notFoundCount
+    - results
+    - successCount
+    - total
     type: object
   internal_transport_http_channel.BatchDeleteResponseDoc:
     properties:
@@ -2874,6 +4101,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_channel.BatchDeleteResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.BatchDeleteResultResponse:
     properties:
@@ -2883,6 +4113,9 @@ definitions:
         type: integer
       status:
         type: string
+    required:
+    - id
+    - status
     type: object
   internal_transport_http_channel.BindModelUpstreamSourceRequest:
     properties:
@@ -2919,6 +4152,8 @@ definitions:
     properties:
       reset:
         type: boolean
+    required:
+    - reset
     type: object
   internal_transport_http_channel.CreateModelRequest:
     properties:
@@ -2977,6 +4212,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_channel.ModelDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.CreateUpstreamRequest:
     properties:
@@ -3041,6 +4279,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_channel.UpstreamDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.ErrorDoc:
     properties:
@@ -3052,6 +4293,9 @@ definitions:
         type: string
       requestId:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.ImportUpstreamModelItemRequest:
     properties:
@@ -3108,6 +4352,16 @@ definitions:
         type: string
       upstreamModelName:
         type: string
+    required:
+    - bindingCode
+    - createdPlatform
+    - createdRoute
+    - createdRoutes
+    - existingRoutes
+    - platformModelName
+    - protocols
+    - status
+    - upstreamModelName
     type: object
   internal_transport_http_channel.ImportUpstreamModelsRequest:
     properties:
@@ -3141,6 +4395,14 @@ definitions:
         type: array
       total:
         type: integer
+    required:
+    - createdPlatform
+    - createdRoutes
+    - existingRoutes
+    - failedCount
+    - importedCount
+    - results
+    - total
     type: object
   internal_transport_http_channel.ImportUpstreamModelsResponseDoc:
     properties:
@@ -3148,11 +4410,16 @@ definitions:
         $ref: '#/definitions/internal_transport_http_channel.ImportUpstreamModelsResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.ModelDataResponse:
     properties:
       model:
         $ref: '#/definitions/internal_transport_http_channel.ModelResponse'
+    required:
+    - model
     type: object
   internal_transport_http_channel.ModelListResponseDoc:
     properties:
@@ -3164,9 +4431,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.ModelProbeBatchResponse:
     properties:
@@ -3182,6 +4455,12 @@ definitions:
         type: integer
       unsupportedCount:
         type: integer
+    required:
+    - failedCount
+    - results
+    - successCount
+    - totalCount
+    - unsupportedCount
     type: object
   internal_transport_http_channel.ModelProbeBatchResponseDoc:
     properties:
@@ -3189,6 +4468,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_channel.ModelProbeBatchResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.ModelProbeDebugRequestResponse:
     properties:
@@ -3202,6 +4484,10 @@ definitions:
         type: string
       path:
         type: string
+    required:
+    - body
+    - method
+    - path
     type: object
   internal_transport_http_channel.ModelProbeDebugResponse:
     properties:
@@ -3209,6 +4495,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_channel.ModelProbeDebugRequestResponse'
       response:
         $ref: '#/definitions/internal_transport_http_channel.ModelProbeDebugResponseResponse'
+    required:
+    - request
+    - response
     type: object
   internal_transport_http_channel.ModelProbeDebugResponseResponse:
     properties:
@@ -3220,6 +4509,9 @@ definitions:
         type: object
       statusCode:
         type: integer
+    required:
+    - body
+    - statusCode
     type: object
   internal_transport_http_channel.ModelProbeRequest:
     properties:
@@ -3267,6 +4559,20 @@ definitions:
         type: string
       upstreamStatusCode:
         type: integer
+    required:
+    - bindingCode
+    - endpoint
+    - latencyMS
+    - platformModelID
+    - platformModelName
+    - protocol
+    - routeID
+    - status
+    - success
+    - upstreamID
+    - upstreamModelID
+    - upstreamModelName
+    - upstreamName
     type: object
   internal_transport_http_channel.ModelProbeResponseDoc:
     properties:
@@ -3274,6 +4580,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_channel.ModelProbeResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.ModelResponse:
     properties:
@@ -3319,11 +4628,35 @@ definitions:
         type: string
       vendor:
         type: string
+    required:
+    - accessScope
+    - activeSourceCount
+    - capabilitiesJSON
+    - cbDurationMin
+    - cbFailureThreshold
+    - cbPolicyMode
+    - cbWindowMin
+    - createdAt
+    - description
+    - icon
+    - id
+    - kindsJSON
+    - platformModelName
+    - protocolsJSON
+    - sortOrder
+    - sourceCount
+    - status
+    - systemPrompt
+    - updatedAt
+    - upstreamNamesJSON
+    - vendor
     type: object
   internal_transport_http_channel.ModelUpstreamSourceDataResponse:
     properties:
       source:
         $ref: '#/definitions/internal_transport_http_channel.ModelUpstreamSourceResponse'
+    required:
+    - source
     type: object
   internal_transport_http_channel.ModelUpstreamSourceListResponseDoc:
     properties:
@@ -3335,9 +4668,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.ModelUpstreamSourceResponse:
     properties:
@@ -3393,6 +4732,33 @@ definitions:
         type: string
       weight:
         type: integer
+    required:
+    - baseURL
+    - bindingCode
+    - cbDurationMin
+    - cbFailureThreshold
+    - cbWindowMin
+    - circuitOpen
+    - circuitScope
+    - circuitUntil
+    - createdAt
+    - headersJSON
+    - id
+    - priority
+    - protocol
+    - source
+    - status
+    - suggestedProtocol
+    - updatedAt
+    - upstreamID
+    - upstreamModelIcon
+    - upstreamModelKindsJSON
+    - upstreamModelName
+    - upstreamModelStatus
+    - upstreamModelVendor
+    - upstreamName
+    - upstreamStatus
+    - weight
     type: object
   internal_transport_http_channel.PublicModelListResponseDoc:
     properties:
@@ -3402,6 +4768,9 @@ definitions:
         type: array
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.PublicModelPricingResponse:
     properties:
@@ -3427,6 +4796,17 @@ definitions:
         items:
           $ref: '#/definitions/internal_transport_http_channel.PublicModelPricingTierResponse'
         type: array
+    required:
+    - cacheReadUSDPerMTokens
+    - cacheWriteUSDPerMTokens
+    - callUSDPerCall
+    - currency
+    - durationUSDPerSecond
+    - inputUSDPerMTokens
+    - isFree
+    - mode
+    - outputUSDPerMTokens
+    - tiers
     type: object
   internal_transport_http_channel.PublicModelPricingTierResponse:
     properties:
@@ -3442,6 +4822,15 @@ definitions:
         type: number
       upToTokens:
         type: integer
+        x-nullable: true
+        x-omitempty: false
+    required:
+    - cacheReadUSDPerMTokens
+    - cacheWriteUSDPerMTokens
+    - fromTokens
+    - inputUSDPerMTokens
+    - outputUSDPerMTokens
+    - upToTokens
     type: object
   internal_transport_http_channel.PublicModelResponse:
     properties:
@@ -3456,13 +4845,26 @@ definitions:
       platformModelName:
         type: string
       pricing:
-        $ref: '#/definitions/internal_transport_http_channel.PublicModelPricingResponse'
+        allOf:
+        - $ref: '#/definitions/internal_transport_http_channel.PublicModelPricingResponse'
+        x-nullable: true
+        x-omitempty: false
       protocolsJSON:
         type: string
       sortOrder:
         type: integer
       vendor:
         type: string
+    required:
+    - capabilitiesJSON
+    - description
+    - icon
+    - kindsJSON
+    - platformModelName
+    - pricing
+    - protocolsJSON
+    - sortOrder
+    - vendor
     type: object
   internal_transport_http_channel.ReorderModelsRequest:
     properties:
@@ -3480,6 +4882,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_channel.CircuitResetResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.SyncUpstreamModelsResponse:
     properties:
@@ -3497,6 +4902,13 @@ definitions:
         type: array
       totalUpstream:
         type: integer
+    required:
+    - createdUpstreamModels
+    - existingUpstreamModels
+    - inactivatedModels
+    - skippedUpstreamModels
+    - syncedModels
+    - totalUpstream
     type: object
   internal_transport_http_channel.SyncUpstreamModelsResponseDoc:
     properties:
@@ -3504,6 +4916,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_channel.SyncUpstreamModelsResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.UpdateModelRequest:
     properties:
@@ -3560,6 +4975,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_channel.ModelDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.UpdateModelUpstreamSourceRequest:
     properties:
@@ -3591,6 +5009,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_channel.ModelUpstreamSourceDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.UpdateUpstreamRequest:
     properties:
@@ -3659,6 +5080,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_channel.UpstreamDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.UpsertUpstreamModelRequest:
     properties:
@@ -3709,6 +5133,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_channel.UpstreamModelDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.UpstreamAPIKeyResponse:
     properties:
@@ -3722,11 +5149,19 @@ definitions:
         type: string
       status:
         type: string
+    required:
+    - id
+    - index
+    - keyMasked
+    - note
+    - status
     type: object
   internal_transport_http_channel.UpstreamDataResponse:
     properties:
       upstream:
         $ref: '#/definitions/internal_transport_http_channel.UpstreamResponse'
+    required:
+    - upstream
     type: object
   internal_transport_http_channel.UpstreamListResponseDoc:
     properties:
@@ -3738,14 +5173,22 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.UpstreamModelDataResponse:
     properties:
       binding:
         $ref: '#/definitions/internal_transport_http_channel.UpstreamModelResponse'
+    required:
+    - binding
     type: object
   internal_transport_http_channel.UpstreamModelListResponseDoc:
     properties:
@@ -3757,9 +5200,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.UpstreamModelResponse:
     properties:
@@ -3819,6 +5268,35 @@ definitions:
         type: string
       weight:
         type: integer
+    required:
+    - bindingCode
+    - cbDurationMin
+    - cbFailureThreshold
+    - cbWindowMin
+    - circuitOpen
+    - circuitUntil
+    - createdAt
+    - headersJSON
+    - id
+    - modelIcon
+    - modelKindsJSON
+    - modelVendor
+    - platformModelID
+    - platformModelName
+    - priority
+    - protocol
+    - routeID
+    - routeStatus
+    - source
+    - suggestedProtocol
+    - updatedAt
+    - upstreamID
+    - upstreamModelIcon
+    - upstreamModelKindsJSON
+    - upstreamModelName
+    - upstreamModelStatus
+    - upstreamModelVendor
+    - weight
     type: object
   internal_transport_http_channel.UpstreamRemoteModelResponse:
     properties:
@@ -3846,6 +5324,17 @@ definitions:
         type: string
       upstreamModelStatus:
         type: string
+    required:
+    - alreadyBound
+    - alreadySynced
+    - bindingCode
+    - boundPlatformModels
+    - suggestedKindsJSON
+    - suggestedPlatformModelName
+    - suggestedProtocol
+    - suggestedProtocols
+    - upstreamModelName
+    - upstreamModelStatus
     type: object
   internal_transport_http_channel.UpstreamRemoteModelsResponse:
     properties:
@@ -3855,6 +5344,9 @@ definitions:
         type: array
       total:
         type: integer
+    required:
+    - items
+    - total
     type: object
   internal_transport_http_channel.UpstreamRemoteModelsResponseDoc:
     properties:
@@ -3862,6 +5354,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_channel.UpstreamRemoteModelsResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_channel.UpstreamResponse:
     properties:
@@ -3913,6 +5408,30 @@ definitions:
         type: integer
       updatedAt:
         type: string
+    required:
+    - activeModelsCount
+    - apiKeyItems
+    - apiKeysMasked
+    - baseURL
+    - cbDurationMin
+    - cbFailureThreshold
+    - cbModelThreshold
+    - cbThresholdLogic
+    - cbWindowMin
+    - circuitOpen
+    - circuitUntil
+    - compatible
+    - connectTimeoutMS
+    - createdAt
+    - headersJSON
+    - id
+    - modelsCount
+    - name
+    - protocolDefaultsJSON
+    - readTimeoutMS
+    - status
+    - streamIdleTimeoutMS
+    - updatedAt
     type: object
   internal_transport_http_channel.UpstreamSyncModelResponse:
     properties:
@@ -3928,6 +5447,13 @@ definitions:
         type: string
       upstreamModelName:
         type: string
+    required:
+    - bindingCode
+    - created
+    - kindsJSON
+    - status
+    - suggestedProtocol
+    - upstreamModelName
     type: object
   internal_transport_http_conversation.BatchSetConversationProjectRequest:
     properties:
@@ -3946,6 +5472,8 @@ definitions:
     properties:
       updated:
         type: integer
+    required:
+    - updated
     type: object
   internal_transport_http_conversation.BatchSetConversationProjectResponseDoc:
     properties:
@@ -3953,6 +5481,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.BatchSetConversationProjectResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.ContextArtifactResponse:
     properties:
@@ -3982,6 +5513,19 @@ definitions:
         type: string
       tokenEstimate:
         type: integer
+    required:
+    - content
+    - createdAt
+    - id
+    - kind
+    - messageID
+    - metadataJSON
+    - runID
+    - score
+    - sourceID
+    - sourceTitle
+    - sourceType
+    - tokenEstimate
     type: object
   internal_transport_http_conversation.ContextArtifactResponseDoc:
     properties:
@@ -3989,6 +5533,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.ContextArtifactResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.ConversationCreateResponseDoc:
     properties:
@@ -3996,6 +5543,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.ConversationResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.ConversationDefaultModelCandidateResponse:
     properties:
@@ -4005,6 +5555,12 @@ definitions:
         type: string
       usedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
+    required:
+    - platformModelName
+    - source
+    - usedAt
     type: object
   internal_transport_http_conversation.ConversationDefaultModelCandidateResponseDoc:
     properties:
@@ -4012,6 +5568,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.ConversationDefaultModelCandidateResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.ConversationDeleteResponse:
     properties:
@@ -4021,6 +5580,8 @@ definitions:
         type: integer
       quota:
         $ref: '#/definitions/internal_transport_http_conversation.StorageQuotaResponse'
+    required:
+    - deleted
     type: object
   internal_transport_http_conversation.ConversationDeleteResponseDoc:
     properties:
@@ -4028,6 +5589,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.ConversationDeleteResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.ConversationExportCompatibilityResponse:
     properties:
@@ -4035,6 +5599,9 @@ definitions:
         type: string
       notes:
         type: string
+    required:
+    - format
+    - notes
     type: object
   internal_transport_http_conversation.ConversationExportResponse:
     properties:
@@ -4064,6 +5631,17 @@ definitions:
         type: integer
       version:
         type: integer
+    required:
+    - compatibility
+    - conversation
+    - defaultMessagePublicIDs
+    - exportScope
+    - exportedAt
+    - messages
+    - runs
+    - totalMessages
+    - totalRuns
+    - version
     type: object
   internal_transport_http_conversation.ConversationExportResponseDoc:
     properties:
@@ -4071,6 +5649,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.ConversationExportResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.ConversationListResponseDoc:
     properties:
@@ -4082,9 +5663,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.ConversationProjectListResponseDoc:
     properties:
@@ -4094,6 +5681,9 @@ definitions:
         type: array
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.ConversationProjectResponse:
     properties:
@@ -4127,6 +5717,20 @@ definitions:
         type: string
       updatedAt:
         type: string
+    required:
+    - color
+    - createdAt
+    - defaultMCPToolIDs
+    - defaultSkillIDs
+    - description
+    - icon
+    - mcpDefaultMode
+    - name
+    - publicID
+    - sortOrder
+    - status
+    - systemPrompt
+    - updatedAt
     type: object
   internal_transport_http_conversation.ConversationProjectResponseDoc:
     properties:
@@ -4134,6 +5738,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.ConversationProjectResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.ConversationResponse:
     properties:
@@ -4147,10 +5754,14 @@ definitions:
         type: string
       lastCompactedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       lastResponseID:
         type: string
       lastShareAccessedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       messageCount:
         type: integer
       model:
@@ -4171,8 +5782,12 @@ definitions:
         type: string
       sharedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       starredAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       status:
         type: string
       title:
@@ -4181,6 +5796,29 @@ definitions:
         type: string
       userID:
         type: integer
+    required:
+    - contextPolicyJSON
+    - createdAt
+    - isStarred
+    - labelsJSON
+    - lastCompactedAt
+    - lastResponseID
+    - lastShareAccessedAt
+    - messageCount
+    - model
+    - projectID
+    - projectName
+    - provider
+    - publicID
+    - sessionKey
+    - shareID
+    - shareStatus
+    - sharedAt
+    - starredAt
+    - status
+    - title
+    - updatedAt
+    - userID
     type: object
   internal_transport_http_conversation.ConversationRunListResponseDoc:
     properties:
@@ -4192,9 +5830,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.ConversationShareResponse:
     properties:
@@ -4202,12 +5846,16 @@ definitions:
         type: string
       lastAccessedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       messageCount:
         type: integer
       modelSnapshot:
         type: string
       revokedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       shareID:
         type: string
       status:
@@ -4216,6 +5864,16 @@ definitions:
         type: string
       updatedAt:
         type: string
+    required:
+    - createdAt
+    - lastAccessedAt
+    - messageCount
+    - modelSnapshot
+    - revokedAt
+    - shareID
+    - status
+    - titleSnapshot
+    - updatedAt
     type: object
   internal_transport_http_conversation.ConversationShareResponseDoc:
     properties:
@@ -4223,6 +5881,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.ConversationShareResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.ConversationUpdateResponseDoc:
     properties:
@@ -4230,6 +5891,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.ConversationResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.CreateConversationProjectRequest:
     properties:
@@ -4294,6 +5958,10 @@ definitions:
         type: string
       quota:
         $ref: '#/definitions/internal_transport_http_conversation.StorageQuotaResponse'
+    required:
+    - deleted
+    - fileID
+    - quota
     type: object
   internal_transport_http_conversation.DeleteFileResponseDoc:
     properties:
@@ -4301,6 +5969,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.DeleteFileResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.ErrorDoc:
     properties:
@@ -4312,6 +5983,9 @@ definitions:
         type: string
       requestId:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.FileListResponse:
     properties:
@@ -4323,6 +5997,10 @@ definitions:
         type: array
       total:
         type: integer
+    required:
+    - quota
+    - results
+    - total
     type: object
   internal_transport_http_conversation.FileListResponseDoc:
     properties:
@@ -4330,6 +6008,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.FileListResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.FileObjectResponse:
     properties:
@@ -4345,6 +6026,8 @@ definitions:
         type: string
       expiresAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       extractStatus:
         type: string
       fileCategory:
@@ -4355,6 +6038,8 @@ definitions:
         type: string
       lastAccessedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       mimeType:
         type: string
       processingErrorCode:
@@ -4377,6 +6062,29 @@ definitions:
         type: string
       updatedAt:
         type: string
+    required:
+    - chunkCount
+    - createdAt
+    - detectedMIME
+    - embedError
+    - embedStatus
+    - expiresAt
+    - extractStatus
+    - fileCategory
+    - fileID
+    - fileName
+    - lastAccessedAt
+    - mimeType
+    - processingErrorCode
+    - processingErrorMessage
+    - processingReady
+    - processingStatus
+    - purpose
+    - ragOptOut
+    - sha256
+    - sizeBytes
+    - status
+    - updatedAt
     type: object
   internal_transport_http_conversation.FileUpdateResponseDoc:
     properties:
@@ -4384,6 +6092,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.FileObjectResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.FileUploadResponse:
     properties:
@@ -4393,6 +6104,10 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.StorageQuotaResponse'
       reused:
         type: boolean
+    required:
+    - file
+    - quota
+    - reused
     type: object
   internal_transport_http_conversation.MessageBillingCostResponse:
     properties:
@@ -4406,6 +6121,12 @@ definitions:
         type: string
       pricingSnapshotJSON:
         type: string
+    required:
+    - billedCurrency
+    - billedNanousd
+    - billedUSD
+    - billingMode
+    - pricingSnapshotJSON
     type: object
   internal_transport_http_conversation.MessageFeedbackResponse:
     properties:
@@ -4419,6 +6140,12 @@ definitions:
         type: integer
       thumbsUpCount:
         type: integer
+    required:
+    - messageID
+    - messagePublicID
+    - myFeedback
+    - thumbsDownCount
+    - thumbsUpCount
     type: object
   internal_transport_http_conversation.MessageFeedbackResponseDoc:
     properties:
@@ -4426,6 +6153,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.MessageFeedbackResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.MessageListResponseDoc:
     properties:
@@ -4437,9 +6167,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.MessageProcessTraceResponse:
     properties:
@@ -4459,6 +6195,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.MessageTraceBlockResponse'
       upstreamThink:
         $ref: '#/definitions/internal_transport_http_conversation.MessageTraceBlockResponse'
+    required:
+    - enabled
+    - status
     type: object
   internal_transport_http_conversation.MessagePromptTraceBlockResponse:
     properties:
@@ -4476,6 +6215,12 @@ definitions:
         type: string
       tokenEstimate:
         type: integer
+    required:
+    - cacheable
+    - kind
+    - sourceCount
+    - title
+    - tokenEstimate
     type: object
   internal_transport_http_conversation.MessagePromptTraceResponse:
     properties:
@@ -4503,6 +6248,18 @@ definitions:
         type: boolean
       totalTokenEstimate:
         type: integer
+    required:
+    - blocks
+    - fullMessageCount
+    - mode
+    - promptFingerprint
+    - sentMessageCount
+    - sentTokenEstimate
+    - statefulDisabledReason
+    - statefulSavedMessages
+    - statefulSavedTokens
+    - statefulUsed
+    - totalTokenEstimate
     type: object
   internal_transport_http_conversation.MessagePromptTraceSourceResponse:
     properties:
@@ -4514,6 +6271,10 @@ definitions:
         type: string
       title:
         type: string
+    required:
+    - sourceID
+    - sourceType
+    - title
     type: object
   internal_transport_http_conversation.MessageResponse:
     properties:
@@ -4537,6 +6298,8 @@ definitions:
         type: string
       editedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       errorCode:
         type: string
       errorMessage:
@@ -4557,6 +6320,8 @@ definitions:
         type: integer
       parentMessageID:
         type: integer
+        x-nullable: true
+        x-omitempty: false
       parentPublicID:
         type: string
       platformModelName:
@@ -4573,6 +6338,8 @@ definitions:
         type: string
       sourceMessageID:
         type: integer
+        x-nullable: true
+        x-omitempty: false
       sourcePublicID:
         type: string
       status:
@@ -4589,6 +6356,41 @@ definitions:
         type: string
       userID:
         type: integer
+    required:
+    - attachments
+    - branchReason
+    - cacheReadTokens
+    - cacheWriteTokens
+    - content
+    - contentType
+    - conversationID
+    - createdAt
+    - editedAt
+    - errorCode
+    - errorMessage
+    - id
+    - inputTokens
+    - latencyMS
+    - modelIcon
+    - modelVendor
+    - myFeedback
+    - outputTokens
+    - parentMessageID
+    - parentPublicID
+    - platformModelName
+    - publicID
+    - reasoningTokens
+    - role
+    - runID
+    - sourceMessageID
+    - sourcePublicID
+    - status
+    - thumbsDownCount
+    - thumbsUpCount
+    - tokenUsage
+    - updatedAt
+    - upstreamModelName
+    - userID
     type: object
   internal_transport_http_conversation.MessageResponseDoc:
     properties:
@@ -4596,6 +6398,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.MessageResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.MessageTraceBlockResponse:
     properties:
@@ -4617,6 +6422,12 @@ definitions:
         type: string
       updatedAt:
         type: string
+    required:
+    - contentMarkdown
+    - status
+    - summary
+    - title
+    - updatedAt
     type: object
   internal_transport_http_conversation.MessageTraceEventResponse:
     properties:
@@ -4650,6 +6461,17 @@ definitions:
         type: string
       updatedAt:
         type: string
+    required:
+    - contentMarkdown
+    - eventID
+    - eventType
+    - phase
+    - seq
+    - startedAt
+    - status
+    - summary
+    - title
+    - updatedAt
     type: object
   internal_transport_http_conversation.PublicSharedConversationResponse:
     properties:
@@ -4661,6 +6483,8 @@ definitions:
         type: array
       lastAccessedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       messages:
         items:
           $ref: '#/definitions/internal_transport_http_conversation.PublicSharedMessageResponse'
@@ -4671,6 +6495,14 @@ definitions:
         type: string
       title:
         type: string
+    required:
+    - createdAt
+    - defaultMessagePublicIDs
+    - lastAccessedAt
+    - messages
+    - model
+    - shareID
+    - title
     type: object
   internal_transport_http_conversation.PublicSharedConversationResponseDoc:
     properties:
@@ -4678,6 +6510,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.PublicSharedConversationResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.PublicSharedMessageResponse:
     properties:
@@ -4697,6 +6532,8 @@ definitions:
         type: string
       editedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       errorCode:
         type: string
       errorMessage:
@@ -4735,6 +6572,33 @@ definitions:
         type: string
       upstreamModelName:
         type: string
+    required:
+    - attachments
+    - branchReason
+    - cacheReadTokens
+    - cacheWriteTokens
+    - content
+    - contentType
+    - createdAt
+    - editedAt
+    - errorCode
+    - errorMessage
+    - inputTokens
+    - latencyMS
+    - modelIcon
+    - modelVendor
+    - outputTokens
+    - parentPublicID
+    - platformModelName
+    - publicID
+    - reasoningTokens
+    - role
+    - runID
+    - sourcePublicID
+    - status
+    - tokenUsage
+    - updatedAt
+    - upstreamModelName
     type: object
   internal_transport_http_conversation.RenameConversationRequest:
     properties:
@@ -4766,6 +6630,8 @@ definitions:
     properties:
       revoked:
         type: boolean
+    required:
+    - revoked
     type: object
   internal_transport_http_conversation.RevokeConversationSharesResponseDoc:
     properties:
@@ -4773,6 +6639,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.RevokeConversationSharesResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.RunResponse:
     properties:
@@ -4786,6 +6655,8 @@ definitions:
         type: string
       endedAt:
         type: string
+        x-nullable: true
+        x-omitempty: false
       endpoint:
         type: string
       errorCode:
@@ -4840,6 +6711,39 @@ definitions:
         type: string
       userID:
         type: integer
+    required:
+    - cacheReadTokens
+    - cacheWriteTokens
+    - conversationID
+    - createdAt
+    - endedAt
+    - endpoint
+    - errorCode
+    - errorMessage
+    - firstTokenLatencyMS
+    - id
+    - inputTokens
+    - modelIcon
+    - modelVendor
+    - outputTokens
+    - platformModelName
+    - provider
+    - providerProtocol
+    - reasoningTokens
+    - requestID
+    - requestedModelName
+    - routedBindingCode
+    - runID
+    - startedAt
+    - status
+    - taskType
+    - toolCallsCount
+    - totalLatencyMS
+    - updatedAt
+    - upstreamID
+    - upstreamModelID
+    - upstreamModelName
+    - userID
     type: object
   internal_transport_http_conversation.SendMessageRequest:
     properties:
@@ -4908,6 +6812,9 @@ definitions:
         type: string
       userMessage:
         $ref: '#/definitions/internal_transport_http_conversation.MessageResponse'
+    required:
+    - assistantMessage
+    - userMessage
     type: object
   internal_transport_http_conversation.SendMessageResponseDoc:
     properties:
@@ -4915,11 +6822,16 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.SendMessageResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_conversation.SetConversationArchiveRequest:
     properties:
       archived:
         type: boolean
+    required:
+    - archived
     type: object
   internal_transport_http_conversation.SetConversationProjectRequest:
     properties:
@@ -4931,6 +6843,8 @@ definitions:
     properties:
       starred:
         type: boolean
+    required:
+    - starred
     type: object
   internal_transport_http_conversation.SetMessageFeedbackRequest:
     properties:
@@ -4956,6 +6870,14 @@ definitions:
         type: integer
       userID:
         type: integer
+    required:
+    - createdAt
+    - id
+    - quotaBytes
+    - reservedBytes
+    - updatedAt
+    - usedBytes
+    - userID
     type: object
   internal_transport_http_conversation.UpdateConversationProjectRequest:
     properties:
@@ -5015,6 +6937,266 @@ definitions:
         $ref: '#/definitions/internal_transport_http_conversation.FileUploadResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  internal_transport_http_mcp.CreateServerRequest:
+    properties:
+      authToken:
+        type: string
+      baseURL:
+        type: string
+      headersJSON:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+    required:
+    - baseURL
+    - name
+    type: object
+  internal_transport_http_mcp.DeleteServerResponse:
+    properties:
+      deleted:
+        type: boolean
+    required:
+    - deleted
+    type: object
+  internal_transport_http_mcp.DeleteServerResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_mcp.DeleteServerResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  internal_transport_http_mcp.ErrorDoc:
+    properties:
+      errorMsg:
+        type: string
+    required:
+    - errorMsg
+    type: object
+  internal_transport_http_mcp.ReorderServerOrderItem:
+    properties:
+      serverID:
+        type: integer
+      toolIDs:
+        items:
+          type: integer
+        type: array
+    required:
+    - serverID
+    - toolIDs
+    type: object
+  internal_transport_http_mcp.ReorderServersRequest:
+    properties:
+      servers:
+        items:
+          $ref: '#/definitions/internal_transport_http_mcp.ReorderServerOrderItem'
+        type: array
+    required:
+    - servers
+    type: object
+  internal_transport_http_mcp.ServerDataResponse:
+    properties:
+      server:
+        $ref: '#/definitions/internal_transport_http_mcp.ServerResponse'
+    required:
+    - server
+    type: object
+  internal_transport_http_mcp.ServerDataResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_mcp.ServerDataResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  internal_transport_http_mcp.ServerListResponse:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/internal_transport_http_mcp.ServerResponse'
+        type: array
+    required:
+    - results
+    type: object
+  internal_transport_http_mcp.ServerListResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_mcp.ServerListResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  internal_transport_http_mcp.ServerResponse:
+    properties:
+      activeToolCount:
+        type: integer
+      baseURL:
+        type: string
+      createdAt:
+        type: string
+      headersJSON:
+        type: string
+      id:
+        type: integer
+      lastError:
+        type: string
+      lastSyncedAt:
+        type: string
+        x-nullable: true
+        x-omitempty: false
+      name:
+        type: string
+      sortOrder:
+        type: integer
+      status:
+        type: string
+      toolCount:
+        type: integer
+      updatedAt:
+        type: string
+    required:
+    - activeToolCount
+    - baseURL
+    - createdAt
+    - headersJSON
+    - id
+    - lastError
+    - lastSyncedAt
+    - name
+    - sortOrder
+    - status
+    - toolCount
+    - updatedAt
+    type: object
+  internal_transport_http_mcp.ServerToolOrderListResponse:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/internal_transport_http_mcp.ServerToolOrderResponse'
+        type: array
+    required:
+    - results
+    type: object
+  internal_transport_http_mcp.ServerToolOrderListResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_mcp.ServerToolOrderListResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  internal_transport_http_mcp.ServerToolOrderResponse:
+    properties:
+      server:
+        $ref: '#/definitions/internal_transport_http_mcp.ServerResponse'
+      tools:
+        items:
+          $ref: '#/definitions/internal_transport_http_mcp.ToolResponse'
+        type: array
+    required:
+    - server
+    - tools
+    type: object
+  internal_transport_http_mcp.ToolListResponse:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/internal_transport_http_mcp.ToolResponse'
+        type: array
+    required:
+    - results
+    type: object
+  internal_transport_http_mcp.ToolListResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_mcp.ToolListResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  internal_transport_http_mcp.ToolResponse:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      displayName:
+        type: string
+      id:
+        type: integer
+      inputSchemaJSON:
+        type: string
+      name:
+        type: string
+      serverID:
+        type: integer
+      serverName:
+        type: string
+      sortOrder:
+        type: integer
+      status:
+        type: string
+      updatedAt:
+        type: string
+    required:
+    - createdAt
+    - description
+    - displayName
+    - id
+    - inputSchemaJSON
+    - name
+    - serverID
+    - serverName
+    - sortOrder
+    - status
+    - updatedAt
+    type: object
+  internal_transport_http_mcp.ToolResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/internal_transport_http_mcp.ToolResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  internal_transport_http_mcp.UpdateServerToolsStatusRequest:
+    properties:
+      status:
+        type: string
+      toolIDs:
+        items:
+          type: integer
+        type: array
+    required:
+    - status
+    - toolIDs
+    type: object
+  internal_transport_http_mcp.UpdateToolRequest:
+    properties:
+      description:
+        type: string
+      displayName:
+        type: string
+      status:
+        type: string
     type: object
   internal_transport_http_memory.ErrorDoc:
     properties:
@@ -5026,11 +7208,16 @@ definitions:
         type: string
       requestId:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_memory.UpsertMemoryResponse:
     properties:
       saved:
         type: boolean
+    required:
+    - saved
     type: object
   internal_transport_http_memory.UpsertUserMemoryRequest:
     properties:
@@ -5057,6 +7244,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_memory.UpsertMemoryResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_memory.UserMemoryListResponseDoc:
     properties:
@@ -5066,6 +7256,9 @@ definitions:
         type: array
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_memory.UserMemoryResponse:
     properties:
@@ -5085,11 +7278,22 @@ definitions:
         type: integer
       value:
         type: string
+    required:
+    - createdAt
+    - id
+    - memoryKey
+    - scope
+    - updatedAt
+    - updatedBy
+    - userID
+    - value
     type: object
   internal_transport_http_promptpreset.ErrorDoc:
     properties:
       errorMsg:
         type: string
+    required:
+    - errorMsg
     type: object
   internal_transport_http_promptpreset.PatchPromptPresetRequest:
     properties:
@@ -5114,11 +7318,15 @@ definitions:
     properties:
       promptPreset:
         $ref: '#/definitions/internal_transport_http_promptpreset.PromptPresetResponse'
+    required:
+    - promptPreset
     type: object
   internal_transport_http_promptpreset.PromptPresetDeleteDataResponse:
     properties:
       deleted:
         type: boolean
+    required:
+    - deleted
     type: object
   internal_transport_http_promptpreset.PromptPresetDeleteResponseDoc:
     properties:
@@ -5126,6 +7334,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_promptpreset.PromptPresetDeleteDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_promptpreset.PromptPresetPageResponseDoc:
     properties:
@@ -5137,9 +7348,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_promptpreset.PromptPresetResponse:
     properties:
@@ -5167,6 +7384,19 @@ definitions:
         type: string
       updatedByUserID:
         type: integer
+    required:
+    - content
+    - createdAt
+    - createdByUserID
+    - description
+    - enabled
+    - id
+    - scope
+    - sortOrder
+    - title
+    - trigger
+    - updatedAt
+    - updatedByUserID
     type: object
   internal_transport_http_promptpreset.PromptPresetResponseDoc:
     properties:
@@ -5174,6 +7404,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_promptpreset.PromptPresetDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_promptpreset.WritePromptPresetRequest:
     properties:
@@ -5208,6 +7441,11 @@ definitions:
         type: string
       type:
         type: string
+    required:
+    - purpose
+    - sizes
+    - src
+    - type
     type: object
   internal_transport_http_settings.BrandingManifestResponse:
     properties:
@@ -5241,6 +7479,20 @@ definitions:
         type: string
       theme_color:
         type: string
+    required:
+    - background_color
+    - categories
+    - description
+    - display
+    - icons
+    - id
+    - lang
+    - name
+    - orientation
+    - scope
+    - short_name
+    - start_url
+    - theme_color
     type: object
   internal_transport_http_settings.BrandingResponse:
     properties:
@@ -5262,6 +7514,16 @@ definitions:
         type: string
       title:
         type: string
+    required:
+    - appleTouchIcon180URL
+    - description
+    - faviconURL
+    - logoURL
+    - pwaIcon192URL
+    - pwaIcon512URL
+    - pwaMaskableIcon512URL
+    - shortName
+    - title
     type: object
   internal_transport_http_settings.BrandingResponseDoc:
     properties:
@@ -5269,6 +7531,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_settings.BrandingResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_settings.PatchItem:
     properties:
@@ -5298,6 +7563,8 @@ definitions:
     properties:
       errorMsg:
         type: string
+    required:
+    - errorMsg
     type: object
   internal_transport_http_skill.PatchSkillRequest:
     properties:
@@ -5322,11 +7589,15 @@ definitions:
     properties:
       skill:
         $ref: '#/definitions/internal_transport_http_skill.SkillResponse'
+    required:
+    - skill
     type: object
   internal_transport_http_skill.SkillDeleteDataResponse:
     properties:
       deleted:
         type: boolean
+    required:
+    - deleted
     type: object
   internal_transport_http_skill.SkillDeleteResponseDoc:
     properties:
@@ -5334,6 +7605,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_skill.SkillDeleteDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_skill.SkillPageResponseDoc:
     properties:
@@ -5345,9 +7619,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_skill.SkillResponse:
     properties:
@@ -5375,6 +7655,19 @@ definitions:
         type: string
       updatedByUserID:
         type: integer
+    required:
+    - createdAt
+    - createdByUserID
+    - description
+    - enabled
+    - id
+    - markdown
+    - scope
+    - sortOrder
+    - title
+    - trigger
+    - updatedAt
+    - updatedByUserID
     type: object
   internal_transport_http_skill.SkillResponseDoc:
     properties:
@@ -5382,6 +7675,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_skill.SkillDataResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_skill.SkillSummaryPageResponseDoc:
     properties:
@@ -5393,9 +7689,15 @@ definitions:
             type: array
           total:
             type: integer
+        required:
+        - results
+        - total
         type: object
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
   internal_transport_http_skill.SkillSummaryResponse:
     properties:
@@ -5417,6 +7719,16 @@ definitions:
         type: string
       updatedAt:
         type: string
+    required:
+    - createdAt
+    - description
+    - enabled
+    - id
+    - scope
+    - sortOrder
+    - title
+    - trigger
+    - updatedAt
     type: object
   internal_transport_http_skill.WriteSkillRequest:
     properties:
@@ -5456,6 +7768,8 @@ definitions:
         additionalProperties:
           type: string
         type: object
+    required:
+    - settings
     type: object
   internal_transport_http_usersettings.UserSettingsResponseDoc:
     properties:
@@ -5463,6 +7777,9 @@ definitions:
         $ref: '#/definitions/internal_transport_http_usersettings.UserSettingsResponse'
       errorMsg:
         type: string
+    required:
+    - data
+    - errorMsg
     type: object
 info:
   contact: {}
@@ -5680,6 +7997,153 @@ paths:
       summary: 管理员查询审计日志
       tags:
       - admin
+  /admin/auth/provider-order:
+    patch:
+      consumes:
+      - application/json
+      description: 管理员保存第三方身份源的展示顺序
+      parameters:
+      - description: 身份源顺序
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_auth.ReorderIdentityProvidersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.IdentityProviderReorderResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 调整第三方身份源顺序
+      tags:
+      - admin-auth
+  /admin/auth/providers:
+    get:
+      description: 管理员查看已配置的 OIDC 和 OAuth2 身份源
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.IdentityProviderListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 获取第三方身份源列表
+      tags:
+      - admin-auth
+    post:
+      consumes:
+      - application/json
+      description: 管理员创建一个 OIDC 或 OAuth2 身份源
+      parameters:
+      - description: 身份源配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_auth.UpsertIdentityProviderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.IdentityProviderResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 创建第三方身份源
+      tags:
+      - admin-auth
+  /admin/auth/providers/{provider_id}:
+    delete:
+      description: 管理员删除第三方身份源；force=true 时允许删除仍有关联用户的身份源
+      parameters:
+      - description: 身份源 ID
+        in: path
+        name: provider_id
+        required: true
+        type: string
+      - description: 是否强制删除
+        in: query
+        name: force
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.IdentityProviderDeleteResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 删除第三方身份源
+      tags:
+      - admin-auth
+    patch:
+      consumes:
+      - application/json
+      description: 管理员更新一个 OIDC 或 OAuth2 身份源
+      parameters:
+      - description: 身份源 ID
+        in: path
+        name: provider_id
+        required: true
+        type: string
+      - description: 身份源配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_auth.UpsertIdentityProviderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.IdentityProviderResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_transport_http_auth.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 更新第三方身份源
+      tags:
+      - admin-auth
   /admin/billing/accounts/{user_id}/balance:
     patch:
       consumes:
@@ -7566,6 +10030,285 @@ paths:
       summary: 管理员清理日志
       tags:
       - admin
+  /admin/mcp/servers:
+    get:
+      description: 管理员查看已配置的 MCP 服务及其工具统计
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ServerListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 获取 MCP 服务列表
+      tags:
+      - admin-mcp
+    post:
+      consumes:
+      - application/json
+      description: 管理员创建一个 MCP 服务配置
+      parameters:
+      - description: MCP 服务配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_mcp.CreateServerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ServerDataResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 创建 MCP 服务
+      tags:
+      - admin-mcp
+  /admin/mcp/servers/{id}:
+    delete:
+      description: 管理员删除一个 MCP 服务及其工具
+      parameters:
+      - description: MCP 服务 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.DeleteServerResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 删除 MCP 服务
+      tags:
+      - admin-mcp
+    patch:
+      consumes:
+      - application/json
+      description: 管理员更新一个 MCP 服务配置
+      parameters:
+      - description: MCP 服务 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: MCP 服务配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_mcp.CreateServerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ServerDataResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 更新 MCP 服务
+      tags:
+      - admin-mcp
+  /admin/mcp/servers/{id}/sync:
+    post:
+      description: 管理员从 MCP 服务同步工具定义
+      parameters:
+      - description: MCP 服务 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ToolListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 同步 MCP 工具
+      tags:
+      - admin-mcp
+  /admin/mcp/servers/{id}/tools:
+    get:
+      description: 管理员查看指定 MCP 服务已同步的工具
+      parameters:
+      - description: MCP 服务 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ToolListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 获取 MCP 服务工具
+      tags:
+      - admin-mcp
+  /admin/mcp/servers/{id}/tools/status:
+    patch:
+      consumes:
+      - application/json
+      description: 管理员批量启用或停用指定 MCP 服务的工具
+      parameters:
+      - description: MCP 服务 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: MCP 工具状态
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_mcp.UpdateServerToolsStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ToolListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 批量更新 MCP 工具状态
+      tags:
+      - admin-mcp
+  /admin/mcp/servers/order:
+    patch:
+      consumes:
+      - application/json
+      description: 管理员保存 MCP 服务及其工具的展示顺序
+      parameters:
+      - description: MCP 排序配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_mcp.ReorderServersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ServerToolOrderListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 调整 MCP 服务及工具顺序
+      tags:
+      - admin-mcp
+  /admin/mcp/tools/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: 管理员更新 MCP 工具的展示信息或状态
+      parameters:
+      - description: MCP 工具 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: MCP 工具配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_mcp.UpdateToolRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ToolResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 更新 MCP 工具
+      tags:
+      - admin-mcp
   /admin/models/{modelID}/permission-groups:
     get:
       consumes:
@@ -11056,6 +13799,25 @@ paths:
       summary: 获取文件内容
       tags:
       - chat
+  /mcp/tools:
+    get:
+      description: 获取当前聊天侧可选择的 MCP 工具
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ToolListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_transport_http_mcp.ErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 获取可用 MCP 工具
+      tags:
+      - mcp
   /me:
     delete:
       consumes:

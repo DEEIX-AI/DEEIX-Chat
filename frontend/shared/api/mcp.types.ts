@@ -1,17 +1,5 @@
-export type MCPToolDTO = {
-  id: number;
-  serverID: number;
-  serverName: string;
-  name: string;
-  displayName: string;
-  description: string;
-  inputSchemaJSON: string;
-  status: string;
-  sortOrder: number;
-  createdAt: string;
-  updatedAt: string;
-};
+import type { ToolListResponse, ToolResponse } from "@deeix/api-contract";
 
-export type MCPToolListResponse = {
-  results: MCPToolDTO[];
-};
+export type MCPToolDTO = ToolResponse;
+
+export type MCPToolListResponse = ToolListResponse;

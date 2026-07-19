@@ -65,7 +65,7 @@ export type AdminLLMModelCbPolicyMode = "default" | "enforced";
 // ---------------------------------------------------------------------------
 
 export type AdminLLMUpstreamView = Omit<
-  Required<UpstreamResponse>,
+  UpstreamResponse,
   "apiKeyItems" | "cbThresholdLogic" | "compatible" | "status"
 > & {
   compatible: AdminLLMCompatible | "";
@@ -74,10 +74,10 @@ export type AdminLLMUpstreamView = Omit<
   cbThresholdLogic: AdminLLMCbLogic;
 };
 
-export type AdminLLMUpstreamAPIKey = Required<UpstreamAPIKeyResponse>;
+export type AdminLLMUpstreamAPIKey = UpstreamAPIKeyResponse;
 
 export type AdminLLMModelDTO = Omit<
-  Required<ModelResponse>,
+  ModelResponse,
   "accessScope" | "cbPolicyMode" | "status" | "vendor"
 > & {
   vendor: AdminLLMModelVendor;
@@ -87,7 +87,7 @@ export type AdminLLMModelDTO = Omit<
 };
 
 export type AdminLLMUpstreamModelDTO = Omit<
-  Required<UpstreamModelResponse>,
+  UpstreamModelResponse,
   "modelVendor" | "protocol" | "routeStatus" | "suggestedProtocol" | "upstreamModelStatus" | "upstreamModelVendor"
 > & {
   modelVendor: AdminLLMModelVendor;
@@ -99,7 +99,7 @@ export type AdminLLMUpstreamModelDTO = Omit<
 };
 
 export type AdminLLMModelUpstreamSourceDTO = Omit<
-  Required<ModelUpstreamSourceResponse>,
+  ModelUpstreamSourceResponse,
   | "circuitScope"
   | "protocol"
   | "status"
@@ -129,39 +129,12 @@ export type AdminLLMUpstreamHealthView = {
   lastSuccessAt: string;
 };
 
-export type AdminLLMModelProbeDebug = Omit<Required<ModelProbeDebugResponse>, "request" | "response"> & {
-  request: Required<Omit<ModelProbeDebugRequestResponse, "headers">> &
-    Pick<ModelProbeDebugRequestResponse, "headers">;
-  response: Required<Omit<ModelProbeDebugResponseResponse, "headers">> &
-    Pick<ModelProbeDebugResponseResponse, "headers">;
+export type AdminLLMModelProbeDebug = Omit<ModelProbeDebugResponse, "request" | "response"> & {
+  request: ModelProbeDebugRequestResponse;
+  response: ModelProbeDebugResponseResponse;
 };
 
-export type AdminLLMModelProbeResult = Required<
-  Pick<
-    ModelProbeResponse,
-    | "bindingCode"
-    | "endpoint"
-    | "latencyMS"
-    | "platformModelID"
-    | "platformModelName"
-    | "routeID"
-    | "status"
-    | "success"
-  >
-> &
-  Omit<
-    ModelProbeResponse,
-    | "bindingCode"
-    | "debug"
-    | "endpoint"
-    | "latencyMS"
-    | "platformModelID"
-    | "platformModelName"
-    | "protocol"
-    | "routeID"
-    | "status"
-    | "success"
-  > & {
+export type AdminLLMModelProbeResult = Omit<ModelProbeResponse, "debug" | "protocol" | "status"> & {
   status: "success" | "failed" | "unsupported";
   protocol: AdminLLMAdapter | "";
   upstreamID: number;
@@ -172,12 +145,12 @@ export type AdminLLMModelProbeResult = Required<
   debug?: AdminLLMModelProbeDebug;
 };
 
-export type AdminLLMModelProbeBatchResult = Omit<Required<ModelProbeBatchResponse>, "results"> & {
+export type AdminLLMModelProbeBatchResult = Omit<ModelProbeBatchResponse, "results"> & {
   results: AdminLLMModelProbeResult[];
 };
 
 export type AdminLLMRemoteModelItem = Omit<
-  Required<UpstreamRemoteModelResponse>,
+  UpstreamRemoteModelResponse,
   "suggestedProtocol" | "suggestedProtocols" | "upstreamModelStatus"
 > & {
   suggestedProtocol: AdminLLMAdapter | "";
@@ -277,34 +250,34 @@ export type AdminBatchDeleteRequest = BatchDeleteRequest;
 // Response data wrappers
 // ---------------------------------------------------------------------------
 
-export type AdminLLMUpstreamData = Omit<Required<UpstreamDataResponse>, "upstream"> & {
+export type AdminLLMUpstreamData = Omit<UpstreamDataResponse, "upstream"> & {
   upstream: AdminLLMUpstreamView;
 };
 
-export type AdminLLMModelData = Omit<Required<ModelDataResponse>, "model"> & {
+export type AdminLLMModelData = Omit<ModelDataResponse, "model"> & {
   model: AdminLLMModelDTO;
 };
 
-export type AdminLLMUpstreamModelData = Omit<Required<UpstreamModelDataResponse>, "binding"> & {
+export type AdminLLMUpstreamModelData = Omit<UpstreamModelDataResponse, "binding"> & {
   binding: AdminLLMUpstreamModelDTO;
 };
 
-export type AdminLLMModelUpstreamSourceData = Omit<Required<ModelUpstreamSourceDataResponse>, "source"> & {
+export type AdminLLMModelUpstreamSourceData = Omit<ModelUpstreamSourceDataResponse, "source"> & {
   source: AdminLLMModelUpstreamSourceDTO;
 };
 
 export type AdminLLMModelProbeData = AdminLLMModelProbeResult;
 export type AdminLLMModelProbeBatchData = AdminLLMModelProbeBatchResult;
 
-export type ResetAdminLLMCircuitData = Required<CircuitResetResponse>;
+export type ResetAdminLLMCircuitData = CircuitResetResponse;
 
-export type ListAdminLLMRemoteModelsData = Omit<Required<UpstreamRemoteModelsResponse>, "items"> & {
+export type ListAdminLLMRemoteModelsData = Omit<UpstreamRemoteModelsResponse, "items"> & {
   items: AdminLLMRemoteModelItem[];
 };
 
-export type ImportAdminLLMUpstreamModelsData = Omit<Required<ImportUpstreamModelsResponse>, "results"> & {
+export type ImportAdminLLMUpstreamModelsData = Omit<ImportUpstreamModelsResponse, "results"> & {
   results: Array<
-    Omit<Required<ImportUpstreamModelsResponse["results"]>[number], "error" | "protocols" | "status"> & {
+    Omit<ImportUpstreamModelsResponse["results"][number], "error" | "protocols" | "status"> & {
       status: "created" | "existing" | "failed";
       protocols: AdminLLMAdapter[];
       error?: string;
@@ -312,12 +285,12 @@ export type ImportAdminLLMUpstreamModelsData = Omit<Required<ImportUpstreamModel
   >;
 };
 
-export type AdminBatchDeleteResult = Omit<Required<BatchDeleteResultResponse>, "error" | "status"> & {
+export type AdminBatchDeleteResult = Omit<BatchDeleteResultResponse, "error" | "status"> & {
   status: AdminBatchDeleteStatus;
   error?: string;
 };
 
-export type AdminBatchDeleteData = Omit<Required<BatchDeleteResponse>, "results"> & {
+export type AdminBatchDeleteData = Omit<BatchDeleteResponse, "results"> & {
   results: AdminBatchDeleteResult[];
 };
 

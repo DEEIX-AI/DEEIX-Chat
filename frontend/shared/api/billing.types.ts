@@ -23,35 +23,29 @@ import type {
   UsageMonthlyResponse,
 } from "@deeix/api-contract";
 
-export type BillingPlanPriceDTO = Required<BillingPriceResponse>;
+export type BillingPlanPriceDTO = BillingPriceResponse;
 
-export type BillingPlanDTO = Omit<Required<BillingPlanResponse>, "permissionGroupID" | "prices"> & {
+export type BillingPlanDTO = Omit<BillingPlanResponse, "permissionGroupID" | "prices"> & {
   prices: BillingPlanPriceDTO[];
 };
 
 export type CreateCheckoutRequest = ContractCreateCheckoutRequest;
 
-export type CheckoutDTO = Omit<Required<CheckoutResponse>, "expiredAt"> & {
-  expiredAt: string | null;
-};
+export type CheckoutDTO = CheckoutResponse;
 
-export type CheckoutData = Omit<Required<CheckoutDataResponse>, "checkout"> & {
+export type CheckoutData = Omit<CheckoutDataResponse, "checkout"> & {
   checkout: CheckoutDTO;
 };
 
 export type BillingMode = "self" | "period" | "usage";
 
-export type NativeToolPricingDTO = Required<
-  Pick<NativeToolPricingResponse, "billable" | "priceLabel" | "priceNanousd" | "provider" | "toolKey" | "unit">
+export type NativeToolPricingDTO = Pick<
+  NativeToolPricingResponse,
+  "billable" | "priceLabel" | "priceNanousd" | "provider" | "toolKey" | "unit"
 >;
 
-export type BillingConfigData = Omit<Required<BillingConfigDataResponse>, "config"> & {
-  config: Required<
-    Pick<
-      BillingConfigResponse,
-      "nativeToolBillingEnabled" | "usdToCNYRate"
-    >
-  > & {
+export type BillingConfigData = Omit<BillingConfigDataResponse, "config"> & {
+  config: Pick<BillingConfigResponse, "nativeToolBillingEnabled" | "usdToCNYRate"> & {
     mode: BillingMode;
     nativeToolPricing: NativeToolPricingDTO[];
     paymentProviders: Array<"stripe" | "epay" | string>;
@@ -60,13 +54,13 @@ export type BillingConfigData = Omit<Required<BillingConfigDataResponse>, "confi
   };
 };
 
-export type BillingAccountData = Omit<Required<BillingAccountDataResponse>, "account"> & {
-  account: Required<BillingAccountResponse>;
+export type BillingAccountData = Omit<BillingAccountDataResponse, "account"> & {
+  account: BillingAccountResponse;
 };
 
-export type BillingOverviewData = Omit<Required<BillingOverviewDataResponse>, "overview"> & {
+export type BillingOverviewData = Omit<BillingOverviewDataResponse, "overview"> & {
   overview: Omit<
-    Required<BillingOverviewResponse>,
+    BillingOverviewResponse,
     "account" | "periodEndAt" | "periodStartAt" | "plan" | "subscriptionEntitlements"
   > & {
     mode: BillingMode;
@@ -78,24 +72,21 @@ export type BillingOverviewData = Omit<Required<BillingOverviewDataResponse>, "o
   };
 };
 
-export type BillingSubscriptionDTO = Omit<Required<SubscriptionResponse>, "currentPeriodEndAt"> & {
-  currentPeriodEndAt: string | null;
-};
+export type BillingSubscriptionDTO = SubscriptionResponse;
 
 export type BillingSubscriptionEntitlementDTO = Omit<
-  Required<SubscriptionEntitlementResponse>,
-  "currentPeriodEndAt" | "plan"
+  SubscriptionEntitlementResponse,
+  "plan"
 > & {
-  currentPeriodEndAt: string | null;
   plan: BillingPlanDTO;
 };
 
 export type RedeemBillingCodeRequest = RedeemCodeRequest;
 
-export type BillingRedemptionDTO = Required<RedemptionResponse>;
+export type BillingRedemptionDTO = RedemptionResponse;
 
 export type RedeemBillingCodeData = Omit<
-  Required<RedemptionApplyDataResponse>,
+  RedemptionApplyDataResponse,
   "account" | "overview" | "redemption" | "subscription"
 > & {
   redemption: BillingRedemptionDTO;
@@ -104,16 +95,16 @@ export type RedeemBillingCodeData = Omit<
   overview: BillingOverviewData["overview"];
 };
 
-export type BillingUsageLedgerDTO = Required<Omit<UsageLedgerResponse, "billingAt">>;
+export type BillingUsageLedgerDTO = Omit<UsageLedgerResponse, "billingAt">;
 
-export type BillingUsageMonthlyDTO = Required<UsageMonthlyResponse>;
+export type BillingUsageMonthlyDTO = UsageMonthlyResponse;
 
-export type BillingUsageDailyDTO = Omit<Required<UsageDailyResponse>, "models"> & {
+export type BillingUsageDailyDTO = Omit<UsageDailyResponse, "models"> & {
   models: BillingUsageDailyModelDTO[];
 };
 
-export type BillingUsageDailyModelDTO = Required<UsageDailyModelResponse>;
+export type BillingUsageDailyModelDTO = UsageDailyModelResponse;
 
-export type SubscribeData = Omit<Required<SubscriptionDataResponse>, "subscription"> & {
+export type SubscribeData = Omit<SubscriptionDataResponse, "subscription"> & {
   subscription: Pick<BillingSubscriptionDTO, "id" | "planID" | "priceID" | "status">;
 };

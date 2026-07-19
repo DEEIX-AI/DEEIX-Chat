@@ -11,18 +11,12 @@ export type AdminAnnouncementDTO = AnnouncementDTO;
 
 export type AdminAnnouncementPage = PagePayload<AdminAnnouncementDTO>;
 
-export type CreateAdminAnnouncementRequest = Omit<CreateAnnouncementRequest, "expiresAt" | "startsAt"> & {
-  startsAt?: string | null;
-  expiresAt?: string | null;
-};
+export type CreateAdminAnnouncementRequest = CreateAnnouncementRequest;
 
-export type UpdateAdminAnnouncementRequest = Omit<PatchAnnouncementRequestDoc, "expiresAt" | "startsAt"> & {
-  startsAt?: string | null;
-  expiresAt?: string | null;
-};
+export type UpdateAdminAnnouncementRequest = PatchAnnouncementRequestDoc;
 
-export type AdminAnnouncementData = Omit<Required<AnnouncementDataResponse>, "announcement"> & {
+export type AdminAnnouncementData = Omit<AnnouncementDataResponse, "announcement"> & {
   announcement: AdminAnnouncementDTO;
 };
 
-export type AdminAnnouncementDeleteData = Required<AnnouncementDeleteDataResponse>;
+export type AdminAnnouncementDeleteData = AnnouncementDeleteDataResponse;

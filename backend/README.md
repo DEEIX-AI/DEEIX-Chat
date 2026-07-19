@@ -312,6 +312,8 @@ go mod tidy
 make swagger
 ```
 
+该命令会使用 `backend/go.mod` 中锁定的 `swag` 版本，并同时更新 Swagger 与前端 TypeScript API 合同。
+
 ## 提交前验证
 
 ```bash

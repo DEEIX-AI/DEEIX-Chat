@@ -49,20 +49,20 @@ type SkillDeleteDataResponse struct {
 type WriteSkillRequest struct {
 	Title       string `json:"title" binding:"required,max=64"`
 	Trigger     string `json:"trigger" binding:"required,max=64"`
-	Description string `json:"description" binding:"max=256"`
+	Description string `json:"description,omitempty" binding:"max=256"`
 	Markdown    string `json:"markdown" binding:"required,max=10000"`
-	Enabled     bool   `json:"enabled"`
-	SortOrder   int    `json:"sortOrder"`
+	Enabled     bool   `json:"enabled,omitempty"`
+	SortOrder   int    `json:"sortOrder,omitempty"`
 }
 
 // PatchSkillRequest 表示更新技能请求。
 type PatchSkillRequest struct {
-	Title       *string `json:"title" binding:"omitempty,max=64"`
-	Trigger     *string `json:"trigger" binding:"omitempty,max=64"`
-	Description *string `json:"description" binding:"omitempty,max=256"`
-	Markdown    *string `json:"markdown" binding:"omitempty,max=10000"`
-	Enabled     *bool   `json:"enabled"`
-	SortOrder   *int    `json:"sortOrder"`
+	Title       *string `json:"title,omitempty" binding:"omitempty,max=64"`
+	Trigger     *string `json:"trigger,omitempty" binding:"omitempty,max=64"`
+	Description *string `json:"description,omitempty" binding:"omitempty,max=256"`
+	Markdown    *string `json:"markdown,omitempty" binding:"omitempty,max=10000"`
+	Enabled     *bool   `json:"enabled,omitempty"`
+	SortOrder   *int    `json:"sortOrder,omitempty"`
 }
 
 // SkillSummaryPageResponseDoc 用于 Swagger 展示技能发现分页响应。

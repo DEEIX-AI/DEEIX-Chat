@@ -343,6 +343,239 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/auth/provider-order": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员保存第三方身份源的展示顺序",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-auth"
+                ],
+                "summary": "调整第三方身份源顺序",
+                "parameters": [
+                    {
+                        "description": "身份源顺序",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.ReorderIdentityProvidersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.IdentityProviderReorderResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.ErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/auth/providers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员查看已配置的 OIDC 和 OAuth2 身份源",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-auth"
+                ],
+                "summary": "获取第三方身份源列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.IdentityProviderListResponseDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.ErrorDoc"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员创建一个 OIDC 或 OAuth2 身份源",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-auth"
+                ],
+                "summary": "创建第三方身份源",
+                "parameters": [
+                    {
+                        "description": "身份源配置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.UpsertIdentityProviderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.IdentityProviderResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.ErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.ErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/auth/providers/{provider_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员删除第三方身份源；force=true 时允许删除仍有关联用户的身份源",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-auth"
+                ],
+                "summary": "删除第三方身份源",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "身份源 ID",
+                        "name": "provider_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "是否强制删除",
+                        "name": "force",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.IdentityProviderDeleteResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.ErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.ErrorDoc"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员更新一个 OIDC 或 OAuth2 身份源",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-auth"
+                ],
+                "summary": "更新第三方身份源",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "身份源 ID",
+                        "name": "provider_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "身份源配置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.UpsertIdentityProviderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.IdentityProviderResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.ErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_auth.ErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/billing/accounts/{user_id}/balance": {
             "patch": {
                 "security": [
@@ -3291,6 +3524,447 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/internal_transport_http_admin.ErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/mcp/servers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员查看已配置的 MCP 服务及其工具统计",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-mcp"
+                ],
+                "summary": "获取 MCP 服务列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ServerListResponseDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员创建一个 MCP 服务配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-mcp"
+                ],
+                "summary": "创建 MCP 服务",
+                "parameters": [
+                    {
+                        "description": "MCP 服务配置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.CreateServerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ServerDataResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/mcp/servers/order": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员保存 MCP 服务及其工具的展示顺序",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-mcp"
+                ],
+                "summary": "调整 MCP 服务及工具顺序",
+                "parameters": [
+                    {
+                        "description": "MCP 排序配置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ReorderServersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ServerToolOrderListResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/mcp/servers/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员删除一个 MCP 服务及其工具",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-mcp"
+                ],
+                "summary": "删除 MCP 服务",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "MCP 服务 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.DeleteServerResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员更新一个 MCP 服务配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-mcp"
+                ],
+                "summary": "更新 MCP 服务",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "MCP 服务 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "MCP 服务配置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.CreateServerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ServerDataResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/mcp/servers/{id}/sync": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员从 MCP 服务同步工具定义",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-mcp"
+                ],
+                "summary": "同步 MCP 工具",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "MCP 服务 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ToolListResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/mcp/servers/{id}/tools": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员查看指定 MCP 服务已同步的工具",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-mcp"
+                ],
+                "summary": "获取 MCP 服务工具",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "MCP 服务 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ToolListResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/mcp/servers/{id}/tools/status": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员批量启用或停用指定 MCP 服务的工具",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-mcp"
+                ],
+                "summary": "批量更新 MCP 工具状态",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "MCP 服务 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "MCP 工具状态",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.UpdateServerToolsStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ToolListResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/mcp/tools/{id}": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员更新 MCP 工具的展示信息或状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-mcp"
+                ],
+                "summary": "更新 MCP 工具",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "MCP 工具 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "MCP 工具配置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.UpdateToolRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ToolResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
                         }
                     }
                 }
@@ -8803,6 +9477,37 @@ const docTemplate = `{
                 }
             }
         },
+        "/mcp/tools": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取当前聊天侧可选择的 MCP 工具",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mcp"
+                ],
+                "summary": "获取可用 MCP 工具",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ToolListResponseDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_mcp.ErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/me": {
             "get": {
                 "security": [
@@ -10400,6 +11105,10 @@ const docTemplate = `{
     "definitions": {
         "github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.Envelope": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {},
                 "details": {},
@@ -10416,6 +11125,10 @@ const docTemplate = `{
         },
         "github_com_DEEIX-AI_DEEIX-Chat_backend_internal_shared_response.SuccessDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {},
                 "details": {},
@@ -10435,9 +11148,17 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.AuditLogListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -10457,6 +11178,22 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.AuditLogResponse": {
             "type": "object",
+            "required": [
+                "action",
+                "actorDisplayName",
+                "actorLabel",
+                "actorUserID",
+                "actorUsername",
+                "createdAt",
+                "detailJSON",
+                "id",
+                "ip",
+                "requestID",
+                "resource",
+                "resourceID",
+                "updatedAt",
+                "userAgent"
+            ],
             "properties": {
                 "action": {
                     "type": "string"
@@ -10504,6 +11241,23 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.AuthEventResponse": {
             "type": "object",
+            "required": [
+                "clientIP",
+                "createdAt",
+                "detailJSON",
+                "eventType",
+                "id",
+                "occurredAt",
+                "reason",
+                "requestID",
+                "result",
+                "updatedAt",
+                "userAgent",
+                "userDisplayName",
+                "userID",
+                "userLabel",
+                "username"
+            ],
             "properties": {
                 "clientIP": {
                     "type": "string"
@@ -10569,6 +11323,11 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.CleanupLogsResponse": {
             "type": "object",
+            "required": [
+                "before",
+                "deletedCount",
+                "type"
+            ],
             "properties": {
                 "before": {
                     "type": "string"
@@ -10583,6 +11342,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.CleanupLogsResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_admin.CleanupLogsResponse"
@@ -10594,9 +11357,17 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.ConversationEventListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -10616,6 +11387,44 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.ConversationEventResponse": {
             "type": "object",
+            "required": [
+                "contentMarkdown",
+                "conversationID",
+                "createdAt",
+                "endedAt",
+                "errorJSON",
+                "eventID",
+                "eventScope",
+                "eventType",
+                "id",
+                "inputJSON",
+                "latencyMS",
+                "messageID",
+                "outputJSON",
+                "parentEventID",
+                "payloadJSON",
+                "phase",
+                "platformModelName",
+                "providerProtocol",
+                "roundID",
+                "routedBindingCode",
+                "runID",
+                "seq",
+                "stage",
+                "startedAt",
+                "status",
+                "summary",
+                "title",
+                "toolCallID",
+                "toolName",
+                "updatedAt",
+                "upstreamModelName",
+                "upstreamName",
+                "userDisplayName",
+                "userID",
+                "userLabel",
+                "username"
+            ],
             "properties": {
                 "contentMarkdown": {
                     "type": "string"
@@ -10627,7 +11436,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "endedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "errorJSON": {
                     "type": "string"
@@ -10801,6 +11612,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.CreateUserResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_admin.UserDataResponse"
@@ -10812,6 +11627,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.DeletePermissionGroupResponse": {
             "type": "object",
+            "required": [
+                "deleted",
+                "summary"
+            ],
             "properties": {
                 "deleted": {
                     "type": "boolean"
@@ -10823,6 +11642,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.DeletePermissionGroupResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_admin.DeletePermissionGroupResponse"
@@ -10834,6 +11657,9 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.DeleteUserResponse": {
             "type": "object",
+            "required": [
+                "deleted"
+            ],
             "properties": {
                 "deleted": {
                     "type": "boolean"
@@ -10842,6 +11668,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.DeleteUserResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_admin.DeleteUserResponse"
@@ -10853,6 +11683,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.ErrorDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {},
                 "details": {},
@@ -10869,6 +11703,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.GroupModelsResponse": {
             "type": "object",
+            "required": [
+                "modelIDs",
+                "rules"
+            ],
             "properties": {
                 "modelIDs": {
                     "type": "array",
@@ -10886,6 +11724,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.GroupModelsResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_admin.GroupModelsResponse"
@@ -10897,6 +11739,9 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.GroupUsersResponse": {
             "type": "object",
+            "required": [
+                "userIDs"
+            ],
             "properties": {
                 "userIDs": {
                     "type": "array",
@@ -10908,6 +11753,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.GroupUsersResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_admin.GroupUsersResponse"
@@ -10938,6 +11787,17 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.ImportOpenWebUIUsersResponse": {
             "type": "object",
+            "required": [
+                "dedupeField",
+                "dedupeRule",
+                "imported",
+                "scanned",
+                "skippedDuplicateSourceEmail",
+                "skippedExistingEmail",
+                "skippedInvalidEmail",
+                "skippedInvalidRow",
+                "source"
+            ],
             "properties": {
                 "dedupeField": {
                     "type": "string"
@@ -10970,6 +11830,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.ImportOpenWebUIUsersResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_admin.ImportOpenWebUIUsersResponse"
@@ -10981,6 +11845,12 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.ModelPermissionGroupsResponse": {
             "type": "object",
+            "required": [
+                "effectiveGroupIDs",
+                "manualGroupIDs",
+                "matchedGroupIDs",
+                "unassigned"
+            ],
             "properties": {
                 "effectiveGroupIDs": {
                     "type": "array",
@@ -11007,6 +11877,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.ModelPermissionGroupsResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_admin.ModelPermissionGroupsResponse"
@@ -11071,9 +11945,17 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.PaymentOrderListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -11093,6 +11975,35 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.PaymentOrderResponse": {
             "type": "object",
+            "required": [
+                "baseAmountCents",
+                "baseCurrency",
+                "billingInterval",
+                "createdAt",
+                "creditNanousd",
+                "creditUSD",
+                "cycles",
+                "expiredAt",
+                "externalCheckoutID",
+                "externalPaymentID",
+                "fxRate",
+                "id",
+                "orderNo",
+                "orderType",
+                "paidAt",
+                "payAmountCents",
+                "payCurrency",
+                "planID",
+                "priceID",
+                "provider",
+                "snapshotJSON",
+                "status",
+                "updatedAt",
+                "userDisplayName",
+                "userID",
+                "userLabel",
+                "username"
+            ],
             "properties": {
                 "baseAmountCents": {
                     "type": "integer"
@@ -11116,7 +12027,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "expiredAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "externalCheckoutID": {
                     "type": "string"
@@ -11137,7 +12050,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "paidAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "payAmountCents": {
                     "type": "integer"
@@ -11179,6 +12094,9 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.PermissionGroupDataResponse": {
             "type": "object",
+            "required": [
+                "group"
+            ],
             "properties": {
                 "group": {
                     "$ref": "#/definitions/internal_transport_http_admin.PermissionGroupResponse"
@@ -11187,6 +12105,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.PermissionGroupDataResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_admin.PermissionGroupDataResponse"
@@ -11198,6 +12120,12 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.PermissionGroupDeleteSummaryResponse": {
             "type": "object",
+            "required": [
+                "manualModelCount",
+                "manualUserCount",
+                "planCount",
+                "ruleCount"
+            ],
             "properties": {
                 "manualModelCount": {
                     "type": "integer"
@@ -11215,6 +12143,9 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.PermissionGroupListResponse": {
             "type": "object",
+            "required": [
+                "results"
+            ],
             "properties": {
                 "results": {
                     "type": "array",
@@ -11226,6 +12157,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.PermissionGroupListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_admin.PermissionGroupListResponse"
@@ -11253,6 +12188,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.PermissionGroupModelRuleResponse": {
             "type": "object",
+            "required": [
+                "type",
+                "value"
+            ],
             "properties": {
                 "type": {
                     "type": "string"
@@ -11264,6 +12203,21 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.PermissionGroupResponse": {
             "type": "object",
+            "required": [
+                "createdAt",
+                "description",
+                "id",
+                "isDefault",
+                "manualModelCount",
+                "manualUserCount",
+                "modelCount",
+                "name",
+                "rateMultiplierPercent",
+                "ruleModelCount",
+                "subscriptionUserCount",
+                "updatedAt",
+                "userCount"
+            ],
             "properties": {
                 "createdAt": {
                     "type": "string"
@@ -11324,6 +12278,9 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.ResetUserPasswordResponse": {
             "type": "object",
+            "required": [
+                "reset"
+            ],
             "properties": {
                 "reset": {
                     "type": "boolean"
@@ -11332,6 +12289,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.ResetUserPasswordResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_admin.ResetUserPasswordResponse"
@@ -11343,6 +12304,9 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.RevokeUserSessionsResponse": {
             "type": "object",
+            "required": [
+                "revoked"
+            ],
             "properties": {
                 "revoked": {
                     "type": "boolean"
@@ -11351,6 +12315,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.RevokeUserSessionsResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_admin.RevokeUserSessionsResponse"
@@ -11401,9 +12369,17 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.SystemEventListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -11423,6 +12399,20 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.SystemEventResponse": {
             "type": "object",
+            "required": [
+                "createdAt",
+                "detailJSON",
+                "event",
+                "id",
+                "level",
+                "message",
+                "requestID",
+                "resource",
+                "resourceID",
+                "source",
+                "traceID",
+                "updatedAt"
+            ],
             "properties": {
                 "createdAt": {
                     "type": "string"
@@ -11501,6 +12491,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.UpdateUserStatusResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_admin.UserDataResponse"
@@ -11512,9 +12506,17 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.UsageLogListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -11534,6 +12536,40 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.UsageLogResponse": {
             "type": "object",
+            "required": [
+                "billedCurrency",
+                "billedNanousd",
+                "billedUSD",
+                "billingAt",
+                "cacheReadTokens",
+                "cacheWrite1hTokens",
+                "cacheWrite5mTokens",
+                "cacheWriteTokens",
+                "callCount",
+                "conversationID",
+                "createdAt",
+                "durationSeconds",
+                "id",
+                "inputTokens",
+                "isFreeModel",
+                "latencyMS",
+                "outputTokens",
+                "platformModelName",
+                "pricingSnapshotJSON",
+                "providerProtocol",
+                "reasoningTokens",
+                "routedBindingCode",
+                "serviceTier",
+                "updatedAt",
+                "upstreamModelName",
+                "upstreamName",
+                "usageDate",
+                "usageSpeed",
+                "userDisplayName",
+                "userID",
+                "userLabel",
+                "username"
+            ],
             "properties": {
                 "billedCurrency": {
                     "type": "string"
@@ -11635,6 +12671,19 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.UsageStatisticsMetricsResponse": {
             "type": "object",
+            "required": [
+                "avgLatencyMS",
+                "billedNanousd",
+                "billedUSD",
+                "cacheReadTokens",
+                "cacheWriteTokens",
+                "callCount",
+                "inputTokens",
+                "outputTokens",
+                "reasoningTokens",
+                "recordCount",
+                "totalTokens"
+            ],
             "properties": {
                 "avgLatencyMS": {
                     "type": "integer"
@@ -11673,6 +12722,21 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.UsageStatisticsModelRankResponse": {
             "type": "object",
+            "required": [
+                "avgLatencyMS",
+                "billedNanousd",
+                "billedUSD",
+                "cacheReadTokens",
+                "cacheWriteTokens",
+                "callCount",
+                "inputTokens",
+                "outputTokens",
+                "platformModelName",
+                "reasoningTokens",
+                "recordCount",
+                "totalTokens",
+                "trend"
+            ],
             "properties": {
                 "avgLatencyMS": {
                     "type": "integer"
@@ -11720,9 +12784,22 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.UsageStatisticsResponse": {
             "type": "object",
+            "required": [
+                "range",
+                "section",
+                "topModels",
+                "topUsers",
+                "totals",
+                "trend"
+            ],
             "properties": {
                 "range": {
                     "type": "object",
+                    "required": [
+                        "endDate",
+                        "granularity",
+                        "startDate"
+                    ],
                     "properties": {
                         "endDate": {
                             "type": "string"
@@ -11763,6 +12840,10 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.UsageStatisticsResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_admin.UsageStatisticsResponse"
@@ -11774,6 +12855,20 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.UsageStatisticsTrendResponse": {
             "type": "object",
+            "required": [
+                "avgLatencyMS",
+                "billedNanousd",
+                "billedUSD",
+                "cacheReadTokens",
+                "cacheWriteTokens",
+                "callCount",
+                "inputTokens",
+                "outputTokens",
+                "periodStart",
+                "reasoningTokens",
+                "recordCount",
+                "totalTokens"
+            ],
             "properties": {
                 "avgLatencyMS": {
                     "type": "integer"
@@ -11815,6 +12910,24 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.UsageStatisticsUserRankResponse": {
             "type": "object",
+            "required": [
+                "avgLatencyMS",
+                "billedNanousd",
+                "billedUSD",
+                "cacheReadTokens",
+                "cacheWriteTokens",
+                "callCount",
+                "inputTokens",
+                "outputTokens",
+                "reasoningTokens",
+                "recordCount",
+                "totalTokens",
+                "trend",
+                "userDisplayName",
+                "userID",
+                "userLabel",
+                "username"
+            ],
             "properties": {
                 "avgLatencyMS": {
                     "type": "integer"
@@ -11871,9 +12984,17 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.UserAuthEventListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -11893,6 +13014,9 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.UserDataResponse": {
             "type": "object",
+            "required": [
+                "user"
+            ],
             "properties": {
                 "user": {
                     "$ref": "#/definitions/internal_transport_http_admin.UserResponse"
@@ -11901,6 +13025,13 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.UserIdentityProviderSummaryResponse": {
             "type": "object",
+            "required": [
+                "id",
+                "logoURL",
+                "name",
+                "slug",
+                "type"
+            ],
             "properties": {
                 "id": {
                     "type": "integer"
@@ -11921,9 +13052,17 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.UserListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -11943,6 +13082,41 @@ const docTemplate = `{
         },
         "internal_transport_http_admin.UserResponse": {
             "type": "object",
+            "required": [
+                "appearancePreferences",
+                "avatarURL",
+                "billingAccountCurrency",
+                "billingAccountStatus",
+                "billingBalanceNanousd",
+                "billingBalanceUSD",
+                "createdAt",
+                "displayName",
+                "email",
+                "emailVerifiedAt",
+                "id",
+                "identityProviders",
+                "lastActiveAt",
+                "lastLoginAt",
+                "locale",
+                "phone",
+                "phoneVerifiedAt",
+                "profilePreferences",
+                "publicID",
+                "role",
+                "status",
+                "subscriptionExpiresAt",
+                "subscriptionPlanID",
+                "subscriptionPlanName",
+                "subscriptionStatus",
+                "subscriptionTier",
+                "timezone",
+                "twoFactorAvailable",
+                "twoFactorEnabled",
+                "twoFactorRecoveryCount",
+                "twoFactorRequired",
+                "updatedAt",
+                "username"
+            ],
             "properties": {
                 "appearancePreferences": {
                     "type": "string"
@@ -11972,7 +13146,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "emailVerifiedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "id": {
                     "type": "integer"
@@ -11984,10 +13160,14 @@ const docTemplate = `{
                     }
                 },
                 "lastActiveAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "lastLoginAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "locale": {
                     "type": "string"
@@ -11996,7 +13176,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "phoneVerifiedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "profilePreferences": {
                     "type": "string"
@@ -12011,10 +13193,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "subscriptionExpiresAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "subscriptionPlanID": {
-                    "type": "integer"
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "subscriptionPlanName": {
                     "type": "string"
@@ -12050,9 +13236,17 @@ const docTemplate = `{
         },
         "internal_transport_http_announcement.AdminAnnouncementListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -12072,6 +13266,9 @@ const docTemplate = `{
         },
         "internal_transport_http_announcement.AnnouncementCloseDataResponse": {
             "type": "object",
+            "required": [
+                "closed"
+            ],
             "properties": {
                 "closed": {
                     "type": "boolean"
@@ -12080,6 +13277,10 @@ const docTemplate = `{
         },
         "internal_transport_http_announcement.AnnouncementCloseResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_announcement.AnnouncementCloseDataResponse"
@@ -12091,6 +13292,9 @@ const docTemplate = `{
         },
         "internal_transport_http_announcement.AnnouncementDataResponse": {
             "type": "object",
+            "required": [
+                "announcement"
+            ],
             "properties": {
                 "announcement": {
                     "$ref": "#/definitions/internal_transport_http_announcement.AnnouncementResponse"
@@ -12099,6 +13303,9 @@ const docTemplate = `{
         },
         "internal_transport_http_announcement.AnnouncementDeleteDataResponse": {
             "type": "object",
+            "required": [
+                "deleted"
+            ],
             "properties": {
                 "deleted": {
                     "type": "boolean"
@@ -12107,6 +13314,10 @@ const docTemplate = `{
         },
         "internal_transport_http_announcement.AnnouncementDeleteResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_announcement.AnnouncementDeleteDataResponse"
@@ -12118,6 +13329,9 @@ const docTemplate = `{
         },
         "internal_transport_http_announcement.AnnouncementDismissDataResponse": {
             "type": "object",
+            "required": [
+                "dismissed"
+            ],
             "properties": {
                 "dismissed": {
                     "type": "boolean"
@@ -12126,6 +13340,10 @@ const docTemplate = `{
         },
         "internal_transport_http_announcement.AnnouncementDismissResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_announcement.AnnouncementDismissDataResponse"
@@ -12137,6 +13355,10 @@ const docTemplate = `{
         },
         "internal_transport_http_announcement.AnnouncementListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "array",
@@ -12151,9 +13373,26 @@ const docTemplate = `{
         },
         "internal_transport_http_announcement.AnnouncementResponse": {
             "type": "object",
+            "required": [
+                "closedAt",
+                "contentMarkdown",
+                "createdAt",
+                "createdByUserID",
+                "expiresAt",
+                "id",
+                "pinned",
+                "priority",
+                "startsAt",
+                "status",
+                "title",
+                "type",
+                "updatedAt"
+            ],
             "properties": {
                 "closedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "contentMarkdown": {
                     "type": "string"
@@ -12165,7 +13404,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "expiresAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "id": {
                     "type": "integer"
@@ -12177,7 +13418,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "startsAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "status": {
                     "type": "string"
@@ -12195,6 +13438,10 @@ const docTemplate = `{
         },
         "internal_transport_http_announcement.AnnouncementResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_announcement.AnnouncementDataResponse"
@@ -12228,7 +13475,8 @@ const docTemplate = `{
                     "minLength": 1
                 },
                 "expiresAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true
                 },
                 "pinned": {
                     "type": "boolean"
@@ -12237,7 +13485,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "startsAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true
                 },
                 "status": {
                     "type": "string",
@@ -12265,6 +13514,10 @@ const docTemplate = `{
         },
         "internal_transport_http_announcement.ErrorDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {},
                 "details": {},
@@ -12290,7 +13543,8 @@ const docTemplate = `{
                     "maxLength": 20000
                 },
                 "expiresAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true
                 },
                 "pinned": {
                     "type": "boolean"
@@ -12299,7 +13553,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "startsAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true
                 },
                 "status": {
                     "type": "string",
@@ -12326,6 +13581,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.ActiveSessionListResponse": {
             "type": "object",
+            "required": [
+                "results",
+                "total"
+            ],
             "properties": {
                 "results": {
                     "type": "array",
@@ -12340,6 +13599,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.ActiveSessionListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_auth.ActiveSessionListResponse"
@@ -12351,6 +13614,33 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.ActiveSessionResponse": {
             "type": "object",
+            "required": [
+                "browserName",
+                "cityName",
+                "clientIP",
+                "countryCode",
+                "createdAt",
+                "current",
+                "deviceLabel",
+                "deviceName",
+                "deviceType",
+                "expiresAt",
+                "geoAccuracy",
+                "geoSource",
+                "ipLatitude",
+                "ipLongitude",
+                "lastSeenAt",
+                "locationLabel",
+                "osName",
+                "preciseAccuracyMeters",
+                "preciseLatitude",
+                "preciseLocatedAt",
+                "preciseLongitude",
+                "regionName",
+                "sessionID",
+                "timezoneName",
+                "updatedAt"
+            ],
             "properties": {
                 "browserName": {
                     "type": "string"
@@ -12389,13 +13679,19 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "ipLatitude": {
-                    "type": "number"
+                    "type": "number",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "ipLongitude": {
-                    "type": "number"
+                    "type": "number",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "lastSeenAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "locationLabel": {
                     "type": "string"
@@ -12404,16 +13700,24 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "preciseAccuracyMeters": {
-                    "type": "number"
+                    "type": "number",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "preciseLatitude": {
-                    "type": "number"
+                    "type": "number",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "preciseLocatedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "preciseLongitude": {
-                    "type": "number"
+                    "type": "number",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "regionName": {
                     "type": "string"
@@ -12452,6 +13756,9 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.DeleteAccountResponse": {
             "type": "object",
+            "required": [
+                "deleted"
+            ],
             "properties": {
                 "deleted": {
                     "type": "boolean"
@@ -12460,6 +13767,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.DeleteAccountResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_auth.DeleteAccountResponse"
@@ -12512,6 +13823,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.EmailRegistrationStartResponse": {
             "type": "object",
+            "required": [
+                "expiresAt",
+                "sent"
+            ],
             "properties": {
                 "expiresAt": {
                     "type": "string"
@@ -12523,6 +13838,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.EmailRegistrationStartResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_auth.EmailRegistrationStartResponse"
@@ -12534,6 +13853,12 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.EmailVerificationStartResponse": {
             "type": "object",
+            "required": [
+                "availableMethods",
+                "expiresAt",
+                "sent",
+                "verificationMethod"
+            ],
             "properties": {
                 "availableMethods": {
                     "type": "array",
@@ -12554,6 +13879,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.EmailVerificationStartResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_auth.EmailVerificationStartResponse"
@@ -12565,6 +13894,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.ErrorDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {},
                 "details": {},
@@ -12579,8 +13912,111 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_transport_http_auth.IdentityProviderDeleteResponse": {
+            "type": "object",
+            "required": [
+                "deleted"
+            ],
+            "properties": {
+                "deleted": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_transport_http_auth.IdentityProviderDeleteResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_transport_http_auth.IdentityProviderDeleteResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_transport_http_auth.IdentityProviderListResponse": {
+            "type": "object",
+            "required": [
+                "results",
+                "total"
+            ],
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_transport_http_auth.IdentityProviderResponse"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_transport_http_auth.IdentityProviderListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_transport_http_auth.IdentityProviderListResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_transport_http_auth.IdentityProviderReorderResponse": {
+            "type": "object",
+            "required": [
+                "updated"
+            ],
+            "properties": {
+                "updated": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_transport_http_auth.IdentityProviderReorderResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_transport_http_auth.IdentityProviderReorderResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_transport_http_auth.IdentityProviderResponse": {
             "type": "object",
+            "required": [
+                "avatarField",
+                "createdAt",
+                "defaultRole",
+                "emailField",
+                "emailVerifiedField",
+                "loginEnabled",
+                "logoURL",
+                "name",
+                "nameField",
+                "publicID",
+                "registrationEnabled",
+                "scopes",
+                "slug",
+                "subjectField",
+                "type",
+                "updatedAt"
+            ],
             "properties": {
                 "authURL": {
                     "type": "string"
@@ -12595,7 +14031,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "defaultRole": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "user",
+                        "admin",
+                        "superadmin"
+                    ]
                 },
                 "discoveryURL": {
                     "type": "string"
@@ -12643,7 +14084,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "oidc",
+                        "oauth2"
+                    ]
                 },
                 "updatedAt": {
                     "type": "string"
@@ -12653,8 +14098,33 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_transport_http_auth.IdentityProviderResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_transport_http_auth.IdentityProviderResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_transport_http_auth.LoginOptionsResponse": {
             "type": "object",
+            "required": [
+                "emailEnabled",
+                "emailRegistrationEnabled",
+                "emailVerificationEnabled",
+                "passwordResetEnabled",
+                "providers",
+                "turnstileRegistrationEnabled",
+                "turnstileSiteKey",
+                "usernameEnabled"
+            ],
             "properties": {
                 "emailEnabled": {
                     "type": "boolean"
@@ -12687,6 +14157,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.LoginOptionsResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_auth.LoginOptionsResponse"
@@ -12717,6 +14191,14 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.LoginResponse": {
             "type": "object",
+            "required": [
+                "accessToken",
+                "expiresAt",
+                "refreshExpiresAt",
+                "sessionID",
+                "twoFactorRequired",
+                "user"
+            ],
             "properties": {
                 "accessToken": {
                     "type": "string"
@@ -12749,6 +14231,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.LoginResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_auth.LoginResponse"
@@ -12760,6 +14246,9 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.LogoutResponse": {
             "type": "object",
+            "required": [
+                "revoked"
+            ],
             "properties": {
                 "revoked": {
                     "type": "boolean"
@@ -12768,6 +14257,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.LogoutResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_auth.LogoutResponse"
@@ -12779,6 +14272,9 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.MeResponse": {
             "type": "object",
+            "required": [
+                "user"
+            ],
             "properties": {
                 "user": {
                     "$ref": "#/definitions/internal_transport_http_auth.UserResponse"
@@ -12787,6 +14283,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.MeResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_auth.MeResponse"
@@ -12820,6 +14320,9 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.PasswordResetCompleteResponse": {
             "type": "object",
+            "required": [
+                "changed"
+            ],
             "properties": {
                 "changed": {
                     "type": "boolean"
@@ -12828,6 +14331,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.PasswordResetCompleteResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_auth.PasswordResetCompleteResponse"
@@ -12851,6 +14358,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.PasswordResetStartResponse": {
             "type": "object",
+            "required": [
+                "expiresAt",
+                "sent"
+            ],
             "properties": {
                 "expiresAt": {
                     "type": "string"
@@ -12862,6 +14373,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.PasswordResetStartResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_auth.PasswordResetStartResponse"
@@ -12903,6 +14418,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.PatchMeResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_auth.MeResponse"
@@ -12927,12 +14446,30 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.RefreshTokenResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_auth.LoginResponse"
                 },
                 "errorMsg": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_transport_http_auth.ReorderIdentityProvidersRequest": {
+            "type": "object",
+            "required": [
+                "providerIDs"
+            ],
+            "properties": {
+                "providerIDs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -12975,6 +14512,10 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.UpdateCurrentSessionLocationResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_auth.ActiveSessionResponse"
@@ -12984,8 +14525,114 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_transport_http_auth.UpsertIdentityProviderRequest": {
+            "type": "object",
+            "required": [
+                "clientID",
+                "name",
+                "type"
+            ],
+            "properties": {
+                "authURL": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "avatarField": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "clientID": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "clientSecret": {
+                    "type": "string",
+                    "maxLength": 4096
+                },
+                "defaultRole": {
+                    "type": "string",
+                    "enum": [
+                        "user",
+                        "admin",
+                        "superadmin"
+                    ]
+                },
+                "discoveryURL": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "emailField": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "emailVerifiedField": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "issuerURL": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "jwksURL": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "loginEnabled": {
+                    "type": "boolean"
+                },
+                "logoURL": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 80
+                },
+                "nameField": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "registrationEnabled": {
+                    "type": "boolean"
+                },
+                "scopes": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "slug": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "subjectField": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "tokenURL": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "oidc",
+                        "oauth2"
+                    ]
+                },
+                "userinfoURL": {
+                    "type": "string",
+                    "maxLength": 512
+                }
+            }
+        },
         "internal_transport_http_auth.UserIdentityProviderSummaryResponse": {
             "type": "object",
+            "required": [
+                "id",
+                "logoURL",
+                "name",
+                "slug",
+                "type"
+            ],
             "properties": {
                 "id": {
                     "type": "integer"
@@ -13006,6 +14653,47 @@ const docTemplate = `{
         },
         "internal_transport_http_auth.UserResponse": {
             "type": "object",
+            "required": [
+                "appearancePreferences",
+                "avatarURL",
+                "createdAt",
+                "displayName",
+                "email",
+                "emailBootstrapUsedAt",
+                "emailSource",
+                "emailVerifiedAt",
+                "id",
+                "identityProviders",
+                "initialSecurityRequired",
+                "initialUsernameRequired",
+                "lastActiveAt",
+                "lastLoginAt",
+                "locale",
+                "mustResetPassword",
+                "onboardingCompletedAt",
+                "passwordEnabled",
+                "passwordOrigin",
+                "passwordSetAt",
+                "phone",
+                "phoneVerifiedAt",
+                "profilePreferences",
+                "publicID",
+                "role",
+                "status",
+                "subscriptionExpiresAt",
+                "subscriptionPlanID",
+                "subscriptionPlanName",
+                "subscriptionStatus",
+                "subscriptionTier",
+                "timezone",
+                "twoFactorAvailable",
+                "twoFactorEnabled",
+                "twoFactorRecoveryCount",
+                "twoFactorRequired",
+                "updatedAt",
+                "username",
+                "usernameChangedAt"
+            ],
             "properties": {
                 "appearancePreferences": {
                     "type": "string"
@@ -13023,13 +14711,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "emailBootstrapUsedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "emailSource": {
                     "type": "string"
                 },
                 "emailVerifiedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "id": {
                     "type": "integer"
@@ -13047,10 +14739,14 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "lastActiveAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "lastLoginAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "locale": {
                     "type": "string"
@@ -13059,7 +14755,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "onboardingCompletedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "passwordEnabled": {
                     "type": "boolean"
@@ -13068,13 +14766,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "passwordSetAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "phone": {
                     "type": "string"
                 },
                 "phoneVerifiedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "profilePreferences": {
                     "type": "string"
@@ -13089,10 +14791,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "subscriptionExpiresAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "subscriptionPlanID": {
-                    "type": "integer"
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "subscriptionPlanName": {
                     "type": "string"
@@ -13125,12 +14831,21 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "usernameChangedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 }
             }
         },
         "internal_transport_http_billing.BatchDeleteRedemptionCodeDataResponse": {
             "type": "object",
+            "required": [
+                "failedCount",
+                "notFoundCount",
+                "results",
+                "successCount",
+                "total"
+            ],
             "properties": {
                 "failedCount": {
                     "type": "integer"
@@ -13169,6 +14884,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BatchDeleteRedemptionCodeResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_billing.BatchDeleteRedemptionCodeDataResponse"
@@ -13180,6 +14899,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BatchDeleteRedemptionCodeResultResponse": {
             "type": "object",
+            "required": [
+                "id",
+                "status"
+            ],
             "properties": {
                 "error": {
                     "type": "string"
@@ -13194,6 +14917,9 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BillingAccountDataResponse": {
             "type": "object",
+            "required": [
+                "account"
+            ],
             "properties": {
                 "account": {
                     "$ref": "#/definitions/internal_transport_http_billing.BillingAccountResponse"
@@ -13202,6 +14928,14 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BillingAccountResponse": {
             "type": "object",
+            "required": [
+                "balanceNanousd",
+                "balanceUSD",
+                "currency",
+                "status",
+                "updatedAt",
+                "userID"
+            ],
             "properties": {
                 "balanceNanousd": {
                     "type": "integer"
@@ -13225,6 +14959,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BillingAccountResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_billing.BillingAccountDataResponse"
@@ -13236,6 +14974,9 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BillingConfigDataResponse": {
             "type": "object",
+            "required": [
+                "config"
+            ],
             "properties": {
                 "config": {
                     "$ref": "#/definitions/internal_transport_http_billing.BillingConfigResponse"
@@ -13283,6 +15024,17 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BillingConfigResponse": {
             "type": "object",
+            "required": [
+                "displayCurrency",
+                "epayTypes",
+                "mode",
+                "nativeToolBillingEnabled",
+                "nativeToolPricing",
+                "paymentProviders",
+                "prepaidAmountNanousd",
+                "prepaidAmountUSD",
+                "usdToCNYRate"
+            ],
             "properties": {
                 "displayCurrency": {
                     "type": "string"
@@ -13324,6 +15076,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BillingConfigResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_billing.BillingConfigDataResponse"
@@ -13335,6 +15091,9 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BillingOverviewDataResponse": {
             "type": "object",
+            "required": [
+                "overview"
+            ],
             "properties": {
                 "overview": {
                     "$ref": "#/definitions/internal_transport_http_billing.BillingOverviewResponse"
@@ -13343,9 +15102,29 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BillingOverviewResponse": {
             "type": "object",
+            "required": [
+                "account",
+                "mode",
+                "periodCreditNanousd",
+                "periodCreditUSD",
+                "periodEndAt",
+                "periodRemainingNanousd",
+                "periodRemainingUSD",
+                "periodStartAt",
+                "periodUsedNanousd",
+                "periodUsedUSD",
+                "plan",
+                "subscriptionEntitlements"
+            ],
             "properties": {
                 "account": {
-                    "$ref": "#/definitions/internal_transport_http_billing.BillingAccountResponse"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/internal_transport_http_billing.BillingAccountResponse"
+                        }
+                    ],
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "mode": {
                     "type": "string"
@@ -13357,7 +15136,9 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "periodEndAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "periodRemainingNanousd": {
                     "type": "integer"
@@ -13366,7 +15147,9 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "periodStartAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "periodUsedNanousd": {
                     "type": "integer"
@@ -13375,7 +15158,13 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "plan": {
-                    "$ref": "#/definitions/internal_transport_http_billing.BillingPlanResponse"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/internal_transport_http_billing.BillingPlanResponse"
+                        }
+                    ],
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "subscriptionEntitlements": {
                     "type": "array",
@@ -13387,6 +15176,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BillingOverviewResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_billing.BillingOverviewDataResponse"
@@ -13398,6 +15191,9 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BillingPlanDataResponse": {
             "type": "object",
+            "required": [
+                "plan"
+            ],
             "properties": {
                 "plan": {
                     "$ref": "#/definitions/internal_transport_http_billing.BillingPlanResponse"
@@ -13406,6 +15202,20 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BillingPlanResponse": {
             "type": "object",
+            "required": [
+                "code",
+                "description",
+                "discountPercent",
+                "featureJSON",
+                "id",
+                "isActive",
+                "name",
+                "periodCreditNanousd",
+                "periodCreditUSD",
+                "permissionGroupID",
+                "prices",
+                "sortOrder"
+            ],
             "properties": {
                 "code": {
                     "type": "string"
@@ -13435,7 +15245,9 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "permissionGroupID": {
-                    "type": "integer"
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "prices": {
                     "type": "array",
@@ -13450,6 +15262,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BillingPlanResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_billing.BillingPlanDataResponse"
@@ -13461,6 +15277,15 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.BillingPriceResponse": {
             "type": "object",
+            "required": [
+                "amountCents",
+                "billingInterval",
+                "code",
+                "currency",
+                "id",
+                "isDefault",
+                "planID"
+            ],
             "properties": {
                 "amountCents": {
                     "type": "integer"
@@ -13487,6 +15312,9 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.CheckoutDataResponse": {
             "type": "object",
+            "required": [
+                "checkout"
+            ],
             "properties": {
                 "checkout": {
                     "$ref": "#/definitions/internal_transport_http_billing.CheckoutResponse"
@@ -13495,6 +15323,22 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.CheckoutResponse": {
             "type": "object",
+            "required": [
+                "baseAmountCents",
+                "baseCurrency",
+                "checkoutURL",
+                "creditNanousd",
+                "creditUSD",
+                "expiredAt",
+                "externalCheckoutID",
+                "fxRate",
+                "orderNo",
+                "orderType",
+                "payAmountCents",
+                "payCurrency",
+                "provider",
+                "status"
+            ],
             "properties": {
                 "baseAmountCents": {
                     "type": "integer"
@@ -13512,7 +15356,9 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "expiredAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "externalCheckoutID": {
                     "type": "string"
@@ -13542,6 +15388,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.CheckoutResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_billing.CheckoutDataResponse"
@@ -13620,7 +15470,8 @@ const docTemplate = `{
                     "minimum": 0
                 },
                 "expiresAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true
                 },
                 "maxRedemptions": {
                     "type": "integer",
@@ -13651,6 +15502,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.ErrorDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {},
                 "details": {},
@@ -13667,6 +15522,9 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.ModelPricingDataResponse": {
             "type": "object",
+            "required": [
+                "modelPricing"
+            ],
             "properties": {
                 "modelPricing": {
                     "$ref": "#/definitions/internal_transport_http_billing.ModelPricingResponse"
@@ -13675,9 +15533,17 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.ModelPricingListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -13697,6 +15563,30 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.ModelPricingResponse": {
             "type": "object",
+            "required": [
+                "cacheReadNanousdPerMTokens",
+                "cacheReadUSDPerMTokens",
+                "cacheWriteNanousdPerMTokens",
+                "cacheWriteUSDPerMTokens",
+                "callNanousdPerCall",
+                "callUSDPerCall",
+                "createdAt",
+                "currency",
+                "durationNanousdPerSecond",
+                "durationUSDPerSecond",
+                "id",
+                "inputNanousdPerMTokens",
+                "inputUSDPerMTokens",
+                "isFree",
+                "modelIcon",
+                "modelVendor",
+                "outputNanousdPerMTokens",
+                "outputUSDPerMTokens",
+                "platformModelName",
+                "pricingMode",
+                "tieredPricingJSON",
+                "updatedAt"
+            ],
             "properties": {
                 "cacheReadNanousdPerMTokens": {
                     "type": "integer"
@@ -13788,6 +15678,17 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.NativeToolPricingResponse": {
             "type": "object",
+            "required": [
+                "billable",
+                "description",
+                "label",
+                "priceLabel",
+                "priceNanousd",
+                "provider",
+                "toolKey",
+                "type",
+                "unit"
+            ],
             "properties": {
                 "billable": {
                     "type": "boolean"
@@ -13820,6 +15721,12 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.OpenRouterOfficialPricingDataResponse": {
             "type": "object",
+            "required": [
+                "cached",
+                "fetchedAt",
+                "items",
+                "stale"
+            ],
             "properties": {
                 "cached": {
                     "type": "boolean"
@@ -13840,6 +15747,12 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.OpenRouterOfficialPricingItemResponse": {
             "type": "object",
+            "required": [
+                "canonicalSlug",
+                "id",
+                "name",
+                "pricing"
+            ],
             "properties": {
                 "canonicalSlug": {
                     "type": "string"
@@ -13857,6 +15770,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.OpenRouterOfficialPricingResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_billing.OpenRouterOfficialPricingDataResponse"
@@ -13868,6 +15785,12 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.OpenRouterOfficialPricingUnitPricingResponse": {
             "type": "object",
+            "required": [
+                "completion",
+                "inputCacheRead",
+                "inputCacheWrite",
+                "prompt"
+            ],
             "properties": {
                 "completion": {
                     "type": "string"
@@ -13891,10 +15814,12 @@ const docTemplate = `{
                     "maxLength": 255
                 },
                 "expiresAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true
                 },
                 "maxRedemptions": {
-                    "type": "integer"
+                    "type": "integer",
+                    "x-nullable": true
                 },
                 "perUserLimit": {
                     "type": "integer",
@@ -13912,6 +15837,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.PaymentTypeResponse": {
             "type": "object",
+            "required": [
+                "name",
+                "type"
+            ],
             "properties": {
                 "name": {
                     "type": "string"
@@ -13923,6 +15852,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.PlanListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "array",
@@ -13950,6 +15883,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.RedemptionApplyDataResponse": {
             "type": "object",
+            "required": [
+                "overview",
+                "redemption"
+            ],
             "properties": {
                 "account": {
                     "$ref": "#/definitions/internal_transport_http_billing.BillingAccountResponse"
@@ -13967,6 +15904,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.RedemptionApplyResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_billing.RedemptionApplyDataResponse"
@@ -13978,6 +15919,9 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.RedemptionCodeCreateDataResponse": {
             "type": "object",
+            "required": [
+                "results"
+            ],
             "properties": {
                 "results": {
                     "type": "array",
@@ -13989,6 +15933,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.RedemptionCodeCreateResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_billing.RedemptionCodeCreateDataResponse"
@@ -14000,6 +15948,9 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.RedemptionCodeDataResponse": {
             "type": "object",
+            "required": [
+                "code"
+            ],
             "properties": {
                 "code": {
                     "$ref": "#/definitions/internal_transport_http_billing.RedemptionCodeResponse"
@@ -14008,6 +15959,9 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.RedemptionCodeDeleteDataResponse": {
             "type": "object",
+            "required": [
+                "deleted"
+            ],
             "properties": {
                 "deleted": {
                     "type": "boolean"
@@ -14016,6 +15970,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.RedemptionCodeDeleteResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_billing.RedemptionCodeDeleteDataResponse"
@@ -14027,6 +15985,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.RedemptionCodeListDataResponse": {
             "type": "object",
+            "required": [
+                "results",
+                "total"
+            ],
             "properties": {
                 "results": {
                     "type": "array",
@@ -14041,6 +16003,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.RedemptionCodeListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_billing.RedemptionCodeListDataResponse"
@@ -14052,6 +16018,26 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.RedemptionCodeResponse": {
             "type": "object",
+            "required": [
+                "codeHint",
+                "createdAt",
+                "createdByUserID",
+                "creditNanousd",
+                "creditUSD",
+                "description",
+                "durationDays",
+                "expiresAt",
+                "id",
+                "maxRedemptions",
+                "mode",
+                "perUserLimit",
+                "planID",
+                "redeemedCount",
+                "remainingRedemptions",
+                "rewardType",
+                "status",
+                "updatedAt"
+            ],
             "properties": {
                 "code": {
                     "type": "string"
@@ -14078,13 +16064,17 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "expiresAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "id": {
                     "type": "integer"
                 },
                 "maxRedemptions": {
-                    "type": "integer"
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "mode": {
                     "type": "string"
@@ -14099,7 +16089,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "remainingRedemptions": {
-                    "type": "integer"
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "rewardType": {
                     "type": "string"
@@ -14114,6 +16106,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.RedemptionCodeResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_billing.RedemptionCodeDataResponse"
@@ -14125,6 +16121,19 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.RedemptionResponse": {
             "type": "object",
+            "required": [
+                "balanceTransactionID",
+                "codeID",
+                "createdAt",
+                "creditNanousd",
+                "creditUSD",
+                "id",
+                "mode",
+                "planID",
+                "rewardType",
+                "subscriptionID",
+                "userID"
+            ],
             "properties": {
                 "balanceTransactionID": {
                     "type": "integer"
@@ -14180,6 +16189,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.SubscribeResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_billing.SubscriptionDataResponse"
@@ -14191,6 +16204,9 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.SubscriptionDataResponse": {
             "type": "object",
+            "required": [
+                "subscription"
+            ],
             "properties": {
                 "subscription": {
                     "$ref": "#/definitions/internal_transport_http_billing.SubscriptionResponse"
@@ -14199,6 +16215,20 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.SubscriptionEntitlementResponse": {
             "type": "object",
+            "required": [
+                "autoRenew",
+                "cancelAtPeriodEnd",
+                "currentPeriodEndAt",
+                "currentPeriodStartAt",
+                "id",
+                "isCurrent",
+                "plan",
+                "planID",
+                "priceID",
+                "startAt",
+                "status",
+                "userID"
+            ],
             "properties": {
                 "autoRenew": {
                     "type": "boolean"
@@ -14207,7 +16237,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "currentPeriodEndAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "currentPeriodStartAt": {
                     "type": "string"
@@ -14240,6 +16272,18 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.SubscriptionResponse": {
             "type": "object",
+            "required": [
+                "autoRenew",
+                "cancelAtPeriodEnd",
+                "currentPeriodEndAt",
+                "currentPeriodStartAt",
+                "id",
+                "planID",
+                "priceID",
+                "startAt",
+                "status",
+                "userID"
+            ],
             "properties": {
                 "autoRenew": {
                     "type": "boolean"
@@ -14248,7 +16292,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "currentPeriodEndAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "currentPeriodStartAt": {
                     "type": "string"
@@ -14275,6 +16321,9 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.UpdateBillingAccountBalanceRequest": {
             "type": "object",
+            "required": [
+                "balanceUSD"
+            ],
             "properties": {
                 "balanceUSD": {
                     "type": "number",
@@ -14289,8 +16338,12 @@ const docTemplate = `{
         "internal_transport_http_billing.UpdateBillingPlanRequest": {
             "type": "object",
             "required": [
+                "amountUSD",
                 "billingInterval",
-                "name"
+                "description",
+                "discountPercent",
+                "name",
+                "periodCreditUSD"
             ],
             "properties": {
                 "amountUSD": {
@@ -14328,14 +16381,23 @@ const docTemplate = `{
                     "minimum": 0
                 },
                 "permissionGroupID": {
-                    "type": "integer"
+                    "type": "integer",
+                    "x-nullable": true
                 }
             }
         },
         "internal_transport_http_billing.UpsertModelPricingRequest": {
             "type": "object",
             "required": [
-                "platformModelName"
+                "cacheReadUSDPerMTokens",
+                "cacheWriteUSDPerMTokens",
+                "callUSDPerCall",
+                "durationUSDPerSecond",
+                "inputUSDPerMTokens",
+                "isFree",
+                "outputUSDPerMTokens",
+                "platformModelName",
+                "pricingMode"
             ],
             "properties": {
                 "cacheReadUSDPerMTokens": {
@@ -14390,6 +16452,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.UsageDailyListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "array",
@@ -14404,6 +16470,21 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.UsageDailyModelResponse": {
             "type": "object",
+            "required": [
+                "avgLatencyMS",
+                "billedNanousd",
+                "billedUSD",
+                "cacheReadTokens",
+                "cacheWriteTokens",
+                "callCount",
+                "durationSeconds",
+                "inputTokens",
+                "outputTokens",
+                "platformModelName",
+                "reasoningTokens",
+                "recordCount",
+                "totalTokens"
+            ],
             "properties": {
                 "avgLatencyMS": {
                     "type": "integer"
@@ -14448,6 +16529,22 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.UsageDailyResponse": {
             "type": "object",
+            "required": [
+                "avgLatencyMS",
+                "billedNanousd",
+                "billedUSD",
+                "cacheReadTokens",
+                "cacheWriteTokens",
+                "callCount",
+                "durationSeconds",
+                "inputTokens",
+                "models",
+                "outputTokens",
+                "reasoningTokens",
+                "recordCount",
+                "totalTokens",
+                "usageDate"
+            ],
             "properties": {
                 "avgLatencyMS": {
                     "type": "integer"
@@ -14498,9 +16595,17 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.UsageLedgerListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -14520,6 +16625,38 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.UsageLedgerResponse": {
             "type": "object",
+            "required": [
+                "billedCurrency",
+                "billedNanousd",
+                "billedUSD",
+                "billingAt",
+                "cacheReadTokens",
+                "cacheWrite1hTokens",
+                "cacheWrite5mTokens",
+                "cacheWriteTokens",
+                "callCount",
+                "conversationID",
+                "createdAt",
+                "durationSeconds",
+                "id",
+                "inputTokens",
+                "isFreeModel",
+                "latencyMS",
+                "modelIcon",
+                "modelVendor",
+                "outputTokens",
+                "platformModelName",
+                "pricingSnapshotJSON",
+                "providerProtocol",
+                "reasoningTokens",
+                "routedBindingCode",
+                "serviceTier",
+                "updatedAt",
+                "upstreamModelName",
+                "usageDate",
+                "usageSpeed",
+                "userID"
+            ],
             "properties": {
                 "billedCurrency": {
                     "type": "string"
@@ -14615,6 +16752,10 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.UsageMonthlyListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "array",
@@ -14629,6 +16770,21 @@ const docTemplate = `{
         },
         "internal_transport_http_billing.UsageMonthlyResponse": {
             "type": "object",
+            "required": [
+                "avgLatencyMS",
+                "billedNanousd",
+                "billedUSD",
+                "cacheReadTokens",
+                "cacheWriteTokens",
+                "callCount",
+                "durationSeconds",
+                "inputTokens",
+                "monthStartAt",
+                "outputTokens",
+                "reasoningTokens",
+                "recordCount",
+                "totalTokens"
+            ],
             "properties": {
                 "avgLatencyMS": {
                     "type": "integer"
@@ -14688,6 +16844,13 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.BatchDeleteResponse": {
             "type": "object",
+            "required": [
+                "failedCount",
+                "notFoundCount",
+                "results",
+                "successCount",
+                "total"
+            ],
             "properties": {
                 "failedCount": {
                     "type": "integer"
@@ -14711,6 +16874,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.BatchDeleteResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_channel.BatchDeleteResponse"
@@ -14722,6 +16889,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.BatchDeleteResultResponse": {
             "type": "object",
+            "required": [
+                "id",
+                "status"
+            ],
             "properties": {
                 "error": {
                     "type": "string"
@@ -14780,6 +16951,9 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.CircuitResetResponse": {
             "type": "object",
+            "required": [
+                "reset"
+            ],
             "properties": {
                 "reset": {
                     "type": "boolean"
@@ -14858,6 +17032,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.CreateModelResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_channel.ModelDataResponse"
@@ -14947,6 +17125,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.CreateUpstreamResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_channel.UpstreamDataResponse"
@@ -14958,6 +17140,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ErrorDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {},
                 "details": {},
@@ -15017,6 +17203,17 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ImportUpstreamModelResultResponse": {
             "type": "object",
+            "required": [
+                "bindingCode",
+                "createdPlatform",
+                "createdRoute",
+                "createdRoutes",
+                "existingRoutes",
+                "platformModelName",
+                "protocols",
+                "status",
+                "upstreamModelName"
+            ],
             "properties": {
                 "bindingCode": {
                     "type": "string"
@@ -15076,6 +17273,15 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ImportUpstreamModelsResponse": {
             "type": "object",
+            "required": [
+                "createdPlatform",
+                "createdRoutes",
+                "existingRoutes",
+                "failedCount",
+                "importedCount",
+                "results",
+                "total"
+            ],
             "properties": {
                 "createdPlatform": {
                     "type": "integer"
@@ -15105,6 +17311,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ImportUpstreamModelsResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_channel.ImportUpstreamModelsResponse"
@@ -15116,6 +17326,9 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ModelDataResponse": {
             "type": "object",
+            "required": [
+                "model"
+            ],
             "properties": {
                 "model": {
                     "$ref": "#/definitions/internal_transport_http_channel.ModelResponse"
@@ -15124,9 +17337,17 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ModelListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -15146,6 +17367,13 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ModelProbeBatchResponse": {
             "type": "object",
+            "required": [
+                "failedCount",
+                "results",
+                "successCount",
+                "totalCount",
+                "unsupportedCount"
+            ],
             "properties": {
                 "failedCount": {
                     "type": "integer"
@@ -15169,6 +17397,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ModelProbeBatchResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_channel.ModelProbeBatchResponse"
@@ -15180,6 +17412,11 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ModelProbeDebugRequestResponse": {
             "type": "object",
+            "required": [
+                "body",
+                "method",
+                "path"
+            ],
             "properties": {
                 "body": {
                     "type": "string"
@@ -15200,6 +17437,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ModelProbeDebugResponse": {
             "type": "object",
+            "required": [
+                "request",
+                "response"
+            ],
             "properties": {
                 "request": {
                     "$ref": "#/definitions/internal_transport_http_channel.ModelProbeDebugRequestResponse"
@@ -15211,6 +17452,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ModelProbeDebugResponseResponse": {
             "type": "object",
+            "required": [
+                "body",
+                "statusCode"
+            ],
             "properties": {
                 "body": {
                     "type": "string"
@@ -15242,6 +17487,21 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ModelProbeResponse": {
             "type": "object",
+            "required": [
+                "bindingCode",
+                "endpoint",
+                "latencyMS",
+                "platformModelID",
+                "platformModelName",
+                "protocol",
+                "routeID",
+                "status",
+                "success",
+                "upstreamID",
+                "upstreamModelID",
+                "upstreamModelName",
+                "upstreamName"
+            ],
             "properties": {
                 "bindingCode": {
                     "type": "string"
@@ -15298,6 +17558,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ModelProbeResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_channel.ModelProbeResponse"
@@ -15309,6 +17573,29 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ModelResponse": {
             "type": "object",
+            "required": [
+                "accessScope",
+                "activeSourceCount",
+                "capabilitiesJSON",
+                "cbDurationMin",
+                "cbFailureThreshold",
+                "cbPolicyMode",
+                "cbWindowMin",
+                "createdAt",
+                "description",
+                "icon",
+                "id",
+                "kindsJSON",
+                "platformModelName",
+                "protocolsJSON",
+                "sortOrder",
+                "sourceCount",
+                "status",
+                "systemPrompt",
+                "updatedAt",
+                "upstreamNamesJSON",
+                "vendor"
+            ],
             "properties": {
                 "accessScope": {
                     "type": "string"
@@ -15377,6 +17664,9 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ModelUpstreamSourceDataResponse": {
             "type": "object",
+            "required": [
+                "source"
+            ],
             "properties": {
                 "source": {
                     "$ref": "#/definitions/internal_transport_http_channel.ModelUpstreamSourceResponse"
@@ -15385,9 +17675,17 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ModelUpstreamSourceListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -15407,6 +17705,34 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ModelUpstreamSourceResponse": {
             "type": "object",
+            "required": [
+                "baseURL",
+                "bindingCode",
+                "cbDurationMin",
+                "cbFailureThreshold",
+                "cbWindowMin",
+                "circuitOpen",
+                "circuitScope",
+                "circuitUntil",
+                "createdAt",
+                "headersJSON",
+                "id",
+                "priority",
+                "protocol",
+                "source",
+                "status",
+                "suggestedProtocol",
+                "updatedAt",
+                "upstreamID",
+                "upstreamModelIcon",
+                "upstreamModelKindsJSON",
+                "upstreamModelName",
+                "upstreamModelStatus",
+                "upstreamModelVendor",
+                "upstreamName",
+                "upstreamStatus",
+                "weight"
+            ],
             "properties": {
                 "baseURL": {
                     "type": "string"
@@ -15490,6 +17816,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.PublicModelListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "array",
@@ -15504,6 +17834,18 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.PublicModelPricingResponse": {
             "type": "object",
+            "required": [
+                "cacheReadUSDPerMTokens",
+                "cacheWriteUSDPerMTokens",
+                "callUSDPerCall",
+                "currency",
+                "durationUSDPerSecond",
+                "inputUSDPerMTokens",
+                "isFree",
+                "mode",
+                "outputUSDPerMTokens",
+                "tiers"
+            ],
             "properties": {
                 "cacheReadUSDPerMTokens": {
                     "type": "number"
@@ -15542,6 +17884,14 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.PublicModelPricingTierResponse": {
             "type": "object",
+            "required": [
+                "cacheReadUSDPerMTokens",
+                "cacheWriteUSDPerMTokens",
+                "fromTokens",
+                "inputUSDPerMTokens",
+                "outputUSDPerMTokens",
+                "upToTokens"
+            ],
             "properties": {
                 "cacheReadUSDPerMTokens": {
                     "type": "number"
@@ -15559,12 +17909,25 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "upToTokens": {
-                    "type": "integer"
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 }
             }
         },
         "internal_transport_http_channel.PublicModelResponse": {
             "type": "object",
+            "required": [
+                "capabilitiesJSON",
+                "description",
+                "icon",
+                "kindsJSON",
+                "platformModelName",
+                "pricing",
+                "protocolsJSON",
+                "sortOrder",
+                "vendor"
+            ],
             "properties": {
                 "capabilitiesJSON": {
                     "type": "string"
@@ -15582,7 +17945,13 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "pricing": {
-                    "$ref": "#/definitions/internal_transport_http_channel.PublicModelPricingResponse"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/internal_transport_http_channel.PublicModelPricingResponse"
+                        }
+                    ],
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "protocolsJSON": {
                     "type": "string"
@@ -15612,6 +17981,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.ResetUpstreamCircuitResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_channel.CircuitResetResponse"
@@ -15623,6 +17996,14 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.SyncUpstreamModelsResponse": {
             "type": "object",
+            "required": [
+                "createdUpstreamModels",
+                "existingUpstreamModels",
+                "inactivatedModels",
+                "skippedUpstreamModels",
+                "syncedModels",
+                "totalUpstream"
+            ],
             "properties": {
                 "createdUpstreamModels": {
                     "type": "integer"
@@ -15649,6 +18030,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.SyncUpstreamModelsResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_channel.SyncUpstreamModelsResponse"
@@ -15727,6 +18112,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpdateModelResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_channel.ModelDataResponse"
@@ -15772,6 +18161,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpdateModelUpstreamSourceResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_channel.ModelUpstreamSourceDataResponse"
@@ -15867,6 +18260,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpdateUpstreamResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_channel.UpstreamDataResponse"
@@ -15938,6 +18335,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpsertUpstreamModelResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_channel.UpstreamModelDataResponse"
@@ -15949,6 +18350,13 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpstreamAPIKeyResponse": {
             "type": "object",
+            "required": [
+                "id",
+                "index",
+                "keyMasked",
+                "note",
+                "status"
+            ],
             "properties": {
                 "id": {
                     "type": "string"
@@ -15969,6 +18377,9 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpstreamDataResponse": {
             "type": "object",
+            "required": [
+                "upstream"
+            ],
             "properties": {
                 "upstream": {
                     "$ref": "#/definitions/internal_transport_http_channel.UpstreamResponse"
@@ -15977,9 +18388,17 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpstreamListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -15999,6 +18418,9 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpstreamModelDataResponse": {
             "type": "object",
+            "required": [
+                "binding"
+            ],
             "properties": {
                 "binding": {
                     "$ref": "#/definitions/internal_transport_http_channel.UpstreamModelResponse"
@@ -16007,9 +18429,17 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpstreamModelListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -16029,6 +18459,36 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpstreamModelResponse": {
             "type": "object",
+            "required": [
+                "bindingCode",
+                "cbDurationMin",
+                "cbFailureThreshold",
+                "cbWindowMin",
+                "circuitOpen",
+                "circuitUntil",
+                "createdAt",
+                "headersJSON",
+                "id",
+                "modelIcon",
+                "modelKindsJSON",
+                "modelVendor",
+                "platformModelID",
+                "platformModelName",
+                "priority",
+                "protocol",
+                "routeID",
+                "routeStatus",
+                "source",
+                "suggestedProtocol",
+                "updatedAt",
+                "upstreamID",
+                "upstreamModelIcon",
+                "upstreamModelKindsJSON",
+                "upstreamModelName",
+                "upstreamModelStatus",
+                "upstreamModelVendor",
+                "weight"
+            ],
             "properties": {
                 "bindingCode": {
                     "type": "string"
@@ -16118,6 +18578,18 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpstreamRemoteModelResponse": {
             "type": "object",
+            "required": [
+                "alreadyBound",
+                "alreadySynced",
+                "bindingCode",
+                "boundPlatformModels",
+                "suggestedKindsJSON",
+                "suggestedPlatformModelName",
+                "suggestedProtocol",
+                "suggestedProtocols",
+                "upstreamModelName",
+                "upstreamModelStatus"
+            ],
             "properties": {
                 "alreadyBound": {
                     "type": "boolean"
@@ -16159,6 +18631,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpstreamRemoteModelsResponse": {
             "type": "object",
+            "required": [
+                "items",
+                "total"
+            ],
             "properties": {
                 "items": {
                     "type": "array",
@@ -16173,6 +18649,10 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpstreamRemoteModelsResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_channel.UpstreamRemoteModelsResponse"
@@ -16184,6 +18664,31 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpstreamResponse": {
             "type": "object",
+            "required": [
+                "activeModelsCount",
+                "apiKeyItems",
+                "apiKeysMasked",
+                "baseURL",
+                "cbDurationMin",
+                "cbFailureThreshold",
+                "cbModelThreshold",
+                "cbThresholdLogic",
+                "cbWindowMin",
+                "circuitOpen",
+                "circuitUntil",
+                "compatible",
+                "connectTimeoutMS",
+                "createdAt",
+                "headersJSON",
+                "id",
+                "modelsCount",
+                "name",
+                "protocolDefaultsJSON",
+                "readTimeoutMS",
+                "status",
+                "streamIdleTimeoutMS",
+                "updatedAt"
+            ],
             "properties": {
                 "activeModelsCount": {
                     "type": "integer"
@@ -16261,6 +18766,14 @@ const docTemplate = `{
         },
         "internal_transport_http_channel.UpstreamSyncModelResponse": {
             "type": "object",
+            "required": [
+                "bindingCode",
+                "created",
+                "kindsJSON",
+                "status",
+                "suggestedProtocol",
+                "upstreamModelName"
+            ],
             "properties": {
                 "bindingCode": {
                     "type": "string"
@@ -16303,6 +18816,9 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.BatchSetConversationProjectResponse": {
             "type": "object",
+            "required": [
+                "updated"
+            ],
             "properties": {
                 "updated": {
                     "type": "integer"
@@ -16311,6 +18827,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.BatchSetConversationProjectResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.BatchSetConversationProjectResponse"
@@ -16322,6 +18842,20 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ContextArtifactResponse": {
             "type": "object",
+            "required": [
+                "content",
+                "createdAt",
+                "id",
+                "kind",
+                "messageID",
+                "metadataJSON",
+                "runID",
+                "score",
+                "sourceID",
+                "sourceTitle",
+                "sourceType",
+                "tokenEstimate"
+            ],
             "properties": {
                 "content": {
                     "type": "string"
@@ -16366,6 +18900,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ContextArtifactResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.ContextArtifactResponse"
@@ -16377,6 +18915,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationCreateResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.ConversationResponse"
@@ -16388,6 +18930,11 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationDefaultModelCandidateResponse": {
             "type": "object",
+            "required": [
+                "platformModelName",
+                "source",
+                "usedAt"
+            ],
             "properties": {
                 "platformModelName": {
                     "type": "string"
@@ -16396,12 +18943,18 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "usedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 }
             }
         },
         "internal_transport_http_conversation.ConversationDefaultModelCandidateResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.ConversationDefaultModelCandidateResponse"
@@ -16413,6 +18966,9 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationDeleteResponse": {
             "type": "object",
+            "required": [
+                "deleted"
+            ],
             "properties": {
                 "deleted": {
                     "type": "boolean"
@@ -16427,6 +18983,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationDeleteResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.ConversationDeleteResponse"
@@ -16438,6 +18998,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationExportCompatibilityResponse": {
             "type": "object",
+            "required": [
+                "format",
+                "notes"
+            ],
             "properties": {
                 "format": {
                     "type": "string"
@@ -16449,6 +19013,18 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationExportResponse": {
             "type": "object",
+            "required": [
+                "compatibility",
+                "conversation",
+                "defaultMessagePublicIDs",
+                "exportScope",
+                "exportedAt",
+                "messages",
+                "runs",
+                "totalMessages",
+                "totalRuns",
+                "version"
+            ],
             "properties": {
                 "compatibility": {
                     "$ref": "#/definitions/internal_transport_http_conversation.ConversationExportCompatibilityResponse"
@@ -16493,6 +19069,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationExportResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.ConversationExportResponse"
@@ -16504,9 +19084,17 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -16526,6 +19114,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationProjectListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "array",
@@ -16540,6 +19132,21 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationProjectResponse": {
             "type": "object",
+            "required": [
+                "color",
+                "createdAt",
+                "defaultMCPToolIDs",
+                "defaultSkillIDs",
+                "description",
+                "icon",
+                "mcpDefaultMode",
+                "name",
+                "publicID",
+                "sortOrder",
+                "status",
+                "systemPrompt",
+                "updatedAt"
+            ],
             "properties": {
                 "color": {
                     "type": "string"
@@ -16590,6 +19197,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationProjectResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.ConversationProjectResponse"
@@ -16601,6 +19212,30 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationResponse": {
             "type": "object",
+            "required": [
+                "contextPolicyJSON",
+                "createdAt",
+                "isStarred",
+                "labelsJSON",
+                "lastCompactedAt",
+                "lastResponseID",
+                "lastShareAccessedAt",
+                "messageCount",
+                "model",
+                "projectID",
+                "projectName",
+                "provider",
+                "publicID",
+                "sessionKey",
+                "shareID",
+                "shareStatus",
+                "sharedAt",
+                "starredAt",
+                "status",
+                "title",
+                "updatedAt",
+                "userID"
+            ],
             "properties": {
                 "contextPolicyJSON": {
                     "type": "string"
@@ -16615,13 +19250,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "lastCompactedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "lastResponseID": {
                     "type": "string"
                 },
                 "lastShareAccessedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "messageCount": {
                     "type": "integer"
@@ -16651,10 +19290,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "sharedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "starredAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "status": {
                     "type": "string"
@@ -16672,9 +19315,17 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationRunListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -16694,12 +19345,25 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationShareResponse": {
             "type": "object",
+            "required": [
+                "createdAt",
+                "lastAccessedAt",
+                "messageCount",
+                "modelSnapshot",
+                "revokedAt",
+                "shareID",
+                "status",
+                "titleSnapshot",
+                "updatedAt"
+            ],
             "properties": {
                 "createdAt": {
                     "type": "string"
                 },
                 "lastAccessedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "messageCount": {
                     "type": "integer"
@@ -16708,7 +19372,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "revokedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "shareID": {
                     "type": "string"
@@ -16726,6 +19392,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationShareResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.ConversationShareResponse"
@@ -16737,6 +19407,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ConversationUpdateResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.ConversationResponse"
@@ -16826,6 +19500,11 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.DeleteFileResponse": {
             "type": "object",
+            "required": [
+                "deleted",
+                "fileID",
+                "quota"
+            ],
             "properties": {
                 "deleted": {
                     "type": "boolean"
@@ -16840,6 +19519,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.DeleteFileResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.DeleteFileResponse"
@@ -16851,6 +19534,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.ErrorDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {},
                 "details": {},
@@ -16867,6 +19554,11 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.FileListResponse": {
             "type": "object",
+            "required": [
+                "quota",
+                "results",
+                "total"
+            ],
             "properties": {
                 "quota": {
                     "$ref": "#/definitions/internal_transport_http_conversation.StorageQuotaResponse"
@@ -16884,6 +19576,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.FileListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.FileListResponse"
@@ -16895,6 +19591,30 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.FileObjectResponse": {
             "type": "object",
+            "required": [
+                "chunkCount",
+                "createdAt",
+                "detectedMIME",
+                "embedError",
+                "embedStatus",
+                "expiresAt",
+                "extractStatus",
+                "fileCategory",
+                "fileID",
+                "fileName",
+                "lastAccessedAt",
+                "mimeType",
+                "processingErrorCode",
+                "processingErrorMessage",
+                "processingReady",
+                "processingStatus",
+                "purpose",
+                "ragOptOut",
+                "sha256",
+                "sizeBytes",
+                "status",
+                "updatedAt"
+            ],
             "properties": {
                 "chunkCount": {
                     "type": "integer"
@@ -16912,7 +19632,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "expiresAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "extractStatus": {
                     "type": "string"
@@ -16927,7 +19649,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "lastAccessedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "mimeType": {
                     "type": "string"
@@ -16966,6 +19690,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.FileUpdateResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.FileObjectResponse"
@@ -16977,6 +19705,11 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.FileUploadResponse": {
             "type": "object",
+            "required": [
+                "file",
+                "quota",
+                "reused"
+            ],
             "properties": {
                 "file": {
                     "$ref": "#/definitions/internal_transport_http_conversation.FileObjectResponse"
@@ -16991,6 +19724,13 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.MessageBillingCostResponse": {
             "type": "object",
+            "required": [
+                "billedCurrency",
+                "billedNanousd",
+                "billedUSD",
+                "billingMode",
+                "pricingSnapshotJSON"
+            ],
             "properties": {
                 "billedCurrency": {
                     "type": "string"
@@ -17011,6 +19751,13 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.MessageFeedbackResponse": {
             "type": "object",
+            "required": [
+                "messageID",
+                "messagePublicID",
+                "myFeedback",
+                "thumbsDownCount",
+                "thumbsUpCount"
+            ],
             "properties": {
                 "messageID": {
                     "type": "integer"
@@ -17031,6 +19778,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.MessageFeedbackResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.MessageFeedbackResponse"
@@ -17042,9 +19793,17 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.MessageListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -17064,6 +19823,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.MessageProcessTraceResponse": {
             "type": "object",
+            "required": [
+                "enabled",
+                "status"
+            ],
             "properties": {
                 "enabled": {
                     "type": "boolean"
@@ -17093,6 +19856,13 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.MessagePromptTraceBlockResponse": {
             "type": "object",
+            "required": [
+                "cacheable",
+                "kind",
+                "sourceCount",
+                "title",
+                "tokenEstimate"
+            ],
             "properties": {
                 "cacheable": {
                     "type": "boolean"
@@ -17119,6 +19889,19 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.MessagePromptTraceResponse": {
             "type": "object",
+            "required": [
+                "blocks",
+                "fullMessageCount",
+                "mode",
+                "promptFingerprint",
+                "sentMessageCount",
+                "sentTokenEstimate",
+                "statefulDisabledReason",
+                "statefulSavedMessages",
+                "statefulSavedTokens",
+                "statefulUsed",
+                "totalTokenEstimate"
+            ],
             "properties": {
                 "blocks": {
                     "type": "array",
@@ -17160,6 +19943,11 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.MessagePromptTraceSourceResponse": {
             "type": "object",
+            "required": [
+                "sourceID",
+                "sourceType",
+                "title"
+            ],
             "properties": {
                 "artifactID": {
                     "type": "integer"
@@ -17177,6 +19965,42 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.MessageResponse": {
             "type": "object",
+            "required": [
+                "attachments",
+                "branchReason",
+                "cacheReadTokens",
+                "cacheWriteTokens",
+                "content",
+                "contentType",
+                "conversationID",
+                "createdAt",
+                "editedAt",
+                "errorCode",
+                "errorMessage",
+                "id",
+                "inputTokens",
+                "latencyMS",
+                "modelIcon",
+                "modelVendor",
+                "myFeedback",
+                "outputTokens",
+                "parentMessageID",
+                "parentPublicID",
+                "platformModelName",
+                "publicID",
+                "reasoningTokens",
+                "role",
+                "runID",
+                "sourceMessageID",
+                "sourcePublicID",
+                "status",
+                "thumbsDownCount",
+                "thumbsUpCount",
+                "tokenUsage",
+                "updatedAt",
+                "upstreamModelName",
+                "userID"
+            ],
             "properties": {
                 "attachments": {
                     "type": "string"
@@ -17206,7 +20030,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "editedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "errorCode": {
                     "type": "string"
@@ -17236,7 +20062,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "parentMessageID": {
-                    "type": "integer"
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "parentPublicID": {
                     "type": "string"
@@ -17260,7 +20088,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "sourceMessageID": {
-                    "type": "integer"
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "sourcePublicID": {
                     "type": "string"
@@ -17290,6 +20120,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.MessageResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.MessageResponse"
@@ -17301,6 +20135,13 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.MessageTraceBlockResponse": {
             "type": "object",
+            "required": [
+                "contentMarkdown",
+                "status",
+                "summary",
+                "title",
+                "updatedAt"
+            ],
             "properties": {
                 "contentMarkdown": {
                     "type": "string"
@@ -17333,6 +20174,18 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.MessageTraceEventResponse": {
             "type": "object",
+            "required": [
+                "contentMarkdown",
+                "eventID",
+                "eventType",
+                "phase",
+                "seq",
+                "startedAt",
+                "status",
+                "summary",
+                "title",
+                "updatedAt"
+            ],
             "properties": {
                 "contentMarkdown": {
                     "type": "string"
@@ -17383,6 +20236,15 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.PublicSharedConversationResponse": {
             "type": "object",
+            "required": [
+                "createdAt",
+                "defaultMessagePublicIDs",
+                "lastAccessedAt",
+                "messages",
+                "model",
+                "shareID",
+                "title"
+            ],
             "properties": {
                 "createdAt": {
                     "type": "string"
@@ -17394,7 +20256,9 @@ const docTemplate = `{
                     }
                 },
                 "lastAccessedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "messages": {
                     "type": "array",
@@ -17415,6 +20279,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.PublicSharedConversationResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.PublicSharedConversationResponse"
@@ -17426,6 +20294,34 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.PublicSharedMessageResponse": {
             "type": "object",
+            "required": [
+                "attachments",
+                "branchReason",
+                "cacheReadTokens",
+                "cacheWriteTokens",
+                "content",
+                "contentType",
+                "createdAt",
+                "editedAt",
+                "errorCode",
+                "errorMessage",
+                "inputTokens",
+                "latencyMS",
+                "modelIcon",
+                "modelVendor",
+                "outputTokens",
+                "parentPublicID",
+                "platformModelName",
+                "publicID",
+                "reasoningTokens",
+                "role",
+                "runID",
+                "sourcePublicID",
+                "status",
+                "tokenUsage",
+                "updatedAt",
+                "upstreamModelName"
+            ],
             "properties": {
                 "attachments": {
                     "type": "string"
@@ -17449,7 +20345,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "editedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "errorCode": {
                     "type": "string"
@@ -17551,6 +20449,9 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.RevokeConversationSharesResponse": {
             "type": "object",
+            "required": [
+                "revoked"
+            ],
             "properties": {
                 "revoked": {
                     "type": "boolean"
@@ -17559,6 +20460,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.RevokeConversationSharesResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.RevokeConversationSharesResponse"
@@ -17570,6 +20475,40 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.RunResponse": {
             "type": "object",
+            "required": [
+                "cacheReadTokens",
+                "cacheWriteTokens",
+                "conversationID",
+                "createdAt",
+                "endedAt",
+                "endpoint",
+                "errorCode",
+                "errorMessage",
+                "firstTokenLatencyMS",
+                "id",
+                "inputTokens",
+                "modelIcon",
+                "modelVendor",
+                "outputTokens",
+                "platformModelName",
+                "provider",
+                "providerProtocol",
+                "reasoningTokens",
+                "requestID",
+                "requestedModelName",
+                "routedBindingCode",
+                "runID",
+                "startedAt",
+                "status",
+                "taskType",
+                "toolCallsCount",
+                "totalLatencyMS",
+                "updatedAt",
+                "upstreamID",
+                "upstreamModelID",
+                "upstreamModelName",
+                "userID"
+            ],
             "properties": {
                 "cacheReadTokens": {
                     "type": "integer"
@@ -17584,7 +20523,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "endedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "endpoint": {
                     "type": "string"
@@ -17752,6 +20693,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.SendMessageResponse": {
             "type": "object",
+            "required": [
+                "assistantMessage",
+                "userMessage"
+            ],
             "properties": {
                 "assistantMessage": {
                     "$ref": "#/definitions/internal_transport_http_conversation.MessageResponse"
@@ -17766,6 +20711,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.SendMessageResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.SendMessageResponse"
@@ -17777,6 +20726,9 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.SetConversationArchiveRequest": {
             "type": "object",
+            "required": [
+                "archived"
+            ],
             "properties": {
                 "archived": {
                     "type": "boolean"
@@ -17794,6 +20746,9 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.SetConversationStarRequest": {
             "type": "object",
+            "required": [
+                "starred"
+            ],
             "properties": {
                 "starred": {
                     "type": "boolean"
@@ -17814,6 +20769,15 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.StorageQuotaResponse": {
             "type": "object",
+            "required": [
+                "createdAt",
+                "id",
+                "quotaBytes",
+                "reservedBytes",
+                "updatedAt",
+                "usedBytes",
+                "userID"
+            ],
             "properties": {
                 "createdAt": {
                     "type": "string"
@@ -17915,6 +20879,10 @@ const docTemplate = `{
         },
         "internal_transport_http_conversation.UploadFileResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_conversation.FileUploadResponse"
@@ -17924,8 +20892,391 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_transport_http_mcp.CreateServerRequest": {
+            "type": "object",
+            "required": [
+                "baseURL",
+                "name"
+            ],
+            "properties": {
+                "authToken": {
+                    "type": "string"
+                },
+                "baseURL": {
+                    "type": "string"
+                },
+                "headersJSON": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_transport_http_mcp.DeleteServerResponse": {
+            "type": "object",
+            "required": [
+                "deleted"
+            ],
+            "properties": {
+                "deleted": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_transport_http_mcp.DeleteServerResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_transport_http_mcp.DeleteServerResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_transport_http_mcp.ErrorDoc": {
+            "type": "object",
+            "required": [
+                "errorMsg"
+            ],
+            "properties": {
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_transport_http_mcp.ReorderServerOrderItem": {
+            "type": "object",
+            "required": [
+                "serverID",
+                "toolIDs"
+            ],
+            "properties": {
+                "serverID": {
+                    "type": "integer"
+                },
+                "toolIDs": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "internal_transport_http_mcp.ReorderServersRequest": {
+            "type": "object",
+            "required": [
+                "servers"
+            ],
+            "properties": {
+                "servers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_transport_http_mcp.ReorderServerOrderItem"
+                    }
+                }
+            }
+        },
+        "internal_transport_http_mcp.ServerDataResponse": {
+            "type": "object",
+            "required": [
+                "server"
+            ],
+            "properties": {
+                "server": {
+                    "$ref": "#/definitions/internal_transport_http_mcp.ServerResponse"
+                }
+            }
+        },
+        "internal_transport_http_mcp.ServerDataResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_transport_http_mcp.ServerDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_transport_http_mcp.ServerListResponse": {
+            "type": "object",
+            "required": [
+                "results"
+            ],
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_transport_http_mcp.ServerResponse"
+                    }
+                }
+            }
+        },
+        "internal_transport_http_mcp.ServerListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_transport_http_mcp.ServerListResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_transport_http_mcp.ServerResponse": {
+            "type": "object",
+            "required": [
+                "activeToolCount",
+                "baseURL",
+                "createdAt",
+                "headersJSON",
+                "id",
+                "lastError",
+                "lastSyncedAt",
+                "name",
+                "sortOrder",
+                "status",
+                "toolCount",
+                "updatedAt"
+            ],
+            "properties": {
+                "activeToolCount": {
+                    "type": "integer"
+                },
+                "baseURL": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "headersJSON": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "lastError": {
+                    "type": "string"
+                },
+                "lastSyncedAt": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "toolCount": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_transport_http_mcp.ServerToolOrderListResponse": {
+            "type": "object",
+            "required": [
+                "results"
+            ],
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_transport_http_mcp.ServerToolOrderResponse"
+                    }
+                }
+            }
+        },
+        "internal_transport_http_mcp.ServerToolOrderListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_transport_http_mcp.ServerToolOrderListResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_transport_http_mcp.ServerToolOrderResponse": {
+            "type": "object",
+            "required": [
+                "server",
+                "tools"
+            ],
+            "properties": {
+                "server": {
+                    "$ref": "#/definitions/internal_transport_http_mcp.ServerResponse"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_transport_http_mcp.ToolResponse"
+                    }
+                }
+            }
+        },
+        "internal_transport_http_mcp.ToolListResponse": {
+            "type": "object",
+            "required": [
+                "results"
+            ],
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_transport_http_mcp.ToolResponse"
+                    }
+                }
+            }
+        },
+        "internal_transport_http_mcp.ToolListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_transport_http_mcp.ToolListResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_transport_http_mcp.ToolResponse": {
+            "type": "object",
+            "required": [
+                "createdAt",
+                "description",
+                "displayName",
+                "id",
+                "inputSchemaJSON",
+                "name",
+                "serverID",
+                "serverName",
+                "sortOrder",
+                "status",
+                "updatedAt"
+            ],
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "inputSchemaJSON": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "serverID": {
+                    "type": "integer"
+                },
+                "serverName": {
+                    "type": "string"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_transport_http_mcp.ToolResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_transport_http_mcp.ToolResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_transport_http_mcp.UpdateServerToolsStatusRequest": {
+            "type": "object",
+            "required": [
+                "status",
+                "toolIDs"
+            ],
+            "properties": {
+                "status": {
+                    "type": "string"
+                },
+                "toolIDs": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "internal_transport_http_mcp.UpdateToolRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_transport_http_memory.ErrorDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {},
                 "details": {},
@@ -17942,6 +21293,9 @@ const docTemplate = `{
         },
         "internal_transport_http_memory.UpsertMemoryResponse": {
             "type": "object",
+            "required": [
+                "saved"
+            ],
             "properties": {
                 "saved": {
                     "type": "boolean"
@@ -17976,6 +21330,10 @@ const docTemplate = `{
         },
         "internal_transport_http_memory.UpsertUserMemoryResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_memory.UpsertMemoryResponse"
@@ -17987,6 +21345,10 @@ const docTemplate = `{
         },
         "internal_transport_http_memory.UserMemoryListResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "array",
@@ -18001,6 +21363,16 @@ const docTemplate = `{
         },
         "internal_transport_http_memory.UserMemoryResponse": {
             "type": "object",
+            "required": [
+                "createdAt",
+                "id",
+                "memoryKey",
+                "scope",
+                "updatedAt",
+                "updatedBy",
+                "userID",
+                "value"
+            ],
             "properties": {
                 "createdAt": {
                     "type": "string"
@@ -18030,6 +21402,9 @@ const docTemplate = `{
         },
         "internal_transport_http_promptpreset.ErrorDoc": {
             "type": "object",
+            "required": [
+                "errorMsg"
+            ],
             "properties": {
                 "errorMsg": {
                     "type": "string"
@@ -18065,6 +21440,9 @@ const docTemplate = `{
         },
         "internal_transport_http_promptpreset.PromptPresetDataResponse": {
             "type": "object",
+            "required": [
+                "promptPreset"
+            ],
             "properties": {
                 "promptPreset": {
                     "$ref": "#/definitions/internal_transport_http_promptpreset.PromptPresetResponse"
@@ -18073,6 +21451,9 @@ const docTemplate = `{
         },
         "internal_transport_http_promptpreset.PromptPresetDeleteDataResponse": {
             "type": "object",
+            "required": [
+                "deleted"
+            ],
             "properties": {
                 "deleted": {
                     "type": "boolean"
@@ -18081,6 +21462,10 @@ const docTemplate = `{
         },
         "internal_transport_http_promptpreset.PromptPresetDeleteResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_promptpreset.PromptPresetDeleteDataResponse"
@@ -18092,9 +21477,17 @@ const docTemplate = `{
         },
         "internal_transport_http_promptpreset.PromptPresetPageResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -18114,6 +21507,20 @@ const docTemplate = `{
         },
         "internal_transport_http_promptpreset.PromptPresetResponse": {
             "type": "object",
+            "required": [
+                "content",
+                "createdAt",
+                "createdByUserID",
+                "description",
+                "enabled",
+                "id",
+                "scope",
+                "sortOrder",
+                "title",
+                "trigger",
+                "updatedAt",
+                "updatedByUserID"
+            ],
             "properties": {
                 "content": {
                     "type": "string"
@@ -18155,6 +21562,10 @@ const docTemplate = `{
         },
         "internal_transport_http_promptpreset.PromptPresetResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_promptpreset.PromptPresetDataResponse"
@@ -18198,6 +21609,12 @@ const docTemplate = `{
         },
         "internal_transport_http_settings.BrandingManifestIcon": {
             "type": "object",
+            "required": [
+                "purpose",
+                "sizes",
+                "src",
+                "type"
+            ],
             "properties": {
                 "purpose": {
                     "type": "string"
@@ -18215,6 +21632,21 @@ const docTemplate = `{
         },
         "internal_transport_http_settings.BrandingManifestResponse": {
             "type": "object",
+            "required": [
+                "background_color",
+                "categories",
+                "description",
+                "display",
+                "icons",
+                "id",
+                "lang",
+                "name",
+                "orientation",
+                "scope",
+                "short_name",
+                "start_url",
+                "theme_color"
+            ],
             "properties": {
                 "background_color": {
                     "type": "string"
@@ -18265,6 +21697,17 @@ const docTemplate = `{
         },
         "internal_transport_http_settings.BrandingResponse": {
             "type": "object",
+            "required": [
+                "appleTouchIcon180URL",
+                "description",
+                "faviconURL",
+                "logoURL",
+                "pwaIcon192URL",
+                "pwaIcon512URL",
+                "pwaMaskableIcon512URL",
+                "shortName",
+                "title"
+            ],
             "properties": {
                 "appleTouchIcon180URL": {
                     "type": "string"
@@ -18297,6 +21740,10 @@ const docTemplate = `{
         },
         "internal_transport_http_settings.BrandingResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_settings.BrandingResponse"
@@ -18344,6 +21791,9 @@ const docTemplate = `{
         },
         "internal_transport_http_skill.ErrorDoc": {
             "type": "object",
+            "required": [
+                "errorMsg"
+            ],
             "properties": {
                 "errorMsg": {
                     "type": "string"
@@ -18379,6 +21829,9 @@ const docTemplate = `{
         },
         "internal_transport_http_skill.SkillDataResponse": {
             "type": "object",
+            "required": [
+                "skill"
+            ],
             "properties": {
                 "skill": {
                     "$ref": "#/definitions/internal_transport_http_skill.SkillResponse"
@@ -18387,6 +21840,9 @@ const docTemplate = `{
         },
         "internal_transport_http_skill.SkillDeleteDataResponse": {
             "type": "object",
+            "required": [
+                "deleted"
+            ],
             "properties": {
                 "deleted": {
                     "type": "boolean"
@@ -18395,6 +21851,10 @@ const docTemplate = `{
         },
         "internal_transport_http_skill.SkillDeleteResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_skill.SkillDeleteDataResponse"
@@ -18406,9 +21866,17 @@ const docTemplate = `{
         },
         "internal_transport_http_skill.SkillPageResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -18428,6 +21896,20 @@ const docTemplate = `{
         },
         "internal_transport_http_skill.SkillResponse": {
             "type": "object",
+            "required": [
+                "createdAt",
+                "createdByUserID",
+                "description",
+                "enabled",
+                "id",
+                "markdown",
+                "scope",
+                "sortOrder",
+                "title",
+                "trigger",
+                "updatedAt",
+                "updatedByUserID"
+            ],
             "properties": {
                 "createdAt": {
                     "type": "string"
@@ -18469,6 +21951,10 @@ const docTemplate = `{
         },
         "internal_transport_http_skill.SkillResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_skill.SkillDataResponse"
@@ -18480,9 +21966,17 @@ const docTemplate = `{
         },
         "internal_transport_http_skill.SkillSummaryPageResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
                     "properties": {
                         "results": {
                             "type": "array",
@@ -18502,6 +21996,17 @@ const docTemplate = `{
         },
         "internal_transport_http_skill.SkillSummaryResponse": {
             "type": "object",
+            "required": [
+                "createdAt",
+                "description",
+                "enabled",
+                "id",
+                "scope",
+                "sortOrder",
+                "title",
+                "trigger",
+                "updatedAt"
+            ],
             "properties": {
                 "createdAt": {
                     "type": "string"
@@ -18580,6 +22085,9 @@ const docTemplate = `{
         },
         "internal_transport_http_usersettings.UserSettingsResponse": {
             "type": "object",
+            "required": [
+                "settings"
+            ],
             "properties": {
                 "settings": {
                     "type": "object",
@@ -18591,6 +22099,10 @@ const docTemplate = `{
         },
         "internal_transport_http_usersettings.UserSettingsResponseDoc": {
             "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_transport_http_usersettings.UserSettingsResponse"
