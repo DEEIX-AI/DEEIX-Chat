@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
@@ -43,7 +42,6 @@ export function ChatScreenshotPreviewDialog({
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
           <div className="overflow-auto rounded-lg border border-border/60 bg-muted/30 p-3">
             {previewURL ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img src={previewURL} alt={t("previewTitle")} className="mx-auto block h-auto w-full rounded-md" />
             ) : null}
           </div>

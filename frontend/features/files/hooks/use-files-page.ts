@@ -272,13 +272,12 @@ export function useFilesPage(): UseFilesPageResult {
           toast.error(t("toasts.listLoadFailed"), { id: "files-list-load-error", description });
         }
       } finally {
-        if (!isMountedRef.current || !isLatestRequest()) {
-          return;
+        if (isMountedRef.current && isLatestRequest()) {
+          hasLoadedOnceRef.current = true;
+          setLoading(false);
+          setLoadingMore(false);
+          setSyncing(false);
         }
-        hasLoadedOnceRef.current = true;
-        setLoading(false);
-        setLoadingMore(false);
-        setSyncing(false);
       }
     },
     [debouncedQuery, ensureAccessToken, filterKeys, resolveErrorMessage, sortKey, t],

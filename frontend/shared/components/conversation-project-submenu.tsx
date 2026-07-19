@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { Check, Folder } from "lucide-react";
 
 import {

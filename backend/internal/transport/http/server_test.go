@@ -32,6 +32,9 @@ func TestVersionEndpointIsPublicAndUncached(t *testing.T) {
 	if got := recorder.Header().Get("Pragma"); got != "no-cache" {
 		t.Fatalf("expected version pragma no-cache, got %q", got)
 	}
+	if got := recorder.Header().Get("Content-Security-Policy"); got != "" {
+		t.Fatalf("expected API response without Content-Security-Policy, got %q", got)
+	}
 	if !strings.Contains(recorder.Body.String(), `"buildID"`) {
 		t.Fatalf("expected version response to include buildID, got %q", recorder.Body.String())
 	}
@@ -62,6 +65,9 @@ func TestFrontendStaticFallbackServesExportedPage(t *testing.T) {
 	}
 	if got := recorder.Header().Get("Cache-Control"); got != "no-cache" {
 		t.Fatalf("expected exported page no-cache, got %q", got)
+	}
+	if got := recorder.Header().Get("Content-Security-Policy"); got != "" {
+		t.Fatalf("expected exported page without Content-Security-Policy, got %q", got)
 	}
 }
 
@@ -110,6 +116,9 @@ func TestFrontendStaticCachesImmutableBuildAssets(t *testing.T) {
 	}
 	if got := recorder.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
 		t.Fatalf("expected immutable cache header, got %q", got)
+	}
+	if got := recorder.Header().Get("Content-Security-Policy"); got != "" {
+		t.Fatalf("expected static asset without Content-Security-Policy, got %q", got)
 	}
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight, ChevronDown, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowRight, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -33,7 +33,7 @@ import {
   AdminSortableList,
   moveSortableItem,
 } from "@/features/admin/components/sections/shared/admin-sortable-list";
-import type { IdentityProviderPayload } from "@/features/admin/api/auth";
+import type { UpsertIdentityProviderRequest } from "@deeix/api-contract";
 import { Table, TableBody, TableCell, TableEmptyRow, TableHead, TableHeader, TableLoadingRow, TableRow } from "@/components/ui/table";
 import { ApiError } from "@/shared/api/http-client";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
@@ -56,6 +56,7 @@ import {
   buildLoginSettingsGroups,
   createProviderForm,
   DEFAULT_PROVIDER_FORM,
+  type IdentityProviderForm,
   fieldID,
   flattenLoginSettings,
   includesEmailVerificationSettings,
@@ -102,7 +103,7 @@ export function AdminLoginSettingsPage() {
   const [deleteProviderTarget, setDeleteProviderTarget] = React.useState<IdentityProviderDTO | null>(null);
   const [forceDeleteProviderTarget, setForceDeleteProviderTarget] = React.useState<IdentityProviderDTO | null>(null);
   const [forceDeleteProviderMessage, setForceDeleteProviderMessage] = React.useState("");
-  const [providerForm, setProviderForm] = React.useState<IdentityProviderPayload>(DEFAULT_PROVIDER_FORM);
+  const [providerForm, setProviderForm] = React.useState<IdentityProviderForm>(DEFAULT_PROVIDER_FORM);
   const [oidcEndpointMode, setOidcEndpointMode] = React.useState<"issuer" | "discovery">("issuer");
   const [frontendOrigin, setFrontendOrigin] = React.useState("");
   const [loading, setLoading] = React.useState(true);
@@ -274,7 +275,7 @@ export function AdminLoginSettingsPage() {
     try {
       const token = await resolveAccessToken();
       if (!token) return;
-      const payload = {
+      const payload: UpsertIdentityProviderRequest = {
         ...providerForm,
         registrationEnabled: providerForm.loginEnabled && providerForm.registrationEnabled,
       };

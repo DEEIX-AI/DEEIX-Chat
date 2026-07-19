@@ -1,33 +1,11 @@
-export type PublicModelPricingTierDTO = {
-  fromTokens: number;
-  upToTokens: number | null;
-  inputUSDPerMTokens: number;
-  cacheReadUSDPerMTokens: number;
-  cacheWriteUSDPerMTokens: number;
-  outputUSDPerMTokens: number;
-};
+import type {
+  PublicModelPricingResponse,
+  PublicModelPricingTierResponse,
+  PublicModelResponse,
+} from "@deeix/api-contract";
 
-export type PublicModelPricingDTO = {
-  currency: string;
-  isFree: boolean;
-  mode: "token" | "call" | "duration" | "tiered" | string;
-  inputUSDPerMTokens: number;
-  cacheReadUSDPerMTokens: number;
-  cacheWriteUSDPerMTokens: number;
-  outputUSDPerMTokens: number;
-  callUSDPerCall: number;
-  durationUSDPerSecond: number;
-  tiers: PublicModelPricingTierDTO[];
-};
+export type PublicModelPricingTierDTO = PublicModelPricingTierResponse;
 
-export type PublicModelDTO = {
-  platformModelName: string;
-  vendor: string;
-  kindsJSON: string;
-  icon: string;
-  protocolsJSON: string;
-  capabilitiesJSON: string;
-  description: string;
-  sortOrder: number;
-  pricing: PublicModelPricingDTO | null;
-};
+export type PublicModelPricingDTO = PublicModelPricingResponse;
+
+export type PublicModelDTO = PublicModelResponse;

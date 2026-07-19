@@ -1,5 +1,4 @@
-import type { AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin.types";
-import type { UserDTO } from "@/shared/api/auth.types";
+import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin.types";
 
 export const USER_STATUS_OPTIONS: AdminUserStatus[] = [
   "pending_activation",
@@ -47,7 +46,7 @@ export type InlineEditableField = "role" | "status";
 export type AvatarDialogState =
   | { mode: "closed" }
   | { mode: "create"; value: string }
-  | { mode: "edit"; target: UserDTO; value: string };
+  | { mode: "edit"; target: AdminUserDTO; value: string };
 
 export type CreateUserPayload = {
   avatarURL: string;

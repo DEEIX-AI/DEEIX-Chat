@@ -17,8 +17,8 @@ import { NavRecents } from "@/features/layouts/components/navigation/nav-recents
 import { NavStarred } from "@/features/layouts/components/navigation/nav-starred";
 import { NavUser } from "@/features/layouts/components/navigation/nav-user";
 import { useOptionalAuthSession } from "@/shared/auth/auth-session-context";
+import { useBranding } from "@/shared/config/branding-provider";
 import { resolveAvatarImageSrc } from "@/shared/lib/avatar";
-import { brandText } from "@/shared/lib/branding";
 
 export function AppSidebar({
   onCreateConversation,
@@ -27,6 +27,7 @@ export function AppSidebar({
   onCreateConversation: () => void;
 }) {
   const t = useTranslations("common.navigation");
+  const branding = useBranding();
   const sessionUser = useOptionalAuthSession()?.user;
   const username = sessionUser?.username.trim() ?? "";
   const user = sessionUser
@@ -37,7 +38,7 @@ export function AppSidebar({
         role: sessionUser.role,
       }
     : {
-        name: brandText.title,
+        name: branding.title,
         email: "deeix.com",
         avatar: "",
       };

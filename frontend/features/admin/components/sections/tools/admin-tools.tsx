@@ -211,8 +211,6 @@ export function AdminToolsPage() {
   const stableToolForm = useDialogSnapshot(toolForm);
   const stableSchemaTool = useDialogSnapshot(schemaTool);
   const stableServerDeleteTarget = useDialogSnapshot(serverDeleteTarget);
-  const activeToolCount = React.useMemo(() => countActiveTools(tools), [tools]);
-
   React.useEffect(() => {
     if (mcpEnabled) {
       return;

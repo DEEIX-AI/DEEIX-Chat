@@ -1,10 +1,176 @@
 package conversation
 
 import (
+	"encoding/json"
 	"testing"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 )
+
+func TestNormalizeDefaultBranchContextKeepsHistoryAfterSuccessfulAssistantRetry(t *testing.T) {
+	rootUserID := uint(1)
+	rootAssistantID := uint(2)
+	failedUserID := uint(3)
+	retryAssistantID := uint(4)
+	failedAssistantID := uint(5)
+	historicalAttachments, err := json.Marshal([]attachmentSnapshotRef{{FileID: "file_from_history"}})
+	if err != nil {
+		t.Fatalf("marshal attachments: %v", err)
+	}
+	retriedAttachments, err := json.Marshal([]attachmentSnapshotRef{{FileID: "file_from_retried_user"}})
+	if err != nil {
+		t.Fatalf("marshal retried user attachments: %v", err)
+	}
+	ancestors := []model.Message{
+		{ID: rootUserID, PublicID: "msg_root_user", Role: "user", Status: "success", Attachments: string(historicalAttachments)},
+		{ID: rootAssistantID, PublicID: "msg_root_assistant", ParentMessageID: &rootUserID, Role: "assistant", Status: "success"},
+		{ID: failedUserID, PublicID: "msg_failed_user", ParentMessageID: &rootAssistantID, Role: "user", Status: "error", Attachments: string(retriedAttachments)},
+		{ID: retryAssistantID, PublicID: "msg_retry_assistant", ParentMessageID: &failedUserID, SourceMessageID: &failedAssistantID, Role: "assistant", BranchReason: "retry", Status: "success"},
+	}
+
+	normalized, parent := normalizeDefaultBranchContext(ancestors, &ancestors[3])
+
+	if parent == nil || parent.ID != retryAssistantID {
+		t.Fatalf("expected successful retry assistant as parent, got %#v", parent)
+	}
+	if len(normalized) != len(ancestors) {
+		t.Fatalf("expected complete history after successful retry, got %#v", normalized)
+	}
+	for index, expected := range ancestors {
+		if normalized[index].ID != expected.ID {
+			t.Fatalf("expected message %d at index %d, got %#v", expected.ID, index, normalized)
+		}
+	}
+	if normalized[2].Status != "success" {
+		t.Fatalf("expected recovered user to be usable as context, got status %q", normalized[2].Status)
+	}
+	if ancestors[2].Status != "error" {
+		t.Fatalf("expected normalization to leave persisted message state unchanged, got status %q", ancestors[2].Status)
+	}
+	fileIDs := collectConversationFileIDs(normalized, nil)
+	if len(fileIDs) != 2 || fileIDs[0] != "file_from_history" || fileIDs[1] != "file_from_retried_user" {
+		t.Fatalf("expected historical attachment to remain in context, got %#v", fileIDs)
+	}
+}
+
+func TestRecoverAssistantRetryUserStatesRestoresExpandedContext(t *testing.T) {
+	rootUserID := uint(1)
+	rootAssistantID := uint(2)
+	failedUserID := uint(3)
+	sourceAssistantID := uint(4)
+	retryAssistantID := uint(5)
+	retriedAttachments, err := json.Marshal([]attachmentSnapshotRef{{FileID: "file_from_retried_user"}})
+	if err != nil {
+		t.Fatalf("marshal retried user attachments: %v", err)
+	}
+	messages := []model.Message{
+		{ID: rootUserID, Role: "user", Status: "success"},
+		{ID: rootAssistantID, ParentMessageID: &rootUserID, Role: "assistant", Status: "success"},
+		{ID: failedUserID, ParentMessageID: &rootAssistantID, Role: "user", Status: "error", Attachments: string(retriedAttachments)},
+		{ID: retryAssistantID, ParentMessageID: &failedUserID, SourceMessageID: &sourceAssistantID, Role: "assistant", BranchReason: "retry", Status: "success"},
+		{ID: 6, ParentMessageID: &retryAssistantID, Role: "user", Status: "pending"},
+	}
+
+	recovered := recoverAssistantRetryUserStates(messages)
+
+	if len(recovered) != len(messages) {
+		t.Fatalf("expected expanded context length %d, got %#v", len(messages), recovered)
+	}
+	if recovered[2].Status != "success" {
+		t.Fatalf("expected retried user to be recovered, got status %q", recovered[2].Status)
+	}
+	if recovered[4].Status != "pending" {
+		t.Fatalf("expected unrelated message state to remain pending, got %q", recovered[4].Status)
+	}
+	if messages[2].Status != "error" {
+		t.Fatalf("expected persisted state copy to remain unchanged, got %q", messages[2].Status)
+	}
+	fileIDs := collectConversationFileIDs(recovered, nil)
+	if len(fileIDs) != 1 || fileIDs[0] != "file_from_retried_user" {
+		t.Fatalf("expected recovered attachment in expanded context, got %#v", fileIDs)
+	}
+}
+
+func TestNormalizeDefaultBranchContextDoesNotRecoverFailedRetry(t *testing.T) {
+	rootUserID := uint(1)
+	rootAssistantID := uint(2)
+	failedUserID := uint(3)
+	failedAssistantID := uint(5)
+	ancestors := []model.Message{
+		{ID: rootUserID, PublicID: "msg_root_user", Role: "user", Status: "success"},
+		{ID: rootAssistantID, PublicID: "msg_root_assistant", ParentMessageID: &rootUserID, Role: "assistant", Status: "success"},
+		{ID: failedUserID, PublicID: "msg_failed_user", ParentMessageID: &rootAssistantID, Role: "user", Status: "error"},
+		{ID: 4, PublicID: "msg_failed_retry", ParentMessageID: &failedUserID, SourceMessageID: &failedAssistantID, Role: "assistant", BranchReason: "retry", Status: "error"},
+	}
+
+	normalized, parent := normalizeDefaultBranchContext(ancestors, &ancestors[3])
+
+	if parent == nil || parent.ID != rootAssistantID {
+		t.Fatalf("expected latest successful ancestor as parent, got %#v", parent)
+	}
+	if len(normalized) != 2 || normalized[0].ID != rootUserID || normalized[1].ID != rootAssistantID {
+		t.Fatalf("expected failed retry tail removed from context, got %#v", normalized)
+	}
+}
+
+func TestIsRecoveredAssistantRetryUserRequiresGenuineUsableRetry(t *testing.T) {
+	failedUserID := uint(10)
+	sourceAssistantID := uint(11)
+	otherUserID := uint(12)
+	tests := []struct {
+		name      string
+		user      model.Message
+		assistant model.Message
+		expected  bool
+	}{
+		{
+			name:      "successful retry",
+			user:      model.Message{ID: failedUserID, Role: "user", Status: "error"},
+			assistant: model.Message{Role: "assistant", ParentMessageID: &failedUserID, SourceMessageID: &sourceAssistantID, BranchReason: "retry", Status: "success"},
+			expected:  true,
+		},
+		{
+			name:      "interrupted retry",
+			user:      model.Message{ID: failedUserID, Role: "user", Status: "error"},
+			assistant: model.Message{Role: "assistant", ParentMessageID: &failedUserID, SourceMessageID: &sourceAssistantID, BranchReason: "retry", Status: "interrupted"},
+			expected:  true,
+		},
+		{
+			name:      "failed retry",
+			user:      model.Message{ID: failedUserID, Role: "user", Status: "error"},
+			assistant: model.Message{Role: "assistant", ParentMessageID: &failedUserID, SourceMessageID: &sourceAssistantID, BranchReason: "retry", Status: "error"},
+		},
+		{
+			name:      "non-retry assistant",
+			user:      model.Message{ID: failedUserID, Role: "user", Status: "error"},
+			assistant: model.Message{Role: "assistant", ParentMessageID: &failedUserID, SourceMessageID: &sourceAssistantID, BranchReason: "default", Status: "success"},
+		},
+		{
+			name:      "retry without source",
+			user:      model.Message{ID: failedUserID, Role: "user", Status: "error"},
+			assistant: model.Message{Role: "assistant", ParentMessageID: &failedUserID, BranchReason: "retry", Status: "success"},
+		},
+		{
+			name:      "retry with different parent",
+			user:      model.Message{ID: failedUserID, Role: "user", Status: "error"},
+			assistant: model.Message{Role: "assistant", ParentMessageID: &otherUserID, SourceMessageID: &sourceAssistantID, BranchReason: "retry", Status: "success"},
+		},
+		{
+			name:      "already successful user",
+			user:      model.Message{ID: failedUserID, Role: "user", Status: "success"},
+			assistant: model.Message{Role: "assistant", ParentMessageID: &failedUserID, SourceMessageID: &sourceAssistantID, BranchReason: "retry", Status: "success"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			messages := []model.Message{test.user, test.assistant}
+			if actual := isRecoveredAssistantRetryUser(messages, 0); actual != test.expected {
+				t.Fatalf("expected recovered=%v, got %v", test.expected, actual)
+			}
+		})
+	}
+}
 
 func TestNormalizeDefaultBranchContextSkipsFailedTail(t *testing.T) {
 	rootID := uint(1)

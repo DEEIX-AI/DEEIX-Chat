@@ -504,6 +504,7 @@
       "monthly": "Monthly",
       "dailyUsage": "Daily usage",
       "monthlyUsage": "Monthly usage",
+      "otherModels": "Other",
       "empty": "No usage data.",
       "metrics": {
         "totalCost": "Total cost",
@@ -513,7 +514,8 @@
       },
       "tooltip": {
         "cost": "Cost",
-        "calls": "Calls"
+        "calls": "Calls",
+        "latency": "Average latency"
       }
     },
     "usageLog": {

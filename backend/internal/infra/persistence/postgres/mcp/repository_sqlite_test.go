@@ -60,6 +60,52 @@ func TestReorderServersWithToolsSQLitePersistsToolOrder(t *testing.T) {
 	}
 }
 
+func TestRemovingMCPToolsCleansConversationProjectAssociations(t *testing.T) {
+	db := openMCPSQLiteTestDB(t)
+	ctx := context.Background()
+	repo := NewRepo(db)
+	server := createMCPServer(t, db, "server-cascade")
+	if err := repo.ReplaceServerTools(ctx, server.ID, []domainmcp.Tool{
+		{Name: "tool_a", DisplayName: "Tool A", InputSchemaJSON: "{}", Status: "active"},
+		{Name: "tool_b", DisplayName: "Tool B", InputSchemaJSON: "{}", Status: "active"},
+	}); err != nil {
+		t.Fatalf("replace tools: %v", err)
+	}
+	tools, err := repo.ListTools(ctx, server.ID, false)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	for _, tool := range tools {
+		if err = db.Create(&model.ConversationProjectMCPTool{ProjectID: 9, ToolID: tool.ID}).Error; err != nil {
+			t.Fatalf("create project MCP association: %v", err)
+		}
+	}
+
+	if err = repo.ReplaceServerTools(ctx, server.ID, []domainmcp.Tool{
+		{Name: "tool_b", DisplayName: "Tool B", InputSchemaJSON: "{}", Status: "active"},
+	}); err != nil {
+		t.Fatalf("replace tools with removal: %v", err)
+	}
+	var associations []model.ConversationProjectMCPTool
+	if err = db.Order("tool_id ASC").Find(&associations).Error; err != nil {
+		t.Fatalf("list project MCP associations: %v", err)
+	}
+	if len(associations) != 1 || associations[0].ToolID != tools[1].ID {
+		t.Fatalf("associations after tool removal = %#v", associations)
+	}
+
+	if err = repo.DeleteServer(ctx, server.ID); err != nil {
+		t.Fatalf("DeleteServer() error = %v", err)
+	}
+	var associationCount int64
+	if err = db.Model(&model.ConversationProjectMCPTool{}).Count(&associationCount).Error; err != nil {
+		t.Fatalf("count project MCP associations: %v", err)
+	}
+	if associationCount != 0 {
+		t.Fatalf("project MCP association count = %d, want 0", associationCount)
+	}
+}
+
 func TestReorderServersWithToolsSQLiteRejectsForeignTool(t *testing.T) {
 	db := openMCPSQLiteTestDB(t)
 	ctx := context.Background()
@@ -160,7 +206,7 @@ func openMCPSQLiteTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.MCPServer{}, &model.MCPTool{}); err != nil {
+	if err := db.AutoMigrate(&model.MCPServer{}, &model.MCPTool{}, &model.ConversationProjectMCPTool{}); err != nil {
 		t.Fatalf("migrate sqlite: %v", err)
 	}
 	return db

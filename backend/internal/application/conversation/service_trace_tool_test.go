@@ -549,75 +549,78 @@ func TestToolExecutionLedgerNormalizesArguments(t *testing.T) {
 	}
 }
 
-func TestBudgetToolOutputForModelKeepsSmallResults(t *testing.T) {
-	raw := `{"content":[{"type":"text","text":"small result"}]}`
-	if got := budgetToolOutputForModel(model.ToolCall{OutputJSON: raw}, 100, false); got != raw {
-		t.Fatalf("expected small tool result to stay unchanged, got %q", got)
+func TestBudgetToolOutputForModelKeepsLargeReadableResultWhenItFits(t *testing.T) {
+	subtitle := "HEAD " + strings.Repeat("subtitle content ", 4000) + "TAIL"
+	raw := `{"content":[{"type":"text","text":"` + subtitle + `"}]}`
+	prepared := modelToolOutputForModel(raw)
+	if prepared != raw {
+		t.Fatalf("expected large readable MCP JSON to remain unchanged, got %d chars", len(prepared))
+	}
+	if got := budgetToolOutputForModel(prepared, 20_000); got != raw {
+		t.Fatalf("expected readable result to remain complete within token budget, got %d chars", len(got))
 	}
 }
 
-func TestBudgetToolOutputForModelKeepsNormalizedJSONWhenItFits(t *testing.T) {
-	raw := "{\n  \"ok\": true,\n  \"items\": [\n    1,\n    2\n  ]\n}"
-	got := budgetToolOutputForModel(model.ToolCall{OutputJSON: raw}, 32, false)
-	if got != `{"items":[1,2],"ok":true}` {
-		t.Fatalf("expected normalized JSON to fit without truncation envelope, got %q", got)
+func TestBudgetToolOutputForModelTruncatesByTokenBudget(t *testing.T) {
+	raw := "HEAD " + strings.Repeat("subtitle content ", 1000) + "TAIL"
+	got := budgetToolOutputForModel(raw, 800)
+	if !strings.Contains(got, "omitted to fit the model context") {
+		t.Fatalf("expected model-context marker, got %q", got)
+	}
+	if !strings.Contains(got, "HEAD") || !strings.Contains(got, "TAIL") {
+		t.Fatalf("expected token budget to preserve head and tail, got %q", got)
+	}
+	if tokens := estimateTokens(got); tokens > 800 {
+		t.Fatalf("expected result within token budget, got %d tokens", tokens)
 	}
 }
 
-func TestBudgetToolOutputForModelWrapsLargeResults(t *testing.T) {
-	raw := `{"content":[{"type":"text","text":"` + strings.Repeat("a", 80) + `TAIL"}]}`
-	got := budgetToolOutputForModel(model.ToolCall{OutputJSON: raw}, 80, false)
-	if !strings.Contains(got, "truncated_for_model") {
-		t.Fatalf("expected budgeted result marker, got %q", got)
+func TestBudgetToolOutputForModelTruncatesCJKWithinTokenBudget(t *testing.T) {
+	raw := "开头 " + strings.Repeat("字幕内容", 2000) + " 结尾"
+	got := budgetToolOutputForModel(raw, 500)
+	if !strings.Contains(got, "开头") || !strings.Contains(got, "结尾") {
+		t.Fatalf("expected CJK result to preserve head and tail")
 	}
-	if strings.Contains(got, "server-side tool call record") {
-		t.Fatalf("did not expect retention note without persistence, got %q", got)
-	}
-	if !strings.Contains(got, "TAIL") {
-		t.Fatalf("expected budgeted model result to preserve tail context, got %q", got)
-	}
-	if !strings.Contains(got, "head_tail") {
-		t.Fatalf("expected budget metadata to describe head/tail selection, got %q", got)
+	if tokens := estimateTokens(got); tokens > 500 {
+		t.Fatalf("expected CJK result within token budget, got %d tokens", tokens)
 	}
 }
 
-func TestBudgetToolOutputForModelOmitsOpaqueSingleLinePayload(t *testing.T) {
-	raw := strings.Repeat("A", 4096)
-	got := budgetToolOutputForModel(model.ToolCall{OutputJSON: raw}, 800, false)
-	if !strings.Contains(got, "Large opaque tool result omitted") {
-		t.Fatalf("expected opaque payload notice, got %q", got)
+func TestModelToolOutputForModelOmitsNestedOpaquePayload(t *testing.T) {
+	raw := `{"content":[{"type":"text","text":"subtitle"},{"type":"image","data":"` + strings.Repeat("A", 4096) + `"}]}`
+	got := modelToolOutputForModel(raw)
+	if !strings.Contains(got, "subtitle") || !strings.Contains(got, "Opaque tool payload omitted") {
+		t.Fatalf("expected readable text and opaque payload summary, got %q", got)
 	}
-	if !strings.Contains(got, `"content_type":"opaque"`) {
-		t.Fatalf("expected opaque content type metadata, got %q", got)
-	}
-	if strings.Count(got, strings.Repeat("A", 512)) > 1 {
-		t.Fatalf("expected opaque payload to be bounded, got %d chars", len(got))
+	if strings.Contains(got, strings.Repeat("A", 512)) {
+		t.Fatalf("expected nested opaque payload to be removed, got %d chars", len(got))
 	}
 }
 
-func TestBudgetToolOutputForModelUsesPersistedReferenceForLargeStoredResult(t *testing.T) {
-	raw := "HEAD\n" + strings.Repeat("x", toolResultReferenceThresholdChars) + "\nTAIL"
-	row := model.ToolCall{
-		ToolCallID: "call_large",
-		ToolName:   "fetch_large",
-		RunID:      "run_1",
-		OutputJSON: raw,
+func TestModelToolOutputForModelPreservesLargeInteger(t *testing.T) {
+	raw := `{"id":9007199254740993,"image":"` + strings.Repeat("A", 4096) + `"}`
+	got := modelToolOutputForModel(raw)
+	if !strings.Contains(got, `"id":9007199254740993`) {
+		t.Fatalf("expected large integer to retain its exact value, got %q", got)
 	}
-	got := budgetToolOutputForModel(row, toolResultModelBudgetChars, true)
-	if !strings.HasPrefix(got, "<persisted-tool-output") {
-		t.Fatalf("expected persisted output reference, got %q", got)
-	}
-	if !strings.Contains(got, `id="call_large"`) || !strings.Contains(got, `run_id="run_1"`) {
-		t.Fatalf("expected stable tool identifiers in reference, got %q", got)
-	}
-	if strings.Contains(got, "TAIL") {
-		t.Fatalf("expected reference preview to include only bounded leading content, got %q", got)
+	if !strings.Contains(got, "Opaque tool payload omitted") {
+		t.Fatalf("expected opaque payload to remain sanitized, got %q", got)
 	}
 }
 
-func TestEnforceToolResultAggregateBudgetReplacesLargestPersistedResults(t *testing.T) {
-	large := strings.Repeat("a", toolResultAggregateBudgetChars/2)
-	small := strings.Repeat("b", toolResultAggregateBudgetChars/3)
+func TestEnforceToolResultAggregateBudgetSupportsZeroBudget(t *testing.T) {
+	slots := []toolExecutionSlot{{
+		result: llm.ToolResult{OutputJSON: "tool output", Error: "tool error"},
+	}}
+	enforceToolResultAggregateBudget(slots, 0)
+	if tokens := toolResultModelTokens(slots[0].result); tokens != 0 {
+		t.Fatalf("expected zero-budget result to be empty, got %d tokens", tokens)
+	}
+}
+
+func TestEnforceToolResultAggregateBudgetKeepsSmallResults(t *testing.T) {
+	large := "HEAD " + strings.Repeat("large result ", 1000) + " TAIL"
+	small := strings.Repeat("small ", 40)
 	slots := []toolExecutionSlot{
 		{
 			row: model.ToolCall{
@@ -627,8 +630,7 @@ func TestEnforceToolResultAggregateBudgetReplacesLargestPersistedResults(t *test
 				Status:     "success",
 				OutputJSON: large,
 			},
-			result:    llm.ToolResult{ToolCallID: "call_a", OutputJSON: large, Status: "success"},
-			persisted: true,
+			result: llm.ToolResult{ToolCallID: "call_a", OutputJSON: large, Status: "success"},
 		},
 		{
 			row: model.ToolCall{
@@ -638,8 +640,7 @@ func TestEnforceToolResultAggregateBudgetReplacesLargestPersistedResults(t *test
 				Status:     "success",
 				OutputJSON: large,
 			},
-			result:    llm.ToolResult{ToolCallID: "call_b", OutputJSON: large, Status: "success"},
-			persisted: true,
+			result: llm.ToolResult{ToolCallID: "call_b", OutputJSON: large, Status: "success"},
 		},
 		{
 			row: model.ToolCall{
@@ -649,25 +650,25 @@ func TestEnforceToolResultAggregateBudgetReplacesLargestPersistedResults(t *test
 				Status:     "success",
 				OutputJSON: small,
 			},
-			result:    llm.ToolResult{ToolCallID: "call_c", OutputJSON: small, Status: "success"},
-			persisted: true,
+			result: llm.ToolResult{ToolCallID: "call_c", OutputJSON: small, Status: "success"},
 		},
 	}
 
-	enforceToolResultAggregateBudget(slots)
+	enforceToolResultAggregateBudget(slots, 1000)
 
-	replaced := 0
-	total := 0
+	total := int64(0)
 	for _, slot := range slots {
-		total += len([]rune(slot.result.OutputJSON))
-		if strings.HasPrefix(slot.result.OutputJSON, "<persisted-tool-output") {
-			replaced++
+		total += toolResultModelTokens(slot.result)
+	}
+	if total > 1000 {
+		t.Fatalf("expected aggregate model output within budget, got %d tokens", total)
+	}
+	if slots[2].result.OutputJSON != small {
+		t.Fatalf("expected small result to remain complete, got %q", slots[2].result.OutputJSON)
+	}
+	for _, index := range []int{0, 1} {
+		if !strings.Contains(slots[index].result.OutputJSON, "HEAD") || !strings.Contains(slots[index].result.OutputJSON, "TAIL") {
+			t.Fatalf("expected large result %d to retain head and tail", index)
 		}
-	}
-	if replaced == 0 {
-		t.Fatalf("expected at least one aggregate replacement, got %#v", slots)
-	}
-	if total > toolResultAggregateBudgetChars {
-		t.Fatalf("expected aggregate model-visible output under budget, got %d", total)
 	}
 }

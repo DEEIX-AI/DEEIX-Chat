@@ -145,10 +145,13 @@ function renderInlineStrongMarkdownText(source: string): React.ReactNode {
 
   const nodes: React.ReactNode[] = [];
   let cursor = 0;
-  let match: RegExpExecArray | null;
   INLINE_MARKDOWN_STRONG_RE.lastIndex = 0;
 
-  while ((match = INLINE_MARKDOWN_STRONG_RE.exec(source)) !== null) {
+  while (true) {
+    const match = INLINE_MARKDOWN_STRONG_RE.exec(source);
+    if (match === null) {
+      break;
+    }
     const [raw, _delimiter, content] = match;
     if (!content.trim()) {
       continue;

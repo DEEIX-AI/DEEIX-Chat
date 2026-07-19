@@ -128,7 +128,6 @@ const LogoColumn: React.FC<LogoColumnProps> = React.memo(
             {CurrentLogo ? (
               <CurrentLogo className={cn("h-20 w-20 max-h-[80%] max-w-[80%] object-contain md:h-32 md:w-32", logoClassName)} />
             ) : currentLogo.src ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img
                 alt=""
                 aria-hidden="true"

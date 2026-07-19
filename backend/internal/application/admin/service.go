@@ -96,6 +96,10 @@ type usageLogService interface {
 	ListUsageLogs(ctx context.Context, page int, pageSize int, filter billing.UsageLogListFilter) ([]domainbilling.UsageLedger, int64, error)
 }
 
+type usageStatisticsService interface {
+	GetUsageStatistics(ctx context.Context, filter billing.UsageStatisticsFilter) (domainbilling.UsageStatistics, error)
+}
+
 type orderLogService interface {
 	ListPaymentOrders(ctx context.Context, page int, pageSize int, filter billing.PaymentOrderListFilter) ([]domainbilling.PaymentOrder, int64, error)
 }
@@ -119,6 +123,7 @@ type Service struct {
 	auditService                               auditService
 	systemEventService                         systemEventService
 	usageLogService                            usageLogService
+	usageStatisticsService                     usageStatisticsService
 	orderLogService                            orderLogService
 	conversationEventSvc                       conversationEventService
 	logCleanupService                          logCleanupService
@@ -185,6 +190,11 @@ func (s *Service) SetSystemEventService(service systemEventService) {
 // SetUsageLogService 注入调用日志查询能力。
 func (s *Service) SetUsageLogService(service usageLogService) {
 	s.usageLogService = service
+}
+
+// SetUsageStatisticsService 注入管理员用量统计能力。
+func (s *Service) SetUsageStatisticsService(service usageStatisticsService) {
+	s.usageStatisticsService = service
 }
 
 // SetOrderLogService 注入支付订单日志查询能力。

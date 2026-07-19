@@ -51,9 +51,6 @@ web_modules/
 # Optional npm cache directory
 .npm
 
-# Optional eslint cache
-.eslintcache
-
 # Optional stylelint cache
 .stylelintcache
 
@@ -95,6 +92,9 @@ web_modules/
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
+
+# Turborepo cache
+.turbo/
 
 # Next.js build output
 .next
@@ -159,10 +159,11 @@ __pycache__/
 # Backend & Frontend & Docker
 storage/*
 data/*
-rules/*
+docs/rules/*
 frontend/public/vendor/lobehub-icons/
 frontend/public/pwa/generated/
 docker-compose.local.yml
 
 .DS_Store
 .idea
+.pnpm-store

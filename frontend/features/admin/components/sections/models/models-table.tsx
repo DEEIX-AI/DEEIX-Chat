@@ -394,9 +394,10 @@ const ModelTableRow = React.memo(function ModelTableRow({
         onClick={() => onToggleRow(item)}
       >
         <TableCell className="w-[44px] py-1.5 whitespace-nowrap">
-          <div className="flex h-7 items-center justify-center" onClick={(event) => event.stopPropagation()}>
+          <div className="flex h-7 items-center justify-center">
             <Checkbox
               checked={selected}
+              onClick={(event) => event.stopPropagation()}
               onCheckedChange={(checked) => onSelectModel(item.id, checked === true)}
               aria-label={t("table.selectModel", { name: item.platformModelName })}
             />
@@ -793,8 +794,12 @@ export function ModelsTable({
     const timers = collapseTimersRef.current;
     const frames = openFramesRef.current;
     return () => {
-      Object.values(timers).forEach((timer) => window.clearTimeout(timer));
-      Object.values(frames).forEach((frame) => window.cancelAnimationFrame(frame));
+      Object.values(timers).forEach((timer) => {
+        window.clearTimeout(timer);
+      });
+      Object.values(frames).forEach((frame) => {
+        window.cancelAnimationFrame(frame);
+      });
     };
   }, []);
 

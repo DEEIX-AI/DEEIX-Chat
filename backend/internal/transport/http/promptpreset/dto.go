@@ -36,20 +36,20 @@ type PromptPresetDeleteDataResponse struct {
 type WritePromptPresetRequest struct {
 	Title       string `json:"title" binding:"required,max=64"`
 	Trigger     string `json:"trigger" binding:"required,max=64"`
-	Description string `json:"description" binding:"max=256"`
+	Description string `json:"description,omitempty" binding:"max=256"`
 	Content     string `json:"content" binding:"required,max=10000"`
-	Enabled     bool   `json:"enabled"`
-	SortOrder   int    `json:"sortOrder"`
+	Enabled     bool   `json:"enabled,omitempty"`
+	SortOrder   int    `json:"sortOrder,omitempty"`
 }
 
 // PatchPromptPresetRequest 表示更新预制提示词请求。
 type PatchPromptPresetRequest struct {
-	Title       *string `json:"title" binding:"omitempty,max=64"`
-	Trigger     *string `json:"trigger" binding:"omitempty,max=64"`
-	Description *string `json:"description" binding:"omitempty,max=256"`
-	Content     *string `json:"content" binding:"omitempty,max=10000"`
-	Enabled     *bool   `json:"enabled"`
-	SortOrder   *int    `json:"sortOrder"`
+	Title       *string `json:"title,omitempty" binding:"omitempty,max=64"`
+	Trigger     *string `json:"trigger,omitempty" binding:"omitempty,max=64"`
+	Description *string `json:"description,omitempty" binding:"omitempty,max=256"`
+	Content     *string `json:"content,omitempty" binding:"omitempty,max=10000"`
+	Enabled     *bool   `json:"enabled,omitempty"`
+	SortOrder   *int    `json:"sortOrder,omitempty"`
 }
 
 // PromptPresetPageResponseDoc 用于 Swagger 展示分页响应。

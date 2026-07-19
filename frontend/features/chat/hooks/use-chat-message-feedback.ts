@@ -34,7 +34,7 @@ export function useChatMessageFeedback(messages: ChatAreaMessage[]) {
 
   const getReaction = React.useCallback(
     (item: ChatAreaMessage): AssistantReaction => {
-      if (Object.prototype.hasOwnProperty.call(overrides, item.publicID)) {
+      if (Object.hasOwn(overrides, item.publicID)) {
         return overrides[item.publicID] ?? null;
       }
       return item.myFeedback ?? null;

@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const ADMIN_SECTION_LABEL_KEYS: Record<AdminSection, string> = {
+  statistics: "sections.statistics",
   accounts: "sections.accounts",
   upstreams: "sections.upstreams",
   models: "sections.models",
@@ -40,7 +41,7 @@ function resolveActiveSectionFromPath(pathname: string, basePath: string): Admin
     return pathname === href || pathname.startsWith(`${href}/`);
   });
 
-  return section?.id ?? "accounts";
+  return section?.id ?? "statistics";
 }
 
 export function AdminSidebar({

@@ -1,0 +1,62 @@
+{
+  "title": "Usage statistics",
+  "refresh": "Refresh",
+  "empty": "No usage data for the selected filters.",
+  "unknownModel": "Unknown model",
+  "unknownUser": "User #{id}",
+  "filters": {
+    "last7Days": "Last 7 days",
+    "last30Days": "Last 30 days",
+    "last90Days": "Last 90 days",
+    "custom": "Custom",
+    "subject": "Subject",
+    "model": "Model",
+    "allModels": "All models",
+    "billingScope": "Billing type",
+    "billingAll": "All calls",
+    "billingFree": "Free models",
+    "billingBillable": "Billable models",
+    "clear": "Clear filters",
+    "rangeErrors": {
+      "incomplete": "Select both a start and end date.",
+      "invalid": "The end date must be on or after the start date.",
+      "tooLong": "The selected range cannot exceed 366 days."
+    },
+    "subjectSelect": {
+      "allUsers": "All users",
+      "users": "Users",
+      "permissionGroups": "Permission groups",
+      "searchUsers": "Search username, name, or email",
+      "searchPermissionGroups": "Search permission groups",
+      "emptyUsers": "No matching users.",
+      "emptyPermissionGroups": "No matching permission groups.",
+      "memberCount": "{count} users",
+      "loadFailed": "Could not load users"
+    }
+  },
+  "metrics": {
+    "cost": "Total cost",
+    "tokens": "Total tokens",
+    "calls": "Total calls",
+    "latency": "Average latency"
+  },
+  "rankBy": {
+    "cost": "Cost",
+    "tokens": "Tokens",
+    "calls": "Calls"
+  },
+  "trend": {
+    "title": "Usage trend"
+  },
+  "rankings": {
+    "models": "Top models",
+    "users": "Top users",
+    "total": "Total"
+  },
+  "toasts": {
+    "loadFailed": "Could not load usage statistics",
+    "referenceLoadFailed": "Could not load dashboard filters",
+    "sessionExpired": "Session expired",
+    "signInAgain": "Sign in again and retry."
+  }
+}

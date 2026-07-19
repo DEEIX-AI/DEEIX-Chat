@@ -1,0 +1,178 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": false
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+      "!node_modules",
+      "!.next",
+      "!out",
+      "!build",
+      "!next-env.d.ts",
+      "!public/sw.js",
+      "!public/vendor",
+      "!shared/generated"
+    ]
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "linter": {
+    "enabled": true,
+    "domains": {
+      "next": "recommended",
+      "react": "recommended"
+    },
+    "rules": {
+      "preset": "recommended",
+      "a11y": {
+        "noLabelWithoutControl": "off",
+        "noStaticElementInteractions": "off",
+        "noSvgWithoutTitle": "off",
+        "useAriaPropsSupportedByRole": "off",
+        "useSemanticElements": "off"
+      },
+      "correctness": {
+        "noUnusedFunctionParameters": "off",
+        "useExhaustiveDependencies": {
+          "level": "warn",
+          "options": {
+            "reportUnnecessaryDependencies": false
+          }
+        },
+        "useImageSize": "off"
+      },
+      "nursery": {
+        "noComponentHookFactories": "error",
+        "noReactStringRefs": "error"
+      },
+      "performance": {
+        "noBarrelFile": "off",
+        "noImgElement": "off",
+        "noNamespaceImport": "off",
+        "useTopLevelRegex": "off"
+      },
+      "suspicious": {
+        "noAlert": "off",
+        "noArrayIndexKey": "off",
+        "noDocumentCookie": "off",
+        "noEmptyBlockStatements": "off",
+        "noShadowRestrictedNames": "off",
+        "useAwait": "off"
+      },
+      "complexity": {
+        "noExcessiveCognitiveComplexity": "off",
+        "noUselessFragments": "off",
+        "noUselessSwitchCase": "off",
+        "useOptionalChain": "off"
+      },
+      "style": {
+        "noNestedTernary": "off",
+        "noNonNullAssertion": "off",
+        "useBlockStatements": "off",
+        "useConsistentTypeDefinitions": "off",
+        "useConst": "off",
+        "useImportType": "off"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["components/animate-ui/icons/icon.tsx"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useExhaustiveDependencies": "off",
+            "useHookAtTopLevel": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["components/animate-ui/utils/get-strict-context.tsx"],
+      "linter": {
+        "rules": {
+          "nursery": {
+            "noComponentHookFactories": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["shared/components/file-preview/preview-docx.tsx"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noUnknownAttribute": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "components/ui/live-waveform.tsx",
+        "components/ui/virtual-table.tsx",
+        "shared/components/file-preview/preview-document.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noAriaHiddenOnFocusable": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "features/admin/components/sections/billing/billing-redemption.tsx",
+        "features/chat/components/message/message-meta.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noNoninteractiveTabindex": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "features/chat/components/sections/chat-input.tsx",
+        "features/layouts/components/navigation/sidebar-conversation-item.tsx",
+        "features/settings/components/sections/chat/settings-chat.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noAutofocus": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["shared/components/file-preview/preview-media.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useMediaCaption": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["components/ui/input-group.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useKeyWithClickEvents": "off"
+          }
+        }
+      }
+    }
+  ]
+}

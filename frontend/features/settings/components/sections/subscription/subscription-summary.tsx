@@ -19,7 +19,6 @@ import {
   formatProviderPaymentAmountFromUSD,
   formatShortDate,
   isCurrentBillingPlan,
-  isFreePlan,
   planRank,
   resolveDefaultPrice,
   resolveEPayTypeLabel,

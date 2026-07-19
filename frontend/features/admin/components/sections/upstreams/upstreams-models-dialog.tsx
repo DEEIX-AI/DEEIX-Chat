@@ -591,11 +591,15 @@ function RemoteModelsDialog({
     setSelected((prev) => {
       if (checked) {
         const next = new Set(prev);
-        visibleNames.forEach((name) => next.add(name));
+        visibleNames.forEach((name) => {
+          next.add(name);
+        });
         return next;
       }
       const next = new Set(prev);
-      visibleNames.forEach((name) => next.delete(name));
+      visibleNames.forEach((name) => {
+        next.delete(name);
+      });
       return next;
     });
   }

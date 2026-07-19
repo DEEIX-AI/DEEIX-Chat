@@ -1,3 +1,4 @@
+import type { Announcements } from "@deeix/api-contract";
 import { authedRequest } from "@/shared/api/authed-client";
 import type { AnnouncementDTO } from "@/shared/api/announcements.types";
 
@@ -11,17 +12,19 @@ export async function listAnnouncements(accessToken: string, options: ListAnnoun
 }
 
 export async function dismissAnnouncementToday(accessToken: string, announcementID: number, updatedAt: string): Promise<void> {
-  await authedRequest<{ dismissed: boolean }>(
+  const body: Announcements.DismissTodayCreate.RequestBody = { updatedAt };
+  await authedRequest<NonNullable<Announcements.DismissTodayCreate.ResponseBody["data"]>>(
     `/api/v1/announcements/${encodeURIComponent(String(announcementID))}/dismiss-today`,
-    { method: "POST", accessToken, body: { updatedAt } },
+    { method: "POST", accessToken, body },
     true,
   );
 }
 
 export async function closeAnnouncement(accessToken: string, announcementID: number, updatedAt: string): Promise<void> {
-  await authedRequest<{ closed: boolean }>(
+  const body: Announcements.CloseCreate.RequestBody = { updatedAt };
+  await authedRequest<NonNullable<Announcements.CloseCreate.ResponseBody["data"]>>(
     `/api/v1/announcements/${encodeURIComponent(String(announcementID))}/close`,
-    { method: "POST", accessToken, body: { updatedAt } },
+    { method: "POST", accessToken, body },
     true,
   );
 }

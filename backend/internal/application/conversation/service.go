@@ -13,8 +13,10 @@ import (
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	appprocessing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/processing"
 	apprag "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/rag"
+	appskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/skill"
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	domainskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/skill"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
@@ -51,6 +53,13 @@ type memoryRecorder interface {
 
 type skillResolver interface {
 	ResolveAvailable(ctx context.Context, userID uint, id uint) (*domainskill.Skill, error)
+	ListVisible(ctx context.Context, userID uint, input appskill.ListInput) ([]domainskill.Skill, int64, error)
+}
+
+type mcpToolResolver interface {
+	ListToolsByIDs(ctx context.Context, toolIDs []uint) ([]domainmcp.Tool, error)
+	ListServers(ctx context.Context) ([]domainmcp.Server, error)
+	GetServer(ctx context.Context, serverID uint) (*domainmcp.Server, error)
 }
 
 type auditWriter interface {
@@ -71,7 +80,7 @@ type Service struct {
 	cache             repository.ConversationCacheRepository
 	routeResolver     routeResolver
 	memoryRecorder    memoryRecorder
-	mcpRepo           repository.MCPRepository
+	mcpRepo           mcpToolResolver
 	llmClient         *llm.Client
 	mcpClient         *mcp.Client
 	uploadSvc         *appupload.Service
@@ -141,7 +150,6 @@ type SendMessageInput struct {
 	SelectedToolIDs         []uint
 	SkillIDs                []uint
 	HTMLVisualPromptEnabled bool
-	HTMLVisualColorMode     string
 	ParentMessagePublicID   string
 	SourceMessagePublicID   string
 	BranchReason            string
@@ -323,6 +331,7 @@ func (s *Service) SetObjectStoreProvider(provider appstorage.Provider) {
 	}
 }
 
-func (s *Service) SetMCPRepository(repo repository.MCPRepository) {
+// SetMCPRepository 注入会话运行所需的 MCP 工具查询能力。
+func (s *Service) SetMCPRepository(repo mcpToolResolver) {
 	s.mcpRepo = repo
 }

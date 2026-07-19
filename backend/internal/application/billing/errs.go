@@ -33,6 +33,8 @@ var (
 	ErrBillingPlanNotFound = errors.New("billing plan not found")
 	// ErrInvalidPermissionGroup 非法权限组。
 	ErrInvalidPermissionGroup = errors.New("invalid permission group")
+	// ErrInvalidUsageStatisticsSubject 表示用量统计的用户与权限组筛选条件冲突。
+	ErrInvalidUsageStatisticsSubject = errors.New("user and permission group filters are mutually exclusive")
 	// ErrPermissionGroupReferenceCounterUnavailable 权限组套餐引用检查能力不可用。
 	ErrPermissionGroupReferenceCounterUnavailable = errors.New("permission group reference counter unavailable")
 	// ErrSubscriptionEntitlementActive 当前仍存在有效付费订阅权益。

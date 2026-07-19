@@ -25,16 +25,16 @@ type ConversationResponse struct {
 	Provider            string     `json:"provider"`
 	SessionKey          string     `json:"sessionKey"`
 	IsStarred           bool       `json:"isStarred"`
-	StarredAt           *time.Time `json:"starredAt"`
+	StarredAt           *time.Time `json:"starredAt" extensions:"x-nullable,!x-omitempty"`
 	MessageCount        int        `json:"messageCount"`
 	Status              string     `json:"status"`
 	ContextPolicy       string     `json:"contextPolicyJSON"`
-	LastCompactedAt     *time.Time `json:"lastCompactedAt"`
+	LastCompactedAt     *time.Time `json:"lastCompactedAt" extensions:"x-nullable,!x-omitempty"`
 	LastResponseID      string     `json:"lastResponseID"`
 	ShareStatus         string     `json:"shareStatus"`
 	ShareID             string     `json:"shareID"`
-	SharedAt            *time.Time `json:"sharedAt"`
-	LastShareAccessedAt *time.Time `json:"lastShareAccessedAt"`
+	SharedAt            *time.Time `json:"sharedAt" extensions:"x-nullable,!x-omitempty"`
+	LastShareAccessedAt *time.Time `json:"lastShareAccessedAt" extensions:"x-nullable,!x-omitempty"`
 	CreatedAt           time.Time  `json:"createdAt"`
 	UpdatedAt           time.Time  `json:"updatedAt"`
 }
@@ -61,7 +61,7 @@ type ConversationExportCompatibilityResponse struct {
 type ConversationDefaultModelCandidateResponse struct {
 	PlatformModelName string     `json:"platformModelName"`
 	Source            string     `json:"source"`
-	UsedAt            *time.Time `json:"usedAt"`
+	UsedAt            *time.Time `json:"usedAt" extensions:"x-nullable,!x-omitempty"`
 }
 
 func toConversationResponse(item *model.Conversation) ConversationResponse {
@@ -145,16 +145,19 @@ func ToConversationExportResponse(item *appconversation.ConversationExportResult
 
 // ConversationProjectResponse 对外会话项目响应 DTO。
 type ConversationProjectResponse struct {
-	PublicID     string    `json:"publicID"`
-	Name         string    `json:"name"`
-	Description  string    `json:"description"`
-	SystemPrompt string    `json:"systemPrompt"`
-	Color        string    `json:"color"`
-	Icon         string    `json:"icon"`
-	SortOrder    int       `json:"sortOrder"`
-	Status       string    `json:"status"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	PublicID          string    `json:"publicID"`
+	Name              string    `json:"name"`
+	Description       string    `json:"description"`
+	SystemPrompt      string    `json:"systemPrompt"`
+	MCPDefaultMode    string    `json:"mcpDefaultMode"`
+	DefaultMCPToolIDs []uint    `json:"defaultMCPToolIDs"`
+	DefaultSkillIDs   []uint    `json:"defaultSkillIDs"`
+	Color             string    `json:"color"`
+	Icon              string    `json:"icon"`
+	SortOrder         int       `json:"sortOrder"`
+	Status            string    `json:"status"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 func toConversationProjectResponse(item *model.ConversationProject) ConversationProjectResponse {
@@ -162,16 +165,19 @@ func toConversationProjectResponse(item *model.ConversationProject) Conversation
 		return ConversationProjectResponse{}
 	}
 	return ConversationProjectResponse{
-		PublicID:     item.PublicID,
-		Name:         item.Name,
-		Description:  item.Description,
-		SystemPrompt: item.SystemPrompt,
-		Color:        item.Color,
-		Icon:         item.Icon,
-		SortOrder:    item.SortOrder,
-		Status:       item.Status,
-		CreatedAt:    item.CreatedAt,
-		UpdatedAt:    item.UpdatedAt,
+		PublicID:          item.PublicID,
+		Name:              item.Name,
+		Description:       item.Description,
+		SystemPrompt:      item.SystemPrompt,
+		MCPDefaultMode:    item.MCPDefaultMode,
+		DefaultMCPToolIDs: append([]uint{}, item.DefaultMCPToolIDs...),
+		DefaultSkillIDs:   append([]uint{}, item.DefaultSkillIDs...),
+		Color:             item.Color,
+		Icon:              item.Icon,
+		SortOrder:         item.SortOrder,
+		Status:            item.Status,
+		CreatedAt:         item.CreatedAt,
+		UpdatedAt:         item.UpdatedAt,
 	}
 }
 
@@ -189,8 +195,8 @@ type ConversationShareResponse struct {
 	MessageCount   int        `json:"messageCount"`
 	CreatedAt      time.Time  `json:"createdAt"`
 	UpdatedAt      time.Time  `json:"updatedAt"`
-	RevokedAt      *time.Time `json:"revokedAt"`
-	LastAccessedAt *time.Time `json:"lastAccessedAt"`
+	RevokedAt      *time.Time `json:"revokedAt" extensions:"x-nullable,!x-omitempty"`
+	LastAccessedAt *time.Time `json:"lastAccessedAt" extensions:"x-nullable,!x-omitempty"`
 }
 
 func toConversationShareResponse(item *appconversation.ConversationShareResult) ConversationShareResponse {
@@ -241,7 +247,7 @@ type PublicSharedMessageResponse struct {
 	ModelVendor       string                       `json:"modelVendor"`
 	ModelIcon         string                       `json:"modelIcon"`
 	ProcessTrace      *MessageProcessTraceResponse `json:"processTrace,omitempty"`
-	EditedAt          *time.Time                   `json:"editedAt"`
+	EditedAt          *time.Time                   `json:"editedAt" extensions:"x-nullable,!x-omitempty"`
 	CreatedAt         time.Time                    `json:"createdAt"`
 	UpdatedAt         time.Time                    `json:"updatedAt"`
 }
@@ -292,7 +298,7 @@ type PublicSharedConversationResponse struct {
 	Title                   string                        `json:"title"`
 	Model                   string                        `json:"model"`
 	CreatedAt               time.Time                     `json:"createdAt"`
-	LastAccessedAt          *time.Time                    `json:"lastAccessedAt"`
+	LastAccessedAt          *time.Time                    `json:"lastAccessedAt" extensions:"x-nullable,!x-omitempty"`
 	DefaultMessagePublicIDs []string                      `json:"defaultMessagePublicIDs"`
 	Messages                []PublicSharedMessageResponse `json:"messages"`
 }
@@ -357,8 +363,8 @@ type FileObjectResponse struct {
 	EmbedError             string     `json:"embedError"`
 	ChunkCount             int        `json:"chunkCount"`
 	RagOptOut              bool       `json:"ragOptOut"`
-	LastAccessedAt         *time.Time `json:"lastAccessedAt"`
-	ExpiresAt              *time.Time `json:"expiresAt"`
+	LastAccessedAt         *time.Time `json:"lastAccessedAt" extensions:"x-nullable,!x-omitempty"`
+	ExpiresAt              *time.Time `json:"expiresAt" extensions:"x-nullable,!x-omitempty"`
 	CreatedAt              time.Time  `json:"createdAt"`
 	UpdatedAt              time.Time  `json:"updatedAt"`
 }
@@ -696,13 +702,13 @@ type MessageResponse struct {
 	ConversationID    uint                         `json:"conversationID"`
 	UserID            uint                         `json:"userID"`
 	PublicID          string                       `json:"publicID"`
-	ParentMessageID   *uint                        `json:"parentMessageID"`
+	ParentMessageID   *uint                        `json:"parentMessageID" extensions:"x-nullable,!x-omitempty"`
 	RunID             string                       `json:"runID"`
 	Role              string                       `json:"role"`
 	ContentType       string                       `json:"contentType"`
 	Content           string                       `json:"content"`
 	BranchReason      string                       `json:"branchReason"`
-	SourceMessageID   *uint                        `json:"sourceMessageID"`
+	SourceMessageID   *uint                        `json:"sourceMessageID" extensions:"x-nullable,!x-omitempty"`
 	TokenUsage        int64                        `json:"tokenUsage"`
 	InputTokens       int64                        `json:"inputTokens"`
 	OutputTokens      int64                        `json:"outputTokens"`
@@ -725,7 +731,7 @@ type MessageResponse struct {
 	ThumbsDownCount   int64                        `json:"thumbsDownCount"`
 	BillingCost       *MessageBillingCostResponse  `json:"billingCost,omitempty"`
 	ProcessTrace      *MessageProcessTraceResponse `json:"processTrace,omitempty"`
-	EditedAt          *time.Time                   `json:"editedAt"`
+	EditedAt          *time.Time                   `json:"editedAt" extensions:"x-nullable,!x-omitempty"`
 	CreatedAt         time.Time                    `json:"createdAt"`
 	UpdatedAt         time.Time                    `json:"updatedAt"`
 }
@@ -1036,7 +1042,7 @@ type RunResponse struct {
 	ErrorCode           string     `json:"errorCode"`
 	ErrorMessage        string     `json:"errorMessage"`
 	StartedAt           time.Time  `json:"startedAt"`
-	EndedAt             *time.Time `json:"endedAt"`
+	EndedAt             *time.Time `json:"endedAt" extensions:"x-nullable,!x-omitempty"`
 	CreatedAt           time.Time  `json:"createdAt"`
 	UpdatedAt           time.Time  `json:"updatedAt"`
 }
@@ -1097,8 +1103,8 @@ type FileProcessingStatusResponse struct {
 	ErrorMessage     string     `json:"errorMessage"`
 	ExtractChars     int        `json:"extractChars"`
 	ExtractPages     int        `json:"extractPages"`
-	StartedAt        *time.Time `json:"startedAt"`
-	CompletedAt      *time.Time `json:"completedAt"`
+	StartedAt        *time.Time `json:"startedAt" extensions:"x-nullable,!x-omitempty"`
+	CompletedAt      *time.Time `json:"completedAt" extensions:"x-nullable,!x-omitempty"`
 }
 
 func toFileProcessingStatusResponse(d *appprocessing.FileProcessingStatusDTO) FileProcessingStatusResponse {

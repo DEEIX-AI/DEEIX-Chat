@@ -1,0 +1,32 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "globalDependencies": [
+    "VERSION",
+    "backend/cmd/server/main.go",
+    "backend/internal/shared/response/**/*.go",
+    "backend/internal/transport/http/**/*.go",
+    "backend/go.mod",
+    "backend/go.sum",
+    "backend/docs/swagger.json",
+    "scripts/sync-version.mjs"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "out/**"]
+    },
+    "check": {
+      "dependsOn": ["^check"]
+    },
+    "test": {
+      "dependsOn": ["^test"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

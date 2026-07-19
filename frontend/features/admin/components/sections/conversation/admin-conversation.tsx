@@ -33,7 +33,6 @@ import {
 } from "@/shared/components/settings-layout";
 import { exportAllConversations, getAdminReferenceData, listAdminSettings, patchAdminSettings } from "@/features/admin/api";
 import {
-  applyConversationDefaults,
   buildConversationSettingsFields,
   CONVERSATION_DEFAULT_MODEL_SYSTEM,
   CONVERSATION_TASK_MODEL_FOLLOW,

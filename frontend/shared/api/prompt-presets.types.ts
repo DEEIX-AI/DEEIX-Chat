@@ -1,40 +1,30 @@
+import type {
+  PatchPromptPresetRequest as ContractPatchPromptPresetRequest,
+  PromptPresetDataResponse,
+  PromptPresetDeleteDataResponse,
+  PromptPresetPageResponseDoc,
+  PromptPresetResponse,
+  WritePromptPresetRequest as ContractWritePromptPresetRequest,
+} from "@deeix/api-contract";
+
 export type PromptPresetScope = "builtin" | "user";
 
-export type PromptPresetDTO = {
-  id: number;
+export type PromptPresetDTO = Omit<PromptPresetResponse, "scope"> & {
   scope: PromptPresetScope;
-  title: string;
-  trigger: string;
-  description: string;
-  content: string;
-  enabled: boolean;
-  sortOrder: number;
-  createdByUserID: number;
-  updatedByUserID: number;
-  createdAt: string;
-  updatedAt: string;
 };
 
-export type PromptPresetPage = {
+type ContractPromptPresetPage = PromptPresetPageResponseDoc["data"];
+
+export type PromptPresetPage = Omit<ContractPromptPresetPage, "results"> & {
   results: PromptPresetDTO[];
-  total: number;
 };
 
-export type WritePromptPresetRequest = {
-  title: string;
-  trigger: string;
-  description: string;
-  content: string;
-  enabled: boolean;
-  sortOrder: number;
-};
+export type WritePromptPresetRequest = ContractWritePromptPresetRequest;
 
-export type PatchPromptPresetRequest = Partial<WritePromptPresetRequest>;
+export type PatchPromptPresetRequest = ContractPatchPromptPresetRequest;
 
-export type PromptPresetData = {
+export type PromptPresetData = Omit<PromptPresetDataResponse, "promptPreset"> & {
   promptPreset: PromptPresetDTO;
 };
 
-export type PromptPresetDeleteData = {
-  deleted: boolean;
-};
+export type PromptPresetDeleteData = PromptPresetDeleteDataResponse;

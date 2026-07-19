@@ -16,7 +16,7 @@ func TestResolveMessageSystemPromptInjectionUsesNativeSystemPrompt(t *testing.T)
 		ModelCapabilitiesJSON: `{"supportsSystemPrompt":true}`,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "project rule", false, "")
+	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "project rule", false)
 	if got.Content == "" {
 		t.Fatal("expected system prompt content")
 	}
@@ -41,14 +41,14 @@ func TestResolveMessageSystemPromptInjectionAddsHTMLVisualPrompt(t *testing.T) {
 		Protocol: llm.AdapterOpenAIResponses,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{}, route, "", true, "")
+	got := resolveMessageSystemPromptInjection(config.Config{}, route, "", true)
 	if got.Content == "" {
 		t.Fatal("expected request-level system prompt content")
 	}
 	if got.InlineToUser {
 		t.Fatal("expected native system prompt")
 	}
-	for _, want := range []string{`<format p="100" scope="request">`, "html-visual", "遵循用户语言", "HTML 实时渲染"} {
+	for _, want := range []string{`<format p="100" scope="request">`, "html-visual", "遵循用户语言", "HTML 实时渲染", "theme-variables", "--background", "var(--card)"} {
 		if !strings.Contains(got.Content, want) {
 			t.Fatalf("expected content to contain %q, got %q", want, got.Content)
 		}
@@ -58,17 +58,19 @@ func TestResolveMessageSystemPromptInjectionAddsHTMLVisualPrompt(t *testing.T) {
 	}
 }
 
-func TestResolveMessageSystemPromptInjectionAddsHTMLVisualColorMode(t *testing.T) {
+func TestResolveMessageSystemPromptInjectionRestrictsHTMLVisualThemeVariables(t *testing.T) {
 	route := &channel.ResolvedRoute{
 		Protocol: llm.AdapterOpenAIResponses,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{}, route, "", true, "dark")
-	if !strings.Contains(got.Content, "默认视觉风格需适配当前深色模式") {
-		t.Fatalf("expected dark color mode instruction, got %q", got.Content)
+	got := resolveMessageSystemPromptInjection(config.Config{}, route, "", true)
+	for _, want := range []string{"只能引用上述变量", "禁止在 style 中定义或覆盖 CSS 自定义属性", "--card 搭配 --card-foreground", "color-mix()"} {
+		if !strings.Contains(got.Content, want) {
+			t.Fatalf("expected HTML theme-variable constraint %q, got %q", want, got.Content)
+		}
 	}
-	if strings.Contains(got.Content, "color-theme") || strings.Contains(got.Content, "theme-context") {
-		t.Fatalf("expected only color mode injection, got %q", got.Content)
+	if strings.Contains(got.Content, "当前深色模式") || strings.Contains(got.Content, "当前浅色模式") {
+		t.Fatalf("expected theme variables instead of generation-time color mode, got %q", got.Content)
 	}
 }
 
@@ -77,7 +79,7 @@ func TestResolveMessageSystemPromptInjectionOrdersProjectBeforeResponseFormat(t 
 		Protocol: llm.AdapterOpenAIResponses,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{}, route, "project rule", true, "")
+	got := resolveMessageSystemPromptInjection(config.Config{}, route, "project rule", true)
 	projectIndex := strings.Index(got.Content, `<project p="100" override="no">`)
 	responseIndex := strings.Index(got.Content, `<format p="80" scope="request">`)
 	if projectIndex < 0 || responseIndex < 0 {
@@ -93,7 +95,7 @@ func TestResolveMessageSystemPromptInjectionCompactsActiveLayerPriorities(t *tes
 		Protocol: llm.AdapterOpenAIResponses,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "project rule", true, "")
+	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "project rule", true)
 	for _, want := range []string{`<platform p="100">`, `<project p="80" override="no">`, `<format p="60" scope="request">`} {
 		if !strings.Contains(got.Content, want) {
 			t.Fatalf("expected compacted active priority %q, got %q", want, got.Content)
@@ -109,7 +111,7 @@ func TestResolveMessageSystemPromptInjectionMarksProjectOverrideBoundary(t *test
 		Protocol: llm.AdapterOpenAIResponses,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{}, route, "project rule", false, "")
+	got := resolveMessageSystemPromptInjection(config.Config{}, route, "project rule", false)
 	for _, want := range []string{`<project p="100" override="no">`, "must not override platform or model instructions"} {
 		if !strings.Contains(got.Content, want) {
 			t.Fatalf("expected project boundary %q, got %q", want, got.Content)
@@ -122,7 +124,7 @@ func TestResolveMessageSystemPromptInjectionPreservesXMLLikeContent(t *testing.T
 		Protocol: llm.AdapterOpenAIResponses,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: `keep <tag> and ]]> safely`}, route, "", false, "")
+	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: `keep <tag> and ]]> safely`}, route, "", false)
 	for _, want := range []string{`<![CDATA[keep <tag> and ]]]]><![CDATA[> safely]]>`, `<platform p="100">`} {
 		if !strings.Contains(got.Content, want) {
 			t.Fatalf("expected XML-safe content %q, got %q", want, got.Content)
@@ -135,7 +137,7 @@ func TestResolveMessageSystemPromptInjectionSkipsHTMLVisualPromptWhenDisabled(t 
 		Protocol: llm.AdapterOpenAIResponses,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{}, route, "", false, "")
+	got := resolveMessageSystemPromptInjection(config.Config{}, route, "", false)
 	if got.Content != "" {
 		t.Fatalf("expected no system prompt content, got %q", got.Content)
 	}
@@ -147,7 +149,7 @@ func TestResolveMessageSystemPromptInjectionFallsBackWhenCapabilitiesDisableSyst
 		ModelCapabilitiesJSON: `{"supportsSystemPrompt":false}`,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", false, "")
+	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", false)
 	if !got.InlineToUser {
 		t.Fatal("expected user prompt fallback")
 	}
@@ -159,7 +161,7 @@ func TestResolveMessageSystemPromptInjectionFallsBackWithSnakeCaseCapabilities(t
 		ModelCapabilitiesJSON: `{"supports_system_prompt":false}`,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", false, "")
+	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", false)
 	if !got.InlineToUser {
 		t.Fatal("expected snake_case capability to use user prompt fallback")
 	}
@@ -171,7 +173,7 @@ func TestResolveMessageSystemPromptInjectionFallsBackWhenModeRequestsUserPrompt(
 		ModelCapabilitiesJSON: `{"systemPromptMode":"user"}`,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", false, "")
+	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", false)
 	if !got.InlineToUser {
 		t.Fatal("expected systemPromptMode=user to use user prompt fallback")
 	}
@@ -183,7 +185,7 @@ func TestResolveMessageSystemPromptInjectionFallsBackForGemma(t *testing.T) {
 		Protocol:          llm.AdapterGoogleGenerateContent,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", false, "")
+	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", false)
 	if !got.InlineToUser {
 		t.Fatal("expected Gemma to inline system prompt into user prompt")
 	}

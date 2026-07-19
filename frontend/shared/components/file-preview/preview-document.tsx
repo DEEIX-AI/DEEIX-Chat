@@ -76,6 +76,7 @@ export function PreviewDocument({
                   key={`${source}:${contentType ?? ""}`}
                   data={source}
                   type={contentType}
+                  title={title ?? "Document preview"}
                   className="block h-[min(70vh,720px)] w-full border-0 bg-transparent outline-none shadow-none"
                   onLoad={() => setStatus("ready")}
                 />
@@ -96,6 +97,7 @@ export function PreviewDocument({
           key={`preload:${source}:${contentType ?? ""}`}
           data={source}
           type={contentType}
+          title={title ?? "Document preview"}
           className="pointer-events-none absolute inset-0 h-0 w-0 opacity-0"
           onLoad={() => setStatus("ready")}
         />

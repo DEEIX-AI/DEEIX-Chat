@@ -9,8 +9,7 @@ import { PASSWORD_MIN_LENGTH } from "@/shared/auth/account-policy";
 import { useLoginPage } from "@/features/auth/hooks/use-auth-login-page";
 import { AppLogo } from "@/shared/components/app-logo";
 import { IdentityProviderIcon } from "@/shared/components/identity-provider-icon";
-import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
-import { brandAssets } from "@/shared/lib/branding";
+import { CustomBrandAttribution } from "@/shared/components/powered-by-deeix";
 import { TurnstileWidget } from "@/features/auth/components/turnstile-widget";
 import { cn } from "@/lib/utils";
 
@@ -449,11 +448,7 @@ export function LoginPage({ nextPath }: LoginPageProps) {
 
       </div>
 
-      {brandAssets.logo ? (
-        <div className="fixed bottom-4 right-4">
-          <PoweredByDeeix />
-        </div>
-      ) : null}
+      <CustomBrandAttribution className="fixed bottom-4 right-4" />
     </main>
   );
 }

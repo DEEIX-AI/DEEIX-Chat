@@ -393,7 +393,7 @@ func (h *Handler) SetConversationStar(c *gin.Context) {
 		return
 	}
 
-	item, err := h.service.SetConversationStar(c.Request.Context(), userID, publicID, req.Starred)
+	item, err := h.service.SetConversationStar(c.Request.Context(), userID, publicID, *req.Starred)
 	if err != nil {
 		if errors.Is(err, appconversation.ErrConversationNotFound) {
 			response.Error(c, http.StatusNotFound, "conversation not found")
@@ -440,7 +440,7 @@ func (h *Handler) SetConversationArchive(c *gin.Context) {
 		return
 	}
 
-	item, err := h.service.SetConversationArchived(c.Request.Context(), userID, publicID, req.Archived)
+	item, err := h.service.SetConversationArchived(c.Request.Context(), userID, publicID, *req.Archived)
 	if err != nil {
 		if errors.Is(err, appconversation.ErrConversationNotFound) {
 			response.Error(c, http.StatusNotFound, "conversation not found")

@@ -65,7 +65,9 @@ function mergeUpstreamThinkDeltaTrace(
 }
 
 function notify(runID: string) {
-  listeners.get(runID)?.forEach((listener) => listener());
+  listeners.get(runID)?.forEach((listener) => {
+    listener();
+  });
 }
 
 function subscribe(runID: string, listener: Listener) {

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 
 import { ChevronDown } from "@/components/animate-ui/icons/chevron-down";
 import {
@@ -11,13 +10,11 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Marker, MarkerContent } from "@/components/ui/marker";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ChatTraceBlock } from "@/features/chat/types/messages";
 import {
   useProcessTraceLabels,
   type ProcessTraceLabels,
 } from "@/features/chat/hooks/use-process-trace-labels";
-import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { cn } from "@/lib/utils";
 import { TRACE_ROOT_CLASS } from "@/features/chat/components/shared/message-process-trace-shared";
 import type { TraceDisplayEvent } from "@/features/chat/model/message-process-trace";
@@ -124,7 +121,9 @@ function firstStringListFromRecord(record: Record<string, unknown>, keys: string
 
 function collectToolStrings(value: unknown, keys: string[], result: string[] = []): string[] {
   if (Array.isArray(value)) {
-    value.forEach((item) => collectToolStrings(item, keys, result));
+    value.forEach((item) => {
+      collectToolStrings(item, keys, result);
+    });
     return result;
   }
   if (!isRecord(value)) return result;
@@ -132,7 +131,9 @@ function collectToolStrings(value: unknown, keys: string[], result: string[] = [
     const text = readString(value[key]);
     if (text) result.push(text);
   }
-  Object.values(value).forEach((item) => collectToolStrings(item, keys, result));
+  Object.values(value).forEach((item) => {
+    collectToolStrings(item, keys, result);
+  });
   return Array.from(new Set(result));
 }
 
@@ -153,7 +154,9 @@ function collectToolImageSources(value: unknown, result: string[] = []): string[
     return Array.from(new Set(result));
   }
   if (Array.isArray(value)) {
-    value.forEach((item) => collectToolImageSources(item, result));
+    value.forEach((item) => {
+      collectToolImageSources(item, result);
+    });
     return Array.from(new Set(result));
   }
   if (!isRecord(value)) return Array.from(new Set(result));
@@ -161,7 +164,9 @@ function collectToolImageSources(value: unknown, result: string[] = []): string[
     const source = normalizeImageSource(readString(value[key]));
     if (source) result.push(source);
   }
-  Object.values(value).forEach((item) => collectToolImageSources(item, result));
+  Object.values(value).forEach((item) => {
+    collectToolImageSources(item, result);
+  });
   return Array.from(new Set(result));
 }
 
@@ -334,7 +339,6 @@ function ToolSourceLinks({ urls, labels }: { urls: string[]; labels: ProcessTrac
 }
 
 function ToolPreviewImage({ src, alt }: { src: string; alt: string }) {
-  // eslint-disable-next-line @next/next/no-img-element -- Tool image URLs are arbitrary external artifacts, not app-managed image assets.
   return <img src={src} alt={alt} loading="lazy" decoding="async" className="aspect-square w-full object-cover transition-opacity group-hover/image:opacity-90" />;
 }
 

@@ -1,3 +1,5 @@
+import Script from "next/script";
+
 const BANNER = String.raw`
  ____  _____ _____ _____  __  ____ _   _    _  _____
 |  _ \| ____| ____|_ _\ \/ / / ___| | | |  / \|_   _|
@@ -30,9 +32,8 @@ const BANNER_SCRIPT = `
 
 export function DevtoolsBrandBanner() {
   return (
-    <script
-      id="deeix-devtools-brand"
-      dangerouslySetInnerHTML={{ __html: BANNER_SCRIPT }}
-    />
+    <Script id="deeix-devtools-brand" strategy="afterInteractive">
+      {BANNER_SCRIPT}
+    </Script>
   );
 }

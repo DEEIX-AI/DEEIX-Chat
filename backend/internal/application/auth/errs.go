@@ -41,8 +41,6 @@ var (
 	ErrIdentityNotFound = errors.New("identity not found")
 	// ErrIdentityProviderDeleteConflict 表示删除身份源会让用户失去最后一种登录方式。
 	ErrIdentityProviderDeleteConflict = errors.New("identity provider delete conflict")
-	// ErrIdentityProviderLogoUnavailable 表示身份源图标不可用或不符合代理安全策略。
-	ErrIdentityProviderLogoUnavailable = errors.New("identity provider logo unavailable")
 	// ErrIdentityProviderSuperAdminDefaultRoleNotAllowed 表示非 superadmin 不允许设置 superadmin 默认角色。
 	ErrIdentityProviderSuperAdminDefaultRoleNotAllowed = errors.New("only superadmin can set superadmin default role")
 	// ErrTwoFactorSetupExpired 两步验证设置已过期。

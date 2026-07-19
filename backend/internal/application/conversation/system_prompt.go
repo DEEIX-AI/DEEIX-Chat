@@ -27,9 +27,24 @@ const htmlVisualPromptFormatInstruction = `<format>
       纯 Markdown 的固定垂直流式结构在表达复杂逻辑时存在先天缺陷（阅读疲劳、重点不突出、缺乏真正的图表与横向排版能力）。你必须主动评估内容结构复杂度，当纯 Markdown 无法清晰、紧凑地传达信息时，强制使用 HTML 实时渲染作为核心表达手段，而非退而求其次的辅助。
     </rationale>
     <css-constraint>
-绝对禁止使用` + "`" + `<style>` + "`" + `标签、` + "`" + `class` + "`" + `属性及伪类/伪元素。
-可视化必须100%采用纯内联样式（` + "`" + `style="..."` + "`" + `），仅依赖 Flexbox 与基础盒子模型（padding/margin/border/box-shadow/背景色差）构建视觉层级。
+	  绝对禁止使用` + "`" + `<style>` + "`" + `标签、` + "`" + `class` + "`" + `属性及伪类/伪元素。
+	  可视化必须100%采用纯内联样式（` + "`" + `style="..."` + "`" + `），仅依赖 Flexbox、Grid 与基础盒子模型（padding/margin/border/box-shadow/背景色差）构建视觉层级。
     </css-constraint>
+    <theme-variables>
+      <principle>下列全局 CSS 变量会随用户选择的浅色、深色和主题预设自动更新。涉及背景、文字、边框、阴影、强调色、图表色或字体时，必须在内联 style 中引用这些变量，禁止写死仅适用于单一主题的颜色。</principle>
+      <available>
+        <group name="surface-and-text">--background, --foreground, --pure, --pure-foreground, --card, --card-foreground, --popover, --popover-foreground, --primary, --primary-foreground, --secondary, --secondary-foreground, --muted, --muted-foreground, --accent, --accent-foreground, --destructive, --destructive-foreground</group>
+        <group name="control-and-border">--border, --input, --ring</group>
+        <group name="chart">--chart-1, --chart-2, --chart-3, --chart-4, --chart-5</group>
+        <group name="typography">--font-sans, --font-serif, --font-mono, --font-economist, --font-songti, --font-heiti, --font-chat, --font-chat-weight, --font-chat-strong-weight, --ui-font-scale, --chat-font-scale, --tracking-normal</group>
+        <group name="shape-and-space">--radius, --spacing</group>
+        <group name="shadow">--shadow-x, --shadow-y, --shadow-blur, --shadow-spread, --shadow-opacity, --shadow-color, --shadow-2xs, --shadow-xs, --shadow-sm, --shadow, --shadow-md, --shadow-lg, --shadow-xl, --shadow-2xl</group>
+      </available>
+      <constraint>只能引用上述变量；禁止在 style 中定义或覆盖 CSS 自定义属性，禁止杜撰变量名。</constraint>
+      <constraint>语义色必须成对使用，例如 --card 搭配 --card-foreground、--primary 搭配 --primary-foreground，确保所有主题下都有足够对比度。</constraint>
+      <constraint>颜色与阴影可使用 transparent、currentColor、calc() 或 color-mix() 辅助表达，但其中的 var() 仍只能引用上述变量。</constraint>
+      <example>style="background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)"</example>
+    </theme-variables>
     <default-trigger>
       遇到以下情形，必须放弃纯 Markdown 列表或表格的敷衍表达，主动切入 HTML 内嵌排版：
       <case type="logic-graph">逻辑与结构图：流程图、架构图、状态机、树状层级、思维导图等任何包含节点与连线关系的逻辑（用 HTML/CSS 的 DOM 结构与箭头符号构建）。</case>
@@ -51,18 +66,13 @@ const htmlVisualPromptFormatInstruction = `<format>
       </red-line>
     </vision-plus>
     <boundary>
-      <constraint>永远仅输出自包含片段：只输出 div, style, script 等局部渲染标签，绝对禁止输出 !DOCTYPE, html, head, body 等全量页面框架结构，本末倒置将导致直接判错。</constraint>
+      <constraint>永远仅输出自包含片段：只使用 div、section、article、aside、main、p、span、details、summary、table、a 等安全局部标签，绝对禁止 style、script、iframe 以及 !DOCTYPE、html、head、body 等全量页面框架结构。</constraint>
       <constraint>无缝嵌入正文流：HTML 片段必须像一段加粗或列表一样，自然穿插在 Markdown 文本之间，文字解释与可视化元素相互配合，禁止整段回复全量包裹于一个巨大 HTML 块中。</constraint>
     </boundary>
   </html-visual>
 </format>`
 
 const htmlVisualPromptDefaultRequire = `更积极的使用html-visual为用户提供更好的回复质量和效果。`
-
-var htmlVisualColorModeLabels = map[string]string{
-	"light": "浅色模式",
-	"dark":  "深色模式",
-}
 
 type systemPromptInjection struct {
 	Content      string
@@ -86,11 +96,11 @@ type systemPromptCapabilities struct {
 }
 
 // resolveMessageSystemPromptInjection 合并平台、模型、项目和本次请求级系统提示词，并按路由能力决定注入方式。
-func resolveMessageSystemPromptInjection(cfg config.Config, route *channel.ResolvedRoute, projectPrompt string, htmlVisualPrompt bool, htmlVisualColorMode string) systemPromptInjection {
+func resolveMessageSystemPromptInjection(cfg config.Config, route *channel.ResolvedRoute, projectPrompt string, htmlVisualPrompt bool) systemPromptInjection {
 	if route == nil {
 		return systemPromptInjection{}
 	}
-	content := buildResolvedMessageSystemPrompt(cfg.DefaultSystemPrompt, route.ModelSystemPrompt, projectPrompt, htmlVisualPrompt, htmlVisualColorMode)
+	content := buildResolvedMessageSystemPrompt(cfg.DefaultSystemPrompt, route.ModelSystemPrompt, projectPrompt, htmlVisualPrompt)
 	if content == "" {
 		return systemPromptInjection{}
 	}
@@ -101,7 +111,7 @@ func resolveMessageSystemPromptInjection(cfg config.Config, route *channel.Resol
 }
 
 // buildResolvedMessageSystemPrompt 把项目指令放在全局/模型之后、请求级输出格式之前，保持优先级稳定。
-func buildResolvedMessageSystemPrompt(globalPrompt string, modelPrompt string, projectPrompt string, htmlVisualPrompt bool, htmlVisualColorMode string) string {
+func buildResolvedMessageSystemPrompt(globalPrompt string, modelPrompt string, projectPrompt string, htmlVisualPrompt bool) string {
 	layers := []systemPromptLayer{
 		{tag: "platform", content: globalPrompt},
 		{tag: "model", content: modelPrompt},
@@ -116,18 +126,14 @@ func buildResolvedMessageSystemPrompt(globalPrompt string, modelPrompt string, p
 		layers = append(layers, systemPromptLayer{
 			tag:     "format",
 			scope:   "request",
-			content: buildHTMLVisualPromptInstruction(htmlVisualColorMode),
+			content: buildHTMLVisualPromptInstruction(),
 		})
 	}
 	return buildSystemPromptLayers(layers)
 }
 
-func buildHTMLVisualPromptInstruction(colorMode string) string {
-	require := htmlVisualPromptDefaultRequire
-	if label, ok := htmlVisualColorModeLabels[strings.TrimSpace(colorMode)]; ok {
-		require = strings.TrimSuffix(require, "。") + "；默认视觉风格需适配当前" + label + "。"
-	}
-	return htmlVisualPromptFormatInstruction + "\n<require>\n  " + require + "\n</require>"
+func buildHTMLVisualPromptInstruction() string {
+	return htmlVisualPromptFormatInstruction + "\n<require>\n  " + htmlVisualPromptDefaultRequire + "\n</require>"
 }
 
 func buildSystemPromptLayers(layers []systemPromptLayer) string {

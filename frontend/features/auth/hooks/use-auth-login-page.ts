@@ -240,6 +240,7 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
       params.set("next", resolvedNextPath);
       params.set("code_challenge", pkce.challenge);
       params.set("intent", intent);
+      // OAuth must use a full document navigation so the provider redirect can leave the app origin.
       window.location.href = `${resolveApiBaseURL()}/api/v1/auth/providers/${encodeURIComponent(slug)}/start?${params.toString()}`;
     } catch {
       toast.error(t("toasts.providerStartFailed"));

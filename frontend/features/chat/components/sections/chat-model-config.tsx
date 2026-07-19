@@ -490,7 +490,7 @@ function providerToolMatchesDefinition(tool: Record<string, unknown>, definition
   if (toolType) {
     return toolType === definition.type;
   }
-  return Object.keys(definition.payload ?? {}).some((key) => key !== "type" && Object.prototype.hasOwnProperty.call(tool, key));
+  return Object.keys(definition.payload ?? {}).some((key) => key !== "type" && Object.hasOwn(tool, key));
 }
 
 function nativeToolDefinitionsFromKeys(
@@ -677,7 +677,7 @@ function getOptionAtPath(options: ConversationOptions, path: string[]): unknown 
 function hasOptionAtPath(options: ConversationOptions, path: string[]): boolean {
   let current: unknown = options;
   for (const segment of path) {
-    if (!isPlainOptionObject(current) || !Object.prototype.hasOwnProperty.call(current, segment)) {
+    if (!isPlainOptionObject(current) || !Object.hasOwn(current, segment)) {
       return false;
     }
     current = current[segment];

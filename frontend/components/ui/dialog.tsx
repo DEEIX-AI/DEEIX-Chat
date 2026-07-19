@@ -150,13 +150,16 @@ function DialogCollapsible({
   open,
   className,
   children,
+  ...props
 }: React.ComponentProps<"div"> & {
   open: boolean
 }) {
   return (
     <div
+      {...props}
       data-slot="dialog-collapsible"
       aria-hidden={!open}
+      inert={!open}
       className={cn(
         "grid transition-[grid-template-rows,opacity] duration-200 ease-out",
         open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",

@@ -147,8 +147,10 @@ func normalizeDefaultBranchContext(
 		return nil, nil
 	}
 
-	end := len(ancestors)
-	for end > 0 && !isContextMessage(&ancestors[end-1]) {
+	contextMessages := recoverAssistantRetryUserStates(ancestors)
+
+	end := len(contextMessages)
+	for end > 0 && !isContextMessage(&contextMessages[end-1]) {
 		end--
 	}
 	if end == 0 {
@@ -157,18 +159,58 @@ func normalizeDefaultBranchContext(
 
 	start := 0
 	for index := end - 1; index >= 0; index-- {
-		if !isContextMessage(&ancestors[index]) {
+		if !isContextMessage(&contextMessages[index]) {
 			start = index + 1
 			break
 		}
 	}
 
-	normalized := append([]model.Message(nil), ancestors[start:end]...)
+	normalized := append([]model.Message(nil), contextMessages[start:end]...)
 	if len(normalized) == 0 {
 		return nil, nil
 	}
 	nextParent := normalized[len(normalized)-1]
 	return normalized, &nextParent
+}
+
+// recoverAssistantRetryUserStates makes a reused user message valid context
+// after its assistant retry produced usable output. Persisted history remains
+// unchanged so the original failed run can still be diagnosed.
+func recoverAssistantRetryUserStates(messages []model.Message) []model.Message {
+	var recovered []model.Message
+	for index := range messages {
+		if !isRecoveredAssistantRetryUser(messages, index) {
+			continue
+		}
+		if recovered == nil {
+			recovered = append([]model.Message(nil), messages...)
+		}
+		recovered[index].Status = "success"
+		recovered[index].ErrorCode = ""
+		recovered[index].ErrorMessage = ""
+	}
+	if recovered == nil {
+		return messages
+	}
+	return recovered
+}
+
+func isRecoveredAssistantRetryUser(messages []model.Message, index int) bool {
+	if index < 0 || index+1 >= len(messages) {
+		return false
+	}
+	userMessage := &messages[index]
+	retryAssistant := &messages[index+1]
+	if userMessage.Role != "user" || !strings.EqualFold(strings.TrimSpace(userMessage.Status), "error") {
+		return false
+	}
+	if retryAssistant.Role != "assistant" ||
+		!strings.EqualFold(strings.TrimSpace(retryAssistant.BranchReason), "retry") ||
+		retryAssistant.SourceMessageID == nil ||
+		!isContextMessage(retryAssistant) {
+		return false
+	}
+	return retryAssistant.ParentMessageID != nil && *retryAssistant.ParentMessageID == userMessage.ID
 }
 
 func isContextMessage(item *model.Message) bool {

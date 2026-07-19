@@ -1,3 +1,4 @@
+import type { CleanupLogsRequest, CleanupLogsResponse } from "@deeix/api-contract";
 import { authedRequest } from "@/shared/api/authed-client";
 import type {
   AdminAuditLogDTO,
@@ -78,15 +79,13 @@ export type AdminLogCleanupType =
   | "conversation"
   | "system";
 
-export type AdminLogCleanupResult = {
+export type AdminLogCleanupResult = Omit<CleanupLogsResponse, "type"> & {
   type: AdminLogCleanupType;
-  before: string;
-  deletedCount: number;
 };
 
 export async function cleanupAdminLogs(
   accessToken: string,
-  input: { type: AdminLogCleanupType; before: string },
+  input: Omit<CleanupLogsRequest, "type"> & { type: AdminLogCleanupType },
 ): Promise<AdminLogCleanupResult> {
   return authedRequest<AdminLogCleanupResult>(
     "/api/v1/admin/logs/cleanup",

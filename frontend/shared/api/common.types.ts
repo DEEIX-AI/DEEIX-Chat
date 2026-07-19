@@ -1,8 +1,8 @@
-export type ApiEnvelope<T> = {
+import type { Envelope } from "@deeix/api-contract";
+
+export type ApiEnvelope<T> = Omit<Envelope, "data" | "details" | "errorMsg"> & {
   errorMsg: string;
-  errorCode?: string;
   details?: unknown;
-  requestId?: string;
   data: T;
 };
 

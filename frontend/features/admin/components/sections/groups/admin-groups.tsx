@@ -59,7 +59,8 @@ import { listAdminUsers } from "@/features/admin/api/accounts";
 import { resolveProtocolLabel, sortProtocolsForDisplay } from "@/features/admin/utils/llm-display";
 import { ADAPTER_LABELS } from "@/features/admin/types/llm";
 import type { AdminLLMModelDTO, AdminLLMUpstreamView } from "@/features/admin/api/llm.types";
-import type { IdentityProviderDTO, UserDTO } from "@/shared/api/auth.types";
+import type { AdminUserDTO } from "@/features/admin/api/admin.types";
+import type { IdentityProviderDTO } from "@/shared/api/auth.types";
 import { cn } from "@/lib/utils";
 import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
 import { KNOWN_VENDOR_OPTIONS } from "@/shared/lib/model-identity";
@@ -131,7 +132,7 @@ function useSubscriptionStatusLabel() {
 }
 
 function resolveUserSubscriptionLabel(
-  user: UserDTO,
+  user: AdminUserDTO,
   resolveSubscriptionStatusLabel: (value: string | null | undefined) => string,
 ): string {
   const planName = user.subscriptionPlanName.trim();
@@ -575,7 +576,7 @@ function GroupEditSheet({
   const [modelReloadKey, setModelReloadKey] = React.useState(0);
   const [modelLoading, setModelLoading] = React.useState(false);
   const [modelBulkLoading, setModelBulkLoading] = React.useState(false);
-  const [userRows, setUserRows] = React.useState<UserDTO[]>([]);
+  const [userRows, setUserRows] = React.useState<AdminUserDTO[]>([]);
   const [userTotal, setUserTotal] = React.useState(0);
   const [userPage, setUserPage] = React.useState(1);
   const [userPageSize, setUserPageSizeState] = React.useState(GROUP_PICKER_PAGE_SIZE_DEFAULT);
@@ -819,7 +820,9 @@ function GroupEditSheet({
       );
       setModelIDs((current) => {
         const next = new Set(current);
-        rows.forEach((model) => next.add(model.id));
+        rows.forEach((model) => {
+          next.add(model.id);
+        });
         return next;
       });
     } catch (error) {
@@ -843,7 +846,9 @@ function GroupEditSheet({
       );
       setUserIDs((current) => {
         const next = new Set(current);
-        rows.forEach((user) => next.add(user.id));
+        rows.forEach((user) => {
+          next.add(user.id);
+        });
         return next;
       });
     } catch (error) {

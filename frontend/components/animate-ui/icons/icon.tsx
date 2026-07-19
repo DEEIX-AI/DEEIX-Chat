@@ -213,7 +213,6 @@ function AnimateIcon({
     setCurrentAnimation(typeof animate === 'string' ? animate : animation);
     if (animate) startAnimation(animate as TriggerProp);
     else stopAnimation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animate]);
 
   React.useEffect(() => {
@@ -372,7 +371,6 @@ function AnimateIcon({
         loopDelayRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localAnimate, controls]);
 
   const childProps = React.isValidElement<AnimateIconChildProps>(children)
@@ -622,7 +620,6 @@ function getVariants<
   V extends { default: T; [key: string]: T },
   T extends Record<string, Variants>,
 >(animations: V): T {
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { animation: animationType } = useAnimateIconContext();
 
   let result: T;

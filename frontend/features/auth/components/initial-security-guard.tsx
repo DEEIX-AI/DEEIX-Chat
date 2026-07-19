@@ -44,7 +44,7 @@ import { AppLogo } from "@/shared/components/app-logo";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { TimeZoneSelect } from "@/shared/components/time-zone-select";
 import { useTheme, type ThemePreset } from "@/shared/components/theme-provider";
-import { createQRCodeSVG } from "@/shared/lib/qr-code";
+import { createQRCodeDataURL } from "@/shared/lib/qr-code";
 import { detectCurrentTimeZone } from "@/shared/lib/time-zone";
 import { cn } from "@/lib/utils";
 
@@ -211,11 +211,11 @@ export function InitialSecurityGuard() {
   const [twoFactorSkipped, setTwoFactorSkipped] = React.useState(false);
   const setupStartedRef = React.useRef(false);
   const initializedTimeZoneUserRef = React.useRef<string | null>(null);
-  const qrCodeSVG = React.useMemo(
-    () => (twoFactorSetup?.otpauthURL ? createQRCodeSVG(twoFactorSetup.otpauthURL, 3, t("aria.twoFactorQRCode")) : ""),
+  const qrCodeDataURL = React.useMemo(
+    () => (twoFactorSetup?.otpauthURL ? createQRCodeDataURL(twoFactorSetup.otpauthURL, 3, t("aria.twoFactorQRCode")) : ""),
     [t, twoFactorSetup?.otpauthURL],
   );
-  const qrCodeUnavailable = Boolean(twoFactorSetup?.otpauthURL && !qrCodeSVG);
+  const qrCodeUnavailable = Boolean(twoFactorSetup?.otpauthURL && !qrCodeDataURL);
   const isAdminGuide = viewer?.role === "admin" || viewer?.role === "superadmin";
   const activeOnboardingTips = isAdminGuide ? ADMIN_ONBOARDING_TIPS : USER_ONBOARDING_TIPS;
 
@@ -744,15 +744,14 @@ export function InitialSecurityGuard() {
                 ) : (
                   <div className="grid items-center gap-5 sm:grid-cols-[7.5rem_minmax(0,1fr)]">
                     <div className="flex min-h-[7.5rem] items-center justify-center">
-                      {savingTwoFactor && !qrCodeSVG ? (
+                      {savingTwoFactor && !qrCodeDataURL ? (
                         <div className="flex size-[7.5rem] items-center justify-center rounded-lg border border-border/60 bg-muted/20 text-xs text-muted-foreground">
                           <SpinnerLabel>{t("generating")}</SpinnerLabel>
                         </div>
-                      ) : qrCodeSVG ? (
-                        <div
-                          className="flex size-[7.5rem] items-center justify-center [&_svg]:size-full"
-                          dangerouslySetInnerHTML={{ __html: qrCodeSVG }}
-                        />
+                      ) : qrCodeDataURL ? (
+                        <div className="flex size-[7.5rem] items-center justify-center">
+                          <img className="size-full" src={qrCodeDataURL} alt={t("aria.twoFactorQRCode")} />
+                        </div>
                       ) : (
                         <div className="flex size-[7.5rem] items-center justify-center rounded-lg border border-border/60 bg-muted/20 px-3 text-center text-[11px] leading-4 text-muted-foreground">
                           {qrCodeUnavailable ? t("states.qrUnavailable") : <SpinnerLabel>{t("generating")}</SpinnerLabel>}

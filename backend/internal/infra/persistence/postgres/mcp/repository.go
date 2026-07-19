@@ -126,6 +126,13 @@ func (r *Repo) GetServer(ctx context.Context, serverID uint) (*domainmcp.Server,
 
 func (r *Repo) DeleteServer(ctx context.Context, serverID uint) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		toolIDs := make([]uint, 0)
+		if err := tx.Model(&model.MCPTool{}).Where("server_id = ?", serverID).Pluck("id", &toolIDs).Error; err != nil {
+			return err
+		}
+		if err := deleteConversationProjectMCPToolAssociations(tx, toolIDs); err != nil {
+			return err
+		}
 		if err := tx.Where("server_id = ?", serverID).Delete(&model.MCPTool{}).Error; err != nil {
 			return err
 		}
@@ -168,6 +175,17 @@ func (r *Repo) ReplaceServerTools(ctx context.Context, serverID uint, tools []do
 				return err
 			}
 		}
+		staleToolIDs := make([]uint, 0)
+		staleToolQuery := tx.Model(&model.MCPTool{}).Where("server_id = ?", serverID)
+		if len(names) > 0 {
+			staleToolQuery = staleToolQuery.Where("name NOT IN ?", names)
+		}
+		if err := staleToolQuery.Pluck("id", &staleToolIDs).Error; err != nil {
+			return err
+		}
+		if err := deleteConversationProjectMCPToolAssociations(tx, staleToolIDs); err != nil {
+			return err
+		}
 		deleteQuery := tx.Where("server_id = ?", serverID)
 		if len(names) > 0 {
 			deleteQuery = deleteQuery.Where("name NOT IN ?", names)
@@ -181,6 +199,14 @@ func (r *Repo) ReplaceServerTools(ctx context.Context, serverID uint, tools []do
 			"last_error":     "",
 		}).Error
 	})
+}
+
+// deleteConversationProjectMCPToolAssociations 清理已删除工具的项目默认关联。
+func deleteConversationProjectMCPToolAssociations(tx *gorm.DB, toolIDs []uint) error {
+	if len(toolIDs) == 0 {
+		return nil
+	}
+	return tx.Where("tool_id IN ?", toolIDs).Delete(&model.ConversationProjectMCPTool{}).Error
 }
 
 func (r *Repo) ListTools(ctx context.Context, serverID uint, onlyActive bool) ([]domainmcp.Tool, error) {

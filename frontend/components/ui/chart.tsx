@@ -4,6 +4,7 @@ import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 import type { TooltipValueType } from "recharts"
 
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
@@ -25,6 +26,13 @@ export type ChartConfig = Record<
 
 type ChartContextProps = {
   config: ChartConfig
+}
+
+type ChartInteractiveLegendItem = {
+  id: string
+  label: string
+  title?: string
+  color: string
 }
 
 const ChartContext = React.createContext<ChartContextProps | null>(null)
@@ -90,12 +98,9 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null
   }
 
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
+  const stylesheet = Object.entries(THEMES)
+    .map(
+      ([theme, prefix]) => `
 ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
@@ -107,11 +112,10 @@ ${colorConfig
   .join("\n")}
 }
 `
-          )
-          .join("\n"),
-      }}
-    />
-  )
+    )
+    .join("\n")
+
+  return <style>{stylesheet}</style>
 }
 
 const ChartTooltip = RechartsPrimitive.Tooltip
@@ -327,6 +331,42 @@ function ChartLegendContent({
   )
 }
 
+function ChartInteractiveLegend({
+  items,
+  hiddenSeries,
+  onToggle,
+}: {
+  items: ChartInteractiveLegendItem[]
+  hiddenSeries: ReadonlySet<string>
+  onToggle: (id: string) => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-2">
+      {items.map((item) => {
+        const visible = !hiddenSeries.has(item.id)
+        return (
+          <Button
+            key={item.id}
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-pressed={visible}
+            title={item.title ?? item.label}
+            className="h-6 min-w-0 gap-1.5 px-1.5 text-[11px] font-normal text-muted-foreground shadow-none hover:bg-muted/60 hover:text-foreground aria-pressed:text-foreground aria-pressed:opacity-100 [&:not([aria-pressed=true])]:opacity-40"
+            onClick={() => onToggle(item.id)}
+          >
+            <span
+              className="size-2 shrink-0 rounded-[2px]"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="max-w-48 truncate">{item.label}</span>
+          </Button>
+        )
+      })}
+    </div>
+  )
+}
+
 // Helper to extract item config from a payload.
 function getPayloadConfigFromPayload(
   config: ChartConfig,
@@ -370,5 +410,7 @@ export {
   ChartTooltipContent,
   ChartLegend,
   ChartLegendContent,
+  ChartInteractiveLegend,
   ChartStyle,
 }
+export type { ChartInteractiveLegendItem }

@@ -16,7 +16,6 @@ func (m *Module) RegisterPublicRoutes(api *gin.RouterGroup) {
 	api.GET("/auth/providers/:slug/start", m.Handler.StartProviderLogin)
 	api.GET("/auth/providers/:slug/callback", m.Handler.ProviderCallback)
 	api.POST("/auth/providers/:slug/callback", m.Handler.CompleteProviderLogin)
-	api.GET("/auth/providers/:slug/logo", m.Handler.IdentityProviderLogo)
 }
 
 // RegisterProtectedRoutes 注册需登录的鉴权路由。

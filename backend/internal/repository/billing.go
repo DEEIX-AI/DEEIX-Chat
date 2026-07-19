@@ -111,6 +111,28 @@ type UsageLogListFilter struct {
 	Sort              string
 }
 
+// UsageStatisticsFilter 描述管理员用量统计的聚合范围和维度。
+type UsageStatisticsFilter struct {
+	StartDate         time.Time
+	EndDateExclusive  time.Time
+	UserID            uint
+	PermissionGroupID uint
+	MembershipAt      time.Time
+	PlatformModelName string
+	BillingScope      string
+	Granularity       string
+	Section           string
+	ModelRankBy       string
+	UserRankBy        string
+	RankLimit         int
+}
+
+// UsageStatisticsRepository 提供独立于计费写入仓储的管理员统计能力。
+// 独立接口可避免为统计功能扩大 BillingRepository 及其测试桩。
+type UsageStatisticsRepository interface {
+	GetUsageStatistics(ctx context.Context, filter UsageStatisticsFilter) (domainbilling.UsageStatistics, error)
+}
+
 // PaymentOrderListFilter 描述管理员支付订单列表筛选和排序条件。
 type PaymentOrderListFilter struct {
 	Query       string

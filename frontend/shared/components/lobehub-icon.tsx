@@ -107,7 +107,6 @@ export function LobeHubIcon({
           <use href={symbolHref} />
         </svg>
       ) : iconUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
         <img
           alt=""
           aria-hidden="true"

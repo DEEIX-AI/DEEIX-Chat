@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  English | <a href="./README.zh-CN.md">简体中文</a>
+  English | <a href="./docs/README.zh-CN.md">简体中文</a>
 </p>
 
 <p align="center">
@@ -130,21 +130,20 @@ cp config.example.yaml config.yaml
 
 Adjust `database.postgres.dsn`, `database.redis.*`, and public URLs in `config.yaml` for your local environment.
 
-2. Start the backend:
+2. Install workspace dependencies and prepare the frontend environment:
 
 ```bash
-cd backend
-make run
+pnpm install
+cp frontend/.env.example frontend/.env.local
 ```
 
-3. Start the frontend:
+3. Start the frontend and backend together:
 
 ```bash
-cd frontend
-pnpm install
-cp .env.example .env.local
 pnpm dev
 ```
+
+Use `pnpm dev:web` or `pnpm dev:api` to start only one workspace.
 
 The frontend uses `NEXT_PUBLIC_API_BASE_URL` for API requests. For local development, confirm that `frontend/.env.local` contains:
 
@@ -268,9 +267,8 @@ Use this mode when the frontend and backend are served from different public ori
 2. Build and publish the frontend.
 
    ```bash
-   cd frontend
    pnpm install
-   NEXT_PUBLIC_API_BASE_URL=https://api.example.com pnpm build
+   NEXT_PUBLIC_API_BASE_URL=https://api.example.com pnpm --filter @deeix/web build
    ```
 
    The static output is `frontend/out`. Serve it with Nginx, CDN, object storage, or any static web server. To let the Go backend serve the frontend, place `frontend/out` under `server.frontend_dist_dir`; the Docker image defaults to `/app/frontend/out`.
@@ -311,9 +309,11 @@ If a superadmin already exists, the service does not regenerate or print the ini
 
 > Full configuration guide: [Configuration](https://deeix.com/docs/deeix-chat/configuration).
 
-Backend configuration is split into static runtime configuration and runtime business settings. Static runtime configuration describes the infrastructure, security, and storage parameters required to start the service, and is provided through `config.yaml` and environment variables. Runtime business settings cover product capabilities such as authentication, conversations, models, files, and billing; they are stored in `system_settings` and maintained from the admin console. Environment variables override matching config-file values, which is useful for containerized deployments, separated deployments, and secret injection.
+Backend configuration is split into static runtime configuration and runtime business settings. Static runtime configuration describes branding and the infrastructure, security, and storage parameters required to start the service, and is provided through `config.yaml` and environment variables. Runtime business settings cover product capabilities such as authentication, conversations, models, files, and billing; they are stored in `system_settings` and maintained from the admin console. Environment variables override matching config-file values, which is useful for containerized deployments, separated deployments, and secret injection.
 
 At startup, the backend resolves the default config file from the working directory: starting from the repository root reads `config.yaml`, while starting from `backend/` reads `../config.yaml`. Docker deployments usually mount host `./config.yaml` as read-only `/app/config.yaml` inside the container. If the config file is stored elsewhere, set `CONFIG_FILE` to a path accessible from the running process or container.
+
+Frontend branding is also runtime configuration. Set the `branding` section in `config.yaml`, then restart the application; rebuilding the frontend or Docker image is not required. See [Custom branding](docs/BRANDING.md).
 
 Static configuration environment variables:
 
@@ -409,8 +409,8 @@ Authentication, registration, conversation settings, model option policies, file
 - Backend guide: [backend/README.md](./backend/README.md)
 - Backend standards: [backend/docs/README.md](./backend/docs/README.md)
 - Frontend guide: [frontend/README.md](./frontend/README.md)
-- Contributing: [CONTRIBUTING.md](./CONTRIBUTING.md)
-- Security policy: [SECURITY.md](./SECURITY.md)
+- Contributing: [CONTRIBUTING.md](./.github/CONTRIBUTING.md)
+- Security policy: [SECURITY.md](./.github/SECURITY.md)
 - Swagger UI: `http://localhost:8080/swagger/index.html`
 
 ## Acknowledgements

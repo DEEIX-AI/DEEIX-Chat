@@ -66,19 +66,16 @@ import {
   CONVERSATION_EVENT_SORT_OPTIONS,
   PAYMENT_ORDER_SORT_OPTIONS,
   SECURITY_LOG_SORT_OPTIONS,
-  SYSTEM_EVENT_SORT_OPTIONS,
   USAGE_LOG_SORT_OPTIONS,
   useAdminConversationEvents,
   useAdminLogs,
   useAdminPaymentOrders,
   useAdminSecurityLogs,
-  useAdminSystemEvents,
   useAdminUsageLogs,
   type AuditLogSortValue,
   type ConversationEventSortValue,
   type PaymentOrderSortValue,
   type SecurityLogSortValue,
-  type SystemEventSortValue,
   type UsageLogSortValue,
 } from "@/features/admin/hooks/use-admin-logs";
 import { cn } from "@/lib/utils";
@@ -1163,134 +1160,6 @@ function AuthLogTable({ onOpenDetail }: { onOpenDetail: (item: AdminUserAuthEven
         total={logs.total}
         onPageChange={(nextPage) => void logs.loadSecurityLogs(nextPage, logs.pageSize)}
         onPageSizeChange={(nextPageSize) => void logs.loadSecurityLogs(1, nextPageSize)}
-      />
-    </div>
-  );
-}
-
-function SystemEventTable({ onOpenDetail }: { onOpenDetail: (item: AdminSystemEventDTO) => void }) {
-  const locale = useLocale();
-  const t = useTranslations("adminLogs");
-  const logs = useAdminSystemEvents();
-  const virtualRows = useVirtualTableRows(logs.events, {
-    enabled: logs.events.length > 100,
-    estimateSize: 40,
-  });
-
-  return (
-    <div className="space-y-3">
-      <TableToolbar
-        query={logs.query}
-        onQueryChange={logs.setQuery}
-        queryPlaceholder={t("system.searchPlaceholder")}
-        filters={[
-          {
-            key: "level",
-            label: t("columns.level"),
-            value: logs.levelFilter,
-            onValueChange: logs.setLevelFilter,
-            options: [
-              { label: t("filters.allLevels"), value: "" },
-              { label: t("filters.levels.info"), value: "info" },
-              { label: t("filters.levels.warn"), value: "warn" },
-              { label: t("filters.levels.error"), value: "error" },
-            ],
-          },
-          {
-            key: "source",
-            label: t("columns.source"),
-            value: logs.sourceFilter,
-            onValueChange: logs.setSourceFilter,
-            options: logs.sourceOptions,
-          },
-          {
-            key: "event",
-            label: t("columns.event"),
-            value: logs.eventFilter,
-            onValueChange: logs.setEventFilter,
-            options: logs.eventOptions,
-          },
-          {
-            key: "created_range",
-            label: t("filters.timeRange"),
-            active: Boolean(logs.createdFromFilter || logs.createdToFilter),
-            content: (
-              <AdminDateRangeFilter
-                fromValue={logs.createdFromFilter}
-                toValue={logs.createdToFilter}
-                onFromChange={logs.setCreatedFromFilter}
-                onToChange={logs.setCreatedToFilter}
-                disabled={logs.loading}
-              />
-            ),
-          },
-        ]}
-        sort={{
-          value: logs.sortValue,
-          onValueChange: (value) => logs.setSortValue(value as SystemEventSortValue),
-          options: SYSTEM_EVENT_SORT_OPTIONS.map((item) => ({ label: t(item.labelKey), value: item.value })),
-        }}
-        loading={logs.loading}
-        onRefresh={() => void logs.loadSystemEvents(logs.page, logs.pageSize)}
-      />
-
-      <Table
-        viewportRef={virtualRows.viewportRef}
-        viewportClassName={virtualRows.viewportClassName}
-        viewportStyle={virtualRows.viewportStyle}
-      >
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="w-[72px]">ID</TableHead>
-            <TableHead>{t("columns.level")}</TableHead>
-            <TableHead>{t("columns.source")}</TableHead>
-            <TableHead>{t("columns.event")}</TableHead>
-            <TableHead>{t("columns.message")}</TableHead>
-            <TableHead>{t("columns.resource")}</TableHead>
-            <TableHead>{t("columns.time")}</TableHead>
-            <TableHead>{t("columns.requestID")}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {logs.loading && logs.events.length === 0 ? <TableLoadingRow colSpan={8} /> : null}
-          {logs.events.length > 0 ? <VirtualTablePaddingRow colSpan={8} height={virtualRows.paddingTop} /> : null}
-          {logs.events.length > 0 ? virtualRows.rows.map(({ item }) => (
-            <TableRow key={item.id} className="cursor-pointer" onClick={() => onOpenDetail(item)}>
-              <TableCell className="font-mono text-xs text-foreground">{item.id}</TableCell>
-              <TableCell className="whitespace-nowrap text-muted-foreground">{item.level || "-"}</TableCell>
-              <TableCell>
-                <div className="max-w-[8rem] truncate" title={item.source || "-"}>{item.source || "-"}</div>
-              </TableCell>
-              <TableCell>
-                <div className="max-w-[12rem] truncate" title={item.event || "-"}>{item.event || "-"}</div>
-              </TableCell>
-              <TableCell>
-                <div className="max-w-[18rem] truncate text-muted-foreground" title={item.message || "-"}>{item.message || "-"}</div>
-              </TableCell>
-              <TableCell className="text-muted-foreground">
-                <div className="max-w-[10rem] truncate" title={item.resourceID ? `${item.resource}:${item.resourceID}` : item.resource || "-"}>
-                  {item.resourceID ? `${item.resource}:${item.resourceID}` : item.resource || "-"}
-                </div>
-              </TableCell>
-              <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTime(item.createdAt, locale)}</TableCell>
-              <TableCell className="font-mono text-xs text-muted-foreground">
-                <div className="max-w-[14rem] truncate" title={item.requestID || "-"}>{item.requestID || "-"}</div>
-              </TableCell>
-            </TableRow>
-          )) : null}
-          {logs.events.length > 0 ? <VirtualTablePaddingRow colSpan={8} height={virtualRows.paddingBottom} /> : null}
-          {!logs.loading && logs.events.length === 0 ? <TableEmptyRow colSpan={8}>{t("system.empty")}</TableEmptyRow> : null}
-        </TableBody>
-      </Table>
-
-      <TablePagination
-        loading={logs.loading}
-        page={logs.page}
-        pageCount={logs.pageCount}
-        pageSize={logs.pageSize}
-        total={logs.total}
-        onPageChange={(nextPage) => void logs.loadSystemEvents(nextPage, logs.pageSize)}
-        onPageSizeChange={(nextPageSize) => void logs.loadSystemEvents(1, nextPageSize)}
       />
     </div>
   );

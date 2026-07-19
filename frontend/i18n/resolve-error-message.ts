@@ -219,7 +219,7 @@ function readClientLocale(): AppLocale {
 function lookupErrorMessage(locale: AppLocale, errorCode: string): string | undefined {
   let current: unknown = ERROR_MESSAGES[locale];
   for (const segment of toErrorMessagePath(errorCode)) {
-    if (!current || typeof current !== "object" || !Object.prototype.hasOwnProperty.call(current, segment)) {
+    if (!current || typeof current !== "object" || !Object.hasOwn(current, segment)) {
       return undefined;
     }
     current = (current as Record<string, unknown>)[segment];

@@ -22,7 +22,6 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
-  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   ConversationShareDialog,

@@ -1,0 +1,62 @@
+{
+  "title": "用量统计",
+  "refresh": "刷新",
+  "empty": "当前筛选条件下暂无用量数据。",
+  "unknownModel": "未知模型",
+  "unknownUser": "用户 #{id}",
+  "filters": {
+    "last7Days": "近 7 天",
+    "last30Days": "近 30 天",
+    "last90Days": "近 90 天",
+    "custom": "自定义",
+    "subject": "统计对象",
+    "model": "模型",
+    "allModels": "全部模型",
+    "billingScope": "计费类型",
+    "billingAll": "全部调用",
+    "billingFree": "免费模型",
+    "billingBillable": "计费模型",
+    "clear": "清除筛选",
+    "rangeErrors": {
+      "incomplete": "请选择完整的开始和结束日期。",
+      "invalid": "结束日期不能早于开始日期。",
+      "tooLong": "时间范围不能超过 366 天。"
+    },
+    "subjectSelect": {
+      "allUsers": "全部用户",
+      "users": "用户",
+      "permissionGroups": "权限组",
+      "searchUsers": "搜索用户名、昵称或邮箱",
+      "searchPermissionGroups": "搜索权限组",
+      "emptyUsers": "没有匹配的用户。",
+      "emptyPermissionGroups": "没有匹配的权限组。",
+      "memberCount": "{count} 人",
+      "loadFailed": "用户列表加载失败"
+    }
+  },
+  "metrics": {
+    "cost": "总费用",
+    "tokens": "总 Tokens",
+    "calls": "总调用",
+    "latency": "平均耗时"
+  },
+  "rankBy": {
+    "cost": "计费",
+    "tokens": "Tokens",
+    "calls": "调用"
+  },
+  "trend": {
+    "title": "用量趋势"
+  },
+  "rankings": {
+    "models": "模型排行",
+    "users": "用户排行",
+    "total": "总计"
+  },
+  "toasts": {
+    "loadFailed": "用量统计加载失败",
+    "referenceLoadFailed": "仪表盘筛选项加载失败",
+    "sessionExpired": "登录状态已失效",
+    "signInAgain": "请重新登录后重试。"
+  }
+}

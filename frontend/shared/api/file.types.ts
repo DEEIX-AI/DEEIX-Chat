@@ -1,27 +1,12 @@
-export type FileObjectDTO = {
-  fileID: string;
-  purpose: string;
-  fileName: string;
-  mimeType: string;
-  detectedMIME: string;
-  fileCategory: string;
-  sizeBytes: number;
-  sha256: string;
-  status: string;
-  processingStatus: string;
-  processingReady: boolean;
-  processingErrorCode: string;
-  processingErrorMessage: string;
-  extractStatus: string;
-  embedStatus: string;
-  embedError: string;
-  chunkCount: number;
-  ragOptOut: boolean;
-  lastAccessedAt: string | null;
-  expiresAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
+import type {
+  DeleteFileResponse,
+  FileListResponse,
+  FileObjectResponse,
+  FileUploadResponse,
+  StorageQuotaResponse,
+} from "@deeix/api-contract";
+
+export type FileObjectDTO = FileObjectResponse;
 
 export type FileProcessingStatusDTO = {
   fileID: string;
@@ -69,29 +54,18 @@ export type ChatFilePolicyDTO = {
   fileMode: "auto" | "full_context" | "rag";
 };
 
-export type UserStorageQuotaDTO = {
-  userID: number;
-  quotaBytes: number;
-  usedBytes: number;
-  reservedBytes: number;
-  createdAt: string;
-  updatedAt: string;
-};
+export type UserStorageQuotaDTO = Omit<StorageQuotaResponse, "id">;
 
-export type FileListResult = {
-  total: number;
+export type FileListResult = Omit<FileListResponse, "quota" | "results"> & {
   results: FileObjectDTO[];
   quota: UserStorageQuotaDTO;
 };
 
-export type UploadFileResult = {
+export type UploadFileResult = Omit<FileUploadResponse, "file" | "quota"> & {
   file: FileObjectDTO;
   quota: UserStorageQuotaDTO;
-  reused: boolean;
 };
 
-export type DeleteFileResult = {
-  deleted: boolean;
-  fileID: string;
+export type DeleteFileResult = Omit<DeleteFileResponse, "quota"> & {
   quota: UserStorageQuotaDTO;
 };

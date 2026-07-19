@@ -606,6 +606,7 @@ export function useSettingsAccount(): UseSettingsAccountResult {
       params.set("next", "/setting/account");
       params.set("code_challenge", pkce.challenge);
       params.set("intent", "bind");
+      // OAuth must use a full document navigation so the provider redirect can leave the app origin.
       window.location.href = `${resolveApiBaseURL()}/api/v1/auth/providers/${encodeURIComponent(provider.slug)}/start?${params.toString()}`;
     } catch (error) {
       toast.error(t("bindIdentityFailed"), { description: translateError(error, t("retryLater")) });

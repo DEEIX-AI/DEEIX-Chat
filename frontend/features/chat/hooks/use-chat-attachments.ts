@@ -336,7 +336,9 @@ export function useChatAttachments({
     } catch {
       toast.error(t("screenshotFailed"), { description: t("retry") });
     } finally {
-      stream?.getTracks().forEach((track) => track.stop());
+      stream?.getTracks().forEach((track) => {
+        track.stop();
+      });
     }
   }, [onUploadFiles, t]);
 

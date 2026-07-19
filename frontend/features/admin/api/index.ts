@@ -8,3 +8,4 @@ export * from "./mcp";
 export * from "./permission-groups";
 export * from "./reference-data";
 export * from "./settings";
+export * from "./statistics";

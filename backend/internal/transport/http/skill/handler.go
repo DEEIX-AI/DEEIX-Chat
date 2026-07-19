@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	appskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/skill"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -29,14 +30,37 @@ func NewHandler(service *appskill.Service) *Handler {
 // @Produce json
 // @Security BearerAuth
 // @Param q query string false "搜索关键词"
+// @Param id query []int false "按技能 ID 筛选，可重复传递" collectionFormat(multi)
 // @Param page query int false "页码"
 // @Param page_size query int false "每页数量"
 // @Success 200 {object} SkillSummaryPageResponseDoc
+// @Failure 400 {object} ErrorDoc
 // @Failure 500 {object} ErrorDoc
 // @Router /skills [get]
 func (h *Handler) ListVisibleSkills(c *gin.Context) {
 	page, pageSize := pageParams(c)
+	rawIDs := c.QueryArray("id")
+	if len(rawIDs) > config.MaxMCPSelectedToolsPerMessage {
+		response.ErrorWithCode(c, http.StatusBadRequest, "skill.too_many_ids", "too many skill ids")
+		return
+	}
+	ids := make([]uint, 0, len(rawIDs))
+	seenIDs := make(map[uint]struct{}, len(rawIDs))
+	for _, rawID := range rawIDs {
+		parsed, err := strconv.ParseUint(rawID, 10, strconv.IntSize)
+		if err != nil || parsed == 0 {
+			response.Error(c, http.StatusBadRequest, "invalid skill id")
+			return
+		}
+		id := uint(parsed)
+		if _, exists := seenIDs[id]; exists {
+			continue
+		}
+		seenIDs[id] = struct{}{}
+		ids = append(ids, id)
+	}
 	items, total, err := h.service.ListVisible(c.Request.Context(), middleware.MustUserID(c), appskill.ListInput{
+		IDs:      ids,
 		Query:    c.Query("q"),
 		Page:     page,
 		PageSize: pageSize,

@@ -18,8 +18,8 @@ type PatchSettingsRequest struct {
 type PatchItem struct {
 	Namespace string `json:"namespace" binding:"required"`
 	Key       string `json:"key" binding:"required"`
-	Value     string `json:"value"`
-	Clear     bool   `json:"clear"`
+	Value     string `json:"value,omitempty"`
+	Clear     bool   `json:"clear,omitempty"`
 }
 
 // ── 响应 DTO ─────────────────────────────────────────────────────────────────
@@ -36,6 +36,46 @@ type SettingResponse struct {
 
 type LoginPageSettingsResponse struct {
 	DefaultNextPath string `json:"defaultNextPath"`
+}
+
+type BrandingResponse struct {
+	Title                 string `json:"title"`
+	ShortName             string `json:"shortName"`
+	Description           string `json:"description"`
+	LogoURL               string `json:"logoURL"`
+	FaviconURL            string `json:"faviconURL"`
+	PWAIcon192URL         string `json:"pwaIcon192URL"`
+	PWAIcon512URL         string `json:"pwaIcon512URL"`
+	PWAMaskableIcon512URL string `json:"pwaMaskableIcon512URL"`
+	AppleTouchIcon180URL  string `json:"appleTouchIcon180URL"`
+}
+
+type BrandingResponseDoc struct {
+	ErrorMsg string           `json:"errorMsg"`
+	Data     BrandingResponse `json:"data"`
+}
+
+type BrandingManifestResponse struct {
+	Name            string                 `json:"name"`
+	ShortName       string                 `json:"short_name"`
+	Description     string                 `json:"description"`
+	ID              string                 `json:"id"`
+	StartURL        string                 `json:"start_url"`
+	Scope           string                 `json:"scope"`
+	Display         string                 `json:"display"`
+	BackgroundColor string                 `json:"background_color"`
+	ThemeColor      string                 `json:"theme_color"`
+	Orientation     string                 `json:"orientation"`
+	Categories      []string               `json:"categories"`
+	Lang            string                 `json:"lang"`
+	Icons           []BrandingManifestIcon `json:"icons"`
+}
+
+type BrandingManifestIcon struct {
+	Src     string `json:"src"`
+	Sizes   string `json:"sizes"`
+	Type    string `json:"type"`
+	Purpose string `json:"purpose"`
 }
 
 type ModelOptionPolicyResponse struct {

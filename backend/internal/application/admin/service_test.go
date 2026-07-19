@@ -10,6 +10,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	userapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	domainaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/audit"
+	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -76,6 +77,48 @@ func TestBuildUserViewsIncludesBillingBalanceOutsideSelfMode(t *testing.T) {
 	}
 	if views[0].BillingAccountStatus != "active" {
 		t.Fatalf("expected billing status to be preserved, got %q", views[0].BillingAccountStatus)
+	}
+}
+
+func TestGetUsageStatisticsRejectsConflictingSubjectFilters(t *testing.T) {
+	statistics := &usageStatisticsServiceFake{}
+	service := NewService(newAdminUserServiceFake(nil), auditServiceFake{})
+	service.SetUsageStatisticsService(statistics)
+
+	_, err := service.GetUsageStatistics(context.Background(), billing.UsageStatisticsFilter{
+		UserID:            1,
+		PermissionGroupID: 2,
+	})
+	if !errors.Is(err, billing.ErrInvalidUsageStatisticsSubject) {
+		t.Fatalf("expected conflicting subject filter error, got %v", err)
+	}
+	if statistics.calls != 0 {
+		t.Fatalf("expected statistics service not to be called, got %d calls", statistics.calls)
+	}
+}
+
+func TestGetUsageStatisticsValidatesPermissionGroup(t *testing.T) {
+	statistics := &usageStatisticsServiceFake{}
+	service := NewService(newAdminUserServiceFake(nil), auditServiceFake{})
+	service.SetUsageStatisticsService(statistics)
+	service.SetPermissionGroupRepo(permissionGroupRepoFake{
+		groups: map[uint]domainchannel.PermissionGroup{7: {ID: 7, Name: "Pro"}},
+	})
+
+	_, err := service.GetUsageStatistics(context.Background(), billing.UsageStatisticsFilter{PermissionGroupID: 7})
+	if err != nil {
+		t.Fatalf("expected permission group filter to succeed, got %v", err)
+	}
+	if statistics.calls != 1 || statistics.filter.PermissionGroupID != 7 {
+		t.Fatalf("expected permission group filter to be forwarded, calls=%d filter=%+v", statistics.calls, statistics.filter)
+	}
+
+	_, err = service.GetUsageStatistics(context.Background(), billing.UsageStatisticsFilter{PermissionGroupID: 8})
+	if !errors.Is(err, ErrPermissionGroupNotFound) {
+		t.Fatalf("expected missing permission group error, got %v", err)
+	}
+	if statistics.calls != 1 {
+		t.Fatalf("expected missing permission group not to reach statistics service, got %d calls", statistics.calls)
 	}
 }
 
@@ -568,6 +611,17 @@ type subscriptionResolverFake struct {
 	billingMode   string
 	subscriptions map[uint]billing.UserSubscriptionSnapshot
 	accounts      map[uint]billing.UserBillingAccountSnapshot
+}
+
+type usageStatisticsServiceFake struct {
+	filter billing.UsageStatisticsFilter
+	calls  int
+}
+
+func (f *usageStatisticsServiceFake) GetUsageStatistics(_ context.Context, filter billing.UsageStatisticsFilter) (domainbilling.UsageStatistics, error) {
+	f.filter = filter
+	f.calls++
+	return domainbilling.UsageStatistics{}, nil
 }
 
 func (s subscriptionResolverFake) ListCurrentSubscriptionSnapshots(context.Context, []uint, time.Time) (map[uint]billing.UserSubscriptionSnapshot, error) {

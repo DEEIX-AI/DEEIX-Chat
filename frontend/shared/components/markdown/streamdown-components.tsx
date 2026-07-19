@@ -696,7 +696,6 @@ export function MarkdownImage({ alt, className, onError, onLoad, src, ...props }
       ) : !displaySrc ? (
         <span className="block min-h-28 min-w-48 animate-pulse rounded-xl border border-border/60 bg-muted/20 sm:min-w-80" />
       ) : (
-        // eslint-disable-next-line @next/next/no-img-element
         <img
           {...props}
           alt={alt}
@@ -762,7 +761,6 @@ export function MarkdownImage({ alt, className, onError, onLoad, src, ...props }
           <DialogTitle className="sr-only">{alt?.trim() || t("previewImage")}</DialogTitle>
           <DialogDescription className="sr-only">{t("previewImage")}</DialogDescription>
           {displaySrc ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               alt={alt}
               className="block max-h-[92vh] max-w-[96vw] rounded-lg border border-border/50 bg-background/5 object-contain shadow-2xl"

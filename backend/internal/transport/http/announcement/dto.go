@@ -27,24 +27,24 @@ type AnnouncementResponse struct {
 	Type            string     `json:"type"`
 	Pinned          bool       `json:"pinned"`
 	Priority        int        `json:"priority"`
-	StartsAt        *time.Time `json:"startsAt"`
-	ExpiresAt       *time.Time `json:"expiresAt"`
+	StartsAt        *time.Time `json:"startsAt" extensions:"x-nullable,!x-omitempty"`
+	ExpiresAt       *time.Time `json:"expiresAt" extensions:"x-nullable,!x-omitempty"`
 	CreatedByUserID uint       `json:"createdByUserID"`
 	CreatedAt       time.Time  `json:"createdAt"`
 	UpdatedAt       time.Time  `json:"updatedAt"`
-	ClosedAt        *time.Time `json:"closedAt"`
+	ClosedAt        *time.Time `json:"closedAt" extensions:"x-nullable,!x-omitempty"`
 }
 
 // CreateAnnouncementRequest 创建公告请求。
 type CreateAnnouncementRequest struct {
 	Title           string     `json:"title" binding:"required,min=1,max=120"`
 	ContentMarkdown string     `json:"contentMarkdown" binding:"required,min=1,max=20000"`
-	Status          string     `json:"status" binding:"omitempty,oneof=active inactive"`
-	Type            string     `json:"type" binding:"omitempty,oneof=critical warning info normal general"`
-	Pinned          bool       `json:"pinned"`
-	Priority        int        `json:"priority"`
-	StartsAt        *time.Time `json:"startsAt"`
-	ExpiresAt       *time.Time `json:"expiresAt"`
+	Status          string     `json:"status,omitempty" binding:"omitempty,oneof=active inactive"`
+	Type            string     `json:"type,omitempty" binding:"omitempty,oneof=critical warning info normal general"`
+	Pinned          bool       `json:"pinned,omitempty"`
+	Priority        int        `json:"priority,omitempty"`
+	StartsAt        *time.Time `json:"startsAt,omitempty" extensions:"x-nullable"`
+	ExpiresAt       *time.Time `json:"expiresAt,omitempty" extensions:"x-nullable"`
 }
 
 // PatchAnnouncementRequest 更新公告请求。
@@ -61,14 +61,14 @@ type PatchAnnouncementRequest struct {
 
 // PatchAnnouncementRequestDoc 用于 Swagger 展示 nullable 字段。
 type PatchAnnouncementRequestDoc struct {
-	Title           *string    `json:"title" maxLength:"120"`
-	ContentMarkdown *string    `json:"contentMarkdown" maxLength:"20000"`
-	Status          *string    `json:"status" enums:"active,inactive"`
-	Type            *string    `json:"type" enums:"critical,warning,info,normal,general"`
-	Pinned          *bool      `json:"pinned"`
-	Priority        *int       `json:"priority"`
-	StartsAt        *time.Time `json:"startsAt"`
-	ExpiresAt       *time.Time `json:"expiresAt"`
+	Title           *string    `json:"title,omitempty" maxLength:"120"`
+	ContentMarkdown *string    `json:"contentMarkdown,omitempty" maxLength:"20000"`
+	Status          *string    `json:"status,omitempty" enums:"active,inactive"`
+	Type            *string    `json:"type,omitempty" enums:"critical,warning,info,normal,general"`
+	Pinned          *bool      `json:"pinned,omitempty"`
+	Priority        *int       `json:"priority,omitempty"`
+	StartsAt        *time.Time `json:"startsAt,omitempty" extensions:"x-nullable"`
+	ExpiresAt       *time.Time `json:"expiresAt,omitempty" extensions:"x-nullable"`
 }
 
 // AnnouncementStateRequest 更新用户公告状态请求。

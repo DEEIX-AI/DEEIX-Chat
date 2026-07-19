@@ -16,82 +16,82 @@ import (
 // SubscribeRequest 订阅请求。
 type SubscribeRequest struct {
 	PriceID uint `json:"priceID" binding:"required,min=1"`
-	Cycles  int  `json:"cycles" binding:"min=1,max=120"`
+	Cycles  *int `json:"cycles,omitempty" binding:"omitempty,min=1,max=120"`
 }
 
 // CreateCheckoutRequest 创建支付收银台请求。
 type CreateCheckoutRequest struct {
-	OrderType        string `json:"orderType" binding:"omitempty,oneof=subscription topup"`
-	PriceID          uint   `json:"priceID" binding:"omitempty,min=1"`
-	AmountMinorUnits int64  `json:"amountMinorUnits" binding:"omitempty,min=0"`
-	Cycles           int    `json:"cycles" binding:"min=1,max=120"`
-	PaymentProvider  string `json:"paymentProvider" binding:"omitempty,oneof=stripe epay"`
-	EPayType         string `json:"epayType" binding:"omitempty,max=32"`
-	SuccessURL       string `json:"successURL" binding:"omitempty,max=512"`
-	CancelURL        string `json:"cancelURL" binding:"omitempty,max=512"`
+	OrderType        string `json:"orderType,omitempty" binding:"omitempty,oneof=subscription topup"`
+	PriceID          uint   `json:"priceID,omitempty" binding:"omitempty,min=1"`
+	AmountMinorUnits int64  `json:"amountMinorUnits,omitempty" binding:"omitempty,min=0"`
+	Cycles           *int   `json:"cycles,omitempty" binding:"omitempty,min=1,max=120"`
+	PaymentProvider  string `json:"paymentProvider,omitempty" binding:"omitempty,oneof=stripe epay"`
+	EPayType         string `json:"epayType,omitempty" binding:"omitempty,max=32"`
+	SuccessURL       string `json:"successURL,omitempty" binding:"omitempty,max=512"`
+	CancelURL        string `json:"cancelURL,omitempty" binding:"omitempty,max=512"`
 }
 
 // UpsertModelPricingRequest 保存模型计费单价。金额单位均为美元。
 type UpsertModelPricingRequest struct {
-	PlatformModelName       string  `json:"platformModelName" binding:"required,max=128"`
-	Currency                string  `json:"currency" binding:"omitempty,max=16"`
-	IsFree                  bool    `json:"isFree"`
-	PricingMode             string  `json:"pricingMode" binding:"omitempty,oneof=token call duration tiered"`
-	InputUSDPerMTokens      float64 `json:"inputUSDPerMTokens" binding:"min=0"`
-	CacheReadUSDPerMTokens  float64 `json:"cacheReadUSDPerMTokens" binding:"min=0"`
-	CacheWriteUSDPerMTokens float64 `json:"cacheWriteUSDPerMTokens" binding:"min=0"`
-	OutputUSDPerMTokens     float64 `json:"outputUSDPerMTokens" binding:"min=0"`
-	CallUSDPerCall          float64 `json:"callUSDPerCall" binding:"min=0"`
-	DurationUSDPerSecond    float64 `json:"durationUSDPerSecond" binding:"min=0"`
-	TieredPricingJSON       string  `json:"tieredPricingJSON" binding:"max=20000"`
+	PlatformModelName       string   `json:"platformModelName" binding:"required,max=128"`
+	Currency                string   `json:"currency,omitempty" binding:"omitempty,max=16"`
+	IsFree                  *bool    `json:"isFree" binding:"required"`
+	PricingMode             string   `json:"pricingMode" binding:"required,oneof=token call duration tiered"`
+	InputUSDPerMTokens      *float64 `json:"inputUSDPerMTokens" binding:"required,gte=0"`
+	CacheReadUSDPerMTokens  *float64 `json:"cacheReadUSDPerMTokens" binding:"required,gte=0"`
+	CacheWriteUSDPerMTokens *float64 `json:"cacheWriteUSDPerMTokens" binding:"required,gte=0"`
+	OutputUSDPerMTokens     *float64 `json:"outputUSDPerMTokens" binding:"required,gte=0"`
+	CallUSDPerCall          *float64 `json:"callUSDPerCall" binding:"required,gte=0"`
+	DurationUSDPerSecond    *float64 `json:"durationUSDPerSecond" binding:"required,gte=0"`
+	TieredPricingJSON       string   `json:"tieredPricingJSON,omitempty" binding:"max=20000"`
 }
 
 // BillingConfigRequest 保存计费全局配置。
 type BillingConfigRequest struct {
 	Mode                     string                     `json:"mode" binding:"required,oneof=self period usage"`
-	PrepaidAmountUSD         *float64                   `json:"prepaidAmountUSD" binding:"omitempty,min=0"`
-	USDToCNYRate             *float64                   `json:"usdToCNYRate" binding:"omitempty,gt=0"`
-	DisplayCurrency          *string                    `json:"displayCurrency" binding:"omitempty,oneof=USD CNY"`
-	NativeToolBillingEnabled *bool                      `json:"nativeToolBillingEnabled"`
-	NativeToolPricing        []NativeToolPricingRequest `json:"nativeToolPricing"`
+	PrepaidAmountUSD         *float64                   `json:"prepaidAmountUSD,omitempty" binding:"omitempty,min=0"`
+	USDToCNYRate             *float64                   `json:"usdToCNYRate,omitempty" binding:"omitempty,gt=0"`
+	DisplayCurrency          *string                    `json:"displayCurrency,omitempty" binding:"omitempty,oneof=USD CNY"`
+	NativeToolBillingEnabled *bool                      `json:"nativeToolBillingEnabled,omitempty"`
+	NativeToolPricing        []NativeToolPricingRequest `json:"nativeToolPricing,omitempty"`
 }
 
 // UpdateBillingAccountBalanceRequest 管理员设置用户按量余额。
 type UpdateBillingAccountBalanceRequest struct {
-	BalanceUSD  float64 `json:"balanceUSD" binding:"min=0"`
-	Description string  `json:"description" binding:"omitempty,max=255"`
+	BalanceUSD  *float64 `json:"balanceUSD" binding:"required,gte=0"`
+	Description string   `json:"description,omitempty" binding:"omitempty,max=255"`
 }
 
 // CreateRedemptionCodeRequest 创建兑换码请求。
 type CreateRedemptionCodeRequest struct {
-	Code           string     `json:"code" binding:"omitempty,min=3,max=64"`
-	Quantity       int        `json:"quantity" binding:"omitempty,min=1,max=100"`
+	Code           string     `json:"code,omitempty" binding:"omitempty,min=3,max=64"`
+	Quantity       int        `json:"quantity,omitempty" binding:"omitempty,min=1,max=100"`
 	Mode           string     `json:"mode" binding:"required,oneof=usage period"`
-	CreditUSD      float64    `json:"creditUSD" binding:"omitempty,min=0"`
-	PlanID         uint       `json:"planID" binding:"omitempty,min=1"`
-	DurationDays   int        `json:"durationDays" binding:"omitempty,min=0,max=3660"`
-	MaxRedemptions *int       `json:"maxRedemptions" binding:"omitempty,min=1"`
-	PerUserLimit   int        `json:"perUserLimit" binding:"omitempty,min=1,max=100"`
-	ExpiresAt      *time.Time `json:"expiresAt"`
-	Description    string     `json:"description" binding:"omitempty,max=255"`
+	CreditUSD      float64    `json:"creditUSD,omitempty" binding:"omitempty,min=0"`
+	PlanID         uint       `json:"planID,omitempty" binding:"omitempty,min=1"`
+	DurationDays   int        `json:"durationDays,omitempty" binding:"omitempty,min=0,max=3660"`
+	MaxRedemptions *int       `json:"maxRedemptions,omitempty" binding:"omitempty,min=1"`
+	PerUserLimit   int        `json:"perUserLimit,omitempty" binding:"omitempty,min=1,max=100"`
+	ExpiresAt      *time.Time `json:"expiresAt,omitempty" extensions:"x-nullable"`
+	Description    string     `json:"description,omitempty" binding:"omitempty,max=255"`
 }
 
 // PatchRedemptionCodeRequest 更新兑换码请求。
 type PatchRedemptionCodeRequest struct {
-	Status         *string             `json:"status" binding:"omitempty,oneof=active inactive"`
-	MaxRedemptions nullableIntRequest  `json:"maxRedemptions"`
-	PerUserLimit   *int                `json:"perUserLimit" binding:"omitempty,min=1,max=100"`
-	ExpiresAt      nullableTimeRequest `json:"expiresAt"`
-	Description    *string             `json:"description" binding:"omitempty,max=255"`
+	Status         *string             `json:"status,omitempty" binding:"omitempty,oneof=active inactive"`
+	MaxRedemptions nullableIntRequest  `json:"maxRedemptions,omitempty"`
+	PerUserLimit   *int                `json:"perUserLimit,omitempty" binding:"omitempty,min=1,max=100"`
+	ExpiresAt      nullableTimeRequest `json:"expiresAt,omitempty"`
+	Description    *string             `json:"description,omitempty" binding:"omitempty,max=255"`
 }
 
 // PatchRedemptionCodeRequestDoc 用于 Swagger 展示 nullable 字段的真实 JSON 形态。
 type PatchRedemptionCodeRequestDoc struct {
-	Status         *string    `json:"status" enums:"active,inactive"`
-	MaxRedemptions *int       `json:"maxRedemptions"`
-	PerUserLimit   *int       `json:"perUserLimit" minimum:"1" maximum:"100"`
-	ExpiresAt      *time.Time `json:"expiresAt"`
-	Description    *string    `json:"description" maxLength:"255"`
+	Status         *string    `json:"status,omitempty" enums:"active,inactive"`
+	MaxRedemptions *int       `json:"maxRedemptions,omitempty" extensions:"x-nullable"`
+	PerUserLimit   *int       `json:"perUserLimit,omitempty" minimum:"1" maximum:"100"`
+	ExpiresAt      *time.Time `json:"expiresAt,omitempty" extensions:"x-nullable"`
+	Description    *string    `json:"description,omitempty" maxLength:"255"`
 }
 
 // BatchDeleteRedemptionCodeRequest 批量删除兑换码请求。
@@ -106,14 +106,14 @@ type RedeemCodeRequest struct {
 
 // UpdateBillingPlanRequest 保存周期套餐。
 type UpdateBillingPlanRequest struct {
-	Name              string  `json:"name" binding:"required,min=1,max=64"`
-	Description       string  `json:"description" binding:"max=255"`
-	PeriodCreditUSD   float64 `json:"periodCreditUSD" binding:"min=0"`
-	DiscountPercent   int     `json:"discountPercent" binding:"min=0,max=100"`
-	Currency          string  `json:"currency" binding:"omitempty,max=16"`
-	AmountUSD         float64 `json:"amountUSD" binding:"min=0"`
-	BillingInterval   string  `json:"billingInterval" binding:"required,oneof=month year lifetime"`
-	PermissionGroupID *uint   `json:"permissionGroupID"`
+	Name              string   `json:"name" binding:"required,min=1,max=64"`
+	Description       *string  `json:"description" binding:"required,max=255"`
+	PeriodCreditUSD   *float64 `json:"periodCreditUSD" binding:"required,gte=0"`
+	DiscountPercent   *int     `json:"discountPercent" binding:"required,gte=0,lte=100"`
+	Currency          string   `json:"currency,omitempty" binding:"omitempty,max=16"`
+	AmountUSD         *float64 `json:"amountUSD" binding:"required,gte=0"`
+	BillingInterval   string   `json:"billingInterval" binding:"required,oneof=month year lifetime"`
+	PermissionGroupID *uint    `json:"permissionGroupID,omitempty" extensions:"x-nullable"`
 }
 
 type nullableIntRequest struct {
@@ -183,7 +183,7 @@ type BillingPlanResponse struct {
 	DiscountPercent     int                    `json:"discountPercent"`
 	SortOrder           int                    `json:"sortOrder"`
 	IsActive            bool                   `json:"isActive"`
-	PermissionGroupID   *uint                  `json:"permissionGroupID"`
+	PermissionGroupID   *uint                  `json:"permissionGroupID" extensions:"x-nullable,!x-omitempty"`
 	Prices              []BillingPriceResponse `json:"prices"`
 }
 
@@ -196,7 +196,7 @@ type SubscriptionResponse struct {
 	Status               string     `json:"status"`
 	StartAt              time.Time  `json:"startAt"`
 	CurrentPeriodStartAt time.Time  `json:"currentPeriodStartAt"`
-	CurrentPeriodEndAt   *time.Time `json:"currentPeriodEndAt"`
+	CurrentPeriodEndAt   *time.Time `json:"currentPeriodEndAt" extensions:"x-nullable,!x-omitempty"`
 	CancelAtPeriodEnd    bool       `json:"cancelAtPeriodEnd"`
 	AutoRenew            bool       `json:"autoRenew"`
 }
@@ -228,7 +228,7 @@ type CheckoutResponse struct {
 	FXRate             string     `json:"fxRate"`
 	CreditNanousd      int64      `json:"creditNanousd"`
 	CreditUSD          float64    `json:"creditUSD"`
-	ExpiredAt          *time.Time `json:"expiredAt"`
+	ExpiredAt          *time.Time `json:"expiredAt" extensions:"x-nullable,!x-omitempty"`
 }
 
 // CheckoutDataResponse 支付收银台操作响应。
@@ -348,16 +348,16 @@ type BillingAccountDataResponse struct {
 // BillingOverviewResponse 当前用户计费概览响应。
 type BillingOverviewResponse struct {
 	Mode                     string                            `json:"mode"`
-	Plan                     *BillingPlanResponse              `json:"plan"`
-	PeriodStartAt            *time.Time                        `json:"periodStartAt"`
-	PeriodEndAt              *time.Time                        `json:"periodEndAt"`
+	Plan                     *BillingPlanResponse              `json:"plan" extensions:"x-nullable,!x-omitempty"`
+	PeriodStartAt            *time.Time                        `json:"periodStartAt" extensions:"x-nullable,!x-omitempty"`
+	PeriodEndAt              *time.Time                        `json:"periodEndAt" extensions:"x-nullable,!x-omitempty"`
 	PeriodCreditUSD          float64                           `json:"periodCreditUSD"`
 	PeriodCreditNanousd      int64                             `json:"periodCreditNanousd"`
 	PeriodUsedUSD            float64                           `json:"periodUsedUSD"`
 	PeriodUsedNanousd        int64                             `json:"periodUsedNanousd"`
 	PeriodRemainingUSD       float64                           `json:"periodRemainingUSD"`
 	PeriodRemainingNanousd   int64                             `json:"periodRemainingNanousd"`
-	Account                  *BillingAccountResponse           `json:"account"`
+	Account                  *BillingAccountResponse           `json:"account" extensions:"x-nullable,!x-omitempty"`
 	SubscriptionEntitlements []SubscriptionEntitlementResponse `json:"subscriptionEntitlements"`
 }
 
@@ -377,12 +377,12 @@ type RedemptionCodeResponse struct {
 	CreditNanousd        int64      `json:"creditNanousd"`
 	PlanID               uint       `json:"planID"`
 	DurationDays         int        `json:"durationDays"`
-	MaxRedemptions       *int       `json:"maxRedemptions"`
+	MaxRedemptions       *int       `json:"maxRedemptions" extensions:"x-nullable,!x-omitempty"`
 	PerUserLimit         int        `json:"perUserLimit"`
 	RedeemedCount        int        `json:"redeemedCount"`
-	RemainingRedemptions *int       `json:"remainingRedemptions"`
+	RemainingRedemptions *int       `json:"remainingRedemptions" extensions:"x-nullable,!x-omitempty"`
 	Status               string     `json:"status"`
-	ExpiresAt            *time.Time `json:"expiresAt"`
+	ExpiresAt            *time.Time `json:"expiresAt" extensions:"x-nullable,!x-omitempty"`
 	Description          string     `json:"description"`
 	CreatedByUserID      uint       `json:"createdByUserID"`
 	CreatedAt            time.Time  `json:"createdAt"`
@@ -532,11 +532,11 @@ type NativeToolPricingResponse struct {
 
 // NativeToolPricingRequest 原生工具价格保存请求。
 type NativeToolPricingRequest struct {
-	ToolKey      string `json:"toolKey"`
-	PriceNanousd int64  `json:"priceNanousd"`
-	Unit         string `json:"unit"`
-	PriceLabel   string `json:"priceLabel"`
-	Billable     bool   `json:"billable"`
+	ToolKey      string `json:"toolKey,omitempty"`
+	PriceNanousd int64  `json:"priceNanousd,omitempty"`
+	Unit         string `json:"unit,omitempty"`
+	PriceLabel   string `json:"priceLabel,omitempty"`
+	Billable     bool   `json:"billable,omitempty"`
 }
 
 // PaymentTypeResponse 支付类型响应。
@@ -748,6 +748,13 @@ func nativeToolPricingOverridesFromRequests(items []NativeToolPricingRequest) ma
 		}
 	}
 	return overrides
+}
+
+func optionalIntValue(value *int) int {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 func toSubscriptionResponse(sub *domainbilling.Subscription) SubscriptionResponse {
@@ -1131,14 +1138,14 @@ func modelPricingInputFromRequest(req UpsertModelPricingRequest) appbilling.Mode
 	return appbilling.ModelPricingInput{
 		PlatformModelName:           req.PlatformModelName,
 		Currency:                    req.Currency,
-		IsFree:                      req.IsFree,
+		IsFree:                      *req.IsFree,
 		PricingMode:                 req.PricingMode,
-		InputNanousdPerMTokens:      usdToNanousd(req.InputUSDPerMTokens),
-		CacheReadNanousdPerMTokens:  usdToNanousd(req.CacheReadUSDPerMTokens),
-		CacheWriteNanousdPerMTokens: usdToNanousd(req.CacheWriteUSDPerMTokens),
-		OutputNanousdPerMTokens:     usdToNanousd(req.OutputUSDPerMTokens),
-		CallNanousdPerCall:          usdToNanousd(req.CallUSDPerCall),
-		DurationNanousdPerSecond:    usdToNanousd(req.DurationUSDPerSecond),
+		InputNanousdPerMTokens:      usdToNanousd(*req.InputUSDPerMTokens),
+		CacheReadNanousdPerMTokens:  usdToNanousd(*req.CacheReadUSDPerMTokens),
+		CacheWriteNanousdPerMTokens: usdToNanousd(*req.CacheWriteUSDPerMTokens),
+		OutputNanousdPerMTokens:     usdToNanousd(*req.OutputUSDPerMTokens),
+		CallNanousdPerCall:          usdToNanousd(*req.CallUSDPerCall),
+		DurationNanousdPerSecond:    usdToNanousd(*req.DurationUSDPerSecond),
 		TieredPricingJSON:           req.TieredPricingJSON,
 	}
 }
@@ -1146,11 +1153,11 @@ func modelPricingInputFromRequest(req UpsertModelPricingRequest) appbilling.Mode
 func planUpdateInputFromRequest(req UpdateBillingPlanRequest) appbilling.PlanUpdateInput {
 	return appbilling.PlanUpdateInput{
 		Name:                req.Name,
-		Description:         req.Description,
-		PeriodCreditNanousd: usdToNanousd(req.PeriodCreditUSD),
-		DiscountPercent:     req.DiscountPercent,
+		Description:         *req.Description,
+		PeriodCreditNanousd: usdToNanousd(*req.PeriodCreditUSD),
+		DiscountPercent:     *req.DiscountPercent,
 		Currency:            req.Currency,
-		AmountCents:         usdToCents(req.AmountUSD),
+		AmountCents:         usdToCents(*req.AmountUSD),
 		BillingInterval:     req.BillingInterval,
 		PermissionGroupID:   req.PermissionGroupID,
 	}

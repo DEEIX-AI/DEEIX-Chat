@@ -9,6 +9,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+html[data-branding-pending] body {
+  visibility: hidden;
+}
+
 :root {
   --background: oklch(97.86% 0.0027 106.45);
   --foreground: oklch(0.3438 0.0269 95.7226);

@@ -1,3 +1,9 @@
+import type {
+  AnnouncementDataResponse,
+  AnnouncementDeleteDataResponse,
+  CreateAnnouncementRequest,
+  PatchAnnouncementRequestDoc,
+} from "@deeix/api-contract";
 import type { PagePayload } from "@/shared/api/common.types";
 import type { AnnouncementDTO } from "@/shared/api/announcements.types";
 
@@ -5,23 +11,12 @@ export type AdminAnnouncementDTO = AnnouncementDTO;
 
 export type AdminAnnouncementPage = PagePayload<AdminAnnouncementDTO>;
 
-export type CreateAdminAnnouncementRequest = {
-  title: string;
-  contentMarkdown: string;
-  status?: "active" | "inactive";
-  type?: "critical" | "warning" | "info" | "normal" | "general";
-  pinned?: boolean;
-  priority: number;
-  startsAt?: string | null;
-  expiresAt?: string | null;
-};
+export type CreateAdminAnnouncementRequest = CreateAnnouncementRequest;
 
-export type UpdateAdminAnnouncementRequest = Partial<CreateAdminAnnouncementRequest>;
+export type UpdateAdminAnnouncementRequest = PatchAnnouncementRequestDoc;
 
-export type AdminAnnouncementData = {
+export type AdminAnnouncementData = Omit<AnnouncementDataResponse, "announcement"> & {
   announcement: AdminAnnouncementDTO;
 };
 
-export type AdminAnnouncementDeleteData = {
-  deleted: boolean;
-};
+export type AdminAnnouncementDeleteData = AnnouncementDeleteDataResponse;

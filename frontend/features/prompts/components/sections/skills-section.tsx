@@ -89,7 +89,7 @@ function SkillCard({
   const summary = item.description || (hasSkillMarkdown(item) ? item.markdown : "");
 
   return (
-    <article
+    <div
       role="button"
       tabIndex={0}
       className={cn(
@@ -150,7 +150,7 @@ function SkillCard({
           />
         </div>
       ) : null}
-    </article>
+    </div>
   );
 }
 

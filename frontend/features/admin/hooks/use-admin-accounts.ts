@@ -4,13 +4,13 @@ import { toast } from "sonner";
 
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { listAdminUsers } from "@/features/admin/api";
-import type { UserDTO } from "@/shared/api/auth.types";
+import type { AdminUserDTO } from "@/features/admin/api/admin.types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 
 const USERS_PAGE_SIZE_DEFAULT = 25;
 
 type UseAdminAccountsState = {
-  users: UserDTO[];
+  users: AdminUserDTO[];
   total: number;
   page: number;
   setPage: (value: number) => void;
@@ -21,13 +21,13 @@ type UseAdminAccountsState = {
   setQuery: (value: string) => void;
   loading: boolean;
   loadUsers: () => Promise<void>;
-  setUsersOptimistic: React.Dispatch<React.SetStateAction<UserDTO[]>>;
+  setUsersOptimistic: React.Dispatch<React.SetStateAction<AdminUserDTO[]>>;
   setTotalOptimistic: React.Dispatch<React.SetStateAction<number>>;
 };
 
 export function useAdminAccounts(): UseAdminAccountsState {
   const t = useTranslations("adminUsers.toast");
-  const [users, setUsers] = React.useState<UserDTO[]>([]);
+  const [users, setUsers] = React.useState<AdminUserDTO[]>([]);
   const [total, setTotal] = React.useState(0);
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSizeState] = React.useState(USERS_PAGE_SIZE_DEFAULT);

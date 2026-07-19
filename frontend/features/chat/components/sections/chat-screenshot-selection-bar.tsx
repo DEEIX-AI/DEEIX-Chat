@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 

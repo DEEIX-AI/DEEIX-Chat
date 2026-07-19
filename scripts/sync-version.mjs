@@ -38,29 +38,21 @@ function replaceOrThrow(content, pattern, replacement, label) {
   return content.replace(pattern, replacement);
 }
 
-function syncFrontend() {
-  const packageFile = join(repoRoot, "frontend", "package.json");
-  const serviceWorkerFile = join(repoRoot, "frontend", "public", "sw.js");
+function syncPackageVersion(...pathSegments) {
+  const packageFile = join(repoRoot, ...pathSegments, "package.json");
   const packageJson = JSON.parse(readFileSync(packageFile, "utf8"));
   packageJson.version = version;
   writeIfChanged(packageFile, `${JSON.stringify(packageJson, null, 2)}\n`);
+}
 
-  writeIfChanged(
-    serviceWorkerFile,
-    replaceOrThrow(
-      readFileSync(serviceWorkerFile, "utf8"),
-      /const PWA_ASSET_VERSION = "[^"]+";/u,
-      `const PWA_ASSET_VERSION = ${JSON.stringify(version)};`,
-      "frontend service worker PWA asset version",
-    ),
-  );
+function syncFrontend() {
+  syncPackageVersion("frontend");
 }
 
 function syncBackend() {
   const mainFile = join(repoRoot, "backend", "cmd", "server", "main.go");
-  const docsFile = join(repoRoot, "backend", "docs", "docs.go");
-  const swaggerJSONFile = join(repoRoot, "backend", "docs", "swagger.json");
-  const swaggerYAMLFile = join(repoRoot, "backend", "docs", "swagger.yaml");
+
+  syncPackageVersion("backend");
 
   writeIfChanged(
     mainFile,
@@ -71,31 +63,15 @@ function syncBackend() {
       "backend swagger annotation version",
     ),
   );
+}
 
-  writeIfChanged(
-    docsFile,
-    replaceOrThrow(
-      readFileSync(docsFile, "utf8"),
-      /Version:\s+"[^"]+"/u,
-      `Version:          "${version}"`,
-      "backend docs.go version",
-    ),
-  );
+function syncWorkspace() {
+  syncPackageVersion();
+  syncPackageVersion("packages", "api-contract");
+}
 
-  const swaggerJSON = JSON.parse(readFileSync(swaggerJSONFile, "utf8"));
-  swaggerJSON.info = swaggerJSON.info ?? {};
-  swaggerJSON.info.version = version;
-  writeIfChanged(swaggerJSONFile, `${JSON.stringify(swaggerJSON, null, 4)}\n`);
-
-  writeIfChanged(
-    swaggerYAMLFile,
-    replaceOrThrow(
-      readFileSync(swaggerYAMLFile, "utf8"),
-      /^  version: .+$/mu,
-      `  version: "${version}"`,
-      "backend swagger.yaml version",
-    ),
-  );
+if (mode === "all") {
+  syncWorkspace();
 }
 
 if (mode === "all" || mode === "frontend") {
@@ -111,6 +87,7 @@ if (checkOnly && mismatches.length > 0) {
   for (const filePath of mismatches) {
     console.error(`- ${filePath}`);
   }
-  console.error(`Run: node scripts/sync-version.mjs ${mode}`);
+  const fixCommand = mode === "all" ? "pnpm api:generate" : `node scripts/sync-version.mjs ${mode}`;
+  console.error(`Run: ${fixCommand}`);
   process.exit(1);
 }

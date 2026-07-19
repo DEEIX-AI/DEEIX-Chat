@@ -170,6 +170,43 @@ security:
 	}
 }
 
+func TestLoadReadsBrandingFromConfig(t *testing.T) {
+	cleanupConfigEnv(t)
+
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configBody := []byte(`
+app:
+  name: Example Backend
+branding:
+  title: Example Chat
+  short_name: Example
+  description: Example description
+  logo_url: https://cdn.example.com/logo.svg
+  favicon_url: https://cdn.example.com/favicon.ico
+  pwa_icon_192_url: https://cdn.example.com/icon-192.png
+  pwa_icon_512_url: https://cdn.example.com/icon-512.png
+  pwa_maskable_icon_512_url: https://cdn.example.com/icon-maskable.png
+  apple_touch_icon_180_url: https://cdn.example.com/apple-touch-icon.png
+`)
+	if err := os.WriteFile(configPath, configBody, 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("CONFIG_FILE", configPath)
+
+	cfg := Load()
+	if cfg.AppName != "Example Backend" || cfg.BrandTitle != "Example Chat" || cfg.BrandShortName != "Example" || cfg.BrandDescription != "Example description" {
+		t.Fatalf("unexpected branding text: %+v", cfg)
+	}
+	if cfg.BrandLogoURL != "https://cdn.example.com/logo.svg" ||
+		cfg.BrandFaviconURL != "https://cdn.example.com/favicon.ico" ||
+		cfg.BrandPWAIcon192URL != "https://cdn.example.com/icon-192.png" ||
+		cfg.BrandPWAIcon512URL != "https://cdn.example.com/icon-512.png" ||
+		cfg.BrandPWAMaskableIcon512URL != "https://cdn.example.com/icon-maskable.png" ||
+		cfg.BrandAppleTouchIcon180URL != "https://cdn.example.com/apple-touch-icon.png" {
+		t.Fatalf("unexpected branding assets: %+v", cfg)
+	}
+}
+
 func TestValidateAllowsOnlyDevAndProdEnvironment(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -323,7 +323,6 @@ function chooseResolvedVendor(input: ModelIdentityInput): VendorCatalogItem | nu
 export function resolveModelIdentity(input: ModelIdentityInput): ResolvedModelIdentity {
   const resolvedVendor = chooseResolvedVendor(input);
   const rawIcon = input.icon?.trim() ?? "";
-  const rawVendor = input.vendor?.trim() ?? "";
   const normalizedCode = normalizeValue(input.code);
   const detectedModelIcon = detectModelFamilyIcon(normalizedCode);
 

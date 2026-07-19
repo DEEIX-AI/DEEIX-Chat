@@ -7,7 +7,6 @@ import {
   AnimatePresence,
   motion,
   MotionProps,
-  useAnimation,
   Variants,
 } from "motion/react"
 
@@ -241,6 +240,7 @@ export function LoadingCarousel({
               <div className="flex w-full gap-1.5 overflow-x-auto">
                 {displayTips.map((_, index) => (
                   <button
+                    type="button"
                     key={index}
                     className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-border/80"
                     onClick={() => selectTip(index)}

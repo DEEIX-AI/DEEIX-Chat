@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import type { UserDTO } from "@/shared/api/auth.types";
+import type { AdminUserDTO } from "@/features/admin/api/admin.types";
 import type { UserSortValue } from "@/features/admin/types/accounts";
 
 type UseAdminUserFiltersState = {
@@ -12,10 +12,10 @@ type UseAdminUserFiltersState = {
   setTierFilter: (value: string) => void;
   sortValue: UserSortValue;
   setSortValue: (value: UserSortValue) => void;
-  filteredItems: UserDTO[];
+  filteredItems: AdminUserDTO[];
 };
 
-export function useAdminUserFilters(items: UserDTO[]): UseAdminUserFiltersState {
+export function useAdminUserFilters(items: AdminUserDTO[]): UseAdminUserFiltersState {
   const [roleFilter, setRoleFilter] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("");
   const [tierFilter, setTierFilter] = React.useState("");

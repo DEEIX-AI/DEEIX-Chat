@@ -23,7 +23,6 @@ export function useChatRuntime({
   selectedToolIDs,
   selectedSkills,
   htmlVisualPromptEnabled,
-  htmlVisualColorMode,
   options,
   draft,
   attachments,
@@ -51,7 +50,6 @@ export function useChatRuntime({
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
   htmlVisualPromptEnabled: boolean;
-  htmlVisualColorMode: "light" | "dark";
   options: ConversationOptions;
   draft: string;
   attachments: PendingAttachment[];
@@ -94,7 +92,6 @@ export function useChatRuntime({
     selectedToolIDs,
     selectedSkills,
     htmlVisualPromptEnabled,
-    htmlVisualColorMode,
     options,
     draft,
     attachments,

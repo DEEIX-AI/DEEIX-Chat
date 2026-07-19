@@ -472,6 +472,8 @@ func (s *Service) sendMessageInternal(
 	// 收集并行预取结果，再规划本轮可发送的 PromptScope。
 	prefetch := <-prefetchCh
 	contextMessages = s.expandContextMessagesToSnapshotBoundary(ctx, input.ConversationID, userMessage.ID, contextMessages, prefetch.snapshot, compactPolicy)
+	// 快照扩展可能重新加载数据库中的原始 error 状态；在最终分支路径上统一恢复可用的重试上下文。
+	contextMessages = recoverAssistantRetryUserStates(contextMessages)
 	promptScope := buildPromptScope(contextMessages, prefetch.snapshot, compactPolicy)
 	promptMessages := s.applyContextTokenBudget(promptScope.activeMessages(), route.UpstreamModel, route.ModelCapabilitiesJSON, reasoningContentPassback)
 	ragQuery := buildRAGQuery(promptMessages, input.Content, cfg.RAGQueryHistoryTurns)
@@ -505,7 +507,7 @@ func (s *Service) sendMessageInternal(
 
 	// ContextAssembler 只承载真正的系统级行为指令；资料型上下文稍后进入用户 XML。
 	assembler := NewContextAssembler(int64(cfg.ContextMaxInputTokens))
-	systemPrompt := resolveMessageSystemPromptInjection(cfg, route, conversation.ProjectSystemPrompt, input.HTMLVisualPromptEnabled, input.HTMLVisualColorMode)
+	systemPrompt := resolveMessageSystemPromptInjection(cfg, route, conversation.ProjectSystemPrompt, input.HTMLVisualPromptEnabled)
 	if systemPrompt.Content != "" {
 		if systemPrompt.InlineToUser {
 			historyMsgs = inlineSystemPromptIntoLatestUserMessage(historyMsgs, systemPrompt.Content)
@@ -1121,29 +1123,53 @@ func (s *Service) sendMessageInternal(
 	}
 	llmCallCount := 1
 	toolLedger := newToolExecutionLedger()
+	toolHistoryTrimmedForRun := false
 
 	for len(upstreamOutput.ToolCalls) > 0 && llmCallCount < maxLLMCalls && remainingToolCalls > 0 {
+		pendingToolCalls := upstreamOutput.ToolCalls
+		if len(pendingToolCalls) > remainingToolCalls {
+			pendingToolCalls = pendingToolCalls[:remainingToolCalls]
+		}
+		reasoningContent := ""
+		if reasoningContentPassback {
+			reasoningContent = outputReasoningContent(upstreamOutput)
+		}
+		assistantToolMessage := llm.Message{
+			Role:             "assistant",
+			Content:          assistantText,
+			ReasoningContent: reasoningContent,
+			ToolCalls:        pendingToolCalls,
+		}
+		toolResultTokenBudget := resolveToolResultTokenBudget(
+			generateInput,
+			llmMessages,
+			assistantToolMessage,
+			route.UpstreamModel,
+			route.ModelCapabilitiesJSON,
+		)
 		toolCtx, toolSpan := platformtracing.Start(ctx, "conversation.tool.execute",
 			trace.WithAttributes(
 				attribute.Int64("conversation.id", int64(input.ConversationID)),
 				attribute.Int64("user.id", int64(input.UserID)),
 				attribute.Int("conversation.tool.request_count", len(upstreamOutput.ToolCalls)),
 				attribute.Int("conversation.tool.remaining_count", remainingToolCalls),
+				attribute.Int64("conversation.tool.result_token_budget", toolResultTokenBudget),
 			),
 		)
 		toolResult := s.executeAssistantToolCalls(toolCtx, executeAssistantToolCallsInput{
-			UserID:         input.UserID,
-			ConversationID: input.ConversationID,
-			MessageID:      assistantMessage.ID,
-			RequestID:      input.RequestID,
-			RunID:          runID,
-			ToolCalls:      upstreamOutput.ToolCalls,
-			ToolCallLimit:  remainingToolCalls,
-			TraceRecorder:  traceRecorder,
-			ToolNameMap:    toolRuntime.nameMap,
-			MCPConfigs:     toolRuntime.mcpConfigs,
-			ToolSchemas:    toolRuntime.schemas,
-			Ledger:         toolLedger,
+			UserID:            input.UserID,
+			ConversationID:    input.ConversationID,
+			MessageID:         assistantMessage.ID,
+			RequestID:         input.RequestID,
+			RunID:             runID,
+			ToolCalls:         pendingToolCalls,
+			ToolCallLimit:     remainingToolCalls,
+			TraceRecorder:     traceRecorder,
+			ToolNameMap:       toolRuntime.nameMap,
+			MCPConfigs:        toolRuntime.mcpConfigs,
+			ToolSchemas:       toolRuntime.schemas,
+			Ledger:            toolLedger,
+			ResultTokenBudget: toolResultTokenBudget,
 		})
 		toolSpan.SetAttributes(
 			attribute.Int("conversation.tool.executed_count", len(toolResult.Rows)),
@@ -1163,22 +1189,35 @@ func (s *Service) sendMessageInternal(
 		if len(toolResult.ToolResults) == 0 {
 			break
 		}
-		reasoningContent := ""
-		if reasoningContentPassback {
-			reasoningContent = outputReasoningContent(upstreamOutput)
-		}
+		assistantToolMessage.ToolCalls = toolResult.ExecutedToolCalls
 		llmMessages = append(llmMessages,
-			llm.Message{
-				Role:             "assistant",
-				Content:          assistantText,
-				ReasoningContent: reasoningContent,
-				ToolCalls:        toolResult.ExecutedToolCalls,
-			},
+			assistantToolMessage,
 			llm.Message{
 				Role:        "tool",
 				ToolResults: toolResult.ToolResults,
 			},
 		)
+		var toolHistoryTrimmed bool
+		llmMessages, toolHistoryTrimmed = trimToolFollowUpHistory(
+			generateInput,
+			llmMessages,
+			route.UpstreamModel,
+			route.ModelCapabilitiesJSON,
+		)
+		if toolHistoryTrimmed {
+			toolHistoryTrimmedForRun = true
+			sendSpan.SetAttributes(attribute.Bool("conversation.tool.history_trimmed", true))
+		}
+		var toolResultsRebalanced bool
+		llmMessages, toolResultsRebalanced = rebalanceToolFollowUpResults(
+			generateInput,
+			llmMessages,
+			route.UpstreamModel,
+			route.ModelCapabilitiesJSON,
+		)
+		if toolResultsRebalanced {
+			sendSpan.SetAttributes(attribute.Bool("conversation.tool.results_rebalanced", true))
+		}
 
 		followUpInput := generateInput
 		if llmCallCount+1 >= maxLLMCalls {
@@ -1187,7 +1226,7 @@ func (s *Service) sendMessageInternal(
 			followUpInput.DisableTools = true
 			followUpInput.PreviousResponseID = ""
 			applyOpenAIResponsesInstructions(route, routeConfig.Endpoint, &followUpInput)
-		} else if routeConfig.Endpoint == llm.EndpointResponses && supportsPreviousResponseIDRoute(route) && strings.TrimSpace(upstreamOutput.ResponseID) != "" {
+		} else if !toolHistoryTrimmed && !toolResultsRebalanced && routeConfig.Endpoint == llm.EndpointResponses && supportsPreviousResponseIDRoute(route) && strings.TrimSpace(upstreamOutput.ResponseID) != "" {
 			followUpInput.PreviousResponseID = strings.TrimSpace(upstreamOutput.ResponseID)
 			followUpInput.Messages = []llm.Message{{Role: "tool", ToolResults: toolResult.ToolResults}}
 		} else {
@@ -1284,6 +1323,12 @@ func (s *Service) sendMessageInternal(
 		Tools:             toolRuntime.definitions,
 		Options:           filteredOptions,
 	})
+	responseIDForPersistence := upstreamOutput.ResponseID
+	// 历史裁剪后的上游 response 不再代表数据库可重建的完整历史，禁止跨轮复用。
+	if toolHistoryTrimmedForRun {
+		responseIDForPersistence = ""
+		statefulPromptFingerprint = ""
+	}
 
 	run.InputTokens = effectiveInputTokens
 	run.OutputTokens = effectiveOutputTokens
@@ -1341,7 +1386,7 @@ func (s *Service) sendMessageInternal(
 		OutputTokens:              effectiveOutputTokens,
 		ReasoningTokens:           totalUsage.ReasoningTokens,
 		AssistantLatency:          assistantLatencyMS,
-		ResponseID:                upstreamOutput.ResponseID,
+		ResponseID:                responseIDForPersistence,
 		StatefulPromptFingerprint: statefulPromptFingerprint,
 		ToolCallRows:              toolCallRows,
 		PersistedToolCallKeys:     persistedToolCallKeys,

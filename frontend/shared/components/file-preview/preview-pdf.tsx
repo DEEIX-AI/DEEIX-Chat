@@ -275,8 +275,12 @@ export function PreviewPdf({ source, toolbarContainer, showLoading = true, onLoa
 
     return () => {
       renderTokenRef.current += 1;
-      renderTasks.forEach((task) => task.cancel());
-      renderedPages.forEach((page) => page.cleanup());
+      renderTasks.forEach((task) => {
+        task.cancel();
+      });
+      renderedPages.forEach((page) => {
+        page.cleanup();
+      });
     };
   }, [availableWidth, documentProxy, status, zoom]);
 

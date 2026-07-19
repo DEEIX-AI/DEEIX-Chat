@@ -36,7 +36,7 @@ export function ContentPreview({ file, deferEmptyState, preview, extract, conten
   const [metaDrawerContainer, setMetaDrawerContainer] = React.useState<HTMLDivElement | null>(null);
   const [toolbarContainer, setToolbarContainer] = React.useState<HTMLDivElement | null>(null);
   const [viewerLoading, setViewerLoading] = React.useState(false);
-  const useInnerScrollRegion = contentTab === "preview" && preview.status === "ready" && preview.kind === "image";
+  const shouldUseInnerScrollRegion = contentTab === "preview" && preview.status === "ready" && preview.kind === "image";
   const previewKind = preview.status === "ready" ? preview.kind : null;
   const previewLoading = contentTab === "preview" ? preview.status === "loading" || viewerLoading : extract.status === "loading" || extract.status === "idle";
 
@@ -104,6 +104,7 @@ export function ContentPreview({ file, deferEmptyState, preview, extract, conten
         <PreviewDocument
           source={preview.objectURL}
           contentType={preview.contentType}
+          title={file.fileName}
           showLoading={false}
           onLoadingChange={setViewerLoading}
         />
@@ -165,7 +166,7 @@ export function ContentPreview({ file, deferEmptyState, preview, extract, conten
       <div
         className={cn(
           "absolute inset-x-6 top-16 bottom-16 min-h-0",
-          useInnerScrollRegion ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden",
+          shouldUseInnerScrollRegion ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden",
         )}
       >
         {contentTab === "preview" ? previewContent : extractContent}

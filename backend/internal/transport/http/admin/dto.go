@@ -19,49 +19,49 @@ import (
 type CreateUserRequest struct {
 	Username              string     `json:"username" binding:"required,min=3,max=16"`
 	Password              string     `json:"password" binding:"required,min=8,max=128"`
-	AvatarURL             string     `json:"avatarURL" binding:"max=2048"`
-	DisplayName           string     `json:"displayName" binding:"omitempty,min=3,max=16"`
-	Email                 string     `json:"email" binding:"omitempty,max=128,email"`
-	Phone                 string     `json:"phone" binding:"max=32"`
-	Timezone              string     `json:"timezone" binding:"max=64"`
-	Locale                string     `json:"locale" binding:"max=16"`
-	SubscriptionTier      string     `json:"subscriptionTier" binding:"max=32"`
-	SubscriptionExpiresAt *time.Time `json:"subscriptionExpiresAt"`
+	AvatarURL             string     `json:"avatarURL,omitempty" binding:"max=2048"`
+	DisplayName           string     `json:"displayName,omitempty" binding:"omitempty,min=3,max=16"`
+	Email                 string     `json:"email,omitempty" binding:"omitempty,max=128,email"`
+	Phone                 string     `json:"phone,omitempty" binding:"max=32"`
+	Timezone              string     `json:"timezone,omitempty" binding:"max=64"`
+	Locale                string     `json:"locale,omitempty" binding:"max=16"`
+	SubscriptionTier      string     `json:"subscriptionTier,omitempty" binding:"max=32"`
+	SubscriptionExpiresAt *time.Time `json:"subscriptionExpiresAt,omitempty"`
 }
 
 // UpdateUserStatusRequest 管理员更新用户状态请求。
 type UpdateUserStatusRequest struct {
 	Status string `json:"status" binding:"required,max=32"`
-	Reason string `json:"reason" binding:"max=255"`
+	Reason string `json:"reason,omitempty" binding:"max=255"`
 }
 
 // PatchUserRequest 管理员局部更新用户请求。
 type PatchUserRequest struct {
-	AvatarURL             *string    `json:"avatarURL" binding:"omitempty,max=2048"`
-	DisplayName           *string    `json:"displayName" binding:"omitempty,min=3,max=16"`
-	Email                 *string    `json:"email" binding:"omitempty,max=128"`
-	Phone                 *string    `json:"phone" binding:"omitempty,max=32"`
-	Role                  *string    `json:"role" binding:"omitempty,max=32"`
-	Status                *string    `json:"status" binding:"omitempty,max=32"`
-	Timezone              *string    `json:"timezone" binding:"omitempty,max=64"`
-	Locale                *string    `json:"locale" binding:"omitempty,max=16"`
-	ProfilePreferences    *string    `json:"profilePreferences" binding:"omitempty,max=1024"`
-	SubscriptionTier      *string    `json:"subscriptionTier" binding:"omitempty,max=32"`
-	SubscriptionExpiresAt *time.Time `json:"subscriptionExpiresAt"`
-	Reason                string     `json:"reason" binding:"max=255"`
+	AvatarURL             *string    `json:"avatarURL,omitempty" binding:"omitempty,max=2048"`
+	DisplayName           *string    `json:"displayName,omitempty" binding:"omitempty,min=3,max=16"`
+	Email                 *string    `json:"email,omitempty" binding:"omitempty,max=128"`
+	Phone                 *string    `json:"phone,omitempty" binding:"omitempty,max=32"`
+	Role                  *string    `json:"role,omitempty" binding:"omitempty,max=32"`
+	Status                *string    `json:"status,omitempty" binding:"omitempty,max=32"`
+	Timezone              *string    `json:"timezone,omitempty" binding:"omitempty,max=64"`
+	Locale                *string    `json:"locale,omitempty" binding:"omitempty,max=16"`
+	ProfilePreferences    *string    `json:"profilePreferences,omitempty" binding:"omitempty,max=1024"`
+	SubscriptionTier      *string    `json:"subscriptionTier,omitempty" binding:"omitempty,max=32"`
+	SubscriptionExpiresAt *time.Time `json:"subscriptionExpiresAt,omitempty"`
+	Reason                string     `json:"reason,omitempty" binding:"max=255"`
 }
 
 // ResetUserPasswordRequest 管理员重置用户密码请求。
 type ResetUserPasswordRequest struct {
 	NewPassword       string `json:"newPassword" binding:"required,min=8,max=128"`
-	MustResetPassword *bool  `json:"mustResetPassword"`
+	MustResetPassword *bool  `json:"mustResetPassword,omitempty"`
 }
 
 // ImportOpenWebUIUsersRequest 从 OpenWebUI 数据库导入用户请求。
 type ImportOpenWebUIUsersRequest struct {
 	DSN              string   `json:"dsn" binding:"required,max=2048"`
 	CreditMultiplier *float64 `json:"creditMultiplier" binding:"required"`
-	DryRun           bool     `json:"dryRun"`
+	DryRun           bool     `json:"dryRun,omitempty"`
 }
 
 // CleanupLogsRequest 管理员日志清理请求。
@@ -73,37 +73,37 @@ type CleanupLogsRequest struct {
 // CreatePermissionGroupRequest 创建权限组请求。
 type CreatePermissionGroupRequest struct {
 	Name                  string `json:"name" binding:"required,max=128"`
-	Description           string `json:"description" binding:"max=512"`
-	RateMultiplierPercent int    `json:"rateMultiplierPercent" binding:"min=0,max=10000"`
+	Description           string `json:"description,omitempty" binding:"max=512"`
+	RateMultiplierPercent int    `json:"rateMultiplierPercent,omitempty" binding:"min=0,max=10000"`
 }
 
 // UpdatePermissionGroupRequest 更新权限组请求。
 type UpdatePermissionGroupRequest struct {
 	Name                  string `json:"name" binding:"required,max=128"`
-	Description           string `json:"description" binding:"max=512"`
-	RateMultiplierPercent int    `json:"rateMultiplierPercent" binding:"min=0,max=10000"`
+	Description           string `json:"description,omitempty" binding:"max=512"`
+	RateMultiplierPercent int    `json:"rateMultiplierPercent,omitempty" binding:"min=0,max=10000"`
 }
 
 // SetGroupModelsRequest 设置权限组模型请求。
 type SetGroupModelsRequest struct {
-	ModelIDs []uint                            `json:"modelIDs"`
-	Rules    []PermissionGroupModelRuleRequest `json:"rules"`
+	ModelIDs []uint                            `json:"modelIDs,omitempty"`
+	Rules    []PermissionGroupModelRuleRequest `json:"rules,omitempty"`
 }
 
 // SetModelPermissionGroupsRequest 设置模型手动授权权限组请求。
 type SetModelPermissionGroupsRequest struct {
-	GroupIDs []uint `json:"groupIDs"`
+	GroupIDs []uint `json:"groupIDs,omitempty"`
 }
 
 // PermissionGroupModelRuleRequest 设置权限组动态模型访问规则请求。
 type PermissionGroupModelRuleRequest struct {
 	Type  string `json:"type" binding:"required,max=32"`
-	Value string `json:"value" binding:"max=128"`
+	Value string `json:"value,omitempty" binding:"max=128"`
 }
 
 // SetGroupUsersRequest 设置权限组用户请求。
 type SetGroupUsersRequest struct {
-	UserIDs []uint `json:"userIDs"`
+	UserIDs []uint `json:"userIDs,omitempty"`
 }
 
 // ── 响应 DTO ────────────────────────────────────────────────────────────────
@@ -132,21 +132,21 @@ type UserResponse struct {
 	Locale                 string                                `json:"locale"`
 	ProfilePreferences     string                                `json:"profilePreferences"`
 	AppearancePreferences  string                                `json:"appearancePreferences"`
-	EmailVerifiedAt        *time.Time                            `json:"emailVerifiedAt"`
-	PhoneVerifiedAt        *time.Time                            `json:"phoneVerifiedAt"`
+	EmailVerifiedAt        *time.Time                            `json:"emailVerifiedAt" extensions:"x-nullable,!x-omitempty"`
+	PhoneVerifiedAt        *time.Time                            `json:"phoneVerifiedAt" extensions:"x-nullable,!x-omitempty"`
 	TwoFactorAvailable     bool                                  `json:"twoFactorAvailable"`
 	TwoFactorEnabled       bool                                  `json:"twoFactorEnabled"`
 	TwoFactorRequired      bool                                  `json:"twoFactorRequired"`
 	TwoFactorRecoveryCount int                                   `json:"twoFactorRecoveryCount"`
-	LastLoginAt            *time.Time                            `json:"lastLoginAt"`
-	LastActiveAt           *time.Time                            `json:"lastActiveAt"`
+	LastLoginAt            *time.Time                            `json:"lastLoginAt" extensions:"x-nullable,!x-omitempty"`
+	LastActiveAt           *time.Time                            `json:"lastActiveAt" extensions:"x-nullable,!x-omitempty"`
 	CreatedAt              time.Time                             `json:"createdAt"`
 	UpdatedAt              time.Time                             `json:"updatedAt"`
 	SubscriptionTier       string                                `json:"subscriptionTier"`
-	SubscriptionPlanID     *uint                                 `json:"subscriptionPlanID"`
+	SubscriptionPlanID     *uint                                 `json:"subscriptionPlanID" extensions:"x-nullable,!x-omitempty"`
 	SubscriptionPlanName   string                                `json:"subscriptionPlanName"`
 	SubscriptionStatus     string                                `json:"subscriptionStatus"`
-	SubscriptionExpiresAt  *time.Time                            `json:"subscriptionExpiresAt"`
+	SubscriptionExpiresAt  *time.Time                            `json:"subscriptionExpiresAt" extensions:"x-nullable,!x-omitempty"`
 	BillingAccountCurrency string                                `json:"billingAccountCurrency"`
 	BillingBalanceNanousd  int64                                 `json:"billingBalanceNanousd"`
 	BillingBalanceUSD      float64                               `json:"billingBalanceUSD"`
@@ -287,6 +287,58 @@ type UsageLogResponse struct {
 	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
+// UsageStatisticsMetricsResponse 用量统计指标响应。
+type UsageStatisticsMetricsResponse struct {
+	RecordCount      int64   `json:"recordCount"`
+	InputTokens      int64   `json:"inputTokens"`
+	CacheReadTokens  int64   `json:"cacheReadTokens"`
+	CacheWriteTokens int64   `json:"cacheWriteTokens"`
+	OutputTokens     int64   `json:"outputTokens"`
+	ReasoningTokens  int64   `json:"reasoningTokens"`
+	TotalTokens      int64   `json:"totalTokens"`
+	CallCount        int64   `json:"callCount"`
+	AvgLatencyMS     int64   `json:"avgLatencyMS"`
+	BilledNanousd    int64   `json:"billedNanousd"`
+	BilledUSD        float64 `json:"billedUSD"`
+}
+
+// UsageStatisticsTrendResponse 用量趋势点响应。
+type UsageStatisticsTrendResponse struct {
+	PeriodStart time.Time `json:"periodStart"`
+	UsageStatisticsMetricsResponse
+}
+
+// UsageStatisticsModelRankResponse 模型排名响应。
+type UsageStatisticsModelRankResponse struct {
+	PlatformModelName string `json:"platformModelName"`
+	UsageStatisticsMetricsResponse
+	Trend []UsageStatisticsTrendResponse `json:"trend"`
+}
+
+// UsageStatisticsUserRankResponse 用户排名响应。
+type UsageStatisticsUserRankResponse struct {
+	UserID          uint   `json:"userID"`
+	Username        string `json:"username"`
+	UserDisplayName string `json:"userDisplayName"`
+	UserLabel       string `json:"userLabel"`
+	UsageStatisticsMetricsResponse
+	Trend []UsageStatisticsTrendResponse `json:"trend"`
+}
+
+// UsageStatisticsResponse 管理员用量统计响应。
+type UsageStatisticsResponse struct {
+	Section string `json:"section"`
+	Range   struct {
+		StartDate   string `json:"startDate"`
+		EndDate     string `json:"endDate"`
+		Granularity string `json:"granularity"`
+	} `json:"range"`
+	Totals    UsageStatisticsMetricsResponse     `json:"totals"`
+	Trend     []UsageStatisticsTrendResponse     `json:"trend"`
+	TopModels []UsageStatisticsModelRankResponse `json:"topModels"`
+	TopUsers  []UsageStatisticsUserRankResponse  `json:"topUsers"`
+}
+
 // PaymentOrderResponse 支付订单记录响应。
 type PaymentOrderResponse struct {
 	ID                 uint       `json:"id"`
@@ -311,8 +363,8 @@ type PaymentOrderResponse struct {
 	Cycles             int        `json:"cycles"`
 	ExternalPaymentID  string     `json:"externalPaymentID"`
 	ExternalCheckoutID string     `json:"externalCheckoutID"`
-	PaidAt             *time.Time `json:"paidAt"`
-	ExpiredAt          *time.Time `json:"expiredAt"`
+	PaidAt             *time.Time `json:"paidAt" extensions:"x-nullable,!x-omitempty"`
+	ExpiredAt          *time.Time `json:"expiredAt" extensions:"x-nullable,!x-omitempty"`
 	SnapshotJSON       string     `json:"snapshotJSON"`
 	CreatedAt          time.Time  `json:"createdAt"`
 	UpdatedAt          time.Time  `json:"updatedAt"`
@@ -353,7 +405,7 @@ type ConversationEventResponse struct {
 	OutputJSON        string     `json:"outputJSON"`
 	ErrorJSON         string     `json:"errorJSON"`
 	StartedAt         time.Time  `json:"startedAt"`
-	EndedAt           *time.Time `json:"endedAt"`
+	EndedAt           *time.Time `json:"endedAt" extensions:"x-nullable,!x-omitempty"`
 	CreatedAt         time.Time  `json:"createdAt"`
 	UpdatedAt         time.Time  `json:"updatedAt"`
 }
@@ -549,6 +601,12 @@ type UsageLogListResponseDoc struct {
 	} `json:"data"`
 }
 
+// UsageStatisticsResponseDoc 管理员用量统计响应。
+type UsageStatisticsResponseDoc struct {
+	ErrorMsg string                  `json:"errorMsg"`
+	Data     UsageStatisticsResponse `json:"data"`
+}
+
 // PaymentOrderListResponseDoc 支付订单分页响应。
 type PaymentOrderListResponseDoc struct {
 	ErrorMsg string `json:"errorMsg"`
@@ -738,6 +796,73 @@ func toUsageLogResponse(item domainbilling.UsageLedger, label appadmin.UserLabel
 		CreatedAt:           item.CreatedAt,
 		UpdatedAt:           item.UpdatedAt,
 	}
+}
+
+func toUsageStatisticsMetricsResponse(item domainbilling.UsageStatisticsMetrics) UsageStatisticsMetricsResponse {
+	totalTokens := item.InputTokens + item.CacheReadTokens + item.CacheWriteTokens + item.OutputTokens + item.ReasoningTokens
+	return UsageStatisticsMetricsResponse{
+		RecordCount:      item.RecordCount,
+		InputTokens:      item.InputTokens,
+		CacheReadTokens:  item.CacheReadTokens,
+		CacheWriteTokens: item.CacheWriteTokens,
+		OutputTokens:     item.OutputTokens,
+		ReasoningTokens:  item.ReasoningTokens,
+		TotalTokens:      totalTokens,
+		CallCount:        item.CallCount,
+		AvgLatencyMS:     item.AvgLatencyMS,
+		BilledNanousd:    item.BilledNanousd,
+		BilledUSD:        float64(item.BilledNanousd) / 1_000_000_000,
+	}
+}
+
+func toUsageStatisticsTrendResponses(items []domainbilling.UsageStatisticsTrendPoint) []UsageStatisticsTrendResponse {
+	result := make([]UsageStatisticsTrendResponse, 0, len(items))
+	for _, point := range items {
+		result = append(result, UsageStatisticsTrendResponse{
+			PeriodStart:                    point.PeriodStart,
+			UsageStatisticsMetricsResponse: toUsageStatisticsMetricsResponse(point.Metrics),
+		})
+	}
+	return result
+}
+
+func toUsageStatisticsResponse(
+	item domainbilling.UsageStatistics,
+	startDate time.Time,
+	endDate time.Time,
+	section string,
+	userLabels map[uint]appadmin.UserLabel,
+) UsageStatisticsResponse {
+	result := UsageStatisticsResponse{
+		Section:   section,
+		Totals:    toUsageStatisticsMetricsResponse(item.Totals),
+		Trend:     make([]UsageStatisticsTrendResponse, 0, len(item.Trend)),
+		TopModels: make([]UsageStatisticsModelRankResponse, 0, len(item.TopModels)),
+		TopUsers:  make([]UsageStatisticsUserRankResponse, 0, len(item.TopUsers)),
+	}
+	result.Range.StartDate = startDate.Format("2006-01-02")
+	result.Range.EndDate = endDate.Format("2006-01-02")
+	result.Range.Granularity = item.Granularity
+	result.Trend = toUsageStatisticsTrendResponses(item.Trend)
+	for _, model := range item.TopModels {
+		result.TopModels = append(result.TopModels, UsageStatisticsModelRankResponse{
+			PlatformModelName:              model.PlatformModelName,
+			UsageStatisticsMetricsResponse: toUsageStatisticsMetricsResponse(model.Metrics),
+			Trend:                          toUsageStatisticsTrendResponses(model.Trend),
+		})
+	}
+	for _, rankedUser := range item.TopUsers {
+		label := userLabels[rankedUser.UserID]
+		result.TopUsers = append(result.TopUsers, UsageStatisticsUserRankResponse{
+			UserID:                         rankedUser.UserID,
+			Username:                       label.Username,
+			UserDisplayName:                label.DisplayName,
+			UserLabel:                      label.Label,
+			UsageStatisticsMetricsResponse: toUsageStatisticsMetricsResponse(rankedUser.Metrics),
+			Trend:                          toUsageStatisticsTrendResponses(rankedUser.Trend),
+		})
+	}
+	return result
 }
 
 func toPaymentOrderResponse(item domainbilling.PaymentOrder, label appadmin.UserLabel) PaymentOrderResponse {

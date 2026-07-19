@@ -9,6 +9,7 @@ import type {
   AdminMCPOrderListResponse,
   AdminMCPOrderGroupDTO,
   AdminMCPServerPayload,
+  AdminMCPToolPayload,
   AdminMCPToolListResponse,
 } from "@/features/admin/api/mcp.types";
 
@@ -91,12 +92,6 @@ export async function syncAdminMCPServerTools(accessToken: string, serverID: num
   );
   return data.results ?? [];
 }
-
-export type AdminMCPToolPayload = {
-  displayName?: string;
-  description?: string;
-  status?: "active" | "inactive";
-};
 
 export async function updateAdminMCPTool(
   accessToken: string,

@@ -10,21 +10,21 @@ Thank you for contributing to DEEIX Chat.
 
 ## Development Setup
 
-Backend:
+Install all workspace dependencies:
 
 ```bash
-cd backend
-go test ./...
+pnpm install
 ```
 
-Frontend:
+Run the shared quality and test pipelines:
 
 ```bash
-cd frontend
-pnpm install
-pnpm lint
+pnpm check
+pnpm test
 pnpm build
 ```
+
+Use `pnpm dev`, `pnpm dev:web`, or `pnpm dev:api` for local development.
 
 Use the example configuration files for local development. Do not commit local secrets or production credentials.
 
@@ -33,7 +33,7 @@ Use the example configuration files for local development. Do not commit local s
 - Explain the problem and the approach.
 - Include tests for behavior changes when practical.
 - Update documentation when user-facing behavior, deployment steps, API contracts, or configuration changes.
-- Keep generated artifacts out of commits unless the project explicitly requires them.
+- Commit generated artifacts only when the project requires them. API contract changes must include the generated Swagger files and `packages/api-contract/src/types.generated.ts`.
 - Do not commit caches, build output, `.pyc` files, `.env` files, or local storage data.
 
 ## Commit Messages
@@ -69,7 +69,6 @@ Commit message subjects that do not match this format will fail CI.
 - `backend/` owns business APIs, authentication, authorization, model routing, file processing, billing, audit logs, and persistence.
 - `docker/` contains optional local services for document extraction, OCR, and related runtime dependencies.
 - The frontend should not duplicate backend authorization, billing, provider routing, or file-processing business rules.
-- Shared API contracts should stay explicit through backend DTOs, generated Swagger files, and frontend API types.
 - Keep cross-cutting concerns such as security, tracing, storage, and provider clients behind backend infrastructure boundaries.
 - Backend startup flows through `cmd -> internal/cli -> internal/app`.
 - Backend requests flow through `transport/http -> application -> repository interfaces -> infra implementations`.
@@ -80,15 +79,27 @@ Commit message subjects that do not match this format will fail CI.
 - User data access must be scoped by authenticated user context unless an admin-only path explicitly requires broader access.
 - Request IDs, structured logs, audit records, and generated Swagger files are part of the operational contract.
 
+## API Contract Workflow
+
+- Backend HTTP DTOs and Swagger annotations are the single source of truth for transport contracts.
+- `backend/docs/docs.go`, `backend/docs/swagger.json`, `backend/docs/swagger.yaml`, and `packages/api-contract/src/types.generated.ts` are generated together. Never edit them manually.
+- After changing a route, HTTP DTO, JSON tag, validation tag, response document, or Swagger annotation, run `pnpm api:generate` from the repository root. `cd backend && make swagger` invokes the same pipeline.
+- Run `pnpm api:check` before submitting. It regenerates into a temporary directory and rejects Swagger or TypeScript drift without modifying the worktree.
+- Requiredness, optionality, and nullability must be correct in backend DTOs. Use JSON and validation tags deliberately; use pointer fields when omission must be distinguished from an explicit zero, `false`, or empty value.
+- Frontend transport types must import from `@deeix/api-contract`. Do not copy generated request or response fields into local interfaces and do not repair generated contracts with `Required<>`.
+- Frontend API adapters may use `Omit`, intersections, or narrow unions only for a real UI/domain invariant. Keep form state and view models separate from wire contracts.
+- New HTTP endpoints must expose Swagger contracts before the frontend consumes them. Do not introduce a second handwritten transport schema as a shortcut.
+
 ## Backend Contributions
 
 Read the backend documentation index before making backend changes:
 
-- [Backend docs](./backend/docs/README.md)
+- [Backend docs](../backend/docs/README.md)
 
 Core expectations:
 
 - keep HTTP handlers thin
+- map transport DTOs to application inputs at the HTTP boundary; do not pass Gin DTOs into domain or infrastructure packages
 - keep business orchestration in the application layer
 - keep infrastructure implementations behind repository or adapter boundaries
 - use structured errors and existing response helpers
@@ -98,16 +109,17 @@ Core expectations:
 
 Read the frontend documentation before making frontend changes:
 
-- [Frontend docs](./frontend/README.md)
+- [Frontend docs](../frontend/README.md)
 
 Core expectations:
 
 - keep route files thin and place feature logic under `features/*`
 - use existing UI components and local design patterns
 - keep API access inside `shared/api` or feature-level API modules
+- derive wire types from `@deeix/api-contract` and keep UI state types inside the owning feature
 - do not hard-code provider-private model behavior in the frontend
 - keep authentication tokens aligned with the existing session model
-- run `pnpm lint`, and run `pnpm build` for routing, dependency, or Next.js changes
+- run `pnpm --filter @deeix/web lint`, and run `pnpm build` for routing, dependency, or Next.js changes
 
 ## Code Style
 

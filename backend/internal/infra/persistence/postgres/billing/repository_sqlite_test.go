@@ -90,6 +90,152 @@ func TestUsageQueriesUseSQLitePortableExpressions(t *testing.T) {
 	if len(daily[0].Models) != 2 {
 		t.Fatalf("expected two daily model summaries, got %d", len(daily[0].Models))
 	}
+
+	statistics, err := repo.GetUsageStatistics(ctx, repository.UsageStatisticsFilter{
+		StartDate:        usageDate,
+		EndDateExclusive: usageDate.AddDate(0, 0, 1),
+		Granularity:      "day",
+		ModelRankBy:      "tokens",
+		UserRankBy:       "cost",
+		RankLimit:        10,
+	})
+	if err != nil {
+		t.Fatalf("GetUsageStatistics() error = %v", err)
+	}
+	if len(statistics.TopModels) != 3 || statistics.TopModels[0].PlatformModelName != "gpt-test" {
+		t.Fatalf("expected models ranked by tokens, got %+v", statistics.TopModels)
+	}
+	if len(statistics.TopUsers) != 2 || statistics.TopUsers[0].UserID != 2 {
+		t.Fatalf("expected users ranked by cost, got %+v", statistics.TopUsers)
+	}
+
+	modelStatistics, err := repo.GetUsageStatistics(ctx, repository.UsageStatisticsFilter{
+		StartDate:        usageDate,
+		EndDateExclusive: usageDate.AddDate(0, 0, 1),
+		Granularity:      "day",
+		Section:          "models",
+		ModelRankBy:      "tokens",
+		RankLimit:        10,
+	})
+	if err != nil {
+		t.Fatalf("GetUsageStatistics(models) error = %v", err)
+	}
+	if len(modelStatistics.TopModels) != 3 || len(modelStatistics.TopUsers) != 0 || len(modelStatistics.Trend) != 0 {
+		t.Fatalf("expected model-only statistics, got %+v", modelStatistics)
+	}
+
+	weeklyStatistics, err := repo.GetUsageStatistics(ctx, repository.UsageStatisticsFilter{
+		StartDate:        usageDate,
+		EndDateExclusive: usageDate.AddDate(0, 0, 1),
+		Granularity:      "week",
+		Section:          "all",
+		ModelRankBy:      "cost",
+		UserRankBy:       "cost",
+		RankLimit:        10,
+	})
+	if err != nil {
+		t.Fatalf("GetUsageStatistics(week) error = %v", err)
+	}
+	if len(weeklyStatistics.Trend) != 1 || weeklyStatistics.Trend[0].PeriodStart.Format("2006-01-02") != "2026-06-01" {
+		t.Fatalf("unexpected weekly statistics: %+v", weeklyStatistics.Trend)
+	}
+}
+
+func TestUsageStatisticsFiltersByCurrentPermissionGroupMembership(t *testing.T) {
+	db := openBillingSQLiteTestDB(t)
+	if err := db.AutoMigrate(
+		&model.PermissionGroup{},
+		&model.PermissionGroupUserAccess{},
+		&model.BillingPlan{},
+		&model.Subscription{},
+	); err != nil {
+		t.Fatalf("migrate permission group tables: %v", err)
+	}
+
+	groups := []model.PermissionGroup{
+		{Name: "Default", IsDefault: true},
+		{Name: "Pro"},
+	}
+	if err := db.Create(&groups).Error; err != nil {
+		t.Fatalf("create permission groups: %v", err)
+	}
+	if err := db.Create(&model.PermissionGroupUserAccess{GroupID: groups[1].ID, UserID: 1}).Error; err != nil {
+		t.Fatalf("create manual group member: %v", err)
+	}
+
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	activePlan := model.BillingPlan{Code: "pro", Name: "Pro", IsActive: true, PermissionGroupID: &groups[1].ID}
+	inactivePlan := model.BillingPlan{Code: "legacy", Name: "Legacy", IsActive: false, PermissionGroupID: &groups[1].ID}
+	if err := db.Create(&[]model.BillingPlan{activePlan, inactivePlan}).Error; err != nil {
+		t.Fatalf("create billing plans: %v", err)
+	}
+	var plans []model.BillingPlan
+	if err := db.Order("id ASC").Find(&plans).Error; err != nil {
+		t.Fatalf("reload billing plans: %v", err)
+	}
+	periodEnd := now.Add(24 * time.Hour)
+	expiredEnd := now.Add(-time.Hour)
+	futureStart := now.Add(time.Hour)
+	subscriptions := []model.Subscription{
+		{UserID: 1, PlanID: plans[0].ID, PriceID: 1, Status: "active", StartAt: now.Add(-time.Hour), CurrentPeriodStartAt: now.Add(-time.Hour), CurrentPeriodEndAt: &periodEnd},
+		{UserID: 2, PlanID: plans[0].ID, PriceID: 1, Status: "active", StartAt: now.Add(-time.Hour), CurrentPeriodStartAt: now.Add(-time.Hour), CurrentPeriodEndAt: &periodEnd},
+		{UserID: 3, PlanID: plans[0].ID, PriceID: 1, Status: "active", StartAt: now.Add(-48 * time.Hour), CurrentPeriodStartAt: now.Add(-48 * time.Hour), CurrentPeriodEndAt: &expiredEnd},
+		{UserID: 4, PlanID: plans[0].ID, PriceID: 1, Status: "active", StartAt: futureStart, CurrentPeriodStartAt: futureStart, CurrentPeriodEndAt: &periodEnd},
+		{UserID: 5, PlanID: plans[1].ID, PriceID: 1, Status: "active", StartAt: now.Add(-time.Hour), CurrentPeriodStartAt: now.Add(-time.Hour), CurrentPeriodEndAt: &periodEnd},
+		{UserID: 6, PlanID: plans[0].ID, PriceID: 1, Status: "active", StartAt: now.Add(-time.Hour), CurrentPeriodStartAt: now.Add(-time.Hour), CurrentPeriodEndAt: &periodEnd},
+	}
+	if err := db.Create(&subscriptions).Error; err != nil {
+		t.Fatalf("create subscriptions: %v", err)
+	}
+	if err := db.Delete(&subscriptions[5]).Error; err != nil {
+		t.Fatalf("soft delete active subscription: %v", err)
+	}
+
+	usageDate := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
+	ledgers := make([]model.UsageLedger, 0, 6)
+	for userID := uint(1); userID <= 6; userID++ {
+		ledgers = append(ledgers, model.UsageLedger{
+			UserID:            userID,
+			PlatformModelName: "gpt-test",
+			BillingAt:         usageDate,
+			UsageDate:         usageDate,
+			CallCount:         1,
+			BilledNanousd:     int64(userID) * 100,
+		})
+	}
+	if err := db.Create(&ledgers).Error; err != nil {
+		t.Fatalf("create usage ledgers: %v", err)
+	}
+
+	filter := repository.UsageStatisticsFilter{
+		StartDate:         usageDate,
+		EndDateExclusive:  usageDate.AddDate(0, 0, 1),
+		PermissionGroupID: groups[1].ID,
+		MembershipAt:      now,
+		Granularity:       "day",
+		ModelRankBy:       "cost",
+		UserRankBy:        "cost",
+		RankLimit:         10,
+	}
+	statistics, err := NewRepo(db).GetUsageStatistics(context.Background(), filter)
+	if err != nil {
+		t.Fatalf("GetUsageStatistics() error = %v", err)
+	}
+	if statistics.Totals.RecordCount != 2 || statistics.Totals.CallCount != 2 || statistics.Totals.BilledNanousd != 300 {
+		t.Fatalf("expected users 1 and 2 to be counted once, got %+v", statistics.Totals)
+	}
+	if len(statistics.TopUsers) != 2 || statistics.TopUsers[0].UserID != 2 || statistics.TopUsers[1].UserID != 1 {
+		t.Fatalf("unexpected permission group user ranking: %+v", statistics.TopUsers)
+	}
+
+	filter.PermissionGroupID = groups[0].ID
+	statistics, err = NewRepo(db).GetUsageStatistics(context.Background(), filter)
+	if err != nil {
+		t.Fatalf("GetUsageStatistics(default group) error = %v", err)
+	}
+	if statistics.Totals.RecordCount != 6 || statistics.Totals.BilledNanousd != 2100 {
+		t.Fatalf("expected default group to include all users, got %+v", statistics.Totals)
+	}
 }
 
 func TestAddUsageAndSettleBalanceRecordsDebtWithoutReservation(t *testing.T) {

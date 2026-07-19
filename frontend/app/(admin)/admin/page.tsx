@@ -1,5 +1,5 @@
-import { AdminAccountsPage } from "@/features/admin/components/sections/accounts/admin-accounts";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <AdminAccountsPage />;
+  redirect("/admin/statistics");
 }

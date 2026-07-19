@@ -403,7 +403,9 @@ export function useAdminUpstreams(): UseAdminUpstreamsState {
     setTotal((prev) => Math.max(0, prev - removedIDs.size));
     setSelected((prev) => {
       const next = new Set(prev);
-      removedIDs.forEach((id) => next.delete(id));
+      removedIDs.forEach((id) => {
+        next.delete(id);
+      });
       return next;
     });
     setBulkDeleteTargets([]);

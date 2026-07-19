@@ -349,8 +349,11 @@ function isSelfClosingHTMLTag(tag: string): boolean {
 function findHTMLVisualBlockEnd(source: string, start: number): number {
   HTML_BLOCK_TAG_SCAN_RE.lastIndex = start;
   const stack: string[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = HTML_BLOCK_TAG_SCAN_RE.exec(source)) !== null) {
+  while (true) {
+    const match = HTML_BLOCK_TAG_SCAN_RE.exec(source);
+    if (match === null) {
+      break;
+    }
     const tag = match[0];
     const tagName = match[1].toLowerCase();
     if (tag.startsWith("</")) {

@@ -397,13 +397,15 @@ export function useChatData(
             }));
           },
           onDelta: (delta) => {
-            const replayState =
-              resumeTextReplayByRun[pendingRunID] ??
-              (resumeTextReplayByRun[pendingRunID] = {
+            let replayState = resumeTextReplayByRun[pendingRunID];
+            if (!replayState) {
+              replayState = {
                 baseContent: "",
                 replayedContent: "",
                 visibleContent: "",
-              });
+              };
+              resumeTextReplayByRun[pendingRunID] = replayState;
+            }
             const nextContent = appendResumedTextDelta(replayState, delta);
             setState((prev) => ({
               ...prev,

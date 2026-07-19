@@ -406,3 +406,45 @@ type UsageDailyModelSummary struct {
 	AvgLatencyMS      int64
 	BilledNanousd     int64
 }
+
+// UsageStatisticsMetrics 表示一组聚合后的用量指标。
+type UsageStatisticsMetrics struct {
+	RecordCount      int64
+	InputTokens      int64
+	CacheReadTokens  int64
+	CacheWriteTokens int64
+	OutputTokens     int64
+	ReasoningTokens  int64
+	CallCount        int64
+	AvgLatencyMS     int64
+	BilledNanousd    int64
+}
+
+// UsageStatisticsTrendPoint 表示一个按日或按月聚合的趋势点。
+type UsageStatisticsTrendPoint struct {
+	PeriodStart time.Time
+	Metrics     UsageStatisticsMetrics
+}
+
+// UsageStatisticsModelRank 表示平台模型的用量排名项。
+type UsageStatisticsModelRank struct {
+	PlatformModelName string
+	Metrics           UsageStatisticsMetrics
+	Trend             []UsageStatisticsTrendPoint
+}
+
+// UsageStatisticsUserRank 表示用户的用量排名项。
+type UsageStatisticsUserRank struct {
+	UserID  uint
+	Metrics UsageStatisticsMetrics
+	Trend   []UsageStatisticsTrendPoint
+}
+
+// UsageStatistics 表示管理员仪表盘使用的全局用量聚合。
+type UsageStatistics struct {
+	Granularity string
+	Totals      UsageStatisticsMetrics
+	Trend       []UsageStatisticsTrendPoint
+	TopModels   []UsageStatisticsModelRank
+	TopUsers    []UsageStatisticsUserRank
+}

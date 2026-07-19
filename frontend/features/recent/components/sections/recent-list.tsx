@@ -226,6 +226,7 @@ function RecentConversationRow({
         <DropdownMenu modal={false} open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
             <button
+              type="button"
               id={`recent-page-item-menu-trigger-${item.publicID}`}
               className={cn(
                 "flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all duration-200 hover:bg-accent hover:text-foreground",

@@ -504,6 +504,7 @@
       "monthly": "按月",
       "dailyUsage": "每日用量",
       "monthlyUsage": "月度用量",
+      "otherModels": "其他",
       "empty": "暂无用量数据。",
       "metrics": {
         "totalCost": "总费用",
@@ -513,7 +514,8 @@
       },
       "tooltip": {
         "cost": "费用",
-        "calls": "调用"
+        "calls": "调用",
+        "latency": "平均耗时"
       }
     },
     "usageLog": {

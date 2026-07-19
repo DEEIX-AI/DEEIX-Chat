@@ -1,17 +1,17 @@
 import * as React from "react";
 
-import type { UserDTO } from "@/shared/api/auth.types";
+import type { AdminUserDTO } from "@/features/admin/api/admin.types";
 
 type UseAdminUserSelectionState = {
   selectedUserIDs: Set<number>;
   selectAllState: boolean | "indeterminate";
-  resolveSelectedUsers: () => UserDTO[];
+  resolveSelectedUsers: () => AdminUserDTO[];
   handleSelectAllVisible: (checked: boolean) => void;
   handleToggleSelectedUser: (userID: number, checked: boolean) => void;
   setSelectedUserIDs: React.Dispatch<React.SetStateAction<Set<number>>>;
 };
 
-export function useAdminUserSelection(items: UserDTO[], filteredItems: UserDTO[]): UseAdminUserSelectionState {
+export function useAdminUserSelection(items: AdminUserDTO[], filteredItems: AdminUserDTO[]): UseAdminUserSelectionState {
   const [selectedUserIDs, setSelectedUserIDs] = React.useState<Set<number>>(new Set());
 
   React.useEffect(() => {

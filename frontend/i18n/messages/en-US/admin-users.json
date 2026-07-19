@@ -1,6 +1,7 @@
 {
   "adminTitle": "Admin",
   "sections": {
+    "statistics": "Statistics",
     "accounts": "Accounts",
     "upstreams": "Upstreams",
     "models": "Models",

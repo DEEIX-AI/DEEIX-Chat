@@ -1,64 +1,27 @@
-export type UserIdentityProviderSummaryDTO = {
-  id: number;
-  type: string;
-  name: string;
-  slug: string;
-  logoURL: string;
-};
+import type {
+  ActiveSessionListResponse,
+  ActiveSessionResponse,
+  AuthUserIdentityProviderSummaryResponse,
+  AuthUserResponse,
+  DeleteAccountRequest,
+  EmailRegistrationStartResponse,
+  EmailVerificationStartResponse,
+	IdentityProviderResponse,
+  LoginOptionsResponse,
+  LoginResponse,
+  LogoutResponse,
+  PasswordResetCompleteResponse,
+  PasswordResetStartResponse,
+  PatchMeRequest,
+  UpdateCurrentSessionLocationRequest,
+} from "@deeix/api-contract";
 
-export type UserDTO = {
-  id: number;
-  publicID: string;
-  username: string;
-  displayName: string;
-  avatarURL: string;
-  email: string;
-  phone: string;
-  role: string;
-  status: string;
-  timezone: string;
-  locale: string;
-  profilePreferences: string;
-  appearancePreferences: string;
-  onboardingCompletedAt: string | null;
-  emailVerifiedAt: string | null;
-  emailSource: string;
-  emailBootstrapUsedAt: string | null;
-  phoneVerifiedAt: string | null;
-  usernameChangedAt: string | null;
-  passwordEnabled: boolean;
-  passwordSetAt: string | null;
-  passwordOrigin: string;
-  mustResetPassword: boolean;
-  initialUsernameRequired: boolean;
-  initialSecurityRequired: boolean;
-  twoFactorAvailable: boolean;
-  twoFactorEnabled: boolean;
-  twoFactorRequired: boolean;
-  twoFactorRecoveryCount: number;
-  lastLoginAt: string | null;
-  lastActiveAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-  subscriptionTier: string;
-  subscriptionPlanID: number | null;
-  subscriptionPlanName: string;
-  subscriptionStatus: string;
-  subscriptionExpiresAt: string | null;
-  billingAccountCurrency: string;
-  billingBalanceNanousd: number;
-  billingBalanceUSD: number;
-  billingAccountStatus: string;
-  identityProviders: UserIdentityProviderSummaryDTO[];
-};
+export type UserIdentityProviderSummaryDTO = AuthUserIdentityProviderSummaryResponse;
 
-export type LoginData = {
-  accessToken: string;
-  sessionID: string;
-  expiresAt: string;
-  refreshExpiresAt: string;
+export type UserDTO = AuthUserResponse;
+
+export type LoginData = Omit<LoginResponse, "user" | "verificationMethods"> & {
   user: UserDTO;
-  twoFactorRequired: boolean;
   twoFactorChallengeToken?: string;
   verificationMethods?: SecurityVerificationMethod[];
 };
@@ -88,24 +51,15 @@ export type TwoFactorDisableData = {
 
 export type SecurityVerificationMethod = "none" | "two_factor" | "email";
 
-export type EmailRegistrationStartData = {
-  sent: boolean;
-  expiresAt: string;
+export type EmailRegistrationStartData = EmailRegistrationStartResponse & {
   debugCode?: string;
 };
 
-export type PasswordResetStartData = {
-  sent: boolean;
-  expiresAt: string;
-};
+export type PasswordResetStartData = PasswordResetStartResponse;
 
-export type PasswordResetCompleteData = {
-  changed: boolean;
-};
+export type PasswordResetCompleteData = PasswordResetCompleteResponse;
 
-export type PasswordChangeVerificationStartData = {
-  sent: boolean;
-  expiresAt: string;
+export type PasswordChangeVerificationStartData = Omit<EmailVerificationStartResponse, "availableMethods" | "verificationMethod"> & {
   verificationMethod: SecurityVerificationMethod;
   availableMethods: SecurityVerificationMethod[];
   debugCode?: string;
@@ -115,31 +69,7 @@ export type LoginPageSettings = {
   defaultNextPath: string;
 };
 
-export type IdentityProviderDTO = {
-  publicID: string;
-  type: "oidc" | "oauth2";
-  name: string;
-  slug: string;
-  logoURL?: string;
-  loginEnabled: boolean;
-  registrationEnabled: boolean;
-  clientID?: string;
-  issuerURL?: string;
-  discoveryURL?: string;
-  authURL?: string;
-  tokenURL?: string;
-  userinfoURL?: string;
-  jwksURL?: string;
-  scopes: string;
-  defaultRole: "user" | "admin" | "superadmin";
-  subjectField: string;
-  emailField: string;
-  emailVerifiedField: string;
-  nameField: string;
-  avatarField: string;
-  createdAt: string;
-  updatedAt: string;
-};
+export type IdentityProviderDTO = IdentityProviderResponse;
 
 export type UserIdentityDTO = {
   id: number;
@@ -163,14 +93,7 @@ export type UserIdentityData = {
   identity: UserIdentityDTO;
 };
 
-export type LoginOptionsData = {
-  usernameEnabled: boolean;
-  emailEnabled: boolean;
-  emailRegistrationEnabled: boolean;
-  emailVerificationEnabled: boolean;
-  passwordResetEnabled: boolean;
-  turnstileRegistrationEnabled: boolean;
-  turnstileSiteKey: string;
+export type LoginOptionsData = Omit<LoginOptionsResponse, "providers"> & {
   providers: IdentityProviderDTO[];
 };
 
@@ -178,14 +101,7 @@ export type MeData = {
   user: UserDTO;
 };
 
-export type PatchMePayload = {
-  avatarURL?: string;
-  displayName?: string;
-  timezone?: string;
-  locale?: string;
-  profilePreferences?: string;
-  appearancePreferences?: string;
-};
+export type PatchMePayload = PatchMeRequest;
 
 export type PatchUsernamePayload = {
   username: string;
@@ -206,9 +122,7 @@ export type CompleteOnboardingPayload = {
   newPassword?: string;
 };
 
-export type EmailVerificationStartData = {
-  sent: boolean;
-  expiresAt: string;
+export type EmailVerificationStartData = Omit<EmailVerificationStartResponse, "availableMethods" | "verificationMethod"> & {
   verificationMethod: SecurityVerificationMethod;
   availableMethods: SecurityVerificationMethod[];
   debugCode?: string;
@@ -226,51 +140,16 @@ export type EmailChangeCompletePayload = {
   newCode: string;
 };
 
-export type DeleteAccountPayload = {
+export type DeleteAccountPayload = Omit<DeleteAccountRequest, "verificationMethod"> & {
   verificationMethod: SecurityVerificationMethod;
-  code: string;
 };
 
-export type LogoutData = {
-  revoked: boolean;
-};
+export type LogoutData = LogoutResponse;
 
-export type ActiveSessionDTO = {
-  sessionID: string;
-  current: boolean;
-  deviceLabel: string;
-  deviceName: string;
-  browserName: string;
-  osName: string;
-  deviceType: string;
-  clientIP: string;
-  locationLabel: string;
-  geoSource: string;
-  geoAccuracy: string;
-  countryCode: string;
-  regionName: string;
-  cityName: string;
-  timezoneName: string;
-  ipLatitude: number | null;
-  ipLongitude: number | null;
-  preciseLatitude: number | null;
-  preciseLongitude: number | null;
-  preciseAccuracyMeters: number | null;
-  preciseLocatedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-  lastSeenAt: string | null;
-  expiresAt: string;
-};
+export type ActiveSessionDTO = ActiveSessionResponse;
 
-export type ActiveSessionListData = {
-  total: number;
+export type ActiveSessionListData = Omit<ActiveSessionListResponse, "results"> & {
   results: ActiveSessionDTO[];
 };
 
-export type UpdateCurrentSessionLocationPayload = {
-  latitude: number;
-  longitude: number;
-  accuracyMeters?: number;
-  timezone?: string;
-};
+export type UpdateCurrentSessionLocationPayload = UpdateCurrentSessionLocationRequest;

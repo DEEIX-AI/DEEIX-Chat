@@ -56,11 +56,18 @@ export function createQRCodeSVG(value: string, scale = 4, ariaLabel = "QR code")
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewSize} ${viewSize}" width="${viewSize * scale}" height="${viewSize * scale}" shape-rendering="crispEdges" role="img" aria-label="${escapeSVGAttribute(ariaLabel)}"><rect width="100%" height="100%" fill="#fff"/> <g fill="#000">${rects.join("")}</g></svg>`;
 }
 
+export function createQRCodeDataURL(value: string, scale = 4, ariaLabel = "QR code"): string {
+  const svg = createQRCodeSVG(value, scale, ariaLabel);
+  return svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` : "";
+}
+
 function createDataCodewords(data: Uint8Array, totalCodewords: number): number[] {
   const bits: number[] = [];
   appendBits(bits, 0b0100, 4);
   appendBits(bits, data.length, 8);
-  data.forEach((byte) => appendBits(bits, byte, 8));
+  data.forEach((byte) => {
+    appendBits(bits, byte, 8);
+  });
   appendBits(bits, 0, Math.min(4, totalCodewords * 8 - bits.length));
   while (bits.length % 8 !== 0) {
     bits.push(0);

@@ -1,3 +1,8 @@
+import type {
+  MessageProcessTraceResponse,
+  MessageTraceBlockResponse,
+  MessageTraceEventResponse,
+} from "@deeix/api-contract";
 import { authedFetch, authedRequest } from "@/shared/api/authed-client";
 import { apiRequest, ApiError, pathParam } from "@/shared/api/http-client";
 import type { PagePayload } from "@/shared/api/common.types";
@@ -42,21 +47,12 @@ import type {
   TraceBlockDTO,
 } from "@/shared/api/conversation.types";
 
-type RawTraceBlock = {
-  title?: string;
-  summary?: string;
-  contentMarkdown?: string;
-  status?: string;
-  stage?: string;
-  roundID?: string;
-  parentEventID?: string;
-  updatedAt?: string;
-  payloadJSON?: string;
-};
+type RawTraceBlock = MessageTraceBlockResponse;
 
-type RawProcessTrace = {
-  enabled?: boolean;
-  status?: string;
+type RawProcessTrace = Omit<
+  MessageProcessTraceResponse,
+  "events" | "process" | "promptTrace" | "tools" | "upstreamThink"
+> & {
   process?: RawTraceBlock;
   tools?: RawTraceBlock;
   upstreamThink?: RawTraceBlock;
@@ -64,23 +60,7 @@ type RawProcessTrace = {
   events?: RawTraceEvent[];
 };
 
-type RawTraceEvent = {
-  eventID?: string;
-  eventType?: string;
-  phase?: string;
-  stage?: string;
-  roundID?: string;
-  parentEventID?: string;
-  title?: string;
-  summary?: string;
-  contentMarkdown?: string;
-  status?: string;
-  seq?: number;
-  startedAt?: string;
-  endedAt?: string;
-  updatedAt?: string;
-  payloadJSON?: string;
-};
+type RawTraceEvent = MessageTraceEventResponse;
 
 function normalizeTraceBlock(block: unknown): TraceBlockDTO | undefined {
   if (!block || typeof block !== "object") {

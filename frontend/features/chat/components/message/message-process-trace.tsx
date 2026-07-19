@@ -27,7 +27,6 @@ import {
   parseRAGCitations,
   parseStructuredTraceStages,
   parseTraceStages,
-  type TraceStage,
 } from "@/features/chat/model/message-process-trace";
 
 export { MessageTraceEventBlocks, MessageUpstreamThink } from "@/features/chat/components/message/message-thinking-trace";

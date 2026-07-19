@@ -1,5 +1,4 @@
 import type {
-  AdminBillingMode,
   AdminBillingPlanDTO,
   AdminModelPricingDTO,
   UpsertAdminModelPricingRequest,

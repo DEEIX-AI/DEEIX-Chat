@@ -26,7 +26,6 @@ export function useChatSubmitStream({
   selectedToolIDs,
   selectedSkills,
   htmlVisualPromptEnabled,
-  htmlVisualColorMode,
   options,
   draft,
   attachments,
@@ -63,7 +62,6 @@ export function useChatSubmitStream({
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
   htmlVisualPromptEnabled: boolean;
-  htmlVisualColorMode: "light" | "dark";
   options: ConversationOptions;
   draft: string;
   attachments: PendingAttachment[];
@@ -104,7 +102,6 @@ export function useChatSubmitStream({
     selectedToolIDs,
     selectedSkills,
     htmlVisualPromptEnabled,
-    htmlVisualColorMode,
     options,
     draft,
     attachments,

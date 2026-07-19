@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import type {
   FileFilterKey,
-  FilePreviewKind,
 } from "@/shared/lib/file-display";
 
 export type {

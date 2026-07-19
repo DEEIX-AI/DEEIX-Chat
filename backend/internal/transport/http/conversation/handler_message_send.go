@@ -98,7 +98,6 @@ func (h *Handler) parseSendMessageInput(c *gin.Context) (appconversation.SendMes
 		SelectedToolIDs:         req.SelectedToolIDs,
 		SkillIDs:                req.SkillIDs,
 		HTMLVisualPromptEnabled: req.HTMLVisualPromptEnabled,
-		HTMLVisualColorMode:     req.HTMLVisualColorMode,
 		ParentMessagePublicID:   req.ParentMessagePublicID,
 		SourceMessagePublicID:   req.SourceMessagePublicID,
 		BranchReason:            req.BranchReason,

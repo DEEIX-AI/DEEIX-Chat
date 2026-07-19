@@ -27,7 +27,6 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
 import { ModelCapabilitiesPresetDialog } from "@/features/admin/components/sections/models/models-capabilities-presets";
@@ -493,7 +492,7 @@ function nativeToolMatchesRawTool(rawTool: Record<string, unknown>, tool: Native
   }
   return Boolean(
     tool.payload &&
-      Object.keys(tool.payload).some((key) => key !== "type" && Object.prototype.hasOwnProperty.call(rawTool, key)),
+      Object.keys(tool.payload).some((key) => key !== "type" && Object.hasOwn(rawTool, key)),
   );
 }
 

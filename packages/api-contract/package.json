@@ -1,0 +1,30 @@
+{
+  "name": "@deeix/api-contract",
+  "version": "0.3.3",
+  "private": true,
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./types": {
+      "types": "./src/types.generated.ts",
+      "default": "./src/types.generated.ts"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "check": "pnpm check:generated && pnpm typecheck",
+    "check:generated": "node scripts/generate.mjs --check",
+    "generate": "node scripts/generate.mjs",
+    "typecheck": "tsc --noEmit --pretty false"
+  },
+  "devDependencies": {
+    "swagger-typescript-api": "13.12.5",
+    "typescript": "7.0.2"
+  }
+}

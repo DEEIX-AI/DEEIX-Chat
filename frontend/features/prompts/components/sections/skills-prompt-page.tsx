@@ -73,7 +73,7 @@ function PromptPresetCard({
   }
 
   return (
-    <article
+    <div
       role="button"
       tabIndex={0}
       className={cn(
@@ -126,7 +126,7 @@ function PromptPresetCard({
           />
         </div>
       ) : null}
-    </article>
+    </div>
   );
 }
 

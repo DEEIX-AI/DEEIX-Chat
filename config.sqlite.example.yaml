@@ -25,6 +25,18 @@ security:
   # Optional. Override only when using a compatible Turnstile verification proxy.
   turnstile_siteverify_url: "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
+branding:
+  # Optional. Frontend product branding; changes take effect after restarting the app.
+  title: DEEIX Chat
+  short_name: DEEIX
+  description: DEEIX Chat is a multi-model AI conversation system.
+  logo_url: ""
+  favicon_url: /favicon.ico
+  pwa_icon_192_url: /pwa/icon-192.png
+  pwa_icon_512_url: /pwa/icon-512.png
+  pwa_maskable_icon_512_url: /pwa/icon-maskable-512.png
+  apple_touch_icon_180_url: /pwa/apple-touch-icon.png
+
 database:
   # Required. SQLite is intended for single-node deployments.
   driver: sqlite

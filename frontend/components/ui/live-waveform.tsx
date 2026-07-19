@@ -254,7 +254,9 @@ export const LiveWaveform = ({
   useEffect(() => {
     if (!active) {
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop())
+        streamRef.current.getTracks().forEach((track) => {
+          track.stop()
+        })
         streamRef.current = null
         onStreamEnd?.()
       }
@@ -317,7 +319,9 @@ export const LiveWaveform = ({
 
     return () => {
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop())
+        streamRef.current.getTracks().forEach((track) => {
+          track.stop()
+        })
         streamRef.current = null
         onStreamEnd?.()
       }

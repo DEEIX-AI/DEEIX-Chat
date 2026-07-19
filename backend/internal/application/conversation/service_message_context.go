@@ -74,9 +74,24 @@ func estimateMessageTokens(message llm.Message) int64 {
 		for _, part := range message.Parts {
 			tokens += estimateContentPartTokens(part)
 		}
-		return tokens + estimateTokens(message.ReasoningContent)
+	} else {
+		tokens += estimateTokens(message.Content)
 	}
-	return tokens + estimateTokens(message.Content) + estimateTokens(message.ReasoningContent)
+	tokens += estimateTokens(message.ReasoningContent)
+	for _, call := range message.ToolCalls {
+		tokens += estimateTokens(call.ToolCallID)
+		tokens += estimateTokens(call.ToolName)
+		tokens += estimateTokens(call.ArgumentsJSON)
+		tokens += 8
+	}
+	for _, result := range message.ToolResults {
+		tokens += estimateTokens(result.ToolCallID)
+		tokens += estimateTokens(result.ToolName)
+		tokens += estimateTokens(result.OutputJSON)
+		tokens += estimateTokens(result.Error)
+		tokens += 8
+	}
+	return tokens
 }
 
 func estimatePromptTokens(messages []llm.Message) int64 {

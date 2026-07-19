@@ -11,7 +11,7 @@ import { SpinnerLabel } from "@/components/ui/spinner";
 import { formatDateTime } from "@/features/settings/model/account-settings";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
 import { CopyActionButton } from "@/shared/components/copy-action";
-import { createQRCodeSVG } from "@/shared/lib/qr-code";
+import { createQRCodeDataURL } from "@/shared/lib/qr-code";
 
 export function TwoFactorDialog({
   open,
@@ -65,11 +65,11 @@ export function TwoFactorDialog({
   const displaySetupURL = closingSnapshot?.setupURL ?? setupURL;
   const displaySetupExpiresAt = closingSnapshot?.setupExpiresAt ?? setupExpiresAt;
   const displayRecoveryCodes = closingSnapshot?.recoveryCodes ?? recoveryCodes;
-  const qrCodeSVG = React.useMemo(
-    () => (displaySetupURL ? createQRCodeSVG(displaySetupURL, 3, t("qrLabel")) : ""),
+  const qrCodeDataURL = React.useMemo(
+    () => (displaySetupURL ? createQRCodeDataURL(displaySetupURL, 3, t("qrLabel")) : ""),
     [displaySetupURL, t],
   );
-  const qrCodeUnavailable = Boolean(displaySetupURL && !qrCodeSVG);
+  const qrCodeUnavailable = Boolean(displaySetupURL && !qrCodeDataURL);
   const setupExpiresAtTime = displaySetupExpiresAt ? new Date(displaySetupExpiresAt).getTime() : 0;
   const setupRemaining = setupExpiresAtTime ? setupExpiresAtTime - now : 0;
   const setupExpired = Boolean(displaySetupSecret && setupExpiresAtTime && setupRemaining <= 0);
@@ -184,11 +184,10 @@ export function TwoFactorDialog({
               {setupView === "qr" ? (
                 <div className="space-y-3">
                   <div className="flex justify-center">
-                    {qrCodeSVG ? (
-                      <div
-                        className="flex size-48 items-center justify-center [&_svg]:size-full"
-                        dangerouslySetInnerHTML={{ __html: qrCodeSVG }}
-                      />
+                    {qrCodeDataURL ? (
+                      <div className="flex size-48 items-center justify-center">
+                        <img className="size-full" src={qrCodeDataURL} alt={t("qrLabel")} />
+                      </div>
                     ) : (
                       <div className="flex size-48 items-center justify-center rounded-lg border border-border/60 bg-muted/20 px-5 text-center text-xs leading-5 text-muted-foreground">
                         {qrCodeUnavailable ? t("qrUnavailable") : <SpinnerLabel>{common("processing")}</SpinnerLabel>}

@@ -46,6 +46,7 @@ import {
   sanitizeConversationOptions,
 } from "@/features/chat/model/conversation-options";
 import { useChatData } from "@/features/chat/hooks/use-chat-data";
+import { useNewConversationDefaults } from "@/features/chat/hooks/use-new-conversation-defaults";
 import { toPendingAttachment } from "@/features/chat/model/message-submit";
 import { getConversation } from "@/shared/api/conversation";
 import { listAvailableMCPTools } from "@/shared/api/mcp";
@@ -54,7 +55,6 @@ import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import type { ConversationDTO, ConversationOptions } from "@/shared/api/conversation.types";
 import type { FileObjectDTO } from "@/shared/api/file.types";
 import type { MCPToolDTO } from "@/shared/api/mcp.types";
-import { useTheme } from "@/shared/components/theme-provider";
 import { cn } from "@/lib/utils";
 
 const MODEL_OPTIONS_STORAGE_PREFIX = "deeix-chat:chat-model-options:";
@@ -291,6 +291,10 @@ export function AppChatArea() {
     return projects.find((item) => item.publicID === routeProjectID) ?? null;
   }, [conversationID, projects, routeProjectID]);
   const newConversationProjectID = !conversationID ? routeProjectID ?? requestedNewConversationProjectID : "";
+  const newConversationProject = React.useMemo(
+    () => projects.find((item) => item.publicID === newConversationProjectID) ?? null,
+    [newConversationProjectID, projects],
+  );
   const prependNewConversationInContext = React.useCallback(
     (platformModelName?: string) => prependNewConversation(platformModelName, newConversationProjectID || undefined),
     [newConversationProjectID, prependNewConversation],
@@ -357,9 +361,32 @@ export function AppChatArea() {
     hasConversation: Boolean(conversationID),
   });
   const [defaultToolIDs, setDefaultToolIDs] = React.useState<number[]>([]);
-  const defaultToolIDsRef = React.useRef<number[]>([]);
+  const newConversationSelectionKey = `${newConversationRevision}:${newConversationProjectID || "unassigned"}`;
+  const newConversationDefaultMCPToolIDs = React.useMemo(
+    () => filterAvailableMCPToolIDs(
+      newConversationProject?.mcpDefaultMode === "custom"
+        ? newConversationProject.defaultMCPToolIDs
+        : defaultToolIDs,
+      availableTools,
+      mcpMaxSelectedTools,
+    ),
+    [availableTools, defaultToolIDs, mcpMaxSelectedTools, newConversationProject],
+  );
+  const newConversationDefaultSkillIDs = React.useMemo(
+    () => (newConversationProject?.defaultSkillIDs ?? []).slice(0, mcpMaxSelectedTools),
+    [mcpMaxSelectedTools, newConversationProject],
+  );
+  const { onSelectedSkillsChange, onSelectedToolsChange } = useNewConversationDefaults({
+    conversationID,
+    contextKey: newConversationSelectionKey,
+    defaultsPending: Boolean(newConversationProjectID && !newConversationProject),
+    defaultMCPToolIDs: newConversationDefaultMCPToolIDs,
+    defaultSkillIDs: newConversationDefaultSkillIDs,
+    toolsLoading,
+    setSelectedToolIDs,
+    setSelectedSkills,
+  });
   const htmlVisualPrompt = useChatVisualPrompt();
-  const { resolvedTheme } = useTheme();
   const initializedOptionsModelRef = React.useRef("");
   const selectedModelDefaultOptionsRef = React.useRef<ConversationOptions>({});
   const fileDragDepthRef = React.useRef(0);
@@ -470,13 +497,7 @@ export function AppChatArea() {
         setAvailableTools(tools);
         setDefaultToolIDs(userDefaultToolIDs);
         const availableIDs = new Set(tools.map((item) => item.id));
-        setSelectedToolIDs((previous) => {
-          const retained = previous.filter((id) => availableIDs.has(id));
-          if (retained.length > 0 || conversationID) {
-            return retained;
-          }
-          return userDefaultToolIDs.slice(0, mcpMaxSelectedTools);
-        });
+        setSelectedToolIDs((previous) => previous.filter((id) => availableIDs.has(id)));
       } catch {
         if (!cancelled) {
           setAvailableTools([]);
@@ -493,18 +514,7 @@ export function AppChatArea() {
     return () => {
       cancelled = true;
     };
-  }, [conversationID, mcpMaxSelectedTools, setSelectedToolIDs]);
-
-  React.useEffect(() => {
-    defaultToolIDsRef.current = defaultToolIDs;
-  }, [defaultToolIDs]);
-
-  React.useEffect(() => {
-    if (conversationID) {
-      return;
-    }
-    setSelectedToolIDs(filterAvailableMCPToolIDs(defaultToolIDsRef.current, availableTools, mcpMaxSelectedTools));
-  }, [availableTools, conversationID, mcpMaxSelectedTools, newConversationRevision, setSelectedToolIDs]);
+  }, [conversationID, setSelectedToolIDs]);
 
   const onDefaultToolIDsChange = React.useCallback(async (nextToolIDs: number[]) => {
     const nextDefaults = filterAvailableMCPToolIDs(nextToolIDs, availableTools, mcpMaxSelectedTools);
@@ -571,7 +581,6 @@ export function AppChatArea() {
     selectedToolIDs,
     selectedSkills,
     htmlVisualPromptEnabled: htmlVisualPrompt.enabled,
-    htmlVisualColorMode: resolvedTheme,
     options: modelOptionPolicyDisabled ? EMPTY_CONVERSATION_OPTIONS : options,
     draft,
     attachments,
@@ -1094,9 +1103,9 @@ export function AppChatArea() {
     onDraftChange: setDraft,
     onModelChange: setSelectedPlatformModelName,
     onModelCatalogRefresh: refreshModelCatalogForComposer,
-    onSelectedToolsChange: setSelectedToolIDs,
+    onSelectedToolsChange,
     maxSelectedSkills: mcpMaxSelectedTools,
-    onSelectedSkillsChange: setSelectedSkills,
+    onSelectedSkillsChange,
     onDefaultToolsChange: onDefaultToolIDsChange,
     onHTMLVisualPromptChange: htmlVisualPrompt.setEnabled,
     onOptionsChange: setModelOptions,

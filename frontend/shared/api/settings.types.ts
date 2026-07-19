@@ -9,13 +9,9 @@ export type SettingItem = {
 
 export type SettingsGrouped = Record<string, SettingItem[]>;
 
-export type PatchSettingItem = {
-  namespace: string;
-  key: string;
-  value: string;
-  clear?: boolean;
-};
+export type PatchSettingItem = Omit<PatchItem, "value"> & { value: string };
 
-export type PatchSettingsRequest = {
+export type PatchSettingsRequest = Omit<SettingsPatchSettingsRequest, "items"> & {
   items: PatchSettingItem[];
 };
+import type { PatchItem, SettingsPatchSettingsRequest } from "@deeix/api-contract";

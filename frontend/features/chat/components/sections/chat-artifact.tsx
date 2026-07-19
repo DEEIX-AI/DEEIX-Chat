@@ -1,9 +1,9 @@
 "use client";
 
-import * as React from "react";
-import { AnimatePresence, motion } from "motion/react";
 import { Download, X } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -17,12 +17,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   buildArtifactPreviewDocument,
+  type ChatArtifact,
   downloadArtifactHTML,
   resolveArtifactDownloadName,
-  type ChatArtifact,
 } from "@/features/chat/model/chat-artifacts";
-import { CopyActionButton } from "@/shared/components/copy-action";
+import {
+  useChatFontPreference,
+  useChatFontWeightPreference,
+} from "@/features/settings/utils/chat-font";
+import { useFontSizePreference } from "@/features/settings/utils/font-size";
 import { cn } from "@/lib/utils";
+import { CopyActionButton } from "@/shared/components/copy-action";
+import { useTheme } from "@/shared/components/theme-provider";
+import {
+  captureHTMLVisualThemeSnapshot,
+  type HTMLVisualThemeSnapshot,
+} from "@/shared/lib/html-visual-theme";
 
 type ChatArtifactWorkspaceProps = {
   artifact: ChatArtifact | null;
@@ -129,7 +139,7 @@ function ArtifactPreviewFrame({ documentHTML, title }: ArtifactPreviewFrameProps
       sandbox="allow-scripts"
       referrerPolicy="no-referrer"
       srcDoc={documentHTML}
-      className="h-full min-h-[320px] w-full bg-white"
+      className="h-full min-h-[320px] w-full bg-background"
     />
   );
 }
@@ -142,9 +152,22 @@ function ChatArtifactPanel({
   onClose,
 }: ChatArtifactPanelProps) {
   const t = useTranslations("chat.artifacts");
+  const { preset, resolvedTheme } = useTheme();
+  const chatFont = useChatFontPreference();
+  const chatFontWeight = useChatFontWeightPreference();
+  const fontSize = useFontSizePreference();
+  const [previewTheme, setPreviewTheme] = React.useState<HTMLVisualThemeSnapshot>({
+    colorScheme: "light",
+    variables: [],
+  });
+
+  React.useEffect(() => {
+    setPreviewTheme(captureHTMLVisualThemeSnapshot(resolvedTheme));
+  }, [chatFont, chatFontWeight, fontSize, preset, resolvedTheme]);
+
   const previewHTML = React.useMemo(
-    () => buildArtifactPreviewDocument(artifact.kind, artifact.code),
-    [artifact.code, artifact.kind],
+    () => buildArtifactPreviewDocument(artifact.kind, artifact.code, previewTheme),
+    [artifact.code, artifact.kind, previewTheme],
   );
   const canPreview = artifact.code.trim().length > 0;
   const artifactOptions = React.useMemo(
