@@ -1,5 +1,14 @@
 {
   "untitled": "新对话",
+  "labelsDialog": {
+    "labels": "会话标签",
+    "labelsDescription": "最多添加 {count} 个标签，用于标记和检索当前会话。",
+    "labelsEmpty": "暂无标签",
+    "labelPlaceholder": "添加标签",
+    "addLabel": "添加标签",
+    "removeLabel": "移除标签 {label}",
+    "labelsSaveFailed": "保存会话标签失败"
+  },
   "shareDialog": {
     "title": "分享此对话",
     "statusShared": "已分享",

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useTranslations } from "next-intl";
 
 import type { RecentBulkConfirmAction, RecentDeleteTarget } from "@/features/recent/types/recent";
-import { ConversationShareDialog } from "@/entities/conversation";
+import { ConversationLabelsDialog, ConversationShareDialog } from "@/entities/conversation";
 import { DeleteFilesOption } from "@/shared/components/delete-files-option";
 import type { ConversationDTO, ConversationShareDTO } from "@/shared/api/conversation.types";
 import { Sparkles } from "@/components/animate-ui/icons/sparkles";
@@ -30,11 +30,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
 
 type RecentDialogsProps = {
   renameTarget: ConversationDTO | null;
   renameValue: string;
   renamingAutomatically: boolean;
+  labelsTarget: ConversationDTO | null;
   deleteTarget: RecentDeleteTarget;
   deleteFiles: boolean;
   shareTarget: ConversationDTO | null;
@@ -45,6 +47,8 @@ type RecentDialogsProps = {
   onRenameCommit: () => void | Promise<void>;
   onAutoRename: () => void | Promise<void>;
   onCloseRenameDialog: () => void;
+  onUpdateLabels: (labels: string[]) => void | Promise<void>;
+  onCloseLabelsDialog: () => void;
   onDeleteFilesChange: (checked: boolean) => void;
   onConfirmDelete: () => void | Promise<void>;
   onCloseDeleteDialog: () => void;
@@ -58,6 +62,7 @@ export function RecentDialogs({
   renameTarget,
   renameValue,
   renamingAutomatically,
+  labelsTarget,
   deleteTarget,
   deleteFiles,
   shareTarget,
@@ -68,6 +73,8 @@ export function RecentDialogs({
   onRenameCommit,
   onAutoRename,
   onCloseRenameDialog,
+  onUpdateLabels,
+  onCloseLabelsDialog,
   onDeleteFilesChange,
   onConfirmDelete,
   onCloseDeleteDialog,
@@ -79,6 +86,7 @@ export function RecentDialogs({
   const t = useTranslations("recent.dialogs");
   const deleteFilesID = React.useId();
   const stableRenameValue = useDialogSnapshot(renameTarget ? renameValue : null) ?? "";
+  const stableLabelsTarget = useDialogSnapshot(labelsTarget);
   const stableDeleteTarget = useDialogSnapshot(deleteTarget);
   const stableShareTarget = useDialogSnapshot(shareTarget);
   const bulkConfirmSnapshot = React.useMemo(
@@ -161,6 +169,15 @@ export function RecentDialogs({
           </form>
         </DialogContent>
       </Dialog>
+
+      {stableLabelsTarget ? (
+        <ConversationLabelsDialog
+          open={Boolean(labelsTarget)}
+          labels={parseConversationLabelsJSON(stableLabelsTarget.labelsJSON)}
+          onOpenChange={(open) => !open && onCloseLabelsDialog()}
+          onSave={onUpdateLabels}
+        />
+      ) : null}
 
       <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && onCloseDeleteDialog()}>
         <AlertDialogContent>

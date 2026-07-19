@@ -27,8 +27,10 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
+  ConversationLabelsManagerDialog,
   ConversationShareDialog,
   sharePatchFromDTO,
+  type ConversationLabelsTarget,
   useConversationExport,
   useSidebarConversations,
 } from "@/entities/conversation";
@@ -74,6 +76,7 @@ export function NavStarred() {
     setStarByPublicID,
     renameByPublicID,
     regenerateTitleByPublicID,
+    updateLabelsByPublicID,
     loadAllStarred,
     archiveByPublicID,
     deleteByPublicID,
@@ -88,6 +91,7 @@ export function NavStarred() {
   const [deleteTarget, setDeleteTarget] = React.useState<SidebarConversationDeleteTarget>(null);
   const [deleteFiles, setDeleteFiles] = React.useState(false);
   const [renameTarget, setRenameTarget] = React.useState<SidebarConversationRenameTarget>(null);
+  const [labelsTarget, setLabelsTarget] = React.useState<ConversationLabelsTarget | null>(null);
   const [shareTarget, setShareTarget] = React.useState<{
     publicID: string;
     title: string;
@@ -110,6 +114,7 @@ export function NavStarred() {
       publicID: item.publicID,
       title: item.title || t("untitled"),
       url: `/chat?conversation_id=${item.publicID}`,
+      labelsJSON: item.labelsJSON,
     })),
     [starredItems, t],
   );
@@ -343,6 +348,7 @@ export function NavStarred() {
                         onRenameCancel={onRenameCancel}
                         onAutoRename={onAutoRename}
                         isAutoRenaming={autoRenamingPublicID === item.publicID}
+                        onManageLabels={() => setLabelsTarget(item)}
                         onArchive={onArchive}
                         onShare={onShare}
                         onExport={onExport}
@@ -431,6 +437,12 @@ export function NavStarred() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ConversationLabelsManagerDialog
+        target={labelsTarget}
+        onTargetChange={setLabelsTarget}
+        onUpdateLabels={updateLabelsByPublicID}
+      />
 
       {stableShareTarget ? (
         <ConversationShareDialog

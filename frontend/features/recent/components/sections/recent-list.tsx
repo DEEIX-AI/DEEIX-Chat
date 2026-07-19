@@ -2,14 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Archive, Check, PencilLine, Share2, Star, Trash } from "lucide-react";
+import { Archive, Check, PencilLine, Share2, Star, Tag, Trash } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
 import { AnimatedText } from "@/components/ui/animated-text";
 import { LoadingReveal } from "@/shared/components/loading-reveal";
 import type { RecentRowState } from "@/features/recent/types/recent";
-import { isArchivedConversation } from "@/entities/conversation";
+import { ConversationLabelsMenuItem, isArchivedConversation } from "@/entities/conversation";
 import {
   formatRelativeUpdatedAt,
   recentEmptyStateTitle,
@@ -23,12 +23,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { CenteredEmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConversationProjectSubmenu } from "@/shared/components/conversation-project-submenu";
 import { ConversationShareExportSubmenu } from "@/shared/components/conversation-share-export-menu";
 import { cn } from "@/lib/utils";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
+import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
 import type {
   ConversationDTO,
   ConversationProjectDTO,
@@ -98,6 +100,7 @@ function RecentConversationRow({
   onToggleSelected,
   onToggleStar,
   onRename,
+  onManageLabels,
   onArchive,
   onShare,
   onRevokeShare,
@@ -118,6 +121,7 @@ function RecentConversationRow({
   onToggleSelected: (publicID: string) => void;
   onToggleStar: (publicID: string, nextStarred: boolean) => void;
   onRename: (item: ConversationDTO) => void;
+  onManageLabels: (item: ConversationDTO) => void;
   onArchive: (publicID: string, archived: boolean) => void;
   onShare: (item: ConversationDTO) => void;
   onRevokeShare: (publicID: string) => void | Promise<void>;
@@ -130,10 +134,52 @@ function RecentConversationRow({
   const [menuOpen, setMenuOpen] = React.useState(false);
   const archived = isArchivedConversation(item);
   const shared = item.shareStatus === "active" && Boolean(item.shareID?.trim());
+  const labels = parseConversationLabelsJSON(item.labelsJSON);
+  const visibleLabels = labels.length > 3 ? labels.slice(0, 2) : labels.slice(0, 3);
+  const hiddenLabelCount = labels.length > 3 ? labels.length - visibleLabels.length : 0;
   const title = item.title?.trim() || t("untitled");
   const updatedText = t("updatedAt", {
     time: formatRelativeUpdatedAt(item.updatedAt, locale, t("justNow")),
   });
+  const rowContent = (
+    <>
+      <div className="flex items-center gap-2">
+        <AnimatedText
+          text={title}
+          className="min-w-0 shrink"
+          textClassName="text-sm font-medium text-foreground"
+        />
+        {visibleLabels.length > 0 ? (
+          <div className="flex max-w-[55%] shrink-0 items-center gap-1 overflow-hidden">
+            {visibleLabels.map((label) => (
+              <Badge
+                key={label.toLowerCase()}
+                variant="secondary"
+                className="h-4 min-w-0 max-w-28 shrink gap-0.5 px-1 py-0 text-[9px] font-normal text-muted-foreground"
+                title={label}
+              >
+                <Tag aria-hidden className="!size-2 shrink-0" />
+                <span className="truncate">{label}</span>
+              </Badge>
+            ))}
+            {hiddenLabelCount > 0 ? (
+              <Badge variant="secondary" className="h-4 px-1 py-0 text-[9px] font-normal text-muted-foreground">
+                +{hiddenLabelCount}
+              </Badge>
+            ) : null}
+          </div>
+        ) : null}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {archived ? <Archive className="size-3.5 fill-current text-foreground/45" /> : null}
+          {item.isStarred ? <Star className="size-3.5 fill-current text-foreground/45" /> : null}
+          {shared ? <Share2 className="size-3.5 fill-current text-foreground/45" /> : null}
+        </div>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+        <span>{updatedText}</span>
+      </div>
+    </>
+  );
 
   return (
     <div
@@ -190,35 +236,11 @@ function RecentConversationRow({
               }
             }}
           >
-            <div className="flex items-center gap-2">
-              <AnimatedText
-                text={title}
-                className="min-w-0 flex-1"
-                textClassName="text-sm font-medium text-foreground"
-              />
-              {archived ? <Archive className="size-3.5 fill-current text-foreground/45 self-center" /> : null}
-              {item.isStarred ? <Star className="size-3.5 fill-current text-foreground/45 self-center" /> : null}
-              {shared ? <Share2 className="size-3.5 fill-current text-foreground/45 self-center" /> : null}
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-              <span>{updatedText}</span>
-            </div>
+            {rowContent}
           </div>
         ) : (
           <Link href={`/chat?conversation_id=${item.publicID}`} prefetch={false} className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <AnimatedText
-                text={title}
-                className="min-w-0 flex-1"
-                textClassName="text-sm font-medium text-foreground"
-              />
-              {archived ? <Archive className="size-3.5 fill-current text-foreground/45 self-center" /> : null}
-              {item.isStarred ? <Star className="size-3.5 fill-current text-foreground/45 self-center" /> : null}
-              {shared ? <Share2 className="size-3.5 fill-current text-foreground/45 self-center" /> : null}
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-              <span>{updatedText}</span>
-            </div>
+            {rowContent}
           </Link>
         )}
  
@@ -269,6 +291,13 @@ function RecentConversationRow({
               <DropdownMenuItemIcon icon={PencilLine} />
               {t("row.rename")}
             </DropdownMenuItem>
+            <ConversationLabelsMenuItem
+              labels={labels}
+              onSelect={() => {
+                setMenuOpen(false);
+                requestAnimationFrame(() => onManageLabels(item));
+              }}
+            />
             <ConversationProjectSubmenu
               label={t("row.moveToProject")}
               unassignedLabel={t("projects.unassigned")}
@@ -329,6 +358,7 @@ type RecentListProps = {
   onToggleSelected: (publicID: string) => void;
   onToggleStar: (publicID: string, nextStarred: boolean) => void;
   onRename: (item: ConversationDTO) => void;
+  onManageLabels: (item: ConversationDTO) => void;
   onArchive: (publicID: string, archived: boolean) => void;
   onShare: (item: ConversationDTO) => void;
   onRevokeShare: (publicID: string) => void | Promise<void>;
@@ -417,6 +447,7 @@ export function RecentList({
   onToggleSelected,
   onToggleStar,
   onRename,
+  onManageLabels,
   onArchive,
   onShare,
   onRevokeShare,
@@ -495,6 +526,7 @@ export function RecentList({
                     onToggleSelected={onToggleSelected}
                     onToggleStar={onToggleStar}
                     onRename={onRename}
+                    onManageLabels={onManageLabels}
                     onArchive={onArchive}
                     onShare={onShare}
                     onRevokeShare={onRevokeShare}

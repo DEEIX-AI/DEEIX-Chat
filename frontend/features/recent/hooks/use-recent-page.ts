@@ -104,6 +104,7 @@ export function useRecentPage() {
     prependNewConversation,
     renameByPublicID,
     regenerateTitleByPublicID,
+    updateLabelsByPublicID,
     setStarByPublicID,
     archiveByPublicID,
     deleteByPublicID,
@@ -130,6 +131,7 @@ export function useRecentPage() {
   const [renameTarget, setRenameTarget] = React.useState<ConversationDTO | null>(null);
   const [renameValue, setRenameValue] = React.useState("");
   const [renamingAutomatically, setRenamingAutomatically] = React.useState(false);
+  const [labelsTarget, setLabelsTarget] = React.useState<ConversationDTO | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<RecentDeleteTarget>(null);
   const [deleteFiles, setDeleteFiles] = React.useState(false);
   const { deleteFilesByDefault } = useSettingsChatPreferences();
@@ -379,6 +381,22 @@ export function useRecentPage() {
     setRenameTarget(item);
     setRenameValue(item.title || t("untitled"));
   }, [t]);
+
+  const onManageLabels = React.useCallback((item: ConversationDTO) => {
+    setLabelsTarget(item);
+  }, []);
+
+  const onUpdateLabels = React.useCallback(async (labels: string[]) => {
+    if (!labelsTarget) {
+      throw new Error("conversation label target is unavailable");
+    }
+    const updated = await updateLabelsByPublicID(labelsTarget.publicID, labels);
+    if (!updated) {
+      throw new Error("conversation labels were not updated");
+    }
+    setItems((current) => upsertByPublicID(current, updated));
+    setLabelsTarget(updated);
+  }, [labelsTarget, updateLabelsByPublicID]);
 
   const onArchive = React.useCallback(
     async (publicID: string, archived: boolean) => {
@@ -745,6 +763,7 @@ export function useRecentPage() {
     renameTarget,
     renameValue,
     renamingAutomatically,
+    labelsTarget,
     deleteTarget,
     deleteFiles,
     shareTarget,
@@ -763,6 +782,8 @@ export function useRecentPage() {
     onToggleSelected,
     onToggleStar,
     onRename,
+    onManageLabels,
+    onUpdateLabels,
     onArchive,
     onShare,
     onSetProject,
@@ -776,6 +797,7 @@ export function useRecentPage() {
       setRenameTarget(null);
       setRenameValue("");
     },
+    closeLabelsDialog: () => setLabelsTarget(null),
     confirmDelete,
     closeDeleteDialog,
     setDeleteFiles,

@@ -92,6 +92,8 @@ type ChatAreaProps = {
   onToggleStar?: () => void | Promise<void>;
   onRename?: (title: string) => void | Promise<void>;
   onAutoRename?: () => void | Promise<void>;
+  labels?: string[];
+  onUpdateLabels?: (labels: string[]) => void | Promise<void>;
   projectMenu?: React.ComponentProps<typeof ChatLabel>["projectMenu"];
   onShare?: () => void;
   shareActive?: boolean;
@@ -434,6 +436,8 @@ export function ChatArea({
   onToggleStar,
   onRename,
   onAutoRename,
+  labels,
+  onUpdateLabels,
   projectMenu,
   onShare,
   shareActive = false,
@@ -518,6 +522,8 @@ export function ChatArea({
             onToggleStar={canOperateConversation ? onToggleStar : undefined}
             onRename={canOperateConversation ? onRename : undefined}
             onAutoRename={canOperateConversation ? onAutoRename : undefined}
+            labels={labels}
+            onUpdateLabels={canOperateConversation ? onUpdateLabels : undefined}
             projectMenu={canOperateConversation ? projectMenu : undefined}
             onShare={canOperateConversation ? onShare : undefined}
             shareActive={shareActive}

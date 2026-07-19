@@ -22,6 +22,8 @@ import {
 import { SIDEBAR_TRANSFER_TRANSITION } from "@/features/layouts/model/sidebar-motion";
 import { ConversationProjectSubmenu } from "@/shared/components/conversation-project-submenu";
 import { ConversationShareExportSubmenu } from "@/shared/components/conversation-share-export-menu";
+import { ConversationLabelsMenuItem } from "@/entities/conversation";
+import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
 import { cn } from "@/lib/utils";
 
 type SidebarConversationViewModel = {
@@ -29,6 +31,7 @@ type SidebarConversationViewModel = {
   title: string;
   url: string;
   shareActive?: boolean;
+  labelsJSON?: string;
 };
 
 type SidebarConversationStarAction = {
@@ -65,6 +68,7 @@ type SidebarConversationItemProps = {
   onRename: (publicID: string, currentTitle: string) => void;
   onAutoRename?: (publicID: string) => void | Promise<void>;
   isAutoRenaming?: boolean;
+  onManageLabels?: () => void;
   onArchive: (publicID: string) => void;
   onShare?: (publicID: string, title: string) => void;
   onExport?: (publicID: string) => void | Promise<void>;
@@ -89,6 +93,7 @@ export function SidebarConversationItem({
   onRename,
   onAutoRename,
   isAutoRenaming = false,
+  onManageLabels,
   onArchive,
   onShare,
   onExport,
@@ -97,6 +102,10 @@ export function SidebarConversationItem({
 }: SidebarConversationItemProps) {
   const t = useTranslations("recent.row");
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const labels = React.useMemo(
+    () => parseConversationLabelsJSON(item.labelsJSON ?? "[]"),
+    [item.labelsJSON],
+  );
 
   const content = isRenaming ? (
     <div className="relative flex h-8 items-center rounded-md bg-sidebar-accent text-sm text-sidebar-accent-foreground">
@@ -209,6 +218,14 @@ export function SidebarConversationItem({
             <DropdownMenuItemIcon icon={PencilLine} className="text-current" />
             {t("rename")}
           </DropdownMenuItem>
+          <ConversationLabelsMenuItem
+            labels={labels}
+            disabled={!onManageLabels}
+            onSelect={() => {
+              setIsMenuOpen(false);
+              requestAnimationFrame(() => onManageLabels?.());
+            }}
+          />
           {projectMenu ? (
             <ConversationProjectSubmenu
               label={projectMenu.label}
@@ -255,7 +272,6 @@ export function SidebarConversationItem({
     "data-sidebar-conversation-id": item.publicID,
     "data-sidebar-active": active ? "true" : "false",
   };
-
   if (!isTransferring) {
     return <li {...itemProps}>{content}</li>;
   }

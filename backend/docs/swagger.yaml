@@ -6159,6 +6159,17 @@ definitions:
     - name
     - periodCreditUSD
     type: object
+  UpdateConversationLabelsRequest:
+    properties:
+      labels:
+        items:
+          maxLength: 24
+          type: string
+        maxItems: 6
+        type: array
+    required:
+    - labels
+    type: object
   UpdateConversationProjectRequest:
     properties:
       color:
@@ -13015,6 +13026,47 @@ paths:
       security:
       - BearerAuth: []
       summary: 导出会话 JSON
+      tags:
+      - chat
+  /conversations/{id}/labels:
+    patch:
+      consumes:
+      - application/json
+      description: 替换指定会话的标签；传入空数组可清空标签
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 会话标签
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateConversationLabelsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ConversationUpdateResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 更新会话标签
       tags:
       - chat
   /conversations/{id}/messages:

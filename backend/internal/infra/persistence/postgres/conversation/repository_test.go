@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -377,8 +378,7 @@ func TestUpdateConversationMetadataSQLiteUsesPortableTrim(t *testing.T) {
 	}
 
 	updated, err := repo.UpdateConversationMetadata(ctx, conversation.ID, repository.ConversationMetadataPatch{
-		Title:      "SQLite 标题",
-		LabelsJSON: `["技术"]`,
+		Title: "SQLite 标题",
 	})
 	if err != nil {
 		t.Fatalf("UpdateConversationMetadata() error = %v", err)
@@ -386,8 +386,118 @@ func TestUpdateConversationMetadataSQLiteUsesPortableTrim(t *testing.T) {
 	if updated.Title != "SQLite 标题" {
 		t.Fatalf("updated title = %q, want %q", updated.Title, "SQLite 标题")
 	}
-	if updated.LabelsJSON != `["技术"]` {
-		t.Fatalf("updated labels = %q, want %q", updated.LabelsJSON, `["技术"]`)
+}
+
+func TestUpdateConversationLabelsAppliesGeneratedLabelsWhenEligible(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	conversation := model.Conversation{
+		PublicID:   "generated-label-eligible",
+		UserID:     1,
+		Title:      "已有标题",
+		LabelsJSON: `[]`,
+		SessionKey: "generated-label-eligible-session",
+		Status:     "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	updated, applied, err := repo.SetGeneratedConversationLabelsIfEligible(context.Background(), conversation.ID, `["自动标签"]`)
+	if err != nil {
+		t.Fatalf("SetGeneratedConversationLabelsIfEligible() error = %v", err)
+	}
+	if !applied || updated.LabelsJSON != `["自动标签"]` {
+		t.Fatalf("generated labels were not applied: applied=%v labels=%q", applied, updated.LabelsJSON)
+	}
+}
+
+func TestUpdateConversationLabelsByPublicIDIsUserScopedAndMarksManualManagement(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	conversation := model.Conversation{
+		PublicID:   "manual-label-user-scope",
+		UserID:     1,
+		Title:      "已有标题",
+		LabelsJSON: `[]`,
+		SessionKey: "manual-label-user-scope-session",
+		Status:     "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	if _, err := repo.UpdateConversationLabelsByPublicID(context.Background(), 2, conversation.PublicID, `["越权标签"]`); !errors.Is(err, repository.ErrNotFound) {
+		t.Fatalf("expected other user update to return not found, got %v", err)
+	}
+	updated, err := repo.UpdateConversationLabelsByPublicID(context.Background(), 1, conversation.PublicID, `["手动标签"]`)
+	if err != nil {
+		t.Fatalf("UpdateConversationLabelsByPublicID() error = %v", err)
+	}
+	if updated.LabelsJSON != `["手动标签"]` || !updated.LabelsManuallyManaged {
+		t.Fatalf("manual labels were not persisted correctly: %#v", updated)
+	}
+}
+
+func TestUpdateConversationLabelsGeneratedLabelsDoNotOverwriteManualLabels(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	conversation := model.Conversation{
+		PublicID:              "generated-label-race",
+		UserID:                1,
+		Title:                 "已有标题",
+		LabelsJSON:            `["手动标签"]`,
+		LabelsManuallyManaged: true,
+		SessionKey:            "generated-label-race-session",
+		Status:                "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	updated, applied, err := repo.SetGeneratedConversationLabelsIfEligible(context.Background(), conversation.ID, `["自动标签"]`)
+	if err != nil {
+		t.Fatalf("SetGeneratedConversationLabelsIfEligible() error = %v", err)
+	}
+	if applied {
+		t.Fatal("generated labels update unexpectedly applied")
+	}
+	if updated.LabelsJSON != `["手动标签"]` {
+		t.Fatalf("generated labels overwrote manual labels: %q", updated.LabelsJSON)
+	}
+	if !updated.UpdatedAt.Equal(conversation.UpdatedAt) {
+		t.Fatalf("skipped generated labels changed updated_at: got %v, want %v", updated.UpdatedAt, conversation.UpdatedAt)
+	}
+}
+
+func TestUpdateConversationLabelsGeneratedLabelsDoNotRestoreManuallyClearedLabels(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	conversation := model.Conversation{
+		PublicID:              "generated-label-manual-clear-race",
+		UserID:                1,
+		Title:                 "已有标题",
+		LabelsJSON:            `[]`,
+		LabelsManuallyManaged: true,
+		SessionKey:            "generated-label-manual-clear-race-session",
+		Status:                "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	updated, applied, err := repo.SetGeneratedConversationLabelsIfEligible(context.Background(), conversation.ID, `["自动标签"]`)
+	if err != nil {
+		t.Fatalf("SetGeneratedConversationLabelsIfEligible() error = %v", err)
+	}
+	if applied {
+		t.Fatal("generated labels update unexpectedly applied")
+	}
+	if updated.LabelsJSON != `[]` {
+		t.Fatalf("generated labels restored manually cleared labels: %q", updated.LabelsJSON)
+	}
+	if !updated.UpdatedAt.Equal(conversation.UpdatedAt) {
+		t.Fatalf("skipped generated labels changed updated_at: got %v, want %v", updated.UpdatedAt, conversation.UpdatedAt)
 	}
 }
 

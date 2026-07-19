@@ -35,6 +35,7 @@ import type {
   SetConversationStarRequest as ContractSetConversationStarRequest,
   SetMessageFeedbackRequest as ContractSetMessageFeedbackRequest,
   UpdateConversationProjectRequest as ContractUpdateConversationProjectRequest,
+  UpdateConversationLabelsRequest as ContractUpdateConversationLabelsRequest,
   UpdateMessageRequest as ContractUpdateMessageRequest,
 } from "@deeix/api-contract";
 import type { UserStorageQuotaDTO } from "@/shared/api/file.types";
@@ -146,6 +147,8 @@ export type ConversationOptions = Record<string, unknown>;
 export type UpstreamDebugInfo = ModelProbeDebugResponse;
 
 export type RenameConversationRequest = ContractRenameConversationRequest;
+
+export type UpdateConversationLabelsRequest = ContractUpdateConversationLabelsRequest;
 
 export type SetConversationStarRequest = ContractSetConversationStarRequest;
 

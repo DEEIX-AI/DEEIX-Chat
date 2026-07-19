@@ -509,9 +509,6 @@ func (r *Repo) UpdateConversationMetadata(ctx context.Context, conversationID ui
 			strings.TrimSpace(patch.Title),
 		)
 	}
-	if strings.TrimSpace(patch.LabelsJSON) != "" {
-		updates["labels_json"] = strings.TrimSpace(patch.LabelsJSON)
-	}
 	if len(updates) == 0 {
 		var current models.Conversation
 		if err := r.db.WithContext(ctx).Where("id = ?", conversationID).First(&current).Error; err != nil {
@@ -533,6 +530,56 @@ func (r *Repo) UpdateConversationMetadata(ctx context.Context, conversationID ui
 	}
 	updated := toConversationDomain(current)
 	return &updated, nil
+}
+
+// UpdateConversationLabelsByPublicID 按用户归属更新手动管理的会话标签。
+func (r *Repo) UpdateConversationLabelsByPublicID(
+	ctx context.Context,
+	userID uint,
+	publicID string,
+	labelsJSON string,
+) (*domainconversation.Conversation, error) {
+	result := r.db.WithContext(ctx).
+		Model(&models.Conversation{}).
+		Where("user_id = ? AND public_id = ?", userID, publicID).
+		Updates(map[string]interface{}{
+			"labels_json":             strings.TrimSpace(labelsJSON),
+			"labels_manually_managed": true,
+		})
+	if result.Error != nil {
+		return nil, translateError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return nil, repository.ErrNotFound
+	}
+	return r.GetConversationByPublicID(ctx, publicID, userID)
+}
+
+// SetGeneratedConversationLabelsIfEligible 仅为空且未被用户接管时写入自动标签。
+func (r *Repo) SetGeneratedConversationLabelsIfEligible(
+	ctx context.Context,
+	conversationID uint,
+	labelsJSON string,
+) (*domainconversation.Conversation, bool, error) {
+	result := r.db.WithContext(ctx).
+		Model(&models.Conversation{}).
+		Where("id = ?", conversationID).
+		Where(
+			fmt.Sprintf("labels_manually_managed = ? AND lower(%s(labels_json)) IN ?", r.trimFunctionName()),
+			false,
+			[]string{"", "null", "[]"},
+		).
+		Update("labels_json", strings.TrimSpace(labelsJSON))
+	if result.Error != nil {
+		return nil, false, translateError(result.Error)
+	}
+
+	var current models.Conversation
+	if err := r.db.WithContext(ctx).Where("id = ?", conversationID).First(&current).Error; err != nil {
+		return nil, false, translateError(err)
+	}
+	updated := toConversationDomain(current)
+	return &updated, result.RowsAffected > 0, nil
 }
 
 // UpdateConversationStarByPublicID 更新会话星标状态。
@@ -3199,6 +3246,7 @@ func toConversationDomain(item models.Conversation) domainconversation.Conversat
 		PublicID:              item.PublicID,
 		Title:                 item.Title,
 		LabelsJSON:            labelsJSON,
+		LabelsManuallyManaged: item.LabelsManuallyManaged,
 		Model:                 item.Model,
 		Provider:              item.Provider,
 		SessionKey:            item.SessionKey,
@@ -3256,6 +3304,7 @@ func toConversationModel(item *domainconversation.Conversation) models.Conversat
 		PublicID:              item.PublicID,
 		Title:                 item.Title,
 		LabelsJSON:            labelsJSON,
+		LabelsManuallyManaged: item.LabelsManuallyManaged,
 		Model:                 item.Model,
 		Provider:              item.Provider,
 		SessionKey:            item.SessionKey,

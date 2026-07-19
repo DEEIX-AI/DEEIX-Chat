@@ -1,5 +1,14 @@
 {
   "untitled": "New chat",
+  "labelsDialog": {
+    "labels": "Conversation labels",
+    "labelsDescription": "Add up to {count} labels to organize and find this conversation.",
+    "labelsEmpty": "No labels",
+    "labelPlaceholder": "Add a label",
+    "addLabel": "Add label",
+    "removeLabel": "Remove label {label}",
+    "labelsSaveFailed": "Failed to save conversation labels"
+  },
   "shareDialog": {
     "title": "Share this conversation",
     "statusShared": "Shared",

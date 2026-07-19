@@ -315,3 +315,57 @@ func TestConversationLabelsEmpty(t *testing.T) {
 		t.Fatal("expected non-empty labels to be preserved")
 	}
 }
+
+func TestManuallyManagedConversationLabelsAreNotGeneratedAgain(t *testing.T) {
+	conversation := model.Conversation{
+		Title:                 "已有标题",
+		LabelsJSON:            "[]",
+		LabelsManuallyManaged: true,
+	}
+	if conversationLabelsEligibleForAutoGeneration(conversation) {
+		t.Fatal("expected manually cleared labels to remain under user control")
+	}
+	plan := buildConversationMetadataGenerationPlan(conversation, true, true)
+	if plan.generateLabels {
+		t.Fatal("expected metadata plan to skip manually managed labels")
+	}
+}
+
+func TestNormalizeConversationLabelsForUpdate(t *testing.T) {
+	labels, err := normalizeConversationLabelsForUpdate([]string{" 技术 ", "#运维", "TECH", "tech", "#release#", `"quoted"`})
+	if err != nil {
+		t.Fatalf("normalize labels: %v", err)
+	}
+	want := []string{"技术", "运维", "TECH", "release#", `"quoted"`}
+	if len(labels) != len(want) {
+		t.Fatalf("unexpected labels: got %#v, want %#v", labels, want)
+	}
+	for index := range want {
+		if labels[index] != want[index] {
+			t.Fatalf("unexpected labels: got %#v, want %#v", labels, want)
+		}
+	}
+}
+
+func TestNormalizeConversationLabelsForUpdateAllowsClearing(t *testing.T) {
+	labels, err := normalizeConversationLabelsForUpdate([]string{})
+	if err != nil {
+		t.Fatalf("normalize empty labels: %v", err)
+	}
+	if labels == nil || len(labels) != 0 {
+		t.Fatalf("expected non-nil empty labels, got %#v", labels)
+	}
+}
+
+func TestNormalizeConversationLabelsForUpdateRejectsInvalidValues(t *testing.T) {
+	cases := [][]string{
+		{""},
+		{strings.Repeat("标", conversationLabelMaxRunes+1)},
+		{"1", "2", "3", "4", "5", "6", "7"},
+	}
+	for _, labels := range cases {
+		if _, err := normalizeConversationLabelsForUpdate(labels); !errors.Is(err, ErrInvalidConversationLabels) {
+			t.Fatalf("expected invalid labels error for %#v, got %v", labels, err)
+		}
+	}
+}

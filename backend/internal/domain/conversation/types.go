@@ -18,6 +18,7 @@ type Conversation struct {
 	PublicID              string
 	Title                 string
 	LabelsJSON            string
+	LabelsManuallyManaged bool
 	Model                 string
 	Provider              string
 	SessionKey            string

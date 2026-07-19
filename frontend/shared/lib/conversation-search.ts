@@ -1,32 +1,15 @@
 import type { ConversationDTO } from "@/shared/api/conversation.types";
+import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
 
 export function normalizeConversationSearchText(value: string) {
   return value.trim().toLocaleLowerCase();
-}
-
-function parseConversationLabels(labelsJSON: string): string[] {
-  const source = labelsJSON.trim();
-  if (!source || source === "null" || source === "[]") {
-    return [];
-  }
-  try {
-    const parsed = JSON.parse(source) as unknown;
-    if (Array.isArray(parsed)) {
-      return parsed
-        .map((item) => (typeof item === "string" ? item.trim() : ""))
-        .filter(Boolean);
-    }
-  } catch {
-    return [source];
-  }
-  return [source];
 }
 
 export function conversationSearchHaystacks(item: ConversationDTO): string[] {
   return [
     item.publicID,
     item.title,
-    ...parseConversationLabels(item.labelsJSON),
+    ...parseConversationLabelsJSON(item.labelsJSON),
     item.model,
   ].filter((value): value is string => Boolean(value?.trim()));
 }

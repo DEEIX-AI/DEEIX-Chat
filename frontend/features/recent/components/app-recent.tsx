@@ -99,6 +99,7 @@ export function AppRecent() {
           onToggleSelected={controller.onToggleSelected}
           onToggleStar={controller.onToggleStar}
           onRename={controller.onRename}
+          onManageLabels={controller.onManageLabels}
           onArchive={controller.onArchive}
           onShare={controller.onShare}
           onSetProject={controller.onSetProject}
@@ -113,6 +114,7 @@ export function AppRecent() {
         renameTarget={controller.renameTarget}
         renameValue={controller.renameValue}
         renamingAutomatically={controller.renamingAutomatically}
+        labelsTarget={controller.labelsTarget}
         deleteTarget={controller.deleteTarget}
         deleteFiles={controller.deleteFiles}
         shareTarget={controller.shareTarget}
@@ -123,6 +125,8 @@ export function AppRecent() {
         onRenameCommit={controller.onRenameCommit}
         onAutoRename={controller.onAutoRename}
         onCloseRenameDialog={controller.closeRenameDialog}
+        onUpdateLabels={controller.onUpdateLabels}
+        onCloseLabelsDialog={controller.closeLabelsDialog}
         onDeleteFilesChange={controller.setDeleteFiles}
         onConfirmDelete={controller.confirmDelete}
         onCloseDeleteDialog={controller.closeDeleteDialog}

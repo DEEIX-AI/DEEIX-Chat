@@ -24,8 +24,10 @@ import {
   SidebarMenu,
 } from "@/components/ui/sidebar";
 import {
+  ConversationLabelsManagerDialog,
   ConversationShareDialog,
   sharePatchFromDTO,
+  type ConversationLabelsTarget,
   useConversationExport,
   useSidebarConversations,
 } from "@/entities/conversation";
@@ -70,6 +72,7 @@ export function NavRecents() {
     transferringStarPublicID,
     renameByPublicID,
     regenerateTitleByPublicID,
+    updateLabelsByPublicID,
     setStarByPublicID,
     archiveByPublicID,
     deleteByPublicID,
@@ -80,6 +83,7 @@ export function NavRecents() {
   const [deleteTarget, setDeleteTarget] = React.useState<SidebarConversationDeleteTarget>(null);
   const [deleteFiles, setDeleteFiles] = React.useState(false);
   const [renameTarget, setRenameTarget] = React.useState<SidebarConversationRenameTarget>(null);
+  const [labelsTarget, setLabelsTarget] = React.useState<ConversationLabelsTarget | null>(null);
   const [shareTarget, setShareTarget] = React.useState<{
     publicID: string;
     title: string;
@@ -269,6 +273,7 @@ export function NavRecents() {
                                 title,
                                 url: `/chat?conversation_id=${publicID}`,
                                 shareActive: item.shareStatus === "active" && Boolean(item.shareID?.trim()),
+                                labelsJSON: item.labelsJSON,
                               }}
                               starAction={{
                                 label: item.isStarred ? t("row.unstar") : t("row.star"),
@@ -293,6 +298,7 @@ export function NavRecents() {
                               onRenameCancel={onRenameCancel}
                               onAutoRename={onAutoRename}
                               isAutoRenaming={autoRenamingPublicID === publicID}
+                              onManageLabels={() => setLabelsTarget(item)}
                               onArchive={onArchive}
                               onShare={onShare}
                               onExport={onExport}
@@ -366,6 +372,12 @@ export function NavRecents() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ConversationLabelsManagerDialog
+        target={labelsTarget}
+        onTargetChange={setLabelsTarget}
+        onUpdateLabels={updateLabelsByPublicID}
+      />
 
       {stableShareTarget ? (
         <ConversationShareDialog

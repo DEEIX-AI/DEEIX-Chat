@@ -2718,6 +2718,11 @@ export interface UpdateBillingPlanRequest {
   permissionGroupID?: number | null;
 }
 
+export interface UpdateConversationLabelsRequest {
+  /** @maxItems 6 */
+  labels: string[];
+}
+
 export interface UpdateConversationProjectRequest {
   /** @maxLength 32 */
   color?: string;
@@ -6542,6 +6547,25 @@ export namespace Conversations {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = ConversationExportResponseDoc;
+  }
+
+  /**
+   * @description 替换指定会话的标签；传入空数组可清空标签
+   * @tags chat
+   * @name LabelsPartialUpdate
+   * @summary 更新会话标签
+   * @request PATCH:/conversations/{id}/labels
+   * @secure
+   */
+  export namespace LabelsPartialUpdate {
+    export type RequestParams = {
+      /** 会话 public_id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = UpdateConversationLabelsRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ConversationUpdateResponseDoc;
   }
 
   /**

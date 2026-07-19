@@ -36,7 +36,6 @@ type AssistantMessageCompletionUpdate struct {
 // ConversationMetadataPatch 定义自动生成会话元数据的更新字段。
 type ConversationMetadataPatch struct {
 	Title             string
-	LabelsJSON        string
 	ReplaceableTitles []string
 }
 
@@ -63,6 +62,8 @@ type ConversationMetadataRepository interface {
 	TouchConversationShareAccess(ctx context.Context, shareID string, accessedAt time.Time) error
 	UpdateConversationTitleByPublicID(ctx context.Context, userID uint, publicID string, title string) (*domainconversation.Conversation, error)
 	UpdateConversationMetadata(ctx context.Context, conversationID uint, patch ConversationMetadataPatch) (*domainconversation.Conversation, error)
+	UpdateConversationLabelsByPublicID(ctx context.Context, userID uint, publicID string, labelsJSON string) (*domainconversation.Conversation, error)
+	SetGeneratedConversationLabelsIfEligible(ctx context.Context, conversationID uint, labelsJSON string) (*domainconversation.Conversation, bool, error)
 	UpdateConversationStarByPublicID(ctx context.Context, userID uint, publicID string, starred bool) (*domainconversation.Conversation, error)
 	UpdateConversationArchiveByPublicID(ctx context.Context, userID uint, publicID string, archived bool) (*domainconversation.Conversation, error)
 	DeleteConversationByPublicID(ctx context.Context, userID uint, publicID string, deleteFiles bool) ([]string, error)

@@ -133,6 +133,7 @@
       "stream_message": "Send message",
       "create_conversation": "Create conversation",
       "rename_conversation": "Rename conversation",
+      "update_conversation_labels": "Update conversation labels",
       "export_conversation": "Export conversation",
       "delete_conversation": "Delete conversation",
       "set_conversation_star": "Star conversation",

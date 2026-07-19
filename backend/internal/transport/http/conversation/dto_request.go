@@ -53,6 +53,11 @@ type RenameConversationRequest struct {
 	Title string `json:"title" binding:"required,max=255"`
 }
 
+// UpdateConversationLabelsRequest 更新会话标签请求。
+type UpdateConversationLabelsRequest struct {
+	Labels *[]string `json:"labels" binding:"required,max=6,dive,max=24" maxLength:"24"`
+}
+
 // SetConversationStarRequest 设置星标请求。
 type SetConversationStarRequest struct {
 	Starred *bool `json:"starred" binding:"required"`

@@ -10,6 +10,7 @@ type Conversation struct {
 	PublicID              string     `gorm:"size:32;not null;default:'';index:idx_chat_conversations_public_id;comment:公开会话ID"`
 	Title                 string     `gorm:"size:255;not null;default:'';comment:会话标题"`
 	LabelsJSON            string     `gorm:"type:text;not null;default:'[]';comment:会话标签JSON"`
+	LabelsManuallyManaged bool       `gorm:"not null;default:false;comment:会话标签是否已由用户手动管理"`
 	Model                 string     `gorm:"size:128;not null;default:'';comment:模型名称"`
 	Provider              string     `gorm:"size:32;not null;default:'';index:idx_chat_conversations_provider;comment:模型提供商"`
 	SessionKey            string     `gorm:"size:128;not null;default:'';uniqueIndex:idx_chat_conversations_session_key;comment:会话上下文键"`

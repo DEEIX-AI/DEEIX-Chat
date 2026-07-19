@@ -42,6 +42,7 @@ import type {
   SetConversationStarRequest,
   SetMessageFeedbackRequest,
   UpdateMessageRequest,
+  UpdateConversationLabelsRequest,
   UpdateConversationProjectRequest,
   StreamMessageEvent,
   TraceBlockDTO,
@@ -531,6 +532,22 @@ export async function renameConversation(
 ): Promise<ConversationDTO> {
   return authedRequest<ConversationDTO>(
     `/api/v1/conversations/${pathParam(conversationPublicID)}/title`,
+    {
+      method: "PATCH",
+      accessToken,
+      body: payload,
+    },
+    true,
+  );
+}
+
+export async function updateConversationLabels(
+  accessToken: string,
+  conversationPublicID: string,
+  payload: UpdateConversationLabelsRequest,
+): Promise<ConversationDTO> {
+  return authedRequest<ConversationDTO>(
+    `/api/v1/conversations/${pathParam(conversationPublicID)}/labels`,
     {
       method: "PATCH",
       accessToken,

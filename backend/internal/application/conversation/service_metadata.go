@@ -19,6 +19,8 @@ import (
 const (
 	conversationMetadataMessageMaxTokens     = int64(5000)
 	conversationFallbackTitleMaxRunes        = 16
+	conversationLabelsMaxCount               = 6
+	conversationLabelMaxRunes                = 24
 	conversationMetadataGenerationTimeout    = 90 * time.Second
 	conversationAutoGenerateTitleSettingKey  = "chat.auto_generate_title"
 	conversationAutoGenerateLabelsSettingKey = "chat.auto_generate_labels"
@@ -81,7 +83,7 @@ func (p conversationMetadataGenerationPlan) shouldRun() bool {
 }
 
 func (s *Service) maybeGenerateConversationMetadataAsync(conversation model.Conversation, userMsg model.Message) {
-	if !shouldAutoReplaceConversationTitle(conversation.Title) && !conversationLabelsEmpty(conversation.LabelsJSON) {
+	if !shouldAutoReplaceConversationTitle(conversation.Title) && !conversationLabelsEligibleForAutoGeneration(conversation) {
 		return
 	}
 
@@ -195,10 +197,13 @@ func (s *Service) generateConversationMetadata(
 				if marshalErr != nil {
 					labelsErr = marshalErr
 				} else {
-					updated, err = s.repo.UpdateConversationMetadata(ctx, conversation.ID, repository.ConversationMetadataPatch{LabelsJSON: string(raw)})
-					if err != nil {
-						labelsErr = fmt.Errorf("update conversation labels metadata: %w", err)
-					} else if s.logger != nil {
+					labelsUpdated, applied, updateErr := s.repo.SetGeneratedConversationLabelsIfEligible(ctx, conversation.ID, string(raw))
+					if updateErr != nil {
+						labelsErr = fmt.Errorf("update conversation labels metadata: %w", updateErr)
+					} else if applied {
+						updated = labelsUpdated
+					}
+					if applied && s.logger != nil {
 						s.logger.Info("conversation_metadata_updated",
 							zap.Uint("conversation_id", conversation.ID),
 							zap.String("conversation_model", conversation.Model),
@@ -287,6 +292,31 @@ func (s *Service) RegenerateConversationTitle(ctx context.Context, userID uint, 
 	return updated, nil
 }
 
+// UpdateConversationLabels 更新用户可见的会话标签；空数组用于清空已有标签。
+func (s *Service) UpdateConversationLabels(
+	ctx context.Context,
+	userID uint,
+	publicID string,
+	rawLabels []string,
+) (*model.Conversation, error) {
+	labels, err := normalizeConversationLabelsForUpdate(rawLabels)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := json.Marshal(labels)
+	if err != nil {
+		return nil, err
+	}
+	updated, err := s.repo.UpdateConversationLabelsByPublicID(ctx, userID, strings.TrimSpace(publicID), string(raw))
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrConversationNotFound
+		}
+		return nil, err
+	}
+	return updated, nil
+}
+
 func buildConversationMetadataMessages(userMsg model.Message) string {
 	var sb strings.Builder
 	if content := strings.TrimSpace(userMsg.Content); content != "" {
@@ -316,7 +346,7 @@ func (s *Service) resolveConversationMetadataRefreshHint(
 	userMsg model.Message,
 ) string {
 	autoGenerateLabels := true
-	if !shouldAutoReplaceConversationTitle(conversation.Title) && conversationLabelsEmpty(conversation.LabelsJSON) {
+	if !shouldAutoReplaceConversationTitle(conversation.Title) && conversationLabelsEligibleForAutoGeneration(conversation) {
 		autoGenerateLabels = s.autoGenerateConversationLabelsEnabled(ctx, conversation.UserID)
 	}
 	return conversationMetadataRefreshHint(conversation, userMsg, autoGenerateLabels)
@@ -611,8 +641,8 @@ func sanitizeGeneratedConversationLabels(raw []string) []string {
 			continue
 		}
 		runes := []rune(value)
-		if len(runes) > 24 {
-			value = string(runes[:24])
+		if len(runes) > conversationLabelMaxRunes {
+			value = string(runes[:conversationLabelMaxRunes])
 		}
 		key := strings.ToLower(value)
 		if _, ok := seen[key]; ok {
@@ -620,11 +650,33 @@ func sanitizeGeneratedConversationLabels(raw []string) []string {
 		}
 		seen[key] = struct{}{}
 		labels = append(labels, value)
-		if len(labels) >= 6 {
+		if len(labels) >= conversationLabelsMaxCount {
 			break
 		}
 	}
 	return labels
+}
+
+func normalizeConversationLabelsForUpdate(raw []string) ([]string, error) {
+	if len(raw) > conversationLabelsMaxCount {
+		return nil, ErrInvalidConversationLabels
+	}
+	seen := make(map[string]struct{}, len(raw))
+	labels := make([]string, 0, len(raw))
+	for _, item := range raw {
+		value := strings.Join(strings.Fields(strings.TrimSpace(item)), " ")
+		value = strings.TrimSpace(strings.TrimLeft(value, "#"))
+		if value == "" || len([]rune(value)) > conversationLabelMaxRunes {
+			return nil, ErrInvalidConversationLabels
+		}
+		key := strings.ToLower(value)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		labels = append(labels, value)
+	}
+	return labels, nil
 }
 
 func (s *Service) autoGenerateConversationTitleEnabled(ctx context.Context, userID uint) bool {
@@ -655,8 +707,8 @@ func (s *Service) resolveConversationMetadataGenerationPlan(
 ) conversationMetadataGenerationPlan {
 	replaceTitle := shouldAutoReplaceConversationTitle(conversation.Title)
 	autoGenerateTitle := !replaceTitle || s.autoGenerateConversationTitleEnabled(ctx, conversation.UserID)
-	labelsEmpty := conversationLabelsEmpty(conversation.LabelsJSON)
-	autoGenerateLabels := !labelsEmpty || s.autoGenerateConversationLabelsEnabled(ctx, conversation.UserID)
+	labelsEligible := conversationLabelsEligibleForAutoGeneration(conversation)
+	autoGenerateLabels := !labelsEligible || s.autoGenerateConversationLabelsEnabled(ctx, conversation.UserID)
 	return buildConversationMetadataGenerationPlan(conversation, autoGenerateTitle, autoGenerateLabels)
 }
 
@@ -669,7 +721,7 @@ func buildConversationMetadataGenerationPlan(
 	return conversationMetadataGenerationPlan{
 		replaceTitle:   replaceTitle,
 		generateTitle:  replaceTitle && autoGenerateTitle,
-		generateLabels: conversationLabelsEmpty(conversation.LabelsJSON) && autoGenerateLabels,
+		generateLabels: conversationLabelsEligibleForAutoGeneration(conversation) && autoGenerateLabels,
 	}
 }
 
@@ -685,7 +737,11 @@ func shouldAutoReplaceConversationTitle(title string) bool {
 
 func shouldGenerateConversationMetadata(conversation model.Conversation, autoGenerateLabels bool) bool {
 	return shouldAutoReplaceConversationTitle(conversation.Title) ||
-		(autoGenerateLabels && conversationLabelsEmpty(conversation.LabelsJSON))
+		(autoGenerateLabels && conversationLabelsEligibleForAutoGeneration(conversation))
+}
+
+func conversationLabelsEligibleForAutoGeneration(conversation model.Conversation) bool {
+	return !conversation.LabelsManuallyManaged && conversationLabelsEmpty(conversation.LabelsJSON)
 }
 
 func conversationLabelsEmpty(labelsJSON string) bool {

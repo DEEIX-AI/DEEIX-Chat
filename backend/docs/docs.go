@@ -8438,6 +8438,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/conversations/{id}/labels": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "替换指定会话的标签；传入空数组可清空标签",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "更新会话标签",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 public_id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "会话标签",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateConversationLabelsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationUpdateResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/conversations/{id}/messages": {
             "get": {
                 "security": [
@@ -19832,6 +19896,22 @@ const docTemplate = `{
                 "permissionGroupID": {
                     "type": "integer",
                     "x-nullable": true
+                }
+            }
+        },
+        "UpdateConversationLabelsRequest": {
+            "type": "object",
+            "required": [
+                "labels"
+            ],
+            "properties": {
+                "labels": {
+                    "type": "array",
+                    "maxItems": 6,
+                    "items": {
+                        "type": "string",
+                        "maxLength": 24
+                    }
                 }
             }
         },
