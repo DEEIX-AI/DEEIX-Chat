@@ -95,20 +95,7 @@ func (s *Service) maybeGenerateConversationMetadataAsync(conversation model.Conv
 			return
 		}
 
-		fallbackTitle := ""
-		if plan.replaceTitle {
-			fallbackTitle = conversationTitleFromFirstUserMessage(userMsg.Content)
-		}
-
-		if fallbackTitle != "" {
-			if _, err := s.repo.UpdateConversationMetadata(asyncCtx, conversation.ID, repository.ConversationMetadataPatch{Title: fallbackTitle}); err != nil && s.logger != nil {
-				s.logger.Warn("conversation_fallback_title_update_failed",
-					zap.Uint("conversation_id", conversation.ID),
-					zap.String("model", conversation.Model),
-					zap.Error(err),
-				)
-			}
-		}
+		s.persistConversationFallbackTitle(asyncCtx, conversation, userMsg)
 
 		if _, err := s.generateConversationMetadata(asyncCtx, conversation, userMsg, plan); err != nil && s.logger != nil {
 			if errors.Is(err, ErrInvalidConversationTitle) {
@@ -411,6 +398,40 @@ func conversationTitleFromMessages(messages []model.Message) string {
 		}
 	}
 	return ""
+}
+
+func conversationFallbackTitlePatch(
+	conversation model.Conversation,
+	userMsg model.Message,
+) (repository.ConversationMetadataPatch, bool) {
+	if !shouldAutoReplaceConversationTitle(conversation.Title) {
+		return repository.ConversationMetadataPatch{}, false
+	}
+	title := conversationTitleFromFirstUserMessage(userMsg.Content)
+	if title == "" {
+		return repository.ConversationMetadataPatch{}, false
+	}
+	return repository.ConversationMetadataPatch{Title: title}, true
+}
+
+// persistConversationFallbackTitle 不依赖模型调用，用户消息落库后即可写入基础标题。
+// 仓储层只替换占位标题，因此不会覆盖用户手动标题或已生成标题。
+func (s *Service) persistConversationFallbackTitle(
+	ctx context.Context,
+	conversation model.Conversation,
+	userMsg model.Message,
+) {
+	patch, ok := conversationFallbackTitlePatch(conversation, userMsg)
+	if !ok {
+		return
+	}
+	if _, err := s.repo.UpdateConversationMetadata(ctx, conversation.ID, patch); err != nil && s.logger != nil {
+		s.logger.Warn("conversation_fallback_title_update_failed",
+			zap.Uint("conversation_id", conversation.ID),
+			zap.String("model", conversation.Model),
+			zap.Error(err),
+		)
+	}
 }
 
 func renderConversationMetadataPrompt(raw string, fallback string, messages string) string {

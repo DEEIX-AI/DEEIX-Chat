@@ -117,6 +117,38 @@ func TestConversationFallbackTitleUsesUnifiedLimit(t *testing.T) {
 	}
 }
 
+func TestConversationFallbackTitlePatchOnlyReplacesPlaceholder(t *testing.T) {
+	userMsg := model.Message{Content: "帮我分析模型终止后的标题行为"}
+
+	patch, ok := conversationFallbackTitlePatch(model.Conversation{Title: "新对话"}, userMsg)
+	if !ok {
+		t.Fatal("expected placeholder title to receive a fallback patch")
+	}
+	if patch.Title != "帮我分析模型终止后的标题行为" {
+		t.Fatalf("fallback title = %q", patch.Title)
+	}
+
+	if _, ok = conversationFallbackTitlePatch(model.Conversation{Title: "手动标题"}, userMsg); ok {
+		t.Fatal("expected an existing title not to receive a fallback patch")
+	}
+	if _, ok = conversationFallbackTitlePatch(model.Conversation{Title: "新对话"}, model.Message{}); ok {
+		t.Fatal("expected empty user content not to receive a fallback patch")
+	}
+}
+
+func TestFallbackTitleSettlementOnlyRunsForCanceledGeneration(t *testing.T) {
+	userMsg := &model.Message{Content: "首条用户消息"}
+	if !shouldPersistConversationFallbackTitleAfterSend(ErrMessageGenerationCanceled, userMsg) {
+		t.Fatal("expected canceled generation to settle the fallback title")
+	}
+	if shouldPersistConversationFallbackTitleAfterSend(errors.New("upstream failed"), userMsg) {
+		t.Fatal("expected ordinary generation errors not to settle the fallback title")
+	}
+	if shouldPersistConversationFallbackTitleAfterSend(ErrMessageGenerationCanceled, nil) {
+		t.Fatal("expected cancellation without a persisted user message to skip title settlement")
+	}
+}
+
 func TestBuildConversationMetadataMessagesEmptyWhenNoText(t *testing.T) {
 	got := buildConversationMetadataMessages(model.Message{})
 	if got != "" {
