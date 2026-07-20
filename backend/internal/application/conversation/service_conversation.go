@@ -13,12 +13,14 @@ import (
 )
 
 const (
-	defaultPageSize             = 20
-	maxPageSize                 = 100
-	maxAdminEventPageSize       = 1000
-	maxMessagePageSize          = 1000
-	conversationExportVersion   = 1
-	conversationExportScopeFull = "full"
+	defaultPageSize                     = 20
+	maxPageSize                         = 100
+	maxAdminEventPageSize               = 1000
+	maxMessagePageSize                  = 1000
+	conversationPreviewMessageLimit     = 10
+	conversationPreviewAncestorMaxDepth = 100
+	conversationExportVersion           = 1
+	conversationExportScopeFull         = "full"
 )
 
 // DeleteConversationOptions 定义会话删除选项。
@@ -31,6 +33,11 @@ type DeleteConversationResult struct {
 	Deleted          bool
 	DeletedFileCount int
 	Quota            *model.StorageQuota
+}
+
+// ConversationSearchResult 表示会话搜索列表中的单个结果。
+type ConversationSearchResult struct {
+	Conversation model.Conversation
 }
 
 // CreateConversation 创建用户新会话。
@@ -95,6 +102,39 @@ func (s *Service) ListConversations(
 ) ([]model.Conversation, int64, error) {
 	offset, limit := normalizePage(page, pageSize)
 	return s.repo.ListConversationsByUser(ctx, userID, offset, limit, statusFilter, starredFilter, shareFilter, normalizeConversationProjectFilter(projectFilter), searchQuery)
+}
+
+// SearchConversations 分页搜索当前用户的会话，并通过前瞻记录判断是否还有下一页。
+func (s *Service) SearchConversations(
+	ctx context.Context,
+	userID uint,
+	page int,
+	pageSize int,
+	searchQuery string,
+) ([]ConversationSearchResult, bool, error) {
+	offset, limit := normalizePage(page, pageSize)
+	items, err := s.repo.ListConversationsForSearch(
+		ctx,
+		userID,
+		offset,
+		limit+1,
+		searchQuery,
+	)
+	if err != nil || len(items) == 0 {
+		return []ConversationSearchResult{}, false, err
+	}
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+
+	results := make([]ConversationSearchResult, 0, len(items))
+	for _, item := range items {
+		results = append(results, ConversationSearchResult{
+			Conversation: item,
+		})
+	}
+	return results, hasMore, nil
 }
 
 // ListMessages 查询会话消息（分页）。
@@ -266,6 +306,20 @@ func (s *Service) ListRecentMessages(ctx context.Context, userID uint, conversat
 		return nil, 0, err
 	}
 	return items, total, nil
+}
+
+// ListConversationPreviewMessages 返回最新分支末尾的可见消息，供搜索结果按需预览。
+func (s *Service) ListConversationPreviewMessages(ctx context.Context, userID uint, conversationPublicID string) ([]model.Message, error) {
+	conversation, err := s.repo.GetConversationByPublicID(ctx, strings.TrimSpace(conversationPublicID), userID)
+	if err != nil {
+		return nil, ErrConversationNotFound
+	}
+	return s.repo.ListLatestBranchPreviewMessages(
+		ctx,
+		conversation.ID,
+		conversationPreviewAncestorMaxDepth,
+		conversationPreviewMessageLimit,
+	)
 }
 
 // GetConversationByPublicID 查询用户会话元信息（公开 ID）。

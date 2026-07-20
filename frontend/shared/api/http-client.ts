@@ -7,6 +7,7 @@ export type ApiRequestOptions = {
   accessToken?: string;
   body?: unknown;
   headers?: Record<string, string>;
+  signal?: AbortSignal;
 };
 
 export class ApiError extends Error {
@@ -97,6 +98,7 @@ function buildRequestInit(options: ApiRequestOptions): RequestInit {
     method: options.method ?? "GET",
     headers,
     body,
+    signal: options.signal,
     credentials: "include",
     cache: "no-store",
   };

@@ -13,6 +13,8 @@ import type {
   ConversationProjectDTO,
   ConversationProjectFilter,
   ConversationProjectStatusFilter,
+  ConversationPreviewMessageDTO,
+  ConversationSearchPageDTO,
   ConversationShareDTO,
   ConversationRunDTO,
   ConversationShareFilter,
@@ -296,6 +298,13 @@ type ListConversationsOptions = {
   query?: string;
 };
 
+type SearchConversationsOptions = {
+  page?: number;
+  pageSize?: number;
+  query?: string;
+  signal?: AbortSignal;
+};
+
 type ListConversationProjectsOptions = {
   status?: ConversationProjectStatusFilter;
 };
@@ -348,6 +357,43 @@ export async function listConversations(
     total: data.total ?? 0,
     results: data.results ?? [],
   };
+}
+
+export async function searchConversations(
+  accessToken: string,
+  options: SearchConversationsOptions = {},
+): Promise<ConversationSearchPageDTO> {
+  const page = options.page && options.page > 0 ? options.page : 1;
+  const pageSize = options.pageSize && options.pageSize > 0 ? options.pageSize : 20;
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  const query = options.query?.trim() || "";
+  if (query) {
+    params.set("q", query);
+  }
+  const data = await authedRequest<ConversationSearchPageDTO>(
+    `/api/v1/conversations/search?${params.toString()}`,
+    { accessToken, signal: options.signal },
+    true,
+  );
+  return {
+    hasMore: data.hasMore ?? false,
+    results: data.results ?? [],
+  };
+}
+
+export async function getConversationPreviewMessages(
+  accessToken: string,
+  conversationPublicID: string,
+  signal?: AbortSignal,
+): Promise<ConversationPreviewMessageDTO[]> {
+  return authedRequest<ConversationPreviewMessageDTO[]>(
+    `/api/v1/conversations/${pathParam(conversationPublicID)}/messages/preview`,
+    { accessToken, signal },
+    true,
+  );
 }
 
 export async function getConversationDefaultModelCandidate(

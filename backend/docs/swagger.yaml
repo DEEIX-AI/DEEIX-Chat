@@ -1744,6 +1744,37 @@ definitions:
     - data
     - errorMsg
     type: object
+  ConversationPreviewMessageListResponseDoc:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/ConversationPreviewMessageResponse'
+        type: array
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ConversationPreviewMessageResponse:
+    properties:
+      content:
+        type: string
+      errorMessage:
+        type: string
+      publicID:
+        type: string
+      role:
+        enum:
+        - user
+        - assistant
+        type: string
+    required:
+    - content
+    - errorMessage
+    - publicID
+    - role
+    type: object
   ConversationProjectListResponseDoc:
     properties:
       data:
@@ -1910,6 +1941,59 @@ definitions:
     required:
     - data
     - errorMsg
+    type: object
+  ConversationSearchListResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ConversationSearchPageResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ConversationSearchPageResponse:
+    properties:
+      hasMore:
+        type: boolean
+      results:
+        items:
+          $ref: '#/definitions/ConversationSearchResultResponse'
+        type: array
+    required:
+    - hasMore
+    - results
+    type: object
+  ConversationSearchResultResponse:
+    properties:
+      isStarred:
+        type: boolean
+      labelsJSON:
+        type: string
+      messageCount:
+        type: integer
+      projectID:
+        type: string
+      projectName:
+        type: string
+      publicID:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    required:
+    - isStarred
+    - labelsJSON
+    - messageCount
+    - projectID
+    - projectName
+    - publicID
+    - status
+    - title
+    - updatedAt
     type: object
   ConversationShareResponse:
     properties:
@@ -13152,6 +13236,41 @@ paths:
       summary: 发送消息
       tags:
       - chat
+  /conversations/{id}/messages/preview:
+    get:
+      consumes:
+      - application/json
+      description: 返回当前用户会话最新分支最近 10 条用户或助手消息
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ConversationPreviewMessageListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询会话预览消息
+      tags:
+      - chat
   /conversations/{id}/messages/stream:
     post:
       consumes:
@@ -13616,6 +13735,44 @@ paths:
       security:
       - BearerAuth: []
       summary: 批量设置会话项目归属
+      tags:
+      - chat
+  /conversations/search:
+    get:
+      consumes:
+      - application/json
+      description: 分页搜索当前用户的会话标题、元数据、项目和消息正文，并返回是否还有下一页
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索关键词；为空时返回最近会话
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ConversationSearchListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 搜索会话
       tags:
       - chat
   /conversations/shares/revoke:
