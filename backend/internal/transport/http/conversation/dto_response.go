@@ -39,6 +39,33 @@ type ConversationResponse struct {
 	UpdatedAt           time.Time  `json:"updatedAt"`
 }
 
+// ConversationSearchResultResponse 会话搜索结果 DTO。
+type ConversationSearchResultResponse struct {
+	PublicID     string    `json:"publicID"`
+	ProjectID    string    `json:"projectID"`
+	ProjectName  string    `json:"projectName"`
+	Title        string    `json:"title"`
+	LabelsJSON   string    `json:"labelsJSON"`
+	IsStarred    bool      `json:"isStarred"`
+	MessageCount int       `json:"messageCount"`
+	Status       string    `json:"status"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
+// ConversationSearchPageResponse 会话搜索的增量分页结果。
+type ConversationSearchPageResponse struct {
+	HasMore bool                               `json:"hasMore"`
+	Results []ConversationSearchResultResponse `json:"results"`
+}
+
+// ConversationPreviewMessageResponse 会话搜索预览使用的轻量消息 DTO。
+type ConversationPreviewMessageResponse struct {
+	PublicID     string `json:"publicID"`
+	Role         string `json:"role" enums:"user,assistant"`
+	Content      string `json:"content"`
+	ErrorMessage string `json:"errorMessage"`
+}
+
 type ConversationExportResponse struct {
 	Version                 int                                     `json:"version"`
 	ExportScope             string                                  `json:"exportScope"`
@@ -96,6 +123,33 @@ func toConversationResponse(item *model.Conversation) ConversationResponse {
 		LastShareAccessedAt: item.LastShareAccessedAt,
 		CreatedAt:           item.CreatedAt,
 		UpdatedAt:           item.UpdatedAt,
+	}
+}
+
+func toConversationSearchResultResponse(item appconversation.ConversationSearchResult) ConversationSearchResultResponse {
+	labelsJSON := strings.TrimSpace(item.Conversation.LabelsJSON)
+	if labelsJSON == "" || labelsJSON == "null" {
+		labelsJSON = "[]"
+	}
+	return ConversationSearchResultResponse{
+		PublicID:     item.Conversation.PublicID,
+		ProjectID:    item.Conversation.ProjectPublicID,
+		ProjectName:  item.Conversation.ProjectName,
+		Title:        item.Conversation.Title,
+		LabelsJSON:   labelsJSON,
+		IsStarred:    item.Conversation.IsStarred,
+		MessageCount: item.Conversation.MessageCount,
+		Status:       item.Conversation.Status,
+		UpdatedAt:    item.Conversation.UpdatedAt,
+	}
+}
+
+func toConversationPreviewMessageResponse(item model.Message) ConversationPreviewMessageResponse {
+	return ConversationPreviewMessageResponse{
+		PublicID:     item.PublicID,
+		Role:         item.Role,
+		Content:      item.Content,
+		ErrorMessage: item.ErrorMessage,
 	}
 }
 
@@ -1240,6 +1294,18 @@ type ConversationListResponseDoc struct {
 		Total   int64                  `json:"total"`
 		Results []ConversationResponse `json:"results"`
 	} `json:"data"`
+}
+
+// ConversationSearchListResponseDoc 会话搜索分页响应文档。
+type ConversationSearchListResponseDoc struct {
+	ErrorMsg string                         `json:"errorMsg"`
+	Data     ConversationSearchPageResponse `json:"data"`
+}
+
+// ConversationPreviewMessageListResponseDoc 会话搜索预览消息响应文档。
+type ConversationPreviewMessageListResponseDoc struct {
+	ErrorMsg string                               `json:"errorMsg"`
+	Data     []ConversationPreviewMessageResponse `json:"data"`
 }
 
 // ConversationProjectResponseDoc 会话项目响应文档。

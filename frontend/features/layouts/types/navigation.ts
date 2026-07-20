@@ -33,8 +33,9 @@ export type NavigationItem = NavigationCommandItem | NavigationLinkItem;
 export type ConversationSearchResult = {
   publicID: string;
   title: string;
-  searchText: string;
   href: string;
+  projectName: string;
+  status: string;
   updatedAt: string;
 };
 

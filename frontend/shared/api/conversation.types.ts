@@ -6,7 +6,10 @@ import type {
   ConversationDeleteResponse,
   ConversationExportResponse,
   ConversationProjectResponse,
+  ConversationPreviewMessageResponse,
   ConversationResponse,
+  ConversationSearchPageResponse,
+  ConversationSearchResultResponse,
   ConversationShareResponse,
   CreateConversationProjectRequest as ContractCreateConversationProjectRequest,
   CreateConversationRequest as ContractCreateConversationRequest,
@@ -41,6 +44,14 @@ import type {
 import type { UserStorageQuotaDTO } from "@/shared/api/file.types";
 
 export type ConversationDTO = ConversationResponse;
+
+export type ConversationSearchResultDTO = ConversationSearchResultResponse;
+
+export type ConversationSearchPageDTO = Omit<ConversationSearchPageResponse, "results"> & {
+  results: ConversationSearchResultDTO[];
+};
+
+export type ConversationPreviewMessageDTO = ConversationPreviewMessageResponse;
 
 export type ConversationDefaultModelCandidateDTO = ConversationDefaultModelCandidateResponse;
 

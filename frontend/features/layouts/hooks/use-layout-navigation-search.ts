@@ -3,38 +3,59 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
-import {
-  filterConversationSearchResults,
-  toConversationSearchResult,
-} from "@/features/layouts/model/navigation-search";
+import { useConversationSearchPreview } from "@/features/layouts/hooks/use-conversation-search-preview";
+import { toConversationSearchResult } from "@/features/layouts/model/navigation-search";
 import { hasPlatformModifierKey } from "@/shared/lib/platform-shortcuts";
 import { normalizeConversationSearchText } from "@/shared/lib/conversation-search";
-import { listConversations } from "@/shared/api/conversation";
-import type { ConversationDTO } from "@/shared/api/conversation.types";
+import { searchConversations } from "@/shared/api/conversation";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import type { ConversationSearchResult } from "@/features/layouts/types/navigation";
 
 type UseLayoutNavigationSearchOptions = {
-  items: readonly ConversationDTO[];
   untitled: string;
-  maxResults?: number;
 };
 
 const NAVIGATION_SEARCH_DEBOUNCE_MS = 250;
-const DEFAULT_NAVIGATION_SEARCH_LIMIT = 8;
+const NAVIGATION_SEARCH_PAGE_SIZE = 20;
 
-export function useLayoutNavigationSearch({ items, untitled, maxResults }: UseLayoutNavigationSearchOptions) {
+function mergeSearchResults(
+  current: ConversationSearchResult[],
+  next: ConversationSearchResult[],
+): ConversationSearchResult[] {
+  const seen = new Set(current.map((item) => item.publicID));
+  return [...current, ...next.filter((item) => !seen.has(item.publicID))];
+}
+
+export function useLayoutNavigationSearch({ untitled }: UseLayoutNavigationSearchOptions) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
-  const [remoteResults, setRemoteResults] = React.useState<ConversationDTO[]>([]);
+  const [results, setResults] = React.useState<ConversationSearchResult[]>([]);
+  const [page, setPage] = React.useState(1);
+  const [hasMore, setHasMore] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const [loadingMore, setLoadingMore] = React.useState(false);
+  const [loadFailed, setLoadFailed] = React.useState(false);
+  const [loadMoreFailed, setLoadMoreFailed] = React.useState(false);
+  const [refreshRevision, setRefreshRevision] = React.useState(0);
   const requestVersionRef = React.useRef(0);
+  const loadingMoreRef = React.useRef(false);
+  const loadMoreAbortRef = React.useRef<AbortController | null>(null);
+  const conversationPreview = useConversationSearchPreview(open);
 
   React.useEffect(() => {
     if (!open) {
       setQuery("");
-      setRemoteResults([]);
+      setResults([]);
+      setPage(1);
+      setHasMore(false);
       setLoading(false);
+      setLoadingMore(false);
+      setLoadFailed(false);
+      setLoadMoreFailed(false);
+      loadingMoreRef.current = false;
+      loadMoreAbortRef.current?.abort();
+      loadMoreAbortRef.current = null;
       requestVersionRef.current += 1;
     }
   }, [open]);
@@ -42,40 +63,51 @@ export function useLayoutNavigationSearch({ items, untitled, maxResults }: UseLa
   const normalizedQuery = normalizeConversationSearchText(query);
 
   React.useEffect(() => {
-    if (!open || !normalizedQuery) {
-      setRemoteResults([]);
-      setLoading(false);
-      requestVersionRef.current += 1;
+    if (!open) {
       return;
     }
 
     requestVersionRef.current += 1;
     const requestVersion = requestVersionRef.current;
-    setRemoteResults([]);
+    setResults([]);
+    setPage(1);
+    setHasMore(false);
     setLoading(true);
+    setLoadingMore(false);
+    setLoadFailed(false);
+    setLoadMoreFailed(false);
+    loadingMoreRef.current = false;
+    loadMoreAbortRef.current?.abort();
+    loadMoreAbortRef.current = null;
+    const abortController = new AbortController();
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
           const token = await resolveAccessToken();
-          if (!token || requestVersion !== requestVersionRef.current) {
+          if (requestVersion !== requestVersionRef.current) {
             return;
           }
-          const data = await listConversations(token, {
+          if (!token) {
+            setLoadFailed(true);
+            return;
+          }
+          const data = await searchConversations(token, {
             page: 1,
-            pageSize: maxResults ?? DEFAULT_NAVIGATION_SEARCH_LIMIT,
-            status: "all",
-            starred: "all",
-            share: "all",
-            project: "all",
+            pageSize: NAVIGATION_SEARCH_PAGE_SIZE,
             query: normalizedQuery,
+            signal: abortController.signal,
           });
           if (requestVersion !== requestVersionRef.current) {
             return;
           }
-          setRemoteResults(data.results ?? []);
+          const nextResults = data.results ?? [];
+          setResults(nextResults.map((item) => toConversationSearchResult(item, untitled)));
+          setHasMore(data.hasMore ?? false);
         } catch {
           if (requestVersion === requestVersionRef.current) {
-            setRemoteResults([]);
+            setResults([]);
+            setHasMore(false);
+            setLoadFailed(true);
           }
         } finally {
           if (requestVersion === requestVersionRef.current) {
@@ -83,25 +115,70 @@ export function useLayoutNavigationSearch({ items, untitled, maxResults }: UseLa
           }
         }
       })();
-    }, NAVIGATION_SEARCH_DEBOUNCE_MS);
+    }, normalizedQuery ? NAVIGATION_SEARCH_DEBOUNCE_MS : 0);
 
     return () => {
       window.clearTimeout(timer);
       if (requestVersionRef.current === requestVersion) {
         requestVersionRef.current += 1;
       }
+      abortController.abort();
     };
-  }, [maxResults, normalizedQuery, open]);
+  }, [normalizedQuery, open, refreshRevision, untitled]);
 
-  const results = React.useMemo(
-    () => {
-      if (!normalizedQuery) {
-        return filterConversationSearchResults(items, query, { maxResults, untitled });
+  const loadMore = React.useCallback(async () => {
+    if (!open || loading || loadingMoreRef.current || !hasMore) {
+      return;
+    }
+    const requestVersion = requestVersionRef.current;
+    const nextPage = page + 1;
+    const requestQuery = normalizedQuery;
+    const abortController = new AbortController();
+    loadMoreAbortRef.current?.abort();
+    loadMoreAbortRef.current = abortController;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    setLoadMoreFailed(false);
+    try {
+      const token = await resolveAccessToken();
+      if (requestVersion !== requestVersionRef.current) {
+        return;
       }
-      return remoteResults.map((item) => toConversationSearchResult(item, untitled));
-    },
-    [items, maxResults, normalizedQuery, query, remoteResults, untitled],
-  );
+      if (!token) {
+        setLoadMoreFailed(true);
+        return;
+      }
+      const data = await searchConversations(token, {
+        page: nextPage,
+        pageSize: NAVIGATION_SEARCH_PAGE_SIZE,
+        query: requestQuery,
+        signal: abortController.signal,
+      });
+      if (requestVersion !== requestVersionRef.current) {
+        return;
+      }
+      const nextResults = (data.results ?? []).map((item) => toConversationSearchResult(item, untitled));
+      setResults((current) => mergeSearchResults(current, nextResults));
+      setPage(nextPage);
+      setHasMore(data.hasMore ?? false);
+    } catch {
+      if (requestVersion === requestVersionRef.current) {
+        setLoadMoreFailed(true);
+      }
+    } finally {
+      if (requestVersion === requestVersionRef.current) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+        if (loadMoreAbortRef.current === abortController) {
+          loadMoreAbortRef.current = null;
+        }
+      }
+    }
+  }, [hasMore, loading, normalizedQuery, open, page, untitled]);
+
+  const retrySearch = React.useCallback(() => {
+    setRefreshRevision((current) => current + 1);
+  }, []);
 
   const openSearch = React.useCallback(() => {
     setOpen(true);
@@ -119,6 +196,15 @@ export function useLayoutNavigationSearch({ items, untitled, maxResults }: UseLa
     setQuery,
     results,
     loading,
+    loadingMore,
+    loadFailed,
+    loadMoreFailed,
+    hasMore,
+    preview: conversationPreview.preview,
+    loadMore,
+    retrySearch,
+    retryPreview: conversationPreview.retryPreview,
+    previewResult: conversationPreview.selectPreview,
     openSearch,
     selectResult,
   };

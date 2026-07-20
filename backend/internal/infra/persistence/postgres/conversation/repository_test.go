@@ -591,6 +591,26 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 		SessionKey: "session_message_search",
 		Status:     "active",
 	}
+	toolOnlyConversation := model.Conversation{
+		UserID:     1,
+		PublicID:   "conv_tool_only_search",
+		Title:      "Tool output",
+		LabelsJSON: "[]",
+		Model:      "gpt-test",
+		Provider:   "openai",
+		SessionKey: "session_tool_only_search",
+		Status:     "active",
+	}
+	wildcardConversation := model.Conversation{
+		UserID:     1,
+		PublicID:   "conv_literal_wildcard_search",
+		Title:      "Progress 100%",
+		LabelsJSON: "[]",
+		Model:      "gpt-test",
+		Provider:   "openai",
+		SessionKey: "session_literal_wildcard_search",
+		Status:     "active",
+	}
 	otherUserConversation := model.Conversation{
 		UserID:     2,
 		PublicID:   "conv_other_user",
@@ -605,6 +625,8 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 		projectConversation,
 		titleConversation,
 		messageConversation,
+		toolOnlyConversation,
+		wildcardConversation,
 		otherUserConversation,
 	} {
 		if err := db.Create(&conversation).Error; err != nil {
@@ -628,6 +650,22 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 	}).Error; err != nil {
 		t.Fatalf("create message: %v", err)
 	}
+	var toolOnlyTarget model.Conversation
+	if err := db.Where("public_id = ?", "conv_tool_only_search").First(&toolOnlyTarget).Error; err != nil {
+		t.Fatalf("load tool-only target: %v", err)
+	}
+	if err := db.Create(&model.Message{
+		ConversationID: toolOnlyTarget.ID,
+		UserID:         1,
+		PublicID:       "msg_tool_only_search",
+		Role:           "tool",
+		ContentType:    "text",
+		Content:        "InternalToolOnlyKeyword",
+		BranchReason:   "default",
+		Status:         "success",
+	}).Error; err != nil {
+		t.Fatalf("create tool-only message: %v", err)
+	}
 
 	tests := []struct {
 		name   string
@@ -637,6 +675,8 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 		{name: "title", query: "budget", wantID: "conv_title_search"},
 		{name: "project", query: "research", wantID: "conv_project_search"},
 		{name: "message", query: "aurorakeyword", wantID: "conv_message_search"},
+		{name: "literal wildcard", query: "%", wantID: "conv_literal_wildcard_search"},
+		{name: "tool messages are excluded", query: "internaltoolonlykeyword", wantID: ""},
 	}
 
 	for _, tt := range tests {
@@ -645,13 +685,145 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 			if err != nil {
 				t.Fatalf("ListConversationsByUser() error = %v", err)
 			}
-			if total != 1 {
-				t.Fatalf("total = %d, want 1; items=%#v", total, items)
+			if tt.wantID == "" {
+				if total != 0 || len(items) != 0 {
+					t.Fatalf("items = %#v, total = %d, want no results", items, total)
+				}
+				return
 			}
-			if len(items) != 1 || items[0].PublicID != tt.wantID {
+			if total != 1 || len(items) != 1 || items[0].PublicID != tt.wantID {
 				t.Fatalf("items = %#v, want %q", items, tt.wantID)
 			}
 		})
+	}
+}
+
+func TestListConversationsForSearchReturnsOrderedWindowWithoutStatusFiltering(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	now := time.Now()
+
+	items := []model.Conversation{
+		{
+			BaseModel:  model.BaseModel{UpdatedAt: now.Add(-2 * time.Hour)},
+			UserID:     1,
+			PublicID:   "conv_search_oldest",
+			Title:      "Needle oldest",
+			LabelsJSON: "[]",
+			Model:      "gpt-test",
+			Provider:   "openai",
+			SessionKey: "session_search_oldest",
+			Status:     "active",
+		},
+		{
+			BaseModel:  model.BaseModel{UpdatedAt: now.Add(-time.Hour)},
+			UserID:     1,
+			PublicID:   "conv_search_middle",
+			Title:      "Needle middle",
+			LabelsJSON: "[]",
+			Model:      "gpt-test",
+			Provider:   "openai",
+			SessionKey: "session_search_middle",
+			Status:     "archived",
+		},
+		{
+			BaseModel:  model.BaseModel{UpdatedAt: now},
+			UserID:     1,
+			PublicID:   "conv_search_latest",
+			Title:      "Needle latest",
+			LabelsJSON: "[]",
+			Model:      "gpt-test",
+			Provider:   "openai",
+			SessionKey: "session_search_latest",
+			Status:     "active",
+		},
+	}
+	if err := db.Create(&items).Error; err != nil {
+		t.Fatalf("create conversations: %v", err)
+	}
+
+	results, err := repo.ListConversationsForSearch(ctx, 1, 1, 2, "needle")
+	if err != nil {
+		t.Fatalf("ListConversationsForSearch() error = %v", err)
+	}
+	if len(results) != 2 || results[0].PublicID != "conv_search_middle" || results[1].PublicID != "conv_search_oldest" {
+		t.Fatalf("results = %#v, want middle and oldest conversations", results)
+	}
+}
+
+func TestListLatestBranchPreviewMessagesReturnsLatestVisibleWindow(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+
+	conversation := model.Conversation{
+		UserID:     1,
+		PublicID:   "conv_latest_branch_preview",
+		Title:      "Latest branch preview",
+		LabelsJSON: "[]",
+		Model:      "gpt-test",
+		Provider:   "openai",
+		SessionKey: "session_latest_branch_preview",
+		Status:     "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	createMessage := func(publicID string, role string, parentID *uint) model.Message {
+		t.Helper()
+		item := model.Message{
+			ConversationID:  conversation.ID,
+			UserID:          1,
+			PublicID:        publicID,
+			ParentMessageID: parentID,
+			Role:            role,
+			ContentType:     "text",
+			Content:         publicID + " content",
+			BranchReason:    "default",
+			Status:          "success",
+		}
+		if err := db.Create(&item).Error; err != nil {
+			t.Fatalf("create message %q: %v", publicID, err)
+		}
+		return item
+	}
+
+	root := createMessage("msg_root", "user", nil)
+	rootID := root.ID
+	createMessage("msg_old_branch", "assistant", &rootID)
+
+	latestBranch := createMessage("msg_latest_branch", "assistant", &rootID)
+	latestVisibleIDs := []string{root.PublicID, latestBranch.PublicID}
+	parentID := latestBranch.ID
+	for i := 1; i <= 12; i++ {
+		role := "user"
+		if i%2 == 0 {
+			role = "assistant"
+		}
+		item := createMessage(fmt.Sprintf("msg_latest_%02d", i), role, &parentID)
+		latestVisibleIDs = append(latestVisibleIDs, item.PublicID)
+		parentID = item.ID
+	}
+	createMessage("msg_latest_tool", "tool", &parentID)
+
+	items, err := repo.ListLatestBranchPreviewMessages(ctx, conversation.ID, 100, 10)
+	if err != nil {
+		t.Fatalf("ListLatestBranchPreviewMessages() error = %v", err)
+	}
+	if len(items) != 10 {
+		t.Fatalf("len(items) = %d, want 10", len(items))
+	}
+
+	wantPublicIDs := latestVisibleIDs[len(latestVisibleIDs)-10:]
+	for i, item := range items {
+		if item.PublicID != wantPublicIDs[i] {
+			t.Fatalf("items[%d].PublicID = %q, want %q", i, item.PublicID, wantPublicIDs[i])
+		}
+		if item.Role != "user" && item.Role != "assistant" {
+			t.Fatalf("items[%d].Role = %q, want visible role", i, item.Role)
+		}
 	}
 }
 

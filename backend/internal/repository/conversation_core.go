@@ -43,6 +43,7 @@ type ConversationMetadataPatch struct {
 type ConversationMetadataRepository interface {
 	CreateConversation(ctx context.Context, item *domainconversation.Conversation) error
 	ListConversationsByUser(ctx context.Context, userID uint, offset int, limit int, statusFilter string, starredFilter string, shareFilter string, projectFilter string, searchQuery string) ([]domainconversation.Conversation, int64, error)
+	ListConversationsForSearch(ctx context.Context, userID uint, offset int, limit int, searchQuery string) ([]domainconversation.Conversation, error)
 	GetConversationByUser(ctx context.Context, conversationID uint, userID uint) (*domainconversation.Conversation, error)
 	GetConversationByPublicID(ctx context.Context, publicID string, userID uint) (*domainconversation.Conversation, error)
 	CreateConversationProject(ctx context.Context, item *domainconversation.ConversationProject) error
@@ -101,6 +102,7 @@ type MessageRepository interface {
 	GetMessageByID(ctx context.Context, conversationID uint, messageID uint) (*domainconversation.Message, error)
 	GetLatestMessage(ctx context.Context, conversationID uint) (*domainconversation.Message, error)
 	ListMessageAncestors(ctx context.Context, conversationID uint, leafMessageID uint, maxDepth int) ([]domainconversation.Message, error)
+	ListLatestBranchPreviewMessages(ctx context.Context, conversationID uint, maxDepth int, limit int) ([]domainconversation.Message, error)
 	ListMessageAncestorsUntil(ctx context.Context, conversationID uint, leafMessageID uint, stopMessageID uint, maxDepth int) ([]domainconversation.Message, bool, error)
 }
 

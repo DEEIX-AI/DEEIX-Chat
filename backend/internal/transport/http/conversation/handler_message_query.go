@@ -224,6 +224,43 @@ func (h *Handler) ListMessages(c *gin.Context) {
 	response.SuccessPage(c, total, msgResults)
 }
 
+// ListConversationPreviewMessages godoc
+// @Summary 查询会话预览消息
+// @Description 返回当前用户会话最新分支最近 10 条用户或助手消息
+// @Tags chat
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "会话 public_id"
+// @Success 200 {object} ConversationPreviewMessageListResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /conversations/{id}/messages/preview [get]
+// ListConversationPreviewMessages 查询搜索预览所需的轻量消息。
+func (h *Handler) ListConversationPreviewMessages(c *gin.Context) {
+	userID := middleware.MustUserID(c)
+	publicID, err := stringParam(c, "id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid conversation id")
+		return
+	}
+	items, err := h.service.ListConversationPreviewMessages(c.Request.Context(), userID, publicID)
+	if err != nil {
+		if errors.Is(err, appconversation.ErrConversationNotFound) {
+			response.Error(c, http.StatusNotFound, "conversation not found")
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, "list conversation preview messages failed")
+		return
+	}
+	results := make([]ConversationPreviewMessageResponse, 0, len(items))
+	for _, item := range items {
+		results = append(results, toConversationPreviewMessageResponse(item))
+	}
+	response.Success(c, results)
+}
+
 // collectMessageRunIDs 提取消息列表中的运行 ID，并保持首次出现顺序。
 func collectMessageRunIDs(items []model.Message) []string {
 	seen := make(map[string]struct{}, len(items))

@@ -1,14 +1,18 @@
 package conversation
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -43,6 +47,31 @@ func TestMessagePageParamsAllowsRestoreWindow(t *testing.T) {
 	_, normalPageSize := pageParams(c)
 	if normalPageSize != maxHTTPPageSize {
 		t.Fatalf("pageParams page size = %d, want %d", normalPageSize, maxHTTPPageSize)
+	}
+}
+
+func TestSearchConversationsRejectsLongQueryWithStableCode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(
+		http.MethodGet,
+		"/conversations/search?q="+strings.Repeat("a", maxConversationSearchQueryRunes+1),
+		nil,
+	)
+	c.Set(middleware.ContextKeyUserID, uint(1))
+
+	(&Handler{}).SearchConversations(c)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+	var payload response.Envelope
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.ErrorCode != response.CodeRequestInvalidQuery {
+		t.Fatalf("errorCode = %q, want %q", payload.ErrorCode, response.CodeRequestInvalidQuery)
 	}
 }
 

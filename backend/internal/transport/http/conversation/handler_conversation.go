@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
@@ -13,6 +14,8 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
 )
+
+const maxConversationSearchQueryRunes = 200
 
 // CreateConversation godoc
 // @Summary 创建会话
@@ -92,6 +95,50 @@ func (h *Handler) ListConversations(c *gin.Context) {
 		results = append(results, toConversationResponse(&items[i]))
 	}
 	response.SuccessPage(c, total, results)
+}
+
+// SearchConversations godoc
+// @Summary 搜索会话
+// @Description 分页搜索当前用户的会话标题、元数据、项目和消息正文，并返回是否还有下一页
+// @Tags chat
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码"
+// @Param page_size query int false "每页数量"
+// @Param q query string false "搜索关键词；为空时返回最近会话"
+// @Success 200 {object} ConversationSearchListResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /conversations/search [get]
+// SearchConversations 搜索会话。
+func (h *Handler) SearchConversations(c *gin.Context) {
+	userID := middleware.MustUserID(c)
+	page, pageSize := pageParams(c)
+	searchQuery := strings.TrimSpace(c.Query("q"))
+	if len([]rune(searchQuery)) > maxConversationSearchQueryRunes {
+		response.ErrorWithCode(c, http.StatusBadRequest, response.CodeRequestInvalidQuery, "search query is too long")
+		return
+	}
+	items, hasMore, err := h.service.SearchConversations(
+		c.Request.Context(),
+		userID,
+		page,
+		pageSize,
+		searchQuery,
+	)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "search conversations failed")
+		return
+	}
+	results := make([]ConversationSearchResultResponse, 0, len(items))
+	for _, item := range items {
+		results = append(results, toConversationSearchResultResponse(item))
+	}
+	response.Success(c, ConversationSearchPageResponse{
+		HasMore: hasMore,
+		Results: results,
+	})
 }
 
 // GetConversationDefaultModelCandidate godoc
