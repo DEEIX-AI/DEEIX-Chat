@@ -14,6 +14,7 @@ import (
 
 type messageSendRunState struct {
 	service          *Service
+	conversation     *model.Conversation
 	run              *model.Run
 	startedAt        time.Time
 	userMessage      **model.Message
@@ -32,8 +33,9 @@ func newMessageSendRunState(
 	runID string,
 ) *messageSendRunState {
 	return &messageSendRunState{
-		service:   service,
-		startedAt: startedAt,
+		service:      service,
+		conversation: conversation,
+		startedAt:    startedAt,
 		run: &model.Run{
 			RunID:              runID,
 			RequestID:          strings.TrimSpace(input.RequestID),
@@ -94,8 +96,16 @@ func (r *messageSendRunState) finalize(ctx context.Context, retErr error) {
 
 	r.finalizeRun(retErr)
 	r.finalizeUserMessage(finalizeCtx, retErr)
+	userMessage := r.currentUserMessage()
+	if shouldPersistConversationFallbackTitleAfterSend(retErr, userMessage) && r.conversation != nil {
+		r.service.persistConversationFallbackTitle(finalizeCtx, *r.conversation, *userMessage)
+	}
 	r.finalizeAssistantMessage(finalizeCtx, retErr)
 	r.createRun(finalizeCtx)
+}
+
+func shouldPersistConversationFallbackTitleAfterSend(retErr error, userMessage *model.Message) bool {
+	return userMessage != nil && errors.Is(retErr, ErrMessageGenerationCanceled)
 }
 
 func (r *messageSendRunState) finalizeRun(retErr error) {
