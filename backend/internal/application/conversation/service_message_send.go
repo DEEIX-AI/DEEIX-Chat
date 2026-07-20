@@ -217,6 +217,7 @@ func (s *Service) sendMessageInternal(
 	var totalServerSideToolUsage map[string]int64
 	var responsesBackgroundRouteConfig llm.RouteConfig
 	var responsesBackgroundRecovery openAIResponsesBackgroundRecoveryState
+	responsesBackgroundUsageRecovered := false
 	userContentEstimatedInputTokens := int64(0)
 	usageAccumulator := &messageUsageAccumulator{}
 	upstreamCallStarted := false
@@ -228,29 +229,32 @@ func (s *Service) sendMessageInternal(
 		if retErr != nil {
 			if errors.Is(retErr, ErrMessageGenerationCanceled) {
 				if usage, ok := s.recoverOpenAIResponsesBackgroundUsage(responsesBackgroundRouteConfig, responsesBackgroundRecovery); ok {
+					responsesBackgroundUsageRecovered = true
 					if delta := diffLLMUsage(usage, responsesBackgroundRecovery.ObservedUsage); delta != (llm.Usage{}) {
 						usageAccumulator.addObservedUsage(delta)
 					}
 				}
 			}
 			if retained := s.persistInterruptedMessageGeneration(ctx, persistInterruptedMessageGenerationInput{
-				SendInput:             input,
-				UserMessage:           userMessage,
-				AssistantMessage:      assistantMessage,
-				AssistantText:         streamedText.String(),
-				EstimatedInputTokens:  usageAccumulator.interruptedInputTokens(),
-				UpstreamCallStarted:   upstreamCallStarted,
-				Usage:                 usageAccumulator.usage(),
-				AssistantLatency:      time.Since(startedAt).Milliseconds(),
-				Error:                 retErr,
-				ToolCallRows:          toolCallRows,
-				PersistedToolCallKeys: persistedToolCallKeys,
-				TraceRecorder:         traceRecorder,
-				Route:                 resolvedRoute,
-				EffectiveOptions:      filteredOptions,
-				ServerSideToolUsage:   totalServerSideToolUsage,
-				StartedAt:             startedAt,
-				ReuseUserMessage:      reuseUserMessage,
+				SendInput:              input,
+				UserMessage:            userMessage,
+				AssistantMessage:       assistantMessage,
+				AssistantText:          streamedText.String(),
+				AssistantReasoningText: traceRecorder.upstreamThinkContent(),
+				EstimatedInputTokens:   usageAccumulator.interruptedInputTokens(),
+				UpstreamCallStarted:    upstreamCallStarted,
+				Usage:                  usageAccumulator.usage(),
+				UsageRecovered:         responsesBackgroundUsageRecovered,
+				AssistantLatency:       time.Since(startedAt).Milliseconds(),
+				Error:                  retErr,
+				ToolCallRows:           toolCallRows,
+				PersistedToolCallKeys:  persistedToolCallKeys,
+				TraceRecorder:          traceRecorder,
+				Route:                  resolvedRoute,
+				EffectiveOptions:       filteredOptions,
+				ServerSideToolUsage:    totalServerSideToolUsage,
+				StartedAt:              startedAt,
+				ReuseUserMessage:       reuseUserMessage,
 			}); retained != nil {
 				result = retained
 				applyRetainedGenerationRunUsage(run, retained, len(toolCallRows), startedAt)

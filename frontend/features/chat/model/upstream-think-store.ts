@@ -133,6 +133,18 @@ export function mergeLiveUpstreamThinkTrace(
   };
 }
 
+export function preserveRicherLiveUpstreamThinkTrace(
+  base: ChatMessageProcessTrace | undefined,
+  live: ChatMessageProcessTrace | undefined,
+) {
+  const baseContent = base?.upstreamThink?.contentMarkdown ?? "";
+  const liveContent = live?.upstreamThink?.contentMarkdown ?? "";
+  if (!live?.upstreamThink || liveContent.length <= baseContent.length) {
+    return base ?? live;
+  }
+  return mergeLiveUpstreamThinkTrace(base, live);
+}
+
 export function useLiveUpstreamThinkTrace(runID: string | null | undefined) {
   const key = normalizeRunID(runID);
   return React.useSyncExternalStore(

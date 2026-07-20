@@ -19,7 +19,10 @@ import {
   toPendingAttachments,
   toPendingProcessTrace,
 } from "@/features/chat/model/message-submit";
-import { readLiveUpstreamThinkTrace } from "@/features/chat/model/upstream-think-store";
+import {
+  preserveRicherLiveUpstreamThinkTrace,
+  readLiveUpstreamThinkTrace,
+} from "@/features/chat/model/upstream-think-store";
 import {
   resolveErrorDetails,
   resolveErrorMessage,
@@ -954,7 +957,13 @@ export function useChatMessageSubmit({
             ),
             assistantReasoningTokens: completed.assistantMessage.reasoningTokens,
             assistantLatencyMS: completed.assistantMessage.latencyMS,
-            assistantProcessTrace: toPendingProcessTrace(completed.assistantMessage.processTrace),
+            assistantProcessTrace:
+              assistantMessageStatus === "interrupted"
+                ? preserveRicherLiveUpstreamThinkTrace(
+                    toPendingProcessTrace(completed.assistantMessage.processTrace),
+                    readLiveUpstreamThinkTrace(clientRunID),
+                  )
+                : toPendingProcessTrace(completed.assistantMessage.processTrace),
             assistantStatus: assistantMessageStatus,
             assistantErrorCode: completed.assistantMessage.errorCode,
             assistantErrorMessage: completed.assistantMessage.errorMessage,

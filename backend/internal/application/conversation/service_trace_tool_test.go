@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -218,6 +219,42 @@ func TestUpstreamThinkingDeltaIsCoalescedBetweenFlushes(t *testing.T) {
 	}
 	if events[1]["delta"] != "bc" || events[1]["status"] != messageTraceStatusCompleted {
 		t.Fatalf("expected completion to flush coalesced delta with completed status, got %#v", events[1])
+	}
+}
+
+func TestFailedUpstreamThinkingFlushesBufferedContent(t *testing.T) {
+	var events []map[string]interface{}
+	recorder := &messageTraceRecorder{
+		cfg: config.Config{
+			ProcessTraceEnabled:            true,
+			ProcessTraceVisibleToUser:      true,
+			ProcessTraceStoreUpstreamThink: true,
+		},
+		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_cancel"},
+		onEvent: func(eventType string, payload map[string]interface{}) error {
+			if eventType == "upstream_think_delta" {
+				events = append(events, payload)
+			}
+			return nil
+		},
+	}
+	recorderCtx, cancelRecorder := context.WithCancel(context.Background())
+	recorder.ctx = recorderCtx
+	cancelRecorder()
+
+	recorder.appendUpstreamReasoning(messageTraceThinkKindContent, "嗯", nil)
+	recorder.appendUpstreamReasoning(messageTraceThinkKindContent, "，继续分析完整内容", nil)
+	recorder.failWithContext(context.Background(), ErrMessageGenerationCanceled)
+
+	if len(events) != 2 {
+		t.Fatalf("expected cancellation to flush the buffered reasoning, got %d events", len(events))
+	}
+	if events[1]["delta"] != "，继续分析完整内容" || events[1]["status"] != messageTraceStatusError {
+		t.Fatalf("unexpected terminal reasoning event: %#v", events[1])
+	}
+	trace := recorder.snapshot()
+	if trace == nil || trace.UpstreamThink == nil || trace.UpstreamThink.ContentMarkdown != "嗯，继续分析完整内容" {
+		t.Fatalf("expected complete reasoning snapshot after cancellation, got %#v", trace)
 	}
 }
 

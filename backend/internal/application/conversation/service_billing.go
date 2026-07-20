@@ -271,6 +271,7 @@ func (s *Service) buildSendMessageUsageLedger(ctx context.Context, input SendMes
 		UsageSpeed:          strings.TrimSpace(result.UsageSpeed),
 		RequestServiceTier:  messageRequestServiceTier(result.EffectiveOptions),
 		UsageServiceTier:    strings.TrimSpace(result.UsageServiceTier),
+		UsageSource:         strings.TrimSpace(result.UsageSource),
 		InputTokens:         sendMessageBillingInputTokens(result),
 		CacheReadTokens:     sendMessageBillingCacheReadTokens(result),
 		CacheWriteTokens:    sendMessageBillingCacheWriteTokens(result),

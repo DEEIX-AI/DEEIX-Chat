@@ -495,6 +495,7 @@ func TestBuildUsageLedgerSnapshotsModelIdentity(t *testing.T) {
 		UpstreamModelName: "gpt-5.5-upstream",
 		InputTokens:       1_000_000,
 		OutputTokens:      1_000_000,
+		UsageSource:       "estimated",
 		RawUsageJSON:      `{"input_tokens":1000000,"output_tokens":1000000,"vendor_extra":"kept"}`,
 		ServerSideToolUsage: map[string]int64{
 			"web_search": 2,
@@ -527,6 +528,9 @@ func TestBuildUsageLedgerSnapshotsModelIdentity(t *testing.T) {
 	}
 	if snapshot["upstream_name"] != "premium-channel" {
 		t.Fatalf("expected upstream name snapshot, got %#v", snapshot["upstream_name"])
+	}
+	if snapshot["usage_source"] != "estimated" {
+		t.Fatalf("expected usage source snapshot, got %#v", snapshot["usage_source"])
 	}
 	if snapshot["routed_binding_code"] != "upm_gpt55_20260514" || snapshot["upstream_model_name"] != "gpt-5.5-upstream" {
 		t.Fatalf("expected routed binding/upstream snapshot, got routed=%#v upstream_model=%#v", snapshot["routed_binding_code"], snapshot["upstream_model_name"])

@@ -138,6 +138,7 @@ type UsagePricingInput struct {
 	UsageSpeed          string
 	RequestServiceTier  string
 	UsageServiceTier    string
+	UsageSource         string
 	ServiceOnly         bool
 	InputTokens         int64
 	CacheReadTokens     int64
@@ -1746,6 +1747,9 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		"native_tool_billed_nanousd":               nativeToolBilledNanousd,
 		"base_service_billed_nanousd":              serviceBilledNanousd,
 		"service_items":                            usageServiceItemSnapshots(serviceItems),
+	}
+	if usageSource := strings.TrimSpace(input.UsageSource); usageSource != "" {
+		snapshot["usage_source"] = usageSource
 	}
 	snapshotJSON := "{}"
 	if raw, marshalErr := json.Marshal(snapshot); marshalErr == nil {
