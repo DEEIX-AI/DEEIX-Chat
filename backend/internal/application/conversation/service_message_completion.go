@@ -36,23 +36,25 @@ type persistMessageGenerationInput struct {
 }
 
 type persistInterruptedMessageGenerationInput struct {
-	SendInput             SendMessageInput
-	UserMessage           *model.Message
-	AssistantMessage      *model.Message
-	AssistantText         string
-	EstimatedInputTokens  int64
-	UpstreamCallStarted   bool
-	Usage                 llm.Usage
-	AssistantLatency      int64
-	Error                 error
-	ToolCallRows          []model.ToolCall
-	PersistedToolCallKeys map[string]struct{}
-	TraceRecorder         *messageTraceRecorder
-	Route                 *channel.ResolvedRoute
-	EffectiveOptions      map[string]interface{}
-	ServerSideToolUsage   map[string]int64
-	StartedAt             time.Time
-	ReuseUserMessage      bool
+	SendInput              SendMessageInput
+	UserMessage            *model.Message
+	AssistantMessage       *model.Message
+	AssistantText          string
+	AssistantReasoningText string
+	EstimatedInputTokens   int64
+	UpstreamCallStarted    bool
+	Usage                  llm.Usage
+	UsageRecovered         bool
+	AssistantLatency       int64
+	Error                  error
+	ToolCallRows           []model.ToolCall
+	PersistedToolCallKeys  map[string]struct{}
+	TraceRecorder          *messageTraceRecorder
+	Route                  *channel.ResolvedRoute
+	EffectiveOptions       map[string]interface{}
+	ServerSideToolUsage    map[string]int64
+	StartedAt              time.Time
+	ReuseUserMessage       bool
 }
 
 type interruptedMessageGenerationMetrics struct {
@@ -65,6 +67,13 @@ type interruptedMessageGenerationMetrics struct {
 	CacheWriteTokens int64
 	ReasoningTokens  int64
 }
+
+const (
+	interruptedUsageSourceObserved  = "observed"
+	interruptedUsageSourceRecovered = "recovered"
+	interruptedUsageSourceEstimated = "estimated"
+	interruptedUsageSourceMixed     = "mixed"
+)
 
 type persistMessageToolCallsInput struct {
 	SendInput             SendMessageInput
@@ -368,7 +377,7 @@ func (s *Service) persistInterruptedMessageGeneration(ctx context.Context, input
 		)
 	}
 	if input.TraceRecorder != nil {
-		input.TraceRecorder.fail(input.Error)
+		input.TraceRecorder.failWithContext(persistCtx, input.Error)
 		input.TraceRecorder.attachToMessage(input.AssistantMessage)
 	}
 
@@ -395,7 +404,11 @@ func shouldPersistInterruptedMessageGeneration(input persistInterruptedMessageGe
 // resolveInterruptedMessageGenerationMetrics 统一处理中断消息的真实 usage 与估算兜底。
 func resolveInterruptedMessageGenerationMetrics(input persistInterruptedMessageGenerationInput) interruptedMessageGenerationMetrics {
 	inputTokens := resolveObservedOrHigherEstimatedTokens(input.Usage.InputTokens, input.EstimatedInputTokens)
-	outputTokens := resolveObservedOrHigherEstimatedOutputTokens(input.Usage.OutputTokens, input.AssistantText)
+	outputTokens := input.Usage.OutputTokens
+	reasoningTokens := input.Usage.ReasoningTokens
+	if !input.UsageRecovered {
+		outputTokens, reasoningTokens = resolveInterruptedOutputUsage(input)
+	}
 	latencyMS := input.AssistantLatency
 	if latencyMS < 0 {
 		latencyMS = time.Since(input.StartedAt).Milliseconds()
@@ -411,7 +424,47 @@ func resolveInterruptedMessageGenerationMetrics(input persistInterruptedMessageG
 		ErrorMessage:     truncateError(messageErrorSummary(input.Error), 255),
 		CacheReadTokens:  input.Usage.CacheReadTokens,
 		CacheWriteTokens: input.Usage.CacheWriteTokens,
-		ReasoningTokens:  input.Usage.ReasoningTokens,
+		ReasoningTokens:  reasoningTokens,
+	}
+}
+
+func resolveInterruptedOutputUsage(input persistInterruptedMessageGenerationInput) (int64, int64) {
+	estimatedOutputTokens := estimateTokens(input.AssistantText)
+	estimatedReasoningTokens := estimateTokens(input.AssistantReasoningText)
+	observedOutputTokens := input.Usage.OutputTokens
+	observedReasoningTokens := input.Usage.ReasoningTokens
+
+	if observedReasoningTokens > 0 {
+		return resolveObservedOrHigherEstimatedTokens(observedOutputTokens, estimatedOutputTokens),
+			resolveObservedOrHigherEstimatedTokens(observedReasoningTokens, estimatedReasoningTokens)
+	}
+	if observedOutputTokens > 0 {
+		return resolveObservedOrHigherEstimatedTokens(
+			observedOutputTokens,
+			estimatedOutputTokens+estimatedReasoningTokens,
+		), 0
+	}
+	return estimatedOutputTokens, estimatedReasoningTokens
+}
+
+func interruptedUsageSource(input persistInterruptedMessageGenerationInput, metrics interruptedMessageGenerationMetrics) string {
+	hasObserved := input.Usage != (llm.Usage{})
+	hasEstimated := metrics.InputTokens > input.Usage.InputTokens ||
+		metrics.OutputTokens > input.Usage.OutputTokens ||
+		metrics.ReasoningTokens > input.Usage.ReasoningTokens
+	if input.UsageRecovered {
+		if hasEstimated {
+			return interruptedUsageSourceMixed
+		}
+		return interruptedUsageSourceRecovered
+	}
+	switch {
+	case hasObserved && hasEstimated:
+		return interruptedUsageSourceMixed
+	case hasObserved:
+		return interruptedUsageSourceObserved
+	default:
+		return interruptedUsageSourceEstimated
 	}
 }
 
@@ -482,6 +535,7 @@ func buildInterruptedSendMessageResult(input persistInterruptedMessageGeneration
 		EffectiveOptions:    input.EffectiveOptions,
 		UsageSpeed:          input.Usage.Speed,
 		UsageServiceTier:    input.Usage.ServiceTier,
+		UsageSource:         interruptedUsageSource(input, metrics),
 		RawUsageJSON:        input.Usage.RawUsageJSON,
 		CacheWrite5mTokens:  input.Usage.CacheWrite5mTokens,
 		CacheWrite1hTokens:  input.Usage.CacheWrite1hTokens,
