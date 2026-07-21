@@ -16,6 +16,7 @@
     "analyze:output": "next experimental-analyze --output",
     "start": "next start",
     "typecheck": "tsc --noEmit --pretty false",
+    "test": "node --no-warnings --test features/chat/components/sections/chat-model-picker-layout.test.mjs",
     "check": "pnpm lint && pnpm typecheck",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
