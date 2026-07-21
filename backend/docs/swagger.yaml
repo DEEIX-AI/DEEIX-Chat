@@ -1223,8 +1223,6 @@ definitions:
         type: string
       name:
         type: string
-      orientation:
-        type: string
       scope:
         type: string
       short_name:
@@ -1242,7 +1240,6 @@ definitions:
     - id
     - lang
     - name
-    - orientation
     - scope
     - short_name
     - start_url
