@@ -157,7 +157,6 @@ func (h *Handler) GetBrandingManifest(c *gin.Context) {
 		Display:         "standalone",
 		BackgroundColor: "#ffffff",
 		ThemeColor:      "#0f172a",
-		Orientation:     "any",
 		Categories:      []string{"productivity", "business", "utilities"},
 		Lang:            "en",
 		Icons: []BrandingManifestIcon{
