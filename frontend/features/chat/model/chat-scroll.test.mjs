@@ -17,6 +17,10 @@ test("keeps the previous user as the stream resize anchor", () => {
   );
 });
 
+test("uses smooth motion when following a newly submitted user turn", () => {
+  assert.deepEqual(chatScroll.PENDING_USER_SCROLL_OPTIONS, { behavior: "smooth" });
+});
+
 test("uses a newly pending user turn as the explicit scroll-to-bottom trigger", () => {
   assert.equal(typeof chatScroll.resolvePendingUserScrollKey, "function");
   assert.equal(

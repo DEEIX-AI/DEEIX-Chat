@@ -13,6 +13,7 @@ import {
 } from "@/features/chat/components/message/message-bot";
 import { areChatAreaMessagesRenderEqual } from "@/features/chat/model/chat-message-render";
 import {
+  PENDING_USER_SCROLL_OPTIONS,
   resolveLiveAnchorMessageKey,
   resolvePendingUserScrollKey,
 } from "@/features/chat/model/chat-scroll";
@@ -62,7 +63,7 @@ function ScrollToPendingUser({ scrollKey }: { scrollKey: string }) {
     }
 
     handledScrollKeyRef.current = scrollKey;
-    scrollToEnd({ behavior: "auto" });
+    scrollToEnd(PENDING_USER_SCROLL_OPTIONS);
   }, [scrollKey, scrollToEnd]);
 
   return null;

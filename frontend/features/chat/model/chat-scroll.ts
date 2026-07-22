@@ -2,6 +2,8 @@ import type { ChatAreaMessage } from "@/features/chat/types/messages";
 
 type ScrollAnchorMessage = Pick<ChatAreaMessage, "key" | "role" | "isPending" | "isStreaming">;
 
+export const PENDING_USER_SCROLL_OPTIONS = { behavior: "smooth" } as const;
+
 export function resolveLiveAnchorMessageKey(messages: ScrollAnchorMessage[]) {
   const liveMessageIndex = messages.findIndex((item) => item.isPending || item.isStreaming);
   if (liveMessageIndex < 0) {
