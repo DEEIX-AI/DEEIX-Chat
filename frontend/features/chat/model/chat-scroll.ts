@@ -8,9 +8,20 @@ export function resolveLiveAnchorMessageKey(messages: ScrollAnchorMessage[]) {
     return "";
   }
 
-  for (let index = liveMessageIndex; index >= 0; index -= 1) {
+  for (let index = liveMessageIndex - 1; index >= 0; index -= 1) {
     const item = messages[index];
     if (item?.role === "user") {
+      return item.key;
+    }
+  }
+
+  return "";
+}
+
+export function resolvePendingUserScrollKey(messages: ScrollAnchorMessage[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const item = messages[index];
+    if (item?.role === "user" && item.isPending) {
       return item.key;
     }
   }

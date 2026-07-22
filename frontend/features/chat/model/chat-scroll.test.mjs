@@ -1,11 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveLiveAnchorMessageKey } from "./chat-scroll.ts";
+import * as chatScroll from "./chat-scroll.ts";
 
-test("anchors a newly pending user message so sending returns to the live turn", () => {
+const { resolveLiveAnchorMessageKey } = chatScroll;
+
+test("keeps the previous user as the stream resize anchor", () => {
   assert.equal(
     resolveLiveAnchorMessageKey([
+      { key: "previous-user", role: "user" },
+      { key: "previous-assistant", role: "assistant" },
+      { key: "pending-user", role: "user", isPending: true },
+      { key: "pending-assistant", role: "assistant", isPending: true },
+    ]),
+    "previous-user",
+  );
+});
+
+test("uses a newly pending user turn as the explicit scroll-to-bottom trigger", () => {
+  assert.equal(typeof chatScroll.resolvePendingUserScrollKey, "function");
+  assert.equal(
+    chatScroll.resolvePendingUserScrollKey([
       { key: "previous-user", role: "user" },
       { key: "previous-assistant", role: "assistant" },
       { key: "pending-user", role: "user", isPending: true },
@@ -25,12 +40,13 @@ test("anchors an assistant-only live run to its parent user message", () => {
   );
 });
 
-test("returns no anchor when the conversation has no live message", () => {
-  assert.equal(
-    resolveLiveAnchorMessageKey([
-      { key: "user", role: "user" },
-      { key: "assistant", role: "assistant" },
-    ]),
-    "",
-  );
+test("returns no live anchor or submit trigger when the conversation has no live message", () => {
+  const messages = [
+    { key: "user", role: "user" },
+    { key: "assistant", role: "assistant" },
+  ];
+
+  assert.equal(resolveLiveAnchorMessageKey(messages), "");
+  assert.equal(typeof chatScroll.resolvePendingUserScrollKey, "function");
+  assert.equal(chatScroll.resolvePendingUserScrollKey(messages), "");
 });
