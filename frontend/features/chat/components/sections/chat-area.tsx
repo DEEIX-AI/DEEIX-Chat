@@ -12,6 +12,7 @@ import {
   ChatMessageBot,
 } from "@/features/chat/components/message/message-bot";
 import { areChatAreaMessagesRenderEqual } from "@/features/chat/model/chat-message-render";
+import { resolveLiveAnchorMessageKey } from "@/features/chat/model/chat-scroll";
 import { type AssistantReaction } from "@/features/chat/components/message/message-meta";
 import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import { ChatMessageUser } from "@/features/chat/components/message/message-user";
@@ -493,24 +494,11 @@ export function ChatArea({
     }
     pruneScreenshotSelection?.(selectableMessagePublicIDs);
   }, [pruneScreenshotSelection, selectableMessagePublicIDs, selectionMode]);
-  const hasLiveMessage = React.useMemo(
-    () => messages.some((item) => item.isPending || item.isStreaming),
+  const messageViewportBoundaryRef = React.useRef<HTMLDivElement | null>(null);
+  const liveAnchorMessageKey = React.useMemo(
+    () => resolveLiveAnchorMessageKey(messages),
     [messages],
   );
-  const messageViewportBoundaryRef = React.useRef<HTMLDivElement | null>(null);
-  const liveAnchorMessageKey = React.useMemo(() => {
-    if (!hasLiveMessage) {
-      return "";
-    }
-    const liveMessageIndex = messages.findIndex((item) => item.isPending || item.isStreaming);
-    for (let index = liveMessageIndex - 1; index >= 0; index -= 1) {
-      const item = messages[index];
-      if (item?.role === "user") {
-        return item.key;
-      }
-    }
-    return "";
-  }, [hasLiveMessage, messages]);
 
   return (
     <>
