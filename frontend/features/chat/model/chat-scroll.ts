@@ -4,6 +4,29 @@ type ScrollAnchorMessage = Pick<ChatAreaMessage, "key" | "role" | "isPending" | 
 
 export const PENDING_USER_SCROLL_OPTIONS = { behavior: "smooth" } as const;
 
+type RequestAnimationFrame = (callback: (timestamp: number) => void) => number;
+type CancelAnimationFrame = (frameID: number) => void;
+
+export function schedulePendingUserScroll(
+  requestFrame: RequestAnimationFrame,
+  cancelFrame: CancelAnimationFrame,
+  scroll: () => void,
+) {
+  let secondFrameID: number | null = null;
+  const firstFrameID = requestFrame(() => {
+    secondFrameID = requestFrame(() => {
+      scroll();
+    });
+  });
+
+  return () => {
+    cancelFrame(firstFrameID);
+    if (secondFrameID !== null) {
+      cancelFrame(secondFrameID);
+    }
+  };
+}
+
 export function resolveLiveAnchorMessageKey(messages: ScrollAnchorMessage[]) {
   const liveMessageIndex = messages.findIndex((item) => item.isPending || item.isStreaming);
   if (liveMessageIndex < 0) {

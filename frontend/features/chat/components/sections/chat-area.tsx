@@ -16,6 +16,7 @@ import {
   PENDING_USER_SCROLL_OPTIONS,
   resolveLiveAnchorMessageKey,
   resolvePendingUserScrollKey,
+  schedulePendingUserScroll,
 } from "@/features/chat/model/chat-scroll";
 import { type AssistantReaction } from "@/features/chat/components/message/message-meta";
 import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
@@ -63,7 +64,11 @@ function ScrollToPendingUser({ scrollKey }: { scrollKey: string }) {
     }
 
     handledScrollKeyRef.current = scrollKey;
-    scrollToEnd(PENDING_USER_SCROLL_OPTIONS);
+    return schedulePendingUserScroll(
+      (callback) => window.requestAnimationFrame(callback),
+      (frameID) => window.cancelAnimationFrame(frameID),
+      () => scrollToEnd(PENDING_USER_SCROLL_OPTIONS),
+    );
   }, [scrollKey, scrollToEnd]);
 
   return null;
