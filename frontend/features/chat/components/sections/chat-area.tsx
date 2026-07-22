@@ -13,7 +13,7 @@ import {
 } from "@/features/chat/components/message/message-bot";
 import { areChatAreaMessagesRenderEqual } from "@/features/chat/model/chat-message-render";
 import {
-  PENDING_USER_SCROLL_OPTIONS,
+  animateChatScrollToBottom,
   resolveLiveAnchorMessageKey,
   resolvePendingUserScrollKey,
   schedulePendingUserScroll,
@@ -39,7 +39,6 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
-  useMessageScroller,
 } from "@/components/ui/message-scroller";
 import {
   ChatMessagePositionRail,
@@ -50,8 +49,13 @@ import { AppLogo, DeeixLogo } from "@/shared/components/app-logo";
 import { useBranding } from "@/shared/config/branding-provider";
 import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
 
-function ScrollToPendingUser({ scrollKey }: { scrollKey: string }) {
-  const { scrollToEnd } = useMessageScroller();
+function ScrollToPendingUser({
+  scrollKey,
+  viewportRef,
+}: {
+  scrollKey: string;
+  viewportRef: React.RefObject<HTMLDivElement | null>;
+}) {
   const handledScrollKeyRef = React.useRef("");
 
   React.useLayoutEffect(() => {
@@ -64,12 +68,28 @@ function ScrollToPendingUser({ scrollKey }: { scrollKey: string }) {
     }
 
     handledScrollKeyRef.current = scrollKey;
-    return schedulePendingUserScroll(
+    let cancelAnimation = () => undefined;
+    const cancelSchedule = schedulePendingUserScroll(
       (callback) => window.requestAnimationFrame(callback),
       (frameID) => window.cancelAnimationFrame(frameID),
-      () => scrollToEnd(PENDING_USER_SCROLL_OPTIONS),
+      () => {
+        const viewport = viewportRef.current;
+        if (!viewport) {
+          return;
+        }
+        cancelAnimation = animateChatScrollToBottom(
+          viewport,
+          (callback) => window.requestAnimationFrame(callback),
+          (frameID) => window.cancelAnimationFrame(frameID),
+        );
+      },
     );
-  }, [scrollKey, scrollToEnd]);
+
+    return () => {
+      cancelSchedule();
+      cancelAnimation();
+    };
+  }, [scrollKey, viewportRef]);
 
   return null;
 }
@@ -592,7 +612,10 @@ export function ChatArea({
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <MessageScrollerProvider autoScroll defaultScrollPosition="end" scrollEdgeThreshold={16}>
           <MessageScroller>
-            <ScrollToPendingUser scrollKey={pendingUserScrollKey} />
+            <ScrollToPendingUser
+              scrollKey={pendingUserScrollKey}
+              viewportRef={messageViewportBoundaryRef}
+            />
             <MessageScrollerViewport
               ref={messageViewportBoundaryRef}
               className="px-3 pb-8 pt-2 [overflow-anchor:none] md:px-6"

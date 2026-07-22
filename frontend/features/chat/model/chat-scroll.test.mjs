@@ -17,8 +17,33 @@ test("keeps the previous user as the stream resize anchor", () => {
   );
 });
 
-test("uses smooth motion when following a newly submitted user turn", () => {
-  assert.deepEqual(chatScroll.PENDING_USER_SCROLL_OPTIONS, { behavior: "smooth" });
+test("animates submitted messages to the bottom over a controlled duration", () => {
+  assert.equal(chatScroll.CHAT_SEND_SCROLL_DURATION_MS, 700);
+  assert.equal(typeof chatScroll.animateChatScrollToBottom, "function");
+
+  const viewport = { scrollTop: 100, scrollHeight: 1100, clientHeight: 100 };
+  const frames = [];
+  let nextFrameID = 0;
+  const cancelled = [];
+  const cancel = chatScroll.animateChatScrollToBottom(
+    viewport,
+    (callback) => {
+      frames.push(callback);
+      nextFrameID += 1;
+      return nextFrameID;
+    },
+    (frameID) => cancelled.push(frameID),
+  );
+
+  frames.shift()(0);
+  assert.equal(viewport.scrollTop, 100);
+  frames.shift()(350);
+  assert.equal(viewport.scrollTop, 550);
+  frames.shift()(700);
+  assert.equal(viewport.scrollTop, 1000);
+
+  cancel();
+  assert.deepEqual(cancelled, [3]);
 });
 
 test("starts smooth scrolling after pending-message layout observers settle", () => {

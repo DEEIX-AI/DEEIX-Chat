@@ -2,10 +2,58 @@ import type { ChatAreaMessage } from "@/features/chat/types/messages";
 
 type ScrollAnchorMessage = Pick<ChatAreaMessage, "key" | "role" | "isPending" | "isStreaming">;
 
-export const PENDING_USER_SCROLL_OPTIONS = { behavior: "smooth" } as const;
+export const CHAT_SEND_SCROLL_DURATION_MS = 700;
 
 type RequestAnimationFrame = (callback: (timestamp: number) => void) => number;
 type CancelAnimationFrame = (frameID: number) => void;
+type ChatScrollViewport = Pick<HTMLElement, "scrollTop" | "scrollHeight" | "clientHeight">;
+
+function easeInOutCubic(progress: number) {
+  return progress < 0.5
+    ? 4 * progress * progress * progress
+    : 1 - (-2 * progress + 2) ** 3 / 2;
+}
+
+export function animateChatScrollToBottom(
+  viewport: ChatScrollViewport,
+  requestFrame: RequestAnimationFrame,
+  cancelFrame: CancelAnimationFrame,
+  durationMS = CHAT_SEND_SCROLL_DURATION_MS,
+) {
+  const startTop = viewport.scrollTop;
+  const initialTargetTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+  if (initialTargetTop <= startTop) {
+    viewport.scrollTop = initialTargetTop;
+    return () => undefined;
+  }
+
+  let animationFrameID = 0;
+  let startTimestamp: number | null = null;
+  let cancelled = false;
+  const step = (timestamp: number) => {
+    if (cancelled) {
+      return;
+    }
+    if (startTimestamp === null) {
+      startTimestamp = timestamp;
+    }
+
+    const progress = Math.min(1, Math.max(0, (timestamp - startTimestamp) / durationMS));
+    const targetTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    viewport.scrollTop = startTop + (targetTop - startTop) * easeInOutCubic(progress);
+    if (progress < 1) {
+      animationFrameID = requestFrame(step);
+    }
+  };
+
+  animationFrameID = requestFrame(step);
+  return () => {
+    cancelled = true;
+    if (animationFrameID > 0) {
+      cancelFrame(animationFrameID);
+    }
+  };
+}
 
 export function schedulePendingUserScroll(
   requestFrame: RequestAnimationFrame,
