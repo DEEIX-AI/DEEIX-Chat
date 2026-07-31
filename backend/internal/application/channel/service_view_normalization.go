@@ -3,6 +3,7 @@ package channel
 import (
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -768,10 +769,22 @@ func mergeIntoJSONMap(raw string, target map[string]interface{}) {
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
 		return
 	}
-	for k, v := range parsed {
-		if key := strings.TrimSpace(k); key != "" {
-			target[key] = v
+	keys := make([]string, 0, len(parsed))
+	for key := range parsed {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, rawKey := range keys {
+		key := strings.TrimSpace(rawKey)
+		if key == "" {
+			continue
 		}
+		for existingKey := range target {
+			if strings.EqualFold(existingKey, key) {
+				delete(target, existingKey)
+			}
+		}
+		target[key] = parsed[rawKey]
 	}
 }
 

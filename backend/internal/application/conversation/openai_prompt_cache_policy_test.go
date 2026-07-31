@@ -83,3 +83,36 @@ func TestConfigureOpenAIPromptCacheForRoute(t *testing.T) {
 		})
 	}
 }
+
+func TestConfigureOpenAIPromptCacheForRouteDropsFieldsAfterFailoverToUnsupportedRoute(t *testing.T) {
+	supportedRoute := &channel.ResolvedRoute{
+		Protocol:              llm.AdapterOpenAIResponses,
+		BaseURL:               "https://relay.example.com/v1",
+		ModelCapabilitiesJSON: `{"promptCache":{"enabled":true}}`,
+	}
+	unsupportedRoute := &channel.ResolvedRoute{
+		Protocol: llm.AdapterOpenAIResponses,
+		BaseURL:  "https://legacy-relay.example.com/v1",
+	}
+
+	key, options := configureOpenAIPromptCacheForRoute(supportedRoute, "session-1", map[string]interface{}{
+		"temperature": 0.2,
+		"prompt_cache_options": map[string]interface{}{
+			"mode": "explicit",
+		},
+	})
+	if key != "session-1" {
+		t.Fatalf("expected supported route cache key, got %q", key)
+	}
+
+	key, options = configureOpenAIPromptCacheForRoute(unsupportedRoute, "session-1", options)
+	if key != "" {
+		t.Fatalf("expected unsupported failover route to clear cache key, got %q", key)
+	}
+	if _, exists := options["prompt_cache_options"]; exists {
+		t.Fatalf("expected unsupported failover route to drop prompt cache options, got %#v", options)
+	}
+	if options["temperature"] != 0.2 {
+		t.Fatalf("expected unrelated options to survive failover filtering, got %#v", options)
+	}
+}

@@ -484,7 +484,7 @@ data: {"type":"done"}
 func TestNewGeminiRequestUsesOnlyGoogleAPIKeyForOfficialHost(t *testing.T) {
 	req, err := NewClient().newGeminiRequest(context.Background(), http.MethodPost, "https://generativelanguage.googleapis.com/v1beta/interactions", nil, RouteConfig{
 		APIKey: "test-key",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("build Gemini request: %v", err)
 	}

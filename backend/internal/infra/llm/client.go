@@ -8,14 +8,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
+	"github.com/google/uuid"
 )
 
 const (
@@ -38,6 +41,8 @@ const (
 	defaultStreamIdleTimeoutMS = 60000  // 流式 chunk 间隔超时 60s
 	maxUpstreamBodyBytes       = 64 * 1024 * 1024
 )
+
+const upstreamRequestIDHeaderTemplate = "${DEEIX_UPSTREAM_REQUEST_ID}"
 
 // Client 负责跨厂商共享的 HTTP client、adapter 路由和上游调试能力。
 type Client struct {
@@ -125,12 +130,10 @@ type Message struct {
 
 // GenerateInput 定义上游推理请求入参。
 type GenerateInput struct {
-	RequestID      string
-	ConversationID uint
-	// SessionID 是跨同一会话请求保持稳定的非敏感标识，可用于上游粘性路由。
-	SessionID string
-	// ThreadID 是面向上游的公开会话标识；为空时请求头模板会回退到 SessionID。
-	ThreadID string
+	RequestID              string
+	ConversationID         uint
+	ConversationPublicID   string
+	ConversationSessionKey string
 	// PromptCacheKey 是 OpenAI prompt_cache_key 的服务端受控值，用户 Options 不得覆盖。
 	PromptCacheKey string
 	Messages       []Message
@@ -476,6 +479,7 @@ func shouldSkipNormalizedProviderOption(key string, value interface{}) bool {
 		"response_format",
 		"web_search",
 		"prompt_cache",
+		"prompt_cache_retention",
 		"enable_cache",
 		"cache_timeout",
 		"enable_thinking",
@@ -703,6 +707,60 @@ type UpstreamError struct {
 	Message    string
 	Body       string
 	Debug      *UpstreamDebugSnapshot
+}
+
+// AcceptedRequestError 表示上游已接受请求，或请求已写出但结果未知。
+// 生成请求不具备跨 Provider 幂等性，此类错误不得自动切换路由重试。
+type AcceptedRequestError struct {
+	cause error
+}
+
+func (e *AcceptedRequestError) Error() string {
+	if e == nil || e.cause == nil {
+		return "upstream request failed after acceptance"
+	}
+	return e.cause.Error()
+}
+
+func (e *AcceptedRequestError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
+}
+
+// MarkRequestAccepted 标记错误发生时请求已被上游接受，或可能已被接受。
+func MarkRequestAccepted(err error) error {
+	if err == nil || RequestWasAccepted(err) {
+		return err
+	}
+	return &AcceptedRequestError{cause: err}
+}
+
+// RequestWasAccepted 判断错误是否发生在请求已被或可能被上游接受之后。
+func RequestWasAccepted(err error) bool {
+	var acceptedErr *AcceptedRequestError
+	return errors.As(err, &acceptedErr)
+}
+
+// doGenerationRequest 记录 POST 请求是否已经写入连接。请求写出后若在响应头
+// 返回前断线，无法判断上游是否已开始生成，因此按已接受处理，避免跨路由重复生成。
+func doGenerationRequest(client *http.Client, req *http.Request) (*http.Response, error) {
+	if client == nil || req == nil {
+		return nil, errors.New("generation request is nil")
+	}
+	var wroteRequest atomic.Bool
+	trace := &httptrace.ClientTrace{
+		WroteRequest: func(httptrace.WroteRequestInfo) {
+			wroteRequest.Store(true)
+		},
+	}
+	tracedRequest := req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
+	resp, err := client.Do(tracedRequest)
+	if err != nil && wroteRequest.Load() {
+		return resp, MarkRequestAccepted(err)
+	}
+	return resp, err
 }
 
 var errStreamDone = errors.New("llm stream done")
@@ -1001,14 +1059,10 @@ func normalizeMessages(messages []Message) []Message {
 }
 
 func setAdditionalHeaders(req *http.Request, headersJSON string) {
-	setAdditionalHeadersWithInput(req, headersJSON, GenerateInput{})
+	setAdditionalHeadersForInput(req, headersJSON, nil)
 }
 
-func setAdditionalHeadersForInput(req *http.Request, headersJSON string, input GenerateInput) {
-	setAdditionalHeadersWithInput(req, headersJSON, input)
-}
-
-func setAdditionalHeadersWithInput(req *http.Request, headersJSON string, input GenerateInput) {
+func setAdditionalHeadersForInput(req *http.Request, headersJSON string, input *GenerateInput) {
 	if req == nil {
 		return
 	}
@@ -1020,34 +1074,55 @@ func setAdditionalHeadersWithInput(req *http.Request, headersJSON string, input 
 	if err := json.Unmarshal([]byte(value), &parsed); err != nil {
 		return
 	}
+	dynamicHeaderInput := input
+	if input == nil || (strings.TrimSpace(input.ConversationPublicID) == "" && strings.TrimSpace(input.ConversationSessionKey) == "") {
+		dynamicHeaderInput = nil
+	}
+	upstreamRequestID := ""
+	if dynamicHeaderInput != nil && strings.Contains(value, upstreamRequestIDHeaderTemplate) {
+		upstreamRequestID = uuid.NewString()
+	}
 	for key, rawValue := range parsed {
 		headerKey := strings.TrimSpace(key)
 		if headerKey == "" {
 			continue
 		}
-		headerValue := expandAdditionalHeaderValue(stringify(rawValue), input)
-		if strings.TrimSpace(headerValue) == "" {
+		headerValue, ok := expandAdditionalHeaderValue(stringify(rawValue), dynamicHeaderInput, upstreamRequestID)
+		if !ok || strings.TrimSpace(headerValue) == "" {
 			continue
 		}
 		req.Header.Set(headerKey, headerValue)
 	}
 }
 
-func expandAdditionalHeaderValue(value string, input GenerateInput) string {
-	sessionID := strings.TrimSpace(input.SessionID)
-	threadID := strings.TrimSpace(input.ThreadID)
-	if sessionID == "" {
-		sessionID = threadID
+func expandAdditionalHeaderValue(value string, input *GenerateInput, upstreamRequestID string) (string, bool) {
+	replacements := []struct {
+		template string
+		value    string
+	}{
+		{template: "${DEEIX_CONVERSATION_ID}"},
+		{template: "${DEEIX_SESSION_ID}"},
+		{template: "${DEEIX_REQUEST_ID}"},
+		{template: upstreamRequestIDHeaderTemplate},
 	}
-	if threadID == "" {
-		threadID = sessionID
+	if input != nil {
+		replacements[0].value = strings.TrimSpace(input.ConversationPublicID)
+		replacements[1].value = strings.TrimSpace(input.ConversationSessionKey)
+		replacements[2].value = strings.TrimSpace(input.RequestID)
+		replacements[3].value = strings.TrimSpace(upstreamRequestID)
 	}
-	return strings.NewReplacer(
-		"${DEEIX_SESSION_ID}", sessionID,
-		"${DEEIX_THREAD_ID}", threadID,
-		"${DEEIX_CONVERSATION_ID}", sessionID,
-		"${DEEIX_REQUEST_ID}", strings.TrimSpace(input.RequestID),
-	).Replace(value)
+
+	expanded := value
+	for _, replacement := range replacements {
+		if !strings.Contains(expanded, replacement.template) {
+			continue
+		}
+		if replacement.value == "" {
+			return "", false
+		}
+		expanded = strings.ReplaceAll(expanded, replacement.template, replacement.value)
+	}
+	return expanded, true
 }
 
 func readUpstreamBody(reader io.Reader) ([]byte, error) {

@@ -129,6 +129,19 @@ func TestShouldRetryWithoutResponsesBackground(t *testing.T) {
 	}) {
 		t.Fatalf("expected unrelated validation error to stay non-retryable")
 	}
+	if !shouldRetryWithoutResponsesBackground(llm.MarkRequestAccepted(err)) {
+		t.Fatalf("expected explicit background rejection to preserve same-route fallback")
+	}
+}
+
+func TestShouldRetryWithoutPreviousResponseIDPreservesSameRouteFallback(t *testing.T) {
+	err := &llm.UpstreamError{StatusCode: 404, Message: "previous_response_id not found"}
+	if !shouldRetryWithoutPreviousResponseID(err) {
+		t.Fatalf("expected rejected previous response id to retry with full context")
+	}
+	if !shouldRetryWithoutPreviousResponseID(llm.MarkRequestAccepted(err)) {
+		t.Fatalf("expected explicit previous response rejection to preserve same-route fallback")
+	}
 }
 
 func TestBuildStatefulResponseMessagesKeepsLatestUserOnly(t *testing.T) {

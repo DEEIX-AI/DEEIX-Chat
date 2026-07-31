@@ -729,7 +729,7 @@ func (c *Client) newGeminiRequest(
 	method, requestURL string,
 	body io.Reader,
 	route RouteConfig,
-	inputs ...GenerateInput,
+	input *GenerateInput,
 ) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, requestURL, body)
 	if err != nil {
@@ -740,11 +740,7 @@ func (c *Client) newGeminiRequest(
 	if apiKey := strings.TrimSpace(route.APIKey); apiKey != "" {
 		req.Header.Set("x-goog-api-key", apiKey)
 	}
-	if len(inputs) > 0 {
-		setAdditionalHeadersForInput(req, route.HeadersJSON, inputs[0])
-	} else {
-		setAdditionalHeaders(req, route.HeadersJSON)
-	}
+	setAdditionalHeadersForInput(req, route.HeadersJSON, input)
 	return req, nil
 }
 
@@ -794,12 +790,12 @@ func (c *Client) generateGemini(
 	requestCtx, cancel := context.WithTimeout(ctx, resolveReadTimeout(route.ReadTimeoutMS))
 	defer cancel()
 
-	req, err := c.newGeminiRequest(requestCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route, input)
+	req, err := c.newGeminiRequest(requestCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route, &input)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := doGenerationRequest(c.httpClientForRoute(route), req)
 	if err != nil {
 		return nil, err
 	}
@@ -807,6 +803,9 @@ func (c *Client) generateGemini(
 
 	body, err := readUpstreamBody(resp.Body)
 	if err != nil {
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return nil, MarkRequestAccepted(err)
+		}
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -816,7 +815,7 @@ func (c *Client) generateGemini(
 	debug := upstreamDebugSnapshot(req, payload, resp, body)
 	output, err := parseGeminiResponse(body)
 	if err != nil {
-		return nil, attachUpstreamDebug(err, debug)
+		return nil, MarkRequestAccepted(attachUpstreamDebug(err, debug))
 	}
 	output.Debug = debug
 	return output, nil
@@ -1324,13 +1323,13 @@ func (c *Client) generateGeminiStream(
 	firstByteTimer := time.AfterFunc(resolveReadTimeout(route.ReadTimeoutMS), firstByteCancel)
 	defer firstByteTimer.Stop()
 
-	req, err := c.newGeminiRequest(firstByteCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route, input)
+	req, err := c.newGeminiRequest(firstByteCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route, &input)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := doGenerationRequest(c.httpClientForRoute(route), req)
 	firstByteTimer.Stop()
 	if err != nil {
 		return nil, err
@@ -1349,7 +1348,7 @@ func (c *Client) generateGeminiStream(
 	idleReader := newIdleTimeoutReader(resp.Body, resolveStreamIdleTimeout(route.StreamIdleTimeoutMS))
 	streamBody := newUpstreamBodyRecorder(idleReader)
 	if err = consumeGeminiStream(streamBody, result, onEvent); err != nil {
-		return nil, attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err)))
+		return nil, MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err))))
 	}
 	return result, nil
 }
@@ -1614,7 +1613,7 @@ func (c *Client) listModelsGemini(ctx context.Context, route RouteConfig) ([]Mod
 	requestCtx, cancel := context.WithTimeout(ctx, resolveReadTimeout(route.ReadTimeoutMS))
 	defer cancel()
 
-	req, err := c.newGeminiRequest(requestCtx, http.MethodGet, requestURL, nil, route)
+	req, err := c.newGeminiRequest(requestCtx, http.MethodGet, requestURL, nil, route, nil)
 	if err != nil {
 		return nil, err
 	}

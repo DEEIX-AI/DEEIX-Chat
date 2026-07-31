@@ -30,6 +30,11 @@ func TestShouldFallbackToNonStreamingForExplicitStreamUnsupportedErrors(t *testi
 	if !shouldFallbackToNonStreaming(statusErr) {
 		t.Fatalf("expected stream transport status errors to fallback to non-streaming")
 	}
+
+	acceptedErr := llm.MarkRequestAccepted(err)
+	if !shouldFallbackToNonStreaming(acceptedErr) {
+		t.Fatalf("expected explicit stream rejection to preserve same-route fallback")
+	}
 }
 
 func TestGenerationAttemptObservationPreventsFallbackAfterVisibleEvent(t *testing.T) {

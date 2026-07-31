@@ -237,34 +237,30 @@ OCR 引擎配置由后台文件设置管理，当前支持 RapidOCR、Tesseract 
 
 用户手写 `tools` 时，只有命中 `nativeToolKeys` 的官方原生工具会作为官方工具保留，工具子参数会随该工具透传；普通用户不能通过 JSON 自行启用未被管理员允许的 MCP Tool 或官方原生工具。MCP Tool 仍必须由管理员在工具页配置和启用。
 
-### 上游会话标识与 OpenAI Prompt Cache
+## 上游动态请求头
 
-对话请求会携带服务端生成的稳定会话标识。上游或模型路由的附加请求头 JSON 支持以下占位符，便于中转站实现按会话粘性选号、日志关联和缓存分桶：
+上游和路由的附加请求头支持动态变量模板。变量仅在真实会话生成请求中展开；模型列表、渠道探测、标题与标签生成、上下文压缩和媒体任务不会携带这些标识。
 
-- `${DEEIX_SESSION_ID}`：稳定的会话 UUID。
-- `${DEEIX_THREAD_ID}`：公开会话 ID；为空时回退到 session ID。
-- `${DEEIX_CONVERSATION_ID}`：`${DEEIX_SESSION_ID}` 的兼容别名。
-- `${DEEIX_REQUEST_ID}`：本次请求 ID，不适合用作跨轮缓存键。
+- `${DEEIX_CONVERSATION_ID}`：公开会话 ID，适合自建网关按会话关联日志、缓存和长期记忆。
+- `${DEEIX_SESSION_ID}`：会话上下文键，适合需要独立会话亲和键的自建网关。
+- `${DEEIX_REQUEST_ID}`：DEEIX 当前请求 ID，同一轮生成、工具调用和路由重试保持一致，适合关联完整请求链路。
+- `${DEEIX_UPSTREAM_REQUEST_ID}`：每次上游 HTTP 请求单独生成的 UUID，适合要求请求级唯一标识的 Provider。
 
-Codex CLI 风格的配置示例：
-
-```json
-{
-  "session-id": "${DEEIX_SESSION_ID}",
-  "thread-id": "${DEEIX_THREAD_ID}",
-  "x-client-request-id": "${DEEIX_REQUEST_ID}"
-}
-```
-
-需要兼容使用 `X-Conversation-Id` 的中转站时可配置：
+功能默认关闭。管理员可在目标上游或路由的附加请求头中显式配置；未配置的官方 Provider 不会收到额外动态标识：
 
 ```json
 {
-  "X-Conversation-Id": "${DEEIX_SESSION_ID}"
+  "X-Conversation-Id": "${DEEIX_CONVERSATION_ID}",
+  "X-Session-Id": "${DEEIX_SESSION_ID}",
+  "X-Request-Id": "${DEEIX_REQUEST_ID}"
 }
 ```
 
-官方 OpenAI Responses 与 Chat Completions 请求会使用同一 session UUID 作为服务端受控的 `prompt_cache_key`，与 Codex CLI 的稳定会话缓存键策略一致。兼容中转站默认不接收 OpenAI Prompt Cache 新字段；确认中转站支持后，需要在模型能力 JSON 中显式声明：
+OpenAI 的 `X-Client-Request-Id` 要求每次请求使用唯一值，应配置为 `${DEEIX_UPSTREAM_REQUEST_ID}`，不要使用稳定的会话或链路标识。
+
+## OpenAI Prompt Cache
+
+官方 OpenAI Responses 与 Chat Completions 请求会使用同一会话上下文键作为服务端受控的 `prompt_cache_key`，以保持跨轮缓存亲和。兼容中转站默认不接收 OpenAI Prompt Cache 新字段；确认中转站支持后，需要在模型能力 JSON 中显式声明：
 
 ```json
 {
@@ -274,7 +270,7 @@ Codex CLI 风格的配置示例：
 }
 ```
 
-官方 OpenAI 也可以用 `promptCache.enabled=false` 显式关闭。为 GPT-5.6 或后续兼容模型启用显式缓存时，配置必须来自管理员的 `defaultOptions`，并锁定相关路径；用户消息请求中的同名 Options 会被忽略。DEEIX 只会把已标记的稳定 system 前缀保留在输入内容块并序列化为 `prompt_cache_breakpoint`，动态 RAG 与本轮用户内容不会被标成稳定断点：
+官方 OpenAI 也可以用 `promptCache.enabled=false` 显式关闭。启用显式缓存时，配置必须来自管理员的 `defaultOptions`，并锁定相关路径；用户消息请求中的同名 Options 会被忽略。DEEIX 只会把已标记的稳定 system 前缀保留在输入内容块并序列化为 `prompt_cache_breakpoint`，动态 RAG 与本轮用户内容不会被标成稳定断点：
 
 ```json
 {

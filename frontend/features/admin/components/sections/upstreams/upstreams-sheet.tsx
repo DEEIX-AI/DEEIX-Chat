@@ -52,11 +52,28 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
-import { RotateCcw, Trash2 } from "lucide-react";
+import {
+  Braces,
+  ChevronDown,
+  Fingerprint,
+  KeyRound,
+  ListPlus,
+  RotateCcw,
+  ScanSearch,
+  Trash2,
+} from "lucide-react";
 import { COMPATIBLE_OPTIONS, resolveProtocolLabel } from "@/features/admin/utils/llm-display";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";
@@ -71,6 +88,16 @@ const PROTOCOL_DEFAULT_KINDS = [
 ] as const;
 
 const NO_PROTOCOL_DEFAULT = "__system_default__";
+const CONVERSATION_ID_HEADER = [
+  "X-Conversation-Id",
+  `\${DEEIX_CONVERSATION_ID}`,
+] as const;
+const SESSION_ID_HEADER = ["X-Session-Id", `\${DEEIX_SESSION_ID}`] as const;
+const REQUEST_ID_HEADER = ["X-Request-Id", `\${DEEIX_REQUEST_ID}`] as const;
+const OPENAI_CLIENT_REQUEST_ID_HEADER = [
+  "X-Client-Request-Id",
+  `\${DEEIX_UPSTREAM_REQUEST_ID}`,
+] as const;
 
 const PROTOCOL_OPTIONS_BY_KIND: Record<(typeof PROTOCOL_DEFAULT_KINDS)[number], string[]> = {
   chat: [
@@ -138,6 +165,34 @@ function countMaskedApiKeys(json: string): number {
     return 0;
   }
   return 0;
+}
+
+function addHeaderPresets(
+  headersJson: string,
+  presets: ReadonlyArray<readonly [name: string, value: string]>,
+): string | null {
+  const value = headersJson.trim();
+  let headers: Record<string, unknown> = {};
+  if (value) {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (parsed === null || Array.isArray(parsed) || typeof parsed !== "object") return null;
+      headers = { ...(parsed as Record<string, unknown>) };
+    } catch {
+      return null;
+    }
+  }
+
+  const existingNames = new Set(Object.keys(headers).map((key) => key.toLowerCase()));
+  let changed = false;
+  for (const [name, template] of presets) {
+    if (existingNames.has(name.toLowerCase())) continue;
+    headers[name] = template;
+    existingNames.add(name.toLowerCase());
+    changed = true;
+  }
+
+  return changed ? JSON.stringify(headers, null, 2) : headersJson;
 }
 
 type MaskedAPIKeyItem = {
@@ -336,6 +391,21 @@ export function UpstreamSheet({
       compatible: value,
       protocolDefaultsJson: "",
     }));
+  }
+
+  function fillHeaderPresets(
+    presets: ReadonlyArray<readonly [name: string, value: string]>,
+  ) {
+    const nextHeadersJson = addHeaderPresets(form.headersJson, presets);
+    if (nextHeadersJson === null) {
+      toast.error(t("sheet.headersInvalidForFill"));
+      return;
+    }
+    if (nextHeadersJson === form.headersJson) {
+      toast.info(t("sheet.selectedHeadersExist"));
+      return;
+    }
+    setField("headersJson", nextHeadersJson);
   }
 
   function setProtocolDefault(kind: string, protocol: string) {
@@ -804,12 +874,62 @@ export function UpstreamSheet({
                 <AccordionTrigger className="h-11 items-center py-0 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline data-[state=open]:font-medium data-[state=open]:text-foreground [&_.accordion-trigger-icon]:translate-y-0">
                   <span>{t("sheet.headers")}</span>
                 </AccordionTrigger>
-                <AccordionContent className="space-y-4 pb-4 pt-0">
+                <AccordionContent className="pb-4 pt-0">
                   <JsonCodeEditor
                     placeholder={`{"X-Custom-Header": "value"}`}
                     value={form.headersJson}
                     height={220}
                     onChange={(nextValue) => setField("headersJson", nextValue)}
+                    actions={(
+                      <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 gap-1 px-2 text-[11px]"
+                            disabled={pending}
+                          >
+                            <ListPlus className="size-3" />
+                            {t("sheet.quickFillHeaders")}
+                            <ChevronDown className="size-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-52">
+                          <DropdownMenuLabel className="text-[10px] text-muted-foreground">
+                            {t("sheet.commonHeaderPresets")}
+                          </DropdownMenuLabel>
+                          <DropdownMenuItem
+                            onSelect={() => fillHeaderPresets([CONVERSATION_ID_HEADER])}
+                          >
+                            <Braces />
+                            {t("sheet.conversationIDHeader")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => fillHeaderPresets([SESSION_ID_HEADER])}
+                          >
+                            <KeyRound />
+                            {t("sheet.sessionIDHeader")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => fillHeaderPresets([REQUEST_ID_HEADER])}
+                          >
+                            <Fingerprint />
+                            {t("sheet.requestIDHeader")}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel className="text-[10px] text-muted-foreground">
+                            {t("sheet.providerHeaderPresets")}
+                          </DropdownMenuLabel>
+                          <DropdownMenuItem
+                            onSelect={() => fillHeaderPresets([OPENAI_CLIENT_REQUEST_ID_HEADER])}
+                          >
+                            <ScanSearch />
+                            {t("sheet.openAIClientRequestIDHeader")}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   />
                 </AccordionContent>
               </AccordionItem>
