@@ -581,6 +581,20 @@ func shouldFallbackToNonStreaming(err error) bool {
 	}
 }
 
+type generationAttemptObservation struct {
+	emitted bool
+}
+
+func (o *generationAttemptObservation) markObservable() {
+	if o != nil {
+		o.emitted = true
+	}
+}
+
+func (o *generationAttemptObservation) canRetry(err error, classify func(error) bool) bool {
+	return o != nil && err != nil && !o.emitted && classify != nil && classify(err)
+}
+
 func isStreamUnsupportedError(err *llm.UpstreamError) bool {
 	detail := strings.ToLower(strings.TrimSpace(err.Message + " " + err.Body))
 	if detail == "" || !strings.Contains(detail, "stream") {

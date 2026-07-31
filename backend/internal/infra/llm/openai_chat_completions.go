@@ -3,7 +3,6 @@ package llm
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"strings"
 )
 
@@ -16,34 +15,12 @@ func (a *openAIChatCompletionsAdapter) Name() string { return AdapterOpenAIChatC
 
 func (a *openAIChatCompletionsAdapter) Generate(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
 	route.Endpoint = EndpointChatCompletions
-	output, err := a.client.generateOpenAICompatible(ctx, route, input)
-	if err == nil || !shouldRetryWithoutOpenAIPromptCache(input, err) {
-		return output, err
-	}
-	return a.client.generateOpenAICompatible(ctx, route, disableOpenAIPromptCache(input))
+	return a.client.generateOpenAICompatible(ctx, route, input)
 }
 
 func (a *openAIChatCompletionsAdapter) GenerateStream(ctx context.Context, route RouteConfig, input GenerateInput, onEvent func(GenerateStreamEvent) error) (*GenerateOutput, error) {
 	route.Endpoint = EndpointChatCompletions
-	retryInput := input
-	var output *GenerateOutput
-	var err error
-	for attempt := 0; attempt < 3; attempt++ {
-		output, err = a.client.generateStreamOpenAICompatible(ctx, route, retryInput, onEvent)
-		if err == nil {
-			return output, nil
-		}
-		if attempt < 2 && shouldRetryWithoutOpenAIPromptCache(retryInput, err) {
-			retryInput = disableOpenAIPromptCache(retryInput)
-			continue
-		}
-		if attempt < 2 && shouldRetryChatCompletionsWithoutAutoStreamUsage(retryInput.Options, err) {
-			retryInput.Options = disableChatCompletionsAutoStreamUsage(retryInput.Options)
-			continue
-		}
-		return output, err
-	}
-	return output, err
+	return a.client.generateChatCompletionsStreamWithAutoUsageFallback(ctx, route, input, onEvent)
 }
 
 func (a *openAIChatCompletionsAdapter) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
@@ -94,13 +71,10 @@ func buildChatCompletionsRequestBody(
 	if verbosity := modelParamString(input.Options, "verbosity"); verbosity != "" {
 		payload["verbosity"] = verbosity
 	}
-	if retention := normalizePromptCacheRetention(modelParamString(input.Options, "prompt_cache_retention")); retention != "" {
-		payload["prompt_cache_retention"] = retention
-	}
 	applyOpenAIPromptCacheRequestFields(payload, promptCache)
 	appendToolDeclarations(payload, providerTools, buildOpenAITools(toolDefinitions, true))
 	applyProviderOptions(payload, input.Options,
-		"contents", "input", "instructions", "messages", "model", "prompt", "prompt_cache_key", "prompt_cache_options", "response_format", "stream", "stream_options", "system", "systemInstruction", "tools",
+		"contents", "input", "instructions", "messages", "model", "prompt", "prompt_cache_key", "prompt_cache_options", "prompt_cache_retention", "response_format", "stream", "stream_options", "system", "systemInstruction", "tools",
 	)
 	return payload
 }
@@ -113,38 +87,6 @@ func chatCompletionsStreamOptions(options map[string]interface{}, stream bool) m
 	for key, value := range options {
 		result[key] = value
 	}
-	return result
-}
-
-func shouldRetryChatCompletionsWithoutAutoStreamUsage(options map[string]interface{}, err error) bool {
-	if chatCompletionsStreamUsageExplicit(options) {
-		return false
-	}
-	var upstreamErr *UpstreamError
-	if !errors.As(err, &upstreamErr) {
-		return false
-	}
-	if upstreamErr.StatusCode != 400 && upstreamErr.StatusCode != 422 {
-		return false
-	}
-	detail := strings.ToLower(strings.TrimSpace(upstreamErr.Message + " " + upstreamErr.Body))
-	return strings.Contains(detail, "stream_options") || strings.Contains(detail, "include_usage")
-}
-
-func chatCompletionsStreamUsageExplicit(options map[string]interface{}) bool {
-	streamOptions, ok := options["stream_options"].(map[string]interface{})
-	if !ok {
-		return false
-	}
-	_, ok = streamOptions["include_usage"]
-	return ok
-}
-
-func disableChatCompletionsAutoStreamUsage(options map[string]interface{}) map[string]interface{} {
-	result := cloneMap(options)
-	streamOptions := cloneMap(asMap(result["stream_options"]))
-	streamOptions["include_usage"] = false
-	result["stream_options"] = streamOptions
 	return result
 }
 

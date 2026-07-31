@@ -183,6 +183,35 @@ func TestApplyOpenAIResponsesInstructionsOnlyForOfficialRoute(t *testing.T) {
 	}
 }
 
+func TestApplyOpenAIResponsesInstructionsPreservesExplicitCacheableSystemPrefix(t *testing.T) {
+	official := &channel.ResolvedRoute{
+		Protocol: llm.AdapterOpenAIResponses,
+		BaseURL:  "https://api.openai.com/v1",
+	}
+	input := llm.GenerateInput{
+		Messages: []llm.Message{
+			{
+				Role:         "system",
+				Content:      "stable platform policy",
+				CacheControl: &llm.CacheControl{Type: "ephemeral"},
+			},
+			{Role: "user", Content: "dynamic question"},
+		},
+		Options: map[string]interface{}{
+			"prompt_cache_options": map[string]interface{}{"mode": "explicit", "ttl": "30m"},
+		},
+	}
+
+	applyOpenAIResponsesInstructions(official, llm.EndpointResponses, &input)
+
+	if input.Instructions != "" {
+		t.Fatalf("expected explicit cache policy not to move system content into instructions, got %q", input.Instructions)
+	}
+	if len(input.Messages) != 2 || input.Messages[0].Role != "system" || input.Messages[0].CacheControl == nil {
+		t.Fatalf("expected cacheable system prefix to remain in Responses input, got %#v", input.Messages)
+	}
+}
+
 func TestResolveStatefulPreviousResponseIDRequiresMatchingFingerprint(t *testing.T) {
 	route := &channel.ResolvedRoute{
 		Protocol: llm.AdapterOpenAIResponses,

@@ -123,6 +123,12 @@ func applyOpenAIResponsesInstructions(route *channel.ResolvedRoute, endpoint str
 	if input == nil || endpoint != llm.EndpointResponses || !supportsPreviousResponseIDRoute(route) {
 		return
 	}
+	// Responses 的显式缓存断点只能位于 input 内容块。保留稳定 system 前缀，
+	// 使其 CacheControl 能序列化为 prompt_cache_breakpoint；后续 stateful 请求
+	// 仍会只发送最新 user，之前的 system input 由 previous_response_id 续接。
+	if usesExplicitOpenAIPromptCache(input.Options) {
+		return
+	}
 	instructions, messages := extractOpenAIResponsesInstructions(input.Messages)
 	if strings.TrimSpace(instructions) == "" {
 		return

@@ -31,6 +31,7 @@ var hardDeniedModelOptionPaths = [][]string{
 	{"previous_response_id"},
 	{"prompt_cache_key"},
 	{"prompt_cache_breakpoint"},
+	{"prompt_cache_retention"},
 }
 
 type modelOptionPolicyConfig struct {
@@ -78,7 +79,7 @@ func filterModelOptions(options map[string]interface{}, protocol string, cfg mod
 	for _, path := range denied {
 		deleteModelOptionPath(filtered, path)
 	}
-	sanitizeModelOptionValues(filtered, protocolKey)
+	sanitizeModelOptionValues(filtered, protocolKey, cfg.ModelCapabilitiesJSON)
 	if len(nativeTools) > 0 {
 		if filtered == nil {
 			filtered = make(map[string]interface{})
@@ -488,7 +489,7 @@ func providerToolOptionPayloads(raw interface{}) []map[string]interface{} {
 	}
 }
 
-func sanitizeModelOptionValues(options map[string]interface{}, protocolKey string) {
+func sanitizeModelOptionValues(options map[string]interface{}, protocolKey string, capabilitiesJSON string) {
 	if len(options) == 0 {
 		return
 	}
@@ -496,7 +497,7 @@ func sanitizeModelOptionValues(options map[string]interface{}, protocolKey strin
 	case "openai_chat_completions", "openai_responses", "openrouter_responses":
 		sanitizeOpenAIServiceTier(options)
 		if protocolKey == "openai_chat_completions" || protocolKey == "openai_responses" {
-			sanitizeOpenAIPromptCacheOptions(options)
+			sanitizeOpenAIPromptCacheOptions(options, capabilitiesJSON)
 		}
 	case "openai_image_generations", "openai_image_edits":
 		value, ok := modelParamIntFromOption(options["partial_images"])
@@ -526,33 +527,6 @@ func sanitizeOpenAIServiceTier(options map[string]interface{}) {
 	default:
 		delete(options, "service_tier")
 	}
-}
-
-func sanitizeOpenAIPromptCacheOptions(options map[string]interface{}) {
-	raw, ok := options["prompt_cache_options"]
-	if !ok {
-		return
-	}
-	cacheOptions, ok := raw.(map[string]interface{})
-	if !ok {
-		delete(options, "prompt_cache_options")
-		return
-	}
-	mode, ok := cacheOptions["mode"].(string)
-	if !ok || strings.TrimSpace(strings.ToLower(mode)) != "explicit" {
-		delete(options, "prompt_cache_options")
-		return
-	}
-	normalized := map[string]interface{}{"mode": "explicit"}
-	if rawTTL, exists := cacheOptions["ttl"]; exists {
-		ttl, ok := rawTTL.(string)
-		if !ok || strings.TrimSpace(strings.ToLower(ttl)) != "30m" {
-			delete(options, "prompt_cache_options")
-			return
-		}
-		normalized["ttl"] = "30m"
-	}
-	options["prompt_cache_options"] = normalized
 }
 
 func modelParamIntFromOption(value interface{}) (int, bool) {

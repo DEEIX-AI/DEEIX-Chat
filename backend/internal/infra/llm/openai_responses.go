@@ -15,20 +15,12 @@ func (a *openAIResponsesAdapter) Name() string { return AdapterOpenAIResponses }
 
 func (a *openAIResponsesAdapter) Generate(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
 	route.Endpoint = EndpointResponses
-	output, err := a.client.generateOpenAICompatible(ctx, route, input)
-	if err == nil || !shouldRetryWithoutOpenAIPromptCache(input, err) {
-		return output, err
-	}
-	return a.client.generateOpenAICompatible(ctx, route, disableOpenAIPromptCache(input))
+	return a.client.generateOpenAICompatible(ctx, route, input)
 }
 
 func (a *openAIResponsesAdapter) GenerateStream(ctx context.Context, route RouteConfig, input GenerateInput, onEvent func(GenerateStreamEvent) error) (*GenerateOutput, error) {
 	route.Endpoint = EndpointResponses
-	output, err := a.client.generateStreamOpenAICompatible(ctx, route, input, onEvent)
-	if err == nil || !shouldRetryWithoutOpenAIPromptCache(input, err) {
-		return output, err
-	}
-	return a.client.generateStreamOpenAICompatible(ctx, route, disableOpenAIPromptCache(input), onEvent)
+	return a.client.generateStreamOpenAICompatible(ctx, route, input, onEvent)
 }
 
 func (a *openAIResponsesAdapter) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
@@ -75,9 +67,6 @@ func buildResponsesRequestBody(
 	}
 	nativeTools := append([]map[string]interface{}{}, providerTools...)
 	nativeTools = append(nativeTools, webSearchTools...)
-	if retention := normalizePromptCacheRetention(modelParamString(input.Options, "prompt_cache_retention")); retention != "" {
-		payload["prompt_cache_retention"] = retention
-	}
 	applyOpenAIPromptCacheRequestFields(payload, promptCache)
 	appendToolDeclarations(payload, providerTools, webSearchTools, buildOpenAITools(toolDefinitions, false))
 	// 有状态会话：提供 previous_response_id 时服务端续接存储的历史，
@@ -107,6 +96,7 @@ func responsesProtectedProviderOptionKeys(adapter string, hasManagedInstructions
 		"model",
 		"prompt_cache_key",
 		"prompt_cache_options",
+		"prompt_cache_retention",
 		"previous_response_id",
 		"reasoning",
 		"response_format",

@@ -32,6 +32,31 @@ func TestShouldFallbackToNonStreamingForExplicitStreamUnsupportedErrors(t *testi
 	}
 }
 
+func TestGenerationAttemptObservationPreventsFallbackAfterVisibleEvent(t *testing.T) {
+	observation := &generationAttemptObservation{}
+	requestCount := 1
+	observation.markObservable()
+	err := &llm.UpstreamError{StatusCode: 405, Message: "method not allowed"}
+	if observation.canRetry(err, shouldFallbackToNonStreaming) {
+		requestCount++
+	}
+	if requestCount != 1 {
+		t.Fatalf("expected no fallback request after an observable event, got %d requests", requestCount)
+	}
+}
+
+func TestGenerationAttemptObservationAllowsFallbackBeforeVisibleEvent(t *testing.T) {
+	observation := &generationAttemptObservation{}
+	requestCount := 1
+	err := &llm.UpstreamError{StatusCode: 405, Message: "method not allowed"}
+	if observation.canRetry(err, shouldFallbackToNonStreaming) {
+		requestCount++
+	}
+	if requestCount != 2 {
+		t.Fatalf("expected one fallback request before any observable event, got %d requests", requestCount)
+	}
+}
+
 func TestMessageErrorSummaryIncludesUpstreamBody(t *testing.T) {
 	err := wrapUpstreamRequestError(&llm.UpstreamError{
 		StatusCode: 400,

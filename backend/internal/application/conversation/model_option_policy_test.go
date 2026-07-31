@@ -238,17 +238,26 @@ func TestFilterModelOptionsRejectsUnsupportedOpenAIServiceTier(t *testing.T) {
 	}
 }
 
-func TestFilterModelOptionsAllowsValidatedOpenAIPromptCacheOptions(t *testing.T) {
+func TestFilterModelOptionsUsesLockedAdminOpenAIPromptCacheOptions(t *testing.T) {
 	filtered := filterModelOptions(map[string]interface{}{
 		"prompt_cache_options": map[string]interface{}{
-			"mode": "EXPLICIT",
-			"ttl":  "30M",
+			"mode": "implicit",
+			"ttl":  "24h",
 		},
 		"prompt_cache_key": "user-controlled-key",
 	}, llm.AdapterOpenAIResponses, modelOptionPolicyConfig{
 		Mode:             modelOptionPolicyAllowlist,
 		AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
 		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+		ModelCapabilitiesJSON: `{
+			"defaultOptions": {
+				"prompt_cache_options": {"mode": "EXPLICIT", "ttl": "30M"}
+			},
+			"lockedOptionPaths": [
+				"prompt_cache_options.mode",
+				"prompt_cache_options.ttl"
+			]
+		}`,
 	})
 
 	cacheOptions, ok := filtered["prompt_cache_options"].(map[string]interface{})
@@ -260,21 +269,36 @@ func TestFilterModelOptionsAllowsValidatedOpenAIPromptCacheOptions(t *testing.T)
 	}
 }
 
-func TestFilterModelOptionsRejectsInvalidOpenAIPromptCacheOptions(t *testing.T) {
-	for _, cacheOptions := range []map[string]interface{}{
-		{"mode": "implicit"},
-		{"mode": "explicit", "ttl": "24h"},
-		{"mode": true, "ttl": "30m"},
+func TestFilterModelOptionsRejectsUserOpenAIPromptCacheOptionsWithoutLockedAdminDefault(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"prompt_cache_options": map[string]interface{}{"mode": "explicit", "ttl": "30m"},
+	}, llm.AdapterOpenAIResponses, modelOptionPolicyConfig{
+		Mode:             modelOptionPolicyAllowlist,
+		AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+	})
+	if _, ok := filtered["prompt_cache_options"]; ok {
+		t.Fatalf("expected user prompt cache options to be removed, got %#v", filtered)
+	}
+}
+
+func TestFilterModelOptionsRejectsInvalidAdminOpenAIPromptCacheOptions(t *testing.T) {
+	for _, capabilitiesJSON := range []string{
+		`{"defaultOptions":{"prompt_cache_options":{"mode":"implicit"}},"lockedOptionPaths":["prompt_cache_options.mode"]}`,
+		`{"defaultOptions":{"prompt_cache_options":{"mode":"explicit","ttl":"24h"}},"lockedOptionPaths":["prompt_cache_options.mode","prompt_cache_options.ttl"]}`,
+		`{"defaultOptions":{"prompt_cache_options":{"mode":"explicit"}}}`,
+		`{"defaultOptions":{"prompt_cache_options":{"mode":"explicit","ttl":"30m"}},"lockedOptionPaths":["prompt_cache_options.mode"]}`,
 	} {
 		filtered := filterModelOptions(map[string]interface{}{
-			"prompt_cache_options": cacheOptions,
+			"prompt_cache_options": map[string]interface{}{"mode": "explicit", "ttl": "30m"},
 		}, llm.AdapterOpenAIChatCompletions, modelOptionPolicyConfig{
-			Mode:             modelOptionPolicyAllowlist,
-			AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
-			DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+			Mode:                  modelOptionPolicyAllowlist,
+			AllowedPathsJSON:      config.DefaultModelOptionAllowedPathsJSON(),
+			DeniedPathsJSON:       config.DefaultModelOptionDeniedPathsJSON(),
+			ModelCapabilitiesJSON: capabilitiesJSON,
 		})
 		if _, ok := filtered["prompt_cache_options"]; ok {
-			t.Fatalf("expected invalid prompt cache options to be removed, got %#v", filtered)
+			t.Fatalf("expected invalid admin prompt cache options to be removed, capabilities=%s filtered=%#v", capabilitiesJSON, filtered)
 		}
 	}
 }

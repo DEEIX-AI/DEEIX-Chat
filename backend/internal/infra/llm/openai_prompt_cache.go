@@ -1,9 +1,6 @@
 package llm
 
-import (
-	"errors"
-	"strings"
-)
+import "strings"
 
 const (
 	openAIPromptCacheModeExplicit = "explicit"
@@ -20,7 +17,7 @@ type openAIPromptCacheConfig struct {
 
 func resolveOpenAIPromptCacheConfig(adapter string, input GenerateInput) openAIPromptCacheConfig {
 	config := openAIPromptCacheConfig{BreakpointsLeft: openAIMaxCacheBreakpoints}
-	if input.DisablePromptCache || !isOpenAITextAdapter(adapter) {
+	if !isOpenAITextAdapter(adapter) {
 		return config
 	}
 	config.Key = strings.TrimSpace(input.PromptCacheKey)
@@ -48,20 +45,6 @@ func normalizedOpenAIPromptCacheOptions(options map[string]interface{}) map[stri
 		result["ttl"] = openAIPromptCacheTTL30Minutes
 	}
 	return result
-}
-
-func hasOpenAIPromptCacheHint(messages []Message) bool {
-	for _, message := range messages {
-		if message.CacheControl != nil {
-			return true
-		}
-		for _, part := range message.Parts {
-			if part.CacheControl != nil {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func applyOpenAIPromptCacheRequestFields(payload map[string]interface{}, config openAIPromptCacheConfig) {
@@ -96,32 +79,4 @@ func openAIContentBlockSupportsPromptCacheBreakpoint(block map[string]interface{
 	default:
 		return false
 	}
-}
-
-func shouldRetryWithoutOpenAIPromptCache(input GenerateInput, err error) bool {
-	if input.DisablePromptCache || !openAIPromptCacheRequested(input) {
-		return false
-	}
-	var upstreamErr *UpstreamError
-	if !errors.As(err, &upstreamErr) || (upstreamErr.StatusCode != 400 && upstreamErr.StatusCode != 422) {
-		return false
-	}
-	detail := strings.ToLower(strings.TrimSpace(upstreamErr.Message + " " + upstreamErr.Body))
-	return strings.Contains(detail, "prompt_cache_key") ||
-		strings.Contains(detail, "prompt_cache_options") ||
-		strings.Contains(detail, "prompt_cache_breakpoint")
-}
-
-func openAIPromptCacheRequested(input GenerateInput) bool {
-	return strings.TrimSpace(input.PromptCacheKey) != "" ||
-		len(modelParamMap(input.Options, "prompt_cache_options")) > 0 ||
-		hasOpenAIPromptCacheHint(input.Messages)
-}
-
-func disableOpenAIPromptCache(input GenerateInput) GenerateInput {
-	input.DisablePromptCache = true
-	input.PromptCacheKey = ""
-	input.Options = cloneMap(input.Options)
-	delete(input.Options, "prompt_cache_options")
-	return input
 }

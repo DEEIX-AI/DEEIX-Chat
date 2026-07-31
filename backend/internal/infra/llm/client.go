@@ -133,9 +133,7 @@ type GenerateInput struct {
 	ThreadID string
 	// PromptCacheKey 是 OpenAI prompt_cache_key 的服务端受控值，用户 Options 不得覆盖。
 	PromptCacheKey string
-	// DisablePromptCache 仅供兼容重试使用，避免不支持新缓存字段的中转站持续失败。
-	DisablePromptCache bool
-	Messages           []Message
+	Messages       []Message
 	// Instructions 承载可映射到上游原生指令字段的系统/开发者指令。
 	// 不支持原生指令字段的 adapter 应继续通过 messages 承载系统提示。
 	Instructions string
@@ -478,7 +476,6 @@ func shouldSkipNormalizedProviderOption(key string, value interface{}) bool {
 		"response_format",
 		"web_search",
 		"prompt_cache",
-		"prompt_cache_retention",
 		"enable_cache",
 		"cache_timeout",
 		"enable_thinking",

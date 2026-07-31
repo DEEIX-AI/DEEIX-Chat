@@ -264,10 +264,23 @@ Codex CLI 风格的配置示例：
 }
 ```
 
-OpenAI Responses 与 Chat Completions 请求会使用同一 session UUID 作为服务端受控的 `prompt_cache_key`，与 Codex CLI 的稳定会话缓存键策略一致。现有 implicit caching 默认保持不变；为 GPT-5.6 或后续兼容模型在能力 JSON 中显式启用后，DEEIX 才会把已标记的稳定 system 前缀序列化为 `prompt_cache_breakpoint`。动态 RAG 与本轮用户内容不会被标成稳定断点：
+官方 OpenAI Responses 与 Chat Completions 请求会使用同一 session UUID 作为服务端受控的 `prompt_cache_key`，与 Codex CLI 的稳定会话缓存键策略一致。兼容中转站默认不接收 OpenAI Prompt Cache 新字段；确认中转站支持后，需要在模型能力 JSON 中显式声明：
 
 ```json
 {
+  "promptCache": {
+    "enabled": true
+  }
+}
+```
+
+官方 OpenAI 也可以用 `promptCache.enabled=false` 显式关闭。为 GPT-5.6 或后续兼容模型启用显式缓存时，配置必须来自管理员的 `defaultOptions`，并锁定相关路径；用户消息请求中的同名 Options 会被忽略。DEEIX 只会把已标记的稳定 system 前缀保留在输入内容块并序列化为 `prompt_cache_breakpoint`，动态 RAG 与本轮用户内容不会被标成稳定断点：
+
+```json
+{
+  "promptCache": {
+    "enabled": true
+  },
   "defaultOptions": {
     "prompt_cache_options": {
       "mode": "explicit",
@@ -281,7 +294,7 @@ OpenAI Responses 与 Chat Completions 请求会使用同一 session UUID 作为�
 }
 ```
 
-当前只接受 OpenAI 已公开支持的 `mode=explicit` 和 `ttl=30m`。如果兼容中转站以 HTTP 400/422 明确拒绝 `prompt_cache_key`、`prompt_cache_options` 或 `prompt_cache_breakpoint`，DEEIX 会仅重试一次不带新缓存字段的请求。
+当前只接受 OpenAI 已公开支持的 `mode=explicit` 和 `ttl=30m`。未声明能力的兼容中转站不会收到 `prompt_cache_key`、`prompt_cache_options` 或 `prompt_cache_breakpoint`；DEEIX 不再依赖上游错误文本执行无记忆缓存重试。旧的 `prompt_cache_retention` 不再发送，应迁移到 `prompt_cache_options.ttl`。
 
 ## MCP 工具
 
