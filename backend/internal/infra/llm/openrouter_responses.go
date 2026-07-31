@@ -113,7 +113,7 @@ func buildOpenRouterResponsesAPIInput(messages []Message) []map[string]interface
 		item := map[string]interface{}{
 			"type":    "message",
 			"role":    role,
-			"content": buildResponsesAPIContent(msg),
+			"content": buildResponsesAPIContent(msg, nil),
 		}
 		if role == "assistant" {
 			item["id"] = openRouterResponsesItemID("msg_deeix", index, msg.Content)

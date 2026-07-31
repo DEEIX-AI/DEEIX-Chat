@@ -127,7 +127,15 @@ type Message struct {
 type GenerateInput struct {
 	RequestID      string
 	ConversationID uint
-	Messages       []Message
+	// SessionID 是跨同一会话请求保持稳定的非敏感标识，可用于上游粘性路由。
+	SessionID string
+	// ThreadID 是面向上游的公开会话标识；为空时请求头模板会回退到 SessionID。
+	ThreadID string
+	// PromptCacheKey 是 OpenAI prompt_cache_key 的服务端受控值，用户 Options 不得覆盖。
+	PromptCacheKey string
+	// DisablePromptCache 仅供兼容重试使用，避免不支持新缓存字段的中转站持续失败。
+	DisablePromptCache bool
+	Messages           []Message
 	// Instructions 承载可映射到上游原生指令字段的系统/开发者指令。
 	// 不支持原生指令字段的 adapter 应继续通过 messages 承载系统提示。
 	Instructions string
@@ -996,6 +1004,17 @@ func normalizeMessages(messages []Message) []Message {
 }
 
 func setAdditionalHeaders(req *http.Request, headersJSON string) {
+	setAdditionalHeadersWithInput(req, headersJSON, GenerateInput{})
+}
+
+func setAdditionalHeadersForInput(req *http.Request, headersJSON string, input GenerateInput) {
+	setAdditionalHeadersWithInput(req, headersJSON, input)
+}
+
+func setAdditionalHeadersWithInput(req *http.Request, headersJSON string, input GenerateInput) {
+	if req == nil {
+		return
+	}
 	value := strings.TrimSpace(headersJSON)
 	if value == "" {
 		return
@@ -1009,8 +1028,29 @@ func setAdditionalHeaders(req *http.Request, headersJSON string) {
 		if headerKey == "" {
 			continue
 		}
-		req.Header.Set(headerKey, stringify(rawValue))
+		headerValue := expandAdditionalHeaderValue(stringify(rawValue), input)
+		if strings.TrimSpace(headerValue) == "" {
+			continue
+		}
+		req.Header.Set(headerKey, headerValue)
 	}
+}
+
+func expandAdditionalHeaderValue(value string, input GenerateInput) string {
+	sessionID := strings.TrimSpace(input.SessionID)
+	threadID := strings.TrimSpace(input.ThreadID)
+	if sessionID == "" {
+		sessionID = threadID
+	}
+	if threadID == "" {
+		threadID = sessionID
+	}
+	return strings.NewReplacer(
+		"${DEEIX_SESSION_ID}", sessionID,
+		"${DEEIX_THREAD_ID}", threadID,
+		"${DEEIX_CONVERSATION_ID}", sessionID,
+		"${DEEIX_REQUEST_ID}", strings.TrimSpace(input.RequestID),
+	).Replace(value)
 }
 
 func readUpstreamBody(reader io.Reader) ([]byte, error) {

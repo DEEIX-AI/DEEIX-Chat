@@ -237,6 +237,52 @@ OCR 引擎配置由后台文件设置管理，当前支持 RapidOCR、Tesseract 
 
 用户手写 `tools` 时，只有命中 `nativeToolKeys` 的官方原生工具会作为官方工具保留，工具子参数会随该工具透传；普通用户不能通过 JSON 自行启用未被管理员允许的 MCP Tool 或官方原生工具。MCP Tool 仍必须由管理员在工具页配置和启用。
 
+### 上游会话标识与 OpenAI Prompt Cache
+
+对话请求会携带服务端生成的稳定会话标识。上游或模型路由的附加请求头 JSON 支持以下占位符，便于中转站实现按会话粘性选号、日志关联和缓存分桶：
+
+- `${DEEIX_SESSION_ID}`：稳定的会话 UUID。
+- `${DEEIX_THREAD_ID}`：公开会话 ID；为空时回退到 session ID。
+- `${DEEIX_CONVERSATION_ID}`：`${DEEIX_SESSION_ID}` 的兼容别名。
+- `${DEEIX_REQUEST_ID}`：本次请求 ID，不适合用作跨轮缓存键。
+
+Codex CLI 风格的配置示例：
+
+```json
+{
+  "session-id": "${DEEIX_SESSION_ID}",
+  "thread-id": "${DEEIX_THREAD_ID}",
+  "x-client-request-id": "${DEEIX_REQUEST_ID}"
+}
+```
+
+需要兼容使用 `X-Conversation-Id` 的中转站时可配置：
+
+```json
+{
+  "X-Conversation-Id": "${DEEIX_SESSION_ID}"
+}
+```
+
+OpenAI Responses 与 Chat Completions 请求会使用同一 session UUID 作为服务端受控的 `prompt_cache_key`，与 Codex CLI 的稳定会话缓存键策略一致。现有 implicit caching 默认保持不变；为 GPT-5.6 或后续兼容模型在能力 JSON 中显式启用后，DEEIX 才会把已标记的稳定 system 前缀序列化为 `prompt_cache_breakpoint`。动态 RAG 与本轮用户内容不会被标成稳定断点：
+
+```json
+{
+  "defaultOptions": {
+    "prompt_cache_options": {
+      "mode": "explicit",
+      "ttl": "30m"
+    }
+  },
+  "lockedOptionPaths": [
+    "prompt_cache_options.mode",
+    "prompt_cache_options.ttl"
+  ]
+}
+```
+
+当前只接受 OpenAI 已公开支持的 `mode=explicit` 和 `ttl=30m`。如果兼容中转站以 HTTP 400/422 明确拒绝 `prompt_cache_key`、`prompt_cache_options` 或 `prompt_cache_breakpoint`，DEEIX 会仅重试一次不带新缓存字段的请求。
+
 ## MCP 工具
 
 MCP 能力由后台工具设置管理：

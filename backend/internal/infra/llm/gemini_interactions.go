@@ -52,7 +52,7 @@ func (c *Client) generateGeminiInteraction(ctx context.Context, route RouteConfi
 	requestCtx, cancel := context.WithTimeout(ctx, resolveReadTimeout(route.ReadTimeoutMS))
 	defer cancel()
 
-	req, err := c.newGeminiRequest(requestCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route)
+	req, err := c.newGeminiRequest(requestCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route, input)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +96,7 @@ func (c *Client) generateGeminiInteractionStream(
 	firstByteTimer := time.AfterFunc(resolveReadTimeout(route.ReadTimeoutMS), firstByteCancel)
 	defer firstByteTimer.Stop()
 
-	req, err := c.newGeminiRequest(firstByteCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route)
+	req, err := c.newGeminiRequest(firstByteCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route, input)
 	if err != nil {
 		return nil, err
 	}

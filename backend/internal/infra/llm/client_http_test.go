@@ -221,6 +221,95 @@ func TestSetOpenRouterAttributionHeadersRespectsConfiguredHeaders(t *testing.T) 
 	}
 }
 
+func TestSetAdditionalHeadersExpandsConversationIdentityTemplates(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "https://relay.example.com/v1/responses", nil)
+	setAdditionalHeadersForInput(req, `{
+		"session-id":"${DEEIX_SESSION_ID}",
+		"thread-id":"${DEEIX_THREAD_ID}",
+		"X-Conversation-Id":"${DEEIX_CONVERSATION_ID}",
+		"x-client-request-id":"${DEEIX_REQUEST_ID}",
+		"X-Static":"fixed"
+	}`, GenerateInput{
+		RequestID: "request-1",
+		SessionID: "session-1",
+		ThreadID:  "thread-1",
+	})
+
+	if req.Header.Get("session-id") != "session-1" || req.Header.Get("thread-id") != "thread-1" {
+		t.Fatalf("expected Codex-style session headers, got %#v", req.Header)
+	}
+	if req.Header.Get("X-Conversation-Id") != "session-1" {
+		t.Fatalf("expected conversation header to use the opaque session id, got %q", req.Header.Get("X-Conversation-Id"))
+	}
+	if req.Header.Get("x-client-request-id") != "request-1" || req.Header.Get("X-Static") != "fixed" {
+		t.Fatalf("expected request and static headers to be preserved, got %#v", req.Header)
+	}
+}
+
+func TestOpenAIResponsesRetriesWithoutPromptCacheFieldsWhenRelayRejectsThem(t *testing.T) {
+	requests := make([]map[string]interface{}, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		requests = append(requests, payload)
+		if len(requests) == 1 {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": map[string]interface{}{"message": "unknown field prompt_cache_options"},
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"id": "resp_1",
+			"output": []map[string]interface{}{
+				{"type": "message", "content": []map[string]interface{}{{"type": "output_text", "text": "ok"}}},
+			},
+			"usage": map[string]interface{}{"input_tokens": 3, "output_tokens": 2},
+		})
+	}))
+	defer server.Close()
+
+	output, err := NewClient().Generate(context.Background(), RouteConfig{
+		Protocol:      AdapterOpenAIResponses,
+		BaseURL:       server.URL,
+		UpstreamModel: "gpt-5.6-relay",
+	}, GenerateInput{
+		PromptCacheKey: "session-retry",
+		Messages: []Message{
+			{Role: "system", Content: "stable", CacheControl: &CacheControl{Type: "ephemeral"}},
+			{Role: "user", Content: "hello"},
+		},
+		Options: map[string]interface{}{
+			"prompt_cache_options": map[string]interface{}{"mode": "explicit"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("generate with compatibility retry: %v", err)
+	}
+	if output.Text != "ok" || len(requests) != 2 {
+		t.Fatalf("expected successful one-shot compatibility retry, output=%#v requests=%d", output, len(requests))
+	}
+	if _, ok := requests[0]["prompt_cache_key"]; !ok {
+		t.Fatalf("expected first request to include prompt cache fields, got %#v", requests[0])
+	}
+	if _, ok := requests[1]["prompt_cache_key"]; ok {
+		t.Fatalf("expected retry to remove prompt_cache_key, got %#v", requests[1])
+	}
+	if _, ok := requests[1]["prompt_cache_options"]; ok {
+		t.Fatalf("expected retry to remove prompt_cache_options, got %#v", requests[1])
+	}
+	for _, item := range requests[1]["input"].([]interface{}) {
+		content := asMap(item)["content"].([]interface{})
+		for _, block := range content {
+			if _, ok := asMap(block)["prompt_cache_breakpoint"]; ok {
+				t.Fatalf("expected retry to remove prompt cache breakpoints, got %#v", requests[1])
+			}
+		}
+	}
+}
+
 func TestOpenAIChatCompletionsStreamRetriesWhenAutoUsageOptionIsRejected(t *testing.T) {
 	var includeUsageValues []interface{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -29,6 +29,8 @@ var hardDeniedModelOptionPaths = [][]string{
 	{"baseURL"},
 	{"stream"},
 	{"previous_response_id"},
+	{"prompt_cache_key"},
+	{"prompt_cache_breakpoint"},
 }
 
 type modelOptionPolicyConfig struct {
@@ -492,20 +494,9 @@ func sanitizeModelOptionValues(options map[string]interface{}, protocolKey strin
 	}
 	switch protocolKey {
 	case "openai_chat_completions", "openai_responses", "openrouter_responses":
-		serviceTier, ok := options["service_tier"]
-		if !ok {
-			return
-		}
-		value, ok := serviceTier.(string)
-		if !ok {
-			delete(options, "service_tier")
-			return
-		}
-		switch strings.TrimSpace(strings.ToLower(value)) {
-		case "default", "flex", "priority":
-			options["service_tier"] = strings.TrimSpace(strings.ToLower(value))
-		default:
-			delete(options, "service_tier")
+		sanitizeOpenAIServiceTier(options)
+		if protocolKey == "openai_chat_completions" || protocolKey == "openai_responses" {
+			sanitizeOpenAIPromptCacheOptions(options)
 		}
 	case "openai_image_generations", "openai_image_edits":
 		value, ok := modelParamIntFromOption(options["partial_images"])
@@ -517,6 +508,51 @@ func sanitizeModelOptionValues(options map[string]interface{}, protocolKey strin
 			delete(options, "partial_images")
 		}
 	}
+}
+
+func sanitizeOpenAIServiceTier(options map[string]interface{}) {
+	serviceTier, ok := options["service_tier"]
+	if !ok {
+		return
+	}
+	value, ok := serviceTier.(string)
+	if !ok {
+		delete(options, "service_tier")
+		return
+	}
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "default", "flex", "priority":
+		options["service_tier"] = strings.TrimSpace(strings.ToLower(value))
+	default:
+		delete(options, "service_tier")
+	}
+}
+
+func sanitizeOpenAIPromptCacheOptions(options map[string]interface{}) {
+	raw, ok := options["prompt_cache_options"]
+	if !ok {
+		return
+	}
+	cacheOptions, ok := raw.(map[string]interface{})
+	if !ok {
+		delete(options, "prompt_cache_options")
+		return
+	}
+	mode, ok := cacheOptions["mode"].(string)
+	if !ok || strings.TrimSpace(strings.ToLower(mode)) != "explicit" {
+		delete(options, "prompt_cache_options")
+		return
+	}
+	normalized := map[string]interface{}{"mode": "explicit"}
+	if rawTTL, exists := cacheOptions["ttl"]; exists {
+		ttl, ok := rawTTL.(string)
+		if !ok || strings.TrimSpace(strings.ToLower(ttl)) != "30m" {
+			delete(options, "prompt_cache_options")
+			return
+		}
+		normalized["ttl"] = "30m"
+	}
+	options["prompt_cache_options"] = normalized
 }
 
 func modelParamIntFromOption(value interface{}) (int, bool) {

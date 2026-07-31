@@ -767,9 +767,20 @@ func (s *Service) sendMessageInternal(
 			route.ModelCapabilitiesJSON,
 		)
 	}
+	sessionID := strings.TrimSpace(conversation.SessionKey)
+	threadID := strings.TrimSpace(conversation.PublicID)
+	if sessionID == "" {
+		sessionID = threadID
+	}
+	if threadID == "" {
+		threadID = sessionID
+	}
 	generateInput := llm.GenerateInput{
 		RequestID:      strings.TrimSpace(input.RequestID),
 		ConversationID: input.ConversationID,
+		SessionID:      sessionID,
+		ThreadID:       threadID,
+		PromptCacheKey: sessionID,
 		Messages:       llmMessages,
 		Tools:          toolRuntime.definitions,
 		Options:        filteredOptions,

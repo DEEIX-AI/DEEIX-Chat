@@ -50,7 +50,7 @@ func (c *Client) generateOpenAICompatible(ctx context.Context, route RouteConfig
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 	setOpenRouterAttributionHeaders(req, route)
-	setAdditionalHeaders(req, route.HeadersJSON)
+	setAdditionalHeadersForInput(req, route.HeadersJSON, input)
 
 	resp, err := c.httpClientForRoute(route).Do(req)
 	if err != nil {
@@ -122,7 +122,7 @@ func (c *Client) generateStreamOpenAICompatible(
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 	setOpenRouterAttributionHeaders(req, route)
-	setAdditionalHeaders(req, route.HeadersJSON)
+	setAdditionalHeadersForInput(req, route.HeadersJSON, input)
 
 	resp, err := c.httpClientForRoute(route).Do(req)
 	firstByteTimer.Stop()

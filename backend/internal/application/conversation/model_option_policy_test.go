@@ -238,6 +238,47 @@ func TestFilterModelOptionsRejectsUnsupportedOpenAIServiceTier(t *testing.T) {
 	}
 }
 
+func TestFilterModelOptionsAllowsValidatedOpenAIPromptCacheOptions(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"prompt_cache_options": map[string]interface{}{
+			"mode": "EXPLICIT",
+			"ttl":  "30M",
+		},
+		"prompt_cache_key": "user-controlled-key",
+	}, llm.AdapterOpenAIResponses, modelOptionPolicyConfig{
+		Mode:             modelOptionPolicyAllowlist,
+		AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+	})
+
+	cacheOptions, ok := filtered["prompt_cache_options"].(map[string]interface{})
+	if !ok || cacheOptions["mode"] != "explicit" || cacheOptions["ttl"] != "30m" {
+		t.Fatalf("expected normalized OpenAI prompt cache options, got %#v", filtered)
+	}
+	if _, ok := filtered["prompt_cache_key"]; ok {
+		t.Fatalf("expected prompt_cache_key to remain server-controlled, got %#v", filtered)
+	}
+}
+
+func TestFilterModelOptionsRejectsInvalidOpenAIPromptCacheOptions(t *testing.T) {
+	for _, cacheOptions := range []map[string]interface{}{
+		{"mode": "implicit"},
+		{"mode": "explicit", "ttl": "24h"},
+		{"mode": true, "ttl": "30m"},
+	} {
+		filtered := filterModelOptions(map[string]interface{}{
+			"prompt_cache_options": cacheOptions,
+		}, llm.AdapterOpenAIChatCompletions, modelOptionPolicyConfig{
+			Mode:             modelOptionPolicyAllowlist,
+			AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
+			DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+		})
+		if _, ok := filtered["prompt_cache_options"]; ok {
+			t.Fatalf("expected invalid prompt cache options to be removed, got %#v", filtered)
+		}
+	}
+}
+
 func TestFilterModelOptionsKeepsOpenRouterChatServiceTierOutOfDefaultAllowlist(t *testing.T) {
 	filtered := filterModelOptions(map[string]interface{}{
 		"service_tier":     "priority",

@@ -16,18 +16,34 @@ func (a *openAIChatCompletionsAdapter) Name() string { return AdapterOpenAIChatC
 
 func (a *openAIChatCompletionsAdapter) Generate(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
 	route.Endpoint = EndpointChatCompletions
-	return a.client.generateOpenAICompatible(ctx, route, input)
+	output, err := a.client.generateOpenAICompatible(ctx, route, input)
+	if err == nil || !shouldRetryWithoutOpenAIPromptCache(input, err) {
+		return output, err
+	}
+	return a.client.generateOpenAICompatible(ctx, route, disableOpenAIPromptCache(input))
 }
 
 func (a *openAIChatCompletionsAdapter) GenerateStream(ctx context.Context, route RouteConfig, input GenerateInput, onEvent func(GenerateStreamEvent) error) (*GenerateOutput, error) {
 	route.Endpoint = EndpointChatCompletions
-	output, err := a.client.generateStreamOpenAICompatible(ctx, route, input, onEvent)
-	if err == nil || !shouldRetryChatCompletionsWithoutAutoStreamUsage(input.Options, err) {
+	retryInput := input
+	var output *GenerateOutput
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		output, err = a.client.generateStreamOpenAICompatible(ctx, route, retryInput, onEvent)
+		if err == nil {
+			return output, nil
+		}
+		if attempt < 2 && shouldRetryWithoutOpenAIPromptCache(retryInput, err) {
+			retryInput = disableOpenAIPromptCache(retryInput)
+			continue
+		}
+		if attempt < 2 && shouldRetryChatCompletionsWithoutAutoStreamUsage(retryInput.Options, err) {
+			retryInput.Options = disableChatCompletionsAutoStreamUsage(retryInput.Options)
+			continue
+		}
 		return output, err
 	}
-	retryInput := input
-	retryInput.Options = disableChatCompletionsAutoStreamUsage(input.Options)
-	return a.client.generateStreamOpenAICompatible(ctx, route, retryInput, onEvent)
+	return output, err
 }
 
 func (a *openAIChatCompletionsAdapter) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
@@ -44,9 +60,10 @@ func buildChatCompletionsRequestBody(
 	providerStreamOptions map[string]interface{},
 	stream bool,
 ) map[string]interface{} {
+	promptCache := resolveOpenAIPromptCacheConfig(adapter, input)
 	items := make([]map[string]interface{}, 0, len(messages))
 	for _, item := range messages {
-		items = append(items, buildChatCompletionsMessages(adapter, item)...)
+		items = append(items, buildChatCompletionsMessages(adapter, item, &promptCache)...)
 	}
 	payload := map[string]interface{}{
 		"model":    strings.TrimSpace(model),
@@ -80,9 +97,10 @@ func buildChatCompletionsRequestBody(
 	if retention := normalizePromptCacheRetention(modelParamString(input.Options, "prompt_cache_retention")); retention != "" {
 		payload["prompt_cache_retention"] = retention
 	}
+	applyOpenAIPromptCacheRequestFields(payload, promptCache)
 	appendToolDeclarations(payload, providerTools, buildOpenAITools(toolDefinitions, true))
 	applyProviderOptions(payload, input.Options,
-		"contents", "input", "instructions", "messages", "model", "prompt", "response_format", "stream", "stream_options", "system", "systemInstruction", "tools",
+		"contents", "input", "instructions", "messages", "model", "prompt", "prompt_cache_key", "prompt_cache_options", "response_format", "stream", "stream_options", "system", "systemInstruction", "tools",
 	)
 	return payload
 }
@@ -157,7 +175,7 @@ func normalizedChatCompletionResponseFormat(options map[string]interface{}) (int
 	}, true
 }
 
-func buildChatCompletionsMessages(adapter string, msg Message) []map[string]interface{} {
+func buildChatCompletionsMessages(adapter string, msg Message, promptCache *openAIPromptCacheConfig) []map[string]interface{} {
 	result := make([]map[string]interface{}, 0, 1+len(msg.ToolResults))
 	if len(msg.ToolResults) > 0 {
 		for _, item := range msg.ToolResults {
@@ -172,7 +190,7 @@ func buildChatCompletionsMessages(adapter string, msg Message) []map[string]inte
 
 	payload := map[string]interface{}{
 		"role":    normalizeRole(msg.Role),
-		"content": buildChatCompletionsContent(msg),
+		"content": buildChatCompletionsContent(msg, promptCache),
 	}
 	if reasoningContent := strings.TrimSpace(msg.ReasoningContent); reasoningContent != "" && normalizeRole(msg.Role) == "assistant" {
 		if NormalizeAdapter(adapter) == AdapterOpenRouterChat {
@@ -226,9 +244,14 @@ func buildChatCompletionsToolCalls(toolCalls []ToolCall) []map[string]interface{
 }
 
 // buildChatCompletionsContent 将消息内容序列化为 Chat Completions API 格式。
-// 多模态消息返回 parts 数组；纯文本消息保持字符串结构，避免无意义包装。
-func buildChatCompletionsContent(msg Message) interface{} {
+// 多模态或显式缓存消息返回 parts 数组；其余纯文本消息保持字符串结构。
+func buildChatCompletionsContent(msg Message, promptCache *openAIPromptCacheConfig) interface{} {
 	if len(msg.Parts) == 0 {
+		if msg.CacheControl != nil && promptCache != nil && promptCache.Explicit {
+			block := map[string]interface{}{"type": "text", "text": msg.Content}
+			appendOpenAIPromptCacheBreakpoint(block, msg.CacheControl, promptCache)
+			return []map[string]interface{}{block}
+		}
 		return msg.Content
 	}
 	parts := make([]map[string]interface{}, 0, len(msg.Parts))
@@ -243,25 +266,36 @@ func buildChatCompletionsContent(msg Message) interface{} {
 				mime = "image/jpeg"
 			}
 			b64 := base64.StdEncoding.EncodeToString(part.Data)
-			parts = append(parts, map[string]interface{}{
+			block := map[string]interface{}{
 				"type": "image_url",
 				"image_url": map[string]string{
 					"url": "data:" + mime + ";base64," + b64,
 				},
-			})
+			}
+			appendOpenAIPromptCacheBreakpoint(block, part.CacheControl, promptCache)
+			parts = append(parts, block)
 		default: // text, file — treated as plain text
 			text := part.Text
 			if strings.TrimSpace(text) == "" {
 				continue
 			}
-			parts = append(parts, map[string]interface{}{
+			block := map[string]interface{}{
 				"type": "text",
 				"text": text,
-			})
+			}
+			appendOpenAIPromptCacheBreakpoint(block, part.CacheControl, promptCache)
+			parts = append(parts, block)
 		}
 	}
 	if len(parts) == 0 {
 		return msg.Content
+	}
+	if msg.CacheControl != nil {
+		for index := len(parts) - 1; index >= 0; index-- {
+			if appendOpenAIPromptCacheBreakpoint(parts[index], msg.CacheControl, promptCache) {
+				break
+			}
+		}
 	}
 	return parts
 }
