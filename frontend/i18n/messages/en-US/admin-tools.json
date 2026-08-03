@@ -114,6 +114,14 @@
     "confirm": "Confirm",
     "pending": "Processing"
   },
+  "syncConfirm": {
+    "title": "Sync MCP tools",
+    "description": "Choose how to handle tool names and descriptions for \"{name}\".",
+    "preserve": "Keep current content",
+    "preserveDescription": "Keep names and descriptions while syncing other tool data",
+    "overwrite": "Use server content",
+    "overwriteDescription": "Sync names and descriptions returned by the MCP server"
+  },
   "serverDialog": {
     "createTitle": "Add MCP server",
     "editTitle": "Edit MCP server",

@@ -18,13 +18,7 @@ func (a *openRouterChatCompletionsAdapter) Generate(ctx context.Context, route R
 // GenerateStream 调用 OpenRouter Chat Completions 流式接口。
 func (a *openRouterChatCompletionsAdapter) GenerateStream(ctx context.Context, route RouteConfig, input GenerateInput, onEvent func(GenerateStreamEvent) error) (*GenerateOutput, error) {
 	route = normalizeOpenRouterChatCompletionsRoute(route)
-	output, err := a.client.generateStreamOpenAICompatible(ctx, route, input, onEvent)
-	if err == nil || !shouldRetryChatCompletionsWithoutAutoStreamUsage(input.Options, err) {
-		return output, err
-	}
-	retryInput := input
-	retryInput.Options = disableChatCompletionsAutoStreamUsage(input.Options)
-	return a.client.generateStreamOpenAICompatible(ctx, route, retryInput, onEvent)
+	return a.client.generateChatCompletionsStreamWithAutoUsageFallback(ctx, route, input, onEvent)
 }
 
 // ListModels 按 OpenRouter OpenAI-compatible 模型列表协议查询模型。

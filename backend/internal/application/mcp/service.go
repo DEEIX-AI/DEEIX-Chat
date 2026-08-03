@@ -63,8 +63,9 @@ type ToolInput struct {
 
 // SyncServerToolsInput 描述一次 MCP 工具同步请求。
 type SyncServerToolsInput struct {
-	ServerID  uint
-	RequestID string
+	ServerID                    uint
+	RequestID                   string
+	OverwriteCustomizedMetadata bool
 }
 
 // NewServiceWithRuntime 创建 MCP 应用服务。
@@ -190,7 +191,7 @@ func (s *Service) SyncServerTools(ctx context.Context, input SyncServerToolsInpu
 			Status:          "active",
 		})
 	}
-	if err = s.repo.ReplaceServerTools(ctx, serverID, items); err != nil {
+	if err = s.repo.ReplaceServerTools(ctx, serverID, items, input.OverwriteCustomizedMetadata); err != nil {
 		return fail(err)
 	}
 	result, err := s.repo.ListTools(ctx, serverID, false)
@@ -198,8 +199,9 @@ func (s *Service) SyncServerTools(ctx context.Context, input SyncServerToolsInpu
 		return fail(err)
 	}
 	s.writeToolSyncEvent(ctx, input.RequestID, "info", "mcp.tools_synced", serverID, "MCP 工具已同步", map[string]interface{}{
-		"server_id":  serverID,
-		"tool_count": len(result),
+		"server_id":                     serverID,
+		"tool_count":                    len(result),
+		"overwrite_customized_metadata": input.OverwriteCustomizedMetadata,
 	})
 	return result, nil
 }

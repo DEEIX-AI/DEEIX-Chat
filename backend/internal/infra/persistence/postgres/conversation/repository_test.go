@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -154,6 +155,144 @@ func TestListConversationEventLogsHydratesRunRouteSnapshot(t *testing.T) {
 	withoutRoute := itemsByRunID["run_before_route"]
 	if withoutRoute.UpstreamName != "" || withoutRoute.ProviderProtocol != "" || withoutRoute.UpstreamModelName != "" {
 		t.Fatalf("unexpected route snapshot for unmatched run: %#v", withoutRoute)
+	}
+}
+
+func TestConversationEventLogListAndDetailBoundPayloads(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	now := time.Now()
+	largePayload := strings.Repeat("x", maxConversationEventDetailPayloadBytes+1)
+	events := []model.ChatRunEvent{
+		{
+			ConversationID:  1,
+			UserID:          1,
+			RunID:           "run_normal_payload",
+			EventScope:      "trace_event",
+			EventID:         "event_normal_payload",
+			EventType:       "error",
+			Status:          "error",
+			ContentMarkdown: "request failed after upload",
+			PayloadJSON:     `{"error":"上游不可用"}`,
+			InputJSON:       `{"input":true}`,
+			OutputJSON:      `{"output":true}`,
+			ErrorJSON:       `{"code":"upstream_unavailable"}`,
+			StartedAt:       now,
+		},
+		{
+			ConversationID: 1,
+			UserID:         1,
+			RunID:          "run_large_payload",
+			EventScope:     "trace_event",
+			EventID:        "event_large_payload",
+			EventType:      "error",
+			Status:         "error",
+			PayloadJSON:    largePayload,
+			StartedAt:      now,
+		},
+	}
+	if err := db.Create(&events).Error; err != nil {
+		t.Fatalf("create conversation events: %v", err)
+	}
+
+	items, total, err := repo.ListConversationEventLogs(ctx, repository.ConversationEventLogListFilter{}, 0, 10)
+	if err != nil {
+		t.Fatalf("ListConversationEventLogs() error = %v", err)
+	}
+	if total != 2 || len(items) != 2 {
+		t.Fatalf("got total=%d len=%d, want 2", total, len(items))
+	}
+	itemsByRunID := make(map[string]domainconversation.EventLog, len(items))
+	for _, item := range items {
+		itemsByRunID[item.RunID] = item
+		if item.ContentMarkdown != "" || item.PayloadJSON != "" || item.InputJSON != "" || item.OutputJSON != "" || item.ErrorJSON != "" {
+			t.Fatalf("list item contains detail payloads: %#v", item)
+		}
+	}
+	if got := itemsByRunID["run_normal_payload"].PayloadSizeBytes; got != int64(len(events[0].PayloadJSON)) {
+		t.Fatalf("normal payload size = %d, want %d", got, len(events[0].PayloadJSON))
+	}
+	if itemsByRunID["run_normal_payload"].PayloadOmitted {
+		t.Fatal("normal list payload should not be marked omitted")
+	}
+	if got := itemsByRunID["run_large_payload"].PayloadSizeBytes; got != int64(len(largePayload)) {
+		t.Fatalf("large payload size = %d, want %d", got, len(largePayload))
+	}
+	if !itemsByRunID["run_large_payload"].PayloadOmitted {
+		t.Fatal("large list payload should be marked omitted")
+	}
+
+	normalDetail, err := repo.GetConversationEventLog(ctx, events[0].ID)
+	if err != nil {
+		t.Fatalf("GetConversationEventLog(normal) error = %v", err)
+	}
+	if normalDetail.ContentMarkdown != events[0].ContentMarkdown ||
+		normalDetail.PayloadJSON != events[0].PayloadJSON ||
+		normalDetail.InputJSON != events[0].InputJSON ||
+		normalDetail.OutputJSON != events[0].OutputJSON ||
+		normalDetail.ErrorJSON != events[0].ErrorJSON ||
+		normalDetail.PayloadOmitted {
+		t.Fatalf("normal detail = %#v", normalDetail)
+	}
+
+	largeDetail, err := repo.GetConversationEventLog(ctx, events[1].ID)
+	if err != nil {
+		t.Fatalf("GetConversationEventLog(large) error = %v", err)
+	}
+	if largeDetail.PayloadJSON != "" || !largeDetail.PayloadOmitted {
+		t.Fatalf("large detail should omit payload, got %#v", largeDetail)
+	}
+	if largeDetail.PayloadSizeBytes != int64(len(largePayload)) {
+		t.Fatalf("large detail payload size = %d, want %d", largeDetail.PayloadSizeBytes, len(largePayload))
+	}
+}
+
+func TestConversationMessageTraceReadsBoundPayloads(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	now := time.Now()
+	largePayload := strings.Repeat("x", maxConversationEventDetailPayloadBytes+1)
+	items := []model.ChatRunEvent{
+		{
+			MessageID:       11,
+			RunID:           "run_trace_block_large",
+			EventScope:      "trace_block",
+			EventID:         "trace_block_large",
+			EventType:       "process",
+			ContentMarkdown: "处理失败",
+			PayloadJSON:     largePayload,
+			StartedAt:       now,
+		},
+		{
+			MessageID:   11,
+			RunID:       "run_trace_event_large",
+			EventScope:  "trace_event",
+			EventID:     "trace_event_large",
+			EventType:   "error",
+			PayloadJSON: largePayload,
+			StartedAt:   now,
+		},
+	}
+	if err := db.Create(&items).Error; err != nil {
+		t.Fatalf("create trace events: %v", err)
+	}
+
+	blocks, err := repo.ListConversationMessageTracesByMessageIDs(ctx, []uint{11})
+	if err != nil {
+		t.Fatalf("list message traces: %v", err)
+	}
+	if len(blocks) != 1 || blocks[0].PayloadJSON != "" || blocks[0].ContentMarkdown != "处理失败" {
+		t.Fatalf("large trace block was not safely loaded: %#v", blocks)
+	}
+
+	events, err := repo.ListConversationMessageTraceEventsByMessageIDs(ctx, []uint{11})
+	if err != nil {
+		t.Fatalf("list trace events: %v", err)
+	}
+	if len(events) != 1 || events[0].PayloadJSON != "" {
+		t.Fatalf("large trace event was not safely loaded: %#v", events)
 	}
 }
 
@@ -310,6 +449,187 @@ func TestListMessageAncestorsUntilReportsMissingBoundary(t *testing.T) {
 	}
 }
 
+// 祖先链走的是手写 CTE，与 GetMessageByID 的常规 GORM 查询是两条取数路径。
+// 这里逐字段比对两者结果，确保 CTE 不会丢列——曾因漏掉 reasoning_content 导致推理回传失效。
+// 注意覆盖边界：比对的是 domain.Message，因此只能守住会映射进领域模型的列；
+// 未进入领域模型的列（如 is_compacted）不在此测试范围内。
+func TestListMessageAncestorsMatchesFullColumnLoad(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+
+	conversation := model.Conversation{
+		UserID:     1,
+		PublicID:   "conv_ancestors_columns",
+		Title:      "ancestors columns",
+		LabelsJSON: "[]",
+		SessionKey: "session_ancestors_columns",
+		Status:     "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	root := model.Message{
+		ConversationID: conversation.ID,
+		UserID:         1,
+		PublicID:       "msg_columns_root",
+		Role:           "user",
+		ContentType:    "text",
+		Content:        "root",
+		BranchReason:   "default",
+		Status:         "success",
+	}
+	if err := db.Create(&root).Error; err != nil {
+		t.Fatalf("create root message: %v", err)
+	}
+
+	editedAt := time.Now().UTC().Truncate(time.Second)
+	sourceID := root.ID
+	// 所有可空/可选列都填非零值，任何一列被 CTE 丢弃都会在比对中暴露。
+	leaf := model.Message{
+		ConversationID:   conversation.ID,
+		UserID:           1,
+		PublicID:         "msg_columns_leaf",
+		ParentMessageID:  &root.ID,
+		RunID:            "run_columns",
+		Role:             "assistant",
+		ContentType:      "text",
+		Content:          "leaf",
+		ReasoningContent: "historical reasoning",
+		BranchReason:     "retry",
+		SourceMessageID:  &sourceID,
+		TokenUsage:       321,
+		InputTokens:      111,
+		OutputTokens:     222,
+		CacheReadTokens:  33,
+		CacheWriteTokens: 44,
+		ReasoningTokens:  125,
+		LatencyMS:        987,
+		BilledCurrency:   "USD",
+		BilledNanousd:    654,
+		PricingSnapshot:  `{"in":1}`,
+		Status:           "success",
+		ErrorCode:        "none",
+		ErrorMessage:     "no error",
+		IsCompacted:      true,
+		EditedAt:         &editedAt,
+	}
+	if err := db.Create(&leaf).Error; err != nil {
+		t.Fatalf("create leaf message: %v", err)
+	}
+
+	want, err := repo.GetMessageByID(ctx, conversation.ID, leaf.ID)
+	if err != nil {
+		t.Fatalf("GetMessageByID() error = %v", err)
+	}
+	if want.ReasoningContent == "" {
+		t.Fatal("baseline load lost reasoning content")
+	}
+
+	ancestors, err := repo.ListMessageAncestors(ctx, conversation.ID, leaf.ID, 10)
+	if err != nil {
+		t.Fatalf("ListMessageAncestors() error = %v", err)
+	}
+	if len(ancestors) != 2 {
+		t.Fatalf("expected root and leaf, got %d", len(ancestors))
+	}
+	if !reflect.DeepEqual(ancestors[1], *want) {
+		t.Fatalf("ListMessageAncestors dropped columns:\n cte = %#v\nfull = %#v", ancestors[1], *want)
+	}
+
+	until, found, err := repo.ListMessageAncestorsUntil(ctx, conversation.ID, leaf.ID, root.ID, 10)
+	if err != nil {
+		t.Fatalf("ListMessageAncestorsUntil() error = %v", err)
+	}
+	if !found {
+		t.Fatal("expected boundary to be found")
+	}
+	if len(until) != 2 {
+		t.Fatalf("expected root and leaf, got %d", len(until))
+	}
+	if !reflect.DeepEqual(until[1], *want) {
+		t.Fatalf("ListMessageAncestorsUntil dropped columns:\n cte = %#v\nfull = %#v", until[1], *want)
+	}
+}
+
+// 祖先链加载必须保留 reasoning_content，否则「回传推理上下文」在后续轮次拿不到历史推理。
+func TestListMessageAncestorsPreservesReasoningContent(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+
+	conversation := model.Conversation{
+		UserID:     1,
+		PublicID:   "conv_ancestors_reasoning",
+		Title:      "ancestors reasoning",
+		LabelsJSON: "[]",
+		SessionKey: "session_ancestors_reasoning",
+		Status:     "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	var parentID *uint
+	messages := make([]model.Message, 0, 4)
+	for index := 1; index <= 4; index++ {
+		role := "user"
+		reasoning := ""
+		if index%2 == 0 {
+			role = "assistant"
+			reasoning = fmt.Sprintf("reasoning %d", index)
+		}
+		message := model.Message{
+			ConversationID:   conversation.ID,
+			UserID:           1,
+			PublicID:         fmt.Sprintf("msg_reasoning_%d", index),
+			ParentMessageID:  parentID,
+			Role:             role,
+			ContentType:      "text",
+			Content:          fmt.Sprintf("message %d", index),
+			ReasoningContent: reasoning,
+			BranchReason:     "default",
+			Status:           "success",
+		}
+		if err := db.Create(&message).Error; err != nil {
+			t.Fatalf("create message %d: %v", index, err)
+		}
+		messages = append(messages, message)
+		nextParentID := message.ID
+		parentID = &nextParentID
+	}
+
+	leafID := messages[len(messages)-1].ID
+	assertReasoning := func(t *testing.T, method string, got []domainconversation.Message) {
+		t.Helper()
+		if len(got) != len(messages) {
+			t.Fatalf("%s: expected %d ancestors, got %d", method, len(messages), len(got))
+		}
+		for index, item := range got {
+			want := messages[index].ReasoningContent
+			if item.ReasoningContent != want {
+				t.Fatalf("%s: ancestor %d reasoning content = %q, want %q", method, index, item.ReasoningContent, want)
+			}
+		}
+	}
+
+	ancestors, err := repo.ListMessageAncestors(ctx, conversation.ID, leafID, 10)
+	if err != nil {
+		t.Fatalf("ListMessageAncestors() error = %v", err)
+	}
+	assertReasoning(t, "ListMessageAncestors", ancestors)
+
+	until, found, err := repo.ListMessageAncestorsUntil(ctx, conversation.ID, leafID, messages[0].ID, 10)
+	if err != nil {
+		t.Fatalf("ListMessageAncestorsUntil() error = %v", err)
+	}
+	if !found {
+		t.Fatal("expected boundary to be found")
+	}
+	assertReasoning(t, "ListMessageAncestorsUntil", until)
+}
+
 func TestUpdateAssistantMessageCompletionPersistsReasoningContent(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
 	repo := NewRepo(db)
@@ -377,8 +697,7 @@ func TestUpdateConversationMetadataSQLiteUsesPortableTrim(t *testing.T) {
 	}
 
 	updated, err := repo.UpdateConversationMetadata(ctx, conversation.ID, repository.ConversationMetadataPatch{
-		Title:      "SQLite 标题",
-		LabelsJSON: `["技术"]`,
+		Title: "SQLite 标题",
 	})
 	if err != nil {
 		t.Fatalf("UpdateConversationMetadata() error = %v", err)
@@ -386,8 +705,118 @@ func TestUpdateConversationMetadataSQLiteUsesPortableTrim(t *testing.T) {
 	if updated.Title != "SQLite 标题" {
 		t.Fatalf("updated title = %q, want %q", updated.Title, "SQLite 标题")
 	}
-	if updated.LabelsJSON != `["技术"]` {
-		t.Fatalf("updated labels = %q, want %q", updated.LabelsJSON, `["技术"]`)
+}
+
+func TestUpdateConversationLabelsAppliesGeneratedLabelsWhenEligible(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	conversation := model.Conversation{
+		PublicID:   "generated-label-eligible",
+		UserID:     1,
+		Title:      "已有标题",
+		LabelsJSON: `[]`,
+		SessionKey: "generated-label-eligible-session",
+		Status:     "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	updated, applied, err := repo.SetGeneratedConversationLabelsIfEligible(context.Background(), conversation.ID, `["自动标签"]`)
+	if err != nil {
+		t.Fatalf("SetGeneratedConversationLabelsIfEligible() error = %v", err)
+	}
+	if !applied || updated.LabelsJSON != `["自动标签"]` {
+		t.Fatalf("generated labels were not applied: applied=%v labels=%q", applied, updated.LabelsJSON)
+	}
+}
+
+func TestUpdateConversationLabelsByPublicIDIsUserScopedAndMarksManualManagement(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	conversation := model.Conversation{
+		PublicID:   "manual-label-user-scope",
+		UserID:     1,
+		Title:      "已有标题",
+		LabelsJSON: `[]`,
+		SessionKey: "manual-label-user-scope-session",
+		Status:     "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	if _, err := repo.UpdateConversationLabelsByPublicID(context.Background(), 2, conversation.PublicID, `["越权标签"]`); !errors.Is(err, repository.ErrNotFound) {
+		t.Fatalf("expected other user update to return not found, got %v", err)
+	}
+	updated, err := repo.UpdateConversationLabelsByPublicID(context.Background(), 1, conversation.PublicID, `["手动标签"]`)
+	if err != nil {
+		t.Fatalf("UpdateConversationLabelsByPublicID() error = %v", err)
+	}
+	if updated.LabelsJSON != `["手动标签"]` || !updated.LabelsManuallyManaged {
+		t.Fatalf("manual labels were not persisted correctly: %#v", updated)
+	}
+}
+
+func TestUpdateConversationLabelsGeneratedLabelsDoNotOverwriteManualLabels(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	conversation := model.Conversation{
+		PublicID:              "generated-label-race",
+		UserID:                1,
+		Title:                 "已有标题",
+		LabelsJSON:            `["手动标签"]`,
+		LabelsManuallyManaged: true,
+		SessionKey:            "generated-label-race-session",
+		Status:                "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	updated, applied, err := repo.SetGeneratedConversationLabelsIfEligible(context.Background(), conversation.ID, `["自动标签"]`)
+	if err != nil {
+		t.Fatalf("SetGeneratedConversationLabelsIfEligible() error = %v", err)
+	}
+	if applied {
+		t.Fatal("generated labels update unexpectedly applied")
+	}
+	if updated.LabelsJSON != `["手动标签"]` {
+		t.Fatalf("generated labels overwrote manual labels: %q", updated.LabelsJSON)
+	}
+	if !updated.UpdatedAt.Equal(conversation.UpdatedAt) {
+		t.Fatalf("skipped generated labels changed updated_at: got %v, want %v", updated.UpdatedAt, conversation.UpdatedAt)
+	}
+}
+
+func TestUpdateConversationLabelsGeneratedLabelsDoNotRestoreManuallyClearedLabels(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	conversation := model.Conversation{
+		PublicID:              "generated-label-manual-clear-race",
+		UserID:                1,
+		Title:                 "已有标题",
+		LabelsJSON:            `[]`,
+		LabelsManuallyManaged: true,
+		SessionKey:            "generated-label-manual-clear-race-session",
+		Status:                "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	updated, applied, err := repo.SetGeneratedConversationLabelsIfEligible(context.Background(), conversation.ID, `["自动标签"]`)
+	if err != nil {
+		t.Fatalf("SetGeneratedConversationLabelsIfEligible() error = %v", err)
+	}
+	if applied {
+		t.Fatal("generated labels update unexpectedly applied")
+	}
+	if updated.LabelsJSON != `[]` {
+		t.Fatalf("generated labels restored manually cleared labels: %q", updated.LabelsJSON)
+	}
+	if !updated.UpdatedAt.Equal(conversation.UpdatedAt) {
+		t.Fatalf("skipped generated labels changed updated_at: got %v, want %v", updated.UpdatedAt, conversation.UpdatedAt)
 	}
 }
 
@@ -481,6 +910,26 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 		SessionKey: "session_message_search",
 		Status:     "active",
 	}
+	toolOnlyConversation := model.Conversation{
+		UserID:     1,
+		PublicID:   "conv_tool_only_search",
+		Title:      "Tool output",
+		LabelsJSON: "[]",
+		Model:      "gpt-test",
+		Provider:   "openai",
+		SessionKey: "session_tool_only_search",
+		Status:     "active",
+	}
+	wildcardConversation := model.Conversation{
+		UserID:     1,
+		PublicID:   "conv_literal_wildcard_search",
+		Title:      "Progress 100%",
+		LabelsJSON: "[]",
+		Model:      "gpt-test",
+		Provider:   "openai",
+		SessionKey: "session_literal_wildcard_search",
+		Status:     "active",
+	}
 	otherUserConversation := model.Conversation{
 		UserID:     2,
 		PublicID:   "conv_other_user",
@@ -495,6 +944,8 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 		projectConversation,
 		titleConversation,
 		messageConversation,
+		toolOnlyConversation,
+		wildcardConversation,
 		otherUserConversation,
 	} {
 		if err := db.Create(&conversation).Error; err != nil {
@@ -518,6 +969,22 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 	}).Error; err != nil {
 		t.Fatalf("create message: %v", err)
 	}
+	var toolOnlyTarget model.Conversation
+	if err := db.Where("public_id = ?", "conv_tool_only_search").First(&toolOnlyTarget).Error; err != nil {
+		t.Fatalf("load tool-only target: %v", err)
+	}
+	if err := db.Create(&model.Message{
+		ConversationID: toolOnlyTarget.ID,
+		UserID:         1,
+		PublicID:       "msg_tool_only_search",
+		Role:           "tool",
+		ContentType:    "text",
+		Content:        "InternalToolOnlyKeyword",
+		BranchReason:   "default",
+		Status:         "success",
+	}).Error; err != nil {
+		t.Fatalf("create tool-only message: %v", err)
+	}
 
 	tests := []struct {
 		name   string
@@ -527,6 +994,8 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 		{name: "title", query: "budget", wantID: "conv_title_search"},
 		{name: "project", query: "research", wantID: "conv_project_search"},
 		{name: "message", query: "aurorakeyword", wantID: "conv_message_search"},
+		{name: "literal wildcard", query: "%", wantID: "conv_literal_wildcard_search"},
+		{name: "tool messages are excluded", query: "internaltoolonlykeyword", wantID: ""},
 	}
 
 	for _, tt := range tests {
@@ -535,13 +1004,145 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 			if err != nil {
 				t.Fatalf("ListConversationsByUser() error = %v", err)
 			}
-			if total != 1 {
-				t.Fatalf("total = %d, want 1; items=%#v", total, items)
+			if tt.wantID == "" {
+				if total != 0 || len(items) != 0 {
+					t.Fatalf("items = %#v, total = %d, want no results", items, total)
+				}
+				return
 			}
-			if len(items) != 1 || items[0].PublicID != tt.wantID {
+			if total != 1 || len(items) != 1 || items[0].PublicID != tt.wantID {
 				t.Fatalf("items = %#v, want %q", items, tt.wantID)
 			}
 		})
+	}
+}
+
+func TestListConversationsForSearchReturnsOrderedWindowWithoutStatusFiltering(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	now := time.Now()
+
+	items := []model.Conversation{
+		{
+			BaseModel:  model.BaseModel{UpdatedAt: now.Add(-2 * time.Hour)},
+			UserID:     1,
+			PublicID:   "conv_search_oldest",
+			Title:      "Needle oldest",
+			LabelsJSON: "[]",
+			Model:      "gpt-test",
+			Provider:   "openai",
+			SessionKey: "session_search_oldest",
+			Status:     "active",
+		},
+		{
+			BaseModel:  model.BaseModel{UpdatedAt: now.Add(-time.Hour)},
+			UserID:     1,
+			PublicID:   "conv_search_middle",
+			Title:      "Needle middle",
+			LabelsJSON: "[]",
+			Model:      "gpt-test",
+			Provider:   "openai",
+			SessionKey: "session_search_middle",
+			Status:     "archived",
+		},
+		{
+			BaseModel:  model.BaseModel{UpdatedAt: now},
+			UserID:     1,
+			PublicID:   "conv_search_latest",
+			Title:      "Needle latest",
+			LabelsJSON: "[]",
+			Model:      "gpt-test",
+			Provider:   "openai",
+			SessionKey: "session_search_latest",
+			Status:     "active",
+		},
+	}
+	if err := db.Create(&items).Error; err != nil {
+		t.Fatalf("create conversations: %v", err)
+	}
+
+	results, err := repo.ListConversationsForSearch(ctx, 1, 1, 2, "needle")
+	if err != nil {
+		t.Fatalf("ListConversationsForSearch() error = %v", err)
+	}
+	if len(results) != 2 || results[0].PublicID != "conv_search_middle" || results[1].PublicID != "conv_search_oldest" {
+		t.Fatalf("results = %#v, want middle and oldest conversations", results)
+	}
+}
+
+func TestListLatestBranchPreviewMessagesReturnsLatestVisibleWindow(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+
+	conversation := model.Conversation{
+		UserID:     1,
+		PublicID:   "conv_latest_branch_preview",
+		Title:      "Latest branch preview",
+		LabelsJSON: "[]",
+		Model:      "gpt-test",
+		Provider:   "openai",
+		SessionKey: "session_latest_branch_preview",
+		Status:     "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+
+	createMessage := func(publicID string, role string, parentID *uint) model.Message {
+		t.Helper()
+		item := model.Message{
+			ConversationID:  conversation.ID,
+			UserID:          1,
+			PublicID:        publicID,
+			ParentMessageID: parentID,
+			Role:            role,
+			ContentType:     "text",
+			Content:         publicID + " content",
+			BranchReason:    "default",
+			Status:          "success",
+		}
+		if err := db.Create(&item).Error; err != nil {
+			t.Fatalf("create message %q: %v", publicID, err)
+		}
+		return item
+	}
+
+	root := createMessage("msg_root", "user", nil)
+	rootID := root.ID
+	createMessage("msg_old_branch", "assistant", &rootID)
+
+	latestBranch := createMessage("msg_latest_branch", "assistant", &rootID)
+	latestVisibleIDs := []string{root.PublicID, latestBranch.PublicID}
+	parentID := latestBranch.ID
+	for i := 1; i <= 12; i++ {
+		role := "user"
+		if i%2 == 0 {
+			role = "assistant"
+		}
+		item := createMessage(fmt.Sprintf("msg_latest_%02d", i), role, &parentID)
+		latestVisibleIDs = append(latestVisibleIDs, item.PublicID)
+		parentID = item.ID
+	}
+	createMessage("msg_latest_tool", "tool", &parentID)
+
+	items, err := repo.ListLatestBranchPreviewMessages(ctx, conversation.ID, 100, 10)
+	if err != nil {
+		t.Fatalf("ListLatestBranchPreviewMessages() error = %v", err)
+	}
+	if len(items) != 10 {
+		t.Fatalf("len(items) = %d, want 10", len(items))
+	}
+
+	wantPublicIDs := latestVisibleIDs[len(latestVisibleIDs)-10:]
+	for i, item := range items {
+		if item.PublicID != wantPublicIDs[i] {
+			t.Fatalf("items[%d].PublicID = %q, want %q", i, item.PublicID, wantPublicIDs[i])
+		}
+		if item.Role != "user" && item.Role != "assistant" {
+			t.Fatalf("items[%d].Role = %q, want visible role", i, item.Role)
+		}
 	}
 }
 
@@ -562,4 +1163,62 @@ func openConversationRepositoryTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("migrate models: %v", err)
 	}
 	return db
+}
+
+// parent_message_id 上没有外键，「父消息同会话」只靠应用层保证。这里绕过应用层直接写入
+// 一条跨会话的父指针，确认递归查询不会走出当前会话——否则外部内容会进入 prompt 并被
+// 烤进压缩摘要反复重放。ListMessageAncestorsUntil 早已有此约束，两者需保持一致。
+func TestListMessageAncestorsStopsAtConversationBoundary(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+
+	makeConversation := func(publicID string) model.Conversation {
+		conversation := model.Conversation{
+			UserID: 1, PublicID: publicID, Title: publicID,
+			LabelsJSON: "[]", SessionKey: "session_" + publicID, Status: "active",
+		}
+		if err := db.Create(&conversation).Error; err != nil {
+			t.Fatalf("create conversation %s: %v", publicID, err)
+		}
+		return conversation
+	}
+	foreign := makeConversation("conv_foreign")
+	own := makeConversation("conv_own")
+
+	// 另一个会话中的消息，内容不应被泄漏到本会话的祖先链里。
+	foreignMessage := model.Message{
+		ConversationID: foreign.ID, UserID: 1, PublicID: "msg_foreign",
+		Role: "assistant", ContentType: "text", Content: "FOREIGN_SECRET",
+		ReasoningContent: "FOREIGN_REASONING", BranchReason: "default", Status: "success",
+	}
+	if err := db.Create(&foreignMessage).Error; err != nil {
+		t.Fatalf("create foreign message: %v", err)
+	}
+
+	leaf := model.Message{
+		ConversationID: own.ID, UserID: 1, PublicID: "msg_own_leaf",
+		ParentMessageID: &foreignMessage.ID,
+		Role:            "user", ContentType: "text", Content: "own leaf",
+		BranchReason: "default", Status: "success",
+	}
+	if err := db.Create(&leaf).Error; err != nil {
+		t.Fatalf("create leaf: %v", err)
+	}
+
+	got, err := repo.ListMessageAncestors(ctx, own.ID, leaf.ID, 10)
+	if err != nil {
+		t.Fatalf("ListMessageAncestors() error = %v", err)
+	}
+	for _, item := range got {
+		if item.ConversationID != own.ID {
+			t.Fatalf("ancestor walked into conversation %d: %#v", item.ConversationID, item)
+		}
+		if strings.Contains(item.Content, "FOREIGN_SECRET") {
+			t.Fatalf("foreign content leaked into ancestor chain: %#v", item)
+		}
+	}
+	if len(got) != 1 || got[0].PublicID != "msg_own_leaf" {
+		t.Fatalf("expected only the in-conversation leaf, got %#v", got)
+	}
 }

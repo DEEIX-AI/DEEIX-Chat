@@ -47,3 +47,20 @@ func (r *Repo) DeleteBefore(ctx context.Context, logType string, before time.Tim
 	}
 	return result.RowsAffected, nil
 }
+
+// DeleteConversationRuns 物理删除指定运行的全部对话事件。
+func (r *Repo) DeleteConversationRuns(ctx context.Context, runIDs []string) (int64, error) {
+	if len(runIDs) == 0 {
+		return 0, nil
+	}
+	var deletedCount int64
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Unscoped().Where("run_id IN ?", runIDs).Delete(&model.ChatRunEvent{})
+		if result.Error != nil {
+			return result.Error
+		}
+		deletedCount = result.RowsAffected
+		return nil
+	})
+	return deletedCount, err
+}

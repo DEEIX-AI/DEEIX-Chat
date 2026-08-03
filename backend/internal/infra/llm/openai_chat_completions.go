@@ -3,7 +3,6 @@ package llm
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"strings"
 )
 
@@ -21,13 +20,7 @@ func (a *openAIChatCompletionsAdapter) Generate(ctx context.Context, route Route
 
 func (a *openAIChatCompletionsAdapter) GenerateStream(ctx context.Context, route RouteConfig, input GenerateInput, onEvent func(GenerateStreamEvent) error) (*GenerateOutput, error) {
 	route.Endpoint = EndpointChatCompletions
-	output, err := a.client.generateStreamOpenAICompatible(ctx, route, input, onEvent)
-	if err == nil || !shouldRetryChatCompletionsWithoutAutoStreamUsage(input.Options, err) {
-		return output, err
-	}
-	retryInput := input
-	retryInput.Options = disableChatCompletionsAutoStreamUsage(input.Options)
-	return a.client.generateStreamOpenAICompatible(ctx, route, retryInput, onEvent)
+	return a.client.generateChatCompletionsStreamWithAutoUsageFallback(ctx, route, input, onEvent)
 }
 
 func (a *openAIChatCompletionsAdapter) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
@@ -44,9 +37,10 @@ func buildChatCompletionsRequestBody(
 	providerStreamOptions map[string]interface{},
 	stream bool,
 ) map[string]interface{} {
+	promptCache := resolveOpenAIPromptCacheConfig(adapter, input)
 	items := make([]map[string]interface{}, 0, len(messages))
 	for _, item := range messages {
-		items = append(items, buildChatCompletionsMessages(adapter, item)...)
+		items = append(items, buildChatCompletionsMessages(adapter, item, &promptCache)...)
 	}
 	payload := map[string]interface{}{
 		"model":    strings.TrimSpace(model),
@@ -77,12 +71,10 @@ func buildChatCompletionsRequestBody(
 	if verbosity := modelParamString(input.Options, "verbosity"); verbosity != "" {
 		payload["verbosity"] = verbosity
 	}
-	if retention := normalizePromptCacheRetention(modelParamString(input.Options, "prompt_cache_retention")); retention != "" {
-		payload["prompt_cache_retention"] = retention
-	}
+	applyOpenAIPromptCacheRequestFields(payload, promptCache)
 	appendToolDeclarations(payload, providerTools, buildOpenAITools(toolDefinitions, true))
 	applyProviderOptions(payload, input.Options,
-		"contents", "input", "instructions", "messages", "model", "prompt", "response_format", "stream", "stream_options", "system", "systemInstruction", "tools",
+		"contents", "input", "instructions", "messages", "model", "prompt", "prompt_cache_key", "prompt_cache_options", "prompt_cache_retention", "response_format", "stream", "stream_options", "system", "systemInstruction", "tools",
 	)
 	return payload
 }
@@ -95,38 +87,6 @@ func chatCompletionsStreamOptions(options map[string]interface{}, stream bool) m
 	for key, value := range options {
 		result[key] = value
 	}
-	return result
-}
-
-func shouldRetryChatCompletionsWithoutAutoStreamUsage(options map[string]interface{}, err error) bool {
-	if chatCompletionsStreamUsageExplicit(options) {
-		return false
-	}
-	var upstreamErr *UpstreamError
-	if !errors.As(err, &upstreamErr) {
-		return false
-	}
-	if upstreamErr.StatusCode != 400 && upstreamErr.StatusCode != 422 {
-		return false
-	}
-	detail := strings.ToLower(strings.TrimSpace(upstreamErr.Message + " " + upstreamErr.Body))
-	return strings.Contains(detail, "stream_options") || strings.Contains(detail, "include_usage")
-}
-
-func chatCompletionsStreamUsageExplicit(options map[string]interface{}) bool {
-	streamOptions, ok := options["stream_options"].(map[string]interface{})
-	if !ok {
-		return false
-	}
-	_, ok = streamOptions["include_usage"]
-	return ok
-}
-
-func disableChatCompletionsAutoStreamUsage(options map[string]interface{}) map[string]interface{} {
-	result := cloneMap(options)
-	streamOptions := cloneMap(asMap(result["stream_options"]))
-	streamOptions["include_usage"] = false
-	result["stream_options"] = streamOptions
 	return result
 }
 
@@ -157,7 +117,7 @@ func normalizedChatCompletionResponseFormat(options map[string]interface{}) (int
 	}, true
 }
 
-func buildChatCompletionsMessages(adapter string, msg Message) []map[string]interface{} {
+func buildChatCompletionsMessages(adapter string, msg Message, promptCache *openAIPromptCacheConfig) []map[string]interface{} {
 	result := make([]map[string]interface{}, 0, 1+len(msg.ToolResults))
 	if len(msg.ToolResults) > 0 {
 		for _, item := range msg.ToolResults {
@@ -172,7 +132,7 @@ func buildChatCompletionsMessages(adapter string, msg Message) []map[string]inte
 
 	payload := map[string]interface{}{
 		"role":    normalizeRole(msg.Role),
-		"content": buildChatCompletionsContent(msg),
+		"content": buildChatCompletionsContent(msg, promptCache),
 	}
 	if reasoningContent := strings.TrimSpace(msg.ReasoningContent); reasoningContent != "" && normalizeRole(msg.Role) == "assistant" {
 		if NormalizeAdapter(adapter) == AdapterOpenRouterChat {
@@ -226,9 +186,14 @@ func buildChatCompletionsToolCalls(toolCalls []ToolCall) []map[string]interface{
 }
 
 // buildChatCompletionsContent 将消息内容序列化为 Chat Completions API 格式。
-// 多模态消息返回 parts 数组；纯文本消息保持字符串结构，避免无意义包装。
-func buildChatCompletionsContent(msg Message) interface{} {
+// 多模态或显式缓存消息返回 parts 数组；其余纯文本消息保持字符串结构。
+func buildChatCompletionsContent(msg Message, promptCache *openAIPromptCacheConfig) interface{} {
 	if len(msg.Parts) == 0 {
+		if msg.CacheControl != nil && promptCache != nil && promptCache.Explicit {
+			block := map[string]interface{}{"type": "text", "text": msg.Content}
+			appendOpenAIPromptCacheBreakpoint(block, msg.CacheControl, promptCache)
+			return []map[string]interface{}{block}
+		}
 		return msg.Content
 	}
 	parts := make([]map[string]interface{}, 0, len(msg.Parts))
@@ -243,25 +208,36 @@ func buildChatCompletionsContent(msg Message) interface{} {
 				mime = "image/jpeg"
 			}
 			b64 := base64.StdEncoding.EncodeToString(part.Data)
-			parts = append(parts, map[string]interface{}{
+			block := map[string]interface{}{
 				"type": "image_url",
 				"image_url": map[string]string{
 					"url": "data:" + mime + ";base64," + b64,
 				},
-			})
+			}
+			appendOpenAIPromptCacheBreakpoint(block, part.CacheControl, promptCache)
+			parts = append(parts, block)
 		default: // text, file — treated as plain text
 			text := part.Text
 			if strings.TrimSpace(text) == "" {
 				continue
 			}
-			parts = append(parts, map[string]interface{}{
+			block := map[string]interface{}{
 				"type": "text",
 				"text": text,
-			})
+			}
+			appendOpenAIPromptCacheBreakpoint(block, part.CacheControl, promptCache)
+			parts = append(parts, block)
 		}
 	}
 	if len(parts) == 0 {
 		return msg.Content
+	}
+	if msg.CacheControl != nil {
+		for index := len(parts) - 1; index >= 0; index-- {
+			if appendOpenAIPromptCacheBreakpoint(parts[index], msg.CacheControl, promptCache) {
+				break
+			}
+		}
 	}
 	return parts
 }

@@ -54,6 +54,15 @@ func TestUsageQueriesUseSQLitePortableExpressions(t *testing.T) {
 	if err := db.Create(&entries).Error; err != nil {
 		t.Fatalf("create usage ledgers: %v", err)
 	}
+	if err := db.Create(&model.BalanceTransaction{
+		UserID:              1,
+		Type:                domainbilling.BalanceTransactionTypeUsage,
+		BalanceAfterNanousd: 420,
+		RefType:             "usage_ledger",
+		RefID:               entries[1].ID,
+	}).Error; err != nil {
+		t.Fatalf("create historical usage balance transaction: %v", err)
+	}
 
 	logs, total, err := repo.ListUsageLogs(ctx, repository.UsageLogListFilter{
 		UserID:      1,
@@ -64,6 +73,17 @@ func TestUsageQueriesUseSQLitePortableExpressions(t *testing.T) {
 	}
 	if total != 1 || len(logs) != 1 || logs[0].PlatformModelName != "call-test" {
 		t.Fatalf("expected one call-mode usage log, total=%d logs=%v", total, logs)
+	}
+	if logs[0].BalanceAfterNanousd == nil || *logs[0].BalanceAfterNanousd != 420 {
+		t.Fatalf("expected historical balance fallback 420, got %v", logs[0].BalanceAfterNanousd)
+	}
+
+	userLogs, userTotal, err := repo.ListUsageByUser(ctx, 1, repository.UsageListFilter{Query: "call-test"}, 0, 10)
+	if err != nil {
+		t.Fatalf("ListUsageByUser() error = %v", err)
+	}
+	if userTotal != 1 || len(userLogs) != 1 || userLogs[0].BalanceAfterNanousd == nil || *userLogs[0].BalanceAfterNanousd != 420 {
+		t.Fatalf("expected user usage balance fallback 420, total=%d logs=%v", userTotal, userLogs)
 	}
 
 	monthly, err := repo.ListMonthlyUsageByUser(ctx, 1, 1)
@@ -379,6 +399,9 @@ func TestAddUsageAndSettleBalanceLeavesFreeModelBalanceUnchanged(t *testing.T) {
 	if err := db.Where("user_id = ? AND platform_model_name = ?", 1, "free-model").First(&ledger).Error; err != nil {
 		t.Fatalf("load usage ledger: %v", err)
 	}
+	if ledger.BalanceAfterNanousd == nil || *ledger.BalanceAfterNanousd != 100 {
+		t.Fatalf("ledger balance after = %v, want 100", ledger.BalanceAfterNanousd)
+	}
 	var transactionCount int64
 	if err := db.Model(&model.BalanceTransaction{}).Where("user_id = ?", 1).Count(&transactionCount).Error; err != nil {
 		t.Fatalf("count balance transactions: %v", err)
@@ -411,6 +434,9 @@ func assertUsageSettlement(
 	var ledger model.UsageLedger
 	if err := db.Where("user_id = ? AND platform_model_name = ?", userID, platformModelName).First(&ledger).Error; err != nil {
 		t.Fatalf("load usage ledger: %v", err)
+	}
+	if ledger.BalanceAfterNanousd == nil || *ledger.BalanceAfterNanousd != wantBalance {
+		t.Fatalf("ledger balance after = %v, want %d", ledger.BalanceAfterNanousd, wantBalance)
 	}
 
 	var transaction model.BalanceTransaction
@@ -797,6 +823,9 @@ func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
 	if ledger.BilledNanousd != 500 {
 		t.Fatalf("billed nanousd = %d, want 500", ledger.BilledNanousd)
 	}
+	if ledger.BalanceAfterNanousd == nil || *ledger.BalanceAfterNanousd != 200 {
+		t.Fatalf("ledger balance after = %v, want 200", ledger.BalanceAfterNanousd)
+	}
 	var snapshot map[string]interface{}
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("decode pricing snapshot: %v", err)
@@ -955,6 +984,13 @@ func TestAddPeriodUsageAndSettleOverageUsesBillingAtForPeriodBoundary(t *testing
 	}
 	if refreshed.BalanceNanousd != 500 {
 		t.Fatalf("balance = %d, want unchanged 500", refreshed.BalanceNanousd)
+	}
+	var ledger model.UsageLedger
+	if err := db.Where("platform_model_name = ?", "gpt-current-period").First(&ledger).Error; err != nil {
+		t.Fatalf("load current period usage: %v", err)
+	}
+	if ledger.BalanceAfterNanousd == nil || *ledger.BalanceAfterNanousd != 500 {
+		t.Fatalf("ledger balance after = %v, want unchanged 500", ledger.BalanceAfterNanousd)
 	}
 }
 

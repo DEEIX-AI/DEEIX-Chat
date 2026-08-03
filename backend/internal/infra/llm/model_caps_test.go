@@ -26,4 +26,3 @@ func TestEffectiveContextBudgetFromCapabilitiesUsesConfiguredWindow(t *testing.T
 		t.Fatalf("expected budget %d, got %d", want, got)
 	}
 }
-

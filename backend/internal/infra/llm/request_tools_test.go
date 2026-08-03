@@ -547,25 +547,37 @@ func TestBuildGeminiToolsPreservesExplicitToolConfigWhenMixedTools(t *testing.T)
 	}
 }
 
-func TestBuildGeminiToolsSanitizesJSONSchemaForFunctionDeclarations(t *testing.T) {
+func TestBuildGeminiToolsPreservesJSONSchemaForFunctionDeclarations(t *testing.T) {
 	schema := json.RawMessage(`{
-		"$schema": "http://json-schema.org/draft-07/schema#",
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
 		"additionalProperties": false,
 		"type": "object",
 		"properties": {
-			"query": {
-				"anyOf": [
-					{"type": "string", "default": ""},
-					{"type": "array", "items": {"type": "string", "additionalProperties": false}}
-				],
-				"description": "Search terms"
+			"headers": {
+				"type": "object",
+				"additionalProperties": {"type": "string"}
 			},
-			"num": {
-				"type": "number",
-				"default": 30
+			"actions": {
+				"type": "array",
+				"items": {"$ref": "#/properties/headers"}
+			},
+			"request": {"$ref": "#/$defs/request"},
+			"parser": {
+				"anyOf": [
+					{"$ref": "#/$defs/parser"},
+					{"type": "null"}
+				]
 			}
 		},
-		"required": ["query"]
+		"$defs": {
+			"request": {
+				"type": "object",
+				"properties": {"url": {"type": "string", "format": "uri"}},
+				"required": ["url"]
+			},
+			"parser": {"type": "object"}
+		},
+		"required": ["actions"]
 	}`)
 	payload := mustBuildGeminiRequestBody(t, GenerateInput{
 		Messages: []Message{{Role: "user", Content: "search"}},
@@ -578,26 +590,32 @@ func TestBuildGeminiToolsSanitizesJSONSchemaForFunctionDeclarations(t *testing.T
 
 	tools := payload["tools"].([]map[string]interface{})
 	declarations := tools[0]["functionDeclarations"].([]map[string]interface{})
-	parameters := declarations[0]["parameters"].(map[string]interface{})
-	if _, ok := parameters["$schema"]; ok {
-		t.Fatalf("expected $schema to be removed for Gemini, got %#v", parameters)
+	declaration := declarations[0]
+	if _, ok := declaration["parameters"]; ok {
+		t.Fatalf("expected Generate Content to use parametersJsonSchema, got %#v", declaration)
 	}
-	if _, ok := parameters["additionalProperties"]; ok {
-		t.Fatalf("expected additionalProperties to be removed for Gemini, got %#v", parameters)
+	parameters, ok := declaration["parametersJsonSchema"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected native JSON Schema parameters, got %#v", declaration)
+	}
+	if parameters["$schema"] != "https://json-schema.org/draft/2020-12/schema" || parameters["additionalProperties"] != false {
+		t.Fatalf("expected root JSON Schema fields to be preserved, got %#v", parameters)
+	}
+	definitions := asMap(parameters["$defs"])
+	if asMap(definitions["request"])["type"] != "object" || asMap(definitions["parser"])["type"] != "object" {
+		t.Fatalf("expected JSON Schema definitions to be preserved, got %#v", definitions)
 	}
 	properties := parameters["properties"].(map[string]interface{})
-	query := properties["query"].(map[string]interface{})
-	anyOf := query["anyOf"].([]interface{})
-	if _, ok := anyOf[0].(map[string]interface{})["default"]; ok {
-		t.Fatalf("expected nested default to be removed for Gemini, got %#v", anyOf[0])
+	actions := asMap(properties["actions"])
+	if asMap(actions["items"])["$ref"] != "#/properties/headers" {
+		t.Fatalf("expected array item reference to be preserved, got %#v", actions)
 	}
-	arraySchema := anyOf[1].(map[string]interface{})
-	items := arraySchema["items"].(map[string]interface{})
-	if _, ok := items["additionalProperties"]; ok {
-		t.Fatalf("expected nested additionalProperties to be removed for Gemini, got %#v", items)
+	if asMap(properties["request"])["$ref"] != "#/$defs/request" {
+		t.Fatalf("expected property reference to be preserved, got %#v", properties["request"])
 	}
-	if parameters["type"] != "object" || len(parameters["required"].([]interface{})) != 1 {
-		t.Fatalf("expected supported schema fields to remain, got %#v", parameters)
+	anyOf := asSlice(asMap(properties["parser"])["anyOf"])
+	if len(anyOf) != 2 || asMap(anyOf[0])["$ref"] != "#/$defs/parser" {
+		t.Fatalf("expected anyOf reference to be preserved, got %#v", anyOf)
 	}
 }
 

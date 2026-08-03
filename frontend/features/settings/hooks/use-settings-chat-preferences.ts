@@ -8,6 +8,7 @@ import { useAuthSession } from "@/shared/auth/auth-session-context";
 
 type ChatPreferences = {
   autoGenerateTitle: boolean;
+  autoGenerateLabels: boolean;
   deleteFilesByDefault: boolean;
   reuseModelOptions: boolean;
 };
@@ -18,6 +19,7 @@ type ChatPreferencesState = ChatPreferences & {
 
 const DEFAULT_CHAT_PREFERENCES: ChatPreferences = {
   autoGenerateTitle: true,
+  autoGenerateLabels: true,
   deleteFilesByDefault: false,
   reuseModelOptions: true,
 };
@@ -30,6 +32,7 @@ let pendingPreferences: Promise<ChatPreferences> | null = null;
 function resolveChatPreferences(settings: Record<string, string>): ChatPreferences {
   return {
     autoGenerateTitle: settings["chat.auto_generate_title"] !== "false",
+    autoGenerateLabels: settings["chat.auto_generate_labels"] !== "false",
     deleteFilesByDefault: settings["chat.delete_conversation_files_by_default"] === "true",
     reuseModelOptions: settings["chat.reuse_model_options"] !== "false",
   };
@@ -42,12 +45,12 @@ function resetChatPreferencesCache() {
   pendingPreferences = null;
 }
 
-function loadChatPreferences(accessToken: string): Promise<ChatPreferences> {
-  if (cachedAccessToken === accessToken) {
-    return Promise.resolve(cachedPreferences);
-  }
+function loadChatPreferences(accessToken: string, refresh = false): Promise<ChatPreferences> {
   if (pendingPreferences && pendingAccessToken === accessToken) {
     return pendingPreferences;
+  }
+  if (!refresh && cachedAccessToken === accessToken) {
+    return Promise.resolve(cachedPreferences);
   }
 
   pendingAccessToken = accessToken;
@@ -60,7 +63,7 @@ function loadChatPreferences(accessToken: string): Promise<ChatPreferences> {
       }
       return preferences;
     })
-    .catch(() => DEFAULT_CHAT_PREFERENCES)
+    .catch(() => cachedAccessToken === accessToken ? cachedPreferences : DEFAULT_CHAT_PREFERENCES)
     .finally(() => {
       if (pendingAccessToken === accessToken) {
         pendingAccessToken = null;
@@ -92,7 +95,7 @@ export function useSettingsChatPreferences(): ChatPreferencesState {
         return;
       }
       setLoaded(cachedAccessToken === accessToken);
-      const nextPreferences = await loadChatPreferences(accessToken);
+      const nextPreferences = await loadChatPreferences(accessToken, true);
       if (!cancelled && requestVersion === preferencesVersionRef.current) {
         setPreferences(nextPreferences);
         setLoaded(true);

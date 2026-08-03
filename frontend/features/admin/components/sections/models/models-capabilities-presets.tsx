@@ -27,11 +27,58 @@ type CapabilityPreset = {
   payload: Record<string, unknown>;
 };
 
+const OPENAI_WEB_SEARCH_NATIVE_TOOL = {
+  key: "openai.web_search",
+  protocols: ["openai_chat_completions", "openai_responses"],
+  label: "Web Search",
+  enabled: true,
+  defaultEnabled: true,
+  payload: {
+    type: "web_search",
+  },
+  provider: "OpenAI",
+  type: "web_search",
+  description: "OpenAI hosted web search.",
+};
+
+const OPENAI_REASONING_EFFORT_OPTIONS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+
 const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
+  {
+    id: "openai_chat_completions",
+    protocol: "openai_chat_completions",
+    payload: {
+      promptCache: {
+        enabled: true,
+      },
+      defaultOptions: {
+        reasoning_effort: "high",
+        verbosity: "medium",
+      },
+      optionControls: [
+        {
+          path: "reasoning_effort",
+          type: "select",
+          label: "Reasoning Effort",
+          options: OPENAI_REASONING_EFFORT_OPTIONS,
+        },
+        {
+          path: "verbosity",
+          type: "select",
+          label: "Verbosity",
+          options: ["low", "medium", "high"],
+        },
+      ],
+      nativeTools: [OPENAI_WEB_SEARCH_NATIVE_TOOL],
+    },
+  },
   {
     id: "openai_responses",
     protocol: "openai_responses",
     payload: {
+      promptCache: {
+        enabled: true,
+      },
       defaultOptions: {
         reasoning: {
           effort: "high",
@@ -47,7 +94,7 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
           path: "reasoning.effort",
           type: "select",
           label: "Reasoning Effort",
-          options: ["minimal", "low", "medium", "high", "xhigh"],
+          options: OPENAI_REASONING_EFFORT_OPTIONS,
         },
         {
           path: "reasoning.summary",
@@ -84,19 +131,7 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
           type: "code_interpreter",
           description: "OpenAI hosted code interpreter with an automatic container.",
         },
-        {
-          key: "openai.web_search",
-          protocols: ["openai_chat_completions", "openai_responses"],
-          label: "Web Search",
-          enabled: true,
-          defaultEnabled: true,
-          payload: {
-            type: "web_search",
-          },
-          provider: "OpenAI",
-          type: "web_search",
-          description: "OpenAI hosted web search.",
-        },
+        OPENAI_WEB_SEARCH_NATIVE_TOOL,
       ],
     },
   },
@@ -257,13 +292,63 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
     protocol: "xai_responses",
     payload: {
       defaultOptions: {
-        store: false,
+        reasoning: {
+          effort: "low",
+        },
+        parallel_tool_calls: true,
+        store: true,
+        temperature: 1,
+        top_p: 1,
       },
       optionControls: [
+        {
+          path: "reasoning.effort",
+          type: "select",
+          label: "Reasoning Effort",
+          description: "Constrains reasoning effort for supported Grok models.",
+          options: ["none", "low", "medium", "high"],
+        },
+        {
+          path: "temperature",
+          type: "number",
+          label: "Temperature",
+          description: "Sampling temperature between 0 and 2.",
+        },
+        {
+          path: "top_p",
+          type: "number",
+          label: "Top P",
+          description: "Nucleus sampling threshold between 0 and 1.",
+        },
+        {
+          path: "max_output_tokens",
+          type: "number",
+          label: "Max Output Tokens",
+          description: "Maximum combined output and reasoning tokens.",
+        },
+        {
+          path: "top_k",
+          type: "number",
+          label: "Top K",
+          description: "Limits sampling to the most probable tokens.",
+        },
+        {
+          path: "min_p",
+          type: "number",
+          label: "Min P",
+          description: "Excludes tokens below the relative probability threshold.",
+        },
+        {
+          path: "parallel_tool_calls",
+          type: "boolean",
+          label: "Parallel Tool Calls",
+          description: "Allows the model to run tool calls in parallel.",
+        },
         {
           path: "store",
           type: "boolean",
           label: "Store",
+          description: "Stores the input and response for later retrieval.",
         },
       ],
       nativeTools: [

@@ -519,88 +519,15 @@ func buildGeminiTools(tools []ToolDefinition) []map[string]interface{} {
 			continue
 		}
 		declarations = append(declarations, map[string]interface{}{
-			"name":        name,
-			"description": strings.TrimSpace(tool.Description),
-			"parameters":  geminiToolParameterSchema(decodeToolSchema(tool.InputSchema)),
+			"name":                 name,
+			"description":          strings.TrimSpace(tool.Description),
+			"parametersJsonSchema": decodeToolSchema(tool.InputSchema),
 		})
 	}
 	if len(declarations) == 0 {
 		return nil
 	}
 	return []map[string]interface{}{{"functionDeclarations": declarations}}
-}
-
-func geminiToolParameterSchema(schema map[string]interface{}) map[string]interface{} {
-	if len(schema) == 0 {
-		return map[string]interface{}{"type": "object", "properties": map[string]interface{}{}}
-	}
-	normalized := sanitizeGeminiSchema(schema)
-	if strings.TrimSpace(getString(normalized["type"])) == "" {
-		normalized["type"] = "object"
-	}
-	if _, ok := normalized["properties"]; !ok && strings.EqualFold(getString(normalized["type"]), "object") {
-		normalized["properties"] = map[string]interface{}{}
-	}
-	return normalized
-}
-
-func sanitizeGeminiSchema(schema map[string]interface{}) map[string]interface{} {
-	result := make(map[string]interface{}, len(schema))
-	for key, value := range schema {
-		switch key {
-		case "type", "format", "title", "description", "nullable", "enum", "required", "propertyOrdering":
-			if !isEmptyGeminiPayloadValue(value) {
-				result[key] = value
-			}
-		case "properties":
-			properties := sanitizeGeminiSchemaProperties(asMap(value))
-			if len(properties) > 0 {
-				result[key] = properties
-			}
-		case "items":
-			itemSchema := sanitizeGeminiSchema(asMap(value))
-			if len(itemSchema) > 0 {
-				result[key] = itemSchema
-			}
-		case "anyOf":
-			anyOf := sanitizeGeminiSchemaList(asSlice(value))
-			if len(anyOf) > 0 {
-				result[key] = anyOf
-			}
-		case "minItems", "maxItems":
-			result[key] = value
-		}
-	}
-	return result
-}
-
-func sanitizeGeminiSchemaProperties(properties map[string]interface{}) map[string]interface{} {
-	if len(properties) == 0 {
-		return nil
-	}
-	result := make(map[string]interface{}, len(properties))
-	for name, raw := range properties {
-		property := sanitizeGeminiSchema(asMap(raw))
-		if len(property) == 0 {
-			continue
-		}
-		result[name] = property
-	}
-	return result
-}
-
-func sanitizeGeminiSchemaList(items []interface{}) []interface{} {
-	if len(items) == 0 {
-		return nil
-	}
-	result := make([]interface{}, 0, len(items))
-	for _, raw := range items {
-		item := sanitizeGeminiSchema(asMap(raw))
-		if len(item) > 0 {
-			result = append(result, item)
-		}
-	}
-	return result
 }
 
 func buildGeminiProviderTools(tools []map[string]interface{}) []map[string]interface{} {
@@ -729,6 +656,7 @@ func (c *Client) newGeminiRequest(
 	method, requestURL string,
 	body io.Reader,
 	route RouteConfig,
+	input *GenerateInput,
 ) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, requestURL, body)
 	if err != nil {
@@ -739,7 +667,7 @@ func (c *Client) newGeminiRequest(
 	if apiKey := strings.TrimSpace(route.APIKey); apiKey != "" {
 		req.Header.Set("x-goog-api-key", apiKey)
 	}
-	setAdditionalHeaders(req, route.HeadersJSON)
+	setAdditionalHeadersForInput(req, route.HeadersJSON, input)
 	return req, nil
 }
 
@@ -789,12 +717,12 @@ func (c *Client) generateGemini(
 	requestCtx, cancel := context.WithTimeout(ctx, resolveReadTimeout(route.ReadTimeoutMS))
 	defer cancel()
 
-	req, err := c.newGeminiRequest(requestCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route)
+	req, err := c.newGeminiRequest(requestCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route, &input)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := doGenerationRequest(c.httpClientForRoute(route), req)
 	if err != nil {
 		return nil, err
 	}
@@ -802,6 +730,9 @@ func (c *Client) generateGemini(
 
 	body, err := readUpstreamBody(resp.Body)
 	if err != nil {
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return nil, MarkRequestAccepted(err)
+		}
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -811,7 +742,7 @@ func (c *Client) generateGemini(
 	debug := upstreamDebugSnapshot(req, payload, resp, body)
 	output, err := parseGeminiResponse(body)
 	if err != nil {
-		return nil, attachUpstreamDebug(err, debug)
+		return nil, MarkRequestAccepted(attachUpstreamDebug(err, debug))
 	}
 	output.Debug = debug
 	return output, nil
@@ -824,15 +755,17 @@ func parseGeminiResponse(body []byte) (*GenerateOutput, error) {
 		return nil, err
 	}
 
+	text := extractGeminiText(parsed)
 	result := &GenerateOutput{
 		ResponseID:          strings.TrimSpace(getString(parsed["responseId"])),
-		Text:                extractGeminiText(parsed),
+		Text:                text,
 		Reasoning:           extractGeminiReasoning(parsed),
 		Usage:               parseGeminiUsage(parsed),
 		ToolCalls:           parseGeminiFunctionCalls(parsed),
 		ServerToolCalls:     parseGeminiServerToolCalls(parsed),
 		ServerSideToolUsage: parseGeminiServerSideToolUsage(parsed),
 		Citations:           parseGeminiCitations(parsed),
+		GeneratedImages:     extractGeminiGeneratedImages(parsed, text),
 		RawJSON:             string(body),
 	}
 	return result, nil
@@ -1317,13 +1250,13 @@ func (c *Client) generateGeminiStream(
 	firstByteTimer := time.AfterFunc(resolveReadTimeout(route.ReadTimeoutMS), firstByteCancel)
 	defer firstByteTimer.Stop()
 
-	req, err := c.newGeminiRequest(firstByteCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route)
+	req, err := c.newGeminiRequest(firstByteCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route, &input)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := doGenerationRequest(c.httpClientForRoute(route), req)
 	firstByteTimer.Stop()
 	if err != nil {
 		return nil, err
@@ -1342,7 +1275,7 @@ func (c *Client) generateGeminiStream(
 	idleReader := newIdleTimeoutReader(resp.Body, resolveStreamIdleTimeout(route.StreamIdleTimeoutMS))
 	streamBody := newUpstreamBodyRecorder(idleReader)
 	if err = consumeGeminiStream(streamBody, result, onEvent); err != nil {
-		return nil, attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err)))
+		return nil, MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err))))
 	}
 	return result, nil
 }
@@ -1607,7 +1540,7 @@ func (c *Client) listModelsGemini(ctx context.Context, route RouteConfig) ([]Mod
 	requestCtx, cancel := context.WithTimeout(ctx, resolveReadTimeout(route.ReadTimeoutMS))
 	defer cancel()
 
-	req, err := c.newGeminiRequest(requestCtx, http.MethodGet, requestURL, nil, route)
+	req, err := c.newGeminiRequest(requestCtx, http.MethodGet, requestURL, nil, route, nil)
 	if err != nil {
 		return nil, err
 	}

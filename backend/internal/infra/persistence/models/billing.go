@@ -250,6 +250,7 @@ type UsageLedger struct {
 	ServiceTier         string    `gorm:"size:32;not null;default:'';comment:计费服务等级"`
 	BilledCurrency      string    `gorm:"size:16;not null;default:'USD';comment:计费币种"`
 	BilledNanousd       int64     `gorm:"not null;default:0;comment:账单金额(纳美元)"`
+	BalanceAfterNanousd *int64    `gorm:"comment:调用结算后按量余额(纳美元)"`
 	PricingSnapshotJSON string    `gorm:"type:text;not null;default:'';comment:计费快照JSON"`
 }
 

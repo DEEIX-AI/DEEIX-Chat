@@ -114,6 +114,14 @@
     "confirm": "确认执行",
     "pending": "处理中"
   },
+  "syncConfirm": {
+    "title": "同步 MCP 工具",
+    "description": "请选择「{name}」工具名称和说明的处理方式。",
+    "preserve": "保留当前内容",
+    "preserveDescription": "名称和说明不变，其他信息正常同步",
+    "overwrite": "使用服务端内容",
+    "overwriteDescription": "同步 MCP 服务返回的名称和说明"
+  },
   "serverDialog": {
     "createTitle": "新增 MCP 服务",
     "editTitle": "编辑 MCP 服务",

@@ -278,7 +278,7 @@ func (s *Service) hydrateAttachmentsForSend(
 	}
 	for i, att := range attachments {
 		if strings.TrimSpace(att.FileID) == "" ||
-			(att.FileCategory == fileCategoryImage && (att.Current || !cfg.ExtractImageOCREnabled)) {
+			(att.FileCategory == fileCategoryImage && (att.Current || strings.EqualFold(strings.TrimSpace(att.MessageRole), "user") || !cfg.ExtractImageOCREnabled)) {
 			continue
 		}
 		i, att := i, att // 闭包捕获

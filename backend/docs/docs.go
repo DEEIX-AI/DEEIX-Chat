@@ -1462,6 +1462,112 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/conversation-events/cleanup": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "物理删除指定运行的全部对话事件；保留消息、附件、调用与计费记录",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "管理员按运行清理对话事件",
+                "parameters": [
+                    {
+                        "description": "运行轨迹清理参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CleanupConversationRunsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/CleanupConversationRunsResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AdminErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AdminErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/conversation-events/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员按事件 ID 查看单条对话运行事件详情；超大历史负载会被安全省略",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "管理员查询对话事件详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "事件 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationEventDetailResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AdminErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AdminErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AdminErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/conversations/export": {
             "get": {
                 "security": [
@@ -3784,6 +3890,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "是否用远端元数据覆盖管理员自定义的工具名称和说明",
+                        "name": "overwrite_customized_metadata",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -8148,6 +8260,66 @@ const docTemplate = `{
                 }
             }
         },
+        "/conversations/search": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "分页搜索当前用户的会话标题、元数据、项目和消息正文，并返回是否还有下一页",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "搜索会话",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键词；为空时返回最近会话",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationSearchListResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/conversations/shares/revoke": {
             "post": {
                 "security": [
@@ -8438,6 +8610,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/conversations/{id}/labels": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "替换指定会话的标签；传入空数组可清空标签",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "更新会话标签",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 public_id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "会话标签",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateConversationLabelsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationUpdateResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/conversations/{id}/messages": {
             "get": {
                 "security": [
@@ -8544,6 +8780,61 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/SendMessageResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/conversations/{id}/messages/preview": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "返回当前用户会话最新分支最近 10 条用户或助手消息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "查询会话预览消息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 public_id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationPreviewMessageListResponseDoc"
                         }
                     },
                     "400": {
@@ -12796,7 +13087,6 @@ const docTemplate = `{
                 "id",
                 "lang",
                 "name",
-                "orientation",
                 "scope",
                 "short_name",
                 "start_url",
@@ -12831,9 +13121,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
-                    "type": "string"
-                },
-                "orientation": {
                     "type": "string"
                 },
                 "scope": {
@@ -13027,6 +13314,52 @@ const docTemplate = `{
             "properties": {
                 "reset": {
                     "type": "boolean"
+                }
+            }
+        },
+        "CleanupConversationRunsRequest": {
+            "type": "object",
+            "required": [
+                "runIDs"
+            ],
+            "properties": {
+                "runIDs": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "CleanupConversationRunsResponse": {
+            "type": "object",
+            "required": [
+                "deletedCount",
+                "runCount"
+            ],
+            "properties": {
+                "deletedCount": {
+                    "type": "integer"
+                },
+                "runCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "CleanupConversationRunsResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/CleanupConversationRunsResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
                 }
             }
         },
@@ -13255,6 +13588,21 @@ const docTemplate = `{
                 }
             }
         },
+        "ConversationEventDetailResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ConversationEventResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "ConversationEventListResponseDoc": {
             "type": "object",
             "required": [
@@ -13303,6 +13651,8 @@ const docTemplate = `{
                 "outputJSON",
                 "parentEventID",
                 "payloadJSON",
+                "payloadOmitted",
+                "payloadSizeBytes",
                 "phase",
                 "platformModelName",
                 "providerProtocol",
@@ -13372,6 +13722,12 @@ const docTemplate = `{
                 },
                 "payloadJSON": {
                     "type": "string"
+                },
+                "payloadOmitted": {
+                    "type": "boolean"
+                },
+                "payloadSizeBytes": {
+                    "type": "integer"
                 },
                 "phase": {
                     "type": "string"
@@ -13551,6 +13907,51 @@ const docTemplate = `{
                 },
                 "errorMsg": {
                     "type": "string"
+                }
+            }
+        },
+        "ConversationPreviewMessageListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ConversationPreviewMessageResponse"
+                    }
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ConversationPreviewMessageResponse": {
+            "type": "object",
+            "required": [
+                "content",
+                "errorMessage",
+                "publicID",
+                "role"
+            ],
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "errorMessage": {
+                    "type": "string"
+                },
+                "publicID": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "user",
+                        "assistant"
+                    ]
                 }
             }
         },
@@ -13781,6 +14182,82 @@ const docTemplate = `{
                     }
                 },
                 "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ConversationSearchListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ConversationSearchPageResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ConversationSearchPageResponse": {
+            "type": "object",
+            "required": [
+                "hasMore",
+                "results"
+            ],
+            "properties": {
+                "hasMore": {
+                    "type": "boolean"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ConversationSearchResultResponse"
+                    }
+                }
+            }
+        },
+        "ConversationSearchResultResponse": {
+            "type": "object",
+            "required": [
+                "isStarred",
+                "labelsJSON",
+                "messageCount",
+                "projectID",
+                "projectName",
+                "publicID",
+                "status",
+                "title",
+                "updatedAt"
+            ],
+            "properties": {
+                "isStarred": {
+                    "type": "boolean"
+                },
+                "labelsJSON": {
+                    "type": "string"
+                },
+                "messageCount": {
+                    "type": "integer"
+                },
+                "projectID": {
+                    "type": "string"
+                },
+                "projectName": {
+                    "type": "string"
+                },
+                "publicID": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
                     "type": "string"
                 }
             }
@@ -18921,6 +19398,7 @@ const docTemplate = `{
                 "lastError",
                 "lastSyncedAt",
                 "name",
+                "requiresToolMetadataSyncConfirmation",
                 "sortOrder",
                 "status",
                 "toolCount",
@@ -18952,6 +19430,9 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "requiresToolMetadataSyncConfirmation": {
+                    "type": "boolean"
                 },
                 "sortOrder": {
                     "type": "integer"
@@ -19832,6 +20313,22 @@ const docTemplate = `{
                 "permissionGroupID": {
                     "type": "integer",
                     "x-nullable": true
+                }
+            }
+        },
+        "UpdateConversationLabelsRequest": {
+            "type": "object",
+            "required": [
+                "labels"
+            ],
+            "properties": {
+                "labels": {
+                    "type": "array",
+                    "maxItems": 6,
+                    "items": {
+                        "type": "string",
+                        "maxLength": 24
+                    }
                 }
             }
         },
@@ -21191,6 +21688,8 @@ const docTemplate = `{
         "UsageLedgerResponse": {
             "type": "object",
             "required": [
+                "balanceAfterNanousd",
+                "balanceAfterUSD",
                 "billedCurrency",
                 "billedNanousd",
                 "billedUSD",
@@ -21223,6 +21722,16 @@ const docTemplate = `{
                 "userID"
             ],
             "properties": {
+                "balanceAfterNanousd": {
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "balanceAfterUSD": {
+                    "type": "number",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
                 "billedCurrency": {
                     "type": "string"
                 },
@@ -21348,6 +21857,8 @@ const docTemplate = `{
         "UsageLogResponse": {
             "type": "object",
             "required": [
+                "balanceAfterNanousd",
+                "balanceAfterUSD",
                 "billedCurrency",
                 "billedNanousd",
                 "billedUSD",
@@ -21382,6 +21893,16 @@ const docTemplate = `{
                 "username"
             ],
             "properties": {
+                "balanceAfterNanousd": {
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "balanceAfterUSD": {
+                    "type": "number",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
                 "billedCurrency": {
                     "type": "string"
                 },
@@ -22117,7 +22638,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "0.3.3",
+	Version:          "0.3.4",
 	Host:             "",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},

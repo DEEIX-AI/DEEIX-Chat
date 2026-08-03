@@ -52,11 +52,11 @@ func (c *Client) generateGeminiInteraction(ctx context.Context, route RouteConfi
 	requestCtx, cancel := context.WithTimeout(ctx, resolveReadTimeout(route.ReadTimeoutMS))
 	defer cancel()
 
-	req, err := c.newGeminiRequest(requestCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route)
+	req, err := c.newGeminiRequest(requestCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route, &input)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := doGenerationRequest(c.httpClientForRoute(route), req)
 	if err != nil {
 		return nil, err
 	}
@@ -64,12 +64,19 @@ func (c *Client) generateGeminiInteraction(ctx context.Context, route RouteConfi
 
 	body, err := readUpstreamBody(resp.Body)
 	if err != nil {
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return nil, MarkRequestAccepted(err)
+		}
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, parseGeminiError(resp.StatusCode, body, upstreamDebugSnapshot(req, payload, resp, body))
 	}
-	return parseGeminiInteractionOutput(body)
+	output, err := parseGeminiInteractionOutput(body)
+	if err != nil {
+		return nil, MarkRequestAccepted(err)
+	}
+	return output, nil
 }
 
 func (c *Client) generateGeminiInteractionStream(
@@ -96,13 +103,13 @@ func (c *Client) generateGeminiInteractionStream(
 	firstByteTimer := time.AfterFunc(resolveReadTimeout(route.ReadTimeoutMS), firstByteCancel)
 	defer firstByteTimer.Stop()
 
-	req, err := c.newGeminiRequest(firstByteCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route)
+	req, err := c.newGeminiRequest(firstByteCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route, &input)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := doGenerationRequest(c.httpClientForRoute(route), req)
 	firstByteTimer.Stop()
 	if err != nil {
 		return nil, err
@@ -120,7 +127,7 @@ func (c *Client) generateGeminiInteractionStream(
 	idleReader := newIdleTimeoutReader(resp.Body, resolveStreamIdleTimeout(route.StreamIdleTimeoutMS))
 	streamBody := newUpstreamBodyRecorder(idleReader)
 	if err = consumeGeminiInteractionStream(streamBody, result, onEvent); err != nil {
-		return nil, attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err)))
+		return nil, MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err))))
 	}
 	return result, nil
 }
@@ -570,7 +577,7 @@ func buildGeminiInteractionTools(tools []ToolDefinition) []map[string]interface{
 			"type":        "function",
 			"name":        name,
 			"description": strings.TrimSpace(tool.Description),
-			"parameters":  geminiToolParameterSchema(decodeToolSchema(tool.InputSchema)),
+			"parameters":  decodeToolSchema(tool.InputSchema),
 		})
 	}
 	return items

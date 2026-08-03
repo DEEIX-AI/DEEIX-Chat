@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { FileContentResult } from "@/shared/api/file";
 import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
+import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 
 const USER_MESSAGE_COLLAPSED_LINES = 6;
 const USER_MESSAGE_LINE_HEIGHT_REM = 2;
@@ -284,7 +285,7 @@ export function ChatMessageUser({
                 transition={USER_MESSAGE_EXPAND_TRANSITION}
                 style={contentMaxHeight == null ? { maxHeight: "none" } : { maxHeight: contentMaxHeight }}
               >
-                <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.content}</p>
+                <StreamdownRender content={item.content} variant="user" />
               </motion.div>
             </div>
             {measured && canCollapse ? (

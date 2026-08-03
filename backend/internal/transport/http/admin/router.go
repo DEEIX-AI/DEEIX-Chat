@@ -19,6 +19,8 @@ func (m *Module) RegisterRoutes(adminGroup *gin.RouterGroup) {
 	adminGroup.GET("/call-logs", m.Handler.ListUsageLogs)
 	adminGroup.GET("/payment-orders", m.Handler.ListPaymentOrders)
 	adminGroup.GET("/conversation-events", m.Handler.ListConversationEvents)
+	adminGroup.GET("/conversation-events/:id", m.Handler.GetConversationEvent)
+	adminGroup.POST("/conversation-events/cleanup", m.Handler.CleanupConversationRuns)
 	adminGroup.GET("/system-events", m.Handler.ListSystemEvents)
 	adminGroup.POST("/logs/cleanup", m.Handler.CleanupLogs)
 	adminGroup.GET("/conversations/export", m.Handler.ExportConversations)

@@ -181,8 +181,8 @@ export function useChatAttachments({
       let overflowCount = 0;
       const policyLabels = {
         mimeNotAllowed: t("policy.mimeNotAllowed"),
-        fullContextLimitExceeded: (limitKB: number) => t("policy.fullContextLimitExceeded", { limit: limitKB }),
-        sizeLimitExceeded: (limitKB: number) => t("policy.sizeLimitExceeded", { limit: limitKB }),
+        fullContextLimitExceeded: (limit: string) => t("policy.fullContextLimitExceeded", { limit }),
+        sizeLimitExceeded: (limit: string) => t("policy.sizeLimitExceeded", { limit }),
       };
       for (const file of files) {
         const rejection = resolveUploadPolicyRejection(file, chatFilePolicy, policyLabels);

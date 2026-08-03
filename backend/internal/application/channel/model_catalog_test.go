@@ -242,6 +242,103 @@ func TestReasoningContentPassbackRequiredForDeepSeekChatCompletions(t *testing.T
 	}
 }
 
+// Moonshot、智谱、小米 MiMo 的思考模型同样要求历史 assistant 消息原样携带 reasoning_content，
+// 覆盖显式 vendor 与仅凭模型名推断两种入口，并反向断言未纳入白名单的厂商保持关闭。
+func TestReasoningContentPassbackRequiredForAdditionalChatCompletionsVendors(t *testing.T) {
+	required := []struct {
+		name       string
+		candidates []string
+	}{
+		{"moonshot vendor", []string{"moonshot", "kimi-k3"}},
+		{"kimi alias", []string{"kimi", "kimi-k2.7-code"}},
+		{"kimi by model name", []string{"", "kimi-k3"}},
+		{"moonshot by model name", []string{"", "moonshot-v1-128k"}},
+		{"zhipu vendor", []string{"zhipu", "glm-4.6"}},
+		{"glm alias", []string{"glm", "glm-4.6"}},
+		{"glm by model name", []string{"", "glm-4.6"}},
+		{"chatglm by model name", []string{"", "chatglm-6b"}},
+		{"xiaomi vendor", []string{"xiaomi", "mimo-v2.5-pro"}},
+		{"mimo by model name", []string{"", "mimo-v2.5-pro"}},
+		{"mimo omni by model name", []string{"", "mimo-v2-omni"}},
+		{"mimo namespaced model name", []string{"", "xiaomi/mimo-v2.5-pro"}},
+		{"alibaba vendor", []string{"alibaba", "qwen3.6-plus"}},
+		{"qwen alias", []string{"qwen", "qwen-max"}},
+		{"qwq by model name", []string{"", "qwq-32b"}},
+		{"qvq by model name", []string{"", "qvq-max"}},
+		{"tongyi by model name", []string{"", "tongyi-deepresearch"}},
+		{"minimax vendor", []string{"minimax", "minimax-m2"}},
+		{"abab by model name", []string{"", "abab-6.5s"}},
+		{"hailuo by model name", []string{"", "hailuo-02"}},
+	}
+	for _, item := range required {
+		if !reasoningContentPassbackRequired(llm.AdapterOpenAIChatCompletions, item.candidates...) {
+			t.Fatalf("%s: expected Chat Completions route to require reasoning_content passback", item.name)
+		}
+	}
+
+	// 非 Chat Completions 协议不受影响。
+	if reasoningContentPassbackRequired(llm.AdapterOpenAIResponses, "moonshot", "kimi-k3") {
+		t.Fatal("expected Responses route to skip reasoning_content passback for moonshot")
+	}
+	if reasoningContentPassbackRequired(llm.AdapterOpenAIResponses, "zhipu", "glm-4.6") {
+		t.Fatal("expected Responses route to skip reasoning_content passback for zhipu")
+	}
+
+	// 未列入白名单的厂商保持关闭，避免向不接受该字段的上游发送多余入参。
+	for _, item := range []struct {
+		name       string
+		candidates []string
+	}{
+		{"bytedance", []string{"bytedance", "doubao-seed-1-6"}},
+		{"doubao by model name", []string{"", "doubao-1-5-thinking-pro"}},
+		{"tencent", []string{"tencent", "hunyuan-turbos"}},
+		{"anthropic", []string{"anthropic", "claude-opus-4-8"}},
+	} {
+		if reasoningContentPassbackRequired(llm.AdapterOpenAIChatCompletions, item.candidates...) {
+			t.Fatalf("%s: expected vendor outside the passback allowlist to skip reasoning_content", item.name)
+		}
+	}
+}
+
+// 阿里 Qwen 只回传字段无效，必须同时下发 preserve_thinking；其余厂商不应收到该私有入参，
+// OpenRouter 更要拦住——它有自己的 reasoning 字段与参数校验。
+func TestReasoningPassbackRequestOptionsOnlyForAlibabaChatCompletions(t *testing.T) {
+	got := reasoningPassbackRequestOptions(llm.AdapterOpenAIChatCompletions, "alibaba", "qwen3.6-plus")
+	if len(got) != 1 || got["preserve_thinking"] != true {
+		t.Fatalf("expected preserve_thinking for alibaba chat completions, got %#v", got)
+	}
+	if byName := reasoningPassbackRequestOptions(llm.AdapterOpenAIChatCompletions, "", "qwq-32b"); byName["preserve_thinking"] != true {
+		t.Fatalf("expected model-name inference to require preserve_thinking, got %#v", byName)
+	}
+
+	// 返回值必须是副本，调用方改动不能污染包级变量。
+	got["preserve_thinking"] = false
+	got["injected"] = true
+	again := reasoningPassbackRequestOptions(llm.AdapterOpenAIChatCompletions, "alibaba", "qwen3.6-plus")
+	if len(again) != 1 || again["preserve_thinking"] != true {
+		t.Fatalf("package-level options were mutated by caller: %#v", again)
+	}
+
+	for _, item := range []struct {
+		name       string
+		protocol   string
+		candidates []string
+	}{
+		{"openrouter alibaba", llm.AdapterOpenRouterChat, []string{"alibaba", "qwen/qwen3-max"}},
+		{"responses alibaba", llm.AdapterOpenAIResponses, []string{"alibaba", "qwen3.6-plus"}},
+		{"minimax", llm.AdapterOpenAIChatCompletions, []string{"minimax", "minimax-m2"}},
+		{"deepseek", llm.AdapterOpenAIChatCompletions, []string{"deepseek", "deepseek-v4-flash-free"}},
+		{"moonshot", llm.AdapterOpenAIChatCompletions, []string{"moonshot", "kimi-k3"}},
+		{"zhipu", llm.AdapterOpenAIChatCompletions, []string{"zhipu", "glm-4.6"}},
+		{"xiaomi", llm.AdapterOpenAIChatCompletions, []string{"xiaomi", "mimo-v2.5-pro"}},
+		{"vendor outside allowlist", llm.AdapterOpenAIChatCompletions, []string{"anthropic", "claude-opus-4-8"}},
+	} {
+		if options := reasoningPassbackRequestOptions(item.protocol, item.candidates...); options != nil {
+			t.Fatalf("%s: expected no vendor request options, got %#v", item.name, options)
+		}
+	}
+}
+
 func TestNormalizeModelIconSeparatesVendorAndModelFamily(t *testing.T) {
 	tests := map[string]struct {
 		vendor   string

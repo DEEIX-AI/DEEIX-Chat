@@ -425,6 +425,46 @@ func (h *Handler) CleanupLogs(c *gin.Context) {
 	})
 }
 
+// CleanupConversationRuns godoc
+// @Summary 管理员按运行清理对话事件
+// @Description 物理删除指定运行的全部对话事件；保留消息、附件、调用与计费记录
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body CleanupConversationRunsRequest true "运行轨迹清理参数"
+// @Success 200 {object} CleanupConversationRunsResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/conversation-events/cleanup [post]
+// CleanupConversationRuns 清理指定运行的全部对话事件。
+func (h *Handler) CleanupConversationRuns(c *gin.Context) {
+	var req CleanupConversationRunsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.InvalidRequestBody(c, err)
+		return
+	}
+	result, err := h.service.CleanupConversationRuns(c.Request.Context(), applogcleanup.ConversationRunInput{
+		RunIDs:      req.RunIDs,
+		RequestID:   middleware.MustRequestID(c),
+		ActorUserID: middleware.MustUserID(c),
+		IP:          c.ClientIP(),
+		UserAgent:   c.Request.UserAgent(),
+	})
+	if err != nil {
+		if errors.Is(err, applogcleanup.ErrInvalidRunIDs) {
+			response.ErrorFrom(c, http.StatusBadRequest, err)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, "cleanup conversation runs failed")
+		return
+	}
+	response.Success(c, CleanupConversationRunsResponse{
+		RunCount:     result.RunCount,
+		DeletedCount: result.DeletedCount,
+	})
+}
+
 // ListUsageLogs godoc
 // @Summary 管理员查询模型调用日志
 // @Description 管理员分页查看全量模型调用与计费用量账本
@@ -732,6 +772,39 @@ func (h *Handler) ListConversationEvents(c *gin.Context) {
 		events = append(events, toConversationEventResponse(item, userLabels[item.UserID]))
 	}
 	response.SuccessPage(c, total, events)
+}
+
+// GetConversationEvent godoc
+// @Summary 管理员查询对话事件详情
+// @Description 管理员按事件 ID 查看单条对话运行事件详情；超大历史负载会被安全省略
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "事件 ID"
+// @Success 200 {object} ConversationEventDetailResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/conversation-events/{id} [get]
+// GetConversationEvent 查询单条对话事件详情。
+func (h *Handler) GetConversationEvent(c *gin.Context) {
+	parsedID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
+	if err != nil || parsedID == 0 {
+		response.Error(c, http.StatusBadRequest, "invalid conversation event id")
+		return
+	}
+	item, err := h.service.GetConversationEventLog(c.Request.Context(), uint(parsedID))
+	if err != nil {
+		if errors.Is(err, appconversation.ErrConversationEventNotFound) {
+			response.ErrorFrom(c, http.StatusNotFound, err)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, "get conversation event failed")
+		return
+	}
+	label := h.service.ResolveUserLabels(c.Request.Context(), []uint{item.UserID})[item.UserID]
+	response.Success(c, toConversationEventResponse(*item, label))
 }
 
 // ListSystemEvents godoc

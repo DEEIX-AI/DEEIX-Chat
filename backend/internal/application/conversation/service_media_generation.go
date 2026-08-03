@@ -397,13 +397,16 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 		return nil, retErr
 	}
 	s.routeResolver.MarkRouteSuccess(ctx, route)
-	if output == nil || len(output.GeneratedImages) == 0 {
+	if output == nil || (len(output.GeneratedImages) == 0 && strings.TrimSpace(output.Text) == "") {
 		retErr = ErrUpstreamEmptyResponse
 		_ = s.repo.UpdateMessageState(ctx, assistantMessage.ID, "error", classifyRunErrorCode(retErr), truncateError(messageErrorSummary(retErr), 255))
 		return buildBillableFailure(retErr, mediaOutputUsage(output)), retErr
 	}
 
-	emitMediaEvent(input.OnEvent, "saving_artifact", "saving image")
+	hasGeneratedImages := len(output.GeneratedImages) > 0
+	if hasGeneratedImages {
+		emitMediaEvent(input.OnEvent, "saving_artifact", "saving image")
+	}
 	uploaded := make([]model.FileObject, 0, len(output.GeneratedImages))
 	attachmentRows := make([]model.Attachment, 0, len(output.GeneratedImages))
 	now := time.Now()
@@ -457,14 +460,19 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 		userMessage.TokenUsage = usage.InputTokens + usage.CacheReadTokens + usage.CacheWriteTokens
 	}
 
+	contentType := "image"
 	content := generatedImageMarkdown(uploaded)
+	if !hasGeneratedImages {
+		contentType = "text"
+		content = strings.TrimSpace(output.Text)
+	}
 	latencyMS := time.Since(startedAt).Milliseconds()
 	// 上游与文件上传已完成后，数据库侧的附件、用量和完成态仍需保持原子一致。
 	if reuseUserMessage {
 		if err = s.repo.CompleteAssistantMessageWithGeneratedAttachments(ctx,
 			assistantMessage.ID,
 			repository.AssistantMessageCompletionUpdate{
-				ContentType:      "image",
+				ContentType:      contentType,
 				Content:          content,
 				InputTokens:      usage.InputTokens,
 				OutputTokens:     usage.OutputTokens,
@@ -489,7 +497,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 			},
 			assistantMessage.ID,
 			repository.AssistantMessageCompletionUpdate{
-				ContentType:     "image",
+				ContentType:     contentType,
 				Content:         content,
 				OutputTokens:    usage.OutputTokens,
 				ReasoningTokens: usage.ReasoningTokens,
@@ -503,6 +511,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 		}
 	}
 	assistantMessage.Content = content
+	assistantMessage.ContentType = contentType
 	assistantMessage.OutputTokens = usage.OutputTokens
 	assistantMessage.ReasoningTokens = usage.ReasoningTokens
 	assistantMessage.TokenUsage = assistantMessage.OutputTokens + assistantMessage.ReasoningTokens
@@ -521,7 +530,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 	return &SendMessageResult{
 		UserMessage:         *userMessage,
 		AssistantMessage:    *assistantMessage,
-		MetadataRefreshHint: conversationMetadataRefreshHint(*conversation, *userMessage),
+		MetadataRefreshHint: s.resolveConversationMetadataRefreshHint(ctx, *conversation, *userMessage),
 		Billable:            true,
 		UpstreamID:          route.UpstreamID,
 		UpstreamName:        route.UpstreamName,

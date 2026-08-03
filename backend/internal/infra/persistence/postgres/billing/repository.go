@@ -529,13 +529,9 @@ func (r *Repo) AddUsageAndSettleBalance(ctx context.Context, usage *domainbillin
 		if usage.IsFreeModel || chargeNanousd <= 0 {
 			chargeNanousd = 0
 		}
-		var account *model.BillingAccount
-		if chargeNanousd > 0 || reservation != nil {
-			var err error
-			account, err = getOrCreateBillingAccountForUpdate(tx, usage.UserID)
-			if err != nil {
-				return err
-			}
+		account, err := getOrCreateBillingAccountForUpdate(tx, usage.UserID)
+		if err != nil {
+			return err
 		}
 		reservationRow, alreadySettled, err := getUsageReservationForSettlement(tx, usage.UserID, reservation)
 		if err != nil {
@@ -548,12 +544,13 @@ func (r *Repo) AddUsageAndSettleBalance(ctx context.Context, usage *domainbillin
 			return restoreSettledUsageLedger(tx, reservationRow.UsageLedgerID, usage)
 		}
 
+		nextBalance := account.BalanceNanousd - chargeNanousd
+		record.BalanceAfterNanousd = &nextBalance
 		if err := tx.Create(&record).Error; err != nil {
 			return translateError(err)
 		}
 		if chargeNanousd > 0 {
 			// 上游已产生真实用量时必须完整入账；余额可以转负，后续调用由原子预算预留拦截。
-			nextBalance := account.BalanceNanousd - chargeNanousd
 			if err := tx.Model(account).Updates(map[string]interface{}{
 				"balance_nanousd": nextBalance,
 				"currency":        "USD",
@@ -654,8 +651,10 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 			reservedCreditNanousd = reservationRow.PeriodCreditNanousd
 		}
 		reservationDeltaNanousd := overageNanousd - reservedBalanceNanousd
+		nextBalance := account.BalanceNanousd - overageNanousd
 
 		ledger := *usage
+		ledger.BalanceAfterNanousd = &nextBalance
 		ledger.PricingSnapshotJSON = withPeriodSettlementSnapshot(ledger.PricingSnapshotJSON, map[string]interface{}{
 			"period_credit_nanousd":                   periodCreditNanousd,
 			"period_used_before_nanousd":              usedBeforeNanousd,
@@ -673,7 +672,6 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 		}
 		if overageNanousd > 0 {
 			// 超出周期额度的真实用量必须完整入账；预留仅限制并发风险，不改变最终扣费金额。
-			nextBalance := account.BalanceNanousd - overageNanousd
 			if err := tx.Model(account).Updates(map[string]interface{}{
 				"balance_nanousd": nextBalance,
 				"currency":        "USD",
@@ -1348,7 +1346,7 @@ func (r *Repo) UpsertModelPricing(ctx context.Context, item *domainbilling.Model
 
 // ListUsageByUser 分页查询账本。
 func (r *Repo) ListUsageByUser(ctx context.Context, userID uint, filter repository.UsageListFilter, offset int, limit int) ([]domainbilling.UsageLedger, int64, error) {
-	items := make([]model.UsageLedger, 0)
+	items := make([]usageLedgerListRow, 0)
 	var total int64
 	query := r.db.WithContext(ctx).Model(&model.UsageLedger{}).Where("user_id = ?", userID)
 	if search := strings.TrimSpace(filter.Query); search != "" {
@@ -1376,7 +1374,7 @@ func (r *Repo) ListUsageByUser(ctx context.Context, userID uint, filter reposito
 	case "latency_desc":
 		order = "latency_ms DESC, id DESC"
 	}
-	if err := query.
+	if err := selectUsageLedgerRows(query).
 		Order(order).
 		Offset(offset).
 		Limit(limit).
@@ -1385,14 +1383,14 @@ func (r *Repo) ListUsageByUser(ctx context.Context, userID uint, filter reposito
 	}
 	results := make([]domainbilling.UsageLedger, 0, len(items))
 	for _, item := range items {
-		results = append(results, toDomainUsageLedger(item))
+		results = append(results, toDomainUsageLedgerRow(item))
 	}
 	return results, total, nil
 }
 
 // ListUsageLogs 分页查询管理员调用日志。
 func (r *Repo) ListUsageLogs(ctx context.Context, filter repository.UsageLogListFilter, offset int, limit int) ([]domainbilling.UsageLedger, int64, error) {
-	items := make([]model.UsageLedger, 0)
+	items := make([]usageLedgerListRow, 0)
 	var total int64
 	query := r.db.WithContext(ctx).Model(&model.UsageLedger{})
 	if filter.UserID > 0 {
@@ -1440,7 +1438,7 @@ func (r *Repo) ListUsageLogs(ctx context.Context, filter repository.UsageLogList
 	case "latency_desc":
 		order = "latency_ms DESC, id DESC"
 	}
-	if err := query.
+	if err := selectUsageLedgerRows(query).
 		Order(order).
 		Offset(offset).
 		Limit(limit).
@@ -1449,9 +1447,39 @@ func (r *Repo) ListUsageLogs(ctx context.Context, filter repository.UsageLogList
 	}
 	results := make([]domainbilling.UsageLedger, 0, len(items))
 	for _, item := range items {
-		results = append(results, toDomainUsageLedger(item))
+		results = append(results, toDomainUsageLedgerRow(item))
 	}
 	return results, total, nil
+}
+
+type usageLedgerListRow struct {
+	model.UsageLedger
+	ResolvedBalanceAfterNanousd *int64 `gorm:"column:resolved_balance_after_nanousd"`
+}
+
+func selectUsageLedgerRows(query *gorm.DB) *gorm.DB {
+	return query.Select(
+		`billing_usage_ledgers.*,
+		COALESCE(
+			billing_usage_ledgers.balance_after_nanousd,
+			(
+				SELECT balance_after_nanousd
+				FROM billing_balance_transactions
+				WHERE ref_type = ?
+					AND type = ?
+					AND ref_id = billing_usage_ledgers.id
+				ORDER BY id DESC
+				LIMIT 1
+			)
+		) AS resolved_balance_after_nanousd`,
+		"usage_ledger",
+		domainbilling.BalanceTransactionTypeUsage,
+	)
+}
+
+func toDomainUsageLedgerRow(item usageLedgerListRow) domainbilling.UsageLedger {
+	item.UsageLedger.BalanceAfterNanousd = item.ResolvedBalanceAfterNanousd
+	return toDomainUsageLedger(item.UsageLedger)
 }
 
 type usageStatisticsMetricRow struct {
@@ -2081,6 +2109,7 @@ func toModelUsageLedger(usage *domainbilling.UsageLedger) model.UsageLedger {
 		ServiceTier:         usage.ServiceTier,
 		BilledCurrency:      usage.BilledCurrency,
 		BilledNanousd:       usage.BilledNanousd,
+		BalanceAfterNanousd: usage.BalanceAfterNanousd,
 		PricingSnapshotJSON: usage.PricingSnapshotJSON,
 	}
 }
@@ -2112,6 +2141,7 @@ func toDomainUsageLedger(item model.UsageLedger) domainbilling.UsageLedger {
 		ServiceTier:         item.ServiceTier,
 		BilledCurrency:      item.BilledCurrency,
 		BilledNanousd:       item.BilledNanousd,
+		BalanceAfterNanousd: item.BalanceAfterNanousd,
 		PricingSnapshotJSON: item.PricingSnapshotJSON,
 		CreatedAt:           item.CreatedAt,
 		UpdatedAt:           item.UpdatedAt,

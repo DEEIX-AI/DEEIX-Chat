@@ -168,19 +168,51 @@ func (r *Repo) ListConversationsByUser(
 	return results, total, nil
 }
 
+// ListConversationsForSearch 返回搜索页所需的会话窗口，不执行精确总数统计。
+func (r *Repo) ListConversationsForSearch(
+	ctx context.Context,
+	userID uint,
+	offset int,
+	limit int,
+	searchQuery string,
+) ([]domainconversation.Conversation, error) {
+	items := make([]models.Conversation, 0, limit)
+	query := r.db.WithContext(ctx).
+		Model(&models.Conversation{}).
+		Where("user_id = ?", userID)
+	query = applyConversationSearchFilter(query, searchQuery)
+	if err := query.
+		Order("updated_at DESC").
+		Order("id DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&items).Error; err != nil {
+		return nil, translateError(err)
+	}
+
+	results := toConversationDomains(items)
+	if err := r.hydrateConversationShareSummaries(ctx, results); err != nil {
+		return nil, err
+	}
+	if err := r.hydrateConversationProjectSummaries(ctx, results); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
 func applyConversationSearchFilter(query *gorm.DB, searchQuery string) *gorm.DB {
 	keyword := strings.TrimSpace(searchQuery)
 	if keyword == "" {
 		return query
 	}
 
-	like := "%" + strings.ToLower(keyword) + "%"
+	like := conversationSearchLikePattern(keyword)
 	return query.Where(
-		`(LOWER(title) LIKE ?
-			OR LOWER(public_id) LIKE ?
-			OR LOWER(labels_json) LIKE ?
-			OR LOWER(model) LIKE ?
-			OR LOWER(provider) LIKE ?
+		`(LOWER(title) LIKE ? ESCAPE '!'
+			OR LOWER(public_id) LIKE ? ESCAPE '!'
+			OR LOWER(labels_json) LIKE ? ESCAPE '!'
+			OR LOWER(model) LIKE ? ESCAPE '!'
+			OR LOWER(provider) LIKE ? ESCAPE '!'
 			OR EXISTS (
 				SELECT 1
 				FROM chat_conversation_projects AS projects
@@ -188,9 +220,9 @@ func applyConversationSearchFilter(query *gorm.DB, searchQuery string) *gorm.DB 
 					AND projects.user_id = chat_conversations.user_id
 					AND projects.deleted_at IS NULL
 					AND (
-						LOWER(projects.name) LIKE ?
-						OR LOWER(projects.public_id) LIKE ?
-						OR LOWER(projects.description) LIKE ?
+						LOWER(projects.name) LIKE ? ESCAPE '!'
+						OR LOWER(projects.public_id) LIKE ? ESCAPE '!'
+						OR LOWER(projects.description) LIKE ? ESCAPE '!'
 					)
 			)
 			OR EXISTS (
@@ -199,7 +231,8 @@ func applyConversationSearchFilter(query *gorm.DB, searchQuery string) *gorm.DB 
 				WHERE messages.conversation_id = chat_conversations.id
 					AND messages.user_id = chat_conversations.user_id
 					AND messages.deleted_at IS NULL
-					AND LOWER(messages.content) LIKE ?
+					AND messages.role IN ('user', 'assistant')
+					AND LOWER(messages.content) LIKE ? ESCAPE '!'
 			))`,
 		like,
 		like,
@@ -211,6 +244,16 @@ func applyConversationSearchFilter(query *gorm.DB, searchQuery string) *gorm.DB 
 		like,
 		like,
 	)
+}
+
+func conversationSearchLikePattern(searchQuery string) string {
+	keyword := strings.ToLower(strings.TrimSpace(searchQuery))
+	keyword = strings.NewReplacer(
+		"!", "!!",
+		"%", "!%",
+		"_", "!_",
+	).Replace(keyword)
+	return "%" + keyword + "%"
 }
 
 func (r *Repo) hydrateConversationShareSummaries(ctx context.Context, items []domainconversation.Conversation) error {
@@ -509,9 +552,6 @@ func (r *Repo) UpdateConversationMetadata(ctx context.Context, conversationID ui
 			strings.TrimSpace(patch.Title),
 		)
 	}
-	if strings.TrimSpace(patch.LabelsJSON) != "" {
-		updates["labels_json"] = strings.TrimSpace(patch.LabelsJSON)
-	}
 	if len(updates) == 0 {
 		var current models.Conversation
 		if err := r.db.WithContext(ctx).Where("id = ?", conversationID).First(&current).Error; err != nil {
@@ -533,6 +573,56 @@ func (r *Repo) UpdateConversationMetadata(ctx context.Context, conversationID ui
 	}
 	updated := toConversationDomain(current)
 	return &updated, nil
+}
+
+// UpdateConversationLabelsByPublicID 按用户归属更新手动管理的会话标签。
+func (r *Repo) UpdateConversationLabelsByPublicID(
+	ctx context.Context,
+	userID uint,
+	publicID string,
+	labelsJSON string,
+) (*domainconversation.Conversation, error) {
+	result := r.db.WithContext(ctx).
+		Model(&models.Conversation{}).
+		Where("user_id = ? AND public_id = ?", userID, publicID).
+		Updates(map[string]interface{}{
+			"labels_json":             strings.TrimSpace(labelsJSON),
+			"labels_manually_managed": true,
+		})
+	if result.Error != nil {
+		return nil, translateError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return nil, repository.ErrNotFound
+	}
+	return r.GetConversationByPublicID(ctx, publicID, userID)
+}
+
+// SetGeneratedConversationLabelsIfEligible 仅为空且未被用户接管时写入自动标签。
+func (r *Repo) SetGeneratedConversationLabelsIfEligible(
+	ctx context.Context,
+	conversationID uint,
+	labelsJSON string,
+) (*domainconversation.Conversation, bool, error) {
+	result := r.db.WithContext(ctx).
+		Model(&models.Conversation{}).
+		Where("id = ?", conversationID).
+		Where(
+			fmt.Sprintf("labels_manually_managed = ? AND lower(%s(labels_json)) IN ?", r.trimFunctionName()),
+			false,
+			[]string{"", "null", "[]"},
+		).
+		Update("labels_json", strings.TrimSpace(labelsJSON))
+	if result.Error != nil {
+		return nil, false, translateError(result.Error)
+	}
+
+	var current models.Conversation
+	if err := r.db.WithContext(ctx).Where("id = ?", conversationID).First(&current).Error; err != nil {
+		return nil, false, translateError(err)
+	}
+	updated := toConversationDomain(current)
+	return &updated, result.RowsAffected > 0, nil
 }
 
 // UpdateConversationStarByPublicID 更新会话星标状态。
@@ -1540,6 +1630,63 @@ const (
 	chatContextRecordArtifact   = "artifact"
 )
 
+const maxConversationEventDetailPayloadBytes = 1024 * 1024
+
+func conversationEventPayloadSizeExpression(db *gorm.DB) string {
+	if db != nil && db.Dialector != nil {
+		switch db.Dialector.Name() {
+		case "postgres":
+			return "OCTET_LENGTH(payload_json)"
+		case "sqlite":
+			return "LENGTH(CAST(payload_json AS BLOB))"
+		}
+	}
+	return "LENGTH(payload_json)"
+}
+
+func conversationEventSummarySelectColumns(db *gorm.DB) []string {
+	payloadSize := conversationEventPayloadSizeExpression(db)
+	return []string{
+		"id",
+		"message_id",
+		"conversation_id",
+		"user_id",
+		"run_id",
+		"event_scope",
+		"event_id",
+		"event_type",
+		"phase",
+		"stage",
+		"round_id",
+		"parent_event_id",
+		"status",
+		"title",
+		"summary",
+		"seq",
+		"tool_call_id",
+		"tool_name",
+		"latency_ms",
+		"started_at",
+		"ended_at",
+		"created_at",
+		"updated_at",
+		payloadSize + " AS payload_size_bytes",
+		fmt.Sprintf("CASE WHEN %s > %d THEN TRUE ELSE FALSE END AS payload_omitted", payloadSize, maxConversationEventDetailPayloadBytes),
+	}
+}
+
+func conversationEventDetailSelectColumns(db *gorm.DB) []string {
+	payloadSize := conversationEventPayloadSizeExpression(db)
+	return append(
+		conversationEventSummarySelectColumns(db),
+		"content_markdown",
+		fmt.Sprintf("CASE WHEN %s <= %d THEN payload_json ELSE '' END AS payload_json", payloadSize, maxConversationEventDetailPayloadBytes),
+		"input_json",
+		"output_json",
+		"error_json",
+	)
+}
+
 // CreateConversationRun 写入会话运行日志。
 func (r *Repo) CreateConversationRun(ctx context.Context, item *domainconversation.Run) error {
 	entity := toConversationRunModel(item)
@@ -1593,6 +1740,7 @@ func (r *Repo) ListConversationMessageTracesByMessageIDs(ctx context.Context, me
 		return []domainconversation.MessageTrace{}, nil
 	}
 	if err := r.db.WithContext(ctx).
+		Select(conversationEventDetailSelectColumns(r.db)).
 		Where("message_id IN ? AND event_scope = ?", messageIDs, chatRunEventScopeTraceBlock).
 		Order("message_id ASC, seq ASC, id ASC").
 		Find(&items).Error; err != nil {
@@ -1644,6 +1792,7 @@ func (r *Repo) ListConversationMessageTraceEventsByMessageIDs(ctx context.Contex
 		return []domainconversation.MessageTraceEventRow{}, nil
 	}
 	if err := r.db.WithContext(ctx).
+		Select(conversationEventDetailSelectColumns(r.db)).
 		Where("message_id IN ? AND event_scope = ?", messageIDs, chatRunEventScopeTraceEvent).
 		Order("message_id ASC, seq ASC, id ASC").
 		Find(&items).Error; err != nil {
@@ -1773,6 +1922,7 @@ func (r *Repo) ListConversationEventLogs(
 		order = "run_id ASC, seq ASC, id ASC"
 	}
 	if err := query.
+		Select(conversationEventSummarySelectColumns(r.db)).
 		Order(order).
 		Offset(offset).
 		Limit(limit).
@@ -1780,6 +1930,32 @@ func (r *Repo) ListConversationEventLogs(
 		return nil, 0, translateError(err)
 	}
 	results := toConversationEventLogDomains(items)
+	if err := r.hydrateConversationEventRunMetadata(ctx, results); err != nil {
+		return nil, 0, err
+	}
+	return results, total, nil
+}
+
+// GetConversationEventLog 查询单条管理员对话事件日志详情。
+func (r *Repo) GetConversationEventLog(ctx context.Context, eventID uint) (*domainconversation.EventLog, error) {
+	var item models.ChatRunEvent
+	if err := r.db.WithContext(ctx).
+		Select(conversationEventDetailSelectColumns(r.db)).
+		Where("id = ?", eventID).
+		First(&item).Error; err != nil {
+		return nil, translateError(err)
+	}
+	results := toConversationEventLogDomains([]models.ChatRunEvent{item})
+	if err := r.hydrateConversationEventRunMetadata(ctx, results); err != nil {
+		return nil, err
+	}
+	if len(results) == 0 {
+		return nil, repository.ErrNotFound
+	}
+	return &results[0], nil
+}
+
+func (r *Repo) hydrateConversationEventRunMetadata(ctx context.Context, results []domainconversation.EventLog) error {
 	runIDs := make([]string, 0, len(results))
 	seenRunIDs := make(map[string]struct{}, len(results))
 	for _, item := range results {
@@ -1794,7 +1970,7 @@ func (r *Repo) ListConversationEventLogs(
 		runIDs = append(runIDs, runID)
 	}
 	if len(runIDs) == 0 {
-		return results, total, nil
+		return nil
 	}
 
 	runs := make([]models.ConversationRun, 0, len(runIDs))
@@ -1802,7 +1978,7 @@ func (r *Repo) ListConversationEventLogs(
 		Select("run_id", "provider_protocol", "upstream_name", "platform_model_name", "routed_binding_code", "upstream_model_name").
 		Where("run_id IN ?", runIDs).
 		Find(&runs).Error; err != nil {
-		return nil, 0, translateError(err)
+		return translateError(err)
 	}
 	runsByID := make(map[string]models.ConversationRun, len(runs))
 	for _, run := range runs {
@@ -1819,7 +1995,7 @@ func (r *Repo) ListConversationEventLogs(
 		results[index].RoutedBindingCode = run.RoutedBindingCode
 		results[index].UpstreamModelName = run.UpstreamModelName
 	}
-	return results, total, nil
+	return nil
 }
 
 // ListConversationRunsByRunIDs 按运行 ID 查询会话运行快照。
@@ -1892,8 +2068,11 @@ func (r *Repo) ListMessageAncestors(ctx context.Context, conversationID uint, le
 	}
 
 	// WITH RECURSIVE：从叶节点沿 parent_message_id 向上递归，_depth 用于限制深度。
-	// 外层 SELECT 显式列出所有 DB 列，排除 CTE 内部的 _depth 辅助列，
-	// 避免 GORM Scan 遇到未知字段。deleted_at IS NULL 保持软删除语义。
+	// 外层用 SELECT * 取全部列：GORM Scan 按列名映射并忽略未匹配的列，_depth 会被自然丢弃，
+	// 因此无需手写列清单（手写清单曾漏掉 reasoning_content 导致推理回传失效）。
+	// deleted_at IS NULL 保持软删除语义。
+	// 递归项约束 m.conversation_id：parent_message_id 上没有外键，「父消息同会话」仅靠
+	// 应用层保证，一旦被破坏，跨会话内容会进入 prompt 并被烤进压缩摘要反复重放。
 	const cteSQL = `
 WITH RECURSIVE ancestors AS (
     SELECT *, 1 AS _depth
@@ -1905,19 +2084,14 @@ WITH RECURSIVE ancestors AS (
     INNER JOIN ancestors a ON m.id = a.parent_message_id
     WHERE a.parent_message_id IS NOT NULL
       AND a._depth < ?
+      AND m.conversation_id = ?
       AND m.deleted_at IS NULL
 )
-SELECT id, conversation_id, user_id, public_id, parent_message_id, run_id,
-       role, content_type, content, branch_reason, source_message_id,
-       token_usage, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens,
-       latency_ms, billed_currency, billed_nanousd, pricing_snapshot,
-       status, error_code, error_message, is_compacted, edited_at,
-       created_at, updated_at, deleted_at
-FROM ancestors
+SELECT * FROM ancestors
 ORDER BY id ASC`
 
 	path := make([]models.Message, 0, maxDepth)
-	if err := r.db.WithContext(ctx).Raw(cteSQL, leafMessageID, conversationID, maxDepth).Scan(&path).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw(cteSQL, leafMessageID, conversationID, maxDepth, conversationID).Scan(&path).Error; err != nil {
 		return nil, translateError(err)
 	}
 
@@ -1928,6 +2102,79 @@ ORDER BY id ASC`
 		return nil, err
 	}
 	return toMessageDomains(path), nil
+}
+
+// ListLatestBranchPreviewMessages 返回最新叶节点所在分支末尾的轻量消息。
+func (r *Repo) ListLatestBranchPreviewMessages(
+	ctx context.Context,
+	conversationID uint,
+	maxDepth int,
+	limit int,
+) ([]domainconversation.Message, error) {
+	if maxDepth <= 0 {
+		maxDepth = 100
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+
+	type previewMessageRow struct {
+		ID           uint   `gorm:"column:id"`
+		PublicID     string `gorm:"column:public_id"`
+		Role         string `gorm:"column:role"`
+		Content      string `gorm:"column:content"`
+		ErrorMessage string `gorm:"column:error_message"`
+	}
+	rows := make([]previewMessageRow, 0, limit)
+	const previewSQL = `
+WITH RECURSIVE ancestors AS (
+    SELECT id, conversation_id, parent_message_id, public_id, role, content, error_message, 1 AS depth
+    FROM chat_messages
+    WHERE id = (
+        SELECT id
+        FROM chat_messages
+        WHERE conversation_id = ? AND deleted_at IS NULL
+        ORDER BY id DESC
+        LIMIT 1
+    )
+      AND conversation_id = ?
+      AND deleted_at IS NULL
+    UNION ALL
+    SELECT m.id, m.conversation_id, m.parent_message_id, m.public_id, m.role, m.content, m.error_message, a.depth + 1
+    FROM chat_messages AS m
+    INNER JOIN ancestors AS a ON m.id = a.parent_message_id
+    WHERE a.parent_message_id IS NOT NULL
+      AND a.depth < ?
+      AND m.conversation_id = ?
+      AND m.deleted_at IS NULL
+), visible_messages AS (
+    SELECT id, public_id, role, content, error_message, depth
+    FROM ancestors
+    WHERE role IN ('user', 'assistant')
+    ORDER BY depth ASC
+    LIMIT ?
+)
+SELECT id, public_id, role, content, error_message
+FROM visible_messages
+ORDER BY depth DESC`
+	if err := r.db.WithContext(ctx).
+		Raw(previewSQL, conversationID, conversationID, maxDepth, conversationID, limit).
+		Scan(&rows).Error; err != nil {
+		return nil, translateError(err)
+	}
+
+	items := make([]domainconversation.Message, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, domainconversation.Message{
+			ID:             row.ID,
+			ConversationID: conversationID,
+			PublicID:       row.PublicID,
+			Role:           row.Role,
+			Content:        row.Content,
+			ErrorMessage:   row.ErrorMessage,
+		})
+	}
+	return items, nil
 }
 
 // ListMessageAncestorsUntil 从指定消息向上遍历 parent_message_id 链，直到命中 stopMessageID 或达到深度上限。
@@ -1954,13 +2201,7 @@ WITH RECURSIVE ancestors AS (
       AND m.conversation_id = ?
       AND m.deleted_at IS NULL
 )
-SELECT id, conversation_id, user_id, public_id, parent_message_id, run_id,
-       role, content_type, content, branch_reason, source_message_id,
-       token_usage, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens,
-       latency_ms, billed_currency, billed_nanousd, pricing_snapshot,
-       status, error_code, error_message, is_compacted, edited_at,
-       created_at, updated_at, deleted_at
-FROM ancestors
+SELECT * FROM ancestors
 ORDER BY id ASC`
 
 	path := make([]models.Message, 0, maxDepth)
@@ -3199,6 +3440,7 @@ func toConversationDomain(item models.Conversation) domainconversation.Conversat
 		PublicID:              item.PublicID,
 		Title:                 item.Title,
 		LabelsJSON:            labelsJSON,
+		LabelsManuallyManaged: item.LabelsManuallyManaged,
 		Model:                 item.Model,
 		Provider:              item.Provider,
 		SessionKey:            item.SessionKey,
@@ -3256,6 +3498,7 @@ func toConversationModel(item *domainconversation.Conversation) models.Conversat
 		PublicID:              item.PublicID,
 		Title:                 item.Title,
 		LabelsJSON:            labelsJSON,
+		LabelsManuallyManaged: item.LabelsManuallyManaged,
 		Model:                 item.Model,
 		Provider:              item.Provider,
 		SessionKey:            item.SessionKey,
@@ -3475,34 +3718,36 @@ func toConversationEventLogDomains(items []models.ChatRunEvent) []domainconversa
 	results := make([]domainconversation.EventLog, 0, len(items))
 	for _, item := range items {
 		results = append(results, domainconversation.EventLog{
-			ID:              item.ID,
-			MessageID:       item.MessageID,
-			ConversationID:  item.ConversationID,
-			UserID:          item.UserID,
-			RunID:           item.RunID,
-			EventScope:      item.EventScope,
-			EventID:         item.EventID,
-			EventType:       item.EventType,
-			Phase:           item.Phase,
-			Stage:           item.Stage,
-			RoundID:         item.RoundID,
-			ParentEventID:   item.ParentEventID,
-			Status:          item.Status,
-			Title:           item.Title,
-			Summary:         item.Summary,
-			ContentMarkdown: item.ContentMarkdown,
-			PayloadJSON:     item.PayloadJSON,
-			Seq:             item.Seq,
-			ToolCallID:      item.ToolCallID,
-			ToolName:        item.ToolName,
-			LatencyMS:       item.LatencyMS,
-			InputJSON:       item.InputJSON,
-			OutputJSON:      item.OutputJSON,
-			ErrorJSON:       item.ErrorJSON,
-			StartedAt:       item.StartedAt,
-			EndedAt:         item.EndedAt,
-			CreatedAt:       item.CreatedAt,
-			UpdatedAt:       item.UpdatedAt,
+			ID:               item.ID,
+			MessageID:        item.MessageID,
+			ConversationID:   item.ConversationID,
+			UserID:           item.UserID,
+			RunID:            item.RunID,
+			EventScope:       item.EventScope,
+			EventID:          item.EventID,
+			EventType:        item.EventType,
+			Phase:            item.Phase,
+			Stage:            item.Stage,
+			RoundID:          item.RoundID,
+			ParentEventID:    item.ParentEventID,
+			Status:           item.Status,
+			Title:            item.Title,
+			Summary:          item.Summary,
+			ContentMarkdown:  item.ContentMarkdown,
+			PayloadJSON:      item.PayloadJSON,
+			PayloadSizeBytes: item.PayloadSizeBytes,
+			PayloadOmitted:   item.PayloadOmitted,
+			Seq:              item.Seq,
+			ToolCallID:       item.ToolCallID,
+			ToolName:         item.ToolName,
+			LatencyMS:        item.LatencyMS,
+			InputJSON:        item.InputJSON,
+			OutputJSON:       item.OutputJSON,
+			ErrorJSON:        item.ErrorJSON,
+			StartedAt:        item.StartedAt,
+			EndedAt:          item.EndedAt,
+			CreatedAt:        item.CreatedAt,
+			UpdatedAt:        item.UpdatedAt,
 		})
 	}
 	return results

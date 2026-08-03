@@ -95,6 +95,7 @@
     "status": "状态",
     "subscription": "订阅",
     "balance": "余额",
+    "balanceUSDInput": "余额（USD）",
     "timezone": "时区",
     "lastLogin": "最近登录",
     "lastActive": "最近活跃"
@@ -223,7 +224,7 @@
     "language": "语言",
     "reason": "原因",
     "reasonPlaceholder": "记录本次状态修改原因（可选）",
-    "accountBalance": "账号余额",
+    "accountBalance": "账号余额（USD）",
     "billingStatus": "计费状态",
     "twoFactor": "两步验证",
     "twoFactorEnabled": "已开启（恢复码 {count}）",

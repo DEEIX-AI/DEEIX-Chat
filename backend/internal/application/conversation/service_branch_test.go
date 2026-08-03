@@ -296,6 +296,19 @@ func TestTruncateContextByTokenBudgetCountsAssistantReasoningWhenEnabled(t *test
 	}
 }
 
+func TestTruncateContextByTokenBudgetReservesHistoricalImageTokens(t *testing.T) {
+	messages := []model.Message{
+		{ID: 1, Role: "user", Content: "first", Attachments: `[{"file_id":"image_1","kind":"image","mime_type":"image/png"}]`},
+		{ID: 2, Role: "assistant", Content: "ok"},
+		{ID: 3, Role: "user", Content: "next"},
+	}
+
+	got := truncateContextByTokenBudget(messages, 100, false)
+	if len(got) != 2 || got[0].ID != 2 || got[1].ID != 3 {
+		t.Fatalf("expected image token reserve to trim the oldest image turn, got %#v", got)
+	}
+}
+
 func TestBuildBranchMessagePathReusesExistingUserForAssistantRetry(t *testing.T) {
 	rootID := uint(1)
 	userID := uint(2)

@@ -132,7 +132,7 @@ const SETTINGS_FIELD_LABELS: Record<AppLocale, Record<string, string>> = {
     "chat:model_option_policy_mode": "Model option policy",
     "file:embedding_enabled": "Embedding",
     "file:full_context_limit_enabled": "Full-text injection limits",
-    "file:file_full_context_max_bytes": "Full-text byte limit",
+    "file:file_full_context_max_bytes": "Full-text size limit",
     "file:full_context_max_tokens": "Full-text token limit",
     "file:full_context_pdf_max_pages": "Full-text page limit",
     "mcp:mcp_enable": "MCP",

@@ -1,4 +1,5 @@
 import type { ChatFilePolicyDTO } from "@/shared/api/file.types";
+import { formatBytes } from "@/shared/lib/file-display";
 
 export type UploadCategory = "image" | "pdf" | "word" | "excel" | "text" | "unknown";
 
@@ -168,14 +169,14 @@ export function resolveEffectiveUploadLimit(policy: ChatFilePolicyDTO | null, ca
 
 type UploadPolicyRejectionLabels = {
   mimeNotAllowed: string;
-  fullContextLimitExceeded: (limitKB: number) => string;
-  sizeLimitExceeded: (limitKB: number) => string;
+  fullContextLimitExceeded: (limit: string) => string;
+  sizeLimitExceeded: (limit: string) => string;
 };
 
 const DEFAULT_UPLOAD_POLICY_REJECTION_LABELS: UploadPolicyRejectionLabels = {
   mimeNotAllowed: "This file type is not included in the admin MIME allowlist.",
-  fullContextLimitExceeded: (limitKB) => `Vector retrieval is disabled. Only small files that fit full-context injection can be uploaded, and this file exceeds the ${limitKB} KB limit.`,
-  sizeLimitExceeded: (limitKB) => `This file exceeds the ${limitKB} KB limit.`,
+  fullContextLimitExceeded: (limit) => `Vector retrieval is disabled. Only small files that fit full-context injection can be uploaded, and this file exceeds the ${limit} limit.`,
+  sizeLimitExceeded: (limit) => `This file exceeds the ${limit} limit.`,
 };
 
 export function resolveUploadPolicyRejection(
@@ -195,11 +196,11 @@ export function resolveUploadPolicyRejection(
 
   const limit = resolveEffectiveUploadLimit(policy, category);
   if (limit > 0 && file.size > limit) {
-    const limitKB = Math.round(limit / 1024);
+    const formattedLimit = formatBytes(limit);
     if (policy.capabilityMode === "full_context_only" && category !== "image") {
-      return labels.fullContextLimitExceeded(limitKB);
+      return labels.fullContextLimitExceeded(formattedLimit);
     }
-    return labels.sizeLimitExceeded(limitKB);
+    return labels.sizeLimitExceeded(formattedLimit);
   }
 
   return null;

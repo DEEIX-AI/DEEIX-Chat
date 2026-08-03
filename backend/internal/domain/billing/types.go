@@ -310,6 +310,7 @@ type UsageLedger struct {
 	ServiceTier         string
 	BilledCurrency      string
 	BilledNanousd       int64
+	BalanceAfterNanousd *int64
 	PricingSnapshotJSON string
 	CreatedAt           time.Time
 	UpdatedAt           time.Time

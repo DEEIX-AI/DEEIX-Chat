@@ -22,7 +22,11 @@ import {
 } from "@/components/ui/accordion";
 import { Marker, MarkerContent } from "@/components/ui/marker";
 import { cn } from "@/lib/utils";
-import { useLatexCopy } from "./use-latex-copy";
+import {
+  AdaptiveMarkdownTable,
+  MarkdownTableStreamingContext,
+} from "./adaptive-markdown-table";
+import { useMarkdownCopy } from "./use-markdown-copy";
 
 import {
   CollapsibleCodePre,
@@ -67,7 +71,8 @@ type StreamdownRenderProps = {
   content: unknown;
   className?: string;
   streaming?: boolean;
-  variant?: "default" | "thinking";
+  variant?: "default" | "thinking" | "user";
+  sourcePositions?: boolean;
   imageActions?: MarkdownImageActions;
   artifactActions?: MarkdownArtifactActions;
 };
@@ -131,7 +136,46 @@ type RehypeSanitizeSchema = {
 type StreamdownRehypePlugins = NonNullable<StreamdownProps["rehypePlugins"]>;
 type StreamdownRehypePlugin = StreamdownRehypePlugins[number];
 type RehypeSanitizePlugin = [StreamdownRehypePlugin, RehypeSanitizeSchema];
-function buildStreamdownRehypePlugins(): StreamdownRehypePlugins {
+type RehypeSourceNode = {
+  type?: string;
+  tagName?: string;
+  properties?: Record<string, unknown>;
+  position?: { start?: { line?: number } };
+  children?: RehypeSourceNode[];
+};
+const MARKDOWN_SOURCE_BLOCK_TAGS = new Set([
+  "blockquote",
+  "details",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "hr",
+  "li",
+  "ol",
+  "p",
+  "pre",
+  "table",
+  "ul",
+]);
+
+function markdownSourcePositionRehypePlugin() {
+  return (tree: RehypeSourceNode) => {
+    const visit = (node: RehypeSourceNode) => {
+      const sourceLine = node.position?.start?.line;
+      if (node.type === "element" && node.tagName && MARKDOWN_SOURCE_BLOCK_TAGS.has(node.tagName) && sourceLine) {
+        node.properties ??= {};
+        node.properties["data-markdown-source-line"] = String(sourceLine);
+      }
+      node.children?.forEach(visit);
+    };
+    visit(tree);
+  };
+}
+
+function buildStreamdownRehypePlugins(includeSourcePositions = false): StreamdownRehypePlugins {
   const [sanitizePlugin, sanitizeSchema] = defaultRehypePlugins.sanitize as RehypeSanitizePlugin;
   const extraTagNames = Object.keys(STREAMDOWN_ALLOWED_HTML_TAGS);
   const tagNames = Array.from(new Set([...(sanitizeSchema.tagNames ?? []), ...extraTagNames]));
@@ -150,11 +194,12 @@ function buildStreamdownRehypePlugins(): StreamdownRehypePlugins {
     renderRawHTMLMathRehypePlugin,
     defaultRehypePlugins.raw,
     sanitizeWithAllowedTags,
+    ...(includeSourcePositions ? [markdownSourcePositionRehypePlugin] : []),
     normalizeBareURLRehypePlugin,
-    defaultRehypePlugins.harden,
   ];
 }
 const STREAMDOWN_REHYPE_PLUGINS = buildStreamdownRehypePlugins();
+const SOURCE_POSITION_STREAMDOWN_REHYPE_PLUGINS = buildStreamdownRehypePlugins(true);
 const FENCED_CODE_BLOCK_RE = /(?:^|\n)[ \t]*(?:```|~~~)(?!\s*(?:mermaid|mmd)\b)[^\n]*(?:\n|$)/i;
 const MERMAID_CODE_BLOCK_RE = /(?:^|\n)[ \t]*(?:```|~~~)\s*(?:mermaid|mmd)\b/i;
 
@@ -171,22 +216,10 @@ const BASE_MARKDOWN_CLASSNAME = cn(
   "[&_[data-streamdown='mermaid']_svg]:mx-auto [&_[data-streamdown='mermaid']_svg]:block [&_[data-streamdown='mermaid']_svg]:h-auto [&_[data-streamdown='mermaid']_svg]:max-h-[280px] [&_[data-streamdown='mermaid']_svg]:max-w-full [&_[data-streamdown='mermaid']_svg]:bg-transparent",
   "[&_[data-streamdown='mermaid']>div>div:first-child]:!left-0 [&_[data-streamdown='mermaid']>div>div:first-child]:rounded-none [&_[data-streamdown='mermaid']>div>div:first-child]:border-0 [&_[data-streamdown='mermaid']>div>div:first-child]:bg-transparent [&_[data-streamdown='mermaid']>div>div:first-child]:p-0 [&_[data-streamdown='mermaid']>div>div:first-child]:shadow-none [&_[data-streamdown='mermaid']>div>div:first-child]:backdrop-blur-none",
   "[&_[data-streamdown='mermaid-block-actions']]:gap-2 [&_[data-streamdown='mermaid-block-actions']]:border-0 [&_[data-streamdown='mermaid-block-actions']]:rounded-none [&_[data-streamdown='mermaid-block-actions']]:bg-transparent [&_[data-streamdown='mermaid-block-actions']]:p-0 [&_[data-streamdown='mermaid-block-actions']]:shadow-none [&_[data-streamdown='mermaid-block-actions']]:backdrop-blur-none",
+  "[&_[data-streamdown='mermaid-block-actions']_button]:border-0 [&_[data-streamdown='mermaid-block-actions']_button]:bg-transparent [&_[data-streamdown='mermaid-block-actions']_button]:shadow-none [&_[data-streamdown='mermaid-block-actions']_button:hover]:bg-foreground/[0.04] [&_[data-streamdown='mermaid-block-actions']_button:hover]:text-foreground",
   "[&_[data-streamdown='mermaid-block-actions']_svg]:size-3",
   "[&_[data-streamdown='mermaid-block']_button>svg]:size-3",
-  "[&_[data-streamdown='table-wrapper']]:my-4 [&_[data-streamdown='table-wrapper']]:!w-full [&_[data-streamdown='table-wrapper']]:min-w-0 [&_[data-streamdown='table-wrapper']]:gap-0 [&_[data-streamdown='table-wrapper']]:border-0 [&_[data-streamdown='table-wrapper']]:rounded-none [&_[data-streamdown='table-wrapper']]:bg-transparent [&_[data-streamdown='table-wrapper']]:p-0 [&_[data-streamdown='table-wrapper']]:shadow-none [&_[data-streamdown='table-wrapper']]:outline-none [&_[data-streamdown='table-wrapper']]:ring-0",
-  "[&_[data-streamdown='table-wrapper']>div:last-child]:!w-full [&_[data-streamdown='table-wrapper']>div:last-child]:min-w-0 [&_[data-streamdown='table-wrapper']>div:last-child]:overflow-x-auto [&_[data-streamdown='table-wrapper']>div:last-child]:overflow-y-hidden [&_[data-streamdown='table-wrapper']>div:last-child]:border-0 [&_[data-streamdown='table-wrapper']>div:last-child]:rounded-none [&_[data-streamdown='table-wrapper']>div:last-child]:bg-transparent [&_[data-streamdown='table-wrapper']>div:last-child]:p-0 [&_[data-streamdown='table-wrapper']>div:last-child]:shadow-none [&_[data-streamdown='table-wrapper']>div:last-child]:outline-none [&_[data-streamdown='table-wrapper']>div:last-child]:ring-0",
-  "[&_table]:my-2 [&_table]:!min-w-full [&_table]:!w-full [&_table]:border-collapse [&_table]:table-auto [&_table]:border-0 [&_table]:outline-none [&_table]:shadow-none [&_table]:ring-0 [&_table]:bg-transparent",
-  "[&_table]:max-w-none [&_table]:rounded-none",
-  "[&_thead]:border-table-border [&_tbody]:border-table-border [&_tfoot]:border-table-border",
-  "[&_tr]:border-table-border/50 [&_thead_tr]:border-table-border/50 [&_tbody_tr]:border-table-border/50",
-  "[&_th]:px-0 [&_th]:py-2 [&_th]:pr-8 [&_th]:text-left [&_th]:align-bottom [&_th]:font-semibold [&_th]:tracking-[-0.01em] [&_th]:text-foreground",
-  "[&_td]:px-0 [&_td]:py-1 [&_td]:pr-8 [&_td]:align-middle [&_td]:leading-8 [&_td]:text-foreground/90",
-  "[&_th]:border-0 [&_td]:border-0",
-  "[&_th:last-child]:pr-0 [&_td:last-child]:pr-0",
-  "[&_thead]:bg-transparent [&_tbody]:bg-transparent [&_tr]:bg-transparent",
-  "[&_div:has(>table)]:border-0 [&_div:has(>table)]:outline-none [&_div:has(>table)]:ring-0 [&_div:has(>table)]:rounded-none [&_div:has(>table)]:bg-transparent [&_div:has(>table)]:shadow-none",
-  "[&_table_*]:outline-none [&_table_*]:ring-0",
-  "[&_code:not(pre_code)]:rounded-md [&_code:not(pre_code)]:bg-foreground/[0.05] [&_code:not(pre_code)]:px-1.5 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:font-mono [&_code:not(pre_code)]:text-[0.92em] [&_code:not(pre_code)]:text-foreground [&_code:not(pre_code)]:whitespace-pre-wrap [&_code:not(pre_code)]:break-words [&_code:not(pre_code)]:[overflow-wrap:anywhere]",
+  "[&_code:not(pre_code)]:rounded-md [&_code:not(pre_code)]:bg-foreground/[0.05] [&_code:not(pre_code)]:px-1.5 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:font-mono [&_code:not(pre_code)]:text-[0.85em] [&_code:not(pre_code)]:text-primary [&_code:not(pre_code)]:whitespace-pre-wrap [&_code:not(pre_code)]:break-words [&_code:not(pre_code)]:[overflow-wrap:anywhere]",
   "[&_[data-streamdown='code-block']]:my-4 [&_[data-streamdown='code-block']]:!w-full [&_[data-streamdown='code-block']]:min-w-0 [&_[data-streamdown='code-block']]:gap-0 [&_[data-streamdown='code-block']]:border-0 [&_[data-streamdown='code-block']]:rounded-none [&_[data-streamdown='code-block']]:bg-transparent [&_[data-streamdown='code-block']]:p-0 [&_[data-streamdown='code-block']]:shadow-none [&_[data-streamdown='code-block']]:outline-none [&_[data-streamdown='code-block']]:ring-0",
   "[&_[data-streamdown='code-block']>div:first-child]:min-h-0 [&_[data-streamdown='code-block']>div:first-child]:justify-between [&_[data-streamdown='code-block']>div:first-child]:gap-2 [&_[data-streamdown='code-block']>div:first-child]:border-0 [&_[data-streamdown='code-block']>div:first-child]:bg-transparent [&_[data-streamdown='code-block']>div:first-child]:mt-2 [&_[data-streamdown='code-block']>div:first-child]:pb-6 [&_[data-streamdown='code-block']>div:first-child]:text-[11px] [&_[data-streamdown='code-block']>div:first-child]:font-medium [&_[data-streamdown='code-block']>div:first-child]:tracking-[0.06em] [&_[data-streamdown='code-block']>div:first-child]:text-muted-foreground/85 [&_[data-streamdown='code-block']>div:first-child]:shadow-none",
   "[&_[data-streamdown='code-block']>div:last-child]:!w-full [&_[data-streamdown='code-block']>div:last-child]:min-w-0 [&_[data-streamdown='code-block']>div:last-child]:border-0 [&_[data-streamdown='code-block']>div:last-child]:rounded-none [&_[data-streamdown='code-block']>div:last-child]:bg-transparent [&_[data-streamdown='code-block']>div:last-child]:p-0 [&_[data-streamdown='code-block']>div:last-child]:shadow-none",
@@ -207,6 +240,8 @@ const BASE_MARKDOWN_CLASSNAME = cn(
   "[&_.katex_.mfrac_.frac-line]:!inline-block [&_.katex_.mfrac_.frac-line]:!w-full [&_.katex_.mfrac_.frac-line]:min-h-px [&_.katex_.mfrac_.frac-line]:![border-bottom:0.04em_solid_currentColor]",
   "[&_[data-latex-copyable='true']]:cursor-copy [&_[data-latex-copyable='true']]:rounded-sm [&_[data-latex-copyable='true']]:outline-none [&_[data-latex-copyable='true']]:transition-colors",
   "[&_[data-latex-copyable='true']:hover]:bg-foreground/[0.035] [&_[data-latex-copyable='true']:focus-visible]:bg-foreground/[0.045] [&_[data-latex-copyable='true']:focus-visible]:ring-2 [&_[data-latex-copyable='true']:focus-visible]:ring-ring/25",
+  "[&_[data-inline-code-copyable='true']]:cursor-copy [&_[data-inline-code-copyable='true']]:outline-none [&_[data-inline-code-copyable='true']]:transition-colors",
+  "[&_[data-inline-code-copyable='true']:hover]:bg-foreground/[0.08] [&_[data-inline-code-copyable='true']:focus-visible]:bg-foreground/[0.08] [&_[data-inline-code-copyable='true']:focus-visible]:ring-2 [&_[data-inline-code-copyable='true']:focus-visible]:ring-ring/25",
   "[&_strong]:font-semibold",
 );
 
@@ -232,6 +267,24 @@ const THINKING_MARKDOWN_CLASSNAME = cn(
   "[&_td]:py-0.5 [&_td]:text-[11px] [&_td]:text-muted-foreground/78",
 );
 
+const USER_MARKDOWN_CLASSNAME = cn(
+  BASE_MARKDOWN_CLASSNAME,
+  "leading-8",
+  "[&_p]:whitespace-pre-wrap [&_p]:leading-8",
+  "[&_li]:leading-7",
+  "[&_ul]:my-1 [&_ul]:pl-5",
+  "[&_ol]:my-1 [&_ol]:pl-5",
+  "[&_h1]:my-1 [&_h1]:text-[17px] [&_h1]:font-semibold [&_h1]:leading-7",
+  "[&_h2]:my-1 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:leading-7",
+  "[&_h3]:my-1 [&_h3]:text-[15px] [&_h3]:font-semibold [&_h3]:leading-7",
+  "[&_h4]:my-1 [&_h4]:text-[15px] [&_h4]:font-medium [&_h4]:leading-7",
+  "[&_h5]:my-1 [&_h5]:text-[15px] [&_h5]:font-medium [&_h5]:leading-7",
+  "[&_h6]:my-1 [&_h6]:text-[15px] [&_h6]:font-medium [&_h6]:leading-7",
+  "[&_blockquote]:my-1 [&_blockquote]:border-l-2 [&_blockquote]:pl-3",
+  "[&_[data-streamdown='code-block']]:my-2",
+  "[&_[data-streamdown='table-wrapper']]:my-2",
+);
+
 const DEFAULT_STREAMDOWN_COMPONENTS = {
   a: MarkdownLink,
   article: MarkdownHTMLArticle,
@@ -247,6 +300,7 @@ const DEFAULT_STREAMDOWN_COMPONENTS = {
   span: MarkdownHTMLSpan,
   strong: MarkdownStrong,
   summary: MarkdownHTMLSummary,
+  table: AdaptiveMarkdownTable,
 } as const;
 
 const THINKING_STREAMDOWN_COMPONENTS = {
@@ -259,18 +313,18 @@ const THINKING_STREAMDOWN_COMPONENTS = {
   h6: ThinkingHeading,
 } as const;
 
-function normalizeStreamdownContent(content: unknown): string {
-  return normalizeHTMLVisualBlankLines(
-    normalizeHTMLVisualMarkdownFences(
-      normalizeMermaidBlocks(
-        normalizeLatexUnicodeSymbols(
-          normalizeMathDelimiters(
-            normalizeCurrencyDollars(normalizeEscapedHTMLAttributeQuotes(normalizeContent(content))),
-          ),
-        ),
-      ),
+function normalizeStreamdownContent(content: unknown, preserveSourceLines = false): string {
+  const escapedContent = normalizeCurrencyDollars(
+    normalizeEscapedHTMLAttributeQuotes(normalizeContent(content)),
+  );
+  const normalizedContent = normalizeMermaidBlocks(
+    normalizeLatexUnicodeSymbols(
+      preserveSourceLines ? escapedContent : normalizeMathDelimiters(escapedContent),
     ),
   );
+  return preserveSourceLines
+    ? normalizedContent
+    : normalizeHTMLVisualBlankLines(normalizeHTMLVisualMarkdownFences(normalizedContent));
 }
 
 function detectStreamdownFeatures(content: string): StreamdownFeatureFlags {
@@ -529,18 +583,29 @@ export const StreamdownRender = React.memo(function StreamdownRender({
   className,
   streaming = false,
   variant = "default",
+  sourcePositions = false,
   imageActions,
   artifactActions,
 }: StreamdownRenderProps) {
-  const normalizedContent = React.useMemo(() => normalizeStreamdownContent(content), [content]);
+  const normalizedContent = React.useMemo(
+    () => normalizeStreamdownContent(content, sourcePositions),
+    [content, sourcePositions],
+  );
   const plugins = useStreamdownPlugins(normalizedContent);
-  const segments = React.useMemo(() => parseStreamdownSegments(normalizedContent), [normalizedContent]);
+  const segments = React.useMemo(
+    () =>
+      parseStreamdownSegments(normalizedContent, {
+        normalizeHTMLVisualFences: !sourcePositions,
+        parseThinking: variant !== "user",
+      }),
+    [normalizedContent, sourcePositions, variant],
+  );
   const {
-    rootRef: latexRootRef,
-    onClickCapture: handleLatexClickCapture,
-    onKeyDownCapture: handleLatexKeyDownCapture,
-    onPointerDownCapture: handleLatexPointerDownCapture,
-  } = useLatexCopy({
+    rootRef: markdownCopyRootRef,
+    onClickCapture: handleMarkdownCopyClickCapture,
+    onKeyDownCapture: handleMarkdownCopyKeyDownCapture,
+    onPointerDownCapture: handleMarkdownCopyPointerDownCapture,
+  } = useMarkdownCopy({
     contentVersion: normalizedContent,
     renderVersion: plugins,
   });
@@ -560,9 +625,18 @@ export const StreamdownRender = React.memo(function StreamdownRender({
     () => thinkingSegments.some((segment) => segment.incomplete),
     [thinkingSegments],
   );
-  const contentSpacingClassName = variant === "thinking" ? "space-y-1.5 leading-6" : "space-y-3 leading-8";
-  const activeMarkdownClassName = variant === "thinking" ? THINKING_MARKDOWN_CLASSNAME : BASE_MARKDOWN_CLASSNAME;
+  const contentSpacingClassName =
+    variant === "thinking" ? "space-y-1.5 leading-6" : variant === "user" ? "space-y-2 leading-8" : "space-y-3 leading-8";
+  const activeMarkdownClassName =
+    variant === "thinking"
+      ? THINKING_MARKDOWN_CLASSNAME
+      : variant === "user"
+        ? USER_MARKDOWN_CLASSNAME
+        : BASE_MARKDOWN_CLASSNAME;
   const components = variant === "thinking" ? THINKING_STREAMDOWN_COMPONENTS : DEFAULT_STREAMDOWN_COMPONENTS;
+  const rehypePlugins = sourcePositions
+    ? SOURCE_POSITION_STREAMDOWN_REHYPE_PLUGINS
+    : STREAMDOWN_REHYPE_PLUGINS;
 
   if (segments.length === 0) {
     return null;
@@ -570,21 +644,22 @@ export const StreamdownRender = React.memo(function StreamdownRender({
 
   return (
     <div
-      ref={latexRootRef}
+      ref={markdownCopyRootRef}
       className={cn("chat-font-content min-w-0 max-w-full overflow-hidden text-foreground [overflow-wrap:anywhere]", contentSpacingClassName, className)}
       data-chat-markdown-scope=""
-      onClickCapture={handleLatexClickCapture}
-      onKeyDownCapture={handleLatexKeyDownCapture}
-      onPointerDownCapture={handleLatexPointerDownCapture}
+      onClickCapture={handleMarkdownCopyClickCapture}
+      onKeyDownCapture={handleMarkdownCopyKeyDownCapture}
+      onPointerDownCapture={handleMarkdownCopyPointerDownCapture}
     >
-      {mergedThinkingContent ? (
-        <ThinkingSegmentBlock
-          content={mergedThinkingContent}
-          incomplete={hasIncompleteThinking}
-          plugins={plugins}
-          streaming={streaming}
-        />
-      ) : null}
+      <MarkdownTableStreamingContext.Provider value={streaming}>
+        {mergedThinkingContent ? (
+          <ThinkingSegmentBlock
+            content={mergedThinkingContent}
+            incomplete={hasIncompleteThinking}
+            plugins={plugins}
+            streaming={streaming}
+          />
+        ) : null}
       {markdownSegments.map((segment, index) => (
         <MarkdownArtifactActionsContext.Provider key={`markdown-${index}`} value={artifactActions ?? null}>
           <MarkdownImageActionsContext.Provider value={imageActions ?? null}>
@@ -599,7 +674,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
                 components={components}
                 controls={STREAMDOWN_CONTROLS}
                 plugins={plugins}
-                rehypePlugins={STREAMDOWN_REHYPE_PLUGINS}
+                rehypePlugins={rehypePlugins}
                 remend={STREAMDOWN_REMEND}
                 linkSafety={STREAMDOWN_LINK_SAFETY}
                 caret={streaming ? STREAMDOWN_CARET : undefined}
@@ -614,7 +689,8 @@ export const StreamdownRender = React.memo(function StreamdownRender({
             </HTMLMarkdownRenderProvider>
           </MarkdownImageActionsContext.Provider>
         </MarkdownArtifactActionsContext.Provider>
-      ))}
+        ))}
+      </MarkdownTableStreamingContext.Provider>
     </div>
   );
 });

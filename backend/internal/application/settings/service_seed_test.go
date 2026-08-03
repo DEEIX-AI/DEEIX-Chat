@@ -2,6 +2,8 @@ package settings
 
 import (
 	"context"
+	"encoding/json"
+	"strconv"
 	"testing"
 
 	domainsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/settings"
@@ -94,5 +96,82 @@ func TestSeedKeepsCustomAllowedMIMETypes(t *testing.T) {
 	got := repo.items["file:allowed_mime_types"].Value
 	if got != custom {
 		t.Fatalf("expected custom MIME defaults to stay unchanged, got %q", got)
+	}
+}
+
+func TestSeedUsesDefaultFullContextMaxBytesForMissingSetting(t *testing.T) {
+	repo := newSettingsSeedRepo()
+	service := NewService(repo, "")
+
+	if err := service.Seed(context.Background(), config.Config{}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	want := strconv.FormatInt(config.DefaultFileFullContextMaxBytes, 10)
+	if got := repo.items["file:file_full_context_max_bytes"].Value; got != want {
+		t.Fatalf("expected default full-context size %q, got %q", want, got)
+	}
+}
+
+func TestSeedKeepsExistingFullContextMaxBytes(t *testing.T) {
+	const existingValue = "65536"
+	repo := newSettingsSeedRepo(domainsettings.SystemSetting{
+		Namespace: "file",
+		Key:       "file_full_context_max_bytes",
+		Value:     existingValue,
+		ValueType: "int",
+	})
+	service := NewService(repo, "")
+
+	if err := service.Seed(context.Background(), config.Config{}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	if got := repo.items["file:file_full_context_max_bytes"].Value; got != existingValue {
+		t.Fatalf("expected existing full-context size to remain %q, got %q", existingValue, got)
+	}
+}
+
+func TestSeedMigratesLegacyDefaultModelOptionAllowedPaths(t *testing.T) {
+	legacy := map[string][]string{}
+	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &legacy); err != nil {
+		t.Fatalf("decode current model option defaults: %v", err)
+	}
+	legacy["xai_responses"] = []string{"reasoning.effort"}
+	legacyJSON, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatalf("encode legacy model option defaults: %v", err)
+	}
+	repo := newSettingsSeedRepo(domainsettings.SystemSetting{
+		Namespace: "chat",
+		Key:       "model_option_allowed_paths",
+		Value:     string(legacyJSON),
+		ValueType: "json",
+	})
+	service := NewService(repo, "")
+
+	if err := service.Seed(context.Background(), config.Config{}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	got := repo.items["chat:model_option_allowed_paths"].Value
+	if got != config.DefaultModelOptionAllowedPathsJSON() {
+		t.Fatalf("expected legacy model option defaults to migrate, got %q", got)
+	}
+}
+
+func TestSeedKeepsCustomModelOptionAllowedPaths(t *testing.T) {
+	custom := `{"default":["temperature"],"xai_responses":["reasoning.effort"]}`
+	repo := newSettingsSeedRepo(domainsettings.SystemSetting{
+		Namespace: "chat",
+		Key:       "model_option_allowed_paths",
+		Value:     custom,
+		ValueType: "json",
+	})
+	service := NewService(repo, "")
+
+	if err := service.Seed(context.Background(), config.Config{}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	got := repo.items["chat:model_option_allowed_paths"].Value
+	if got != custom {
+		t.Fatalf("expected custom model option defaults to stay unchanged, got %q", got)
 	}
 }

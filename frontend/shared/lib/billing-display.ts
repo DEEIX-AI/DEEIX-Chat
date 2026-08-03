@@ -56,6 +56,16 @@ function resolveDisplayAmountFromUSD(value: number, options: BillingDisplayOptio
   return value * Number(options.usdToCnyRate);
 }
 
+function resolveSignedDisplayAmountFromUSD(value: number, options: BillingDisplayOptions): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  if (resolveEffectiveBillingDisplayCurrency(options) !== "CNY") {
+    return value;
+  }
+  return value * Number(options.usdToCnyRate);
+}
+
 function resolveEffectiveBillingDisplayCurrency(options: BillingDisplayOptions): BillingDisplayCurrency {
   if (options.currency !== "CNY") {
     return "USD";
@@ -93,6 +103,16 @@ export function formatBillingDisplayPreciseAmountFromUSD(value: number, options:
     minimumFractionDigits: 6,
     maximumFractionDigits: 6,
   });
+}
+
+export function formatBillingDisplayBalanceFromUSD(value: number, options: BillingDisplayOptions): string {
+  const amount = resolveSignedDisplayAmountFromUSD(value, options);
+  const symbol = billingCurrencySymbol(resolveEffectiveBillingDisplayCurrency(options));
+  const sign = amount < 0 ? "-" : "";
+  return `${sign}${symbol}${Math.abs(amount).toLocaleString("en-US", {
+    minimumFractionDigits: 6,
+    maximumFractionDigits: 6,
+  })}`;
 }
 
 export function formatBillingDisplayCompactAmountFromUSD(

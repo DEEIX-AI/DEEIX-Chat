@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, FileBraces, ListOrdered, Pencil, Plus, RefreshCw, Save, Trash2, Wrench, XCircle } from "lucide-react";
+import { CheckCircle2, FileBraces, ListOrdered, Pencil, Plus, RefreshCw, Save, Trash2, Wrench, X, XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -87,6 +88,11 @@ type ToolFormState = {
   id: number;
   displayName: string;
   description: string;
+};
+
+type ToolSyncConfirmation = {
+  serverID: number;
+  serverName: string;
 };
 
 const EMPTY_SERVER_FORM: ServerFormState = {
@@ -185,6 +191,7 @@ export function AdminToolsPage() {
   const [toolBulkAction, setToolBulkAction] = React.useState<ToolBulkAction | null>(null);
   const [toolBulkApplying, setToolBulkApplying] = React.useState(false);
   const [syncingServerID, setSyncingServerID] = React.useState<number | null>(null);
+  const [toolSyncConfirmation, setToolSyncConfirmation] = React.useState<ToolSyncConfirmation | null>(null);
   const [mcpOrderOpen, setMCPOrderOpen] = React.useState(false);
   const [schemaTool, setSchemaTool] = React.useState<MCPToolDTO | null>(null);
   const [toolForm, setToolForm] = React.useState<ToolFormState | null>(null);
@@ -211,6 +218,7 @@ export function AdminToolsPage() {
   const stableToolForm = useDialogSnapshot(toolForm);
   const stableSchemaTool = useDialogSnapshot(schemaTool);
   const stableServerDeleteTarget = useDialogSnapshot(serverDeleteTarget);
+  const stableToolSyncConfirmation = useDialogSnapshot(toolSyncConfirmation);
   React.useEffect(() => {
     if (mcpEnabled) {
       return;
@@ -218,6 +226,7 @@ export function AdminToolsPage() {
     setToolSheetServerID(null);
     setToolForm(null);
     setSchemaTool(null);
+    setToolSyncConfirmation(null);
   }, [mcpEnabled]);
 
   const filteredServers = React.useMemo(() => {
@@ -447,7 +456,7 @@ export function AdminToolsPage() {
   }, []);
 
   const syncTools = React.useCallback(
-    async (serverID: number) => {
+    async (serverID: number, overwriteCustomizedMetadata = false) => {
       setSyncingServerID(serverID);
       const token = await resolveAccessToken();
       if (!token) {
@@ -457,7 +466,7 @@ export function AdminToolsPage() {
       }
 
       try {
-        const nextTools = await syncAdminMCPServerTools(token, serverID);
+        const nextTools = await syncAdminMCPServerTools(token, serverID, overwriteCustomizedMetadata);
         setToolSheetServerID(serverID);
         setTools(nextTools);
         toast.success(t("toast.toolsSynced"));
@@ -469,6 +478,30 @@ export function AdminToolsPage() {
       }
     },
     [loadServers, t],
+  );
+
+  const requestToolSync = React.useCallback(
+    (serverID: number) => {
+      const server = servers.find((item) => item.id === serverID);
+      if (server?.requiresToolMetadataSyncConfirmation) {
+        setToolSyncConfirmation({ serverID, serverName: server.name });
+        return;
+      }
+      void syncTools(serverID);
+    },
+    [servers, syncTools],
+  );
+
+  const confirmToolSync = React.useCallback(
+    (overwriteCustomizedMetadata: boolean) => {
+      if (!toolSyncConfirmation) {
+        return;
+      }
+      const serverID = toolSyncConfirmation.serverID;
+      setToolSyncConfirmation(null);
+      void syncTools(serverID, overwriteCustomizedMetadata);
+    },
+    [syncTools, toolSyncConfirmation],
   );
 
   const saveServer = React.useCallback(async () => {
@@ -653,6 +686,7 @@ export function AdminToolsPage() {
         description: toolForm.description,
       });
       setTools((items) => items.map((item) => (item.id === savedTool.id ? savedTool : item)));
+      await loadServers();
       setToolForm(null);
       toast.success(t("toast.toolUpdated"));
     } catch (error) {
@@ -660,7 +694,7 @@ export function AdminToolsPage() {
     } finally {
       setToolSaving(false);
     }
-  }, [t, toolForm]);
+  }, [loadServers, t, toolForm]);
 
   const schemaText = React.useMemo(() => {
     const raw = stableSchemaTool?.inputSchemaJSON?.trim();
@@ -860,7 +894,7 @@ export function AdminToolsPage() {
                             variant="ghost"
                             className="text-muted-foreground shadow-none"
                             disabled={syncingServerID === server.id}
-                            onClick={() => void syncTools(server.id)}
+                            onClick={() => void requestToolSync(server.id)}
                             title={t("toolbar.syncTools")}
                             aria-label={t("toolbar.syncTools")}
                           >
@@ -958,7 +992,7 @@ export function AdminToolsPage() {
                   size="sm"
                   className="h-7 shrink-0 text-xs"
                   disabled={syncingServerID === toolSheetServer.id}
-                  onClick={() => void syncTools(toolSheetServer.id)}
+                  onClick={() => void requestToolSync(toolSheetServer.id)}
                 >
                   <RefreshCw className={cn("size-3.5 stroke-1", syncingServerID === toolSheetServer.id ? "animate-spin" : "")} />
                   {t("toolbar.sync")}
@@ -1293,6 +1327,64 @@ export function AdminToolsPage() {
           });
         }}
       />
+
+      <Dialog
+        open={toolSyncConfirmation !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setToolSyncConfirmation(null);
+          }
+        }}
+      >
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[380px]">
+          <DialogClose asChild>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              className="absolute top-3 right-3 z-10 text-muted-foreground shadow-none"
+              title={tActions("close")}
+              aria-label={tActions("close")}
+            >
+              <X className="size-3.5" />
+            </Button>
+          </DialogClose>
+          <DialogHeader className="px-4 pt-4 pr-11 pb-3">
+            <DialogTitle>{t("syncConfirm.title")}</DialogTitle>
+            <DialogDescription>
+              {t("syncConfirm.description", {
+                name: stableToolSyncConfirmation?.serverName ?? "",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mx-4 mb-4 overflow-hidden rounded-md border border-border/60">
+            <button
+              type="button"
+              className="flex min-h-12 w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+              disabled={syncingServerID !== null || !toolSyncConfirmation}
+              onClick={() => confirmToolSync(false)}
+            >
+              <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-medium text-foreground">{t("syncConfirm.preserve")}</span>
+                <span className="block text-xs leading-5 text-muted-foreground">{t("syncConfirm.preserveDescription")}</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              className="flex min-h-12 w-full items-center gap-3 border-t border-border/60 px-3 py-2.5 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+              disabled={syncingServerID !== null || !toolSyncConfirmation}
+              onClick={() => confirmToolSync(true)}
+            >
+              <RefreshCw className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-medium text-foreground">{t("syncConfirm.overwrite")}</span>
+                <span className="block text-xs leading-5 text-muted-foreground">{t("syncConfirm.overwriteDescription")}</span>
+              </span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={serverDeleteTarget !== null}

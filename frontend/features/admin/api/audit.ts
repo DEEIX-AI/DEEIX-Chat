@@ -1,4 +1,9 @@
-import type { CleanupLogsRequest, CleanupLogsResponse } from "@deeix/api-contract";
+import type {
+  CleanupConversationRunsRequest,
+  CleanupConversationRunsResponse,
+  CleanupLogsRequest,
+  CleanupLogsResponse,
+} from "@deeix/api-contract";
 import { authedRequest } from "@/shared/api/authed-client";
 import type {
   AdminAuditLogDTO,
@@ -265,4 +270,30 @@ export async function listAdminConversationEvents(
   );
 
   return normalizeAdminPagePayload(data);
+}
+
+export async function getAdminConversationEvent(
+  accessToken: string,
+  eventID: number,
+): Promise<AdminConversationEventDTO> {
+  return authedRequest<AdminConversationEventDTO>(
+    `/api/v1/admin/conversation-events/${eventID}`,
+    { accessToken },
+    true,
+  );
+}
+
+export async function cleanupAdminConversationRuns(
+  accessToken: string,
+  input: CleanupConversationRunsRequest,
+): Promise<CleanupConversationRunsResponse> {
+  return authedRequest<CleanupConversationRunsResponse>(
+    "/api/v1/admin/conversation-events/cleanup",
+    {
+      accessToken,
+      method: "POST",
+      body: input,
+    },
+    true,
+  );
 }

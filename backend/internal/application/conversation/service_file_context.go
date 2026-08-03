@@ -19,7 +19,10 @@ const (
 )
 
 type attachmentSnapshotRef struct {
-	FileID string `json:"file_id"`
+	FileID       string `json:"file_id"`
+	Kind         string `json:"kind"`
+	MimeType     string `json:"mime_type"`
+	DetectedMIME string `json:"detected_mime"`
 }
 
 type conversationFileContextPlan struct {
@@ -59,14 +62,7 @@ func collectConversationFileIDs(messages []model.Message, currentFileIDs []strin
 }
 
 func parseAttachmentSnapshotFileIDs(raw string) []string {
-	payload := strings.TrimSpace(raw)
-	if payload == "" || payload == "[]" {
-		return nil
-	}
-	var items []attachmentSnapshotRef
-	if err := json.Unmarshal([]byte(payload), &items); err != nil {
-		return nil
-	}
+	items := parseAttachmentSnapshotRefs(raw)
 	result := make([]string, 0, len(items))
 	for _, item := range items {
 		if fileID := strings.TrimSpace(item.FileID); fileID != "" {
@@ -76,12 +72,47 @@ func parseAttachmentSnapshotFileIDs(raw string) []string {
 	return result
 }
 
+func parseAttachmentSnapshotRefs(raw string) []attachmentSnapshotRef {
+	payload := strings.TrimSpace(raw)
+	if payload == "" || payload == "[]" {
+		return nil
+	}
+	var items []attachmentSnapshotRef
+	if err := json.Unmarshal([]byte(payload), &items); err != nil {
+		return nil
+	}
+	return items
+}
+
 func filterCurrentAttachments(items []AttachmentInput) []AttachmentInput {
 	result := make([]AttachmentInput, 0)
 	for _, item := range items {
 		if item.Current {
 			result = append(result, item)
 		}
+	}
+	return result
+}
+
+func bindAttachmentMessageRoles(items []AttachmentInput, messages []model.Message) []AttachmentInput {
+	if len(items) == 0 || len(messages) == 0 {
+		return items
+	}
+	roles := make(map[string]string)
+	for _, message := range messages {
+		role := strings.ToLower(strings.TrimSpace(message.Role))
+		if role != "user" && role != "assistant" {
+			continue
+		}
+		for _, fileID := range parseAttachmentSnapshotFileIDs(message.Attachments) {
+			if role == "user" || roles[fileID] == "" {
+				roles[fileID] = role
+			}
+		}
+	}
+	result := append([]AttachmentInput(nil), items...)
+	for index := range result {
+		result[index].MessageRole = roles[strings.TrimSpace(result[index].FileID)]
 	}
 	return result
 }
@@ -105,6 +136,9 @@ func isStableTextAttachment(item AttachmentInput) bool {
 
 func shouldShowAttachmentProcessTrace(items []AttachmentInput) bool {
 	for _, item := range items {
+		if strings.EqualFold(strings.TrimSpace(item.ContextMode), fileContextModeDirectImage) && !item.Current {
+			continue
+		}
 		if item.Current {
 			return true
 		}
@@ -113,6 +147,17 @@ func shouldShowAttachmentProcessTrace(items []AttachmentInput) bool {
 		}
 	}
 	return false
+}
+
+func attachmentProcessTraceItems(items []AttachmentInput) []AttachmentInput {
+	result := make([]AttachmentInput, 0, len(items))
+	for _, item := range items {
+		if strings.EqualFold(strings.TrimSpace(item.ContextMode), fileContextModeDirectImage) && !item.Current {
+			continue
+		}
+		result = append(result, item)
+	}
+	return result
 }
 
 func buildConversationFileContextPlan(
@@ -128,7 +173,7 @@ func buildConversationFileContextPlan(
 	}
 	for _, item := range attachments {
 		kind := normalizeAttachmentKind(item.Kind, item.DetectedMIME)
-		if kind == "image" && item.Current {
+		if kind == "image" && (item.Current || strings.EqualFold(strings.TrimSpace(item.MessageRole), "user")) {
 			item.ContextMode = fileContextModeDirectImage
 			plan.Attachments = append(plan.Attachments, item)
 			plan.FullAttachments = append(plan.FullAttachments, item)

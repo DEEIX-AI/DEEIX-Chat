@@ -65,7 +65,6 @@ type BrandingManifestResponse struct {
 	Display         string                 `json:"display"`
 	BackgroundColor string                 `json:"background_color"`
 	ThemeColor      string                 `json:"theme_color"`
-	Orientation     string                 `json:"orientation"`
 	Categories      []string               `json:"categories"`
 	Lang            string                 `json:"lang"`
 	Icons           []BrandingManifestIcon `json:"icons"`

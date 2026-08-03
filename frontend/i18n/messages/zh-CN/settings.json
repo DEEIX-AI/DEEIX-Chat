@@ -340,12 +340,14 @@
   },
   "chatPage": {
     "defaultModel": {
-      "sectionTitle": "默认模型",
+      "sectionTitle": "基础会话",
       "title": "新会话默认模型",
       "description": "开启新对话时预选的模型。留空则使用系统推荐的第一个可用模型。",
       "systemRecommended": "系统默认",
       "autoTitle": "自动生成标题",
-      "autoTitleDescription": "关闭后，新对话使用第一条消息的前 16 个字符作为标题。"
+      "autoTitleDescription": "关闭后，新对话使用第一条消息的前 16 个字符作为标题。",
+      "autoLabels": "自动生成标签",
+      "autoLabelsDescription": "关闭后，系统将不再自动生成会话标签，可减少辅助模型调用及相应的 Token 消耗。"
     },
     "input": {
       "sectionTitle": "输入与发送",
@@ -539,6 +541,7 @@
         "model": "模型",
         "baseBilling": "基础计费",
         "serviceBilling": "服务计费",
+        "balanceAfter": "结算后余额",
         "latency": "耗时"
       },
       "empty": "暂无调用日志"

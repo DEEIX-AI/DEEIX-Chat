@@ -3,6 +3,7 @@ package channel
 import (
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -403,15 +404,63 @@ func normalizeUpstreamModelVendor(raw string, candidates ...string) string {
 	return "unknown"
 }
 
+// reasoningContentPassbackVendors 列出 Chat Completions 协议下要求回传 reasoning_content 的厂商。
+// 这些厂商的思考模型都要求历史 assistant 消息原样携带 reasoning_content：
+// DeepSeek 与小米 MiMo 在历史含工具调用时缺失该字段会直接返回 400；Moonshot 同样返回 400；
+// 智谱默认 clear_thinking=false 即保留式思考，官方明确裁剪或改写历史推理比完全不传更糟；
+// 阿里 Qwen 需配合 preserve_thinking 入参（见 reasoningPassbackVendorRequestOptions）才会读取历史推理；
+// MiniMax 自 M2 起 chat template 同时接受 content 内联 <think> 与 reasoning_content，
+// 而应用层已把 <think> 统一收敛进 reasoning_content，无需额外解析。
+//
+// 仍未纳入：bytedance(Doubao) 由服务端自行判断历史思维链是否参与推理，缺乏一手证据表明回传必需。
+var reasoningContentPassbackVendors = map[string]bool{
+	"deepseek": true,
+	"moonshot": true,
+	"zhipu":    true,
+	"xiaomi":   true,
+	"alibaba":  true,
+	"minimax":  true,
+}
+
+// reasoningPassbackVendorRequestOptions 列出「仅回传字段无效、必须同时下发」的厂商私有请求入参。
+// 阿里百炼默认忽略 messages 里的历史 reasoning_content，须显式传 preserve_thinking=true
+// 才会把历史推理拼接进下一轮输入；不传则只是白白付出推理 token 且不报错。
+var reasoningPassbackVendorRequestOptions = map[string]map[string]interface{}{
+	"alibaba": {"preserve_thinking": true},
+}
+
 func reasoningContentPassbackRequired(protocol string, candidates ...string) bool {
 	switch llm.NormalizeAdapter(protocol) {
 	case llm.AdapterOpenRouterChat:
 		return true
 	case llm.AdapterOpenAIChatCompletions:
-		return detectModelVendor(candidates...) == "deepseek"
+		return reasoningContentPassbackVendors[detectModelVendor(candidates...)]
 	default:
 		return false
 	}
+}
+
+// reasoningPassbackRequestOptions 返回本路由回传生效时需附加的厂商私有请求入参副本。
+// 仅在原生 Chat Completions 协议下生效：OpenRouter 有自己的 reasoning 字段与参数校验，
+// 转发厂商私有顶层入参会被判为未知参数。返回副本避免调用方污染包级变量。
+func reasoningPassbackRequestOptions(protocol string, candidates ...string) map[string]interface{} {
+	if llm.NormalizeAdapter(protocol) != llm.AdapterOpenAIChatCompletions {
+		return nil
+	}
+	vendor := detectModelVendor(candidates...)
+	// 与回传白名单联动，避免两张表漂移：回传都没开启时不应下发配套入参。
+	if !reasoningContentPassbackVendors[vendor] {
+		return nil
+	}
+	required := reasoningPassbackVendorRequestOptions[vendor]
+	if len(required) == 0 {
+		return nil
+	}
+	options := make(map[string]interface{}, len(required))
+	for key, value := range required {
+		options[key] = value
+	}
+	return options
 }
 
 func detectModelVendor(candidates ...string) string {
@@ -720,10 +769,22 @@ func mergeIntoJSONMap(raw string, target map[string]interface{}) {
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
 		return
 	}
-	for k, v := range parsed {
-		if key := strings.TrimSpace(k); key != "" {
-			target[key] = v
+	keys := make([]string, 0, len(parsed))
+	for key := range parsed {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, rawKey := range keys {
+		key := strings.TrimSpace(rawKey)
+		if key == "" {
+			continue
 		}
+		for existingKey := range target {
+			if strings.EqualFold(existingKey, key) {
+				delete(target, existingKey)
+			}
+		}
+		target[key] = parsed[rawKey]
 	}
 }
 

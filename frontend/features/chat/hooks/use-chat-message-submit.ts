@@ -13,13 +13,17 @@ import type {
 } from "@/features/chat/types/chat-runtime";
 import type { ChatSubmitBlockReason } from "@/features/chat/model/chat-task";
 import { resolveChatSubmitDecision } from "@/features/chat/model/chat-task";
+import { useHiddenQueuedParentRuns } from "@/features/chat/hooks/use-hidden-queued-parent-runs";
 import {
   resolveDefaultSubmissionParentMessage,
   resolvePersistedPublicID,
   toPendingAttachments,
   toPendingProcessTrace,
 } from "@/features/chat/model/message-submit";
-import { readLiveUpstreamThinkTrace } from "@/features/chat/model/upstream-think-store";
+import {
+  preserveRicherLiveUpstreamThinkTrace,
+  readLiveUpstreamThinkTrace,
+} from "@/features/chat/model/upstream-think-store";
 import {
   resolveErrorDetails,
   resolveErrorMessage,
@@ -134,7 +138,13 @@ function resolveMediaStatusLabel(
   }
 }
 
-type ActiveStream = {
+type BranchScope = {
+  conversationScopeKey: string;
+  branchScopePath: string[];
+  branchScopeRunID: string;
+};
+
+type ActiveStream = BranchScope & {
   controller: AbortController;
   runID: string;
   accessToken: string | null;
@@ -183,8 +193,13 @@ function replaceCompletedBranchSelection(
   return changed ? next : previous;
 }
 
-type QueuedChatSubmission = {
+type QueuedChatSubmission = BranchScope & {
   id: string;
+  clientRunID: string;
+  parentRunID: string | null;
+  conversationPublicID: string | null;
+  conversation: ConversationDTO | null;
+  parentMessagePublicID: string | null;
   content: string;
   attachments: PendingAttachment[];
   platformModelName: string;
@@ -193,6 +208,125 @@ type QueuedChatSubmission = {
   selectedSkills: SkillSummaryDTO[];
   htmlVisualPromptEnabled: boolean;
 };
+
+function buildBranchScopePath(messages: ChatAreaMessage[]): string[] {
+  return messages.map((message) => message.publicID.trim()).filter(Boolean);
+}
+
+function buildSubmissionBranchScopePath(
+  messages: ChatAreaMessage[],
+  parentMessagePublicID: string | null | undefined,
+): string[] {
+  const visiblePath = buildBranchScopePath(messages);
+  const parentPublicID = parentMessagePublicID?.trim() || "";
+  if (!parentPublicID) {
+    return [];
+  }
+  const parentIndex = visiblePath.indexOf(parentPublicID);
+  return parentIndex >= 0 ? visiblePath.slice(0, parentIndex + 1) : visiblePath;
+}
+
+function branchScopePathsEqual(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((publicID, index) => publicID === right[index]);
+}
+
+function branchScopesEqual(left: BranchScope, right: BranchScope): boolean {
+  return (
+    left.conversationScopeKey === right.conversationScopeKey &&
+    left.branchScopeRunID === right.branchScopeRunID &&
+    branchScopePathsEqual(left.branchScopePath, right.branchScopePath)
+  );
+}
+
+function branchScopeID(scope: BranchScope): string {
+  return JSON.stringify([
+    scope.conversationScopeKey,
+    scope.branchScopeRunID,
+    ...scope.branchScopePath,
+  ]);
+}
+
+function isSuccessfulBranchParentStatus(status: string | null | undefined): boolean {
+  const normalized = status?.trim().toLowerCase() || "";
+  return normalized === "success" || normalized === "interrupted";
+}
+
+function branchScopeIsVisible(
+  scope: BranchScope,
+  visibleConversationScopeKey: string,
+  visibleMessages: ChatAreaMessage[],
+): boolean {
+  return (
+    scope.conversationScopeKey === visibleConversationScopeKey &&
+    visibleMessages.some((message) => message.runID === scope.branchScopeRunID)
+  );
+}
+
+function findSuccessfulBranchParentMessage(
+  messages: ChatAreaMessage[],
+  runID: string | null | undefined,
+): ChatAreaMessage | undefined {
+  const normalizedRunID = runID?.trim() || "";
+  if (!normalizedRunID) {
+    return undefined;
+  }
+  return messages.find(
+    (message) =>
+      message.role === "assistant" &&
+      message.runID === normalizedRunID &&
+      Boolean(resolvePersistedPublicID(message.publicID)) &&
+      !message.isPending &&
+      !message.isStreaming &&
+      isSuccessfulBranchParentStatus(message.status),
+  );
+}
+
+function branchRunIsVisible(
+  scope: BranchScope,
+  runID: string | null | undefined,
+  visibleConversationScopeKey: string,
+  visibleBranchScopePath: readonly string[],
+  visibleMessages: ChatAreaMessage[],
+): boolean {
+  const normalizedRunID = runID?.trim() || "";
+  if (scope.conversationScopeKey !== visibleConversationScopeKey) {
+    return false;
+  }
+  if (normalizedRunID && visibleMessages.some((message) => message.runID === normalizedRunID)) {
+    return true;
+  }
+  return (
+    branchScopePathsEqual(scope.branchScopePath, visibleBranchScopePath) &&
+    (scope.branchScopeRunID === normalizedRunID ||
+      branchScopeIsVisible(scope, visibleConversationScopeKey, visibleMessages))
+  );
+}
+
+function rechainQueuedSubmissions(
+  submissions: QueuedChatSubmission[],
+  scope: BranchScope,
+  rootParentRunID: string | null,
+  rootParentMessagePublicID: string | null,
+): QueuedChatSubmission[] {
+  let parentRunID = rootParentRunID;
+  let firstSubmission = true;
+  return submissions.map((submission) => {
+    if (!branchScopesEqual(submission, scope)) {
+      return submission;
+    }
+    const parentMessagePublicID = firstSubmission
+      ? rootParentMessagePublicID
+      : submission.parentMessagePublicID;
+    const nextSubmission =
+      submission.parentRunID === parentRunID &&
+      submission.parentMessagePublicID === parentMessagePublicID
+        ? submission
+        : { ...submission, parentRunID, parentMessagePublicID };
+    parentRunID = submission.clientRunID;
+    firstSubmission = false;
+    return nextSubmission;
+  });
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -235,12 +369,16 @@ function conversationTitleFromFirstUserMessage(content: string): string {
   return Array.from(value).slice(0, 16).join("").trim();
 }
 
-function hasPendingGeneratedConversationMetadata(item: ConversationDTO | null, fallbackTitle = ""): boolean {
+function hasPendingGeneratedConversationMetadata(
+  item: ConversationDTO | null,
+  autoGenerateLabels: boolean,
+  fallbackTitle = "",
+): boolean {
   return (
     !item ||
     isPlaceholderConversationTitle(item.title) ||
     isFallbackConversationTitle(item.title, fallbackTitle) ||
-    normalizeLabelsJSON(item.labelsJSON) === "[]"
+    (autoGenerateLabels && normalizeLabelsJSON(item.labelsJSON) === "[]")
   );
 }
 
@@ -259,9 +397,10 @@ function hasGeneratedConversationMetadataChanged(
 function shouldPollGeneratedConversationMetadata(
   item: ConversationDTO | null,
   result: SendMessageResult | null | undefined,
+  autoGenerateLabels: boolean,
   fallbackTitle = "",
 ): boolean {
-  if (!hasPendingGeneratedConversationMetadata(item, fallbackTitle)) {
+  if (!hasPendingGeneratedConversationMetadata(item, autoGenerateLabels, fallbackTitle)) {
     return false;
   }
   const hint = result?.metadataRefreshHint?.trim();
@@ -275,6 +414,7 @@ async function refreshGeneratedConversationMetadata(
   accessToken: string,
   conversationPublicID: string,
   previous: ConversationDTO | null,
+  autoGenerateLabels: boolean,
   fallbackTitle: string,
   touchByPublicID: (publicID: string, patch?: Partial<ConversationDTO>) => void,
 ): Promise<void> {
@@ -296,7 +436,7 @@ async function refreshGeneratedConversationMetadata(
     if (hasGeneratedConversationMetadataChanged(current, latest)) {
       touchByPublicID(conversationPublicID, latest);
       current = latest;
-      if (!hasPendingGeneratedConversationMetadata(latest, fallbackTitle)) {
+      if (!hasPendingGeneratedConversationMetadata(latest, autoGenerateLabels, fallbackTitle)) {
         return;
       }
     }
@@ -310,7 +450,7 @@ async function refreshGeneratedConversationMetadata(
 
 export function useChatMessageSubmit({
   conversationID,
-  resetToken,
+  conversationScopeKey,
   activeConversation,
   selectedPlatformModelName,
   modelOptions,
@@ -323,6 +463,7 @@ export function useChatMessageSubmit({
   maxFilesPerMessage,
   uploading,
   restoreDraftOnFailure,
+  autoGenerateLabels,
   prependNewConversation,
   onConversationCreated,
   touchByPublicID,
@@ -331,6 +472,7 @@ export function useChatMessageSubmit({
   setDraft,
   setAttachments,
   releaseAttachments,
+  getPendingExchanges,
   pendingExchanges,
   setPendingExchanges,
   setBranchSelections,
@@ -352,7 +494,7 @@ export function useChatMessageSubmit({
   resumeGenerationActive = false,
 }: {
   conversationID: string | null;
-  resetToken: number;
+  conversationScopeKey: string;
   activeConversation: ConversationDTO | null;
   selectedPlatformModelName: string;
   modelOptions: ChatModelOption[];
@@ -365,6 +507,7 @@ export function useChatMessageSubmit({
   maxFilesPerMessage: number;
   uploading: boolean;
   restoreDraftOnFailure: boolean;
+  autoGenerateLabels: boolean;
   prependNewConversation: (platformModelName: string) => Promise<ConversationDTO | null | undefined>;
   onConversationCreated?: (conversationPublicID: string) => void;
   touchByPublicID: (publicID: string, patch?: Partial<ConversationDTO>) => void;
@@ -373,6 +516,7 @@ export function useChatMessageSubmit({
   setDraft: React.Dispatch<React.SetStateAction<string>>;
   setAttachments: React.Dispatch<React.SetStateAction<PendingAttachment[]>>;
   releaseAttachments: (items: PendingAttachment[]) => void;
+  getPendingExchanges: () => PendingExchangeMap;
   pendingExchanges: PendingExchangeMap;
   setPendingExchanges: React.Dispatch<React.SetStateAction<PendingExchangeMap>>;
   setBranchSelections: React.Dispatch<React.SetStateAction<Record<string, string>>>;
@@ -394,21 +538,52 @@ export function useChatMessageSubmit({
   resumeGenerationActive?: boolean;
 }) {
   const t = useTranslations("chat.submit");
-  const [activeRunCount, setActiveRunCount] = React.useState(0);
+  const [activeRunRevision, setActiveRunRevision] = React.useState(0);
   const activeStreamsRef = React.useRef(new Map<string, ActiveStream>());
-  const activeGenerationRunsRefRef = React.useRef(activeGenerationRunsRef);
-  const previousResetTokenRef = React.useRef(resetToken);
   const conversationIDRef = React.useRef(conversationID);
+  const conversationScopeKeyRef = React.useRef(conversationScopeKey);
   const activeConversationRef = React.useRef(activeConversation);
-  const nextModelRunSequenceRef = React.useRef(0);
-  const latestCompletedModelRunSequenceRef = React.useRef(0);
-  const sendQueuedAfterCurrentRef = React.useRef(false);
+  const nextModelRunSequenceRef = React.useRef(new Map<string, number>());
+  const latestCompletedModelRunSequenceRef = React.useRef(new Map<string, number>());
+  const optimisticMessageCountsRef = React.useRef(new Map<string, number>());
+  const sendQueuedAfterCurrentRef = React.useRef(new Set<string>());
+  const dispatchingQueuedSubmissionIDsRef = React.useRef(new Set<string>());
   const [queuedSubmissions, setQueuedSubmissions] = React.useState<QueuedChatSubmission[]>([]);
   const queuedSubmissionsRef = React.useRef<QueuedChatSubmission[]>([]);
-  const sending = activeRunCount > 0;
+  const isRunActive = React.useCallback((runID: string) => activeStreamsRef.current.has(runID), []);
+  const {
+    getStatus: getHiddenParentRunStatus,
+    revision: hiddenParentRunStatusRevision,
+  } = useHiddenQueuedParentRuns({
+    currentConversationScopeKey: conversationScopeKey,
+    queuedParents: queuedSubmissions,
+    getPendingExchanges,
+    isRunActive,
+  });
+  const visibleBranchScopePath = React.useMemo(
+    () => buildBranchScopePath(visibleMessages),
+    [visibleMessages],
+  );
+  const visibleBranchScopePathRef = React.useRef(visibleBranchScopePath);
+  const visibleMessagesRef = React.useRef(visibleMessages);
+  visibleBranchScopePathRef.current = visibleBranchScopePath;
+  visibleMessagesRef.current = visibleMessages;
+  const sending = React.useMemo(
+    () =>
+      Array.from(activeStreamsRef.current.values()).some((active) =>
+        branchRunIsVisible(
+          active,
+          active.runID,
+          conversationScopeKey,
+          visibleBranchScopePath,
+          visibleMessages,
+        ),
+      ),
+    [activeRunRevision, conversationScopeKey, visibleBranchScopePath, visibleMessages],
+  );
 
-  const syncActiveRunCount = React.useCallback(() => {
-    setActiveRunCount(activeStreamsRef.current.size);
+  const syncActiveRuns = React.useCallback(() => {
+    setActiveRunRevision((current) => current + 1);
   }, []);
 
   const updatePendingExchange = React.useCallback(
@@ -430,6 +605,10 @@ export function useChatMessageSubmit({
   }, [conversationID]);
 
   React.useEffect(() => {
+    conversationScopeKeyRef.current = conversationScopeKey;
+  }, [conversationScopeKey]);
+
+  React.useEffect(() => {
     activeConversationRef.current = activeConversation;
   }, [activeConversation]);
 
@@ -438,32 +617,26 @@ export function useChatMessageSubmit({
   }, [queuedSubmissions]);
 
   React.useEffect(() => {
-    activeGenerationRunsRefRef.current = activeGenerationRunsRef;
-  }, [activeGenerationRunsRef]);
-
-  React.useEffect(() => {
-    if (previousResetTokenRef.current === resetToken) {
-      return;
-    }
-    previousResetTokenRef.current = resetToken;
-
-    for (const active of activeStreamsRef.current.values()) {
-      // 会话切换只解除当前页面订阅，不取消服务端仍在执行的 run。
-      clearCancelSettlementTimer(active);
-      active.controller.abort();
-      activeGenerationRunsRefRef.current?.current.delete(active.runID);
-    }
-    activeStreamsRef.current.clear();
-
-    resetStreamBuffer();
-    setPendingExchanges({});
-    setActiveRunCount(0);
-    nextModelRunSequenceRef.current = 0;
-    latestCompletedModelRunSequenceRef.current = 0;
-    sendQueuedAfterCurrentRef.current = false;
-    releaseAttachments(queuedSubmissionsRef.current.flatMap((item) => item.attachments));
-    setQueuedSubmissions([]);
-  }, [releaseAttachments, resetStreamBuffer, resetToken, setPendingExchanges]);
+    setPendingExchanges((current) => {
+      const completedBackgroundKeys = Object.entries(current)
+        .filter(
+          ([, exchange]) =>
+            exchange.conversationScopeKey !== conversationScopeKey &&
+            Boolean(exchange.assistantPublicID) &&
+            !exchange.assistantPending &&
+            !exchange.assistantStreaming,
+        )
+        .map(([exchangeKey]) => exchangeKey);
+      if (completedBackgroundKeys.length === 0) {
+        return current;
+      }
+      const next = { ...current };
+      for (const exchangeKey of completedBackgroundKeys) {
+        delete next[exchangeKey];
+      }
+      return next;
+    });
+  }, [conversationScopeKey, setPendingExchanges]);
 
   React.useEffect(() => {
     const completedKeys: string[] = [];
@@ -529,7 +702,13 @@ export function useChatMessageSubmit({
         return next;
       });
     }
-  }, [combinedMessages, pendingExchanges, serverMessagePublicIDs, setBranchSelections, setPendingExchanges]);
+  }, [
+    combinedMessages,
+    pendingExchanges,
+    serverMessagePublicIDs,
+    setBranchSelections,
+    setPendingExchanges,
+  ]);
 
   const submitMessage = React.useCallback(
     async ({
@@ -555,14 +734,44 @@ export function useChatMessageSubmit({
       const requestSelectedToolIDs = queuedSubmission?.selectedToolIDs ?? selectedToolIDs;
       const requestSelectedSkills = queuedSubmission?.selectedSkills ?? selectedSkills;
       const requestHTMLVisualPromptEnabled = queuedSubmission?.htmlVisualPromptEnabled ?? htmlVisualPromptEnabled;
+      let targetConversationScopeKey = queuedSubmission?.conversationScopeKey ?? conversationScopeKeyRef.current;
+      const resolvedParentPublicID = resolvePersistedPublicID(parentMessagePublicID);
+      const targetBranchScopePath = queuedSubmission?.branchScopePath.slice() ??
+        buildSubmissionBranchScopePath(visibleMessagesRef.current, resolvedParentPublicID);
+      const clientRunID = queuedSubmission?.clientRunID ?? createClientRunID();
+      let targetBranchScope: BranchScope = {
+        conversationScopeKey: targetConversationScopeKey,
+        branchScopePath: targetBranchScopePath,
+        branchScopeRunID: queuedSubmission?.branchScopeRunID ?? clientRunID,
+      };
+      const shouldFollowSubmittedBranch =
+        !queuedSubmission ||
+        branchRunIsVisible(
+          targetBranchScope,
+          clientRunID,
+          conversationScopeKeyRef.current,
+          visibleBranchScopePathRef.current,
+          visibleMessagesRef.current,
+        );
       const selectedModel = modelOptions.find((item) => item.platformModelName === requestPlatformModelName) ?? null;
       const resolvedBranchReason = branchReason ?? "default";
       const concurrentBranchRun = resolvedBranchReason === "retry" || resolvedBranchReason === "edit";
+      const targetConversationHasActiveStream = Array.from(activeStreamsRef.current.values()).some(
+        (active) =>
+          queuedSubmission
+            ? branchScopesEqual(active, targetBranchScope)
+            : active.conversationScopeKey === targetConversationScopeKey &&
+              branchScopePathsEqual(active.branchScopePath, targetBranchScopePath),
+      );
       if (
         (!content && currentAttachments.length === 0) ||
-        uploading ||
-        (!concurrentBranchRun && activeStreamsRef.current.size > 0)
+        (!queuedSubmission && uploading) ||
+        (!concurrentBranchRun && targetConversationHasActiveStream)
       ) {
+        return false;
+      }
+      if (activeStreamsRef.current.size >= MAX_CONCURRENT_RUNS) {
+        toast.error(t("concurrentGenerationLimit", { count: MAX_CONCURRENT_RUNS }));
         return false;
       }
       if (concurrentBranchRun) {
@@ -606,9 +815,7 @@ export function useChatMessageSubmit({
       }
 
       const wasConversationMode = showConversationLayout || visibleMessageCount > 0;
-      const clientRunID = createClientRunID();
       const exchangeKey = `local-exchange-${clientRunID}`;
-      const resolvedParentPublicID = resolvePersistedPublicID(parentMessagePublicID);
       const resolvedSourcePublicID = resolvePersistedPublicID(sourceMessagePublicID);
       const assistantOnlyBranch =
         resolvedBranchReason === "retry" &&
@@ -635,21 +842,24 @@ export function useChatMessageSubmit({
           : undefined;
       const assistantContentType =
         submitTask === "chat" ? "markdown" : submitTask === "video_generation" ? "video" : "image";
-      let targetConversationID = conversationIDRef.current;
-      let targetConversation = activeConversationRef.current;
+      let targetConversationID = queuedSubmission?.conversationPublicID ?? conversationIDRef.current;
+      let targetConversation = queuedSubmission?.conversation ?? activeConversationRef.current;
       let metadataRefreshInFlight = false;
       let modelRunSequence = 0;
 
       activeGenerationRunsRef?.current.add(clientRunID);
-      setShowConversationLayout(true);
+      if (shouldFollowSubmittedBranch) {
+        setShowConversationLayout(true);
+      }
       activeStreamsRef.current.set(clientRunID, {
         controller: streamAbortController,
         runID: clientRunID,
+        ...targetBranchScope,
         accessToken: null,
         cancelRequested: false,
         cancelSettlementTimer: null,
       });
-      syncActiveRunCount();
+      syncActiveRuns();
       if (resetComposer) {
         setDraft("");
         setAttachments([]);
@@ -659,6 +869,7 @@ export function useChatMessageSubmit({
         ...current,
         [exchangeKey]: {
           key: exchangeKey,
+          ...targetBranchScope,
           conversationPublicID: targetConversationID?.trim() || null,
           userPublicID: assistantOnlyBranch ? pendingUserPublicID : undefined,
           tempUserPublicID,
@@ -682,11 +893,13 @@ export function useChatMessageSubmit({
           assistantProcessTrace: undefined,
         },
       }));
-      setBranchSelections((prev) => ({
-        ...prev,
-        ...(assistantOnlyBranch ? {} : { [toBranchKey(resolvedParentPublicID)]: pendingUserPublicID }),
-        [pendingUserPublicID]: tempAssistantPublicID,
-      }));
+      if (shouldFollowSubmittedBranch) {
+        setBranchSelections((prev) => ({
+          ...prev,
+          ...(assistantOnlyBranch ? {} : { [toBranchKey(resolvedParentPublicID)]: pendingUserPublicID }),
+          [pendingUserPublicID]: tempAssistantPublicID,
+        }));
+      }
 
       try {
         const token = await resolveAccessToken();
@@ -705,7 +918,12 @@ export function useChatMessageSubmit({
           if (
             !targetConversationID ||
             metadataRefreshInFlight ||
-            !shouldPollGeneratedConversationMetadata(targetConversation, result, metadataFallbackTitle)
+            !shouldPollGeneratedConversationMetadata(
+              targetConversation,
+              result,
+              autoGenerateLabels,
+              metadataFallbackTitle,
+            )
           ) {
             return;
           }
@@ -714,6 +932,7 @@ export function useChatMessageSubmit({
             token,
             targetConversationID,
             targetConversation,
+            autoGenerateLabels,
             metadataFallbackTitle,
             touchByPublicID,
           )
@@ -733,17 +952,69 @@ export function useChatMessageSubmit({
           if (!created?.publicID) {
             throw new Error(t("createConversationFailed"));
           }
+          const previousTargetBranchScope = targetBranchScope;
+          const previousConversationScopeKey = previousTargetBranchScope.conversationScopeKey;
+          targetConversationScopeKey = `conversation:${created.publicID}`;
+          targetBranchScope = {
+            ...previousTargetBranchScope,
+            conversationScopeKey: targetConversationScopeKey,
+          };
           targetConversationID = created.publicID;
           targetConversation = created;
-          conversationIDRef.current = created.publicID;
-          activeConversationRef.current = created;
+          const createdActiveStream = activeStreamsRef.current.get(clientRunID);
+          if (createdActiveStream) {
+            createdActiveStream.conversationScopeKey = targetConversationScopeKey;
+          }
+          const migratedBranchScopes: BranchScope[] = [
+            previousTargetBranchScope,
+            ...queuedSubmissionsRef.current
+              .filter((item) => item.conversationScopeKey === previousConversationScopeKey)
+              .map((item) => item),
+          ];
+          for (const branchScope of migratedBranchScopes) {
+            if (sendQueuedAfterCurrentRef.current.delete(branchScopeID(branchScope))) {
+              sendQueuedAfterCurrentRef.current.add(
+                branchScopeID({
+                  ...branchScope,
+                  conversationScopeKey: targetConversationScopeKey,
+                }),
+              );
+            }
+          }
+          setQueuedSubmissions((current) =>
+            current.map((item) =>
+              item.conversationScopeKey === previousConversationScopeKey
+                ? {
+                    ...item,
+                    conversationScopeKey: targetConversationScopeKey,
+                    conversationPublicID: created.publicID,
+                    conversation: created,
+                  }
+                : item,
+            ),
+          );
           updatePendingExchange(exchangeKey, (current) => ({
             ...current,
+            conversationScopeKey: targetConversationScopeKey,
             conversationPublicID: created.publicID,
           }));
-          // Update the URL without triggering Next.js RSC navigation, which can interrupt an active stream.
-          window.history.replaceState(null, "", `/chat?conversation_id=${created.publicID}`);
-          onConversationCreated?.(created.publicID);
+          if (
+            branchRunIsVisible(
+              previousTargetBranchScope,
+              clientRunID,
+              conversationScopeKeyRef.current,
+              visibleBranchScopePathRef.current,
+              visibleMessagesRef.current,
+            )
+          ) {
+            conversationIDRef.current = created.publicID;
+            conversationScopeKeyRef.current = targetConversationScopeKey;
+            activeConversationRef.current = created;
+            // Update the URL without triggering Next.js RSC navigation, which can interrupt an active stream.
+            window.history.replaceState(null, "", `/chat?conversation_id=${created.publicID}`);
+            onConversationCreated?.(created.publicID);
+          }
+          syncActiveRuns();
         }
         metadataFallbackTitle = conversationTitleFromFirstUserMessage(payloadContent);
         const optimisticTitle = metadataFallbackTitle;
@@ -757,11 +1028,12 @@ export function useChatMessageSubmit({
               ...targetConversation,
               title: optimisticTitle,
             };
-            activeConversationRef.current = targetConversation;
+            if (conversationScopeKeyRef.current === targetConversationScopeKey) {
+              activeConversationRef.current = targetConversation;
+            }
           }
           touchByPublicID(targetConversationID, { title: optimisticTitle });
         }
-        startMetadataRefresh(null);
         const commonStreamPayload = {
           model: requestPlatformModelName,
           options: Object.keys(sanitizedOptions).length > 0 ? sanitizedOptions : undefined,
@@ -853,8 +1125,8 @@ export function useChatMessageSubmit({
             }));
           },
         };
-        modelRunSequence = nextModelRunSequenceRef.current + 1;
-        nextModelRunSequenceRef.current = modelRunSequence;
+        modelRunSequence = (nextModelRunSequenceRef.current.get(targetConversationScopeKey) ?? 0) + 1;
+        nextModelRunSequenceRef.current.set(targetConversationScopeKey, modelRunSequence);
         let completed: SendMessageResult;
         if (submitTask === "chat") {
           const chatPayload: SendMessageRequest = {
@@ -941,7 +1213,13 @@ export function useChatMessageSubmit({
             ),
             assistantReasoningTokens: completed.assistantMessage.reasoningTokens,
             assistantLatencyMS: completed.assistantMessage.latencyMS,
-            assistantProcessTrace: toPendingProcessTrace(completed.assistantMessage.processTrace),
+            assistantProcessTrace:
+              assistantMessageStatus === "interrupted"
+                ? preserveRicherLiveUpstreamThinkTrace(
+                    toPendingProcessTrace(completed.assistantMessage.processTrace),
+                    readLiveUpstreamThinkTrace(clientRunID),
+                  )
+                : toPendingProcessTrace(completed.assistantMessage.processTrace),
             assistantStatus: assistantMessageStatus,
             assistantErrorCode: completed.assistantMessage.errorCode,
             assistantErrorMessage: completed.assistantMessage.errorMessage,
@@ -959,38 +1237,101 @@ export function useChatMessageSubmit({
                 : completed.assistantMessage.content,
           };
         });
-        setBranchSelections((current) =>
-          replaceCompletedBranchSelection(
-            current,
-            {
-              parentPublicID: resolvedParentPublicID,
-              tempUserPublicID,
-              tempAssistantPublicID,
-              reuseUserMessage: assistantOnlyBranch,
-            },
-            completed.userMessage.publicID,
-            completed.assistantMessage.publicID,
-          ),
-        );
+        const completedBranchScope: BranchScope = {
+          conversationScopeKey: targetConversationScopeKey,
+          branchScopePath: assistantOnlyBranch
+            ? [...targetBranchScope.branchScopePath, completed.assistantMessage.publicID]
+            : [
+                ...targetBranchScope.branchScopePath,
+                completed.userMessage.publicID,
+                completed.assistantMessage.publicID,
+              ],
+          branchScopeRunID: clientRunID,
+        };
+        if (conversationScopeKeyRef.current === targetConversationScopeKey) {
+          setBranchSelections((current) =>
+            replaceCompletedBranchSelection(
+              current,
+              {
+                parentPublicID: resolvedParentPublicID,
+                tempUserPublicID,
+                tempAssistantPublicID,
+                reuseUserMessage: assistantOnlyBranch,
+              },
+              completed.userMessage.publicID,
+              completed.assistantMessage.publicID,
+            ),
+          );
+        }
         const currentConversation =
           activeConversationRef.current?.publicID === targetConversationID
             ? activeConversationRef.current
             : targetConversation;
         const shouldUpdateConversationModel =
-          modelRunSequence > latestCompletedModelRunSequenceRef.current;
+          modelRunSequence > (latestCompletedModelRunSequenceRef.current.get(targetConversationScopeKey) ?? 0);
         if (shouldUpdateConversationModel) {
-          latestCompletedModelRunSequenceRef.current = modelRunSequence;
+          latestCompletedModelRunSequenceRef.current.set(targetConversationScopeKey, modelRunSequence);
         }
+        const optimisticMessageCount =
+          Math.max(
+            currentConversation?.messageCount ?? 0,
+            optimisticMessageCountsRef.current.get(targetConversationScopeKey) ?? 0,
+          ) + (assistantOnlyBranch ? 1 : 2);
+        optimisticMessageCountsRef.current.set(targetConversationScopeKey, optimisticMessageCount);
         const conversationPatch: Partial<ConversationDTO> = {
           ...(shouldUpdateConversationModel ? { model: requestPlatformModelName } : {}),
           updatedAt: new Date().toISOString(),
-          messageCount: (currentConversation?.messageCount ?? 0) + (assistantOnlyBranch ? 1 : 2),
+          messageCount: optimisticMessageCount,
         };
-        if (currentConversation) {
-          activeConversationRef.current = { ...currentConversation, ...conversationPatch };
+        const updatedConversation = currentConversation
+          ? { ...currentConversation, ...conversationPatch }
+          : null;
+        if (updatedConversation && conversationScopeKeyRef.current === targetConversationScopeKey) {
+          activeConversationRef.current = updatedConversation;
+        }
+        if (sendQueuedAfterCurrentRef.current.delete(branchScopeID(targetBranchScope))) {
+          sendQueuedAfterCurrentRef.current.add(branchScopeID(completedBranchScope));
+        }
+        setQueuedSubmissions((current) => {
+          if (!current.some((item) => item.conversationScopeKey === targetConversationScopeKey)) {
+            return current;
+          }
+          return current.map((item) => {
+            if (item.conversationScopeKey !== targetConversationScopeKey) {
+              return item;
+            }
+            const sameBranch = branchScopesEqual(item, targetBranchScope);
+            const isDirectChild = item.parentRunID === clientRunID;
+            return {
+              ...item,
+              ...(updatedConversation ? { conversation: updatedConversation } : {}),
+              ...(sameBranch
+                ? {
+                    branchScopePath: completedBranchScope.branchScopePath,
+                    branchScopeRunID: completedBranchScope.branchScopeRunID,
+                  }
+                : {}),
+              ...(isDirectChild
+                ? {
+                    parentRunID: null,
+                    parentMessagePublicID: completed.assistantMessage.publicID,
+                  }
+                : {}),
+            };
+          });
+        });
+        if (conversationScopeKeyRef.current !== targetConversationScopeKey) {
+          setPendingExchanges((current) => {
+            if (!current[exchangeKey]) {
+              return current;
+            }
+            const next = { ...current };
+            delete next[exchangeKey];
+            return next;
+          });
         }
         touchByPublicID(targetConversationID, conversationPatch);
-        if (assistantMessageSucceeded) {
+        if (assistantMessageSucceeded || completed.metadataRefreshHint?.trim() === "pending") {
           startMetadataRefresh(completed);
         }
         releaseAttachments(effectiveAttachments);
@@ -1001,7 +1342,9 @@ export function useChatMessageSubmit({
             conversationTitle: targetConversation?.title,
           });
         }
-        reload();
+        if (conversationScopeKeyRef.current === targetConversationScopeKey) {
+          reload();
+        }
       } catch (error) {
         flushStreamTextNow(exchangeKey);
         flushUpstreamThinkNow(exchangeKey);
@@ -1025,7 +1368,17 @@ export function useChatMessageSubmit({
         const errorSummary = resolveErrorSummary(error, t("retryLater"));
         failedGenerationRunsRef?.current.add(clientRunID);
         shouldKeepConversationLayout = true;
-        if (resetComposer && restoreDraftOnFailure) {
+        if (
+          resetComposer &&
+          restoreDraftOnFailure &&
+          branchRunIsVisible(
+            targetBranchScope,
+            clientRunID,
+            conversationScopeKeyRef.current,
+            visibleBranchScopePathRef.current,
+            visibleMessagesRef.current,
+          )
+        ) {
           setDraft(content);
           setAttachments(currentAttachments);
         }
@@ -1046,6 +1399,21 @@ export function useChatMessageSubmit({
         }));
         toast.error(t("sendFailed"), { description: errorSummary });
         if (targetConversationID) {
+          const failedConversationID = targetConversationID;
+          void resolveAccessToken()
+            .then((latestToken) =>
+              latestToken ? getConversation(latestToken, failedConversationID) : null,
+            )
+            .then((latestConversation) => {
+              if (latestConversation) {
+                touchByPublicID(failedConversationID, latestConversation);
+              }
+            })
+            .catch(() => {
+              // The next conversation list load will reconcile a failed refresh.
+            });
+        }
+        if (targetConversationID && conversationScopeKeyRef.current === targetConversationScopeKey) {
           reload();
         }
         return false;
@@ -1056,15 +1424,27 @@ export function useChatMessageSubmit({
           activeStreamsRef.current.delete(clientRunID);
         }
         activeGenerationRunsRef?.current.delete(clientRunID);
-        if (!sentSuccessfully && !wasConversationMode && !shouldKeepConversationLayout) {
+        if (
+          branchRunIsVisible(
+            targetBranchScope,
+            clientRunID,
+            conversationScopeKeyRef.current,
+            visibleBranchScopePathRef.current,
+            visibleMessagesRef.current,
+          ) &&
+          !sentSuccessfully &&
+          !wasConversationMode &&
+          !shouldKeepConversationLayout
+        ) {
           setShowConversationLayout(false);
         }
-        syncActiveRunCount();
+        syncActiveRuns();
       }
       return true;
     },
     [
       activeGenerationRunsRef,
+      autoGenerateLabels,
       failedGenerationRunsRef,
       enqueueUpstreamThinkDelta,
       enqueueStreamText,
@@ -1093,7 +1473,7 @@ export function useChatMessageSubmit({
       uploading,
       maxFilesPerMessage,
       t,
-      syncActiveRunCount,
+      syncActiveRuns,
       updatePendingExchange,
       visibleMessageCount,
       combinedMessages,
@@ -1106,24 +1486,91 @@ export function useChatMessageSubmit({
     if ((!content && currentAttachments.length === 0) || uploading) {
       return false;
     }
-    setQueuedSubmissions((current) => [
-      ...current,
-      {
-        id: createClientRunID().replace("run_", "queue_"),
-        content,
-        attachments: currentAttachments,
-        platformModelName: selectedPlatformModelName,
-        options: sanitizeConversationOptions(options),
-        selectedToolIDs: selectedToolIDs.slice(),
-        selectedSkills: selectedSkills.slice(),
-        htmlVisualPromptEnabled,
-      },
-    ]);
+    const parentMessagePublicID =
+      resolvePersistedPublicID(currentLeafMessage?.publicID) ??
+      resolveDefaultSubmissionParentMessage(visibleMessages)?.publicID ??
+      null;
+    const targetConversationScopeKey = conversationScopeKeyRef.current;
+    const targetConversationPublicID = conversationIDRef.current;
+    const targetConversation = activeConversationRef.current;
+    const currentBranchScopePath = visibleBranchScopePathRef.current;
+    const visibleRunID = currentLeafMessage?.runID?.trim() || "";
+    const visibleRunPending = Boolean(
+      visibleRunID &&
+        (currentLeafMessage?.isPending ||
+          currentLeafMessage?.isStreaming ||
+          currentLeafMessage?.status?.trim().toLowerCase() === "pending"),
+    );
+    const visibleActiveCandidate = visibleRunID ? activeStreamsRef.current.get(visibleRunID) : undefined;
+    const visibleActive =
+      visibleActiveCandidate &&
+      branchRunIsVisible(
+        visibleActiveCandidate,
+        visibleActiveCandidate.runID,
+        targetConversationScopeKey,
+        currentBranchScopePath,
+        visibleMessagesRef.current,
+      )
+        ? visibleActiveCandidate
+        : Array.from(activeStreamsRef.current.values())
+            .filter((item) =>
+              branchRunIsVisible(
+                item,
+                item.runID,
+                targetConversationScopeKey,
+                currentBranchScopePath,
+                visibleMessagesRef.current,
+              ),
+            )
+            .at(-1);
+    const targetBranchScopePath = visibleActive?.branchScopePath.slice() ?? currentBranchScopePath.slice();
+    const targetBranchScopeRunID = visibleActive?.branchScopeRunID ?? visibleRunID;
+    if (!targetBranchScopeRunID) {
+      return false;
+    }
+    const targetBranchScope: BranchScope = {
+      conversationScopeKey: targetConversationScopeKey,
+      branchScopePath: targetBranchScopePath,
+      branchScopeRunID: targetBranchScopeRunID,
+    };
+    const clientRunID = createClientRunID();
+    setQueuedSubmissions((current) => {
+      const previousQueuedSubmission = current
+        .filter((item) => branchScopesEqual(item, targetBranchScope))
+        .at(-1);
+      return [
+        ...current,
+        {
+          id: clientRunID.replace("run_", "queue_"),
+          clientRunID,
+          parentRunID:
+            previousQueuedSubmission?.clientRunID ??
+            (visibleRunPending ? visibleRunID : visibleActive?.runID) ??
+            null,
+          ...targetBranchScope,
+          conversationPublicID: targetConversationPublicID,
+          conversation: targetConversation,
+          parentMessagePublicID,
+          content,
+          attachments: currentAttachments,
+          platformModelName: selectedPlatformModelName,
+          options: sanitizeConversationOptions(options),
+          selectedToolIDs: selectedToolIDs.slice(),
+          selectedSkills: selectedSkills.slice(),
+          htmlVisualPromptEnabled,
+        },
+      ];
+    });
     setDraft("");
     setAttachments([]);
     return true;
   }, [
     attachments,
+    currentLeafMessage?.publicID,
+    currentLeafMessage?.isPending,
+    currentLeafMessage?.isStreaming,
+    currentLeafMessage?.runID,
+    currentLeafMessage?.status,
     draft,
     htmlVisualPromptEnabled,
     options,
@@ -1133,6 +1580,7 @@ export function useChatMessageSubmit({
     setAttachments,
     setDraft,
     uploading,
+    visibleMessages,
   ]);
 
   const onStopMessage = React.useCallback(() => {
@@ -1143,7 +1591,18 @@ export function useChatMessageSubmit({
           currentLeafMessage?.isStreaming ||
           currentLeafMessage?.status?.trim().toLowerCase() === "pending"),
     );
-    const visibleActive = visibleRunID ? activeStreamsRef.current.get(visibleRunID) : undefined;
+    const visibleActiveCandidate = visibleRunID ? activeStreamsRef.current.get(visibleRunID) : undefined;
+    const visibleActive =
+      visibleActiveCandidate &&
+      branchRunIsVisible(
+        visibleActiveCandidate,
+        visibleActiveCandidate.runID,
+        conversationScopeKeyRef.current,
+        visibleBranchScopePathRef.current,
+        visibleMessagesRef.current,
+      )
+        ? visibleActiveCandidate
+        : undefined;
     if (!visibleActive && visibleRunPending) {
       void resolveAccessToken().then(async (token) => {
         if (!token) {
@@ -1154,7 +1613,19 @@ export function useChatMessageSubmit({
       });
       return true;
     }
-    const active = visibleActive ?? Array.from(activeStreamsRef.current.values()).at(-1);
+    const active =
+      visibleActive ??
+      Array.from(activeStreamsRef.current.values())
+        .filter((item) =>
+          branchRunIsVisible(
+            item,
+            item.runID,
+            conversationScopeKeyRef.current,
+            visibleBranchScopePathRef.current,
+            visibleMessagesRef.current,
+          ),
+        )
+        .at(-1);
     if (!active) {
       return false;
     }
@@ -1172,7 +1643,17 @@ export function useChatMessageSubmit({
         return;
       }
       active.controller.abort();
-      reload();
+      if (
+        branchRunIsVisible(
+          active,
+          active.runID,
+          conversationScopeKeyRef.current,
+          visibleBranchScopePathRef.current,
+          visibleMessagesRef.current,
+        )
+      ) {
+        reload();
+      }
     }, GENERATION_CANCEL_SETTLEMENT_TIMEOUT_MS);
 
     // Keep the stream connected so its terminal payload can replace optimistic IDs
@@ -1183,7 +1664,17 @@ export function useChatMessageSubmit({
       }
       clearCancelSettlementTimer(active);
       active.controller.abort();
-      reload();
+      if (
+        branchRunIsVisible(
+          active,
+          active.runID,
+          conversationScopeKeyRef.current,
+          visibleBranchScopePathRef.current,
+          visibleMessagesRef.current,
+        )
+      ) {
+        reload();
+      }
     });
     return true;
   }, [
@@ -1199,7 +1690,21 @@ export function useChatMessageSubmit({
     if (target) {
       releaseAttachments(target.attachments);
     }
-    setQueuedSubmissions((current) => current.filter((item) => item.id !== id));
+    setQueuedSubmissions((current) => {
+      const currentTarget = current.find((item) => item.id === id);
+      if (!currentTarget) {
+        return current;
+      }
+      const firstScopeSubmission = current.find(
+        (item) => branchScopesEqual(item, currentTarget),
+      );
+      return rechainQueuedSubmissions(
+        current.filter((item) => item.id !== id),
+        currentTarget,
+        firstScopeSubmission?.parentRunID ?? null,
+        firstScopeSubmission?.parentMessagePublicID ?? null,
+      );
+    });
   }, [releaseAttachments]);
 
   const onEditQueuedMessage = React.useCallback((id: string, content: string) => {
@@ -1214,13 +1719,24 @@ export function useChatMessageSubmit({
       if (!target) {
         return current;
       }
-      return [target, ...current.filter((item) => item.id !== id)];
+      sendQueuedAfterCurrentRef.current.add(branchScopeID(target));
+      const firstScopeIndex = current.findIndex(
+        (item) => branchScopesEqual(item, target),
+      );
+      const firstScopeSubmission = firstScopeIndex >= 0 ? current[firstScopeIndex] : undefined;
+      const reordered = current.filter((item) => item.id !== id);
+      reordered.splice(Math.max(firstScopeIndex, 0), 0, target);
+      return rechainQueuedSubmissions(
+        reordered,
+        target,
+        firstScopeSubmission?.parentRunID ?? null,
+        firstScopeSubmission?.parentMessagePublicID ?? null,
+      );
     });
-    sendQueuedAfterCurrentRef.current = true;
   }, []);
 
   const onSendMessage = React.useCallback(async () => {
-    if (activeStreamsRef.current.size > 0 || sending || resumeGenerationActive) {
+    if (sending || resumeGenerationActive) {
       enqueueSubmission();
       return;
     }
@@ -1239,54 +1755,144 @@ export function useChatMessageSubmit({
   }, [attachments, currentLeafMessage?.publicID, draft, enqueueSubmission, resumeGenerationActive, sending, submitMessage, visibleMessages]);
 
   React.useEffect(() => {
-    const hasUnresolvedDefaultExchange = Object.values(pendingExchanges).some(
-      (exchange) => exchange.branchReason === "default" && !exchange.assistantPublicID,
-    );
-    const hasPendingServerGeneration = combinedMessages.some(
+    const currentBranchHasPendingServerGeneration = visibleMessages.some(
       (message) =>
         message.role === "assistant" &&
         (message.isPending ||
           message.isStreaming ||
           message.status?.trim().toLowerCase() === "pending"),
     );
-    if (
-      sending ||
-      resumeGenerationActive ||
-      activeStreamsRef.current.size > 0 ||
-      hasPendingServerGeneration ||
-      (hasUnresolvedDefaultExchange && !sendQueuedAfterCurrentRef.current) ||
-      queuedSubmissions.length === 0 ||
-      uploading
-    ) {
+    if (queuedSubmissions.length === 0) {
       return;
     }
-    const queuedSubmission = queuedSubmissions[0];
+    if (activeStreamsRef.current.size >= MAX_CONCURRENT_RUNS) {
+      return;
+    }
+    const allPendingExchanges = getPendingExchanges();
+    const queuedSubmission = queuedSubmissions.find((item) => {
+      if (dispatchingQueuedSubmissionIDsRef.current.has(item.id)) {
+        return false;
+      }
+      const hasActiveStream = Array.from(activeStreamsRef.current.values()).some(
+        (active) => branchScopesEqual(active, item),
+      );
+      if (hasActiveStream) {
+        return false;
+      }
+      const isCurrentBranch =
+        branchScopeIsVisible(item, conversationScopeKey, visibleMessages);
+      if (
+        isCurrentBranch &&
+        (resumeGenerationActive || currentBranchHasPendingServerGeneration)
+      ) {
+        return false;
+      }
+      const hasUnresolvedDefaultExchange = Object.values(allPendingExchanges).some(
+        (exchange) =>
+          branchScopesEqual(exchange, item) &&
+          exchange.branchReason === "default" &&
+          !exchange.assistantPublicID,
+      );
+      if (
+        hasUnresolvedDefaultExchange &&
+        !sendQueuedAfterCurrentRef.current.has(branchScopeID(item))
+      ) {
+        return false;
+      }
+      if (!item.parentRunID) {
+        return true;
+      }
+      const parentExchange = Object.values(allPendingExchanges).find(
+        (exchange) =>
+          exchange.runID === item.parentRunID &&
+          branchScopesEqual(exchange, item),
+      );
+      if (resolvePersistedPublicID(parentExchange?.assistantPublicID)) {
+        return true;
+      }
+      const serverParentMessage = findSuccessfulBranchParentMessage(combinedMessages, item.parentRunID);
+      if (serverParentMessage) {
+        return true;
+      }
+      if (isSuccessfulBranchParentStatus(getHiddenParentRunStatus(item.parentRunID))) {
+        return true;
+      }
+      return Boolean(
+        isCurrentBranch &&
+          currentLeafMessage?.runID === item.parentRunID &&
+          resolvePersistedPublicID(currentLeafMessage.publicID),
+      );
+    });
     if (!queuedSubmission) {
       return;
     }
-    sendQueuedAfterCurrentRef.current = false;
-    setQueuedSubmissions((current) => current.filter((item) => item.id !== queuedSubmission.id));
+    const dispatchedBranchScope: BranchScope = {
+      conversationScopeKey: queuedSubmission.conversationScopeKey,
+      branchScopePath: queuedSubmission.branchScopePath,
+      branchScopeRunID: queuedSubmission.clientRunID,
+    };
+    const dispatchedSubmission: QueuedChatSubmission = {
+      ...queuedSubmission,
+      ...dispatchedBranchScope,
+    };
+    dispatchingQueuedSubmissionIDsRef.current.add(queuedSubmission.id);
+    sendQueuedAfterCurrentRef.current.delete(branchScopeID(queuedSubmission));
+    setQueuedSubmissions((current) =>
+      current
+        .filter((item) => item.id !== queuedSubmission.id)
+        .map((item) =>
+          branchScopesEqual(item, queuedSubmission)
+            ? {
+                ...item,
+                ...dispatchedBranchScope,
+              }
+            : item,
+        ),
+    );
+    const parentExchange = queuedSubmission.parentRunID
+      ? Object.values(allPendingExchanges).find(
+          (exchange) =>
+            exchange.runID === queuedSubmission.parentRunID &&
+            branchScopesEqual(exchange, queuedSubmission),
+        )
+      : undefined;
+    const serverParentMessage = findSuccessfulBranchParentMessage(
+      combinedMessages,
+      queuedSubmission.parentRunID,
+    );
     const parentMessagePublicID =
-      resolvePersistedPublicID(currentLeafMessage?.publicID) ??
-      resolveDefaultSubmissionParentMessage(visibleMessages)?.publicID ??
-      null;
+      resolvePersistedPublicID(parentExchange?.assistantPublicID) ??
+      resolvePersistedPublicID(serverParentMessage?.publicID) ??
+      (branchScopeIsVisible(queuedSubmission, conversationScopeKey, visibleMessages) &&
+      currentLeafMessage?.runID === queuedSubmission.parentRunID
+        ? resolvePersistedPublicID(currentLeafMessage.publicID)
+        : null) ??
+      queuedSubmission.parentMessagePublicID;
     void submitMessage({
       content: queuedSubmission.content,
       currentAttachments: queuedSubmission.attachments,
       resetComposer: false,
       parentMessagePublicID,
       branchReason: "default",
-      queuedSubmission,
-    });
+      queuedSubmission: dispatchedSubmission,
+    })
+      .finally(() => {
+        dispatchingQueuedSubmissionIDsRef.current.delete(queuedSubmission.id);
+      });
   }, [
+    activeRunRevision,
     combinedMessages,
+    conversationScopeKey,
     currentLeafMessage?.publicID,
+    currentLeafMessage?.runID,
+    getPendingExchanges,
+    getHiddenParentRunStatus,
+    hiddenParentRunStatusRevision,
     pendingExchanges,
     queuedSubmissions,
     resumeGenerationActive,
-    sending,
     submitMessage,
-    uploading,
+    visibleBranchScopePath,
     visibleMessages,
   ]);
 
@@ -1436,11 +2042,16 @@ export function useChatMessageSubmit({
     onDeleteQueuedMessage,
     onEditQueuedMessage,
     onGuideQueuedMessage,
-    queuedMessages: queuedSubmissions.map((item) => ({
-      id: item.id,
-      content: item.content,
-      attachmentCount: item.attachments.length,
-    })),
+    queuedMessages: queuedSubmissions
+      .filter(
+        (item) =>
+          branchScopeIsVisible(item, conversationScopeKey, visibleMessages),
+      )
+      .map((item) => ({
+        id: item.id,
+        content: item.content,
+        attachmentCount: item.attachments.length,
+      })),
     sending,
   };
 }

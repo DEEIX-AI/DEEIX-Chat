@@ -8,14 +8,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
+	"github.com/google/uuid"
 )
 
 const (
@@ -38,6 +41,8 @@ const (
 	defaultStreamIdleTimeoutMS = 60000  // 流式 chunk 间隔超时 60s
 	maxUpstreamBodyBytes       = 64 * 1024 * 1024
 )
+
+const upstreamRequestIDHeaderTemplate = "${DEEIX_UPSTREAM_REQUEST_ID}"
 
 // Client 负责跨厂商共享的 HTTP client、adapter 路由和上游调试能力。
 type Client struct {
@@ -125,8 +130,12 @@ type Message struct {
 
 // GenerateInput 定义上游推理请求入参。
 type GenerateInput struct {
-	RequestID      string
-	ConversationID uint
+	RequestID              string
+	ConversationID         uint
+	ConversationPublicID   string
+	ConversationSessionKey string
+	// PromptCacheKey 是 OpenAI prompt_cache_key 的服务端受控值，用户 Options 不得覆盖。
+	PromptCacheKey string
 	Messages       []Message
 	// Instructions 承载可映射到上游原生指令字段的系统/开发者指令。
 	// 不支持原生指令字段的 adapter 应继续通过 messages 承载系统提示。
@@ -700,6 +709,60 @@ type UpstreamError struct {
 	Debug      *UpstreamDebugSnapshot
 }
 
+// AcceptedRequestError 表示上游已接受请求，或请求已写出但结果未知。
+// 生成请求不具备跨 Provider 幂等性，此类错误不得自动切换路由重试。
+type AcceptedRequestError struct {
+	cause error
+}
+
+func (e *AcceptedRequestError) Error() string {
+	if e == nil || e.cause == nil {
+		return "upstream request failed after acceptance"
+	}
+	return e.cause.Error()
+}
+
+func (e *AcceptedRequestError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
+}
+
+// MarkRequestAccepted 标记错误发生时请求已被上游接受，或可能已被接受。
+func MarkRequestAccepted(err error) error {
+	if err == nil || RequestWasAccepted(err) {
+		return err
+	}
+	return &AcceptedRequestError{cause: err}
+}
+
+// RequestWasAccepted 判断错误是否发生在请求已被或可能被上游接受之后。
+func RequestWasAccepted(err error) bool {
+	var acceptedErr *AcceptedRequestError
+	return errors.As(err, &acceptedErr)
+}
+
+// doGenerationRequest 记录 POST 请求是否已经写入连接。请求写出后若在响应头
+// 返回前断线，无法判断上游是否已开始生成，因此按已接受处理，避免跨路由重复生成。
+func doGenerationRequest(client *http.Client, req *http.Request) (*http.Response, error) {
+	if client == nil || req == nil {
+		return nil, errors.New("generation request is nil")
+	}
+	var wroteRequest atomic.Bool
+	trace := &httptrace.ClientTrace{
+		WroteRequest: func(httptrace.WroteRequestInfo) {
+			wroteRequest.Store(true)
+		},
+	}
+	tracedRequest := req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
+	resp, err := client.Do(tracedRequest)
+	if err != nil && wroteRequest.Load() {
+		return resp, MarkRequestAccepted(err)
+	}
+	return resp, err
+}
+
 var errStreamDone = errors.New("llm stream done")
 
 // UpstreamDebugSnapshot 记录上游请求与响应的调试快照。
@@ -711,17 +774,23 @@ type UpstreamDebugSnapshot struct {
 
 // UpstreamDebugRequest 表示上游请求侧的调试信息。
 type UpstreamDebugRequest struct {
-	Method  string            `json:"method"`
-	Path    string            `json:"path"`
-	Headers map[string]string `json:"headers,omitempty"`
-	Body    string            `json:"body"`
+	Method        string            `json:"method"`
+	Path          string            `json:"path"`
+	Headers       map[string]string `json:"headers,omitempty"`
+	Body          string            `json:"body"`
+	BodyBytes     int               `json:"bodyBytes,omitempty"`
+	BodyTruncated bool              `json:"bodyTruncated,omitempty"`
+	RedactedParts int               `json:"redactedParts,omitempty"`
 }
 
 // UpstreamDebugResponse 表示上游响应侧的调试信息。
 type UpstreamDebugResponse struct {
-	StatusCode int               `json:"statusCode"`
-	Headers    map[string]string `json:"headers,omitempty"`
-	Body       string            `json:"body"`
+	StatusCode    int               `json:"statusCode"`
+	Headers       map[string]string `json:"headers,omitempty"`
+	Body          string            `json:"body"`
+	BodyBytes     int               `json:"bodyBytes,omitempty"`
+	BodyTruncated bool              `json:"bodyTruncated,omitempty"`
+	RedactedParts int               `json:"redactedParts,omitempty"`
 }
 
 func (e *UpstreamError) Error() string {
@@ -996,6 +1065,13 @@ func normalizeMessages(messages []Message) []Message {
 }
 
 func setAdditionalHeaders(req *http.Request, headersJSON string) {
+	setAdditionalHeadersForInput(req, headersJSON, nil)
+}
+
+func setAdditionalHeadersForInput(req *http.Request, headersJSON string, input *GenerateInput) {
+	if req == nil {
+		return
+	}
 	value := strings.TrimSpace(headersJSON)
 	if value == "" {
 		return
@@ -1004,13 +1080,55 @@ func setAdditionalHeaders(req *http.Request, headersJSON string) {
 	if err := json.Unmarshal([]byte(value), &parsed); err != nil {
 		return
 	}
+	dynamicHeaderInput := input
+	if input == nil || (strings.TrimSpace(input.ConversationPublicID) == "" && strings.TrimSpace(input.ConversationSessionKey) == "") {
+		dynamicHeaderInput = nil
+	}
+	upstreamRequestID := ""
+	if dynamicHeaderInput != nil && strings.Contains(value, upstreamRequestIDHeaderTemplate) {
+		upstreamRequestID = uuid.NewString()
+	}
 	for key, rawValue := range parsed {
 		headerKey := strings.TrimSpace(key)
 		if headerKey == "" {
 			continue
 		}
-		req.Header.Set(headerKey, stringify(rawValue))
+		headerValue, ok := expandAdditionalHeaderValue(stringify(rawValue), dynamicHeaderInput, upstreamRequestID)
+		if !ok || strings.TrimSpace(headerValue) == "" {
+			continue
+		}
+		req.Header.Set(headerKey, headerValue)
 	}
+}
+
+func expandAdditionalHeaderValue(value string, input *GenerateInput, upstreamRequestID string) (string, bool) {
+	replacements := []struct {
+		template string
+		value    string
+	}{
+		{template: "${DEEIX_CONVERSATION_ID}"},
+		{template: "${DEEIX_SESSION_ID}"},
+		{template: "${DEEIX_REQUEST_ID}"},
+		{template: upstreamRequestIDHeaderTemplate},
+	}
+	if input != nil {
+		replacements[0].value = strings.TrimSpace(input.ConversationPublicID)
+		replacements[1].value = strings.TrimSpace(input.ConversationSessionKey)
+		replacements[2].value = strings.TrimSpace(input.RequestID)
+		replacements[3].value = strings.TrimSpace(upstreamRequestID)
+	}
+
+	expanded := value
+	for _, replacement := range replacements {
+		if !strings.Contains(expanded, replacement.template) {
+			continue
+		}
+		if replacement.value == "" {
+			return "", false
+		}
+		expanded = strings.ReplaceAll(expanded, replacement.template, replacement.value)
+	}
+	return expanded, true
 }
 
 func readUpstreamBody(reader io.Reader) ([]byte, error) {
@@ -1081,17 +1199,25 @@ func upstreamDebugSnapshot(req *http.Request, requestBody []byte, resp *http.Res
 			path += "?" + req.URL.RawQuery
 		}
 	}
+	requestDebugBody := sanitizeUpstreamDebugBody(requestBody)
+	responseDebugBody := sanitizeUpstreamDebugBody(responseBody)
 	return &UpstreamDebugSnapshot{
 		Request: UpstreamDebugRequest{
-			Method:  req.Method,
-			Path:    path,
-			Headers: redactHeaders(req.Header),
-			Body:    string(requestBody),
+			Method:        req.Method,
+			Path:          path,
+			Headers:       redactHeaders(req.Header),
+			Body:          requestDebugBody.Body,
+			BodyBytes:     requestDebugBody.OriginalBytes,
+			BodyTruncated: requestDebugBody.Truncated,
+			RedactedParts: requestDebugBody.RedactedParts,
 		},
 		Response: UpstreamDebugResponse{
-			StatusCode: responseStatusCode(resp),
-			Headers:    responseHeaders(resp),
-			Body:       string(responseBody),
+			StatusCode:    responseStatusCode(resp),
+			Headers:       responseHeaders(resp),
+			Body:          responseDebugBody.Body,
+			BodyBytes:     responseDebugBody.OriginalBytes,
+			BodyTruncated: responseDebugBody.Truncated,
+			RedactedParts: responseDebugBody.RedactedParts,
 		},
 	}
 }

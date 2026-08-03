@@ -150,7 +150,7 @@ func (s *Service) completeCanceledMediaGeneration(input canceledMediaGenerationI
 	input.AssistantMessage.ErrorMessage = errorMessage
 
 	if input.MetadataRefreshHint == "" && input.Conversation != nil {
-		input.MetadataRefreshHint = conversationMetadataRefreshHint(*input.Conversation, *input.UserMessage)
+		input.MetadataRefreshHint = s.resolveConversationMetadataRefreshHint(persistCtx, *input.Conversation, *input.UserMessage)
 	}
 	return &SendMessageResult{
 		UserMessage:         *input.UserMessage,

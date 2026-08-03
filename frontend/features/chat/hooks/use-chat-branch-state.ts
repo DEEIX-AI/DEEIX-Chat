@@ -17,11 +17,13 @@ import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 
 function appendPendingExchangeMessages({
   conversationID,
+  conversationScopeKey,
   pendingExchange,
   messages,
   serverMessagePublicIDs,
 }: {
   conversationID: string | null;
+  conversationScopeKey: string;
   pendingExchange: PendingExchange;
   messages: ChatAreaMessage[];
   serverMessagePublicIDs: Set<string>;
@@ -29,6 +31,9 @@ function appendPendingExchangeMessages({
   const nextMessages = [...messages];
   const activePublicID = conversationID?.trim() || null;
   const pendingConversationPublicID = pendingExchange.conversationPublicID?.trim() || null;
+  if (pendingExchange.conversationScopeKey !== conversationScopeKey) {
+    return nextMessages;
+  }
   if (pendingConversationPublicID && pendingConversationPublicID !== activePublicID) {
     return nextMessages;
   }
@@ -123,11 +128,13 @@ function appendPendingExchangeMessages({
 
 function buildPendingMessages({
   conversationID,
+  conversationScopeKey,
   pendingExchanges,
   serverTreeMessages,
   serverMessagePublicIDs,
 }: {
   conversationID: string | null;
+  conversationScopeKey: string;
   pendingExchanges: PendingExchangeMap;
   serverTreeMessages: ChatAreaMessage[];
   serverMessagePublicIDs: Set<string>;
@@ -136,6 +143,7 @@ function buildPendingMessages({
     (messages, pendingExchange) =>
       appendPendingExchangeMessages({
         conversationID,
+        conversationScopeKey,
         pendingExchange,
         messages,
         serverMessagePublicIDs,
@@ -200,12 +208,14 @@ function mergePendingAssistantState(messages: ChatAreaMessage[], pendingExchange
 
 export function useChatBranchState({
   conversationID,
+  conversationScopeKey,
   resetToken,
   messages,
   pendingExchanges,
   liveRunIDs,
 }: {
   conversationID: string | null;
+  conversationScopeKey: string;
   resetToken: number;
   messages: MessageDTO[];
   pendingExchanges: PendingExchangeMap;
@@ -245,11 +255,12 @@ export function useChatBranchState({
     () =>
       buildPendingMessages({
         conversationID,
+        conversationScopeKey,
         pendingExchanges,
         serverTreeMessages,
         serverMessagePublicIDs,
       }),
-    [conversationID, pendingExchanges, serverMessagePublicIDs, serverTreeMessages],
+    [conversationID, conversationScopeKey, pendingExchanges, serverMessagePublicIDs, serverTreeMessages],
   );
   const combinedMessagesRef = React.useRef(combinedMessages);
   React.useEffect(() => {

@@ -8,18 +8,25 @@ import { useCopyAction } from "@/shared/components/copy-action";
 const LATEX_COPYABLE_SELECTOR = ".katex, .katex-display";
 const LATEX_ANNOTATION_SELECTOR = "annotation[encoding='application/x-tex']";
 const LATEX_INTERACTION_EXCLUSION_SELECTOR = "a, button, input, textarea, select, summary, pre, code, [contenteditable='true']";
-const LATEX_POINTER_DRAG_THRESHOLD = 6;
+const INLINE_CODE_COPYABLE_SELECTOR = "code:not(pre code)";
+const INLINE_CODE_INTERACTION_EXCLUSION_SELECTOR = "a, button, input, textarea, select, summary, [contenteditable='true']";
+const MARKDOWN_COPY_POINTER_DRAG_THRESHOLD = 6;
 
-type UseLatexCopyOptions = {
+type UseMarkdownCopyOptions = {
   contentVersion: string;
   renderVersion: unknown;
 };
 
-type UseLatexCopyResult = {
+type UseMarkdownCopyResult = {
   rootRef: React.RefObject<HTMLDivElement | null>;
   onClickCapture: React.MouseEventHandler<HTMLDivElement>;
   onKeyDownCapture: React.KeyboardEventHandler<HTMLDivElement>;
   onPointerDownCapture: React.PointerEventHandler<HTMLDivElement>;
+};
+
+type MarkdownCopyTarget = {
+  kind: "inline-code" | "latex";
+  source: string;
 };
 
 function getHTMLElementFromTarget(target: EventTarget | null): HTMLElement | null {
@@ -90,6 +97,25 @@ function resolveLatexCopySource(target: EventTarget | null, root: HTMLElement): 
   return formatLatexSource(getLatexSource(copyElement), isDisplayLatexElement(copyElement));
 }
 
+function resolveInlineCodeCopySource(target: EventTarget | null, root: HTMLElement): string {
+  const targetElement = getHTMLElementFromTarget(target);
+  const codeElement = targetElement?.closest<HTMLElement>("[data-inline-code-copyable='true']");
+  if (!codeElement || !root.contains(codeElement)) {
+    return "";
+  }
+  return codeElement.textContent ?? "";
+}
+
+function resolveMarkdownCopyTarget(target: EventTarget | null, root: HTMLElement): MarkdownCopyTarget | null {
+  const inlineCodeSource = resolveInlineCodeCopySource(target, root);
+  if (inlineCodeSource.trim()) {
+    return { kind: "inline-code", source: inlineCodeSource };
+  }
+
+  const latexSource = resolveLatexCopySource(target, root);
+  return latexSource ? { kind: "latex", source: latexSource } : null;
+}
+
 function annotateLatexElements(root: HTMLElement, label: string) {
   const seenElements = new Set<HTMLElement>();
 
@@ -108,8 +134,24 @@ function annotateLatexElements(root: HTMLElement, label: string) {
   });
 }
 
-export function useLatexCopy({ contentVersion, renderVersion }: UseLatexCopyOptions): UseLatexCopyResult {
+function annotateInlineCodeElements(root: HTMLElement, label: string) {
+  root.querySelectorAll<HTMLElement>(INLINE_CODE_COPYABLE_SELECTOR).forEach((element) => {
+    if (!element.textContent?.trim() || element.closest(INLINE_CODE_INTERACTION_EXCLUSION_SELECTOR)) {
+      return;
+    }
+
+    element.setAttribute("data-inline-code-copyable", "true");
+    element.setAttribute("tabindex", "0");
+    element.setAttribute("role", "button");
+    element.setAttribute("aria-label", label);
+    element.setAttribute("title", label);
+  });
+}
+
+export function useMarkdownCopy({ contentVersion, renderVersion }: UseMarkdownCopyOptions): UseMarkdownCopyResult {
   const t = useTranslations("chat.markdown");
+  const commonActions = useTranslations("common.actions");
+  const commonErrors = useTranslations("common.errors");
   const { copy } = useCopyAction({
     messages: {
       copied: t("latexCopied"),
@@ -125,23 +167,20 @@ export function useLatexCopy({ contentVersion, renderVersion }: UseLatexCopyOpti
       return;
     }
     annotateLatexElements(root, t("copyLatex"));
-  }, [contentVersion, renderVersion, t]);
+    annotateInlineCodeElements(root, commonActions("copy"));
+  }, [commonActions, contentVersion, renderVersion, t]);
 
-  const copyLatexFromTarget = React.useCallback(
-    async (target: EventTarget | null): Promise<boolean> => {
-      const root = rootRef.current;
-      if (!root) {
-        return false;
+  const copyMarkdownTarget = React.useCallback(
+    (target: MarkdownCopyTarget) => {
+      if (target.kind === "inline-code") {
+        return copy(target.source, {
+          copied: commonActions("copied"),
+          failed: commonErrors("copyFailed"),
+        });
       }
-
-      const source = resolveLatexCopySource(target, root);
-      if (!source) {
-        return false;
-      }
-
-      return copy(source);
+      return copy(target.source);
     },
-    [copy],
+    [commonActions, commonErrors, copy],
   );
 
   const onPointerDownCapture = React.useCallback<React.PointerEventHandler<HTMLDivElement>>((event) => {
@@ -162,7 +201,7 @@ export function useLatexCopy({ contentVersion, renderVersion }: UseLatexCopyOpti
       if (pointerDown) {
         const deltaX = Math.abs(event.clientX - pointerDown.x);
         const deltaY = Math.abs(event.clientY - pointerDown.y);
-        if (deltaX > LATEX_POINTER_DRAG_THRESHOLD || deltaY > LATEX_POINTER_DRAG_THRESHOLD) {
+        if (deltaX > MARKDOWN_COPY_POINTER_DRAG_THRESHOLD || deltaY > MARKDOWN_COPY_POINTER_DRAG_THRESHOLD) {
           return;
         }
       }
@@ -172,15 +211,19 @@ export function useLatexCopy({ contentVersion, renderVersion }: UseLatexCopyOpti
       }
 
       const root = rootRef.current;
-      if (!root || !resolveLatexCopySource(event.target, root)) {
+      if (!root) {
+        return;
+      }
+      const target = resolveMarkdownCopyTarget(event.target, root);
+      if (!target) {
         return;
       }
 
       event.preventDefault();
       event.stopPropagation();
-      void copyLatexFromTarget(event.target);
+      void copyMarkdownTarget(target);
     },
-    [copyLatexFromTarget],
+    [copyMarkdownTarget],
   );
 
   const onKeyDownCapture = React.useCallback<React.KeyboardEventHandler<HTMLDivElement>>(
@@ -190,15 +233,27 @@ export function useLatexCopy({ contentVersion, renderVersion }: UseLatexCopyOpti
       }
 
       const targetElement = getHTMLElementFromTarget(event.target);
-      if (!targetElement?.hasAttribute("data-latex-copyable")) {
+      if (
+        !targetElement?.hasAttribute("data-latex-copyable") &&
+        !targetElement?.hasAttribute("data-inline-code-copyable")
+      ) {
+        return;
+      }
+
+      const root = rootRef.current;
+      if (!root) {
+        return;
+      }
+      const target = resolveMarkdownCopyTarget(event.target, root);
+      if (!target) {
         return;
       }
 
       event.preventDefault();
       event.stopPropagation();
-      void copyLatexFromTarget(event.target);
+      void copyMarkdownTarget(target);
     },
-    [copyLatexFromTarget],
+    [copyMarkdownTarget],
   );
 
   return {

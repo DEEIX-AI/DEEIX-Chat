@@ -118,8 +118,8 @@
       },
       "file_full_context_max_bytes": {
         "label": "全文大小上限",
-        "description": "用于限制全文注入允许的最大文本字节数；留空或填 0 表示不限制大小。",
-        "placeholder": "留空或 0 表示不限制"
+        "description": "用于限制全文注入允许的最大提取文本大小，页面单位为 MB；留空或填 0 表示不限制大小。",
+        "placeholder": "大小上限（MB）；留空或 0 表示不限制"
       },
       "full_context_max_tokens": {
         "label": "全文 Token 上限",

@@ -90,3 +90,19 @@ func TestReasoningContentPassbackSettingIsAllowed(t *testing.T) {
 		t.Fatal("expected invalid chat.reasoning_content_passback to be rejected")
 	}
 }
+
+func TestAutoGenerateLabelsSettingIsAllowed(t *testing.T) {
+	t.Parallel()
+
+	if got := allowedKeys["chat.auto_generate_labels"]; got != "true" {
+		t.Fatalf("expected chat.auto_generate_labels default to be true, got %q", got)
+	}
+	for _, value := range []string{"true", "false"} {
+		if err := validateValue("chat.auto_generate_labels", value); err != nil {
+			t.Fatalf("expected chat.auto_generate_labels=%s to be accepted, got %v", value, err)
+		}
+	}
+	if err := validateValue("chat.auto_generate_labels", "yes"); err == nil {
+		t.Fatal("expected invalid chat.auto_generate_labels to be rejected")
+	}
+}

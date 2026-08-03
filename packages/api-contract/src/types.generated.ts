@@ -493,7 +493,6 @@ export interface BrandingManifestResponse {
   id: string;
   lang: string;
   name: string;
-  orientation: string;
   scope: string;
   short_name: string;
   start_url: string;
@@ -553,6 +552,24 @@ export interface CheckoutResponseDoc {
 
 export interface CircuitResetResponse {
   reset: boolean;
+}
+
+export interface CleanupConversationRunsRequest {
+  /**
+   * @maxItems 100
+   * @minItems 1
+   */
+  runIDs: string[];
+}
+
+export interface CleanupConversationRunsResponse {
+  deletedCount: number;
+  runCount: number;
+}
+
+export interface CleanupConversationRunsResponseDoc {
+  data: CleanupConversationRunsResponse;
+  errorMsg: string;
 }
 
 export interface CleanupLogsRequest {
@@ -627,6 +644,11 @@ export interface ConversationErrorDoc {
   requestId?: string;
 }
 
+export interface ConversationEventDetailResponseDoc {
+  data: ConversationEventResponse;
+  errorMsg: string;
+}
+
 export interface ConversationEventListResponseDoc {
   data: {
     results: ConversationEventResponse[];
@@ -651,6 +673,8 @@ export interface ConversationEventResponse {
   outputJSON: string;
   parentEventID: string;
   payloadJSON: string;
+  payloadOmitted: boolean;
+  payloadSizeBytes: number;
   phase: string;
   platformModelName: string;
   providerProtocol: string;
@@ -703,6 +727,18 @@ export interface ConversationListResponseDoc {
     total: number;
   };
   errorMsg: string;
+}
+
+export interface ConversationPreviewMessageListResponseDoc {
+  data: ConversationPreviewMessageResponse[];
+  errorMsg: string;
+}
+
+export interface ConversationPreviewMessageResponse {
+  content: string;
+  errorMessage: string;
+  publicID: string;
+  role: "user" | "assistant";
 }
 
 export interface ConversationProjectListResponseDoc {
@@ -762,6 +798,28 @@ export interface ConversationRunListResponseDoc {
     total: number;
   };
   errorMsg: string;
+}
+
+export interface ConversationSearchListResponseDoc {
+  data: ConversationSearchPageResponse;
+  errorMsg: string;
+}
+
+export interface ConversationSearchPageResponse {
+  hasMore: boolean;
+  results: ConversationSearchResultResponse[];
+}
+
+export interface ConversationSearchResultResponse {
+  isStarred: boolean;
+  labelsJSON: string;
+  messageCount: number;
+  projectID: string;
+  projectName: string;
+  publicID: string;
+  status: string;
+  title: string;
+  updatedAt: string;
 }
 
 export interface ConversationShareResponse {
@@ -2435,6 +2493,7 @@ export interface ServerResponse {
   lastError: string;
   lastSyncedAt: string | null;
   name: string;
+  requiresToolMetadataSyncConfirmation: boolean;
   sortOrder: number;
   status: string;
   toolCount: number;
@@ -2716,6 +2775,11 @@ export interface UpdateBillingPlanRequest {
   /** @min 0 */
   periodCreditUSD: number;
   permissionGroupID?: number | null;
+}
+
+export interface UpdateConversationLabelsRequest {
+  /** @maxItems 6 */
+  labels: string[];
 }
 
 export interface UpdateConversationProjectRequest {
@@ -3186,6 +3250,8 @@ export interface UsageLedgerListResponseDoc {
 export interface UsageLedgerResponse {
   cacheWrite1hTokens: number;
   cacheWrite5mTokens: number;
+  balanceAfterNanousd: number | null;
+  balanceAfterUSD: number | null;
   billedCurrency: string;
   billedNanousd: number;
   billedUSD: number;
@@ -3227,6 +3293,8 @@ export interface UsageLogListResponseDoc {
 export interface UsageLogResponse {
   cacheWrite1hTokens: number;
   cacheWrite5mTokens: number;
+  balanceAfterNanousd: number | null;
+  balanceAfterUSD: number | null;
   billedCurrency: string;
   billedNanousd: number;
   billedUSD: number;
@@ -3963,6 +4031,41 @@ export namespace Admin {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = ConversationEventListResponseDoc;
+  }
+
+  /**
+   * @description 物理删除指定运行的全部对话事件；保留消息、附件、调用与计费记录
+   * @tags admin
+   * @name ConversationEventsCleanupCreate
+   * @summary 管理员按运行清理对话事件
+   * @request POST:/admin/conversation-events/cleanup
+   * @secure
+   */
+  export namespace ConversationEventsCleanupCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = CleanupConversationRunsRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = CleanupConversationRunsResponseDoc;
+  }
+
+  /**
+   * @description 管理员按事件 ID 查看单条对话运行事件详情；超大历史负载会被安全省略
+   * @tags admin
+   * @name ConversationEventsDetail
+   * @summary 管理员查询对话事件详情
+   * @request GET:/admin/conversation-events/{id}
+   * @secure
+   */
+  export namespace ConversationEventsDetail {
+    export type RequestParams = {
+      /** 事件 ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ConversationEventDetailResponseDoc;
   }
 
   /**
@@ -4748,7 +4851,10 @@ export namespace Admin {
       /** MCP 服务 ID */
       id: number;
     };
-    export type RequestQuery = {};
+    export type RequestQuery = {
+      /** 是否用远端元数据覆盖管理员自定义的工具名称和说明 */
+      overwrite_customized_metadata?: boolean;
+    };
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = ToolListResponseDoc;
@@ -6448,6 +6554,29 @@ export namespace Conversations {
   }
 
   /**
+   * @description 分页搜索当前用户的会话标题、元数据、项目和消息正文，并返回是否还有下一页
+   * @tags chat
+   * @name SearchList
+   * @summary 搜索会话
+   * @request GET:/conversations/search
+   * @secure
+   */
+  export namespace SearchList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+      /** 搜索关键词；为空时返回最近会话 */
+      q?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ConversationSearchListResponseDoc;
+  }
+
+  /**
    * @description 批量关闭当前用户会话的公开分享链接
    * @tags chat
    * @name SharesRevokeCreate
@@ -6545,6 +6674,25 @@ export namespace Conversations {
   }
 
   /**
+   * @description 替换指定会话的标签；传入空数组可清空标签
+   * @tags chat
+   * @name LabelsPartialUpdate
+   * @summary 更新会话标签
+   * @request PATCH:/conversations/{id}/labels
+   * @secure
+   */
+  export namespace LabelsPartialUpdate {
+    export type RequestParams = {
+      /** 会话 public_id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = UpdateConversationLabelsRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ConversationUpdateResponseDoc;
+  }
+
+  /**
    * @description 查询会话内消息列表
    * @tags chat
    * @name MessagesList
@@ -6585,6 +6733,25 @@ export namespace Conversations {
     export type RequestBody = SendMessageRequest;
     export type RequestHeaders = {};
     export type ResponseBody = SendMessageResponseDoc;
+  }
+
+  /**
+   * @description 返回当前用户会话最新分支最近 10 条用户或助手消息
+   * @tags chat
+   * @name MessagesPreviewList
+   * @summary 查询会话预览消息
+   * @request GET:/conversations/{id}/messages/preview
+   * @secure
+   */
+  export namespace MessagesPreviewList {
+    export type RequestParams = {
+      /** 会话 public_id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ConversationPreviewMessageListResponseDoc;
   }
 
   /**

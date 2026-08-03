@@ -20,6 +20,8 @@ const (
 	usageReconciliationSettlement  = "settle_usage_ledger_failed"
 	usageBillingRetryAttempts      = 3
 	usageBillingRetryBaseDelay     = 100 * time.Millisecond
+	messageUsageBalanceErrorCode   = "billing.insufficient_funds"
+	messageUsageBalanceErrorText   = "insufficient balance"
 )
 
 // SendMessageBillingInput 描述一次消息发送对应的计费上下文。
@@ -75,6 +77,28 @@ func (s *Service) AuthorizeSendMessageUsage(ctx context.Context, input SendMessa
 		return &domainbilling.UsageAuthorization{Mode: "self"}, nil
 	}
 	return s.billingSvc.AuthorizeUsage(ctx, input.UserID, sendMessageBillingPlatformModelName(input), strings.TrimSpace(input.ClientRunID))
+}
+
+// PersistMessageUsageRejection 将需要进入对话历史的终态业务拒绝持久化。
+// 可重试的预算预约失败不产生消息，保证客户端可以安全重试。
+func (s *Service) PersistMessageUsageRejection(
+	ctx context.Context,
+	input SendMessageInput,
+	authorizationErr error,
+) error {
+	if !shouldPersistMessageUsageRejection(authorizationErr) {
+		return nil
+	}
+	return s.persistRejectedMessageSend(
+		ctx,
+		input,
+		messageUsageBalanceErrorCode,
+		messageUsageBalanceErrorText,
+	)
+}
+
+func shouldPersistMessageUsageRejection(err error) bool {
+	return errors.Is(err, appbilling.ErrUsageBalanceInsufficient)
 }
 
 // ReleaseSendMessageUsageAuthorization 在调用未产生可计费用量时释放预留预算。
@@ -271,6 +295,7 @@ func (s *Service) buildSendMessageUsageLedger(ctx context.Context, input SendMes
 		UsageSpeed:          strings.TrimSpace(result.UsageSpeed),
 		RequestServiceTier:  messageRequestServiceTier(result.EffectiveOptions),
 		UsageServiceTier:    strings.TrimSpace(result.UsageServiceTier),
+		UsageSource:         strings.TrimSpace(result.UsageSource),
 		InputTokens:         sendMessageBillingInputTokens(result),
 		CacheReadTokens:     sendMessageBillingCacheReadTokens(result),
 		CacheWriteTokens:    sendMessageBillingCacheWriteTokens(result),

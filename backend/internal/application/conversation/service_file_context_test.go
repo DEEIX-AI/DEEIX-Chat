@@ -1,14 +1,35 @@
 package conversation
 
 import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"strings"
 	"testing"
 
+	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
 )
+
+type conversationTestStoreProvider struct {
+	store objectstore.Store
+	opens int
+}
+
+func (p *conversationTestStoreProvider) Open(context.Context) (objectstore.Store, error) {
+	p.opens++
+	return p.store, nil
+}
+
+var _ appstorage.Provider = (*conversationTestStoreProvider)(nil)
 
 func TestCollectConversationFileIDsIgnoresFailedHistoricalMessages(t *testing.T) {
 	messages := []model.Message{
@@ -34,6 +55,130 @@ func TestCollectConversationFileIDsIgnoresFailedHistoricalMessages(t *testing.T)
 	}
 }
 
+func TestBindAttachmentMessageRolesPrefersUserOwnership(t *testing.T) {
+	items := []AttachmentInput{{FileID: "shared"}, {FileID: "assistant_only"}}
+	messages := []model.Message{
+		{Role: "assistant", Attachments: `[{"file_id":"shared"},{"file_id":"assistant_only"}]`},
+		{Role: "user", Attachments: `[{"file_id":"shared"}]`},
+	}
+
+	got := bindAttachmentMessageRoles(items, messages)
+	if got[0].MessageRole != "user" || got[1].MessageRole != "assistant" {
+		t.Fatalf("expected user role to win for shared attachment, got %#v", got)
+	}
+}
+
+func TestConversationImageRefsPreferRecentImagesWithinBudget(t *testing.T) {
+	messages := make([]model.Message, 0, maxConversationImageContextCount+1)
+	attachments := make([]AttachmentInput, 0, maxConversationImageContextCount+1)
+	for index := 0; index <= maxConversationImageContextCount; index++ {
+		fileID := fmt.Sprintf("image_%d", index)
+		messages = append(messages, model.Message{Role: "user", Attachments: fmt.Sprintf(`[{"file_id":%q,"kind":"image","mime_type":"image/png"}]`, fileID)})
+		attachments = append(attachments, AttachmentInput{FileID: fileID, Kind: "image", MimeType: "image/png", ContextMode: fileContextModeDirectImage})
+	}
+
+	refs := conversationImageRefs(messages, attachments, maxConversationImageContextCount)
+	if len(refs) != maxConversationImageContextCount {
+		t.Fatalf("expected %d recent images, got %#v", maxConversationImageContextCount, refs)
+	}
+	if refs[0].fileID != "image_1" || refs[len(refs)-1].fileID != "image_10" {
+		t.Fatalf("expected oldest image to be trimmed, got %#v", refs)
+	}
+}
+
+func TestInjectConversationImageContextKeepsOwnershipAndUsesCache(t *testing.T) {
+	store := objectstore.NewLocal(t.TempDir())
+	for key, data := range map[string][]byte{
+		"images/one": []byte("image-one"),
+		"images/two": []byte("image-two"),
+	} {
+		if _, err := store.Put(t.Context(), key, bytes.NewReader(data), objectstore.PutOptions{ContentType: "image/png"}); err != nil {
+			t.Fatalf("put test image %s: %v", key, err)
+		}
+	}
+
+	domainMessages := []model.Message{
+		{Role: "user", Content: "描述第一张图片", Attachments: `[{"file_id":"image_1","kind":"image","mime_type":"image/png"}]`},
+		{Role: "assistant", Content: "第一张是雪山"},
+		{Role: "user", Content: "第二张和第一张有什么不同", Attachments: `[{"file_id":"image_2","kind":"image","mime_type":"image/png"}]`},
+		{Role: "assistant", Content: "第二张是河谷"},
+		{Role: "user", Content: "第一张图片里有没有云朵"},
+	}
+	attachments := []AttachmentInput{
+		{FileID: "image_1", Kind: "image", MimeType: "image/png", StoragePath: "images/one", ContextMode: fileContextModeDirectImage},
+		{FileID: "image_2", Kind: "image", MimeType: "image/png", StoragePath: "images/two", ContextMode: fileContextModeDirectImage},
+	}
+	provider := &conversationTestStoreProvider{store: store}
+	service := &Service{storeProvider: provider, imageContextCache: defaultPreparedConversationImageCache()}
+	history := historyMessagesFromDomain(domainMessages, historyMessageOptions{})
+
+	got, err := service.injectConversationImageContext(t.Context(), history, domainMessages, attachments, config.Config{ImageMaxDimension: 1024})
+	if err != nil {
+		t.Fatalf("inject historical images: %v", err)
+	}
+	if len(got[0].Parts) != 2 || string(got[0].Parts[1].Data) != "image-one" {
+		t.Fatalf("expected first image on first user message, got %#v", got[0])
+	}
+	if len(got[2].Parts) != 2 || string(got[2].Parts[1].Data) != "image-two" {
+		t.Fatalf("expected second image on second user message, got %#v", got[2])
+	}
+	if _, err = service.injectConversationImageContext(t.Context(), history, domainMessages, attachments, config.Config{ImageMaxDimension: 1024}); err != nil {
+		t.Fatalf("inject cached historical images: %v", err)
+	}
+	if provider.opens != 1 {
+		t.Fatalf("expected prepared image cache to avoid repeated storage opens, got %d", provider.opens)
+	}
+}
+
+func TestInjectConversationImageContextRejectsMissingAndOversizedContext(t *testing.T) {
+	domainMessages := []model.Message{{Role: "user", Attachments: `[{"file_id":"missing","kind":"image","mime_type":"image/png"}]`}}
+	service := &Service{imageContextCache: defaultPreparedConversationImageCache()}
+	_, err := service.injectConversationImageContext(t.Context(), historyMessagesFromDomain(domainMessages, historyMessageOptions{}), domainMessages, nil, config.Config{})
+	if !errors.Is(err, ErrInvalidFileReference) {
+		t.Fatalf("expected missing historical image to fail explicitly, got %v", err)
+	}
+
+	largeData := make([]byte, 11*1024*1024)
+	cache := defaultPreparedConversationImageCache()
+	attachments := []AttachmentInput{
+		{FileID: "one", Kind: "image", MimeType: "image/png", StoragePath: "one", ContextMode: fileContextModeDirectImage},
+		{FileID: "two", Kind: "image", MimeType: "image/png", StoragePath: "two", ContextMode: fileContextModeDirectImage},
+	}
+	for _, att := range attachments {
+		cache.put(preparedConversationImageCacheKey(att, 1024, "image/png"), preparedConversationImage{data: largeData, mimeType: "image/png"})
+	}
+	service = &Service{imageContextCache: cache}
+	domainMessages = []model.Message{
+		{Role: "user", Attachments: `[{"file_id":"one","kind":"image","mime_type":"image/png"}]`},
+		{Role: "assistant"},
+		{Role: "user", Attachments: `[{"file_id":"two","kind":"image","mime_type":"image/png"}]`},
+	}
+	_, err = service.injectConversationImageContext(t.Context(), historyMessagesFromDomain(domainMessages, historyMessageOptions{}), domainMessages, attachments, config.Config{ImageMaxDimension: 1024})
+	if !errors.Is(err, ErrFileTooLarge) {
+		t.Fatalf("expected aggregate image context budget failure, got %v", err)
+	}
+}
+
+func TestResizeImageIfNeededReturnsActualMIME(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	for y := 0; y < 4; y++ {
+		for x := 0; x < 4; x++ {
+			img.Set(x, y, color.RGBA{R: 120, G: 80, B: 40, A: 255})
+		}
+	}
+	var source bytes.Buffer
+	if err := png.Encode(&source, img); err != nil {
+		t.Fatalf("encode source image: %v", err)
+	}
+	resized, mimeType := resizeImageIfNeeded(source.Bytes(), "image/webp", 2)
+	if mimeType != "image/jpeg" {
+		t.Fatalf("expected resized non-PNG image to report JPEG, got %q", mimeType)
+	}
+	if _, format, err := image.Decode(bytes.NewReader(resized)); err != nil || format != "jpeg" {
+		t.Fatalf("expected JPEG bytes, format=%q err=%v", format, err)
+	}
+}
+
 func TestInjectUserContextUsesCompactXMLForRAG(t *testing.T) {
 	messages := []llm.Message{{Role: "user", Content: "怎么发布？"}}
 	chunks := []model.RAGChunk{{
@@ -50,6 +195,26 @@ func TestInjectUserContextUsesCompactXMLForRAG(t *testing.T) {
 	}
 	if strings.Contains(got[0].Content, "<files>") {
 		t.Fatalf("did not expect files section for RAG-only context, got %q", got[0].Content)
+	}
+}
+
+func TestInjectUserContextPreservesExistingImageParts(t *testing.T) {
+	messages := []llm.Message{{
+		Role: "user",
+		Parts: []llm.ContentPart{
+			{Kind: llm.ContentPartText, Text: "继续分析"},
+			{Kind: llm.ContentPartImage, MimeType: "image/png", Data: []byte("image")},
+		},
+	}}
+	got := injectUserContext(t.Context(), messages, userContextInput{RAGChunks: []model.RAGChunk{{FileName: "note.md", Content: "偏好简洁回答"}}}, config.Config{}, nil)
+	if len(got) != 1 || len(got[0].Parts) != 2 {
+		t.Fatalf("expected text and existing image parts, got %#v", got)
+	}
+	if got[0].Parts[1].Kind != llm.ContentPartImage || string(got[0].Parts[1].Data) != "image" {
+		t.Fatalf("expected existing image part to be preserved, got %#v", got[0].Parts)
+	}
+	if !strings.Contains(got[0].Parts[0].Text, "继续分析") || !strings.Contains(got[0].Parts[0].Text, "偏好简洁回答") {
+		t.Fatalf("expected dynamic context and original text, got %q", got[0].Parts[0].Text)
 	}
 }
 
@@ -206,6 +371,23 @@ func TestBuildConversationFileContextPlanOnlyDirectUploadsCurrentImages(t *testi
 	}
 }
 
+func TestBuildConversationFileContextPlanDirectUploadsHistoricalUserImages(t *testing.T) {
+	plan := buildConversationFileContextPlan([]AttachmentInput{{
+		FileID:       "file_history_user_image",
+		Kind:         "image",
+		MimeType:     "image/png",
+		DetectedMIME: "image/png",
+		MessageRole:  "user",
+	}}, "rag", config.Config{RAGEnabled: true, EmbeddingEnabled: true}, "gpt-5.5", "", true)
+
+	if len(plan.FullAttachments) != 1 || plan.FullAttachments[0].ContextMode != fileContextModeDirectImage {
+		t.Fatalf("expected historical user image to remain direct image context, got %#v", plan)
+	}
+	if len(plan.RAGAttachments) != 0 {
+		t.Fatalf("expected historical user image not to fall back to OCR/RAG, got %#v", plan.RAGAttachments)
+	}
+}
+
 func TestBuildConversationFileContextPlanUsesRAGForHistoricalImageOCRWhenRequested(t *testing.T) {
 	cfg := config.Config{RAGEnabled: true, EmbeddingEnabled: true}
 	plan := buildConversationFileContextPlan([]AttachmentInput{{
@@ -290,6 +472,20 @@ func TestShouldShowAttachmentProcessTraceSkipsHistoricalSkippedOnly(t *testing.T
 		ContextMode: fileContextModeSkipped,
 	}}) {
 		t.Fatal("expected historical skipped-only attachments to stay out of process trace")
+	}
+}
+
+func TestShouldShowAttachmentProcessTraceSkipsHistoricalDirectImages(t *testing.T) {
+	items := []AttachmentInput{{
+		FileID:      "file_history_image",
+		Kind:        "image",
+		ContextMode: fileContextModeDirectImage,
+	}}
+	if shouldShowAttachmentProcessTrace(items) {
+		t.Fatal("expected historical direct images to stay out of repeated process traces")
+	}
+	if got := attachmentProcessTraceItems(items); len(got) != 0 {
+		t.Fatalf("expected historical direct images to be filtered from trace payload, got %#v", got)
 	}
 }
 

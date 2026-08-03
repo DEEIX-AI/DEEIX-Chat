@@ -30,6 +30,36 @@ func TestShouldFallbackToNonStreamingForExplicitStreamUnsupportedErrors(t *testi
 	if !shouldFallbackToNonStreaming(statusErr) {
 		t.Fatalf("expected stream transport status errors to fallback to non-streaming")
 	}
+
+	acceptedErr := llm.MarkRequestAccepted(err)
+	if !shouldFallbackToNonStreaming(acceptedErr) {
+		t.Fatalf("expected explicit stream rejection to preserve same-route fallback")
+	}
+}
+
+func TestGenerationAttemptObservationPreventsFallbackAfterVisibleEvent(t *testing.T) {
+	observation := &generationAttemptObservation{}
+	requestCount := 1
+	observation.markObservable()
+	err := &llm.UpstreamError{StatusCode: 405, Message: "method not allowed"}
+	if observation.canRetry(err, shouldFallbackToNonStreaming) {
+		requestCount++
+	}
+	if requestCount != 1 {
+		t.Fatalf("expected no fallback request after an observable event, got %d requests", requestCount)
+	}
+}
+
+func TestGenerationAttemptObservationAllowsFallbackBeforeVisibleEvent(t *testing.T) {
+	observation := &generationAttemptObservation{}
+	requestCount := 1
+	err := &llm.UpstreamError{StatusCode: 405, Message: "method not allowed"}
+	if observation.canRetry(err, shouldFallbackToNonStreaming) {
+		requestCount++
+	}
+	if requestCount != 2 {
+		t.Fatalf("expected one fallback request before any observable event, got %d requests", requestCount)
+	}
 }
 
 func TestMessageErrorSummaryIncludesUpstreamBody(t *testing.T) {
@@ -55,6 +85,25 @@ func TestMessageErrorSummaryIncludesUpstreamBody(t *testing.T) {
 	}
 	if debug := MessageErrorDebug(err); debug == nil || debug.Request.Path != "/v1/responses" {
 		t.Fatalf("expected upstream debug snapshot, got %#v", debug)
+	}
+}
+
+func TestMessageErrorDebugSanitizesRawBinarySnapshot(t *testing.T) {
+	err := wrapUpstreamRequestError(&llm.UpstreamError{
+		StatusCode: 400,
+		Message:    "unsupported image",
+		Debug: &llm.UpstreamDebugSnapshot{
+			Request: llm.UpstreamDebugRequest{
+				Method: "POST",
+				Path:   "/v1/chat/completions",
+				Body:   `{"messages":[{"content":[{"image_url":{"url":"data:image/png;base64,eA=="}}]}]}`,
+			},
+		},
+	})
+
+	debug := MessageErrorDebug(err)
+	if debug == nil || strings.Contains(debug.Request.Body, "data:image/png;base64,eA==") {
+		t.Fatalf("expected raw binary snapshot to be sanitized, got %#v", debug)
 	}
 }
 

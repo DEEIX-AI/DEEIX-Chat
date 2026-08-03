@@ -9,6 +9,11 @@ export type RenderSegment =
       incomplete: boolean;
     };
 
+type ParseStreamdownSegmentsOptions = {
+  normalizeHTMLVisualFences?: boolean;
+  parseThinking?: boolean;
+};
+
 export function normalizeContent(input: unknown): string {
   if (typeof input === "string") {
     return input;
@@ -404,15 +409,18 @@ export function normalizeHTMLVisualBlankLines(source: string): string {
   return mapMarkdownTextFragments(source, normalizeHTMLVisualBlankLinesInText);
 }
 
-export function parseStreamdownSegments(source: string): RenderSegment[] {
+export function parseStreamdownSegments(
+  source: string,
+  { normalizeHTMLVisualFences = true, parseThinking = true }: ParseStreamdownSegmentsOptions = {},
+): RenderSegment[] {
   if (!source) {
     return [];
   }
 
-  const normalizedSource = normalizeHTMLVisualMarkdownFences(source);
+  const normalizedSource = normalizeHTMLVisualFences ? normalizeHTMLVisualMarkdownFences(source) : source;
   const segments: RenderSegment[] = [];
 
-  const thinkingBlock = parseLeadingThinkingBlock(normalizedSource);
+  const thinkingBlock = parseThinking ? parseLeadingThinkingBlock(normalizedSource) : null;
   if (!thinkingBlock) {
     if (normalizedSource.trim()) {
       segments.push({

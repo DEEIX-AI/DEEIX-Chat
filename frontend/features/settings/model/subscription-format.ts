@@ -1,6 +1,7 @@
 import type { UserDTO } from "@/shared/api/auth.types";
 import type { BillingPlanDTO, BillingPlanPriceDTO } from "@/shared/api/billing.types";
 import {
+  formatBillingDisplayBalanceFromUSD,
   formatBillingDisplayAmountFromUSD,
   formatBillingDisplayCompactAmountFromUSD,
   formatBillingDisplayPreciseAmountFromUSD,
@@ -97,7 +98,7 @@ export function formatPlanCredit(value: number, billingDisplay: BillingDisplayOp
 }
 
 export function formatAccountBalance(value: number, billingDisplay: BillingDisplayOptions = DEFAULT_BILLING_DISPLAY): string {
-  return formatBillingDisplayPreciseAmountFromUSD(value, billingDisplay);
+  return formatBillingDisplayBalanceFromUSD(value, billingDisplay);
 }
 
 export function formatUsageCost(value: number, billingDisplay: BillingDisplayOptions = DEFAULT_BILLING_DISPLAY): string {

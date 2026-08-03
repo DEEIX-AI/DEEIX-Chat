@@ -3,7 +3,10 @@ package channel
 import (
 	"context"
 	"errors"
+	"io"
 	"math/rand"
+	"net"
+	"net/http"
 	"strings"
 	"sync/atomic"
 
@@ -48,8 +51,12 @@ func (s *Service) ResolveRoute(ctx context.Context, input ResolveRouteInput) (*R
 		return nil, ErrRouteNotFound
 	}
 
+	excludedRouteIDs := makeRouteIDSet(input.ExcludedRouteIDs)
 	available := make([]repository.ChannelUpstreamRouteRow, 0, len(rows))
 	for _, row := range rows {
+		if _, excluded := excludedRouteIDs[row.RouteID]; excluded {
+			continue
+		}
 		if !IsRouteAllowedForTask(input.TaskType, row.ModelKindsJSON, row.Protocol) {
 			continue
 		}
@@ -136,6 +143,19 @@ func (s *Service) ResolveRoute(ctx context.Context, input ResolveRouteInput) (*R
 	}
 
 	return nil, ErrAllRoutesUnavailable
+}
+
+func makeRouteIDSet(routeIDs []uint) map[uint]struct{} {
+	if len(routeIDs) == 0 {
+		return nil
+	}
+	result := make(map[uint]struct{}, len(routeIDs))
+	for _, routeID := range routeIDs {
+		if routeID != 0 {
+			result[routeID] = struct{}{}
+		}
+	}
+	return result
 }
 
 func normalizeRouteScope(raw string) string {
@@ -363,6 +383,7 @@ func buildResolvedRoute(row repository.ChannelUpstreamRouteRow, apiKey string) *
 		ModelSystemPrompt:               strings.TrimSpace(row.ModelSystemPrompt),
 		UpstreamModel:                   strings.TrimSpace(row.UpstreamModelName),
 		ReasoningContentPassback:        reasoningContentPassbackRequired(row.Protocol, row.ModelVendor, row.PlatformModelName, row.UpstreamModelName, row.UpstreamName),
+		ReasoningPassbackRequestOptions: reasoningPassbackRequestOptions(row.Protocol, row.ModelVendor, row.PlatformModelName, row.UpstreamModelName, row.UpstreamName),
 		UpstreamCbFailureThreshold:      row.UpstreamCbFailureThreshold,
 		UpstreamCbModelThreshold:        row.UpstreamCbModelThreshold,
 		UpstreamCbThresholdLogic:        row.UpstreamCbThresholdLogic,
@@ -549,6 +570,27 @@ func isCircuitFailure(cause error) bool {
 	default:
 		return false
 	}
+}
+
+// ShouldFailoverRoute reports whether a request can be retried on a different
+// route. Validation, authorization, billing, and caller cancellation errors
+// must stay on the original request path.
+func ShouldFailoverRoute(cause error) bool {
+	if cause == nil || errors.Is(cause, context.Canceled) || llm.RequestWasAccepted(cause) {
+		return false
+	}
+
+	var upstreamErr *llm.UpstreamError
+	if errors.As(cause, &upstreamErr) {
+		return upstreamErr.StatusCode == http.StatusRequestTimeout ||
+			upstreamErr.StatusCode == http.StatusTooManyRequests ||
+			upstreamErr.StatusCode >= http.StatusInternalServerError
+	}
+	if errors.Is(cause, context.DeadlineExceeded) || errors.Is(cause, io.EOF) || errors.Is(cause, io.ErrUnexpectedEOF) {
+		return true
+	}
+	var networkErr net.Error
+	return errors.As(cause, &networkErr)
 }
 
 func matchesFailureRule(rules []string, target string) bool {

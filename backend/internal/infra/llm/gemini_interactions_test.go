@@ -193,6 +193,52 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 	}
 }
 
+func TestBuildGeminiInteractionToolsPreservesJSONSchemaReferences(t *testing.T) {
+	payload, err := buildGeminiInteractionRequestBody(RouteConfig{
+		Endpoint:      EndpointInteractions,
+		UpstreamModel: "gemini-3-flash-preview",
+	}, GenerateInput{
+		Messages: []Message{{Role: "user", Content: "Run the workflow."}},
+		Tools: []ToolDefinition{{
+			Name:        "run_workflow",
+			Description: "Runs a workflow.",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"headers": {"type": "object"},
+					"actions": {"type": "array", "items": {"$ref": "#/properties/headers"}},
+					"parser": {"anyOf": [{"$ref": "#/$defs/parser"}, {"type": "null"}]}
+				},
+				"$defs": {"parser": {"type": "object"}},
+				"required": ["actions"]
+			}`),
+		}},
+	})
+	if err != nil {
+		t.Fatalf("build Gemini interaction request body: %v", err)
+	}
+
+	tools, ok := payload["tools"].([]map[string]interface{})
+	if !ok || len(tools) != 1 {
+		t.Fatalf("expected one Interactions tool, got %#v", payload["tools"])
+	}
+	parameters, ok := tools[0]["parameters"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected native JSON Schema parameters, got %#v", tools[0])
+	}
+	properties := asMap(parameters["properties"])
+	if asMap(asMap(properties["actions"])["items"])["$ref"] != "#/properties/headers" {
+		t.Fatalf("expected array item reference to be preserved, got %#v", properties["actions"])
+	}
+	anyOf := asSlice(asMap(properties["parser"])["anyOf"])
+	if len(anyOf) != 2 || asMap(anyOf[0])["$ref"] != "#/$defs/parser" {
+		t.Fatalf("expected anyOf reference to be preserved, got %#v", anyOf)
+	}
+	if asMap(asMap(parameters["$defs"])["parser"])["type"] != "object" {
+		t.Fatalf("expected JSON Schema definitions to be preserved, got %#v", parameters["$defs"])
+	}
+}
+
 func TestBuildGeminiInteractionRequestBodyAcceptsTypedResponseFormatList(t *testing.T) {
 	payload, err := buildGeminiInteractionRequestBody(RouteConfig{
 		Endpoint:      EndpointInteractions,
@@ -484,7 +530,7 @@ data: {"type":"done"}
 func TestNewGeminiRequestUsesOnlyGoogleAPIKeyForOfficialHost(t *testing.T) {
 	req, err := NewClient().newGeminiRequest(context.Background(), http.MethodPost, "https://generativelanguage.googleapis.com/v1beta/interactions", nil, RouteConfig{
 		APIKey: "test-key",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("build Gemini request: %v", err)
 	}

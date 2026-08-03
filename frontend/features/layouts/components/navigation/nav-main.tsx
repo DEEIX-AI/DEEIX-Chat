@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useTranslations } from "next-intl";
 
-import { useSidebarConversations } from "@/entities/conversation";
 import { SidebarGroup, SidebarMenu, useSidebar } from "@/components/ui/sidebar";
 import {
   useLayoutNavigationSearch,
@@ -13,8 +12,6 @@ import { NAVIGATION_ITEMS } from "@/features/layouts/model/navigation-items";
 import { NavigationSearch } from "@/features/layouts/components/navigation/navigation-search";
 import { NavMainItem } from "@/features/layouts/components/navigation/nav-main-item";
 
-const MAX_SEARCH_RESULTS = 8;
-
 export function NavMain({
   onCreateConversation,
 }: {
@@ -22,13 +19,10 @@ export function NavMain({
 }) {
   const t = useTranslations("common.navigation");
   const { state, isMobile, setOpenMobile } = useSidebar();
-  const { items } = useSidebarConversations();
   const isCollapsed = !isMobile && state === "collapsed";
 
   const search = useLayoutNavigationSearch({
-    items,
     untitled: t("newChat"),
-    maxResults: MAX_SEARCH_RESULTS,
   });
 
   const onCloseMobileSidebar = React.useCallback(() => {
@@ -84,8 +78,24 @@ export function NavMain({
         description={t("searchDescription")}
         placeholder={t("searchPlaceholder")}
         loading={search.loading}
+        loadingMore={search.loadingMore}
+        loadFailed={search.loadFailed}
+        loadMoreFailed={search.loadMoreFailed}
+        hasMore={search.hasMore}
         loadingText={t("searchLoading")}
+        loadingMoreText={t("searchLoadingMore")}
+        loadFailedText={t("searchLoadFailed")}
+        loadMoreFailedText={t("searchLoadMoreFailed")}
         emptyText={t("searchEmpty")}
+        showPreviewPane
+        previewConversationID={search.preview.conversationID}
+        previewMessages={search.preview.messages}
+        previewLoading={search.preview.loading}
+        previewLoadFailed={search.preview.loadFailed}
+        onLoadMore={search.loadMore}
+        onRetry={search.retrySearch}
+        onPreviewChange={search.previewResult}
+        onPreviewRetry={search.retryPreview}
         onSelect={search.selectResult}
       />
     </>

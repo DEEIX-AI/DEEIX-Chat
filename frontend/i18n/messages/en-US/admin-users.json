@@ -95,6 +95,7 @@
     "status": "Status",
     "subscription": "Subscription",
     "balance": "Balance",
+    "balanceUSDInput": "Balance (USD)",
     "timezone": "Timezone",
     "lastLogin": "Last login",
     "lastActive": "Last active"
@@ -223,7 +224,7 @@
     "language": "Language",
     "reason": "Reason",
     "reasonPlaceholder": "Record the reason for this status change (optional)",
-    "accountBalance": "Account balance",
+    "accountBalance": "Account balance (USD)",
     "billingStatus": "Billing status",
     "twoFactor": "Two-factor authentication",
     "twoFactorEnabled": "Enabled (recovery codes {count})",

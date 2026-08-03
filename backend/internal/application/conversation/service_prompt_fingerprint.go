@@ -230,7 +230,21 @@ func buildNextStatefulPrefixMessages(messages []llm.Message, currentUserContent 
 		return appendAssistantStateMessage(messages, assistantText, reasoningContent)
 	}
 	result := cloneLLMMessages(messages[:lastUserIndex])
-	result = append(result, llm.Message{Role: "user", Content: currentUserContent})
+	currentUser := llm.Message{Role: "user", Content: currentUserContent}
+	imageParts := make([]llm.ContentPart, 0)
+	for _, part := range messages[lastUserIndex].Parts {
+		if part.Kind == llm.ContentPartImage && len(part.Data) > 0 {
+			imageParts = append(imageParts, part)
+		}
+	}
+	if len(imageParts) > 0 {
+		currentUser.Content = ""
+		if strings.TrimSpace(currentUserContent) != "" {
+			currentUser.Parts = append(currentUser.Parts, llm.ContentPart{Kind: llm.ContentPartText, Text: currentUserContent})
+		}
+		currentUser.Parts = append(currentUser.Parts, imageParts...)
+	}
+	result = append(result, currentUser)
 	result = append(result, llm.Message{Role: "assistant", Content: assistantText, ReasoningContent: reasoningContent})
 	return result
 }

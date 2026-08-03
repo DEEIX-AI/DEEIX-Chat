@@ -1,10 +1,9 @@
 import {
   conversationMatchesSearch,
-  conversationSearchText,
   normalizeConversationSearchText,
 } from "@/shared/lib/conversation-search";
 import type { ConversationSearchResult } from "@/features/layouts/types/navigation";
-import type { ConversationDTO } from "@/shared/api/conversation.types";
+import type { ConversationDTO, ConversationSearchResultDTO } from "@/shared/api/conversation.types";
 
 type ConversationSearchResultGroup = {
   key: string;
@@ -12,12 +11,17 @@ type ConversationSearchResultGroup = {
   items: ConversationSearchResult[];
 };
 
-export function toConversationSearchResult(item: ConversationDTO, untitled: string): ConversationSearchResult {
+export function toConversationSearchResult(
+  item: ConversationSearchResultDTO,
+  untitled: string,
+): ConversationSearchResult {
+  const title = item.title?.trim() || untitled;
   return {
     publicID: item.publicID,
-    title: item.title?.trim() || untitled,
-    searchText: conversationSearchText(item),
+    title,
     href: `/chat?conversation_id=${item.publicID}`,
+    projectName: item.projectName,
+    status: item.status,
     updatedAt: item.updatedAt,
   };
 }
@@ -25,20 +29,22 @@ export function toConversationSearchResult(item: ConversationDTO, untitled: stri
 export function filterConversationSearchResults(
   items: readonly ConversationDTO[],
   query: string,
-  {
-    maxResults,
-    untitled,
-  }: {
-    maxResults?: number;
-    untitled: string;
-  },
-) {
+  { untitled }: { untitled: string },
+): ConversationSearchResult[] {
   const normalizedQuery = normalizeConversationSearchText(query);
-  const results = items
+  return items
     .filter((item) => conversationMatchesSearch(item, normalizedQuery))
-    .map((item) => toConversationSearchResult(item, untitled));
-
-  return typeof maxResults === "number" ? results.slice(0, maxResults) : results;
+    .map((item) => {
+      const title = item.title?.trim() || untitled;
+      return {
+        publicID: item.publicID,
+        title,
+        href: `/chat?conversation_id=${item.publicID}`,
+        projectName: item.projectName,
+        status: item.status,
+        updatedAt: item.updatedAt,
+      };
+    });
 }
 
 function isSameCalendarDay(left: Date, right: Date) {

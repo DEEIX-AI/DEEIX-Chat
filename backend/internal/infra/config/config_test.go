@@ -20,6 +20,9 @@ func TestLoadDefaultsUseBootstrapAdmin(t *testing.T) {
 	if cfg.AdminDisplayName != defaultAdminDisplayName {
 		t.Fatalf("expected default admin display name %q, got %q", defaultAdminDisplayName, cfg.AdminDisplayName)
 	}
+	if cfg.FileFullContextMaxBytes != DefaultFileFullContextMaxBytes {
+		t.Fatalf("expected default full-context size %d, got %d", DefaultFileFullContextMaxBytes, cfg.FileFullContextMaxBytes)
+	}
 }
 
 func TestLoadTreatsBlankAPPEnvAsUnset(t *testing.T) {

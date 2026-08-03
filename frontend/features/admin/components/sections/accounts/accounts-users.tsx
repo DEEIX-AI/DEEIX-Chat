@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import dynamic from "next/dynamic";
-import { Database, DollarSign, Globe, Plus, Settings, ShieldCheck, ShieldX, Trash2, Upload, UserCheck } from "lucide-react";
+import { Database, Globe, Plus, Settings, ShieldCheck, ShieldX, Trash2, Upload, UserCheck, WalletCards } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -51,6 +51,7 @@ import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { TimeZoneSelect } from "@/shared/components/time-zone-select";
 import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin.types";
 import type { AdminBillingMode } from "@/features/admin/api/billing.types";
+import type { BillingDisplayOptions } from "@/shared/lib/billing-display";
 
 import { AccountAvatarEditorDialog } from "./accounts-avatar-dialog";
 import { AccountConfirmationDialog } from "./accounts-confirm-dialog";
@@ -216,6 +217,7 @@ type UserTableRowProps = {
   item: AdminUserDTO;
   checked: boolean;
   billingMode: AdminBillingMode;
+  billingDisplay: BillingDisplayOptions;
   inlineRolePending: boolean;
   inlineStatusPending: boolean;
   pendingAction: string;
@@ -236,6 +238,7 @@ const UserTableRow = React.memo(function UserTableRow({
   item,
   checked,
   billingMode,
+  billingDisplay,
   inlineRolePending,
   inlineStatusPending,
   pendingAction,
@@ -368,7 +371,7 @@ const UserTableRow = React.memo(function UserTableRow({
       {billingMode !== "self" ? (
         <TableCell className="whitespace-nowrap text-foreground">
           <span title={resolveBillingAccountStatusLabel(item.billingAccountStatus || "active")}>
-            {formatBillingBalance(item.billingBalanceUSD)}
+            {formatBillingBalance(item.billingBalanceUSD, billingDisplay)}
           </span>
         </TableCell>
       ) : null}
@@ -473,6 +476,7 @@ export function AccountsUsers({
     resetPasswordDraft,
     setResetPasswordDraft,
     billingMode,
+    billingDisplay,
     billingPlans,
     createAvatarSource,
     avatarDialogPreviewSrc,
@@ -719,7 +723,7 @@ export function AccountsUsers({
 
               {showBalanceColumn ? (
                 <BulkActionControlRow
-                  icon={<DollarSign className="size-3 stroke-1" />}
+                  icon={<WalletCards className="size-3 stroke-1" />}
                   label={t("actions.apply")}
                   onApply={() => setBulkConfirmAction("balance")}
                   disabled={loading || Boolean(pendingAction) || selectedUserIDs.size === 0 || !batchBalance.trim()}
@@ -729,7 +733,7 @@ export function AccountsUsers({
                     min="0"
                     step="0.000001"
                     value={batchBalance}
-                    placeholder={t("fields.balance")}
+                    placeholder={t("fields.balanceUSDInput")}
                     onChange={(event) => setBatchBalance(event.target.value)}
                     disabled={loading || Boolean(pendingAction) || selectedUserIDs.size === 0}
                     className="h-7 px-2 text-[11px]"
@@ -828,6 +832,7 @@ export function AccountsUsers({
                       item={item}
                       checked={selectedUserIDs.has(item.id)}
                       billingMode={billingMode}
+                      billingDisplay={billingDisplay}
                       inlineRolePending={Boolean(inlinePending[resolveInlineKey(item.id, "role")])}
                       inlineStatusPending={Boolean(inlinePending[resolveInlineKey(item.id, "status")])}
                       pendingAction={pendingAction}
@@ -960,6 +965,7 @@ export function AccountsUsers({
           editPayload={editPayload}
           setEditPayload={setEditPayload}
           billingMode={billingMode}
+          billingDisplay={billingDisplay}
           billingPlans={billingPlans}
           statusChanged={editStatusChanged}
           timeZoneOptions={timeZoneOptions}

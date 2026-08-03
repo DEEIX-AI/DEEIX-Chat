@@ -56,6 +56,7 @@
     "usageLoadFailed": "调用日志加载失败",
     "ordersLoadFailed": "订单记录加载失败",
     "conversationEventsLoadFailed": "对话事件加载失败",
+    "conversationEventDetailLoadFailed": "对话事件详情加载失败",
     "modelFilterLoadFailed": "模型筛选加载失败"
   },
   "sort": {
@@ -104,6 +105,7 @@
     "caller": "调用人",
     "model": "模型",
     "billing": "计费",
+    "balanceAfter": "结算后余额",
     "latency": "延迟",
     "orderNo": "订单号",
     "type": "类型",
@@ -133,6 +135,7 @@
       "stream_message": "发送消息",
       "create_conversation": "创建会话",
       "rename_conversation": "重命名会话",
+      "update_conversation_labels": "更新会话标签",
       "export_conversation": "导出会话",
       "delete_conversation": "删除会话",
       "set_conversation_star": "星标会话",
@@ -163,7 +166,8 @@
       "admin_reset_user_password": "管理员重置密码",
       "admin_reset_user_2fa": "管理员重置二步验证",
       "admin_delete_user": "管理员删除用户",
-      "admin_cleanup_logs": "管理员清理日志"
+      "admin_cleanup_logs": "管理员清理日志",
+      "admin_cleanup_conversation_runs": "管理员清理对话运行轨迹"
     }
   },
   "auth": {
@@ -271,6 +275,18 @@
       "streaming": "生成中",
       "completed": "已完成",
       "error": "异常"
+    },
+    "cleanup": {
+      "action": "删除运行轨迹",
+      "title": "删除运行轨迹",
+      "description": "将永久删除所选 {count} 个运行的全部处理轨迹。会话、消息、附件、调用记录和计费数据不受影响。",
+      "confirm": "删除",
+      "deleting": "正在删除",
+      "success": "已删除 {runs} 个运行的 {events} 条轨迹记录",
+      "failed": "运行轨迹删除失败",
+      "maxSelection": "单次最多选择 100 个运行",
+      "selectAll": "选择当前页运行",
+      "selectRun": "选择运行 {runID}"
     }
   },
   "detail": {
@@ -328,6 +344,7 @@
       "bindingCode": "绑定编码",
       "protocol": "协议",
       "billing": "计费",
+      "balanceAfter": "结算后余额",
       "totalTokens": "总 Token",
       "reasoning": "推理",
       "callCount": "调用次数",
@@ -350,7 +367,8 @@
       "toolName": "工具名",
       "toolCallID": "工具调用 ID",
       "title": "标题",
-      "summary": "摘要"
+      "summary": "摘要",
+      "payloadSize": "负载大小"
     },
     "result": {
       "success": "成功",
@@ -359,6 +377,8 @@
     },
     "rawUsageJsonTitle": "原始 Usage JSON",
     "jsonTitle": "详情 JSON",
+    "loading": "正在加载详情",
+    "payloadOmitted": "该历史负载大小为 {size}，超过安全查看上限，内容已省略。可删除对应运行轨迹以移除这条异常历史数据。",
     "copied": "{label}已复制",
     "copyFailed": "复制失败"
   }

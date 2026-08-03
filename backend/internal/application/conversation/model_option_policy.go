@@ -29,6 +29,10 @@ var hardDeniedModelOptionPaths = [][]string{
 	{"baseURL"},
 	{"stream"},
 	{"previous_response_id"},
+	{"prompt_cache_key"},
+	{"prompt_cache_options"},
+	{"prompt_cache_breakpoint"},
+	{"prompt_cache_retention"},
 }
 
 type modelOptionPolicyConfig struct {
@@ -492,21 +496,7 @@ func sanitizeModelOptionValues(options map[string]interface{}, protocolKey strin
 	}
 	switch protocolKey {
 	case "openai_chat_completions", "openai_responses", "openrouter_responses":
-		serviceTier, ok := options["service_tier"]
-		if !ok {
-			return
-		}
-		value, ok := serviceTier.(string)
-		if !ok {
-			delete(options, "service_tier")
-			return
-		}
-		switch strings.TrimSpace(strings.ToLower(value)) {
-		case "default", "flex", "priority":
-			options["service_tier"] = strings.TrimSpace(strings.ToLower(value))
-		default:
-			delete(options, "service_tier")
-		}
+		sanitizeOpenAIServiceTier(options)
 	case "openai_image_generations", "openai_image_edits":
 		value, ok := modelParamIntFromOption(options["partial_images"])
 		if !ok {
@@ -516,6 +506,24 @@ func sanitizeModelOptionValues(options map[string]interface{}, protocolKey strin
 		if value < 0 || value > 3 {
 			delete(options, "partial_images")
 		}
+	}
+}
+
+func sanitizeOpenAIServiceTier(options map[string]interface{}) {
+	serviceTier, ok := options["service_tier"]
+	if !ok {
+		return
+	}
+	value, ok := serviceTier.(string)
+	if !ok {
+		delete(options, "service_tier")
+		return
+	}
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "default", "flex", "priority":
+		options["service_tier"] = strings.TrimSpace(strings.ToLower(value))
+	default:
+		delete(options, "service_tier")
 	}
 }
 
@@ -772,4 +780,66 @@ func cloneModelOptionValue(value interface{}) interface{} {
 	default:
 		return typed
 	}
+}
+
+// shouldApplyReasoningPassbackRequestOptions 判断本轮是否需要下发厂商私有的回传配套入参。
+//
+// 三个条件缺一不可：
+//   - 回传实际生效（路由能力 AND 用户设置），否则等于付费读历史推理却没有历史推理可读；
+//   - 该路由确有配套入参要求；
+//   - 本轮真实发送的历史里已存在非空推理。这些入参只影响「历史」思维链的处理方式，
+//     首轮或非思考模型下发它没有收益，且能规避自建后端把未知顶层字段判为非法入参。
+func shouldApplyReasoningPassbackRequestOptions(
+	passbackEnabled bool,
+	required map[string]interface{},
+	messages []llm.Message,
+) bool {
+	if !passbackEnabled || len(required) == 0 {
+		return false
+	}
+	return promptCarriesAssistantReasoning(messages)
+}
+
+// promptCarriesAssistantReasoning 判断本轮真实发送的历史里是否已有非空 assistant 推理内容。
+func promptCarriesAssistantReasoning(messages []llm.Message) bool {
+	for _, item := range messages {
+		if item.Role == "assistant" && strings.TrimSpace(item.ReasoningContent) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// withReasoningPassbackRequestOptions 补齐厂商要求的回传配套入参。
+//
+// 该入参属于协议正确性而非用户偏好，因此绕过管理员选项白名单——白名单收窄时不应让回传
+// 静默退化成「传了字段但模型不读」。但用户或管理员显式声明过的值一律不覆盖：除了已过滤
+// 结果，还需回看 rawOptions 与模型能力 defaultOptions，因为白名单模式会把未放行的键丢掉，
+// 只看 options 会把管理员刻意设的 false 覆盖成 true。
+func withReasoningPassbackRequestOptions(
+	options map[string]interface{},
+	required map[string]interface{},
+	rawOptions map[string]interface{},
+	capabilitiesJSON string,
+) map[string]interface{} {
+	if len(required) == 0 {
+		return options
+	}
+	defaults := modelCapabilityDefaultOptions(capabilitiesJSON)
+	for key, value := range required {
+		if _, ok := options[key]; ok {
+			continue
+		}
+		if _, ok := rawOptions[key]; ok {
+			continue
+		}
+		if _, ok := defaults[key]; ok {
+			continue
+		}
+		if options == nil {
+			options = make(map[string]interface{}, len(required))
+		}
+		options[key] = value
+	}
+	return options
 }

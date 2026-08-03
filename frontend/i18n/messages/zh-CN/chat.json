@@ -122,6 +122,8 @@
     "previewImage": "放大图片",
     "editImage": "编辑图片",
     "downloadImage": "下载图片",
+    "scrollableTable": "可横向滚动的数据表格",
+    "scrollableTableHint": "横向滚动可查看更多列。",
     "copyLatex": "复制公式源码",
     "latexCopied": "已复制公式源码",
     "latexCopyFailed": "公式源码复制失败",
@@ -245,8 +247,8 @@
     "retry": "请重试。",
     "policy": {
       "mimeNotAllowed": "当前文件类型不在后台允许的 MIME 白名单内。",
-      "fullContextLimitExceeded": "当前未启用向量检索，只允许上传可走全文注入的小文件。当前文件超过 {limit} KB 上限。",
-      "sizeLimitExceeded": "当前文件超过 {limit} KB 上限。"
+      "fullContextLimitExceeded": "当前未启用向量检索，只允许上传可走全文注入的小文件。当前文件超过 {limit} 上限。",
+      "sizeLimitExceeded": "当前文件超过 {limit} 上限。"
     }
   },
   "submit": {
@@ -411,6 +413,9 @@
     "htmlVisualPrompt": "视觉排版提示",
     "htmlVisualPromptEnabled": "已启用视觉排版提示，本轮会在适合时注入安全内联 HTML 表达规范。",
     "htmlVisualPromptDisabled": "启用视觉排版提示，在复杂结构中引导模型使用安全内联 HTML。",
+    "markdownPreview": "Markdown 预览",
+    "previewMarkdown": "预览 Markdown",
+    "hideMarkdownPreview": "关闭 Markdown 预览",
     "pauseGeneration": "暂停生成",
     "queueMessage": "排队发送",
     "queuedAttachmentOnly": "{count} 个附件",

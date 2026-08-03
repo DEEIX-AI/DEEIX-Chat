@@ -126,33 +126,39 @@ func sendMessageBillingInput(
 	return input
 }
 
-// authorizeUsage 在写入流式响应头前完成请求级计费授权。
-func (h *Handler) authorizeUsage(c *gin.Context, input appconversation.SendMessageBillingInput) (*domainbilling.UsageAuthorization, error) {
-	authorization, err := h.service.AuthorizeSendMessageUsage(
+func (h *Handler) reserveUsage(c *gin.Context, input appconversation.SendMessageBillingInput) (*domainbilling.UsageAuthorization, error) {
+	return h.service.AuthorizeSendMessageUsage(
 		c.Request.Context(),
 		input,
 	)
+}
+
+// authorizeUsage 在写入流式响应头前完成请求级计费授权。
+func (h *Handler) authorizeUsage(c *gin.Context, input appconversation.SendMessageBillingInput) (*domainbilling.UsageAuthorization, error) {
+	authorization, err := h.reserveUsage(c, input)
 	if err != nil {
-		if errors.Is(err, billing.ErrUsageConcurrencyLimitExceeded) {
-			response.Error(c, http.StatusTooManyRequests, "usage concurrency limit exceeded")
-			return nil, err
-		}
-		if errors.Is(err, billing.ErrUsageReservationConflict) {
-			response.Error(c, http.StatusConflict, "usage reservation already exists")
-			return nil, err
-		}
-		if errors.Is(err, billing.ErrUsageBalanceInsufficient) {
-			response.Error(c, http.StatusPaymentRequired, "usage balance is insufficient")
-			return nil, err
-		}
-		if errors.Is(err, billing.ErrModelPricingRequired) {
-			response.Error(c, http.StatusPaymentRequired, "model pricing is required")
-			return nil, err
-		}
-		response.Error(c, http.StatusInternalServerError, "usage balance reservation failed")
+		handleUsageAuthorizationError(c, err)
 		return nil, err
 	}
 	return authorization, nil
+}
+
+// authorizeMessageUsage 将终态拒绝的持久化委托给应用层，再把授权结果转换为 HTTP 响应。
+func (h *Handler) authorizeMessageUsage(
+	c *gin.Context,
+	input appconversation.SendMessageInput,
+	billingInput appconversation.SendMessageBillingInput,
+) (*domainbilling.UsageAuthorization, error) {
+	authorization, err := h.reserveUsage(c, billingInput)
+	if err == nil {
+		return authorization, nil
+	}
+	if persistErr := h.service.PersistMessageUsageRejection(c.Request.Context(), input, err); persistErr != nil {
+		handleSendMessageError(c, persistErr)
+		return nil, persistErr
+	}
+	handleUsageAuthorizationError(c, err)
+	return nil, err
 }
 
 // releaseSendMessageUsageAuthorization 使用独立短上下文释放未消费的预算。
@@ -291,6 +297,26 @@ func handleSendMessageBillingError(c *gin.Context, err error) {
 	response.Error(c, http.StatusInternalServerError, "record billing failed")
 }
 
+func handleUsageAuthorizationError(c *gin.Context, err error) {
+	if errors.Is(err, billing.ErrUsageConcurrencyLimitExceeded) {
+		response.Error(c, http.StatusTooManyRequests, "usage concurrency limit exceeded")
+		return
+	}
+	if errors.Is(err, billing.ErrUsageReservationConflict) {
+		response.Error(c, http.StatusConflict, "usage reservation already exists")
+		return
+	}
+	if errors.Is(err, billing.ErrUsageBalanceInsufficient) {
+		response.Error(c, http.StatusPaymentRequired, "usage balance is insufficient")
+		return
+	}
+	if errors.Is(err, billing.ErrModelPricingRequired) {
+		response.Error(c, http.StatusPaymentRequired, "model pricing is required")
+		return
+	}
+	response.Error(c, http.StatusInternalServerError, "usage balance reservation failed")
+}
+
 func mapBillingStreamError(err error) streamError {
 	status := http.StatusInternalServerError
 	message := "record billing failed"
@@ -334,6 +360,10 @@ func handleSendMessageError(c *gin.Context, err error) {
 		response.Error(c, http.StatusNotFound, "conversation not found")
 	case errors.Is(err, appconversation.ErrInvalidFileReference):
 		response.Error(c, http.StatusBadRequest, "invalid file reference")
+	case errors.Is(err, appconversation.ErrFileNotFound):
+		response.Error(c, http.StatusNotFound, "file not found")
+	case errors.Is(err, appconversation.ErrFileTooLarge):
+		response.Error(c, http.StatusRequestEntityTooLarge, "file too large")
 	case errors.Is(err, appconversation.ErrTooManyMessageFiles):
 		response.Error(c, http.StatusBadRequest, "too many files in one message")
 	case errors.Is(err, appconversation.ErrTooManySelectedTools):
@@ -387,7 +417,7 @@ func (h *Handler) SendMessage(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	authorization, err := h.authorizeUsage(c, sendMessageBillingInput(middleware.MustUserID(c), conversation, req, nil))
+	authorization, err := h.authorizeMessageUsage(c, input, sendMessageBillingInput(middleware.MustUserID(c), conversation, req, nil))
 	if err != nil {
 		return
 	}
@@ -448,7 +478,7 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	authorization, err := h.authorizeUsage(c, sendMessageBillingInput(middleware.MustUserID(c), conversation, req, nil))
+	authorization, err := h.authorizeMessageUsage(c, input, sendMessageBillingInput(middleware.MustUserID(c), conversation, req, nil))
 	if err != nil {
 		return
 	}

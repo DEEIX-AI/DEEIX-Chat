@@ -499,7 +499,7 @@ export function SettingsChat() {
               />
             )}
           </SettingsFieldRow>
-          <div className="pt-4">
+          <div className="space-y-4 pt-4">
             <SettingsFieldRow
               title={t("defaultModel.autoTitle")}
               description={t("defaultModel.autoTitleDescription")}
@@ -509,6 +509,17 @@ export function SettingsChat() {
                 onCheckedChange={handleBool("chat.auto_generate_title", "autoGenerateTitle")}
                 disabled={loading}
                 aria-label={t("defaultModel.autoTitle")}
+              />
+            </SettingsFieldRow>
+            <SettingsFieldRow
+              title={t("defaultModel.autoLabels")}
+              description={t("defaultModel.autoLabelsDescription")}
+            >
+              <Switch
+                checked={settings.autoGenerateLabels}
+                onCheckedChange={handleBool("chat.auto_generate_labels", "autoGenerateLabels")}
+                disabled={loading}
+                aria-label={t("defaultModel.autoLabels")}
               />
             </SettingsFieldRow>
           </div>

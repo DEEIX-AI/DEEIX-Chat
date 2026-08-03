@@ -4,19 +4,20 @@ import "time"
 
 // Server 表示管理员维护的 MCP 服务。
 type Server struct {
-	ID              uint
-	Name            string
-	BaseURL         string
-	AuthTokenEnc    string
-	HeadersJSON     string
-	Status          string
-	SortOrder       int
-	ToolCount       int
-	ActiveToolCount int
-	LastSyncedAt    *time.Time
-	LastError       string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                                   uint
+	Name                                 string
+	BaseURL                              string
+	AuthTokenEnc                         string
+	HeadersJSON                          string
+	Status                               string
+	SortOrder                            int
+	ToolCount                            int
+	ActiveToolCount                      int
+	RequiresToolMetadataSyncConfirmation bool
+	LastSyncedAt                         *time.Time
+	LastError                            string
+	CreatedAt                            time.Time
+	UpdatedAt                            time.Time
 }
 
 type ServerWithTools struct {

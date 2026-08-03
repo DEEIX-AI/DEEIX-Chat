@@ -68,6 +68,12 @@ export const MODEL_CAPABILITIES_PLACEHOLDER = `{
 
 type CapabilityControlType = "text" | "select" | "number" | "boolean";
 
+type PromptCacheConfig = {
+  availability: "auto" | "enabled" | "disabled";
+  mode: "implicit" | "explicit";
+  retention: "" | "in_memory" | "24h";
+};
+
 type ParameterRow = {
   id: string;
   path: string;
@@ -109,6 +115,12 @@ type NativeToolRow = {
 type NativeToolRowErrors = Record<string, Partial<Record<"key" | "protocols" | "type" | "payload", string>>>;
 
 const CAPABILITY_CONTROL_TYPES: CapabilityControlType[] = ["text", "select", "number", "boolean"];
+const OPENAI_PROMPT_CACHE_PROTOCOLS = new Set(["openai_chat_completions", "openai_responses"]);
+const DEFAULT_PROMPT_CACHE_CONFIG: PromptCacheConfig = {
+  availability: "auto",
+  mode: "implicit",
+  retention: "",
+};
 
 function nativeToolDisplayName(row: NativeToolRow): { name: string; specificName: string } {
   const specificName = row.type.trim() || row.key.trim().split(".").pop() || row.label.trim();
@@ -138,6 +150,66 @@ function parseCapabilitiesObject(raw: string): Record<string, unknown> | null {
     return isPlainJSONObject(parsed) ? parsed : null;
   } catch {
     return null;
+  }
+}
+
+function supportsPromptCacheProtocols(routeProtocols: string[]): boolean {
+  return routeProtocols.some((protocol) => OPENAI_PROMPT_CACHE_PROTOCOLS.has(resolveModelOptionPolicyProtocol(protocol)));
+}
+
+function parsePromptCacheConfig(value: unknown): PromptCacheConfig {
+  if (!isPlainJSONObject(value)) {
+    return DEFAULT_PROMPT_CACHE_CONFIG;
+  }
+  const availability = value.enabled === true
+    ? "enabled"
+    : value.enabled === false
+      ? "disabled"
+      : "auto";
+  const mode = value.mode === "explicit" ? "explicit" : "implicit";
+  const retention = value.retention === "24h"
+    ? "24h"
+    : value.retention === "in_memory" || value.retention === "in-memory"
+      ? "in_memory"
+      : "";
+  return { availability, mode, retention };
+}
+
+function applyPromptCacheConfig(payload: Record<string, unknown>, config: PromptCacheConfig) {
+  const promptCache = isPlainJSONObject(payload.promptCache) ? { ...payload.promptCache } : {};
+
+  if (config.availability === "disabled") {
+    promptCache.enabled = false;
+    delete promptCache.mode;
+    delete promptCache.ttl;
+    delete promptCache.retention;
+  } else {
+    if (config.availability === "enabled") {
+      promptCache.enabled = true;
+    } else {
+      delete promptCache.enabled;
+    }
+
+    if (config.mode === "explicit") {
+      promptCache.mode = "explicit";
+      promptCache.ttl = "30m";
+      delete promptCache.retention;
+    } else {
+      delete promptCache.ttl;
+      if (config.retention) {
+        promptCache.mode = "implicit";
+        promptCache.retention = config.retention;
+      } else {
+        delete promptCache.mode;
+        delete promptCache.retention;
+      }
+    }
+  }
+
+  if (Object.keys(promptCache).length > 0) {
+    payload.promptCache = promptCache;
+  } else {
+    delete payload.promptCache;
   }
 }
 
@@ -880,6 +952,8 @@ function buildCapabilitiesJSON(
   currentJSON: string,
   parameterRows: ParameterRow[],
   nativeToolRows: NativeToolRow[],
+  promptCacheConfig: PromptCacheConfig,
+  promptCacheSupported: boolean,
 ): string | null {
   const payload = parseCapabilitiesObject(currentJSON);
   if (!payload) {
@@ -908,6 +982,9 @@ function buildCapabilitiesJSON(
     payload.nativeTools = nativeTools;
   } else {
     delete payload.nativeTools;
+  }
+  if (promptCacheSupported) {
+    applyPromptCacheConfig(payload, promptCacheConfig);
   }
   delete payload.nativeToolKeys;
   return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
@@ -1093,11 +1170,13 @@ export function ModelCapabilitiesQuickConfig({
   const [activeTab, setActiveTab] = useState<"parameters" | "tools">("parameters");
   const [draftBaseJSON, setDraftBaseJSON] = useState("");
   const [parameterRows, setParameterRows] = useState<ParameterRow[]>([]);
+  const [promptCacheConfig, setPromptCacheConfig] = useState<PromptCacheConfig>(DEFAULT_PROMPT_CACHE_CONFIG);
   const [nativeToolRows, setNativeToolRows] = useState<NativeToolRow[]>([]);
   const [expandedNativeToolID, setExpandedNativeToolID] = useState("");
   const [parameterErrors, setParameterErrors] = useState<CapabilityRowErrors>({});
   const [nativeToolErrors, setNativeToolErrors] = useState<NativeToolRowErrors>({});
   const routeProtocolSet = new Set(routeProtocols.map((protocol) => resolveModelOptionPolicyProtocol(protocol)).filter(Boolean));
+  const promptCacheSupported = supportsPromptCacheProtocols(routeProtocols);
 
   function loadDraft() {
     const payload = parseCapabilitiesObject(value);
@@ -1106,6 +1185,7 @@ export function ModelCapabilitiesQuickConfig({
       return false;
     }
     setParameterRows(parseParameterRows(payload.defaultOptions, payload.optionControls, payload.lockedOptionPaths));
+    setPromptCacheConfig(parsePromptCacheConfig(payload.promptCache));
     const nextNativeToolRows = parseNativeToolRows(payload, nativeTools, routeProtocols);
     setNativeToolRows(nextNativeToolRows);
     setExpandedNativeToolID("");
@@ -1201,7 +1281,13 @@ export function ModelCapabilitiesQuickConfig({
       toast.error(t("sheet.capabilitiesQuick.validationFailed"));
       return;
     }
-    const nextValue = buildCapabilitiesJSON(draftBaseJSON, parameterRows, nativeToolRows);
+    const nextValue = buildCapabilitiesJSON(
+      draftBaseJSON,
+      parameterRows,
+      nativeToolRows,
+      promptCacheConfig,
+      promptCacheSupported,
+    );
     if (nextValue === null) {
       toast.error(t("sheet.capabilitiesQuick.invalidJSON"));
       return;
@@ -1217,6 +1303,7 @@ export function ModelCapabilitiesQuickConfig({
       return;
     }
     setParameterRows(parseParameterRows(payload.defaultOptions, payload.optionControls, payload.lockedOptionPaths));
+    setPromptCacheConfig(parsePromptCacheConfig(payload.promptCache));
     setNativeToolRows(parseNativeToolRows(payload, nativeTools, routeProtocols));
     setExpandedNativeToolID("");
     setParameterErrors({});
@@ -1301,6 +1388,99 @@ export function ModelCapabilitiesQuickConfig({
                   {t("sheet.capabilitiesQuick.addParameter")}
                 </Button>
               </div>
+              {promptCacheSupported ? (
+                <div className="shrink-0 space-y-3 rounded-md border bg-muted/20 px-3 py-3">
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-xs font-medium text-foreground/85">
+                      {t("sheet.capabilitiesQuick.promptCacheTitle")}
+                    </p>
+                    <p className="text-[11px] leading-4 text-muted-foreground">
+                      {t("sheet.capabilitiesQuick.promptCacheDescription")}
+                    </p>
+                  </div>
+                  <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
+                    <label className="min-w-0 space-y-1">
+                      <span className="block truncate px-1 text-[11px] text-muted-foreground">
+                        {t("sheet.capabilitiesQuick.promptCacheAvailability")}
+                      </span>
+                      <Select
+                        value={promptCacheConfig.availability}
+                        onValueChange={(availability) => setPromptCacheConfig((current) => ({
+                          ...current,
+                          availability: availability as PromptCacheConfig["availability"],
+                        }))}
+                      >
+                        <SelectTrigger className="h-8 w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">{t("sheet.capabilitiesQuick.promptCacheAuto")}</SelectItem>
+                          <SelectItem value="enabled">{t("sheet.capabilitiesQuick.promptCacheEnabled")}</SelectItem>
+                          <SelectItem value="disabled">{t("sheet.capabilitiesQuick.promptCacheDisabled")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </label>
+                    <label className="min-w-0 space-y-1">
+                      <span className="block truncate px-1 text-[11px] text-muted-foreground">
+                        {t("sheet.capabilitiesQuick.promptCacheMode")}
+                      </span>
+                      <Select
+                        value={promptCacheConfig.mode}
+                        disabled={promptCacheConfig.availability === "disabled"}
+                        onValueChange={(mode) => setPromptCacheConfig((current) => ({
+                          ...current,
+                          mode: mode as PromptCacheConfig["mode"],
+                        }))}
+                      >
+                        <SelectTrigger className="h-8 w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="implicit">{t("sheet.capabilitiesQuick.promptCacheImplicit")}</SelectItem>
+                          <SelectItem value="explicit">{t("sheet.capabilitiesQuick.promptCacheExplicit")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </label>
+                    <label className="min-w-0 space-y-1">
+                      <span className="block truncate px-1 text-[11px] text-muted-foreground">
+                        {promptCacheConfig.mode === "explicit"
+                          ? t("sheet.capabilitiesQuick.promptCacheTTL")
+                          : t("sheet.capabilitiesQuick.promptCacheRetention")}
+                      </span>
+                      {promptCacheConfig.mode === "explicit" ? (
+                        <Select value="30m" disabled>
+                          <SelectTrigger className="h-8 w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="30m">30m</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Select
+                          value={promptCacheConfig.retention || "default"}
+                          disabled={promptCacheConfig.availability === "disabled"}
+                          onValueChange={(retention) => setPromptCacheConfig((current) => ({
+                            ...current,
+                            retention: retention === "default"
+                              ? ""
+                              : retention as PromptCacheConfig["retention"],
+                          }))}
+                        >
+                          <SelectTrigger className="h-8 w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="default">{t("sheet.capabilitiesQuick.promptCacheRetentionDefault")}</SelectItem>
+                            <SelectItem value="in_memory">in_memory</SelectItem>
+                            <SelectItem value="24h">24h</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </label>
+                  </div>
+                </div>
+              ) : null}
               {parameterRows.length === 0 ? (
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-md border border-dashed px-3 py-8 text-center">
                   <p className="text-xs text-muted-foreground">{t("sheet.capabilitiesQuick.emptyParameters")}</p>

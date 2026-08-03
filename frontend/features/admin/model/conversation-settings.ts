@@ -149,8 +149,11 @@ export const DEFAULT_MODEL_OPTION_ALLOWED_PATHS = `{
     "thinking.budget_tokens"
   ],
   "xai_responses": [
+    "reasoning.effort",
+    "min_p",
+    "parallel_tool_calls",
     "store",
-    "reasoning.effort"
+    "top_k"
   ],
   "xai_image": [
     "aspect_ratio",

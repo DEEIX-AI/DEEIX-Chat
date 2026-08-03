@@ -518,6 +518,7 @@ func (s *Service) cloneSharedMessage(
 		Role:             strings.TrimSpace(source.Role),
 		ContentType:      contentType,
 		Content:          source.Content,
+		ReasoningContent: source.ReasoningContent,
 		BranchReason:     branchReason,
 		SourceMessageID:  sourceMessageID,
 		TokenUsage:       source.TokenUsage,

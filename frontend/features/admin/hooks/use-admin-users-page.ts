@@ -11,7 +11,8 @@ import {
 import {
   createAdminUser,
   deleteAdminUser,
-  getAdminReferenceData,
+  getAdminBillingConfig,
+  listAdminBillingPlans,
   patchAdminUser,
   resetAdminUserPassword,
   resetAdminUserTwoFactor,
@@ -43,6 +44,10 @@ import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { patchByID, removeByID, removeManyByID, replaceByID, restoreAt, restoreManyAt } from "@/shared/lib/optimistic-list";
 import { runBulkActionInChunks, runSettledBulkItems } from "@/shared/lib/bulk-action";
 import { resolveTimeZoneOptions } from "@/shared/lib/time-zone";
+import {
+  normalizeBillingDisplayCurrency,
+  type BillingDisplayOptions,
+} from "@/shared/lib/billing-display";
 import { useAdminUserFilters } from "./use-admin-user-filters";
 import { useAdminUserSelection } from "./use-admin-user-selection";
 
@@ -105,6 +110,7 @@ type UseAdminUsersPageState = {
   resetPasswordDraft: string;
   setResetPasswordDraft: (value: string) => void;
   billingMode: AdminBillingMode;
+  billingDisplay: BillingDisplayOptions;
   billingPlans: AdminBillingPlanDTO[];
   createAvatarSource: Pick<CreateUserPayload, "username" | "displayName">;
   avatarDialogPreviewSrc: string | undefined;
@@ -179,7 +185,7 @@ function hasPatchChanges(payload: AdminUserPatchPayload): boolean {
 }
 
 function roundBillingBalance(value: number): number {
-  return Math.round(Math.max(0, value) * 1_000_000) / 1_000_000;
+  return Math.round(value * 1_000_000) / 1_000_000;
 }
 
 function userFromUnknownResponse(response: unknown): AdminUserDTO | null {
@@ -267,6 +273,7 @@ export function useAdminUsersPage({
   });
   const [resetPasswordDraft, setResetPasswordDraft] = React.useState("");
   const [billingMode, setBillingMode] = React.useState<AdminBillingMode>("self");
+  const [billingDisplay, setBillingDisplay] = React.useState<BillingDisplayOptions>({ currency: "USD" });
   const [billingPlans, setBillingPlans] = React.useState<AdminBillingPlanDTO[]>([]);
 
   const createAvatarSource = React.useMemo(
@@ -299,13 +306,23 @@ export function useAdminUsersPage({
         if (!token) {
           return null;
         }
-        return getAdminReferenceData(token);
+        return Promise.allSettled([
+          getAdminBillingConfig(token),
+          listAdminBillingPlans(token),
+        ]);
       })
-      .then((billing) => {
-        if (!cancelled) {
-          if (billing) {
-            setBillingMode(billing.billingConfig.config.mode);
-            setBillingPlans(billing.billingPlans);
+      .then((results) => {
+        if (!cancelled && results) {
+          const [configResult, plansResult] = results;
+          if (configResult.status === "fulfilled") {
+            setBillingMode(configResult.value.config.mode);
+            setBillingDisplay({
+              currency: normalizeBillingDisplayCurrency(configResult.value.config.displayCurrency),
+              usdToCnyRate: configResult.value.config.usdToCNYRate,
+            });
+          }
+          if (plansResult.status === "fulfilled") {
+            setBillingPlans(plansResult.value);
           }
         }
       })
@@ -611,7 +628,11 @@ export function useAdminUsersPage({
       Number.isFinite(nextBillingBalance) &&
       roundBillingBalance(nextBillingBalance) !== roundBillingBalance(editDialogTarget.billingBalanceUSD ?? 0);
 
-    if (billingMode !== "self" && (!Number.isFinite(nextBillingBalance) || nextBillingBalance < 0)) {
+    if (billingMode !== "self" && !Number.isFinite(nextBillingBalance)) {
+      toast.error(t("toast.editFailed"), { description: t("validation.invalidUsageBalance") });
+      return;
+    }
+    if (billingBalanceChanged && nextBillingBalance < 0) {
       toast.error(t("toast.editFailed"), { description: t("validation.invalidUsageBalance") });
       return;
     }
@@ -1149,6 +1170,7 @@ export function useAdminUsersPage({
     resetPasswordDraft,
     setResetPasswordDraft,
     billingMode,
+    billingDisplay,
     billingPlans,
     createAvatarSource,
     avatarDialogPreviewSrc,

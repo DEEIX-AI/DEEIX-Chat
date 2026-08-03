@@ -13,6 +13,79 @@ import type {
 } from "@/shared/api/conversation.types";
 import type { SkillSummaryDTO } from "@/shared/api/skills.types";
 
+function selectPendingExchangesByScope(
+  exchanges: PendingExchangeMap,
+  conversationScopeKey: string,
+): PendingExchangeMap {
+  const scopedEntries = Object.entries(exchanges).filter(
+    ([, exchange]) => exchange.conversationScopeKey === conversationScopeKey,
+  );
+  return Object.fromEntries(scopedEntries);
+}
+
+function pendingExchangeMapsEqual(previous: PendingExchangeMap, next: PendingExchangeMap): boolean {
+  const previousKeys = Object.keys(previous);
+  const nextKeys = Object.keys(next);
+  if (previousKeys.length !== nextKeys.length) {
+    return false;
+  }
+  return previousKeys.every((key) => previous[key] === next[key]);
+}
+
+function useScopedPendingExchanges(conversationScopeKey: string) {
+  const allPendingExchangesRef = React.useRef<PendingExchangeMap>({});
+  const conversationScopeKeyRef = React.useRef(conversationScopeKey);
+  conversationScopeKeyRef.current = conversationScopeKey;
+  const [pendingExchanges, setVisiblePendingExchanges] = React.useState<PendingExchangeMap>({});
+  const visiblePendingExchangesRef = React.useRef(pendingExchanges);
+  const visiblePendingScopeKeyRef = React.useRef(conversationScopeKey);
+
+  const publishVisiblePendingExchanges = React.useCallback((allPendingExchanges: PendingExchangeMap) => {
+    const currentScopeKey = conversationScopeKeyRef.current;
+    const nextVisible = selectPendingExchangesByScope(
+      allPendingExchanges,
+      currentScopeKey,
+    );
+    if (
+      visiblePendingScopeKeyRef.current === currentScopeKey &&
+      pendingExchangeMapsEqual(visiblePendingExchangesRef.current, nextVisible)
+    ) {
+      return;
+    }
+    visiblePendingScopeKeyRef.current = currentScopeKey;
+    visiblePendingExchangesRef.current = nextVisible;
+    setVisiblePendingExchanges(nextVisible);
+  }, []);
+
+  const setPendingExchanges = React.useCallback<
+    React.Dispatch<React.SetStateAction<PendingExchangeMap>>
+  >((update) => {
+    const current = allPendingExchangesRef.current;
+    const next = typeof update === "function" ? update(current) : update;
+    if (next === current) {
+      return;
+    }
+    allPendingExchangesRef.current = next;
+    publishVisiblePendingExchanges(next);
+  }, [publishVisiblePendingExchanges]);
+
+  React.useEffect(() => {
+    publishVisiblePendingExchanges(allPendingExchangesRef.current);
+  }, [conversationScopeKey, publishVisiblePendingExchanges]);
+
+  const getPendingExchanges = React.useCallback(() => allPendingExchangesRef.current, []);
+  const scopedPendingExchanges =
+    visiblePendingScopeKeyRef.current === conversationScopeKey
+      ? pendingExchanges
+      : selectPendingExchangesByScope(allPendingExchangesRef.current, conversationScopeKey);
+
+  return {
+    getPendingExchanges,
+    pendingExchanges: scopedPendingExchanges,
+    setPendingExchanges,
+  };
+}
+
 export function useChatRuntime({
   conversationID,
   resetToken,
@@ -29,6 +102,7 @@ export function useChatRuntime({
   maxFilesPerMessage,
   uploading,
   restoreDraftOnFailure,
+  autoGenerateLabels,
   prependNewConversation,
   onConversationCreated,
   touchByPublicID,
@@ -56,6 +130,7 @@ export function useChatRuntime({
   maxFilesPerMessage: number;
   uploading: boolean;
   restoreDraftOnFailure: boolean;
+  autoGenerateLabels: boolean;
   prependNewConversation: (platformModelName: string) => Promise<ConversationDTO | null | undefined>;
   onConversationCreated?: (conversationPublicID: string) => void;
   touchByPublicID: (publicID: string, patch?: Partial<ConversationDTO>) => void;
@@ -69,8 +144,13 @@ export function useChatRuntime({
   resumingRunID?: string;
 }) {
   const [showConversationLayout, setShowConversationLayout] = React.useState(false);
-  const [pendingExchanges, setPendingExchanges] = React.useState<PendingExchangeMap>({});
   const previousResetTokenRef = React.useRef(resetToken);
+  const conversationScopeKey = React.useMemo(
+    () => conversationID?.trim() ? `conversation:${conversationID.trim()}` : `draft:${resetToken}`,
+    [conversationID, resetToken],
+  );
+  const { getPendingExchanges, pendingExchanges, setPendingExchanges } =
+    useScopedPendingExchanges(conversationScopeKey);
   const liveServerRunIDs = React.useMemo(() => {
     const normalized = resumingRunID.trim();
     return normalized ? new Set([normalized]) : undefined;
@@ -78,14 +158,30 @@ export function useChatRuntime({
 
   const branchState = useChatBranchState({
     conversationID,
+    conversationScopeKey,
     resetToken,
     messages,
     pendingExchanges,
     liveRunIDs: liveServerRunIDs,
   });
+  const visibleResumeGenerationActive = React.useMemo(() => {
+    const normalizedRunID = resumingRunID.trim();
+    if (!normalizedRunID) {
+      return false;
+    }
+    return branchState.visibleMessages.some(
+      (message) =>
+        message.role === "assistant" &&
+        message.runID === normalizedRunID &&
+        (message.isPending ||
+          message.isStreaming ||
+          message.status?.trim().toLowerCase() === "pending"),
+    );
+  }, [branchState.visibleMessages, resumingRunID]);
 
   const submitState = useChatSubmitStream({
     conversationID,
+    conversationScopeKey,
     activeConversation,
     selectedPlatformModelName,
     modelOptions,
@@ -98,6 +194,7 @@ export function useChatRuntime({
     maxFilesPerMessage,
     uploading,
     restoreDraftOnFailure,
+    autoGenerateLabels,
     prependNewConversation,
     onConversationCreated,
     touchByPublicID,
@@ -106,6 +203,7 @@ export function useChatRuntime({
     setDraft,
     setAttachments,
     releaseAttachments,
+    getPendingExchanges,
     pendingExchanges,
     setPendingExchanges,
     setBranchSelections: branchState.setBranchSelections,
@@ -116,10 +214,9 @@ export function useChatRuntime({
     visibleMessages: branchState.visibleMessages,
     combinedMessages: branchState.combinedMessages,
     serverMessagePublicIDs: branchState.serverMessagePublicIDs,
-    resetToken,
     activeGenerationRunsRef,
     failedGenerationRunsRef,
-    resumeGenerationActive: Boolean(resumingRunID),
+    resumeGenerationActive: visibleResumeGenerationActive,
   });
 
   React.useEffect(() => {
@@ -154,7 +251,7 @@ export function useChatRuntime({
     onEditQueuedMessage: submitState.onEditQueuedMessage,
     onGuideQueuedMessage: submitState.onGuideQueuedMessage,
     queuedMessages: submitState.queuedMessages,
-    sending: submitState.sending,
+    sending: submitState.sending || visibleResumeGenerationActive,
     visibleMessageCount: branchState.visibleMessageCount,
     visibleMessages: branchState.visibleMessages,
     isConversationMode: showConversationLayout || branchState.visibleMessageCount > 0,

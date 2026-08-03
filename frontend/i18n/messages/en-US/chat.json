@@ -122,6 +122,8 @@
     "previewImage": "Preview image",
     "editImage": "Edit image",
     "downloadImage": "Download image",
+    "scrollableTable": "Scrollable data table",
+    "scrollableTableHint": "Scroll horizontally to view more columns.",
     "copyLatex": "Copy formula source",
     "latexCopied": "Formula source copied",
     "latexCopyFailed": "Could not copy formula source",
@@ -245,8 +247,8 @@
     "retry": "Please try again.",
     "policy": {
       "mimeNotAllowed": "This file type is not included in the admin MIME allowlist.",
-      "fullContextLimitExceeded": "Vector retrieval is disabled. Only small files that fit full-context injection can be uploaded, and this file exceeds the {limit} KB limit.",
-      "sizeLimitExceeded": "This file exceeds the {limit} KB limit."
+      "fullContextLimitExceeded": "Vector retrieval is disabled. Only small files that fit full-context injection can be uploaded, and this file exceeds the {limit} limit.",
+      "sizeLimitExceeded": "This file exceeds the {limit} limit."
     }
   },
   "submit": {
@@ -411,6 +413,9 @@
     "htmlVisualPrompt": "Visual layout prompt",
     "htmlVisualPromptEnabled": "Visual layout prompt is enabled. This turn will inject safe inline HTML formatting rules when useful.",
     "htmlVisualPromptDisabled": "Enable the visual layout prompt to guide safe inline HTML for complex structures.",
+    "markdownPreview": "Markdown preview",
+    "previewMarkdown": "Preview Markdown",
+    "hideMarkdownPreview": "Hide Markdown preview",
     "pauseGeneration": "Pause generation",
     "queueMessage": "Queue message",
     "queuedAttachmentOnly": "{count} attachments",

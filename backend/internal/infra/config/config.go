@@ -32,6 +32,8 @@ const (
 	defaultHTTPReadTimeoutSeconds       = 120
 	defaultHTTPIdleTimeoutSeconds       = 120
 	defaultHTTPMaxHeaderBytes           = 1 << 20
+	// DefaultFileFullContextMaxBytes 是全文注入的默认提取文本大小上限（2 MiB）。
+	DefaultFileFullContextMaxBytes int64 = 2 * 1024 * 1024
 )
 
 const (
@@ -138,7 +140,11 @@ func DefaultModelOptionAllowedPathsJSON() string {
     "thinking.budget_tokens"
   ],
   "xai_responses": [
-    "reasoning.effort"
+    "reasoning.effort",
+    "min_p",
+    "parallel_tool_calls",
+    "store",
+    "top_k"
   ],
   "xai_image": [
     "aspect_ratio",
@@ -642,7 +648,7 @@ func Load() Config {
 		MaxMessageFiles:                   10,
 		ImageMaxDimension:                 1024,
 		FileFullContextLimitEnabled:       true,
-		FileFullContextMaxBytes:           65536, // 64KB
+		FileFullContextMaxBytes:           DefaultFileFullContextMaxBytes,
 		FileFullContextMaxTokens:          65536,
 		FileImageMaxBytes:                 0,
 		FileDocMaxBytes:                   0,

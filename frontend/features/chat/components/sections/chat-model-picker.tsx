@@ -9,6 +9,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { InputGroupButton } from "@/components/ui/input-group";
 import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
+import {
+  resolveDesktopMenuListMaxHeight,
+  resolveDesktopModelMenuListMaxHeight,
+} from "./chat-model-picker-layout";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { LobeHubIcon } from "@/shared/components/lobehub-icon";
 import {
@@ -35,8 +39,11 @@ type ChatModelPickerProps = {
 const MODEL_MENU_COLLISION_PADDING = 24;
 const DESKTOP_MODEL_MENU_WIDTH = 224;
 const DESKTOP_MODEL_SUBMENU_GAP = 8;
+const DESKTOP_MODEL_MENU_SIDE_OFFSET = 8;
 const DESKTOP_MODEL_MENU_MIN_SCROLL_HEIGHT = 96;
+/** Vendor panel non-list chrome: p-1.5 × 2 + header h-7. */
 const DESKTOP_VENDOR_MENU_VERTICAL_CHROME = 40;
+/** Model submenu non-list chrome: p-1.5 × 2. */
 const DESKTOP_SUBMENU_VERTICAL_CHROME = 12;
 
 function resolveVendorGroups(modelOptions: ChatModelOption[]) {
@@ -539,7 +546,7 @@ export function ChatModelPicker({
   }, [isMobile, open]);
 
   const updateDesktopSubmenuMetrics = React.useCallback(() => {
-    if (!open || isMobile || !hasDesktopModelSubmenu) {
+    if (!open || isMobile) {
       setDesktopSubmenuSide("right");
       setDesktopSubmenuTop(0);
       setDesktopSubmenuWidth(DESKTOP_MODEL_MENU_WIDTH);
@@ -550,23 +557,24 @@ export function ChatModelPicker({
 
     const menuRoot = desktopMenuRootRef.current;
     const vendorMenu = desktopVendorMenuRef.current;
-    const submenu = desktopSubmenuRef.current;
-    const activeVendorButton = activeDesktopVendorGroup
-      ? desktopVendorItemRefs.current.get(activeDesktopVendorGroup.vendor)
-      : null;
-    if (!menuRoot || !vendorMenu || !activeVendorButton) {
+    if (!menuRoot || !vendorMenu) {
       return;
     }
 
     const menuRootRect = menuRoot.getBoundingClientRect();
     const vendorMenuRect = vendorMenu.getBoundingClientRect();
+    const submenu = desktopSubmenuRef.current;
     const submenuRect = submenu?.getBoundingClientRect();
-    const activeVendorRect = activeVendorButton.getBoundingClientRect();
+    const activeVendorButton = activeDesktopVendorGroup
+      ? desktopVendorItemRefs.current.get(activeDesktopVendorGroup.vendor)
+      : null;
+    const activeVendorRect = activeVendorButton?.getBoundingClientRect();
+    const triggerRect = document.getElementById("chat-model-menu-trigger")?.getBoundingClientRect();
     const viewportLeft = MODEL_MENU_COLLISION_PADDING;
     const viewportRight = window.innerWidth - MODEL_MENU_COLLISION_PADDING;
     const viewportTop = MODEL_MENU_COLLISION_PADDING;
     const viewportBottom = window.innerHeight - MODEL_MENU_COLLISION_PADDING;
-    const viewportHeight = Math.max(DESKTOP_MODEL_MENU_MIN_SCROLL_HEIGHT, viewportBottom - viewportTop);
+    const viewportHeight = Math.max(0, viewportBottom - viewportTop);
     const rightAvailableWidth = Math.max(0, viewportRight - vendorMenuRect.right - DESKTOP_MODEL_SUBMENU_GAP);
     const leftAvailableWidth = Math.max(0, vendorMenuRect.left - viewportLeft - DESKTOP_MODEL_SUBMENU_GAP);
     const nextSubmenuSide =
@@ -580,20 +588,35 @@ export function ChatModelPicker({
         nextSubmenuSide === "right" ? rightAvailableWidth : leftAvailableWidth,
       ),
     );
-    const nextVendorListMaxHeight = Math.max(
-      DESKTOP_MODEL_MENU_MIN_SCROLL_HEIGHT,
-      viewportBottom - Math.max(vendorMenuRect.top, viewportTop) - DESKTOP_VENDOR_MENU_VERTICAL_CHROME,
-    );
-    const submenuHeight = submenuRect?.height ?? 320;
-    const submenuOuterHeight = Math.min(submenuHeight, viewportHeight);
-    const maxViewportTop = Math.max(viewportTop, viewportBottom - submenuOuterHeight);
-    const viewportAlignedTop = Math.min(Math.max(activeVendorRect.top, viewportTop), maxViewportTop);
-    const nextSubmenuTop = Math.max(0, viewportAlignedTop - menuRootRect.top);
-    const actualSubmenuViewportTop = menuRootRect.top + nextSubmenuTop;
-    const nextSubmenuListMaxHeight = Math.max(
-      DESKTOP_MODEL_MENU_MIN_SCROLL_HEIGHT,
-      viewportBottom - actualSubmenuViewportTop - DESKTOP_SUBMENU_VERTICAL_CHROME,
-    );
+    const nextVendorListMaxHeight = resolveDesktopModelMenuListMaxHeight({
+      viewportTop,
+      viewportBottom,
+      triggerTop: triggerRect?.top,
+      triggerBottom: triggerRect?.bottom,
+      sideOffset: DESKTOP_MODEL_MENU_SIDE_OFFSET,
+      verticalChrome: DESKTOP_VENDOR_MENU_VERTICAL_CHROME,
+    });
+
+    let nextSubmenuTop = 0;
+    let nextSubmenuListMaxHeight = nextVendorListMaxHeight;
+    if (hasDesktopModelSubmenu && activeVendorRect) {
+      const submenuHeight = submenuRect?.height ?? nextVendorListMaxHeight + DESKTOP_SUBMENU_VERTICAL_CHROME;
+      const submenuOuterHeight = Math.min(submenuHeight, viewportHeight);
+      const maxViewportTop = Math.max(viewportTop, viewportBottom - submenuOuterHeight);
+      // Anchor in viewport coordinates, then convert to an offset within
+      // menuRoot (which may sit above viewportTop for a frame before re-shift).
+      const preferredSubmenuViewportTop = Math.min(
+        Math.max(activeVendorRect.top, viewportTop),
+        maxViewportTop,
+      );
+      nextSubmenuTop = preferredSubmenuViewportTop - menuRootRect.top;
+      const actualSubmenuViewportTop = menuRootRect.top + nextSubmenuTop;
+      nextSubmenuListMaxHeight = resolveDesktopMenuListMaxHeight(
+        Math.min(viewportHeight, viewportBottom - actualSubmenuViewportTop),
+        DESKTOP_SUBMENU_VERTICAL_CHROME,
+      );
+    }
+
     setDesktopSubmenuSide(nextSubmenuSide);
     setDesktopSubmenuTop(nextSubmenuTop);
     setDesktopSubmenuWidth(nextSubmenuWidth);
@@ -604,7 +627,7 @@ export function ChatModelPicker({
   React.useLayoutEffect(() => {
     updateDesktopSubmenuMetrics();
 
-    if (!open || isMobile || !hasDesktopModelSubmenu) {
+    if (!open || isMobile) {
       return;
     }
 
@@ -697,7 +720,7 @@ export function ChatModelPicker({
           <PopoverContent
             align="end"
             side="bottom"
-            sideOffset={8}
+            sideOffset={DESKTOP_MODEL_MENU_SIDE_OFFSET}
             collisionPadding={24}
             onOpenAutoFocus={(event) => {
               if (!isMobile && selectedModelButtonRef.current) {
@@ -795,7 +818,7 @@ export function ChatModelPicker({
                       width: desktopSubmenuWidth,
                     } as React.CSSProperties}
                     className={cn(
-                      "absolute rounded-xl border-[0.5px] border-border bg-popover p-1.5 shadow-xs",
+                      "absolute flex max-h-[calc(100dvh-3rem)] flex-col overflow-hidden rounded-xl border-[0.5px] border-border bg-popover p-1.5 shadow-xs",
                       desktopSubmenuSide === "right" ? "left-[calc(100%+0.5rem)]" : "right-[calc(100%+0.5rem)]",
                     )}
                   >
@@ -822,8 +845,11 @@ export function ChatModelPicker({
                   </div>
                 ) : null}
 
-                <div ref={desktopVendorMenuRef} className="min-w-0 rounded-xl border-[0.5px] border-border bg-popover p-1.5 shadow-xs">
-                  <div className="flex h-7 items-center justify-between gap-3 px-2">
+                <div
+                  ref={desktopVendorMenuRef}
+                  className="flex min-w-0 max-h-[calc(100dvh-3rem)] flex-col overflow-hidden rounded-xl border-[0.5px] border-border bg-popover p-1.5 shadow-xs"
+                >
+                  <div className="flex h-7 shrink-0 items-center justify-between gap-3 px-2">
                     <span className="text-[11px] font-medium text-foreground">{t("vendor")}</span>
                     <span className="truncate text-[10px] font-medium text-muted-foreground">
                       {selectedVendorLabel}
@@ -834,43 +860,45 @@ export function ChatModelPicker({
                       {t("empty")}
                     </div>
                   ) : (
-                    <ModelMenuScrollContainer maxHeight={desktopVendorListMaxHeight} onScroll={updateDesktopSubmenuMetrics}>
-                      <div className="flex flex-col gap-0.5">
-                        {vendorGroups.map((group) => {
-                          const selectedVendor = group.vendor === selectedVendorKey;
-                          const activeVendor = group.vendor === activeDesktopVendorGroup?.vendor;
-                          const vendorIconURL = resolveLobeHubIconURL(group.icon);
-                          return (
-                            <button
-                              type="button"
-                              key={group.vendor}
-                              ref={(node) => {
-                                if (node) {
-                                  desktopVendorItemRefs.current.set(group.vendor, node);
-                                  return;
-                                }
-                                desktopVendorItemRefs.current.delete(group.vendor);
-                              }}
-                              className={cn(
-                                "flex h-7 w-full items-center gap-2 rounded-md px-2 py-0 text-left text-[11px] font-medium outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground",
-                                activeVendor ? "bg-accent text-accent-foreground" : "text-muted-foreground",
-                                selectedVendor && !activeVendor ? "text-foreground" : null,
-                              )}
-                              onMouseEnter={() => selectDesktopVendor(group.vendor)}
-                              onFocus={() => selectDesktopVendor(group.vendor)}
-                              onClick={() => selectDesktopVendor(group.vendor)}
-                            >
-                              <LobeHubIcon iconUrl={vendorIconURL} label={group.label} />
-                              <span className="min-w-0 flex-1 truncate font-medium">{group.label}</span>
-                              <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/80">
-                                {group.items.length}
-                              </span>
-                              <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/65" strokeWidth={1.8} />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </ModelMenuScrollContainer>
+                    <div className="min-h-0 min-w-0">
+                      <ModelMenuScrollContainer maxHeight={desktopVendorListMaxHeight} onScroll={updateDesktopSubmenuMetrics}>
+                        <div className="flex flex-col gap-0.5">
+                          {vendorGroups.map((group) => {
+                            const selectedVendor = group.vendor === selectedVendorKey;
+                            const activeVendor = group.vendor === activeDesktopVendorGroup?.vendor;
+                            const vendorIconURL = resolveLobeHubIconURL(group.icon);
+                            return (
+                              <button
+                                type="button"
+                                key={group.vendor}
+                                ref={(node) => {
+                                  if (node) {
+                                    desktopVendorItemRefs.current.set(group.vendor, node);
+                                    return;
+                                  }
+                                  desktopVendorItemRefs.current.delete(group.vendor);
+                                }}
+                                className={cn(
+                                  "flex h-7 w-full items-center gap-2 rounded-md px-2 py-0 text-left text-[11px] font-medium outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground",
+                                  activeVendor ? "bg-accent text-accent-foreground" : "text-muted-foreground",
+                                  selectedVendor && !activeVendor ? "text-foreground" : null,
+                                )}
+                                onMouseEnter={() => selectDesktopVendor(group.vendor)}
+                                onFocus={() => selectDesktopVendor(group.vendor)}
+                                onClick={() => selectDesktopVendor(group.vendor)}
+                              >
+                                <LobeHubIcon iconUrl={vendorIconURL} label={group.label} />
+                                <span className="min-w-0 flex-1 truncate font-medium">{group.label}</span>
+                                <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/80">
+                                  {group.items.length}
+                                </span>
+                                <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/65" strokeWidth={1.8} />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </ModelMenuScrollContainer>
+                    </div>
                   )}
                 </div>
               </div>

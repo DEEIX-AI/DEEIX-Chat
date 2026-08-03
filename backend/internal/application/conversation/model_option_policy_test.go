@@ -3,6 +3,7 @@ package conversation
 import (
 	"testing"
 
+	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 )
@@ -234,6 +235,29 @@ func TestFilterModelOptionsRejectsUnsupportedOpenAIServiceTier(t *testing.T) {
 				t.Fatalf("expected other allowed options to remain, got %#v", filtered)
 			}
 		})
+	}
+}
+
+func TestFilterModelOptionsRejectsUserOpenAIPromptCacheFields(t *testing.T) {
+	for _, mode := range []string{modelOptionPolicyAllowlist, modelOptionPolicyDenylist} {
+		filtered := filterModelOptions(map[string]interface{}{
+			"temperature":             0.2,
+			"prompt_cache_key":        "user-controlled-key",
+			"prompt_cache_options":    map[string]interface{}{"mode": "explicit", "ttl": "30m"},
+			"prompt_cache_breakpoint": map[string]interface{}{"mode": "explicit"},
+			"prompt_cache_retention":  "24h",
+		}, llm.AdapterOpenAIResponses, modelOptionPolicyConfig{
+			Mode:             mode,
+			AllowedPathsJSON: `{"default":["temperature","prompt_cache_key","prompt_cache_options.mode","prompt_cache_options.ttl","prompt_cache_breakpoint","prompt_cache_retention"]}`,
+		})
+		for _, key := range []string{"prompt_cache_key", "prompt_cache_options", "prompt_cache_breakpoint", "prompt_cache_retention"} {
+			if _, ok := filtered[key]; ok {
+				t.Fatalf("expected %s to remain server-controlled in %s mode, got %#v", key, mode, filtered)
+			}
+		}
+		if filtered["temperature"] != 0.2 {
+			t.Fatalf("expected unrelated options to remain in %s mode, got %#v", mode, filtered)
+		}
 	}
 }
 
@@ -1035,5 +1059,141 @@ func TestFilterModelOptionsXAIImageAllowsImageParams(t *testing.T) {
 		if _, ok := filtered[key]; ok {
 			t.Fatalf("expected %s to be removed, got %#v", key, filtered)
 		}
+	}
+}
+
+func TestPromptCarriesAssistantReasoning(t *testing.T) {
+	cases := map[string]struct {
+		messages []llm.Message
+		want     bool
+	}{
+		"assistant with reasoning": {
+			messages: []llm.Message{
+				{Role: "user", Content: "q"},
+				{Role: "assistant", Content: "a", ReasoningContent: "thinking"},
+			},
+			want: true,
+		},
+		"assistant reasoning is whitespace": {
+			messages: []llm.Message{{Role: "assistant", Content: "a", ReasoningContent: "  \n "}},
+			want:     false,
+		},
+		"reasoning on user role is ignored": {
+			messages: []llm.Message{{Role: "user", Content: "q", ReasoningContent: "leaked"}},
+			want:     false,
+		},
+		"no history": {messages: nil, want: false},
+	}
+	for name, item := range cases {
+		if got := promptCarriesAssistantReasoning(item.messages); got != item.want {
+			t.Fatalf("%s: promptCarriesAssistantReasoning() = %v, want %v", name, got, item.want)
+		}
+	}
+}
+
+// 首轮没有历史推理、或用户关掉回传时都不应下发厂商私有入参，否则等于白付推理 token，
+// 还可能让把未知顶层字段判为非法入参的自建后端直接报错。
+func TestShouldApplyReasoningPassbackRequestOptions(t *testing.T) {
+	required := map[string]interface{}{"preserve_thinking": true}
+	withReasoning := []llm.Message{{Role: "assistant", Content: "a", ReasoningContent: "thinking"}}
+	withoutReasoning := []llm.Message{{Role: "user", Content: "q"}}
+
+	if !shouldApplyReasoningPassbackRequestOptions(true, required, withReasoning) {
+		t.Fatal("expected injection when passback is on and history carries reasoning")
+	}
+	if shouldApplyReasoningPassbackRequestOptions(false, required, withReasoning) {
+		t.Fatal("expected no injection when passback is disabled")
+	}
+	if shouldApplyReasoningPassbackRequestOptions(true, nil, withReasoning) {
+		t.Fatal("expected no injection when the route requires no vendor options")
+	}
+	if shouldApplyReasoningPassbackRequestOptions(true, required, withoutReasoning) {
+		t.Fatal("expected no injection on a first turn without historical reasoning")
+	}
+
+	// 厂商判定是按 vendor 而非按模型的：detectModelVendor 会把 wanx / qwen-vl / qwen2.5
+	// 等非思考模型一并归到 alibaba，路由层因此也标记它们「需要 preserve_thinking」。
+	// 这些模型不产 reasoning_content，历史推理守卫是唯一防线——它必须挡住，
+	// 否则会向不认识该入参的自建后端（vLLM/Ollama 等）发送未知顶层字段。
+	nonThinkingHistory := []llm.Message{
+		{Role: "user", Content: "q1"},
+		{Role: "assistant", Content: "a1"},
+		{Role: "user", Content: "q2"},
+	}
+	if shouldApplyReasoningPassbackRequestOptions(true, required, nonThinkingHistory) {
+		t.Fatal("expected no injection for a non-thinking model that never emits reasoning")
+	}
+}
+
+func TestWithReasoningPassbackRequestOptions(t *testing.T) {
+	required := map[string]interface{}{"preserve_thinking": true}
+
+	got := withReasoningPassbackRequestOptions(
+		map[string]interface{}{"temperature": 0.7}, required, nil, "")
+	if got["preserve_thinking"] != true || got["temperature"] != 0.7 {
+		t.Fatalf("expected injection alongside existing options, got %#v", got)
+	}
+
+	// 策略模式 disabled 时过滤结果为 nil，需要新建 map 而不是 panic。
+	if fromNil := withReasoningPassbackRequestOptions(nil, required, nil, ""); fromNil["preserve_thinking"] != true {
+		t.Fatalf("expected a new map to be allocated, got %#v", fromNil)
+	}
+
+	if noop := withReasoningPassbackRequestOptions(nil, nil, nil, ""); noop != nil {
+		t.Fatalf("expected untouched nil when nothing is required, got %#v", noop)
+	}
+
+	// 用户显式设的值不被覆盖——包括已被白名单丢掉、只存在于原始入参里的那种。
+	kept := withReasoningPassbackRequestOptions(
+		map[string]interface{}{"preserve_thinking": false}, required, nil, "")
+	if kept["preserve_thinking"] != false {
+		t.Fatalf("expected explicit user value to survive, got %#v", kept)
+	}
+	rawOptions := map[string]interface{}{"preserve_thinking": false}
+	dropped := withReasoningPassbackRequestOptions(
+		map[string]interface{}{}, required, rawOptions, "")
+	if _, exists := dropped["preserve_thinking"]; exists {
+		t.Fatalf("expected allowlist-dropped user value to block injection, got %#v", dropped)
+	}
+
+	// 管理员在模型能力里设的默认值同样是显式意图。
+	capabilities := `{"defaultOptions":{"preserve_thinking":false}}`
+	fromCapabilities := withReasoningPassbackRequestOptions(
+		map[string]interface{}{}, required, nil, capabilities)
+	if _, exists := fromCapabilities["preserve_thinking"]; exists {
+		t.Fatalf("expected capability default to block injection, got %#v", fromCapabilities)
+	}
+
+	// 入参不得被就地修改。
+	if len(required) != 1 || required["preserve_thinking"] != true {
+		t.Fatalf("required map was mutated: %#v", required)
+	}
+	if len(rawOptions) != 1 || rawOptions["preserve_thinking"] != false {
+		t.Fatalf("raw options were mutated: %#v", rawOptions)
+	}
+}
+
+// 守卫扫描的是真实发往上游的 llmMessages。若历史推理在 historyMessagesFromDomain →
+// cloneLLMMessages 这段链路上被丢掉，守卫会恒为 false，功能静默失效且无任何报错——
+// 正是 #529 的失效形态。这里锁死该链路。
+func TestReasoningPassbackGuardSeesHistoryFromDomain(t *testing.T) {
+	domainMessages := []domainconversation.Message{
+		{Role: "user", Content: "q1"},
+		{Role: "assistant", Content: "a1", ReasoningContent: "historical thinking"},
+		{Role: "user", Content: "q2"},
+	}
+
+	history := historyMessagesFromDomain(domainMessages, historyMessageOptions{ReasoningContentPassback: true})
+	if !promptCarriesAssistantReasoning(history) {
+		t.Fatal("guard cannot see reasoning right after historyMessagesFromDomain")
+	}
+	if !promptCarriesAssistantReasoning(cloneLLMMessages(history)) {
+		t.Fatal("cloneLLMMessages dropped reasoning before the guard runs")
+	}
+
+	// 回传关闭时历史不带推理，守卫必须为 false，避免下发无用入参。
+	disabled := historyMessagesFromDomain(domainMessages, historyMessageOptions{ReasoningContentPassback: false})
+	if promptCarriesAssistantReasoning(disabled) {
+		t.Fatal("guard should stay false when passback is disabled")
 	}
 }

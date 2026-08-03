@@ -13,6 +13,7 @@ import type { BillingUsageLedgerDTO } from "@/shared/api/billing.types";
 import { billingRateMultiplierNote, cacheWriteBillingLabel, cacheWriteBillingNote } from "@/shared/lib/billing-display";
 import type { BillingDisplayLabels, BillingDisplayOptions } from "@/shared/lib/billing-display";
 import {
+  formatAccountBalance,
   formatFormulaTokenCount,
   formatLatency,
   formatTooltipUnitPrice,
@@ -40,6 +41,10 @@ type BillingTooltipLabels = {
   secondUnit: string;
   tieredRange: (from: string, upTo: string | null) => string;
 };
+
+function formatBalanceAfter(value: number | null | undefined, billingDisplay: BillingDisplayOptions): string {
+  return value === null || value === undefined ? "-" : formatAccountBalance(value, billingDisplay);
+}
 
 function useBillingTooltipLabels(): BillingTooltipLabels {
   const t = useTranslations("settings.subscriptionPage.billingTooltip");
@@ -613,13 +618,14 @@ export function SubscriptionUsageLog({
             <TableHead className="w-[10rem]">{t("columns.model")}</TableHead>
             <TableHead className="w-[7rem]">{t("columns.baseBilling")}</TableHead>
             <TableHead className="w-[7rem]">{t("columns.serviceBilling")}</TableHead>
+            <TableHead className="w-[8rem]">{t("columns.balanceAfter")}</TableHead>
             <TableHead className="w-[5rem] text-right">{t("columns.latency")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {initialLoading ? <TableLoadingRow colSpan={5} /> : null}
-          {!loading && rows.length === 0 ? <TableEmptyRow colSpan={5}>{t("empty")}</TableEmptyRow> : null}
-          {showRows ? <VirtualTablePaddingRow colSpan={5} height={virtualRows.paddingTop} /> : null}
+          {initialLoading ? <TableLoadingRow colSpan={6} /> : null}
+          {!loading && rows.length === 0 ? <TableEmptyRow colSpan={6}>{t("empty")}</TableEmptyRow> : null}
+          {showRows ? <VirtualTablePaddingRow colSpan={6} height={virtualRows.paddingTop} /> : null}
           {showRows
             ? virtualRows.rows.map(({ item: row }) => (
                 <TableRow key={row.item.id}>
@@ -635,11 +641,14 @@ export function SubscriptionUsageLog({
                   <TableCell className="text-xs">
                     <ServiceBillingSummary item={row.item} billingDisplay={billingDisplay} />
                   </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs font-medium tabular-nums text-foreground">
+                    {formatBalanceAfter(row.item.balanceAfterUSD, billingDisplay)}
+                  </TableCell>
                   <TableCell className="text-right text-xs text-muted-foreground">{formatLatency(row.item.latencyMS)}</TableCell>
                 </TableRow>
               ))
             : null}
-          {showRows ? <VirtualTablePaddingRow colSpan={5} height={virtualRows.paddingBottom} /> : null}
+          {showRows ? <VirtualTablePaddingRow colSpan={6} height={virtualRows.paddingBottom} /> : null}
         </TableBody>
       </Table>
 

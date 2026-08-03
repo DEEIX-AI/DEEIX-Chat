@@ -39,6 +39,8 @@ type ExternalLinkSafetyDialogProps = {
 
 type CollapsiblePreProps = React.HTMLAttributes<HTMLPreElement> & {
   children?: React.ReactNode;
+  node?: unknown;
+  "data-markdown-source-line"?: string | number;
 };
 
 type StreamdownCodeChildProps = {
@@ -305,6 +307,7 @@ function CodeBlockActions({
   const artifactCopy = useTranslations("chat.markdown.artifact");
   const artifactActions = React.useContext(MarkdownArtifactActionsContext);
   const artifactKind = React.useMemo(() => resolveArtifactPreviewKind(language, code), [code, language]);
+  const copyCode = code.replace(/\n$/, "");
 
   const handleOpenArtifact = React.useCallback(() => {
     if (!artifactActions || !artifactKind) {
@@ -317,7 +320,7 @@ function CodeBlockActions({
 
   return (
     <div className="pointer-events-none absolute right-0 top-0 z-20 flex h-8 items-center justify-end">
-      <div className="pointer-events-auto flex shrink-0 items-center gap-2 rounded-md bg-background/80 px-1.5 py-1 backdrop-blur">
+      <div className="pointer-events-auto flex shrink-0 items-center gap-2">
         {canOpenArtifact ? (
           <CodeBlockActionButton label={artifactCopy("openPreview")} onClick={handleOpenArtifact}>
             <Eye className="size-4" strokeWidth={1.8} />
@@ -331,7 +334,7 @@ function CodeBlockActions({
               variant="ghost"
               size="icon-xs"
               className="inline-flex size-6 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-foreground/[0.04] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
-              value={code}
+              value={copyCode}
               messages={{ copied: commonActions("copied"), failed: commonErrors("copyFailed") }}
               iconClassName="size-3.5"
               aria-label={commonActions("copy")}
@@ -417,7 +420,7 @@ function isFootnoteBackrefElement(node: React.ReactNode): boolean {
   return React.isValidElement<React.AnchorHTMLAttributes<HTMLAnchorElement>>(node) && isFootnoteBackref(node.props);
 }
 
-export function CollapsibleCodePre({ children }: CollapsiblePreProps) {
+export function CollapsibleCodePre({ children, node: _node, "data-markdown-source-line": sourceLine }: CollapsiblePreProps) {
   const t = useTranslations("chat.markdown.codeBlock");
   const childElement = React.isValidElement<StreamdownCodeChildProps>(children) ? ensureCodeBlockLanguage(children) : null;
   const codeContent = childElement ? getCodeTextFromChild(childElement) : "";
@@ -438,7 +441,7 @@ export function CollapsibleCodePre({ children }: CollapsiblePreProps) {
 
   if (!isCollapsible) {
     return (
-      <div className="relative w-full">
+      <div className="relative w-full" data-markdown-source-line={sourceLine}>
         {!mermaid ? <CodeBlockActions code={codeContent} language={language} previewable={artifactPreviewable} /> : null}
         {codeBlock}
       </div>
@@ -446,20 +449,18 @@ export function CollapsibleCodePre({ children }: CollapsiblePreProps) {
   }
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full" data-markdown-source-line={sourceLine}>
       <CodeBlockActions code={codeContent} language={language} previewable={artifactPreviewable} />
       <div
         className={cn(
           "w-full",
           "[&_[data-streamdown='code-block-body']]:transition-[max-height] [&_[data-streamdown='code-block-body']]:duration-300 [&_[data-streamdown='code-block-body']]:ease-out",
-          !expanded && "[&_[data-streamdown='code-block-body']]:max-h-[22rem] [&_[data-streamdown='code-block-body']]:overflow-hidden",
+          !expanded &&
+            "[mask-image:linear-gradient(to_bottom,#000_calc(100%_-_3rem),transparent)] [-webkit-mask-image:linear-gradient(to_bottom,#000_calc(100%_-_3rem),transparent)] [&_[data-streamdown='code-block-body']]:max-h-[22rem] [&_[data-streamdown='code-block-body']]:overflow-hidden",
         )}
       >
         {codeBlock}
       </div>
-      {!expanded ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-9 h-20 bg-gradient-to-b from-transparent via-background/70 to-background" />
-      ) : null}
       <div className="flex justify-center">
         <button
           type="button"

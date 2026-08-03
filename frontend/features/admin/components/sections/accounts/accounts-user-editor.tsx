@@ -59,6 +59,7 @@ import {
   type UserTier,
 } from "@/features/admin/types/accounts";
 import type { AdminBillingMode, AdminBillingPlanDTO } from "@/features/admin/api/billing.types";
+import type { BillingDisplayOptions } from "@/shared/lib/billing-display";
 import { formatBillingBalance, resolveDetailValue } from "@/features/admin/utils/account-display";
 
 const DIALOG_LAYOUT_TRANSITION = {
@@ -287,6 +288,7 @@ type EditUserSheetProps = {
   editPayload: EditUserPayload;
   setEditPayload: React.Dispatch<React.SetStateAction<EditUserPayload>>;
   billingMode: AdminBillingMode;
+  billingDisplay: BillingDisplayOptions;
   billingPlans: AdminBillingPlanDTO[];
   statusChanged: boolean;
   timeZoneOptions: string[];
@@ -353,6 +355,7 @@ export function EditUserSheet({
   editPayload,
   setEditPayload,
   billingMode,
+  billingDisplay,
   billingPlans,
   statusChanged,
   timeZoneOptions,
@@ -447,7 +450,7 @@ export function EditUserSheet({
                 ) : null}
                 {billingMode !== "self" ? (
                   <Badge variant="outline" className="text-muted-foreground">
-                    {formatBillingBalance(editDialogTarget?.billingBalanceUSD)}
+                    {formatBillingBalance(editDialogTarget?.billingBalanceUSD, billingDisplay)}
                   </Badge>
                 ) : null}
               </div>
@@ -633,7 +636,6 @@ export function EditUserSheet({
                   <Label className="text-xs font-normal text-muted-foreground">{t("editor.accountBalance")}</Label>
                   <Input
                     type="number"
-                    min="0"
                     step="0.000001"
                     value={editPayload.billingBalanceUSD}
                     onChange={(event) => setEditPayload((current) => ({ ...current, billingBalanceUSD: event.target.value }))}

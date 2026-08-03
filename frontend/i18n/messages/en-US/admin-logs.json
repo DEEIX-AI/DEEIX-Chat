@@ -56,6 +56,7 @@
     "usageLoadFailed": "Failed to load usage logs",
     "ordersLoadFailed": "Failed to load order records",
     "conversationEventsLoadFailed": "Failed to load conversation events",
+    "conversationEventDetailLoadFailed": "Failed to load conversation event details",
     "modelFilterLoadFailed": "Failed to load model filters"
   },
   "sort": {
@@ -104,6 +105,7 @@
     "caller": "Caller",
     "model": "Model",
     "billing": "Billing",
+    "balanceAfter": "Balance after settlement",
     "latency": "Latency",
     "orderNo": "Order no.",
     "type": "Type",
@@ -133,6 +135,7 @@
       "stream_message": "Send message",
       "create_conversation": "Create conversation",
       "rename_conversation": "Rename conversation",
+      "update_conversation_labels": "Update conversation labels",
       "export_conversation": "Export conversation",
       "delete_conversation": "Delete conversation",
       "set_conversation_star": "Star conversation",
@@ -163,7 +166,8 @@
       "admin_reset_user_password": "Admin reset password",
       "admin_reset_user_2fa": "Admin reset two-factor auth",
       "admin_delete_user": "Admin delete user",
-      "admin_cleanup_logs": "Admin clean up logs"
+      "admin_cleanup_logs": "Admin clean up logs",
+      "admin_cleanup_conversation_runs": "Admin delete conversation run traces"
     }
   },
   "auth": {
@@ -271,6 +275,18 @@
       "streaming": "Streaming",
       "completed": "Completed",
       "error": "Error"
+    },
+    "cleanup": {
+      "action": "Delete run traces",
+      "title": "Delete run traces",
+      "description": "Permanently deletes all trace events for the selected {count} runs. Conversations, messages, attachments, calls, and billing records are preserved.",
+      "confirm": "Delete",
+      "deleting": "Deleting",
+      "success": "Deleted {events} trace events from {runs} runs",
+      "failed": "Failed to delete run traces",
+      "maxSelection": "You can select up to 100 runs at a time",
+      "selectAll": "Select runs on this page",
+      "selectRun": "Select run {runID}"
     }
   },
   "detail": {
@@ -328,6 +344,7 @@
       "bindingCode": "Binding code",
       "protocol": "Protocol",
       "billing": "Billing",
+      "balanceAfter": "Balance after settlement",
       "totalTokens": "Total tokens",
       "reasoning": "Reasoning",
       "callCount": "Call count",
@@ -350,7 +367,8 @@
       "toolName": "Tool name",
       "toolCallID": "Tool call ID",
       "title": "Title",
-      "summary": "Summary"
+      "summary": "Summary",
+      "payloadSize": "Payload size"
     },
     "result": {
       "success": "Success",
@@ -359,6 +377,8 @@
     },
     "rawUsageJsonTitle": "Raw Usage JSON",
     "jsonTitle": "Detail JSON",
+    "loading": "Loading details",
+    "payloadOmitted": "This historical payload is {size}, above the safe viewing limit, so its content was omitted. Delete the associated run traces to remove this abnormal historical data.",
     "copied": "{label} copied",
     "copyFailed": "Copy failed"
   }

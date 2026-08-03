@@ -70,6 +70,11 @@ type CleanupLogsRequest struct {
 	Before string `json:"before" binding:"required"`
 }
 
+// CleanupConversationRunsRequest 管理员按运行清理对话事件请求。
+type CleanupConversationRunsRequest struct {
+	RunIDs []string `json:"runIDs" binding:"required,min=1,max=100,dive,required,max=64"`
+}
+
 // CreatePermissionGroupRequest 创建权限组请求。
 type CreatePermissionGroupRequest struct {
 	Name                  string `json:"name" binding:"required,max=128"`
@@ -185,6 +190,12 @@ type CleanupLogsResponse struct {
 	DeletedCount int64     `json:"deletedCount"`
 }
 
+// CleanupConversationRunsResponse 管理员按运行清理对话事件响应。
+type CleanupConversationRunsResponse struct {
+	RunCount     int   `json:"runCount"`
+	DeletedCount int64 `json:"deletedCount"`
+}
+
 // ImportOpenWebUIUsersResponse 从 OpenWebUI 导入用户响应。
 type ImportOpenWebUIUsersResponse struct {
 	Source                      string `json:"source"`
@@ -282,6 +293,8 @@ type UsageLogResponse struct {
 	BilledCurrency      string    `json:"billedCurrency"`
 	BilledNanousd       int64     `json:"billedNanousd"`
 	BilledUSD           float64   `json:"billedUSD"`
+	BalanceAfterNanousd *int64    `json:"balanceAfterNanousd" extensions:"x-nullable,!x-omitempty"`
+	BalanceAfterUSD     *float64  `json:"balanceAfterUSD" extensions:"x-nullable,!x-omitempty"`
 	PricingSnapshotJSON string    `json:"pricingSnapshotJSON"`
 	CreatedAt           time.Time `json:"createdAt"`
 	UpdatedAt           time.Time `json:"updatedAt"`
@@ -397,6 +410,8 @@ type ConversationEventResponse struct {
 	Summary           string     `json:"summary"`
 	ContentMarkdown   string     `json:"contentMarkdown"`
 	PayloadJSON       string     `json:"payloadJSON"`
+	PayloadSizeBytes  int64      `json:"payloadSizeBytes"`
+	PayloadOmitted    bool       `json:"payloadOmitted"`
 	Seq               int        `json:"seq"`
 	ToolCallID        string     `json:"toolCallID"`
 	ToolName          string     `json:"toolName"`
@@ -559,6 +574,12 @@ type CleanupLogsResponseDoc struct {
 	Data     CleanupLogsResponse `json:"data"`
 }
 
+// CleanupConversationRunsResponseDoc 管理员按运行清理对话事件响应。
+type CleanupConversationRunsResponseDoc struct {
+	ErrorMsg string                          `json:"errorMsg"`
+	Data     CleanupConversationRunsResponse `json:"data"`
+}
+
 // ImportOpenWebUIUsersResponseDoc 从 OpenWebUI 导入用户响应。
 type ImportOpenWebUIUsersResponseDoc struct {
 	ErrorMsg string                       `json:"errorMsg"`
@@ -623,6 +644,12 @@ type ConversationEventListResponseDoc struct {
 		Total   int64                       `json:"total"`
 		Results []ConversationEventResponse `json:"results"`
 	} `json:"data"`
+}
+
+// ConversationEventDetailResponseDoc 对话事件详情响应。
+type ConversationEventDetailResponseDoc struct {
+	ErrorMsg string                    `json:"errorMsg"`
+	Data     ConversationEventResponse `json:"data"`
 }
 
 // ErrorDoc 错误响应。
@@ -792,10 +819,20 @@ func toUsageLogResponse(item domainbilling.UsageLedger, label appadmin.UserLabel
 		BilledCurrency:      item.BilledCurrency,
 		BilledNanousd:       item.BilledNanousd,
 		BilledUSD:           float64(item.BilledNanousd) / 1_000_000_000,
+		BalanceAfterNanousd: item.BalanceAfterNanousd,
+		BalanceAfterUSD:     nullableBalanceNanousdToUSD(item.BalanceAfterNanousd),
 		PricingSnapshotJSON: item.PricingSnapshotJSON,
 		CreatedAt:           item.CreatedAt,
 		UpdatedAt:           item.UpdatedAt,
 	}
+}
+
+func nullableBalanceNanousdToUSD(value *int64) *float64 {
+	if value == nil {
+		return nil
+	}
+	converted := float64(*value) / 1_000_000_000
+	return &converted
 }
 
 func toUsageStatisticsMetricsResponse(item domainbilling.UsageStatisticsMetrics) UsageStatisticsMetricsResponse {
@@ -924,6 +961,8 @@ func toConversationEventResponse(item domainconversation.EventLog, label appadmi
 		Summary:           item.Summary,
 		ContentMarkdown:   item.ContentMarkdown,
 		PayloadJSON:       item.PayloadJSON,
+		PayloadSizeBytes:  item.PayloadSizeBytes,
+		PayloadOmitted:    item.PayloadOmitted,
 		Seq:               item.Seq,
 		ToolCallID:        item.ToolCallID,
 		ToolName:          item.ToolName,

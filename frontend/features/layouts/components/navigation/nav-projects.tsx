@@ -63,8 +63,10 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
+  ConversationLabelsManagerDialog,
   ConversationShareDialog,
   sharePatchFromDTO,
+  type ConversationLabelsTarget,
   useConversationExport,
   useSidebarConversations,
 } from "@/entities/conversation";
@@ -402,6 +404,7 @@ export function NavProjects() {
     reorderProjects,
     renameByPublicID,
     regenerateTitleByPublicID,
+    updateLabelsByPublicID,
     setStarByPublicID,
     setProjectByPublicID,
     archiveByPublicID,
@@ -413,6 +416,7 @@ export function NavProjects() {
   const [deleteProjectConversations, setDeleteProjectConversations] = React.useState(false);
   const [deleteProjectFiles, setDeleteProjectFiles] = React.useState(false);
   const [conversationRenameTarget, setConversationRenameTarget] = React.useState<SidebarConversationRenameTarget>(null);
+  const [labelsTarget, setLabelsTarget] = React.useState<ConversationLabelsTarget | null>(null);
   const [conversationDeleteTarget, setConversationDeleteTarget] = React.useState<SidebarConversationDeleteTarget>(null);
   const [deleteConversationFiles, setDeleteConversationFiles] = React.useState(false);
   const [shareTarget, setShareTarget] = React.useState<{
@@ -913,6 +917,7 @@ export function NavProjects() {
                                               url: `/chat?conversation_id=${conversation.publicID}`,
                                               shareActive:
                                                 conversation.shareStatus === "active" && Boolean(conversation.shareID?.trim()),
+                                              labelsJSON: conversation.labelsJSON,
                                             }}
                                             starAction={{
                                               label: conversation.isStarred ? tRecent("row.unstar") : tRecent("row.star"),
@@ -942,6 +947,7 @@ export function NavProjects() {
                                             onRenameCancel={onRenameConversationCancel}
                                             onAutoRename={onAutoRenameConversation}
                                             isAutoRenaming={autoRenamingConversationID === conversation.publicID}
+                                            onManageLabels={() => setLabelsTarget(conversation)}
                                             onRename={onRenameConversation}
                                             onArchive={onArchiveConversation}
                                             onShare={(publicID, shareTitle) => setShareTarget({ publicID, title: shareTitle })}
@@ -1047,6 +1053,12 @@ export function NavProjects() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ConversationLabelsManagerDialog
+        target={labelsTarget}
+        onTargetChange={setLabelsTarget}
+        onUpdateLabels={updateLabelsByPublicID}
+      />
 
       {stableShareTarget ? (
         <ConversationShareDialog

@@ -11,6 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const estimatedConversationImageTokens int64 = 1024
+
 type messageBranchState struct {
 	ExistingMessages []model.Message
 	ParentMessageID  *uint
@@ -311,8 +313,9 @@ func truncateContextByTokenBudget(messages []model.Message, budgetTokens int, in
 	}
 	total := 0
 	cutFrom := len(messages)
+	imageTokenReserve := conversationImageTokenReserveByMessage(messages)
 	for i := len(messages) - 1; i >= 0; i-- {
-		msgTokens := int(estimateDomainMessageTokens(messages[i], includeReasoningContent))
+		msgTokens := int(estimateDomainMessageTokens(messages[i], includeReasoningContent) + imageTokenReserve[i])
 		if total+msgTokens > budgetTokens && cutFrom < len(messages) {
 			break
 		}
@@ -320,6 +323,28 @@ func truncateContextByTokenBudget(messages []model.Message, budgetTokens int, in
 		cutFrom = i
 	}
 	return messages[cutFrom:]
+}
+
+func conversationImageTokenReserveByMessage(messages []model.Message) map[int]int64 {
+	reserve := make(map[int]int64)
+	remaining := maxConversationImageContextCount
+	for messageIndex := len(messages) - 1; messageIndex >= 0 && remaining > 0; messageIndex-- {
+		message := messages[messageIndex]
+		if !strings.EqualFold(strings.TrimSpace(message.Role), "user") {
+			continue
+		}
+		refs := parseAttachmentSnapshotRefs(message.Attachments)
+		for attachmentIndex := len(refs) - 1; attachmentIndex >= 0 && remaining > 0; attachmentIndex-- {
+			ref := refs[attachmentIndex]
+			mimeType := firstNonEmptyString(ref.DetectedMIME, ref.MimeType)
+			if normalizeAttachmentKind(ref.Kind, mimeType) != "image" {
+				continue
+			}
+			reserve[messageIndex] += estimatedConversationImageTokens
+			remaining--
+		}
+	}
+	return reserve
 }
 
 func estimateDomainMessageTokens(message model.Message, includeReasoningContent bool) int64 {

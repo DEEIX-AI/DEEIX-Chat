@@ -21,7 +21,11 @@ func resolveStatefulPreviousResponseID(
 	lastResponseID string,
 	lastPromptFingerprint string,
 	currentPrefixFingerprint string,
+	options map[string]interface{},
 ) statefulResponseDecision {
+	if usesExplicitOpenAIPromptCacheMessageBreakpoints(route, options) {
+		return statefulResponseDecision{DisabledReason: "explicit_prompt_cache"}
+	}
 	responseID := resolvePreviousResponseID(route, branchReason, lastResponseID)
 	if responseID == "" {
 		return statefulResponseDecision{DisabledReason: "route_or_branch_not_eligible"}
@@ -119,8 +123,26 @@ func buildStatefulResponseMessages(messages []llm.Message) []llm.Message {
 	return nil
 }
 
+func applyStatefulResponseContinuation(endpoint string, decision statefulResponseDecision, input *llm.GenerateInput) bool {
+	if input == nil || endpoint != llm.EndpointResponses || decision.PreviousResponseID == "" {
+		return false
+	}
+	statefulMessages := buildStatefulResponseMessages(input.Messages)
+	if len(statefulMessages) == 0 || len(statefulMessages) >= len(input.Messages) {
+		return false
+	}
+	input.Messages = statefulMessages
+	input.PreviousResponseID = decision.PreviousResponseID
+	return true
+}
+
 func applyOpenAIResponsesInstructions(route *channel.ResolvedRoute, endpoint string, input *llm.GenerateInput) {
 	if input == nil || endpoint != llm.EndpointResponses || !supportsPreviousResponseIDRoute(route) {
+		return
+	}
+	// Responses 的显式缓存断点只能位于 input 内容块。保留完整已标记前缀，
+	// 使其 CacheControl 能序列化；启用消息断点时也会绕过 previous_response_id。
+	if usesExplicitOpenAIPromptCacheMessageBreakpoints(route, input.Options) {
 		return
 	}
 	instructions, messages := extractOpenAIResponsesInstructions(input.Messages)

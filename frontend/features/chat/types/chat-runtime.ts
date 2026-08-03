@@ -67,6 +67,9 @@ export type UploadingAttachment = {
 
 export type PendingExchange = {
   key: string;
+  conversationScopeKey: string;
+  branchScopePath: string[];
+  branchScopeRunID: string;
   conversationPublicID: string | null;
   tempUserPublicID: string;
   tempAssistantPublicID: string;

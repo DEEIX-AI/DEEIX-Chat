@@ -3,12 +3,68 @@ package schema
 import (
 	"strings"
 	"testing"
+	"time"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+type legacyMCPTool struct {
+	ID              uint `gorm:"primaryKey"`
+	ServerID        uint
+	Name            string
+	DisplayName     string
+	Description     string
+	InputSchemaJSON string
+	Status          string
+	SortOrder       int
+	UpdatedAt       time.Time
+}
+
+func (legacyMCPTool) TableName() string {
+	return "mcp_tools"
+}
+
+func TestMigrateLeavesLegacyMCPToolMetadataPendingConfirmation(t *testing.T) {
+	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	db, err := gorm.Open(sqlite.Open("file:"+dbName+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err = db.AutoMigrate(&legacyMCPTool{}); err != nil {
+		t.Fatalf("migrate legacy MCP tool: %v", err)
+	}
+	updatedAt := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
+	legacy := legacyMCPTool{
+		ServerID:        1,
+		Name:            "tool_a",
+		DisplayName:     "Existing title",
+		Description:     "Existing description",
+		InputSchemaJSON: "{}",
+		Status:          "active",
+		UpdatedAt:       updatedAt,
+	}
+	if err = db.Create(&legacy).Error; err != nil {
+		t.Fatalf("create legacy MCP tool: %v", err)
+	}
+
+	if err = Migrate(db); err != nil {
+		t.Fatalf("Migrate() error = %v", err)
+	}
+
+	var migrated model.MCPTool
+	if err = db.First(&migrated, legacy.ID).Error; err != nil {
+		t.Fatalf("load migrated MCP tool: %v", err)
+	}
+	if migrated.MetadataCustomized != nil {
+		t.Fatalf("legacy metadata state = %v, want pending confirmation", *migrated.MetadataCustomized)
+	}
+	if !migrated.UpdatedAt.Equal(updatedAt) {
+		t.Fatalf("legacy updated_at = %s, want %s", migrated.UpdatedAt, updatedAt)
+	}
+}
 
 func TestSeedBillingCatalogBindsDefaultPermissionGroup(t *testing.T) {
 	db := openSchemaTestDB(t)

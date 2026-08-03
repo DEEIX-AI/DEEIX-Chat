@@ -3,18 +3,19 @@ package mcp
 import "time"
 
 type ServerResponse struct {
-	ID              uint       `json:"id"`
-	Name            string     `json:"name"`
-	BaseURL         string     `json:"baseURL"`
-	HeadersJSON     string     `json:"headersJSON"`
-	Status          string     `json:"status"`
-	SortOrder       int        `json:"sortOrder"`
-	ToolCount       int        `json:"toolCount"`
-	ActiveToolCount int        `json:"activeToolCount"`
-	LastSyncedAt    *time.Time `json:"lastSyncedAt" extensions:"x-nullable,!x-omitempty"`
-	LastError       string     `json:"lastError"`
-	CreatedAt       time.Time  `json:"createdAt"`
-	UpdatedAt       time.Time  `json:"updatedAt"`
+	ID                                   uint       `json:"id"`
+	Name                                 string     `json:"name"`
+	BaseURL                              string     `json:"baseURL"`
+	HeadersJSON                          string     `json:"headersJSON"`
+	Status                               string     `json:"status"`
+	SortOrder                            int        `json:"sortOrder"`
+	ToolCount                            int        `json:"toolCount"`
+	ActiveToolCount                      int        `json:"activeToolCount"`
+	RequiresToolMetadataSyncConfirmation bool       `json:"requiresToolMetadataSyncConfirmation"`
+	LastSyncedAt                         *time.Time `json:"lastSyncedAt" extensions:"x-nullable,!x-omitempty"`
+	LastError                            string     `json:"lastError"`
+	CreatedAt                            time.Time  `json:"createdAt"`
+	UpdatedAt                            time.Time  `json:"updatedAt"`
 }
 
 type ToolResponse struct {

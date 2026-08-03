@@ -11,29 +11,30 @@ import (
 	"path/filepath"
 	"strings"
 
-	_ "image/gif" // 注册 GIF 解码器。
 	_ "golang.org/x/image/webp"
+	_ "image/gif" // 注册 GIF 解码器。
 )
 
 const maxMediaImageEditInputPixels = 64 * 1024 * 1024
 
 // resizeImageIfNeeded 在图片尺寸超过 maxDim 时进行缩放并重新编码。
-// 若解码/编码失败则返回原始字节，不报错，保证降级可用。
+// 返回的 MIME 始终与实际字节编码一致；失败时保留原始数据和 MIME。
 // 使用最近邻插值以降低 CPU 开销，缩略图语义信息仍足够供 LLM 识别。
-func resizeImageIfNeeded(data []byte, mimeType string, maxDim int) []byte {
+func resizeImageIfNeeded(data []byte, mimeType string, maxDim int) ([]byte, string) {
+	mime := resolveImageMimeType(mimeType)
 	if maxDim <= 0 || len(data) == 0 {
-		return data
+		return data, mime
 	}
 
 	src, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
-		return data // 无法解码时返回原始数据，由上游模型按原图处理。
+		return data, mime // 无法解码时返回原始数据，由上游模型按原图处理。
 	}
 
 	bounds := src.Bounds()
 	w, h := bounds.Dx(), bounds.Dy()
 	if w <= maxDim && h <= maxDim {
-		return data
+		return data, mime
 	}
 
 	var scale float64
@@ -68,18 +69,18 @@ func resizeImageIfNeeded(data []byte, mimeType string, maxDim int) []byte {
 	}
 
 	var buf bytes.Buffer
-	mime := strings.ToLower(strings.TrimSpace(mimeType))
 	switch {
 	case strings.Contains(mime, "png"):
 		if encErr := png.Encode(&buf, dst); encErr != nil {
-			return data
+			return data, mime
 		}
+		return buf.Bytes(), "image/png"
 	default: // jpeg 及其他格式统一使用 JPEG 输出
 		if encErr := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 85}); encErr != nil {
-			return data
+			return data, mime
 		}
+		return buf.Bytes(), "image/jpeg"
 	}
-	return buf.Bytes()
 }
 
 // resolveImageMimeType 规范化图片 MIME 类型，未知时默认为 image/jpeg。

@@ -22,7 +22,7 @@ func TestReorderServersWithToolsSQLitePersistsToolOrder(t *testing.T) {
 	if err := repo.ReplaceServerTools(ctx, server.ID, []domainmcp.Tool{
 		{Name: "tool_a", DisplayName: "Tool A", InputSchemaJSON: "{}", Status: "active"},
 		{Name: "tool_b", DisplayName: "Tool B", InputSchemaJSON: "{}", Status: "active"},
-	}); err != nil {
+	}, false); err != nil {
 		t.Fatalf("replace tools: %v", err)
 	}
 	initial, err := repo.ListTools(ctx, server.ID, false)
@@ -47,7 +47,7 @@ func TestReorderServersWithToolsSQLitePersistsToolOrder(t *testing.T) {
 		{Name: "tool_a", DisplayName: "Tool A", InputSchemaJSON: `{"type":"object"}`, Status: "active"},
 		{Name: "tool_b", DisplayName: "Tool B", InputSchemaJSON: "{}", Status: "active"},
 		{Name: "tool_c", DisplayName: "Tool C", InputSchemaJSON: "{}", Status: "active"},
-	}); err != nil {
+	}, false); err != nil {
 		t.Fatalf("replace tools after reorder: %v", err)
 	}
 	afterSync, err := repo.ListTools(ctx, server.ID, false)
@@ -60,6 +60,273 @@ func TestReorderServersWithToolsSQLitePersistsToolOrder(t *testing.T) {
 	}
 }
 
+func TestReplaceServerToolsRefreshesRemoteMetadataAndPreservesCustomizedMetadata(t *testing.T) {
+	db := openMCPSQLiteTestDB(t)
+	ctx := context.Background()
+	repo := NewRepo(db)
+	server := createMCPServer(t, db, "server-metadata")
+
+	if err := repo.ReplaceServerTools(ctx, server.ID, []domainmcp.Tool{
+		{
+			Name:            "tool_a",
+			DisplayName:     "Old title",
+			Description:     "Old description",
+			InputSchemaJSON: `{"type":"object","required":["old"]}`,
+			Status:          "active",
+		},
+	}, false); err != nil {
+		t.Fatalf("replace initial tools: %v", err)
+	}
+	initial, err := repo.ListTools(ctx, server.ID, false)
+	if err != nil {
+		t.Fatalf("list initial tools: %v", err)
+	}
+	if len(initial) != 1 {
+		t.Fatalf("initial tools = %#v, want one tool", initial)
+	}
+	initialTool := initial[0]
+	inactive := "inactive"
+	if _, err = repo.UpdateTool(ctx, initialTool.ID, repository.UpdateMCPToolInput{Status: &inactive}); err != nil {
+		t.Fatalf("disable tool: %v", err)
+	}
+
+	if err = repo.ReplaceServerTools(ctx, server.ID, []domainmcp.Tool{
+		{
+			Name:            "tool_a",
+			DisplayName:     "New title",
+			Description:     "New description",
+			InputSchemaJSON: `{"type":"object","required":["current"]}`,
+			Status:          "active",
+		},
+	}, false); err != nil {
+		t.Fatalf("replace updated tools: %v", err)
+	}
+
+	updated, err := repo.ListTools(ctx, server.ID, false)
+	if err != nil {
+		t.Fatalf("list updated tools: %v", err)
+	}
+	if len(updated) != 1 {
+		t.Fatalf("updated tools = %#v, want one tool", updated)
+	}
+	updatedTool := updated[0]
+	if updatedTool.ID != initialTool.ID {
+		t.Fatalf("tool id = %d, want preserved id %d", updatedTool.ID, initialTool.ID)
+	}
+	if updatedTool.DisplayName != "New title" || updatedTool.Description != "New description" {
+		t.Fatalf("tool metadata = %q/%q, want refreshed values", updatedTool.DisplayName, updatedTool.Description)
+	}
+	if updatedTool.InputSchemaJSON != `{"type":"object","required":["current"]}` {
+		t.Fatalf("tool schema = %s, want refreshed schema", updatedTool.InputSchemaJSON)
+	}
+	if updatedTool.Status != "inactive" || updatedTool.SortOrder != initialTool.SortOrder {
+		t.Fatalf("local controls = %s/%d, want inactive/%d", updatedTool.Status, updatedTool.SortOrder, initialTool.SortOrder)
+	}
+	storedTool := loadStoredMCPTool(t, db, updatedTool.ID)
+	if storedTool.MetadataCustomized == nil || *storedTool.MetadataCustomized {
+		t.Fatal("remote metadata refresh unexpectedly marked tool as customized")
+	}
+	unchangedTitle := updatedTool.DisplayName
+	unchangedDescription := updatedTool.Description
+	if _, err = repo.UpdateTool(ctx, updatedTool.ID, repository.UpdateMCPToolInput{
+		DisplayName: &unchangedTitle,
+		Description: &unchangedDescription,
+	}); err != nil {
+		t.Fatalf("save unchanged metadata: %v", err)
+	}
+	storedTool = loadStoredMCPTool(t, db, updatedTool.ID)
+	if storedTool.MetadataCustomized == nil || *storedTool.MetadataCustomized {
+		t.Fatal("saving unchanged metadata marked tool as customized")
+	}
+
+	customTitle := "Custom title"
+	customDescription := "Custom description"
+	if _, err = repo.UpdateTool(ctx, initialTool.ID, repository.UpdateMCPToolInput{
+		DisplayName: &customTitle,
+		Description: &customDescription,
+	}); err != nil {
+		t.Fatalf("customize tool metadata: %v", err)
+	}
+	if err = repo.ReplaceServerTools(ctx, server.ID, []domainmcp.Tool{
+		{
+			Name:            "tool_a",
+			DisplayName:     "Latest remote title",
+			Description:     "Latest remote description",
+			InputSchemaJSON: `{"type":"object","required":["latest"]}`,
+			Status:          "active",
+		},
+	}, false); err != nil {
+		t.Fatalf("replace tools after customization: %v", err)
+	}
+
+	afterCustomization, err := repo.ListTools(ctx, server.ID, false)
+	if err != nil {
+		t.Fatalf("list tools after customization: %v", err)
+	}
+	if len(afterCustomization) != 1 {
+		t.Fatalf("tools after customization = %#v, want one tool", afterCustomization)
+	}
+	customizedTool := afterCustomization[0]
+	if customizedTool.DisplayName != customTitle || customizedTool.Description != customDescription {
+		t.Fatalf("effective metadata = %q/%q, want custom values", customizedTool.DisplayName, customizedTool.Description)
+	}
+	if customizedTool.InputSchemaJSON != `{"type":"object","required":["latest"]}` {
+		t.Fatalf("tool schema = %s, want latest remote schema", customizedTool.InputSchemaJSON)
+	}
+	if customizedTool.Status != "inactive" || customizedTool.SortOrder != initialTool.SortOrder {
+		t.Fatalf("local controls after customization = %s/%d, want inactive/%d", customizedTool.Status, customizedTool.SortOrder, initialTool.SortOrder)
+	}
+	storedTool = loadStoredMCPTool(t, db, customizedTool.ID)
+	if storedTool.MetadataCustomized == nil || !*storedTool.MetadataCustomized {
+		t.Fatal("administrator metadata update was not marked as customized")
+	}
+	servers, err := repo.ListServers(ctx)
+	if err != nil {
+		t.Fatalf("list servers after customization: %v", err)
+	}
+	if len(servers) != 1 || !servers[0].RequiresToolMetadataSyncConfirmation {
+		t.Fatalf("server customization flag = %#v, want true", servers)
+	}
+	serverAfterCustomization, err := repo.GetServer(ctx, server.ID)
+	if err != nil {
+		t.Fatalf("get server after customization: %v", err)
+	}
+	if !serverAfterCustomization.RequiresToolMetadataSyncConfirmation {
+		t.Fatal("single server response did not require metadata sync confirmation")
+	}
+
+	if err = repo.ReplaceServerTools(ctx, server.ID, []domainmcp.Tool{
+		{
+			Name:            "tool_a",
+			DisplayName:     "Latest remote title",
+			Description:     "Latest remote description",
+			InputSchemaJSON: `{"type":"object","required":["overwritten"]}`,
+			Status:          "active",
+		},
+	}, true); err != nil {
+		t.Fatalf("replace tools with overwrite: %v", err)
+	}
+	afterOverwrite, err := repo.ListTools(ctx, server.ID, false)
+	if err != nil {
+		t.Fatalf("list tools after overwrite: %v", err)
+	}
+	if len(afterOverwrite) != 1 {
+		t.Fatalf("tools after overwrite = %#v, want one tool", afterOverwrite)
+	}
+	overwrittenTool := afterOverwrite[0]
+	if overwrittenTool.DisplayName != "Latest remote title" || overwrittenTool.Description != "Latest remote description" {
+		t.Fatalf("overwritten metadata = %q/%q, want latest remote values", overwrittenTool.DisplayName, overwrittenTool.Description)
+	}
+	if overwrittenTool.InputSchemaJSON != `{"type":"object","required":["overwritten"]}` {
+		t.Fatalf("tool schema after overwrite = %s", overwrittenTool.InputSchemaJSON)
+	}
+	storedTool = loadStoredMCPTool(t, db, overwrittenTool.ID)
+	if storedTool.MetadataCustomized == nil || *storedTool.MetadataCustomized {
+		t.Fatal("overwritten remote metadata remained marked as customized")
+	}
+	if overwrittenTool.Status != "inactive" || overwrittenTool.SortOrder != initialTool.SortOrder {
+		t.Fatalf("local controls after overwrite = %s/%d, want inactive/%d", overwrittenTool.Status, overwrittenTool.SortOrder, initialTool.SortOrder)
+	}
+	servers, err = repo.ListServers(ctx)
+	if err != nil {
+		t.Fatalf("list servers after overwrite: %v", err)
+	}
+	if len(servers) != 1 || servers[0].RequiresToolMetadataSyncConfirmation {
+		t.Fatalf("server customization flag = %#v, want false", servers)
+	}
+	serverAfterOverwrite, err := repo.GetServer(ctx, server.ID)
+	if err != nil {
+		t.Fatalf("get server after overwrite: %v", err)
+	}
+	if serverAfterOverwrite.RequiresToolMetadataSyncConfirmation {
+		t.Fatal("single server response still required metadata sync confirmation after overwrite")
+	}
+}
+
+func TestReplaceServerToolsPreservesLegacyMetadataAfterConfirmation(t *testing.T) {
+	db := openMCPSQLiteTestDB(t)
+	ctx := context.Background()
+	repo := NewRepo(db)
+	server := createMCPServer(t, db, "server-legacy-metadata")
+	if err := repo.ReplaceServerTools(ctx, server.ID, []domainmcp.Tool{
+		{
+			Name:            "tool_a",
+			DisplayName:     "Remote title",
+			Description:     "Remote description",
+			InputSchemaJSON: "{}",
+			Status:          "active",
+		},
+		{
+			Name:            "tool_b",
+			DisplayName:     "Stable remote title",
+			Description:     "Stable remote description",
+			InputSchemaJSON: "{}",
+			Status:          "active",
+		},
+	}, false); err != nil {
+		t.Fatalf("replace initial tools: %v", err)
+	}
+	tools, err := repo.ListTools(ctx, server.ID, false)
+	if err != nil || len(tools) != 2 {
+		t.Fatalf("list initial tools = %#v, error = %v", tools, err)
+	}
+	if err = db.Model(&model.MCPTool{}).
+		Where("server_id = ?", server.ID).
+		UpdateColumn("metadata_customized", nil).Error; err != nil {
+		t.Fatalf("simulate legacy metadata state: %v", err)
+	}
+	if err = db.Model(&model.MCPTool{}).
+		Where("server_id = ? AND name = ?", server.ID, "tool_a").
+		UpdateColumns(map[string]interface{}{
+			"display_name": "Existing title",
+			"description":  "Existing description",
+		}).Error; err != nil {
+		t.Fatalf("simulate legacy metadata: %v", err)
+	}
+	servers, err := repo.ListServers(ctx)
+	if err != nil || len(servers) != 1 || !servers[0].RequiresToolMetadataSyncConfirmation {
+		t.Fatalf("legacy confirmation state = %#v, error = %v", servers, err)
+	}
+
+	if err = repo.ReplaceServerTools(ctx, server.ID, []domainmcp.Tool{
+		{
+			Name:            "tool_a",
+			DisplayName:     "Latest remote title",
+			Description:     "Latest remote description",
+			InputSchemaJSON: `{"type":"object"}`,
+			Status:          "active",
+		},
+		{
+			Name:            "tool_b",
+			DisplayName:     "Stable remote title",
+			Description:     "Stable remote description",
+			InputSchemaJSON: `{"type":"object"}`,
+			Status:          "active",
+		},
+	}, false); err != nil {
+		t.Fatalf("preserve legacy metadata: %v", err)
+	}
+	preserved, err := repo.ListTools(ctx, server.ID, false)
+	if err != nil || len(preserved) != 2 {
+		t.Fatalf("list preserved tools = %#v, error = %v", preserved, err)
+	}
+	toolsByName := map[string]domainmcp.Tool{}
+	for _, tool := range preserved {
+		toolsByName[tool.Name] = tool
+	}
+	if toolsByName["tool_a"].DisplayName != "Existing title" || toolsByName["tool_a"].Description != "Existing description" {
+		t.Fatalf("preserved metadata = %q/%q", toolsByName["tool_a"].DisplayName, toolsByName["tool_a"].Description)
+	}
+	customized := loadStoredMCPTool(t, db, toolsByName["tool_a"].ID)
+	if customized.MetadataCustomized == nil || !*customized.MetadataCustomized {
+		t.Fatalf("changed legacy metadata state = %v, want true", customized.MetadataCustomized)
+	}
+	remoteManaged := loadStoredMCPTool(t, db, toolsByName["tool_b"].ID)
+	if remoteManaged.MetadataCustomized == nil || *remoteManaged.MetadataCustomized {
+		t.Fatalf("unchanged legacy metadata state = %v, want false", remoteManaged.MetadataCustomized)
+	}
+}
+
 func TestRemovingMCPToolsCleansConversationProjectAssociations(t *testing.T) {
 	db := openMCPSQLiteTestDB(t)
 	ctx := context.Background()
@@ -68,7 +335,7 @@ func TestRemovingMCPToolsCleansConversationProjectAssociations(t *testing.T) {
 	if err := repo.ReplaceServerTools(ctx, server.ID, []domainmcp.Tool{
 		{Name: "tool_a", DisplayName: "Tool A", InputSchemaJSON: "{}", Status: "active"},
 		{Name: "tool_b", DisplayName: "Tool B", InputSchemaJSON: "{}", Status: "active"},
-	}); err != nil {
+	}, false); err != nil {
 		t.Fatalf("replace tools: %v", err)
 	}
 	tools, err := repo.ListTools(ctx, server.ID, false)
@@ -83,7 +350,7 @@ func TestRemovingMCPToolsCleansConversationProjectAssociations(t *testing.T) {
 
 	if err = repo.ReplaceServerTools(ctx, server.ID, []domainmcp.Tool{
 		{Name: "tool_b", DisplayName: "Tool B", InputSchemaJSON: "{}", Status: "active"},
-	}); err != nil {
+	}, false); err != nil {
 		t.Fatalf("replace tools with removal: %v", err)
 	}
 	var associations []model.ConversationProjectMCPTool
@@ -115,12 +382,12 @@ func TestReorderServersWithToolsSQLiteRejectsForeignTool(t *testing.T) {
 	serverB := createMCPServer(t, db, "server-b")
 	if err := repo.ReplaceServerTools(ctx, serverA.ID, []domainmcp.Tool{
 		{Name: "tool_a", DisplayName: "Tool A", InputSchemaJSON: "{}", Status: "active"},
-	}); err != nil {
+	}, false); err != nil {
 		t.Fatalf("replace server a tools: %v", err)
 	}
 	if err := repo.ReplaceServerTools(ctx, serverB.ID, []domainmcp.Tool{
 		{Name: "tool_b", DisplayName: "Tool B", InputSchemaJSON: "{}", Status: "active"},
-	}); err != nil {
+	}, false); err != nil {
 		t.Fatalf("replace server b tools: %v", err)
 	}
 	serverBTools, err := repo.ListTools(ctx, serverB.ID, false)
@@ -144,7 +411,7 @@ func TestReorderServersWithToolsSQLiteRejectsPartialToolOrder(t *testing.T) {
 	if err := repo.ReplaceServerTools(ctx, server.ID, []domainmcp.Tool{
 		{Name: "tool_a", DisplayName: "Tool A", InputSchemaJSON: "{}", Status: "active"},
 		{Name: "tool_b", DisplayName: "Tool B", InputSchemaJSON: "{}", Status: "active"},
-	}); err != nil {
+	}, false); err != nil {
 		t.Fatalf("replace tools: %v", err)
 	}
 	tools, err := repo.ListTools(ctx, server.ID, false)
@@ -168,12 +435,12 @@ func TestReorderServersWithToolsSQLitePersistsServerOrder(t *testing.T) {
 	serverB := createMCPServer(t, db, "server-b")
 	if err := repo.ReplaceServerTools(ctx, serverA.ID, []domainmcp.Tool{
 		{Name: "tool_a", DisplayName: "Tool A", InputSchemaJSON: "{}", Status: "active"},
-	}); err != nil {
+	}, false); err != nil {
 		t.Fatalf("replace server a tools: %v", err)
 	}
 	if err := repo.ReplaceServerTools(ctx, serverB.ID, []domainmcp.Tool{
 		{Name: "tool_b", DisplayName: "Tool B", InputSchemaJSON: "{}", Status: "active"},
-	}); err != nil {
+	}, false); err != nil {
 		t.Fatalf("replace server b tools: %v", err)
 	}
 	serverATools, err := repo.ListTools(ctx, serverA.ID, false)
@@ -219,6 +486,15 @@ func createMCPServer(t *testing.T, db *gorm.DB, name string) model.MCPServer {
 		t.Fatalf("create mcp server: %v", err)
 	}
 	return server
+}
+
+func loadStoredMCPTool(t *testing.T, db *gorm.DB, toolID uint) model.MCPTool {
+	t.Helper()
+	var tool model.MCPTool
+	if err := db.First(&tool, "id = ?", toolID).Error; err != nil {
+		t.Fatalf("load stored MCP tool: %v", err)
+	}
+	return tool
 }
 
 func assertToolNames(t *testing.T, tools []domainmcp.Tool, want []string) {

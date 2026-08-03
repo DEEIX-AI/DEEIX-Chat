@@ -99,6 +99,7 @@ type Service struct {
 	snapshotCache     sync.Map // conversationID (uint) → *cachedSnapshot
 	userMemCache      sync.Map // userID (uint) → *cachedUserMemories
 	userSettingCache  sync.Map // "userID:key" (string) → *cachedUserSetting
+	imageContextCache *preparedConversationImageCache
 }
 
 func (s *Service) llmAttribution() (string, string) {
@@ -133,6 +134,7 @@ type AttachmentInput struct {
 	RagOptOut              bool // 用户是否关闭该文件的 RAG；RAG 段直接复用，无需重查 DB
 	ChunkCount             int  // 向量分块数；RAG 缓存 key 需要
 	Current                bool // 是否为本轮用户显式上传的附件
+	MessageRole            string
 	ContextMode            string
 }
 
@@ -178,6 +180,7 @@ type SendMessageResult struct {
 	EffectiveOptions      map[string]interface{}
 	UsageSpeed            string
 	UsageServiceTier      string
+	UsageSource           string
 	RawUsageJSON          string
 	CacheWrite5mTokens    int64
 	CacheWrite1hTokens    int64
@@ -252,6 +255,7 @@ func NewServiceWithRuntime(
 		storeProvider:     appstorage.NewRuntimeProvider(cfg, nil),
 		logger:            logger,
 		generationStreams: newGenerationStreamRegistry(cache, defaultGenerationStreamOptions()),
+		imageContextCache: defaultPreparedConversationImageCache(),
 	}
 	if extractSvc == nil {
 		extractSvc = extraction.NewServiceWithRuntime(cfg)

@@ -1223,8 +1223,6 @@ definitions:
         type: string
       name:
         type: string
-      orientation:
-        type: string
       scope:
         type: string
       short_name:
@@ -1242,7 +1240,6 @@ definitions:
     - id
     - lang
     - name
-    - orientation
     - scope
     - short_name
     - start_url
@@ -1374,6 +1371,37 @@ definitions:
         type: boolean
     required:
     - reset
+    type: object
+  CleanupConversationRunsRequest:
+    properties:
+      runIDs:
+        items:
+          type: string
+        maxItems: 100
+        minItems: 1
+        type: array
+    required:
+    - runIDs
+    type: object
+  CleanupConversationRunsResponse:
+    properties:
+      deletedCount:
+        type: integer
+      runCount:
+        type: integer
+    required:
+    - deletedCount
+    - runCount
+    type: object
+  CleanupConversationRunsResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/CleanupConversationRunsResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
     type: object
   CleanupLogsRequest:
     properties:
@@ -1530,6 +1558,16 @@ definitions:
     - data
     - errorMsg
     type: object
+  ConversationEventDetailResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ConversationEventResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   ConversationEventListResponseDoc:
     properties:
       data:
@@ -1584,6 +1622,10 @@ definitions:
         type: string
       payloadJSON:
         type: string
+      payloadOmitted:
+        type: boolean
+      payloadSizeBytes:
+        type: integer
       phase:
         type: string
       platformModelName:
@@ -1642,6 +1684,8 @@ definitions:
     - outputJSON
     - parentEventID
     - payloadJSON
+    - payloadOmitted
+    - payloadSizeBytes
     - phase
     - platformModelName
     - providerProtocol
@@ -1743,6 +1787,37 @@ definitions:
     required:
     - data
     - errorMsg
+    type: object
+  ConversationPreviewMessageListResponseDoc:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/ConversationPreviewMessageResponse'
+        type: array
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ConversationPreviewMessageResponse:
+    properties:
+      content:
+        type: string
+      errorMessage:
+        type: string
+      publicID:
+        type: string
+      role:
+        enum:
+        - user
+        - assistant
+        type: string
+    required:
+    - content
+    - errorMessage
+    - publicID
+    - role
     type: object
   ConversationProjectListResponseDoc:
     properties:
@@ -1910,6 +1985,59 @@ definitions:
     required:
     - data
     - errorMsg
+    type: object
+  ConversationSearchListResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ConversationSearchPageResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ConversationSearchPageResponse:
+    properties:
+      hasMore:
+        type: boolean
+      results:
+        items:
+          $ref: '#/definitions/ConversationSearchResultResponse'
+        type: array
+    required:
+    - hasMore
+    - results
+    type: object
+  ConversationSearchResultResponse:
+    properties:
+      isStarred:
+        type: boolean
+      labelsJSON:
+        type: string
+      messageCount:
+        type: integer
+      projectID:
+        type: string
+      projectName:
+        type: string
+      publicID:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    required:
+    - isStarred
+    - labelsJSON
+    - messageCount
+    - projectID
+    - projectName
+    - publicID
+    - status
+    - title
+    - updatedAt
     type: object
   ConversationShareResponse:
     properties:
@@ -5532,6 +5660,8 @@ definitions:
         x-omitempty: false
       name:
         type: string
+      requiresToolMetadataSyncConfirmation:
+        type: boolean
       sortOrder:
         type: integer
       status:
@@ -5549,6 +5679,7 @@ definitions:
     - lastError
     - lastSyncedAt
     - name
+    - requiresToolMetadataSyncConfirmation
     - sortOrder
     - status
     - toolCount
@@ -6158,6 +6289,17 @@ definitions:
     - discountPercent
     - name
     - periodCreditUSD
+    type: object
+  UpdateConversationLabelsRequest:
+    properties:
+      labels:
+        items:
+          maxLength: 24
+          type: string
+        maxItems: 6
+        type: array
+    required:
+    - labels
     type: object
   UpdateConversationProjectRequest:
     properties:
@@ -7123,6 +7265,14 @@ definitions:
     type: object
   UsageLedgerResponse:
     properties:
+      balanceAfterNanousd:
+        type: integer
+        x-nullable: true
+        x-omitempty: false
+      balanceAfterUSD:
+        type: number
+        x-nullable: true
+        x-omitempty: false
       billedCurrency:
         type: string
       billedNanousd:
@@ -7184,6 +7334,8 @@ definitions:
       userID:
         type: integer
     required:
+    - balanceAfterNanousd
+    - balanceAfterUSD
     - billedCurrency
     - billedNanousd
     - billedUSD
@@ -7237,6 +7389,14 @@ definitions:
     type: object
   UsageLogResponse:
     properties:
+      balanceAfterNanousd:
+        type: integer
+        x-nullable: true
+        x-omitempty: false
+      balanceAfterUSD:
+        type: number
+        x-nullable: true
+        x-omitempty: false
       billedCurrency:
         type: string
       billedNanousd:
@@ -7302,6 +7462,8 @@ definitions:
       username:
         type: string
     required:
+    - balanceAfterNanousd
+    - balanceAfterUSD
     - billedCurrency
     - billedNanousd
     - billedUSD
@@ -7780,7 +7942,7 @@ info:
   contact: {}
   description: DEEIX Chat 后端 API 文档
   title: DEEIX Chat API
-  version: "0.3.3"
+  version: "0.3.4"
 paths:
   /admin/announcements:
     get:
@@ -8701,6 +8863,73 @@ paths:
       security:
       - BearerAuth: []
       summary: 管理员查询对话事件
+      tags:
+      - admin
+  /admin/conversation-events/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 管理员按事件 ID 查看单条对话运行事件详情；超大历史负载会被安全省略
+      parameters:
+      - description: 事件 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ConversationEventDetailResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AdminErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AdminErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AdminErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询对话事件详情
+      tags:
+      - admin
+  /admin/conversation-events/cleanup:
+    post:
+      consumes:
+      - application/json
+      description: 物理删除指定运行的全部对话事件；保留消息、附件、调用与计费记录
+      parameters:
+      - description: 运行轨迹清理参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CleanupConversationRunsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/CleanupConversationRunsResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AdminErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AdminErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员按运行清理对话事件
       tags:
       - admin
   /admin/conversations/export:
@@ -10149,6 +10378,10 @@ paths:
         name: id
         required: true
         type: integer
+      - description: 是否用远端元数据覆盖管理员自定义的工具名称和说明
+        in: query
+        name: overwrite_customized_metadata
+        type: boolean
       produces:
       - application/json
       responses:
@@ -13017,6 +13250,47 @@ paths:
       summary: 导出会话 JSON
       tags:
       - chat
+  /conversations/{id}/labels:
+    patch:
+      consumes:
+      - application/json
+      description: 替换指定会话的标签；传入空数组可清空标签
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 会话标签
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateConversationLabelsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ConversationUpdateResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 更新会话标签
+      tags:
+      - chat
   /conversations/{id}/messages:
     get:
       consumes:
@@ -13098,6 +13372,41 @@ paths:
       security:
       - BearerAuth: []
       summary: 发送消息
+      tags:
+      - chat
+  /conversations/{id}/messages/preview:
+    get:
+      consumes:
+      - application/json
+      description: 返回当前用户会话最新分支最近 10 条用户或助手消息
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ConversationPreviewMessageListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询会话预览消息
       tags:
       - chat
   /conversations/{id}/messages/stream:
@@ -13564,6 +13873,44 @@ paths:
       security:
       - BearerAuth: []
       summary: 批量设置会话项目归属
+      tags:
+      - chat
+  /conversations/search:
+    get:
+      consumes:
+      - application/json
+      description: 分页搜索当前用户的会话标题、元数据、项目和消息正文，并返回是否还有下一页
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索关键词；为空时返回最近会话
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ConversationSearchListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 搜索会话
       tags:
       - chat
   /conversations/shares/revoke:

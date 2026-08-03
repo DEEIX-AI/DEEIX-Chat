@@ -234,7 +234,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         namespace: "file",
         key: "image_max_bytes",
         label: "Image size limit",
-        description: "Override the size limit for image attachments. Falls back to the default attachment limit when empty.",
+        description: "Override the size limit for image attachments. The UI uses MB; leave empty to use the default attachment limit.",
         type: "int",
         placeholder: "Leave empty to use the default attachment limit",
         valueUnit: "mb",
@@ -244,7 +244,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         namespace: "file",
         key: "doc_max_bytes",
         label: "Document size limit",
-        description: "Override the size limit for document attachments. Falls back to the default attachment limit when empty.",
+        description: "Override the size limit for document attachments. The UI uses MB; leave empty to use the default attachment limit.",
         type: "int",
         placeholder: "Leave empty to use the default attachment limit",
         valueUnit: "mb",
@@ -680,10 +680,11 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       {
         namespace: "file",
         key: "file_full_context_max_bytes",
-        label: "Full-text byte limit",
-        description: "Maximum extracted text bytes allowed for full-context injection. Leave empty or use 0 for no byte limit.",
+        label: "Full-text size limit",
+        description: "Maximum extracted text size allowed for full-context injection. The UI uses MB; leave empty or use 0 for no size limit.",
         type: "int",
-        placeholder: "Empty or 0 means unlimited",
+        valueUnit: "mb",
+        placeholder: "Size limit (MB); empty or 0 means unlimited",
         visibleWhen: { field: "file.full_context_limit_enabled", equals: FULL_CONTEXT_LIMIT_MODES.ON },
       },
       {
@@ -1055,7 +1056,16 @@ export function normalizeMBValue(raw: string): string {
     return trimmed;
   }
   const mb = bytes / BYTES_PER_MB;
-  return Number.isInteger(mb) ? String(mb) : String(Number(mb.toFixed(2)));
+  if (Number.isInteger(mb)) {
+    return String(mb);
+  }
+
+  // Keep normal values compact while retaining enough precision for sub-MB limits.
+  const compact = Number(mb.toFixed(6));
+  if (Number.isSafeInteger(bytes) && Math.round(compact * BYTES_PER_MB) === bytes) {
+    return String(compact);
+  }
+  return String(mb);
 }
 
 export function denormalizeMBValue(raw: string): string {

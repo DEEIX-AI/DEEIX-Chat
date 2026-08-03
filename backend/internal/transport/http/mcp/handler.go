@@ -164,6 +164,7 @@ func (h *Handler) DeleteServer(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "MCP 服务 ID"
+// @Param overwrite_customized_metadata query bool false "是否用远端元数据覆盖管理员自定义的工具名称和说明"
 // @Success 200 {object} ToolListResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 500 {object} ErrorDoc
@@ -173,9 +174,19 @@ func (h *Handler) SyncServerTools(c *gin.Context) {
 	if !ok {
 		return
 	}
+	overwriteCustomizedMetadata := false
+	if raw, exists := c.GetQuery("overwrite_customized_metadata"); exists {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, "invalid overwrite_customized_metadata")
+			return
+		}
+		overwriteCustomizedMetadata = parsed
+	}
 	items, err := h.service.SyncServerTools(c.Request.Context(), appmcp.SyncServerToolsInput{
-		ServerID:  serverID,
-		RequestID: middleware.MustRequestID(c),
+		ServerID:                    serverID,
+		RequestID:                   middleware.MustRequestID(c),
+		OverwriteCustomizedMetadata: overwriteCustomizedMetadata,
 	})
 	if err != nil {
 		writeServiceError(c, err)
@@ -358,18 +369,19 @@ func writeServiceError(c *gin.Context, err error) {
 
 func toServerResponse(item domainmcp.Server) ServerResponse {
 	return ServerResponse{
-		ID:              item.ID,
-		Name:            item.Name,
-		BaseURL:         item.BaseURL,
-		HeadersJSON:     security.RedactHeadersJSON(item.HeadersJSON),
-		Status:          item.Status,
-		SortOrder:       item.SortOrder,
-		ToolCount:       item.ToolCount,
-		ActiveToolCount: item.ActiveToolCount,
-		LastSyncedAt:    item.LastSyncedAt,
-		LastError:       item.LastError,
-		CreatedAt:       item.CreatedAt,
-		UpdatedAt:       item.UpdatedAt,
+		ID:                                   item.ID,
+		Name:                                 item.Name,
+		BaseURL:                              item.BaseURL,
+		HeadersJSON:                          security.RedactHeadersJSON(item.HeadersJSON),
+		Status:                               item.Status,
+		SortOrder:                            item.SortOrder,
+		ToolCount:                            item.ToolCount,
+		ActiveToolCount:                      item.ActiveToolCount,
+		RequiresToolMetadataSyncConfirmation: item.RequiresToolMetadataSyncConfirmation,
+		LastSyncedAt:                         item.LastSyncedAt,
+		LastError:                            item.LastError,
+		CreatedAt:                            item.CreatedAt,
+		UpdatedAt:                            item.UpdatedAt,
 	}
 }
 

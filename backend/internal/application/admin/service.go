@@ -106,10 +106,12 @@ type orderLogService interface {
 
 type conversationEventService interface {
 	ListConversationEventLogs(ctx context.Context, page int, pageSize int, filter appconversation.EventLogListFilter) ([]domainconversation.EventLog, int64, error)
+	GetConversationEventLog(ctx context.Context, eventID uint) (*domainconversation.EventLog, error)
 }
 
 type logCleanupService interface {
 	Cleanup(ctx context.Context, input applogcleanup.Input) (*applogcleanup.Result, error)
+	CleanupConversationRuns(ctx context.Context, input applogcleanup.ConversationRunInput) (*applogcleanup.ConversationRunResult, error)
 }
 
 type authSecurityService interface {
