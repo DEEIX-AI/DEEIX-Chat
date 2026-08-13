@@ -24,6 +24,7 @@ var sensitiveSettingKeys = map[string]struct{}{
 	"extract:mineru_auth_token":            {},
 	"extract:llm_ocr_auth_token":           {},
 	"file:embedding_key":                   {},
+	"content_moderation:api_key":           {},
 }
 
 func isSensitiveSetting(namespace string, key string) bool {

@@ -23,6 +23,7 @@ export function AdminBulkConfirmDialog({
   confirmLabel,
   pendingLabel,
   onConfirm,
+  size = "default",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -32,12 +33,13 @@ export function AdminBulkConfirmDialog({
   confirmLabel: string;
   pendingLabel: string;
   onConfirm: () => void;
+  size?: "default" | "compact" | "sm";
 }) {
   const t = useTranslations("common.actions");
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent size={size}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>

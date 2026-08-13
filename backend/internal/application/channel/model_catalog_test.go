@@ -51,10 +51,8 @@ func TestProtocolDefaultsForXAIUsesXAIResponsesForConversationKinds(t *testing.T
 	if defaults[modelKindImageEdit] != "xai_image_edits" {
 		t.Fatalf("expected xAI image edit default, got %q in %s", defaults[modelKindImageEdit], raw)
 	}
-	for _, kind := range []string{modelKindVideoGen} {
-		if _, ok := defaults[kind]; ok {
-			t.Fatalf("unexpected xAI default protocol for %s in %s", kind, raw)
-		}
+	if defaults[modelKindVideoGen] != "xai_video" {
+		t.Fatalf("expected xAI video default, got %q in %s", defaults[modelKindVideoGen], raw)
 	}
 }
 
@@ -448,7 +446,7 @@ func TestInferKindsJSONRecognizesGeminiOmniInteractionsModel(t *testing.T) {
 }
 
 func TestInferKindsJSONRecognizesVideoOnlyModels(t *testing.T) {
-	for _, modelName := range []string{"veo-3.1-fast"} {
+	for _, modelName := range []string{"veo-3.1-fast", "grok-imagine-video", "grok-imagine-video-1.5-preview"} {
 		if got := inferKindsJSON(modelName); got != `["video_gen"]` {
 			t.Fatalf("expected %s to infer video generation kind, got %s", modelName, got)
 		}
@@ -697,6 +695,9 @@ func TestIsRouteAllowedForTaskSeparatesChatAndImageProtocols(t *testing.T) {
 	}
 	if !IsRouteAllowedForTask(TaskTypeVideoGeneration, `["video_gen"]`, "openai_video_generations") {
 		t.Fatalf("expected video generation task to allow OpenAI video protocol")
+	}
+	if !IsRouteAllowedForTask(TaskTypeVideoGeneration, `["video_gen"]`, "xai_video") {
+		t.Fatalf("expected video generation task to allow xAI video protocol")
 	}
 	if IsRouteAllowedForTask(TaskTypeVideoGeneration, `["chat"]`, "openai_responses") {
 		t.Fatalf("expected video generation task to reject chat protocol")

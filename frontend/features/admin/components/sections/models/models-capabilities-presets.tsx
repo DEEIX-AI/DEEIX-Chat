@@ -43,6 +43,54 @@ const OPENAI_WEB_SEARCH_NATIVE_TOOL = {
 
 const OPENAI_REASONING_EFFORT_OPTIONS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
 
+const XAI_IMAGE_ASPECT_RATIOS = [
+  "auto",
+  "1:1",
+  "3:4",
+  "4:3",
+  "9:16",
+  "16:9",
+  "2:3",
+  "3:2",
+  "9:19.5",
+  "19.5:9",
+  "9:20",
+  "20:9",
+  "1:2",
+  "2:1",
+];
+const XAI_IMAGE_RESOLUTIONS = ["1k", "2k"];
+const XAI_VIDEO_ASPECT_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"];
+const XAI_VIDEO_DURATIONS = Array.from({ length: 15 }, (_, index) => String(index + 1));
+const XAI_VIDEO_RESOLUTIONS = ["480p", "720p", "1080p"];
+
+const XAI_IMAGE_OPTION_CONTROLS = [
+  {
+    path: "aspect_ratio",
+    type: "select",
+    label: "Aspect Ratio",
+    options: XAI_IMAGE_ASPECT_RATIOS,
+  },
+  {
+    path: "n",
+    type: "number",
+    label: "Image Count",
+    description: "Number of images to generate, from 1 to 10.",
+  },
+  {
+    path: "resolution",
+    type: "select",
+    label: "Resolution",
+    options: XAI_IMAGE_RESOLUTIONS,
+  },
+  {
+    path: "response_format",
+    type: "select",
+    label: "Response Format",
+    options: ["url", "b64_json"],
+  },
+];
+
 const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
   {
     id: "openai_chat_completions",
@@ -392,6 +440,64 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
           provider: "xAI",
           type: "x_search",
           description: "xAI hosted X search.",
+        },
+      ],
+    },
+  },
+  {
+    id: "xai_image",
+    protocol: "xai_image",
+    payload: {
+      defaultOptions: {
+        aspect_ratio: "auto",
+        n: 1,
+        resolution: "1k",
+        response_format: "url",
+      },
+      optionControls: XAI_IMAGE_OPTION_CONTROLS,
+    },
+  },
+  {
+    id: "xai_image_edits",
+    protocol: "xai_image_edits",
+    payload: {
+      defaultOptions: {
+        aspect_ratio: "auto",
+        n: 1,
+        resolution: "1k",
+        response_format: "url",
+      },
+      optionControls: XAI_IMAGE_OPTION_CONTROLS,
+    },
+  },
+  {
+    id: "xai_video",
+    protocol: "xai_video",
+    payload: {
+      defaultOptions: {
+        aspect_ratio: "16:9",
+        duration: 6,
+        resolution: "720p",
+      },
+      optionControls: [
+        {
+          path: "aspect_ratio",
+          type: "select",
+          label: "Aspect Ratio",
+          options: XAI_VIDEO_ASPECT_RATIOS,
+        },
+        {
+          path: "duration",
+          type: "select",
+          label: "Duration (seconds)",
+          description: "Video duration from 1 to 15 seconds.",
+          options: XAI_VIDEO_DURATIONS,
+        },
+        {
+          path: "resolution",
+          type: "select",
+          label: "Resolution",
+          options: XAI_VIDEO_RESOLUTIONS,
         },
       ],
     },

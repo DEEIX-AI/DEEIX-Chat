@@ -39,6 +39,7 @@ func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup) {
 	adminGroup.POST("/llm/models", m.Handler.CreateModel)
 	adminGroup.POST("/llm/models/order", m.Handler.ReorderModels)
 	adminGroup.POST("/llm/models/batch-delete", m.Handler.BatchDeleteModels)
+	adminGroup.PATCH("/llm/models/display-group", m.Handler.SetModelsDisplayGroup)
 	adminGroup.PATCH("/llm/models/:id", m.Handler.UpdateModel)
 	adminGroup.DELETE("/llm/models/:id", m.Handler.DeleteModel)
 	adminGroup.POST("/llm/models/:id/test", m.Handler.TestModel)
@@ -46,6 +47,15 @@ func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup) {
 	adminGroup.GET("/llm/models/:id/sources", m.Handler.ListModelUpstreamSources)
 	adminGroup.POST("/llm/models/:id/sources", m.Handler.BindModelUpstreamSource)
 	adminGroup.PATCH("/llm/models/:id/sources/:route_id", m.Handler.UpdateModelUpstreamSource)
+
+	// 技术厂商与自定义展示分组
+	adminGroup.GET("/llm/model-vendors", m.Handler.ListModelVendors)
+	adminGroup.POST("/llm/model-vendors", m.Handler.CreateModelVendor)
+	adminGroup.PATCH("/llm/model-vendors/:key", m.Handler.UpdateModelVendor)
+	adminGroup.GET("/llm/model-display-groups", m.Handler.ListModelDisplayGroups)
+	adminGroup.POST("/llm/model-display-groups", m.Handler.CreateModelDisplayGroup)
+	adminGroup.PATCH("/llm/model-display-groups/:id", m.Handler.UpdateModelDisplayGroup)
+	adminGroup.DELETE("/llm/model-display-groups/:id", m.Handler.DeleteModelDisplayGroup)
 
 	// 全局设置
 	adminGroup.GET("/llm/settings", m.Handler.ListLLMSettings)

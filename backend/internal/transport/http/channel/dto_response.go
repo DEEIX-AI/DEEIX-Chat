@@ -92,6 +92,11 @@ type ModelResponse struct {
 	ID                 uint   `json:"id"`
 	PlatformModelName  string `json:"platformModelName"`
 	Vendor             string `json:"vendor"`
+	VendorName         string `json:"vendorName"`
+	VendorIcon         string `json:"vendorIcon"`
+	DisplayGroupID     *uint  `json:"displayGroupID" extensions:"x-nullable,!x-omitempty"`
+	DisplayGroupName   string `json:"displayGroupName"`
+	DisplayGroupIcon   string `json:"displayGroupIcon"`
 	KindsJSON          string `json:"kindsJSON"`
 	Icon               string `json:"icon"`
 	CapabilitiesJSON   string `json:"capabilitiesJSON"`
@@ -117,6 +122,11 @@ func toModelResponse(v appchannel.ModelView) ModelResponse {
 		ID:                 v.ID,
 		PlatformModelName:  v.PlatformModelName,
 		Vendor:             v.Vendor,
+		VendorName:         v.VendorName,
+		VendorIcon:         v.VendorIcon,
+		DisplayGroupID:     v.DisplayGroupID,
+		DisplayGroupName:   v.DisplayGroupName,
+		DisplayGroupIcon:   v.DisplayGroupIcon,
 		KindsJSON:          v.KindsJSON,
 		Icon:               v.Icon,
 		CapabilitiesJSON:   v.CapabilitiesJSON,
@@ -599,6 +609,11 @@ type CircuitResetResponse struct {
 type PublicModelResponse struct {
 	PlatformModelName string                      `json:"platformModelName"`
 	Vendor            string                      `json:"vendor"`
+	VendorName        string                      `json:"vendorName"`
+	VendorIcon        string                      `json:"vendorIcon"`
+	DisplayGroupID    *uint                       `json:"displayGroupID" extensions:"x-nullable,!x-omitempty"`
+	DisplayGroupName  string                      `json:"displayGroupName"`
+	DisplayGroupIcon  string                      `json:"displayGroupIcon"`
 	KindsJSON         string                      `json:"kindsJSON"`
 	Icon              string                      `json:"icon"`
 	ProtocolsJSON     string                      `json:"protocolsJSON"`
@@ -780,6 +795,11 @@ func toPublicModelResponse(v appchannel.ModelView) PublicModelResponse {
 	return PublicModelResponse{
 		PlatformModelName: v.PlatformModelName,
 		Vendor:            v.Vendor,
+		VendorName:        v.VendorName,
+		VendorIcon:        v.VendorIcon,
+		DisplayGroupID:    v.DisplayGroupID,
+		DisplayGroupName:  v.DisplayGroupName,
+		DisplayGroupIcon:  v.DisplayGroupIcon,
 		KindsJSON:         v.KindsJSON,
 		Icon:              v.Icon,
 		ProtocolsJSON:     v.ProtocolsJSON,

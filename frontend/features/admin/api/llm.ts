@@ -7,6 +7,10 @@ import type {
   AdminLLMSetting,
   AdminLLMModelData,
   AdminLLMModelDTO,
+  AdminLLMModelDisplayGroupData,
+  AdminLLMModelDisplayGroupDTO,
+  AdminLLMModelVendorData,
+  AdminLLMModelVendorDTO,
   AdminLLMModelProbeBatchData,
   AdminLLMModelProbeData,
   AdminLLMModelUpstreamSourceData,
@@ -17,13 +21,18 @@ import type {
   AdminLLMUpstreamView,
   BindAdminLLMModelUpstreamSourceRequest,
   CreateAdminLLMModelRequest,
+  CreateAdminLLMModelDisplayGroupRequest,
+  CreateAdminLLMModelVendorRequest,
   CreateAdminLLMUpstreamRequest,
   ImportAdminLLMUpstreamModelsData,
   ImportAdminLLMUpstreamModelsRequest,
   ListAdminLLMRemoteModelsData,
   ReorderAdminLLMModelsRequest,
+  SetAdminLLMModelsDisplayGroupRequest,
   ResetAdminLLMCircuitData,
   UpdateAdminLLMModelRequest,
+  UpdateAdminLLMModelDisplayGroupRequest,
+  UpdateAdminLLMModelVendorRequest,
   UpdateAdminLLMModelUpstreamSourceRequest,
   UpdateAdminLLMUpstreamRequest,
   UpsertAdminLLMUpstreamModelRequest,
@@ -372,6 +381,108 @@ export async function reorderAdminLLMModels(
   return authedRequest<void>(
     "/api/v1/admin/llm/models/order",
     { method: "POST", accessToken, body: payload },
+    true,
+  );
+}
+
+export async function setAdminLLMModelsDisplayGroup(
+  accessToken: string,
+  payload: SetAdminLLMModelsDisplayGroupRequest,
+): Promise<void> {
+  return authedRequest<void>(
+    "/api/v1/admin/llm/models/display-group",
+    { method: "PATCH", accessToken, body: payload },
+    true,
+  );
+}
+
+export async function listAdminLLMModelVendors(
+  accessToken: string,
+  options: AdminListQueryOptions = {},
+): Promise<PagePayload<AdminLLMModelVendorDTO>> {
+  const { page, pageSize } = resolveAdminPage(options);
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  if (options.query?.trim()) {
+    params.set("q", options.query.trim());
+  }
+  const data = await authedRequest<PagePayload<AdminLLMModelVendorDTO>>(
+    `/api/v1/admin/llm/model-vendors?${params.toString()}`,
+    { accessToken },
+    true,
+  );
+  return normalizeAdminPagePayload(data);
+}
+
+export async function createAdminLLMModelVendor(
+  accessToken: string,
+  payload: CreateAdminLLMModelVendorRequest,
+): Promise<AdminLLMModelVendorData> {
+  return authedRequest<AdminLLMModelVendorData>(
+    "/api/v1/admin/llm/model-vendors",
+    { method: "POST", accessToken, body: payload },
+    true,
+  );
+}
+
+export async function updateAdminLLMModelVendor(
+  accessToken: string,
+  vendorKey: string,
+  payload: UpdateAdminLLMModelVendorRequest,
+): Promise<AdminLLMModelVendorData> {
+  return authedRequest<AdminLLMModelVendorData>(
+    `/api/v1/admin/llm/model-vendors/${pathParam(vendorKey)}`,
+    { method: "PATCH", accessToken, body: payload },
+    true,
+  );
+}
+
+export async function listAdminLLMModelDisplayGroups(
+  accessToken: string,
+  options: AdminListQueryOptions = {},
+): Promise<PagePayload<AdminLLMModelDisplayGroupDTO>> {
+  const { page, pageSize } = resolveAdminPage(options);
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  if (options.query?.trim()) {
+    params.set("q", options.query.trim());
+  }
+  const data = await authedRequest<PagePayload<AdminLLMModelDisplayGroupDTO>>(
+    `/api/v1/admin/llm/model-display-groups?${params.toString()}`,
+    { accessToken },
+    true,
+  );
+  return normalizeAdminPagePayload(data);
+}
+
+export async function createAdminLLMModelDisplayGroup(
+  accessToken: string,
+  payload: CreateAdminLLMModelDisplayGroupRequest,
+): Promise<AdminLLMModelDisplayGroupData> {
+  return authedRequest<AdminLLMModelDisplayGroupData>(
+    "/api/v1/admin/llm/model-display-groups",
+    { method: "POST", accessToken, body: payload },
+    true,
+  );
+}
+
+export async function updateAdminLLMModelDisplayGroup(
+  accessToken: string,
+  groupID: number,
+  payload: UpdateAdminLLMModelDisplayGroupRequest,
+): Promise<AdminLLMModelDisplayGroupData> {
+  return authedRequest<AdminLLMModelDisplayGroupData>(
+    `/api/v1/admin/llm/model-display-groups/${groupID}`,
+    { method: "PATCH", accessToken, body: payload },
+    true,
+  );
+}
+
+export async function deleteAdminLLMModelDisplayGroup(
+  accessToken: string,
+  groupID: number,
+): Promise<void> {
+  return authedRequest<void>(
+    `/api/v1/admin/llm/model-display-groups/${groupID}`,
+    { method: "DELETE", accessToken },
     true,
   );
 }

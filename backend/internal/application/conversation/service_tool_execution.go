@@ -365,15 +365,17 @@ func toolNotEnabledForRunMessage(toolName string) string {
 
 // modelToolOutputForModel 保留可读文本，并从 JSON 中移除不适合进入模型上下文的不透明载荷。
 func modelToolOutputForModel(raw string) string {
+	return sanitizeOpaqueToolOutput(raw)
+}
+
+// sanitizeOpaqueToolOutput 保留可读文本，并递归移除 data URI、base64 等不透明载荷。
+func sanitizeOpaqueToolOutput(raw string) string {
 	value := strings.TrimSpace(raw)
 	if value == "" {
 		return ""
 	}
 	if looksLikeOpaqueToolOutput(value) {
 		return opaqueToolOutputSummary(len([]rune(value)))
-	}
-	if len(value) < 1024 {
-		return value
 	}
 	decoder := json.NewDecoder(strings.NewReader(value))
 	decoder.UseNumber()
@@ -440,16 +442,16 @@ func sanitizeOpaqueToolOutputJSON(value interface{}) (interface{}, bool) {
 // looksLikeOpaqueToolOutput 识别 data URI 和高密度 base64 风格内容。
 func looksLikeOpaqueToolOutput(value string) bool {
 	text := strings.TrimSpace(value)
-	runes := []rune(text)
-	if len(runes) < 1024 {
-		return false
-	}
 	prefix := text
 	if len(prefix) > 128 {
 		prefix = prefix[:128]
 	}
 	if strings.HasPrefix(strings.ToLower(prefix), "data:") && strings.Contains(strings.ToLower(prefix), ";base64,") {
 		return true
+	}
+	runes := []rune(text)
+	if len(runes) < 1024 {
+		return false
 	}
 	if strings.ContainsAny(text, " \n\t{}[],:") {
 		return false

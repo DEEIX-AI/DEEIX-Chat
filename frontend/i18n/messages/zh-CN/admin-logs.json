@@ -10,6 +10,7 @@
     "auth": "认证安全",
     "orders": "订单记录",
     "conversation": "对话事件",
+    "moderation": "审核事件",
     "system": "系统事件"
   },
   "cleanup": {
@@ -104,6 +105,7 @@
     "message": "消息",
     "caller": "调用人",
     "model": "模型",
+    "usage": "用量",
     "billing": "计费",
     "balanceAfter": "结算后余额",
     "latency": "延迟",
@@ -203,7 +205,13 @@
       "inputShort": "入",
       "outputShort": "出",
       "cacheReadShort": "读",
-      "cacheWriteShort": "写"
+      "cacheWriteShort": "写",
+      "input": "输入",
+      "output": "输出",
+      "reasoning": "推理",
+      "outputTotal": "输出合计",
+      "imageCount": "{count} 张",
+      "secondCount": "{count} 秒"
     },
     "billing": {
       "cacheWrite": "缓存(写)",
@@ -381,5 +389,45 @@
     "payloadOmitted": "该历史负载大小为 {size}，超过安全查看上限，内容已省略。可删除对应运行轨迹以移除这条异常历史数据。",
     "copied": "{label}已复制",
     "copyFailed": "复制失败"
+  },
+  "moderation": {
+    "searchPlaceholder": "搜索事件编号、用户、结果、运行 ID…",
+    "empty": "暂无审核事件。",
+    "loadFailed": "审核事件加载失败",
+    "viewDetail": "查看详情",
+    "detailTitle": "审核事件详情",
+    "detailFailed": "加载事件详情失败",
+    "detailText": "解密文本",
+    "detailImages": "隔离图片",
+    "detailImageAlt": "审核图片 {index}",
+    "imageLoadFailed": "部分隔离图片加载失败",
+    "filters": {
+      "all": "所有"
+    },
+    "results": {
+      "passed": "通过",
+      "hit": "命中",
+      "failedOpen": "失败开放"
+    },
+    "directions": {
+      "input": "输入",
+      "output": "输出"
+    },
+    "columns": {
+      "eventId": "事件编号",
+      "user": "用户",
+      "result": "结果",
+      "direction": "方向",
+      "modality": "模态",
+      "latency": "延迟",
+      "createdAt": "时间",
+      "actions": "操作",
+      "model": "模型",
+      "userID": "用户 ID",
+      "runID": "运行 ID"
+    },
+    "blocks": {
+      "event": "事件"
+    }
   }
 }

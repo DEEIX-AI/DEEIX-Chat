@@ -27,10 +27,7 @@ import (
 const (
 	// Stripe Webhook 只需要验证事件摘要，限制请求体可避免异常回调占用过多内存。
 	stripeWebhookMaxBodyBytes = 1 << 20
-	stripeResponseMaxBytes    = 1 << 20
 )
-
-var stripeHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
 type billingPaymentSettings struct {
 	Providers            []string
@@ -313,9 +310,6 @@ func (h *Handler) createStripeCheckoutSession(
 	req CreateCheckoutRequest,
 ) (string, string, error) {
 	_ = price
-	if strings.TrimSpace(settings.StripeSecretKey) == "" {
-		return "", "", fmt.Errorf("stripe secret key is not configured")
-	}
 	successURL, err := h.paymentReturnURL(c, req.SuccessURL, "/settings?section=account&payment=success")
 	if err != nil {
 		return "", "", err
@@ -324,53 +318,20 @@ func (h *Handler) createStripeCheckoutSession(
 	if err != nil {
 		return "", "", err
 	}
-	currency := strings.ToLower(firstNonEmpty(order.PayCurrency, order.BaseCurrency, "USD"))
-	form := url.Values{}
-	form.Set("mode", "payment")
-	form.Set("success_url", successURL)
-	form.Set("cancel_url", cancelURL)
-	form.Set("client_reference_id", order.OrderNo)
-	form.Set("metadata[order_no]", order.OrderNo)
-	form.Set("metadata[order_type]", order.OrderType)
-	form.Set("metadata[user_id]", strconv.FormatUint(uint64(order.UserID), 10))
-	form.Set("metadata[base_currency]", order.BaseCurrency)
-	form.Set("metadata[base_amount_cents]", strconv.FormatInt(order.BaseAmountCents, 10))
-	form.Set("metadata[pay_currency]", order.PayCurrency)
-	form.Set("metadata[pay_amount_cents]", strconv.FormatInt(order.PayAmountCents, 10))
-	form.Set("metadata[fx_rate]", order.FXRate)
-	form.Set("line_items[0][quantity]", "1")
-	form.Set("line_items[0][price_data][currency]", currency)
-	form.Set("line_items[0][price_data][unit_amount]", strconv.FormatInt(order.PayAmountCents, 10))
-	form.Set("line_items[0][price_data][product_data][name]", paymentProductName(order, plan))
-	form.Set("line_items[0][price_data][product_data][description]", paymentProductDescription(order, plan))
-
-	httpReq, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, "https://api.stripe.com/v1/checkout/sessions", strings.NewReader(form.Encode()))
+	if h.paymentCheckout == nil {
+		return "", "", appbilling.ErrPaymentProviderUnavailable
+	}
+	checkout, err := h.paymentCheckout.CreateStripeCheckoutSession(c.Request.Context(), appbilling.StripeCheckoutInput{
+		SecretKey:  settings.StripeSecretKey,
+		SuccessURL: successURL,
+		CancelURL:  cancelURL,
+		Order:      order,
+		Plan:       plan,
+	})
 	if err != nil {
 		return "", "", err
 	}
-	httpReq.SetBasicAuth(settings.StripeSecretKey, "")
-	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := stripeHTTPClient.Do(httpReq)
-	if err != nil {
-		return "", "", err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, stripeResponseMaxBytes+1))
-	if len(body) > stripeResponseMaxBytes {
-		return "", "", fmt.Errorf("stripe response is too large")
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", "", fmt.Errorf("stripe checkout failed with status %d", resp.StatusCode)
-	}
-	var session stripeCheckoutSession
-	if err = json.Unmarshal(body, &session); err != nil {
-		return "", "", err
-	}
-	if strings.TrimSpace(session.URL) == "" {
-		return "", "", fmt.Errorf("stripe checkout url is missing")
-	}
-	return session.ID, session.URL, nil
+	return checkout.ID, checkout.URL, nil
 }
 
 func (h *Handler) createEPayCheckoutURL(
@@ -408,7 +369,7 @@ func (h *Handler) createEPayCheckoutURL(
 	params.Set("out_trade_no", order.OrderNo)
 	params.Set("notify_url", notifyURL)
 	params.Set("return_url", returnURL)
-	params.Set("name", paymentProductName(order, plan))
+	params.Set("name", appbilling.DescribePaymentProduct(order, plan).Name)
 	params.Set("money", fmt.Sprintf("%.2f", float64(order.PayAmountCents)/100))
 	params.Set("sign", signEPayValues(params, settings.EPayKey))
 	params.Set("sign_type", "MD5")
@@ -701,30 +662,6 @@ func resolveCheckoutOrderType(req CreateCheckoutRequest) string {
 		}
 		return domainbilling.PaymentOrderTypeSubscription
 	}
-}
-
-func paymentProductName(order *domainbilling.PaymentOrder, plan *domainbilling.Plan) string {
-	if order != nil && order.OrderType == domainbilling.PaymentOrderTypeTopUp {
-		return "按量余额充值"
-	}
-	if plan != nil {
-		return firstNonEmpty(plan.Name, plan.Code)
-	}
-	return "订阅方案"
-}
-
-func paymentProductDescription(order *domainbilling.PaymentOrder, plan *domainbilling.Plan) string {
-	if order != nil && order.OrderType == domainbilling.PaymentOrderTypeTopUp {
-		amountCents := order.PayAmountCents
-		if amountCents <= 0 {
-			amountCents = order.BaseAmountCents
-		}
-		return fmt.Sprintf("充值 %s %.2f 至按量余额", firstNonEmpty(order.PayCurrency, order.BaseCurrency, "USD"), float64(amountCents)/100)
-	}
-	if plan != nil {
-		return firstNonEmpty(plan.Description, plan.Code)
-	}
-	return "订阅方案支付"
 }
 
 func requestBaseURL(c *gin.Context) string {

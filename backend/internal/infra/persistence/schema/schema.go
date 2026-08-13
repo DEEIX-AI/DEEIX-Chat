@@ -22,6 +22,8 @@ func Models() []interface{} {
 		&model.TrustedDevice{},
 		&model.LLMUpstream{},
 		&model.LLMUpstreamModel{},
+		&model.LLMModelVendor{},
+		&model.LLMModelDisplayGroup{},
 		&model.LLMPlatformModel{},
 		&model.LLMPlatformModelRoute{},
 		&model.MCPServer{},
@@ -35,6 +37,8 @@ func Models() []interface{} {
 		&model.FileObject{},
 		&model.UserStorageQuota{},
 		&model.ConversationRun{},
+		&model.ContentModerationEvent{},
+		&model.ContentModerationDailyStat{},
 		&model.ChatRunEvent{},
 		&model.ChatContextRecord{},
 		&model.UserMemory{},
@@ -68,6 +72,45 @@ func Models() []interface{} {
 	}
 }
 
+// SeedModelVendors 初始化内置厂商，并为存量模型中的技术厂商补齐目录项。
+// 同 key 的现有目录项会晋升为内置，但管理员修改的展示名称、图标和排序不会被覆盖。
+func SeedModelVendors(db *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		for _, item := range domainchannel.BuiltInModelVendors() {
+			entity := model.LLMModelVendor{
+				Key:       item.Key,
+				Name:      item.Name,
+				Icon:      item.Icon,
+				BuiltIn:   true,
+				SortOrder: item.SortOrder,
+			}
+			if err := tx.Where("key = ?", entity.Key).Attrs(entity).FirstOrCreate(&entity).Error; err != nil {
+				return err
+			}
+			if !entity.BuiltIn {
+				if err := tx.Model(&entity).Update("built_in", true).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		var vendorKeys []string
+		if err := tx.Model(&model.LLMPlatformModel{}).
+			Distinct("vendor").
+			Where("vendor <> ?", "").
+			Pluck("vendor", &vendorKeys).Error; err != nil {
+			return err
+		}
+		for _, key := range vendorKeys {
+			entity := model.LLMModelVendor{Key: key, Name: key}
+			if err := tx.Where("key = ?", key).Attrs(entity).FirstOrCreate(&entity).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // Migrate creates or updates the baseline schema with Gorm's portable migrator.
 func Migrate(db *gorm.DB) error {
 	for _, item := range Models() {
@@ -81,7 +124,58 @@ func Migrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(Models()...); err != nil {
 		return err
 	}
+	if err := backfillContextArtifactMessageIDs(db); err != nil {
+		return err
+	}
 	return backfillUsageLedgerBillingAt(db)
+}
+
+// backfillContextArtifactMessageIDs 将旧证据统一迁移到产生该证据的助手运行节点。
+// 同一次生成的 user/assistant 消息共享 run_id；仅在唯一匹配助手消息时回填，异常重复 run 数据保持不变。
+func backfillContextArtifactMessageIDs(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&model.ChatContextRecord{}) || !db.Migrator().HasTable(&model.Message{}) {
+		return nil
+	}
+	return db.Exec(`
+		WITH artifacts_to_backfill AS (
+			SELECT records.id, records.run_id, records.conversation_id, records.user_id
+			FROM chat_context_records AS records
+			LEFT JOIN chat_messages AS current_owner
+				ON current_owner.id = records.message_id
+				AND current_owner.run_id = records.run_id
+				AND current_owner.conversation_id = records.conversation_id
+				AND current_owner.user_id = records.user_id
+				AND current_owner.role = 'assistant'
+				AND current_owner.deleted_at IS NULL
+			WHERE records.record_type = 'artifact'
+				AND records.run_id <> ''
+				AND records.deleted_at IS NULL
+				AND current_owner.id IS NULL
+		),
+		unique_assistant_run_owners AS (
+			SELECT artifacts.id AS record_id, MIN(messages.id) AS message_id
+			FROM artifacts_to_backfill AS artifacts
+			JOIN chat_messages AS messages
+				ON messages.run_id = artifacts.run_id
+				AND messages.conversation_id = artifacts.conversation_id
+				AND messages.user_id = artifacts.user_id
+				AND messages.role = 'assistant'
+				AND messages.deleted_at IS NULL
+			GROUP BY artifacts.id
+			HAVING COUNT(*) = 1
+		)
+		UPDATE chat_context_records
+		SET message_id = (
+			SELECT owners.message_id
+			FROM unique_assistant_run_owners AS owners
+			WHERE owners.record_id = chat_context_records.id
+		)
+		WHERE EXISTS (
+				SELECT 1
+				FROM unique_assistant_run_owners AS owners
+				WHERE owners.record_id = chat_context_records.id
+			)
+	`).Error
 }
 
 func backfillUsageLedgerBillingAt(db *gorm.DB) error {

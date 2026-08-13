@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import dynamic from "next/dynamic";
-import { Building2, Cable, Check, ChevronDownIcon, ListOrdered, Plus, Tags, ToggleLeft, Trash2 } from "lucide-react";
+import { Building2, Cable, Check, ChevronDownIcon, Layers3, ListOrdered, Plus, Tags, ToggleLeft, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -28,6 +28,7 @@ import {
   testAdminLLMUpstreamModelRoute,
 } from "@/features/admin/api";
 import { useAdminModels } from "@/features/admin/hooks/use-admin-models";
+import { useAdminModelPresentation } from "@/features/admin/hooks/use-admin-model-presentation";
 import { BulkDeleteModelsDialog, DeleteModelDialog } from "./models-dialog";
 import { ModelProbeDialog } from "./models-probe-dialog";
 import { ModelsTable } from "./models-table";
@@ -45,7 +46,6 @@ import type {
   AdminLLMModelUpstreamSourceDTO,
   AdminLLMStatus,
 } from "@/features/admin/api/llm.types";
-import { KNOWN_VENDOR_OPTIONS } from "@/shared/lib/model-identity";
 import { cn } from "@/lib/utils";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
@@ -67,7 +67,12 @@ const ModelOrderSheet = dynamic(
   },
 );
 
-type ModelBulkAction = "kinds" | "protocol" | "vendor" | "status";
+const ModelPresentationDialog = dynamic(
+  () => import("./models-presentation-dialog").then((module) => module.ModelPresentationDialog),
+  { ssr: false },
+);
+
+type ModelBulkAction = "kinds" | "protocol" | "vendor" | "displayGroup" | "status";
 
 function BulkActionControlRow({
   icon,
@@ -173,8 +178,10 @@ function KindsDropdown({
 export function AdminModelsPage() {
   const t = useTranslations("adminModels");
   const models = useAdminModels();
+  const presentation = useAdminModelPresentation();
   const [createOpen, setCreateOpen] = React.useState(false);
   const [orderOpen, setOrderOpen] = React.useState(false);
+  const [presentationOpen, setPresentationOpen] = React.useState(false);
   const [bulkConfirmAction, setBulkConfirmAction] = React.useState<ModelBulkAction | null>(null);
   const [probeOpen, setProbeOpen] = React.useState(false);
   const [probeLoading, setProbeLoading] = React.useState(false);
@@ -193,6 +200,9 @@ export function AdminModelsPage() {
         break;
       case "vendor":
         void models.handleBulkApplyVendor().then(() => setBulkConfirmAction(null));
+        break;
+      case "displayGroup":
+        void models.handleBulkApplyDisplayGroup().then(() => setBulkConfirmAction(null));
         break;
       case "status":
         void models.handleBulkApplyStatus().then(() => setBulkConfirmAction(null));
@@ -295,7 +305,7 @@ export function AdminModelsPage() {
               onValueChange: models.setVendorFilter,
               options: [
                 { label: t("table.allVendors"), value: "" },
-                ...KNOWN_VENDOR_OPTIONS.map(({ label, value }) => ({ label, value })),
+                ...presentation.vendors.map((item) => ({ label: item.name, value: item.key })),
               ],
             },
           ]}
@@ -321,6 +331,33 @@ export function AdminModelsPage() {
                   onChange={models.setBatchKindsDisplay}
                   disabled={models.loading || models.batchApplying || models.selectedModels.length === 0}
                 />
+              </BulkActionControlRow>
+
+              <BulkActionControlRow
+                icon={<Layers3 className="size-3 stroke-1" />}
+                label={t("actions.apply")}
+                onApply={() => setBulkConfirmAction("displayGroup")}
+                disabled={models.loading || models.batchApplying || models.selectedModels.length === 0 || !models.batchDisplayGroupID}
+              >
+                <Select
+                  value={models.batchDisplayGroupID || undefined}
+                  onValueChange={models.setBatchDisplayGroupID}
+                  disabled={models.loading || models.batchApplying || models.selectedModels.length === 0}
+                >
+                  <SelectTrigger size="xs" className="h-7 px-2 text-[11px] text-muted-foreground">
+                    <SelectValue placeholder={t("fields.displayGroup")} />
+                  </SelectTrigger>
+                  <SelectContent position="popper" align="start" className="z-[100]" viewportClassName="max-h-[220px]">
+                    <SelectItem value="0" className="text-[11px]">
+                      {t("presentation.followVendor")}
+                    </SelectItem>
+                    {presentation.displayGroups.map((item) => (
+                      <SelectItem key={item.id} value={String(item.id)} className="text-[11px]">
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </BulkActionControlRow>
 
               <BulkActionControlRow
@@ -362,9 +399,9 @@ export function AdminModelsPage() {
                     <SelectValue placeholder={t("fields.vendor")} />
                   </SelectTrigger>
                   <SelectContent position="popper" align="start" className="z-[100]" viewportClassName="max-h-[220px]">
-                    {KNOWN_VENDOR_OPTIONS.map(({ label, value }) => (
-                      <SelectItem key={value} value={value} className="text-[11px]">
-                        {label}
+                    {presentation.vendors.map((item) => (
+                      <SelectItem key={item.key} value={item.key} className="text-[11px]">
+                        {item.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -412,6 +449,17 @@ export function AdminModelsPage() {
             size="sm"
             variant="outline"
             className="h-7 gap-1 text-xs"
+            onClick={() => setPresentationOpen(true)}
+            disabled={presentation.loading || presentation.vendors.length === 0}
+          >
+            <Layers3 className="size-3.5 stroke-1" />
+            {t("actions.managePresentation")}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1 text-xs"
             onClick={() => setOrderOpen(true)}
             disabled={models.loading}
           >
@@ -423,7 +471,7 @@ export function AdminModelsPage() {
             size="sm"
             className="h-7 gap-1 text-xs"
             onClick={() => setCreateOpen(true)}
-            disabled={models.loading}
+            disabled={models.loading || presentation.loading || presentation.vendors.length === 0}
           >
             <Plus className="size-3.5 stroke-1" />
             {t("actions.create")}
@@ -464,11 +512,26 @@ export function AdminModelsPage() {
           mode={createOpen ? "create" : "edit"}
           target={models.editTarget}
           models={models.items}
+          vendors={presentation.vendors}
+          displayGroups={presentation.displayGroups}
           onClose={() => {
             setCreateOpen(false);
             models.setEditTarget(null);
           }}
           onSuccess={() => void models.loadModels(models.page, models.pageSize)}
+        />
+      ) : null}
+
+      {presentationOpen ? (
+        <ModelPresentationDialog
+          open
+          vendors={presentation.vendors}
+          displayGroups={presentation.displayGroups}
+          onClose={() => setPresentationOpen(false)}
+          onChanged={async () => {
+            await presentation.reload();
+            await models.loadModels(models.page, models.pageSize);
+          }}
         />
       ) : null}
 

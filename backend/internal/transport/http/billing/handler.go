@@ -18,17 +18,27 @@ import (
 
 // Handler 封装计费 HTTP 处理。
 type Handler struct {
-	service  *appbilling.Service
-	settings *appsettings.Service
-	cfg      *config.Runtime
+	service         *appbilling.Service
+	settings        *appsettings.Service
+	cfg             *config.Runtime
+	officialPricing *appbilling.OfficialPricingService
+	paymentCheckout *appbilling.PaymentCheckoutService
 }
 
 // NewHandler 创建处理器。
-func NewHandler(service *appbilling.Service, settingsService *appsettings.Service, cfg *config.Runtime) *Handler {
+func NewHandler(
+	service *appbilling.Service,
+	settingsService *appsettings.Service,
+	cfg *config.Runtime,
+	officialPricing *appbilling.OfficialPricingService,
+	paymentCheckout *appbilling.PaymentCheckoutService,
+) *Handler {
 	return &Handler{
-		service:  service,
-		settings: settingsService,
-		cfg:      cfg,
+		service:         service,
+		settings:        settingsService,
+		cfg:             cfg,
+		officialPricing: officialPricing,
+		paymentCheckout: paymentCheckout,
 	}
 }
 
@@ -401,7 +411,10 @@ func (h *Handler) CreateRedemptionCodes(c *gin.Context) {
 func writeRedemptionCodeError(c *gin.Context, err error) {
 	var validationErr appbilling.RedemptionCodeValidationError
 	if errors.As(err, &validationErr) {
-		response.ErrorWithDetails(c, http.StatusBadRequest, "billing.invalid_redemption_code", err.Error(), validationErr)
+		response.ErrorWithDetails(c, http.StatusBadRequest, "billing.invalid_redemption_code", err.Error(), RedemptionCodeValidationErrorResponse{
+			Field:  validationErr.Field,
+			Reason: validationErr.Reason,
+		})
 		return
 	}
 	if errors.Is(err, appbilling.ErrRedemptionCodeConflict) {

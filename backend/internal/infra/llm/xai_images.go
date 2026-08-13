@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 )
@@ -109,7 +110,7 @@ func (c *Client) generateXAIImage(ctx context.Context, route RouteConfig, input 
 	}
 	setAdditionalHeaders(req, route.HeadersJSON)
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := c.doRouteGenerationRequest(route, req)
 	if err != nil {
 		return nil, err
 	}
@@ -117,13 +118,22 @@ func (c *Client) generateXAIImage(ctx context.Context, route RouteConfig, input 
 
 	body, err := readUpstreamBody(resp.Body)
 	if err != nil {
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return nil, MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, debugPayload, resp, body)))
+		}
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, parseUpstreamError(resp.StatusCode, body, upstreamDebugSnapshot(req, debugPayload, resp, body))
 	}
 
-	return parseXAIImageOutput(body, modelParamString(input.Options, "response_format"), protocol)
+	debug := upstreamDebugSnapshot(req, debugPayload, resp, body)
+	output, err := parseXAIImageOutput(body, protocol)
+	if err != nil {
+		return nil, MarkRequestAccepted(attachUpstreamDebug(err, debug))
+	}
+	output.Debug = debug
+	return output, nil
 }
 
 // buildXAIImageRequest 根据任务端点构造 xAI 图片生成或编辑请求。
@@ -173,7 +183,7 @@ func buildXAIImageEditRequestBody(model string, input GenerateInput) (map[string
 	if len(imageInputs) == 1 {
 		payload["image"] = imageInputs[0]
 	} else {
-		payload["image"] = imageInputs
+		payload["images"] = imageInputs
 	}
 	applyXAIImageParams(payload, input.Options)
 	debugBody, _ := json.Marshal(map[string]interface{}{
@@ -198,19 +208,67 @@ func xAIImageURLPayload(image ContentPart) map[string]interface{} {
 
 // applyXAIImageParams 从 options 中提取 xAI 图片生成官方参数。
 func applyXAIImageParams(payload map[string]interface{}, options map[string]interface{}) {
-	payload["response_format"] = defaultImageResponseFormat(options)
-	for _, key := range []string{"aspect_ratio", "resolution"} {
-		if value := modelParamString(options, key); value != "" {
-			payload[key] = value
-		}
+	if value := xAIImageResponseFormat(options); value != "" {
+		payload["response_format"] = value
 	}
-	if value := modelParamInt(options, "n"); value > 0 {
+	if value := strings.ToLower(modelParamString(options, "aspect_ratio")); isXAIImageAspectRatio(value) {
+		payload["aspect_ratio"] = value
+	}
+	if value := strings.ToLower(modelParamString(options, "resolution")); isXAIImageResolution(value) {
+		payload["resolution"] = value
+	}
+	if value, ok := xAIMediaIntegerOption(options, "n"); ok && value >= 1 && value <= 10 {
 		payload["n"] = value
 	}
 }
 
+func xAIMediaIntegerOption(options map[string]interface{}, key string) (int, bool) {
+	if options == nil {
+		return 0, false
+	}
+	value, ok := options[key]
+	if !ok {
+		return 0, false
+	}
+	switch typed := value.(type) {
+	case int:
+		return typed, true
+	case int64:
+		return int(typed), true
+	case float64:
+		if math.Trunc(typed) == typed {
+			return int(typed), true
+		}
+	}
+	return 0, false
+}
+
+func isXAIImageAspectRatio(value string) bool {
+	switch value {
+	case "1:1", "3:4", "4:3", "9:16", "16:9", "2:3", "3:2", "9:19.5", "19.5:9", "9:20", "20:9", "1:2", "2:1", "auto":
+		return true
+	default:
+		return false
+	}
+}
+
+func isXAIImageResolution(value string) bool {
+	return value == "1k" || value == "2k"
+}
+
+func xAIImageResponseFormat(options map[string]interface{}) string {
+	switch strings.ToLower(modelParamString(options, "response_format")) {
+	case "url":
+		return "url"
+	case "b64_json":
+		return "b64_json"
+	default:
+		return ""
+	}
+}
+
 // parseXAIImageOutput 解析 xAI 图片响应；图片字节只进入 GeneratedImages。
-func parseXAIImageOutput(body []byte, responseFormat string, protocol string) (*GenerateOutput, error) {
+func parseXAIImageOutput(body []byte, protocol string) (*GenerateOutput, error) {
 	parsed := make(map[string]interface{})
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
@@ -227,7 +285,7 @@ func parseXAIImageOutput(body []byte, responseFormat string, protocol string) (*
 	data := asSlice(parsed["data"])
 	citations := make([]string, 0, len(data))
 	for _, item := range data {
-		if image, ok := parseXAIImagePayload(asMap(item), responseFormat); ok {
+		if image, ok := parseXAIImagePayload(asMap(item)); ok {
 			if url := strings.TrimSpace(image.URL); url != "" {
 				citations = append(citations, url)
 			}
@@ -235,7 +293,7 @@ func parseXAIImageOutput(body []byte, responseFormat string, protocol string) (*
 		}
 	}
 	if len(data) == 0 {
-		if image, ok := parseXAIImagePayload(parsed, responseFormat); ok {
+		if image, ok := parseXAIImagePayload(parsed); ok {
 			if url := strings.TrimSpace(image.URL); url != "" {
 				citations = append(citations, url)
 			}
@@ -246,10 +304,11 @@ func parseXAIImageOutput(body []byte, responseFormat string, protocol string) (*
 	return result, nil
 }
 
-func parseXAIImagePayload(payload map[string]interface{}, responseFormat string) (GeneratedImage, bool) {
+func parseXAIImagePayload(payload map[string]interface{}) (GeneratedImage, bool) {
 	if len(payload) == 0 {
 		return GeneratedImage{}, false
 	}
+	mimeType := xAIImageMIMEType(payload)
 	revisedPrompt := strings.TrimSpace(getString(payload["revised_prompt"]))
 	if revisedPrompt == "" {
 		revisedPrompt = strings.TrimSpace(getString(payload["revisedPrompt"]))
@@ -257,26 +316,31 @@ func parseXAIImagePayload(payload map[string]interface{}, responseFormat string)
 	if url := strings.TrimSpace(getString(payload["url"])); url != "" {
 		return GeneratedImage{
 			URL:           url,
-			MIMEType:      xAIImageMIMEType(responseFormat),
+			MIMEType:      mimeType,
 			RevisedPrompt: revisedPrompt,
 		}, true
 	}
 	if b64 := strings.TrimSpace(getString(payload["b64_json"])); b64 != "" {
 		return GeneratedImage{
 			B64JSON:       b64,
-			MIMEType:      xAIImageMIMEType(responseFormat),
+			MIMEType:      mimeType,
+			RevisedPrompt: revisedPrompt,
+		}, true
+	}
+	if publicURL := strings.TrimSpace(getString(asMap(payload["file_output"])["public_url"])); publicURL != "" {
+		return GeneratedImage{
+			URL:           publicURL,
+			MIMEType:      mimeType,
 			RevisedPrompt: revisedPrompt,
 		}, true
 	}
 	return GeneratedImage{}, false
 }
 
-// xAIImageMIMEType 根据 xAI 文档示例的默认图片格式给 base64 结果设置初始 MIME。
-func xAIImageMIMEType(responseFormat string) string {
-	switch strings.TrimSpace(strings.ToLower(responseFormat)) {
-	case "b64_json", "url", "":
-		return "image/jpeg"
-	default:
-		return "image/jpeg"
+// xAIImageMIMEType 优先采用官方响应中的 MIME；旧代理未返回时回退为 JPEG。
+func xAIImageMIMEType(payload map[string]interface{}) string {
+	if mimeType := strings.ToLower(strings.TrimSpace(getString(payload["mime_type"]))); strings.HasPrefix(mimeType, "image/") {
+		return mimeType
 	}
+	return "image/jpeg"
 }

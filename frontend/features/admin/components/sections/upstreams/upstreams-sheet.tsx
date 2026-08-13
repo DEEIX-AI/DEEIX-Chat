@@ -140,6 +140,7 @@ const PROTOCOL_OPTIONS_BY_KIND: Record<(typeof PROTOCOL_DEFAULT_KINDS)[number], 
   video_gen: [
     "openai_video_generations",
     "gemini_interactions",
+    "xai_video",
   ],
 };
 

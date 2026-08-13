@@ -4,11 +4,15 @@ import type {
   BatchDeleteResultResponse,
   BindModelUpstreamSourceRequest,
   CircuitResetResponse,
+  CreateModelDisplayGroupRequest,
   CreateModelRequest,
+  CreateModelVendorRequest,
   CreateUpstreamRequest,
   ImportUpstreamModelsRequest,
   ImportUpstreamModelsResponse,
   ModelDataResponse,
+  ModelDisplayGroupDataResponse,
+  ModelDisplayGroupResponse,
   ModelProbeBatchResponse,
   ModelProbeDebugRequestResponse,
   ModelProbeDebugResponse,
@@ -18,7 +22,10 @@ import type {
   ModelUpstreamSourceDataResponse,
   ModelUpstreamSourceResponse,
   ReorderModelsRequest,
+  SetModelsDisplayGroupRequest,
+  UpdateModelDisplayGroupRequest,
   UpdateModelRequest,
+  UpdateModelVendorRequest,
   UpdateModelUpstreamSourceRequest,
   UpdateUpstreamRequest,
   UpsertUpstreamModelRequest,
@@ -29,8 +36,9 @@ import type {
   UpstreamRemoteModelResponse,
   UpstreamRemoteModelsResponse,
   UpstreamResponse,
+  ModelVendorDataResponse,
+  ModelVendorResponse,
 } from "@deeix/api-contract";
-import type { PagePayload } from "@/shared/api/common.types";
 
 export type AdminLLMStatus = "active" | "inactive";
 export type AdminLLMModelAccessScope = "public" | "internal";
@@ -48,7 +56,8 @@ export type AdminLLMAdapter =
   | "gemini_interactions"
   | "xai_responses"
   | "xai_image"
-  | "xai_image_edits";
+  | "xai_image_edits"
+  | "xai_video";
 export type AdminLLMModelVendor = string;
 export type AdminLLMCompatible =
   | "openai"
@@ -167,6 +176,9 @@ export type AdminLLMSetting = {
   updatedAt: string;
 };
 
+export type AdminLLMModelVendorDTO = ModelVendorResponse;
+export type AdminLLMModelDisplayGroupDTO = ModelDisplayGroupResponse;
+
 // ---------------------------------------------------------------------------
 // Request types
 // ---------------------------------------------------------------------------
@@ -210,6 +222,11 @@ export type UpdateAdminLLMModelRequest = Omit<
 };
 
 export type ReorderAdminLLMModelsRequest = ReorderModelsRequest;
+export type CreateAdminLLMModelVendorRequest = CreateModelVendorRequest;
+export type UpdateAdminLLMModelVendorRequest = UpdateModelVendorRequest;
+export type CreateAdminLLMModelDisplayGroupRequest = CreateModelDisplayGroupRequest;
+export type UpdateAdminLLMModelDisplayGroupRequest = UpdateModelDisplayGroupRequest;
+export type SetAdminLLMModelsDisplayGroupRequest = SetModelsDisplayGroupRequest;
 
 export type UpsertAdminLLMUpstreamModelRequest = Omit<UpsertUpstreamModelRequest, "protocol" | "status"> & {
   protocol?: AdminLLMAdapter;
@@ -258,6 +275,9 @@ export type AdminLLMModelData = Omit<ModelDataResponse, "model"> & {
   model: AdminLLMModelDTO;
 };
 
+export type AdminLLMModelVendorData = ModelVendorDataResponse;
+export type AdminLLMModelDisplayGroupData = ModelDisplayGroupDataResponse;
+
 export type AdminLLMUpstreamModelData = Omit<UpstreamModelDataResponse, "binding"> & {
   binding: AdminLLMUpstreamModelDTO;
 };
@@ -293,12 +313,3 @@ export type AdminBatchDeleteResult = Omit<BatchDeleteResultResponse, "error" | "
 export type AdminBatchDeleteData = Omit<BatchDeleteResponse, "results"> & {
   results: AdminBatchDeleteResult[];
 };
-
-// ---------------------------------------------------------------------------
-// Page results
-// ---------------------------------------------------------------------------
-
-export type ListAdminLLMUpstreamsResult = PagePayload<AdminLLMUpstreamView>;
-export type ListAdminLLMModelsResult = PagePayload<AdminLLMModelDTO>;
-export type ListAdminLLMUpstreamModelsResult = PagePayload<AdminLLMUpstreamModelDTO>;
-export type ListAdminLLMModelUpstreamSourcesResult = PagePayload<AdminLLMModelUpstreamSourceDTO>;

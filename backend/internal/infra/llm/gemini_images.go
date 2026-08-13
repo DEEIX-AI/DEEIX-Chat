@@ -61,7 +61,7 @@ func (c *Client) generateGeminiImageGeneration(ctx context.Context, route RouteC
 		return nil, err
 	}
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := c.doRouteRequest(route, req)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func (c *Client) generateGeminiImageGenerationStream(
 	}
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := c.doRouteRequest(route, req)
 	firstByteTimer.Stop()
 	if err != nil {
 		return nil, err

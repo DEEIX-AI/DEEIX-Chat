@@ -49,6 +49,7 @@ type UpdateUpstreamRequest struct {
 type CreateModelRequest struct {
 	PlatformModelName  string `json:"platformModelName" binding:"required,min=2,max=128"`
 	Vendor             string `json:"vendor,omitempty" binding:"omitempty,max=64"`
+	DisplayGroupID     uint   `json:"displayGroupID,omitempty"`
 	KindsJSON          string `json:"kindsJSON,omitempty" binding:"omitempty,max=1000"`
 	Icon               string `json:"icon,omitempty" binding:"max=128"`
 	CapabilitiesJSON   string `json:"capabilitiesJSON,omitempty" binding:"max=10000"`
@@ -66,6 +67,7 @@ type CreateModelRequest struct {
 type UpdateModelRequest struct {
 	PlatformModelName  *string `json:"platformModelName,omitempty" binding:"omitempty,min=2,max=128"`
 	Vendor             *string `json:"vendor,omitempty" binding:"omitempty,max=64"`
+	DisplayGroupID     *uint   `json:"displayGroupID,omitempty"`
 	KindsJSON          *string `json:"kindsJSON,omitempty" binding:"omitempty,max=1000"`
 	Icon               *string `json:"icon,omitempty" binding:"omitempty,max=128"`
 	CapabilitiesJSON   *string `json:"capabilitiesJSON,omitempty" binding:"omitempty,max=10000"`
@@ -77,6 +79,39 @@ type UpdateModelRequest struct {
 	CbFailureThreshold *int    `json:"cbFailureThreshold,omitempty" binding:"omitempty,gte=0"`
 	CbDurationMin      *int    `json:"cbDurationMin,omitempty" binding:"omitempty,gte=0"`
 	CbWindowMin        *int    `json:"cbWindowMin,omitempty" binding:"omitempty,gte=0"`
+}
+
+// CreateModelVendorRequest 创建技术厂商请求。
+type CreateModelVendorRequest struct {
+	Key  string `json:"key" binding:"required,max=64"`
+	Name string `json:"name" binding:"required,max=64"`
+	Icon string `json:"icon,omitempty" binding:"max=2048"`
+}
+
+// UpdateModelVendorRequest 更新技术厂商展示信息请求。
+type UpdateModelVendorRequest struct {
+	Name *string `json:"name,omitempty" binding:"omitempty,max=64"`
+	Icon *string `json:"icon,omitempty" binding:"omitempty,max=2048"`
+}
+
+// CreateModelDisplayGroupRequest 创建模型展示分组请求。
+type CreateModelDisplayGroupRequest struct {
+	Name     string `json:"name" binding:"required,max=64"`
+	Icon     string `json:"icon,omitempty" binding:"max=2048"`
+	ModelIDs []uint `json:"modelIDs,omitempty" binding:"max=10000,dive,gt=0"`
+}
+
+// UpdateModelDisplayGroupRequest 更新模型展示分组请求。
+type UpdateModelDisplayGroupRequest struct {
+	Name     *string `json:"name,omitempty" binding:"omitempty,max=64"`
+	Icon     *string `json:"icon,omitempty" binding:"omitempty,max=2048"`
+	ModelIDs *[]uint `json:"modelIDs,omitempty" binding:"omitempty,max=10000,dive,gt=0"`
+}
+
+// SetModelsDisplayGroupRequest 批量设置模型展示分组请求；displayGroupID 为 0 时清除自定义分组。
+type SetModelsDisplayGroupRequest struct {
+	ModelIDs       []uint `json:"modelIDs" binding:"required,min=1,max=1000,dive,gt=0"`
+	DisplayGroupID *uint  `json:"displayGroupID" binding:"required"`
 }
 
 // ReorderModelsRequest 调整模型展示顺序请求。

@@ -1,9 +1,12 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	sharedsecurity "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
 func TestLoadDefaultsUseBootstrapAdmin(t *testing.T) {
@@ -22,6 +25,9 @@ func TestLoadDefaultsUseBootstrapAdmin(t *testing.T) {
 	}
 	if cfg.FileFullContextMaxBytes != DefaultFileFullContextMaxBytes {
 		t.Fatalf("expected default full-context size %d, got %d", DefaultFileFullContextMaxBytes, cfg.FileFullContextMaxBytes)
+	}
+	if cfg.SSRFAllowedHosts != "" || cfg.SSRFAllowedCIDRs != "" {
+		t.Fatalf("expected SSRF allowlist to be empty by default, hosts=%q CIDRs=%q", cfg.SSRFAllowedHosts, cfg.SSRFAllowedCIDRs)
 	}
 }
 
@@ -173,6 +179,128 @@ security:
 	}
 }
 
+func TestLoadReadsSSRFAllowlistWithEnvironmentPriority(t *testing.T) {
+	cleanupConfigEnv(t)
+
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configBody := []byte(`
+security:
+  ssrf_protection_enabled: true
+  ssrf_allowed_hosts: "new-api, host.docker.internal"
+  ssrf_allowed_cidrs: "172.17.0.0/16, 10.20.0.0/16"
+`)
+	if err := os.WriteFile(configPath, configBody, 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("CONFIG_FILE", configPath)
+
+	cfg := Load()
+	if cfg.SSRFAllowedHosts != "new-api, host.docker.internal" {
+		t.Fatalf("unexpected allowed hosts: %q", cfg.SSRFAllowedHosts)
+	}
+	if cfg.SSRFAllowedCIDRs != "172.17.0.0/16, 10.20.0.0/16" {
+		t.Fatalf("unexpected allowed CIDRs: %q", cfg.SSRFAllowedCIDRs)
+	}
+
+	t.Setenv("SSRF_ALLOWED_HOSTS", "internal-api")
+	t.Setenv("SSRF_ALLOWED_CIDRS", "192.168.50.0/24")
+	cfg = Load()
+	if cfg.SSRFAllowedHosts != "internal-api" || cfg.SSRFAllowedCIDRs != "192.168.50.0/24" {
+		t.Fatalf("environment should override YAML allowlist: hosts=%q CIDRs=%q", cfg.SSRFAllowedHosts, cfg.SSRFAllowedCIDRs)
+	}
+}
+
+func TestValidateRejectsInvalidSSRFAllowlist(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		hosts string
+		cidrs string
+	}{
+		{name: "host URL", hosts: "http://new-api:3000"},
+		{name: "wildcard host", hosts: "*.internal"},
+		{name: "metadata host", hosts: "metadata.google.internal"},
+		{name: "invalid CIDR", cidrs: "172.17.0.1"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := validConfigForEnv("dev")
+			cfg.SSRFProtectionEnabled = true
+			cfg.SSRFAllowedHosts = test.hosts
+			cfg.SSRFAllowedCIDRs = test.cidrs
+			if err := cfg.Validate(); !errors.Is(err, sharedsecurity.ErrInvalidOutboundPolicy) {
+				t.Fatalf("expected invalid outbound policy, got %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateTurnstileSiteverifyURL(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{name: "default fallback", value: ""},
+		{name: "public HTTPS", value: "https://turnstile.example.test/siteverify"},
+		{name: "private administrator endpoint", value: "http://turnstile:8080/siteverify"},
+		{name: "metadata endpoint", value: "http://169.254.169.254/latest/meta-data", wantErr: true},
+		{name: "credentials", value: "http://user:password@turnstile:8080/siteverify", wantErr: true},
+		{name: "unsupported scheme", value: "file:///etc/passwd", wantErr: true},
+		{name: "relative URL", value: "/siteverify", wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := validConfigForEnv("dev")
+			cfg.TurnstileSiteverifyURL = test.value
+			err := cfg.Validate()
+			if test.wantErr && err == nil {
+				t.Fatal("expected invalid Turnstile endpoint to be rejected")
+			}
+			if !test.wantErr && err != nil {
+				t.Fatalf("expected Turnstile endpoint to be accepted, got %v", err)
+			}
+		})
+	}
+}
+
+func TestTrustedAndStrictOutboundPoliciesRemainSeparated(t *testing.T) {
+	cfg := validConfigForEnv("prod")
+	cfg.SSRFProtectionEnabled = true
+	cfg.SSRFAllowedHosts = "new-api"
+	cfg.SSRFAllowedCIDRs = "172.17.0.0/16"
+
+	trusted := cfg.TrustedOutboundPolicy()
+	if err := sharedsecurity.ValidateOutboundHTTPURL("http://172.17.0.1:3000", trusted); err != nil {
+		t.Fatalf("trusted integration policy should allow configured CIDR: %v", err)
+	}
+	strict := cfg.StrictOutboundPolicy()
+	if err := sharedsecurity.ValidateOutboundHTTPURL("http://172.17.0.1:3000", strict); !errors.Is(err, sharedsecurity.ErrUnsafeOutboundURL) {
+		t.Fatalf("external-content policy must not inherit the allowlist, got %v", err)
+	}
+}
+
+func TestOutboundPolicyEnforcementBelongsToConfig(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		env     string
+		enabled bool
+		blocked bool
+	}{
+		{name: "production enabled", env: "production", enabled: true, blocked: true},
+		{name: "production disabled", env: "prod", enabled: false, blocked: false},
+		{name: "development enabled", env: "development", enabled: true, blocked: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := Config{Env: test.env, SSRFProtectionEnabled: test.enabled}
+			err := sharedsecurity.ValidateOutboundHTTPURL("http://127.0.0.1:8080", cfg.StrictOutboundPolicy())
+			if test.blocked && !errors.Is(err, sharedsecurity.ErrUnsafeOutboundURL) {
+				t.Fatalf("expected private target to be blocked, got %v", err)
+			}
+			if !test.blocked && err != nil {
+				t.Fatalf("expected policy enforcement to be disabled, got %v", err)
+			}
+		})
+	}
+}
+
 func TestLoadReadsBrandingFromConfig(t *testing.T) {
 	cleanupConfigEnv(t)
 
@@ -259,6 +387,8 @@ func cleanupConfigEnv(t *testing.T) {
 		"STORAGE_ROOT_DIR",
 		"GEOIP_DATABASE_PATH",
 		"TURNSTILE_SITEVERIFY_URL",
+		"SSRF_ALLOWED_HOSTS",
+		"SSRF_ALLOWED_CIDRS",
 		"POSTGRES_DSN",
 	}
 	for _, key := range keys {

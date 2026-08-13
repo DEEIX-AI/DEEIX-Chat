@@ -11,8 +11,8 @@ import type {
   ChatMentionMenuLayout,
   ChatMentionMenuSection,
 } from "@/features/chat/hooks/use-chat-mention-menu";
-import { LobeHubIcon } from "@/shared/components/lobehub-icon";
-import { resolveLobeHubIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
+import { ModelIcon } from "@/shared/components/model-icon";
+import { resolveModelIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
 
 function ChatMentionMenuItemButton({
   item,
@@ -34,7 +34,7 @@ function ChatMentionMenuItemButton({
       icon: item.model.icon,
     });
   }, [item]);
-  const iconURL = React.useMemo(() => identity ? resolveLobeHubIconURL(identity.modelIcon) : "", [identity]);
+  const iconURL = React.useMemo(() => identity ? resolveModelIconURL(identity.modelIcon) : "", [identity]);
 
   return (
     <button
@@ -49,7 +49,7 @@ function ChatMentionMenuItemButton({
       }}
     >
       {item.kind === "model" ? (
-        <LobeHubIcon iconUrl={iconURL} label={platformModelName} />
+        <ModelIcon iconUrl={iconURL} label={platformModelName} />
       ) : item.kind === "file" ? (
         <span className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground">
           <FileText className="size-3.5" strokeWidth={1.7} />

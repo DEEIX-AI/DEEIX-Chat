@@ -361,7 +361,7 @@ func canUseAttachmentFullContext(att AttachmentInput, cfg config.Config) bool {
 }
 
 func buildFileAttachmentSnapshot(att AttachmentInput) map[string]interface{} {
-	return map[string]interface{}{
+	payload := map[string]interface{}{
 		"file_id":                  att.FileID,
 		"kind":                     att.Kind,
 		"file_name":                att.FileName,
@@ -374,6 +374,10 @@ func buildFileAttachmentSnapshot(att AttachmentInput) map[string]interface{} {
 		"processing_error_code":    att.ProcessingErrorCode,
 		"processing_error_message": att.ProcessingErrorMessage,
 	}
+	if att.DurationSeconds > 0 {
+		payload["duration_seconds"] = att.DurationSeconds
+	}
+	return payload
 }
 
 func marshalAttachmentSnapshots(items []AttachmentInput) string {

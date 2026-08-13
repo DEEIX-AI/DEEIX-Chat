@@ -1,19 +1,30 @@
 import type {
-  BatchSetConversationProjectRequest as ContractBatchSetConversationProjectRequest,
   BatchSetConversationProjectResponse,
   ContextArtifactResponse,
+  BatchSetConversationProjectRequest as ContractBatchSetConversationProjectRequest,
+  CreateConversationProjectRequest as ContractCreateConversationProjectRequest,
+  CreateConversationRequest as ContractCreateConversationRequest,
+  CreateConversationShareRequest as ContractCreateConversationShareRequest,
+  RenameConversationRequest as ContractRenameConversationRequest,
+  ReorderConversationProjectsRequest as ContractReorderConversationProjectsRequest,
+  RevokeConversationSharesRequest as ContractRevokeConversationSharesRequest,
+  SendMessageRequest as ContractSendMessageRequest,
+  SetConversationArchiveRequest as ContractSetConversationArchiveRequest,
+  SetConversationProjectRequest as ContractSetConversationProjectRequest,
+  SetConversationStarRequest as ContractSetConversationStarRequest,
+  SetMessageFeedbackRequest as ContractSetMessageFeedbackRequest,
+  UpdateConversationLabelsRequest as ContractUpdateConversationLabelsRequest,
+  UpdateConversationProjectRequest as ContractUpdateConversationProjectRequest,
+  UpdateMessageRequest as ContractUpdateMessageRequest,
   ConversationDefaultModelCandidateResponse,
   ConversationDeleteResponse,
   ConversationExportResponse,
-  ConversationProjectResponse,
   ConversationPreviewMessageResponse,
+  ConversationProjectResponse,
   ConversationResponse,
   ConversationSearchPageResponse,
   ConversationSearchResultResponse,
   ConversationShareResponse,
-  CreateConversationProjectRequest as ContractCreateConversationProjectRequest,
-  CreateConversationRequest as ContractCreateConversationRequest,
-  CreateConversationShareRequest as ContractCreateConversationShareRequest,
   MessageBillingCostResponse,
   MessageFeedbackResponse,
   MessageProcessTraceResponse,
@@ -26,20 +37,9 @@ import type {
   ModelProbeDebugResponse,
   PublicSharedConversationResponse,
   PublicSharedMessageResponse,
-  RenameConversationRequest as ContractRenameConversationRequest,
-  ReorderConversationProjectsRequest as ContractReorderConversationProjectsRequest,
-  RevokeConversationSharesRequest as ContractRevokeConversationSharesRequest,
   RevokeConversationSharesResponse,
   RunResponse,
-  SendMessageRequest as ContractSendMessageRequest,
   SendMessageResponse,
-  SetConversationArchiveRequest as ContractSetConversationArchiveRequest,
-  SetConversationProjectRequest as ContractSetConversationProjectRequest,
-  SetConversationStarRequest as ContractSetConversationStarRequest,
-  SetMessageFeedbackRequest as ContractSetMessageFeedbackRequest,
-  UpdateConversationProjectRequest as ContractUpdateConversationProjectRequest,
-  UpdateConversationLabelsRequest as ContractUpdateConversationLabelsRequest,
-  UpdateMessageRequest as ContractUpdateMessageRequest,
 } from "@deeix/api-contract";
 import type { UserStorageQuotaDTO } from "@/shared/api/file.types";
 
@@ -293,6 +293,17 @@ export type StreamMessageEvent =
       type: "completed";
       seq?: number;
       data: SendMessageResult;
+    }
+  | {
+      type: "moderation_checking";
+      seq?: number;
+    }
+  | {
+      type: "moderation_blocked";
+      seq?: number;
+      eventID?: string;
+      direction?: "input" | "output" | string;
+      categories?: string[];
     }
   | {
       type: "compact_done";

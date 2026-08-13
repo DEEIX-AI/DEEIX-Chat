@@ -3,6 +3,7 @@ package channel
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strconv"
 	"testing"
@@ -93,6 +94,172 @@ func TestListModelsSQLiteUsesPortableRouteStats(t *testing.T) {
 	}
 	if !reflect.DeepEqual(codes, []string{"active-a", "active-b"}) {
 		t.Fatalf("expected distinct active binding codes, got %v", codes)
+	}
+}
+
+func TestModelPresentationSQLiteJoinsMetadataAndClearsDeletedGroup(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	ctx := context.Background()
+
+	vendor := model.LLMModelVendor{Key: "acme-ai", Name: "Acme AI", Icon: "acme", SortOrder: 100}
+	group := model.LLMModelDisplayGroup{Name: "Paid models", Icon: "wallet", SortOrder: 100}
+	if err := db.Create(&vendor).Error; err != nil {
+		t.Fatalf("create vendor: %v", err)
+	}
+	if err := db.Create(&group).Error; err != nil {
+		t.Fatalf("create display group: %v", err)
+	}
+	platformModel := model.LLMPlatformModel{
+		Name: "acme-pro", Vendor: vendor.Key, DisplayGroupID: &group.ID, Status: "active",
+	}
+	if err := db.Create(&platformModel).Error; err != nil {
+		t.Fatalf("create platform model: %v", err)
+	}
+
+	repo := NewRepo(db)
+	items, total, err := repo.ListModels(ctx, repository.ListChannelModelsInput{Limit: 10})
+	if err != nil {
+		t.Fatalf("ListModels() error = %v", err)
+	}
+	if total != 1 || len(items) != 1 {
+		t.Fatalf("expected one model, total=%d len=%d", total, len(items))
+	}
+	if items[0].VendorName != vendor.Name || items[0].VendorIcon != vendor.Icon {
+		t.Fatalf("unexpected vendor metadata: %#v", items[0])
+	}
+	if items[0].DisplayGroupName != group.Name || items[0].DisplayGroupIcon != group.Icon {
+		t.Fatalf("unexpected display group metadata: %#v", items[0])
+	}
+	for _, query := range []string{"Acme AI", "Paid models"} {
+		matched, matchedTotal, queryErr := repo.ListModels(ctx, repository.ListChannelModelsInput{Limit: 10, Query: query})
+		if queryErr != nil {
+			t.Fatalf("ListModels(query=%q) error = %v", query, queryErr)
+		}
+		if matchedTotal != 1 || len(matched) != 1 || matched[0].ID != platformModel.ID {
+			t.Fatalf("expected query %q to match presentation metadata, total=%d items=%#v", query, matchedTotal, matched)
+		}
+	}
+
+	if err := repo.DeleteModelDisplayGroup(ctx, group.ID); err != nil {
+		t.Fatalf("DeleteModelDisplayGroup() error = %v", err)
+	}
+	var stored model.LLMPlatformModel
+	if err := db.First(&stored, platformModel.ID).Error; err != nil {
+		t.Fatalf("reload platform model: %v", err)
+	}
+	if stored.DisplayGroupID != nil {
+		t.Fatalf("expected display group to be cleared, got %#v", stored.DisplayGroupID)
+	}
+	if _, err := repo.GetModelDisplayGroupByID(ctx, group.ID); !errors.Is(err, repository.ErrNotFound) {
+		t.Fatalf("expected deleted group to be missing, got %v", err)
+	}
+}
+
+func TestModelDisplayGroupSQLiteReplacesMembersAtomically(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	ctx := context.Background()
+	oldGroup := model.LLMModelDisplayGroup{Name: "Old group", SortOrder: 100}
+	if err := db.Create(&oldGroup).Error; err != nil {
+		t.Fatalf("create old group: %v", err)
+	}
+	modelsToGroup := []model.LLMPlatformModel{
+		{Name: "model-a", Vendor: "openai", DisplayGroupID: &oldGroup.ID, Status: "active"},
+		{Name: "model-b", Vendor: "openai", Status: "active"},
+		{Name: "model-c", Vendor: "openai", Status: "active"},
+	}
+	if err := db.Create(&modelsToGroup).Error; err != nil {
+		t.Fatalf("create platform models: %v", err)
+	}
+
+	repo := NewRepo(db)
+	group := domainchannel.ModelDisplayGroup{Name: "Featured"}
+	if err := repo.CreateModelDisplayGroup(ctx, &group, []uint{modelsToGroup[0].ID, modelsToGroup[1].ID}); err != nil {
+		t.Fatalf("CreateModelDisplayGroup() error = %v", err)
+	}
+	assertModelDisplayGroupID(t, db, modelsToGroup[0].ID, &group.ID)
+	assertModelDisplayGroupID(t, db, modelsToGroup[1].ID, &group.ID)
+
+	nextMembers := []uint{modelsToGroup[2].ID}
+	if err := repo.UpdateModelDisplayGroup(ctx, group.ID, repository.UpdateModelDisplayGroupInput{ModelIDs: &nextMembers}); err != nil {
+		t.Fatalf("UpdateModelDisplayGroup() error = %v", err)
+	}
+	assertModelDisplayGroupID(t, db, modelsToGroup[0].ID, nil)
+	assertModelDisplayGroupID(t, db, modelsToGroup[1].ID, nil)
+	assertModelDisplayGroupID(t, db, modelsToGroup[2].ID, &group.ID)
+
+	invalidMembers := []uint{modelsToGroup[0].ID, 999999}
+	if err := repo.UpdateModelDisplayGroup(ctx, group.ID, repository.UpdateModelDisplayGroupInput{ModelIDs: &invalidMembers}); !errors.Is(err, repository.ErrInvalidInput) {
+		t.Fatalf("expected invalid member update to fail, got %v", err)
+	}
+	assertModelDisplayGroupID(t, db, modelsToGroup[0].ID, nil)
+	assertModelDisplayGroupID(t, db, modelsToGroup[2].ID, &group.ID)
+}
+
+func TestModelDisplayGroupSQLiteSetsSelectedModelsAtomically(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	ctx := context.Background()
+	group := model.LLMModelDisplayGroup{Name: "Featured", SortOrder: 100}
+	if err := db.Create(&group).Error; err != nil {
+		t.Fatalf("create display group: %v", err)
+	}
+	platformModels := []model.LLMPlatformModel{
+		{Name: "model-a", Vendor: "openai", Status: "active"},
+		{Name: "model-b", Vendor: "anthropic", Status: "active"},
+	}
+	if err := db.Create(&platformModels).Error; err != nil {
+		t.Fatalf("create platform models: %v", err)
+	}
+
+	repo := NewRepo(db)
+	modelIDs := []uint{platformModels[0].ID, platformModels[1].ID}
+	if err := repo.SetModelsDisplayGroup(ctx, modelIDs, group.ID); err != nil {
+		t.Fatalf("SetModelsDisplayGroup() error = %v", err)
+	}
+	assertModelDisplayGroupID(t, db, platformModels[0].ID, &group.ID)
+	assertModelDisplayGroupID(t, db, platformModels[1].ID, &group.ID)
+
+	if err := repo.SetModelsDisplayGroup(ctx, []uint{platformModels[0].ID}, 0); err != nil {
+		t.Fatalf("clear SetModelsDisplayGroup() error = %v", err)
+	}
+	assertModelDisplayGroupID(t, db, platformModels[0].ID, nil)
+	assertModelDisplayGroupID(t, db, platformModels[1].ID, &group.ID)
+
+	if err := repo.SetModelsDisplayGroup(ctx, []uint{platformModels[0].ID, 999999}, group.ID); !errors.Is(err, repository.ErrInvalidInput) {
+		t.Fatalf("expected invalid batch assignment to fail, got %v", err)
+	}
+	assertModelDisplayGroupID(t, db, platformModels[0].ID, nil)
+	assertModelDisplayGroupID(t, db, platformModels[1].ID, &group.ID)
+}
+
+func TestModelVendorSQLiteAllowsDuplicateDisplayNames(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+
+	first := domainchannel.ModelVendor{Key: "acme-primary", Name: "Acme"}
+	second := domainchannel.ModelVendor{Key: "acme-secondary", Name: "Acme"}
+	if err := repo.CreateModelVendor(ctx, &first); err != nil {
+		t.Fatalf("create first vendor: %v", err)
+	}
+	if err := repo.CreateModelVendor(ctx, &second); err != nil {
+		t.Fatalf("create second vendor with same display name: %v", err)
+	}
+}
+
+func assertModelDisplayGroupID(t *testing.T, db *gorm.DB, modelID uint, want *uint) {
+	t.Helper()
+	var stored model.LLMPlatformModel
+	if err := db.First(&stored, modelID).Error; err != nil {
+		t.Fatalf("reload platform model %d: %v", modelID, err)
+	}
+	if want == nil {
+		if stored.DisplayGroupID != nil {
+			t.Fatalf("model %d display group = %v, want nil", modelID, *stored.DisplayGroupID)
+		}
+		return
+	}
+	if stored.DisplayGroupID == nil || *stored.DisplayGroupID != *want {
+		t.Fatalf("model %d display group = %v, want %d", modelID, stored.DisplayGroupID, *want)
 	}
 }
 
@@ -231,6 +398,39 @@ func TestListModelsSQLiteSortOrderKeepsVendorGroups(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected model order %v, got %v", want, got)
+	}
+}
+
+func TestListModelsSQLiteSortOrderKeepsCrossVendorDisplayGroups(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	ctx := context.Background()
+	upstreamModel := createActiveRouteTarget(t, db)
+	paidGroup := model.LLMModelDisplayGroup{Name: "Paid", SortOrder: 100}
+	if err := db.Create(&paidGroup).Error; err != nil {
+		t.Fatalf("create display group: %v", err)
+	}
+
+	models := []model.LLMPlatformModel{
+		{Name: "claude-paid", Vendor: "anthropic", DisplayGroupID: &paidGroup.ID, Status: "active", SortOrder: 100},
+		{Name: "gpt-free", Vendor: "openai", Status: "active", SortOrder: 200},
+		{Name: "gpt-paid", Vendor: "openai", DisplayGroupID: &paidGroup.ID, Status: "active", SortOrder: 300},
+		{Name: "claude-free", Vendor: "anthropic", Status: "active", SortOrder: 400},
+	}
+	if err := db.Create(&models).Error; err != nil {
+		t.Fatalf("create platform models: %v", err)
+	}
+	createActiveRoutes(t, db, upstreamModel.ID, models...)
+
+	items, _, err := NewRepo(db).ListModels(ctx, repository.ListChannelModelsInput{
+		Limit: 10,
+		Sort:  "sortOrder_asc",
+	})
+	if err != nil {
+		t.Fatalf("ListModels() error = %v", err)
+	}
+	want := []string{"claude-paid", "gpt-paid", "gpt-free", "claude-free"}
+	if got := modelNames(items); !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected effective display groups %v, got %v", want, got)
 	}
 }
 
@@ -983,6 +1183,8 @@ func openChannelSQLiteTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(
 		&model.LLMUpstream{},
 		&model.LLMUpstreamModel{},
+		&model.LLMModelVendor{},
+		&model.LLMModelDisplayGroup{},
 		&model.LLMPlatformModel{},
 		&model.LLMPlatformModelRoute{},
 		&model.PermissionGroup{},

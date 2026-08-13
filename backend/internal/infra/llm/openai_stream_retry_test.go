@@ -29,7 +29,7 @@ func testChatCompletionsStreamDoesNotRetryAfterEventEmission(t *testing.T, proto
 	defer server.Close()
 
 	var deltas strings.Builder
-	_, err := NewClient().GenerateStream(context.Background(), RouteConfig{
+	_, err := newTestClient().GenerateStream(context.Background(), RouteConfig{
 		Protocol:      protocol,
 		BaseURL:       server.URL,
 		UpstreamModel: "gpt-compatible",
@@ -68,7 +68,7 @@ func TestOpenAIResponsesStreamDoesNotRetryPromptCacheErrors(t *testing.T) {
 	defer server.Close()
 
 	var deltas strings.Builder
-	_, err := NewClient().GenerateStream(context.Background(), RouteConfig{
+	_, err := newTestClient().GenerateStream(context.Background(), RouteConfig{
 		Protocol:      AdapterOpenAIResponses,
 		BaseURL:       server.URL,
 		UpstreamModel: "gpt-5.6-relay",

@@ -17,6 +17,11 @@ export const DEFAULT_LOGIN_OPTIONS: LoginOptionsData = {
   passwordResetEnabled: false,
   turnstileRegistrationEnabled: false,
   turnstileSiteKey: "",
+  providerAuthBridge: {
+    callbackBaseURL: "",
+    enabled: false,
+    protocolVersion: 1,
+  },
   providers: [],
 };
 
@@ -33,6 +38,17 @@ export function normalizeRegisterCode(value: string): string {
 
 export function providerPKCEStorageKey(slug: string): string {
   return `deeix-chat:oauth:${slug}:pkce_verifier`;
+}
+
+export type ProviderAuthBridgeRequest = {
+  verifier: string;
+  state: string;
+  intent: ProviderAuthIntent;
+  next: string;
+};
+
+export function providerAuthBridgeStorageKey(slug: string): string {
+  return `deeix-chat:oauth:${slug}:bridge`;
 }
 
 export function isTwoFactorChallengeExpired(error: unknown): boolean {
@@ -56,4 +72,10 @@ export async function createProviderPKCE() {
     verifier,
     challenge: base64URL(new Uint8Array(digest)),
   };
+}
+
+export function createProviderClientState(): string {
+  const bytes = new Uint8Array(32);
+  window.crypto.getRandomValues(bytes);
+  return base64URL(bytes);
 }

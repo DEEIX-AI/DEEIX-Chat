@@ -77,6 +77,7 @@ import {
   type ProviderTemplate,
 } from "@/features/admin/model/login-settings";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
+import { getLoginOptions } from "@/shared/api/auth";
 
 function RequiredMark() {
   return <span className="ml-0.5 text-destructive">*</span>;
@@ -106,6 +107,7 @@ export function AdminLoginSettingsPage() {
   const [providerForm, setProviderForm] = React.useState<IdentityProviderForm>(DEFAULT_PROVIDER_FORM);
   const [oidcEndpointMode, setOidcEndpointMode] = React.useState<"issuer" | "discovery">("issuer");
   const [frontendOrigin, setFrontendOrigin] = React.useState("");
+  const [providerCallbackBaseURL, setProviderCallbackBaseURL] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const stableDeleteProviderTarget = useDialogSnapshot(deleteProviderTarget);
@@ -118,12 +120,13 @@ export function AdminLoginSettingsPage() {
         toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
         return;
       }
-      const [grouped, providerPage] = await Promise.all([listAdminSettings(token), listAdminIdentityProviders(token)]);
+      const [grouped, providerPage, loginOptions] = await Promise.all([listAdminSettings(token), listAdminIdentityProviders(token), getLoginOptions()]);
       const flattened = flattenLoginSettings(grouped);
       setConfiguredMap(configuredSettingsMap(grouped));
       setSettingsMap(flattened);
       setSavedMap(flattened);
       setProviders(providerPage.results);
+      setProviderCallbackBaseURL(loginOptions.providerAuthBridge.callbackBaseURL);
     } catch (error) {
       toast.error(t("toast.loadFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
@@ -386,7 +389,10 @@ export function AdminLoginSettingsPage() {
 
   const oidcEndpointValue = oidcEndpointMode === "discovery" ? (providerForm.discoveryURL ?? "") : (providerForm.issuerURL ?? "");
   const callbackSlug = providerForm.slug?.trim() || normalizeProviderSlugPreview(providerForm.name) || "provider";
-  const callbackURL = `${frontendOrigin || "http://localhost:3000"}/auth/callback?provider=${encodeURIComponent(callbackSlug)}`;
+  const legacyCallbackURL = `${frontendOrigin || "http://localhost:3000"}/auth/callback?provider=${encodeURIComponent(callbackSlug)}`;
+  const callbackURL = providerCallbackBaseURL
+    ? `${providerCallbackBaseURL}/${encodeURIComponent(callbackSlug)}/callback`
+    : legacyCallbackURL;
 
   return (
     <SettingsPage>
@@ -702,7 +708,9 @@ export function AdminLoginSettingsPage() {
               <Input value={providerForm.name} onChange={(event) => setProviderForm((prev) => ({ ...prev, name: event.target.value }))} />
             </label>
             <label className="col-span-2 space-y-1 text-sm">
-              <span className="text-xs text-muted-foreground">{t("providerDialog.callbackURL")}</span>
+              <span className="text-xs text-muted-foreground">
+                {t(providerCallbackBaseURL ? "providerDialog.serverCallbackURL" : "providerDialog.callbackURL")}
+              </span>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                 <Input value={callbackURL} disabled readOnly />
                 <CopyActionButton
@@ -717,6 +725,24 @@ export function AdminLoginSettingsPage() {
                 />
               </div>
             </label>
+            {callbackURL !== legacyCallbackURL ? (
+              <label className="col-span-2 space-y-1 text-sm">
+                <span className="text-xs text-muted-foreground">{t("providerDialog.legacyWebCallbackURL")}</span>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                  <Input value={legacyCallbackURL} disabled readOnly />
+                  <CopyActionButton
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground shadow-none"
+                    value={legacyCallbackURL}
+                    messages={{ copied: t("toast.callbackCopied"), failed: commonT("errors.copyFailed") }}
+                    aria-label={t("providerDialog.copyCallbackURL")}
+                    title={t("providerDialog.copyCallbackURL")}
+                  />
+                </div>
+              </label>
+            ) : null}
             <label className="col-span-2 space-y-1 text-sm">
               <span className="text-xs text-muted-foreground">{t("providerDialog.logoURL")}</span>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">

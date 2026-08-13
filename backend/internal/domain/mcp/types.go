@@ -2,6 +2,14 @@ package mcp
 
 import "time"
 
+const (
+	AttachmentInputModeNone  = "none"
+	AttachmentInputModeImage = "image"
+
+	AttachmentEncodingBase64  = "base64"
+	AttachmentEncodingDataURL = "data_url"
+)
+
 // Server 表示管理员维护的 MCP 服务。
 type Server struct {
 	ID                                   uint
@@ -27,15 +35,19 @@ type ServerWithTools struct {
 
 // Tool 表示从 MCP 服务发现并由管理员控制可用性的工具。
 type Tool struct {
-	ID              uint
-	ServerID        uint
-	ServerName      string
-	Name            string
-	DisplayName     string
-	Description     string
-	InputSchemaJSON string
-	Status          string
-	SortOrder       int
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                       uint
+	ServerID                 uint
+	ServerName               string
+	Name                     string
+	DisplayName              string
+	Description              string
+	InputSchemaJSON          string
+	AttachmentInputMode      string
+	AttachmentArgument       string
+	AttachmentEncoding       string
+	AttachmentPromptArgument string
+	Status                   string
+	SortOrder                int
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
 }

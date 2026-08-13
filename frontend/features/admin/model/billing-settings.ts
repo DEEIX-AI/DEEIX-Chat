@@ -5,6 +5,7 @@ import type {
 } from "@/features/admin/api/billing.types";
 import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
 import type { PatchSettingItem, SettingItem } from "@/shared/api/settings.types";
+import { parseKindsJSON } from "@/shared/model/llm-schema";
 
 export type BillingModelPricingRow = {
   platformModelName: string;
@@ -12,6 +13,7 @@ export type BillingModelPricingRow = {
   icon: string;
   pricing: AdminModelPricingDTO | null;
   isFree: boolean;
+  supportsVideoGeneration: boolean;
 };
 
 export type PricingMode = "token" | "call" | "duration" | "tiered";
@@ -74,6 +76,7 @@ export type ModelPricingImportMessages = {
   duplicateModel: (model: string) => string;
   pricingObject: (model: string) => string;
   invalidPricingMode: (model: string) => string;
+  durationVideoOnly: (model: string) => string;
   invalidNumber: (model: string, field: string) => string;
   invalidTieredPricing: (model: string, field: string) => string;
   invalidTieredPricingJSON: (model: string) => string;
@@ -305,6 +308,7 @@ const DEFAULT_IMPORT_MESSAGES: ModelPricingImportMessages = {
   duplicateModel: (model) => `${model} appears more than once`,
   pricingObject: (model) => `${model} pricing must be an object`,
   invalidPricingMode: (model) => `${model}.pricingMode must be token, call, duration, or tiered`,
+  durationVideoOnly: (model) => `${model}.pricingMode=duration requires the video_gen model capability`,
   invalidNumber: (model, field) => `${model}.${field} must be a number greater than or equal to 0`,
   invalidTieredPricing: (model, field) => `${model}.${field} must contain a non-empty tiers array`,
   invalidTieredPricingJSON: (model) => `${model}.tieredPricingJSON is not valid JSON`,
@@ -460,6 +464,7 @@ export function createOptimisticModelPricing(row: BillingModelPricingRow, payloa
 export function parseModelPricingImportJSON(
   raw: string,
   knownPlatformModelNames: Set<string>,
+  videoGenerationModelNames: Set<string>,
   messages: ModelPricingImportMessages = DEFAULT_IMPORT_MESSAGES,
 ): ModelPricingImportParseResult {
   const errors: string[] = [];
@@ -512,6 +517,10 @@ export function parseModelPricingImportJSON(
     }
     const entryErrors: string[] = [];
     const pricingMode = rawEntry.pricingMode;
+    if (pricingMode === "duration" && !videoGenerationModelNames.has(platformModelName)) {
+      errors.push(messages.durationVideoOnly(platformModelName));
+      continue;
+    }
     const tieredPricingJSON = pricingMode === "tiered"
       ? parseTieredPricingImportValue(rawEntry, platformModelName, entryErrors, messages)
       : undefined;
@@ -561,6 +570,7 @@ export function buildPricingRows(models: AdminLLMModelDTO[], pricingItems: Admin
         icon: pricing?.modelIcon || model.icon || "",
         pricing,
         isFree: pricing?.isFree ?? false,
+        supportsVideoGeneration: parseKindsJSON(model.kindsJSON).includes("video_gen"),
       };
     });
 }

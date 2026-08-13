@@ -118,6 +118,10 @@ type MessageFeedbackRepository interface {
 type ConversationTraceRepository interface {
 	CreateAttachments(ctx context.Context, items []domainconversation.Attachment) error
 	CreateConversationRun(ctx context.Context, item *domainconversation.Run) error
+	// EnsureConversationRun inserts a mid-flight run row if absent (moderation / recovery).
+	EnsureConversationRun(ctx context.Context, item *domainconversation.Run) error
+	// UpsertConversationRun creates or updates the final run snapshot by run_id.
+	UpsertConversationRun(ctx context.Context, item *domainconversation.Run) error
 	UpsertConversationMessageTrace(ctx context.Context, item *domainconversation.MessageTrace) error
 	ListConversationMessageTracesByMessageIDs(ctx context.Context, messageIDs []uint) ([]domainconversation.MessageTrace, error)
 	UpsertConversationMessageTraceEvent(ctx context.Context, item *domainconversation.MessageTraceEventRow) error
@@ -146,7 +150,29 @@ type ConversationEventLogListFilter struct {
 // MessageEmbeddingRepository 封装消息历史向量存储与检索能力。
 type MessageEmbeddingRepository interface {
 	UpsertMessageChunks(ctx context.Context, chunks []domainconversation.MessageChunk, embeddings [][]float32) error
-	SearchMessageChunks(ctx context.Context, conversationID uint, userID uint, queryEmbedding []float32, topK int, minSimilarity float64) ([]domainconversation.MessageChunk, error)
+	SearchMessageChunks(ctx context.Context, input MessageChunkSearchInput) ([]domainconversation.MessageChunk, error)
+}
+
+// HistoricalMessageScope 描述当前消息所在分支中可参与历史召回的祖先范围。
+// ExcludeThroughMessageID 用于快照场景：排除该边界消息及其全部祖先。
+type HistoricalMessageScope struct {
+	ConversationID          uint
+	UserID                  uint
+	LeafMessageID           uint
+	ExcludeThroughMessageID uint
+}
+
+// Valid 表示分支范围包含可验证的会话和叶消息锚点。
+func (scope HistoricalMessageScope) Valid() bool {
+	return scope.ConversationID > 0 && scope.UserID > 0 && scope.LeafMessageID > 0
+}
+
+// MessageChunkSearchInput 描述当前分支内的历史消息语义检索。
+type MessageChunkSearchInput struct {
+	Scope          HistoricalMessageScope
+	QueryEmbedding []float32
+	TopK           int
+	MinSimilarity  float64
 }
 
 // CompactRepository 封装上下文压缩快照能力。

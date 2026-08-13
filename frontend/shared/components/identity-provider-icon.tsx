@@ -5,6 +5,7 @@ import * as React from "react";
 import {
   resolveIdentityProviderIconScale,
   resolveIdentityProviderIconURL,
+  resolveSafeIdentityProviderIconURL,
   shouldInvertIdentityProviderIcon,
 } from "@/shared/lib/identity-provider-icons";
 import { cn } from "@/lib/utils";
@@ -24,7 +25,7 @@ export function IdentityProviderIcon({
   iconClassName?: string;
   fallbackClassName?: string;
 }) {
-  const customLogoURL = logoURL?.trim() ?? "";
+  const customLogoURL = resolveSafeIdentityProviderIconURL(logoURL);
   const defaultIconURL = resolveIdentityProviderIconURL(name, slug);
   const iconCandidates = React.useMemo(
     () => [customLogoURL, defaultIconURL].filter((value): value is string => Boolean(value)),

@@ -648,6 +648,17 @@ func TestModelToolOutputForModelOmitsNestedOpaquePayload(t *testing.T) {
 	}
 }
 
+func TestSanitizeOpaqueToolOutputOmitsSmallDataURL(t *testing.T) {
+	raw := `{"content":[{"type":"text","text":"ok"}],"structuredContent":{"image":"data:image/png;base64,QUJD"}}`
+	got := sanitizeOpaqueToolOutput(raw)
+	if !strings.Contains(got, `"text":"ok"`) || !strings.Contains(got, "Opaque tool payload omitted") {
+		t.Fatalf("expected readable output with the data URL removed, got %q", got)
+	}
+	if strings.Contains(got, ";base64,") {
+		t.Fatalf("expected data URL bytes to be removed, got %q", got)
+	}
+}
+
 func TestModelToolOutputForModelPreservesLargeInteger(t *testing.T) {
 	raw := `{"id":9007199254740993,"image":"` + strings.Repeat("A", 4096) + `"}`
 	got := modelToolOutputForModel(raw)

@@ -43,6 +43,18 @@ var (
 	ErrSystemPromptTooLong = errors.New("system prompt too long")
 	// ErrInvalidModelOrder 模型排序参数无效。
 	ErrInvalidModelOrder = errors.New("invalid model order")
+	// ErrModelVendorNotFound 技术厂商不存在。
+	ErrModelVendorNotFound = errors.New("model vendor not found")
+	// ErrModelVendorConflict 技术厂商 key 重复。
+	ErrModelVendorConflict = errors.New("model vendor conflict")
+	// ErrInvalidModelVendor 技术厂商参数无效。
+	ErrInvalidModelVendor = errors.New("invalid model vendor")
+	// ErrModelDisplayGroupNotFound 展示分组不存在。
+	ErrModelDisplayGroupNotFound = errors.New("model display group not found")
+	// ErrModelDisplayGroupConflict 展示分组名称重复。
+	ErrModelDisplayGroupConflict = errors.New("model display group conflict")
+	// ErrInvalidModelDisplayGroup 展示分组参数无效。
+	ErrInvalidModelDisplayGroup = errors.New("invalid model display group")
 	// ErrInvalidPermissionGroupModels 模型权限组参数无效。
 	ErrInvalidPermissionGroupModels = errors.New("invalid permission group models")
 	// ErrPermissionGroupRepoUnavailable 权限组仓储未注入。

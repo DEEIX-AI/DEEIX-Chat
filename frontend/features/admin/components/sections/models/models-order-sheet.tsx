@@ -25,8 +25,9 @@ import { invalidateAdminReferenceDataCache } from "@/features/admin/api/referenc
 import { listAllAdminPages } from "@/features/admin/api/shared";
 import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import { LobeHubIcon } from "@/shared/components/lobehub-icon";
-import { resolveLobeHubIconURL, resolveModelIdentity, resolveVendorIdentity } from "@/shared/lib/model-identity";
+import { ModelIcon } from "@/shared/components/model-icon";
+import { resolveModelIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
+import { resolveModelPresentationGroup } from "@/shared/lib/model-presentation";
 import { parseKindsJSON } from "@/shared/model/llm-schema";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
@@ -43,7 +44,7 @@ type ModelOrderSheetProps = {
 };
 
 type ModelOrderGroup = {
-  vendorKey: string;
+  groupKey: string;
   label: string;
   icon: string;
   items: AdminLLMModelDTO[];
@@ -52,16 +53,16 @@ type ModelOrderGroup = {
 function buildModelOrderGroups(models: AdminLLMModelDTO[]): ModelOrderGroup[] {
   const groups = new Map<string, ModelOrderGroup>();
   for (const model of models) {
-    const identity = resolveVendorIdentity(model.vendor);
-    const current = groups.get(identity.vendorKey);
+    const presentation = resolveModelPresentationGroup(model);
+    const current = groups.get(presentation.key);
     if (current) {
       current.items.push(model);
       continue;
     }
-    groups.set(identity.vendorKey, {
-      vendorKey: identity.vendorKey,
-      label: identity.vendorLabel,
-      icon: identity.vendorIcon,
+    groups.set(presentation.key, {
+      groupKey: presentation.key,
+      label: presentation.label,
+      icon: presentation.icon,
       items: [model],
     });
   }
@@ -100,14 +101,14 @@ export function ModelOrderSheet({
   const commonT = useTranslations("common.actions");
   const toastT = useTranslations("adminModels.toast");
   const [models, setModels] = React.useState<AdminLLMModelDTO[]>([]);
-  const [selectedVendorKey, setSelectedVendorKey] = React.useState("");
+  const [selectedGroupKey, setSelectedGroupKey] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [dirty, setDirty] = React.useState(false);
   const initialOrderRef = React.useRef<string>("");
 
   const groups = React.useMemo(() => buildModelOrderGroups(models), [models]);
-  const selectedGroup = groups.find((group) => group.vendorKey === selectedVendorKey) ?? groups[0] ?? null;
+  const selectedGroup = groups.find((group) => group.groupKey === selectedGroupKey) ?? groups[0] ?? null;
 
   const loadModels = React.useCallback(async () => {
     setLoading(true);
@@ -128,10 +129,10 @@ export function ModelOrderSheet({
       initialOrderRef.current = results.map((item) => item.id).join(",");
       setDirty(false);
       const nextGroups = buildModelOrderGroups(results);
-      setSelectedVendorKey((current) =>
-        nextGroups.some((group) => group.vendorKey === current)
+      setSelectedGroupKey((current) =>
+        nextGroups.some((group) => group.groupKey === current)
           ? current
-          : nextGroups[0]?.vendorKey ?? "",
+          : nextGroups[0]?.groupKey ?? "",
       );
     } catch (error) {
       toast.error(t("loadFailed"), { description: resolveAdminErrorMessage(error) });
@@ -153,13 +154,13 @@ export function ModelOrderSheet({
     setDirty(nextModels.map((item) => item.id).join(",") !== initialOrderRef.current);
   }, []);
 
-  const moveVendorTo = React.useCallback(
-    (vendorKey: string, targetVendorKey: string) => {
-      if (vendorKey === targetVendorKey) {
+  const moveGroupTo = React.useCallback(
+    (groupKey: string, targetGroupKey: string) => {
+      if (groupKey === targetGroupKey) {
         return;
       }
-      const index = groups.findIndex((group) => group.vendorKey === vendorKey);
-      const targetIndex = groups.findIndex((group) => group.vendorKey === targetVendorKey);
+      const index = groups.findIndex((group) => group.groupKey === groupKey);
+      const targetIndex = groups.findIndex((group) => group.groupKey === targetGroupKey);
       commitGroups(moveSortableItem(groups, index, targetIndex));
     },
     [commitGroups, groups],
@@ -170,7 +171,7 @@ export function ModelOrderSheet({
       if (!selectedGroup || modelID === targetModelID) {
         return;
       }
-      const groupIndex = groups.findIndex((group) => group.vendorKey === selectedGroup.vendorKey);
+      const groupIndex = groups.findIndex((group) => group.groupKey === selectedGroup.groupKey);
       const itemIndex = selectedGroup.items.findIndex((item) => item.id === modelID);
       const targetIndex = selectedGroup.items.findIndex((item) => item.id === targetModelID);
       if (groupIndex < 0) {
@@ -245,23 +246,23 @@ export function ModelOrderSheet({
             <div className="grid h-full min-h-0 grid-cols-1 gap-3 lg:grid-cols-[230px_minmax(0,1fr)]">
               <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-background">
                 <div className="flex h-9 shrink-0 items-center justify-between gap-3 border-b px-3">
-                  <span className="text-xs font-medium text-foreground">{t("vendorHeader")}</span>
+                  <span className="text-xs font-medium text-foreground">{t("groupHeader")}</span>
                   <span className="text-[11px] text-muted-foreground">{t("itemCount", { count: groups.length })}</span>
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto p-1">
                   <AdminSortableList
-                    items={groups.map((group) => group.vendorKey)}
+                    items={groups.map((group) => group.groupKey)}
                     disabled={saving || groups.length < 2}
-                    onMove={moveVendorTo}
+                    onMove={moveGroupTo}
                   >
                     <div className="space-y-0.5">
                       {groups.map((group) => {
-                        const selected = group.vendorKey === selectedGroup?.vendorKey;
-                        const iconURL = resolveLobeHubIconURL(group.icon);
+                        const selected = group.groupKey === selectedGroup?.groupKey;
+                        const iconURL = resolveModelIconURL(group.icon);
                         return (
                           <AdminSortableItem
-                            key={group.vendorKey}
-                            id={group.vendorKey}
+                            key={group.groupKey}
+                            id={group.groupKey}
                             disabled={saving || groups.length < 2}
                           >
                             {({ attributes, isDragging, listeners }) => (
@@ -278,15 +279,15 @@ export function ModelOrderSheet({
                                   attributes={attributes}
                                   disabled={saving}
                                   hidden={groups.length < 2}
-                                  label={t("dragVendor", { name: group.label })}
+                                  label={t("dragGroup", { name: group.label })}
                                   listeners={listeners}
                                 />
                                 <button
                                   type="button"
                                   className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm px-1 text-left"
-                                  onClick={() => setSelectedVendorKey(group.vendorKey)}
+                                  onClick={() => setSelectedGroupKey(group.groupKey)}
                                 >
-                                  {iconURL ? <LobeHubIcon iconUrl={iconURL} label={group.label} size={14} /> : null}
+                                  {iconURL ? <ModelIcon iconUrl={iconURL} label={group.label} size={14} /> : null}
                                   <span className="min-w-0 flex-1 truncate text-xs font-medium">{group.label}</span>
                                   <span className="shrink-0 text-[11px] text-muted-foreground">{group.items.length}</span>
                                 </button>
@@ -333,7 +334,7 @@ export function ModelOrderSheet({
                             vendor: model.vendor,
                             icon: model.icon,
                           });
-                          const iconURL = resolveLobeHubIconURL(identity.modelIcon);
+                          const iconURL = resolveModelIconURL(identity.modelIcon);
                           return (
                             <AdminSortableItem
                               key={model.id}
@@ -354,7 +355,7 @@ export function ModelOrderSheet({
                                     label={t("dragModel", { name: model.platformModelName })}
                                     listeners={listeners}
                                   />
-                                  <LobeHubIcon iconUrl={iconURL} label={model.platformModelName} size={14} />
+                                  <ModelIcon iconUrl={iconURL} label={model.platformModelName} size={14} />
                                   <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
                                     {model.platformModelName}
                                   </span>

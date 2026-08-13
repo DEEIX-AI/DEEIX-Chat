@@ -120,6 +120,16 @@ observability:
 
 启用 Turnstile 需要同时启用 `auth:email_registration_enabled`，并配置 Site Key 与 Secret Key。开启邮箱验证码注册时，前端在 `/api/v1/auth/register/email/start` 提交 `turnstileToken`；关闭邮箱验证码但允许邮箱注册时，前端在 `/api/v1/auth/register/email/complete` 提交 `turnstileToken`。
 
+## OAuth 公共客户端授权桥（多端暂未发布）
+
+Web、App 和桌面端统一通过当前实例完成第三方 OAuth 回调。部署必须提供外部可访问的 `PUBLIC_API_BASE_URL`，身份源回调格式为：
+
+```text
+<PUBLIC_API_BASE_URL>/api/v1/auth/providers/<provider-slug>/callback
+```
+
+`POST /auth/providers/:slug/authorize` 创建短时事务并使用服务端独立 PKCE 访问上游；`GET /auth/providers/:slug/callback` 在服务端兑换上游授权码；`POST /auth/providers/:slug/exchange` 使用公共客户端 PKCE verifier 原子兑换一次性 DEEIX grant。事务与 grant 使用现有 Redis/内存缓存后端，外部 provider code、Client Secret 和 Token 均不会进入公共客户端。旧 `/start` 与 `POST /callback` 流程继续保留，用于账号身份绑定与旧版 Web 客户端兼容。
+
 生产环境安全校验：
 
 - `APP_ENV` 支持 `dev`/`development` 和 `prod`/`production`，其他值会启动失败。

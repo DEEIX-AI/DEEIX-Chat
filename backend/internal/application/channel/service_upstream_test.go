@@ -5,6 +5,16 @@ import (
 	"testing"
 )
 
+func TestValidateUpstreamBaseURLAllowsAdministratorConfiguredPrivateOrigin(t *testing.T) {
+	service := &Service{}
+	if err := service.validateUpstreamBaseURL("http://new-api:3000/v1"); err != nil {
+		t.Fatalf("private model endpoint rejected: %v", err)
+	}
+	if err := service.validateUpstreamBaseURL("http://169.254.169.254/latest/meta-data"); err == nil {
+		t.Fatal("metadata endpoint must remain blocked")
+	}
+}
+
 func TestDeleteAPIKeysByIDsRemovesSelectedKeys(t *testing.T) {
 	raw := `{"strategy":"round_robin","keys":[{"key":"sk-first","status":"active"},{"key":"sk-second","status":"inactive","note":"old"},{"key":"sk-third","status":"active"}]}`
 	secret := "test-secret"

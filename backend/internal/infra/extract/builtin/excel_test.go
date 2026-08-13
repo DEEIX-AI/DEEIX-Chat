@@ -1,8 +1,10 @@
 package builtin
 
 import (
+	"archive/zip"
 	"bytes"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -61,4 +63,79 @@ func TestExtractXLSXTextPreservesRows(t *testing.T) {
 	if !strings.Contains(output, fmt.Sprintf("row-%d", rows)) {
 		t.Fatal("expected last row to be preserved")
 	}
+}
+
+func TestExcelizeRejectsInvalidRowIndex(t *testing.T) {
+	file := excelize.NewFile()
+	defer func() {
+		_ = file.Close()
+	}()
+	if err := file.SetCellValue("Sheet1", "A1", "value"); err != nil {
+		t.Fatal(err)
+	}
+
+	var source bytes.Buffer
+	if err := file.Write(&source); err != nil {
+		t.Fatal(err)
+	}
+	malformed := rewriteXLSXWorksheet(t, source.Bytes(), func(data []byte) []byte {
+		updated := bytes.Replace(data, []byte(`<row r="1"`), []byte(`<row r="-1"`), 1)
+		if bytes.Equal(updated, data) {
+			t.Fatal("expected worksheet row index to be replaced")
+		}
+		return updated
+	})
+
+	workbook, err := excelize.OpenReader(bytes.NewReader(malformed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = workbook.Close()
+	}()
+	if _, err = workbook.GetCellValue("Sheet1", "A1"); err == nil {
+		t.Fatal("expected invalid worksheet row index to be rejected")
+	}
+}
+
+func rewriteXLSXWorksheet(t *testing.T, data []byte, rewrite func([]byte) []byte) []byte {
+	t.Helper()
+
+	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	writer := zip.NewWriter(&output)
+	for _, item := range reader.File {
+		entryReader, openErr := item.Open()
+		if openErr != nil {
+			t.Fatal(openErr)
+		}
+		entry, readErr := io.ReadAll(entryReader)
+		closeErr := entryReader.Close()
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if closeErr != nil {
+			t.Fatal(closeErr)
+		}
+		if item.Name == "xl/worksheets/sheet1.xml" {
+			entry = rewrite(entry)
+		}
+		entryWriter, createErr := writer.CreateHeader(&zip.FileHeader{
+			Name:   item.Name,
+			Method: item.Method,
+		})
+		if createErr != nil {
+			t.Fatal(createErr)
+		}
+		if _, writeErr := entryWriter.Write(entry); writeErr != nil {
+			t.Fatal(writeErr)
+		}
+	}
+	if err = writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return output.Bytes()
 }

@@ -919,7 +919,7 @@ func (r *Repo) ListRedemptionCodes(ctx context.Context, filter repository.Redemp
 	if limit > 200 {
 		limit = 200
 	}
-	items := make([]model.RedemptionCode, 0, limit)
+	items := make([]model.RedemptionCode, 0)
 	var total int64
 	query := r.db.WithContext(ctx).Model(&model.RedemptionCode{})
 	if len(filter.Modes) > 0 {
@@ -1857,7 +1857,7 @@ func (r *Repo) ListMonthlyUsageByUser(ctx context.Context, userID uint, limit in
 		BilledNanousd    int64  `gorm:"column:billed_nanousd"`
 	}
 
-	rows := make([]monthlyUsageRow, 0, limit)
+	rows := make([]monthlyUsageRow, 0)
 	monthKeyExpression := r.usageMonthKeyExpression()
 	if err := r.db.WithContext(ctx).
 		Model(&model.UsageLedger{}).

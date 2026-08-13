@@ -229,7 +229,7 @@ func (h *Handler) ListServerTools(c *gin.Context) {
 
 // UpdateTool godoc
 // @Summary 更新 MCP 工具
-// @Description 管理员更新 MCP 工具的展示信息或状态
+// @Description 管理员更新 MCP 工具的展示信息、附件处理配置或状态
 // @Tags admin-mcp
 // @Accept json
 // @Produce json
@@ -251,9 +251,13 @@ func (h *Handler) UpdateTool(c *gin.Context) {
 		return
 	}
 	item, err := h.service.UpdateTool(c.Request.Context(), toolID, appmcp.ToolInput{
-		DisplayName: req.DisplayName,
-		Description: req.Description,
-		Status:      req.Status,
+		DisplayName:              req.DisplayName,
+		Description:              req.Description,
+		AttachmentInputMode:      req.AttachmentInputMode,
+		AttachmentArgument:       req.AttachmentArgument,
+		AttachmentEncoding:       req.AttachmentEncoding,
+		AttachmentPromptArgument: req.AttachmentPromptArgument,
+		Status:                   req.Status,
 	})
 	if err != nil {
 		writeServiceError(c, err)
@@ -360,6 +364,7 @@ func writeServiceError(c *gin.Context, err error) {
 		errors.Is(err, appmcp.ErrInvalidToolStatus),
 		errors.Is(err, appmcp.ErrInvalidToolName),
 		errors.Is(err, appmcp.ErrInvalidToolDesc),
+		errors.Is(err, appmcp.ErrInvalidToolAttachmentConfig),
 		errors.Is(err, appmcp.ErrInvalidToolSelection):
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 	default:
@@ -387,16 +392,20 @@ func toServerResponse(item domainmcp.Server) ServerResponse {
 
 func toToolResponse(item domainmcp.Tool) ToolResponse {
 	return ToolResponse{
-		ID:              item.ID,
-		ServerID:        item.ServerID,
-		ServerName:      item.ServerName,
-		Name:            item.Name,
-		DisplayName:     item.DisplayName,
-		Description:     item.Description,
-		InputSchemaJSON: item.InputSchemaJSON,
-		Status:          item.Status,
-		SortOrder:       item.SortOrder,
-		CreatedAt:       item.CreatedAt,
-		UpdatedAt:       item.UpdatedAt,
+		ID:                       item.ID,
+		ServerID:                 item.ServerID,
+		ServerName:               item.ServerName,
+		Name:                     item.Name,
+		DisplayName:              item.DisplayName,
+		Description:              item.Description,
+		InputSchemaJSON:          item.InputSchemaJSON,
+		AttachmentInputMode:      item.AttachmentInputMode,
+		AttachmentArgument:       item.AttachmentArgument,
+		AttachmentEncoding:       item.AttachmentEncoding,
+		AttachmentPromptArgument: item.AttachmentPromptArgument,
+		Status:                   item.Status,
+		SortOrder:                item.SortOrder,
+		CreatedAt:                item.CreatedAt,
+		UpdatedAt:                item.UpdatedAt,
 	}
 }

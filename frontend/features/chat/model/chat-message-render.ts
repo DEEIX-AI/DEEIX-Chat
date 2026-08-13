@@ -104,6 +104,7 @@ function areAttachmentsEqual(
       item.detectedMime === nextItem.detectedMime &&
       item.fileCategory === nextItem.fileCategory &&
       item.sizeBytes === nextItem.sizeBytes &&
+      item.durationSeconds === nextItem.durationSeconds &&
       item.kind === nextItem.kind &&
       item.previewURL === nextItem.previewURL &&
       item.processingStatus === nextItem.processingStatus &&

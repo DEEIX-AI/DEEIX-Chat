@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"strings"
 
@@ -61,26 +59,23 @@ func (s *Service) verifyRegistrationTurnstile(ctx context.Context, cfg config.Co
 	if endpoint == "" {
 		endpoint = config.DefaultTurnstileSiteverifyURL
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
-	if err != nil {
-		return err
-	}
-	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	request.Header.Set("Accept", "application/json")
-
-	response, err := s.providerHTTPClient.Do(request)
+	response, err := s.providerHTTPClient.PostForm(
+		ctx,
+		endpoint,
+		[]string{endpoint},
+		form,
+		map[string]string{"Accept": "application/json"},
+	)
 	if err != nil {
 		s.warn("turnstile siteverify request failed: " + err.Error())
 		return errTurnstileFailed
 	}
-	defer response.Body.Close()
-
 	var result turnstileSiteverifyResponse
-	if err = json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&result); err != nil {
+	if err = json.Unmarshal(response.Body, &result); err != nil {
 		s.warn(fmt.Sprintf("turnstile siteverify decode failed: status=%d error=%v", response.StatusCode, err))
 		return errTurnstileFailed
 	}
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices || !result.Success {
+	if !response.Successful() || !result.Success {
 		s.warn(fmt.Sprintf("turnstile siteverify rejected: status=%d error_codes=%s", response.StatusCode, strings.Join(result.ErrorCodes, ",")))
 		return errTurnstileFailed
 	}

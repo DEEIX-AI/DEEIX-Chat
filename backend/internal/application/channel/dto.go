@@ -135,6 +135,11 @@ type ModelView struct {
 	ID                 uint
 	PlatformModelName  string
 	Vendor             string
+	VendorName         string
+	VendorIcon         string
+	DisplayGroupID     *uint
+	DisplayGroupName   string
+	DisplayGroupIcon   string
 	KindsJSON          string
 	Icon               string
 	CapabilitiesJSON   string
@@ -154,6 +159,28 @@ type ModelView struct {
 	Pricing            *appbilling.PublicModelPricing
 	CreatedAt          string
 	UpdatedAt          string
+}
+
+// ModelVendorView 表示技术厂商目录展示数据。
+type ModelVendorView struct {
+	ID        uint
+	Key       string
+	Name      string
+	Icon      string
+	BuiltIn   bool
+	SortOrder int
+	CreatedAt string
+	UpdatedAt string
+}
+
+// ModelDisplayGroupView 表示自定义模型展示分组数据。
+type ModelDisplayGroupView struct {
+	ID        uint
+	Name      string
+	Icon      string
+	SortOrder int
+	CreatedAt string
+	UpdatedAt string
 }
 
 // UpstreamModelView 上游模型路由绑定展示数据（内部传输，不携带序列化标记）。

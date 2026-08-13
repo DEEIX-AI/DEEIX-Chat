@@ -84,6 +84,16 @@ func buildRateLimiter(cfg config.Config, redisClient *redis.Client, memoryCache 
 	return nil
 }
 
+func buildProviderAuthBridge(cfg config.Config, redisClient *redis.Client, memoryCache *memorycache.Cache) repository.ProviderAuthBridgeRepository {
+	if useRedisCache(cfg, redisClient) {
+		return rediscache.NewProviderAuthBridge(redisClient)
+	}
+	if memoryCache != nil {
+		return memorycache.NewProviderAuthBridge(memoryCache)
+	}
+	return nil
+}
+
 func useRedisCache(cfg config.Config, redisClient *redis.Client) bool {
 	return redisClient != nil && strings.EqualFold(strings.TrimSpace(cfg.CacheDriver), "redis")
 }

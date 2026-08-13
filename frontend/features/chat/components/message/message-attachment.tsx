@@ -29,7 +29,11 @@ function resolveFileExt(name: string): string {
 }
 
 function resolveCardMeta(att: MessageAttachment): string {
-  return `${resolveFileExt(att.fileName)} · ${formatBytes(att.sizeBytes)}`;
+  const values = [resolveFileExt(att.fileName), formatBytes(att.sizeBytes)];
+  if (att.durationSeconds && att.durationSeconds > 0) {
+    values.push(`${att.durationSeconds}s`);
+  }
+  return values.join(" · ");
 }
 
 // ─── single card ─────────────────────────────────────────────────────────────

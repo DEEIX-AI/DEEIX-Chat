@@ -1,20 +1,20 @@
 "use client";
 
-import * as React from "react";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
-
-import type { ChatAreaMessage, ImageLoadingAspectRatio } from "@/features/chat/types/messages";
-import type {
-  ChatModelOption,
-  PendingAttachment,
-  PendingExchange,
-  PendingExchangeMap,
-} from "@/features/chat/types/chat-runtime";
+import { useHiddenQueuedParentRuns } from "@/features/chat/hooks/use-hidden-queued-parent-runs";
 import type { ChatSubmitBlockReason } from "@/features/chat/model/chat-task";
 import { resolveChatSubmitDecision } from "@/features/chat/model/chat-task";
-import { useHiddenQueuedParentRuns } from "@/features/chat/hooks/use-hidden-queued-parent-runs";
 import {
+  buildChildrenIndex,
+  parseAttachments,
+  toBranchKey,
+} from "@/features/chat/model/chat-thread";
+import { sanitizeConversationOptions } from "@/features/chat/model/conversation-options";
+import { buildMediaImagePreviewMarkdown } from "@/features/chat/model/media-image-preview";
+import {
+  resolveAssistantInputSideUsageValue,
   resolveDefaultSubmissionParentMessage,
   resolvePersistedPublicID,
   toPendingAttachments,
@@ -24,29 +24,27 @@ import {
   preserveRicherLiveUpstreamThinkTrace,
   readLiveUpstreamThinkTrace,
 } from "@/features/chat/model/upstream-think-store";
+import type {
+  ChatModelOption,
+  PendingAttachment,
+  PendingExchange,
+  PendingExchangeMap,
+} from "@/features/chat/types/chat-runtime";
+import type { ChatAreaMessage, ImageLoadingAspectRatio } from "@/features/chat/types/messages";
 import {
   resolveErrorDetails,
   resolveErrorMessage,
   resolveErrorSummary,
 } from "@/features/chat/utils/chat-runtime";
 import {
-  buildChildrenIndex,
-  parseAttachments,
-  toBranchKey,
-} from "@/features/chat/model/chat-thread";
-import { sanitizeConversationOptions } from "@/features/chat/model/conversation-options";
-import { buildMediaImagePreviewMarkdown } from "@/features/chat/model/media-image-preview";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { notifyResponseCompletion } from "@/shared/lib/browser-notifications";
-import {
+  type ConversationStreamOptions,
   cancelMessageGeneration,
   getConversation,
+  streamMessage as streamConversationMessage,
   streamImageEdit,
   streamImageGeneration,
-  streamMessage as streamConversationMessage,
   streamVideoGeneration,
   updateMessage,
-  type ConversationStreamOptions,
 } from "@/shared/api/conversation";
 import type {
   ConversationDTO,
@@ -60,6 +58,8 @@ import type {
 } from "@/shared/api/conversation.types";
 import { ApiError } from "@/shared/api/http-client";
 import type { SkillSummaryDTO } from "@/shared/api/skills.types";
+import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { notifyResponseCompletion } from "@/shared/lib/browser-notifications";
 
 const CONVERSATION_METADATA_REFRESH_MAX_WAIT_MS = 45_000;
 const CONVERSATION_METADATA_REFRESH_INITIAL_DELAY_MS = 800;
@@ -100,15 +100,6 @@ function streamEventErrorToApiError(
   fallback: string,
 ): ApiError {
   return new ApiError(event.message || fallback, 502, event.debug, event.errorCode);
-}
-
-function resolveInputSideUsageValue(...values: Array<number | null | undefined>): number {
-  for (const value of values) {
-    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-      return value;
-    }
-  }
-  return 0;
 }
 
 function resolveMediaStatusLabel(
@@ -1124,6 +1115,42 @@ export function useChatMessageSubmit({
                 event.reasoning_tokens > 0 ? event.reasoning_tokens : current.assistantReasoningTokens,
             }));
           },
+          onModerationChecking: () => {
+            updatePendingExchange(exchangeKey, (current) => ({
+              ...current,
+              assistantFileProc: true,
+              assistantActivityLabel: t("moderationChecking"),
+            }));
+          },
+          onModerationBlocked: (event) => {
+            const categories = Array.isArray(event.categories) ? event.categories : [];
+            updatePendingExchange(exchangeKey, (current) => ({
+              ...current,
+              assistantPending: false,
+              assistantStreaming: false,
+              assistantFileProc: false,
+              assistantActivityLabel: undefined,
+              assistantText: "",
+              assistantAttachments: [],
+              assistantProcessTrace: undefined,
+              assistantStatus: "blocked",
+              assistantErrorCode: "content_moderation.blocked",
+              assistantErrorMessage: t("moderationBlocked"),
+              assistantInlineAlert: {
+                title: t("moderationBlocked"),
+                message: [
+                  t("moderationBlockedDescription"),
+                  event.eventID ? t("moderationEventId", { id: event.eventID }) : "",
+                  categories.length > 0 ? t("moderationCategories", { categories: categories.join(", ") }) : "",
+                ]
+                  .filter(Boolean)
+                  .join("\n"),
+              },
+            }));
+            toast.error(t("moderationBlocked"), {
+              description: t("moderationBlockedDescription"),
+            });
+          },
         };
         modelRunSequence = (nextModelRunSequenceRef.current.get(targetConversationScopeKey) ?? 0) + 1;
         nextModelRunSequenceRef.current.set(targetConversationScopeKey, modelRunSequence);
@@ -1164,6 +1191,9 @@ export function useChatMessageSubmit({
         const assistantMessageSucceeded = assistantMessageStatus === "success";
         updatePendingExchange(exchangeKey, (current) => {
           const streamedText = current.assistantText;
+          const assistantMessageBlocked =
+            assistantMessageStatus.trim().toLowerCase() === "blocked" ||
+            completed.assistantMessage.errorCode === "content_moderation.blocked";
           const terminalErrorMessage = terminalStreamError
             ? resolveErrorMessage(streamEventErrorToApiError(terminalStreamError, t("retryLater")), terminalStreamError.message || t("retryLater"))
             : "";
@@ -1195,18 +1225,21 @@ export function useChatMessageSubmit({
             assistantUpdatedAt: completed.assistantMessage.updatedAt,
             assistantContentType: completed.assistantMessage.contentType || current.assistantContentType,
             assistantAttachments: parseAttachments(completed.assistantMessage.attachments),
-            assistantInputTokens: resolveInputSideUsageValue(
+            assistantInputTokens: resolveAssistantInputSideUsageValue(
+              assistantOnlyBranch,
               completed.assistantMessage.inputTokens,
               completed.userMessage.inputTokens,
               current.assistantInputTokens,
             ),
             assistantOutputTokens: completed.assistantMessage.outputTokens,
-            assistantCacheReadTokens: resolveInputSideUsageValue(
+            assistantCacheReadTokens: resolveAssistantInputSideUsageValue(
+              assistantOnlyBranch,
               completed.assistantMessage.cacheReadTokens,
               completed.userMessage.cacheReadTokens,
               current.assistantCacheReadTokens,
             ),
-            assistantCacheWriteTokens: resolveInputSideUsageValue(
+            assistantCacheWriteTokens: resolveAssistantInputSideUsageValue(
+              assistantOnlyBranch,
               completed.assistantMessage.cacheWriteTokens,
               completed.userMessage.cacheWriteTokens,
               current.assistantCacheWriteTokens,
@@ -1224,7 +1257,12 @@ export function useChatMessageSubmit({
             assistantErrorCode: completed.assistantMessage.errorCode,
             assistantErrorMessage: completed.assistantMessage.errorMessage,
             assistantInlineAlert:
-              completed.assistantMessage.status === "error" || completed.assistantMessage.status === "interrupted"
+              assistantMessageBlocked
+                ? current.assistantInlineAlert ?? {
+                    title: t("moderationBlocked"),
+                    message: t("moderationBlockedDescription"),
+                  }
+                : completed.assistantMessage.status === "error" || completed.assistantMessage.status === "interrupted"
                 ? {
                     title: t("generationInterrupted"),
                     message: terminalErrorMessage || completedErrorMessage || t("retryLater"),
@@ -1232,7 +1270,9 @@ export function useChatMessageSubmit({
                   }
                 : undefined,
             assistantText:
-              streamedText === completed.assistantMessage.content
+              assistantMessageBlocked
+                ? ""
+                : streamedText === completed.assistantMessage.content
                 ? current.assistantText
                 : completed.assistantMessage.content,
           };
@@ -1361,6 +1401,15 @@ export function useChatMessageSubmit({
             assistantProcessTrace: readLiveUpstreamThinkTrace(clientRunID) ?? current.assistantProcessTrace,
             assistantInlineAlert: undefined,
           }));
+          return false;
+        }
+        if (error instanceof ApiError && error.errorCode === "content_moderation.blocked") {
+          // UI already updated via onModerationBlocked; settle as a soft block with retry.
+          shouldKeepConversationLayout = true;
+          releaseAttachments(effectiveAttachments);
+          if (conversationScopeKeyRef.current === targetConversationScopeKey) {
+            reload();
+          }
           return false;
         }
         const errorMessage = resolveErrorMessage(error, t("retryLater"));

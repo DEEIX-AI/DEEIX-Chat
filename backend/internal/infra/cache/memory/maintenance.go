@@ -41,6 +41,16 @@ func (c *Cache) sweepExpiredLocked(now time.Time) {
 			delete(c.fixedHTTP, key)
 		}
 	}
+	for key, item := range c.providerAuthTransactions {
+		if now.After(item.expiresAt) {
+			delete(c.providerAuthTransactions, key)
+		}
+	}
+	for key, item := range c.providerAuthGrants {
+		if now.After(item.expiresAt) {
+			delete(c.providerAuthGrants, key)
+		}
+	}
 	cutoff := now.Add(-slidingWindowRetention)
 	for key, events := range c.slidingHTTP {
 		kept := events[:0]

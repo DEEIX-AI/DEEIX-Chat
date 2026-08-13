@@ -14,6 +14,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/requestmeta"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
 func boolPtr(value bool) *bool {
@@ -22,7 +23,7 @@ func boolPtr(value bool) *bool {
 
 func TestResolveProviderUserLoginAutoRegistersWhenProviderRegistrationEnabled(t *testing.T) {
 	repo := &providerLoginRepo{}
-	service := NewService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
 	provider := domainuser.IdentityProvider{
 		ID:                  10,
 		Type:                domainuser.IdentityProviderTypeOIDC,
@@ -52,7 +53,7 @@ func TestResolveProviderUserLoginAutoRegistersWhenProviderRegistrationEnabled(t 
 }
 
 func TestNormalizeProviderInputAllowsAdminDefaultRole(t *testing.T) {
-	service := NewService(config.Config{JWTSecret: "test-secret"}, &providerLoginRepo{}, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret"}, &providerLoginRepo{}, nil)
 
 	provider, err := service.normalizeProviderInput(UpsertIdentityProviderInput{
 		ActorRole:           domainuser.RoleAdmin,
@@ -73,7 +74,7 @@ func TestNormalizeProviderInputAllowsAdminDefaultRole(t *testing.T) {
 }
 
 func TestNormalizeProviderInputProtectsSuperAdminDefaultRole(t *testing.T) {
-	service := NewService(config.Config{JWTSecret: "test-secret"}, &providerLoginRepo{}, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret"}, &providerLoginRepo{}, nil)
 
 	_, err := service.normalizeProviderInput(UpsertIdentityProviderInput{
 		ActorRole:           domainuser.RoleAdmin,
@@ -91,7 +92,7 @@ func TestNormalizeProviderInputProtectsSuperAdminDefaultRole(t *testing.T) {
 }
 
 func TestNormalizeProviderInputValidatesLogoURL(t *testing.T) {
-	service := NewService(config.Config{JWTSecret: "test-secret"}, &providerLoginRepo{}, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret"}, &providerLoginRepo{}, nil)
 
 	cases := []struct {
 		name    string
@@ -101,6 +102,7 @@ func TestNormalizeProviderInputValidatesLogoURL(t *testing.T) {
 		{name: "https url", logoURL: "https://example.com/logo.svg"},
 		{name: "http url", logoURL: "http://example.com/logo.svg"},
 		{name: "absolute path", logoURL: "/identity-providers/acme.svg"},
+		{name: "url credentials", logoURL: "https://user:password@example.com/logo.svg", wantErr: true},
 		{name: "protocol relative url", logoURL: "//example.com/logo.svg", wantErr: true},
 		{name: "data url", logoURL: "data:image/svg+xml,<svg/>", wantErr: true},
 		{name: "javascript url", logoURL: "javascript:alert(1)", wantErr: true},
@@ -131,9 +133,139 @@ func TestNormalizeProviderInputValidatesLogoURL(t *testing.T) {
 	}
 }
 
+func TestNormalizeProviderInputValidatesServerEndpoints(t *testing.T) {
+	service := newTestService(config.Config{JWTSecret: "test-secret"}, &providerLoginRepo{}, nil)
+
+	for _, endpoint := range []string{
+		"file:///etc/passwd",
+		"https://user:password@example.com/token",
+		"http://169.254.169.254/latest/meta-data",
+		"//example.com/token",
+		"not-a-url",
+	} {
+		_, err := service.normalizeProviderInput(UpsertIdentityProviderInput{
+			ActorRole:           domainuser.RoleAdmin,
+			Type:                domainuser.IdentityProviderTypeOAuth2,
+			Name:                "Acme SSO",
+			ClientID:            "client",
+			ClientSecret:        "secret",
+			AuthURL:             "https://example.com/auth",
+			TokenURL:            endpoint,
+			UserInfoURL:         "https://example.com/userinfo",
+			RegistrationEnabled: boolPtr(true),
+		}, nil)
+		if err == nil || !strings.Contains(err.Error(), "provider token url") {
+			t.Fatalf("expected invalid token endpoint %q to be rejected, got %v", endpoint, err)
+		}
+	}
+}
+
+func TestResolveProviderEndpointsRejectsUnsafeExplicitEndpoint(t *testing.T) {
+	service := newTestService(config.Config{}, nil, nil)
+	_, _, _, err := service.resolveProviderEndpoints(context.Background(), domainuser.IdentityProvider{
+		Type:        domainuser.IdentityProviderTypeOAuth2,
+		AuthURL:     "javascript:alert(1)",
+		TokenURL:    "https://example.com/token",
+		UserInfoURL: "https://example.com/userinfo",
+	})
+	if err == nil || !strings.Contains(err.Error(), "provider auth url") {
+		t.Fatalf("expected unsafe explicit auth endpoint to be rejected, got %v", err)
+	}
+}
+
+func TestResolveProviderEndpointsAllowsConfiguredPrivateIssuerInProduction(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/.well-known/openid-configuration" {
+			t.Fatalf("unexpected discovery path %q", request.URL.Path)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{
+			"authorization_endpoint":"` + serverURLFromRequest(request) + `/auth",
+			"token_endpoint":"` + serverURLFromRequest(request) + `/token",
+			"userinfo_endpoint":"` + serverURLFromRequest(request) + `/userinfo"
+		}`))
+	}))
+	defer server.Close()
+
+	service := newTestService(config.Config{
+		Env:                   "prod",
+		SSRFProtectionEnabled: true,
+	}, nil, nil)
+	authURL, tokenURL, userInfoURL, err := service.resolveProviderEndpoints(context.Background(), domainuser.IdentityProvider{
+		Type:      domainuser.IdentityProviderTypeOIDC,
+		IssuerURL: server.URL,
+	})
+	if err != nil {
+		t.Fatalf("resolve configured private issuer: %v", err)
+	}
+	if authURL != server.URL+"/auth" || tokenURL != server.URL+"/token" || userInfoURL != server.URL+"/userinfo" {
+		t.Fatalf("unexpected discovery endpoints: auth=%q token=%q userinfo=%q", authURL, tokenURL, userInfoURL)
+	}
+}
+
+func TestExchangeProviderCodeRejectsUnconfiguredPrivateDiscoveryOrigin(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{
+			"authorization_endpoint":"https://example.com/auth",
+			"token_endpoint":"http://127.0.0.1:1/token",
+			"userinfo_endpoint":"https://example.com/userinfo"
+		}`))
+	}))
+	defer server.Close()
+
+	const dataKey = "test-data-key"
+	clientSecret, err := secretbox.EncryptString(dataKey, "client-secret")
+	if err != nil {
+		t.Fatalf("encrypt client secret: %v", err)
+	}
+	service := newTestService(config.Config{
+		Env:                   "prod",
+		SSRFProtectionEnabled: true,
+		DataEncryptionKey:     dataKey,
+	}, nil, nil)
+	_, err = service.exchangeProviderCode(context.Background(), domainuser.IdentityProvider{
+		Type:         domainuser.IdentityProviderTypeOIDC,
+		IssuerURL:    server.URL,
+		ClientID:     "client",
+		ClientSecret: clientSecret,
+	}, "code", "https://app.example.com/callback", "")
+	if !errors.Is(err, security.ErrUnsafeOutboundURL) {
+		t.Fatalf("expected cross-origin private token endpoint to remain blocked, got %v", err)
+	}
+}
+
+func TestResolveProviderEndpointsRejectsUnsafeDiscoveryEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{
+			"authorization_endpoint":"javascript:alert(1)",
+			"token_endpoint":"https://example.com/token",
+			"userinfo_endpoint":"https://example.com/userinfo"
+		}`))
+	}))
+	defer server.Close()
+
+	service := newTestService(config.Config{
+		Env:                   "prod",
+		SSRFProtectionEnabled: true,
+	}, nil, nil)
+	_, _, _, err := service.resolveProviderEndpoints(context.Background(), domainuser.IdentityProvider{
+		Type:      domainuser.IdentityProviderTypeOIDC,
+		IssuerURL: server.URL,
+	})
+	if err == nil || !strings.Contains(err.Error(), "provider auth url") {
+		t.Fatalf("expected unsafe discovery endpoint to be rejected, got %v", err)
+	}
+}
+
+func serverURLFromRequest(request *http.Request) string {
+	return "http://" + request.Host
+}
+
 func TestResolveProviderUserAutoRegistrationAddsUsernameSuffixOnCollision(t *testing.T) {
 	repo := &providerLoginRepo{duplicateUsernameAttempts: 1}
-	service := NewService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
 	provider := domainuser.IdentityProvider{
 		ID:                  10,
 		Type:                domainuser.IdentityProviderTypeOIDC,
@@ -158,7 +290,7 @@ func TestResolveProviderUserAutoRegistrationAddsUsernameSuffixOnCollision(t *tes
 
 func TestResolveProviderUserLoginRequiresRegistrationEnabledForNewAccount(t *testing.T) {
 	repo := &providerLoginRepo{}
-	service := NewService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
 	provider := domainuser.IdentityProvider{
 		ID:                  10,
 		Type:                domainuser.IdentityProviderTypeOIDC,
@@ -185,7 +317,7 @@ func TestResolveProviderUserAutoLinksVerifiedProviderEmailBeforeProvisioning(t *
 		Status: domainuser.StatusActive,
 	}
 	repo := &providerLoginRepo{usersByEmail: map[string]*domainuser.User{existing.Email: existing}}
-	service := NewService(config.Config{JWTSecret: "test-secret", AutoLinkVerifiedEmail: true}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", AutoLinkVerifiedEmail: true}, repo, nil)
 	provider := domainuser.IdentityProvider{
 		ID:                  10,
 		Type:                domainuser.IdentityProviderTypeOIDC,
@@ -218,7 +350,7 @@ func TestResolveProviderUserNormalizesProviderEmailBeforeAutoLink(t *testing.T) 
 		Status: domainuser.StatusActive,
 	}
 	repo := &providerLoginRepo{usersByEmail: map[string]*domainuser.User{existing.Email: existing}}
-	service := NewService(config.Config{JWTSecret: "test-secret", AutoLinkVerifiedEmail: true}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", AutoLinkVerifiedEmail: true}, repo, nil)
 	provider := domainuser.IdentityProvider{
 		ID:                  10,
 		Type:                domainuser.IdentityProviderTypeOIDC,
@@ -323,7 +455,10 @@ func TestCompleteProviderBindAllowsSameAccountWithoutProviderEmailVerification(t
 			"user@example.com": {ID: 42, Email: "user@example.com", Status: domainuser.StatusActive},
 		},
 	}
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
+		Env:                    "prod",
+		SSRFProtectionEnabled:  true,
+		CORSAllowOrigin:        "http://localhost",
 		JWTSecret:              "test-secret",
 		DataEncryptionKey:      dataKey,
 		ThirdPartyLoginEnabled: true,
@@ -413,7 +548,7 @@ func TestCompleteProviderLoginAutoLinksGitHubVerifiedPrimaryEmail(t *testing.T) 
 		providersBySlug: map[string]*domainuser.IdentityProvider{"github": provider},
 		usersByEmail:    map[string]*domainuser.User{existing.Email: existing},
 	}
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		JWTSecret:              "test-secret",
 		DataEncryptionKey:      dataKey,
 		ThirdPartyLoginEnabled: true,
@@ -492,7 +627,7 @@ func TestCompleteProviderLoginReturnsErrorWhenGitHubEmailsUnavailable(t *testing
 	repo := &providerLoginRepo{
 		providersBySlug: map[string]*domainuser.IdentityProvider{"github": provider},
 	}
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		JWTSecret:              "test-secret",
 		DataEncryptionKey:      dataKey,
 		ThirdPartyLoginEnabled: true,
@@ -527,7 +662,7 @@ func TestResolveProviderUserReturnsStructuredEmailConflict(t *testing.T) {
 		Status: domainuser.StatusActive,
 	}
 	repo := &providerLoginRepo{usersByEmail: map[string]*domainuser.User{existing.Email: existing}}
-	service := NewService(config.Config{JWTSecret: "test-secret", AutoLinkVerifiedEmail: true}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", AutoLinkVerifiedEmail: true}, repo, nil)
 	provider := domainuser.IdentityProvider{
 		ID:                  10,
 		Type:                domainuser.IdentityProviderTypeOAuth2,
@@ -560,7 +695,7 @@ func TestResolveProviderUserRejectsInactiveBoundUserWithoutUpdatingIdentity(t *t
 			{ID: 7, UserID: 42, ProviderID: 10, ProviderSubject: "sub-1"},
 		},
 	}
-	service := NewService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
 	provider := domainuser.IdentityProvider{
 		ID:                  10,
 		Type:                domainuser.IdentityProviderTypeOIDC,
@@ -589,7 +724,7 @@ func TestResolveProviderUserRejectsInactiveAutoLinkUserWithoutBinding(t *testing
 		Status:          domainuser.StatusSuspended,
 	}
 	repo := &providerLoginRepo{usersByEmail: map[string]*domainuser.User{existing.Email: existing}}
-	service := NewService(config.Config{JWTSecret: "test-secret", AutoLinkVerifiedEmail: true}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", AutoLinkVerifiedEmail: true}, repo, nil)
 	provider := domainuser.IdentityProvider{
 		ID:                  10,
 		Type:                domainuser.IdentityProviderTypeOIDC,
@@ -611,7 +746,7 @@ func TestResolveProviderUserRejectsInactiveAutoLinkUserWithoutBinding(t *testing
 
 func TestResolveProviderUserReturnsIdentityCreateErrorWithoutCleanupCompensation(t *testing.T) {
 	repo := &providerLoginRepo{createIdentityErr: errors.New("duplicate identity")}
-	service := NewService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
 	provider := domainuser.IdentityProvider{
 		ID:                  10,
 		Type:                domainuser.IdentityProviderTypeOIDC,
@@ -643,7 +778,7 @@ func TestUnlinkCurrentUserIdentityRejectsLastPasswordlessLoginMethod(t *testing.
 			{ID: 7, UserID: 42, ProviderID: 10, ProviderSubject: "sub-1"},
 		},
 	}
-	service := NewService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
 
 	err := service.UnlinkCurrentUserIdentity(context.Background(), 42, 7)
 	if !errors.Is(err, ErrLastLoginMethodNotAllowed) {
@@ -663,7 +798,7 @@ func TestUnlinkCurrentUserIdentityAllowsLastIdentityWhenPasswordEnabled(t *testi
 			{ID: 7, UserID: 42, ProviderID: 10, ProviderSubject: "sub-1"},
 		},
 	}
-	service := NewService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
 
 	if err := service.UnlinkCurrentUserIdentity(context.Background(), 42, 7); err != nil {
 		t.Fatalf("expected unlink to succeed, got %v", err)
@@ -683,7 +818,7 @@ func TestUnlinkCurrentUserIdentityAllowsOneOfMultiplePasswordlessLoginMethods(t 
 			{ID: 8, UserID: 42, ProviderID: 11, ProviderSubject: "sub-2"},
 		},
 	}
-	service := NewService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
 
 	if err := service.UnlinkCurrentUserIdentity(context.Background(), 42, 7); err != nil {
 		t.Fatalf("expected unlink to succeed, got %v", err)

@@ -4,7 +4,7 @@ import * as React from "react";
 import dynamic from "next/dynamic";
 import { Box, CornerDownRight, Eye, EyeOff, Film, Image, ImageOff, ImagePlus, LoaderCircle, PencilLine, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { AudioLines } from "@/components/animate-ui/icons/audio-lines";
@@ -24,7 +24,10 @@ import {
   formatClipboardMarkdownPaste,
   resolveClipboardMarkdownPaste,
 } from "@/features/chat/utils/markdown-paste";
-import { useChatSpeechInput } from "@/features/chat/hooks/use-chat-speech-input";
+import {
+  useChatSpeechInput,
+  type SpeechInputErrorCode,
+} from "@/features/chat/hooks/use-chat-speech-input";
 import { useMarkdownPreviewSync } from "@/features/chat/hooks/use-markdown-preview-sync";
 import {
   useChatMentionMenu,
@@ -279,17 +282,27 @@ function ChatInputComponent({
   const tChat = useTranslations("chat");
   const tComposer = useTranslations("chat.composer");
   const tFileStatus = useTranslations("files.status");
+  const locale = useLocale();
   const [isBlocksHovered, setIsBlocksHovered] = React.useState(false);
   const [isVoiceHovered, setIsVoiceHovered] = React.useState(false);
   const [toolsMenuHovered, setToolsMenuHovered] = React.useState(false);
   const [toolsMenuOpen, setToolsMenuOpen] = React.useState(false);
   const [editingQueuedMessageID, setEditingQueuedMessageID] = React.useState<string | null>(null);
   const [editingQueuedMessageContent, setEditingQueuedMessageContent] = React.useState("");
+  const handleSpeechInputError = React.useCallback((error: SpeechInputErrorCode) => {
+    toast.error(tComposer("voiceErrorTitle"), {
+      id: "chat-speech-input-error",
+      description: tComposer(`voiceErrors.${error}`),
+    });
+  }, [tComposer]);
   const speechInput = useChatSpeechInput({
     draft,
+    language: locale,
     listeningPlaceholder: tComposer("voiceListeningPlaceholder"),
     onDraftChange,
+    onError: handleSpeechInputError,
     placeholder: tComposer("inputPlaceholder"),
+    startingPlaceholder: tComposer("voiceStartingPlaceholder"),
   });
   const [hoveredTool, setHoveredTool] = React.useState<"upload" | "screenshot" | null>(null);
   const [ragWarnDismissed, setRagWarnDismissed] = React.useState(false);
@@ -1056,6 +1069,8 @@ function ChatInputComponent({
                     strokeWidth={1.4}
                     animate="default-loop"
                   />
+                ) : speechInput.status === "starting" ? (
+                  <LoaderCircle className="size-5 animate-spin" strokeWidth={1.6} />
                 ) : speechInput.active ? (
                   <AudioLines
                     size={20}

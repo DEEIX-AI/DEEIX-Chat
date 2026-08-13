@@ -184,6 +184,7 @@
       "root": "Model pricing JSON must be an object.",
       "model": "Platform model name cannot be changed from JSON.",
       "mode": "pricingMode must be token, call, duration, or tiered.",
+      "durationVideoOnly": "Per-second pricing is available only for video generation models.",
       "tiered": "Tiered pricing requires a non-empty tieredPricing.tiers array."
     },
     "officialPricing": "Quick setup",
@@ -208,6 +209,7 @@
     "cacheWritePerM": "Cache write / 1M",
     "perCall": "Per call",
     "perSecond": "Per second",
+    "durationVideoOnly": "Per-second pricing requires the video generation capability.",
     "tieredHint": "Tier matching uses raw input token ranges.",
     "addTier": "Add tier",
     "tierName": "Tier {index}",
@@ -333,6 +335,7 @@
     "duplicateModel": "{model} appears more than once",
     "pricingObject": "{model} pricing must be an object",
     "invalidPricingMode": "{model}.pricingMode must be token, call, duration, or tiered",
+    "durationVideoOnly": "{model}.pricingMode=duration requires the video_gen capability",
     "invalidNumber": "{model}.{field} must be a number greater than or equal to 0",
     "invalidTieredPricing": "{model}.{field} must contain a non-empty tiers array",
     "invalidTieredPricingJSON": "{model}.tieredPricingJSON is not valid JSON"

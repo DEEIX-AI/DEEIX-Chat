@@ -20,6 +20,12 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+const (
+	defaultMessageQueryLimit = 20
+	maxMessageQueryLimit     = 1000
+	maxAncestorQueryDepth    = 2000
+)
+
 // translateError 将 gorm 底层错误统一映射为仓储语义错误。
 func translateError(err error) error {
 	if err == nil {
@@ -176,7 +182,7 @@ func (r *Repo) ListConversationsForSearch(
 	limit int,
 	searchQuery string,
 ) ([]domainconversation.Conversation, error) {
-	items := make([]models.Conversation, 0, limit)
+	items := make([]models.Conversation, 0)
 	query := r.db.WithContext(ctx).
 		Model(&models.Conversation{}).
 		Where("user_id = ?", userID)
@@ -1438,9 +1444,12 @@ func (r *Repo) ListMessages(ctx context.Context, conversationID uint, offset int
 // ListMessagesBeforeID 查询指定消息 ID 之前的一页会话消息（按时间升序返回）。
 func (r *Repo) ListMessagesBeforeID(ctx context.Context, conversationID uint, beforeID uint, limit int) ([]domainconversation.Message, int64, error) {
 	if limit <= 0 {
-		limit = 20
+		limit = defaultMessageQueryLimit
 	}
-	items := make([]models.Message, 0, limit)
+	if limit > maxMessageQueryLimit {
+		limit = maxMessageQueryLimit
+	}
+	items := make([]models.Message, 0)
 	var total int64
 
 	if err := r.db.WithContext(ctx).
@@ -1691,6 +1700,73 @@ func conversationEventDetailSelectColumns(db *gorm.DB) []string {
 func (r *Repo) CreateConversationRun(ctx context.Context, item *domainconversation.Run) error {
 	entity := toConversationRunModel(item)
 	if err := r.db.WithContext(ctx).Create(&entity).Error; err != nil {
+		return translateError(err)
+	}
+	*item = toConversationRunDomain(entity)
+	return nil
+}
+
+// EnsureConversationRun inserts a run row when missing so mid-flight moderation updates have a target.
+func (r *Repo) EnsureConversationRun(ctx context.Context, item *domainconversation.Run) error {
+	if item == nil || strings.TrimSpace(item.RunID) == "" {
+		return nil
+	}
+	entity := toConversationRunModel(item)
+	return translateError(r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "run_id"}},
+			DoNothing: true,
+		}).
+		Create(&entity).Error)
+}
+
+// UpsertConversationRun writes the final run snapshot (create or full update by run_id).
+func (r *Repo) UpsertConversationRun(ctx context.Context, item *domainconversation.Run) error {
+	if item == nil || strings.TrimSpace(item.RunID) == "" {
+		return nil
+	}
+	entity := toConversationRunModel(item)
+	err := r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "run_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"request_id",
+				"user_id",
+				"conversation_id",
+				"task_type",
+				"endpoint",
+				"provider",
+				"provider_protocol",
+				"upstream_id",
+				"upstream_model_id",
+				"upstream_name",
+				"requested_model_name",
+				"platform_model_name",
+				"routed_binding_code",
+				"model_vendor",
+				"model_icon",
+				"upstream_model_name",
+				"input_tokens",
+				"output_tokens",
+				"cache_read_tokens",
+				"cache_write_tokens",
+				"reasoning_tokens",
+				"tool_calls_count",
+				"first_token_latency_ms",
+				"total_latency_ms",
+				"status",
+				"error_code",
+				"error_message",
+				"moderation_state",
+				"moderation_event_id",
+				"moderation_categories_json",
+				"started_at",
+				"ended_at",
+				"updated_at",
+			}),
+		}).
+		Create(&entity).Error
+	if err != nil {
 		return translateError(err)
 	}
 	*item = toConversationRunDomain(entity)
@@ -2066,6 +2142,9 @@ func (r *Repo) ListMessageAncestors(ctx context.Context, conversationID uint, le
 	if maxDepth <= 0 {
 		maxDepth = 40
 	}
+	if maxDepth > maxAncestorQueryDepth {
+		maxDepth = maxAncestorQueryDepth
+	}
 
 	// WITH RECURSIVE：从叶节点沿 parent_message_id 向上递归，_depth 用于限制深度。
 	// 外层用 SELECT * 取全部列：GORM Scan 按列名映射并忽略未匹配的列，_depth 会被自然丢弃，
@@ -2090,7 +2169,7 @@ WITH RECURSIVE ancestors AS (
 SELECT * FROM ancestors
 ORDER BY id ASC`
 
-	path := make([]models.Message, 0, maxDepth)
+	path := make([]models.Message, 0)
 	if err := r.db.WithContext(ctx).Raw(cteSQL, leafMessageID, conversationID, maxDepth, conversationID).Scan(&path).Error; err != nil {
 		return nil, translateError(err)
 	}
@@ -2114,8 +2193,14 @@ func (r *Repo) ListLatestBranchPreviewMessages(
 	if maxDepth <= 0 {
 		maxDepth = 100
 	}
+	if maxDepth > maxAncestorQueryDepth {
+		maxDepth = maxAncestorQueryDepth
+	}
 	if limit <= 0 {
 		limit = 10
+	}
+	if limit > maxMessageQueryLimit {
+		limit = maxMessageQueryLimit
 	}
 
 	type previewMessageRow struct {
@@ -2125,7 +2210,7 @@ func (r *Repo) ListLatestBranchPreviewMessages(
 		Content      string `gorm:"column:content"`
 		ErrorMessage string `gorm:"column:error_message"`
 	}
-	rows := make([]previewMessageRow, 0, limit)
+	rows := make([]previewMessageRow, 0)
 	const previewSQL = `
 WITH RECURSIVE ancestors AS (
     SELECT id, conversation_id, parent_message_id, public_id, role, content, error_message, 1 AS depth
@@ -2182,6 +2267,9 @@ func (r *Repo) ListMessageAncestorsUntil(ctx context.Context, conversationID uin
 	if maxDepth <= 0 {
 		maxDepth = 200
 	}
+	if maxDepth > maxAncestorQueryDepth {
+		maxDepth = maxAncestorQueryDepth
+	}
 	if leafMessageID == 0 || stopMessageID == 0 {
 		return nil, false, repository.ErrInvalidInput
 	}
@@ -2204,7 +2292,7 @@ WITH RECURSIVE ancestors AS (
 SELECT * FROM ancestors
 ORDER BY id ASC`
 
-	path := make([]models.Message, 0, maxDepth)
+	path := make([]models.Message, 0)
 	if err := r.db.WithContext(ctx).Raw(cteSQL, leafMessageID, conversationID, maxDepth, stopMessageID, conversationID).Scan(&path).Error; err != nil {
 		return nil, false, translateError(err)
 	}
@@ -2228,7 +2316,10 @@ ORDER BY id ASC`
 // ListRecentMessages 查询会话最近消息窗口（按时间升序返回）。
 func (r *Repo) ListRecentMessages(ctx context.Context, conversationID uint, limit int) ([]domainconversation.Message, int64, error) {
 	if limit <= 0 {
-		limit = 20
+		limit = defaultMessageQueryLimit
+	}
+	if limit > maxMessageQueryLimit {
+		limit = maxMessageQueryLimit
 	}
 	var total int64
 	if err := r.db.WithContext(ctx).
@@ -2241,7 +2332,7 @@ func (r *Repo) ListRecentMessages(ctx context.Context, conversationID uint, limi
 	if offset < 0 {
 		offset = 0
 	}
-	items := make([]models.Message, 0, limit)
+	items := make([]models.Message, 0)
 	if err := r.db.WithContext(ctx).
 		Where("conversation_id = ?", conversationID).
 		Order("id ASC").
@@ -3356,6 +3447,17 @@ type messageAttachmentSnapshotRow struct {
 	ProcessingReady        bool   `gorm:"column:processing_ready"`
 	ProcessingErrorCode    string `gorm:"column:processing_error_code"`
 	ProcessingErrorMessage string `gorm:"column:processing_error_message"`
+	MetaJSON               string `gorm:"column:meta_json"`
+}
+
+func attachmentDurationSecondsFromMetaJSON(raw string) int64 {
+	var metadata struct {
+		DurationSeconds int64 `json:"duration_seconds"`
+	}
+	if json.Unmarshal([]byte(strings.TrimSpace(raw)), &metadata) != nil || metadata.DurationSeconds <= 0 {
+		return 0
+	}
+	return metadata.DurationSeconds
 }
 
 func (r *Repo) hydrateMessageAttachments(ctx context.Context, items []models.Message) error {
@@ -3383,6 +3485,7 @@ func (r *Repo) hydrateMessageAttachments(ctx context.Context, items []models.Mes
 			"a.file_name",
 			"a.mime_type",
 			"a.file_size",
+			"a.meta_json",
 			"fo.detected_mime",
 			"fo.file_category",
 			"fo.processing_status",
@@ -3399,7 +3502,7 @@ func (r *Repo) hydrateMessageAttachments(ctx context.Context, items []models.Mes
 
 	grouped := make(map[uint][]map[string]interface{}, len(rows))
 	for _, row := range rows {
-		grouped[row.MessageID] = append(grouped[row.MessageID], map[string]interface{}{
+		payload := map[string]interface{}{
 			"file_id":                  row.FileID,
 			"kind":                     row.Kind,
 			"file_name":                row.FileName,
@@ -3411,7 +3514,11 @@ func (r *Repo) hydrateMessageAttachments(ctx context.Context, items []models.Mes
 			"processing_ready":         row.ProcessingReady,
 			"processing_error_code":    row.ProcessingErrorCode,
 			"processing_error_message": row.ProcessingErrorMessage,
-		})
+		}
+		if durationSeconds := attachmentDurationSecondsFromMetaJSON(row.MetaJSON); durationSeconds > 0 {
+			payload["duration_seconds"] = durationSeconds
+		}
+		grouped[row.MessageID] = append(grouped[row.MessageID], payload)
 	}
 	for i := range items {
 		payload := grouped[items[i].ID]
@@ -3557,40 +3664,42 @@ func toUserDomain(item models.User) domainuser.User {
 
 func toMessageDomain(item models.Message) domainconversation.Message {
 	return domainconversation.Message{
-		ID:               item.ID,
-		ConversationID:   item.ConversationID,
-		UserID:           item.UserID,
-		PublicID:         item.PublicID,
-		ParentMessageID:  item.ParentMessageID,
-		RunID:            item.RunID,
-		Role:             item.Role,
-		ContentType:      item.ContentType,
-		Content:          item.Content,
-		ReasoningContent: item.ReasoningContent,
-		BranchReason:     item.BranchReason,
-		SourceMessageID:  item.SourceMessageID,
-		TokenUsage:       item.TokenUsage,
-		InputTokens:      item.InputTokens,
-		OutputTokens:     item.OutputTokens,
-		CacheReadTokens:  item.CacheReadTokens,
-		CacheWriteTokens: item.CacheWriteTokens,
-		ReasoningTokens:  item.ReasoningTokens,
-		LatencyMS:        item.LatencyMS,
-		BilledCurrency:   item.BilledCurrency,
-		BilledNanousd:    item.BilledNanousd,
-		PricingSnapshot:  item.PricingSnapshot,
-		Status:           item.Status,
-		ErrorCode:        item.ErrorCode,
-		ErrorMessage:     item.ErrorMessage,
-		Attachments:      item.Attachments,
-		ParentPublicID:   item.ParentPublicID,
-		SourcePublicID:   item.SourcePublicID,
-		MyFeedback:       item.MyFeedback,
-		ThumbsUpCount:    item.ThumbsUpCount,
-		ThumbsDownCount:  item.ThumbsDownCount,
-		EditedAt:         item.EditedAt,
-		CreatedAt:        item.CreatedAt,
-		UpdatedAt:        item.UpdatedAt,
+		ID:                       item.ID,
+		ConversationID:           item.ConversationID,
+		UserID:                   item.UserID,
+		PublicID:                 item.PublicID,
+		ParentMessageID:          item.ParentMessageID,
+		RunID:                    item.RunID,
+		Role:                     item.Role,
+		ContentType:              item.ContentType,
+		Content:                  item.Content,
+		ReasoningContent:         item.ReasoningContent,
+		BranchReason:             item.BranchReason,
+		SourceMessageID:          item.SourceMessageID,
+		TokenUsage:               item.TokenUsage,
+		InputTokens:              item.InputTokens,
+		OutputTokens:             item.OutputTokens,
+		CacheReadTokens:          item.CacheReadTokens,
+		CacheWriteTokens:         item.CacheWriteTokens,
+		ReasoningTokens:          item.ReasoningTokens,
+		LatencyMS:                item.LatencyMS,
+		BilledCurrency:           item.BilledCurrency,
+		BilledNanousd:            item.BilledNanousd,
+		PricingSnapshot:          item.PricingSnapshot,
+		Status:                   item.Status,
+		ErrorCode:                item.ErrorCode,
+		ErrorMessage:             item.ErrorMessage,
+		ModerationEventID:        item.ModerationEventID,
+		ModerationCategoriesJSON: item.ModerationCategoriesJSON,
+		Attachments:              item.Attachments,
+		ParentPublicID:           item.ParentPublicID,
+		SourcePublicID:           item.SourcePublicID,
+		MyFeedback:               item.MyFeedback,
+		ThumbsUpCount:            item.ThumbsUpCount,
+		ThumbsDownCount:          item.ThumbsDownCount,
+		EditedAt:                 item.EditedAt,
+		CreatedAt:                item.CreatedAt,
+		UpdatedAt:                item.UpdatedAt,
 	}
 }
 
@@ -3607,31 +3716,33 @@ func toMessageModel(item *domainconversation.Message) models.Message {
 		return models.Message{}
 	}
 	return models.Message{
-		ConversationID:   item.ConversationID,
-		UserID:           item.UserID,
-		PublicID:         item.PublicID,
-		ParentMessageID:  item.ParentMessageID,
-		RunID:            item.RunID,
-		Role:             item.Role,
-		ContentType:      item.ContentType,
-		Content:          item.Content,
-		ReasoningContent: item.ReasoningContent,
-		BranchReason:     item.BranchReason,
-		SourceMessageID:  item.SourceMessageID,
-		TokenUsage:       item.TokenUsage,
-		InputTokens:      item.InputTokens,
-		OutputTokens:     item.OutputTokens,
-		CacheReadTokens:  item.CacheReadTokens,
-		CacheWriteTokens: item.CacheWriteTokens,
-		ReasoningTokens:  item.ReasoningTokens,
-		LatencyMS:        item.LatencyMS,
-		BilledCurrency:   item.BilledCurrency,
-		BilledNanousd:    item.BilledNanousd,
-		PricingSnapshot:  item.PricingSnapshot,
-		Status:           item.Status,
-		ErrorCode:        item.ErrorCode,
-		ErrorMessage:     item.ErrorMessage,
-		EditedAt:         item.EditedAt,
+		ConversationID:           item.ConversationID,
+		UserID:                   item.UserID,
+		PublicID:                 item.PublicID,
+		ParentMessageID:          item.ParentMessageID,
+		RunID:                    item.RunID,
+		Role:                     item.Role,
+		ContentType:              item.ContentType,
+		Content:                  item.Content,
+		ReasoningContent:         item.ReasoningContent,
+		BranchReason:             item.BranchReason,
+		SourceMessageID:          item.SourceMessageID,
+		TokenUsage:               item.TokenUsage,
+		InputTokens:              item.InputTokens,
+		OutputTokens:             item.OutputTokens,
+		CacheReadTokens:          item.CacheReadTokens,
+		CacheWriteTokens:         item.CacheWriteTokens,
+		ReasoningTokens:          item.ReasoningTokens,
+		LatencyMS:                item.LatencyMS,
+		BilledCurrency:           item.BilledCurrency,
+		BilledNanousd:            item.BilledNanousd,
+		PricingSnapshot:          item.PricingSnapshot,
+		Status:                   item.Status,
+		ErrorCode:                item.ErrorCode,
+		ErrorMessage:             item.ErrorMessage,
+		ModerationEventID:        item.ModerationEventID,
+		ModerationCategoriesJSON: item.ModerationCategoriesJSON,
+		EditedAt:                 item.EditedAt,
 	}
 }
 
@@ -3670,39 +3781,42 @@ func toAttachmentModel(item *domainconversation.Attachment) models.Attachment {
 
 func toConversationRunDomain(item models.ConversationRun) domainconversation.Run {
 	return domainconversation.Run{
-		ID:                  item.ID,
-		RunID:               item.RunID,
-		RequestID:           item.RequestID,
-		UserID:              item.UserID,
-		ConversationID:      item.ConversationID,
-		TaskType:            item.TaskType,
-		Endpoint:            item.Endpoint,
-		Provider:            item.Provider,
-		ProviderProtocol:    item.ProviderProtocol,
-		UpstreamID:          item.UpstreamID,
-		UpstreamModelID:     item.UpstreamModelID,
-		UpstreamName:        item.UpstreamName,
-		RequestedModelName:  item.RequestedModelName,
-		PlatformModelName:   item.PlatformModelName,
-		RoutedBindingCode:   item.RoutedBindingCode,
-		ModelVendor:         item.ModelVendor,
-		ModelIcon:           item.ModelIcon,
-		UpstreamModelName:   item.UpstreamModelName,
-		InputTokens:         item.InputTokens,
-		OutputTokens:        item.OutputTokens,
-		CacheReadTokens:     item.CacheReadTokens,
-		CacheWriteTokens:    item.CacheWriteTokens,
-		ReasoningTokens:     item.ReasoningTokens,
-		ToolCallsCount:      item.ToolCallsCount,
-		FirstTokenLatencyMS: item.FirstTokenLatencyMS,
-		TotalLatencyMS:      item.TotalLatencyMS,
-		Status:              item.Status,
-		ErrorCode:           item.ErrorCode,
-		ErrorMessage:        item.ErrorMessage,
-		StartedAt:           item.StartedAt,
-		EndedAt:             item.EndedAt,
-		CreatedAt:           item.CreatedAt,
-		UpdatedAt:           item.UpdatedAt,
+		ID:                       item.ID,
+		RunID:                    item.RunID,
+		RequestID:                item.RequestID,
+		UserID:                   item.UserID,
+		ConversationID:           item.ConversationID,
+		TaskType:                 item.TaskType,
+		Endpoint:                 item.Endpoint,
+		Provider:                 item.Provider,
+		ProviderProtocol:         item.ProviderProtocol,
+		UpstreamID:               item.UpstreamID,
+		UpstreamModelID:          item.UpstreamModelID,
+		UpstreamName:             item.UpstreamName,
+		RequestedModelName:       item.RequestedModelName,
+		PlatformModelName:        item.PlatformModelName,
+		RoutedBindingCode:        item.RoutedBindingCode,
+		ModelVendor:              item.ModelVendor,
+		ModelIcon:                item.ModelIcon,
+		UpstreamModelName:        item.UpstreamModelName,
+		InputTokens:              item.InputTokens,
+		OutputTokens:             item.OutputTokens,
+		CacheReadTokens:          item.CacheReadTokens,
+		CacheWriteTokens:         item.CacheWriteTokens,
+		ReasoningTokens:          item.ReasoningTokens,
+		ToolCallsCount:           item.ToolCallsCount,
+		FirstTokenLatencyMS:      item.FirstTokenLatencyMS,
+		TotalLatencyMS:           item.TotalLatencyMS,
+		Status:                   item.Status,
+		ErrorCode:                item.ErrorCode,
+		ErrorMessage:             item.ErrorMessage,
+		ModerationState:          item.ModerationState,
+		ModerationEventID:        item.ModerationEventID,
+		ModerationCategoriesJSON: item.ModerationCategoriesJSON,
+		StartedAt:                item.StartedAt,
+		EndedAt:                  item.EndedAt,
+		CreatedAt:                item.CreatedAt,
+		UpdatedAt:                item.UpdatedAt,
 	}
 }
 
@@ -3758,37 +3872,54 @@ func toConversationRunModel(item *domainconversation.Run) models.ConversationRun
 		return models.ConversationRun{}
 	}
 	return models.ConversationRun{
-		RunID:               item.RunID,
-		RequestID:           item.RequestID,
-		UserID:              item.UserID,
-		ConversationID:      item.ConversationID,
-		TaskType:            item.TaskType,
-		Endpoint:            item.Endpoint,
-		Provider:            item.Provider,
-		ProviderProtocol:    item.ProviderProtocol,
-		UpstreamID:          item.UpstreamID,
-		UpstreamModelID:     item.UpstreamModelID,
-		UpstreamName:        item.UpstreamName,
-		RequestedModelName:  item.RequestedModelName,
-		PlatformModelName:   item.PlatformModelName,
-		RoutedBindingCode:   item.RoutedBindingCode,
-		ModelVendor:         item.ModelVendor,
-		ModelIcon:           item.ModelIcon,
-		UpstreamModelName:   item.UpstreamModelName,
-		InputTokens:         item.InputTokens,
-		OutputTokens:        item.OutputTokens,
-		CacheReadTokens:     item.CacheReadTokens,
-		CacheWriteTokens:    item.CacheWriteTokens,
-		ReasoningTokens:     item.ReasoningTokens,
-		ToolCallsCount:      item.ToolCallsCount,
-		FirstTokenLatencyMS: item.FirstTokenLatencyMS,
-		TotalLatencyMS:      item.TotalLatencyMS,
-		Status:              item.Status,
-		ErrorCode:           item.ErrorCode,
-		ErrorMessage:        item.ErrorMessage,
-		StartedAt:           item.StartedAt,
-		EndedAt:             item.EndedAt,
+		RunID:                    item.RunID,
+		RequestID:                item.RequestID,
+		UserID:                   item.UserID,
+		ConversationID:           item.ConversationID,
+		TaskType:                 item.TaskType,
+		Endpoint:                 item.Endpoint,
+		Provider:                 item.Provider,
+		ProviderProtocol:         item.ProviderProtocol,
+		UpstreamID:               item.UpstreamID,
+		UpstreamModelID:          item.UpstreamModelID,
+		UpstreamName:             item.UpstreamName,
+		RequestedModelName:       item.RequestedModelName,
+		PlatformModelName:        item.PlatformModelName,
+		RoutedBindingCode:        item.RoutedBindingCode,
+		ModelVendor:              item.ModelVendor,
+		ModelIcon:                item.ModelIcon,
+		UpstreamModelName:        item.UpstreamModelName,
+		InputTokens:              item.InputTokens,
+		OutputTokens:             item.OutputTokens,
+		CacheReadTokens:          item.CacheReadTokens,
+		CacheWriteTokens:         item.CacheWriteTokens,
+		ReasoningTokens:          item.ReasoningTokens,
+		ToolCallsCount:           item.ToolCallsCount,
+		FirstTokenLatencyMS:      item.FirstTokenLatencyMS,
+		TotalLatencyMS:           item.TotalLatencyMS,
+		Status:                   item.Status,
+		ErrorCode:                item.ErrorCode,
+		ErrorMessage:             item.ErrorMessage,
+		ModerationState:          defaultModerationState(item.ModerationState),
+		ModerationEventID:        item.ModerationEventID,
+		ModerationCategoriesJSON: defaultJSONArray(item.ModerationCategoriesJSON),
+		StartedAt:                item.StartedAt,
+		EndedAt:                  item.EndedAt,
 	}
+}
+
+func defaultModerationState(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "not_required"
+	}
+	return value
+}
+
+func defaultJSONArray(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "[]"
+	}
+	return value
 }
 
 func toConversationMessageTraceDomains(items []models.ChatRunEvent) []domainconversation.MessageTrace {
@@ -4316,12 +4447,12 @@ func insertSQLiteMessageChunkVectors(tx *gorm.DB, entities []models.MessageChunk
 	return nil
 }
 
-func (r *Repo) searchSQLiteMessageChunks(ctx context.Context, conversationID uint, userID uint, queryEmbedding []float32, topK int, minSimilarity float64) ([]domainconversation.MessageChunk, error) {
-	vector, err := sqlitevec.SerializeFloat32(queryEmbedding)
+func (r *Repo) searchSQLiteMessageChunks(ctx context.Context, input repository.MessageChunkSearchInput) ([]domainconversation.MessageChunk, error) {
+	vector, err := sqlitevec.SerializeFloat32(input.QueryEmbedding)
 	if err != nil {
 		return nil, err
 	}
-	query := fmt.Sprintf(`
+	query := historicalMessageScopeCTE + fmt.Sprintf(`
 		SELECT chunks.id, chunks.conversation_id, chunks.message_id, chunks.user_id, chunks.role,
 		       chunks.chunk_index, chunks.content, chunks.token_count, chunks.created_at,
 		       (1.0 - vectors.distance) AS similarity
@@ -4332,16 +4463,27 @@ func (r *Repo) searchSQLiteMessageChunks(ctx context.Context, conversationID uin
 			AND vectors.k = ?
 			AND vectors.user_id = ?
 			AND vectors.conversation_id = ?
+			AND vectors.message_id IN (
+				SELECT id
+				FROM valid_historical_message_scope
+			)
 		ORDER BY vectors.distance ASC`,
 		sqlitevec.MessageChunkVectorTable,
 	)
+	args := historicalMessageScopeArgs(input.Scope)
+	args = append(args,
+		vector,
+		input.TopK,
+		input.Scope.UserID,
+		input.Scope.ConversationID,
+	)
 	var rows []messageChunkSearchRow
-	if err := r.db.WithContext(ctx).Raw(query, vector, topK, userID, conversationID).Scan(&rows).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
 		return nil, translateError(err)
 	}
 	results := make([]domainconversation.MessageChunk, 0, len(rows))
 	for _, row := range rows {
-		if row.Similarity < minSimilarity {
+		if row.Similarity < input.MinSimilarity {
 			continue
 		}
 		results = append(results, domainconversation.MessageChunk{
@@ -4360,29 +4502,47 @@ func (r *Repo) searchSQLiteMessageChunks(ctx context.Context, conversationID uin
 	return results, nil
 }
 
-// SearchMessageChunks 按查询向量检索最相关的历史消息分片。
-func (r *Repo) SearchMessageChunks(ctx context.Context, conversationID uint, userID uint, queryEmbedding []float32, topK int, minSimilarity float64) ([]domainconversation.MessageChunk, error) {
-	if len(queryEmbedding) == 0 || topK <= 0 {
+// SearchMessageChunks 在当前活跃分支内按查询向量检索最相关的历史消息分片。
+func (r *Repo) SearchMessageChunks(ctx context.Context, input repository.MessageChunkSearchInput) ([]domainconversation.MessageChunk, error) {
+	if !input.Scope.Valid() || len(input.QueryEmbedding) == 0 || input.TopK <= 0 {
 		return nil, nil
 	}
 	if r.sqliteDialect() {
-		return r.searchSQLiteMessageChunks(ctx, conversationID, userID, queryEmbedding, topK, minSimilarity)
+		return r.searchSQLiteMessageChunks(ctx, input)
 	}
-	vec := float32SliceToPostgresVector(queryEmbedding)
-	query := `
-		SELECT id, conversation_id, message_id, user_id, role, chunk_index, content, token_count, created_at,
+	vec := float32SliceToPostgresVector(input.QueryEmbedding)
+	// PostgreSQL 的 IVFFlat 会在近似索引扫描后应用普通过滤条件；直接 JOIN 分支范围可能让 sibling
+	// 候选先占满 Top-K。先物化当前分支分片，再执行精确距离排序，保证过滤严格发生在 Top-K 之前。
+	query := historicalMessageScopeCTE + `,
+		branch_message_chunks AS MATERIALIZED (
+			SELECT chunks.id, chunks.conversation_id, chunks.message_id, chunks.user_id, chunks.role,
+			       chunks.chunk_index, chunks.content, chunks.token_count, chunks.created_at, chunks.embedding
+			FROM chat_message_chunks AS chunks
+			JOIN valid_historical_message_scope AS branch_scope ON branch_scope.id = chunks.message_id
+			WHERE chunks.conversation_id = ?
+			  AND chunks.user_id = ?
+			  AND chunks.embedding IS NOT NULL
+		)
+		SELECT id, conversation_id, message_id, user_id, role,
+		       chunk_index, content, token_count, created_at,
 		       (1 - (embedding <=> ?::vector)) AS similarity
-		FROM chat_message_chunks
-		WHERE conversation_id = ? AND user_id = ? AND embedding IS NOT NULL
+		FROM branch_message_chunks
 		ORDER BY similarity DESC
 		LIMIT ?`
+	args := historicalMessageScopeArgs(input.Scope)
+	args = append(args,
+		input.Scope.ConversationID,
+		input.Scope.UserID,
+		vec,
+		input.TopK,
+	)
 	var rows []messageChunkSearchRow
-	if err := r.db.WithContext(ctx).Raw(query, vec, conversationID, userID, topK).Scan(&rows).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
 		return nil, translateError(err)
 	}
 	results := make([]domainconversation.MessageChunk, 0, len(rows))
 	for _, row := range rows {
-		if row.Similarity < minSimilarity {
+		if row.Similarity < input.MinSimilarity {
 			continue
 		}
 		results = append(results, domainconversation.MessageChunk{

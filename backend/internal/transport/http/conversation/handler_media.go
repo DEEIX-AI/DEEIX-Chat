@@ -178,6 +178,23 @@ func (h *Handler) streamMediaTask(
 		_ = flushStreamEvent(normalizeStreamEventPayload(eventType, payload))
 		return nil
 	})
+	if err == nil && result != nil && result.IsModerationBlocked() {
+		if !result.ModerationTerminalEmitted() {
+			_ = flushStreamEvent(moderationBlockedStreamPayload(result))
+		}
+		if result.Billable {
+			billingCtx, billingCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			usageLedger, billingErr := h.service.RecordSendMessageBilling(billingCtx, billingInput(result), authorization)
+			billingCancel()
+			if billingErr == nil {
+				appconversation.ApplyUsageBilling(&result.AssistantMessage, usageLedger)
+			}
+		} else {
+			_ = h.releaseSendMessageUsageAuthorization(authorization)
+		}
+		h.service.FinishMessageGeneration(clientRunID)
+		return
+	}
 	if err != nil {
 		if result == nil || !result.Billable {
 			if releaseErr := h.releaseSendMessageUsageAuthorization(authorization); releaseErr != nil {
@@ -185,7 +202,7 @@ func (h *Handler) streamMediaTask(
 				h.service.FinishMessageGeneration(clientRunID)
 				return
 			}
-			_ = flushStreamEvent(streamErrorPayload(err))
+			_ = flushStreamEvent(mediaStreamErrorPayload(err, result))
 			h.service.FinishMessageGeneration(clientRunID)
 			return
 		}
@@ -201,9 +218,27 @@ func (h *Handler) streamMediaTask(
 			return
 		}
 		appconversation.ApplyUsageBilling(&result.AssistantMessage, usageLedger)
-		payload := streamErrorPayload(err)
-		payload["data"] = toSendMessageResponse(result)
+		payload := mediaStreamErrorPayload(err, result)
 		_ = flushStreamEvent(payload)
+		h.service.FinishMessageGeneration(clientRunID)
+		return
+	}
+	if result == nil || !result.Billable {
+		if releaseErr := h.releaseSendMessageUsageAuthorization(authorization); releaseErr != nil {
+			_ = flushStreamEvent(billingStreamErrorPayload(releaseErr))
+			h.service.FinishMessageGeneration(clientRunID)
+			return
+		}
+		if result != nil && result.AssistantMessage.Status == "canceled" {
+			payload := streamErrorPayload(appconversation.ErrMessageGenerationCanceled)
+			payload["data"] = toSendMessageResponse(result)
+			_ = flushStreamEvent(payload)
+		} else if result != nil {
+			_ = flushStreamEvent(map[string]interface{}{
+				"type": "completed",
+				"data": toSendMessageResponse(result),
+			})
+		}
 		h.service.FinishMessageGeneration(clientRunID)
 		return
 	}
@@ -235,6 +270,15 @@ func (h *Handler) streamMediaTask(
 		"data": toSendMessageResponse(result),
 	})
 	h.service.FinishMessageGeneration(clientRunID)
+}
+
+// mediaStreamErrorPayload 在错误事件中保留已持久化的消息结果，供客户端完成临时消息对账。
+func mediaStreamErrorPayload(err error, result *appconversation.SendMessageResult) map[string]interface{} {
+	payload := streamErrorPayload(err)
+	if result != nil {
+		payload["data"] = toSendMessageResponse(result)
+	}
+	return payload
 }
 
 // mediaImageBillingInput 构造媒体任务复用消息计费链路所需的上下文。

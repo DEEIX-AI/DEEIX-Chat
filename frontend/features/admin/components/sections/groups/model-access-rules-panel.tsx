@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/select";
 import type { AdminLLMUpstreamView } from "@/features/admin/api/llm.types";
 import { ADAPTER_LABELS } from "@/features/admin/types/llm";
-import { KNOWN_VENDOR_OPTIONS } from "@/shared/lib/model-identity";
 import type {
   PermissionGroupModelRule,
   PermissionGroupModelRuleType,
@@ -25,6 +24,7 @@ type ModelAccessRulesPanelProps = {
   rules: PermissionGroupModelRule[];
   onRulesChange: React.Dispatch<React.SetStateAction<PermissionGroupModelRule[]>>;
   upstreamOptions: AdminLLMUpstreamView[];
+  vendorOptions: Array<{ label: string; value: string }>;
   disabled: boolean;
 };
 
@@ -32,16 +32,13 @@ export function ModelAccessRulesPanel({
   rules,
   onRulesChange,
   upstreamOptions,
+  vendorOptions,
   disabled,
 }: ModelAccessRulesPanelProps) {
   const t = useTranslations("adminGroups");
   const [draftType, setDraftType] = React.useState<PermissionGroupModelRuleType>("all");
   const [draftValue, setDraftValue] = React.useState("");
 
-  const vendorOptions = React.useMemo(
-    () => KNOWN_VENDOR_OPTIONS.map(({ label, value }) => ({ label, value })),
-    [],
-  );
   const protocolOptions = React.useMemo(
     () => Object.entries(ADAPTER_LABELS).map(([value, label]) => ({ label, value })),
     [],

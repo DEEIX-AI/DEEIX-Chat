@@ -7,6 +7,7 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/sqlitevec"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -44,22 +45,70 @@ func TestSQLiteVectorStoreSearchesFileAndMessageChunks(t *testing.T) {
 	}
 
 	messageChunks := []domainconversation.MessageChunk{
-		{ConversationID: 20, MessageID: 30, UserID: 1, Role: "user", ChunkIndex: 0, Content: "message target", TokenCount: 2},
+		{ConversationID: 20, MessageID: 30, UserID: 1, Role: "assistant", ChunkIndex: 0, Content: "message target", TokenCount: 2},
 		{ConversationID: 20, MessageID: 31, UserID: 1, Role: "assistant", ChunkIndex: 0, Content: "message unrelated", TokenCount: 2},
 	}
+	rootMessageID := uint(29)
+	activeMessageID := uint(30)
+	branchMessages := []model.Message{
+		{
+			BaseModel: model.BaseModel{ID: rootMessageID}, ConversationID: 20, UserID: 1,
+			PublicID: "msg_vector_root", Role: "user", Status: "success",
+		},
+		{
+			BaseModel: model.BaseModel{ID: activeMessageID}, ConversationID: 20, UserID: 1,
+			PublicID: "msg_vector_active", ParentMessageID: &rootMessageID, Role: "assistant", Status: "success",
+		},
+		{
+			BaseModel: model.BaseModel{ID: 31}, ConversationID: 20, UserID: 1,
+			PublicID: "msg_vector_sibling", ParentMessageID: &rootMessageID, Role: "assistant", Status: "success",
+		},
+		{
+			BaseModel: model.BaseModel{ID: 32}, ConversationID: 20, UserID: 1,
+			PublicID: "msg_vector_leaf", ParentMessageID: &activeMessageID, Role: "user", Status: "pending",
+		},
+	}
+	if err := db.Create(&branchMessages).Error; err != nil {
+		t.Fatalf("create message branch: %v", err)
+	}
 	messageEmbeddings := [][]float32{
-		{0, 0, 1},
-		{0, 1, 0},
+		{0.8, 0.6, 0},
+		{1, 0, 0},
 	}
 	if err := repo.UpsertMessageChunks(ctx, messageChunks, messageEmbeddings); err != nil {
 		t.Fatalf("UpsertMessageChunks() error = %v", err)
 	}
-	messageResults, err := repo.SearchMessageChunks(ctx, 20, 1, []float32{0, 0, 1}, 2, 0)
+	messageResults, err := repo.SearchMessageChunks(ctx, repository.MessageChunkSearchInput{
+		Scope: repository.HistoricalMessageScope{
+			ConversationID: 20,
+			UserID:         1,
+			LeafMessageID:  32,
+		},
+		QueryEmbedding: []float32{1, 0, 0},
+		TopK:           1,
+	})
 	if err != nil {
 		t.Fatalf("SearchMessageChunks() error = %v", err)
 	}
 	if len(messageResults) == 0 || messageResults[0].Content != "message target" {
 		t.Fatalf("expected nearest message chunk first, got %#v", messageResults)
+	}
+
+	coveredResults, err := repo.SearchMessageChunks(ctx, repository.MessageChunkSearchInput{
+		Scope: repository.HistoricalMessageScope{
+			ConversationID:          20,
+			UserID:                  1,
+			LeafMessageID:           32,
+			ExcludeThroughMessageID: activeMessageID,
+		},
+		QueryEmbedding: []float32{1, 0, 0},
+		TopK:           1,
+	})
+	if err != nil {
+		t.Fatalf("SearchMessageChunks(snapshot scope) error = %v", err)
+	}
+	if len(coveredResults) != 0 {
+		t.Fatalf("expected snapshot boundary to exclude covered chunk, got %#v", coveredResults)
 	}
 }
 
@@ -76,7 +125,7 @@ func openConversationSQLiteVectorTestDB(t *testing.T) *gorm.DB {
 			_ = sqlDB.Close()
 		}
 	})
-	if err := db.AutoMigrate(&model.FileChunk{}, &model.MessageChunk{}); err != nil {
+	if err := db.AutoMigrate(&model.FileChunk{}, &model.MessageChunk{}, &model.Message{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	if err := sqlitevec.Migrate(db); err != nil {

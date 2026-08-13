@@ -272,6 +272,13 @@ func (r *Repo) UpdateModel(ctx context.Context, modelID uint, input repository.U
 	if input.Vendor != nil {
 		updates["vendor"] = *input.Vendor
 	}
+	if input.DisplayGroupID != nil {
+		if *input.DisplayGroupID == 0 {
+			updates["display_group_id"] = nil
+		} else {
+			updates["display_group_id"] = *input.DisplayGroupID
+		}
+	}
 	if input.KindsJSON != nil {
 		updates["kinds_json"] = *input.KindsJSON
 	}
@@ -427,7 +434,7 @@ func (r *Repo) ListModels(ctx context.Context, input repository.ListChannelModel
 	items := make([]ModelListRow, 0)
 	var total int64
 
-	query := applyModelListFilters(r.db.WithContext(ctx).Table("llm_platform_models AS m"), input)
+	query := applyModelListFilters(r.modelListBaseQuery(ctx), input)
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, translateError(err)
 	}
@@ -448,10 +455,10 @@ func (r *Repo) ListModels(ctx context.Context, input repository.ListChannelModel
 }
 
 func (r *Repo) modelListQuery(ctx context.Context) *gorm.DB {
-	return r.db.WithContext(ctx).
-		Table("llm_platform_models AS m").
+	return r.modelListBaseQuery(ctx).
 		Select(
-			"m.id, m.name AS platform_model_name, m.vendor, m.kinds_json, m.icon, m.capabilities_json, m.system_prompt, m.access_scope, m.status, m.description, m.cb_policy_mode, m.cb_failure_threshold, m.cb_duration_min, m.cb_window_min, m.sort_order, m.created_at, m.updated_at, " +
+			"m.id, m.name AS platform_model_name, m.vendor, m.display_group_id, m.kinds_json, m.icon, m.capabilities_json, m.system_prompt, m.access_scope, m.status, m.description, m.cb_policy_mode, m.cb_failure_threshold, m.cb_duration_min, m.cb_window_min, m.sort_order, m.created_at, m.updated_at, " +
+				"COALESCE(v.name, m.vendor) AS vendor_name, COALESCE(v.icon, '') AS vendor_icon, COALESCE(g.name, '') AS display_group_name, COALESCE(g.icon, '') AS display_group_icon, " +
 				"COALESCE(stats.source_count, 0) AS source_count, COALESCE(stats.active_source_count, 0) AS active_source_count, '[]' AS protocols_json, '[]' AS upstream_names_json",
 		).
 		Joins(
@@ -465,6 +472,13 @@ func (r *Repo) modelListQuery(ctx context.Context) *gorm.DB {
 				GROUP BY r.platform_model_id
 			) AS stats ON stats.platform_model_id = m.id`,
 		)
+}
+
+func (r *Repo) modelListBaseQuery(ctx context.Context) *gorm.DB {
+	return r.db.WithContext(ctx).
+		Table("llm_platform_models AS m").
+		Joins("LEFT JOIN llm_model_vendors AS v ON v.key = m.vendor").
+		Joins("LEFT JOIN llm_model_display_groups AS g ON g.id = m.display_group_id")
 }
 
 func (r *Repo) applyModelListRouteMetadata(ctx context.Context, items []ModelListRow) error {
@@ -577,7 +591,14 @@ func applyModelListFilters(query *gorm.DB, input repository.ListChannelModelsInp
 	}
 	if keyword := strings.TrimSpace(input.Query); keyword != "" {
 		like := "%" + strings.ToLower(keyword) + "%"
-		query = query.Where("LOWER(m.name) LIKE ? OR LOWER(m.vendor) LIKE ? OR LOWER(m.description) LIKE ?", like, like, like)
+		query = query.Where(
+			`LOWER(m.name) LIKE ?
+				OR LOWER(m.vendor) LIKE ?
+				OR LOWER(m.description) LIKE ?
+				OR LOWER(v.name) LIKE ?
+				OR LOWER(g.name) LIKE ?`,
+			like, like, like, like, like,
+		)
 	}
 	if vendor := strings.TrimSpace(input.Vendor); vendor != "" {
 		query = query.Where("m.vendor = ?", vendor)
@@ -636,11 +657,11 @@ func modelListOrder(sort string) string {
 
 func modelDefaultDisplayOrder() string {
 	availabilityRank := modelAvailabilityRankExpression()
-	vendorKey := modelVendorOrderKey("m.")
-	vendorGroupOrder := "MIN(m.sort_order) OVER (PARTITION BY " + availabilityRank + ", " + vendorKey + ")"
+	presentationKey := modelPresentationOrderKey("m.")
+	presentationGroupOrder := "MIN(m.sort_order) OVER (PARTITION BY " + availabilityRank + ", " + presentationKey + ")"
 	return availabilityRank + " ASC, " +
-		vendorGroupOrder + " ASC, " +
-		vendorKey + " ASC, " +
+		presentationGroupOrder + " ASC, " +
+		presentationKey + " ASC, " +
 		"m.sort_order ASC, m.id ASC"
 }
 
@@ -650,6 +671,12 @@ func modelAvailabilityRankExpression() string {
 
 func modelVendorOrderKey(prefix string) string {
 	return "COALESCE(NULLIF(TRIM(LOWER(" + prefix + "vendor)), ''), LOWER(" + prefix + "name))"
+}
+
+func modelPresentationOrderKey(prefix string) string {
+	return "CASE WHEN " + prefix + "display_group_id IS NOT NULL " +
+		"THEN 'group:' || CAST(" + prefix + "display_group_id AS TEXT) " +
+		"ELSE 'vendor:' || " + modelVendorOrderKey(prefix) + " END"
 }
 
 // ---------------------------------------------------------------------------
@@ -1525,6 +1552,7 @@ func toPlatformModelDomain(item model.LLMPlatformModel) domainchannel.PlatformMo
 		ID:                 item.ID,
 		PlatformModelName:  item.Name,
 		Vendor:             item.Vendor,
+		DisplayGroupID:     item.DisplayGroupID,
 		KindsJSON:          item.KindsJSON,
 		Icon:               item.Icon,
 		CapabilitiesJSON:   item.CapabilitiesJSON,
@@ -1549,6 +1577,7 @@ func toPlatformModelModel(item *domainchannel.PlatformModel) model.LLMPlatformMo
 	return model.LLMPlatformModel{
 		Name:               item.PlatformModelName,
 		Vendor:             item.Vendor,
+		DisplayGroupID:     item.DisplayGroupID,
 		KindsJSON:          item.KindsJSON,
 		Icon:               item.Icon,
 		CapabilitiesJSON:   item.CapabilitiesJSON,

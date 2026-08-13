@@ -47,6 +47,10 @@ var (
 	ErrTooManyMessageFiles = errors.New("too many message files")
 	// ErrTooManySelectedTools 单条消息选择的 MCP 工具数超限。
 	ErrTooManySelectedTools = errors.New("too many selected tools")
+	// ErrMultipleImageAttachmentProcessors 单条消息不能同时选择多个图片附件处理器。
+	ErrMultipleImageAttachmentProcessors = errors.New("multiple image attachment processors selected")
+	// ErrImageAttachmentProcessingFailed 图片附件处理器调用失败。
+	ErrImageAttachmentProcessingFailed = errors.New("image attachment processing failed")
 	// ErrTooManySelectedSkills 单条消息选择的 Skill 数超限。
 	ErrTooManySelectedSkills = errors.New("too many selected skills")
 	// ErrSkillNotFound 技能不存在或当前用户不可用。
@@ -75,6 +79,8 @@ var (
 	ErrModelAccessDenied = errors.New("model access denied by group policy")
 	// ErrUpstreamRequestFailed 上游请求失败。
 	ErrUpstreamRequestFailed = errors.New("upstream request failed")
+	// ErrGeneratedMediaArtifactUnavailable 上游已完成媒体生成，但结果制品暂时无法获取或校验。
+	ErrGeneratedMediaArtifactUnavailable = errors.New("generated media artifact is temporarily unavailable")
 	// ErrUpstreamEmptyResponse 上游返回空响应。
 	ErrUpstreamEmptyResponse = errors.New("upstream returned empty response")
 	// ErrToolRunFinalAnswerMissing 工具循环结束后上游仍未产出最终回答。

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/outboundhttp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -26,8 +27,8 @@ const (
 
 // Client 封装 MCP Streamable HTTP JSON-RPC 客户端。
 type Client struct {
-	httpClient *http.Client
-	nextID     atomic.Int64
+	httpClients *outboundhttp.Pool
+	nextID      atomic.Int64
 }
 
 // CallConfig 定义 MCP 调用配置。
@@ -55,19 +56,22 @@ type Tool struct {
 	InputSchema json.RawMessage `json:"inputSchema,omitempty"`
 }
 
-// NewClient 创建 MCP 客户端。
-func NewClient() *Client {
-	return NewClientWithEnv("", false)
+// NewClient 创建带出站安全策略的 MCP 客户端。
+func NewClient(outboundPolicy security.OutboundPolicy) *Client {
+	return &Client{
+		httpClients: outboundhttp.NewPool(outboundPolicy, outboundhttp.DefaultCacheLimit, func(policy security.OutboundPolicy, trustedOrigin string, variant string) (outboundhttp.ManagedClient, error) {
+			return newMCPHTTPClient(policy, outboundPolicy, trustedOrigin, variant)
+		}),
+	}
 }
 
-// NewClientWithEnv 创建带运行环境的 MCP 客户端。
-func NewClientWithEnv(env string, ssrfProtectionEnabled bool) *Client {
-	transport := security.NewOutboundHTTPTransport(env, ssrfProtectionEnabled, defaultConnectTimeout)
-	return &Client{
-		httpClient: &http.Client{
-			Transport: platformtracing.NewHTTPTransport(transport),
-		},
+func newMCPHTTPClient(policy security.OutboundPolicy, redirectPolicy security.OutboundPolicy, trustedOrigin string, _ string) (outboundhttp.ManagedClient, error) {
+	transport := security.NewOutboundHTTPTransport(policy, defaultConnectTimeout)
+	client := &http.Client{Transport: platformtracing.NewHTTPTransport(transport)}
+	if trustedOrigin != "" {
+		client.CheckRedirect = outboundhttp.NewRedirectPolicy(redirectPolicy, trustedOrigin, "MCP request")
 	}
+	return outboundhttp.ManagedClient{Client: client, CloseIdleConnections: transport.CloseIdleConnections}, nil
 }
 
 // ListTools 读取 MCP 服务暴露的工具列表。
@@ -194,7 +198,7 @@ func (c *Client) rpcWithSession(
 		req.Header.Set(headerKey, strings.TrimSpace(value))
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.httpClients.Do(req, cfg.BaseURL, "")
 	if err != nil {
 		return nil, sessionID, err
 	}
@@ -229,6 +233,13 @@ func resolveRequestTimeoutMS(timeoutMS int) int {
 
 func (c *Client) nextRequestID() int64 {
 	return c.nextID.Add(1)
+}
+
+// CloseIdleConnections 释放所有 MCP origin 客户端的空闲连接。
+func (c *Client) CloseIdleConnections() {
+	if c != nil && c.httpClients != nil {
+		c.httpClients.CloseIdleConnections()
+	}
 }
 
 func buildEndpointURL(cfg CallConfig) (string, error) {

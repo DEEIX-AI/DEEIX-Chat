@@ -184,6 +184,7 @@
       "root": "模型定价 JSON 必须是对象。",
       "model": "不能通过 JSON 修改平台模型名。",
       "mode": "pricingMode 必须是 token、call、duration 或 tiered。",
+      "durationVideoOnly": "仅视频生成模型可以使用按秒计费。",
       "tiered": "阶梯计费需要包含非空 tieredPricing.tiers。"
     },
     "officialPricing": "快速配置",
@@ -208,6 +209,7 @@
     "cacheWritePerM": "缓存(写) / 1M",
     "perCall": "每次调用",
     "perSecond": "每秒生成",
+    "durationVideoOnly": "按秒计费仅适用于具备视频生成能力的模型。",
     "tieredHint": "阶梯按原始输入区间命中",
     "addTier": "添加阶梯",
     "tierName": "第 {index} 档",
@@ -333,6 +335,7 @@
     "duplicateModel": "{model} 重复出现",
     "pricingObject": "{model} 的定价配置必须是对象",
     "invalidPricingMode": "{model}.pricingMode 必须是 token、call、duration 或 tiered",
+    "durationVideoOnly": "{model}.pricingMode=duration 需要 video_gen 能力",
     "invalidNumber": "{model}.{field} 必须是大于等于 0 的数字",
     "invalidTieredPricing": "{model}.{field} 需要包含非空 tiers 数组",
     "invalidTieredPricingJSON": "{model}.tieredPricingJSON 不是合法 JSON"

@@ -33,7 +33,8 @@ func (LLMUpstream) TableName() string {
 type LLMPlatformModel struct {
 	ControlPlaneModel
 	Name               string `gorm:"size:128;not null;default:'';uniqueIndex:idx_llm_platform_models_name;comment:平台模型名"`
-	Vendor             string `gorm:"size:64;not null;default:'';index:idx_llm_platform_models_vendor;comment:平台展示厂商"`
+	Vendor             string `gorm:"size:64;not null;default:'';index:idx_llm_platform_models_vendor;comment:平台模型技术厂商标识"`
+	DisplayGroupID     *uint  `gorm:"index:idx_llm_platform_models_display_group;comment:可选展示分组ID，为空时按技术厂商展示"`
 	KindsJSON          string `gorm:"type:text;not null;default:'[\"chat\"]';comment:模型类型JSON数组"`
 	CapabilitiesJSON   string `gorm:"type:text;not null;default:'{}';comment:平台能力配置JSON"`
 	SystemPrompt       string `gorm:"type:text;not null;default:'';comment:模型级系统提示词"`
@@ -50,6 +51,34 @@ type LLMPlatformModel struct {
 
 func (LLMPlatformModel) TableName() string {
 	return "llm_platform_models"
+}
+
+// LLMModelVendor 存储平台模型技术厂商目录。
+type LLMModelVendor struct {
+	ControlPlaneModel
+	Key       string `gorm:"size:64;not null;uniqueIndex:idx_llm_model_vendors_key;comment:稳定技术厂商标识"`
+	Name      string `gorm:"size:64;not null;index:idx_llm_model_vendors_name;comment:厂商展示名称"`
+	Icon      string `gorm:"size:2048;not null;default:'';comment:厂商图标标识或图片 URL"`
+	BuiltIn   bool   `gorm:"not null;default:false;comment:是否内置厂商"`
+	SortOrder int    `gorm:"not null;default:0;index:idx_llm_model_vendors_sort_order;comment:厂商展示顺序"`
+}
+
+// TableName 指定技术厂商目录表名。
+func (LLMModelVendor) TableName() string {
+	return "llm_model_vendors"
+}
+
+// LLMModelDisplayGroup 存储管理员定义的模型展示分组。
+type LLMModelDisplayGroup struct {
+	ControlPlaneModel
+	Name      string `gorm:"size:64;not null;uniqueIndex:idx_llm_model_display_groups_name;comment:展示分组名称"`
+	Icon      string `gorm:"size:2048;not null;default:'';comment:展示分组图标标识或图片 URL"`
+	SortOrder int    `gorm:"not null;default:0;index:idx_llm_model_display_groups_sort_order;comment:展示分组顺序"`
+}
+
+// TableName 指定模型展示分组表名。
+func (LLMModelDisplayGroup) TableName() string {
+	return "llm_model_display_groups"
 }
 
 // LLMUpstreamModel 存储上游真实模型清单。

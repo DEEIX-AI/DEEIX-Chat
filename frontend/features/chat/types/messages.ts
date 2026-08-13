@@ -7,6 +7,7 @@ export type MessageAttachment = {
   detectedMime?: string;
   fileCategory?: string;
   sizeBytes: number;
+  durationSeconds?: number;
   kind: "file" | "image";
   previewURL?: string;
   processingStatus?: string;

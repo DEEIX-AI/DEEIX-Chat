@@ -146,6 +146,8 @@
     "loginControlDescription": "Allow platform sign-in.",
     "registrationControlDescription": "Allow automatic account creation.",
     "callbackURL": "Callback URL",
+    "serverCallbackURL": "Server callback URL (recommended)",
+    "legacyWebCallbackURL": "Legacy Web callback URL (deprecated soon)",
     "copyCallbackURL": "Copy URL",
     "logoURL": "Logo URL",
     "clientID": "Client ID",

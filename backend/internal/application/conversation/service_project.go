@@ -9,6 +9,7 @@ import (
 
 	appskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/skill"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/google/uuid"
 )
@@ -365,16 +366,34 @@ func (s *Service) validateConversationProjectDefaults(
 		mcpToolIDsToValidate = newProjectDefaultIDs(mcpToolIDs, current.DefaultMCPToolIDs)
 		skillIDsToValidate = newProjectDefaultIDs(skillIDs, current.DefaultSkillIDs)
 	}
-	if mcpDefaultMode == model.ConversationProjectMCPDefaultModeCustom && len(mcpToolIDsToValidate) > 0 {
+	var selectedToolsByID map[uint]domainmcp.Tool
+	if mcpDefaultMode == model.ConversationProjectMCPDefaultModeCustom &&
+		len(mcpToolIDs) > 0 &&
+		(mcpSelectionChanged || len(mcpToolIDsToValidate) > 0) {
 		if s.mcpRepo == nil {
 			return ErrInvalidConversationProject
 		}
-		tools, err := s.mcpRepo.ListToolsByIDs(ctx, mcpToolIDsToValidate)
+		tools, err := s.mcpRepo.ListToolsByIDs(ctx, mcpToolIDs)
 		if err != nil {
 			return err
 		}
-		if len(tools) != len(mcpToolIDsToValidate) {
+		selectedToolsByID = make(map[uint]domainmcp.Tool, len(tools))
+		imageProcessorCount := 0
+		for _, tool := range tools {
+			selectedToolsByID[tool.ID] = tool
+			if tool.AttachmentInputMode == domainmcp.AttachmentInputModeImage {
+				imageProcessorCount++
+			}
+		}
+		if imageProcessorCount > 1 {
 			return ErrInvalidConversationProject
+		}
+	}
+	if mcpDefaultMode == model.ConversationProjectMCPDefaultModeCustom && len(mcpToolIDsToValidate) > 0 {
+		for _, toolID := range mcpToolIDsToValidate {
+			if _, ok := selectedToolsByID[toolID]; !ok {
+				return ErrInvalidConversationProject
+			}
 		}
 		servers, err := s.mcpRepo.ListServers(ctx)
 		if err != nil {
@@ -386,7 +405,8 @@ func (s *Service) validateConversationProjectDefaults(
 				activeServerIDs[server.ID] = struct{}{}
 			}
 		}
-		for _, tool := range tools {
+		for _, toolID := range mcpToolIDsToValidate {
+			tool := selectedToolsByID[toolID]
 			if tool.Status != "active" {
 				return ErrInvalidConversationProject
 			}

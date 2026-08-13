@@ -33,6 +33,17 @@ func TestSafeFileContentTypeDowngradesActiveContent(t *testing.T) {
 	}
 }
 
+func TestMediaStreamErrorPayloadPreservesPersistedResult(t *testing.T) {
+	result := &appconversation.SendMessageResult{}
+	payload := mediaStreamErrorPayload(errors.New("store generated video"), result)
+	if payload["type"] != "error" {
+		t.Fatalf("payload type = %#v, want error", payload["type"])
+	}
+	if _, ok := payload["data"]; !ok {
+		t.Fatalf("media error payload lost persisted result: %#v", payload)
+	}
+}
+
 func TestMessagePageParamsAllowsRestoreWindow(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -130,6 +141,19 @@ func TestMapStreamErrorDoesNotExposeUpstreamUnauthorizedAsPlatformUnauthorized(t
 	}
 	if mapped.Code == "auth.unauthorized" || mapped.Code == "auth.invalid_token" || mapped.Code == "auth.session_invalid" {
 		t.Fatalf("expected upstream 401 to avoid platform auth codes, got %#v", mapped)
+	}
+}
+
+func TestMapStreamErrorClassifiesGeneratedMediaArtifactFailure(t *testing.T) {
+	mapped := mapStreamError(appconversation.ErrGeneratedMediaArtifactUnavailable)
+	if mapped.Status != http.StatusBadGateway {
+		t.Fatalf("expected artifact failure to be mapped to gateway failure, got status=%d", mapped.Status)
+	}
+	if mapped.Code != appconversation.MessageErrorCodeMediaArtifactUnavailable {
+		t.Fatalf("unexpected artifact error code: %#v", mapped)
+	}
+	if mapped.Message != appconversation.ErrGeneratedMediaArtifactUnavailable.Error() {
+		t.Fatalf("unexpected public artifact message: %#v", mapped)
 	}
 }
 

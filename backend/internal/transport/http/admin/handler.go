@@ -1273,7 +1273,7 @@ func (h *Handler) ExportConversations(c *gin.Context) {
 				failedIDs = append(failedIDs, conversations[i].ID)
 				continue
 			}
-			if err := encoder.Encode(conversationhttp.ToConversationExportResponse(result)); err != nil {
+			if err := encoder.Encode(conversationhttp.ToAdminConversationExportResponse(result)); err != nil {
 				return
 			}
 			exported++

@@ -58,6 +58,8 @@
     "searchSkills": "Search Skills",
     "defaultsSelected": "{count} selected",
     "defaultsSelectionLimit": "Select up to {limit} items",
+    "imageProcessorLimitTitle": "Only one image processor can be selected",
+    "imageProcessorLimitDescription": "A project can preset one MCP image attachment processor. Clear the current one first.",
     "defaultsNoResults": "No matching items",
     "defaultsLoadFailed": "Failed to load project defaults",
     "rename": "Rename",

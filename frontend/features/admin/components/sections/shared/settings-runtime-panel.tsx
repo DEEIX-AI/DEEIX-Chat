@@ -1,9 +1,9 @@
 "use client";
 
-import * as React from "react";
 import { BugPlay, Pause, Play, RefreshCw } from "lucide-react";
 import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -145,10 +145,11 @@ const RUNTIME_ICON_MAP = {
 } as const;
 
 function resolveRuntimeStatusKey(status?: string): ServiceRuntimeStatusKey {
-  return status === "running" ? "running" : "stopped";
+  return status === "running" || status === "available" ? "running" : "stopped";
 }
 
 type RuntimeStatusLabels = {
+  available: string;
   running: string;
   restarting: string;
   created: string;
@@ -163,6 +164,8 @@ type RuntimeStatusLabels = {
 
 function resolveRuntimeStatusLabel(status: string | undefined, labels: RuntimeStatusLabels): string {
   switch (status) {
+    case "available":
+      return labels.available;
     case "running":
       return labels.running;
     case "restarting":
@@ -192,6 +195,7 @@ function resolveRuntimeStatusBadgeTone(runtime?: ServiceRuntimeState | null): Se
     return "neutral";
   }
   switch (runtime.status) {
+    case "available":
     case "running":
       return runtime.reachable ? "success" : "warning";
     case "restarting":
@@ -222,6 +226,7 @@ function resolveRuntimeMessageToneClassName({
     return "text-muted-foreground";
   }
   switch (runtime?.status) {
+    case "available":
     case "running":
       return "text-emerald-700";
     case "unhealthy":
@@ -378,6 +383,7 @@ export function SettingsFieldEditor({
   const t = useTranslations("common");
   const runtimeStatusLabels = React.useMemo<RuntimeStatusLabels>(
     () => ({
+      available: t("runtime.status.available"),
       running: t("runtime.status.running"),
       restarting: t("runtime.status.restarting"),
       created: t("runtime.status.created"),
@@ -589,6 +595,8 @@ export function SettingsFieldEditor({
                         type="button"
                         variant="secondary"
                         size="icon"
+                        aria-label={action.label}
+                        title={action.label}
                         className="size-8 shrink-0 rounded-md shadow-none transition-transform active:scale-90"
                         disabled={disabled || action.disabled}
                         onClick={action.onClick}
@@ -623,6 +631,7 @@ export function ServiceRuntimePanel({
   const t = useTranslations("common");
   const runtimeStatusLabels = React.useMemo<RuntimeStatusLabels>(
     () => ({
+      available: t("runtime.status.available"),
       running: t("runtime.status.running"),
       restarting: t("runtime.status.restarting"),
       created: t("runtime.status.created"),

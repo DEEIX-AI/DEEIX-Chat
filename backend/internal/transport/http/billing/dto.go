@@ -391,6 +391,12 @@ type RedemptionCodeResponse struct {
 	UpdatedAt            time.Time  `json:"updatedAt"`
 }
 
+// RedemptionCodeValidationErrorResponse 兑换码字段校验错误详情。
+type RedemptionCodeValidationErrorResponse struct {
+	Field  string `json:"field"`
+	Reason string `json:"reason"`
+}
+
 // RedemptionResponse 用户兑换记录响应。
 type RedemptionResponse struct {
 	ID                   uint      `json:"id"`

@@ -168,6 +168,7 @@ export function PreviewPdf({ source, toolbarContainer, showLoading = true, onLoa
           data: new Uint8Array(arrayBuffer),
           cMapUrl: "/pdfjs/cmaps/",
           cMapPacked: true,
+          enableScripting: false,
           standardFontDataUrl: "/pdfjs/standard_fonts/",
           useSystemFonts: true,
           enableXfa: true,

@@ -67,11 +67,12 @@ func (s *Service) normalizeAssistantGeneratedImages(
 	conversationID uint,
 	assistantMessageID uint,
 	modelName string,
+	trustedProviderEndpoint string,
 	generatedImages []llm.GeneratedImage,
 ) (*assistantImageContentNormalization, error) {
 	images := make([]assistantImagePayload, 0, len(generatedImages))
 	for _, image := range generatedImages {
-		data, mimeType, err := s.readGeneratedImage(ctx, image)
+		data, mimeType, err := s.readGeneratedImage(ctx, image, trustedProviderEndpoint)
 		if err != nil {
 			return nil, err
 		}

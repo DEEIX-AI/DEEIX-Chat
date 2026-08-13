@@ -167,3 +167,4 @@ docker-compose.local.yml
 .DS_Store
 .idea
 .pnpm-store
+.worktrees/

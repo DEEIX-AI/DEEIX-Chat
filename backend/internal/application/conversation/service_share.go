@@ -66,6 +66,7 @@ type sharedAttachmentSnapshot struct {
 	ProcessingReady        bool   `json:"processing_ready"`
 	ProcessingErrorCode    string `json:"processing_error_code"`
 	ProcessingErrorMessage string `json:"processing_error_message"`
+	DurationSeconds        int64  `json:"duration_seconds"`
 }
 
 // GetConversationShare 查询当前会话最近一次分享状态。
@@ -595,7 +596,7 @@ func (s *Service) cloneSharedMessageAttachments(
 			SHA256:         targetFile.SHA256,
 			StoragePath:    targetFile.StoragePath,
 			Status:         "active",
-			MetaJSON:       "",
+			MetaJSON:       generatedVideoAttachmentMetaJSON(snapshot.DurationSeconds),
 			UploadedAt:     now,
 		})
 	}

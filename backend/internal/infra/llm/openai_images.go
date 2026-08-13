@@ -103,7 +103,7 @@ func (c *Client) generateOpenAIImageGenerations(ctx context.Context, route Route
 	setOpenRouterAttributionHeaders(req, route)
 	setAdditionalHeaders(req, route.HeadersJSON)
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := c.doRouteRequest(route, req)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func (c *Client) generateOpenAIImageGenerationsStream(
 	setOpenRouterAttributionHeaders(req, route)
 	setAdditionalHeaders(req, route.HeadersJSON)
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := c.doRouteRequest(route, req)
 	firstByteTimer.Stop()
 	if err != nil {
 		return nil, err
@@ -243,7 +243,7 @@ func (c *Client) generateOpenAIImageEdits(ctx context.Context, route RouteConfig
 	setOpenRouterAttributionHeaders(req, route)
 	setAdditionalHeaders(req, route.HeadersJSON)
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := c.doRouteRequest(route, req)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +301,7 @@ func (c *Client) generateOpenAIImageEditsStream(
 	setOpenRouterAttributionHeaders(req, route)
 	setAdditionalHeaders(req, route.HeadersJSON)
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := c.doRouteRequest(route, req)
 	firstByteTimer.Stop()
 	if err != nil {
 		return nil, err
@@ -491,7 +491,7 @@ func writeOpenAIMultipartFile(writer *multipart.Writer, fieldName string, fileNa
 }
 
 func buildOpenAIImageEditDebugBody(fields map[string]string, imageCount int, hasMask bool) []byte {
-	payload := make(map[string]interface{}, len(fields)+2)
+	payload := make(map[string]interface{})
 	for key, value := range fields {
 		payload[key] = value
 	}

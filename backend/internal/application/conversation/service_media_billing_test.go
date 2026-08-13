@@ -32,6 +32,7 @@ func TestBuildFailedMediaBillingResultPreservesUpstreamUsage(t *testing.T) {
 		},
 		StartedAt: time.Now().Add(-time.Second),
 		Failure:   errors.New("store generated artifact"),
+		Billable:  true,
 	})
 
 	if result == nil || !result.Billable {
@@ -51,6 +52,20 @@ func TestBuildFailedMediaBillingResultPreservesUpstreamUsage(t *testing.T) {
 	}
 }
 
+func TestBuildFailedMediaBillingResultCanRemainNonBillable(t *testing.T) {
+	result := buildFailedMediaBillingResult(failedMediaBillingResultInput{
+		UserMessage:      &model.Message{ID: 1},
+		AssistantMessage: &model.Message{ID: 2, ContentType: "video"},
+		DurationSeconds:  6,
+		Failure:          errors.New("store generated video"),
+		Billable:         false,
+	})
+
+	if result == nil || result.Billable {
+		t.Fatalf("result = %+v, want non-billable failed video result", result)
+	}
+}
+
 func TestBuildFailedMediaBillingResultKeepsRetryInputOnAssistant(t *testing.T) {
 	sourceMessageID := uint(9)
 	result := buildFailedMediaBillingResult(failedMediaBillingResultInput{
@@ -66,5 +81,22 @@ func TestBuildFailedMediaBillingResultKeepsRetryInputOnAssistant(t *testing.T) {
 	}
 	if result.UserMessage.InputTokens != 0 || result.AssistantMessage.InputTokens != 100 || result.AssistantMessage.CacheReadTokens != 20 || result.AssistantMessage.CacheWriteTokens != 10 {
 		t.Fatalf("retry usage attribution = user %+v assistant %+v", result.UserMessage, result.AssistantMessage)
+	}
+}
+
+func TestBuildFailedMediaBillingResultKeepsCanceledStatus(t *testing.T) {
+	result := buildFailedMediaBillingResult(failedMediaBillingResultInput{
+		UserMessage:      &model.Message{ID: 1},
+		AssistantMessage: &model.Message{ID: 2},
+		Usage:            llm.Usage{InputTokens: 10, OutputTokens: 20},
+		StartedAt:        time.Now(),
+		Failure:          ErrMessageGenerationCanceled,
+	})
+
+	if result == nil || result.AssistantMessage.Status != "canceled" {
+		t.Fatalf("canceled media billing result = %+v", result)
+	}
+	if result.AssistantMessage.ErrorCode != "generation_canceled" {
+		t.Fatalf("unexpected canceled error code: %+v", result.AssistantMessage)
 	}
 }

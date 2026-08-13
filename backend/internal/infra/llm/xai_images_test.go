@@ -41,15 +41,34 @@ func TestBuildXAIImageRequestBody(t *testing.T) {
 	}
 }
 
-func TestBuildXAIImageRequestBodyDefaultsToBase64(t *testing.T) {
+func TestBuildXAIImageRequestBodyDropsUnsupportedParams(t *testing.T) {
+	payload, err := buildXAIImageRequestBody("grok-imagine-image-quality", GenerateInput{
+		Messages: []Message{{Role: "user", Content: "A clean product render"}},
+		Options: map[string]interface{}{
+			"aspect_ratio": "21:9",
+			"n":            2.5,
+			"resolution":   "4k",
+		},
+	})
+	if err != nil {
+		t.Fatalf("build xAI image request body: %v", err)
+	}
+	for _, key := range []string{"aspect_ratio", "n", "resolution"} {
+		if _, ok := payload[key]; ok {
+			t.Fatalf("unsupported xAI image param %q must be removed: %#v", key, payload)
+		}
+	}
+}
+
+func TestBuildXAIImageRequestBodyPreservesOfficialDefaultResponseFormat(t *testing.T) {
 	payload, err := buildXAIImageRequestBody("grok-imagine-image-quality", GenerateInput{
 		Messages: []Message{{Role: "user", Content: "A clean product render"}},
 	})
 	if err != nil {
 		t.Fatalf("build xAI image request body: %v", err)
 	}
-	if payload["response_format"] != "b64_json" {
-		t.Fatalf("expected xAI image generation to default to base64, got %#v", payload)
+	if _, ok := payload["response_format"]; ok {
+		t.Fatalf("expected xAI to apply its documented URL default, got %#v", payload)
 	}
 }
 
@@ -78,8 +97,8 @@ func TestBuildXAIImageEditRequestBody(t *testing.T) {
 	if payload["aspect_ratio"] != "1:1" || payload["resolution"] != "2k" {
 		t.Fatalf("expected xAI edit params, got %#v", payload)
 	}
-	if payload["response_format"] != "b64_json" {
-		t.Fatalf("expected xAI image edit to default to base64, got %#v", payload)
+	if _, ok := payload["response_format"]; ok {
+		t.Fatalf("expected xAI to apply its documented URL default, got %#v", payload)
 	}
 	image := payload["image"].(map[string]interface{})
 	if image["type"] != "image_url" {
@@ -110,7 +129,10 @@ func TestBuildXAIImageEditRequestBodyAllowsUpToThreeImages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build xAI multi-image edit request body: %v", err)
 	}
-	images := payload["image"].([]map[string]interface{})
+	if _, ok := payload["image"]; ok {
+		t.Fatalf("multi-reference edit must not send the singular image field: %#v", payload)
+	}
+	images := payload["images"].([]map[string]interface{})
 	if len(images) != 3 {
 		t.Fatalf("expected three ordered image inputs, got %#v", images)
 	}
@@ -138,7 +160,7 @@ func TestGenerateXAIImageUsesImageEndpoint(t *testing.T) {
 	}))
 	defer server.Close()
 
-	output, err := NewClient().Generate(context.Background(), RouteConfig{
+	output, err := newTestClient().Generate(context.Background(), RouteConfig{
 		Protocol:      AdapterXAIImage,
 		BaseURL:       server.URL + "/v1",
 		APIKey:        "xai-key",
@@ -175,7 +197,7 @@ func TestGenerateXAIImageGenerationAdapterKeepsGenerationEndpoint(t *testing.T) 
 	}))
 	defer server.Close()
 
-	_, err := NewClient().Generate(context.Background(), RouteConfig{
+	_, err := newTestClient().Generate(context.Background(), RouteConfig{
 		Protocol:      AdapterXAIImage,
 		Endpoint:      EndpointImageEdits,
 		BaseURL:       server.URL + "/v1",
@@ -213,7 +235,7 @@ func TestGenerateXAIImageEditUsesImageEditsEndpoint(t *testing.T) {
 	}))
 	defer server.Close()
 
-	output, err := NewClient().Generate(context.Background(), RouteConfig{
+	output, err := newTestClient().Generate(context.Background(), RouteConfig{
 		Protocol:      AdapterXAIImageEdits,
 		BaseURL:       server.URL + "/v1",
 		APIKey:        "xai-key",
@@ -252,10 +274,10 @@ func TestParseXAIImageOutput(t *testing.T) {
 	output, err := parseXAIImageOutput([]byte(`{
 		"id": "img_xai_1",
 		"data": [
-			{"url": "https://example.com/a.jpg"},
-			{"b64_json": "aGVsbG8=", "revised_prompt": "A revised render"}
+			{"url": "https://example.com/a.jpg", "mime_type": "image/webp"},
+			{"b64_json": "aGVsbG8=", "mime_type": "image/png", "revised_prompt": "A revised render"}
 		]
-	}`), "b64_json", AdapterXAIImage)
+	}`), AdapterXAIImage)
 	if err != nil {
 		t.Fatalf("parse xAI image output: %v", err)
 	}
@@ -265,10 +287,10 @@ func TestParseXAIImageOutput(t *testing.T) {
 	if len(output.GeneratedImages) != 2 {
 		t.Fatalf("expected two generated images, got %#v", output.GeneratedImages)
 	}
-	if output.GeneratedImages[0].URL != "https://example.com/a.jpg" {
+	if output.GeneratedImages[0].URL != "https://example.com/a.jpg" || output.GeneratedImages[0].MIMEType != "image/webp" {
 		t.Fatalf("unexpected URL image: %#v", output.GeneratedImages[0])
 	}
-	if output.GeneratedImages[1].B64JSON != "aGVsbG8=" || output.GeneratedImages[1].MIMEType != "image/jpeg" {
+	if output.GeneratedImages[1].B64JSON != "aGVsbG8=" || output.GeneratedImages[1].MIMEType != "image/png" {
 		t.Fatalf("unexpected base64 image: %#v", output.GeneratedImages[1])
 	}
 	if len(output.Citations) != 1 || output.Citations[0] != "https://example.com/a.jpg" {

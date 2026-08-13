@@ -2,6 +2,8 @@ package channel
 
 import (
 	"context"
+	"errors"
+	"reflect"
 	"testing"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
@@ -22,7 +24,7 @@ func TestUpdateModelResetsIconToAutoWhenExplicitlyEmpty(t *testing.T) {
 			Status:            "active",
 		},
 	}
-	service := NewService(config.Config{}, repo, nil, nil)
+	service := NewService(config.Config{}, repo, repo, nil, nil)
 
 	emptyIcon := ""
 	view, err := service.UpdateModel(context.Background(), 1, UpdateModelInput{Icon: &emptyIcon})
@@ -37,6 +39,51 @@ func TestUpdateModelResetsIconToAutoWhenExplicitlyEmpty(t *testing.T) {
 	}
 	if view.Icon != "claude" {
 		t.Fatalf("expected returned model icon to be auto icon, got %q", view.Icon)
+	}
+}
+
+func TestUpdateModelUsesCatalogVendorAndOptionalDisplayGroup(t *testing.T) {
+	repo := &modelUpdateRepo{
+		model: domainchannel.PlatformModel{
+			ID:                1,
+			PlatformModelName: "acme-chat",
+			Vendor:            "unknown",
+			KindsJSON:         `["chat"]`,
+			AccessScope:       "public",
+			Status:            "active",
+		},
+	}
+	service := NewService(config.Config{}, repo, repo, nil, nil)
+
+	vendor := "acme-ai"
+	displayGroupID := uint(7)
+	view, err := service.UpdateModel(context.Background(), 1, UpdateModelInput{
+		Vendor:         &vendor,
+		DisplayGroupID: &displayGroupID,
+	})
+	if err != nil {
+		t.Fatalf("UpdateModel() error = %v", err)
+	}
+	if repo.lastUpdate.Vendor == nil || *repo.lastUpdate.Vendor != vendor {
+		t.Fatalf("expected vendor %q, got %#v", vendor, repo.lastUpdate.Vendor)
+	}
+	if repo.lastUpdate.DisplayGroupID == nil || *repo.lastUpdate.DisplayGroupID != displayGroupID {
+		t.Fatalf("expected display group %d, got %#v", displayGroupID, repo.lastUpdate.DisplayGroupID)
+	}
+	if view.DisplayGroupID == nil || *view.DisplayGroupID != displayGroupID {
+		t.Fatalf("expected returned display group %d, got %#v", displayGroupID, view.DisplayGroupID)
+	}
+
+	clearGroupID := uint(0)
+	view, err = service.UpdateModel(context.Background(), 1, UpdateModelInput{DisplayGroupID: &clearGroupID})
+	if err != nil {
+		t.Fatalf("UpdateModel(clear group) error = %v", err)
+	}
+	if repo.lastUpdate.DisplayGroupID == nil || *repo.lastUpdate.DisplayGroupID != 0 {
+		t.Fatalf("expected explicit group clear, got %#v", repo.lastUpdate.DisplayGroupID)
+	}
+	if view.DisplayGroupID != nil {
+		t.Fatalf("expected returned display group to be nil, got %#v", view.DisplayGroupID)
 	}
 }
 
@@ -70,7 +117,7 @@ func TestUpdateModelUpstreamSourceUpdatesRouteCircuitSettings(t *testing.T) {
 			UpstreamModelStatus:    "active",
 		},
 	}
-	service := NewService(config.Config{}, repo, nil, nil)
+	service := NewService(config.Config{}, repo, repo, nil, nil)
 
 	threshold := 4
 	duration := 15
@@ -120,7 +167,7 @@ func TestListModelsNormalizesCircuitOpenSourceCount(t *testing.T) {
 			{PlatformModelRoute: domainchannel.PlatformModelRoute{ID: 2, Status: "active"}, UpstreamID: 11, BindingCode: "upm_b", UpstreamStatus: "active", UpstreamModelStatus: "active"},
 		},
 	}
-	service := NewService(config.Config{}, repo, cache, nil)
+	service := NewService(config.Config{}, repo, repo, cache, nil)
 
 	items, _, err := service.ListModels(ctx, 1, 20, ListModelsInput{})
 	if err != nil {
@@ -154,7 +201,7 @@ func TestListUpstreamsNormalizesCircuitOpenModelCount(t *testing.T) {
 		},
 		activeBindingCodes: []string{"upm_a", "upm_b"},
 	}
-	service := NewService(config.Config{}, repo, cache, nil)
+	service := NewService(config.Config{}, repo, repo, cache, nil)
 
 	items, _, err := service.ListUpstreams(ctx, 1, 20, ListUpstreamsInput{})
 	if err != nil {
@@ -168,15 +215,39 @@ func TestListUpstreamsNormalizesCircuitOpenModelCount(t *testing.T) {
 	}
 }
 
+func TestSetModelsDisplayGroupNormalizesIDsAndMapsRepositoryErrors(t *testing.T) {
+	repo := &modelUpdateRepo{}
+	service := NewService(config.Config{}, repo, repo, nil, nil)
+
+	if err := service.SetModelsDisplayGroup(t.Context(), []uint{3, 3, 7}, 9); err != nil {
+		t.Fatalf("SetModelsDisplayGroup() error = %v", err)
+	}
+	if !reflect.DeepEqual(repo.lastDisplayGroupModelIDs, []uint{3, 7}) || repo.lastDisplayGroupID != 9 {
+		t.Fatalf("unexpected display group assignment: ids=%v group=%d", repo.lastDisplayGroupModelIDs, repo.lastDisplayGroupID)
+	}
+
+	repo.setDisplayGroupErr = repository.ErrNotFound
+	if err := service.SetModelsDisplayGroup(t.Context(), []uint{3}, 99); !errors.Is(err, ErrModelDisplayGroupNotFound) {
+		t.Fatalf("expected display group not found, got %v", err)
+	}
+	repo.setDisplayGroupErr = repository.ErrInvalidInput
+	if err := service.SetModelsDisplayGroup(t.Context(), []uint{3}, 9); !errors.Is(err, ErrInvalidModelDisplayGroup) {
+		t.Fatalf("expected invalid display group assignment, got %v", err)
+	}
+}
+
 type modelUpdateRepo struct {
-	model              domainchannel.PlatformModel
-	modelRows          []repository.ChannelModelListRow
-	upstreamRows       []repository.ChannelUpstreamListRow
-	activeBindingCodes []string
-	source             repository.ChannelModelSourceRow
-	sources            []repository.ChannelModelSourceRow
-	lastUpdate         repository.UpdateChannelModelInput
-	lastRouteUpdate    repository.UpdateChannelPlatformRouteInput
+	model                    domainchannel.PlatformModel
+	modelRows                []repository.ChannelModelListRow
+	upstreamRows             []repository.ChannelUpstreamListRow
+	activeBindingCodes       []string
+	source                   repository.ChannelModelSourceRow
+	sources                  []repository.ChannelModelSourceRow
+	lastUpdate               repository.UpdateChannelModelInput
+	lastRouteUpdate          repository.UpdateChannelPlatformRouteInput
+	lastDisplayGroupModelIDs []uint
+	lastDisplayGroupID       uint
+	setDisplayGroupErr       error
 }
 
 func (r *modelUpdateRepo) CreateUpstream(context.Context, *domainchannel.Upstream) error {
@@ -210,6 +281,14 @@ func (r *modelUpdateRepo) UpdateModel(_ context.Context, _ uint, input repositor
 	}
 	if input.Vendor != nil {
 		r.model.Vendor = *input.Vendor
+	}
+	if input.DisplayGroupID != nil {
+		if *input.DisplayGroupID == 0 {
+			r.model.DisplayGroupID = nil
+		} else {
+			value := *input.DisplayGroupID
+			r.model.DisplayGroupID = &value
+		}
 	}
 	if input.KindsJSON != nil {
 		r.model.KindsJSON = *input.KindsJSON
@@ -407,4 +486,49 @@ func (r *modelUpdateRepo) DeleteModelCascade(context.Context, uint) error {
 	return nil
 }
 
+func (r *modelUpdateRepo) CreateModelVendor(_ context.Context, item *domainchannel.ModelVendor) error {
+	item.ID = 1
+	return nil
+}
+
+func (r *modelUpdateRepo) UpdateModelVendor(context.Context, string, repository.UpdateModelVendorInput) error {
+	return nil
+}
+
+func (r *modelUpdateRepo) GetModelVendorByKey(_ context.Context, key string) (*domainchannel.ModelVendor, error) {
+	return &domainchannel.ModelVendor{ID: 1, Key: key, Name: key}, nil
+}
+
+func (r *modelUpdateRepo) ListModelVendors(context.Context, repository.ListModelVendorsInput) ([]domainchannel.ModelVendor, int64, error) {
+	return nil, 0, nil
+}
+
+func (r *modelUpdateRepo) CreateModelDisplayGroup(_ context.Context, item *domainchannel.ModelDisplayGroup, _ []uint) error {
+	item.ID = 1
+	return nil
+}
+
+func (r *modelUpdateRepo) UpdateModelDisplayGroup(context.Context, uint, repository.UpdateModelDisplayGroupInput) error {
+	return nil
+}
+
+func (r *modelUpdateRepo) SetModelsDisplayGroup(_ context.Context, modelIDs []uint, groupID uint) error {
+	r.lastDisplayGroupModelIDs = append([]uint(nil), modelIDs...)
+	r.lastDisplayGroupID = groupID
+	return r.setDisplayGroupErr
+}
+
+func (r *modelUpdateRepo) GetModelDisplayGroupByID(_ context.Context, groupID uint) (*domainchannel.ModelDisplayGroup, error) {
+	return &domainchannel.ModelDisplayGroup{ID: groupID, Name: "group"}, nil
+}
+
+func (r *modelUpdateRepo) ListModelDisplayGroups(context.Context, repository.ListModelDisplayGroupsInput) ([]domainchannel.ModelDisplayGroup, int64, error) {
+	return nil, 0, nil
+}
+
+func (r *modelUpdateRepo) DeleteModelDisplayGroup(context.Context, uint) error {
+	return nil
+}
+
 var _ repository.ChannelRepository = (*modelUpdateRepo)(nil)
+var _ repository.ModelPresentationRepository = (*modelUpdateRepo)(nil)

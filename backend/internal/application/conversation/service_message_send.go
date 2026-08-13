@@ -9,6 +9,7 @@ import (
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	appcompact "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/compact"
+	appcm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
 	apprag "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/rag"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
@@ -192,6 +193,7 @@ func (s *Service) sendMessageInternal(
 	if runID == "" {
 		runID = "run_" + normalizePublicID(uuid.NewString())
 	}
+	var moderationCoord *appcm.RunCoordinator
 
 	conversation, err := s.repo.GetConversationByUser(ctx, input.ConversationID, input.UserID)
 	if err != nil {
@@ -244,6 +246,7 @@ func (s *Service) sendMessageInternal(
 	runState.bind(&userMessage, &assistantMessage, &traceRecorder, &result, ctx)
 	defer func() {
 		if retErr != nil {
+			retainedOutput := false
 			if errors.Is(retErr, ErrMessageGenerationCanceled) || llm.RequestWasAccepted(retErr) {
 				if usage, ok := s.recoverOpenAIResponsesBackgroundUsage(responsesBackgroundRouteConfig, responsesBackgroundRecovery); ok {
 					responsesBackgroundUsageRecovered = true
@@ -274,7 +277,30 @@ func (s *Service) sendMessageInternal(
 				ReuseUserMessage:       reuseUserMessage,
 			}); retained != nil {
 				result = retained
+				retainedOutput = true
 				applyRetainedGenerationRunUsage(run, retained, len(toolCallRows), startedAt)
+			}
+			// Input checks and any retained visible output continue after
+			// cancel/interrupt/error; either surface may still block the turn.
+			if moderationCoord != nil {
+				if result == nil && userMessage != nil && assistantMessage != nil {
+					result = &SendMessageResult{
+						UserMessage:      *userMessage,
+						AssistantMessage: *assistantMessage,
+						Billable:         false,
+						StartedAt:        startedAt,
+					}
+				}
+				if result != nil && retainedOutput {
+					s.completeModerationAfterInterruption(
+						context.Background(),
+						moderationCoord,
+						result,
+						moderationOutputText(streamedText.String(), traceRecorder.upstreamThinkContent()),
+					)
+				} else {
+					s.completeModerationAfterFailure(context.Background(), moderationCoord, result)
+				}
 			}
 		}
 		runState.finalize(ctx, retErr)
@@ -316,6 +342,7 @@ func (s *Service) sendMessageInternal(
 	assistantMessage = pair.assistant
 	s.persistInitialConversationFallbackTitle(ctx, *conversation, *userMessage)
 	traceRecorder = newMessageTraceRecorder(s, ctx, assistantMessage, input.OnEvent)
+	moderationCoord = s.startModerationRun(ctx, input, runID, userMessage, assistantMessage, run)
 
 	if s.routeResolver == nil || s.llmClient == nil {
 		retErr = ErrModelRouteNotConfigured
@@ -376,7 +403,7 @@ func (s *Service) sendMessageInternal(
 	}
 
 	// 构建完整活跃分支路径；压缩裁剪先于模型预算截断，避免摘要和全量历史重复发送。
-	contextMessages := buildBranchMessagePath(branchState, userMessage)
+	contextMessages := filterBlockedMessages(buildBranchMessagePath(branchState, userMessage))
 	cfg := s.cfg.Snapshot()
 	compactPolicy := s.resolveContextCompactionPolicy(ctx, cfg, input.UserID)
 
@@ -397,19 +424,6 @@ func (s *Service) sendMessageInternal(
 		prefetchCh <- r
 	}()
 
-	// 异步语义召回：200ms 截止时限，不阻塞 LLM 关键路径。
-	// 超时后优雅跳过；召回依赖 Embedding 服务。
-	// 召回结果稍后作为用户上下文 XML 注入，避免把历史片段提升为 system 指令。
-	var recallCh chan []model.MessageChunk
-	if cfg.EmbeddingEnabled && cfg.SemanticContextEnabled {
-		recallCh = make(chan []model.MessageChunk, 1)
-		go func() {
-			recallCtx, cancel := context.WithTimeout(ctx, semanticRecallDeadline)
-			defer cancel()
-			recallCh <- s.recallSemanticContext(recallCtx, input.ConversationID, input.UserID, input.Content)
-		}()
-	}
-
 	// 读取用户的文件处理模式偏好（auto / full_context / rag）。
 	fileMode := "auto"
 	capability := s.resolveChatFileCapability(ctx)
@@ -425,6 +439,19 @@ func (s *Service) sendMessageInternal(
 	promptScope := buildPromptScope(contextMessages, prefetch.snapshot, compactPolicy)
 	promptMessages := s.applyContextTokenBudget(promptScope.activeMessages(), route.UpstreamModel, route.ModelCapabilitiesJSON, reasoningContentPassback)
 	ragQuery := buildRAGQuery(promptMessages, input.Content, cfg.RAGQueryHistoryTurns)
+	historicalScope := promptScope.historicalMessageScope(input.ConversationID, input.UserID, userMessage.ID)
+
+	// 语义召回必须先限定到当前活跃分支，再由向量存储执行 Top-K，避免 sibling 分支占用名额。
+	// 召回仍与附件和 RAG 处理并行，200ms 超时后按原行为优雅跳过。
+	var recallCh chan []model.MessageChunk
+	if cfg.EmbeddingEnabled && cfg.SemanticContextEnabled && historicalScope.Valid() {
+		recallCh = make(chan []model.MessageChunk, 1)
+		go func() {
+			recallCtx, cancel := context.WithTimeout(ctx, semanticRecallDeadline)
+			defer cancel()
+			recallCh <- s.recallSemanticContext(recallCtx, historicalScope, input.Content)
+		}()
+	}
 
 	conversationFileIDs := collectConversationFileIDs(promptMessages, input.FileIDs)
 	conversationAttachments, err := s.resolveConversationFileContext(ctx, input.UserID, conversationFileIDs, input.FileIDs)
@@ -441,10 +468,43 @@ func (s *Service) sendMessageInternal(
 	currentAttachments := filterCurrentAttachments(conversationAttachments)
 	userMessage.Attachments = marshalAttachmentSnapshots(currentAttachments)
 
+	toolRuntime, err := s.resolveSelectedToolRuntime(ctx, input.SelectedToolIDs)
+	if err != nil {
+		retErr = err
+		return nil, err
+	}
+	imageAttachmentRoutingActive := toolRuntime.attachmentProcessor != nil
+	imageProcessing, err := s.processImageAttachments(ctx, imageAttachmentProcessingInput{
+		UserID:         input.UserID,
+		ConversationID: input.ConversationID,
+		MessageID:      assistantMessage.ID,
+		RequestID:      input.RequestID,
+		RunID:          runID,
+		UserPrompt:     input.Content,
+		Attachments:    currentAttachments,
+		Runtime:        toolRuntime,
+		TraceRecorder:  traceRecorder,
+	})
+	toolCallRows = append(toolCallRows, imageProcessing.Rows...)
+	mergeToolCallPersistenceKeys(&persistedToolCallKeys, imageProcessing.PersistedToolCallKeys)
+	if err != nil {
+		retErr = err
+		return nil, err
+	}
+	if imageProcessing.Routed {
+		toolRuntime = toolRuntime.withoutAttachmentProcessor()
+		if len(toolCallRows) >= s.resolveMaxToolCallsPerRun() {
+			toolRuntime = toolRuntime.withoutDefinitions()
+		}
+	}
+
 	fileContextPlan := buildConversationFileContextPlan(conversationAttachments, fileMode, cfg, route.UpstreamModel, route.ModelCapabilitiesJSON, capability.RAGAvailable)
+	if imageProcessing.Routed {
+		fileContextPlan = withoutCurrentImageAttachments(fileContextPlan)
+	}
 
 	contextAssembler := NewContextAssembler(int64(cfg.ContextMaxInputTokens))
-	userCtx := userContextInput{}
+	userCtx := userContextInput{ImageAnalyses: imageProcessing.Analyses}
 	var prefixMemories []domainmemory.UserMemory
 	preferencePrompt := ""
 	if promptScope.Snapshot != nil {
@@ -579,7 +639,7 @@ func (s *Service) sendMessageInternal(
 	userCtx.Attachments = imageAttachmentsForCurrentUser(stableFullContextAttachments)
 	userCtx.RAGChunks = ragContextChunks
 	// 语义召回注入：收集异步结果（与 RAG 解耦，独立运行）。
-	// recallCh 为 nil 时（SemanticContextEnabled=false）直接跳过。
+	// recallCh 为 nil 时（未启用语义召回或当前分支没有历史消息）直接跳过。
 	//
 	// 必须阻塞等待（不用 select default），原因：
 	//   - 无附件时 hydrateAttachmentsForSend 几乎瞬间返回（~5ms），
@@ -588,16 +648,12 @@ func (s *Service) sendMessageInternal(
 	//     因此 <-recallCh 最多阻塞 semanticRecallDeadline（200ms），不会死锁。
 	//   - 有附件时 goroutine 早已完成（附件处理 >1s >> 200ms），等待开销为零。
 	if recallCh != nil {
-		recalled := <-recallCh // 阻塞等待，最多 semanticRecallDeadline（200ms）
-		userCtx.RecallChunks = promptScope.filterRecallChunks(recalled)
+		userCtx.RecallChunks = <-recallCh // 阻塞等待，最多 semanticRecallDeadline（200ms）
 	}
 	userCtx.HistoricalArtifacts = s.recallHistoricalContextArtifacts(
 		ctx,
-		input.ConversationID,
-		userMessage.ID,
+		historicalScope,
 		promptScope.Snapshot != nil,
-		promptScope.CoveredUntilID,
-		promptScope.retainedMessageIDSet(),
 		input.Content,
 		ragContextChunks,
 		ragFallbackEvidenceAttachments(ragFallbacks),
@@ -606,7 +662,7 @@ func (s *Service) sendMessageInternal(
 	userCtx.CurrentArtifacts = s.persistPromptContextArtifacts(ctx, promptContextArtifactInput{
 		ConversationID: input.ConversationID,
 		UserID:         input.UserID,
-		MessageID:      userMessage.ID,
+		MessageID:      assistantMessage.ID,
 		RunID:          run.RunID,
 		Query:          ragQuery,
 		RAGChunks:      ragContextChunks,
@@ -637,7 +693,6 @@ func (s *Service) sendMessageInternal(
 			messageTraceStatusStreaming,
 		)
 	}
-	toolRuntime := s.resolveSelectedToolRuntime(ctx, input.SelectedToolIDs)
 	routePromptInput := messageRoutePromptInput{
 		UserContent:             input.Content,
 		ProjectSystemPrompt:     conversation.ProjectSystemPrompt,
@@ -648,6 +703,7 @@ func (s *Service) sendMessageInternal(
 		PreferencePrompt:        preferencePrompt,
 		SkillPrompts:            skillPrompts,
 		ToolRuntime:             toolRuntime,
+		SkipImageAttachments:    imageAttachmentRoutingActive,
 		Config:                  cfg,
 	}
 	buildRoutePrompt := func(currentRoute *channel.ResolvedRoute) (PromptPlan, bool, error) {
@@ -1218,7 +1274,6 @@ func (s *Service) sendMessageInternal(
 	}
 	s.routeResolver.MarkRouteSuccess(ctx, route)
 
-	toolCallRows = make([]model.ToolCall, 0)
 	assistantText, nativeToolRows := syncUpstreamOutputTrace(traceRecorder, upstreamOutput, runID)
 	toolCallRows = append(toolCallRows, nativeToolRows...)
 	totalUsage := upstreamOutput.Usage
@@ -1228,7 +1283,7 @@ func (s *Service) sendMessageInternal(
 		usageAccumulator.setObservedUsage(totalUsage)
 	}
 	totalServerSideToolUsage = addServerSideToolUsage(nil, upstreamOutput.ServerSideToolUsage)
-	remainingToolCalls := s.resolveMaxToolCallsPerRun()
+	remainingToolCalls := max(s.resolveMaxToolCallsPerRun()-len(imageProcessing.Rows), 0)
 	llmCallCount := llmRequestCount
 	toolLedger := newToolExecutionLedger()
 	toolHistoryTrimmedForRun := false
@@ -1498,7 +1553,9 @@ func (s *Service) sendMessageInternal(
 		StatefulPromptFingerprint: statefulPromptFingerprint,
 		ToolCallRows:              toolCallRows,
 		PersistedToolCallKeys:     persistedToolCallKeys,
+		Route:                     resolvedRoute,
 		ReuseUserMessage:          reuseUserMessage,
+		SkipEmbed:                 moderationCoord != nil,
 	})
 	platformtracing.RecordError(persistSpan, err)
 	persistSpan.End()
@@ -1559,7 +1616,7 @@ func (s *Service) sendMessageInternal(
 		}
 	}
 
-	return &SendMessageResult{
+	result = &SendMessageResult{
 		UserMessage:           *userMessage,
 		AssistantMessage:      *assistantMessage,
 		MetadataRefreshHint:   s.resolveConversationMetadataRefreshHint(ctx, *conversation, *userMessage),
@@ -1580,5 +1637,19 @@ func (s *Service) sendMessageInternal(
 		LatencyMS:             time.Since(startedAt).Milliseconds(),
 		StartedAt:             startedAt,
 		postBillingCompaction: postBillingCompaction,
-	}, nil
+	}
+	// Soft moderation barrier: show checking, then block or pass.
+	if moderationCoord != nil {
+		outputImages := s.loadOutputImagesForModeration(ctx, moderationCoord, input.UserID, assistantMessage.Attachments)
+		s.completeModerationAfterSuccess(
+			ctx,
+			moderationCoord,
+			result,
+			moderationOutputText(assistantText, assistantReasoningContent, traceRecorder.upstreamThinkContent()),
+			outputImages,
+			input,
+			reuseUserMessage,
+		)
+	}
+	return result, nil
 }

@@ -13,6 +13,8 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
+const defaultXAIVideoDurationSeconds int64 = 6
+
 type canceledMediaGenerationInput struct {
 	Context             context.Context
 	Conversation        *model.Conversation
@@ -24,10 +26,11 @@ type canceledMediaGenerationInput struct {
 	GenerateInput       llm.GenerateInput
 	StartedAt           time.Time
 	DurationSeconds     int64
+	Billable            bool
 	MetadataRefreshHint string
 }
 
-// failedMediaBillingResultInput 描述媒体上游成功后本地处理失败时需要保留的计费信息。
+// failedMediaBillingResultInput 描述媒体上游成功后本地处理失败时需要保留的结果信息。
 type failedMediaBillingResultInput struct {
 	UserMessage      *model.Message
 	AssistantMessage *model.Message
@@ -37,9 +40,10 @@ type failedMediaBillingResultInput struct {
 	StartedAt        time.Time
 	DurationSeconds  int64
 	Failure          error
+	Billable         bool
 }
 
-// buildFailedMediaBillingResult 保留上游成功后发生本地处理错误时的真实计费上下文。
+// buildFailedMediaBillingResult 保留上游成功后发生本地处理错误时的真实用量上下文。
 func buildFailedMediaBillingResult(input failedMediaBillingResultInput) *SendMessageResult {
 	if input.UserMessage == nil || input.AssistantMessage == nil {
 		return nil
@@ -64,13 +68,16 @@ func buildFailedMediaBillingResult(input failedMediaBillingResultInput) *SendMes
 		assistantMessage.LatencyMS = 0
 	}
 	assistantMessage.Status = "error"
+	if errors.Is(input.Failure, ErrMessageGenerationCanceled) {
+		assistantMessage.Status = "canceled"
+	}
 	assistantMessage.ErrorCode = classifyRunErrorCode(input.Failure)
 	assistantMessage.ErrorMessage = truncateError(messageErrorSummary(input.Failure), 255)
 
 	return &SendMessageResult{
 		UserMessage:        userMessage,
 		AssistantMessage:   assistantMessage,
-		Billable:           true,
+		Billable:           input.Billable,
 		UpstreamID:         input.Route.UpstreamID,
 		UpstreamName:       input.Route.UpstreamName,
 		PlatformModelName:  input.Route.PlatformModelName,
@@ -156,7 +163,7 @@ func (s *Service) completeCanceledMediaGeneration(input canceledMediaGenerationI
 		UserMessage:         *input.UserMessage,
 		AssistantMessage:    *input.AssistantMessage,
 		MetadataRefreshHint: input.MetadataRefreshHint,
-		Billable:            true,
+		Billable:            input.Billable,
 		UpstreamID:          input.Route.UpstreamID,
 		UpstreamName:        input.Route.UpstreamName,
 		PlatformModelName:   input.Route.PlatformModelName,
@@ -189,12 +196,53 @@ func applyMediaRunUsage(run *model.Run, result *SendMessageResult) {
 }
 
 func mediaDurationSecondsFromOptions(options map[string]interface{}) int64 {
-	for _, key := range []string{"durationSeconds", "duration_seconds", "duration"} {
-		if seconds := mediaDurationSecondsFromValue(options[key]); seconds > 0 {
+	paths := [][]string{
+		{"durationSeconds"},
+		{"duration_seconds"},
+		{"duration"},
+		{"videoConfig", "durationSeconds"},
+		{"video_config", "duration_seconds"},
+		{"generationConfig", "videoConfig", "durationSeconds"},
+		{"generation_config", "video_config", "duration_seconds"},
+	}
+	for _, path := range paths {
+		value, ok := readModelOptionPath(options, path)
+		if !ok {
+			continue
+		}
+		if seconds := mediaDurationSecondsFromValue(value); seconds > 0 {
 			return seconds
 		}
 	}
 	return 0
+}
+
+// withDefaultMediaVideoDuration 仅向明确支持 duration 参数的视频协议补齐产品缺省值。
+// 其他协议仍以其返回的真实媒体时长为准，避免发送未声明的厂商参数。
+func withDefaultMediaVideoDuration(options map[string]interface{}, protocol string) map[string]interface{} {
+	if mediaDurationSecondsFromOptions(options) > 0 || llm.NormalizeAdapter(protocol) != llm.AdapterXAIVideo {
+		return options
+	}
+	next := make(map[string]interface{}, len(options)+1)
+	for key, value := range options {
+		next[key] = value
+	}
+	next["duration"] = defaultXAIVideoDurationSeconds
+	return next
+}
+
+func resolveGeneratedVideoDurations(videos []llm.GeneratedVideo, fallbackSeconds int64) ([]int64, int64) {
+	durations := make([]int64, len(videos))
+	var total int64
+	for index, video := range videos {
+		seconds := positiveSeconds(video.DurationSeconds)
+		if seconds == 0 {
+			seconds = positiveSeconds(fallbackSeconds)
+		}
+		durations[index] = seconds
+		total += seconds
+	}
+	return durations, total
 }
 
 func mediaDurationSecondsFromValue(value interface{}) int64 {

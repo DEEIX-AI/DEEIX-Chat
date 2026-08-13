@@ -85,18 +85,38 @@ func TestReplaceServerToolsRefreshesRemoteMetadataAndPreservesCustomizedMetadata
 		t.Fatalf("initial tools = %#v, want one tool", initial)
 	}
 	initialTool := initial[0]
+	if initialTool.AttachmentInputMode != domainmcp.AttachmentInputModeNone ||
+		initialTool.AttachmentArgument != "" ||
+		initialTool.AttachmentEncoding != "" ||
+		initialTool.AttachmentPromptArgument != "" {
+		t.Fatalf("new tool has unexpected attachment processor defaults: %#v", initialTool)
+	}
 	inactive := "inactive"
-	if _, err = repo.UpdateTool(ctx, initialTool.ID, repository.UpdateMCPToolInput{Status: &inactive}); err != nil {
+	attachmentMode := domainmcp.AttachmentInputModeImage
+	attachmentArgument := "image"
+	attachmentEncoding := domainmcp.AttachmentEncodingDataURL
+	promptArgument := "prompt"
+	if _, err = repo.UpdateTool(ctx, initialTool.ID, repository.UpdateMCPToolInput{
+		Status:                   &inactive,
+		AttachmentInputMode:      &attachmentMode,
+		AttachmentArgument:       &attachmentArgument,
+		AttachmentEncoding:       &attachmentEncoding,
+		AttachmentPromptArgument: &promptArgument,
+	}); err != nil {
 		t.Fatalf("disable tool: %v", err)
 	}
 
 	if err = repo.ReplaceServerTools(ctx, server.ID, []domainmcp.Tool{
 		{
-			Name:            "tool_a",
-			DisplayName:     "New title",
-			Description:     "New description",
-			InputSchemaJSON: `{"type":"object","required":["current"]}`,
-			Status:          "active",
+			Name:                     "tool_a",
+			DisplayName:              "New title",
+			Description:              "New description",
+			InputSchemaJSON:          `{"type":"object","properties":{"image":{"type":"string"},"prompt":{"type":"string"}},"required":["image"]}`,
+			AttachmentInputMode:      attachmentMode,
+			AttachmentArgument:       attachmentArgument,
+			AttachmentEncoding:       attachmentEncoding,
+			AttachmentPromptArgument: promptArgument,
+			Status:                   "active",
 		},
 	}, false); err != nil {
 		t.Fatalf("replace updated tools: %v", err)
@@ -116,11 +136,17 @@ func TestReplaceServerToolsRefreshesRemoteMetadataAndPreservesCustomizedMetadata
 	if updatedTool.DisplayName != "New title" || updatedTool.Description != "New description" {
 		t.Fatalf("tool metadata = %q/%q, want refreshed values", updatedTool.DisplayName, updatedTool.Description)
 	}
-	if updatedTool.InputSchemaJSON != `{"type":"object","required":["current"]}` {
+	if updatedTool.InputSchemaJSON != `{"type":"object","properties":{"image":{"type":"string"},"prompt":{"type":"string"}},"required":["image"]}` {
 		t.Fatalf("tool schema = %s, want refreshed schema", updatedTool.InputSchemaJSON)
 	}
 	if updatedTool.Status != "inactive" || updatedTool.SortOrder != initialTool.SortOrder {
 		t.Fatalf("local controls = %s/%d, want inactive/%d", updatedTool.Status, updatedTool.SortOrder, initialTool.SortOrder)
+	}
+	if updatedTool.AttachmentInputMode != attachmentMode ||
+		updatedTool.AttachmentArgument != attachmentArgument ||
+		updatedTool.AttachmentEncoding != attachmentEncoding ||
+		updatedTool.AttachmentPromptArgument != promptArgument {
+		t.Fatalf("attachment processor configuration was not preserved: %#v", updatedTool)
 	}
 	storedTool := loadStoredMCPTool(t, db, updatedTool.ID)
 	if storedTool.MetadataCustomized == nil || *storedTool.MetadataCustomized {
@@ -175,6 +201,12 @@ func TestReplaceServerToolsRefreshesRemoteMetadataAndPreservesCustomizedMetadata
 	}
 	if customizedTool.Status != "inactive" || customizedTool.SortOrder != initialTool.SortOrder {
 		t.Fatalf("local controls after customization = %s/%d, want inactive/%d", customizedTool.Status, customizedTool.SortOrder, initialTool.SortOrder)
+	}
+	if customizedTool.AttachmentInputMode != domainmcp.AttachmentInputModeNone ||
+		customizedTool.AttachmentArgument != "" ||
+		customizedTool.AttachmentEncoding != "" ||
+		customizedTool.AttachmentPromptArgument != "" {
+		t.Fatalf("disabled attachment processor configuration was not cleared: %#v", customizedTool)
 	}
 	storedTool = loadStoredMCPTool(t, db, customizedTool.ID)
 	if storedTool.MetadataCustomized == nil || !*storedTool.MetadataCustomized {

@@ -16,10 +16,21 @@ import (
 )
 
 type selectedToolRuntime struct {
-	definitions []llm.ToolDefinition
-	nameMap     map[string]string
-	mcpConfigs  map[string]mcp.CallConfig
-	schemas     map[string]json.RawMessage
+	definitions         []llm.ToolDefinition
+	nameMap             map[string]string
+	mcpConfigs          map[string]mcp.CallConfig
+	schemas             map[string]json.RawMessage
+	attachmentProcessor *selectedAttachmentProcessor
+}
+
+type selectedAttachmentProcessor struct {
+	toolID         uint
+	modelName      string
+	toolName       string
+	displayName    string
+	argument       string
+	encoding       string
+	promptArgument string
 }
 
 func injectMCPToolGuidance(messages []llm.Message, runtime selectedToolRuntime, customPrompt string) []llm.Message {
@@ -125,13 +136,19 @@ func schemaFieldType(prop map[string]interface{}) string {
 	return ""
 }
 
-func (s *Service) resolveSelectedToolRuntime(ctx context.Context, toolIDs []uint) selectedToolRuntime {
-	if s.mcpRepo == nil || len(toolIDs) == 0 || !s.cfg.Snapshot().MCPEnable {
-		return selectedToolRuntime{}
+func (s *Service) resolveSelectedToolRuntime(ctx context.Context, toolIDs []uint) (selectedToolRuntime, error) {
+	if len(toolIDs) == 0 || !s.cfg.Snapshot().MCPEnable {
+		return selectedToolRuntime{}, nil
+	}
+	if s.mcpRepo == nil {
+		return selectedToolRuntime{}, fmt.Errorf("resolve selected MCP tools: repository unavailable")
 	}
 	tools, err := s.mcpRepo.ListToolsByIDs(ctx, uniqueToolIDs(toolIDs))
-	if err != nil || len(tools) == 0 {
-		return selectedToolRuntime{}
+	if err != nil {
+		return selectedToolRuntime{}, fmt.Errorf("resolve selected MCP tools: %w", err)
+	}
+	if len(tools) == 0 {
+		return selectedToolRuntime{}, nil
 	}
 
 	cfg := s.cfg.Snapshot()
@@ -147,13 +164,23 @@ func (s *Service) resolveSelectedToolRuntime(ctx context.Context, toolIDs []uint
 		if tool.Status != "active" {
 			continue
 		}
+		isAttachmentProcessor := strings.EqualFold(strings.TrimSpace(tool.AttachmentInputMode), domainmcp.AttachmentInputModeImage)
 		server, ok := serverCache[tool.ServerID]
 		if !ok {
 			server, err = s.mcpRepo.GetServer(ctx, tool.ServerID)
-			if err != nil || server == nil || server.Status != "active" {
+			if err != nil {
+				return selectedToolRuntime{}, fmt.Errorf("resolve MCP server %d: %w", tool.ServerID, err)
+			}
+			if server == nil || server.Status != "active" {
+				if isAttachmentProcessor {
+					return selectedToolRuntime{}, fmt.Errorf("%w: processor server is unavailable", ErrImageAttachmentProcessingFailed)
+				}
 				continue
 			}
-			if validateErr := security.ValidateOutboundHTTPURL(server.BaseURL, cfg.Env, cfg.SSRFProtectionEnabled); validateErr != nil {
+			if validateErr := security.ValidateTrustedOutboundHTTPURL(server.BaseURL); validateErr != nil {
+				if isAttachmentProcessor {
+					return selectedToolRuntime{}, fmt.Errorf("%w: processor server URL is not allowed", ErrImageAttachmentProcessingFailed)
+				}
 				continue
 			}
 			serverCache[tool.ServerID] = server
@@ -168,6 +195,9 @@ func (s *Service) resolveSelectedToolRuntime(ctx context.Context, toolIDs []uint
 		}
 		token, err := secretbox.DecryptString(cfg.DataEncryptionKey, server.AuthTokenEnc)
 		if err != nil {
+			if isAttachmentProcessor {
+				return selectedToolRuntime{}, fmt.Errorf("%w: processor credentials are unavailable", ErrImageAttachmentProcessingFailed)
+			}
 			continue
 		}
 		headers := parseMCPHeaders(server.HeadersJSON)
@@ -184,8 +214,57 @@ func (s *Service) resolveSelectedToolRuntime(ctx context.Context, toolIDs []uint
 			TimeoutMS: cfg.MCPToolTimeoutSeconds * 1000,
 			Headers:   headers,
 		}
+		if isAttachmentProcessor {
+			if bindErr := result.bindAttachmentProcessor(selectedAttachmentProcessor{
+				toolID:         tool.ID,
+				modelName:      modelName,
+				toolName:       tool.Name,
+				displayName:    firstNonEmptyString(tool.DisplayName, tool.Name),
+				argument:       strings.TrimSpace(tool.AttachmentArgument),
+				encoding:       strings.TrimSpace(tool.AttachmentEncoding),
+				promptArgument: strings.TrimSpace(tool.AttachmentPromptArgument),
+			}); bindErr != nil {
+				return selectedToolRuntime{}, bindErr
+			}
+		}
 	}
-	return result
+	return result, nil
+}
+
+func (r *selectedToolRuntime) bindAttachmentProcessor(processor selectedAttachmentProcessor) error {
+	if r.attachmentProcessor != nil {
+		return ErrMultipleImageAttachmentProcessors
+	}
+	r.attachmentProcessor = &processor
+	return nil
+}
+
+func (r selectedToolRuntime) withoutAttachmentProcessor() selectedToolRuntime {
+	processor := r.attachmentProcessor
+	if processor == nil {
+		return r
+	}
+	definitions := make([]llm.ToolDefinition, 0, len(r.definitions))
+	for _, definition := range r.definitions {
+		if definition.Name != processor.modelName {
+			definitions = append(definitions, definition)
+		}
+	}
+	r.definitions = definitions
+	delete(r.nameMap, processor.modelName)
+	delete(r.mcpConfigs, processor.modelName)
+	delete(r.schemas, processor.modelName)
+	r.attachmentProcessor = nil
+	return r
+}
+
+func (r selectedToolRuntime) withoutDefinitions() selectedToolRuntime {
+	r.definitions = nil
+	r.nameMap = nil
+	r.mcpConfigs = nil
+	r.schemas = nil
+	r.attachmentProcessor = nil
+	return r
 }
 
 func uniqueToolIDs(items []uint) []uint {

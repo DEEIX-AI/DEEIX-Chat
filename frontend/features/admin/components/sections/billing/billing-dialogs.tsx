@@ -96,7 +96,12 @@ function tieredTiersFromJSON(payload: PricingJSONValue): TieredPricingTierForm[]
   });
 }
 
-function pricingFormFromJSON(current: PricingFormState, raw: string, messages: { root: string; model: string; mode: string; tiered: string }): PricingFormState {
+function pricingFormFromJSON(
+  current: PricingFormState,
+  raw: string,
+  durationPricingEnabled: boolean,
+  messages: { root: string; model: string; mode: string; durationVideoOnly: string; tiered: string },
+): PricingFormState {
   const parsed = JSON.parse(raw) as unknown;
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error(messages.root);
@@ -109,6 +114,9 @@ function pricingFormFromJSON(current: PricingFormState, raw: string, messages: {
   const pricingMode = readPricingMode(payload.pricingMode);
   if (!pricingMode) {
     throw new Error(messages.mode);
+  }
+  if (pricingMode === "duration" && !durationPricingEnabled) {
+    throw new Error(messages.durationVideoOnly);
   }
   const next: PricingFormState = {
     ...current,
@@ -246,6 +254,7 @@ type PricingBillingDialogProps = {
   open: boolean;
   saving: boolean;
   form: PricingFormState | null;
+  durationPricingEnabled: boolean;
   setForm: React.Dispatch<React.SetStateAction<PricingFormState | null>>;
   onOpenChange: (open: boolean) => void;
   onCancel: () => void;
@@ -260,6 +269,7 @@ export function PricingBillingDialog({
   open,
   saving,
   form,
+  durationPricingEnabled,
   setForm,
   onOpenChange,
   onCancel,
@@ -295,10 +305,11 @@ export function PricingBillingDialog({
       return;
     }
     try {
-      const nextForm = pricingFormFromJSON(form, value, {
+      const nextForm = pricingFormFromJSON(form, value, durationPricingEnabled, {
         root: t("modelPricing.jsonErrors.root"),
         model: t("modelPricing.jsonErrors.model"),
         mode: t("modelPricing.jsonErrors.mode"),
+        durationVideoOnly: t("modelPricing.jsonErrors.durationVideoOnly"),
         tiered: t("modelPricing.jsonErrors.tiered"),
       });
       setJSONError("");
@@ -306,19 +317,22 @@ export function PricingBillingDialog({
     } catch (error) {
       setJSONError(error instanceof Error ? error.message : t("modelPricing.jsonErrors.invalid"));
     }
-  }, [form, setForm, t]);
+  }, [durationPricingEnabled, form, setForm, t]);
 
   const handleJSONPricingModeChange = React.useCallback((value: string) => {
     if (!form) {
       return;
     }
     const pricingMode = normalizePricingMode(value);
+    if (pricingMode === "duration" && !durationPricingEnabled) {
+      return;
+    }
     const nextForm = { ...form, pricingMode };
     const nextJSON = pricingFormToJSON(nextForm);
     setForm(nextForm);
     setJSONDraft(nextJSON);
     setJSONError("");
-  }, [form, setForm]);
+  }, [durationPricingEnabled, form, setForm]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -372,10 +386,13 @@ export function PricingBillingDialog({
                         <SelectContent>
                           <SelectItem value="token">{t("pricingModes.token")}</SelectItem>
                           <SelectItem value="call">{t("pricingModes.call")}</SelectItem>
-                          <SelectItem value="duration">{t("pricingModes.duration")}</SelectItem>
+                          <SelectItem value="duration" disabled={!durationPricingEnabled}>{t("pricingModes.duration")}</SelectItem>
                           <SelectItem value="tiered">{t("pricingModes.tiered")}</SelectItem>
                         </SelectContent>
                       </Select>
+                      {!durationPricingEnabled ? (
+                        <p className="text-[11px] text-muted-foreground">{t("modelPricing.durationVideoOnly")}</p>
+                      ) : null}
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">{t("modelPricing.freeModel")}</p>
@@ -522,7 +539,7 @@ export function PricingBillingDialog({
                       <SelectContent>
                         <SelectItem value="token">{t("pricingModes.token")}</SelectItem>
                         <SelectItem value="call">{t("pricingModes.call")}</SelectItem>
-                        <SelectItem value="duration">{t("pricingModes.duration")}</SelectItem>
+                        <SelectItem value="duration" disabled={!durationPricingEnabled}>{t("pricingModes.duration")}</SelectItem>
                         <SelectItem value="tiered">{t("pricingModes.tiered")}</SelectItem>
                       </SelectContent>
                     </Select>

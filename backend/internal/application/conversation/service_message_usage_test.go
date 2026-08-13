@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 )
 
@@ -321,14 +322,38 @@ func TestTrimToolFollowUpHistoryRemovesOldCompleteTurns(t *testing.T) {
 }
 
 func TestSendMessageBillingDurationSeconds(t *testing.T) {
-	if got := sendMessageBillingDurationSeconds(&SendMessageResult{DurationSeconds: 5}, 1200); got != 5 {
+	videoResult := &SendMessageResult{
+		AssistantMessage: model.Message{ContentType: "video", Status: "success"},
+		DurationSeconds:  5,
+		UpstreamProtocol: llm.AdapterXAIVideo,
+		Billable:         true,
+	}
+	if got := sendMessageBillingDurationSeconds(videoResult); got != 5 {
 		t.Fatalf("expected explicit duration seconds to win, got %d", got)
 	}
-	if got := sendMessageBillingDurationSeconds(&SendMessageResult{}, 1201); got != 2 {
-		t.Fatalf("expected latency to be rounded up to seconds, got %d", got)
+	textResult := &SendMessageResult{
+		AssistantMessage: model.Message{ContentType: "video", Status: "success"},
+		DurationSeconds:  5,
+		UpstreamProtocol: llm.AdapterXAIResponses,
+		Billable:         true,
 	}
-	if got := sendMessageBillingDurationSeconds(&SendMessageResult{}, 0); got != 0 {
-		t.Fatalf("expected empty duration for zero latency, got %d", got)
+	if got := sendMessageBillingDurationSeconds(textResult); got != 0 {
+		t.Fatalf("expected non-video protocol duration to be ignored, got %d", got)
+	}
+	if got := sendMessageBillingDurationSeconds(&SendMessageResult{
+		AssistantMessage: model.Message{ContentType: "video", Status: "success"},
+		UpstreamProtocol: llm.AdapterXAIVideo,
+		Billable:         true,
+	}); got != 0 {
+		t.Fatalf("expected missing video duration to remain zero, got %d", got)
+	}
+	if got := sendMessageBillingDurationSeconds(&SendMessageResult{
+		AssistantMessage: model.Message{ContentType: "video", Status: "error"},
+		DurationSeconds:  6,
+		UpstreamProtocol: llm.AdapterXAIVideo,
+		Billable:         true,
+	}); got != 0 {
+		t.Fatalf("expected failed video duration to remain zero, got %d", got)
 	}
 }
 
@@ -341,5 +366,36 @@ func TestMediaDurationSecondsFromOptions(t *testing.T) {
 	}
 	if got := mediaDurationSecondsFromOptions(map[string]interface{}{"duration": "bad"}); got != 0 {
 		t.Fatalf("expected invalid duration to be ignored, got %d", got)
+	}
+	if got := mediaDurationSecondsFromOptions(map[string]interface{}{
+		"generation_config": map[string]interface{}{
+			"video_config": map[string]interface{}{"duration_seconds": 7},
+		},
+	}); got != 7 {
+		t.Fatalf("expected nested video duration seconds, got %d", got)
+	}
+}
+
+func TestWithDefaultMediaVideoDurationInjectsOnlySupportedProtocol(t *testing.T) {
+	xaiOptions := withDefaultMediaVideoDuration(nil, llm.AdapterXAIVideo)
+	if got := mediaDurationSecondsFromOptions(xaiOptions); got != 6 {
+		t.Fatalf("expected xAI request default duration, got %d", got)
+	}
+	explicit := map[string]interface{}{"duration": 9}
+	if got := withDefaultMediaVideoDuration(explicit, llm.AdapterXAIVideo); got["duration"] != 9 {
+		t.Fatalf("explicit duration was overwritten: %#v", got)
+	}
+	if got := withDefaultMediaVideoDuration(nil, llm.AdapterGeminiInteractions); got != nil {
+		t.Fatalf("unsupported duration parameter was injected: %#v", got)
+	}
+}
+
+func TestResolveGeneratedVideoDurationsSumsEveryArtifact(t *testing.T) {
+	durations, total := resolveGeneratedVideoDurations([]llm.GeneratedVideo{
+		{DurationSeconds: 4},
+		{},
+	}, 6)
+	if total != 10 || len(durations) != 2 || durations[0] != 4 || durations[1] != 6 {
+		t.Fatalf("unexpected generated video durations: %#v total=%d", durations, total)
 	}
 }

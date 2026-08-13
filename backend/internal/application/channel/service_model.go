@@ -208,6 +208,10 @@ func cloneModelViews(items []ModelView) []ModelView {
 	}
 	results := make([]ModelView, 0, len(items))
 	for _, item := range items {
+		if item.DisplayGroupID != nil {
+			displayGroupID := *item.DisplayGroupID
+			item.DisplayGroupID = &displayGroupID
+		}
 		if item.Pricing != nil {
 			pricing := *item.Pricing
 			if len(pricing.Tiers) > 0 {
@@ -319,6 +323,25 @@ func (s *Service) ListActivePlatformModelNames(ctx context.Context) (map[string]
 	return keys, nil
 }
 
+// SupportsVideoGeneration 返回平台模型是否具有真实可路由的视频生成能力。
+func (s *Service) SupportsVideoGeneration(ctx context.Context, platformModelName string) (bool, error) {
+	name, err := normalizePlatformModelName(platformModelName)
+	if err != nil {
+		return false, nil
+	}
+	items, err := s.listAllActiveModelRows(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, item := range items {
+		if item.ActiveSourceCount <= 0 || strings.TrimSpace(item.PlatformModelName) != name {
+			continue
+		}
+		return hasModelKind(parseKinds(item.KindsJSON), modelKindVideoGen), nil
+	}
+	return false, nil
+}
+
 // CreateModel 创建平台模型目录项。
 //
 // 创建模型只负责本地目录与展示元数据。
@@ -347,12 +370,25 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 		return nil, err
 	}
 	cbPolicyMode := normalizeModelCircuitPolicyMode(input.CbPolicyMode)
+	vendor, err := s.resolvePlatformModelVendor(ctx, input.Vendor, platformModelName)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateModelDisplayGroup(ctx, input.DisplayGroupID); err != nil {
+		return nil, err
+	}
+	var displayGroupID *uint
+	if input.DisplayGroupID > 0 {
+		value := input.DisplayGroupID
+		displayGroupID = &value
+	}
 
 	item := &domainchannel.PlatformModel{
 		PlatformModelName:  platformModelName,
-		Vendor:             normalizeModelVendor(input.Vendor, platformModelName),
+		Vendor:             vendor,
+		DisplayGroupID:     displayGroupID,
 		KindsJSON:          kindsJSON,
-		Icon:               normalizeModelIcon(input.Icon, input.Vendor, platformModelName),
+		Icon:               normalizeModelIcon(input.Icon, vendor, platformModelName),
 		CapabilitiesJSON:   strings.TrimSpace(input.CapabilitiesJSON),
 		SystemPrompt:       systemPrompt,
 		AccessScope:        accessScope,
@@ -370,8 +406,7 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 		return nil, err
 	}
 	s.InvalidateModelCatalog()
-	view := toModelView(repository.ChannelModelListRow{PlatformModel: *item})
-	return &view, nil
+	return s.getModelViewByID(ctx, item.ID)
 }
 
 // UpdateModel 更新平台模型目录项。
@@ -381,7 +416,10 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 		return nil, err
 	}
 
-	nextVendor := normalizeModelVendor(current.Vendor, current.PlatformModelName)
+	nextVendor, err := normalizeModelVendorKey(current.Vendor)
+	if err != nil {
+		return nil, err
+	}
 	nextPlatformModelName := current.PlatformModelName
 
 	update := repository.UpdateChannelModelInput{}
@@ -393,8 +431,18 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 		update.PlatformModelName = &nextPlatformModelName
 	}
 	if input.Vendor != nil {
-		nextVendor = normalizeModelVendor(*input.Vendor, nextPlatformModelName)
+		nextVendor, err = s.resolvePlatformModelVendor(ctx, *input.Vendor, nextPlatformModelName)
+		if err != nil {
+			return nil, err
+		}
 		update.Vendor = &nextVendor
+	}
+	if input.DisplayGroupID != nil {
+		if err := s.validateModelDisplayGroup(ctx, *input.DisplayGroupID); err != nil {
+			return nil, err
+		}
+		value := *input.DisplayGroupID
+		update.DisplayGroupID = &value
 	}
 	if input.KindsJSON != nil {
 		kindsJSON, err := normalizeKindsJSON(*input.KindsJSON)
@@ -453,7 +501,10 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 		update.CbWindowMin = &value
 	}
 	if input.Vendor == nil && input.PlatformModelName != nil {
-		autoVendor := normalizeModelVendor("", nextPlatformModelName)
+		autoVendor, err := s.resolvePlatformModelVendor(ctx, "", nextPlatformModelName)
+		if err != nil {
+			return nil, err
+		}
 		if autoVendor != nextVendor {
 			update.Vendor = &autoVendor
 			nextVendor = autoVendor

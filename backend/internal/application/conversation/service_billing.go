@@ -12,6 +12,7 @@ import (
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
@@ -277,6 +278,13 @@ func (s *Service) buildSendMessageUsageLedger(ctx context.Context, input SendMes
 	if result == nil {
 		return nil, nil
 	}
+	isVideoGeneration := sendMessageResultIsVideoGeneration(result)
+	mediaType := ""
+	inputImageCount := int64(0)
+	if isVideoGeneration {
+		mediaType = "video"
+		inputImageCount, _ = countAttachmentKinds(result.UserMessage.Attachments)
+	}
 	latencyMS := result.LatencyMS
 	if latencyMS <= 0 {
 		latencyMS = result.AssistantMessage.LatencyMS
@@ -304,7 +312,10 @@ func (s *Service) buildSendMessageUsageLedger(ctx context.Context, input SendMes
 		OutputTokens:        result.AssistantMessage.OutputTokens,
 		ReasoningTokens:     result.AssistantMessage.ReasoningTokens,
 		CallCount:           1,
-		DurationSeconds:     sendMessageBillingDurationSeconds(result, latencyMS),
+		DurationBillable:    isVideoGeneration,
+		DurationSeconds:     sendMessageBillingDurationSeconds(result),
+		MediaType:           mediaType,
+		InputImageCount:     inputImageCount,
 		LatencyMS:           latencyMS,
 		ServerSideToolUsage: result.ServerSideToolUsage,
 		RawUsageJSON:        result.RawUsageJSON,
@@ -342,14 +353,19 @@ func sendMessageBillingCacheWriteTokens(result *SendMessageResult) int64 {
 	return result.UserMessage.CacheWriteTokens
 }
 
-func sendMessageBillingDurationSeconds(result *SendMessageResult, latencyMS int64) int64 {
-	if result != nil && result.DurationSeconds > 0 {
-		return result.DurationSeconds
-	}
-	if latencyMS <= 0 {
+func sendMessageResultIsVideoGeneration(result *SendMessageResult) bool {
+	return result != nil &&
+		result.Billable &&
+		strings.EqualFold(strings.TrimSpace(result.AssistantMessage.Status), "success") &&
+		strings.EqualFold(strings.TrimSpace(result.AssistantMessage.ContentType), "video") &&
+		llm.IsVideoGenerationAdapter(result.UpstreamProtocol)
+}
+
+func sendMessageBillingDurationSeconds(result *SendMessageResult) int64 {
+	if !sendMessageResultIsVideoGeneration(result) || result.DurationSeconds <= 0 {
 		return 0
 	}
-	return (latencyMS + 999) / 1000
+	return result.DurationSeconds
 }
 
 // sendMessageResultUsesAssistantSideInput 判断 prompt-side usage 是否归属 assistant 消息。

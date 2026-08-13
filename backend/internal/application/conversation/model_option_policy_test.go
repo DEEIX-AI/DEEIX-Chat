@@ -1062,6 +1062,49 @@ func TestFilterModelOptionsXAIImageAllowsImageParams(t *testing.T) {
 	}
 }
 
+func TestFilterModelOptionsXAIVideoAllowsVideoParams(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"aspect_ratio": " 16:9 ",
+		"duration":     float64(8),
+		"resolution":   "720P",
+		"prompt":       "override",
+		"image":        map[string]interface{}{"url": "https://example.com/source.png"},
+		"output":       "must not pass through",
+	}, llm.AdapterXAIVideo, modelOptionPolicyConfig{
+		Mode:             modelOptionPolicyAllowlist,
+		AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+	})
+
+	if filtered["aspect_ratio"] != "16:9" || filtered["duration"] != 8 || filtered["resolution"] != "720p" {
+		t.Fatalf("expected xAI video params to pass, got %#v", filtered)
+	}
+	for _, key := range []string{"prompt", "image", "output"} {
+		if _, ok := filtered[key]; ok {
+			t.Fatalf("expected %s to be removed, got %#v", key, filtered)
+		}
+	}
+}
+
+func TestFilterModelOptionsXAIVideoDropsInvalidBillableParams(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"aspect_ratio": "21:9",
+		"duration":     999,
+		"resolution":   "4k",
+	}, llm.AdapterXAIVideo, modelOptionPolicyConfig{
+		Mode:             modelOptionPolicyAllowlist,
+		AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
+	})
+
+	if len(filtered) != 0 {
+		t.Fatalf("expected invalid xAI video params to be removed, got %#v", filtered)
+	}
+	if duration := mediaDurationSecondsFromOptions(filtered); duration != 0 {
+		t.Fatalf("expected removed duration not to affect billing, got %d", duration)
+	}
+}
+
 func TestPromptCarriesAssistantReasoning(t *testing.T) {
 	cases := map[string]struct {
 		messages []llm.Message

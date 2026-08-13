@@ -22,6 +22,189 @@ func TestTranslateErrorAllowsNil(t *testing.T) {
 	}
 }
 
+func TestAttachmentDurationSecondsFromMetaJSON(t *testing.T) {
+	if got := attachmentDurationSecondsFromMetaJSON(`{"duration_seconds":6}`); got != 6 {
+		t.Fatalf("expected attachment duration 6, got %d", got)
+	}
+	for _, raw := range []string{"", `{}`, `{"duration_seconds":0}`, `{"duration_seconds":"6"}`} {
+		if got := attachmentDurationSecondsFromMetaJSON(raw); got != 0 {
+			t.Fatalf("expected invalid attachment duration for %q, got %d", raw, got)
+		}
+	}
+}
+
+func TestCreateContextArtifactsRejectsIncompleteOwnerScope(t *testing.T) {
+	repo := NewRepo(openConversationRepositoryTestDB(t))
+	valid := domainconversation.ContextArtifact{
+		ConversationID: 7,
+		MessageID:      11,
+		UserID:         1,
+		RunID:          "run_1",
+		Kind:           domainconversation.ContextArtifactToolResult,
+		Content:        "evidence",
+	}
+	tests := map[string]func(*domainconversation.ContextArtifact){
+		"conversation": func(item *domainconversation.ContextArtifact) { item.ConversationID = 0 },
+		"message":      func(item *domainconversation.ContextArtifact) { item.MessageID = 0 },
+		"user":         func(item *domainconversation.ContextArtifact) { item.UserID = 0 },
+		"run":          func(item *domainconversation.ContextArtifact) { item.RunID = "  " },
+	}
+	for name, invalidate := range tests {
+		t.Run(name, func(t *testing.T) {
+			item := valid
+			invalidate(&item)
+			err := repo.CreateContextArtifacts(context.Background(), []domainconversation.ContextArtifact{item})
+			if !errors.Is(err, repository.ErrInvalidInput) {
+				t.Fatalf("CreateContextArtifacts() error = %v, want ErrInvalidInput", err)
+			}
+		})
+	}
+}
+
+func TestCreateContextArtifactsNormalizesRunOwner(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	if err := db.AutoMigrate(&model.ChatContextRecord{}); err != nil {
+		t.Fatalf("migrate context records: %v", err)
+	}
+	repo := NewRepo(db)
+	items := []domainconversation.ContextArtifact{{
+		ConversationID: 7,
+		MessageID:      11,
+		UserID:         1,
+		RunID:          "  run_1  ",
+		Kind:           domainconversation.ContextArtifactToolResult,
+		Content:        "normalized evidence",
+	}}
+
+	if err := repo.CreateContextArtifacts(context.Background(), items); err != nil {
+		t.Fatalf("CreateContextArtifacts() error = %v", err)
+	}
+	if items[0].RunID != "run_1" {
+		t.Fatalf("artifact run id = %q, want normalized run_1", items[0].RunID)
+	}
+}
+
+func TestListRecentContextArtifactsFiltersBranchBeforeLimit(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	if err := db.AutoMigrate(&model.Message{}, &model.ChatContextRecord{}); err != nil {
+		t.Fatalf("migrate context records: %v", err)
+	}
+	repo := NewRepo(db)
+	ctx := context.Background()
+	rootMessageID := uint(1)
+	activeOwnerID := uint(10)
+	leafMessageID := uint(12)
+	branchMessages := []model.Message{
+		{
+			BaseModel:      model.BaseModel{ID: rootMessageID},
+			ConversationID: 7,
+			UserID:         1,
+			PublicID:       "msg_branch_root",
+			Role:           "user",
+			Status:         "success",
+		},
+		{
+			BaseModel:       model.BaseModel{ID: activeOwnerID},
+			ConversationID:  7,
+			UserID:          1,
+			PublicID:        "msg_artifact_owner",
+			ParentMessageID: &rootMessageID,
+			RunID:           "run_active",
+			Role:            "assistant",
+			Status:          "success",
+		},
+		{
+			BaseModel:       model.BaseModel{ID: leafMessageID},
+			ConversationID:  7,
+			UserID:          1,
+			PublicID:        "msg_branch_leaf",
+			ParentMessageID: &activeOwnerID,
+			Role:            "user",
+			Status:          "pending",
+		},
+	}
+	for index := 0; index < 31; index++ {
+		branchMessages = append(branchMessages, model.Message{
+			BaseModel:       model.BaseModel{ID: uint(100 + index)},
+			ConversationID:  7,
+			UserID:          1,
+			PublicID:        fmt.Sprintf("msg_sibling_%d", index),
+			ParentMessageID: &rootMessageID,
+			Role:            "assistant",
+			Status:          "success",
+		})
+	}
+	if err := db.Create(&branchMessages).Error; err != nil {
+		t.Fatalf("create branch messages: %v", err)
+	}
+
+	items := []model.ChatContextRecord{
+		{
+			RecordType:     chatContextRecordArtifact,
+			ConversationID: 7,
+			MessageID:      activeOwnerID,
+			UserID:         1,
+			RunID:          "run_active",
+			Kind:           string(domainconversation.ContextArtifactToolResult),
+			SourceType:     "tool_call",
+			SourceID:       "active",
+			Content:        "active branch evidence",
+		},
+		{
+			RecordType:     chatContextRecordArtifact,
+			ConversationID: 7,
+			MessageID:      rootMessageID,
+			UserID:         1,
+			Kind:           string(domainconversation.ContextArtifactToolResult),
+			SourceType:     "tool_call",
+			SourceID:       "user-owned",
+			Content:        "legacy evidence with ambiguous branch ownership",
+		},
+		{
+			RecordType:     chatContextRecordArtifact,
+			ConversationID: 7,
+			MessageID:      activeOwnerID,
+			UserID:         1,
+			RunID:          "run_wrong_owner",
+			Kind:           string(domainconversation.ContextArtifactToolResult),
+			SourceType:     "tool_call",
+			SourceID:       "mismatched-run",
+			Content:        "evidence must not borrow an unrelated assistant owner",
+		},
+	}
+	for index := 0; index < 31; index++ {
+		items = append(items, model.ChatContextRecord{
+			RecordType:     chatContextRecordArtifact,
+			ConversationID: 7,
+			MessageID:      uint(100 + index),
+			UserID:         1,
+			Kind:           string(domainconversation.ContextArtifactToolResult),
+			SourceType:     "tool_call",
+			SourceID:       fmt.Sprintf("sibling-%d", index),
+			Content:        "sibling branch evidence",
+		})
+	}
+	if err := db.Create(&items).Error; err != nil {
+		t.Fatalf("create context records: %v", err)
+	}
+
+	artifacts, err := repo.ListRecentContextArtifacts(ctx, repository.ContextArtifactListFilter{
+		Scope: repository.HistoricalMessageScope{
+			ConversationID: 7,
+			UserID:         1,
+			LeafMessageID:  leafMessageID,
+		},
+		Kinds: []domainconversation.ContextArtifactKind{domainconversation.ContextArtifactToolResult},
+		Limit: 1,
+	})
+	if err != nil {
+		t.Fatalf("ListRecentContextArtifacts() error = %v", err)
+	}
+	if len(artifacts) != 1 || artifacts[0].MessageID != activeOwnerID {
+		t.Fatalf("expected active branch evidence before limit, got %#v", artifacts)
+	}
+}
+
 func TestConversationProjectDefaultsRoundTripAndDelete(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
 	repo := NewRepo(db)
@@ -1220,5 +1403,200 @@ func TestListMessageAncestorsStopsAtConversationBoundary(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].PublicID != "msg_own_leaf" {
 		t.Fatalf("expected only the in-conversation leaf, got %#v", got)
+	}
+}
+
+func TestListRecentContextArtifactsUsesCTEForLongBranchAndSnapshotBoundary(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	if err := db.AutoMigrate(&model.Message{}, &model.ChatContextRecord{}); err != nil {
+		t.Fatalf("migrate context records: %v", err)
+	}
+	repo := NewRepo(db)
+	ctx := context.Background()
+	conversationID := uint(77)
+
+	const branchLength = 1205
+	var parentMessageID *uint
+	branchMessages := make([]model.Message, 0, branchLength)
+	branchMessageIDs := make([]uint, 0, branchLength)
+	for index := 0; index < branchLength; index++ {
+		messageID := uint(10_000 + index)
+		message := model.Message{
+			BaseModel:       model.BaseModel{ID: messageID},
+			ConversationID:  conversationID,
+			UserID:          1,
+			PublicID:        fmt.Sprintf("msg_context_long_%d", index),
+			ParentMessageID: parentMessageID,
+			Role:            []string{"user", "assistant"}[index%2],
+			ContentType:     "text",
+			Content:         fmt.Sprintf("message %d", index),
+			BranchReason:    "default",
+			Status:          "success",
+		}
+		branchMessages = append(branchMessages, message)
+		branchMessageIDs = append(branchMessageIDs, messageID)
+		parentMessageID = &messageID
+	}
+	if err := db.CreateInBatches(&branchMessages, 50).Error; err != nil {
+		t.Fatalf("create %d branch messages: %v", branchLength, err)
+	}
+	sibling := model.Message{
+		ConversationID:  conversationID,
+		UserID:          1,
+		PublicID:        "msg_context_long_sibling",
+		ParentMessageID: &branchMessageIDs[10],
+		Role:            "assistant",
+		ContentType:     "text",
+		Content:         "sibling",
+		BranchReason:    "retry",
+		Status:          "success",
+	}
+	if err := db.Create(&sibling).Error; err != nil {
+		t.Fatalf("create sibling: %v", err)
+	}
+	artifacts := []model.ChatContextRecord{
+		{
+			RecordType: chatContextRecordArtifact, ConversationID: conversationID, MessageID: branchMessageIDs[1], UserID: 1,
+			Kind: string(domainconversation.ContextArtifactToolResult), SourceType: "tool_call", SourceID: "covered", Content: "covered evidence",
+		},
+		{
+			RecordType: chatContextRecordArtifact, ConversationID: conversationID, MessageID: branchMessageIDs[999], UserID: 1,
+			Kind: string(domainconversation.ContextArtifactToolResult), SourceType: "tool_call", SourceID: "boundary", Content: "boundary evidence",
+		},
+		{
+			RecordType: chatContextRecordArtifact, ConversationID: conversationID, MessageID: branchMessageIDs[branchLength-2], UserID: 1,
+			Kind: string(domainconversation.ContextArtifactToolResult), SourceType: "tool_call", SourceID: "retained", Content: "retained evidence",
+		},
+		{
+			RecordType: chatContextRecordArtifact, ConversationID: conversationID, MessageID: sibling.ID, UserID: 1,
+			Kind: string(domainconversation.ContextArtifactToolResult), SourceType: "tool_call", SourceID: "sibling", Content: "sibling evidence",
+		},
+	}
+	if err := db.Create(&artifacts).Error; err != nil {
+		t.Fatalf("create context artifacts: %v", err)
+	}
+
+	items, err := repo.ListRecentContextArtifacts(ctx, repository.ContextArtifactListFilter{
+		Scope: repository.HistoricalMessageScope{
+			ConversationID:          conversationID,
+			UserID:                  1,
+			LeafMessageID:           branchMessageIDs[branchLength-1],
+			ExcludeThroughMessageID: branchMessageIDs[999],
+		},
+		Kinds: []domainconversation.ContextArtifactKind{domainconversation.ContextArtifactToolResult},
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("ListRecentContextArtifacts() error = %v", err)
+	}
+	if len(items) != 1 || items[0].SourceID != "retained" {
+		t.Fatalf("expected only retained long-branch artifact, got %#v", items)
+	}
+
+	items, err = repo.ListRecentContextArtifacts(ctx, repository.ContextArtifactListFilter{
+		Scope: repository.HistoricalMessageScope{
+			ConversationID:          conversationID,
+			UserID:                  1,
+			LeafMessageID:           branchMessageIDs[branchLength-1],
+			ExcludeThroughMessageID: sibling.ID,
+		},
+		Kinds: []domainconversation.ContextArtifactKind{domainconversation.ContextArtifactToolResult},
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("ListRecentContextArtifacts(invalid boundary) error = %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("expected non-ancestor boundary to fail closed, got %#v", items)
+	}
+}
+
+func TestListRecentContextArtifactsHistoricalScopeTerminatesCycle(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	if err := db.AutoMigrate(&model.Message{}, &model.ChatContextRecord{}); err != nil {
+		t.Fatalf("migrate context records: %v", err)
+	}
+	repo := NewRepo(db)
+	ctx := context.Background()
+	conversationID := uint(88)
+	first := model.Message{
+		ConversationID: conversationID, UserID: 1, PublicID: "msg_scope_cycle_first",
+		Role: "assistant", ContentType: "text", Content: "first", BranchReason: "default", Status: "success",
+	}
+	if err := db.Create(&first).Error; err != nil {
+		t.Fatalf("create first message: %v", err)
+	}
+	second := model.Message{
+		ConversationID: conversationID, UserID: 1, PublicID: "msg_scope_cycle_second",
+		ParentMessageID: &first.ID,
+		Role:            "user", ContentType: "text", Content: "second", BranchReason: "default", Status: "success",
+	}
+	if err := db.Create(&second).Error; err != nil {
+		t.Fatalf("create second message: %v", err)
+	}
+	if err := db.Model(&first).Update("parent_message_id", second.ID).Error; err != nil {
+		t.Fatalf("create cycle: %v", err)
+	}
+	artifact := model.ChatContextRecord{
+		RecordType: chatContextRecordArtifact, ConversationID: conversationID, MessageID: first.ID, UserID: 1,
+		Kind: string(domainconversation.ContextArtifactToolResult), SourceType: "tool_call", SourceID: "cycle", Content: "cycle evidence",
+	}
+	if err := db.Create(&artifact).Error; err != nil {
+		t.Fatalf("create cycle artifact: %v", err)
+	}
+
+	items, err := repo.ListRecentContextArtifacts(ctx, repository.ContextArtifactListFilter{
+		Scope: repository.HistoricalMessageScope{ConversationID: conversationID, UserID: 1, LeafMessageID: second.ID},
+		Kinds: []domainconversation.ContextArtifactKind{domainconversation.ContextArtifactToolResult},
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("ListRecentContextArtifacts() error = %v", err)
+	}
+	if len(items) != 1 || items[0].MessageID != first.ID {
+		t.Fatalf("expected cycle to terminate with one historical artifact, got %#v", items)
+	}
+}
+
+func TestHistoricalMessageScopeStopsAtUserBoundary(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	if err := db.AutoMigrate(&model.Message{}); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	conversationID := uint(89)
+	ownerAncestor := model.Message{
+		ConversationID: conversationID, UserID: 1, PublicID: "msg_scope_owner_ancestor",
+		Role: "assistant", ContentType: "text", Content: "owner ancestor", BranchReason: "default", Status: "success",
+	}
+	if err := db.Create(&ownerAncestor).Error; err != nil {
+		t.Fatalf("create owner ancestor: %v", err)
+	}
+	foreignParent := model.Message{
+		ConversationID: conversationID, UserID: 2, PublicID: "msg_scope_foreign_parent",
+		ParentMessageID: &ownerAncestor.ID,
+		Role:            "assistant", ContentType: "text", Content: "foreign parent", BranchReason: "default", Status: "success",
+	}
+	if err := db.Create(&foreignParent).Error; err != nil {
+		t.Fatalf("create foreign parent: %v", err)
+	}
+	leaf := model.Message{
+		ConversationID: conversationID, UserID: 1, PublicID: "msg_scope_owner_leaf",
+		ParentMessageID: &foreignParent.ID,
+		Role:            "user", ContentType: "text", Content: "owner leaf", BranchReason: "default", Status: "pending",
+	}
+	if err := db.Create(&leaf).Error; err != nil {
+		t.Fatalf("create owner leaf: %v", err)
+	}
+
+	var messageIDs []uint
+	if err := historicalMessageScopeSubquery(db, repository.HistoricalMessageScope{
+		ConversationID: conversationID,
+		UserID:         1,
+		LeafMessageID:  leaf.ID,
+	}).Scan(&messageIDs).Error; err != nil {
+		t.Fatalf("query historical scope: %v", err)
+	}
+	if len(messageIDs) != 0 {
+		t.Fatalf("expected traversal to stop at foreign-user parent, got message ids %v", messageIDs)
 	}
 }

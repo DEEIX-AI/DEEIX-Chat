@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
@@ -183,16 +184,24 @@ func (r *Repo) ReplaceServerTools(ctx context.Context, serverID uint, tools []do
 		names := make([]string, 0, len(tools))
 		for index, tool := range tools {
 			metadataCustomized := false
+			attachmentInputMode := strings.TrimSpace(tool.AttachmentInputMode)
+			if attachmentInputMode == "" {
+				attachmentInputMode = domainmcp.AttachmentInputModeNone
+			}
 			names = append(names, tool.Name)
 			rows = append(rows, model.MCPTool{
-				ServerID:           serverID,
-				Name:               tool.Name,
-				DisplayName:        tool.DisplayName,
-				Description:        tool.Description,
-				MetadataCustomized: &metadataCustomized,
-				InputSchemaJSON:    tool.InputSchemaJSON,
-				Status:             tool.Status,
-				SortOrder:          maxSortOrder + (index+1)*100,
+				ServerID:                 serverID,
+				Name:                     tool.Name,
+				DisplayName:              tool.DisplayName,
+				Description:              tool.Description,
+				MetadataCustomized:       &metadataCustomized,
+				InputSchemaJSON:          tool.InputSchemaJSON,
+				AttachmentInputMode:      attachmentInputMode,
+				AttachmentArgument:       strings.TrimSpace(tool.AttachmentArgument),
+				AttachmentEncoding:       strings.TrimSpace(tool.AttachmentEncoding),
+				AttachmentPromptArgument: strings.TrimSpace(tool.AttachmentPromptArgument),
+				Status:                   tool.Status,
+				SortOrder:                maxSortOrder + (index+1)*100,
 			})
 		}
 		if len(rows) > 0 {
@@ -219,6 +228,10 @@ func (r *Repo) ReplaceServerTools(ctx context.Context, serverID uint, tools []do
 				}
 			}
 			metadataAssignments["input_schema_json"] = gorm.Expr(`excluded."input_schema_json"`)
+			metadataAssignments["attachment_input_mode"] = gorm.Expr(`excluded."attachment_input_mode"`)
+			metadataAssignments["attachment_argument"] = gorm.Expr(`excluded."attachment_argument"`)
+			metadataAssignments["attachment_encoding"] = gorm.Expr(`excluded."attachment_encoding"`)
+			metadataAssignments["attachment_prompt_argument"] = gorm.Expr(`excluded."attachment_prompt_argument"`)
 			metadataAssignments["updated_at"] = gorm.Expr(`excluded."updated_at"`)
 			if err := tx.Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "server_id"}, {Name: "name"}},
@@ -316,6 +329,18 @@ func (r *Repo) UpdateTool(ctx context.Context, toolID uint, input repository.Upd
 		if input.Description != nil && *input.Description != row.Description {
 			updates["description"] = *input.Description
 			metadataChanged = true
+		}
+		if input.AttachmentInputMode != nil && *input.AttachmentInputMode != row.AttachmentInputMode {
+			updates["attachment_input_mode"] = *input.AttachmentInputMode
+		}
+		if input.AttachmentArgument != nil && *input.AttachmentArgument != row.AttachmentArgument {
+			updates["attachment_argument"] = *input.AttachmentArgument
+		}
+		if input.AttachmentEncoding != nil && *input.AttachmentEncoding != row.AttachmentEncoding {
+			updates["attachment_encoding"] = *input.AttachmentEncoding
+		}
+		if input.AttachmentPromptArgument != nil && *input.AttachmentPromptArgument != row.AttachmentPromptArgument {
+			updates["attachment_prompt_argument"] = *input.AttachmentPromptArgument
 		}
 		if metadataChanged {
 			updates["metadata_customized"] = true
@@ -465,15 +490,19 @@ func toDomainServer(row model.MCPServer) domainmcp.Server {
 
 func toDomainTool(row model.MCPTool) domainmcp.Tool {
 	return domainmcp.Tool{
-		ID:              row.ID,
-		ServerID:        row.ServerID,
-		Name:            row.Name,
-		DisplayName:     row.DisplayName,
-		Description:     row.Description,
-		InputSchemaJSON: row.InputSchemaJSON,
-		Status:          row.Status,
-		SortOrder:       row.SortOrder,
-		CreatedAt:       row.CreatedAt,
-		UpdatedAt:       row.UpdatedAt,
+		ID:                       row.ID,
+		ServerID:                 row.ServerID,
+		Name:                     row.Name,
+		DisplayName:              row.DisplayName,
+		Description:              row.Description,
+		InputSchemaJSON:          row.InputSchemaJSON,
+		AttachmentInputMode:      row.AttachmentInputMode,
+		AttachmentArgument:       row.AttachmentArgument,
+		AttachmentEncoding:       row.AttachmentEncoding,
+		AttachmentPromptArgument: row.AttachmentPromptArgument,
+		Status:                   row.Status,
+		SortOrder:                row.SortOrder,
+		CreatedAt:                row.CreatedAt,
+		UpdatedAt:                row.UpdatedAt,
 	}
 }

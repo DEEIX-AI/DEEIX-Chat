@@ -24,6 +24,8 @@ func TestTableNamesUseRestructuredDomains(t *testing.T) {
 		TrustedDevice{},
 		LLMUpstream{},
 		LLMUpstreamModel{},
+		LLMModelVendor{},
+		LLMModelDisplayGroup{},
 		LLMPlatformModel{},
 		LLMPlatformModelRoute{},
 		BillingPlan{},

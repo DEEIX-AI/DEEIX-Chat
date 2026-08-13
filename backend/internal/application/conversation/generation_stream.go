@@ -223,11 +223,29 @@ func (r *generationStreamRegistry) cancel(ctx context.Context, userID uint, runI
 	if !r.authorized(ctx, r.store, runID, userID) {
 		return false
 	}
+	return r.cancelActive(ctx, userID, runID, false)
+}
+
+// cancelForced cancels a run without owner checks (internal system paths such as moderation).
+func (r *generationStreamRegistry) cancelForced(ctx context.Context, runID string) bool {
+	if runID == "" {
+		return false
+	}
+	return r.cancelActive(ctx, 0, runID, true)
+}
+
+func (r *generationStreamRegistry) cancelActive(ctx context.Context, userID uint, runID string, force bool) bool {
 	if r.store != nil {
 		_ = r.store.RequestGenerationStreamCancel(ctx, runID, r.options.Retention)
 	}
 
-	active, ok := r.deleteActive(userID, runID)
+	var active *activeGeneration
+	var ok bool
+	if force {
+		active, ok = r.deleteActiveAny(runID)
+	} else {
+		active, ok = r.deleteActive(userID, runID)
+	}
 	if ok {
 		stopActiveGeneration(active)
 	}
@@ -236,6 +254,20 @@ func (r *generationStreamRegistry) cancel(ctx context.Context, userID uint, runI
 	}
 	r.clearActive(context.Background(), runID)
 	return true
+}
+
+func (r *generationStreamRegistry) deleteActiveAny(runID string) (*activeGeneration, bool) {
+	if runID == "" {
+		return nil, false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	active, ok := r.active[runID]
+	if !ok {
+		return nil, false
+	}
+	delete(r.active, runID)
+	return active, true
 }
 
 func (r *generationStreamRegistry) isCanceled(ctx context.Context, runID string) bool {
@@ -272,6 +304,14 @@ func (r *generationStreamRegistry) publish(ctx context.Context, runID string, pa
 		return persisted
 	}
 	return actual
+}
+
+// resetEvents clears retained stream events so blocked content cannot be replayed.
+func (r *generationStreamRegistry) resetEvents(ctx context.Context, runID string) {
+	if runID == "" || r.store == nil {
+		return
+	}
+	_ = r.store.ResetGenerationStreamEvents(ctx, runID)
 }
 
 func (r *generationStreamRegistry) append(ctx context.Context, store repository.GenerationStreamCacheRepository, runID string, payloadJSON string) (repository.GenerationStreamMessage, error) {
@@ -710,7 +750,7 @@ func cloneStreamPayload(payload map[string]interface{}) map[string]interface{} {
 
 func isTerminalStreamPayload(payload map[string]interface{}) bool {
 	eventType, _ := payload["type"].(string)
-	return eventType == "completed" || eventType == "error"
+	return eventType == "completed" || eventType == "error" || eventType == "moderation_blocked"
 }
 
 func int64FromPayload(raw interface{}) int64 {

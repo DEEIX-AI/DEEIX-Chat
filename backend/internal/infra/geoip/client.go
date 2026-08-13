@@ -41,7 +41,7 @@ func New(cfg config.Config) *Client {
 	if timeout <= 0 {
 		timeout = 2500 * time.Millisecond
 	}
-	transport := security.NewOutboundHTTPTransport(cfg.Env, cfg.SSRFProtectionEnabled, 10*time.Second)
+	transport := security.NewOutboundHTTPTransport(cfg.TrustedOutboundPolicy(), 10*time.Second)
 	httpClient := &http.Client{
 		Timeout:   timeout,
 		Transport: platformtracing.NewHTTPTransport(transport),

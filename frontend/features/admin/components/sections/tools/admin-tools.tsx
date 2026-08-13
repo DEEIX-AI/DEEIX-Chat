@@ -53,6 +53,11 @@ import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/vir
 import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
 import { MCPOrderSheet } from "@/features/admin/components/sections/tools/mcp-order-sheet";
 import {
+  MCPToolEditDialog,
+  type MCPToolEditFormState,
+} from "@/features/admin/components/sections/tools/mcp-tool-edit-dialog";
+import { toolSchemaArgumentMetadata } from "@/features/admin/components/sections/tools/mcp-tool-schema";
+import {
   TOOL_SETTINGS_FIELDS,
   applyToolSettingsDefaults,
   flattenToolSettings,
@@ -83,12 +88,6 @@ type ServerFormState = {
 };
 
 type ToolBulkAction = "active" | "inactive";
-
-type ToolFormState = {
-  id: number;
-  displayName: string;
-  description: string;
-};
 
 type ToolSyncConfirmation = {
   serverID: number;
@@ -194,7 +193,7 @@ export function AdminToolsPage() {
   const [toolSyncConfirmation, setToolSyncConfirmation] = React.useState<ToolSyncConfirmation | null>(null);
   const [mcpOrderOpen, setMCPOrderOpen] = React.useState(false);
   const [schemaTool, setSchemaTool] = React.useState<MCPToolDTO | null>(null);
-  const [toolForm, setToolForm] = React.useState<ToolFormState | null>(null);
+  const [toolForm, setToolForm] = React.useState<MCPToolEditFormState | null>(null);
   const [toolSaving, setToolSaving] = React.useState(false);
   const mcpEnabled = settingsMap["mcp.mcp_enable"] === "true";
   const mcpEnableField = React.useMemo(
@@ -215,7 +214,6 @@ export function AdminToolsPage() {
     [servers, toolSheetServerID],
   );
   const stableToolSheetServer = useDialogSnapshot(toolSheetServer);
-  const stableToolForm = useDialogSnapshot(toolForm);
   const stableSchemaTool = useDialogSnapshot(schemaTool);
   const stableServerDeleteTarget = useDialogSnapshot(serverDeleteTarget);
   const stableToolSyncConfirmation = useDialogSnapshot(toolSyncConfirmation);
@@ -664,10 +662,18 @@ export function AdminToolsPage() {
   }, [pagedToolIDs]);
 
   const openEditToolDialog = React.useCallback((tool: MCPToolDTO) => {
+    const schemaMetadata = toolSchemaArgumentMetadata(tool.inputSchemaJSON);
     setToolForm({
       id: tool.id,
       displayName: tool.displayName?.trim() || tool.name,
       description: tool.description ?? "",
+      attachmentInputMode: tool.attachmentInputMode,
+      attachmentArgument: tool.attachmentArgument,
+      attachmentEncoding: tool.attachmentEncoding || "base64",
+      attachmentPromptArgument: tool.attachmentPromptArgument,
+      passUserPrompt: Boolean(tool.attachmentPromptArgument),
+      schemaStringArguments: schemaMetadata.stringArguments,
+      schemaRequiredArguments: schemaMetadata.requiredArguments,
     });
   }, []);
 
@@ -681,9 +687,18 @@ export function AdminToolsPage() {
       if (!token) {
         throw new Error(t("toast.sessionExpired"));
       }
+      const attachmentConfig = toolForm.attachmentInputMode === "image" ? {
+        attachmentInputMode: toolForm.attachmentInputMode,
+        attachmentArgument: toolForm.attachmentArgument,
+        attachmentEncoding: toolForm.attachmentEncoding,
+        attachmentPromptArgument: toolForm.passUserPrompt ? toolForm.attachmentPromptArgument : "",
+      } : {
+        attachmentInputMode: toolForm.attachmentInputMode,
+      };
       const savedTool = await updateAdminMCPTool(token, toolForm.id, {
         displayName: toolForm.displayName,
         description: toolForm.description,
+        ...attachmentConfig,
       });
       setTools((items) => items.map((item) => (item.id === savedTool.id ? savedTool : item)));
       await loadServers();
@@ -1229,53 +1244,13 @@ export function AdminToolsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(toolForm)} onOpenChange={(open) => !open && setToolForm(null)}>
-        <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[520px]">
-          <DialogHeader className="shrink-0 px-4 py-4">
-            <DialogTitle>{t("toolDialog.title")}</DialogTitle>
-            <DialogDescription>{t("toolDialog.description")}</DialogDescription>
-          </DialogHeader>
-
-          <form
-            className="flex min-h-0 flex-1 flex-col"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void saveTool();
-            }}
-          >
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">{t("toolDialog.displayName")}</p>
-                <Input
-                  value={stableToolForm?.displayName ?? ""}
-                  placeholder={t("toolDialog.displayNamePlaceholder")}
-                  maxLength={160}
-                  onChange={(event) => setToolForm((prev) => (prev ? { ...prev, displayName: event.target.value } : prev))}
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">{t("toolDialog.toolDescription")}</p>
-                <Textarea
-                  value={stableToolForm?.description ?? ""}
-                  className="h-28 resize-none text-xs leading-5"
-                  placeholder={t("toolDialog.toolDescriptionPlaceholder")}
-                  maxLength={4096}
-                  onChange={(event) => setToolForm((prev) => (prev ? { ...prev, description: event.target.value } : prev))}
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="shrink-0 px-4 py-3">
-              <Button type="button" variant="ghost" onClick={() => setToolForm(null)} disabled={toolSaving}>
-                {tActions("cancel")}
-              </Button>
-              <Button type="submit" disabled={toolSaving}>
-                {tActions("save")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <MCPToolEditDialog
+        form={toolForm}
+        saving={toolSaving}
+        onFormChange={setToolForm}
+        onClose={() => setToolForm(null)}
+        onSave={() => void saveTool()}
+      />
 
       <Dialog open={Boolean(schemaTool)} onOpenChange={(open) => !open && setSchemaTool(null)}>
         <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">

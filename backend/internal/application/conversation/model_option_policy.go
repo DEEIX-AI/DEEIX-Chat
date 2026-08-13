@@ -497,6 +497,8 @@ func sanitizeModelOptionValues(options map[string]interface{}, protocolKey strin
 	switch protocolKey {
 	case "openai_chat_completions", "openai_responses", "openrouter_responses":
 		sanitizeOpenAIServiceTier(options)
+	case "xai_video":
+		llm.SanitizeXAIVideoOptions(options)
 	case "openai_image_generations", "openai_image_edits":
 		value, ok := modelParamIntFromOption(options["partial_images"])
 		if !ok {
@@ -574,6 +576,8 @@ func modelOptionPolicyProtocolKey(protocol string) string {
 		return "xai_image"
 	case llm.AdapterXAIImageEdits:
 		return "xai_image_edits"
+	case llm.AdapterXAIVideo:
+		return "xai_video"
 	case llm.AdapterXAIResponses:
 		return "xai_responses"
 	default:

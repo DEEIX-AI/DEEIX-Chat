@@ -853,6 +853,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/OpenRouterOfficialPricingResponseDoc"
                         }
                     },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/BillingErrorDoc"
+                        }
+                    },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
@@ -1354,6 +1360,287 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/content-moderation/config": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Get content moderation config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ContentModerationConfigResponseDoc"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Update content moderation config",
+                "parameters": [
+                    {
+                        "description": "Content moderation configuration",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ContentModerationUpdateConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ContentModerationConfigUpdateResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/content-moderation/events": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "List content moderation events",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Result filter",
+                        "name": "result",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Direction filter",
+                        "name": "direction",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Modality filter",
+                        "name": "modality",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Category filter",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "User ID",
+                        "name": "userId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Run ID",
+                        "name": "runId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start time (RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End time (RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ContentModerationEventListResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/content-moderation/events/{eventID}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Get content moderation event detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Moderation event ID",
+                        "name": "eventID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ContentModerationEventDetailResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/content-moderation/events/{eventID}/images/{index}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Stream a isolated moderation image",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Moderation event ID",
+                        "name": "eventID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Image index",
+                        "name": "index",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/content-moderation/probe": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Probe content moderation service",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ContentModerationProbeResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/content-moderation/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Get content moderation daily stats",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start time (RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End time (RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ContentModerationStatsResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/conversation-events": {
             "get": {
                 "security": [
@@ -1599,6 +1886,371 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/llm/model-display-groups": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "分页查询自定义展示分组；未绑定分组的模型继续按技术厂商展示",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员查询模型展示分组",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索名称",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ModelDisplayGroupListResponseDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "创建仅影响用户界面归类的自定义模型分组",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员创建模型展示分组",
+                "parameters": [
+                    {
+                        "description": "展示分组参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateModelDisplayGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ModelDisplayGroupDataResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/llm/model-display-groups/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "删除展示分组后，关联模型恢复按技术厂商展示",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员删除模型展示分组",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "展示分组 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/SuccessDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员更新模型展示分组",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "展示分组 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "展示分组参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateModelDisplayGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ModelDisplayGroupDataResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/llm/model-vendors": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "分页查询模型技术厂商目录；技术厂商是路由、权限和计费使用的稳定身份",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员查询模型技术厂商",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索 key 或名称",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ModelVendorListResponseDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "创建新的稳定技术厂商身份；创建后可供平台模型选择",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员创建模型技术厂商",
+                "parameters": [
+                    {
+                        "description": "技术厂商参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateModelVendorRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ModelVendorDataResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/llm/model-vendors/{key}": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "更新厂商展示名称和图标；稳定技术 key 不可修改",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员更新模型技术厂商",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "技术厂商 key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "技术厂商参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateModelVendorRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ModelVendorDataResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/llm/models": {
             "get": {
                 "security": [
@@ -1788,6 +2440,57 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/llm/models/display-group": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "在单个事务中将指定模型归入展示分组；displayGroupID 为 0 时恢复按技术厂商展示",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员批量设置模型展示分组",
+                "parameters": [
+                    {
+                        "description": "批量归组参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/SetModelsDisplayGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/SuccessDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
@@ -4031,7 +4734,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "管理员更新 MCP 工具的展示信息或状态",
+                "description": "管理员更新 MCP 工具的展示信息、附件处理配置或状态",
                 "consumes": [
                     "application/json"
                 ],
@@ -6838,6 +7541,106 @@ const docTemplate = `{
                     },
                     "429": {
                         "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/providers/{slug}/authorize": {
+            "post": {
+                "description": "为 Web、App 或桌面公共客户端创建 PKCE 保护的 OAuth 授权事务；外部身份源仅回调当前 DEEIX 实例",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "创建第三方登录授权桥事务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "身份源 slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "授权桥参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ProviderAuthBridgeStartRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ProviderAuthBridgeStartResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/providers/{slug}/exchange": {
+            "post": {
+                "description": "使用客户端 PKCE verifier 原子兑换服务端回调签发的一次性授权码，并进入统一 2FA/会话流程",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "兑换第三方登录一次性授权码",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "身份源 slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "授权码兑换参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ProviderAuthBridgeExchangeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/LoginResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
@@ -13412,6 +14215,561 @@ const docTemplate = `{
                 }
             }
         },
+        "ContentModerationCategoryCatalogResponse": {
+            "type": "object",
+            "required": [
+                "image",
+                "text"
+            ],
+            "properties": {
+                "image": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "text": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "ContentModerationConfigDataResponse": {
+            "type": "object",
+            "required": [
+                "categories",
+                "config"
+            ],
+            "properties": {
+                "categories": {
+                    "$ref": "#/definitions/ContentModerationCategoryCatalogResponse"
+                },
+                "config": {
+                    "$ref": "#/definitions/ContentModerationServiceConfigResponse"
+                }
+            }
+        },
+        "ContentModerationConfigResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ContentModerationConfigDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationConfigUpdateDataResponse": {
+            "type": "object",
+            "required": [
+                "config"
+            ],
+            "properties": {
+                "config": {
+                    "$ref": "#/definitions/ContentModerationServiceConfigResponse"
+                }
+            }
+        },
+        "ContentModerationConfigUpdateResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ContentModerationConfigUpdateDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationDailyStatResponse": {
+            "type": "object",
+            "required": [
+                "category",
+                "checkCount",
+                "contentItems",
+                "direction",
+                "failureCount",
+                "hitCount",
+                "latencyCount",
+                "latencySumMS",
+                "modality",
+                "result",
+                "statDate"
+            ],
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "checkCount": {
+                    "type": "integer"
+                },
+                "contentItems": {
+                    "type": "integer"
+                },
+                "direction": {
+                    "type": "string"
+                },
+                "failureCount": {
+                    "type": "integer"
+                },
+                "hitCount": {
+                    "type": "integer"
+                },
+                "latencyCount": {
+                    "type": "integer"
+                },
+                "latencySumMS": {
+                    "type": "integer"
+                },
+                "modality": {
+                    "type": "string"
+                },
+                "result": {
+                    "type": "string"
+                },
+                "statDate": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationEventDetailResponse": {
+            "type": "object",
+            "required": [
+                "categoryScores",
+                "event",
+                "images",
+                "imagesAvailable",
+                "textAvailable"
+            ],
+            "properties": {
+                "categoryScores": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "number",
+                        "format": "float64"
+                    }
+                },
+                "decryptedText": {
+                    "type": "string"
+                },
+                "event": {
+                    "$ref": "#/definitions/ContentModerationEventResponse"
+                },
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ContentModerationIsolatedImageResponse"
+                    }
+                },
+                "imagesAvailable": {
+                    "type": "boolean"
+                },
+                "textAvailable": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "ContentModerationEventDetailResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ContentModerationEventDetailResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationEventListDataResponse": {
+            "type": "object",
+            "required": [
+                "items",
+                "page",
+                "pageSize",
+                "total"
+            ],
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ContentModerationEventResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "pageSize": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ContentModerationEventListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ContentModerationEventListDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationEventResponse": {
+            "type": "object",
+            "required": [
+                "categories",
+                "contentSummary",
+                "conversationID",
+                "createdAt",
+                "direction",
+                "errorCode",
+                "errorMessage",
+                "latencyMS",
+                "messagePublicID",
+                "modality",
+                "model",
+                "policyVersion",
+                "publicID",
+                "result",
+                "runID",
+                "userID"
+            ],
+            "properties": {
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "contentSummary": {
+                    "type": "string"
+                },
+                "conversationID": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "direction": {
+                    "type": "string"
+                },
+                "errorCode": {
+                    "type": "string"
+                },
+                "errorMessage": {
+                    "type": "string"
+                },
+                "latencyMS": {
+                    "type": "integer"
+                },
+                "messagePublicID": {
+                    "type": "string"
+                },
+                "modality": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "policyVersion": {
+                    "type": "integer"
+                },
+                "publicID": {
+                    "type": "string"
+                },
+                "result": {
+                    "type": "string"
+                },
+                "runID": {
+                    "type": "string"
+                },
+                "userID": {
+                    "type": "integer"
+                },
+                "userLabel": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationIsolatedImageResponse": {
+            "type": "object",
+            "required": [
+                "index",
+                "mimeType",
+                "sha256",
+                "sizeBytes"
+            ],
+            "properties": {
+                "index": {
+                    "type": "integer"
+                },
+                "mimeType": {
+                    "type": "string"
+                },
+                "sha256": {
+                    "type": "string"
+                },
+                "sizeBytes": {
+                    "type": "integer"
+                },
+                "sourceFileID": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationPolicyRequest": {
+            "type": "object",
+            "required": [
+                "inputImageCategories",
+                "inputTextCategories",
+                "outputImageCategories",
+                "outputTextCategories"
+            ],
+            "properties": {
+                "inputImageCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "inputTextCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "outputImageCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "outputTextCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "ContentModerationPolicyResponse": {
+            "type": "object",
+            "required": [
+                "inputImageCategories",
+                "inputTextCategories",
+                "outputImageCategories",
+                "outputTextCategories",
+                "version"
+            ],
+            "properties": {
+                "inputImageCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "inputTextCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "outputImageCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "outputTextCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ContentModerationProbeResponse": {
+            "type": "object",
+            "required": [
+                "image",
+                "text"
+            ],
+            "properties": {
+                "image": {
+                    "$ref": "#/definitions/ContentModerationProbeResultResponse"
+                },
+                "text": {
+                    "$ref": "#/definitions/ContentModerationProbeResultResponse"
+                }
+            }
+        },
+        "ContentModerationProbeResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ContentModerationProbeResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationProbeResultResponse": {
+            "type": "object",
+            "required": [
+                "latencyMS",
+                "valid"
+            ],
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "latencyMS": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "ContentModerationServiceConfigResponse": {
+            "type": "object",
+            "required": [
+                "baseUrl",
+                "enabled",
+                "hasAPIKey",
+                "maxConcurrency",
+                "model",
+                "policy",
+                "queueCapacity",
+                "timeoutSeconds"
+            ],
+            "properties": {
+                "apiKeyMasked": {
+                    "type": "string"
+                },
+                "baseUrl": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "hasAPIKey": {
+                    "type": "boolean"
+                },
+                "maxConcurrency": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "policy": {
+                    "$ref": "#/definitions/ContentModerationPolicyResponse"
+                },
+                "queueCapacity": {
+                    "type": "integer"
+                },
+                "timeoutSeconds": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ContentModerationStatsDataResponse": {
+            "type": "object",
+            "required": [
+                "items"
+            ],
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ContentModerationDailyStatResponse"
+                    }
+                }
+            }
+        },
+        "ContentModerationStatsResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ContentModerationStatsDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationUpdateConfigRequest": {
+            "type": "object",
+            "properties": {
+                "apiKey": {
+                    "type": "string"
+                },
+                "baseUrl": {
+                    "type": "string"
+                },
+                "clearAPIKey": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "maxConcurrency": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "policy": {
+                    "$ref": "#/definitions/ContentModerationPolicyRequest"
+                },
+                "queueCapacity": {
+                    "type": "integer"
+                },
+                "timeoutSeconds": {
+                    "type": "integer"
+                }
+            }
+        },
         "ContextArtifactResponse": {
             "type": "object",
             "required": [
@@ -14511,6 +15869,29 @@ const docTemplate = `{
                 }
             }
         },
+        "CreateModelDisplayGroupRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "icon": {
+                    "type": "string",
+                    "maxLength": 2048
+                },
+                "modelIDs": {
+                    "type": "array",
+                    "maxItems": 10000,
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 64
+                }
+            }
+        },
         "CreateModelRequest": {
             "type": "object",
             "required": [
@@ -14550,6 +15931,9 @@ const docTemplate = `{
                 "description": {
                     "type": "string",
                     "maxLength": 10000
+                },
+                "displayGroupID": {
+                    "type": "integer"
                 },
                 "icon": {
                     "type": "string",
@@ -14593,6 +15977,27 @@ const docTemplate = `{
                 },
                 "errorMsg": {
                     "type": "string"
+                }
+            }
+        },
+        "CreateModelVendorRequest": {
+            "type": "object",
+            "required": [
+                "key",
+                "name"
+            ],
+            "properties": {
+                "icon": {
+                    "type": "string",
+                    "maxLength": 2048
+                },
+                "key": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 64
                 }
             }
         },
@@ -15836,6 +17241,7 @@ const docTemplate = `{
                 "emailRegistrationEnabled",
                 "emailVerificationEnabled",
                 "passwordResetEnabled",
+                "providerAuthBridge",
                 "providers",
                 "turnstileRegistrationEnabled",
                 "turnstileSiteKey",
@@ -15853,6 +17259,9 @@ const docTemplate = `{
                 },
                 "passwordResetEnabled": {
                     "type": "boolean"
+                },
+                "providerAuthBridge": {
+                    "$ref": "#/definitions/ProviderAuthBridgeResponse"
                 },
                 "providers": {
                     "type": "array",
@@ -16142,6 +17551,26 @@ const docTemplate = `{
                 }
             }
         },
+        "MessageModerationResponse": {
+            "type": "object",
+            "properties": {
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "direction": {
+                    "type": "string"
+                },
+                "eventID": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
         "MessageProcessTraceResponse": {
             "type": "object",
             "required": [
@@ -16376,6 +17805,9 @@ const docTemplate = `{
                 "modelVendor": {
                     "type": "string"
                 },
+                "moderation": {
+                    "$ref": "#/definitions/MessageModerationResponse"
+                },
                 "myFeedback": {
                     "type": "string"
                 },
@@ -16563,6 +17995,93 @@ const docTemplate = `{
             "properties": {
                 "model": {
                     "$ref": "#/definitions/ModelResponse"
+                }
+            }
+        },
+        "ModelDisplayGroupDataResponse": {
+            "type": "object",
+            "required": [
+                "group"
+            ],
+            "properties": {
+                "group": {
+                    "$ref": "#/definitions/ModelDisplayGroupResponse"
+                }
+            }
+        },
+        "ModelDisplayGroupDataResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ModelDisplayGroupDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ModelDisplayGroupListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
+                    "properties": {
+                        "results": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/ModelDisplayGroupResponse"
+                            }
+                        },
+                        "total": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ModelDisplayGroupResponse": {
+            "type": "object",
+            "required": [
+                "createdAt",
+                "icon",
+                "id",
+                "name",
+                "sortOrder",
+                "updatedAt"
+            ],
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "string"
                 }
             }
         },
@@ -16997,6 +18516,9 @@ const docTemplate = `{
                 "cbWindowMin",
                 "createdAt",
                 "description",
+                "displayGroupID",
+                "displayGroupIcon",
+                "displayGroupName",
                 "icon",
                 "id",
                 "kindsJSON",
@@ -17008,7 +18530,9 @@ const docTemplate = `{
                 "systemPrompt",
                 "updatedAt",
                 "upstreamNamesJSON",
-                "vendor"
+                "vendor",
+                "vendorIcon",
+                "vendorName"
             ],
             "properties": {
                 "accessScope": {
@@ -17036,6 +18560,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "description": {
+                    "type": "string"
+                },
+                "displayGroupID": {
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "displayGroupIcon": {
+                    "type": "string"
+                },
+                "displayGroupName": {
                     "type": "string"
                 },
                 "icon": {
@@ -17072,6 +18607,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "vendor": {
+                    "type": "string"
+                },
+                "vendorIcon": {
+                    "type": "string"
+                },
+                "vendorName": {
                     "type": "string"
                 }
             }
@@ -17225,6 +18766,101 @@ const docTemplate = `{
                 },
                 "weight": {
                     "type": "integer"
+                }
+            }
+        },
+        "ModelVendorDataResponse": {
+            "type": "object",
+            "required": [
+                "vendor"
+            ],
+            "properties": {
+                "vendor": {
+                    "$ref": "#/definitions/ModelVendorResponse"
+                }
+            }
+        },
+        "ModelVendorDataResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ModelVendorDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ModelVendorListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
+                    "properties": {
+                        "results": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/ModelVendorResponse"
+                            }
+                        },
+                        "total": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ModelVendorResponse": {
+            "type": "object",
+            "required": [
+                "builtIn",
+                "createdAt",
+                "icon",
+                "id",
+                "key",
+                "name",
+                "sortOrder",
+                "updatedAt"
+            ],
+            "properties": {
+                "builtIn": {
+                    "type": "boolean"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "string"
                 }
             }
         },
@@ -18225,6 +19861,119 @@ const docTemplate = `{
                 }
             }
         },
+        "ProviderAuthBridgeExchangeRequest": {
+            "type": "object",
+            "required": [
+                "clientID",
+                "codeVerifier",
+                "grant"
+            ],
+            "properties": {
+                "clientID": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "codeVerifier": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 43
+                },
+                "grant": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 43
+                }
+            }
+        },
+        "ProviderAuthBridgeResponse": {
+            "type": "object",
+            "required": [
+                "callbackBaseURL",
+                "enabled",
+                "protocolVersion"
+            ],
+            "properties": {
+                "callbackBaseURL": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "protocolVersion": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ProviderAuthBridgeStartRequest": {
+            "type": "object",
+            "required": [
+                "clientID",
+                "clientState",
+                "codeChallenge",
+                "redirectURI"
+            ],
+            "properties": {
+                "clientID": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "clientState": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 43
+                },
+                "codeChallenge": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 43
+                },
+                "intent": {
+                    "type": "string",
+                    "enum": [
+                        "login",
+                        "register"
+                    ]
+                },
+                "next": {
+                    "type": "string",
+                    "maxLength": 2048
+                },
+                "redirectURI": {
+                    "type": "string",
+                    "maxLength": 2048
+                }
+            }
+        },
+        "ProviderAuthBridgeStartResponse": {
+            "type": "object",
+            "required": [
+                "authorizationURL",
+                "expiresAt"
+            ],
+            "properties": {
+                "authorizationURL": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "ProviderAuthBridgeStartResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ProviderAuthBridgeStartResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "PublicModelListResponseDoc": {
             "type": "object",
             "required": [
@@ -18331,19 +20080,35 @@ const docTemplate = `{
             "required": [
                 "capabilitiesJSON",
                 "description",
+                "displayGroupID",
+                "displayGroupIcon",
+                "displayGroupName",
                 "icon",
                 "kindsJSON",
                 "platformModelName",
                 "pricing",
                 "protocolsJSON",
                 "sortOrder",
-                "vendor"
+                "vendor",
+                "vendorIcon",
+                "vendorName"
             ],
             "properties": {
                 "capabilitiesJSON": {
                     "type": "string"
                 },
                 "description": {
+                    "type": "string"
+                },
+                "displayGroupID": {
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "displayGroupIcon": {
+                    "type": "string"
+                },
+                "displayGroupName": {
                     "type": "string"
                 },
                 "icon": {
@@ -18371,6 +20136,12 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "vendor": {
+                    "type": "string"
+                },
+                "vendorIcon": {
+                    "type": "string"
+                },
+                "vendorName": {
                     "type": "string"
                 }
             }
@@ -19577,6 +21348,26 @@ const docTemplate = `{
                 }
             }
         },
+        "SetModelsDisplayGroupRequest": {
+            "type": "object",
+            "required": [
+                "displayGroupID",
+                "modelIDs"
+            ],
+            "properties": {
+                "displayGroupID": {
+                    "type": "integer"
+                },
+                "modelIDs": {
+                    "type": "array",
+                    "maxItems": 1000,
+                    "minItems": 1,
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
         "SettingsPatchSettingsRequest": {
             "type": "object",
             "required": [
@@ -20186,6 +21977,10 @@ const docTemplate = `{
         "ToolResponse": {
             "type": "object",
             "required": [
+                "attachmentArgument",
+                "attachmentEncoding",
+                "attachmentInputMode",
+                "attachmentPromptArgument",
                 "createdAt",
                 "description",
                 "displayName",
@@ -20199,6 +21994,27 @@ const docTemplate = `{
                 "updatedAt"
             ],
             "properties": {
+                "attachmentArgument": {
+                    "type": "string"
+                },
+                "attachmentEncoding": {
+                    "type": "string",
+                    "enum": [
+                        "",
+                        "base64",
+                        "data_url"
+                    ]
+                },
+                "attachmentInputMode": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "image"
+                    ]
+                },
+                "attachmentPromptArgument": {
+                    "type": "string"
+                },
                 "createdAt": {
                     "type": "string"
                 },
@@ -20446,6 +22262,26 @@ const docTemplate = `{
                 }
             }
         },
+        "UpdateModelDisplayGroupRequest": {
+            "type": "object",
+            "properties": {
+                "icon": {
+                    "type": "string",
+                    "maxLength": 2048
+                },
+                "modelIDs": {
+                    "type": "array",
+                    "maxItems": 10000,
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 64
+                }
+            }
+        },
         "UpdateModelRequest": {
             "type": "object",
             "properties": {
@@ -20482,6 +22318,9 @@ const docTemplate = `{
                 "description": {
                     "type": "string",
                     "maxLength": 10000
+                },
+                "displayGroupID": {
+                    "type": "integer"
                 },
                 "icon": {
                     "type": "string",
@@ -20577,6 +22416,19 @@ const docTemplate = `{
                 }
             }
         },
+        "UpdateModelVendorRequest": {
+            "type": "object",
+            "properties": {
+                "icon": {
+                    "type": "string",
+                    "maxLength": 2048
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 64
+                }
+            }
+        },
         "UpdatePermissionGroupRequest": {
             "type": "object",
             "required": [
@@ -20619,6 +22471,26 @@ const docTemplate = `{
         "UpdateToolRequest": {
             "type": "object",
             "properties": {
+                "attachmentArgument": {
+                    "type": "string"
+                },
+                "attachmentEncoding": {
+                    "type": "string",
+                    "enum": [
+                        "base64",
+                        "data_url"
+                    ]
+                },
+                "attachmentInputMode": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "image"
+                    ]
+                },
+                "attachmentPromptArgument": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },
@@ -22638,7 +24510,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "0.3.4",
+	Version:          "0.3.5",
 	Host:             "",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},

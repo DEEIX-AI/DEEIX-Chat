@@ -12,6 +12,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	mineruextract "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/mineru"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
 // Service 封装 settings 业务逻辑。
@@ -197,12 +198,16 @@ func isLegacyDefaultModelOptionAllowedPaths(value string) bool {
 	if err := json.Unmarshal([]byte(strings.TrimSpace(value)), &current); err != nil {
 		return false
 	}
-	legacy := map[string][]string{}
-	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &legacy); err != nil {
+	previousDefault := map[string][]string{}
+	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &previousDefault); err != nil {
 		return false
 	}
-	legacy["xai_responses"] = []string{"reasoning.effort"}
-	return sameStringSliceMap(current, legacy)
+	delete(previousDefault, "xai_video")
+	if sameStringSliceMap(current, previousDefault) {
+		return true
+	}
+	previousDefault["xai_responses"] = []string{"reasoning.effort"}
+	return sameStringSliceMap(current, previousDefault)
 }
 
 func sameStringSliceMap(left map[string][]string, right map[string][]string) bool {
@@ -448,8 +453,8 @@ func validatePatchItem(item PatchItem) error {
 		if value == "" {
 			return nil
 		}
-		if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
-			return fmt.Errorf("%s must start with http:// or https://", key)
+		if err := security.ValidateTrustedOutboundHTTPURL(value); err != nil {
+			return fmt.Errorf("%s must be a valid trusted HTTP endpoint", key)
 		}
 		return nil
 	case "file:embedding_output_dimensions":

@@ -27,9 +27,13 @@ type UpdateMCPServerInput struct {
 
 // UpdateMCPToolInput 定义更新 MCP 工具字段。
 type UpdateMCPToolInput struct {
-	DisplayName *string
-	Description *string
-	Status      *string
+	DisplayName              *string
+	Description              *string
+	AttachmentInputMode      *string
+	AttachmentArgument       *string
+	AttachmentEncoding       *string
+	AttachmentPromptArgument *string
+	Status                   *string
 }
 
 type ReorderMCPServerInput struct {

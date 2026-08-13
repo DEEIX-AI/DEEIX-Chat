@@ -10,6 +10,7 @@
     "auth": "Auth security",
     "orders": "Order records",
     "conversation": "Conversation events",
+    "moderation": "Moderation events",
     "system": "System events"
   },
   "cleanup": {
@@ -104,6 +105,7 @@
     "message": "Message",
     "caller": "Caller",
     "model": "Model",
+    "usage": "Usage",
     "billing": "Billing",
     "balanceAfter": "Balance after settlement",
     "latency": "Latency",
@@ -203,7 +205,13 @@
       "inputShort": "In",
       "outputShort": "Out",
       "cacheReadShort": "Read",
-      "cacheWriteShort": "Write"
+      "cacheWriteShort": "Write",
+      "input": "Input",
+      "output": "Output",
+      "reasoning": "Reasoning",
+      "outputTotal": "Output total",
+      "imageCount": "{count, plural, one {# image} other {# images}}",
+      "secondCount": "{count, plural, one {# second} other {# seconds}}"
     },
     "billing": {
       "cacheWrite": "Cache write",
@@ -381,5 +389,45 @@
     "payloadOmitted": "This historical payload is {size}, above the safe viewing limit, so its content was omitted. Delete the associated run traces to remove this abnormal historical data.",
     "copied": "{label} copied",
     "copyFailed": "Copy failed"
+  },
+  "moderation": {
+    "searchPlaceholder": "Search event ID, user, result, run ID…",
+    "empty": "No moderation events yet.",
+    "loadFailed": "Could not load moderation events",
+    "viewDetail": "View detail",
+    "detailTitle": "Moderation event detail",
+    "detailFailed": "Could not load event detail",
+    "detailText": "Decrypted text",
+    "detailImages": "Isolated images",
+    "detailImageAlt": "Moderation image {index}",
+    "imageLoadFailed": "Failed to load one or more isolated images",
+    "filters": {
+      "all": "All"
+    },
+    "results": {
+      "passed": "Passed",
+      "hit": "Hit",
+      "failedOpen": "Failed open"
+    },
+    "directions": {
+      "input": "Input",
+      "output": "Output"
+    },
+    "columns": {
+      "eventId": "Event ID",
+      "user": "User",
+      "result": "Result",
+      "direction": "Direction",
+      "modality": "Modality",
+      "latency": "Latency",
+      "createdAt": "Created",
+      "actions": "Actions",
+      "model": "Model",
+      "userID": "User ID",
+      "runID": "Run ID"
+    },
+    "blocks": {
+      "event": "Event"
+    }
   }
 }

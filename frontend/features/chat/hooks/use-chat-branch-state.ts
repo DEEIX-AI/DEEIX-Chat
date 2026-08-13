@@ -222,6 +222,7 @@ export function useChatBranchState({
   liveRunIDs?: ReadonlySet<string>;
 }) {
   const t = useTranslations("chat.messages");
+  const submitT = useTranslations("chat.submit");
   const resolveErrorMessage = useLocalizedErrorMessage();
   const [branchSelections, setBranchSelections] = React.useState<Record<string, string>>({});
 
@@ -238,13 +239,15 @@ export function useChatBranchState({
             generationInterrupted: t("generationInterrupted"),
             streamInterrupted: t("streamInterrupted"),
             imageRunning: t("imageRunning"),
+            moderationBlocked: submitT("moderationBlocked"),
+            moderationBlockedDescription: submitT("moderationBlockedDescription"),
             resolveErrorMessage: (errorCode: string, fallback: string, details?: UpstreamDebugInfo) =>
               resolveErrorMessage(new ApiError(fallback, 502, details, errorCode), fallback),
           },
           { liveRunIDs },
         ),
       ),
-    [liveRunIDs, messages, resolveErrorMessage, t],
+    [liveRunIDs, messages, resolveErrorMessage, submitT, t],
   );
   const serverMessagePublicIDs = React.useMemo(
     () => new Set(serverTreeMessages.map((item) => item.publicID).filter(Boolean)),

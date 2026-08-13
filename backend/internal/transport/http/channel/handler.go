@@ -969,6 +969,7 @@ func (h *Handler) CreateModel(c *gin.Context) {
 	item, err := h.service.CreateModel(c.Request.Context(), appchannel.CreateModelInput{
 		PlatformModelName:  req.PlatformModelName,
 		Vendor:             req.Vendor,
+		DisplayGroupID:     req.DisplayGroupID,
 		KindsJSON:          req.KindsJSON,
 		Icon:               req.Icon,
 		CapabilitiesJSON:   req.CapabilitiesJSON,
@@ -995,6 +996,12 @@ func (h *Handler) CreateModel(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, "system prompt too long")
 		case errors.Is(err, appchannel.ErrInvalidPlatformModelName):
 			response.Error(c, http.StatusBadRequest, "invalid platform model name")
+		case errors.Is(err, appchannel.ErrInvalidModelVendor):
+			response.Error(c, http.StatusBadRequest, "invalid model vendor")
+		case errors.Is(err, appchannel.ErrModelVendorNotFound):
+			response.Error(c, http.StatusBadRequest, "model vendor not found")
+		case errors.Is(err, appchannel.ErrModelDisplayGroupNotFound):
+			response.Error(c, http.StatusBadRequest, "model display group not found")
 		default:
 			response.Error(c, http.StatusInternalServerError, "create model failed")
 		}
@@ -1033,6 +1040,7 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 	item, err := h.service.UpdateModel(c.Request.Context(), modelID, appchannel.UpdateModelInput{
 		PlatformModelName:  req.PlatformModelName,
 		Vendor:             req.Vendor,
+		DisplayGroupID:     req.DisplayGroupID,
 		KindsJSON:          req.KindsJSON,
 		Icon:               req.Icon,
 		CapabilitiesJSON:   req.CapabilitiesJSON,
@@ -1059,6 +1067,12 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, "system prompt too long")
 		case errors.Is(err, appchannel.ErrInvalidPlatformModelName):
 			response.Error(c, http.StatusBadRequest, "invalid platform model name")
+		case errors.Is(err, appchannel.ErrInvalidModelVendor):
+			response.Error(c, http.StatusBadRequest, "invalid model vendor")
+		case errors.Is(err, appchannel.ErrModelVendorNotFound):
+			response.Error(c, http.StatusBadRequest, "model vendor not found")
+		case errors.Is(err, appchannel.ErrModelDisplayGroupNotFound):
+			response.Error(c, http.StatusBadRequest, "model display group not found")
 		default:
 			response.Error(c, http.StatusInternalServerError, "update model failed")
 		}

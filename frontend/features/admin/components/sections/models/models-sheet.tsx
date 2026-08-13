@@ -71,14 +71,16 @@ import {
   setModelPermissionGroups,
   type PermissionGroup,
 } from "@/features/admin/api/permission-groups";
-import { LobeHubIcon } from "@/shared/components/lobehub-icon";
-import { KNOWN_VENDOR_OPTIONS, resolveLobeHubIconURL, resolveModelIdentity, resolveVendorIdentity } from "@/shared/lib/model-identity";
+import { ModelIcon } from "@/shared/components/model-icon";
+import { resolveModelIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
 import type {
+  AdminLLMModelDisplayGroupDTO,
   AdminLLMModelDTO,
   AdminLLMModelAccessScope,
   AdminLLMModelCbPolicyMode,
   AdminLLMModelUpstreamSourceDTO,
   AdminLLMModelVendor,
+  AdminLLMModelVendorDTO,
   AdminLLMStatus,
   AdminLLMUpstreamModelDTO,
   AdminLLMUpstreamView,
@@ -126,6 +128,7 @@ import { PermissionGroupSelector } from "@/features/admin/components/sections/gr
 type FormState = {
   platformModelName: string;
   vendor: AdminLLMModelVendor | "";
+  displayGroupID: string;
   kinds: string[];
   icon: string;
   capabilitiesJSON: string;
@@ -146,18 +149,7 @@ type VendorOption = {
 };
 
 const UNKNOWN_VENDOR = "unknown";
-
-const MODEL_SHEET_VENDOR_OPTIONS: VendorOption[] = [
-  { value: UNKNOWN_VENDOR, label: "Unknown", iconUrl: null },
-  ...KNOWN_VENDOR_OPTIONS.map(({ value, label }) => {
-    const identity = resolveVendorIdentity(value);
-    return {
-      value,
-      label,
-      iconUrl: resolveLobeHubIconURL(identity.vendorIcon),
-    };
-  }),
-];
+const FOLLOW_VENDOR_GROUP = "vendor";
 
 const IMAGE_MEDIA_PROTOCOLS = new Set([
   "openai_image_generations",
@@ -189,7 +181,8 @@ function buildInitialState(target: AdminLLMModelDTO | null): FormState {
   if (!target) {
     return {
       platformModelName: "",
-      vendor: normalizeSupportedVendor(UNKNOWN_VENDOR),
+      vendor: UNKNOWN_VENDOR,
+      displayGroupID: FOLLOW_VENDOR_GROUP,
       kinds: [],
       icon: "",
       capabilitiesJSON: "",
@@ -207,7 +200,8 @@ function buildInitialState(target: AdminLLMModelDTO | null): FormState {
   kinds = parseKindsJSON(target.kindsJSON);
   return {
     platformModelName: target.platformModelName,
-    vendor: normalizeSupportedVendor(target.vendor),
+    vendor: target.vendor,
+    displayGroupID: target.displayGroupID ? String(target.displayGroupID) : FOLLOW_VENDOR_GROUP,
     kinds,
     icon: target.icon ?? "",
     capabilitiesJSON: normalizeCapabilitiesText(target.capabilitiesJSON),
@@ -224,17 +218,6 @@ function buildInitialState(target: AdminLLMModelDTO | null): FormState {
 
 function normalizeVendorValue(value: string): string {
   return value.trim().toLowerCase();
-}
-
-function normalizeSupportedVendor(value: string | null | undefined): AdminLLMModelVendor {
-  const normalized = normalizeVendorValue(value ?? "");
-  if (MODEL_SHEET_VENDOR_OPTIONS.some((item) => item.value === normalized)) {
-    return normalized;
-  }
-  const identity = resolveVendorIdentity(normalized);
-  return MODEL_SHEET_VENDOR_OPTIONS.some((item) => item.value === identity.vendorKey)
-    ? identity.vendorKey
-    : UNKNOWN_VENDOR;
 }
 
 function normalizeCapabilitiesText(value: string | null | undefined): string {
@@ -254,7 +237,7 @@ function VendorOptionIcon({
   return (
     <span className="inline-flex size-4 shrink-0 items-center justify-center self-center text-foreground">
       {iconUrl ? (
-        <LobeHubIcon iconUrl={iconUrl} label={label} />
+        <ModelIcon iconUrl={iconUrl} label={label} />
       ) : unknown ? (
         <CircleHelp className="size-4.5" strokeWidth={1.5} />
       ) : (
@@ -274,6 +257,8 @@ type ModelSheetProps = {
   mode: "create" | "edit";
   target: AdminLLMModelDTO | null;
   models: AdminLLMModelDTO[];
+  vendors: AdminLLMModelVendorDTO[];
+  displayGroups: AdminLLMModelDisplayGroupDTO[];
   onClose: () => void;
   onSuccess: () => void;
 };
@@ -282,7 +267,7 @@ type ModelSheetProps = {
 // Component
 // ---------------------------------------------------------------------------
 
-export function ModelSheet({ open, mode, target, models, onClose, onSuccess }: ModelSheetProps) {
+export function ModelSheet({ open, mode, target, models, vendors, displayGroups, onClose, onSuccess }: ModelSheetProps) {
   const t = useTranslations("adminModels");
   const commonT = useTranslations("common");
   const locale = useLocale();
@@ -450,9 +435,10 @@ export function ModelSheet({ open, mode, target, models, onClose, onSuccess }: M
         : kind,
     )
     .join(", ");
-  const vendorOptions = MODEL_SHEET_VENDOR_OPTIONS.map((item) => ({
-    ...item,
-    label: item.value === UNKNOWN_VENDOR ? t("sheet.unknownVendor") : item.label,
+  const vendorOptions = vendors.map((item) => ({
+    value: item.key,
+    label: item.name,
+    iconUrl: resolveModelIconURL(item.icon),
   }));
   const routeProtocols = useMemo(
     () => Array.from(new Set([
@@ -691,6 +677,7 @@ export function ModelSheet({ open, mode, target, models, onClose, onSuccess }: M
         const data = await createAdminLLMModel(token, {
           platformModelName: form.platformModelName.trim(),
           vendor: form.vendor || undefined,
+          displayGroupID: form.displayGroupID === FOLLOW_VENDOR_GROUP ? undefined : Number(form.displayGroupID),
           kindsJSON: kindsJson,
           icon: form.icon.trim() || undefined,
           capabilitiesJSON: normalizeModelCapabilitiesJSON(form.capabilitiesJSON, nativeTools, routeProtocols) || undefined,
@@ -739,6 +726,7 @@ export function ModelSheet({ open, mode, target, models, onClose, onSuccess }: M
       const payload: UpdateAdminLLMModelRequest = {
         platformModelName: form.platformModelName.trim() || undefined,
         vendor: form.vendor || undefined,
+        displayGroupID: form.displayGroupID === FOLLOW_VENDOR_GROUP ? 0 : Number(form.displayGroupID),
         kindsJSON: kindsJson,
         icon: form.icon.trim(),
         capabilitiesJSON: normalizeModelCapabilitiesJSON(form.capabilitiesJSON, nativeTools, routeProtocols),
@@ -774,7 +762,7 @@ export function ModelSheet({ open, mode, target, models, onClose, onSuccess }: M
     vendor: form.vendor,
     icon: form.icon,
   });
-  const iconPreviewUrl = resolveLobeHubIconURL(form.icon || resolvedIdentity.modelIcon);
+  const iconPreviewUrl = resolveModelIconURL(form.icon || resolvedIdentity.modelIcon);
   const selectedVendorOption =
     vendorOptions.find((item) => normalizeVendorValue(item.value) === normalizeVendorValue(form.vendor)) ??
     vendorOptions[0];
@@ -864,6 +852,32 @@ export function ModelSheet({ open, mode, target, models, onClose, onSuccess }: M
               </div>
 
               <div className="min-w-0 space-y-1">
+                <Label className="text-xs font-normal text-muted-foreground" htmlFor="model-display-group">
+                  {t("sheet.displayGroup")}
+                </Label>
+                <Select
+                  value={form.displayGroupID}
+                  onValueChange={(value) => setField("displayGroupID", value)}
+                  disabled={pending}
+                >
+                  <SelectTrigger id="model-display-group">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={FOLLOW_VENDOR_GROUP}>
+                      {t("sheet.followVendor", { vendor: selectedVendorOption?.label ?? form.vendor })}
+                    </SelectItem>
+                    {displayGroups.map((group) => (
+                      <SelectItem key={group.id} value={String(group.id)}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs leading-5 text-muted-foreground">{t("sheet.displayGroupDescription")}</p>
+              </div>
+
+              <div className="min-w-0 space-y-1">
                 <Label className="text-xs font-normal text-muted-foreground">{t("fields.status")}</Label>
                 <Select
                   value={form.status}
@@ -931,7 +945,7 @@ export function ModelSheet({ open, mode, target, models, onClose, onSuccess }: M
                     disabled={pending}
                   />
                   {iconPreviewUrl ? (
-                    <LobeHubIcon key={iconPreviewUrl} iconUrl={iconPreviewUrl} label={form.icon} size={24} />
+                    <ModelIcon key={iconPreviewUrl} iconUrl={iconPreviewUrl} label={form.icon} size={24} />
                   ) : (
                     <div className="size-6 shrink-0" />
                   )}

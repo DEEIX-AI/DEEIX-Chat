@@ -419,6 +419,15 @@ func (s *testGenerationStreamStore) ReadGenerationStreamEvents(ctx context.Conte
 	return results, nil
 }
 
+func (s *testGenerationStreamStore) ResetGenerationStreamEvents(_ context.Context, runID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if item, ok := s.items[runID]; ok {
+		item.events = nil
+	}
+	return nil
+}
+
 func (s *testGenerationStreamStore) ExpireGenerationStream(_ context.Context, runID string, ttl time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

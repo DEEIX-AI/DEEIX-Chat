@@ -1,6 +1,14 @@
 import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import type { MessageDTO, UpstreamDebugInfo } from "@/shared/api/conversation.types";
 
+function parseAttachmentDurationSeconds(value: unknown): number | undefined {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+  return Math.ceil(parsed);
+}
+
 export function parseAttachments(raw: string): MessageAttachment[] {
   if (!raw) return [];
   try {
@@ -14,6 +22,7 @@ export function parseAttachments(raw: string): MessageAttachment[] {
         detectedMime: String(item.detected_mime ?? ""),
         fileCategory: String(item.file_category ?? ""),
         sizeBytes: Number(item.file_size ?? 0),
+        durationSeconds: parseAttachmentDurationSeconds(item.duration_seconds),
         kind: item.kind === "image" ? ("image" as const) : ("file" as const),
         processingStatus: String(item.processing_status ?? ""),
         processingReady: Boolean(item.processing_ready),
@@ -159,6 +168,8 @@ type MessageLabels = {
   generationInterrupted: string;
   streamInterrupted?: string;
   imageRunning?: string;
+  moderationBlocked?: string;
+  moderationBlockedDescription?: string;
   resolveErrorMessage?: (errorCode: string, fallback: string, details?: UpstreamDebugInfo) => string;
 };
 
@@ -220,7 +231,17 @@ export function mapServerMessage(
     msg.latencyMS = item.latencyMS ?? 0;
     msg.billingCost = item.billingCost;
     msg.processTrace = parseProcessTrace(item);
-    if ((item.status === "error" || item.status === "interrupted") && item.errorMessage?.trim()) {
+    const status = item.status.trim().toLowerCase();
+    const moderationBlocked = status === "blocked" || item.errorCode === "content_moderation.blocked";
+    if (moderationBlocked) {
+      msg.inlineAlert = {
+        title: labels.moderationBlocked || "Content blocked",
+        message:
+          labels.moderationBlockedDescription ||
+          item.errorMessage?.trim() ||
+          "This response was withdrawn after a safety check.",
+      };
+    } else if ((status === "error" || status === "interrupted") && item.errorMessage?.trim()) {
       const details = extractInlineAlertDetails(item);
       msg.inlineAlert = {
         title: labels.generationInterrupted,
@@ -357,6 +378,12 @@ export function buildVisibleMessages(
 
   return withBranchNavigators.map((item, index) => {
     if (item.role !== "assistant") {
+      return item;
+    }
+    // Assistant-only retries reuse the original user message, but own the
+    // prompt-side usage for their generation. A zero value is authoritative
+    // and must not fall back to the reused user's first-run usage.
+    if (item.branchReason === "retry" && item.sourcePublicID?.trim()) {
       return item;
     }
     const previous = index > 0 ? withBranchNavigators[index - 1] : null;

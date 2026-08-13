@@ -327,9 +327,9 @@ func TestParseGeminiInteractionOutputExtractsVideoURIAndInlineData(t *testing.T)
 	body := []byte(`{
 		"id": "interaction-1",
 		"output": [
-			{"type": "video", "fileData": {"fileUri": "https://example.com/video.mp4", "mimeType": "video/mp4"}},
+			{"type": "video", "durationSeconds": 5.2, "fileData": {"fileUri": "https://example.com/video.mp4", "mimeType": "video/mp4"}},
 			{"type": "video", "file_data": {"file_uri": "https://example.com/video.mp4", "mime_type": "video/mp4"}},
-			{"type": "video", "inlineData": {"data": "` + inline + `", "mimeType": "video/webm"}}
+			{"type": "video", "duration_seconds": 3, "inlineData": {"data": "` + inline + `", "mimeType": "video/webm"}}
 		],
 		"usageMetadata": {"promptTokenCount": 3, "candidatesTokenCount": 5}
 	}`)
@@ -343,10 +343,10 @@ func TestParseGeminiInteractionOutputExtractsVideoURIAndInlineData(t *testing.T)
 	if got := len(output.GeneratedVideos); got != 2 {
 		t.Fatalf("expected duplicate URI to be deduped, got %d videos: %#v", got, output.GeneratedVideos)
 	}
-	if output.GeneratedVideos[0].URL != "https://example.com/video.mp4" || output.GeneratedVideos[0].MIMEType != "video/mp4" {
+	if output.GeneratedVideos[0].URL != "https://example.com/video.mp4" || output.GeneratedVideos[0].MIMEType != "video/mp4" || output.GeneratedVideos[0].DurationSeconds != 6 {
 		t.Fatalf("unexpected URI video: %#v", output.GeneratedVideos[0])
 	}
-	if output.GeneratedVideos[1].B64JSON != inline || output.GeneratedVideos[1].MIMEType != "video/webm" {
+	if output.GeneratedVideos[1].B64JSON != inline || output.GeneratedVideos[1].MIMEType != "video/webm" || output.GeneratedVideos[1].DurationSeconds != 3 {
 		t.Fatalf("unexpected inline video: %#v", output.GeneratedVideos[1])
 	}
 	if output.Usage.InputTokens != 3 || output.Usage.OutputTokens != 5 {
@@ -443,7 +443,7 @@ func TestGenerateGeminiInteractionPostsInteractionsRequest(t *testing.T) {
 	}))
 	defer server.Close()
 
-	output, err := NewClient().generateGeminiInteraction(context.Background(), RouteConfig{
+	output, err := newTestClient().generateGeminiInteraction(context.Background(), RouteConfig{
 		BaseURL:       server.URL,
 		APIKey:        "test-key",
 		UpstreamModel: "gemini-omni-flash-preview",
@@ -494,7 +494,7 @@ data: {"type":"done"}
 
 	var deltas []string
 	var usageEvents []Usage
-	output, err := NewClient().GenerateStream(context.Background(), RouteConfig{
+	output, err := newTestClient().GenerateStream(context.Background(), RouteConfig{
 		Protocol:      AdapterGeminiInteractions,
 		BaseURL:       server.URL,
 		APIKey:        "test-key",
@@ -528,7 +528,7 @@ data: {"type":"done"}
 }
 
 func TestNewGeminiRequestUsesOnlyGoogleAPIKeyForOfficialHost(t *testing.T) {
-	req, err := NewClient().newGeminiRequest(context.Background(), http.MethodPost, "https://generativelanguage.googleapis.com/v1beta/interactions", nil, RouteConfig{
+	req, err := newTestClient().newGeminiRequest(context.Background(), http.MethodPost, "https://generativelanguage.googleapis.com/v1beta/interactions", nil, RouteConfig{
 		APIKey: "test-key",
 	}, nil)
 	if err != nil {

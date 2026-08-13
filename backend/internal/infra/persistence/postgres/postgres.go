@@ -30,6 +30,9 @@ func New(cfg config.Config) (*gorm.DB, error) {
 	if err = migrate(db, cfg); err != nil {
 		return nil, err
 	}
+	if err = schema.SeedModelVendors(db); err != nil {
+		return nil, err
+	}
 
 	if err = schema.SeedPermissionGroups(db); err != nil {
 		return nil, err
@@ -117,6 +120,8 @@ func migrate(db *gorm.DB, cfg config.Config) error {
 		"identity_trusted_devices":       "双因素认证可信设备表",
 		"llm_upstreams":                  "上游配置表",
 		"llm_upstream_models":            "上游真实模型清单表",
+		"llm_model_vendors":              "平台模型技术厂商目录表",
+		"llm_model_display_groups":       "平台模型自定义展示分组表",
 		"llm_platform_models":            "平台模型表",
 		"llm_model_routes":               "平台模型路由绑定表",
 		"mcp_servers":                    "MCP服务配置表",

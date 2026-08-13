@@ -58,5 +58,19 @@
     "referenceLoadFailed": "仪表盘筛选项加载失败",
     "sessionExpired": "登录状态已失效",
     "signInAgain": "请重新登录后重试。"
+  },
+  "moderation": {
+    "title": "内容审核统计",
+    "trendTitle": "审核趋势",
+    "empty": "近 90 天暂无审核聚合数据。",
+    "loadFailed": "内容审核统计加载失败",
+    "avgLatencyLabel": "平均审核耗时",
+    "metrics": {
+      "checks": "检查数",
+      "hits": "命中",
+      "failures": "失败开放",
+      "hitRate": "命中率",
+      "latency": "平均耗时"
+    }
   }
 }

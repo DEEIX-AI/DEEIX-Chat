@@ -22,6 +22,19 @@ type FileLookupRepository interface {
 	TouchFileObjectLastAccessedAt(ctx context.Context, userID uint, fileID string, accessedAt time.Time) error
 }
 
+// ModerationFileRepository 封装内容审核清理所需的文件操作能力。
+// 与 FileLookupRepository 隔离，避免上传模块及其测试 mock 依赖审核专用方法。
+type ModerationFileRepository interface {
+	// RevokeGeneratedFileForModeration marks a generated file inaccessible and unlinks user ownership.
+	RevokeGeneratedFileForModeration(ctx context.Context, fileID string) error
+	// DeleteGeneratedFileArtifactsForModeration marks attachments deleted (keeps storage_path for retry).
+	DeleteGeneratedFileArtifactsForModeration(ctx context.Context, fileID string) error
+	// ClearGeneratedFileStoragePath clears storage_path after a successful physical delete.
+	ClearGeneratedFileStoragePath(ctx context.Context, fileID string) error
+	// GetFileObjectByFileIDAnyStatus loads a file regardless of status (for moderation cleanup).
+	GetFileObjectByFileIDAnyStatus(ctx context.Context, fileID string) (*domainconversation.FileObject, error)
+}
+
 // FileBatchRepository 封装批量读取文件能力。
 type FileBatchRepository interface {
 	GetActiveFileObjectsByIDs(ctx context.Context, userID uint, fileIDs []string) ([]domainconversation.FileObject, error)

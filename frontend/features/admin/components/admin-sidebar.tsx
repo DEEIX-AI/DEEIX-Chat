@@ -1,15 +1,13 @@
 "use client";
 
-import * as React from "react";
+import { CircleArrowUp } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { CircleArrowUp } from "lucide-react";
-
-import packageMeta from "@/package.json";
+import * as React from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ADMIN_SECTIONS, type AdminSection } from "@/features/admin/model/admin-sections";
 import { AdminUpdateTooltipContent } from "@/features/admin/components/admin-update-tooltip-content";
+import { ADMIN_SECTIONS, type AdminSection } from "@/features/admin/model/admin-sections";
 import {
   getCachedLatestReleaseSnapshot,
   getServerLatestReleaseSnapshot,
@@ -17,6 +15,7 @@ import {
   subscribeLatestReleaseChange,
 } from "@/features/admin/model/update-check";
 import { cn } from "@/lib/utils";
+import packageMeta from "@/package.json";
 
 const ADMIN_SECTION_LABEL_KEYS: Record<AdminSection, string> = {
   statistics: "sections.statistics",
@@ -28,6 +27,7 @@ const ADMIN_SECTION_LABEL_KEYS: Record<AdminSection, string> = {
   billing: "sections.billing",
   announcements: "sections.announcements",
   logs: "sections.logs",
+  "content-moderation": "sections.contentModeration",
   "login-settings": "sections.loginSettings",
   "conversation-settings": "sections.conversationSettings",
   "chat-files": "sections.chatFiles",

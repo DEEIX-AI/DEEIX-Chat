@@ -28,6 +28,10 @@ security:
   data_encryption_key: "change-me-dev-data-encryption-key-32-bytes-min"
   # Optional. Enable in production to block outbound requests to private or metadata networks.
   ssrf_protection_enabled: false
+  # Optional. Exact trusted integration hostnames, comma-separated (for example: new-api,host.docker.internal). Configure only for hostname targets; do not include schemes, ports, paths, IPs, or wildcards.
+  ssrf_allowed_hosts: ""
+  # Optional. Trusted integration IP ranges in CIDR notation, comma-separated (for example: 172.17.0.0/16). Configure only when an IP range must be trusted; this is independent from ssrf_allowed_hosts.
+  ssrf_allowed_cidrs: ""
   # Optional. Override only when using a compatible Turnstile verification proxy.
   turnstile_siteverify_url: "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 

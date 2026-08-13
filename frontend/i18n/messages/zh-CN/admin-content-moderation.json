@@ -1,0 +1,60 @@
+{
+  "title": "内容审核",
+  "loading": "加载中…",
+  "loadFailed": "加载内容审核配置失败",
+  "saved": "配置已保存",
+  "saveFailed": "保存配置失败",
+  "save": "保存",
+  "saving": "保存中…",
+  "selectAll": "全选",
+  "probe": "测试连接",
+  "probeFailed": "连接测试失败",
+  "probeText": "文本",
+  "probeImage": "图像",
+  "valid": "有效",
+  "invalid": "无效",
+  "noneEnabled": "未启用",
+  "enabledCount": "已启用 {selected}/{total}",
+  "policyRequiresEnabled": "请先启用内容审核，再配置审核策略。",
+  "superAdminOnly": "仅超级管理员可管理内容审核策略与服务配置。统计请查看「用量统计」，事件请查看「日志中心」。",
+  "sections": {
+    "service": "审核服务",
+    "policy": "审核策略"
+  },
+  "surfaces": {
+    "inputText": "输入文本",
+    "inputImage": "输入图像",
+    "outputText": "输出文本",
+    "outputImage": "输出图像"
+  },
+  "surfaceDescriptions": {
+    "inputText": "审核用户本轮发送的提示词和文本内容。",
+    "inputImage": "审核本轮实际使用的上传图像。",
+    "outputText": "审核助手本轮生成的文本内容。",
+    "outputImage": "审核生成并作为回复附件展示的图像。"
+  },
+  "fields": {
+    "enabled": "启用内容审核",
+    "baseUrl": "审核服务地址 *",
+    "model": "审核模型 *",
+    "apiKey": "审核鉴权密钥 *",
+    "apiKeyPlaceholder": "输入新的审核鉴权密钥",
+    "timeoutSeconds": "审核超时",
+    "maxConcurrency": "审核最大并发",
+    "queueCapacity": "审核队列容量"
+  },
+  "fieldDescriptions": {
+    "enabled": "开启后审核对话输入与模型输出；关闭时保留服务和策略配置。",
+    "baseUrl": "OpenAI-compatible 服务根地址、/v1 地址或完整的 /moderations 地址。",
+    "model": "用于文本与图像审核的模型名称。",
+    "apiKey": "留空会保留当前密钥；输入新值后保存即可替换。",
+    "apiKeyRequired": "保存审核鉴权密钥后，即可测试连接并配置审核策略。",
+    "timeoutSeconds": "单个审核检查允许等待的总时长，范围为 1–60 秒。",
+    "maxConcurrency": "同时执行的审核任务数量，范围为 1–64。",
+    "queueCapacity": "等待审核的任务数量上限，范围为 1–4096。"
+  },
+  "validation": {
+    "apiKeyRequired": "启用内容审核前必须配置审核鉴权密钥。",
+    "policyRequired": "启用内容审核前至少需要选择一个审核类别。"
+  }
+}

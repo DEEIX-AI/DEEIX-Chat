@@ -218,11 +218,6 @@ const VENDOR_CATALOG: readonly VendorCatalogItem[] = [
   },
 ];
 
-export const KNOWN_VENDOR_OPTIONS = VENDOR_CATALOG.map((item) => ({
-  value: item.key,
-  label: item.label,
-}));
-
 function detectModelFamilyIcon(value: string): string {
   if (!value) {
     return "";
@@ -262,6 +257,10 @@ function normalizeValue(value: string | null | undefined): string {
   return value?.trim().toLowerCase() ?? "";
 }
 
+function isModelIconResource(value: string): boolean {
+  return /^(?:https?:\/\/|\/)/iu.test(value.trim());
+}
+
 function findVendorByExactValue(value: string): VendorCatalogItem | null {
   if (!value) {
     return null;
@@ -292,7 +291,7 @@ function findVendorByText(value: string): VendorCatalogItem | null {
 
 function chooseResolvedVendor(input: ModelIdentityInput): VendorCatalogItem | null {
   const normalizedCode = normalizeValue(input.code);
-  const normalizedIcon = normalizeValue(input.icon);
+  const normalizedIcon = isModelIconResource(input.icon ?? "") ? "" : normalizeValue(input.icon);
   const normalizedVendor = normalizeValue(input.vendor);
   const normalizedProvider = normalizeValue(input.provider);
 
@@ -335,7 +334,8 @@ export function resolveModelIdentity(input: ModelIdentityInput): ResolvedModelId
     };
   }
 
-  const iconVendor = findVendorByExactValue(normalizeValue(input.icon)) ?? findVendorByText(normalizeValue(input.icon));
+  const normalizedIcon = isModelIconResource(rawIcon) ? "" : normalizeValue(rawIcon);
+  const iconVendor = findVendorByExactValue(normalizedIcon) ?? findVendorByText(normalizedIcon);
   const shouldOverrideGenericIcon = iconVendor != null && GENERIC_VENDOR_KEYS.has(iconVendor.key) && !GENERIC_VENDOR_KEYS.has(resolvedVendor.key);
 
   return {
@@ -381,10 +381,13 @@ export function resolveVendorLabel(vendor: string): string {
   return resolveVendorIdentity(vendor).vendorLabel;
 }
 
-export function resolveLobeHubIconURL(icon: string): string | null {
+export function resolveModelIconURL(icon: string): string | null {
   const normalized = icon.trim();
   if (!normalized) {
     return null;
+  }
+  if (isModelIconResource(normalized)) {
+    return normalized;
   }
   return `/vendor/lobehub-icons/${normalized}.svg`;
 }

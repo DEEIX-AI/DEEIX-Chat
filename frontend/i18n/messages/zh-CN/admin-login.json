@@ -146,6 +146,8 @@
     "loginControlDescription": "允许登录平台账号",
     "registrationControlDescription": "允许自动创建账号",
     "callbackURL": "回调地址",
+    "serverCallbackURL": "服务器回调地址（推荐）",
+    "legacyWebCallbackURL": "旧版 Web 回调地址（即将废弃）",
     "copyCallbackURL": "复制回调地址",
     "logoURL": "Logo URL",
     "clientID": "Client ID",

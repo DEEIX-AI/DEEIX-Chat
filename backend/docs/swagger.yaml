@@ -1436,6 +1436,389 @@ definitions:
     - data
     - errorMsg
     type: object
+  ContentModerationCategoryCatalogResponse:
+    properties:
+      image:
+        items:
+          type: string
+        type: array
+      text:
+        items:
+          type: string
+        type: array
+    required:
+    - image
+    - text
+    type: object
+  ContentModerationConfigDataResponse:
+    properties:
+      categories:
+        $ref: '#/definitions/ContentModerationCategoryCatalogResponse'
+      config:
+        $ref: '#/definitions/ContentModerationServiceConfigResponse'
+    required:
+    - categories
+    - config
+    type: object
+  ContentModerationConfigResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ContentModerationConfigDataResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ContentModerationConfigUpdateDataResponse:
+    properties:
+      config:
+        $ref: '#/definitions/ContentModerationServiceConfigResponse'
+    required:
+    - config
+    type: object
+  ContentModerationConfigUpdateResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ContentModerationConfigUpdateDataResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ContentModerationDailyStatResponse:
+    properties:
+      category:
+        type: string
+      checkCount:
+        type: integer
+      contentItems:
+        type: integer
+      direction:
+        type: string
+      failureCount:
+        type: integer
+      hitCount:
+        type: integer
+      latencyCount:
+        type: integer
+      latencySumMS:
+        type: integer
+      modality:
+        type: string
+      result:
+        type: string
+      statDate:
+        type: string
+    required:
+    - category
+    - checkCount
+    - contentItems
+    - direction
+    - failureCount
+    - hitCount
+    - latencyCount
+    - latencySumMS
+    - modality
+    - result
+    - statDate
+    type: object
+  ContentModerationEventDetailResponse:
+    properties:
+      categoryScores:
+        additionalProperties:
+          format: float64
+          type: number
+        type: object
+      decryptedText:
+        type: string
+      event:
+        $ref: '#/definitions/ContentModerationEventResponse'
+      images:
+        items:
+          $ref: '#/definitions/ContentModerationIsolatedImageResponse'
+        type: array
+      imagesAvailable:
+        type: boolean
+      textAvailable:
+        type: boolean
+    required:
+    - categoryScores
+    - event
+    - images
+    - imagesAvailable
+    - textAvailable
+    type: object
+  ContentModerationEventDetailResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ContentModerationEventDetailResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ContentModerationEventListDataResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/ContentModerationEventResponse'
+        type: array
+      page:
+        type: integer
+      pageSize:
+        type: integer
+      total:
+        type: integer
+    required:
+    - items
+    - page
+    - pageSize
+    - total
+    type: object
+  ContentModerationEventListResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ContentModerationEventListDataResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ContentModerationEventResponse:
+    properties:
+      categories:
+        items:
+          type: string
+        type: array
+      contentSummary:
+        type: string
+      conversationID:
+        type: integer
+      createdAt:
+        type: string
+      direction:
+        type: string
+      errorCode:
+        type: string
+      errorMessage:
+        type: string
+      latencyMS:
+        type: integer
+      messagePublicID:
+        type: string
+      modality:
+        type: string
+      model:
+        type: string
+      policyVersion:
+        type: integer
+      publicID:
+        type: string
+      result:
+        type: string
+      runID:
+        type: string
+      userID:
+        type: integer
+      userLabel:
+        type: string
+      username:
+        type: string
+    required:
+    - categories
+    - contentSummary
+    - conversationID
+    - createdAt
+    - direction
+    - errorCode
+    - errorMessage
+    - latencyMS
+    - messagePublicID
+    - modality
+    - model
+    - policyVersion
+    - publicID
+    - result
+    - runID
+    - userID
+    type: object
+  ContentModerationIsolatedImageResponse:
+    properties:
+      index:
+        type: integer
+      mimeType:
+        type: string
+      sha256:
+        type: string
+      sizeBytes:
+        type: integer
+      sourceFileID:
+        type: string
+    required:
+    - index
+    - mimeType
+    - sha256
+    - sizeBytes
+    type: object
+  ContentModerationPolicyRequest:
+    properties:
+      inputImageCategories:
+        items:
+          type: string
+        type: array
+      inputTextCategories:
+        items:
+          type: string
+        type: array
+      outputImageCategories:
+        items:
+          type: string
+        type: array
+      outputTextCategories:
+        items:
+          type: string
+        type: array
+    required:
+    - inputImageCategories
+    - inputTextCategories
+    - outputImageCategories
+    - outputTextCategories
+    type: object
+  ContentModerationPolicyResponse:
+    properties:
+      inputImageCategories:
+        items:
+          type: string
+        type: array
+      inputTextCategories:
+        items:
+          type: string
+        type: array
+      outputImageCategories:
+        items:
+          type: string
+        type: array
+      outputTextCategories:
+        items:
+          type: string
+        type: array
+      version:
+        type: integer
+    required:
+    - inputImageCategories
+    - inputTextCategories
+    - outputImageCategories
+    - outputTextCategories
+    - version
+    type: object
+  ContentModerationProbeResponse:
+    properties:
+      image:
+        $ref: '#/definitions/ContentModerationProbeResultResponse'
+      text:
+        $ref: '#/definitions/ContentModerationProbeResultResponse'
+    required:
+    - image
+    - text
+    type: object
+  ContentModerationProbeResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ContentModerationProbeResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ContentModerationProbeResultResponse:
+    properties:
+      error:
+        type: string
+      latencyMS:
+        type: integer
+      model:
+        type: string
+      valid:
+        type: boolean
+    required:
+    - latencyMS
+    - valid
+    type: object
+  ContentModerationServiceConfigResponse:
+    properties:
+      apiKeyMasked:
+        type: string
+      baseUrl:
+        type: string
+      enabled:
+        type: boolean
+      hasAPIKey:
+        type: boolean
+      maxConcurrency:
+        type: integer
+      model:
+        type: string
+      policy:
+        $ref: '#/definitions/ContentModerationPolicyResponse'
+      queueCapacity:
+        type: integer
+      timeoutSeconds:
+        type: integer
+    required:
+    - baseUrl
+    - enabled
+    - hasAPIKey
+    - maxConcurrency
+    - model
+    - policy
+    - queueCapacity
+    - timeoutSeconds
+    type: object
+  ContentModerationStatsDataResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/ContentModerationDailyStatResponse'
+        type: array
+    required:
+    - items
+    type: object
+  ContentModerationStatsResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ContentModerationStatsDataResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ContentModerationUpdateConfigRequest:
+    properties:
+      apiKey:
+        type: string
+      baseUrl:
+        type: string
+      clearAPIKey:
+        type: boolean
+      enabled:
+        type: boolean
+      maxConcurrency:
+        type: integer
+      model:
+        type: string
+      policy:
+        $ref: '#/definitions/ContentModerationPolicyRequest'
+      queueCapacity:
+        type: integer
+      timeoutSeconds:
+        type: integer
+    type: object
   ContextArtifactResponse:
     properties:
       content:
@@ -2218,6 +2601,22 @@ definitions:
         maxItems: 1000
         type: array
     type: object
+  CreateModelDisplayGroupRequest:
+    properties:
+      icon:
+        maxLength: 2048
+        type: string
+      modelIDs:
+        items:
+          type: integer
+        maxItems: 10000
+        type: array
+      name:
+        maxLength: 64
+        type: string
+    required:
+    - name
+    type: object
   CreateModelRequest:
     properties:
       accessScope:
@@ -2245,6 +2644,8 @@ definitions:
       description:
         maxLength: 10000
         type: string
+      displayGroupID:
+        type: integer
       icon:
         maxLength: 128
         type: string
@@ -2278,6 +2679,21 @@ definitions:
     required:
     - data
     - errorMsg
+    type: object
+  CreateModelVendorRequest:
+    properties:
+      icon:
+        maxLength: 2048
+        type: string
+      key:
+        maxLength: 64
+        type: string
+      name:
+        maxLength: 64
+        type: string
+    required:
+    - key
+    - name
     type: object
   CreatePermissionGroupRequest:
     properties:
@@ -3151,6 +3567,8 @@ definitions:
         type: boolean
       passwordResetEnabled:
         type: boolean
+      providerAuthBridge:
+        $ref: '#/definitions/ProviderAuthBridgeResponse'
       providers:
         items:
           $ref: '#/definitions/IdentityProviderResponse'
@@ -3166,6 +3584,7 @@ definitions:
     - emailRegistrationEnabled
     - emailVerificationEnabled
     - passwordResetEnabled
+    - providerAuthBridge
     - providers
     - turnstileRegistrationEnabled
     - turnstileSiteKey
@@ -3356,6 +3775,19 @@ definitions:
     - data
     - errorMsg
     type: object
+  MessageModerationResponse:
+    properties:
+      categories:
+        items:
+          type: string
+        type: array
+      direction:
+        type: string
+      eventID:
+        type: string
+      state:
+        type: string
+    type: object
   MessageProcessTraceResponse:
     properties:
       enabled:
@@ -3493,6 +3925,8 @@ definitions:
         type: string
       modelVendor:
         type: string
+      moderation:
+        $ref: '#/definitions/MessageModerationResponse'
       myFeedback:
         type: string
       outputTokens:
@@ -3658,6 +4092,65 @@ definitions:
         $ref: '#/definitions/ModelResponse'
     required:
     - model
+    type: object
+  ModelDisplayGroupDataResponse:
+    properties:
+      group:
+        $ref: '#/definitions/ModelDisplayGroupResponse'
+    required:
+    - group
+    type: object
+  ModelDisplayGroupDataResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ModelDisplayGroupDataResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ModelDisplayGroupListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/ModelDisplayGroupResponse'
+            type: array
+          total:
+            type: integer
+        required:
+        - results
+        - total
+        type: object
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ModelDisplayGroupResponse:
+    properties:
+      createdAt:
+        type: string
+      icon:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      sortOrder:
+        type: integer
+      updatedAt:
+        type: string
+    required:
+    - createdAt
+    - icon
+    - id
+    - name
+    - sortOrder
+    - updatedAt
     type: object
   ModelListResponseDoc:
     properties:
@@ -3971,6 +4464,14 @@ definitions:
         type: string
       description:
         type: string
+      displayGroupID:
+        type: integer
+        x-nullable: true
+        x-omitempty: false
+      displayGroupIcon:
+        type: string
+      displayGroupName:
+        type: string
       icon:
         type: string
       id:
@@ -3995,6 +4496,10 @@ definitions:
         type: string
       vendor:
         type: string
+      vendorIcon:
+        type: string
+      vendorName:
+        type: string
     required:
     - accessScope
     - activeSourceCount
@@ -4005,6 +4510,9 @@ definitions:
     - cbWindowMin
     - createdAt
     - description
+    - displayGroupID
+    - displayGroupIcon
+    - displayGroupName
     - icon
     - id
     - kindsJSON
@@ -4017,6 +4525,8 @@ definitions:
     - updatedAt
     - upstreamNamesJSON
     - vendor
+    - vendorIcon
+    - vendorName
     type: object
   ModelUpstreamSourceDataResponse:
     properties:
@@ -4126,6 +4636,71 @@ definitions:
     - upstreamName
     - upstreamStatus
     - weight
+    type: object
+  ModelVendorDataResponse:
+    properties:
+      vendor:
+        $ref: '#/definitions/ModelVendorResponse'
+    required:
+    - vendor
+    type: object
+  ModelVendorDataResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ModelVendorDataResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ModelVendorListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/ModelVendorResponse'
+            type: array
+          total:
+            type: integer
+        required:
+        - results
+        - total
+        type: object
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ModelVendorResponse:
+    properties:
+      builtIn:
+        type: boolean
+      createdAt:
+        type: string
+      icon:
+        type: string
+      id:
+        type: integer
+      key:
+        type: string
+      name:
+        type: string
+      sortOrder:
+        type: integer
+      updatedAt:
+        type: string
+    required:
+    - builtIn
+    - createdAt
+    - icon
+    - id
+    - key
+    - name
+    - sortOrder
+    - updatedAt
     type: object
   NativeToolPricingRequest:
     properties:
@@ -4825,6 +5400,87 @@ definitions:
     - data
     - errorMsg
     type: object
+  ProviderAuthBridgeExchangeRequest:
+    properties:
+      clientID:
+        maxLength: 128
+        type: string
+      codeVerifier:
+        maxLength: 128
+        minLength: 43
+        type: string
+      grant:
+        maxLength: 128
+        minLength: 43
+        type: string
+    required:
+    - clientID
+    - codeVerifier
+    - grant
+    type: object
+  ProviderAuthBridgeResponse:
+    properties:
+      callbackBaseURL:
+        type: string
+      enabled:
+        type: boolean
+      protocolVersion:
+        type: integer
+    required:
+    - callbackBaseURL
+    - enabled
+    - protocolVersion
+    type: object
+  ProviderAuthBridgeStartRequest:
+    properties:
+      clientID:
+        maxLength: 128
+        type: string
+      clientState:
+        maxLength: 128
+        minLength: 43
+        type: string
+      codeChallenge:
+        maxLength: 128
+        minLength: 43
+        type: string
+      intent:
+        enum:
+        - login
+        - register
+        type: string
+      next:
+        maxLength: 2048
+        type: string
+      redirectURI:
+        maxLength: 2048
+        type: string
+    required:
+    - clientID
+    - clientState
+    - codeChallenge
+    - redirectURI
+    type: object
+  ProviderAuthBridgeStartResponse:
+    properties:
+      authorizationURL:
+        type: string
+      expiresAt:
+        type: string
+    required:
+    - authorizationURL
+    - expiresAt
+    type: object
+  ProviderAuthBridgeStartResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ProviderAuthBridgeStartResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   PublicModelListResponseDoc:
     properties:
       data:
@@ -4903,6 +5559,14 @@ definitions:
         type: string
       description:
         type: string
+      displayGroupID:
+        type: integer
+        x-nullable: true
+        x-omitempty: false
+      displayGroupIcon:
+        type: string
+      displayGroupName:
+        type: string
       icon:
         type: string
       kindsJSON:
@@ -4920,9 +5584,16 @@ definitions:
         type: integer
       vendor:
         type: string
+      vendorIcon:
+        type: string
+      vendorName:
+        type: string
     required:
     - capabilitiesJSON
     - description
+    - displayGroupID
+    - displayGroupIcon
+    - displayGroupName
     - icon
     - kindsJSON
     - platformModelName
@@ -4930,6 +5601,8 @@ definitions:
     - protocolsJSON
     - sortOrder
     - vendor
+    - vendorIcon
+    - vendorName
     type: object
   PublicSharedConversationResponse:
     properties:
@@ -5769,6 +6442,20 @@ definitions:
           type: integer
         type: array
     type: object
+  SetModelsDisplayGroupRequest:
+    properties:
+      displayGroupID:
+        type: integer
+      modelIDs:
+        items:
+          type: integer
+        maxItems: 1000
+        minItems: 1
+        type: array
+    required:
+    - displayGroupID
+    - modelIDs
+    type: object
   SettingsPatchSettingsRequest:
     properties:
       items:
@@ -6195,6 +6882,21 @@ definitions:
     type: object
   ToolResponse:
     properties:
+      attachmentArgument:
+        type: string
+      attachmentEncoding:
+        enum:
+        - ""
+        - base64
+        - data_url
+        type: string
+      attachmentInputMode:
+        enum:
+        - none
+        - image
+        type: string
+      attachmentPromptArgument:
+        type: string
       createdAt:
         type: string
       description:
@@ -6218,6 +6920,10 @@ definitions:
       updatedAt:
         type: string
     required:
+    - attachmentArgument
+    - attachmentEncoding
+    - attachmentInputMode
+    - attachmentPromptArgument
     - createdAt
     - description
     - displayName
@@ -6380,6 +7086,20 @@ definitions:
     required:
     - content
     type: object
+  UpdateModelDisplayGroupRequest:
+    properties:
+      icon:
+        maxLength: 2048
+        type: string
+      modelIDs:
+        items:
+          type: integer
+        maxItems: 10000
+        type: array
+      name:
+        maxLength: 64
+        type: string
+    type: object
   UpdateModelRequest:
     properties:
       accessScope:
@@ -6407,6 +7127,8 @@ definitions:
       description:
         maxLength: 10000
         type: string
+      displayGroupID:
+        type: integer
       icon:
         maxLength: 128
         type: string
@@ -6473,6 +7195,15 @@ definitions:
     - data
     - errorMsg
     type: object
+  UpdateModelVendorRequest:
+    properties:
+      icon:
+        maxLength: 2048
+        type: string
+      name:
+        maxLength: 64
+        type: string
+    type: object
   UpdatePermissionGroupRequest:
     properties:
       description:
@@ -6502,6 +7233,20 @@ definitions:
     type: object
   UpdateToolRequest:
     properties:
+      attachmentArgument:
+        type: string
+      attachmentEncoding:
+        enum:
+        - base64
+        - data_url
+        type: string
+      attachmentInputMode:
+        enum:
+        - none
+        - image
+        type: string
+      attachmentPromptArgument:
+        type: string
       description:
         type: string
       displayName:
@@ -7942,7 +8687,7 @@ info:
   contact: {}
   description: DEEIX Chat 后端 API 文档
   title: DEEIX Chat API
-  version: "0.3.4"
+  version: "0.3.5"
 paths:
   /admin/announcements:
     get:
@@ -8472,6 +9217,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/OpenRouterOfficialPricingResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/BillingErrorDoc'
         "502":
           description: Bad Gateway
           schema:
@@ -8795,6 +9544,179 @@ paths:
       summary: 管理员查询模型调用日志
       tags:
       - admin
+  /admin/content-moderation/config:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ContentModerationConfigResponseDoc'
+      security:
+      - BearerAuth: []
+      summary: Get content moderation config
+      tags:
+      - admin-content-moderation
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Content moderation configuration
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/ContentModerationUpdateConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ContentModerationConfigUpdateResponseDoc'
+      security:
+      - BearerAuth: []
+      summary: Update content moderation config
+      tags:
+      - admin-content-moderation
+  /admin/content-moderation/events:
+    get:
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: pageSize
+        type: integer
+      - description: Result filter
+        in: query
+        name: result
+        type: string
+      - description: Direction filter
+        in: query
+        name: direction
+        type: string
+      - description: Modality filter
+        in: query
+        name: modality
+        type: string
+      - description: Category filter
+        in: query
+        name: category
+        type: string
+      - description: User ID
+        in: query
+        name: userId
+        type: integer
+      - description: Run ID
+        in: query
+        name: runId
+        type: string
+      - description: Start time (RFC3339)
+        in: query
+        name: from
+        type: string
+      - description: End time (RFC3339)
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ContentModerationEventListResponseDoc'
+      security:
+      - BearerAuth: []
+      summary: List content moderation events
+      tags:
+      - admin-content-moderation
+  /admin/content-moderation/events/{eventID}:
+    get:
+      parameters:
+      - description: Moderation event ID
+        in: path
+        name: eventID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ContentModerationEventDetailResponseDoc'
+      security:
+      - BearerAuth: []
+      summary: Get content moderation event detail
+      tags:
+      - admin-content-moderation
+  /admin/content-moderation/events/{eventID}/images/{index}:
+    get:
+      parameters:
+      - description: Moderation event ID
+        in: path
+        name: eventID
+        required: true
+        type: string
+      - description: Image index
+        in: path
+        name: index
+        required: true
+        type: integer
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: Stream a isolated moderation image
+      tags:
+      - admin-content-moderation
+  /admin/content-moderation/probe:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ContentModerationProbeResponseDoc'
+      security:
+      - BearerAuth: []
+      summary: Probe content moderation service
+      tags:
+      - admin-content-moderation
+  /admin/content-moderation/stats:
+    get:
+      parameters:
+      - description: Start time (RFC3339)
+        in: query
+        name: from
+        type: string
+      - description: End time (RFC3339)
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ContentModerationStatsResponseDoc'
+      security:
+      - BearerAuth: []
+      summary: Get content moderation daily stats
+      tags:
+      - admin-content-moderation
   /admin/conversation-events:
     get:
       consumes:
@@ -8951,6 +9873,237 @@ paths:
       summary: 管理员导出全量对话数据
       tags:
       - admin
+  /admin/llm/model-display-groups:
+    get:
+      description: 分页查询自定义展示分组；未绑定分组的模型继续按技术厂商展示
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索名称
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ModelDisplayGroupListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询模型展示分组
+      tags:
+      - llm
+    post:
+      consumes:
+      - application/json
+      description: 创建仅影响用户界面归类的自定义模型分组
+      parameters:
+      - description: 展示分组参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CreateModelDisplayGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ModelDisplayGroupDataResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员创建模型展示分组
+      tags:
+      - llm
+  /admin/llm/model-display-groups/{id}:
+    delete:
+      description: 删除展示分组后，关联模型恢复按技术厂商展示
+      parameters:
+      - description: 展示分组 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/SuccessDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员删除模型展示分组
+      tags:
+      - llm
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: 展示分组 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 展示分组参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateModelDisplayGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ModelDisplayGroupDataResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员更新模型展示分组
+      tags:
+      - llm
+  /admin/llm/model-vendors:
+    get:
+      description: 分页查询模型技术厂商目录；技术厂商是路由、权限和计费使用的稳定身份
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索 key 或名称
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ModelVendorListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询模型技术厂商
+      tags:
+      - llm
+    post:
+      consumes:
+      - application/json
+      description: 创建新的稳定技术厂商身份；创建后可供平台模型选择
+      parameters:
+      - description: 技术厂商参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CreateModelVendorRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ModelVendorDataResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员创建模型技术厂商
+      tags:
+      - llm
+  /admin/llm/model-vendors/{key}:
+    patch:
+      consumes:
+      - application/json
+      description: 更新厂商展示名称和图标；稳定技术 key 不可修改
+      parameters:
+      - description: 技术厂商 key
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: 技术厂商参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateModelVendorRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ModelVendorDataResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员更新模型技术厂商
+      tags:
+      - llm
   /admin/llm/models:
     get:
       consumes:
@@ -9362,6 +10515,38 @@ paths:
       security:
       - BearerAuth: []
       summary: 管理员批量删除模型
+      tags:
+      - llm
+  /admin/llm/models/display-group:
+    patch:
+      consumes:
+      - application/json
+      description: 在单个事务中将指定模型归入展示分组；displayGroupID 为 0 时恢复按技术厂商展示
+      parameters:
+      - description: 批量归组参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SetModelsDisplayGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/SuccessDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员批量设置模型展示分组
       tags:
       - llm
   /admin/llm/models/order:
@@ -10504,7 +11689,7 @@ paths:
     patch:
       consumes:
       - application/json
-      description: 管理员更新 MCP 工具的展示信息或状态
+      description: 管理员更新 MCP 工具的展示信息、附件处理配置或状态
       parameters:
       - description: MCP 工具 ID
         in: path
@@ -12280,6 +13465,72 @@ paths:
           schema:
             $ref: '#/definitions/AuthErrorDoc'
       summary: 发送密码重置验证码
+      tags:
+      - auth
+  /auth/providers/{slug}/authorize:
+    post:
+      consumes:
+      - application/json
+      description: 为 Web、App 或桌面公共客户端创建 PKCE 保护的 OAuth 授权事务；外部身份源仅回调当前 DEEIX 实例
+      parameters:
+      - description: 身份源 slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: 授权桥参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/ProviderAuthBridgeStartRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ProviderAuthBridgeStartResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      summary: 创建第三方登录授权桥事务
+      tags:
+      - auth
+  /auth/providers/{slug}/exchange:
+    post:
+      consumes:
+      - application/json
+      description: 使用客户端 PKCE verifier 原子兑换服务端回调签发的一次性授权码，并进入统一 2FA/会话流程
+      parameters:
+      - description: 身份源 slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: 授权码兑换参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/ProviderAuthBridgeExchangeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/LoginResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      summary: 兑换第三方登录一次性授权码
       tags:
       - auth
   /auth/refresh:

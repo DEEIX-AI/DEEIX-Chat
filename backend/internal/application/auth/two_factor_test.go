@@ -69,7 +69,7 @@ func (r *twoFactorConfirmRepo) UpdateUserTwoFactor(ctx context.Context, userID u
 }
 
 func TestConfirmCurrentTwoFactorSetupReturnsNotStartedWhenMissing(t *testing.T) {
-	service := NewService(config.Config{}, &twoFactorLookupRepo{err: repository.ErrNotFound}, nil)
+	service := newTestService(config.Config{}, &twoFactorLookupRepo{err: repository.ErrNotFound}, nil)
 
 	_, err := service.ConfirmCurrentTwoFactorSetup(context.Background(), 42, "123456")
 	if !errors.Is(err, ErrTwoFactorSetupNotStarted) {
@@ -79,7 +79,7 @@ func TestConfirmCurrentTwoFactorSetupReturnsNotStartedWhenMissing(t *testing.T) 
 
 func TestConfirmCurrentTwoFactorSetupIsIdempotentWhenAlreadyEnabled(t *testing.T) {
 	now := time.Now()
-	service := NewService(config.Config{}, &twoFactorLookupRepo{item: &domainuser.UserTwoFactor{
+	service := newTestService(config.Config{}, &twoFactorLookupRepo{item: &domainuser.UserTwoFactor{
 		UserID:      42,
 		TOTPEnabled: true,
 		EnabledAt:   &now,
@@ -116,7 +116,7 @@ func TestConfirmCurrentTwoFactorSetupFailsWhenEnabledStateDoesNotPersist(t *test
 	if err != nil {
 		t.Fatalf("generate code: %v", err)
 	}
-	service := NewService(cfg, &twoFactorConfirmRepo{
+	service := newTestService(cfg, &twoFactorConfirmRepo{
 		item: &domainuser.UserTwoFactor{
 			UserID:              42,
 			TOTPEnabled:         false,
@@ -180,7 +180,7 @@ func TestConsumeRecoveryCodeUsesCompareAndSwap(t *testing.T) {
 		TOTPEnabled:       true,
 		RecoveryCodesHash: recoveryHash,
 	}}
-	service := NewService(cfg, repo, nil)
+	service := newTestService(cfg, repo, nil)
 
 	if !service.consumeRecoveryCode(context.Background(), 42, recoveryHash, codes[0]) {
 		t.Fatalf("expected first recovery code consumption to succeed")

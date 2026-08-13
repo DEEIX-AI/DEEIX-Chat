@@ -16,6 +16,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/compact"
+	appcontentmoderation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
@@ -33,17 +34,24 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/usersettings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	moderationclient "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/geoip"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/identityprovider"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mcp"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mediaartifact"
+	openrouterpricing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/modelpricing/openrouter"
 	platformlogger "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/logger"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/openwebui"
+	stripepayment "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/payment/stripe"
+	filecache "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/filecache"
 	announcementrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/announcement"
 	auditrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/audit"
 	billingrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/billing"
 	channelrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/channel"
+	contentmoderationrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/contentmoderation"
 	conversationrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/conversation"
 	logcleanuprepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/logcleanup"
 	mcprepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/mcp"
@@ -61,6 +69,7 @@ import (
 	authhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/auth"
 	billinghttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/billing"
 	channelhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/channel"
+	contentmoderationhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/contentmoderation"
 	conversationhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/conversation"
 	mcphttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/mcp"
 	memoryhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/memory"
@@ -77,13 +86,19 @@ import (
 
 // App 维护应用运行依赖。
 type App struct {
-	cfg              config.Config
-	engine           *gin.Engine
-	logger           *zap.Logger
-	db               *gorm.DB
-	redis            *redis.Client
-	geoResolver      *geoip.Client
-	backgroundCancel context.CancelFunc
+	cfg                    config.Config
+	engine                 *gin.Engine
+	logger                 *zap.Logger
+	db                     *gorm.DB
+	redis                  *redis.Client
+	geoResolver            *geoip.Client
+	identityProviderClient *identityprovider.Client
+	llmClient              *llm.Client
+	mcpClient              *mcp.Client
+	embeddingClient        *embedding.Client
+	mediaArtifactClient    *mediaartifact.Client
+	moderationClient       *moderationclient.Client
+	backgroundCancel       context.CancelFunc
 }
 
 type subscriptionGroupAdapter struct {
@@ -194,12 +209,24 @@ func NewApp() (*App, error) {
 	billingService := billing.NewService(billingRepo)
 	billingService.SetAuditWriter(auditService)
 	billingService.SetRedemptionCodeSecret(cfg.DataEncryptionKey)
-	billingHandler := billinghttp.NewHandler(billingService, settingsService, runtimeCfg)
+	officialPricingService := billing.NewOfficialPricingService(
+		openrouterpricing.New(cfg.StrictOutboundPolicy()),
+		filecache.NewOpenRouterPricingCache(runtimeCfg.Snapshot().StorageRootDir),
+	)
+	paymentCheckoutService := billing.NewPaymentCheckoutService(stripepayment.New(cfg.StrictOutboundPolicy()))
+	billingHandler := billinghttp.NewHandler(billingService, settingsService, runtimeCfg, officialPricingService, paymentCheckoutService)
 	billingModule := billinghttp.NewModule(billingHandler)
 	objectStoreProvider := appstorage.NewRuntimeProvider(runtimeCfg, nil)
 	geoResolver := geoip.New(runtimeCfg.Snapshot())
-	authService := auth.NewServiceWithRuntime(runtimeCfg, userRepo, geoResolver)
+	identityProviderClient := identityprovider.New(cfg.StrictOutboundPolicy())
+	authService := auth.NewServiceWithRuntime(
+		runtimeCfg,
+		userRepo,
+		geoResolver,
+		identityProviderClient,
+	)
 	authService.SetLogger(log)
+	authService.SetProviderAuthBridge(buildProviderAuthBridge(cfg, redisClient, memoryCache))
 	authService.SetObjectStoreProvider(objectStoreProvider)
 	authService.SetAuditWriter(auditService)
 	settingsService.SetAuthSafetyService(authService)
@@ -217,9 +244,12 @@ func NewApp() (*App, error) {
 	memoryModule := memoryhttp.NewModule(memoryHandler)
 	channelRepo := channelrepo.NewRepo(db)
 	channelCache := buildChannelCache(cfg, redisClient, memoryCache)
-	llmClient := llm.NewClientWithEnv(cfg.Env, cfg.SSRFProtectionEnabled)
-	mcpClient := mcp.NewClientWithEnv(cfg.Env, cfg.SSRFProtectionEnabled)
-	channelService := channel.NewServiceWithRuntime(runtimeCfg, channelRepo, channelCache, llmClient)
+	trustedOutboundPolicy := cfg.TrustedOutboundPolicy()
+	strictOutboundPolicy := cfg.StrictOutboundPolicy()
+	llmClient := llm.NewClient(trustedOutboundPolicy)
+	mcpClient := mcp.NewClient(trustedOutboundPolicy)
+	mediaArtifactClient := mediaartifact.New(strictOutboundPolicy)
+	channelService := channel.NewServiceWithRuntime(runtimeCfg, channelRepo, channelRepo, channelCache, llmClient)
 	channelService.SetLogger(log)
 	channelService.SetBillingModelPricingFilter(billingService)
 	channelService.SetPermissionGroupRepo(channelRepo)
@@ -237,7 +267,7 @@ func NewApp() (*App, error) {
 	settingsService.SetVectorStoreAvailabilityService(conversationRepo)
 	conversationCache := buildConversationCache(cfg, redisClient, memoryCache)
 	mcpRepo := mcprepo.NewRepo(db)
-	embedClient := embedding.NewWithEnv(cfg.Env, cfg.SSRFProtectionEnabled)
+	embedClient := embedding.New(trustedOutboundPolicy)
 	compactService := compact.NewServiceWithRuntime(runtimeCfg, conversationRepo, log)
 	extractionService := extraction.NewServiceWithRuntime(runtimeCfg)
 	extractionService.SetObjectStoreProvider(objectStoreProvider)
@@ -253,6 +283,7 @@ func NewApp() (*App, error) {
 		channelService,
 		memoryService,
 		llmClient,
+		mediaArtifactClient,
 		mcpClient,
 		embedClient,
 		nil,
@@ -267,6 +298,14 @@ func NewApp() (*App, error) {
 	conversationService.SetAuditWriter(auditService)
 	conversationService.SetObjectStoreProvider(objectStoreProvider)
 	conversationService.SetMCPRepository(mcpRepo)
+	contentModerationRepo := contentmoderationrepo.NewRepo(db)
+	contentModerationService := appcontentmoderation.NewService(settingsRepo, contentModerationRepo, cfg.DataEncryptionKey, log)
+	moderationClient := moderationclient.New(trustedOutboundPolicy)
+	contentModerationService.SetProvider(moderationClient)
+	contentModerationService.SetAuditWriter(auditService)
+	conversationService.SetModerationService(contentModerationService)
+	contentModerationHandler := contentmoderationhttp.NewHandler(contentModerationService)
+	contentModerationModule := contentmoderationhttp.NewModule(contentModerationHandler)
 	userService.SetAvatarContentOpener(avatarContentOpener{conversationService: conversationService})
 	userService.SetAvatarFileValidator(conversationService)
 	authService.SetAvatarFileValidator(conversationService)
@@ -295,6 +334,7 @@ func NewApp() (*App, error) {
 	adminHandler := adminhttp.NewHandler(adminService)
 	adminHandler.SetConversationExporter(conversationService)
 	adminModule := adminhttp.NewModule(adminHandler)
+	contentModerationHandler.SetUserLabelResolver(adminService)
 	userSettingsRepo := usersettingsrepo.NewRepo(db)
 	userSettingsService := usersettings.NewService(userSettingsRepo)
 	userSettingsHandler := usersettingshttp.NewHandler(userSettingsService)
@@ -318,20 +358,21 @@ func NewApp() (*App, error) {
 	hc := newHealthChecker(db, cfg.CacheDriver, redisClient)
 	rateLimiter := buildRateLimiter(cfg, redisClient, memoryCache)
 	engine, err := platformhttp.NewEngine(runtimeCfg, log, platformhttp.Modules{
-		Auth:         authModule,
-		AuthService:  authService,
-		Channel:      channelModule,
-		Conversation: conversationModule,
-		MCP:          mcpModule,
-		Memory:       memoryModule,
-		Billing:      billingModule,
-		Admin:        adminModule,
-		Announcement: announcementModule,
-		PromptPreset: promptPresetModule,
-		Skill:        skillModule,
-		Settings:     settingsModule,
-		UserSettings: userSettingsModule,
-		User:         userModule,
+		Auth:              authModule,
+		AuthService:       authService,
+		Channel:           channelModule,
+		Conversation:      conversationModule,
+		MCP:               mcpModule,
+		Memory:            memoryModule,
+		Billing:           billingModule,
+		Admin:             adminModule,
+		ContentModeration: contentModerationModule,
+		Announcement:      announcementModule,
+		PromptPreset:      promptPresetModule,
+		Skill:             skillModule,
+		Settings:          settingsModule,
+		UserSettings:      userSettingsModule,
+		User:              userModule,
 		StartupLog: func(log *zap.Logger) {
 			if log == nil || bootstrapSuperAdmin == nil {
 				return
@@ -348,15 +389,22 @@ func NewApp() (*App, error) {
 
 	backgroundCtx, backgroundCancel := context.WithCancel(context.Background())
 	conversationService.StartBackgroundWorkers(backgroundCtx)
+	contentModerationService.StartBackgroundWorkers(backgroundCtx)
 
 	return &App{
-		cfg:              runtimeCfg.Snapshot(),
-		engine:           engine,
-		logger:           log,
-		db:               db,
-		redis:            redisClient,
-		geoResolver:      geoResolver,
-		backgroundCancel: backgroundCancel,
+		cfg:                    runtimeCfg.Snapshot(),
+		engine:                 engine,
+		logger:                 log,
+		db:                     db,
+		redis:                  redisClient,
+		geoResolver:            geoResolver,
+		identityProviderClient: identityProviderClient,
+		llmClient:              llmClient,
+		mcpClient:              mcpClient,
+		embeddingClient:        embedClient,
+		mediaArtifactClient:    mediaArtifactClient,
+		moderationClient:       moderationClient,
+		backgroundCancel:       backgroundCancel,
 	}, nil
 }
 
@@ -428,6 +476,24 @@ func (a *App) Close() {
 	}
 	if a.geoResolver != nil {
 		a.geoResolver.Close()
+	}
+	if a.identityProviderClient != nil {
+		a.identityProviderClient.CloseIdleConnections()
+	}
+	if a.llmClient != nil {
+		a.llmClient.CloseIdleConnections()
+	}
+	if a.mcpClient != nil {
+		a.mcpClient.CloseIdleConnections()
+	}
+	if a.embeddingClient != nil {
+		a.embeddingClient.CloseIdleConnections()
+	}
+	if a.mediaArtifactClient != nil {
+		a.mediaArtifactClient.CloseIdleConnections()
+	}
+	if a.moderationClient != nil {
+		a.moderationClient.CloseIdleConnections()
 	}
 	if a.db != nil {
 		if sqlDB, err := a.db.DB(); err == nil {

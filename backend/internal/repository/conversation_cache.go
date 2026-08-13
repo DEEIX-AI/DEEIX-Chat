@@ -53,6 +53,9 @@ type GenerationStreamCacheRepository interface {
 	AppendGenerationStreamEvent(ctx context.Context, runID string, payloadJSON string, maxEvents int64, ttl time.Duration) (GenerationStreamMessage, error)
 	ListGenerationStreamEvents(ctx context.Context, runID string, limit int64) ([]GenerationStreamMessage, error)
 	ReadGenerationStreamEvents(ctx context.Context, runID string, afterID string, block time.Duration, limit int64) ([]GenerationStreamMessage, error)
+	// ResetGenerationStreamEvents clears retained events while keeping owner metadata so
+	// blocked rounds cannot be replayed with withdrawn content on reconnect.
+	ResetGenerationStreamEvents(ctx context.Context, runID string) error
 	ExpireGenerationStream(ctx context.Context, runID string, ttl time.Duration) error
 }
 

@@ -20,6 +20,7 @@ type messageRoutePromptInput struct {
 	PreferencePrompt         string
 	SkillPrompts             *skillPrompts
 	ToolRuntime              selectedToolRuntime
+	SkipImageAttachments     bool
 	Config                   config.Config
 }
 
@@ -55,9 +56,12 @@ func (s *Service) buildMessageRoutePrompt(ctx context.Context, route *channel.Re
 	historyMessages := historyMessagesFromDomain(routeMessages, historyMessageOptions{
 		ReasoningContentPassback: input.ReasoningContentPassback,
 	})
-	historyMessages, err := s.injectConversationImageContext(ctx, historyMessages, routeMessages, input.StableAttachments, input.Config)
-	if err != nil {
-		return PromptPlan{}, err
+	if !input.SkipImageAttachments {
+		var err error
+		historyMessages, err = s.injectConversationImageContext(ctx, historyMessages, routeMessages, input.StableAttachments, input.Config)
+		if err != nil {
+			return PromptPlan{}, err
+		}
 	}
 	if len(historyMessages) == 0 {
 		historyMessages = append(historyMessages, llm.Message{Role: "user", Content: input.UserContent})

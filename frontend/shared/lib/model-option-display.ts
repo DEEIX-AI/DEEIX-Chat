@@ -1,4 +1,4 @@
-import { resolveLobeHubIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
+import { resolveModelIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
 import { parseKindsJSON } from "@/shared/model/llm-schema";
 
 export function isRoutablePlatformModel(model: {
@@ -42,5 +42,5 @@ export function resolveModelOptionIconUrl({
     vendor,
     icon,
   });
-  return resolveLobeHubIconURL(identity.modelIcon);
+  return resolveModelIconURL(identity.modelIcon);
 }

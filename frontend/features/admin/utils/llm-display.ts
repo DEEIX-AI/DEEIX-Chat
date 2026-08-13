@@ -47,6 +47,7 @@ export const PROTOCOL_OPTIONS: ReadonlyArray<ProtocolOption> = [
   { value: "xai_responses", label: "Responses (xAI)", kinds: ["chat"] },
   { value: "xai_image", label: "Images Generations (xAI)", kinds: ["image_gen"] },
   { value: "xai_image_edits", label: "Images Edits (xAI)", kinds: ["image_edit"] },
+  { value: "xai_video", label: "Video Generations (xAI)", kinds: ["video_gen"] },
   { value: "openrouter_chat_completions", label: "Chat Completions (OpenRouter)", kinds: ["chat"] },
   { value: "openrouter_responses", label: "Responses (OpenRouter)", kinds: ["chat"] },
 ] as const;

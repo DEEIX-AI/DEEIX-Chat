@@ -527,6 +527,41 @@ func (r *uploadTestRepo) TouchFileObjectLastAccessedAt(_ context.Context, userID
 	return repository.ErrNotFound
 }
 
+func (r *uploadTestRepo) RevokeGeneratedFileForModeration(_ context.Context, fileID string) error {
+	for i := range r.files {
+		if r.files[i].FileID == fileID {
+			r.files[i].Status = "moderation_blocked"
+			r.files[i].UserID = 0
+			return nil
+		}
+	}
+	return repository.ErrNotFound
+}
+
+func (r *uploadTestRepo) DeleteGeneratedFileArtifactsForModeration(context.Context, string) error {
+	return nil
+}
+
+func (r *uploadTestRepo) ClearGeneratedFileStoragePath(_ context.Context, fileID string) error {
+	for i := range r.files {
+		if r.files[i].FileID == fileID {
+			r.files[i].StoragePath = ""
+			return nil
+		}
+	}
+	return repository.ErrNotFound
+}
+
+func (r *uploadTestRepo) GetFileObjectByFileIDAnyStatus(_ context.Context, fileID string) (*domainconversation.FileObject, error) {
+	for i := range r.files {
+		if r.files[i].FileID == fileID {
+			result := r.files[i]
+			return &result, nil
+		}
+	}
+	return nil, repository.ErrNotFound
+}
+
 func (r *uploadTestRepo) GetUserByID(context.Context, uint) (*domainuser.User, error) {
 	result := r.user
 	return &result, nil

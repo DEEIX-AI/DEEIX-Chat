@@ -12,10 +12,12 @@ const (
 	ContextArtifactUserMemory      ContextArtifactKind = "user_memory"
 	ContextArtifactToolResult      ContextArtifactKind = "tool_result"
 	ContextArtifactNativeTool      ContextArtifactKind = "native_tool_result"
+	ContextArtifactImageAnalysis   ContextArtifactKind = "image_analysis"
 	ContextArtifactSummary         ContextArtifactKind = "conversation_summary"
 )
 
 // ContextArtifact 保存一次对话请求中被选入上下文规划的证据引用。
+// MessageID 指向产生该证据的助手消息节点，用于按不可变父链隔离分支。
 type ContextArtifact struct {
 	ID             uint
 	ConversationID uint

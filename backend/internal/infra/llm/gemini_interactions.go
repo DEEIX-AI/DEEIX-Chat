@@ -56,7 +56,7 @@ func (c *Client) generateGeminiInteraction(ctx context.Context, route RouteConfi
 	if err != nil {
 		return nil, err
 	}
-	resp, err := doGenerationRequest(c.httpClientForRoute(route), req)
+	resp, err := c.doRouteGenerationRequest(route, req)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (c *Client) generateGeminiInteractionStream(
 	}
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := doGenerationRequest(c.httpClientForRoute(route), req)
+	resp, err := c.doRouteGenerationRequest(route, req)
 	firstByteTimer.Stop()
 	if err != nil {
 		return nil, err
@@ -1151,9 +1151,17 @@ func walkGeminiInteractionVideos(value interface{}, videos *[]GeneratedVideo) {
 }
 
 func geminiVideoFromMap(item map[string]interface{}) (GeneratedVideo, bool) {
+	fileData := asMap(item["fileData"])
+	if len(fileData) == 0 {
+		fileData = asMap(item["file_data"])
+	}
+	inlineData := asMap(item["inlineData"])
+	if len(inlineData) == 0 {
+		inlineData = asMap(item["inline_data"])
+	}
 	mimeType := strings.TrimSpace(firstString(item, "mime_type", "mimeType"))
 	if mimeType == "" {
-		if inlineData := asMap(item["inlineData"]); len(inlineData) > 0 {
+		if len(inlineData) > 0 {
 			mimeType = strings.TrimSpace(firstString(inlineData, "mimeType", "mime_type"))
 		}
 	}
@@ -1163,7 +1171,7 @@ func geminiVideoFromMap(item map[string]interface{}) (GeneratedVideo, bool) {
 
 	url := strings.TrimSpace(firstString(item, "uri", "url", "file_uri", "fileUri"))
 	b64 := strings.TrimSpace(firstString(item, "b64_json", "b64Json", "data"))
-	if fileData := asMap(item["fileData"]); len(fileData) > 0 {
+	if len(fileData) > 0 {
 		if url == "" {
 			url = strings.TrimSpace(firstString(fileData, "fileUri", "file_uri", "uri", "url"))
 		}
@@ -1171,23 +1179,7 @@ func geminiVideoFromMap(item map[string]interface{}) (GeneratedVideo, bool) {
 			mimeType = strings.TrimSpace(firstString(fileData, "mimeType", "mime_type"))
 		}
 	}
-	if fileData := asMap(item["file_data"]); len(fileData) > 0 {
-		if url == "" {
-			url = strings.TrimSpace(firstString(fileData, "fileUri", "file_uri", "uri", "url"))
-		}
-		if mimeType == "" {
-			mimeType = strings.TrimSpace(firstString(fileData, "mimeType", "mime_type"))
-		}
-	}
-	if inlineData := asMap(item["inlineData"]); len(inlineData) > 0 {
-		if b64 == "" {
-			b64 = strings.TrimSpace(firstString(inlineData, "data", "b64_json", "b64Json"))
-		}
-		if mimeType == "" {
-			mimeType = strings.TrimSpace(firstString(inlineData, "mimeType", "mime_type"))
-		}
-	}
-	if inlineData := asMap(item["inline_data"]); len(inlineData) > 0 {
+	if len(inlineData) > 0 {
 		if b64 == "" {
 			b64 = strings.TrimSpace(firstString(inlineData, "data", "b64_json", "b64Json"))
 		}
@@ -1206,6 +1198,13 @@ func geminiVideoFromMap(item map[string]interface{}) (GeneratedVideo, bool) {
 		B64JSON:  b64,
 		MIMEType: mimeType,
 		FileName: strings.TrimSpace(firstString(item, "file_name", "fileName", "name")),
+		DurationSeconds: generatedMediaDurationSeconds(
+			item["duration_seconds"],
+			item["durationSeconds"],
+			item["duration"],
+			fileData["duration_seconds"],
+			fileData["durationSeconds"],
+		),
 	}, true
 }
 

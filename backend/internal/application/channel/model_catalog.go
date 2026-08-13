@@ -37,6 +37,7 @@ const (
 	protocolGeminiInteractions     = llm.AdapterGeminiInteractions
 	protocolXAIImage               = llm.AdapterXAIImage
 	protocolXAIImageEdits          = llm.AdapterXAIImageEdits
+	protocolXAIVideo               = llm.AdapterXAIVideo
 )
 
 var protocolDefaultKindOrder = []string{
@@ -137,6 +138,7 @@ func systemFallbackProtocols(compatible string) map[string]string {
 			modelKindAudio:     llm.AdapterXAIResponses,
 			modelKindImageGen:  protocolXAIImage,
 			modelKindImageEdit: protocolXAIImageEdits,
+			modelKindVideoGen:  protocolXAIVideo,
 		}
 	case compatibleOpenRouter:
 		return map[string]string{
@@ -173,7 +175,8 @@ func isKnownProtocol(raw string) bool {
 		protocolGoogleImageGeneration,
 		protocolGeminiInteractions,
 		protocolXAIImage,
-		protocolXAIImageEdits:
+		protocolXAIImageEdits,
+		protocolXAIVideo:
 		return true
 	default:
 		return false
@@ -412,7 +415,8 @@ func isProtocolAllowedForKind(kind string, protocol string) bool {
 	case modelKindVideoGen:
 		switch protocol {
 		case protocolOpenAIVideoGenerations,
-			protocolGeminiInteractions:
+			protocolGeminiInteractions,
+			protocolXAIVideo:
 			return true
 		default:
 			return false
@@ -504,7 +508,7 @@ func inferKindsJSON(platformModelName string) string {
 	case code == "dall-e-3", strings.HasPrefix(code, "imagen-"):
 		return `["image_gen"]`
 	case code == "sora", code == "veo-2", strings.HasPrefix(code, "kling"),
-		strings.HasPrefix(code, "veo-"):
+		strings.HasPrefix(code, "veo-"), isXAIVideoGenerationModel(code):
 		return `["video_gen"]`
 	case strings.HasPrefix(code, "gpt-4o-audio"):
 		return `["audio"]`
@@ -538,4 +542,8 @@ func isGeminiImageGenerationModel(code string) bool {
 
 func isXAIImageGenerationModel(code string) bool {
 	return strings.HasPrefix(strings.TrimSpace(strings.ToLower(code)), "grok-imagine-image")
+}
+
+func isXAIVideoGenerationModel(code string) bool {
+	return strings.HasPrefix(strings.TrimSpace(strings.ToLower(code)), "grok-imagine-video")
 }

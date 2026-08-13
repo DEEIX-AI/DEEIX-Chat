@@ -13,6 +13,7 @@ import (
 	"time"
 
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/outboundhttp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -38,21 +39,25 @@ type responsePayload struct {
 
 // Client 封装 OpenAI 兼容 embedding API 的 HTTP 调用能力。
 type Client struct {
-	env                   string
-	ssrfProtectionEnabled bool
+	httpClients *outboundhttp.Pool
 }
 
-// New 创建 Client。
-func New() *Client {
-	return NewWithEnv("", false)
-}
-
-// NewWithEnv 创建带运行环境的 Client。
-func NewWithEnv(env string, ssrfProtectionEnabled bool) *Client {
+// New 创建带出站安全策略的 Client。
+func New(outboundPolicy security.OutboundPolicy) *Client {
 	return &Client{
-		env:                   strings.TrimSpace(env),
-		ssrfProtectionEnabled: ssrfProtectionEnabled,
+		httpClients: outboundhttp.NewPool(outboundPolicy, outboundhttp.DefaultCacheLimit, func(policy security.OutboundPolicy, trustedOrigin string, variant string) (outboundhttp.ManagedClient, error) {
+			return newEmbeddingHTTPClient(policy, outboundPolicy, trustedOrigin, variant)
+		}),
 	}
+}
+
+func newEmbeddingHTTPClient(policy security.OutboundPolicy, redirectPolicy security.OutboundPolicy, trustedOrigin string, _ string) (outboundhttp.ManagedClient, error) {
+	transport := security.NewOutboundHTTPTransport(policy, 10*time.Second)
+	client := &http.Client{Transport: platformtracing.NewHTTPTransport(transport)}
+	if trustedOrigin != "" {
+		client.CheckRedirect = outboundhttp.NewRedirectPolicy(redirectPolicy, trustedOrigin, "embedding request")
+	}
+	return outboundhttp.ManagedClient{Client: client, CloseIdleConnections: transport.CloseIdleConnections}, nil
 }
 
 // CallAPI 向指定 apiBase 发起 embedding 请求，返回各文本对应的向量列表。
@@ -72,8 +77,14 @@ func (c *Client) CallAPI(
 		return nil, fmt.Errorf("embedding: marshal request: %w", err)
 	}
 
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 60
+	}
+	requestCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+	defer cancel()
+
 	url := strings.TrimRight(apiBase, "/") + "/embeddings"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("embedding: build request: %w", err)
 	}
@@ -82,15 +93,7 @@ func (c *Client) CallAPI(
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 
-	if timeoutSeconds <= 0 {
-		timeoutSeconds = 60
-	}
-	transport := security.NewOutboundHTTPTransport(c.env, c.ssrfProtectionEnabled, 10*time.Second)
-	httpClient := &http.Client{
-		Timeout:   time.Duration(timeoutSeconds) * time.Second,
-		Transport: platformtracing.NewHTTPTransport(transport),
-	}
-	resp, err := httpClient.Do(req)
+	resp, err := c.httpClients.Do(req, apiBase, "")
 	if err != nil {
 		return nil, fmt.Errorf("embedding: http: %w", err)
 	}
@@ -113,6 +116,13 @@ func (c *Client) CallAPI(
 		}
 	}
 	return result, nil
+}
+
+// CloseIdleConnections 释放所有 Embedding origin 客户端的空闲连接。
+func (c *Client) CloseIdleConnections() {
+	if c != nil && c.httpClients != nil {
+		c.httpClients.CloseIdleConnections()
+	}
 }
 
 // ChunkText 将文本按估算 token 数分片，使用段落优先截断策略。

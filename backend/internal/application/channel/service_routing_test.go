@@ -80,6 +80,7 @@ func TestResolveRouteExcludesPreviouslyAttemptedRoutes(t *testing.T) {
 	service := NewService(
 		config.Config{DataEncryptionKey: encryptionKey},
 		repo,
+		nil,
 		memory.NewChannelCache(memory.New()),
 		nil,
 	)

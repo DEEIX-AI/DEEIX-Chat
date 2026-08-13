@@ -69,3 +69,18 @@ func TestImageAdapterCapabilities(t *testing.T) {
 		t.Fatalf("expected xAI image edits protocol to support image editing")
 	}
 }
+
+func TestXAIVideoAdapterCapabilities(t *testing.T) {
+	if !IsKnownAdapter(AdapterXAIVideo) || !IsImplementedAdapter(AdapterXAIVideo) {
+		t.Fatalf("expected xAI video adapter to be known and implemented")
+	}
+	if !IsVideoGenerationAdapter(AdapterXAIVideo) {
+		t.Fatalf("expected xAI video adapter to support video generation")
+	}
+	if SupportsStreamingAdapter(AdapterXAIVideo) {
+		t.Fatalf("expected xAI video adapter to use asynchronous polling instead of streaming")
+	}
+	if got := DefaultEndpointForAdapter(AdapterXAIVideo); got != EndpointVideoGenerations {
+		t.Fatalf("expected xAI video endpoint, got %q", got)
+	}
+}

@@ -55,22 +55,34 @@ func TestBuildPromptScopeReplacesCoveredPrefix(t *testing.T) {
 	}
 }
 
-func TestPromptScopeFilterRecallChunksDropsCoveredMessages(t *testing.T) {
+func TestPromptScopeHistoricalMessageScopeUsesSnapshotBoundary(t *testing.T) {
 	messages := promptScopeMessages()
 	scope := buildPromptScope(messages, promptScopeSnapshot(messages[:2]), contextCompactionPolicy{AdminEnabled: true, UserEnabled: true})
 
-	chunks := []model.MessageChunk{
-		{MessageID: 1, Content: "covered"},
-		{MessageID: 3, Content: "retained"},
-		{MessageID: 99, Content: "sibling branch"},
+	historicalScope := scope.historicalMessageScope(7, 11, 4)
+	if !historicalScope.Valid() {
+		t.Fatal("expected valid historical scope")
 	}
-	filtered := scope.filterRecallChunks(chunks)
+	if historicalScope.ConversationID != 7 || historicalScope.UserID != 11 || historicalScope.LeafMessageID != 4 || historicalScope.ExcludeThroughMessageID != 2 {
+		t.Fatalf("unexpected historical scope: %#v", historicalScope)
+	}
+}
 
-	if len(filtered) != 1 {
-		t.Fatalf("expected one retained recall chunk, got %d", len(filtered))
+func TestPromptScopeHistoricalMessageScopeUsesFullBranchWithoutSnapshot(t *testing.T) {
+	messages := promptScopeMessages()
+	scope := buildPromptScope(messages, nil, contextCompactionPolicy{})
+
+	historicalScope := scope.historicalMessageScope(7, 11, 4)
+	if !historicalScope.Valid() || historicalScope.ExcludeThroughMessageID != 0 {
+		t.Fatalf("unexpected historical scope: %#v", historicalScope)
 	}
-	if filtered[0].MessageID != 3 {
-		t.Fatalf("expected retained chunk from message 3, got %d", filtered[0].MessageID)
+}
+
+func TestPromptScopeHistoricalMessageScopeFailsClosedOnFirstTurn(t *testing.T) {
+	scope := buildPromptScope([]model.Message{{ID: 9, Role: "user"}}, nil, contextCompactionPolicy{})
+
+	if historicalScope := scope.historicalMessageScope(7, 11, 9); historicalScope.Valid() {
+		t.Fatalf("expected no historical scope, got %#v", historicalScope)
 	}
 }
 

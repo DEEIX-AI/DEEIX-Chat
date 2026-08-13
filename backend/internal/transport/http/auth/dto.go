@@ -217,7 +217,14 @@ type LoginOptionsResponse struct {
 	PasswordResetEnabled         bool                       `json:"passwordResetEnabled"`
 	TurnstileRegistrationEnabled bool                       `json:"turnstileRegistrationEnabled"`
 	TurnstileSiteKey             string                     `json:"turnstileSiteKey"`
+	ProviderAuthBridge           ProviderAuthBridgeResponse `json:"providerAuthBridge"`
 	Providers                    []IdentityProviderResponse `json:"providers"`
+}
+
+type ProviderAuthBridgeResponse struct {
+	Enabled         bool   `json:"enabled"`
+	ProtocolVersion int    `json:"protocolVersion"`
+	CallbackBaseURL string `json:"callbackBaseURL"`
 }
 
 type UpsertIdentityProviderRequest struct {
@@ -254,6 +261,26 @@ type CompleteProviderLoginRequest struct {
 	RedirectURI  string `json:"redirectURI" binding:"required,max=2048"`
 	CodeVerifier string `json:"codeVerifier" binding:"required,min=43,max=128"`
 	Intent       string `json:"intent,omitempty" binding:"omitempty,oneof=login register bind"`
+}
+
+type ProviderAuthBridgeStartRequest struct {
+	ClientID      string `json:"clientID" binding:"required,max=128"`
+	RedirectURI   string `json:"redirectURI" binding:"required,max=2048"`
+	CodeChallenge string `json:"codeChallenge" binding:"required,min=43,max=128"`
+	ClientState   string `json:"clientState" binding:"required,min=43,max=128"`
+	Intent        string `json:"intent,omitempty" binding:"omitempty,oneof=login register"`
+	Next          string `json:"next,omitempty" binding:"omitempty,max=2048"`
+}
+
+type ProviderAuthBridgeStartResponse struct {
+	AuthorizationURL string    `json:"authorizationURL"`
+	ExpiresAt        time.Time `json:"expiresAt"`
+}
+
+type ProviderAuthBridgeExchangeRequest struct {
+	ClientID     string `json:"clientID" binding:"required,max=128"`
+	Grant        string `json:"grant" binding:"required,min=43,max=128"`
+	CodeVerifier string `json:"codeVerifier" binding:"required,min=43,max=128"`
 }
 
 type CompleteProviderBindRequest struct {
@@ -415,6 +442,11 @@ type LoginResponseDoc struct {
 type LoginOptionsResponseDoc struct {
 	ErrorMsg string               `json:"errorMsg"`
 	Data     LoginOptionsResponse `json:"data"`
+}
+
+type ProviderAuthBridgeStartResponseDoc struct {
+	ErrorMsg string                          `json:"errorMsg"`
+	Data     ProviderAuthBridgeStartResponse `json:"data"`
 }
 
 // IdentityProviderListResponseDoc 管理员身份源列表响应（Swagger 用）。
@@ -655,7 +687,12 @@ func toLoginOptionsResponse(d *appauth.LoginOptions) LoginOptionsResponse {
 		PasswordResetEnabled:         d.PasswordResetEnabled,
 		TurnstileRegistrationEnabled: d.TurnstileRegistrationEnabled,
 		TurnstileSiteKey:             d.TurnstileSiteKey,
-		Providers:                    toIdentityProviderResponses(d.Providers),
+		ProviderAuthBridge: ProviderAuthBridgeResponse{
+			Enabled:         d.ProviderAuthBridge.Enabled,
+			ProtocolVersion: d.ProviderAuthBridge.ProtocolVersion,
+			CallbackBaseURL: d.ProviderAuthBridge.CallbackBaseURL,
+		},
+		Providers: toIdentityProviderResponses(d.Providers),
 	}
 }
 

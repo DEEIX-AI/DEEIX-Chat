@@ -220,6 +220,7 @@
     "imageEditInputRequired": "Image editing requires at least one input image.",
     "imageEditTooManyInputs": "Too many input images for image editing.",
     "imageEditInputInvalid": "Image editing only supports valid image files.",
+    "artifactUnavailable": "The generated result is temporarily unavailable. Try again, or contact an administrator if the issue persists.",
     "imageStreamUnsupported": "Tips: The upstream may not support streaming responses. Ask an administrator to disable \"Image streaming call\" in model capabilities (set image.stream=false), then try again.",
     "routeProtocolMismatch": "The current model route protocol does not match this image task. Check the model binding.",
     "invalidTask": "Invalid image task parameters."
@@ -328,5 +329,12 @@
   "userSettings": {
     "invalidValue": "Invalid user setting value.",
     "unknownKey": "Unknown user setting key."
+  },
+  "content_moderation": {
+    "blocked": "This content was blocked by safety checks.",
+    "invalid_config": "Invalid content moderation configuration.",
+    "config_required": "A complete service configuration and at least one policy category are required when content moderation is enabled.",
+    "probe_failed": "Content moderation connection test failed.",
+    "event_not_found": "Content moderation event not found."
   }
 }

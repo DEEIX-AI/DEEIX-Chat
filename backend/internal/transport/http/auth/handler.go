@@ -533,8 +533,107 @@ func (h *Handler) StartProviderLogin(c *gin.Context) {
 	c.Redirect(http.StatusFound, target)
 }
 
+// StartProviderAuthBridge godoc
+// @Summary 创建第三方登录授权桥事务
+// @Description 为 Web、App 或桌面公共客户端创建 PKCE 保护的 OAuth 授权事务；外部身份源仅回调当前 DEEIX 实例
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param slug path string true "身份源 slug"
+// @Param body body ProviderAuthBridgeStartRequest true "授权桥参数"
+// @Success 200 {object} ProviderAuthBridgeStartResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Router /auth/providers/{slug}/authorize [post]
+func (h *Handler) StartProviderAuthBridge(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	var req ProviderAuthBridgeStartRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.InvalidRequestBody(c, err)
+		return
+	}
+	result, err := h.service.StartProviderAuthBridge(c.Request.Context(), c.Param("slug"), appauth.ProviderAuthBridgeStartInput{
+		ClientID:      req.ClientID,
+		RedirectURI:   req.RedirectURI,
+		CodeChallenge: req.CodeChallenge,
+		ClientState:   req.ClientState,
+		Intent:        req.Intent,
+		Next:          req.Next,
+	})
+	if err != nil {
+		response.ErrorFrom(c, http.StatusBadRequest, err)
+		return
+	}
+	response.Success(c, ProviderAuthBridgeStartResponse{
+		AuthorizationURL: result.AuthorizationURL,
+		ExpiresAt:        result.ExpiresAt,
+	})
+}
+
 func (h *Handler) ProviderCallback(c *gin.Context) {
-	response.Error(c, http.StatusBadRequest, "configure the provider callback URL to the frontend callback endpoint")
+	c.Header("Cache-Control", "no-store")
+	result, err := h.service.CompleteProviderAuthBridgeCallback(c.Request.Context(), c.Param("slug"), appauth.ProviderAuthBridgeCallbackInput{
+		Code:          c.Query("code"),
+		State:         c.Query("state"),
+		ProviderError: c.Query("error"),
+	})
+	if err != nil {
+		response.ErrorFrom(c, http.StatusBadRequest, err)
+		return
+	}
+	c.Redirect(http.StatusFound, result.RedirectURI)
+}
+
+// ExchangeProviderAuthBridgeGrant godoc
+// @Summary 兑换第三方登录一次性授权码
+// @Description 使用客户端 PKCE verifier 原子兑换服务端回调签发的一次性授权码，并进入统一 2FA/会话流程
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param slug path string true "身份源 slug"
+// @Param body body ProviderAuthBridgeExchangeRequest true "授权码兑换参数"
+// @Success 200 {object} LoginResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Router /auth/providers/{slug}/exchange [post]
+func (h *Handler) ExchangeProviderAuthBridgeGrant(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	var req ProviderAuthBridgeExchangeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.InvalidRequestBody(c, err)
+		return
+	}
+	result, err := h.service.ExchangeProviderAuthBridgeGrant(
+		c.Request.Context(),
+		c.Param("slug"),
+		appauth.ProviderAuthBridgeExchangeInput{
+			ClientID:     req.ClientID,
+			Grant:        req.Grant,
+			CodeVerifier: req.CodeVerifier,
+		},
+		middleware.MustRequestID(c),
+		middleware.ResolveSessionAuditContext(c),
+	)
+	if err != nil {
+		var emailConflictErr *appauth.ProviderEmailConflictError
+		if errors.As(err, &emailConflictErr) {
+			response.ErrorWithDetails(
+				c,
+				http.StatusConflict,
+				"auth.provider_email_conflict",
+				err.Error(),
+				gin.H{
+					"providerSlug": emailConflictErr.ProviderSlug,
+					"email":        emailConflictErr.Email,
+					"action":       emailConflictErr.Action,
+				},
+			)
+			return
+		}
+		response.ErrorFrom(c, http.StatusBadRequest, err)
+		return
+	}
+	h.writeRefreshTokenCookie(c, result)
+	response.Success(c, toLoginResponse(result))
 }
 
 func (h *Handler) CompleteProviderLogin(c *gin.Context) {

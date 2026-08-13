@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -8,7 +9,24 @@ import (
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
+
+type toolArtifactCaptureRepository struct {
+	repository.ConversationRepository
+	toolCalls []model.ToolCall
+	artifacts []model.ContextArtifact
+}
+
+func (r *toolArtifactCaptureRepository) CreateConversationToolCalls(_ context.Context, items []model.ToolCall) error {
+	r.toolCalls = append(r.toolCalls, items...)
+	return nil
+}
+
+func (r *toolArtifactCaptureRepository) CreateContextArtifacts(_ context.Context, items []model.ContextArtifact) error {
+	r.artifacts = append(r.artifacts, items...)
+	return nil
+}
 
 func TestBuildPromptContextArtifactsRecordsRAGFallbackAndRecall(t *testing.T) {
 	items := buildPromptContextArtifacts(promptContextArtifactInput{
@@ -76,6 +94,33 @@ func TestBuildPromptContextArtifactsRecordsRAGFallbackAndRecall(t *testing.T) {
 		if err := json.Unmarshal([]byte(item.MetadataJSON), &metadata); err != nil {
 			t.Fatalf("invalid metadata json: %v", err)
 		}
+	}
+}
+
+func TestPersistMessageToolCallsAnchorsEvidenceToAssistantMessage(t *testing.T) {
+	repo := &toolArtifactCaptureRepository{}
+	service := &Service{repo: repo}
+
+	err := service.persistMessageToolCalls(context.Background(), persistMessageToolCallsInput{
+		SendInput:          SendMessageInput{ConversationID: 7, UserID: 11},
+		AssistantMessageID: 22,
+		RunID:              "run_tool",
+		Rows: []model.ToolCall{{
+			ToolCallID: "call_1",
+			ToolType:   "mcp",
+			ToolName:   "lookup",
+			Status:     "completed",
+			OutputJSON: `{"result":"ok"}`,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("persistMessageToolCalls() error = %v", err)
+	}
+	if len(repo.toolCalls) != 1 || repo.toolCalls[0].MessageID != 22 {
+		t.Fatalf("expected tool call on assistant message, got %#v", repo.toolCalls)
+	}
+	if len(repo.artifacts) != 1 || repo.artifacts[0].MessageID != 22 {
+		t.Fatalf("expected tool evidence on assistant message, got %#v", repo.artifacts)
 	}
 }
 
@@ -298,59 +343,6 @@ func TestSelectHistoricalContextArtifactsSkipsSummaryWhenCurrentSnapshotExists(t
 	}
 	if items[0].Kind != model.ContextArtifactToolResult {
 		t.Fatalf("expected tool artifact to remain, got %#v", items[0])
-	}
-}
-
-func TestSelectHistoricalContextArtifactsRespectsSnapshotScope(t *testing.T) {
-	items := selectHistoricalContextArtifacts(historicalContextArtifactInput{
-		CurrentMessageID:   9,
-		HasCurrentSnapshot: true,
-		CoveredUntilID:     4,
-		AllowedMessageIDs: map[uint]struct{}{
-			6: {},
-		},
-		Query: "继续部署测试",
-		Candidates: []model.ContextArtifact{
-			{
-				MessageID:     3,
-				Kind:          model.ContextArtifactToolResult,
-				SourceTitle:   "covered",
-				Content:       "已被摘要覆盖的部署测试结果",
-				TokenEstimate: 10,
-				Score:         1,
-			},
-			{
-				MessageID:     6,
-				Kind:          model.ContextArtifactToolResult,
-				SourceTitle:   "retained",
-				Content:       "保留窗口内的部署测试结果",
-				TokenEstimate: 10,
-				Score:         1,
-			},
-			{
-				MessageID:     8,
-				Kind:          model.ContextArtifactToolResult,
-				SourceTitle:   "sibling",
-				Content:       "其他分支的部署测试结果",
-				TokenEstimate: 10,
-				Score:         1,
-			},
-			{
-				MessageID:     0,
-				Kind:          model.ContextArtifactToolResult,
-				SourceTitle:   "unanchored",
-				Content:       "没有消息锚点的部署测试结果",
-				TokenEstimate: 10,
-				Score:         1,
-			},
-		},
-	})
-
-	if len(items) != 1 {
-		t.Fatalf("expected one retained-scope artifact, got %#v", items)
-	}
-	if items[0].SourceTitle != "retained" {
-		t.Fatalf("expected retained artifact, got %#v", items[0])
 	}
 }
 

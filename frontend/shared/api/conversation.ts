@@ -4,51 +4,51 @@ import type {
   MessageTraceEventResponse,
 } from "@deeix/api-contract";
 import { authedFetch, authedRequest } from "@/shared/api/authed-client";
-import { apiRequest, ApiError, pathParam } from "@/shared/api/http-client";
 import type { PagePayload } from "@/shared/api/common.types";
 import type {
-  ConversationDTO,
+  BatchSetConversationProjectRequest,
+  BatchSetConversationProjectResult,
+  ContextArtifactDTO,
   ConversationDefaultModelCandidateDTO,
+  ConversationDTO,
   ConversationExportDTO,
+  ConversationPreviewMessageDTO,
   ConversationProjectDTO,
   ConversationProjectFilter,
   ConversationProjectStatusFilter,
-  ConversationPreviewMessageDTO,
+  ConversationRunDTO,
   ConversationSearchPageDTO,
   ConversationShareDTO,
-  ConversationRunDTO,
   ConversationShareFilter,
   ConversationStarredFilter,
   ConversationStatusFilter,
-  ContextArtifactDTO,
   CreateConversationProjectRequest,
   CreateConversationRequest,
   CreateConversationShareRequest,
-  BatchSetConversationProjectRequest,
-  BatchSetConversationProjectResult,
   DeleteConversationData,
+  MediaImageRequest,
+  MediaVideoRequest,
   MessageDTO,
   MessageFeedbackResult,
   MessageProcessTraceDTO,
   PublicSharedConversationDTO,
   RenameConversationRequest,
+  ReorderConversationProjectsRequest,
   RevokeConversationSharesRequest,
   RevokeConversationSharesResult,
-  ReorderConversationProjectsRequest,
   SendMessageRequest,
-  MediaImageRequest,
-  MediaVideoRequest,
   SendMessageResult,
   SetConversationArchiveRequest,
   SetConversationProjectRequest,
   SetConversationStarRequest,
   SetMessageFeedbackRequest,
-  UpdateMessageRequest,
-  UpdateConversationLabelsRequest,
-  UpdateConversationProjectRequest,
   StreamMessageEvent,
   TraceBlockDTO,
+  UpdateConversationLabelsRequest,
+  UpdateConversationProjectRequest,
+  UpdateMessageRequest,
 } from "@/shared/api/conversation.types";
+import { ApiError, apiRequest, pathParam } from "@/shared/api/http-client";
 
 type RawTraceBlock = MessageTraceBlockResponse;
 
@@ -273,6 +273,17 @@ function handleStreamEvent(event: StreamMessageEvent, options: ConversationStrea
 
   if (event.type === "media_image_delta") {
     options.onMediaImageDelta?.(event);
+    return null;
+  }
+
+  if (event.type === "moderation_checking") {
+    options.onModerationChecking?.(event);
+    return null;
+  }
+
+  if (event.type === "moderation_blocked") {
+    options.onModerationBlocked?.(event);
+    // Terminal event for blocked rounds; synthetic result is optional.
     return null;
   }
 
@@ -903,7 +914,20 @@ export async function resumeMessageGenerationStream(
     return null;
   }
 
-  return readConversationStream(response, options);
+  const { moderationBlocked } = await readConversationStream(response, options);
+  if (moderationBlocked) {
+    throw new ApiError(
+      "content blocked by moderation",
+      response.status,
+      {
+        eventID: moderationBlocked.eventID,
+        direction: moderationBlocked.direction,
+        categories: moderationBlocked.categories,
+      },
+      "content_moderation.blocked",
+    );
+  }
+  return null;
 }
 
 export async function setMessageFeedback(
@@ -959,20 +983,38 @@ export type ConversationStreamOptions = {
   onUpstreamThinkDelta?: (event: Extract<StreamMessageEvent, { type: "upstream_think_delta" }>) => void;
   onUsage?: (event: Extract<StreamMessageEvent, { type: "usage" }>) => void;
   onInterrupted?: (event: Extract<StreamMessageEvent, { type: "error" }>) => void;
+  onModerationChecking?: (event: Extract<StreamMessageEvent, { type: "moderation_checking" }>) => void;
+  onModerationBlocked?: (event: Extract<StreamMessageEvent, { type: "moderation_blocked" }>) => void;
+};
+
+type StreamReadResult = {
+  completed: SendMessageResult | null;
+  moderationBlocked: Extract<StreamMessageEvent, { type: "moderation_blocked" }> | null;
 };
 
 async function readConversationStream(
   response: Response,
   options: ConversationStreamOptions,
-): Promise<SendMessageResult | null> {
+): Promise<StreamReadResult> {
   if (!response.body) {
-    return null;
+    return { completed: null, moderationBlocked: null };
   }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let completed: SendMessageResult | null = null;
+  let moderationBlocked: Extract<StreamMessageEvent, { type: "moderation_blocked" }> | null = null;
+
+  const consumeEvent = (event: StreamMessageEvent) => {
+    if (event.type === "moderation_blocked") {
+      moderationBlocked = event;
+    }
+    const nextCompleted = handleStreamEvent(event, options, response.status);
+    if (nextCompleted) {
+      completed = nextCompleted;
+    }
+  };
 
   while (true) {
     let readResult: ReadableStreamReadResult<Uint8Array>;
@@ -992,11 +1034,7 @@ async function readConversationStream(
     buffer = remainder;
 
     for (const document of documents) {
-      const event = normalizeStreamEvent(JSON.parse(document));
-      const nextCompleted = handleStreamEvent(event, options, response.status);
-      if (nextCompleted) {
-        completed = nextCompleted;
-      }
+      consumeEvent(normalizeStreamEvent(JSON.parse(document)));
     }
 
     if (done) {
@@ -1006,14 +1044,10 @@ async function readConversationStream(
 
   const tail = buffer.trim();
   if (tail) {
-    const event = normalizeStreamEvent(JSON.parse(tail));
-    const nextCompleted = handleStreamEvent(event, options, response.status);
-    if (nextCompleted) {
-      completed = nextCompleted;
-    }
+    consumeEvent(normalizeStreamEvent(JSON.parse(tail)));
   }
 
-  return completed;
+  return { completed, moderationBlocked };
 }
 
 async function postConversationStream<TPayload>(
@@ -1041,11 +1075,23 @@ async function postConversationStream<TPayload>(
     throw new ApiError("stream body is empty", response.status);
   }
 
-  const completed = await readConversationStream(response, options);
-  if (!completed) {
-    throw new ApiError("stream completed without final payload", response.status);
+  const { completed, moderationBlocked } = await readConversationStream(response, options);
+  if (moderationBlocked) {
+    throw new ApiError(
+      "content blocked by moderation",
+      response.status,
+      {
+        eventID: moderationBlocked.eventID,
+        direction: moderationBlocked.direction,
+        categories: moderationBlocked.categories,
+      },
+      "content_moderation.blocked",
+    );
   }
-  return completed;
+  if (completed) {
+    return completed;
+  }
+  throw new ApiError("stream completed without final payload", response.status);
 }
 
 export async function streamMessage(

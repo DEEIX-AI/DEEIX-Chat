@@ -11,31 +11,67 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 	"github.com/google/uuid"
 )
 
-func TestHTTPClientForRouteReusesClientByConnectTimeout(t *testing.T) {
-	client := NewClient()
+func TestTrustedRouteRedirectPreservesSafeLegacyBehavior(t *testing.T) {
+	strictPolicy := security.NewStrictOutboundPolicy(true)
+	trustedPolicy, err := strictPolicy.WithTrustedHTTPURLs("http://model.internal:8080/v1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	managed, err := newRouteHTTPClient(trustedPolicy, strictPolicy, "http://model.internal:8080", "10000")
+	if err != nil {
+		t.Fatalf("route client: %v", err)
+	}
+	httpClient := managed.Client
+	original, err := http.NewRequest(http.MethodPost, "http://model.internal:8080/v1/chat/completions", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sameOrigin, err := http.NewRequest(http.MethodGet, "http://model.internal:8080/redirected", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = httpClient.CheckRedirect(sameOrigin, []*http.Request{original}); err != nil {
+		t.Fatalf("same-origin redirect rejected: %v", err)
+	}
+	publicCrossOrigin, err := http.NewRequest(http.MethodGet, "https://provider-cdn.example/redirected", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = httpClient.CheckRedirect(publicCrossOrigin, []*http.Request{original}); err != nil {
+		t.Fatalf("safe public redirect rejected: %v", err)
+	}
+	privateCrossOrigin, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:8080/redirected", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = httpClient.CheckRedirect(privateCrossOrigin, []*http.Request{original}); err == nil {
+		t.Fatal("expected non-allowlisted private redirect rejection")
+	}
+}
 
-	defaultClient := client.httpClientForRoute(RouteConfig{})
-	explicitDefaultClient := client.httpClientForRoute(RouteConfig{ConnectTimeoutMS: defaultConnectTimeoutMS})
-	customClient := client.httpClientForRoute(RouteConfig{ConnectTimeoutMS: 2500})
-	customClientAgain := client.httpClientForRoute(RouteConfig{ConnectTimeoutMS: 2500})
-
-	if defaultClient == nil {
-		t.Fatal("expected default route client")
+func TestTrustedRouteRedirectAllowsGlobalPrivateAllowlist(t *testing.T) {
+	redirectPolicy, err := security.NewOutboundPolicy(true, []string{"other.internal"}, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if defaultClient != explicitDefaultClient {
-		t.Fatal("expected default and explicit default connect timeout to reuse the same client")
+	trustedPolicy, err := redirectPolicy.WithTrustedHTTPURLs("http://model.internal:8080/v1")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if customClient == nil {
-		t.Fatal("expected custom route client")
+	managed, err := newRouteHTTPClient(trustedPolicy, redirectPolicy, "http://model.internal:8080", "10000")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if customClient != customClientAgain {
-		t.Fatal("expected identical custom connect timeout to reuse the same client")
+	redirect, err := http.NewRequest(http.MethodGet, "http://other.internal:8080/redirected", nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if defaultClient == customClient {
-		t.Fatal("expected different connect timeouts to use separate clients")
+	if err = managed.Client.CheckRedirect(redirect, nil); err != nil {
+		t.Fatalf("allowlisted private redirect rejected: %v", err)
 	}
 }
 
@@ -72,7 +108,7 @@ func TestListModelsFallsBackToOpenAICompatibleModels(t *testing.T) {
 	}))
 	defer server.Close()
 
-	items, err := NewClient().ListModels(context.Background(), RouteConfig{
+	items, err := NewClient(security.NewStrictOutboundPolicy(true)).ListModels(context.Background(), RouteConfig{
 		Protocol: AdapterAnthropicMessages,
 		BaseURL:  server.URL,
 		APIKey:   "test-key",
@@ -138,7 +174,7 @@ func TestListModelsFallsBackToOpenAICompatibleModelsForGemini(t *testing.T) {
 	}))
 	defer server.Close()
 
-	items, err := NewClient().ListModels(context.Background(), RouteConfig{
+	items, err := newTestClient().ListModels(context.Background(), RouteConfig{
 		Protocol: AdapterGoogleGenerateContent,
 		BaseURL:  server.URL,
 		APIKey:   "test-key",
@@ -322,7 +358,7 @@ func TestSetAdditionalHeadersOmitsDynamicTemplatesWithoutContext(t *testing.T) {
 }
 
 func TestProviderRequestBuildersExpandConversationIdentityHeaders(t *testing.T) {
-	client := NewClient()
+	client := newTestClient()
 	input := &GenerateInput{
 		ConversationPublicID:   "conversation-1",
 		ConversationSessionKey: "session-1",
@@ -368,7 +404,7 @@ func TestOpenAIGenerationExpandsConversationIdentityHeader(t *testing.T) {
 	}))
 	defer server.Close()
 
-	output, err := NewClient().Generate(t.Context(), RouteConfig{
+	output, err := newTestClient().Generate(t.Context(), RouteConfig{
 		Protocol:      AdapterOpenAIChatCompletions,
 		BaseURL:       server.URL,
 		UpstreamModel: "test-model",
@@ -411,7 +447,7 @@ func TestOpenAIChatCompletionsStreamRetriesWhenAutoUsageOptionIsRejected(t *test
 	}))
 	defer server.Close()
 
-	output, err := NewClient().GenerateStream(context.Background(), RouteConfig{
+	output, err := newTestClient().GenerateStream(context.Background(), RouteConfig{
 		Protocol:      AdapterOpenAIChatCompletions,
 		BaseURL:       server.URL,
 		UpstreamModel: "gpt-compatible",
@@ -437,7 +473,7 @@ func TestGenerateMarksSuccessfulHTTPParseFailureAsAccepted(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := NewClient().Generate(t.Context(), RouteConfig{
+	_, err := newTestClient().Generate(t.Context(), RouteConfig{
 		Protocol:      AdapterOpenAIChatCompletions,
 		BaseURL:       server.URL,
 		UpstreamModel: "test-model",
@@ -463,7 +499,7 @@ func TestGenerateMarksConnectionDropAfterRequestWriteAsAccepted(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := NewClient().Generate(t.Context(), RouteConfig{
+	_, err := newTestClient().Generate(t.Context(), RouteConfig{
 		Protocol:      AdapterOpenAIChatCompletions,
 		BaseURL:       server.URL,
 		UpstreamModel: "test-model",
@@ -481,7 +517,7 @@ func TestGenerateStreamMarksSuccessfulHTTPStreamFailureAsAccepted(t *testing.T) 
 	}))
 	defer server.Close()
 
-	_, err := NewClient().GenerateStream(t.Context(), RouteConfig{
+	_, err := newTestClient().GenerateStream(t.Context(), RouteConfig{
 		Protocol:      AdapterOpenAIChatCompletions,
 		BaseURL:       server.URL,
 		UpstreamModel: "test-model",
@@ -500,7 +536,7 @@ func TestGenerateStreamPreservesBackgroundResponseIDBeforeAcceptedFailure(t *tes
 	defer server.Close()
 
 	responseID := ""
-	_, err := NewClient().GenerateStream(t.Context(), RouteConfig{
+	_, err := newTestClient().GenerateStream(t.Context(), RouteConfig{
 		Protocol:      AdapterOpenAIResponses,
 		BaseURL:       server.URL,
 		UpstreamModel: "test-model",
@@ -536,7 +572,7 @@ func TestDoGenerationRequestMarksPostWriteFailureAsAccepted(t *testing.T) {
 		t.Fatalf("new request: %v", err)
 	}
 
-	_, err = doGenerationRequest(client, req)
+	_, err = doGenerationRequest(client.Do, req)
 	if !errors.Is(err, errAfterWrite) || !RequestWasAccepted(err) {
 		t.Fatalf("expected ambiguous post-write failure, got %v", err)
 	}
@@ -552,7 +588,7 @@ func TestDoGenerationRequestKeepsPreWriteFailureRetryable(t *testing.T) {
 		t.Fatalf("new request: %v", err)
 	}
 
-	_, err = doGenerationRequest(client, req)
+	_, err = doGenerationRequest(client.Do, req)
 	if !errors.Is(err, errBeforeWrite) || RequestWasAccepted(err) {
 		t.Fatalf("expected retryable pre-write failure, got %v", err)
 	}

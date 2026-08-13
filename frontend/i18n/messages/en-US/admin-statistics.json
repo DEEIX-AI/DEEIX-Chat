@@ -58,5 +58,19 @@
     "referenceLoadFailed": "Could not load dashboard filters",
     "sessionExpired": "Session expired",
     "signInAgain": "Sign in again and retry."
+  },
+  "moderation": {
+    "title": "Content moderation",
+    "trendTitle": "Moderation trend",
+    "empty": "No moderation aggregates in the last 90 days.",
+    "loadFailed": "Could not load moderation statistics",
+    "avgLatencyLabel": "Average moderation latency",
+    "metrics": {
+      "checks": "Checks",
+      "hits": "Hits",
+      "failures": "Failure-open",
+      "hitRate": "Hit rate",
+      "latency": "Avg latency"
+    }
   }
 }

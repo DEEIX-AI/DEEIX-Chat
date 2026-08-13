@@ -89,6 +89,9 @@ func TestCanceledGenerationEstimatesVisibleReasoningUsage(t *testing.T) {
 		Error:                  ErrMessageGenerationCanceled,
 		StartedAt:              time.Now(),
 	}
+	if !shouldPersistInterruptedMessageGeneration(input) {
+		t.Fatal("reasoning-only visible output must be retained for moderation")
+	}
 
 	metrics := resolveInterruptedMessageGenerationMetrics(input)
 	if metrics.OutputTokens != 0 || metrics.ReasoningTokens != estimateTokens(reasoningText) {
@@ -179,5 +182,13 @@ func TestInterruptedGenerationRetainsReasoningContent(t *testing.T) {
 
 	if assistant.ReasoningContent != "中断前已产出的思考内容" {
 		t.Fatalf("expected trimmed reasoning to be retained, got %q", assistant.ReasoningContent)
+	}
+}
+
+func TestModerationOutputTextIncludesVisibleReasoningWithoutDuplicates(t *testing.T) {
+	got := moderationOutputText("assistant answer", "visible reasoning", "visible reasoning")
+	want := "assistant answer\n\nvisible reasoning"
+	if got != want {
+		t.Fatalf("moderation output=%q, want %q", got, want)
 	}
 }

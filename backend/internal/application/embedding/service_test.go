@@ -7,6 +7,7 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	infraembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
 func TestShouldTriggerIncludesOCRImages(t *testing.T) {
@@ -138,7 +139,7 @@ func TestIndexingAvailableDoesNotRequireRAGEnabled(t *testing.T) {
 		EmbeddingEnabled: true,
 		RAGModel:         "text-embedding-test",
 		EmbeddingHost:    "http://127.0.0.1:8081",
-	}, repo, nil, infraembedding.New(), nil)
+	}, repo, nil, infraembedding.New(security.OutboundPolicy{}), nil)
 
 	available, reason := service.IndexingAvailable(context.Background())
 	if !available {
@@ -153,7 +154,7 @@ func TestReindexStaleFilesDoesNotRequireRAGEnabled(t *testing.T) {
 		EmbeddingEnabled: true,
 		RAGModel:         "text-embedding-test",
 		EmbeddingHost:    "http://127.0.0.1:8081",
-	}, repo, nil, infraembedding.New(), nil)
+	}, repo, nil, infraembedding.New(security.OutboundPolicy{}), nil)
 
 	submitted, err := service.ReindexStaleFiles(context.Background())
 	if err != nil {
@@ -210,7 +211,7 @@ func TestReindexStaleFilesSkipsUnsupportedCandidates(t *testing.T) {
 		EmbeddingEnabled: true,
 		RAGModel:         "text-embedding-test",
 		EmbeddingHost:    "http://127.0.0.1:8081",
-	}, repo, nil, infraembedding.New(), nil)
+	}, repo, nil, infraembedding.New(security.OutboundPolicy{}), nil)
 
 	submitted, err := service.ReindexStaleFiles(context.Background())
 	if err != nil {
@@ -239,7 +240,7 @@ func TestReindexStaleFilesAdvancesCursorForUnsupportedCandidates(t *testing.T) {
 		EmbeddingEnabled: true,
 		RAGModel:         "text-embedding-test",
 		EmbeddingHost:    "http://127.0.0.1:8081",
-	}, repo, nil, infraembedding.New(), nil)
+	}, repo, nil, infraembedding.New(security.OutboundPolicy{}), nil)
 
 	submitted, err := service.ReindexStaleFiles(context.Background())
 	if err != nil {
@@ -260,7 +261,7 @@ func TestProcessFileDoesNotRequireRAGEnabled(t *testing.T) {
 		EmbeddingEnabled: true,
 		RAGModel:         "text-embedding-test",
 		EmbeddingHost:    "http://127.0.0.1:8081",
-	}, repo, nil, infraembedding.New(), nil)
+	}, repo, nil, infraembedding.New(security.OutboundPolicy{}), nil)
 
 	_ = service.ProcessFile(context.Background(), domainconversation.FileObject{
 		ID:          1,
@@ -285,7 +286,7 @@ func TestProcessFileIncludesOCRImages(t *testing.T) {
 		RAGModel:               "text-embedding-test",
 		EmbeddingHost:          "http://127.0.0.1:8081",
 		ExtractImageOCREnabled: true,
-	}, repo, nil, infraembedding.New(), nil)
+	}, repo, nil, infraembedding.New(security.OutboundPolicy{}), nil)
 
 	_ = service.ProcessFile(context.Background(), domainconversation.FileObject{
 		ID:           1,
@@ -310,7 +311,7 @@ func TestProcessFileSkipsVideos(t *testing.T) {
 		EmbeddingEnabled: true,
 		RAGModel:         "text-embedding-test",
 		EmbeddingHost:    "http://127.0.0.1:8081",
-	}, repo, nil, infraembedding.New(), nil)
+	}, repo, nil, infraembedding.New(security.OutboundPolicy{}), nil)
 
 	_ = service.ProcessFile(context.Background(), domainconversation.FileObject{
 		ID:           1,

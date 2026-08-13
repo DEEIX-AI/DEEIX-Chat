@@ -540,7 +540,7 @@ func TestGeminiImageGenerationStream(t *testing.T) {
 	defer server.Close()
 
 	var usageEvents []Usage
-	output, err := NewClient().GenerateStream(context.Background(), RouteConfig{
+	output, err := newTestClient().GenerateStream(context.Background(), RouteConfig{
 		Protocol:      AdapterGoogleImageGeneration,
 		BaseURL:       server.URL,
 		APIKey:        "gemini-key",

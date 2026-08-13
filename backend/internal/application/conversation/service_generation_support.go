@@ -12,6 +12,7 @@ import (
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -86,15 +87,20 @@ func reasoningPayload(delta *llm.ReasoningDelta) map[string]interface{} {
 }
 
 // recallSemanticContext 语义召回历史消息；无结果时返回空列表。
-func (s *Service) recallSemanticContext(ctx context.Context, conversationID uint, userID uint, query string) []model.MessageChunk {
-	if s.embeddingSvc == nil || strings.TrimSpace(query) == "" {
+func (s *Service) recallSemanticContext(ctx context.Context, scope repository.HistoricalMessageScope, query string) []model.MessageChunk {
+	if s.embeddingSvc == nil || !scope.Valid() || strings.TrimSpace(query) == "" {
 		return nil
 	}
 	embeddings, err := s.embeddingSvc.EmbedTexts(ctx, []string{query})
 	if err != nil || len(embeddings) == 0 {
 		return nil
 	}
-	chunks, err := s.repo.SearchMessageChunks(ctx, conversationID, userID, embeddings[0], 5, 0.75)
+	chunks, err := s.repo.SearchMessageChunks(ctx, repository.MessageChunkSearchInput{
+		Scope:          scope,
+		QueryEmbedding: embeddings[0],
+		TopK:           5,
+		MinSimilarity:  0.75,
+	})
 	if err != nil || len(chunks) == 0 {
 		return nil
 	}

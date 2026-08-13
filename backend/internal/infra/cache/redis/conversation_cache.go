@@ -438,6 +438,19 @@ func (c *conversationCache) ReadGenerationStreamEvents(ctx context.Context, runI
 	return results, nil
 }
 
+// ResetGenerationStreamEvents 清空恢复流事件，阻止撤回内容在重连时被回放。
+func (c *conversationCache) ResetGenerationStreamEvents(ctx context.Context, runID string) error {
+	if c.client == nil {
+		return nil
+	}
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return nil
+	}
+	// Keep seq key so subsequent appends stay monotonic for reconnect cursors.
+	return c.client.Del(ctx, generationStreamEventsKey(runID)).Err()
+}
+
 // ExpireGenerationStream 设置生成流相关键的过期时间。
 func (c *conversationCache) ExpireGenerationStream(ctx context.Context, runID string, ttl time.Duration) error {
 	if c.client == nil || ttl <= 0 {

@@ -1,0 +1,459 @@
+package auth
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/requestmeta"
+	"go.uber.org/zap"
+)
+
+const (
+	ProviderAuthBridgeProtocolVersion = 1
+	ProviderAuthWebClientID           = "deeix-web"
+	ProviderAuthNativeClientID        = "com.deeix.chat.native"
+	ProviderAuthDesktopClientID       = "com.deeix.chat.desktop"
+
+	providerAuthBridgeAudience = "provider_auth_bridge_v1"
+	providerAuthTransactionTTL = 10 * time.Minute
+	providerAuthGrantTTL       = 90 * time.Second
+	providerAuthNativeRedirect = "com.deeix.chat:/oauth/callback"
+)
+
+type providerAuthBridgeState struct {
+	Audience      string `json:"audience"`
+	Provider      string `json:"provider"`
+	TransactionID string `json:"transactionID"`
+	ExpiresAt     int64  `json:"expiresAt"`
+}
+
+type ProviderAuthBridgeStartInput struct {
+	ClientID      string
+	RedirectURI   string
+	CodeChallenge string
+	ClientState   string
+	Intent        string
+	Next          string
+}
+
+type ProviderAuthBridgeStartResult struct {
+	AuthorizationURL string
+	ExpiresAt        time.Time
+}
+
+type ProviderAuthBridgeCallbackInput struct {
+	Code          string
+	State         string
+	ProviderError string
+}
+
+type ProviderAuthBridgeCallbackResult struct {
+	RedirectURI string
+}
+
+type ProviderAuthBridgeExchangeInput struct {
+	ClientID     string
+	Grant        string
+	CodeVerifier string
+}
+
+func (s *Service) GetProviderAuthBridgeOptions() ProviderAuthBridgeOptions {
+	baseURL, err := s.providerAuthBridgeCallbackBaseURL()
+	enabled := s != nil && s.providerAuthBridge != nil && err == nil
+	if !enabled {
+		baseURL = ""
+	}
+	return ProviderAuthBridgeOptions{
+		Enabled:         enabled,
+		ProtocolVersion: ProviderAuthBridgeProtocolVersion,
+		CallbackBaseURL: baseURL,
+	}
+}
+
+func (s *Service) StartProviderAuthBridge(
+	ctx context.Context,
+	slug string,
+	input ProviderAuthBridgeStartInput,
+) (*ProviderAuthBridgeStartResult, error) {
+	if s == nil || s.providerAuthBridge == nil {
+		return nil, fmt.Errorf("provider auth bridge is not configured")
+	}
+	if !s.cfg.Snapshot().ThirdPartyLoginEnabled {
+		return nil, fmt.Errorf("third-party login is disabled")
+	}
+	if err := s.validateProviderAuthClientRedirect(slug, input.ClientID, input.RedirectURI); err != nil {
+		return nil, err
+	}
+	if err := validateProviderCodeChallenge(input.CodeChallenge); err != nil {
+		return nil, err
+	}
+	if err := validateProviderClientState(input.ClientState); err != nil {
+		return nil, err
+	}
+	provider, err := s.repo.GetIdentityProviderBySlug(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+	normalizedIntent := normalizeProviderIntent(input.Intent)
+	if normalizedIntent == providerIntentBind {
+		return nil, fmt.Errorf("provider binding must use the authenticated binding flow")
+	}
+	if err = validateProviderLoginIntent(*provider, normalizedIntent); err != nil {
+		return nil, err
+	}
+	authURL, _, _, err := s.resolveProviderEndpoints(ctx, *provider)
+	if err != nil {
+		return nil, err
+	}
+	callbackURL, err := s.providerAuthBridgeCallbackURL(slug)
+	if err != nil {
+		return nil, err
+	}
+	providerVerifier, err := randomProviderAuthToken(48)
+	if err != nil {
+		return nil, err
+	}
+	transactionID, err := randomProviderAuthToken(32)
+	if err != nil {
+		return nil, err
+	}
+	expiresAt := time.Now().Add(providerAuthTransactionTTL)
+	transaction := repository.ProviderAuthTransaction{
+		ProviderSlug:         slug,
+		ClientID:             strings.TrimSpace(input.ClientID),
+		ClientRedirectURI:    strings.TrimSpace(input.RedirectURI),
+		ClientState:          strings.TrimSpace(input.ClientState),
+		ClientCodeChallenge:  strings.TrimSpace(input.CodeChallenge),
+		ProviderCodeVerifier: providerVerifier,
+		Intent:               normalizedIntent,
+		Next:                 normalizeProviderNextPath(input.Next),
+		ExpiresAt:            expiresAt,
+	}
+	if err = s.providerAuthBridge.PutProviderAuthTransaction(ctx, transactionID, transaction, providerAuthTransactionTTL); err != nil {
+		return nil, err
+	}
+	state, err := s.signProviderAuthBridgeState(providerAuthBridgeState{
+		Audience:      providerAuthBridgeAudience,
+		Provider:      slug,
+		TransactionID: transactionID,
+		ExpiresAt:     expiresAt.Unix(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	target, err := buildProviderAuthURL(*provider, authURL, callbackURL, state, providerCodeChallenge(providerVerifier))
+	if err != nil {
+		return nil, err
+	}
+	return &ProviderAuthBridgeStartResult{AuthorizationURL: target, ExpiresAt: expiresAt}, nil
+}
+
+func (s *Service) CompleteProviderAuthBridgeCallback(
+	ctx context.Context,
+	slug string,
+	input ProviderAuthBridgeCallbackInput,
+) (*ProviderAuthBridgeCallbackResult, error) {
+	if s == nil || s.providerAuthBridge == nil {
+		return nil, fmt.Errorf("provider auth bridge is not configured")
+	}
+	state, err := s.verifyProviderAuthBridgeState(slug, input.State)
+	if err != nil {
+		return nil, err
+	}
+	transaction, err := s.providerAuthBridge.ConsumeProviderAuthTransaction(ctx, state.TransactionID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, fmt.Errorf("provider authorization transaction expired or already used")
+		}
+		return nil, err
+	}
+	if transaction.ProviderSlug != slug || time.Now().After(transaction.ExpiresAt) {
+		return nil, fmt.Errorf("provider authorization transaction mismatch")
+	}
+
+	grant := repository.ProviderAuthGrant{
+		ProviderSlug: slug,
+		ClientID:     transaction.ClientID,
+		ExpiresAt:    time.Now().Add(providerAuthGrantTTL),
+	}
+	if strings.TrimSpace(input.ProviderError) != "" {
+		grant.ErrorCode = "auth.provider_authorization_denied"
+		grant.ErrorMessage = "provider authorization was denied"
+	} else if strings.TrimSpace(input.Code) == "" {
+		grant.ErrorCode = "auth.provider_callback_invalid"
+		grant.ErrorMessage = "provider callback did not include an authorization code"
+	} else {
+		provider, providerErr := s.repo.GetIdentityProviderBySlug(ctx, slug)
+		if providerErr == nil {
+			providerErr = validateProviderLoginIntent(*provider, transaction.Intent)
+		}
+		var userItem *domainuser.User
+		var subject string
+		if providerErr == nil {
+			callbackURL, callbackErr := s.providerAuthBridgeCallbackURL(slug)
+			if callbackErr != nil {
+				providerErr = callbackErr
+			} else {
+				userItem, subject, providerErr = s.resolveProviderLoginCode(
+					ctx,
+					*provider,
+					strings.TrimSpace(input.Code),
+					callbackURL,
+					transaction.ProviderCodeVerifier,
+					transaction.Intent,
+				)
+			}
+		}
+		if providerErr != nil {
+			s.populateProviderAuthGrantError(&grant, providerErr)
+		} else {
+			grant.UserID = userItem.ID
+			grant.Subject = subject
+		}
+	}
+
+	rawGrant, err := randomProviderAuthToken(32)
+	if err != nil {
+		return nil, err
+	}
+	grantKey := providerAuthGrantKey(rawGrant, transaction.ClientCodeChallenge)
+	if err = s.providerAuthBridge.PutProviderAuthGrant(ctx, grantKey, grant, providerAuthGrantTTL); err != nil {
+		return nil, err
+	}
+	redirectURI, err := buildProviderAuthClientRedirect(*transaction, rawGrant)
+	if err != nil {
+		return nil, err
+	}
+	return &ProviderAuthBridgeCallbackResult{RedirectURI: redirectURI}, nil
+}
+
+func (s *Service) ExchangeProviderAuthBridgeGrant(
+	ctx context.Context,
+	slug string,
+	input ProviderAuthBridgeExchangeInput,
+	requestID string,
+	auditCtx requestmeta.SessionAuditContext,
+) (*LoginResult, error) {
+	if s == nil || s.providerAuthBridge == nil {
+		return nil, fmt.Errorf("provider auth bridge is not configured")
+	}
+	trimmedVerifier := strings.TrimSpace(input.CodeVerifier)
+	if !providerPKCEPattern.MatchString(trimmedVerifier) {
+		return nil, fmt.Errorf("valid pkce code verifier is required")
+	}
+	trimmedGrant := strings.TrimSpace(input.Grant)
+	if !providerPKCEPattern.MatchString(trimmedGrant) {
+		return nil, fmt.Errorf("valid provider authorization grant is required")
+	}
+	challenge := providerCodeChallenge(trimmedVerifier)
+	grant, err := s.providerAuthBridge.ConsumeProviderAuthGrant(ctx, providerAuthGrantKey(trimmedGrant, challenge))
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, fmt.Errorf("provider authorization grant expired, invalid, or already used")
+		}
+		return nil, err
+	}
+	if grant.ProviderSlug != slug || grant.ClientID != strings.TrimSpace(input.ClientID) || time.Now().After(grant.ExpiresAt) {
+		return nil, fmt.Errorf("provider authorization grant mismatch")
+	}
+	if grant.ErrorCode != "" {
+		return nil, providerAuthGrantError(*grant)
+	}
+	userItem, err := s.repo.GetByID(ctx, grant.UserID)
+	if err != nil {
+		return nil, err
+	}
+	return s.completeProviderLoginForUser(ctx, userItem, grant.ProviderSlug, grant.Subject, requestID, auditCtx)
+}
+
+func validateProviderLoginIntent(provider domainuser.IdentityProvider, intent string) error {
+	if intent == providerIntentLogin && !provider.LoginEnabled {
+		return fmt.Errorf("provider login is disabled")
+	}
+	if intent == providerIntentRegister && (!provider.LoginEnabled || !provider.RegistrationEnabled) {
+		return fmt.Errorf("provider registration is disabled")
+	}
+	return nil
+}
+
+func validateProviderClientState(value string) error {
+	if !providerPKCEPattern.MatchString(strings.TrimSpace(value)) {
+		return fmt.Errorf("valid client state is required")
+	}
+	return nil
+}
+
+func (s *Service) validateProviderAuthClientRedirect(slug string, clientID string, redirectURI string) error {
+	trimmedClientID := strings.TrimSpace(clientID)
+	trimmedRedirectURI := strings.TrimSpace(redirectURI)
+	switch trimmedClientID {
+	case ProviderAuthWebClientID:
+		return s.validateProviderRedirectURI(slug, trimmedRedirectURI)
+	case ProviderAuthNativeClientID:
+		if trimmedRedirectURI != providerAuthNativeRedirect {
+			return fmt.Errorf("invalid native redirect uri")
+		}
+		return nil
+	case ProviderAuthDesktopClientID:
+		parsed, err := url.Parse(trimmedRedirectURI)
+		if err != nil || parsed.Scheme != "http" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+			return fmt.Errorf("invalid desktop redirect uri")
+		}
+		if !isLoopbackHost(parsed.Hostname()) || parsed.Port() == "" || parsed.Path != "/oauth/callback" {
+			return fmt.Errorf("invalid desktop redirect uri")
+		}
+		if port, portErr := strconv.Atoi(parsed.Port()); portErr != nil || port < 1 || port > 65535 {
+			return fmt.Errorf("invalid desktop redirect uri")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported provider auth client")
+	}
+}
+
+func (s *Service) providerAuthBridgeCallbackBaseURL() (string, error) {
+	if s == nil || s.cfg == nil {
+		return "", fmt.Errorf("provider auth bridge callback url is not configured")
+	}
+	raw := strings.TrimRight(strings.TrimSpace(s.cfg.Snapshot().PublicAPIBaseURL), "/")
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed == nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return "", fmt.Errorf("provider auth bridge requires PUBLIC_API_BASE_URL")
+	}
+	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", fmt.Errorf("provider auth bridge requires a clean PUBLIC_API_BASE_URL")
+	}
+	return raw + "/api/v1/auth/providers", nil
+}
+
+func (s *Service) providerAuthBridgeCallbackURL(slug string) (string, error) {
+	baseURL, err := s.providerAuthBridgeCallbackBaseURL()
+	if err != nil {
+		return "", err
+	}
+	return baseURL + "/" + url.PathEscape(slug) + "/callback", nil
+}
+
+func (s *Service) signProviderAuthBridgeState(state providerAuthBridgeState) (string, error) {
+	payload, err := json.Marshal(state)
+	if err != nil {
+		return "", err
+	}
+	encoded := base64.RawURLEncoding.EncodeToString(payload)
+	return encoded + "." + providerStateSignature(s.cfg.Snapshot().JWTSecret, encoded), nil
+}
+
+func (s *Service) verifyProviderAuthBridgeState(slug string, raw string) (*providerAuthBridgeState, error) {
+	parts := strings.Split(strings.TrimSpace(raw), ".")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return nil, fmt.Errorf("invalid provider auth bridge state")
+	}
+	if !secureStringEqual(providerStateSignature(s.cfg.Snapshot().JWTSecret, parts[0]), parts[1]) {
+		return nil, fmt.Errorf("invalid provider auth bridge state")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return nil, fmt.Errorf("invalid provider auth bridge state")
+	}
+	var state providerAuthBridgeState
+	if err = json.Unmarshal(payload, &state); err != nil {
+		return nil, fmt.Errorf("invalid provider auth bridge state")
+	}
+	if state.Audience != providerAuthBridgeAudience || state.Provider != slug || state.TransactionID == "" {
+		return nil, fmt.Errorf("provider auth bridge state mismatch")
+	}
+	if time.Now().Unix() > state.ExpiresAt {
+		return nil, fmt.Errorf("provider auth bridge state expired")
+	}
+	return &state, nil
+}
+
+func secureStringEqual(left string, right string) bool {
+	return hmac.Equal([]byte(left), []byte(right))
+}
+
+func randomProviderAuthToken(size int) (string, error) {
+	if size < 32 {
+		size = 32
+	}
+	raw := make([]byte, size)
+	if _, err := rand.Read(raw); err != nil {
+		return "", fmt.Errorf("generate provider auth token: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(raw), nil
+}
+
+func providerAuthGrantKey(grant string, codeChallenge string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(grant) + ":" + strings.TrimSpace(codeChallenge)))
+	return hex.EncodeToString(sum[:])
+}
+
+func buildProviderAuthClientRedirect(transaction repository.ProviderAuthTransaction, grant string) (string, error) {
+	parsed, err := url.Parse(transaction.ClientRedirectURI)
+	if err != nil {
+		return "", err
+	}
+	query := parsed.Query()
+	query.Set("provider", transaction.ProviderSlug)
+	query.Set("grant", grant)
+	query.Set("state", transaction.ClientState)
+	query.Set("intent", transaction.Intent)
+	query.Set("next", transaction.Next)
+	parsed.RawQuery = query.Encode()
+	return parsed.String(), nil
+}
+
+func (s *Service) populateProviderAuthGrantError(grant *repository.ProviderAuthGrant, err error) {
+	if grant == nil || err == nil {
+		return
+	}
+	var conflict *ProviderEmailConflictError
+	if errors.As(err, &conflict) {
+		grant.ErrorCode = "auth.provider_email_conflict"
+		grant.ErrorMessage = conflict.Error()
+		details, _ := json.Marshal(map[string]string{
+			"providerSlug": conflict.ProviderSlug,
+			"email":        conflict.Email,
+			"action":       conflict.Action,
+		})
+		grant.ErrorDetails = string(details)
+		return
+	}
+	grant.ErrorCode = "auth.provider_authentication_failed"
+	grant.ErrorMessage = "provider authentication failed"
+	s.warn("provider_auth_bridge_callback_failed", zap.String("provider", grant.ProviderSlug), zap.Error(err))
+}
+
+func providerAuthGrantError(grant repository.ProviderAuthGrant) error {
+	if grant.ErrorCode == "auth.provider_email_conflict" {
+		var details struct {
+			ProviderSlug string `json:"providerSlug"`
+			Email        string `json:"email"`
+			Action       string `json:"action"`
+		}
+		if json.Unmarshal([]byte(grant.ErrorDetails), &details) == nil {
+			return &ProviderEmailConflictError{
+				ProviderSlug: details.ProviderSlug,
+				Email:        details.Email,
+				Action:       details.Action,
+			}
+		}
+	}
+	if strings.TrimSpace(grant.ErrorMessage) != "" {
+		return errors.New(grant.ErrorMessage)
+	}
+	return fmt.Errorf("provider authentication failed")
+}

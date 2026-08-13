@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
 func TestClientCallToolUsesStreamableHTTPJSONRPC(t *testing.T) {
@@ -62,7 +64,7 @@ func TestClientCallToolUsesStreamableHTTPJSONRPC(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(security.NewStrictOutboundPolicy(true))
 	output, err := client.CallTool(context.Background(), CallConfig{BaseURL: server.URL + "/mcp"}, CallInput{
 		ToolName:      "memory.list",
 		ArgumentsJSON: `{"scope":"user"}`,
@@ -79,7 +81,7 @@ func TestClientCallToolUsesStreamableHTTPJSONRPC(t *testing.T) {
 }
 
 func TestClientCallToolRejectsInvalidArgumentsJSON(t *testing.T) {
-	client := NewClient()
+	client := NewClient(security.OutboundPolicy{})
 	_, err := client.CallTool(context.Background(), CallConfig{BaseURL: "http://127.0.0.1/mcp"}, CallInput{
 		ToolName:      "bing_search",
 		ArgumentsJSON: `{bad`,
@@ -120,7 +122,7 @@ func TestClientCallToolTreatsMCPResultErrorAsExecutionError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(security.OutboundPolicy{})
 	_, err := client.CallTool(context.Background(), CallConfig{BaseURL: server.URL}, CallInput{
 		ToolName:      "bing_search",
 		ArgumentsJSON: `{}`,
@@ -163,7 +165,7 @@ func TestClientCallToolTreatsWrappedMCPProtocolErrorAsExecutionError(t *testing.
 	}))
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(security.OutboundPolicy{})
 	_, err := client.CallTool(context.Background(), CallConfig{BaseURL: server.URL}, CallInput{
 		ToolName:      "bing_search",
 		ArgumentsJSON: `{}`,
@@ -197,7 +199,7 @@ func TestClientListToolsParsesSSEJSONRPC(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(security.OutboundPolicy{})
 	tools, err := client.ListTools(context.Background(), CallConfig{BaseURL: server.URL})
 	if err != nil {
 		t.Fatalf("list tools: %v", err)

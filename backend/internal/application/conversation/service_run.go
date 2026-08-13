@@ -115,6 +115,10 @@ func (r *messageSendRunState) finalizeRun(retErr error) {
 	if r.run.TotalLatencyMS < 0 {
 		r.run.TotalLatencyMS = 0
 	}
+	if result := r.currentResult(); result != nil && result.IsModerationBlocked() {
+		applyBlockedRunFields(r.run, result)
+		return
+	}
 	switch {
 	case retErr == nil:
 		r.run.Status = "success"
@@ -131,6 +135,10 @@ func (r *messageSendRunState) finalizeRun(retErr error) {
 		r.run.ErrorCode = classifyRunErrorCode(retErr)
 		r.run.ErrorMessage = truncateError(retErr.Error(), 255)
 	}
+	// Preserve barrier pass/fail-open state written mid-flight (do not default to not_required).
+	if result := r.currentResult(); result != nil {
+		applyModerationRunState(r.run, result)
+	}
 }
 
 func (r *messageSendRunState) finalizeUserMessage(ctx context.Context, retErr error) {
@@ -139,6 +147,10 @@ func (r *messageSendRunState) finalizeUserMessage(ctx context.Context, retErr er
 	}
 	userMessage := r.currentUserMessage()
 	if userMessage == nil {
+		return
+	}
+	if result := r.currentResult(); result != nil && result.IsModerationBlocked() {
+		// Block path already wrote message moderation state; do not overwrite.
 		return
 	}
 	messageStatus := "success"
@@ -170,6 +182,10 @@ func (r *messageSendRunState) finalizeUserMessage(ctx context.Context, retErr er
 
 func (r *messageSendRunState) finalizeAssistantMessage(ctx context.Context, retErr error) {
 	if retErr == nil {
+		return
+	}
+	if result := r.currentResult(); result != nil && result.IsModerationBlocked() {
+		// Block path already wrote assistant moderation state; do not overwrite.
 		return
 	}
 	assistantMessage := r.currentAssistantMessage()
@@ -205,8 +221,9 @@ func (r *messageSendRunState) finalizeAssistantMessage(ctx context.Context, retE
 }
 
 func (r *messageSendRunState) createRun(ctx context.Context) {
-	if err := r.service.repo.CreateConversationRun(ctx, r.run); err != nil {
-		r.service.logger.Error("create_conversation_run_failed",
+	// Upsert: mid-flight EnsureConversationRun may have already inserted the row.
+	if err := r.service.repo.UpsertConversationRun(ctx, r.run); err != nil {
+		r.service.logger.Error("upsert_conversation_run_failed",
 			zap.String("trace_id", traceid.FromContext(r.traceContext)),
 			zap.String("run_id", r.run.RunID),
 			zap.Error(err),

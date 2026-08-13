@@ -33,6 +33,9 @@ type Cache struct {
 
 	slidingHTTP map[string][]time.Time
 	fixedHTTP   map[string]fixedWindowCounter
+
+	providerAuthTransactions map[string]expiringProviderAuthTransaction
+	providerAuthGrants       map[string]expiringProviderAuthGrant
 }
 
 type expiringString struct {
@@ -48,18 +51,20 @@ type expiringRAG struct {
 // New creates an in-memory cache backend.
 func New() *Cache {
 	return &Cache{
-		settings:     map[string]expiringString{},
-		fileInflight: map[string]repository.FileProcessingMessage{},
-		fileNotify:   make(chan struct{}),
-		rag:          map[string]expiringRAG{},
-		streams:      map[string]*generationStream{},
-		upstreamCB:   map[uint]*circuitState{},
-		modelCB:      map[string]*circuitState{},
-		upstreamMeta: map[uint]upstreamMetadata{},
-		rateLimits:   map[uint]rateLimitState{},
-		keyCounters:  map[uint]int64{},
-		slidingHTTP:  map[string][]time.Time{},
-		fixedHTTP:    map[string]fixedWindowCounter{},
+		settings:                 map[string]expiringString{},
+		fileInflight:             map[string]repository.FileProcessingMessage{},
+		fileNotify:               make(chan struct{}),
+		rag:                      map[string]expiringRAG{},
+		streams:                  map[string]*generationStream{},
+		upstreamCB:               map[uint]*circuitState{},
+		modelCB:                  map[string]*circuitState{},
+		upstreamMeta:             map[uint]upstreamMetadata{},
+		rateLimits:               map[uint]rateLimitState{},
+		keyCounters:              map[uint]int64{},
+		slidingHTTP:              map[string][]time.Time{},
+		fixedHTTP:                map[string]fixedWindowCounter{},
+		providerAuthTransactions: map[string]expiringProviderAuthTransaction{},
+		providerAuthGrants:       map[string]expiringProviderAuthGrant{},
 	}
 }
 
@@ -80,6 +85,11 @@ func NewChannelCache(cache *Cache) repository.ChannelCacheRepository {
 
 // NewRateLimiter returns a single-process HTTP rate limiter.
 func NewRateLimiter(cache *Cache) *Cache {
+	return cache
+}
+
+// NewProviderAuthBridge returns the single-process provider auth bridge store.
+func NewProviderAuthBridge(cache *Cache) repository.ProviderAuthBridgeRepository {
 	return cache
 }
 

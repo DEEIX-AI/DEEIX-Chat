@@ -7,12 +7,13 @@ import { Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import {
+  providerAuthBridgeStorageKey,
   providerPKCEStorageKey,
   TWO_FACTOR_CHALLENGE_STORAGE_KEY,
   TWO_FACTOR_METHODS_STORAGE_KEY,
 } from "@/features/auth/model/login-page";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import { completeProviderBind, completeProviderLogin } from "@/shared/api/auth";
+import { completeProviderBind, completeProviderLogin, exchangeProviderAuthBridgeGrant } from "@/shared/api/auth";
 import { ApiError } from "@/shared/api/http-client";
 import { DEFAULT_AUTH_NEXT_PATH, normalizeAuthNextPath } from "@/shared/auth/local-path";
 import { AppLogo } from "@/shared/components/app-logo";
@@ -64,6 +65,42 @@ export function AuthCallbackPage() {
     }
 
     const provider = params.get("provider") ?? "";
+    const grant = params.get("grant") ?? "";
+    if (provider && grant) {
+      const stored = readProviderAuthBridgeRequest(provider);
+      window.sessionStorage.removeItem(providerAuthBridgeStorageKey(provider));
+      if (!stored || !constantTimeStringEqual(params.get("state") ?? "", stored.state)) {
+        setError(t("expiredSession"));
+        return;
+      }
+      void exchangeProviderAuthBridgeGrant(provider, {
+        clientID: "deeix-web",
+        grant,
+        codeVerifier: stored.verifier,
+      })
+        .then((result) => {
+          if (result.twoFactorRequired) {
+            window.sessionStorage.setItem(TWO_FACTOR_CHALLENGE_STORAGE_KEY, result.twoFactorChallengeToken ?? "");
+            window.sessionStorage.setItem(TWO_FACTOR_METHODS_STORAGE_KEY, JSON.stringify(result.verificationMethods ?? ["two_factor"]));
+            router.replace(`/login?next=${encodeURIComponent(stored.next)}`);
+            return;
+          }
+          writeSessionSnapshot({ accessToken: result.accessToken, sessionID: result.sessionID });
+          router.replace(stored.next);
+        })
+        .catch((caught) => {
+          if (isProviderEmailConflictError(caught)) {
+            const details = caught.details as ProviderEmailConflictDetails | undefined;
+            setEmailConflict({
+              providerSlug: details?.providerSlug?.trim() || undefined,
+              email: details?.email?.trim() || undefined,
+            });
+            return;
+          }
+          setError(resolveErrorMessage(caught, t("loginFailed")));
+        });
+      return;
+    }
     const code = params.get("code") ?? "";
     const state = params.get("state") ?? "";
     const parsedState = parseProviderState(state);
@@ -199,6 +236,32 @@ export function AuthCallbackPage() {
       </div>
     </main>
   );
+}
+
+function readProviderAuthBridgeRequest(slug: string): { verifier: string; state: string; intent: "login" | "register"; next: string } | null {
+  try {
+    const raw = window.sessionStorage.getItem(providerAuthBridgeStorageKey(slug));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { verifier?: string; state?: string; intent?: string; next?: string };
+    if (!parsed.verifier || !parsed.state) return null;
+    return {
+      verifier: parsed.verifier,
+      state: parsed.state,
+      intent: parsed.intent === "register" ? "register" : "login",
+      next: normalizeAuthNextPath(parsed.next),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function constantTimeStringEqual(left: string, right: string): boolean {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return difference === 0;
 }
 
 function isProviderEmailConflictError(error: unknown): boolean {

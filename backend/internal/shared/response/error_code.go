@@ -154,6 +154,8 @@ var exactErrorSpecs = map[string]errorSpec{
 	"message generation canceled":                             {Code: "conversation_run.canceled", Message: "message generation canceled"},
 	"too many files in one message":                           {Code: "message.too_many_files", Message: "too many files in one message"},
 	"too many selected tools":                                 {Code: "message.too_many_selected_tools", Message: "too many selected tools"},
+	"multiple image attachment processors selected":           {Code: "message.multiple_image_processors", Message: "select only one image attachment processor"},
+	"image attachment processing failed":                      {Code: "mcp.image_processing_failed", Message: "image processing tool failed"},
 	"too many selected skills":                                {Code: "message.too_many_selected_skills", Message: "too many selected skills"},
 	"generation stream not found":                             {Code: "conversation_run.stream_not_found", Message: "generation stream not found"},
 	"image prompt is required":                                {Code: "media.image_prompt_required", Message: "image prompt is required"},
@@ -166,6 +168,7 @@ var exactErrorSpecs = map[string]errorSpec{
 	"too many video generation input images":                  {Code: "media.video_too_many_inputs", Message: "too many video generation input images"},
 	"media route protocol does not match task":                {Code: "media.route_protocol_mismatch", Message: "media route protocol does not match task"},
 	"invalid media generation task":                           {Code: "media.invalid_task", Message: "invalid media generation task"},
+	"invalid mcp tool attachment configuration":               {Code: "mcp.invalid_attachment_configuration", Message: "invalid MCP tool attachment configuration"},
 
 	"file is required":                                     {Code: "file.required", Message: "file is required"},
 	"invalid file stream":                                  {Code: "file.invalid_stream", Message: "invalid file stream"},
@@ -288,6 +291,14 @@ var exactErrorSpecs = map[string]errorSpec{
 	"rate limit exceeded":              {Code: CodeRateLimitExceeded, Message: "rate limit exceeded"},
 	"too many refresh attempts":        {Code: "rate_limit.refresh_exceeded", Message: "too many refresh attempts"},
 	"too many authentication attempts": {Code: "rate_limit.authentication_exceeded", Message: "too many authentication attempts"},
+
+	"content moderation event not found":                                     {Code: "content_moderation.event_not_found", Message: "content moderation event not found"},
+	"content moderation service config and policy are required when enabled": {Code: "content_moderation.config_required", Message: "content moderation service config and policy are required when enabled"},
+	"invalid content moderation config":                                      {Code: "content_moderation.invalid_config", Message: "invalid content moderation config"},
+	"invalid content moderation base url":                                    {Code: "content_moderation.invalid_config", Message: "invalid content moderation base url"},
+	"invalid content moderation model":                                       {Code: "content_moderation.invalid_config", Message: "invalid content moderation model"},
+	"content moderation probe failed":                                        {Code: "content_moderation.probe_failed", Message: "content moderation probe failed"},
+	"content blocked by moderation":                                          {Code: "content_moderation.blocked", Message: "content blocked by moderation"},
 
 	"deleting this identity provider would remove the only login method for some users": {Code: "identity_provider.delete_conflict", Message: "deleting this identity provider would remove the only login method for some users"},
 }
@@ -584,6 +595,7 @@ var fallbackMessages = map[string]string{
 	"llm.system_prompt_too_long":                        "system prompt too long",
 	"llm.platform_model_name_required":                  "platform model name is required",
 	"llm.protocol_required":                             "protocol is required",
+	"media.artifact_unavailable":                        "generated media artifact is temporarily unavailable",
 	"media.image_stream_unsupported":                    "upstream may not support image streaming; disable image.stream for this model",
 	"billing.period_credit_exceeded":                    "period usage credit exceeded",
 	"billing.invalid_subscription_tier":                 "invalid subscription tier",

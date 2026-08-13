@@ -2,12 +2,14 @@ package conversation
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	appcompact "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/compact"
+	appcm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
 	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
@@ -66,6 +68,23 @@ type auditWriter interface {
 	Write(ctx context.Context, requestID string, actorUserID uint, action string, resource string, resourceID string, ip string, userAgent string, detail interface{})
 }
 
+// generatedMediaDownloader 定义会话用例所需的最小媒体下载端口，避免应用层感知 HTTP 细节。
+type generatedMediaDownloader interface {
+	DownloadImage(ctx context.Context, sourceURL string, trustedProviderEndpoint string, maxBytes int64) ([]byte, string, error)
+	DownloadVideo(ctx context.Context, sourceURL string, trustedProviderEndpoint string, apiKey string, maxBytes int64) ([]byte, string, error)
+}
+
+// mediaArtifactResponseTooLarge 是跨层错误能力契约，不要求应用层依赖具体适配器错误类型。
+type mediaArtifactResponseTooLarge interface {
+	MediaArtifactResponseTooLarge()
+}
+
+// isMediaArtifactResponseTooLarge 判断下载错误是否应映射为既有文件大小业务错误。
+func isMediaArtifactResponseTooLarge(err error) bool {
+	var target mediaArtifactResponseTooLarge
+	return errors.As(err, &target)
+}
+
 type basicServiceBillingContextKey struct{}
 
 type basicServiceBillingContext struct {
@@ -82,6 +101,7 @@ type Service struct {
 	memoryRecorder    memoryRecorder
 	mcpRepo           mcpToolResolver
 	llmClient         *llm.Client
+	mediaDownloader   generatedMediaDownloader
 	mcpClient         *mcp.Client
 	uploadSvc         *appupload.Service
 	compactSvc        *appcompact.Service
@@ -94,6 +114,7 @@ type Service struct {
 	auditWriter       auditWriter
 	storeProvider     appstorage.Provider
 	logger            *zap.Logger
+	moderationSvc     *appcm.Service
 	toolLimiters      sync.Map
 	generationStreams *generationStreamRegistry
 	snapshotCache     sync.Map // conversationID (uint) → *cachedSnapshot
@@ -136,6 +157,7 @@ type AttachmentInput struct {
 	Current                bool // 是否为本轮用户显式上传的附件
 	MessageRole            string
 	ContextMode            string
+	DurationSeconds        int64 // 仅生成视频附件使用。
 }
 
 // SendMessageInput 定义消息发送请求。
@@ -167,27 +189,29 @@ func (s *Service) SetSkillResolver(resolver skillResolver) {
 
 // SendMessageResult 返回用户消息与 AI 消息。
 type SendMessageResult struct {
-	UserMessage           model.Message
-	AssistantMessage      model.Message
-	MetadataRefreshHint   string
-	Billable              bool
-	UpstreamID            uint
-	UpstreamName          string
-	PlatformModelName     string
-	RoutedBindingCode     string
-	UpstreamModelName     string
-	UpstreamProtocol      string
-	EffectiveOptions      map[string]interface{}
-	UsageSpeed            string
-	UsageServiceTier      string
-	UsageSource           string
-	RawUsageJSON          string
-	CacheWrite5mTokens    int64
-	CacheWrite1hTokens    int64
-	ServerSideToolUsage   map[string]int64
-	LatencyMS             int64
-	DurationSeconds       int64
-	StartedAt             time.Time
+	UserMessage         model.Message
+	AssistantMessage    model.Message
+	MetadataRefreshHint string
+	Billable            bool
+	UpstreamID          uint
+	UpstreamName        string
+	PlatformModelName   string
+	RoutedBindingCode   string
+	UpstreamModelName   string
+	UpstreamProtocol    string
+	EffectiveOptions    map[string]interface{}
+	UsageSpeed          string
+	UsageServiceTier    string
+	UsageSource         string
+	RawUsageJSON        string
+	CacheWrite5mTokens  int64
+	CacheWrite1hTokens  int64
+	ServerSideToolUsage map[string]int64
+	LatencyMS           int64
+	DurationSeconds     int64
+	StartedAt           time.Time
+	// Moderation is set when a soft-moderation barrier ran; Blocked means withdrawn.
+	Moderation            *MessageModerationOutcome
 	postBillingCompaction *postBillingCompactionTask
 }
 
@@ -208,6 +232,7 @@ func NewService(
 	routeResolver routeResolver,
 	memoryRecorder memoryRecorder,
 	llmClient *llm.Client,
+	mediaDownloader generatedMediaDownloader,
 	mcpClient *mcp.Client,
 	embedClient *embedding.Client,
 	uploadSvc *appupload.Service,
@@ -218,7 +243,7 @@ func NewService(
 	ragSvc *apprag.Service,
 	logger *zap.Logger,
 ) *Service {
-	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, cache, routeResolver, memoryRecorder, llmClient, mcpClient, embedClient, uploadSvc, compactSvc, embeddingSvc, processingSvc, extractSvc, ragSvc, logger)
+	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, cache, routeResolver, memoryRecorder, llmClient, mediaDownloader, mcpClient, embedClient, uploadSvc, compactSvc, embeddingSvc, processingSvc, extractSvc, ragSvc, logger)
 }
 
 // NewServiceWithRuntime 创建使用运行时配置容器的服务。
@@ -229,6 +254,7 @@ func NewServiceWithRuntime(
 	routeResolver routeResolver,
 	memoryRecorder memoryRecorder,
 	llmClient *llm.Client,
+	mediaDownloader generatedMediaDownloader,
 	mcpClient *mcp.Client,
 	embedClient *embedding.Client,
 	uploadSvc *appupload.Service,
@@ -246,6 +272,7 @@ func NewServiceWithRuntime(
 		routeResolver:     routeResolver,
 		memoryRecorder:    memoryRecorder,
 		llmClient:         llmClient,
+		mediaDownloader:   mediaDownloader,
 		mcpClient:         mcpClient,
 		compactSvc:        compactSvc,
 		embeddingSvc:      embeddingSvc,

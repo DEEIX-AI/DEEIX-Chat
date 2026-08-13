@@ -157,6 +157,19 @@ func (c *Cache) ReadGenerationStreamEvents(ctx context.Context, runID string, af
 	}
 }
 
+func (c *Cache) ResetGenerationStreamEvents(ctx context.Context, runID string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	stream := c.streams[strings.TrimSpace(runID)]
+	if stream == nil {
+		return nil
+	}
+	stream.events = nil
+	// Keep seq monotonic so any in-flight afterSeq cursors stay valid.
+	stream.notifyLocked()
+	return nil
+}
+
 func (c *Cache) ExpireGenerationStream(ctx context.Context, runID string, ttl time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

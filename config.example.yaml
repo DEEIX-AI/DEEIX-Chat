@@ -23,7 +23,11 @@ security:
   data_encryption_key: "change-me-dev-data-encryption-key-32-bytes-min"
   # Optional. Enable in production to block outbound requests to private or metadata networks.
   ssrf_protection_enabled: false
-  # Optional. Override only when using a compatible Turnstile verification proxy.
+  # Optional. Exact hostnames for deployment-level integrations and trusted private redirect targets, comma-separated (for example: geoip.internal,host.docker.internal). Administrator-saved endpoints are trusted locally by exact origin and need this list only when they redirect to another private origin.
+  ssrf_allowed_hosts: ""
+  # Optional. Trusted integration and private redirect ranges in CIDR notation, comma-separated (for example: 172.17.0.0/16). Prefer administrator-saved exact endpoints when the integration supports them.
+  ssrf_allowed_cidrs: ""
+  # Optional. Override only when using a compatible Turnstile verification proxy. This exact administrator-configured origin is locally trusted and does not require the global SSRF allowlist.
   turnstile_siteverify_url: "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
 branding:

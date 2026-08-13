@@ -64,8 +64,8 @@ type RedemptionCodeUpdateInput struct {
 
 // RedemptionCodeValidationError 表示兑换码配置字段校验失败。
 type RedemptionCodeValidationError struct {
-	Field  string `json:"field"`
-	Reason string `json:"reason"`
+	Field  string
+	Reason string
 }
 
 func (e RedemptionCodeValidationError) Error() string {

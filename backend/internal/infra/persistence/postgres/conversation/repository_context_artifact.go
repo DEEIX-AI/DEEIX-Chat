@@ -2,10 +2,12 @@ package conversation
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	models "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
 // CreateContextArtifacts 批量写入本轮上下文证据。
@@ -15,6 +17,10 @@ func (r *Repo) CreateContextArtifacts(ctx context.Context, items []domainconvers
 	}
 	entities := make([]models.ChatContextRecord, 0, len(items))
 	for _, item := range items {
+		item.RunID = strings.TrimSpace(item.RunID)
+		if item.ConversationID == 0 || item.MessageID == 0 || item.UserID == 0 || item.RunID == "" {
+			return repository.ErrInvalidInput
+		}
 		entities = append(entities, toContextArtifactModel(item))
 	}
 	if err := r.db.WithContext(ctx).Create(&entities).Error; err != nil {
@@ -39,7 +45,7 @@ func (r *Repo) GetContextArtifactByIDForUser(ctx context.Context, userID uint, a
 	return &result, nil
 }
 
-// ListContextArtifactsByMessage 查询单条用户消息对应的上下文证据。
+// ListContextArtifactsByMessage 查询单条消息对应的上下文证据。
 func (r *Repo) ListContextArtifactsByMessage(ctx context.Context, conversationID uint, messageID uint) ([]domainconversation.ContextArtifact, error) {
 	items := make([]models.ChatContextRecord, 0)
 	if err := r.db.WithContext(ctx).
@@ -52,28 +58,42 @@ func (r *Repo) ListContextArtifactsByMessage(ctx context.Context, conversationID
 	return toContextArtifactDomains(items), nil
 }
 
-// ListRecentContextArtifacts 按会话和类型查询最近的上下文证据。
-func (r *Repo) ListRecentContextArtifacts(ctx context.Context, conversationID uint, kinds []domainconversation.ContextArtifactKind, limit int) ([]domainconversation.ContextArtifact, error) {
-	if limit <= 0 {
-		limit = 20
+// ListRecentContextArtifacts 在当前活跃分支内按类型查询最近的上下文证据。
+func (r *Repo) ListRecentContextArtifacts(ctx context.Context, filter repository.ContextArtifactListFilter) ([]domainconversation.ContextArtifact, error) {
+	if !filter.Scope.Valid() {
+		return nil, nil
 	}
-	if limit > 200 {
-		limit = 200
+	if filter.Limit <= 0 {
+		filter.Limit = 20
 	}
+	if filter.Limit > 200 {
+		filter.Limit = 200
+	}
+	scopeQuery := historicalMessageScopeSubquery(r.db.WithContext(ctx), filter.Scope)
 	query := r.db.WithContext(ctx).
-		Where("record_type = ? AND conversation_id = ?", chatContextRecordArtifact, conversationID).
-		Where("expires_at IS NULL OR expires_at > ?", time.Now()).
-		Order("id DESC").
-		Limit(limit)
-	if len(kinds) > 0 {
-		values := make([]string, 0, len(kinds))
-		for _, kind := range kinds {
+		Model(&models.ChatContextRecord{}).
+		Select("chat_context_records.*").
+		Joins(`JOIN chat_messages AS artifact_owner
+			ON artifact_owner.id = chat_context_records.message_id
+			AND artifact_owner.conversation_id = chat_context_records.conversation_id
+			AND artifact_owner.user_id = chat_context_records.user_id
+			AND artifact_owner.run_id = chat_context_records.run_id
+			AND artifact_owner.role = ?
+			AND artifact_owner.deleted_at IS NULL`, "assistant").
+		Where("chat_context_records.record_type = ? AND chat_context_records.conversation_id = ? AND chat_context_records.user_id = ?", chatContextRecordArtifact, filter.Scope.ConversationID, filter.Scope.UserID).
+		Where("chat_context_records.message_id IN (?)", scopeQuery).
+		Where("chat_context_records.expires_at IS NULL OR chat_context_records.expires_at > ?", time.Now()).
+		Order("chat_context_records.id DESC").
+		Limit(filter.Limit)
+	if len(filter.Kinds) > 0 {
+		values := make([]string, 0, len(filter.Kinds))
+		for _, kind := range filter.Kinds {
 			if kind != "" {
 				values = append(values, string(kind))
 			}
 		}
 		if len(values) > 0 {
-			query = query.Where("kind IN ?", values)
+			query = query.Where("chat_context_records.kind IN ?", values)
 		}
 	}
 	items := make([]models.ChatContextRecord, 0)

@@ -95,6 +95,7 @@ const OPTION_LABEL_KEYS = new Set<string>([
   "budget_tokens",
   "cache_timeout",
   "candidate_count",
+  "duration",
   "effort",
   "enable_cache",
   "enable_thinking",
@@ -201,6 +202,7 @@ const OPTION_ORDER = [
   "generationConfig.frequencyPenalty",
   "generationConfig.imageConfig.aspectRatio",
   "generationConfig.imageConfig.imageSize",
+  "duration",
   "size",
   "quality",
   "background",
@@ -271,6 +273,7 @@ const OPTION_ORDER = [
 const NUMBER_OPTION_KEYS = new Set([
   "budget_tokens",
   "candidate_count",
+  "duration",
   "frequency_penalty",
   "generationConfig.candidateCount",
   "generationConfig.frequencyPenalty",
@@ -401,6 +404,7 @@ const PROTOCOL_LABELS: Record<string, string> = {
   stability_ai_generate: "Image Generation",
   xai_image: "Images Generations",
   xai_image_edits: "Images Edits",
+  xai_video: "Video Generations",
   xai_responses: "xAI Responses",
 };
 
@@ -902,6 +906,16 @@ function resolveOptionKind(key: string, value: EditableOptionValue): "boolean" |
 function resolveSelectValues(key: string, configuredValues?: string[]): string[] {
   const sourceValues = configuredValues === undefined ? OPTION_SELECT_VALUES[key] : configuredValues;
   return Array.from(new Set((sourceValues ?? []).map((item) => item.trim()).filter(Boolean)));
+}
+
+function resolveSelectOptionValue(key: string, value: string, selectValues: string[]): string | number {
+  if (NUMBER_OPTION_KEYS.has(key) && selectValues.every((item) => typeof parseVisualNumberInput(item) === "number")) {
+    const parsed = parseVisualNumberInput(value);
+    if (typeof parsed === "number") {
+      return parsed;
+    }
+  }
+  return value;
 }
 
 function resolveModelOptionFilterStatus(
@@ -1419,8 +1433,10 @@ export function ChatModelConfig({
                     </Select>
                   ) : kind === "select" ? (
                     <Select
-                      value={typeof editableValue === "string" && editableValue.trim() ? editableValue : undefined}
-                      onValueChange={(nextValue) => updateOptionValue(path, nextValue)}
+                      value={(typeof editableValue === "string" || typeof editableValue === "number") && String(editableValue).trim()
+                        ? String(editableValue)
+                        : undefined}
+                      onValueChange={(nextValue) => updateOptionValue(path, resolveSelectOptionValue(key, nextValue, selectValues))}
                     >
                       <SelectTrigger size="sm">
                         <SelectValue placeholder={placeholder ?? key} />

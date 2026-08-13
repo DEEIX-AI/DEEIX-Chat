@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Bot } from "lucide-react";
-
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const LOBEHUB_ICON_PREFIX = "/vendor/lobehub-icons/";
@@ -63,7 +62,8 @@ function resolveLobeHubSymbolHref(iconUrl: string): string | null {
   return iconID ? `#${iconID}` : null;
 }
 
-export function LobeHubIcon({
+// ModelIcon renders both bundled sprite icons and administrator-provided image URLs.
+export function ModelIcon({
   iconUrl,
   label,
   size = 16,
@@ -79,7 +79,12 @@ export function LobeHubIcon({
   const dimension = `${size}px`;
   const symbolHref = iconUrl ? resolveLobeHubSymbolHref(iconUrl) : null;
   const [spriteLoaded, setSpriteLoaded] = useState(spriteReady);
+  const [imageFailed, setImageFailed] = useState(false);
   const shouldRenderSymbol = Boolean(symbolHref && (spriteReady || spriteLoaded));
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [iconUrl]);
 
   useEffect(() => {
     if (!symbolHref || spriteReady) {
@@ -99,20 +104,18 @@ export function LobeHubIcon({
   return (
     <span className={cn("inline-flex shrink-0 items-center justify-center", className)} style={{ width: dimension, height: dimension }}>
       {symbolHref && shouldRenderSymbol ? (
-        <svg
-          aria-hidden="true"
-          className="block size-full dark:invert"
-          focusable="false"
-        >
+        <svg aria-hidden="true" className="block size-full dark:invert" focusable="false">
           <use href={symbolHref} />
         </svg>
-      ) : iconUrl ? (
+      ) : iconUrl && !imageFailed ? (
         <img
           alt=""
           aria-hidden="true"
-          className="block size-full object-contain dark:invert"
+          className={cn("block size-full object-contain", symbolHref && "dark:invert")}
           decoding="async"
           loading="lazy"
+          onError={() => setImageFailed(true)}
+          referrerPolicy="no-referrer"
           src={iconUrl}
         />
       ) : (

@@ -27,6 +27,7 @@ import {
   StatisticsTrendChart,
   StatisticsUserRankingChart,
 } from "./admin-statistics-charts";
+import { AdminModerationStatisticsSection } from "./admin-moderation-statistics";
 
 const ALL_MODELS_VALUE = "__all_models__";
 
@@ -384,6 +385,10 @@ export function AdminStatisticsPage() {
           />
         </div>
       </section>
+
+      <Separator className="mx-1 my-10" />
+
+      <AdminModerationStatisticsSection />
     </div>
   );
 }

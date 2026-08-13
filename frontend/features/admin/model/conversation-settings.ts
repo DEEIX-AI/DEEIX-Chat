@@ -167,6 +167,11 @@ export const DEFAULT_MODEL_OPTION_ALLOWED_PATHS = `{
     "resolution",
     "response_format"
   ],
+  "xai_video": [
+    "aspect_ratio",
+    "duration",
+    "resolution"
+  ],
   "gemini_generate_content": [
     "generationConfig.temperature",
     "generationConfig.topP",

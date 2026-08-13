@@ -99,6 +99,8 @@ import {
 } from "@/shared/lib/billing-display";
 import { ModelSelect, type ModelSelectOption } from "@/shared/components/model-select";
 import { formatBytes } from "@/shared/lib/file-display";
+import { ModerationEventTable } from "@/features/admin/components/sections/logs/admin-moderation-events";
+import { useAuthSession } from "@/shared/auth/auth-session-context";
 
 type LogDetail =
   | { kind: "audit"; item: AdminAuditLogDTO }
@@ -167,13 +169,20 @@ function formatUsageBalance(value: number | null | undefined, billingDisplay: Bi
   return value === null || value === undefined ? "-" : formatBillingBalance(value, billingDisplay);
 }
 
+function usageBillableOutputTokens(item: AdminUsageLogDTO): number {
+  return item.outputTokens + item.reasoningTokens;
+}
+
 function usageTotalTokens(item: AdminUsageLogDTO): number {
-  return item.inputTokens + item.cacheReadTokens + item.cacheWriteTokens + item.outputTokens + item.reasoningTokens;
+  return item.inputTokens + item.cacheReadTokens + item.cacheWriteTokens + usageBillableOutputTokens(item);
 }
 
 type UsagePricingSnapshot = {
   pricing_mode?: "token" | "call" | "duration" | "tiered" | string;
   provider_protocol?: string;
+  duration_billable?: boolean;
+  media_type?: string;
+  input_image_count?: number;
   cache_timeout?: string;
   fast_mode?: boolean;
   billing_speed?: string;
@@ -494,7 +503,7 @@ function buildUsageBillingTooltipLines(
   const outputRate = readUsageSnapshotNumber(snapshot, "output_nanousd_per_m_tokens");
   const cacheReadRate = readUsageSnapshotNumber(snapshot, "cache_read_nanousd_per_m_tokens");
   const cacheWriteRate = readUsageSnapshotNumber(snapshot, "cache_write_nanousd_per_m_tokens");
-  const billedOutputTokens = item.outputTokens + item.reasoningTokens;
+  const billedOutputTokens = usageBillableOutputTokens(item);
   const totalLine = usageTotalLine(item, labels, billingDisplay);
   const cacheWriteLabel = cacheWriteBillingLabel(snapshot, labels.billingDisplay);
   const cacheWriteNote = cacheWriteBillingNote(snapshot, labels.billingDisplay);
@@ -604,26 +613,84 @@ function UsageLogModelCell({ item, labels }: { item: AdminUsageLogDTO; labels: U
   );
 }
 
-function UsageLogTokenCell({ item, locale }: { item: AdminUsageLogDTO; locale: string }) {
+function UsageLogUsageCell({ item, locale }: { item: AdminUsageLogDTO; locale: string }) {
   const t = useTranslations("adminLogs.usage.tokens");
+  const snapshot = parseUsagePricingSnapshot(item.pricingSnapshotJSON);
+  const isVideoUsage = snapshot.media_type === "video" || snapshot.duration_billable === true;
+  if (isVideoUsage) {
+    const inputImageCount = typeof snapshot.input_image_count === "number" && Number.isFinite(snapshot.input_image_count) && snapshot.input_image_count >= 0
+      ? Math.trunc(snapshot.input_image_count)
+      : null;
+    const mediaUsage = [
+      { label: t("input"), value: inputImageCount === null ? "—" : t("imageCount", { count: inputImageCount }) },
+      { label: t("output"), value: t("secondCount", { count: item.durationSeconds }) },
+    ];
+    return (
+      <div className="grid min-w-[10.5rem] gap-1">
+        {mediaUsage.map((entry) => (
+          <span
+            key={entry.label}
+            className="inline-flex h-5 items-center justify-between gap-2 rounded-md bg-muted/45 px-1.5 text-[11px] leading-none text-muted-foreground"
+          >
+            <span>{entry.label}</span>
+            <span className="font-mono tabular-nums">{entry.value}</span>
+          </span>
+        ))}
+      </div>
+    );
+  }
   const tokens = [
     { label: t("inputShort"), value: item.inputTokens },
-    { label: t("outputShort"), value: item.outputTokens },
+    {
+      label: t("outputShort"),
+      value: usageBillableOutputTokens(item),
+      breakdown: {
+        visible: item.outputTokens,
+        reasoning: item.reasoningTokens,
+      },
+    },
     { label: t("cacheReadShort"), value: item.cacheReadTokens },
     { label: t("cacheWriteShort"), value: item.cacheWriteTokens },
   ];
 
   return (
     <div className="grid min-w-[10.5rem] grid-cols-2 gap-1">
-      {tokens.map((token) => (
-        <span
-          key={token.label}
-          className="inline-flex h-5 items-center justify-between gap-1 rounded-md bg-muted/45 px-1.5 font-mono text-[11px] leading-none text-muted-foreground"
-        >
-          <span>{token.label}</span>
-          <span className="tabular-nums">{formatCount(token.value, locale)}</span>
-        </span>
-      ))}
+      {tokens.map((token) => {
+        const badge = (
+          <span className={cn(
+            "inline-flex h-5 items-center justify-between gap-1 rounded-md bg-muted/45 px-1.5 font-mono text-[11px] leading-none text-muted-foreground",
+            token.breakdown && "cursor-help",
+          )}>
+            <span>{token.label}</span>
+            <span className="tabular-nums">{formatCount(token.value, locale)}</span>
+          </span>
+        );
+        if (!token.breakdown) {
+          return <React.Fragment key={token.label}>{badge}</React.Fragment>;
+        }
+        return (
+          <Tooltip key={token.label}>
+            <TooltipTrigger asChild>{badge}</TooltipTrigger>
+            <TooltipContent side="top" className="min-w-40">
+              <div className="grid gap-1.5 text-xs">
+                <div className="flex items-center justify-between gap-5">
+                  <span>{t("output")}</span>
+                  <span className="font-mono tabular-nums">{formatCount(token.breakdown.visible, locale)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-5">
+                  <span>{t("reasoning")}</span>
+                  <span className="font-mono tabular-nums">{formatCount(token.breakdown.reasoning, locale)}</span>
+                </div>
+                <Separator className="bg-background/20" />
+                <div className="flex items-center justify-between gap-5 font-medium">
+                  <span>{t("outputTotal")}</span>
+                  <span className="font-mono tabular-nums">{formatCount(token.value, locale)}</span>
+                </div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        );
+      })}
     </div>
   );
 }
@@ -1318,7 +1385,7 @@ function UsageLogTable({
             <TableHead className="w-[72px]">ID</TableHead>
             <TableHead>{t("columns.caller")}</TableHead>
             <TableHead>{t("columns.model")}</TableHead>
-            <TableHead>Token</TableHead>
+            <TableHead>{t("columns.usage")}</TableHead>
             <TableHead>{t("columns.billing")}</TableHead>
             <TableHead>{t("columns.balanceAfter")}</TableHead>
             <TableHead>{t("columns.latency")}</TableHead>
@@ -1340,7 +1407,7 @@ function UsageLogTable({
                 <UsageLogModelCell item={item} labels={usageLabels} />
               </TableCell>
               <TableCell>
-                <UsageLogTokenCell item={item} locale={locale} />
+                <UsageLogUsageCell item={item} locale={locale} />
               </TableCell>
               <TableCell><UsageLogCostCell item={item} labels={usageLabels} billingDisplay={billingDisplay} /></TableCell>
               <TableCell className="whitespace-nowrap font-medium tabular-nums text-foreground">
@@ -1971,6 +2038,8 @@ function LogCleanupDialog({
 
 export function AdminLogsPage() {
   const t = useTranslations("adminLogs");
+  const { user } = useAuthSession();
+  const isSuperAdmin = user?.role === "superadmin";
   const [detail, setDetail] = React.useState<LogDetail | null>(null);
   const [conversationDetailLoading, setConversationDetailLoading] = React.useState(false);
   const detailRequestRef = React.useRef(0);
@@ -2075,6 +2144,7 @@ export function AdminLogsPage() {
           <TabsTrigger value="auth">{t("tabs.auth")}</TabsTrigger>
           <TabsTrigger value="orders">{t("tabs.orders")}</TabsTrigger>
           <TabsTrigger value="conversation">{t("tabs.conversation")}</TabsTrigger>
+          {isSuperAdmin ? <TabsTrigger value="moderation">{t("tabs.moderation")}</TabsTrigger> : null}
         </TabsList>
         <TabsContent value="audit">
           <AuditLogTable key={cleanupRevisions.audit} onOpenDetail={(item) => setDetail({ kind: "audit", item })} />
@@ -2095,6 +2165,11 @@ export function AdminLogsPage() {
         <TabsContent value="conversation">
           <ConversationEventTable key={cleanupRevisions.conversation} onOpenDetail={(item) => void openConversationDetail(item)} />
         </TabsContent>
+        {isSuperAdmin ? (
+          <TabsContent value="moderation">
+            <ModerationEventTable />
+          </TabsContent>
+        ) : null}
       </Tabs>
 
       <LogDetailSheet

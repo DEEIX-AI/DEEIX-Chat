@@ -1,9 +1,36 @@
 package embedding
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
+
+func TestCallAPITrustsConfiguredPrivateEmbeddingOrigin(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/embeddings" {
+			t.Fatalf("unexpected embedding path: %s", request.URL.Path)
+		}
+		_ = json.NewEncoder(responseWriter).Encode(map[string]interface{}{
+			"data": []map[string]interface{}{{"index": 0, "embedding": []float32{1, 2, 3}}},
+		})
+	}))
+	defer server.Close()
+
+	client := New(security.NewStrictOutboundPolicy(true))
+	result, err := client.CallAPI(context.Background(), server.URL+"/v1", "", "test", []string{"hello"}, 5)
+	if err != nil {
+		t.Fatalf("call configured private embedding endpoint: %v", err)
+	}
+	if len(result) != 1 || len(result[0]) != 3 {
+		t.Fatalf("unexpected embedding result: %#v", result)
+	}
+}
 
 func TestChunkTextHandlesCJKParagraphBoundary(t *testing.T) {
 	text := strings.Repeat("中文内容", 900) + "\n\n" + strings.Repeat("后续内容", 900)

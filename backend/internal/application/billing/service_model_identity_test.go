@@ -15,6 +15,20 @@ type modelIdentityResolverStub struct {
 	identity PlatformModelIdentity
 }
 
+type modelPricingCatalogStub struct {
+	names      map[string]struct{}
+	videoNames map[string]struct{}
+}
+
+func (s modelPricingCatalogStub) ListActivePlatformModelNames(context.Context) (map[string]struct{}, error) {
+	return s.names, nil
+}
+
+func (s modelPricingCatalogStub) SupportsVideoGeneration(_ context.Context, platformModelName string) (bool, error) {
+	_, ok := s.videoNames[platformModelName]
+	return ok, nil
+}
+
 func (s modelIdentityResolverStub) ResolvePlatformModelIdentity(context.Context, string) (PlatformModelIdentity, error) {
 	return s.identity, nil
 }
@@ -26,6 +40,106 @@ func TestUpstreamUsageSnapshotReturnsEmptyObjectWhenRawUsageIsMissing(t *testing
 	}).(map[string]interface{})
 	if !ok || len(snapshot) != 0 {
 		t.Fatalf("expected empty upstream usage snapshot, got %#v", snapshot)
+	}
+}
+
+func TestUpsertModelPricingRestrictsDurationModeToVideoModels(t *testing.T) {
+	repo := &billingRepositoryStub{}
+	service := NewService(repo)
+	service.SetModelPricingCatalogProvider(modelPricingCatalogStub{
+		names: map[string]struct{}{"chat-model": {}, "video-model": {}},
+		videoNames: map[string]struct{}{
+			"video-model": {},
+		},
+	})
+
+	_, err := service.UpsertModelPricing(t.Context(), ModelPricingInput{
+		PlatformModelName:        "chat-model",
+		PricingMode:              domainbilling.PricingModeDuration,
+		DurationNanousdPerSecond: 1,
+	})
+	if !errors.Is(err, ErrInvalidModelPricing) {
+		t.Fatalf("expected duration pricing to reject chat model, got %v", err)
+	}
+
+	view, err := service.UpsertModelPricing(t.Context(), ModelPricingInput{
+		PlatformModelName:        "video-model",
+		PricingMode:              domainbilling.PricingModeDuration,
+		DurationNanousdPerSecond: 2,
+	})
+	if err != nil {
+		t.Fatalf("expected duration pricing for video model: %v", err)
+	}
+	if view.PricingMode != domainbilling.PricingModeDuration || view.DurationNanousdPerSecond != 2 {
+		t.Fatalf("unexpected duration pricing: %#v", view)
+	}
+}
+
+func TestBuildUsageLedgerBillsDurationOnlyWhenExplicitlyBillable(t *testing.T) {
+	repo := &billingRepositoryStub{
+		mode: "usage",
+		pricing: &domainbilling.ModelPricing{
+			PlatformModelName:        "video-model",
+			Currency:                 "USD",
+			PricingMode:              domainbilling.PricingModeDuration,
+			DurationNanousdPerSecond: 3,
+		},
+	}
+	service := NewService(repo)
+
+	_, err := service.BuildUsageLedger(t.Context(), UsagePricingInput{
+		UserID:            1,
+		PlatformModelName: "video-model",
+		DurationSeconds:   6,
+	})
+	if !errors.Is(err, ErrModelPricingRequired) {
+		t.Fatalf("build non-video duration ledger error = %v, want ErrModelPricingRequired", err)
+	}
+
+	video, err := service.BuildUsageLedger(t.Context(), UsagePricingInput{
+		UserID:            1,
+		PlatformModelName: "video-model",
+		DurationBillable:  true,
+		DurationSeconds:   6,
+		MediaType:         "video",
+		InputImageCount:   1,
+	})
+	if err != nil {
+		t.Fatalf("build video duration ledger: %v", err)
+	}
+	if video.DurationSeconds != 6 || video.BilledNanousd != 18 {
+		t.Fatalf("unexpected video duration billing: %#v", video)
+	}
+	var snapshot map[string]interface{}
+	if err := json.Unmarshal([]byte(video.PricingSnapshotJSON), &snapshot); err != nil {
+		t.Fatalf("unmarshal video pricing snapshot: %v", err)
+	}
+	if snapshot["media_type"] != "video" || snapshot["input_image_count"] != float64(1) {
+		t.Fatalf("unexpected video media snapshot: %#v", snapshot)
+	}
+}
+
+func TestAuthorizeUsageRejectsLegacyDurationPricingForNonVideoModel(t *testing.T) {
+	repo := &billingRepositoryStub{
+		mode: "usage",
+		pricing: &domainbilling.ModelPricing{
+			PlatformModelName:        "legacy-chat-model",
+			PricingMode:              domainbilling.PricingModeDuration,
+			DurationNanousdPerSecond: 3,
+		},
+	}
+	service := NewService(repo)
+	service.SetModelPricingCatalogProvider(modelPricingCatalogStub{
+		names:      map[string]struct{}{"legacy-chat-model": {}},
+		videoNames: map[string]struct{}{},
+	})
+
+	_, err := service.AuthorizeUsage(t.Context(), 1, "legacy-chat-model", "run_legacy_duration")
+	if !errors.Is(err, ErrModelPricingRequired) {
+		t.Fatalf("AuthorizeUsage() error = %v, want ErrModelPricingRequired", err)
+	}
+	if repo.reservationRequest != nil {
+		t.Fatalf("legacy duration pricing reserved usage before rejection: %#v", repo.reservationRequest)
 	}
 }
 

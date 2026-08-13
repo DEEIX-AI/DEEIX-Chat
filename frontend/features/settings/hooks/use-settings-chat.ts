@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import type { ChatSettings } from "@/features/settings/types/settings";
 import {
   DEFAULT_CHAT_SETTINGS,
-  groupModelsByVendor,
+  groupModelsForPresentation,
   parseChatSettings,
 } from "@/features/settings/utils/chat-settings";
 import { dispatchUserSettingsUpdated } from "@/features/settings/events/user-settings-events";
@@ -25,7 +25,7 @@ type UseSettingsChatResult = {
   loading: boolean;
   billingMode: BillingMode;
   contextCompressionEnabled: boolean;
-  vendorGroups: ReturnType<typeof groupModelsByVendor>;
+  modelGroups: ReturnType<typeof groupModelsForPresentation>;
   handleBool: (key: string, field: keyof ChatSettings) => (checked: boolean) => void;
   handleEnum: (key: string, field: keyof ChatSettings) => (value: string) => void;
   handleDefaultModel: (value: string) => void;
@@ -74,7 +74,7 @@ export function useSettingsChat(): UseSettingsChatResult {
     };
   }, [accessToken]);
 
-  const vendorGroups = React.useMemo(() => groupModelsByVendor(models), [models]);
+  const modelGroups = React.useMemo(() => groupModelsForPresentation(models), [models]);
 
   const persistSetting = React.useCallback(
     <K extends keyof ChatSettings>(key: string, field: K, value: string, previousValue: ChatSettings[K]) => {
@@ -136,7 +136,7 @@ export function useSettingsChat(): UseSettingsChatResult {
     loading,
     billingMode,
     contextCompressionEnabled,
-    vendorGroups,
+    modelGroups,
     handleBool,
     handleEnum,
     handleDefaultModel,

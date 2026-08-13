@@ -2,10 +2,12 @@ package conversation
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 )
 
@@ -51,5 +53,30 @@ func TestValidateConversationProjectDefaultsPreservesUnavailableExistingSelectio
 	)
 	if err != nil {
 		t.Fatalf("validateConversationProjectDefaults() error = %v", err)
+	}
+}
+
+func TestValidateConversationProjectDefaultsRejectsMultipleImageProcessors(t *testing.T) {
+	service := &Service{
+		cfg: config.NewRuntime(config.Config{MCPMaxSelectedToolsPerMessage: 4}),
+		mcpRepo: selectedToolRuntimeMCPRepositoryStub{
+			listToolsByIDs: func(context.Context, []uint) ([]domainmcp.Tool, error) {
+				return []domainmcp.Tool{
+					{ID: 1, AttachmentInputMode: domainmcp.AttachmentInputModeImage},
+					{ID: 2, AttachmentInputMode: domainmcp.AttachmentInputModeImage},
+				}, nil
+			},
+		},
+	}
+	err := service.validateConversationProjectDefaults(
+		context.Background(),
+		1,
+		domainconversation.ConversationProjectMCPDefaultModeCustom,
+		[]uint{1, 2},
+		nil,
+		nil,
+	)
+	if !errors.Is(err, ErrInvalidConversationProject) {
+		t.Fatalf("expected multiple image processors to be rejected, got %v", err)
 	}
 }

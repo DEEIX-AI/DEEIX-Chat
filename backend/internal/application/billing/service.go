@@ -22,6 +22,10 @@ import (
 const (
 	defaultPageSize            = 20
 	maxPageSize                = 1000
+	defaultMonthlyUsageMonths  = 12
+	maxMonthlyUsageMonths      = 24
+	defaultDailyUsageDays      = 30
+	maxDailyUsageDays          = 90
 	publicModelPricingCacheTTL = 30 * time.Second
 	nativeToolPricingSource    = "provider_official_defaults"
 )
@@ -117,6 +121,7 @@ type platformModelIdentityResolver interface {
 
 type modelPricingCatalogProvider interface {
 	ListActivePlatformModelNames(ctx context.Context) (map[string]struct{}, error)
+	SupportsVideoGeneration(ctx context.Context, platformModelName string) (bool, error)
 }
 
 type nativeToolCatalogProvider interface {
@@ -148,7 +153,10 @@ type UsagePricingInput struct {
 	OutputTokens        int64
 	ReasoningTokens     int64
 	CallCount           int64
+	DurationBillable    bool
 	DurationSeconds     int64
+	MediaType           string
+	InputImageCount     int64
 	LatencyMS           int64
 	ServerSideToolUsage map[string]int64
 	ServiceItems        []ServiceUsageInput
@@ -203,7 +211,6 @@ type ServiceUsageInput struct {
 	OutputTokens       int64
 	ReasoningTokens    int64
 	CallCount          int64
-	DurationSeconds    int64
 }
 
 // NativeToolPricingView 描述内置原生工具默认计费价格。
@@ -1173,6 +1180,18 @@ func (s *Service) AuthorizeUsage(ctx context.Context, userID uint, platformModel
 	if pricing.IsFree {
 		return authorization, nil
 	}
+	if normalizePricingMode(pricing.PricingMode) == domainbilling.PricingModeDuration {
+		if s.modelPricingCatalog == nil {
+			return nil, ErrModelPricingRequired
+		}
+		supported, supportErr := s.modelPricingCatalog.SupportsVideoGeneration(ctx, platformModelName)
+		if supportErr != nil {
+			return nil, supportErr
+		}
+		if !supported {
+			return nil, ErrModelPricingRequired
+		}
+	}
 	reservationNanousd, err := s.repo.GetBillingPrepaidAmountNanousd(ctx)
 	if err != nil {
 		return nil, err
@@ -1522,6 +1541,12 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		// 授权后价格被删除时必须进入待核对流程，不能把已发生的上游用量静默记为 0。
 		return nil, ErrModelPricingRequired
 	}
+	if mode != "self" && !input.ServiceOnly && pricing != nil && !pricing.IsFree && normalizePricingMode(pricing.PricingMode) == domainbilling.PricingModeDuration {
+		if !input.DurationBillable || input.DurationSeconds <= 0 {
+			// 请求开始后的模型能力或结果状态发生变化时，宁可进入待核对流程，也不能静默记成零费用。
+			return nil, ErrModelPricingRequired
+		}
+	}
 
 	currency := "USD"
 	var inputNanousdPerMTokens int64
@@ -1594,12 +1619,12 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 	if callCount <= 0 {
 		callCount = 1
 	}
-	durationSeconds := input.DurationSeconds
-	if durationSeconds < 0 {
-		durationSeconds = 0
-	}
-	if pricingMode == domainbilling.PricingModeDuration && durationSeconds <= 0 {
-		durationSeconds = 1
+	durationSeconds := int64(0)
+	if input.DurationBillable {
+		durationSeconds = input.DurationSeconds
+		if durationSeconds < 0 {
+			durationSeconds = 0
+		}
 	}
 	var inputBilledNanousd int64
 	var cacheReadBilledNanousd int64
@@ -1709,6 +1734,7 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		"rate_multiplier":                          billingRateMultiplierValue(rateMultiplier),
 		"billing_mode":                             mode,
 		"pricing_mode":                             pricingMode,
+		"duration_billable":                        input.DurationBillable,
 		"is_free_model":                            isFreeModel,
 		"currency":                                 currency,
 		"input_nanousd_per_m_tokens":               inputNanousdPerMTokens,
@@ -1747,6 +1773,14 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		"native_tool_billed_nanousd":               nativeToolBilledNanousd,
 		"base_service_billed_nanousd":              serviceBilledNanousd,
 		"service_items":                            usageServiceItemSnapshots(serviceItems),
+	}
+	if strings.EqualFold(strings.TrimSpace(input.MediaType), "video") {
+		inputImageCount := input.InputImageCount
+		if inputImageCount < 0 {
+			inputImageCount = 0
+		}
+		snapshot["media_type"] = "video"
+		snapshot["input_image_count"] = inputImageCount
 	}
 	if usageSource := strings.TrimSpace(input.UsageSource); usageSource != "" {
 		snapshot["usage_source"] = usageSource
@@ -1951,6 +1985,18 @@ func (s *Service) UpsertModelPricing(ctx context.Context, input ModelPricingInpu
 		return nil, err
 	}
 	pricingMode := normalizePricingMode(input.PricingMode)
+	if pricingMode == domainbilling.PricingModeDuration {
+		if s.modelPricingCatalog == nil {
+			return nil, ErrInvalidModelPricing
+		}
+		supported, supportErr := s.modelPricingCatalog.SupportsVideoGeneration(ctx, platformModelName)
+		if supportErr != nil {
+			return nil, supportErr
+		}
+		if !supported {
+			return nil, ErrInvalidModelPricing
+		}
+	}
 	var inputNanousdPerMTokens int64
 	var cacheReadNanousdPerMTokens int64
 	var cacheWriteNanousdPerMTokens int64
@@ -2109,16 +2155,12 @@ func (s *Service) buildUsageServiceItem(ctx context.Context, input ServiceUsageI
 		OutputTokens:       clampNonNegative(input.OutputTokens),
 		ReasoningTokens:    clampNonNegative(input.ReasoningTokens),
 		CallCount:          input.CallCount,
-		DurationSeconds:    input.DurationSeconds,
 	}
 	if item.ServiceName == "" {
 		item.ServiceName = item.ServiceCode
 	}
 	if item.CallCount <= 0 {
 		item.CallCount = 1
-	}
-	if item.DurationSeconds < 0 {
-		item.DurationSeconds = 0
 	}
 	identity, err := s.resolvePlatformModelIdentity(ctx, item.PlatformModelName)
 	if err != nil && !errors.Is(err, repository.ErrNotFound) {
@@ -2159,9 +2201,6 @@ func (s *Service) buildUsageServiceItem(ctx context.Context, input ServiceUsageI
 		item.CallBilledNanousd = item.CallCount * item.CallNanousdPerCall
 	case domainbilling.PricingModeDuration:
 		item.DurationNanousdPerSecond = applyRateMultiplier(pricing.DurationNanousdPerSecond, rateMultiplier)
-		if item.DurationSeconds <= 0 {
-			item.DurationSeconds = 1
-		}
 		item.DurationBilledNanousd = item.DurationSeconds * item.DurationNanousdPerSecond
 	case domainbilling.PricingModeTiered:
 		tiers, parseErr := parseTieredPricingTiers(pricing.TieredPricingJSON)
@@ -2409,10 +2448,10 @@ func normalizePage(page int, pageSize int) (int, int) {
 // ListMonthlyUsage 查询用户月度用量聚合。
 func (s *Service) ListMonthlyUsage(ctx context.Context, userID uint, months int) ([]domainbilling.UsageMonthlySummary, error) {
 	if months <= 0 {
-		months = 12
+		months = defaultMonthlyUsageMonths
 	}
-	if months > 24 {
-		months = 24
+	if months > maxMonthlyUsageMonths {
+		months = maxMonthlyUsageMonths
 	}
 	items, err := s.repo.ListMonthlyUsageByUser(ctx, userID, months)
 	if err != nil {
@@ -2423,7 +2462,10 @@ func (s *Service) ListMonthlyUsage(ctx context.Context, userID uint, months int)
 
 func fillMonthlyUsageSummaries(items []domainbilling.UsageMonthlySummary, months int, now time.Time) []domainbilling.UsageMonthlySummary {
 	if months <= 0 {
-		months = 12
+		months = defaultMonthlyUsageMonths
+	}
+	if months > maxMonthlyUsageMonths {
+		months = maxMonthlyUsageMonths
 	}
 	if now.IsZero() {
 		now = time.Now()
@@ -2440,7 +2482,7 @@ func fillMonthlyUsageSummaries(items []domainbilling.UsageMonthlySummary, months
 		byMonth[month.Format("2006-01")] = item
 	}
 
-	results := make([]domainbilling.UsageMonthlySummary, 0, months)
+	results := make([]domainbilling.UsageMonthlySummary, 0)
 	for month := startMonth; !month.After(currentMonth); month = month.AddDate(0, 1, 0) {
 		if item, ok := byMonth[month.Format("2006-01")]; ok {
 			results = append(results, item)
@@ -2454,10 +2496,10 @@ func fillMonthlyUsageSummaries(items []domainbilling.UsageMonthlySummary, months
 // ListDailyUsage 查询用户每日用量聚合。
 func (s *Service) ListDailyUsage(ctx context.Context, userID uint, days int, now time.Time) ([]domainbilling.UsageDailySummary, error) {
 	if days <= 0 {
-		days = 30
+		days = defaultDailyUsageDays
 	}
-	if days > 90 {
-		days = 90
+	if days > maxDailyUsageDays {
+		days = maxDailyUsageDays
 	}
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	startDate := today.AddDate(0, 0, -(days - 1))
@@ -2472,7 +2514,7 @@ func (s *Service) ListDailyUsage(ctx context.Context, userID uint, days int, now
 	for _, item := range items {
 		byDate[item.UsageDate.Format("2006-01-02")] = item
 	}
-	results := make([]domainbilling.UsageDailySummary, 0, days)
+	results := make([]domainbilling.UsageDailySummary, 0)
 	for day := startDate; day.Before(endDate); day = day.AddDate(0, 0, 1) {
 		if item, ok := byDate[day.Format("2006-01-02")]; ok {
 			results = append(results, item)
@@ -2516,8 +2558,7 @@ func (s *Service) listDailyUsageBetween(ctx context.Context, userID uint, start 
 	for _, item := range items {
 		byDate[item.UsageDate.Format("2006-01-02")] = item
 	}
-	days := int(end.Sub(start).Hours() / 24)
-	results := make([]domainbilling.UsageDailySummary, 0, days)
+	results := make([]domainbilling.UsageDailySummary, 0)
 	for day := start; day.Before(end); day = day.AddDate(0, 0, 1) {
 		if item, ok := byDate[day.Format("2006-01-02")]; ok {
 			results = append(results, item)

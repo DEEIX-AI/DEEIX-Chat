@@ -18,6 +18,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/pdfrender"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
 const (
@@ -33,13 +34,12 @@ const (
 
 // ClientConfig 表示 OCR 服务接入配置。
 type ClientConfig struct {
-	BaseURL               string
-	AuthToken             string
-	Model                 string
-	TimeoutSeconds        int
-	Prompt                string
-	Env                   string
-	SSRFProtectionEnabled bool
+	BaseURL        string
+	AuthToken      string
+	Model          string
+	TimeoutSeconds int
+	Prompt         string
+	OutboundPolicy security.OutboundPolicy
 }
 
 // Request 表示一次 PDF OCR 请求。
@@ -108,7 +108,7 @@ func NewLLM(cfg ClientConfig) *Client {
 		model:          strings.TrimSpace(cfg.Model),
 		prompt:         strings.TrimSpace(cfg.Prompt),
 		timeoutSeconds: cfg.TimeoutSeconds,
-		llmClient:      llm.NewClientWithEnv(cfg.Env, cfg.SSRFProtectionEnabled),
+		llmClient:      llm.NewClient(cfg.OutboundPolicy),
 		pdfRenderer:    pdfrender.New(),
 	}
 }

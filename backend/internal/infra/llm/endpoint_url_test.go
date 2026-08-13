@@ -46,6 +46,12 @@ func TestBuildOpenAICompatibleURLsRespectVersionedBasePath(t *testing.T) {
 			want:     "https://api.x.ai/v1/images/generations",
 		},
 		{
+			name:     "xai video generations endpoint",
+			baseURL:  "https://api.x.ai/v1",
+			endpoint: EndpointVideoGenerations,
+			want:     "https://api.x.ai/v1/videos/generations",
+		},
+		{
 			name:     "xai proxy plain base gets v1 image endpoint",
 			baseURL:  "https://proxy.example.com",
 			endpoint: EndpointImageGenerations,

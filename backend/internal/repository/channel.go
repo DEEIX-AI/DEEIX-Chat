@@ -137,10 +137,41 @@ type ChannelUpstreamListRow struct {
 // ChannelModelListRow 定义模型列表查询结果。
 type ChannelModelListRow struct {
 	domainchannel.PlatformModel
+	VendorName        string
+	VendorIcon        string
+	DisplayGroupName  string
+	DisplayGroupIcon  string
 	SourceCount       int64
 	ActiveSourceCount int64
 	ProtocolsJSON     string
 	UpstreamNamesJSON string
+}
+
+// ListModelVendorsInput 定义技术厂商目录查询条件。
+type ListModelVendorsInput struct {
+	Offset int
+	Limit  int
+	Query  string
+}
+
+// ListModelDisplayGroupsInput 定义模型展示分组查询条件。
+type ListModelDisplayGroupsInput struct {
+	Offset int
+	Limit  int
+	Query  string
+}
+
+// UpdateModelVendorInput 定义技术厂商可修改的展示字段。
+type UpdateModelVendorInput struct {
+	Name *string
+	Icon *string
+}
+
+// UpdateModelDisplayGroupInput 定义模型展示分组可修改字段。
+type UpdateModelDisplayGroupInput struct {
+	Name     *string
+	Icon     *string
+	ModelIDs *[]uint
 }
 
 // ChannelUpstreamModelListRow 定义上游模型路由绑定列表查询结果。
@@ -216,8 +247,10 @@ type ListChannelModelsInput struct {
 
 // UpdateChannelModelInput 定义平台模型更新字段。
 type UpdateChannelModelInput struct {
-	PlatformModelName  *string
-	Vendor             *string
+	PlatformModelName *string
+	Vendor            *string
+	// DisplayGroupID 为 nil 时不更新；值为 0 时清空分组并恢复按技术厂商展示。
+	DisplayGroupID     *uint
 	KindsJSON          *string
 	Icon               *string
 	CapabilitiesJSON   *string
@@ -324,6 +357,7 @@ func (input UpdateChannelPlatformRouteInput) IsZero() bool {
 func (input UpdateChannelModelInput) IsZero() bool {
 	return input.PlatformModelName == nil &&
 		input.Vendor == nil &&
+		input.DisplayGroupID == nil &&
 		input.KindsJSON == nil &&
 		input.Icon == nil &&
 		input.CapabilitiesJSON == nil &&
@@ -335,6 +369,20 @@ func (input UpdateChannelModelInput) IsZero() bool {
 		input.CbFailureThreshold == nil &&
 		input.CbDurationMin == nil &&
 		input.CbWindowMin == nil
+}
+
+// ModelPresentationRepository 定义技术厂商和可选展示分组的持久化能力。
+type ModelPresentationRepository interface {
+	CreateModelVendor(ctx context.Context, item *domainchannel.ModelVendor) error
+	UpdateModelVendor(ctx context.Context, key string, input UpdateModelVendorInput) error
+	GetModelVendorByKey(ctx context.Context, key string) (*domainchannel.ModelVendor, error)
+	ListModelVendors(ctx context.Context, input ListModelVendorsInput) ([]domainchannel.ModelVendor, int64, error)
+	CreateModelDisplayGroup(ctx context.Context, item *domainchannel.ModelDisplayGroup, modelIDs []uint) error
+	UpdateModelDisplayGroup(ctx context.Context, groupID uint, input UpdateModelDisplayGroupInput) error
+	SetModelsDisplayGroup(ctx context.Context, modelIDs []uint, groupID uint) error
+	GetModelDisplayGroupByID(ctx context.Context, groupID uint) (*domainchannel.ModelDisplayGroup, error)
+	ListModelDisplayGroups(ctx context.Context, input ListModelDisplayGroupsInput) ([]domainchannel.ModelDisplayGroup, int64, error)
+	DeleteModelDisplayGroup(ctx context.Context, groupID uint) error
 }
 
 // ChannelRepository 定义渠道管理依赖的仓储能力。

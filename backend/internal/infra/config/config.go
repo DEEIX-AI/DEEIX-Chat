@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	sharedsecurity "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 	"gopkg.in/yaml.v3"
 )
 
@@ -158,6 +159,11 @@ func DefaultModelOptionAllowedPathsJSON() string {
     "resolution",
     "response_format"
   ],
+  "xai_video": [
+    "aspect_ratio",
+    "duration",
+    "resolution"
+  ],
   "gemini_generate_content": [
     "generationConfig.temperature",
     "generationConfig.topP",
@@ -224,6 +230,8 @@ type yamlConfig struct {
 		JWTSecret              string `yaml:"jwt_secret"`
 		DataEncryptionKey      string `yaml:"data_encryption_key"`
 		SSRFProtectionEnabled  *bool  `yaml:"ssrf_protection_enabled"`
+		SSRFAllowedHosts       string `yaml:"ssrf_allowed_hosts"`
+		SSRFAllowedCIDRs       string `yaml:"ssrf_allowed_cidrs"`
 		TurnstileSiteverifyURL string `yaml:"turnstile_siteverify_url"`
 	} `yaml:"security"`
 	Database struct {
@@ -322,6 +330,8 @@ type Config struct {
 	JWTSecret                    string
 	DataEncryptionKey            string
 	SSRFProtectionEnabled        bool
+	SSRFAllowedHosts             string
+	SSRFAllowedCIDRs             string
 	DatabaseDriver               string
 	PostgresDSN                  string
 	PostgresMaxOpenConns         int
@@ -555,6 +565,8 @@ func Load() Config {
 		JWTSecret:                    envOr("JWT_SECRET", yc.Security.JWTSecret, defaultJWTSecret),
 		DataEncryptionKey:            envOr("DATA_ENCRYPTION_KEY", yc.Security.DataEncryptionKey, defaultDataEncryptionKey),
 		SSRFProtectionEnabled:        envOrBoolPtr("SSRF_PROTECTION_ENABLED", yc.Security.SSRFProtectionEnabled, false),
+		SSRFAllowedHosts:             envOr("SSRF_ALLOWED_HOSTS", yc.Security.SSRFAllowedHosts, ""),
+		SSRFAllowedCIDRs:             envOr("SSRF_ALLOWED_CIDRS", yc.Security.SSRFAllowedCIDRs, ""),
 		DatabaseDriver:               normalizeDatabaseDriver(envOr("DATABASE_DRIVER", yc.Database.Driver, "postgres")),
 		PostgresDSN:                  normalizePostgresDSN(envOr("POSTGRES_DSN", yc.Database.Postgres.DSN, "host=127.0.0.1 user=deeix_chat password=deeix_chat_dev_2026 dbname=deeix_chat port=5432 sslmode=disable TimeZone=Asia/Shanghai")),
 		PostgresMaxOpenConns:         envOrInt("POSTGRES_MAX_OPEN_CONNS", yc.Database.Postgres.MaxOpenConns, 30),
@@ -757,6 +769,12 @@ func (c Config) Validate() error {
 		}
 		return fmt.Errorf("invalid config: APP_ENV/app.env must be dev, development, prod, or production (got %q)", c.Env)
 	}
+	if _, err := sharedsecurity.NewOutboundPolicy(c.ssrfProtectionEnforced(), splitCommaSeparated(c.SSRFAllowedHosts), splitCommaSeparated(c.SSRFAllowedCIDRs)); err != nil {
+		return fmt.Errorf("invalid config: SSRF allowlist: %w", err)
+	}
+	if err := validateHTTPIntegrationURL(c.TurnstileSiteverifyURL, "TURNSTILE_SITEVERIFY_URL"); err != nil {
+		return err
+	}
 	if env != "prod" {
 		return nil
 	}
@@ -833,6 +851,17 @@ func (c Config) validateStorage() error {
 	default:
 		return fmt.Errorf("invalid storage config: unsupported STORAGE_BACKEND %q", c.StorageBackend)
 	}
+}
+
+func validateHTTPIntegrationURL(raw string, label string) error {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return nil
+	}
+	if err := sharedsecurity.ValidateTrustedOutboundHTTPURL(value); err != nil {
+		return fmt.Errorf("invalid config: %s must be an http(s) URL without credentials; metadata and link-local targets are not allowed", label)
+	}
+	return nil
 }
 
 func validatePublicURL(raw string, label string) error {
@@ -1100,7 +1129,36 @@ func envOrBoolPtr(envKey string, yamlVal *bool, defaultVal bool) bool {
 
 // TrustedProxyList 返回受信代理列表，支持逗号分隔。
 func (c Config) TrustedProxyList() []string {
-	raw := strings.TrimSpace(c.TrustedProxies)
+	return splitCommaSeparated(c.TrustedProxies)
+}
+
+// TrustedOutboundPolicy 返回部署级集成和可信私网重定向使用的全局 SSRF 白名单策略。
+// 管理员保存的模型、MCP、Embedding 和身份源 endpoint 由对应适配器按精确 origin 局部授权；
+// 只有跨 origin 的私网重定向目标需要显式进入全局白名单。
+// 非法白名单在 Config.Validate 阶段阻止启动；此处保守回退为无白名单严格策略。
+func (c Config) TrustedOutboundPolicy() sharedsecurity.OutboundPolicy {
+	policy, err := sharedsecurity.NewOutboundPolicy(
+		c.ssrfProtectionEnforced(),
+		splitCommaSeparated(c.SSRFAllowedHosts),
+		splitCommaSeparated(c.SSRFAllowedCIDRs),
+	)
+	if err != nil {
+		return sharedsecurity.NewStrictOutboundPolicy(c.ssrfProtectionEnforced())
+	}
+	return policy
+}
+
+// StrictOutboundPolicy 返回不继承私网白名单的 SSRF 策略，用于外部内容和固定公网请求。
+func (c Config) StrictOutboundPolicy() sharedsecurity.OutboundPolicy {
+	return sharedsecurity.NewStrictOutboundPolicy(c.ssrfProtectionEnforced())
+}
+
+func (c Config) ssrfProtectionEnforced() bool {
+	return normalizeEnv(c.Env) == "prod" && c.SSRFProtectionEnabled
+}
+
+func splitCommaSeparated(raw string) []string {
+	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil
 	}

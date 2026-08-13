@@ -135,6 +135,7 @@ func TestSeedMigratesLegacyDefaultModelOptionAllowedPaths(t *testing.T) {
 	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &legacy); err != nil {
 		t.Fatalf("decode current model option defaults: %v", err)
 	}
+	delete(legacy, "xai_video")
 	legacy["xai_responses"] = []string{"reasoning.effort"}
 	legacyJSON, err := json.Marshal(legacy)
 	if err != nil {
@@ -154,6 +155,32 @@ func TestSeedMigratesLegacyDefaultModelOptionAllowedPaths(t *testing.T) {
 	got := repo.items["chat:model_option_allowed_paths"].Value
 	if got != config.DefaultModelOptionAllowedPathsJSON() {
 		t.Fatalf("expected legacy model option defaults to migrate, got %q", got)
+	}
+}
+
+func TestSeedAddsXAIVideoToPreviousDefaultModelOptionAllowedPaths(t *testing.T) {
+	previousDefault := map[string][]string{}
+	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &previousDefault); err != nil {
+		t.Fatalf("decode current model option defaults: %v", err)
+	}
+	delete(previousDefault, "xai_video")
+	previousJSON, err := json.Marshal(previousDefault)
+	if err != nil {
+		t.Fatalf("encode previous model option defaults: %v", err)
+	}
+	repo := newSettingsSeedRepo(domainsettings.SystemSetting{
+		Namespace: "chat",
+		Key:       "model_option_allowed_paths",
+		Value:     string(previousJSON),
+		ValueType: "json",
+	})
+	service := NewService(repo, "")
+
+	if err := service.Seed(context.Background(), config.Config{}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	if got := repo.items["chat:model_option_allowed_paths"].Value; got != config.DefaultModelOptionAllowedPathsJSON() {
+		t.Fatalf("expected xAI video defaults to be added, got %q", got)
 	}
 }
 

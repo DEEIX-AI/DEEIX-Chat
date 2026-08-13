@@ -177,6 +177,7 @@ func ToConversationExportResponse(item *appconversation.ConversationExportResult
 	}
 	messages := make([]MessageResponse, 0, len(item.Messages))
 	for _, message := range item.Messages {
+		// User-owned archive: keep recoverable user content; assistant blocked body stays empty from DB.
 		messages = append(messages, toMessageResponseWithRunAndFallback(message, runModels[strings.TrimSpace(message.RunID)], fallbackModel))
 	}
 
@@ -195,6 +196,31 @@ func ToConversationExportResponse(item *appconversation.ConversationExportResult
 			Notes:  "Full backup export. Import compatibility is not guaranteed.",
 		},
 	}
+}
+
+// ToAdminConversationExportResponse redacts blocked originals for administrator bulk export.
+func ToAdminConversationExportResponse(item *appconversation.ConversationExportResult) ConversationExportResponse {
+	resp := ToConversationExportResponse(item)
+	if item == nil {
+		return resp
+	}
+	runModels := make(map[string]model.Run, len(item.Runs))
+	for _, run := range item.Runs {
+		if runID := strings.TrimSpace(run.RunID); runID != "" {
+			runModels[runID] = run
+		}
+	}
+	fallbackModel := ""
+	if item.Conversation != nil {
+		fallbackModel = item.Conversation.Model
+	}
+	messages := make([]MessageResponse, 0, len(item.Messages))
+	for _, message := range item.Messages {
+		messages = append(messages, toMessageResponseWithRunAndFallbackAdmin(message, runModels[strings.TrimSpace(message.RunID)], fallbackModel))
+	}
+	resp.Messages = messages
+	resp.Compatibility.Notes = "Admin export redacts blocked content. Originals are only available via content moderation event APIs."
+	return resp
 }
 
 // ConversationProjectResponse 对外会话项目响应 DTO。
@@ -785,9 +811,18 @@ type MessageResponse struct {
 	ThumbsDownCount   int64                        `json:"thumbsDownCount"`
 	BillingCost       *MessageBillingCostResponse  `json:"billingCost,omitempty"`
 	ProcessTrace      *MessageProcessTraceResponse `json:"processTrace,omitempty"`
+	Moderation        *MessageModerationResponse   `json:"moderation,omitempty"`
 	EditedAt          *time.Time                   `json:"editedAt" extensions:"x-nullable,!x-omitempty"`
 	CreatedAt         time.Time                    `json:"createdAt"`
 	UpdatedAt         time.Time                    `json:"updatedAt"`
+}
+
+// MessageModerationResponse exposes soft-moderation state to clients.
+type MessageModerationResponse struct {
+	State      string   `json:"state,omitempty"`
+	Direction  string   `json:"direction,omitempty"`
+	EventID    string   `json:"eventID,omitempty"`
+	Categories []string `json:"categories,omitempty"`
 }
 
 func toTraceBlockResponse(b *model.MessageTraceBlock) *MessageTraceBlockResponse {
@@ -977,6 +1012,15 @@ func toMessageResponseWithRunAndFallback(m model.Message, run model.Run, fallbac
 	if platformModelName == "" {
 		platformModelName = strings.TrimSpace(fallbackModel)
 	}
+	// Server-side redaction for blocked assistant content (user-facing keeps blocked user text).
+	content := m.Content
+	attachments := m.Attachments
+	processTrace := m.ProcessTrace
+	if strings.EqualFold(strings.TrimSpace(m.Status), "blocked") && m.Role == "assistant" {
+		content = ""
+		attachments = "[]"
+		processTrace = nil
+	}
 	return MessageResponse{
 		ID:                m.ID,
 		ConversationID:    m.ConversationID,
@@ -986,7 +1030,7 @@ func toMessageResponseWithRunAndFallback(m model.Message, run model.Run, fallbac
 		RunID:             m.RunID,
 		Role:              m.Role,
 		ContentType:       m.ContentType,
-		Content:           m.Content,
+		Content:           content,
 		BranchReason:      m.BranchReason,
 		SourceMessageID:   m.SourceMessageID,
 		TokenUsage:        m.TokenUsage,
@@ -999,7 +1043,7 @@ func toMessageResponseWithRunAndFallback(m model.Message, run model.Run, fallbac
 		Status:            m.Status,
 		ErrorCode:         m.ErrorCode,
 		ErrorMessage:      m.ErrorMessage,
-		Attachments:       m.Attachments,
+		Attachments:       attachments,
 		PlatformModelName: platformModelName,
 		UpstreamModelName: strings.TrimSpace(run.UpstreamModelName),
 		ModelVendor:       strings.TrimSpace(run.ModelVendor),
@@ -1010,11 +1054,95 @@ func toMessageResponseWithRunAndFallback(m model.Message, run model.Run, fallbac
 		ThumbsUpCount:     m.ThumbsUpCount,
 		ThumbsDownCount:   m.ThumbsDownCount,
 		BillingCost:       toMessageBillingCostResponse(m),
-		ProcessTrace:      toMessageProcessTraceResponse(m.ProcessTrace),
+		ProcessTrace:      toMessageProcessTraceResponse(processTrace),
+		Moderation:        toMessageModerationResponse(m, run),
 		EditedAt:          m.EditedAt,
 		CreatedAt:         m.CreatedAt,
 		UpdatedAt:         m.UpdatedAt,
 	}
+}
+
+func toMessageModerationResponse(m model.Message, run model.Run) *MessageModerationResponse {
+	eventID := strings.TrimSpace(m.ModerationEventID)
+	if eventID == "" {
+		eventID = strings.TrimSpace(run.ModerationEventID)
+	}
+	state := strings.TrimSpace(run.ModerationState)
+	if strings.EqualFold(strings.TrimSpace(m.Status), "blocked") {
+		state = "blocked"
+	}
+	if eventID == "" && state == "" {
+		return nil
+	}
+	categories := parseStringJSONArray(firstNonEmptyModerationJSON(m.ModerationCategoriesJSON, run.ModerationCategoriesJSON))
+	direction := ""
+	if strings.EqualFold(m.Status, "blocked") && m.Role == "user" {
+		direction = "input"
+	} else if strings.EqualFold(m.Status, "blocked") {
+		direction = "output"
+	}
+	return &MessageModerationResponse{
+		State:      state,
+		Direction:  direction,
+		EventID:    eventID,
+		Categories: categories,
+	}
+}
+
+func firstNonEmptyModerationJSON(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" && strings.TrimSpace(v) != "[]" {
+			return v
+		}
+	}
+	return "[]"
+}
+
+func parseStringJSONArray(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "[]" || raw == "null" {
+		return nil
+	}
+	var items []string
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return nil
+	}
+	return items
+}
+
+// toMessageResponseWithRunAndFallbackAdmin redacts blocked originals for admin logs/export.
+func toMessageResponseWithRunAndFallbackAdmin(m model.Message, run model.Run, fallbackModel string) MessageResponse {
+	resp := toMessageResponseWithRunAndFallback(m, run, fallbackModel)
+	if !strings.EqualFold(strings.TrimSpace(m.Status), "blocked") {
+		return resp
+	}
+	eventID := strings.TrimSpace(firstNonEmptyString(m.ModerationEventID, run.ModerationEventID))
+	placeholder := "[blocked by content moderation"
+	if eventID != "" {
+		placeholder += "; event " + eventID
+	}
+	placeholder += "]"
+	if m.Role == "user" {
+		resp.Content = placeholder
+		resp.Attachments = "[]"
+	} else if m.Role == "assistant" {
+		resp.Content = ""
+		resp.Attachments = "[]"
+		resp.ProcessTrace = nil
+		if strings.TrimSpace(resp.ErrorMessage) == "" {
+			resp.ErrorMessage = placeholder
+		}
+	}
+	return resp
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }
 
 // ---------- Send Message ----------
