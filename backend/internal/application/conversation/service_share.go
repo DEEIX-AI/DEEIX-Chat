@@ -535,6 +535,7 @@ func (s *Service) cloneSharedMessage(
 		Status:           status,
 		ErrorCode:        source.ErrorCode,
 		ErrorMessage:     source.ErrorMessage,
+		KnowledgeSources: append([]model.MessageKnowledgeSource(nil), source.KnowledgeSources...),
 	}
 	if message.Role == "" {
 		message.Role = "assistant"

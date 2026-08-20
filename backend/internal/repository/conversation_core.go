@@ -31,6 +31,27 @@ type AssistantMessageCompletionUpdate struct {
 	Status           string
 	ErrorCode        string
 	ErrorMessage     string
+	KnowledgeSources []domainconversation.MessageKnowledgeSource
+}
+
+// ForkConversationMessage 描述 fork 时待创建的消息及其源消息关系。
+// Message 仅承载新消息字段；父子关系通过源消息 ID 在事务内重建。
+type ForkConversationMessage struct {
+	SourceMessageID       uint
+	SourceParentMessageID *uint
+	Message               domainconversation.Message
+}
+
+// CreateForkedConversationInput 描述一次原子 fork 写入。
+type CreateForkedConversationInput struct {
+	SourceConversationID uint
+	Conversation         *domainconversation.Conversation
+	Messages             []ForkConversationMessage
+}
+
+// ConversationForkRepository 封装新会话、消息链和附件引用的原子复制能力。
+type ConversationForkRepository interface {
+	CreateForkedConversation(ctx context.Context, input CreateForkedConversationInput) error
 }
 
 // ConversationMetadataPatch 定义自动生成会话元数据的更新字段。
@@ -169,10 +190,11 @@ func (scope HistoricalMessageScope) Valid() bool {
 
 // MessageChunkSearchInput 描述当前分支内的历史消息语义检索。
 type MessageChunkSearchInput struct {
-	Scope          HistoricalMessageScope
-	QueryEmbedding []float32
-	TopK           int
-	MinSimilarity  float64
+	Scope              HistoricalMessageScope
+	QueryEmbedding     []float32
+	EmbeddingSignature string
+	TopK               int
+	MinSimilarity      float64
 }
 
 // CompactRepository 封装上下文压缩快照能力。

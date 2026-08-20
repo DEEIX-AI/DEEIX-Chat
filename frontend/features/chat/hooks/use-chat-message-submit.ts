@@ -39,6 +39,7 @@ import {
 import {
   type ConversationStreamOptions,
   cancelMessageGeneration,
+  forkConversationFromMessage,
   getConversation,
   streamMessage as streamConversationMessage,
   streamImageEdit,
@@ -197,6 +198,7 @@ type QueuedChatSubmission = BranchScope & {
   options: ConversationOptions;
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
+  selectedKnowledgeBaseIDs: string[];
   htmlVisualPromptEnabled: boolean;
 };
 
@@ -447,6 +449,7 @@ export function useChatMessageSubmit({
   modelOptions,
   selectedToolIDs,
   selectedSkills,
+  selectedKnowledgeBaseIDs,
   htmlVisualPromptEnabled,
   options,
   draft,
@@ -457,6 +460,7 @@ export function useChatMessageSubmit({
   autoGenerateLabels,
   prependNewConversation,
   onConversationCreated,
+  onConversationForked,
   touchByPublicID,
   reload,
   replaceMessage,
@@ -481,7 +485,8 @@ export function useChatMessageSubmit({
   resetStreamBuffer,
   startStream,
   activeGenerationRunsRef,
-  failedGenerationRunsRef,
+  activeGenerationRunsRevision,
+  onActiveGenerationRunsChange,
   resumeGenerationActive = false,
 }: {
   conversationID: string | null;
@@ -491,6 +496,7 @@ export function useChatMessageSubmit({
   modelOptions: ChatModelOption[];
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
+  selectedKnowledgeBaseIDs: string[];
   htmlVisualPromptEnabled: boolean;
   options: ConversationOptions;
   draft: string;
@@ -501,6 +507,7 @@ export function useChatMessageSubmit({
   autoGenerateLabels: boolean;
   prependNewConversation: (platformModelName: string) => Promise<ConversationDTO | null | undefined>;
   onConversationCreated?: (conversationPublicID: string) => void;
+  onConversationForked?: (conversation: ConversationDTO) => Promise<void> | void;
   touchByPublicID: (publicID: string, patch?: Partial<ConversationDTO>) => void;
   reload: () => void;
   replaceMessage: (message: MessageDTO) => void;
@@ -525,11 +532,11 @@ export function useChatMessageSubmit({
   resetStreamBuffer: (exchangeKey?: string) => void;
   startStream: (exchangeKey: string, runID?: string) => void;
   activeGenerationRunsRef?: React.RefObject<Set<string>>;
-  failedGenerationRunsRef?: React.RefObject<Set<string>>;
+  activeGenerationRunsRevision: number;
+  onActiveGenerationRunsChange?: () => void;
   resumeGenerationActive?: boolean;
 }) {
   const t = useTranslations("chat.submit");
-  const [activeRunRevision, setActiveRunRevision] = React.useState(0);
   const activeStreamsRef = React.useRef(new Map<string, ActiveStream>());
   const conversationIDRef = React.useRef(conversationID);
   const conversationScopeKeyRef = React.useRef(conversationScopeKey);
@@ -570,12 +577,12 @@ export function useChatMessageSubmit({
           visibleMessages,
         ),
       ),
-    [activeRunRevision, conversationScopeKey, visibleBranchScopePath, visibleMessages],
+    [activeGenerationRunsRevision, conversationScopeKey, visibleBranchScopePath, visibleMessages],
   );
 
   const syncActiveRuns = React.useCallback(() => {
-    setActiveRunRevision((current) => current + 1);
-  }, []);
+    onActiveGenerationRunsChange?.();
+  }, [onActiveGenerationRunsChange]);
 
   const updatePendingExchange = React.useCallback(
     (exchangeKey: string, update: (current: PendingExchange) => PendingExchange) => {
@@ -724,6 +731,7 @@ export function useChatMessageSubmit({
       const requestOptions = queuedSubmission?.options ?? options;
       const requestSelectedToolIDs = queuedSubmission?.selectedToolIDs ?? selectedToolIDs;
       const requestSelectedSkills = queuedSubmission?.selectedSkills ?? selectedSkills;
+      const requestSelectedKnowledgeBaseIDs = queuedSubmission?.selectedKnowledgeBaseIDs ?? selectedKnowledgeBaseIDs;
       const requestHTMLVisualPromptEnabled = queuedSubmission?.htmlVisualPromptEnabled ?? htmlVisualPromptEnabled;
       let targetConversationScopeKey = queuedSubmission?.conversationScopeKey ?? conversationScopeKeyRef.current;
       const resolvedParentPublicID = resolvePersistedPublicID(parentMessagePublicID);
@@ -1162,6 +1170,7 @@ export function useChatMessageSubmit({
             content: payloadContent,
             selectedToolIDs: requestSelectedToolIDs.length > 0 ? requestSelectedToolIDs : undefined,
             skillIDs: requestSelectedSkills.length > 0 ? requestSelectedSkills.map((skill) => skill.id) : undefined,
+            knowledgeBaseIDs: requestSelectedKnowledgeBaseIDs.length > 0 ? requestSelectedKnowledgeBaseIDs : undefined,
             htmlVisualPrompt: requestHTMLVisualPromptEnabled || undefined,
           };
           completed = await streamConversationMessage(token, targetConversationID, chatPayload, streamOptions);
@@ -1182,7 +1191,6 @@ export function useChatMessageSubmit({
               : await streamImageEdit(token, targetConversationID, mediaPayload, streamOptions);
         }
 
-        failedGenerationRunsRef?.current.delete(clientRunID);
         sentSuccessfully = true;
         flushStreamTextNow(exchangeKey);
         flushUpstreamThinkNow(exchangeKey);
@@ -1415,7 +1423,6 @@ export function useChatMessageSubmit({
         const errorMessage = resolveErrorMessage(error, t("retryLater"));
         const errorDetails = resolveErrorDetails(error);
         const errorSummary = resolveErrorSummary(error, t("retryLater"));
-        failedGenerationRunsRef?.current.add(clientRunID);
         shouldKeepConversationLayout = true;
         if (
           resetComposer &&
@@ -1494,7 +1501,6 @@ export function useChatMessageSubmit({
     [
       activeGenerationRunsRef,
       autoGenerateLabels,
-      failedGenerationRunsRef,
       enqueueUpstreamThinkDelta,
       enqueueStreamText,
       flushStreamTextNow,
@@ -1509,6 +1515,7 @@ export function useChatMessageSubmit({
       modelOptions,
       selectedToolIDs,
       selectedSkills,
+      selectedKnowledgeBaseIDs,
       htmlVisualPromptEnabled,
       selectedPlatformModelName,
       setAttachments,
@@ -1606,6 +1613,7 @@ export function useChatMessageSubmit({
           options: sanitizeConversationOptions(options),
           selectedToolIDs: selectedToolIDs.slice(),
           selectedSkills: selectedSkills.slice(),
+          selectedKnowledgeBaseIDs: selectedKnowledgeBaseIDs.slice(),
           htmlVisualPromptEnabled,
         },
       ];
@@ -1625,6 +1633,7 @@ export function useChatMessageSubmit({
     options,
     selectedPlatformModelName,
     selectedSkills,
+    selectedKnowledgeBaseIDs,
     selectedToolIDs,
     setAttachments,
     setDraft,
@@ -1929,7 +1938,7 @@ export function useChatMessageSubmit({
         dispatchingQueuedSubmissionIDsRef.current.delete(queuedSubmission.id);
       });
   }, [
-    activeRunRevision,
+    activeGenerationRunsRevision,
     combinedMessages,
     conversationScopeKey,
     currentLeafMessage?.publicID,
@@ -2053,6 +2062,31 @@ export function useChatMessageSubmit({
     [replaceMessage, t],
   );
 
+  const onForkMessage = React.useCallback(
+    async (message: ChatAreaMessage) => {
+      const messagePublicID = resolvePersistedPublicID(message.publicID);
+      const conversationPublicID = conversationIDRef.current?.trim() || "";
+      if (!messagePublicID || !conversationPublicID) {
+        toast.error(t("forkFailed"), { description: t("continueReplyUnavailable") });
+        return;
+      }
+      const token = await resolveAccessToken();
+      if (!token) {
+        toast.error(t("forkFailed"), { description: t("signInRequired") });
+        return;
+      }
+      try {
+        const forked = await forkConversationFromMessage(token, conversationPublicID, messagePublicID);
+        await onConversationForked?.(forked);
+      } catch (error) {
+        toast.error(t("forkFailed"), {
+          description: resolveErrorMessage(error, t("retryLater")),
+        });
+      }
+    },
+    [onConversationForked, t],
+  );
+
   const onCycleMessageBranch = React.useCallback(
     (parentPublicID: string | null, direction: "previous" | "next") => {
       const siblings = buildChildrenIndex(combinedMessages).get(toBranchKey(parentPublicID)) ?? [];
@@ -2084,6 +2118,7 @@ export function useChatMessageSubmit({
     onEditAssistantMessage,
     onEditUserMessage,
     onContinueAssistantMessage,
+    onForkMessage,
     onRetryAssistantMessage,
     onRetryUserMessage,
     onSendMessage,

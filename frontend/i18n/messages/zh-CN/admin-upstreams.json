@@ -142,6 +142,7 @@
     "readTimeout": "读取超时（ms）",
     "streamTimeout": "流超时（ms）",
     "circuitBreak": "熔断机制",
+    "circuitBreakDescription": "仅在自动熔断开启后生效。",
     "failureThreshold": "调用失败次数阈值",
     "failureThresholdDescription": "上游窗口内累计失败达此数则触发上游熔断（0 = 禁用）",
     "modelThreshold": "模型失败个数阈值",

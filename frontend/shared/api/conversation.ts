@@ -1,4 +1,5 @@
 import type {
+  ConversationRuns,
   MessageProcessTraceResponse,
   MessageTraceBlockResponse,
   MessageTraceEventResponse,
@@ -257,7 +258,11 @@ function handleStreamEvent(event: StreamMessageEvent, options: ConversationStrea
   }
 
   if (event.type === "delta") {
-    options.onDelta?.(event.delta);
+    if (event.replace) {
+      options.onTextSnapshot?.(event.delta);
+    } else {
+      options.onDelta?.(event.delta);
+    }
     return null;
   }
 
@@ -899,9 +904,16 @@ export async function resumeMessageGenerationStream(
   options: ConversationStreamOptions = {},
 ): Promise<SendMessageResult | null> {
   const afterSeq = options.afterSeq && options.afterSeq > 0 ? Math.floor(options.afterSeq) : 0;
-  const afterQuery = afterSeq > 0 ? `?after=${afterSeq}` : "";
+  const requestQuery = {
+    snapshot: true,
+    ...(afterSeq > 0 ? { after: afterSeq } : {}),
+  } satisfies ConversationRuns.StreamList.RequestQuery;
+  const query = new URLSearchParams({ snapshot: String(requestQuery.snapshot) });
+  if (requestQuery.after !== undefined) {
+    query.set("after", String(requestQuery.after));
+  }
   const response = await authedFetch(
-    `/api/v1/conversation-runs/${pathParam(runID)}/stream${afterQuery}`,
+    `/api/v1/conversation-runs/${pathParam(runID)}/stream?${query.toString()}`,
     {
       method: "GET",
       accessToken,
@@ -914,7 +926,7 @@ export async function resumeMessageGenerationStream(
     return null;
   }
 
-  const { moderationBlocked } = await readConversationStream(response, options);
+  const { completed, moderationBlocked } = await readConversationStream(response, options);
   if (moderationBlocked) {
     throw new ApiError(
       "content blocked by moderation",
@@ -927,7 +939,7 @@ export async function resumeMessageGenerationStream(
       "content_moderation.blocked",
     );
   }
-  return null;
+  return completed;
 }
 
 export async function setMessageFeedback(
@@ -962,6 +974,21 @@ export async function updateMessage(
   );
 }
 
+export async function forkConversationFromMessage(
+  accessToken: string,
+  conversationPublicID: string,
+  messagePublicID: string,
+): Promise<ConversationDTO> {
+  return authedRequest<ConversationDTO>(
+    `/api/v1/conversations/${pathParam(conversationPublicID)}/messages/${pathParam(messagePublicID)}/fork`,
+    {
+      method: "POST",
+      accessToken,
+    },
+    true,
+  );
+}
+
 export type CompactDoneEvent = {
   method: string;
   freed_tokens: number;
@@ -974,6 +1001,7 @@ export type ConversationStreamOptions = {
   afterSeq?: number;
   onEventSeq?: (seq: number) => void;
   onDelta?: (delta: string) => void;
+  onTextSnapshot?: (content: string) => void;
   onFileProc?: (message: string) => void;
   onRagSearch?: (message: string) => void;
   onMediaStatus?: (event: Extract<StreamMessageEvent, { type: "media_status" }>) => void;

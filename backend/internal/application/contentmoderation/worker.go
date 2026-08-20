@@ -506,7 +506,7 @@ func (s *Service) recordHit(ctx context.Context, task *moderationTask, eval HitE
 		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		s.deleteUntrackedIsolatedImages(rollbackCtx, publicID, imageMeta)
 		cancel()
-		return publicID, err
+		return "", err
 	}
 	return publicID, nil
 }

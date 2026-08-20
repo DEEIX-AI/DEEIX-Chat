@@ -755,12 +755,6 @@ func withGeminiInteractionResponseType(options map[string]interface{}, responseT
 			format[key] = value
 		}
 	}
-	if raw, ok := next["responseFormat"].(map[string]interface{}); ok {
-		for key, value := range raw {
-			format[key] = value
-		}
-		delete(next, "responseFormat")
-	}
 	format["type"] = strings.TrimSpace(responseType)
 	next["response_format"] = format
 	return next

@@ -73,6 +73,18 @@ func (ConversationProjectSkill) TableName() string {
 	return "chat_conversation_project_skills"
 }
 
+// ConversationProjectKnowledgeBase 记录项目默认使用的知识库。
+type ConversationProjectKnowledgeBase struct {
+	ProjectID       uint `gorm:"primaryKey;comment:项目ID"`
+	KnowledgeBaseID uint `gorm:"primaryKey;index:idx_project_knowledge_bases_base;comment:知识库ID"`
+	SortOrder       int  `gorm:"not null;default:0;comment:项目内排序"`
+}
+
+// TableName 指定项目知识库关联表名。
+func (ConversationProjectKnowledgeBase) TableName() string {
+	return "chat_conversation_project_knowledge_bases"
+}
+
 // ConversationShare 存储会话公开分享快照。
 type ConversationShare struct {
 	BaseModel
@@ -123,6 +135,7 @@ type Message struct {
 	ErrorMessage             string     `gorm:"size:255;not null;default:'';comment:错误信息"`
 	ModerationEventID        string     `gorm:"size:40;not null;default:'';index:idx_chat_messages_moderation_event_id;comment:内容审核事件编号"`
 	ModerationCategoriesJSON string     `gorm:"type:text;not null;default:'[]';comment:内容审核命中分类JSON"`
+	KnowledgeSourcesJSON     string     `gorm:"type:text;not null;default:'[]';comment:本轮回答实际使用的知识来源JSON"`
 	IsCompacted              bool       `gorm:"not null;default:false;index:idx_chat_messages_is_compacted;comment:预留未使用(祖先链未按此过滤，无读写方)"`
 	EditedAt                 *time.Time `gorm:"index:idx_chat_messages_edited_at;comment:用户编辑时间"`
 	ParentPublicID           string     `gorm:"-"`
@@ -179,7 +192,7 @@ func (Attachment) TableName() string {
 type FileObject struct {
 	BaseModel
 	FileID                 string     `gorm:"size:64;not null;default:'';uniqueIndex:idx_file_objects_file_id;comment:文件对象ID"`
-	UserID                 uint       `gorm:"not null;default:0;index:idx_file_objects_user_id;comment:用户ID"`
+	UserID                 uint       `gorm:"not null;default:0;index:idx_file_objects_user_id;comment:所属用户ID，平台文件为0"`
 	Purpose                string     `gorm:"size:32;not null;default:'';comment:文件用途"`
 	FileName               string     `gorm:"size:255;not null;default:'';comment:文件名"`
 	MimeType               string     `gorm:"size:128;not null;default:'';comment:客户端声明媒体类型"`
@@ -204,7 +217,8 @@ type FileObject struct {
 	OCRUsed                bool       `gorm:"not null;default:false;comment:是否使用OCR"`
 	RAGReady               bool       `gorm:"not null;default:false;comment:RAG是否就绪"`
 	RAGReason              string     `gorm:"size:255;not null;default:'';comment:RAG处理说明"`
-	EmbedStatus            string     `gorm:"size:16;not null;default:'none';index:idx_file_objects_embed_status;comment:向量嵌入状态(none/processing/ready/failed)"`
+	EmbedStatus            string     `gorm:"size:16;not null;default:'none';index:idx_file_objects_embed_status;comment:向量嵌入状态(none/processing/ready/stale/failed)"`
+	EmbedSignature         string     `gorm:"size:64;not null;default:'';index:idx_file_objects_embed_signature;comment:当前向量任务所属空间签名"`
 	EmbedError             string     `gorm:"type:text;not null;default:'';comment:嵌入失败原因"`
 	PageCount              int        `gorm:"not null;default:0;comment:PDF页数"`
 	ChunkCount             int        `gorm:"not null;default:0;comment:分片数量"`
@@ -222,19 +236,19 @@ func (FileObject) TableName() string {
 }
 
 // FileChunk 存储 RAG 分片及向量嵌入。
-// embedding 列当前统一写入 vector(1536)。
-// 若底层模型维度较小（如 all-MiniLM-L6-v2 的 384），写库前会零填充到统一维度。
+// embedding 列保留模型输出的原始维度，检索时补齐到统一比较维度。
 // 通过 applyVectorBaseline 在 schema baseline 阶段用 raw SQL 创建。
 type FileChunk struct {
-	ID         uint      `gorm:"primaryKey;comment:主键ID"`
-	FileObjID  uint      `gorm:"not null;index:idx_file_chunks_file_obj_id;comment:文件对象ID(外键)"`
-	UserID     uint      `gorm:"not null;index:idx_file_chunks_user_id;comment:用户ID"`
-	ChunkIndex int       `gorm:"not null;default:0;comment:分片序号"`
-	PageNum    int       `gorm:"not null;default:0;comment:所在页码"`
-	CharOffset int       `gorm:"not null;default:0;comment:字符偏移量"`
-	Content    string    `gorm:"type:text;not null;comment:分片文本内容"`
-	TokenCount int       `gorm:"not null;default:0;comment:估算token数"`
-	CreatedAt  time.Time `gorm:"comment:创建时间"`
+	ID                 uint      `gorm:"primaryKey;comment:主键ID"`
+	FileObjID          uint      `gorm:"not null;index:idx_file_chunks_file_obj_id;comment:文件对象ID(外键)"`
+	UserID             uint      `gorm:"not null;index:idx_file_chunks_user_id;comment:用户ID"`
+	ChunkIndex         int       `gorm:"not null;default:0;comment:分片序号"`
+	PageNum            int       `gorm:"not null;default:0;comment:所在页码"`
+	CharOffset         int       `gorm:"not null;default:0;comment:字符偏移量"`
+	Content            string    `gorm:"type:text;not null;comment:分片文本内容"`
+	TokenCount         int       `gorm:"not null;default:0;comment:估算token数"`
+	EmbeddingSignature string    `gorm:"size:64;not null;default:'';index:idx_file_chunks_embedding_signature;comment:Embedding模型与维度签名"`
+	CreatedAt          time.Time `gorm:"comment:创建时间"`
 }
 
 // TableName 指定表名。
@@ -274,7 +288,7 @@ type ConversationRun struct {
 	PlatformModelName        string     `gorm:"size:128;not null;default:'';index:idx_chat_runs_platform_model_name;comment:路由命中平台模型名"`
 	RoutedBindingCode        string     `gorm:"size:64;not null;default:'';index:idx_chat_runs_routed_binding_code;comment:实际路由上游模型绑定编码"`
 	ModelVendor              string     `gorm:"size:64;not null;default:'';comment:平台模型厂商快照"`
-	ModelIcon                string     `gorm:"size:64;not null;default:'';comment:平台模型图标快照"`
+	ModelIcon                string     `gorm:"size:2048;not null;default:'';index:idx_chat_runs_asset_model_icon,where:model_icon LIKE 'asset:%';comment:平台模型图标快照"`
 	UpstreamModelName        string     `gorm:"size:256;not null;default:'';comment:上游真实模型名称"`
 	InputTokens              int64      `gorm:"not null;default:0;comment:输入Token"`
 	OutputTokens             int64      `gorm:"not null;default:0;comment:输出Token"`
@@ -370,17 +384,18 @@ func (ChatContextRecord) TableName() string {
 }
 
 // MessageChunk 存储会话消息的 RAG 向量分片，用于历史对话语义检索。
-// embedding 列（vector(1536)）通过 applyVectorBaseline 用 raw SQL 创建。
+// embedding 列（variable-width vector）通过 applyVectorBaseline 用 raw SQL 创建。
 type MessageChunk struct {
-	ID             uint      `gorm:"primaryKey;comment:主键ID"`
-	ConversationID uint      `gorm:"not null;index:idx_chat_message_chunks_conversation_id;comment:会话ID"`
-	MessageID      uint      `gorm:"not null;index:idx_chat_message_chunks_message_id;comment:消息ID"`
-	UserID         uint      `gorm:"not null;index:idx_chat_message_chunks_user_id;comment:用户ID"`
-	Role           string    `gorm:"size:32;not null;default:'';index:idx_chat_message_chunks_role;comment:消息角色(user/assistant)"`
-	ChunkIndex     int       `gorm:"not null;default:0;comment:分片序号"`
-	Content        string    `gorm:"type:text;not null;comment:分片文本"`
-	TokenCount     int       `gorm:"not null;default:0;comment:估算Token数"`
-	CreatedAt      time.Time `gorm:"comment:创建时间"`
+	ID                 uint      `gorm:"primaryKey;comment:主键ID"`
+	ConversationID     uint      `gorm:"not null;index:idx_chat_message_chunks_conversation_id;comment:会话ID"`
+	MessageID          uint      `gorm:"not null;index:idx_chat_message_chunks_message_id;comment:消息ID"`
+	UserID             uint      `gorm:"not null;index:idx_chat_message_chunks_user_id;comment:用户ID"`
+	Role               string    `gorm:"size:32;not null;default:'';index:idx_chat_message_chunks_role;comment:消息角色(user/assistant)"`
+	ChunkIndex         int       `gorm:"not null;default:0;comment:分片序号"`
+	Content            string    `gorm:"type:text;not null;comment:分片文本"`
+	TokenCount         int       `gorm:"not null;default:0;comment:估算Token数"`
+	EmbeddingSignature string    `gorm:"size:64;not null;default:'';index:idx_chat_message_chunks_embedding_signature;comment:Embedding模型与维度签名"`
+	CreatedAt          time.Time `gorm:"comment:创建时间"`
 }
 
 // TableName 指定表名。

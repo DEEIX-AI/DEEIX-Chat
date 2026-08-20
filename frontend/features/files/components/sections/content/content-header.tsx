@@ -74,7 +74,7 @@ export function ContentHeader({
   }, (key, values) => tStatus(key, values));
 
   return (
-    <div className="flex min-w-0 shrink-0 items-center justify-between gap-4 border-b border-border/40 px-3 py-4 md:px-6">
+    <div className="flex h-15 min-w-0 shrink-0 items-center justify-between gap-3 border-b border-border/40 px-3 md:px-5">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {onBack ? (
           <Button
@@ -101,7 +101,7 @@ export function ContentHeader({
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-foreground">{file.fileName}</p>
+          <p className="truncate text-[13px] font-medium text-foreground">{file.fileName}</p>
           <div className="flex min-w-0 flex-wrap items-center gap-1.5 pt-0.5">
             <p className="text-[11px] text-muted-foreground">
               {formatDateTime(file.createdAt, locale)}
@@ -112,8 +112,9 @@ export function ContentHeader({
             </p>
             <span
               className={cn(
-                "inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+                "inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium",
                 resolveFileProcessingToneClass(processingBadge.tone),
+                "border-0",
               )}
               title={processingBadge.detail}
             >
@@ -127,13 +128,12 @@ export function ContentHeader({
                 onClick={() => onToggleRagOptOut(file.fileID, file.ragOptOut)}
                 title={file.ragOptOut ? t("rag.disabledTitle") : t("rag.enabledTitle")}
                 className={cn(
-                  "h-auto gap-0.5 rounded-md border px-1.5 py-0.5 text-[10px] font-medium shadow-none",
+                  "h-auto rounded-md border-0 px-1.5 py-0.5 text-[10px] font-medium shadow-none",
                   file.ragOptOut
-                    ? "border-border/50 text-muted-foreground/60 hover:border-border hover:text-muted-foreground"
-                    : "border-primary/25 bg-primary/10 text-primary hover:bg-primary/15",
+                    ? "bg-muted text-muted-foreground/70 hover:bg-muted/80 hover:text-muted-foreground"
+                    : "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary",
                 )}
               >
-                <span>⚡</span>
                 <span>{file.ragOptOut ? t("rag.disabled") : t("rag.enabled")}</span>
               </Button>
             ) : null}

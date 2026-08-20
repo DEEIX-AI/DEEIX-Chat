@@ -2,15 +2,14 @@ package conversation
 
 import (
 	"errors"
-	"io"
 	"net/http"
-	"strconv"
 	"strings"
 
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/filecontent"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
 )
@@ -380,21 +379,5 @@ func (h *Handler) GetFileContent(c *gin.Context) {
 		}
 	}
 
-	defer result.Reader.Close() //nolint:errcheck
-
-	contentType := safeFileContentType(result.ContentType)
-	c.Header("Content-Type", contentType)
-	c.Header("Content-Disposition", buildContentDisposition(result.File.FileName, isPassiveInlineContentType(contentType)))
-	c.Header("Cache-Control", "private, max-age=60")
-	applyFileSecurityHeaders(c, false)
-	if result.SizeBytes > 0 {
-		c.Header("Content-Length", strconv.FormatInt(result.SizeBytes, 10))
-	}
-	if !result.ModTime.IsZero() {
-		c.Header("Last-Modified", result.ModTime.UTC().Format(http.TimeFormat))
-	}
-	if _, err = io.Copy(c.Writer, result.Reader); err != nil {
-		c.Abort()
-		return
-	}
+	_ = filecontent.Write(c, result, false)
 }

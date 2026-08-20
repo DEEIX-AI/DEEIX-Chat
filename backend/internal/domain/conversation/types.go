@@ -40,34 +40,36 @@ type Conversation struct {
 
 // ConversationProject 表示用户会话项目分组。
 type ConversationProject struct {
-	ID                uint
-	UserID            uint
-	PublicID          string
-	Name              string
-	Description       string
-	SystemPrompt      string
-	MCPDefaultMode    string
-	DefaultMCPToolIDs []uint
-	DefaultSkillIDs   []uint
-	Color             string
-	Icon              string
-	SortOrder         int
-	Status            string
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                      uint
+	UserID                  uint
+	PublicID                string
+	Name                    string
+	Description             string
+	SystemPrompt            string
+	MCPDefaultMode          string
+	DefaultMCPToolIDs       []uint
+	DefaultSkillIDs         []uint
+	DefaultKnowledgeBaseIDs []string
+	Color                   string
+	Icon                    string
+	SortOrder               int
+	Status                  string
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
 }
 
 // ConversationProjectPatch 表示项目分组的局部更新。
 type ConversationProjectPatch struct {
-	Name              *string
-	Description       *string
-	SystemPrompt      *string
-	MCPDefaultMode    *string
-	DefaultMCPToolIDs *[]uint
-	DefaultSkillIDs   *[]uint
-	Color             *string
-	Icon              *string
-	Status            *string
+	Name                    *string
+	Description             *string
+	SystemPrompt            *string
+	MCPDefaultMode          *string
+	DefaultMCPToolIDs       *[]uint
+	DefaultSkillIDs         *[]uint
+	DefaultKnowledgeBaseIDs *[]string
+	Color                   *string
+	Icon                    *string
+	Status                  *string
 }
 
 // ConversationShare 表示会话公开分享快照。
@@ -164,6 +166,15 @@ type MessagePromptTrace struct {
 	Blocks                 []MessagePromptTraceBlock
 }
 
+// MessageKnowledgeSource 表示消息生成时实际使用的知识来源。
+type MessageKnowledgeSource struct {
+	FileName   string
+	FileID     string
+	ChunkIndex int
+	Score      float32
+	Preview    string
+}
+
 // Message 表示会话消息。
 type Message struct {
 	ID                       uint
@@ -193,6 +204,7 @@ type Message struct {
 	ErrorMessage             string
 	ModerationEventID        string
 	ModerationCategoriesJSON string
+	KnowledgeSources         []MessageKnowledgeSource
 	Attachments              string
 	ParentPublicID           string
 	SourcePublicID           string
@@ -266,6 +278,7 @@ type FileObject struct {
 	RAGReady               bool
 	RAGReason              string
 	EmbedStatus            string
+	EmbedSignature         string
 	EmbedError             string
 	PageCount              int
 	ChunkCount             int
@@ -308,21 +321,23 @@ type FileObjectProcessing struct {
 
 // FileChunk 表示文件分片。
 type FileChunk struct {
-	ID         uint
-	FileObjID  uint
-	UserID     uint
-	ChunkIndex int
-	PageNum    int
-	CharOffset int
-	Content    string
-	TokenCount int
-	CreatedAt  time.Time
+	ID                 uint
+	FileObjID          uint
+	UserID             uint
+	ChunkIndex         int
+	PageNum            int
+	CharOffset         int
+	Content            string
+	TokenCount         int
+	EmbeddingSignature string
+	CreatedAt          time.Time
 }
 
 // FileChunkSearchResult 表示分片检索结果。
 type FileChunkSearchResult struct {
 	FileChunk
 	Similarity float32
+	RankScore  float32
 }
 
 // StorageQuota 表示用户文件配额。
@@ -514,14 +529,15 @@ type RAGChunk struct {
 
 // MessageChunk 表示消息向量分片，用于历史对话语义检索。
 type MessageChunk struct {
-	ID             uint
-	ConversationID uint
-	MessageID      uint
-	UserID         uint
-	Role           string
-	ChunkIndex     int
-	Content        string
-	TokenCount     int
-	Similarity     float64 // 检索时附加的相似度分数（写入时为 0）
-	CreatedAt      time.Time
+	ID                 uint
+	ConversationID     uint
+	MessageID          uint
+	UserID             uint
+	Role               string
+	ChunkIndex         int
+	Content            string
+	TokenCount         int
+	EmbeddingSignature string
+	Similarity         float64 // 检索时附加的相似度分数（写入时为 0）
+	CreatedAt          time.Time
 }

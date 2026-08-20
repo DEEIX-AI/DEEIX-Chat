@@ -55,6 +55,7 @@
   },
   "validation": {
     "apiKeyRequired": "An API key is required before content moderation can be enabled.",
-    "policyRequired": "Select at least one moderation category before enabling content moderation."
+    "policyRequired": "Select at least one moderation category before enabling content moderation.",
+    "integerRange": "{field} must be an integer from {min} to {max}."
   }
 }

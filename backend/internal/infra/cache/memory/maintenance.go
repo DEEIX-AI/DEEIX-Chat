@@ -22,6 +22,16 @@ func (c *Cache) sweepExpiredLocked(now time.Time) {
 			delete(c.settings, key)
 		}
 	}
+	for key, item := range c.userSettings {
+		if now.After(item.expiresAt) {
+			delete(c.userSettings, key)
+		}
+	}
+	for key, item := range c.userSettingVersions {
+		if now.After(item.expiresAt) {
+			delete(c.userSettingVersions, key)
+		}
+	}
 	for key, item := range c.rag {
 		if now.After(item.expiresAt) {
 			delete(c.rag, key)

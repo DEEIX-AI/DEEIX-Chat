@@ -19,6 +19,7 @@ type StatsFilter struct {
 
 // EventListInput is the super-admin events query.
 type EventListInput struct {
+	Query     string
 	Direction string
 	Modality  string
 	Result    string
@@ -65,7 +66,7 @@ func (s *Service) GetStats(ctx context.Context, actorRole string, filter StatsFi
 	return s.repo.ListDailyStats(ctx, from, to)
 }
 
-// ListEvents lists hit/fail metadata for super-admin.
+// ListEvents lists retained moderation decision metadata for super-admin.
 func (s *Service) ListEvents(ctx context.Context, actorRole string, input EventListInput) ([]domaincm.Event, int64, error) {
 	if !isSuperAdmin(actorRole) {
 		return nil, 0, ErrSuperAdminRequired
@@ -89,6 +90,10 @@ func (s *Service) ListEvents(ctx context.Context, actorRole string, input EventL
 	if input.From != nil && input.To != nil && input.To.Before(*input.From) {
 		return nil, 0, ErrInvalidEventFilter
 	}
+	query := strings.TrimSpace(input.Query)
+	if len(query) > 200 {
+		return nil, 0, ErrInvalidEventFilter
+	}
 	page := input.Page
 	if page < 1 {
 		page = 1
@@ -101,6 +106,7 @@ func (s *Service) ListEvents(ctx context.Context, actorRole string, input EventL
 		pageSize = 100
 	}
 	return s.repo.ListEvents(ctx, domaincm.EventListFilter{
+		Query:     query,
 		Direction: direction,
 		Modality:  modality,
 		Result:    result,

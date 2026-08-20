@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
+	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	domainsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/settings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	mineruextract "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/mineru"
@@ -198,16 +199,87 @@ func isLegacyDefaultModelOptionAllowedPaths(value string) bool {
 	if err := json.Unmarshal([]byte(strings.TrimSpace(value)), &current); err != nil {
 		return false
 	}
-	previousDefault := map[string][]string{}
-	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &previousDefault); err != nil {
+	latestDefault := map[string][]string{}
+	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &latestDefault); err != nil {
 		return false
 	}
-	delete(previousDefault, "xai_video")
-	if sameStringSliceMap(current, previousDefault) {
-		return true
+	previousGenerateContentDefault := cloneStringSliceMap(latestDefault)
+	previousGenerateContentDefault["gemini_generate_content"] = removeStringValue(
+		removeStringValue(
+			previousGenerateContentDefault["gemini_generate_content"],
+			"generationConfig.thinkingConfig.includeThoughts",
+		),
+		"generationConfig.thinkingConfig.thinkingLevel",
+	)
+	previousInteractionsDefault := cloneStringSliceMap(latestDefault)
+	previousInteractionsDefault["gemini_interactions"] = removeStringValue(
+		previousInteractionsDefault["gemini_interactions"],
+		"generation_config.thinking_summaries",
+	)
+	previousCombinedDefault := cloneStringSliceMap(previousGenerateContentDefault)
+	previousCombinedDefault["gemini_interactions"] = removeStringValue(
+		previousCombinedDefault["gemini_interactions"],
+		"generation_config.thinking_summaries",
+	)
+	legacyInteractionsDefault := cloneStringSliceMap(latestDefault)
+	legacyInteractionsDefault["gemini_interactions"] = append(
+		removeStringValue(legacyInteractionsDefault["gemini_interactions"], "response_format.schema"),
+		"responseFormat.type",
+		"responseFormat.aspectRatio",
+		"responseFormat.imageSize",
+		"responseFormat.mimeType",
+		"generationConfig.videoConfig.task",
+	)
+	legacyInteractionsWithoutSummaries := cloneStringSliceMap(legacyInteractionsDefault)
+	legacyInteractionsWithoutSummaries["gemini_interactions"] = removeStringValue(
+		legacyInteractionsWithoutSummaries["gemini_interactions"],
+		"generation_config.thinking_summaries",
+	)
+	legacyCombinedDefault := cloneStringSliceMap(legacyInteractionsWithoutSummaries)
+	legacyCombinedDefault["gemini_generate_content"] = previousGenerateContentDefault["gemini_generate_content"]
+	previousDefaults := []map[string][]string{
+		previousGenerateContentDefault,
+		previousInteractionsDefault,
+		previousCombinedDefault,
+		legacyInteractionsDefault,
+		legacyInteractionsWithoutSummaries,
+		legacyCombinedDefault,
 	}
-	previousDefault["xai_responses"] = []string{"reasoning.effort"}
-	return sameStringSliceMap(current, previousDefault)
+	for _, previousDefault := range previousDefaults {
+		if sameStringSliceMap(current, previousDefault) {
+			return true
+		}
+	}
+	olderDefaults := append([]map[string][]string{cloneStringSliceMap(latestDefault)}, previousDefaults...)
+	for _, olderDefault := range olderDefaults {
+		delete(olderDefault, "xai_video")
+		if sameStringSliceMap(current, olderDefault) {
+			return true
+		}
+		olderDefault["xai_responses"] = []string{"reasoning.effort"}
+		if sameStringSliceMap(current, olderDefault) {
+			return true
+		}
+	}
+	return false
+}
+
+func cloneStringSliceMap(value map[string][]string) map[string][]string {
+	result := make(map[string][]string, len(value))
+	for key, items := range value {
+		result[key] = append([]string(nil), items...)
+	}
+	return result
+}
+
+func removeStringValue(values []string, target string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value != target {
+			result = append(result, value)
+		}
+	}
+	return result
 }
 
 func sameStringSliceMap(left map[string][]string, right map[string][]string) bool {
@@ -386,7 +458,13 @@ func validatePatchItem(item PatchItem) error {
 		if err := validateStringMax(value, 512, key); err != nil {
 			return err
 		}
-		return validateOptionalHTTPURL(value, key)
+		if value == "" {
+			return nil
+		}
+		if _, err := domainbilling.ResolveEPaySubmitURL(value); err != nil {
+			return fmt.Errorf("%s must be an HTTP(S) EPay site URL or an exact submit.php URL without credentials, query, or fragment", key)
+		}
+		return nil
 	case "chat:model_option_policy_mode":
 		switch value {
 		case "allowlist", "denylist", "disabled":
@@ -443,8 +521,20 @@ func validatePatchItem(item PatchItem) error {
 		return validateOptionalIntZeroOrMinMax(value, 128, 1000000, key)
 	case "file:full_context_pdf_max_pages":
 		return validateOptionalIntZeroOrMinMax(value, 1, 500, key)
+	case "file:rag_top_k":
+		return validateIntMinMax(value, 1, 50, key)
+	case "chat:rag_min_similarity":
+		return validateFloatMinMax(value, 0.000001, 1, key)
+	case "chat:rag_token_budget":
+		return validateIntMinMax(value, 128, 100000, key)
+	case "chat:rag_fetch_multiplier":
+		return validateIntMinMax(value, 1, 20, key)
 	case "chat:rag_wait_ready_ms":
 		return validateIntMinMax(value, 1000, 120000, key)
+	case "chat:rag_query_history_turns":
+		return validateIntMinMax(value, 0, 20, key)
+	case "chat:rag_retrieval_cache_ttl_seconds":
+		return validateIntMinMax(value, 0, 86400, key)
 	case "chat:context_artifact_retention_days":
 		return validateIntMinMax(value, 0, 3650, key)
 	case "file:embedding_timeout_seconds":
@@ -480,10 +570,10 @@ func validatePatchItem(item PatchItem) error {
 		}
 	case "extract:ocr_engine":
 		switch value {
-		case extraction.OCREngineRapidOCR, extraction.OCREngineTesseract, extraction.OCREnginePaddle, extraction.OCREngineTencent, extraction.OCREngineAliyun, extraction.OCREngineLLM:
+		case extraction.OCREngineRapidOCR, extraction.OCREngineTesseract, extraction.OCREnginePaddle, extraction.OCREngineTencent, extraction.OCREngineAliyun, extraction.OCREngineMistral, extraction.OCREngineLLM:
 			return nil
 		default:
-			return fmt.Errorf("%s must be one of: %s, %s, %s, %s, %s, %s", key, extraction.OCREngineRapidOCR, extraction.OCREngineTesseract, extraction.OCREnginePaddle, extraction.OCREngineTencent, extraction.OCREngineAliyun, extraction.OCREngineLLM)
+			return fmt.Errorf("%s must be one of: %s, %s, %s, %s, %s, %s, %s", key, extraction.OCREngineRapidOCR, extraction.OCREngineTesseract, extraction.OCREnginePaddle, extraction.OCREngineTencent, extraction.OCREngineAliyun, extraction.OCREngineMistral, extraction.OCREngineLLM)
 		}
 	case "extract:tika_source":
 		switch value {
@@ -517,6 +607,14 @@ func validatePatchItem(item PatchItem) error {
 			return fmt.Errorf("%s must start with http:// or https://", key)
 		}
 		return nil
+	case "extract:mistral_ocr_base_url":
+		if value == "" {
+			return nil
+		}
+		if err := security.ValidateTrustedOutboundHTTPURL(value); err != nil {
+			return fmt.Errorf("%s must be a valid trusted HTTP endpoint", key)
+		}
+		return nil
 	case "extract:rapidocr_source":
 		switch value {
 		case extraction.TikaSourceExternal, extraction.TikaSourceManaged:
@@ -528,13 +626,13 @@ func validatePatchItem(item PatchItem) error {
 		return validateStringMax(value, 255, key)
 	case "extract:tencent_ocr_secret_id", "extract:tencent_ocr_secret_key", "extract:aliyun_ocr_access_key_id", "extract:aliyun_ocr_access_key_secret":
 		return validateStringMax(value, 512, key)
-	case "auth:username_login_enabled", "auth:email_login_enabled", "auth:third_party_login_enabled", "auth:email_registration_enabled", "auth:email_verification_enabled", "auth:password_reset_enabled", "auth:email_registration_block_plus_alias", "auth:auto_link_verified_email", "auth:turnstile_registration_enabled", "auth:rate_limit_enabled", "billing:native_tool_billing_enabled", "chat:rag_enabled", "chat:message_embedding_enabled", "chat:semantic_context_enabled", "file:full_context_limit_enabled", "file:embedding_enabled", "file:embed_trigger_on_upload", "file:embedding_normalize", "extract:image_ocr_enabled", "extract:pdf_ocr_fallback_enabled", "mcp:mcp_enable":
+	case "auth:username_login_enabled", "auth:email_login_enabled", "auth:third_party_login_enabled", "auth:email_registration_enabled", "auth:email_verification_enabled", "auth:password_reset_enabled", "auth:email_registration_block_plus_alias", "auth:auto_link_verified_email", "auth:turnstile_registration_enabled", "auth:rate_limit_enabled", "billing:native_tool_billing_enabled", "chat:rag_enabled", "chat:rag_hybrid_enabled", "chat:message_embedding_enabled", "chat:semantic_context_enabled", "file:full_context_limit_enabled", "file:embedding_enabled", "file:embed_trigger_on_upload", "file:embedding_normalize", "extract:image_ocr_enabled", "extract:pdf_ocr_fallback_enabled", "mcp:mcp_enable":
 		if _, err := strconv.ParseBool(value); err != nil {
 			return fmt.Errorf("%s must be bool", key)
 		}
 	case "extract:tika_timeout_seconds":
 		return validateIntMinMax(value, 1, 120, key)
-	case "extract:docling_timeout_seconds", "extract:tesseract_ocr_timeout_seconds", "extract:rapidocr_timeout_seconds", "extract:paddle_ocr_timeout_seconds", "extract:tencent_ocr_timeout_seconds", "extract:aliyun_ocr_timeout_seconds", "extract:mineru_timeout_seconds", "extract:llm_ocr_timeout_seconds":
+	case "extract:docling_timeout_seconds", "extract:tesseract_ocr_timeout_seconds", "extract:rapidocr_timeout_seconds", "extract:paddle_ocr_timeout_seconds", "extract:tencent_ocr_timeout_seconds", "extract:aliyun_ocr_timeout_seconds", "extract:mineru_timeout_seconds", "extract:mistral_ocr_timeout_seconds", "extract:llm_ocr_timeout_seconds":
 		return validateIntMinMax(value, 1, 600, key)
 	case "mcp:mcp_max_llm_calls_per_run":
 		return validateIntMinMax(value, 2, 32, key)
@@ -641,6 +739,16 @@ func (s *Service) validateFileProcessingSettings(ctx context.Context, patches []
 		}
 		if strings.TrimSpace(next["extract:aliyun_ocr_region"]) == "" {
 			return fmt.Errorf("extract:aliyun_ocr_region is required when OCR engine is aliyun")
+		}
+	case extraction.OCREngineMistral:
+		if strings.TrimSpace(next["extract:mistral_ocr_base_url"]) == "" {
+			return fmt.Errorf("extract:mistral_ocr_base_url is required when OCR engine is mistral")
+		}
+		if strings.TrimSpace(next["extract:mistral_ocr_auth_token"]) == "" {
+			return fmt.Errorf("extract:mistral_ocr_auth_token is required when OCR engine is mistral")
+		}
+		if strings.TrimSpace(next["extract:mistral_ocr_model"]) == "" {
+			return fmt.Errorf("extract:mistral_ocr_model is required when OCR engine is mistral")
 		}
 	case extraction.OCREngineLLM:
 		if strings.TrimSpace(next["extract:llm_ocr_base_url"]) == "" {
@@ -924,6 +1032,9 @@ func (s *Service) validateBillingPaymentSettings(ctx context.Context, patches []
 				{key: "billing:epay_key", label: "billing:epay_key"},
 			}); err != nil {
 				return err
+			}
+			if _, err := domainbilling.ResolveEPaySubmitURL(next["billing:epay_gateway_url"]); err != nil {
+				return fmt.Errorf("billing:epay_gateway_url must be an HTTP(S) EPay site URL or an exact submit.php URL without credentials, query, or fragment")
 			}
 		default:
 			return fmt.Errorf("billing:payment_providers must contain only: stripe, epay")

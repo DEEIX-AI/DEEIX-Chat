@@ -113,12 +113,18 @@ func IsValidationError(err error) bool {
 
 // Service 封装用户配置业务逻辑。
 type Service struct {
-	repo repository.UserSettingsRepository
+	repo           repository.UserSettingsRepository
+	cacheRefresher func(ctx context.Context, userID uint, keys []string)
 }
 
 // NewService 创建服务。
 func NewService(repo repository.UserSettingsRepository) *Service {
 	return &Service{repo: repo}
+}
+
+// SetCacheRefresher 注入缓存刷新回调。用户设置写入成功后，以数据库已提交值刷新相关缓存。
+func (s *Service) SetCacheRefresher(fn func(ctx context.Context, userID uint, keys []string)) {
+	s.cacheRefresher = fn
 }
 
 // ListSettings 返回指定用户的全部配置，缺失的 key 用默认值填充。
@@ -162,6 +168,13 @@ func (s *Service) PatchSettings(ctx context.Context, userID uint, patches map[st
 	}
 	if err := s.repo.Upsert(ctx, items); err != nil {
 		return nil, err
+	}
+	if s.cacheRefresher != nil {
+		keys := make([]string, 0, len(items))
+		for _, item := range items {
+			keys = append(keys, item.Key)
+		}
+		s.cacheRefresher(ctx, userID, keys)
 	}
 	return s.ListSettings(ctx, userID)
 }

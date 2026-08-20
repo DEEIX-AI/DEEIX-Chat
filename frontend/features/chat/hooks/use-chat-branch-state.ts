@@ -213,6 +213,7 @@ export function useChatBranchState({
   messages,
   pendingExchanges,
   liveRunIDs,
+  liveActivityLabels,
 }: {
   conversationID: string | null;
   conversationScopeKey: string;
@@ -220,6 +221,7 @@ export function useChatBranchState({
   messages: MessageDTO[];
   pendingExchanges: PendingExchangeMap;
   liveRunIDs?: ReadonlySet<string>;
+  liveActivityLabels?: ReadonlyMap<string, string>;
 }) {
   const t = useTranslations("chat.messages");
   const submitT = useTranslations("chat.submit");
@@ -241,13 +243,16 @@ export function useChatBranchState({
             imageRunning: t("imageRunning"),
             moderationBlocked: submitT("moderationBlocked"),
             moderationBlockedDescription: submitT("moderationBlockedDescription"),
+            moderationEventID: (eventID: string) => submitT("moderationEventId", { id: eventID }),
+            moderationCategories: (categories: string[]) =>
+              submitT("moderationCategories", { categories: categories.join(", ") }),
             resolveErrorMessage: (errorCode: string, fallback: string, details?: UpstreamDebugInfo) =>
               resolveErrorMessage(new ApiError(fallback, 502, details, errorCode), fallback),
           },
-          { liveRunIDs },
+          { liveActivityLabels, liveRunIDs },
         ),
       ),
-    [liveRunIDs, messages, resolveErrorMessage, submitT, t],
+    [liveActivityLabels, liveRunIDs, messages, resolveErrorMessage, submitT, t],
   );
   const serverMessagePublicIDs = React.useMemo(
     () => new Set(serverTreeMessages.map((item) => item.publicID).filter(Boolean)),

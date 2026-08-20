@@ -39,6 +39,7 @@ import {
   ChatMessagePositionRail,
   chatMessageScrollerID,
 } from "@/features/chat/components/sections/chat-message-position-rail";
+import { ChatResponseOutlineRail } from "@/features/chat/components/sections/chat-response-outline-rail";
 import { cn } from "@/lib/utils";
 import { AppLogo, DeeixLogo } from "@/shared/components/app-logo";
 import { useBranding } from "@/shared/config/branding-provider";
@@ -114,6 +115,7 @@ type ChatAreaProps = {
   onContinueAssistantMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
   onEditUserMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
+  onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   modelOptions: ChatModelOption[];
   selectedPlatformModelName: string;
   onModelChange: (platformModelName: string) => void;
@@ -277,6 +279,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onContinueAssistantMessage,
   onEditAssistantMessage,
   onEditUserMessage,
+  onForkMessage,
   modelOptions,
   selectedPlatformModelName,
   onModelChange,
@@ -306,6 +309,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onContinueAssistantMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
   onEditUserMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
+  onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   modelOptions: ChatModelOption[];
   selectedPlatformModelName: string;
   onModelChange: (platformModelName: string) => void;
@@ -366,6 +370,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         item={item}
         onRetryUserMessage={onRetryUserMessage}
         onEditUserMessage={onEditUserMessage}
+        onForkMessage={onForkMessage}
         modelOptions={modelOptions}
         selectedPlatformModelName={selectedPlatformModelName}
         onModelChange={onModelChange}
@@ -388,6 +393,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         onRetryAssistantMessage={onRetryAssistantMessage}
         onContinueAssistantMessage={onContinueAssistantMessage}
         onEditAssistantMessage={onEditAssistantMessage}
+        onForkMessage={onForkMessage}
         onCycleMessageBranch={onCycleMessageBranch}
         onReactAssistantMessage={onReactAssistantMessage}
         onCopy={() => void onCopy()}
@@ -458,6 +464,7 @@ export function ChatArea({
   onContinueAssistantMessage,
   onEditAssistantMessage,
   onEditUserMessage,
+  onForkMessage,
   modelOptions,
   selectedPlatformModelName,
   onModelChange,
@@ -496,6 +503,7 @@ export function ChatArea({
   const stableOnContinueAssistantMessage = useStableEvent(onContinueAssistantMessage ?? (() => undefined));
   const stableOnEditAssistantMessage = useStableEvent(onEditAssistantMessage);
   const stableOnEditUserMessage = useStableEvent(onEditUserMessage);
+  const stableOnForkMessage = useStableEvent(onForkMessage ?? (() => undefined));
   const stableOnModelChange = useStableEvent(onModelChange);
   const stableOnModelCatalogRefresh = useStableEvent(onModelCatalogRefresh ?? (() => undefined));
   const stableOnEditImageAttachment = useStableEvent((attachment: MessageAttachment, sourceModelName?: string) => {
@@ -526,24 +534,7 @@ export function ChatArea({
     }
     pruneScreenshotSelection?.(selectableMessagePublicIDs);
   }, [pruneScreenshotSelection, selectableMessagePublicIDs, selectionMode]);
-  const hasLiveMessage = React.useMemo(
-    () => messages.some((item) => item.isPending || item.isStreaming),
-    [messages],
-  );
   const messageViewportBoundaryRef = React.useRef<HTMLDivElement | null>(null);
-  const liveAnchorMessageKey = React.useMemo(() => {
-    if (!hasLiveMessage) {
-      return "";
-    }
-    const liveMessageIndex = messages.findIndex((item) => item.isPending || item.isStreaming);
-    for (let index = liveMessageIndex - 1; index >= 0; index -= 1) {
-      const item = messages[index];
-      if (item?.role === "user") {
-        return item.key;
-      }
-    }
-    return "";
-  }, [hasLiveMessage, messages]);
   const pendingUserScrollKey = React.useMemo(
     () => [...messages].reverse().find((item) => item.role === "user" && item.isPending)?.key ?? "",
     [messages],
@@ -605,14 +596,13 @@ export function ChatArea({
       ) : null}
 
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        <MessageScrollerProvider autoScroll defaultScrollPosition="end" scrollEdgeThreshold={16}>
+        <MessageScrollerProvider>
           <MessageScroller>
             <ScrollToPendingUser scrollKey={pendingUserScrollKey} />
             <MessageScrollerViewport
               ref={messageViewportBoundaryRef}
-              className="px-3 pb-8 pt-2 [overflow-anchor:none] md:px-6"
+              className="px-3 pb-8 pt-2 md:px-6"
               onScroll={onScroll}
-              preserveScrollOnPrepend
             >
               <MessageScrollerContent
                 ref={messageContentRef}
@@ -646,6 +636,7 @@ export function ChatArea({
                       onContinueAssistantMessage={onContinueAssistantMessage ? stableOnContinueAssistantMessage : undefined}
                       onEditAssistantMessage={stableOnEditAssistantMessage}
                       onEditUserMessage={stableOnEditUserMessage}
+                      onForkMessage={onForkMessage ? stableOnForkMessage : undefined}
                       modelOptions={modelOptions}
                       selectedPlatformModelName={selectedPlatformModelName}
                       onModelChange={stableOnModelChange}
@@ -724,8 +715,9 @@ export function ChatArea({
                     <MessageScrollerItem
                       key={item.key}
                       messageId={chatMessageScrollerID(item)}
-                      scrollAnchor={item.key === liveAnchorMessageKey}
                       className={spacingClass}
+                      data-chat-message-id={chatMessageScrollerID(item)}
+                      data-chat-message-role={item.role}
                       data-message-public-id={publicID || undefined}
                     >
                       <div>
@@ -746,6 +738,10 @@ export function ChatArea({
               <ArrowDownToLine className="size-4" strokeWidth={1.8} />
             </MessageScrollerButton>
             <ChatMessagePositionRail messages={messages} boundaryRef={messageViewportBoundaryRef} />
+            <ChatResponseOutlineRail
+              boundaryRef={messageViewportBoundaryRef}
+              disabled={selectionMode || splitRightInset}
+            />
           </MessageScroller>
         </MessageScrollerProvider>
       </div>

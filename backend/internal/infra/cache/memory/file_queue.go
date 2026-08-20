@@ -14,7 +14,7 @@ func (c *Cache) InitFileProcessingStream(ctx context.Context) error {
 }
 
 func (c *Cache) EnqueueFileProcessing(ctx context.Context, userID uint, fileID string, retry int, lastError string) error {
-	if c == nil || userID == 0 || strings.TrimSpace(fileID) == "" {
+	if c == nil || strings.TrimSpace(fileID) == "" {
 		return nil
 	}
 	c.mu.Lock()

@@ -414,33 +414,32 @@ func (s *Service) importSingleUpstreamModel(ctx context.Context, upstreamItem *d
 		Protocols:         protocols,
 	}
 	for _, protocol := range protocols {
-		createdRoute := !s.routeExists(ctx, upstreamItem.ID, platformModelName, upstreamModelName, protocol)
-		view, err := s.UpsertUpstreamModel(ctx, upstreamItem.ID, UpsertUpstreamModelInput{
-			PlatformModelName: platformModelName,
-			UpstreamModelName: upstreamModelName,
-			Protocol:          protocol,
-			KindsJSON:         kindsJSON,
-			Status:            input.Status,
-			Priority:          input.Priority,
-			Weight:            1,
-			Source:            "import",
-		})
-		if err != nil {
-			return ImportUpstreamModelResultView{}, err
-		}
-		if result.BindingCode == "" {
-			result.BindingCode = view.BindingCode
-		}
-		if result.PlatformModelID == 0 {
-			result.PlatformModelID = view.PlatformModelID
-		}
-		if createdRoute {
+		if !s.routeExists(ctx, upstreamItem.ID, platformModelName, upstreamModelName, protocol) {
 			result.CreatedRoutes++
-			result.CreatedRoute = true
 		} else {
 			result.ExistingRoutes++
 		}
 	}
+	status := input.Status
+	priority := input.Priority
+	weight := 1
+	source := "import"
+	view, err := s.UpsertUpstreamModel(ctx, upstreamItem.ID, UpsertUpstreamModelInput{
+		PlatformModelName: platformModelName,
+		UpstreamModelName: upstreamModelName,
+		Protocols:         protocols,
+		KindsJSON:         kindsJSON,
+		Status:            &status,
+		Priority:          &priority,
+		Weight:            &weight,
+		Source:            &source,
+	})
+	if err != nil {
+		return ImportUpstreamModelResultView{}, err
+	}
+	result.BindingCode = view.BindingCode
+	result.PlatformModelID = view.PlatformModelID
+	result.CreatedRoute = result.CreatedRoutes > 0
 	return result, nil
 }
 

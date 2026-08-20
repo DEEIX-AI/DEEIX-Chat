@@ -31,6 +31,8 @@ var (
 	// 上游与模型仓储语义错误。
 	ErrUpstreamNotFound           = errors.New("upstream not found")
 	ErrModelNotFound              = errors.New("model not found")
+	ErrModelVendorNotFound        = errors.New("model vendor not found")
+	ErrModelDisplayGroupNotFound  = errors.New("model display group not found")
 	ErrDuplicatePlatformModelName = errors.New("duplicate platform model name")
 	ErrUpstreamModelNotFound      = errors.New("upstream model not found")
 	ErrUpstreamModelConflict      = errors.New("upstream model conflict")

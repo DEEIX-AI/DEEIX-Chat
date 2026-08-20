@@ -51,7 +51,7 @@ func (s *Service) embedMessagePair(ctx context.Context, conversationID uint, use
 	if len(chunks) == 0 {
 		return
 	}
-	embeddings, err := s.embeddingSvc.EmbedTexts(ctx, texts)
+	embeddings, embeddingSignature, err := s.embeddingSvc.EmbedTextsWithSignature(ctx, texts)
 	if err != nil {
 		s.logger.Warn("embed_message_pair_failed", zap.Error(err))
 		return
@@ -62,6 +62,9 @@ func (s *Service) embedMessagePair(ctx context.Context, conversationID uint, use
 			zap.Int("embeddings", len(embeddings)),
 		)
 		return
+	}
+	for index := range chunks {
+		chunks[index].EmbeddingSignature = embeddingSignature
 	}
 	if err := s.repo.UpsertMessageChunks(ctx, chunks, embeddings); err != nil {
 		s.logger.Warn("upsert_message_chunks_failed", zap.Error(err))
@@ -91,15 +94,16 @@ func (s *Service) recallSemanticContext(ctx context.Context, scope repository.Hi
 	if s.embeddingSvc == nil || !scope.Valid() || strings.TrimSpace(query) == "" {
 		return nil
 	}
-	embeddings, err := s.embeddingSvc.EmbedTexts(ctx, []string{query})
+	embeddings, embeddingSignature, err := s.embeddingSvc.EmbedTextsWithSignature(ctx, []string{query})
 	if err != nil || len(embeddings) == 0 {
 		return nil
 	}
 	chunks, err := s.repo.SearchMessageChunks(ctx, repository.MessageChunkSearchInput{
-		Scope:          scope,
-		QueryEmbedding: embeddings[0],
-		TopK:           5,
-		MinSimilarity:  0.75,
+		Scope:              scope,
+		QueryEmbedding:     embeddings[0],
+		EmbeddingSignature: embeddingSignature,
+		TopK:               5,
+		MinSimilarity:      0.75,
 	})
 	if err != nil || len(chunks) == 0 {
 		return nil

@@ -17,6 +17,8 @@ type generationStream struct {
 	eventsExpiresAt time.Time
 	seq             int64
 	events          []repository.GenerationStreamMessage
+	textContent     strings.Builder
+	textSeq         int64
 	notify          chan struct{}
 }
 
@@ -86,7 +88,7 @@ func (c *Cache) IsGenerationStreamCanceled(ctx context.Context, runID string) (b
 	return stream != nil && !stream.cancelExpired(now), nil
 }
 
-func (c *Cache) AppendGenerationStreamEvent(ctx context.Context, runID string, payloadJSON string, maxEvents int64, ttl time.Duration) (repository.GenerationStreamMessage, error) {
+func (c *Cache) AppendGenerationStreamEvent(ctx context.Context, runID string, input repository.GenerationStreamAppend, maxEvents int64, ttl time.Duration) (repository.GenerationStreamMessage, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	stream := c.ensureStreamLocked(runID)
@@ -94,9 +96,13 @@ func (c *Cache) AppendGenerationStreamEvent(ctx context.Context, runID string, p
 	record := repository.GenerationStreamMessage{
 		ID:          strconv.FormatInt(stream.seq, 10),
 		Seq:         stream.seq,
-		PayloadJSON: payloadJSON,
+		PayloadJSON: input.PayloadJSON,
 	}
 	stream.events = append(stream.events, record)
+	if input.TextDelta != "" {
+		_, _ = stream.textContent.WriteString(input.TextDelta)
+		stream.textSeq = stream.seq
+	}
 	if maxEvents <= 0 {
 		maxEvents = 1024
 	}
@@ -107,6 +113,20 @@ func (c *Cache) AppendGenerationStreamEvent(ctx context.Context, runID string, p
 	stream.notifyLocked()
 	c.maybeSweepLocked(time.Now())
 	return record, nil
+}
+
+func (c *Cache) GetGenerationStreamTextSnapshot(ctx context.Context, runID string) (repository.GenerationStreamTextSnapshot, bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	stream := c.streams[strings.TrimSpace(runID)]
+	now := time.Now()
+	if stream == nil || stream.eventsExpired(now) || stream.textSeq <= 0 {
+		return repository.GenerationStreamTextSnapshot{}, false, nil
+	}
+	return repository.GenerationStreamTextSnapshot{
+		Seq:     stream.textSeq,
+		Content: stream.textContent.String(),
+	}, true, nil
 }
 
 func (c *Cache) ListGenerationStreamEvents(ctx context.Context, runID string, limit int64) ([]repository.GenerationStreamMessage, error) {
@@ -165,6 +185,8 @@ func (c *Cache) ResetGenerationStreamEvents(ctx context.Context, runID string) e
 		return nil
 	}
 	stream.events = nil
+	stream.textContent.Reset()
+	stream.textSeq = 0
 	// Keep seq monotonic so any in-flight afterSeq cursors stay valid.
 	stream.notifyLocked()
 	return nil

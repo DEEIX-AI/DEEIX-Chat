@@ -15,6 +15,8 @@ var (
 	ErrPaymentRequired = errors.New("payment is required")
 	// ErrPaymentProviderUnavailable 支付渠道未配置。
 	ErrPaymentProviderUnavailable = errors.New("payment provider is unavailable")
+	// ErrEPayTypeUnsupported 表示请求的易支付类型未启用。
+	ErrEPayTypeUnsupported = errors.New("epay payment type is not supported")
 	// ErrUsageBalanceInsufficient 按量余额不足。
 	ErrUsageBalanceInsufficient = errors.New("usage balance is insufficient")
 	// ErrUsageReservationConflict 表示调用编号已被使用，不能重复消费同一预算。

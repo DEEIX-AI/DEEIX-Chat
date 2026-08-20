@@ -22,18 +22,6 @@ type BreakerErrorClassification struct {
 	IgnoreErrors    []string
 }
 
-// BreakerDefaults 熔断器全局默认参数（来自 circuit_breaker.defaults 全局设置）。
-type BreakerDefaults struct {
-	ModelFailureThreshold    int
-	ModelDurationMin         int
-	ModelWindowMin           int
-	UpstreamFailureThreshold int
-	UpstreamModelThreshold   int
-	UpstreamThresholdLogic   string
-	UpstreamDurationMin      int
-	UpstreamWindowMin        int
-}
-
 // RateLimitDefaults 限流退避全局默认参数（来自 rate_limit.defaults 全局设置）。
 type RateLimitDefaults struct {
 	BackoffBaseSec    int
@@ -107,6 +95,27 @@ type ModelDisplayGroup struct {
 	SortOrder int
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+// ModelIconAsset 表示经过后端校验并存入对象存储的模型展示图标。
+// 业务对象只保存 asset:<PublicID> 引用，不保存图片内容或存储路径。
+type ModelIconAsset struct {
+	ID                uint
+	PublicID          string
+	SHA256            string
+	StoragePath       string
+	ContentType       string
+	SizeBytes         int64
+	Width             int
+	Height            int
+	CreatedByUserID   uint
+	ReadyAt           *time.Time
+	LeaseExpiresAt    time.Time
+	UnreferencedAt    *time.Time
+	DeleteRequestedAt *time.Time
+	DeletingAt        *time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 // BuiltInModelVendors 返回内置技术厂商目录。

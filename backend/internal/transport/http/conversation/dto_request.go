@@ -9,27 +9,29 @@ type CreateConversationRequest struct {
 
 // CreateConversationProjectRequest 创建会话项目请求。
 type CreateConversationProjectRequest struct {
-	Name              string `json:"name" binding:"required,max=80"`
-	Description       string `json:"description,omitempty" binding:"max=255"`
-	SystemPrompt      string `json:"systemPrompt,omitempty" binding:"max=12000"`
-	MCPDefaultMode    string `json:"mcpDefaultMode,omitempty" binding:"omitempty,oneof=inherit custom"`
-	DefaultMCPToolIDs []uint `json:"defaultMCPToolIDs,omitempty" binding:"max=128"`
-	DefaultSkillIDs   []uint `json:"defaultSkillIDs,omitempty" binding:"max=128"`
-	Color             string `json:"color,omitempty" binding:"max=32"`
-	Icon              string `json:"icon,omitempty" binding:"max=32"`
+	Name                    string   `json:"name" binding:"required,max=80"`
+	Description             string   `json:"description,omitempty" binding:"max=255"`
+	SystemPrompt            string   `json:"systemPrompt,omitempty" binding:"max=12000"`
+	MCPDefaultMode          string   `json:"mcpDefaultMode,omitempty" binding:"omitempty,oneof=inherit custom"`
+	DefaultMCPToolIDs       []uint   `json:"defaultMCPToolIDs,omitempty" binding:"max=128"`
+	DefaultSkillIDs         []uint   `json:"defaultSkillIDs,omitempty" binding:"max=128"`
+	DefaultKnowledgeBaseIDs []string `json:"defaultKnowledgeBaseIDs,omitempty" binding:"max=8,dive,required,max=32"`
+	Color                   string   `json:"color,omitempty" binding:"max=32"`
+	Icon                    string   `json:"icon,omitempty" binding:"max=32"`
 }
 
 // UpdateConversationProjectRequest 更新会话项目请求。
 type UpdateConversationProjectRequest struct {
-	Name              *string `json:"name,omitempty" binding:"omitempty,max=80"`
-	Description       *string `json:"description,omitempty" binding:"omitempty,max=255"`
-	SystemPrompt      *string `json:"systemPrompt,omitempty" binding:"omitempty,max=12000"`
-	MCPDefaultMode    *string `json:"mcpDefaultMode,omitempty" binding:"omitempty,oneof=inherit custom"`
-	DefaultMCPToolIDs *[]uint `json:"defaultMCPToolIDs,omitempty" binding:"omitempty,max=128"`
-	DefaultSkillIDs   *[]uint `json:"defaultSkillIDs,omitempty" binding:"omitempty,max=128"`
-	Color             *string `json:"color,omitempty" binding:"omitempty,max=32"`
-	Icon              *string `json:"icon,omitempty" binding:"omitempty,max=32"`
-	Status            *string `json:"status,omitempty" binding:"omitempty,oneof=active archived"`
+	Name                    *string   `json:"name,omitempty" binding:"omitempty,max=80"`
+	Description             *string   `json:"description,omitempty" binding:"omitempty,max=255"`
+	SystemPrompt            *string   `json:"systemPrompt,omitempty" binding:"omitempty,max=12000"`
+	MCPDefaultMode          *string   `json:"mcpDefaultMode,omitempty" binding:"omitempty,oneof=inherit custom"`
+	DefaultMCPToolIDs       *[]uint   `json:"defaultMCPToolIDs,omitempty" binding:"omitempty,max=128"`
+	DefaultSkillIDs         *[]uint   `json:"defaultSkillIDs,omitempty" binding:"omitempty,max=128"`
+	DefaultKnowledgeBaseIDs *[]string `json:"defaultKnowledgeBaseIDs,omitempty" binding:"omitempty,max=8,dive,required,max=32"`
+	Color                   *string   `json:"color,omitempty" binding:"omitempty,max=32"`
+	Icon                    *string   `json:"icon,omitempty" binding:"omitempty,max=32"`
+	Status                  *string   `json:"status,omitempty" binding:"omitempty,oneof=active archived"`
 }
 
 // ReorderConversationProjectsRequest 更新项目排序请求。
@@ -99,6 +101,7 @@ type SendMessageRequest struct {
 	FileIDs                 []string               `json:"fileIDs,omitempty" binding:"max=20"`
 	SelectedToolIDs         []uint                 `json:"selectedToolIDs,omitempty" binding:"max=128"`
 	SkillIDs                []uint                 `json:"skillIDs,omitempty" binding:"max=128"`
+	KnowledgeBaseIDs        []string               `json:"knowledgeBaseIDs,omitempty" binding:"max=8,dive,required,max=32"`
 	HTMLVisualPromptEnabled bool                   `json:"htmlVisualPrompt,omitempty"`
 	ParentMessagePublicID   string                 `json:"parentMessagePublicID,omitempty" binding:"omitempty,max=32"`
 	SourceMessagePublicID   string                 `json:"sourceMessagePublicID,omitempty" binding:"omitempty,max=32"`

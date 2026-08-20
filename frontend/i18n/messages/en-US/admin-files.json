@@ -73,6 +73,9 @@
     "paddleOCRBaseURLRequired": "Paddle OCR service URL is required.",
     "tencentOCRRequired": "Tencent Cloud OCR SecretId, SecretKey, and region are required.",
     "aliyunOCRRequired": "Alibaba Cloud OCR AccessKey ID, AccessKey Secret, and region are required.",
+    "mistralOCRBaseURLRequired": "Mistral OCR service URL is required.",
+    "mistralOCRAPIKeyRequired": "Mistral OCR API key is required.",
+    "mistralOCRModelRequired": "Mistral OCR model is required.",
     "llmOCRBaseURLRequired": "LLM OCR service URL is required.",
     "llmOCRModelRequired": "LLM OCR model is required.",
     "embeddingModelRequired": "Embedding model is required.",
@@ -280,6 +283,7 @@
           "paddle": "Paddle OCR",
           "tencent": "Tencent Cloud OCR",
           "aliyun": "Alibaba Cloud OCR",
+          "mistral": "Mistral OCR",
           "llm": "LLM OCR"
         }
       },
@@ -377,6 +381,26 @@
         "label": "Alibaba Cloud OCR timeout",
         "description": "Maximum wait time for one Alibaba Cloud OCR request, in seconds.",
         "placeholder": "Timeout (seconds)"
+      },
+      "mistral_ocr_base_url": {
+        "label": "Mistral OCR service URL *",
+        "description": "Mistral OCR endpoint. Defaults to https://api.mistral.ai/v1/ocr.",
+        "placeholder": "https://api.mistral.ai/v1/ocr"
+      },
+      "mistral_ocr_auth_token": {
+        "label": "Mistral OCR API key *",
+        "description": "API key used when calling Mistral OCR.",
+        "placeholder": "API Key"
+      },
+      "mistral_ocr_model": {
+        "label": "Mistral OCR model *",
+        "description": "Mistral OCR model used for extraction.",
+        "placeholder": "mistral-ocr-latest"
+      },
+      "mistral_ocr_timeout_seconds": {
+        "label": "Mistral OCR timeout",
+        "description": "Maximum wait time for one Mistral OCR request, in seconds.",
+        "placeholder": "60"
       },
       "llm_ocr_base_url": {
         "label": "LLM OCR service URL *",

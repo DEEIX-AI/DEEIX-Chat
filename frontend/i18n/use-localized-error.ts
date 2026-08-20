@@ -22,13 +22,11 @@ export function useLocalizedErrorMessage() {
         }
 
         const key = toMessageKey(error.errorCode);
-        try {
+        if (errors.has(key)) {
           const translated = errors(key);
           if (translated && translated !== key && translated !== `errors.${key}`) {
             return translated;
           }
-        } catch {
-          // Fall through to backend fallback.
         }
       }
 

@@ -92,6 +92,10 @@ export const HARD_DENIED_MODEL_OPTION_PATHS = [
   "baseURL",
   "stream",
   "previous_response_id",
+  "prompt_cache_key",
+  "prompt_cache_options",
+  "prompt_cache_breakpoint",
+  "prompt_cache_retention",
 ];
 
 export function parseModelOptionRuleMap(raw: string): { value: ModelOptionRuleMap; error: string } {

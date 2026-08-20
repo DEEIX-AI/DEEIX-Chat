@@ -25,6 +25,7 @@ export function useChatSubmitStream({
   modelOptions,
   selectedToolIDs,
   selectedSkills,
+  selectedKnowledgeBaseIDs,
   htmlVisualPromptEnabled,
   options,
   draft,
@@ -35,6 +36,7 @@ export function useChatSubmitStream({
   autoGenerateLabels,
   prependNewConversation,
   onConversationCreated,
+  onConversationForked,
   touchByPublicID,
   reload,
   replaceMessage,
@@ -53,7 +55,8 @@ export function useChatSubmitStream({
   combinedMessages,
   serverMessagePublicIDs,
   activeGenerationRunsRef,
-  failedGenerationRunsRef,
+  activeGenerationRunsRevision,
+  onActiveGenerationRunsChange,
   resumeGenerationActive,
 }: {
   conversationID: string | null;
@@ -63,6 +66,7 @@ export function useChatSubmitStream({
   modelOptions: ChatModelOption[];
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
+  selectedKnowledgeBaseIDs: string[];
   htmlVisualPromptEnabled: boolean;
   options: ConversationOptions;
   draft: string;
@@ -73,6 +77,7 @@ export function useChatSubmitStream({
   autoGenerateLabels: boolean;
   prependNewConversation: (platformModelName: string) => Promise<ConversationDTO | null | undefined>;
   onConversationCreated?: (conversationPublicID: string) => void;
+  onConversationForked?: (conversation: ConversationDTO) => Promise<void> | void;
   touchByPublicID: (publicID: string, patch?: Partial<ConversationDTO>) => void;
   reload: () => void;
   replaceMessage: (message: MessageDTO) => void;
@@ -91,7 +96,8 @@ export function useChatSubmitStream({
   combinedMessages: ChatAreaMessage[];
   serverMessagePublicIDs: Set<string>;
   activeGenerationRunsRef?: React.RefObject<Set<string>>;
-  failedGenerationRunsRef?: React.RefObject<Set<string>>;
+  activeGenerationRunsRevision: number;
+  onActiveGenerationRunsChange?: () => void;
   resumeGenerationActive?: boolean;
 }) {
   const streamBuffer = useChatStreamBuffer({
@@ -106,6 +112,7 @@ export function useChatSubmitStream({
     modelOptions,
     selectedToolIDs,
     selectedSkills,
+    selectedKnowledgeBaseIDs,
     htmlVisualPromptEnabled,
     options,
     draft,
@@ -116,6 +123,7 @@ export function useChatSubmitStream({
     autoGenerateLabels,
     prependNewConversation,
     onConversationCreated,
+    onConversationForked,
     touchByPublicID,
     reload,
     replaceMessage,
@@ -140,7 +148,8 @@ export function useChatSubmitStream({
     resetStreamBuffer: streamBuffer.resetStreamBuffer,
     startStream: streamBuffer.startStream,
     activeGenerationRunsRef,
-    failedGenerationRunsRef,
+    activeGenerationRunsRevision,
+    onActiveGenerationRunsChange,
     resumeGenerationActive,
   });
 

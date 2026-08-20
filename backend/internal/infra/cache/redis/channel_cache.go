@@ -288,6 +288,61 @@ func (c *channelCache) ClearModelCircuitKeys(ctx context.Context, upstreamID uin
 	).Err()
 }
 
+// ResetAllCircuitStates 使用 SCAN + UNLINK 分批清除熔断状态和失败计数，避免阻塞 Redis。
+// 最近成功/失败元数据与限流退避使用独立键，不受此操作影响。
+func (c *channelCache) ResetAllCircuitStates(ctx context.Context) error {
+	if c.client == nil {
+		return nil
+	}
+	return resetCircuitStateKeys(
+		ctx,
+		func(ctx context.Context, cursor uint64) ([]string, uint64, error) {
+			return c.client.Scan(ctx, cursor, "cb:u:*", 200).Result()
+		},
+		func(ctx context.Context, keys []string) error {
+			return c.client.Unlink(ctx, keys...).Err()
+		},
+	)
+}
+
+func resetCircuitStateKeys(
+	ctx context.Context,
+	scan func(context.Context, uint64) ([]string, uint64, error),
+	deleteKeys func(context.Context, []string) error,
+) error {
+	var cursor uint64
+	for {
+		keys, nextCursor, err := scan(ctx, cursor)
+		if err != nil {
+			return err
+		}
+		circuitKeys := make([]string, 0, len(keys))
+		for _, key := range keys {
+			if isCircuitStateKey(key) {
+				circuitKeys = append(circuitKeys, key)
+			}
+		}
+		if len(circuitKeys) > 0 {
+			if err := deleteKeys(ctx, circuitKeys); err != nil {
+				return err
+			}
+		}
+		cursor = nextCursor
+		if cursor == 0 {
+			return nil
+		}
+	}
+}
+
+func isCircuitStateKey(key string) bool {
+	for _, suffix := range []string{":open", ":until", ":probe", ":fails"} {
+		if strings.HasSuffix(key, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
 // ReleaseRouteProbes 释放路由上的 probe 令牌。
 func (c *channelCache) ReleaseRouteProbes(ctx context.Context, upstreamID uint, modelKey string) error {
 	if c.client == nil || upstreamID == 0 {

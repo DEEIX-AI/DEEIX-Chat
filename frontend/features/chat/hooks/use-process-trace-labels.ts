@@ -23,6 +23,7 @@ export type ProcessTraceLabels = {
   rag: {
     sourceFallback: (fileID: string) => string;
     chunksShort: (count: number, scorePercent: number) => string;
+    chunksTotal: (count: number) => string;
     retrievalSources: string;
     matchedContents: (count: number) => string;
     matchSummary: (count: number, sharePercent: number, scorePercent: number) => string;
@@ -174,6 +175,7 @@ export function useProcessTraceLabels(): ProcessTraceLabels {
       rag: {
         sourceFallback: (fileID: string) => t("rag.sourceFallback", { fileID }),
         chunksShort: (count: number, scorePercent: number) => t("rag.chunksShort", { count, scorePercent }),
+        chunksTotal: (count: number) => t("rag.chunksTotal", { count }),
         retrievalSources: t("rag.retrievalSources"),
         matchedContents: (count: number) => t("rag.matchedContents", { count }),
         matchSummary: (count: number, sharePercent: number, scorePercent: number) =>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	models "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
@@ -11,6 +12,277 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+const modelVendorDeleteReferencePreviewLimit = 20
+
+// lockModelPresentationReferences 对即将写入模型的厂商和展示分组加共享事务边界。
+// 删除操作锁定同一目录行，因此不会在引用检查后产生悬空关联。
+func lockModelPresentationReferences(tx *gorm.DB, vendor string, displayGroupID *uint) error {
+	if normalizedVendor := strings.TrimSpace(vendor); normalizedVendor != "" {
+		var item models.LLMModelVendor
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id").Where("key = ?", normalizedVendor).First(&item).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return repository.ErrModelVendorNotFound
+			}
+			return translateError(err)
+		}
+	}
+	if displayGroupID != nil && *displayGroupID > 0 {
+		var item models.LLMModelDisplayGroup
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id").Where("id = ?", *displayGroupID).First(&item).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return repository.ErrModelDisplayGroupNotFound
+			}
+			return translateError(err)
+		}
+	}
+	return nil
+}
+
+// CreateModelIconAsset 保存待写入或已经就绪的图标元数据。
+func (r *Repo) CreateModelIconAsset(ctx context.Context, item *domainchannel.ModelIconAsset) error {
+	if item == nil {
+		return repository.ErrInvalidInput
+	}
+	entity := toModelIconAssetModel(item)
+	if err := r.db.WithContext(ctx).Create(&entity).Error; err != nil {
+		return translateError(err)
+	}
+	*item = toModelIconAssetDomain(entity)
+	return nil
+}
+
+// GetModelIconAssetByPublicID 按公开 ID 查询图标资产。
+func (r *Repo) GetModelIconAssetByPublicID(ctx context.Context, publicID string) (*domainchannel.ModelIconAsset, error) {
+	var item models.LLMModelIconAsset
+	if err := r.db.WithContext(ctx).Where("public_id = ?", strings.TrimSpace(publicID)).First(&item).Error; err != nil {
+		return nil, translateError(err)
+	}
+	result := toModelIconAssetDomain(item)
+	return &result, nil
+}
+
+// GetModelIconAssetBySHA256 按内容哈希查询图标资产，用于上传去重。
+func (r *Repo) GetModelIconAssetBySHA256(ctx context.Context, sha256 string) (*domainchannel.ModelIconAsset, error) {
+	var item models.LLMModelIconAsset
+	if err := r.db.WithContext(ctx).Where("sha256 = ?", strings.TrimSpace(sha256)).First(&item).Error; err != nil {
+		return nil, translateError(err)
+	}
+	result := toModelIconAssetDomain(item)
+	return &result, nil
+}
+
+// ListModelIconAssets 分页查询仍展示在管理员图标库中的就绪资产。
+func (r *Repo) ListModelIconAssets(ctx context.Context, offset int, limit int) ([]domainchannel.ModelIconAsset, int64, error) {
+	if offset < 0 || limit <= 0 {
+		return []domainchannel.ModelIconAsset{}, 0, nil
+	}
+	query := r.db.WithContext(ctx).Model(&models.LLMModelIconAsset{}).
+		Where("ready_at IS NOT NULL AND deleting_at IS NULL AND delete_requested_at IS NULL")
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, translateError(err)
+	}
+	entities := make([]models.LLMModelIconAsset, 0)
+	if err := query.Order("created_at DESC, id DESC").Offset(offset).Limit(limit).Find(&entities).Error; err != nil {
+		return nil, 0, translateError(err)
+	}
+	items := make([]domainchannel.ModelIconAsset, 0, len(entities))
+	for _, entity := range entities {
+		items = append(items, toModelIconAssetDomain(entity))
+	}
+	return items, total, nil
+}
+
+// RefreshModelIconAssetUploadLease 刷新上传或去重流程持有的临时租约，并恢复待回收资产。
+func (r *Repo) RefreshModelIconAssetUploadLease(ctx context.Context, publicID string, unreferencedAt time.Time, leaseExpiresAt time.Time) error {
+	result := r.db.WithContext(ctx).
+		Model(&models.LLMModelIconAsset{}).
+		Where("public_id = ? AND deleting_at IS NULL", strings.TrimSpace(publicID)).
+		Updates(map[string]any{
+			"lease_expires_at":    leaseExpiresAt,
+			"unreferenced_at":     unreferencedAt,
+			"delete_requested_at": nil,
+		})
+	if result.Error != nil {
+		return translateError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return repository.ErrNotFound
+	}
+	return nil
+}
+
+// MarkModelIconAssetReady 标记对象内容已经写入并通过校验。
+func (r *Repo) MarkModelIconAssetReady(ctx context.Context, publicID string, readyAt time.Time) error {
+	result := r.db.WithContext(ctx).
+		Model(&models.LLMModelIconAsset{}).
+		Where("public_id = ? AND deleting_at IS NULL", strings.TrimSpace(publicID)).
+		Update("ready_at", gorm.Expr("COALESCE(ready_at, ?)", readyAt))
+	if result.Error != nil {
+		return translateError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return repository.ErrNotFound
+	}
+	return nil
+}
+
+// ReserveModelIconAssetReference 在业务配置保存前续租已就绪资产，并取消待回收状态。
+func (r *Repo) ReserveModelIconAssetReference(ctx context.Context, publicID string, leaseExpiresAt time.Time) error {
+	result := r.db.WithContext(ctx).
+		Model(&models.LLMModelIconAsset{}).
+		Where("public_id = ? AND ready_at IS NOT NULL AND deleting_at IS NULL", strings.TrimSpace(publicID)).
+		Updates(map[string]any{
+			"lease_expires_at":    leaseExpiresAt,
+			"unreferenced_at":     nil,
+			"delete_requested_at": nil,
+		})
+	if result.Error != nil {
+		return translateError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return repository.ErrNotFound
+	}
+	return nil
+}
+
+// ListExpiredModelIconAssets 查询租约过期或已经进入删除流程的资产。
+func (r *Repo) ListExpiredModelIconAssets(ctx context.Context, expiredBefore time.Time, limit int) ([]domainchannel.ModelIconAsset, error) {
+	if limit <= 0 {
+		return []domainchannel.ModelIconAsset{}, nil
+	}
+	entities := make([]models.LLMModelIconAsset, 0)
+	if err := r.db.WithContext(ctx).
+		Where("lease_expires_at <= ? OR deleting_at IS NOT NULL", expiredBefore).
+		Order("CASE WHEN deleting_at IS NOT NULL THEN 0 ELSE 1 END, lease_expires_at ASC, id ASC").
+		Limit(limit).
+		Find(&entities).Error; err != nil {
+		return nil, translateError(err)
+	}
+	items := make([]domainchannel.ModelIconAsset, 0, len(entities))
+	for _, entity := range entities {
+		items = append(items, toModelIconAssetDomain(entity))
+	}
+	return items, nil
+}
+
+// HasModelIconAssetReference 检查控制面配置或仍保留的会话运行快照是否引用资产。
+func (r *Repo) HasModelIconAssetReference(ctx context.Context, ref string) (bool, error) {
+	checks := []struct {
+		model  any
+		column string
+	}{
+		{model: &models.LLMPlatformModel{}, column: "icon"},
+		{model: &models.LLMModelVendor{}, column: "icon"},
+		{model: &models.LLMModelDisplayGroup{}, column: "icon"},
+		{model: &models.ConversationRun{}, column: "model_icon"},
+	}
+	for _, check := range checks {
+		var result struct{ Found int }
+		if err := r.db.WithContext(ctx).
+			Model(check.model).
+			Select("1 AS found").
+			Where(check.column+" = ?", strings.TrimSpace(ref)).
+			Limit(1).
+			Scan(&result).Error; err != nil {
+			return false, translateError(err)
+		}
+		if result.Found == 1 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// GetModelIconAssetReferenceSummary 汇总控制面配置与会话快照中的资产引用。
+func (r *Repo) GetModelIconAssetReferenceSummary(ctx context.Context, ref string) (repository.ModelIconAssetReferenceSummary, error) {
+	normalizedRef := strings.TrimSpace(ref)
+	checks := []struct {
+		model  any
+		column string
+		set    func(*repository.ModelIconAssetReferenceSummary, int64)
+	}{
+		{model: &models.LLMPlatformModel{}, column: "icon", set: func(result *repository.ModelIconAssetReferenceSummary, count int64) { result.Models = count }},
+		{model: &models.LLMModelVendor{}, column: "icon", set: func(result *repository.ModelIconAssetReferenceSummary, count int64) { result.Vendors = count }},
+		{model: &models.LLMModelDisplayGroup{}, column: "icon", set: func(result *repository.ModelIconAssetReferenceSummary, count int64) { result.DisplayGroups = count }},
+		{model: &models.ConversationRun{}, column: "model_icon", set: func(result *repository.ModelIconAssetReferenceSummary, count int64) { result.ConversationRuns = count }},
+	}
+	var summary repository.ModelIconAssetReferenceSummary
+	for _, check := range checks {
+		var count int64
+		if err := r.db.WithContext(ctx).Model(check.model).Where(check.column+" = ?", normalizedRef).Count(&count).Error; err != nil {
+			return repository.ModelIconAssetReferenceSummary{}, translateError(err)
+		}
+		check.set(&summary, count)
+	}
+	return summary, nil
+}
+
+// MarkModelIconAssetUnreferenced 开始连续无引用保护期；并发续租优先于该状态切换。
+func (r *Repo) MarkModelIconAssetUnreferenced(
+	ctx context.Context,
+	assetID uint,
+	expiredBefore time.Time,
+	unreferencedAt time.Time,
+	leaseExpiresAt time.Time,
+) (bool, error) {
+	result := r.db.WithContext(ctx).
+		Model(&models.LLMModelIconAsset{}).
+		Where("id = ? AND lease_expires_at <= ? AND unreferenced_at IS NULL AND deleting_at IS NULL", assetID, expiredBefore).
+		Updates(map[string]any{"unreferenced_at": unreferencedAt, "lease_expires_at": leaseExpiresAt})
+	if result.Error != nil {
+		return false, translateError(result.Error)
+	}
+	return result.RowsAffected > 0, nil
+}
+
+// RequestModelIconAssetDeletion 从图标库隐藏未使用资产，并开始 24 小时安全回收期。
+func (r *Repo) RequestModelIconAssetDeletion(ctx context.Context, assetID uint, requestedAt time.Time, leaseExpiresAt time.Time) error {
+	result := r.db.WithContext(ctx).
+		Model(&models.LLMModelIconAsset{}).
+		Where("id = ? AND ready_at IS NOT NULL AND deleting_at IS NULL AND delete_requested_at IS NULL", assetID).
+		Updates(map[string]any{
+			"delete_requested_at": requestedAt,
+			"unreferenced_at":     requestedAt,
+			"lease_expires_at":    leaseExpiresAt,
+		})
+	if result.Error != nil {
+		return translateError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return repository.ErrNotFound
+	}
+	return nil
+}
+
+// ClaimModelIconAssetDeletion 原子认领已过期且未被其他操作续租的资产删除任务。
+func (r *Repo) ClaimModelIconAssetDeletion(ctx context.Context, assetID uint, expiredBefore time.Time, deletingAt time.Time) (bool, error) {
+	result := r.db.WithContext(ctx).
+		Model(&models.LLMModelIconAsset{}).
+		Where("id = ? AND lease_expires_at <= ? AND unreferenced_at IS NOT NULL AND deleting_at IS NULL", assetID, expiredBefore).
+		Update("deleting_at", deletingAt)
+	if result.Error != nil {
+		return false, translateError(result.Error)
+	}
+	return result.RowsAffected > 0, nil
+}
+
+// DeleteClaimedModelIconAsset 在对象删除成功后移除已经认领的元数据。
+func (r *Repo) DeleteClaimedModelIconAsset(ctx context.Context, assetID uint) error {
+	result := r.db.WithContext(ctx).
+		Where("id = ? AND deleting_at IS NOT NULL", assetID).
+		Delete(&models.LLMModelIconAsset{})
+	if result.Error != nil {
+		return translateError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return repository.ErrNotFound
+	}
+	return nil
+}
 
 // CreateModelVendor 创建技术厂商目录项。
 func (r *Repo) CreateModelVendor(ctx context.Context, item *domainchannel.ModelVendor) error {
@@ -59,6 +331,55 @@ func (r *Repo) UpdateModelVendor(ctx context.Context, key string, input reposito
 		return repository.ErrNotFound
 	}
 	return nil
+}
+
+// DeleteModelVendor 删除未被引用的自定义技术厂商。
+// 厂商行、引用检查和删除位于同一事务，避免删除检查与并发写入相互穿透。
+func (r *Repo) DeleteModelVendor(ctx context.Context, key string) error {
+	normalizedKey := strings.TrimSpace(key)
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var item models.LLMModelVendor
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("key = ?", normalizedKey).First(&item).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return repository.ErrModelVendorNotFound
+			}
+			return translateError(err)
+		}
+		if item.BuiltIn {
+			return &repository.ModelVendorDeleteBlockedError{Reason: repository.ModelVendorDeleteReasonBuiltIn}
+		}
+
+		var referenceCount int64
+		if err := tx.Model(&models.LLMPlatformModel{}).Where("vendor = ?", normalizedKey).Count(&referenceCount).Error; err != nil {
+			return translateError(err)
+		}
+		if referenceCount > 0 {
+			var referencedModels []struct {
+				ID                uint
+				PlatformModelName string `gorm:"column:name"`
+			}
+			if err := tx.Model(&models.LLMPlatformModel{}).
+				Select("id", "name").
+				Where("vendor = ?", normalizedKey).
+				Order("id ASC").
+				Limit(modelVendorDeleteReferencePreviewLimit).
+				Scan(&referencedModels).Error; err != nil {
+				return translateError(err)
+			}
+			modelsPreview := make([]repository.ModelVendorReference, 0, len(referencedModels))
+			for _, referencedModel := range referencedModels {
+				modelsPreview = append(modelsPreview, repository.ModelVendorReference{
+					ID: referencedModel.ID, PlatformModelName: referencedModel.PlatformModelName,
+				})
+			}
+			return &repository.ModelVendorDeleteBlockedError{
+				Reason:         repository.ModelVendorDeleteReasonReferencedModels,
+				ReferenceCount: referenceCount,
+				Models:         modelsPreview,
+			}
+		}
+		return translateError(tx.Delete(&item).Error)
+	})
 }
 
 // GetModelVendorByKey 按稳定 key 获取技术厂商目录项。
@@ -264,6 +585,31 @@ func toModelVendorDomain(item models.LLMModelVendor) domainchannel.ModelVendor {
 	}
 }
 
+func toModelIconAssetDomain(item models.LLMModelIconAsset) domainchannel.ModelIconAsset {
+	return domainchannel.ModelIconAsset{
+		ID: item.ID, PublicID: item.PublicID, SHA256: item.SHA256,
+		StoragePath: item.StoragePath, ContentType: item.ContentType,
+		SizeBytes: item.SizeBytes, Width: item.Width, Height: item.Height,
+		CreatedByUserID: item.CreatedByUserID, ReadyAt: item.ReadyAt,
+		LeaseExpiresAt: item.LeaseExpiresAt, UnreferencedAt: item.UnreferencedAt,
+		DeleteRequestedAt: item.DeleteRequestedAt, DeletingAt: item.DeletingAt,
+		CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
+	}
+}
+
+func toModelIconAssetModel(item *domainchannel.ModelIconAsset) models.LLMModelIconAsset {
+	if item == nil {
+		return models.LLMModelIconAsset{}
+	}
+	return models.LLMModelIconAsset{
+		PublicID: item.PublicID, SHA256: item.SHA256, StoragePath: item.StoragePath,
+		ContentType: item.ContentType, SizeBytes: item.SizeBytes, Width: item.Width, Height: item.Height,
+		CreatedByUserID: item.CreatedByUserID, ReadyAt: item.ReadyAt,
+		LeaseExpiresAt: item.LeaseExpiresAt, UnreferencedAt: item.UnreferencedAt,
+		DeleteRequestedAt: item.DeleteRequestedAt, DeletingAt: item.DeletingAt,
+	}
+}
+
 func toModelVendorModel(item *domainchannel.ModelVendor) models.LLMModelVendor {
 	if item == nil {
 		return models.LLMModelVendor{}
@@ -289,3 +635,4 @@ func toModelDisplayGroupModel(item *domainchannel.ModelDisplayGroup) models.LLMM
 }
 
 var _ repository.ModelPresentationRepository = (*Repo)(nil)
+var _ repository.ModelIconAssetRepository = (*Repo)(nil)

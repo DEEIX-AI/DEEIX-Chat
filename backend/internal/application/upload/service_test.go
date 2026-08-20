@@ -50,6 +50,36 @@ func TestUploadFileReturnsExistingActiveDuplicate(t *testing.T) {
 	}
 }
 
+func TestUploadFileStoresSystemAssetOutsideUploaderOwnership(t *testing.T) {
+	ctx := context.Background()
+	repo := newUploadTestRepo()
+	store := newUploadTestStore()
+	service := newUploadTestService(repo, store)
+	input := uploadTestInput("policy.md", "platform knowledge")
+	input.Ownership = FileOwnershipSystem
+
+	result, err := service.UploadFile(ctx, input)
+	if err != nil {
+		t.Fatalf("system upload failed: %v", err)
+	}
+	if result.File.UserID != 0 {
+		t.Fatalf("system asset owner = %d, want platform owner 0", result.File.UserID)
+	}
+	if result.Quota.QuotaBytes != 0 {
+		t.Fatalf("system quota limit = %d, want unlimited platform quota", result.Quota.QuotaBytes)
+	}
+	if !strings.HasPrefix(result.File.StoragePath, "system/") {
+		t.Fatalf("system storage path = %q, want system namespace", result.File.StoragePath)
+	}
+	deleted, ok, err := service.DeleteFileIfUnreferenced(ctx, 0, result.File.FileID)
+	if err != nil || !ok || deleted == nil {
+		t.Fatalf("system delete = %#v deleted=%v error=%v, want deleted platform asset", deleted, ok, err)
+	}
+	if deleted.Quota.QuotaBytes != 0 {
+		t.Fatalf("system quota limit after delete = %d, want unlimited platform quota", deleted.Quota.QuotaBytes)
+	}
+}
+
 func TestUploadFileAllowsReuploadAfterDelete(t *testing.T) {
 	ctx := context.Background()
 	repo := newUploadTestRepo()

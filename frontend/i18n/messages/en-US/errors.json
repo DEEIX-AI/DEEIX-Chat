@@ -123,6 +123,8 @@
   "conversation": {
     "invalidId": "Invalid conversation ID.",
     "invalidTitle": "Invalid conversation title.",
+    "messageForkHistoryIncomplete": "This conversation is too deep or its message history is incomplete, so it cannot be forked here.",
+    "messageForkStateInvalid": "Wait for this message to finish generating before forking the conversation.",
     "noTitleableContent": "This conversation has no content that can be used to generate a title.",
     "notFound": "Conversation not found."
   },
@@ -169,11 +171,24 @@
   "internal": {
     "error": "Internal server error. Please try again later."
   },
+  "knowledgeBase": {
+    "conflict": "A knowledge base with the same name already exists in this scope.",
+		"fileCleanupUnavailable": "Platform source cleanup is temporarily unavailable. Try again later.",
+    "internal": "The knowledge base operation failed. Please try again later.",
+    "invalid": "The knowledge base configuration is invalid.",
+    "invalidReference": "The selected knowledge base is unavailable or you no longer have access.",
+		"notFound": "The knowledge base was not found.",
+		"notReady": "The selected knowledge base has no searchable files yet. Wait for indexing to finish.",
+		"ownerFileReference": "This account still owns files referenced by a built-in knowledge base. Remove them or have another administrator upload replacements first.",
+		"platformFileInUse": "This platform source is still referenced by another resource. Remove the reference before deleting.",
+		"unavailable": "Knowledge base retrieval is temporarily unavailable. Try again later, or ask an administrator to check the embedding service if the issue persists."
+  },
   "toolRun": {
     "finalAnswerMissing": "The tool run reached its limit before the model produced a final answer. Retry or enable fewer tools for this message."
   },
   "llm": {
     "apiKeysRequired": "API keys are required.",
+    "circuitBreakerDisabled": "Model circuit breaking is disabled. Enable it before performing this action.",
     "emptyResponse": "The model returned an empty response.",
     "invalidAdapter": "This interface protocol is not supported. Choose another protocol.",
     "invalidApiKeysConfig": "Invalid API keys configuration.",
@@ -186,6 +201,13 @@
     "invalidProtocolDefaultsConfig": "Invalid protocol defaults configuration.",
     "modelAccessDenied": "You do not have access to this model.",
     "modelRouteNotConfigured": "Model route is not configured.",
+    "modelIconInvalid": "Invalid model icon. Use a built-in icon name, an uploaded icon, or an http(s) image URL.",
+    "modelIconFileInvalid": "Invalid icon file. Only PNG, JPEG, and WebP are supported.",
+    "modelIconFileTooLarge": "The icon file cannot exceed 1 MiB.",
+    "modelIconAssetNotFound": "The icon asset no longer exists. Upload it again.",
+    "modelIconAssetInUse": "This icon is still in use. Remove its references first.",
+    "modelVendorBuiltin": "Built-in vendors cannot be deleted.",
+    "modelVendorInUse": "This vendor still has associated models. Move them first.",
     "noActiveApiKey": "No active API key is available.",
     "platformModelNameExists": "Platform model name already exists.",
     "platformModelNameRequired": "Platform model name is required.",
@@ -238,6 +260,7 @@
   },
   "payment": {
     "checkoutFailed": "Failed to create checkout.",
+    "epayGatewayInvalid": "The EPay redirect gateway URL is invalid.",
     "epayTypeUnsupported": "This EPay payment type is not supported.",
     "invalidEvent": "Invalid payment event.",
     "invalidSignature": "Invalid payment signature.",

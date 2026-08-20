@@ -116,12 +116,12 @@
     "unknown": "unknown"
   },
   "rag": {
-    "enabled": "可检索",
+    "enabled": "索引就绪",
     "disabled": "检索关闭",
-    "enabledTitle": "智能检索已开启，点击关闭",
-    "disabledTitle": "智能检索已关闭，点击开启",
-    "enabledToast": "已开启该文件的智能检索",
-    "disabledToast": "已关闭该文件的智能检索"
+    "enabledTitle": "该文件已允许用于智能检索，点击关闭",
+    "disabledTitle": "该文件未参与智能检索，点击开启",
+    "enabledToast": "已允许该文件用于智能检索",
+    "disabledToast": "已停止该文件参与智能检索"
   },
   "toasts": {
     "sessionExpired": "登录状态已失效",
@@ -184,6 +184,8 @@
     "available": "可用",
     "processing": "处理中",
     "failed": "失败",
+    "searchable": "可检索",
+    "retrievalDisabled": "未启用检索",
     "processingFailed": "处理失败",
     "processingFailedDetail": "文件处理失败，请重新上传或调整策略后重试。",
     "errorCode": "错误代码：{code}",

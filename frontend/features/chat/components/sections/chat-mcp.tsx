@@ -278,30 +278,38 @@ export function ChatMCP({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <InputGroupButton
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="relative size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
-          disabled={disabled}
-          aria-label={tComposer("mcpTools")}
-          title={selectedToolCount > 0 ? tComposer("mcpToolsSelected", { count: selectedToolCount }) : tComposer("mcpTools")}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-        >
-          <Unplug
-            size={20}
-            strokeWidth={1.4}
-            animate={hovered ? "default" : undefined}
-          />
-          {selectedToolCount > 0 ? (
-            <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-medium leading-none text-primary-foreground">
-              {selectedToolCount}
-            </span>
-          ) : null}
-        </InputGroupButton>
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <InputGroupButton
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="relative size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
+              disabled={disabled}
+              aria-label={tComposer("mcpTools")}
+              onMouseEnter={() => setHovered(true)}
+              onMouseLeave={() => setHovered(false)}
+            >
+              <Unplug
+                size={20}
+                strokeWidth={1.4}
+                animate={hovered ? "default" : undefined}
+              />
+              {selectedToolCount > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-medium leading-none text-primary-foreground">
+                  {selectedToolCount}
+                </span>
+              ) : null}
+            </InputGroupButton>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs">
+          {selectedToolCount > 0
+            ? tComposer("mcpToolsSelected", { count: selectedToolCount })
+            : tComposer("mcpTools")}
+        </TooltipContent>
+      </Tooltip>
       <PopoverContent
         side="bottom"
         align="start"

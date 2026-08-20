@@ -136,6 +136,7 @@
       "login": "Sign in",
       "stream_message": "Send message",
       "create_conversation": "Create conversation",
+      "fork_conversation": "Fork conversation",
       "rename_conversation": "Rename conversation",
       "update_conversation_labels": "Update conversation labels",
       "export_conversation": "Export conversation",
@@ -391,7 +392,7 @@
     "copyFailed": "Copy failed"
   },
   "moderation": {
-    "searchPlaceholder": "Search event ID, user, result, run ID…",
+    "searchPlaceholder": "Search exact event ID, user, result, or run ID…",
     "empty": "No moderation events yet.",
     "loadFailed": "Could not load moderation events",
     "viewDetail": "View detail",
@@ -412,6 +413,10 @@
     "directions": {
       "input": "Input",
       "output": "Output"
+    },
+    "modalities": {
+      "text": "Text",
+      "image": "Image"
     },
     "columns": {
       "eventId": "Event ID",

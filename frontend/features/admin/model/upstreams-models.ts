@@ -11,6 +11,7 @@ import { parseKindsJSON, stringifyKinds } from "@/shared/model/llm-schema";
 export type RowDraft = AdminLLMUpstreamModelDTO & {
   draftKey: string;
   isDirty: boolean;
+  routeStatusOverridden: boolean;
   kindsDisplay: string;
   platformModelNameDraft: string;
   protocols: AdminLLMAdapter[];
@@ -75,7 +76,8 @@ export function buildRowDrafts(items: AdminLLMUpstreamModelDTO[]): RowDraft[] {
       draftKey,
       platformModelNameDraft: platformModelName,
       isDirty: false,
-      kindsDisplay: kindsJsonToDisplay(item.upstreamModelKindsJSON || item.modelKindsJSON),
+      routeStatusOverridden: false,
+      kindsDisplay: kindsJsonToDisplay(item.modelKindsJSON || item.upstreamModelKindsJSON),
       protocols: item.protocol ? [item.protocol] : [],
       routeIDsByProtocol: item.protocol && item.routeID > 0 ? { [item.protocol]: item.routeID } : {},
     });

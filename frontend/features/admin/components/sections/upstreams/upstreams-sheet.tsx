@@ -792,6 +792,7 @@ export function UpstreamSheet({
                   <span>{t("sheet.timeouts")}</span>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-4 pb-4 pt-0">
+                  <p className="text-xs leading-5 text-muted-foreground">{t("sheet.circuitBreakDescription")}</p>
                   <div className="min-w-0 space-y-1">
                     <Label className="text-xs font-normal text-muted-foreground" htmlFor="connect-timeout">{t("sheet.connectTimeout")}</Label>
                     <Input

@@ -1,9 +1,9 @@
 "use client";
 
-import * as React from "react";
-import dynamic from "next/dynamic";
 import { Plus, ToggleLeft, Trash2 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,20 +15,22 @@ import {
 } from "@/components/ui/select";
 
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
+import type { AdminLLMStatus } from "@/features/admin/api/llm.types";
 import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
+import { useAdminCircuitBreaker } from "@/features/admin/hooks/use-admin-circuit-breaker";
 import {
   UPSTREAM_SORT_OPTIONS,
-  useAdminUpstreams,
   type UpstreamSortValue,
+  useAdminUpstreams,
 } from "@/features/admin/hooks/use-admin-upstreams";
-import type { AdminLLMStatus } from "@/features/admin/api/llm.types";
+import { COMPATIBLE_OPTIONS } from "@/features/admin/utils/llm-display";
+import { AdminCircuitBreakerControl } from "../shared/admin-circuit-breaker-control";
 import {
   BulkDeleteUpstreamsDialog,
   CircuitActionDialog,
   DeleteUpstreamDialog,
 } from "./upstreams-dialog";
 import { UpstreamsTable } from "./upstreams-table";
-import { COMPATIBLE_OPTIONS } from "@/features/admin/utils/llm-display";
 
 const UpstreamSheet = dynamic(() => import("./upstreams-sheet").then((module) => module.UpstreamSheet), {
   ssr: false,
@@ -74,13 +76,25 @@ function BulkActionControlRow({
 export function AdminUpstreamsPage() {
   const t = useTranslations("adminUpstreams");
   const upstreams = useAdminUpstreams();
+  const circuitBreaker = useAdminCircuitBreaker();
   const [syncOnOpenUpstreamID, setSyncOnOpenUpstreamID] = React.useState<number | null>(null);
   const [statusConfirmOpen, setStatusConfirmOpen] = React.useState(false);
 
   return (
     <div className="space-y-3 pb-10">
-      <div className="flex h-10 items-center px-1">
+      <div className="flex h-10 items-center justify-between gap-3 px-1">
         <h3 className="text-sm font-semibold">{t("pageTitle")}</h3>
+        <AdminCircuitBreakerControl
+          available={circuitBreaker.available}
+          enabled={circuitBreaker.enabled}
+          loading={circuitBreaker.loading}
+          saving={circuitBreaker.saving}
+          onEnabledChange={(checked) => {
+            void circuitBreaker.updateEnabled(checked).then((updated) => {
+              if (updated) void upstreams.load();
+            });
+          }}
+        />
       </div>
 
       <TableToolbar
@@ -97,7 +111,9 @@ export function AdminUpstreamsPage() {
               { label: t("table.allStatus"), value: "" },
               { label: t("status.active"), value: "active" },
               { label: t("status.inactive"), value: "inactive" },
-              { label: t("status.circuitOpen"), value: "circuit" },
+              ...(circuitBreaker.enabled
+                ? [{ label: t("status.circuitOpen"), value: "circuit" }]
+                : []),
             ],
           },
           {
@@ -173,6 +189,7 @@ export function AdminUpstreamsPage() {
       <UpstreamsTable
         items={upstreams.pagedItems}
         loading={upstreams.loading}
+        circuitBreakerEnabled={circuitBreaker.enabled}
         selected={upstreams.selected}
         togglingStatusIDs={upstreams.togglingStatusIDs}
         onSelectAll={upstreams.handleSelectAll}
@@ -234,19 +251,16 @@ export function AdminUpstreamsPage() {
         onDone={upstreams.handleCircuitDone}
       />
 
-      {upstreams.modelsOpen ? (
-        <UpstreamModelsDialog
-          open
-          onOpenChange={(open) => {
-            upstreams.setModelsOpen(open);
-            if (!open) upstreams.closeModels();
-          }}
-          upstream={upstreams.modelsTarget}
-          openRemoteOnOpen={syncOnOpenUpstreamID === upstreams.modelsTarget?.id}
-          onUpstreamUpdated={upstreams.handleUpstreamUpdated}
-          onRemoteOpenHandled={() => setSyncOnOpenUpstreamID(null)}
-        />
-      ) : null}
+      <UpstreamModelsDialog
+        open={upstreams.modelsOpen}
+        onOpenChange={(open) => {
+          if (!open) upstreams.closeModels();
+        }}
+        upstream={upstreams.modelsTarget}
+        openRemoteOnOpen={syncOnOpenUpstreamID === upstreams.modelsTarget?.id}
+        onUpstreamUpdated={upstreams.handleUpstreamUpdated}
+        onRemoteOpenHandled={() => setSyncOnOpenUpstreamID(null)}
+      />
 
       <AdminBulkConfirmDialog
         open={statusConfirmOpen}

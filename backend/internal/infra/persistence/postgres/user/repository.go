@@ -9,6 +9,7 @@ import (
 	"time"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
+	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
 	domainskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/skill"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
@@ -882,9 +883,23 @@ func (r *Repo) ListLatestSessionActivityByUserIDs(ctx context.Context, userIDs [
 // DeleteAccountHard 删除用户主记录及主要用户域数据。
 func (r *Repo) DeleteAccountHard(ctx context.Context, userID uint) error {
 	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var builtinFileReferences int64
+		if err := tx.Table("knowledge_base_files AS kbf").
+			Joins("JOIN knowledge_bases AS kb ON kb.id = kbf.knowledge_base_id").
+			Joins("JOIN file_objects AS fo ON fo.id = kbf.file_object_id").
+			Where("kb.scope = ? AND fo.user_id = ? AND fo.status = ?", domainknowledgebase.ScopeBuiltin, userID, "active").
+			Count(&builtinFileReferences).Error; err != nil {
+			return err
+		}
+		if builtinFileReferences > 0 {
+			return domainknowledgebase.ErrBuiltinFileOwnerDeleteBlocked
+		}
+
 		conversationSubQuery := tx.Unscoped().Model(&model.Conversation{}).Select("id").Where("user_id = ?", userID)
 		projectSubQuery := tx.Unscoped().Model(&model.ConversationProject{}).Select("id").Where("user_id = ?", userID)
 		userSkillSubQuery := tx.Model(&model.Skill{}).Select("id").Where("scope = ? AND owner_user_id = ?", domainskill.ScopeUser, userID)
+		userKnowledgeBaseSubQuery := tx.Model(&model.KnowledgeBase{}).Select("id").Where("scope = ? AND owner_user_id = ?", domainknowledgebase.ScopeUser, userID)
+		userFileSubQuery := tx.Unscoped().Model(&model.FileObject{}).Select("id").Where("user_id = ?", userID)
 		runSubQuery := tx.Unscoped().Model(&model.ConversationRun{}).Select("run_id").Where("user_id = ?", userID)
 
 		steps := []struct {
@@ -995,6 +1010,13 @@ func (r *Repo) DeleteAccountHard(ctx context.Context, userID uint) error {
 				},
 			},
 			{
+				label: "chat_conversation_project_knowledge_bases",
+				run: func(db *gorm.DB) error {
+					return db.Where("project_id IN (?) OR knowledge_base_id IN (?)", projectSubQuery, userKnowledgeBaseSubQuery).
+						Delete(&model.ConversationProjectKnowledgeBase{}).Error
+				},
+			},
+			{
 				label: "chat_conversation_projects",
 				run: func(db *gorm.DB) error {
 					return db.Unscoped().Where("user_id = ?", userID).Delete(&model.ConversationProject{}).Error
@@ -1004,6 +1026,20 @@ func (r *Repo) DeleteAccountHard(ctx context.Context, userID uint) error {
 				label: "skills",
 				run: func(db *gorm.DB) error {
 					return db.Where("scope = ? AND owner_user_id = ?", domainskill.ScopeUser, userID).Delete(&model.Skill{}).Error
+				},
+			},
+			{
+				label: "knowledge_base_files",
+				run: func(db *gorm.DB) error {
+					return db.Where("knowledge_base_id IN (?) OR file_object_id IN (?)", userKnowledgeBaseSubQuery, userFileSubQuery).
+						Delete(&model.KnowledgeBaseFile{}).Error
+				},
+			},
+			{
+				label: "knowledge_bases",
+				run: func(db *gorm.DB) error {
+					return db.Where("scope = ? AND owner_user_id = ?", domainknowledgebase.ScopeUser, userID).
+						Delete(&model.KnowledgeBase{}).Error
 				},
 			},
 			{

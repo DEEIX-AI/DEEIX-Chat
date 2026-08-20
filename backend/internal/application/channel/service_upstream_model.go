@@ -3,6 +3,7 @@ package channel
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
@@ -40,10 +41,13 @@ func (s *Service) ListUpstreamModels(ctx context.Context, upstreamID uint, page 
 	if err != nil {
 		return nil, 0, err
 	}
+	breakerEnabled := s.cache != nil && s.loadBreakerDefaults(ctx).Enabled
 	views := make([]UpstreamModelView, 0, len(items))
 	for _, item := range items {
 		v := toUpstreamModelView(item)
-		v.CircuitOpen, v.CircuitUntil = s.cache.QueryModelCircuitStatus(ctx, upstreamID, bindingCircuitKey(item.BindingCode))
+		if breakerEnabled && s.cache != nil {
+			v.CircuitOpen, v.CircuitUntil = s.cache.QueryModelCircuitStatus(ctx, upstreamID, bindingCircuitKey(item.BindingCode))
+		}
 		views = append(views, v)
 	}
 	return views, total, nil
@@ -51,11 +55,6 @@ func (s *Service) ListUpstreamModels(ctx context.Context, upstreamID uint, page 
 
 // UpsertUpstreamModel 新增或更新平台模型到上游真实模型的路由绑定。
 func (s *Service) UpsertUpstreamModel(ctx context.Context, upstreamID uint, input UpsertUpstreamModelInput) (*UpstreamModelView, error) {
-	upstream, err := s.repo.GetUpstreamByID(ctx, upstreamID)
-	if err != nil {
-		return nil, err
-	}
-
 	platformModelName, err := normalizePlatformModelName(input.PlatformModelName)
 	if err != nil {
 		return nil, err
@@ -64,8 +63,10 @@ func (s *Service) UpsertUpstreamModel(ctx context.Context, upstreamID uint, inpu
 	if upstreamModelName == "" {
 		return nil, ErrUpstreamModelNotFound
 	}
-	if err := validateOptionalJSON(strings.TrimSpace(input.HeadersJSON)); err != nil {
-		return nil, ErrInvalidJSONConfig
+	if input.HeadersJSON != nil {
+		if err := validateOptionalJSON(strings.TrimSpace(*input.HeadersJSON)); err != nil {
+			return nil, ErrInvalidJSONConfig
+		}
 	}
 
 	rawKindsJSON := strings.TrimSpace(input.KindsJSON)
@@ -78,77 +79,124 @@ func (s *Service) UpsertUpstreamModel(ctx context.Context, upstreamID uint, inpu
 	if err != nil {
 		return nil, err
 	}
-	protocol, err := resolveRouteProtocol(input.Protocol, upstream.Compatible, upstream.ProtocolDefaultsJSON, kindsJSON)
-	if err != nil {
-		return nil, err
-	}
-
-	platformModel, platformModelCreated, err := s.ensurePlatformModel(ctx, platformModelName, kindsJSON, upstreamModelName)
-	if err != nil {
-		return nil, err
-	}
-	if !platformModelCreated && kindsExplicit && strings.TrimSpace(platformModel.KindsJSON) != kindsJSON {
-		if err := s.repo.UpdateModel(ctx, platformModel.ID, repository.UpdateChannelModelInput{KindsJSON: &kindsJSON}); err != nil {
-			return nil, err
+	var view *UpstreamModelView
+	err = s.repo.WithinTransaction(ctx, func(txRepo repository.ChannelRepository) error {
+		upstream, txErr := txRepo.GetUpstreamByID(ctx, upstreamID)
+		if txErr != nil {
+			return txErr
 		}
-		platformModel.KindsJSON = kindsJSON
-	}
-	upstreamModelVendor := normalizeUpstreamModelVendor("", upstreamModelName, upstream.Name, upstream.BaseURL)
-	upstreamModelIcon := normalizeModelIcon("", upstreamModelVendor, upstreamModelName)
-	upstreamModel, err := s.upsertUpstreamCatalogModel(ctx, upstream.ID, upstreamModelName, protocol, kindsJSON, upstreamModelVendor, upstreamModelIcon, "active", normalizeSource(input.Source), "{}")
-	if err != nil {
-		return nil, err
-	}
-	if err := s.validateRouteProtocolCombination(ctx, upstream.ID, platformModel.ID, upstreamModel.ID, input.RouteID, protocol); err != nil {
-		return nil, err
-	}
-
-	route := &domainchannel.PlatformModelRoute{
-		PlatformModelID:    platformModel.ID,
-		UpstreamModelID:    upstreamModel.ID,
-		Protocol:           protocol,
-		Status:             normalizeStatus(input.Status),
-		Priority:           normalizePriority(input.Priority),
-		Weight:             normalizeWeight(input.Weight),
-		Source:             normalizeSource(input.Source),
-		CbFailureThreshold: input.CbFailureThreshold,
-		CbDurationMin:      input.CbDurationMin,
-		CbWindowMin:        input.CbWindowMin,
-		HeadersJSON:        strings.TrimSpace(input.HeadersJSON),
-	}
-
-	if input.RouteID > 0 {
-		if _, err := s.repo.GetPlatformModelRouteByID(ctx, input.RouteID, upstream.ID); err != nil {
-			return nil, err
+		protocols, txErr := resolveRouteProtocols(input.Protocols, upstream.Compatible, upstream.ProtocolDefaultsJSON, kindsJSON)
+		if txErr != nil {
+			return txErr
 		}
-		if err := s.repo.UpdatePlatformModelRouteByID(ctx, input.RouteID, upstream.ID, repository.UpdateChannelPlatformRouteInput{
-			PlatformModelID:    &route.PlatformModelID,
-			UpstreamModelID:    &route.UpstreamModelID,
-			Protocol:           &route.Protocol,
-			Status:             &route.Status,
-			Priority:           &route.Priority,
-			Weight:             &route.Weight,
-			Source:             &route.Source,
-			CbFailureThreshold: &route.CbFailureThreshold,
-			CbDurationMin:      &route.CbDurationMin,
-			CbWindowMin:        &route.CbWindowMin,
-			HeadersJSON:        &route.HeadersJSON,
-		}); err != nil {
-			if isDuplicateKeyError(err) {
-				return nil, ErrUpstreamModelConflict
+
+		platformModel, platformModelCreated, txErr := ensurePlatformModel(ctx, txRepo, platformModelName, kindsJSON, upstreamModelName)
+		if txErr != nil {
+			return txErr
+		}
+		if !platformModelCreated && kindsExplicit && strings.TrimSpace(platformModel.KindsJSON) != kindsJSON {
+			if txErr := txRepo.UpdateModel(ctx, platformModel.ID, repository.UpdateChannelModelInput{KindsJSON: &kindsJSON}); txErr != nil {
+				return txErr
 			}
+			platformModel.KindsJSON = kindsJSON
+		}
+
+		upstreamModelVendor := normalizeUpstreamModelVendor("", upstreamModelName, upstream.Name, upstream.BaseURL)
+		upstreamModelIcon := normalizeModelIcon("", upstreamModelVendor, upstreamModelName)
+		upstreamModelSource := "manual"
+		if input.Source != nil {
+			upstreamModelSource = normalizeSource(*input.Source)
+		}
+		upstreamModel, txErr := ensureUpstreamCatalogModel(
+			ctx,
+			txRepo,
+			upstream.ID,
+			upstreamModelName,
+			protocols[0],
+			kindsJSON,
+			upstreamModelVendor,
+			upstreamModelIcon,
+			upstreamModelSource,
+		)
+		if txErr != nil {
+			return txErr
+		}
+
+		existingRoutes, txErr := bindingRoutesForReplacement(
+			ctx,
+			txRepo,
+			upstream.ID,
+			platformModel.ID,
+			upstreamModel.ID,
+			input.RouteIDs,
+		)
+		if txErr != nil {
+			return txErr
+		}
+		existingRouteIDs := append([]uint(nil), input.RouteIDs...)
+		if len(existingRouteIDs) == 0 {
+			existingRouteIDs = make([]uint, 0, len(existingRoutes))
+			for _, route := range existingRoutes {
+				existingRouteIDs = append(existingRouteIDs, route.ID)
+			}
+		}
+
+		routes := make([]domainchannel.PlatformModelRoute, 0, len(protocols))
+		for _, desiredProtocol := range protocols {
+			route := replacementRouteTemplate(existingRoutes, desiredProtocol)
+			route.PlatformModelID = platformModel.ID
+			route.UpstreamModelID = upstreamModel.ID
+			route.Protocol = desiredProtocol
+			applyRouteOverrides(&route, input)
+			routes = append(routes, route)
+		}
+		replaced, txErr := txRepo.ReplacePlatformModelRoutes(ctx, []repository.ReplaceChannelPlatformRoutesInput{{
+			UpstreamID:       upstream.ID,
+			ExistingRouteIDs: existingRouteIDs,
+			Routes:           routes,
+		}})
+		if txErr != nil {
+			return txErr
+		}
+		view, txErr = findUpstreamModelViewByRoute(ctx, txRepo, upstream.ID, replaced[0].ID, upstreamModel.ID)
+		return txErr
+	})
+	if err != nil {
+		switch {
+		case isDuplicateKeyError(err):
+			return nil, ErrUpstreamModelConflict
+		case errors.Is(err, repository.ErrConflict):
+			return nil, ErrUpstreamModelBindingChanged
+		default:
 			return nil, err
 		}
-		route.ID = input.RouteID
-	} else if err := s.repo.UpsertPlatformModelRoute(ctx, route); err != nil {
-		if isDuplicateKeyError(err) {
-			return nil, ErrUpstreamModelConflict
-		}
-		return nil, err
 	}
 
 	s.InvalidateModelCatalog()
-	return s.findUpstreamModelViewByRoute(ctx, upstream.ID, route.ID, upstreamModel.ID)
+	return view, nil
+}
+
+func bindingRoutesForReplacement(
+	ctx context.Context,
+	repo repository.ChannelRepository,
+	upstreamID uint,
+	platformModelID uint,
+	upstreamModelID uint,
+	existingRouteIDs []uint,
+) ([]domainchannel.PlatformModelRoute, error) {
+	if len(existingRouteIDs) == 0 {
+		return repo.ListPlatformModelRoutesByPair(ctx, upstreamID, platformModelID, upstreamModelID)
+	}
+	routes := make([]domainchannel.PlatformModelRoute, 0, len(existingRouteIDs))
+	for _, routeID := range existingRouteIDs {
+		route, err := repo.GetPlatformModelRouteByID(ctx, routeID, upstreamID)
+		if err != nil {
+			return nil, err
+		}
+		routes = append(routes, *route)
+	}
+	sort.Slice(routes, func(i int, j int) bool { return routes[i].ID < routes[j].ID })
+	return routes, nil
 }
 
 func (s *Service) validateRouteProtocolCombination(
@@ -159,17 +207,15 @@ func (s *Service) validateRouteProtocolCombination(
 	routeID uint,
 	protocol string,
 ) error {
-	// 同一个平台模型到同一个上游真实模型只允许单协议，或同厂商图片生成/编辑成对组合。
 	routes, err := s.repo.ListPlatformModelRoutesByPair(ctx, upstreamID, platformModelID, upstreamModelID)
 	if err != nil {
 		return err
 	}
 	protocols := make([]string, 0, len(routes)+1)
 	for _, route := range routes {
-		if route.ID == routeID {
-			continue
+		if route.ID != routeID {
+			protocols = append(protocols, route.Protocol)
 		}
-		protocols = append(protocols, route.Protocol)
 	}
 	protocols = append(protocols, protocol)
 	if !isSupportedRouteProtocolCombination(protocols) {
@@ -178,8 +224,52 @@ func (s *Service) validateRouteProtocolCombination(
 	return nil
 }
 
-func (s *Service) ensurePlatformModel(ctx context.Context, platformModelName string, kindsJSON string, candidates ...string) (*domainchannel.PlatformModel, bool, error) {
-	if item, err := s.repo.GetModelByName(ctx, platformModelName); err == nil {
+func replacementRouteTemplate(existingRoutes []domainchannel.PlatformModelRoute, protocol string) domainchannel.PlatformModelRoute {
+	for _, route := range existingRoutes {
+		if route.Protocol == protocol {
+			return route
+		}
+	}
+	if len(existingRoutes) > 0 {
+		return existingRoutes[0]
+	}
+	return domainchannel.PlatformModelRoute{
+		Status:   "active",
+		Priority: 1,
+		Weight:   1,
+		Source:   "manual",
+	}
+}
+
+func applyRouteOverrides(route *domainchannel.PlatformModelRoute, input UpsertUpstreamModelInput) {
+	if input.Status != nil {
+		route.Status = normalizeStatus(*input.Status)
+	}
+	if input.Priority != nil {
+		route.Priority = normalizePriority(*input.Priority)
+	}
+	if input.Weight != nil {
+		route.Weight = normalizeWeight(*input.Weight)
+	}
+	if input.Source != nil {
+		route.Source = normalizeSource(*input.Source)
+	}
+	if input.CbFailureThreshold != nil {
+		route.CbFailureThreshold = normalizeNonNegative(*input.CbFailureThreshold)
+	}
+	if input.CbDurationMin != nil {
+		route.CbDurationMin = normalizeNonNegative(*input.CbDurationMin)
+	}
+	if input.CbWindowMin != nil {
+		route.CbWindowMin = normalizeNonNegative(*input.CbWindowMin)
+	}
+	if input.HeadersJSON != nil {
+		route.HeadersJSON = strings.TrimSpace(*input.HeadersJSON)
+	}
+}
+
+func ensurePlatformModel(ctx context.Context, repo repository.ChannelRepository, platformModelName string, kindsJSON string, candidates ...string) (*domainchannel.PlatformModel, bool, error) {
+	if item, err := repo.GetModelByName(ctx, platformModelName); err == nil {
 		return item, false, nil
 	} else if !errors.Is(err, ErrModelNotFound) {
 		return nil, false, err
@@ -194,11 +284,11 @@ func (s *Service) ensurePlatformModel(ctx context.Context, platformModelName str
 		Status:            "active",
 		Description:       "",
 	}
-	if err := s.repo.CreateModel(ctx, item); err != nil {
+	if err := repo.CreateModel(ctx, item); err != nil {
 		if !isDuplicateKeyError(err) {
 			return nil, false, err
 		}
-		item, err = s.repo.GetModelByName(ctx, platformModelName)
+		item, err = repo.GetModelByName(ctx, platformModelName)
 		if err != nil {
 			return nil, false, err
 		}
@@ -207,64 +297,46 @@ func (s *Service) ensurePlatformModel(ctx context.Context, platformModelName str
 	return item, true, nil
 }
 
-func (s *Service) upsertUpstreamCatalogModel(
+func ensureUpstreamCatalogModel(
 	ctx context.Context,
+	repo repository.ChannelRepository,
 	upstreamID uint,
 	upstreamModelName string,
 	suggestedProtocol string,
 	kindsJSON string,
 	vendor string,
 	icon string,
-	status string,
 	source string,
-	rawJSON string,
 ) (*domainchannel.UpstreamModel, error) {
-	bindingCode := generateBindingCode()
-	normalizedSource := normalizeSource(source)
-	if existing, err := s.repo.GetUpstreamModelByUpstreamName(ctx, upstreamID, upstreamModelName); err == nil {
-		bindingCode = existing.BindingCode
-		if normalizedSource != "sync" && strings.TrimSpace(existing.Source) != "" {
-			normalizedSource = normalizeSource(existing.Source)
-		}
-		if strings.TrimSpace(vendor) == "" {
-			vendor = existing.Vendor
-		}
-		if strings.TrimSpace(icon) == "" {
-			icon = existing.Icon
-		}
-		if strings.TrimSpace(rawJSON) == "" || strings.TrimSpace(rawJSON) == "{}" {
-			rawJSON = existing.RawJSON
-		}
+	if existing, err := repo.GetUpstreamModelByUpstreamName(ctx, upstreamID, upstreamModelName); err == nil {
+		return existing, nil
 	} else if !errors.Is(err, ErrUpstreamModelNotFound) {
 		return nil, err
 	}
 
-	if strings.TrimSpace(rawJSON) == "" {
-		rawJSON = "{}"
-	}
 	item := &domainchannel.UpstreamModel{
 		UpstreamID:        upstreamID,
-		BindingCode:       bindingCode,
+		BindingCode:       generateBindingCode(),
 		UpstreamModelName: upstreamModelName,
 		SuggestedProtocol: suggestedProtocol,
 		KindsJSON:         kindsJSON,
-		Status:            normalizeStatus(status),
-		Source:            normalizedSource,
-		RawJSON:           strings.TrimSpace(rawJSON),
+		Status:            "active",
+		Source:            normalizeSource(source),
+		RawJSON:           "{}",
 	}
 	item.Vendor = normalizeUpstreamModelVendor(vendor, upstreamModelName)
 	item.Icon = normalizeModelIcon(icon, item.Vendor, upstreamModelName)
-	if err := s.repo.UpsertUpstreamModel(ctx, item); err != nil {
+	if err := repo.CreateUpstreamModel(ctx, item); err != nil {
 		if isDuplicateKeyError(err) {
-			return nil, ErrUpstreamModelConflict
+			return repo.GetUpstreamModelByUpstreamName(ctx, upstreamID, upstreamModelName)
 		}
 		return nil, err
 	}
 	return item, nil
 }
 
-func (s *Service) findUpstreamModelViewByRoute(ctx context.Context, upstreamID uint, routeID uint, upstreamModelID uint) (*UpstreamModelView, error) {
-	row, err := s.repo.GetUpstreamModelRouteByID(ctx, upstreamID, routeID)
+func findUpstreamModelViewByRoute(ctx context.Context, repo repository.ChannelRepository, upstreamID uint, routeID uint, upstreamModelID uint) (*UpstreamModelView, error) {
+	row, err := repo.GetUpstreamModelRouteByID(ctx, upstreamID, routeID)
 	if err != nil {
 		return nil, err
 	}
@@ -335,6 +407,9 @@ func (s *Service) OpenUpstreamModelCircuit(ctx context.Context, upstreamID uint,
 	if err != nil {
 		return err
 	}
+	if s.cache == nil || !s.loadBreakerDefaults(ctx).Enabled {
+		return ErrCircuitBreakerDisabled
+	}
 	return s.cache.OpenModelCircuit(ctx, upstreamID, bindingCircuitKey(bindingCode))
 }
 
@@ -343,6 +418,9 @@ func (s *Service) ResetUpstreamModelCircuit(ctx context.Context, upstreamID uint
 	bindingCode, err := s.routeBindingCode(ctx, upstreamID, routeID)
 	if err != nil {
 		return err
+	}
+	if s.cache == nil {
+		return nil
 	}
 	return s.cache.ResetModelCircuit(ctx, upstreamID, bindingCircuitKey(bindingCode))
 }

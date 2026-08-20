@@ -2,13 +2,11 @@ package embedding
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
@@ -16,10 +14,13 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	infraembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/embeddingutil"
 	"go.uber.org/zap"
 )
 
 var ErrEmbeddingServiceNotConfigured = errors.New("embedding service not configured")
+
+const embeddingWorkerConcurrency = 4
 
 // Service 封装文件 embedding 执行与状态管理能力。
 type Service struct {
@@ -28,6 +29,11 @@ type Service struct {
 	extractSvc  *extraction.Service
 	embedClient *infraembedding.Client
 	logger      *zap.Logger
+	workSlots   chan struct{}
+	lifecycleMu sync.RWMutex
+	lifecycle   context.Context
+	reindexMu   sync.Mutex
+	reindexing  bool
 }
 
 // NewService 创建 embedding 服务。
@@ -46,7 +52,19 @@ func NewServiceWithRuntime(cfg *config.Runtime, repo repository.EmbeddingReposit
 		extractSvc:  extractSvc,
 		embedClient: embedClient,
 		logger:      logger,
+		workSlots:   make(chan struct{}, embeddingWorkerConcurrency),
+		lifecycle:   context.Background(),
 	}
+}
+
+// StartBackgroundWorkers 绑定后台重建任务的生命周期；ctx 取消后不再继续领取新任务。
+func (s *Service) StartBackgroundWorkers(ctx context.Context) {
+	if s == nil || ctx == nil {
+		return
+	}
+	s.lifecycleMu.Lock()
+	s.lifecycle = ctx
+	s.lifecycleMu.Unlock()
 }
 
 // Available 返回当前对话 RAG 检索能力是否可用及原因。
@@ -137,7 +155,17 @@ func (s *Service) Trigger(fileObj domainconversation.FileObject) {
 
 // ProcessFile 执行 embedding 完整流程。
 func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.FileObject) error {
+	if s != nil && s.workSlots != nil {
+		select {
+		case s.workSlots <- struct{}{}:
+			defer func() { <-s.workSlots }()
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
 	cfg := s.snapshot()
+	embeddingSignature := configuredModelSignature(cfg)
 	if !cfg.EmbeddingEnabled || strings.TrimSpace(cfg.RAGModel) == "" || strings.TrimSpace(cfg.EmbeddingHost) == "" {
 		return nil
 	}
@@ -148,29 +176,33 @@ func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.Fi
 		return nil
 	}
 
-	if err := s.repo.UpdateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, "processing", ""); err != nil {
+	claimed, err := s.repo.ClaimFileEmbedding(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature)
+	if err != nil {
 		return err
+	}
+	if !claimed {
+		return nil
 	}
 
 	text, err := s.loadSourceText(ctx, fileObj)
 	if err != nil {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, "failed", "无法提取文本")
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", "无法提取文本")
 		return err
 	}
 	if strings.TrimSpace(text) == "" {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, "failed", "无法提取文本")
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", "无法提取文本")
 		return fmt.Errorf("no extractable text in file %s", fileObj.FileID)
 	}
 
 	chunks := infraembedding.ChunkText(text, cfg.EmbedChunkSizeTokens, cfg.EmbedChunkOverlapTokens)
 	if len(chunks) == 0 {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, "failed", "分片结果为空")
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", "分片结果为空")
 		return nil
 	}
 
-	embeddings, err := s.embedTexts(ctx, chunks)
+	embeddings, err := s.embedTextsWithConfig(ctx, chunks, cfg)
 	if err != nil {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, "failed", truncateError(err.Error(), 255))
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", truncateError(err.Error(), 255))
 		return err
 	}
 
@@ -178,24 +210,59 @@ func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.Fi
 	fileChunks := make([]domainconversation.FileChunk, 0, len(chunks))
 	for i, chunk := range chunks {
 		fileChunks = append(fileChunks, domainconversation.FileChunk{
-			FileObjID:  fileObj.ID,
-			UserID:     fileObj.UserID,
-			ChunkIndex: i,
-			Content:    chunk,
-			TokenCount: int(estimateTokens(chunk)),
-			CreatedAt:  now,
+			FileObjID:          fileObj.ID,
+			UserID:             fileObj.UserID,
+			ChunkIndex:         i,
+			Content:            chunk,
+			TokenCount:         int(estimateTokens(chunk)),
+			EmbeddingSignature: embeddingSignature,
+			CreatedAt:          now,
 		})
 	}
-	if err = s.repo.ReplaceFileChunks(ctx, fileObj.ID, fileChunks, embeddings); err != nil {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, "failed", err.Error())
+	published, err := s.repo.ReplaceFileChunks(ctx, fileObj.ID, embeddingSignature, fileChunks, embeddings)
+	if err != nil {
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", err.Error())
 		return err
 	}
+	if !published {
+		return nil
+	}
 
-	_ = s.repo.UpdateFileObjectChunkCount(ctx, fileObj.ID, len(fileChunks))
-	return s.repo.UpdateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, "ready", "")
+	if current, countErr := s.repo.UpdateFileObjectChunkCount(ctx, fileObj.ID, embeddingSignature, len(fileChunks)); countErr != nil {
+		return countErr
+	} else if !current {
+		return nil
+	}
+	return s.completeFileEmbedding(ctx, fileObj, embeddingSignature, cfg.EmbeddingHost)
 }
 
-func (s *Service) updateFileObjectEmbedStatus(ctx context.Context, userID uint, fileID string, status string, embedErr string) error {
+func (s *Service) completeFileEmbedding(ctx context.Context, fileObj domainconversation.FileObject, expectedSignature string, expectedHost string) error {
+	const configurationChanged = "embedding configuration changed during processing"
+	if !s.embeddingConfigurationCurrent(expectedSignature, expectedHost) {
+		_, err := s.repo.UpdateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, expectedSignature, "stale", configurationChanged)
+		return err
+	}
+	current, err := s.repo.UpdateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, expectedSignature, "ready", "")
+	if err != nil || !current {
+		return err
+	}
+	// The second check closes the window where configuration changes between
+	// the first check and publishing the ready state. A later change observes
+	// a ready file and is handled by the normal global invalidation path.
+	if !s.embeddingConfigurationCurrent(expectedSignature, expectedHost) {
+		_, err = s.repo.UpdateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, expectedSignature, "stale", configurationChanged)
+		return err
+	}
+	return nil
+}
+
+func (s *Service) embeddingConfigurationCurrent(expectedSignature string, expectedHost string) bool {
+	cfg := s.snapshot()
+	return configuredModelSignature(cfg) == expectedSignature &&
+		strings.TrimRight(strings.TrimSpace(cfg.EmbeddingHost), "/") == strings.TrimRight(strings.TrimSpace(expectedHost), "/")
+}
+
+func (s *Service) updateFileObjectEmbedStatus(ctx context.Context, userID uint, fileID string, embeddingSignature string, status string, embedErr string) error {
 	if s == nil || s.repo == nil {
 		return nil
 	}
@@ -205,7 +272,8 @@ func (s *Service) updateFileObjectEmbedStatus(ctx context.Context, userID uint, 
 		writeCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 	}
-	return s.repo.UpdateFileObjectEmbedStatus(writeCtx, userID, fileID, status, embedErr)
+	_, err := s.repo.UpdateFileObjectEmbedStatus(writeCtx, userID, fileID, embeddingSignature, status, embedErr)
+	return err
 }
 
 // WaitReady 轮询等待文件 embedding 就绪。
@@ -266,14 +334,24 @@ func (s *Service) loadSourceText(ctx context.Context, fileObj domainconversation
 // EmbedTexts 对外暴露向量化能力，供消息历史 embedding 等场景复用。
 // 参数与返回值与内部 embedTexts 相同，失败时返回 error 而非 panic。
 func (s *Service) EmbedTexts(ctx context.Context, texts []string) ([][]float32, error) {
-	return s.embedTexts(ctx, texts)
+	embeddings, _, err := s.EmbedTextsWithSignature(ctx, texts)
+	return embeddings, err
 }
 
-func (s *Service) embedTexts(ctx context.Context, texts []string) ([][]float32, error) {
+// EmbedTextsWithSignature 使用同一份配置快照生成向量和签名，避免配置切换期间错标向量空间。
+func (s *Service) EmbedTextsWithSignature(ctx context.Context, texts []string) ([][]float32, string, error) {
+	cfg := s.snapshot()
+	embeddings, err := s.embedTextsWithConfig(ctx, texts, cfg)
+	if err != nil {
+		return nil, "", err
+	}
+	return embeddings, configuredModelSignature(cfg), nil
+}
+
+func (s *Service) embedTextsWithConfig(ctx context.Context, texts []string, cfg config.Config) ([][]float32, error) {
 	if len(texts) == 0 {
 		return nil, nil
 	}
-	cfg := s.snapshot()
 	model := strings.TrimSpace(cfg.RAGModel)
 	host := strings.TrimSpace(cfg.EmbeddingHost)
 	if !cfg.EmbeddingEnabled {
@@ -299,7 +377,7 @@ func (s *Service) embedTexts(ctx context.Context, texts []string) ([][]float32, 
 		if end > len(texts) {
 			end = len(texts)
 		}
-		batchEmbeddings, batchErr := s.embedClient.CallAPI(ctx, apiBase, apiKey, model, texts[start:end], cfg.EmbeddingTimeoutSeconds)
+		batchEmbeddings, batchErr := s.embedClient.CallAPI(ctx, apiBase, apiKey, model, texts[start:end], cfg.EmbeddingOutputDimensions, cfg.EmbeddingTimeoutSeconds)
 		if batchErr != nil {
 			return nil, batchErr
 		}
@@ -308,7 +386,13 @@ func (s *Service) embedTexts(ctx context.Context, texts []string) ([][]float32, 
 		}
 		allEmbeddings = append(allEmbeddings, batchEmbeddings...)
 	}
-	return postProcessEmbeddings(allEmbeddings, cfg.EmbeddingOutputDimensions, cfg.EmbeddingNormalize), nil
+	if !cfg.EmbeddingNormalize {
+		return allEmbeddings, nil
+	}
+	for index := range allEmbeddings {
+		allEmbeddings[index] = l2Normalize(allEmbeddings[index])
+	}
+	return allEmbeddings, nil
 }
 
 func (s *Service) snapshot() config.Config {
@@ -331,18 +415,29 @@ type EmbeddingIndexStatus struct {
 // ComputeModelSignature 根据模型名和输出维度计算模型签名（格式: hex8@dims）。
 // 相同模型/维度组合始终产生相同签名，用于检测配置变更。
 func ComputeModelSignature(model string, outputDimensions int) string {
-	raw := model + "@" + strconv.Itoa(outputDimensions)
-	sum := sha256.Sum256([]byte(raw))
-	return hex.EncodeToString(sum[:4]) + "@" + strconv.Itoa(outputDimensions)
+	return embeddingutil.ModelSignature(model, outputDimensions)
+}
+
+// ComputeSpaceSignature derives a new opaque vector-space identifier when an
+// administrator changes the model, output dimensions, or provider endpoint.
+func ComputeSpaceSignature(model string, outputDimensions int, endpoint string) string {
+	return embeddingutil.SpaceSignature(model, outputDimensions, endpoint)
+}
+
+func configuredModelSignature(cfg config.Config) string {
+	if signature := strings.TrimSpace(cfg.EmbeddingModelSignature); signature != "" {
+		return signature
+	}
+	if strings.TrimSpace(cfg.RAGModel) == "" {
+		return ""
+	}
+	return ComputeModelSignature(cfg.RAGModel, cfg.EmbeddingOutputDimensions)
 }
 
 // GetIndexStatus 返回向量索引的健康状态快照。
 func (s *Service) GetIndexStatus(ctx context.Context) (EmbeddingIndexStatus, error) {
 	cfg := s.snapshot()
-	signature := strings.TrimSpace(cfg.EmbeddingModelSignature)
-	if signature == "" && strings.TrimSpace(cfg.RAGModel) != "" {
-		signature = ComputeModelSignature(cfg.RAGModel, cfg.EmbeddingOutputDimensions)
-	}
+	signature := configuredModelSignature(cfg)
 	status := EmbeddingIndexStatus{
 		ModelSignature: signature,
 	}
@@ -366,16 +461,25 @@ func (s *Service) GetIndexStatus(ctx context.Context) (EmbeddingIndexStatus, err
 	return status, nil
 }
 
-// MarkAllFilesStale 将所有已完成 embedding 的文件标记为失效，在模型变更时调用。
-func (s *Service) MarkAllFilesStale(ctx context.Context) (int64, error) {
+// MarkFilesStale 将不属于目标向量空间的文件标记为失效。
+func (s *Service) MarkFilesStale(ctx context.Context, activeSignature string) (int64, error) {
 	if s.repo == nil {
 		return 0, nil
 	}
-	return s.repo.MarkAllEmbeddedFilesStale(ctx)
+	signature := strings.TrimSpace(activeSignature)
+	if signature == "" {
+		return 0, nil
+	}
+	return s.repo.MarkEmbeddedFilesStale(ctx, signature)
 }
 
-// ReindexStaleFiles 异步触发所有可向量化的 none/stale/failed 文件，返回提交任务数。
-// 实际 embedding 在 goroutine 中执行，调用方立即返回。
+// ReconcileIndex 对账当前运行时配置与文件索引状态，用于启动恢复和失败补偿。
+func (s *Service) ReconcileIndex(ctx context.Context) (int64, error) {
+	return s.MarkFilesStale(ctx, configuredModelSignature(s.snapshot()))
+}
+
+// ReindexStaleFiles 提交一次去重的后台重建任务，返回本次纳入重建的文件数。
+// 后台任务通过固定 worker 数执行，不会按文件数量无限创建 goroutine。
 func (s *Service) ReindexStaleFiles(ctx context.Context) (int, error) {
 	if s.repo == nil {
 		return 0, nil
@@ -389,6 +493,23 @@ func (s *Service) ReindexStaleFiles(ctx context.Context) (int, error) {
 		return 0, ErrEmbeddingServiceNotConfigured
 	}
 
+	s.reindexMu.Lock()
+	if s.reindexing {
+		s.reindexMu.Unlock()
+		return 0, nil
+	}
+	s.reindexing = true
+	s.reindexMu.Unlock()
+	started := false
+	defer func() {
+		if started {
+			return
+		}
+		s.reindexMu.Lock()
+		s.reindexing = false
+		s.reindexMu.Unlock()
+	}()
+
 	const pageSize = 100
 	submitted := 0
 	var afterID uint
@@ -401,18 +522,92 @@ func (s *Service) ReindexStaleFiles(ctx context.Context) (int, error) {
 			break
 		}
 		for _, f := range files {
-			if !canEmbedFile(cfg, f) {
-				continue
+			if canEmbedFile(cfg, f) {
+				submitted++
 			}
-			s.Trigger(f)
-			submitted++
 		}
 		if len(files) < pageSize {
 			break
 		}
 		afterID = files[len(files)-1].ID
 	}
+	if submitted == 0 {
+		return 0, nil
+	}
+
+	s.lifecycleMu.RLock()
+	workerCtx := s.lifecycle
+	s.lifecycleMu.RUnlock()
+	if workerCtx == nil {
+		workerCtx = context.Background()
+	}
+	if err := workerCtx.Err(); err != nil {
+		return 0, err
+	}
+	started = true
+	go s.runReindex(workerCtx, configuredModelSignature(cfg))
 	return submitted, nil
+}
+
+func (s *Service) runReindex(ctx context.Context, expectedSignature string) {
+	defer func() {
+		s.reindexMu.Lock()
+		s.reindexing = false
+		s.reindexMu.Unlock()
+	}()
+
+	jobs := make(chan domainconversation.FileObject, embeddingWorkerConcurrency)
+	var workers sync.WaitGroup
+	for range embeddingWorkerConcurrency {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for fileObj := range jobs {
+				if ctx.Err() != nil || configuredModelSignature(s.snapshot()) != expectedSignature {
+					continue
+				}
+				jobCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+				err := s.ProcessFile(jobCtx, fileObj)
+				cancel()
+				if err != nil && !errors.Is(err, context.Canceled) && s.logger != nil {
+					s.logger.Warn("embedding_reindex_failed", zap.String("file_id", fileObj.FileID), zap.Error(err))
+				}
+			}
+		}()
+	}
+
+	cfg := s.snapshot()
+	const pageSize = 100
+	var afterID uint
+scan:
+	for ctx.Err() == nil && configuredModelSignature(s.snapshot()) == expectedSignature {
+		files, err := s.repo.ListFilesForReindex(ctx, pageSize, afterID)
+		if err != nil {
+			if s.logger != nil {
+				s.logger.Warn("embedding_reindex_list_failed", zap.Error(err))
+			}
+			break
+		}
+		if len(files) == 0 {
+			break
+		}
+		for _, fileObj := range files {
+			if !canEmbedFile(cfg, fileObj) {
+				continue
+			}
+			select {
+			case jobs <- fileObj:
+			case <-ctx.Done():
+				break scan
+			}
+		}
+		if len(files) < pageSize {
+			break
+		}
+		afterID = files[len(files)-1].ID
+	}
+	close(jobs)
+	workers.Wait()
 }
 
 func supportsEmbeddingSource(fileObj domainconversation.FileObject, cfg config.Config) bool {
@@ -425,37 +620,6 @@ func supportsEmbeddingSource(fileObj domainconversation.FileObject, cfg config.C
 	mime := strings.ToLower(strings.TrimSpace(fileObj.MimeType))
 	name := strings.TrimSpace(fileObj.FileName)
 	return isTextMIMEForEmbed(mime, name) || isPDFMIME(mime, name) || isWordMIME(mime, name) || isPresentationMIME(mime, name) || isExcelMIME(mime, name)
-}
-
-// postProcessEmbeddings 对批量向量做两步后处理：
-//  1. 维度对齐（截断 or 零填充），使所有向量统一为 outputDimensions 维；
-//     outputDimensions <= 0 时跳过。
-//  2. L2 归一化（单位向量），使余弦相似度 = 点积，提升检索精度；
-//     normalize=false 或向量模为 0 时跳过。
-func postProcessEmbeddings(embeddings [][]float32, outputDimensions int, normalize bool) [][]float32 {
-	result := make([][]float32, 0, len(embeddings))
-	for _, vec := range embeddings {
-		v := alignDimensions(vec, outputDimensions)
-		if normalize {
-			v = l2Normalize(v)
-		}
-		result = append(result, v)
-	}
-	return result
-}
-
-// alignDimensions 将向量截断或零填充到目标维度。
-// outputDimensions <= 0 或维度已匹配时直接返回原向量。
-func alignDimensions(vector []float32, outputDimensions int) []float32 {
-	if outputDimensions <= 0 || len(vector) == outputDimensions {
-		return vector
-	}
-	if len(vector) > outputDimensions {
-		return append([]float32(nil), vector[:outputDimensions]...)
-	}
-	result := make([]float32, outputDimensions)
-	copy(result, vector)
-	return result
 }
 
 // l2Normalize 对向量做 L2 归一化（除以欧氏模长），返回单位向量。

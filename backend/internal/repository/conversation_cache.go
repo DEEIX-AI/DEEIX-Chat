@@ -24,6 +24,19 @@ type GenerationStreamMessage struct {
 	PayloadJSON string
 }
 
+// GenerationStreamAppend 是一次原子追加所需的数据。
+// TextDelta 仅在可见文本 delta 事件中设置，用于同步维护完整恢复快照。
+type GenerationStreamAppend struct {
+	PayloadJSON string
+	TextDelta   string
+}
+
+// GenerationStreamTextSnapshot 是生成期间可恢复的完整可见文本及其事件序号。
+type GenerationStreamTextSnapshot struct {
+	Seq     int64
+	Content string
+}
+
 // FileProcessingQueueRepository 封装文件处理队列缓存能力。
 type FileProcessingQueueRepository interface {
 	InitFileProcessingStream(ctx context.Context) error
@@ -50,7 +63,8 @@ type GenerationStreamCacheRepository interface {
 	IsGenerationStreamActive(ctx context.Context, runID string) (bool, error)
 	RequestGenerationStreamCancel(ctx context.Context, runID string, ttl time.Duration) error
 	IsGenerationStreamCanceled(ctx context.Context, runID string) (bool, error)
-	AppendGenerationStreamEvent(ctx context.Context, runID string, payloadJSON string, maxEvents int64, ttl time.Duration) (GenerationStreamMessage, error)
+	AppendGenerationStreamEvent(ctx context.Context, runID string, input GenerationStreamAppend, maxEvents int64, ttl time.Duration) (GenerationStreamMessage, error)
+	GetGenerationStreamTextSnapshot(ctx context.Context, runID string) (GenerationStreamTextSnapshot, bool, error)
 	ListGenerationStreamEvents(ctx context.Context, runID string, limit int64) ([]GenerationStreamMessage, error)
 	ReadGenerationStreamEvents(ctx context.Context, runID string, afterID string, block time.Duration, limit int64) ([]GenerationStreamMessage, error)
 	// ResetGenerationStreamEvents clears retained events while keeping owner metadata so
@@ -59,9 +73,19 @@ type GenerationStreamCacheRepository interface {
 	ExpireGenerationStream(ctx context.Context, runID string, ttl time.Duration) error
 }
 
+// UserSettingCacheRepository 封装用户会话设置的共享缓存能力。
+// Version 是带 TTL 的不透明令牌；Advance 必须替换当前令牌，数据按令牌隔离。
+type UserSettingCacheRepository interface {
+	GetUserSettingCacheVersion(ctx context.Context, userID uint, key string, ttl time.Duration) (string, error)
+	AdvanceUserSettingCacheVersion(ctx context.Context, userID uint, key string, ttl time.Duration) (string, error)
+	GetUserSettingCache(ctx context.Context, userID uint, key, version string) (value string, ok bool, err error)
+	SetUserSettingCache(ctx context.Context, userID uint, key, version, value string, ttl time.Duration) error
+}
+
 // ConversationCacheRepository 聚合 conversation 领域缓存能力。
 type ConversationCacheRepository interface {
 	FileProcessingQueueRepository
 	RAGCacheRepository
 	GenerationStreamCacheRepository
+	UserSettingCacheRepository
 }

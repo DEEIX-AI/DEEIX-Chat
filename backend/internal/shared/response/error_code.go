@@ -224,6 +224,14 @@ var exactErrorSpecs = map[string]errorSpec{
 	"upstream source unavailable":                 {Code: "llm.upstream_source_unavailable", Message: "upstream source unavailable"},
 	"route not found":                             {Code: "route.not_found", Message: "route not found"},
 	"api_keys is required":                        {Code: "llm.api_keys_required", Message: "api_keys is required"},
+	"invalid model icon":                          {Code: "llm.model_icon_invalid", Message: "invalid model icon"},
+	"invalid model icon file":                     {Code: "llm.model_icon_file_invalid", Message: "invalid model icon file"},
+	"model icon file too large":                   {Code: "llm.model_icon_file_too_large", Message: "model icon file too large"},
+	"model icon asset not found":                  {Code: "llm.model_icon_asset_not_found", Message: "model icon asset not found"},
+	"model icon asset is in use":                  {Code: "llm.model_icon_asset_in_use", Message: "model icon asset is in use"},
+	"built-in model vendor cannot be deleted":     {Code: "llm.model_vendor_builtin", Message: "built-in model vendor cannot be deleted"},
+	"model vendor is in use":                      {Code: "llm.model_vendor_in_use", Message: "model vendor is in use"},
+	"circuit breaker is disabled":                 {Code: "llm.circuit_breaker_disabled", Message: "circuit breaker is disabled"},
 
 	"usage balance is insufficient":                                {Code: CodeBillingInsufficientFunds, Message: "insufficient balance"},
 	"usage concurrency limit exceeded":                             {Code: "billing.concurrency_limit_exceeded", Message: "too many concurrent paid requests"},
@@ -246,6 +254,7 @@ var exactErrorSpecs = map[string]errorSpec{
 	"redemption user limit exceeded":                               {Code: "billing.redemption_user_limit_exceeded", Message: "redemption user limit exceeded"},
 	"payment is required":                                          {Code: CodeBillingPaymentRequired, Message: "payment is required"},
 	"payment provider is unavailable":                              {Code: "payment.provider_unavailable", Message: "payment provider is unavailable"},
+	"epay gateway url is invalid":                                  {Code: "payment.epay_gateway_invalid", Message: "epay gateway url is invalid"},
 	"create checkout failed":                                       {Code: "payment.checkout_failed", Message: "create checkout failed"},
 	"provider mismatch":                                            {Code: "payment.notification_mismatch", Message: "payment notification does not match the order"},
 	"checkout id mismatch":                                         {Code: "payment.notification_mismatch", Message: "payment notification does not match the order"},
@@ -588,6 +597,9 @@ var fallbackMessages = map[string]string{
 	"llm.model_access_denied":                           "you do not have access to this model",
 	"llm.remote_models_unavailable":                     "remote models unavailable",
 	"llm.no_active_api_key":                             "no active api key",
+	"llm.model_vendor_builtin":                          "built-in model vendor cannot be deleted",
+	"llm.model_vendor_in_use":                           "model vendor is in use",
+	"llm.circuit_breaker_disabled":                      "circuit breaker is disabled",
 	"llm.invalid_adapter":                               "invalid adapter",
 	"llm.invalid_compatible":                            "invalid compatible",
 	"llm.invalid_platform_model_name":                   "invalid platform model name",
@@ -613,6 +625,7 @@ var fallbackMessages = map[string]string{
 	"billing.redemption_code_exhausted":                 "redemption code exhausted",
 	"billing.redemption_user_limit_exceeded":            "redemption user limit exceeded",
 	"payment.provider_unavailable":                      "payment provider is unavailable",
+	"payment.epay_gateway_invalid":                      "epay gateway url is invalid",
 	"payment.checkout_failed":                           "create checkout failed",
 	"payment.notification_mismatch":                     "payment notification does not match the order",
 	"payment.epay_type_unsupported":                     "epay payment type is not supported",
@@ -660,7 +673,7 @@ func resolveErrorSpec(status int, msg string) (errorSpec, bool) {
 			return errorSpec{Code: "settings.invalid_key", Message: detail}, true
 		case strings.Contains(detail, "smtp"):
 			return errorSpec{Code: "settings.smtp_invalid", Message: detail}, true
-		case strings.Contains(detail, "payment_providers"):
+		case strings.Contains(detail, "payment_providers") || strings.Contains(detail, "billing:epay_"):
 			return errorSpec{Code: "settings.billing_payment_invalid", Message: detail}, true
 		case strings.Contains(detail, "model_option_"):
 			return errorSpec{Code: "settings.model_option_policy_invalid", Message: detail}, true

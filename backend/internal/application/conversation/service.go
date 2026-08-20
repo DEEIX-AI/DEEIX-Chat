@@ -18,6 +18,7 @@ import (
 	appskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/skill"
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	domainskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/skill"
@@ -49,13 +50,17 @@ type defaultRouteResolver interface {
 type memoryRecorder interface {
 	UpsertUserMemory(ctx context.Context, userID uint, memoryKey string, value string, scope string, updatedBy string) error
 	ListUserMemories(ctx context.Context, userID uint) ([]domainmemory.UserMemory, error)
-	SearchUserMemoriesByEmbedding(ctx context.Context, userID uint, queryEmbedding []float32, topK int, minSimilarity float64) ([]domainmemory.UserMemory, error)
-	UpsertUserMemoryEmbedding(ctx context.Context, userID uint, memoryKey string, expectedValue string, embedding []float32) error
+	SearchUserMemoriesByEmbedding(ctx context.Context, userID uint, queryEmbedding []float32, embeddingSignature string, topK int, minSimilarity float64) ([]domainmemory.UserMemory, error)
+	UpsertUserMemoryEmbedding(ctx context.Context, userID uint, memoryKey string, expectedValue string, embedding []float32, embeddingSignature string) error
 }
 
 type skillResolver interface {
 	ResolveAvailable(ctx context.Context, userID uint, id uint) (*domainskill.Skill, error)
 	ListVisible(ctx context.Context, userID uint, input appskill.ListInput) ([]domainskill.Skill, int64, error)
+}
+
+type knowledgeBaseResolver interface {
+	ResolveFiles(ctx context.Context, userID uint, publicIDs []string) ([]domainknowledgebase.KnowledgeBase, []model.FileObject, error)
 }
 
 type mcpToolResolver interface {
@@ -94,33 +99,33 @@ type basicServiceBillingContext struct {
 
 // Service 封装会话业务能力。
 type Service struct {
-	cfg               *config.Runtime
-	repo              repository.ConversationRepository
-	cache             repository.ConversationCacheRepository
-	routeResolver     routeResolver
-	memoryRecorder    memoryRecorder
-	mcpRepo           mcpToolResolver
-	llmClient         *llm.Client
-	mediaDownloader   generatedMediaDownloader
-	mcpClient         *mcp.Client
-	uploadSvc         *appupload.Service
-	compactSvc        *appcompact.Service
-	embeddingSvc      *appembedding.Service
-	processingSvc     *appprocessing.Service
-	extractSvc        *extraction.Service
-	ragSvc            *apprag.Service
-	skillResolver     skillResolver
-	billingSvc        *appbilling.Service
-	auditWriter       auditWriter
-	storeProvider     appstorage.Provider
-	logger            *zap.Logger
-	moderationSvc     *appcm.Service
-	toolLimiters      sync.Map
-	generationStreams *generationStreamRegistry
-	snapshotCache     sync.Map // conversationID (uint) → *cachedSnapshot
-	userMemCache      sync.Map // userID (uint) → *cachedUserMemories
-	userSettingCache  sync.Map // "userID:key" (string) → *cachedUserSetting
-	imageContextCache *preparedConversationImageCache
+	cfg                   *config.Runtime
+	repo                  repository.ConversationRepository
+	cache                 repository.ConversationCacheRepository
+	routeResolver         routeResolver
+	memoryRecorder        memoryRecorder
+	mcpRepo               mcpToolResolver
+	llmClient             *llm.Client
+	mediaDownloader       generatedMediaDownloader
+	mcpClient             *mcp.Client
+	uploadSvc             *appupload.Service
+	compactSvc            *appcompact.Service
+	embeddingSvc          *appembedding.Service
+	processingSvc         *appprocessing.Service
+	extractSvc            *extraction.Service
+	ragSvc                *apprag.Service
+	skillResolver         skillResolver
+	knowledgeBaseResolver knowledgeBaseResolver
+	billingSvc            *appbilling.Service
+	auditWriter           auditWriter
+	storeProvider         appstorage.Provider
+	logger                *zap.Logger
+	moderationSvc         *appcm.Service
+	toolLimiters          sync.Map
+	generationStreams     *generationStreamRegistry
+	snapshotCache         sync.Map // conversationID (uint) → *cachedSnapshot
+	userMemCache          sync.Map // userID (uint) → *cachedUserMemories
+	imageContextCache     *preparedConversationImageCache
 }
 
 func (s *Service) llmAttribution() (string, string) {
@@ -154,6 +159,7 @@ type AttachmentInput struct {
 	ExtractedText          string
 	RagOptOut              bool // 用户是否关闭该文件的 RAG；RAG 段直接复用，无需重查 DB
 	ChunkCount             int  // 向量分块数；RAG 缓存 key 需要
+	FileUpdatedAt          time.Time
 	Current                bool // 是否为本轮用户显式上传的附件
 	MessageRole            string
 	ContextMode            string
@@ -173,6 +179,7 @@ type SendMessageInput struct {
 	FileIDs                 []string
 	SelectedToolIDs         []uint
 	SkillIDs                []uint
+	KnowledgeBaseIDs        []string
 	HTMLVisualPromptEnabled bool
 	ParentMessagePublicID   string
 	SourceMessagePublicID   string
@@ -185,6 +192,11 @@ type SendMessageInput struct {
 // SetSkillResolver 注入会话技能解析器。
 func (s *Service) SetSkillResolver(resolver skillResolver) {
 	s.skillResolver = resolver
+}
+
+// SetKnowledgeBaseResolver 注入会话知识库解析器。
+func (s *Service) SetKnowledgeBaseResolver(resolver knowledgeBaseResolver) {
+	s.knowledgeBaseResolver = resolver
 }
 
 // SendMessageResult 返回用户消息与 AI 消息。

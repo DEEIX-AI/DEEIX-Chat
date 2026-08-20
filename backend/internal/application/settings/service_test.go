@@ -271,6 +271,27 @@ func TestValidateBillingDisplayCurrencySetting(t *testing.T) {
 	}
 }
 
+func TestValidateEPayGatewaySetting(t *testing.T) {
+	for _, gateway := range []string{
+		"https://pay.example.com",
+		"https://pay.example.com/epay/",
+		"https://pay.example.com/epay",
+		"https://pay.example.com/epay/submit.php",
+	} {
+		if err := validatePatchItem(PatchItem{Namespace: "billing", Key: "epay_gateway_url", Value: gateway}); err != nil {
+			t.Fatalf("expected %q to pass, got %v", gateway, err)
+		}
+	}
+	for _, gateway := range []string{
+		"https://user:secret@pay.example.com/",
+		"https://pay.example.com/?token=secret",
+	} {
+		if err := validatePatchItem(PatchItem{Namespace: "billing", Key: "epay_gateway_url", Value: gateway}); err == nil {
+			t.Fatalf("expected %q to fail", gateway)
+		}
+	}
+}
+
 func TestValidateMCPSelectedToolsSetting(t *testing.T) {
 	if err := validatePatchItem(PatchItem{Namespace: "mcp", Key: "mcp_max_selected_tools_per_message", Value: "32"}); err != nil {
 		t.Fatalf("expected selected tool limit to pass, got %v", err)
@@ -337,6 +358,72 @@ func TestRuntimeSettingsAppliesMinerUFileTypes(t *testing.T) {
 
 	if cfg.ExtractMinerUFileTypes != "pdf,excel" {
 		t.Fatalf("expected mineru file types to apply, got %q", cfg.ExtractMinerUFileTypes)
+	}
+}
+
+func TestMistralOCRSettings(t *testing.T) {
+	for _, item := range []PatchItem{
+		{Namespace: "extract", Key: "ocr_engine", Value: "mistral"},
+		{Namespace: "extract", Key: "mistral_ocr_base_url", Value: "https://api.mistral.ai/v1/ocr"},
+		{Namespace: "extract", Key: "mistral_ocr_timeout_seconds", Value: "60"},
+	} {
+		if err := validatePatchItem(item); err != nil {
+			t.Fatalf("expected %s:%s to pass, got %v", item.Namespace, item.Key, err)
+		}
+	}
+	if err := validatePatchItem(PatchItem{Namespace: "extract", Key: "mistral_ocr_timeout_seconds", Value: "601"}); err == nil {
+		t.Fatal("expected Mistral OCR timeout above maximum to fail")
+	}
+
+	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	cfg := config.Config{}
+	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "extract", Key: "mistral_ocr_base_url", Value: "https://mistral.example/v1/ocr"})
+	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "extract", Key: "mistral_ocr_auth_token", Value: "test-api-key"})
+	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "extract", Key: "mistral_ocr_model", Value: "mistral-ocr-latest"})
+	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "extract", Key: "mistral_ocr_timeout_seconds", Value: "90"})
+	if cfg.ExtractMistralOCRBaseURL != "https://mistral.example/v1/ocr" || cfg.ExtractMistralOCRAuthToken != "test-api-key" || cfg.ExtractMistralOCRModel != "mistral-ocr-latest" || cfg.ExtractMistralOCRTimeoutSeconds != 90 {
+		t.Fatalf("Mistral OCR runtime config = %+v", cfg)
+	}
+}
+
+func TestValidateFileProcessingSettingsRequiresMistralOCRConfiguration(t *testing.T) {
+	baseSettings := []domainsettings.SystemSetting{
+		{Namespace: "extract", Key: "image_ocr_enabled", Value: "true"},
+		{Namespace: "extract", Key: "pdf_ocr_fallback_enabled", Value: "false"},
+		{Namespace: "extract", Key: "ocr_engine", Value: "mistral"},
+		{Namespace: "extract", Key: "mistral_ocr_base_url", Value: "https://api.mistral.ai/v1/ocr"},
+		{Namespace: "extract", Key: "mistral_ocr_auth_token", Value: "stored-token"},
+		{Namespace: "extract", Key: "mistral_ocr_model", Value: "mistral-ocr-latest"},
+	}
+	repo := &testSettingsRepo{byNamespace: map[string][]domainsettings.SystemSetting{"extract": baseSettings, "file": {}}}
+	service := NewService(repo, "test-data-encryption-key")
+	if err := service.validateFileProcessingSettings(context.Background(), []PatchItem{{Namespace: "extract", Key: "mistral_ocr_auth_token", Value: ""}}); err != nil {
+		t.Fatalf("expected an empty sensitive patch to preserve configured Mistral token, got %v", err)
+	}
+
+	for _, item := range []PatchItem{
+		{Namespace: "extract", Key: "mistral_ocr_base_url", Value: ""},
+		{Namespace: "extract", Key: "mistral_ocr_auth_token", Value: "", Clear: true},
+		{Namespace: "extract", Key: "mistral_ocr_model", Value: ""},
+	} {
+		if err := service.validateFileProcessingSettings(context.Background(), []PatchItem{item}); err == nil {
+			t.Fatalf("expected missing Mistral setting %s to fail", item.Key)
+		}
+	}
+}
+
+func TestMistralOCRAuthTokenIsSensitive(t *testing.T) {
+	service := NewService(&testSettingsRepo{}, "test-data-encryption-key")
+	item, err := service.encryptSettingForStorage(domainsettings.SystemSetting{Namespace: "extract", Key: "mistral_ocr_auth_token", Value: "test-api-key"})
+	if err != nil {
+		t.Fatalf("encrypt Mistral OCR token: %v", err)
+	}
+	if item.Value == "test-api-key" {
+		t.Fatal("Mistral OCR token must be encrypted at rest")
+	}
+	response := service.settingResponse(item)
+	if !response.Sensitive || !response.Configured || response.Value != "" {
+		t.Fatalf("sensitive Mistral OCR response = %+v", response)
 	}
 }
 
@@ -455,5 +542,25 @@ func TestRuntimeSettingsTreatsEmptyFullContextLimitsAsUnlimited(t *testing.T) {
 			cfg.FileFullContextMaxTokens,
 			cfg.FileFullContextPDFMaxPages,
 		)
+	}
+}
+
+func TestValidatePatchItemRejectsUnsafeRAGSettings(t *testing.T) {
+	tests := []PatchItem{
+		{Namespace: "file", Key: "rag_top_k", Value: "0"},
+		{Namespace: "chat", Key: "rag_min_similarity", Value: "1.1"},
+		{Namespace: "chat", Key: "rag_token_budget", Value: "64"},
+		{Namespace: "chat", Key: "rag_fetch_multiplier", Value: "100"},
+		{Namespace: "chat", Key: "rag_query_history_turns", Value: "-1"},
+		{Namespace: "chat", Key: "rag_retrieval_cache_ttl_seconds", Value: "86401"},
+		{Namespace: "chat", Key: "rag_hybrid_enabled", Value: "sometimes"},
+	}
+	for _, item := range tests {
+		item := item
+		t.Run(item.Namespace+":"+item.Key, func(t *testing.T) {
+			if err := validatePatchItem(item); err == nil {
+				t.Fatalf("validatePatchItem(%#v) expected an error", item)
+			}
+		})
 	}
 }

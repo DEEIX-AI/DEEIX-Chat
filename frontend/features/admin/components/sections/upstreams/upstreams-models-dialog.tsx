@@ -59,6 +59,7 @@ import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm
 import { Badge } from "@/components/ui/badge";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import {
   mergeBatchResultData,
   runBulkActionInChunks,
@@ -332,9 +333,11 @@ type ModelRowProps = {
   isSelected: boolean;
   upstreamInactive: boolean;
   onSelect: (draftKey: string, checked: boolean) => void;
-  onUpdate: (draftKey: string, patch: Partial<Omit<RowDraft, "draftKey" | "isDirty">>) => void;
+  onUpdate: (draftKey: string, patch: RowDraftPatch) => void;
   onTest: (row: RowDraft, routeID: number) => void;
 };
+
+type RowDraftPatch = Partial<Omit<RowDraft, "draftKey" | "isDirty" | "routeStatusOverridden">>;
 
 const ModelRow = React.memo(function ModelRow({ row, isSelected, upstreamInactive, onSelect, onUpdate, onTest }: ModelRowProps) {
   const t = useTranslations("adminUpstreams");
@@ -847,18 +850,13 @@ function NewBindingDialog({
       const payload: UpsertAdminLLMUpstreamModelRequest = {
         upstreamModelName: form.upstreamModelName.trim(),
         platformModelName: form.platformModelName.trim(),
+        protocols: form.protocols,
         kindsJSON: displayToKindsJson(form.kindsDisplay),
         status: form.status,
         priority: 1,
         weight: 1,
       };
-      const protocols = form.protocols.length > 0 ? form.protocols : [undefined];
-      for (const protocol of protocols) {
-        await upsertAdminLLMUpstreamModel(token, upstreamId, {
-          ...payload,
-          protocol,
-        });
-      }
+      await upsertAdminLLMUpstreamModel(token, upstreamId, payload);
       toast.success(t("modelsDialog.bindingCreated"));
       setForm(DEFAULT_NEW_BINDING);
       onOpenChange(false);
@@ -978,7 +976,7 @@ type RouteListParams = {
 };
 
 type BulkPatchConfirm = {
-  patch: Partial<Omit<RowDraft, "draftKey" | "isDirty">>;
+  patch: RowDraftPatch;
 };
 
 const DEFAULT_ROUTE_LIST_PARAMS: RouteListParams = {
@@ -1025,7 +1023,8 @@ export function UpstreamModelsDialog({
   const [probeTargetName, setProbeTargetName] = React.useState("");
   const [probeResults, setProbeResults] = React.useState<AdminLLMModelProbeResult[]>([]);
   const requestSeqRef = React.useRef(0);
-  const upstreamID = upstream?.id ?? null;
+  const stableUpstream = useDialogSnapshot(upstream);
+  const upstreamID = stableUpstream?.id ?? null;
 
   React.useEffect(() => {
     setBulkProtocols([]);
@@ -1070,16 +1069,17 @@ export function UpstreamModelsDialog({
   }, [listParams, resolveErrorMessage, t, upstreamID]);
 
   React.useEffect(() => {
-    if (!open || !upstreamID) {
-      setRows([]);
-      setTotal(0);
-      setLoadedUpstreamID(null);
-      setSelected(new Set());
-      return;
-    }
+    if (!open || !upstreamID) return;
+    requestSeqRef.current += 1;
+    setRows([]);
+    setTotal(0);
+    setLoadedUpstreamID(null);
     setSelected(new Set());
     setQuery("");
     setListParams({ ...DEFAULT_ROUTE_LIST_PARAMS, upstreamID });
+    return () => {
+      requestSeqRef.current += 1;
+    };
   }, [open, upstreamID]);
 
   React.useEffect(() => {
@@ -1106,12 +1106,12 @@ export function UpstreamModelsDialog({
   }, [open, query, upstreamID]);
 
   React.useEffect(() => {
-    if (!open || !upstream || !openRemoteOnOpen) return;
+    if (!open || !stableUpstream || !openRemoteOnOpen) return;
     setRemoteModelsOpen(true);
     onRemoteOpenHandled?.();
-  }, [onRemoteOpenHandled, open, openRemoteOnOpen, upstream]);
+  }, [onRemoteOpenHandled, open, openRemoteOnOpen, stableUpstream]);
 
-  const tableReady = upstream ? loadedUpstreamID === upstream.id : false;
+  const tableReady = stableUpstream ? loadedUpstreamID === stableUpstream.id : false;
   const visibleRows = React.useMemo(() => {
     if (!tableReady) {
       return [];
@@ -1200,7 +1200,7 @@ export function UpstreamModelsDialog({
 
   const handleDeleteProbeRoute = React.useCallback(
     async (result: AdminLLMModelProbeResult) => {
-      if (!upstream) {
+      if (!stableUpstream) {
         return;
       }
       try {
@@ -1223,39 +1223,51 @@ export function UpstreamModelsDialog({
         });
         toast.success(modelT("toast.sourceDeleted"));
         void loadBindings();
-        onUpstreamUpdated({ ...upstream });
+        onUpstreamUpdated({ ...stableUpstream });
       } catch (error) {
         toast.error(modelT("toast.sourceDeleteFailed"), { description: resolveErrorMessage(error) });
         throw error;
       }
     },
-    [loadBindings, modelT, onUpstreamUpdated, probeResults, resolveErrorMessage, rows, upstream],
+    [loadBindings, modelT, onUpstreamUpdated, probeResults, resolveErrorMessage, rows, stableUpstream],
   );
 
   const updateRow = React.useCallback((
     draftKey: string,
-    patch: Partial<Omit<RowDraft, "draftKey" | "isDirty">>,
+    patch: RowDraftPatch,
   ) => {
     setRows((prev) =>
       prev.map((r) =>
-        r.draftKey === draftKey ? { ...r, ...patch, isDirty: true } : r,
+        r.draftKey === draftKey
+          ? {
+              ...r,
+              ...patch,
+              isDirty: true,
+              routeStatusOverridden: r.routeStatusOverridden || patch.routeStatus !== undefined,
+            }
+          : r,
       ),
     );
   }, []);
 
-  const applyBulkPatch = React.useCallback((patch: Partial<Omit<RowDraft, "draftKey" | "isDirty">>) => {
+  const applyBulkPatch = React.useCallback((patch: RowDraftPatch) => {
     if (selected.size === 0) return;
     setRows((prev) =>
       prev.map((row) =>
         routeIDsForRow(row).length > 0 && selected.has(row.draftKey)
-          ? { ...row, ...patch, isDirty: true }
+          ? {
+              ...row,
+              ...patch,
+              isDirty: true,
+              routeStatusOverridden: row.routeStatusOverridden || patch.routeStatus !== undefined,
+            }
           : row,
       ),
     );
   }, [selected]);
 
   async function handleDeleteSelected() {
-    if (!upstream || selected.size === 0) return;
+    if (!stableUpstream || selected.size === 0) return;
     const routeIDs = rows
       .filter((row) => selected.has(row.draftKey))
       .flatMap(routeIDsForRow);
@@ -1266,7 +1278,7 @@ export function UpstreamModelsDialog({
       const result = mergeBatchResultData(await runBulkActionInChunks({
         items: routeIDs,
         title: t("modelsDialog.batchDeleteTitle"),
-        runChunk: (ids) => batchDeleteAdminLLMUpstreamModels(token, upstream.id, { ids }),
+        runChunk: (ids) => batchDeleteAdminLLMUpstreamModels(token, stableUpstream.id, { ids }),
       }));
       const deletedIDs = new Set(
         result.results
@@ -1293,7 +1305,7 @@ export function UpstreamModelsDialog({
         });
       }
       void loadBindings();
-      onUpstreamUpdated({ ...upstream });
+      onUpstreamUpdated({ ...stableUpstream });
     } catch (err) {
       toast.error(t("toast.deleteFailed"), { description: resolveErrorMessage(err) });
     } finally {
@@ -1303,7 +1315,7 @@ export function UpstreamModelsDialog({
   }
 
   async function handleSave() {
-    if (!upstream) return;
+    if (!stableUpstream) return;
     const dirty = rows.filter((r) => r.isDirty);
     if (dirty.length === 0) {
       toast.info(t("modelsDialog.noPendingChanges"));
@@ -1337,7 +1349,7 @@ export function UpstreamModelsDialog({
 
         if (shouldDeleteRoute) {
           for (const routeID of existingRouteIDs) {
-            deleteOperations.push(() => deleteAdminLLMUpstreamModel(token, upstream.id, routeID));
+            deleteOperations.push(() => deleteAdminLLMUpstreamModel(token, stableUpstream.id, routeID));
             deletedCount += 1;
           }
           continue;
@@ -1346,58 +1358,21 @@ export function UpstreamModelsDialog({
           continue;
         }
 
-        const basePayload: UpsertAdminLLMUpstreamModelRequest = {
+        const basePayload: Omit<UpsertAdminLLMUpstreamModelRequest, "protocols"> = {
           platformModelName,
           upstreamModelName: row.upstreamModelName.trim(),
           kindsJSON: displayToKindsJson(row.kindsDisplay),
-          status: row.routeStatus || "active",
-          priority: row.priority || 1,
-          weight: row.weight || 1,
+          ...(row.routeStatusOverridden ? { status: row.routeStatus || "active" } : {}),
         };
         const desiredProtocols = selectedProtocolsForSave(row);
-        if (desiredProtocols.length === 0) {
-          const keepRouteID = row.routeID || existingRouteIDs[0];
-          upsertOperations.push(() =>
-            upsertAdminLLMUpstreamModel(token, upstream.id, {
-              ...basePayload,
-              routeID: keepRouteID || undefined,
-            }),
-          );
-          savedCount += 1;
-          for (const routeID of existingRouteIDs) {
-            if (routeID === keepRouteID) continue;
-            deleteOperations.push(() => deleteAdminLLMUpstreamModel(token, upstream.id, routeID));
-            deletedCount += 1;
-          }
-          continue;
-        }
-
-        const desiredSet = new Set(desiredProtocols);
-        const reusableRouteIDs = Object.entries(row.routeIDsByProtocol)
-          .filter(([protocol]) => !desiredSet.has(protocol as AdminLLMAdapter))
-          .map(([, routeID]) => routeID)
-          .filter((routeID) => routeID > 0);
-        const reusedRouteIDs = new Set<number>();
-        for (const protocol of desiredProtocols) {
-          const existingRouteID = row.routeIDsByProtocol[protocol];
-          const routeID = existingRouteID || reusableRouteIDs.shift();
-          if (routeID) {
-            reusedRouteIDs.add(routeID);
-          }
-          upsertOperations.push(() =>
-            upsertAdminLLMUpstreamModel(token, upstream.id, {
-              ...basePayload,
-              routeID,
-              protocol,
-            }),
-          );
-          savedCount += 1;
-        }
-        for (const [protocol, routeID] of Object.entries(row.routeIDsByProtocol)) {
-          if (desiredSet.has(protocol as AdminLLMAdapter) || reusedRouteIDs.has(routeID)) continue;
-          deleteOperations.push(() => deleteAdminLLMUpstreamModel(token, upstream.id, routeID));
-          deletedCount += 1;
-        }
+        upsertOperations.push(() =>
+          upsertAdminLLMUpstreamModel(token, stableUpstream.id, {
+            ...basePayload,
+            routeIDs: existingRouteIDs,
+            protocols: desiredProtocols,
+          }),
+        );
+        savedCount += 1;
       }
 
       if (deleteOperations.length === 0 && upsertOperations.length === 0) {
@@ -1418,7 +1393,7 @@ export function UpstreamModelsDialog({
         toast.success(t("modelsDialog.savedChanges", { savedCount }));
       }
       await loadBindings();
-      onUpstreamUpdated({ ...upstream });
+      onUpstreamUpdated({ ...stableUpstream });
     } catch (err) {
       toast.error(t("toast.updateFailed"), { description: resolveErrorMessage(err) });
     } finally {
@@ -1435,13 +1410,13 @@ export function UpstreamModelsDialog({
         .reduce((count, row) => count + routeIDsForRow(row).length, 0),
     [rows, selected],
   );
-  const upstreamInactive = upstream?.status === "inactive";
+  const upstreamInactive = stableUpstream?.status === "inactive";
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className="flex max-h-[min(90vh,800px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 md:w-[calc(100vw-8rem)] sm:max-w-[860px]"
+          className="flex max-h-[min(86vh,760px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 md:w-[calc(100vw-8rem)] sm:max-w-[860px]"
         >
           <DialogHeader className="shrink-0 px-4 py-4">
             <DialogTitle>{t("modelsDialog.manageTitle")}</DialogTitle>
@@ -1458,7 +1433,7 @@ export function UpstreamModelsDialog({
               selectedCount={selectedCount}
               onRefresh={() => void loadBindings()}
               refreshLoading={loadingList}
-              refreshDisabled={!upstream || loadingList}
+              refreshDisabled={!stableUpstream || loadingList}
               refreshLabel={t("modelsDialog.refreshBindings")}
               filters={[
                 {
@@ -1578,21 +1553,25 @@ export function UpstreamModelsDialog({
                 },
               ]}
             >
-              <Button size="sm" onClick={() => setRemoteModelsOpen(true)} disabled={!upstream}>
+              <Button size="sm" onClick={() => setRemoteModelsOpen(true)} disabled={!stableUpstream}>
                 <CloudDownload className="size-3" />{t("sync")}
               </Button>
-              <Button size="sm" onClick={() => setNewBindingOpen(true)} disabled={!upstream}>
+              <Button size="sm" onClick={() => setNewBindingOpen(true)} disabled={!stableUpstream}>
                 <Plus className="size-3" />{commonT("actions.create")}
               </Button>
             </TableToolbar>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-hidden px-4 py-2">
+          <div className="min-h-0 overflow-hidden px-4 py-2">
             <Table
               className="min-w-[800px]"
+              shellClassName="min-h-0"
               viewportRef={virtualRows.viewportRef}
-              viewportClassName={virtualRows.viewportClassName}
-              viewportStyle={virtualRows.viewportStyle}
+              viewportClassName={cn(virtualRows.viewportClassName, "overscroll-contain")}
+              viewportStyle={{
+                ...virtualRows.viewportStyle,
+                maxHeight: "min(480px, calc(86vh - 260px))",
+              }}
             >
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -1663,26 +1642,26 @@ export function UpstreamModelsDialog({
         </DialogContent>
       </Dialog>
 
-      {upstream && (
+      {stableUpstream && (
         <RemoteModelsDialog
           open={remoteModelsOpen}
           onOpenChange={setRemoteModelsOpen}
-          upstream={upstream}
+          upstream={stableUpstream}
           onImported={() => {
             void loadBindings();
-            onUpstreamUpdated({ ...upstream });
+            onUpstreamUpdated({ ...stableUpstream });
           }}
         />
       )}
 
-      {upstream && (
+      {stableUpstream && (
         <NewBindingDialog
           open={newBindingOpen}
           onOpenChange={setNewBindingOpen}
-          upstreamId={upstream.id}
+          upstreamId={stableUpstream.id}
           onCreated={() => {
             void loadBindings();
-            onUpstreamUpdated({ ...upstream });
+            onUpstreamUpdated({ ...stableUpstream });
           }}
         />
       )}

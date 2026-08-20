@@ -116,12 +116,12 @@
     "unknown": "unknown"
   },
   "rag": {
-    "enabled": "Retrievable",
+    "enabled": "Index ready",
     "disabled": "Retrieval off",
-    "enabledTitle": "Smart retrieval is enabled. Click to disable.",
-    "disabledTitle": "Smart retrieval is disabled. Click to enable.",
-    "enabledToast": "Smart retrieval enabled for this file",
-    "disabledToast": "Smart retrieval disabled for this file"
+    "enabledTitle": "This file is allowed for smart retrieval. Click to disable.",
+    "disabledTitle": "This file is excluded from smart retrieval. Click to enable.",
+    "enabledToast": "This file can now be used for smart retrieval",
+    "disabledToast": "This file is no longer used for smart retrieval"
   },
   "toasts": {
     "sessionExpired": "Session expired",
@@ -184,6 +184,8 @@
     "available": "Available",
     "processing": "Processing",
     "failed": "Failed",
+    "searchable": "Searchable",
+    "retrievalDisabled": "Retrieval disabled",
     "processingFailed": "Processing failed",
     "processingFailedDetail": "File processing failed. Upload again or adjust the policy and retry.",
     "errorCode": "Error code: {code}",

@@ -32,6 +32,7 @@ import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
 import { ModelCapabilitiesPresetDialog } from "@/features/admin/components/sections/models/models-capabilities-presets";
 import type { NativeToolDefinition } from "@/shared/lib/model-option-policy";
 import { MODEL_OPTION_POLICY_PROTOCOL_LABELS, resolveModelOptionPolicyProtocol } from "@/shared/lib/model-option-policy";
+import { nativeToolPayloadMatchesShape, nativeToolPayloadSignature } from "@/shared/lib/native-tool-payload";
 
 export const MODEL_CAPABILITIES_PLACEHOLDER = `{
   "defaultOptions": {},
@@ -71,7 +72,6 @@ type CapabilityControlType = "text" | "select" | "number" | "boolean";
 type PromptCacheConfig = {
   availability: "auto" | "enabled" | "disabled";
   mode: "implicit" | "explicit";
-  retention: "" | "in_memory" | "24h";
 };
 
 type ParameterRow = {
@@ -119,7 +119,6 @@ const OPENAI_PROMPT_CACHE_PROTOCOLS = new Set(["openai_chat_completions", "opena
 const DEFAULT_PROMPT_CACHE_CONFIG: PromptCacheConfig = {
   availability: "auto",
   mode: "implicit",
-  retention: "",
 };
 
 function nativeToolDisplayName(row: NativeToolRow): { name: string; specificName: string } {
@@ -167,12 +166,7 @@ function parsePromptCacheConfig(value: unknown): PromptCacheConfig {
       ? "disabled"
       : "auto";
   const mode = value.mode === "explicit" ? "explicit" : "implicit";
-  const retention = value.retention === "24h"
-    ? "24h"
-    : value.retention === "in_memory" || value.retention === "in-memory"
-      ? "in_memory"
-      : "";
-  return { availability, mode, retention };
+  return { availability, mode };
 }
 
 function applyPromptCacheConfig(payload: Record<string, unknown>, config: PromptCacheConfig) {
@@ -195,14 +189,11 @@ function applyPromptCacheConfig(payload: Record<string, unknown>, config: Prompt
       promptCache.ttl = "30m";
       delete promptCache.retention;
     } else {
+      delete promptCache.mode;
       delete promptCache.ttl;
-      if (config.retention) {
-        promptCache.mode = "implicit";
-        promptCache.retention = config.retention;
-      } else {
-        delete promptCache.mode;
-        delete promptCache.retention;
-      }
+      // Retention is intentionally unsupported. Remove legacy values whenever
+      // the visual editor saves a model capability configuration.
+      delete promptCache.retention;
     }
   }
 
@@ -520,7 +511,11 @@ function sortNativeToolOptionsByRoute(
       return leftMatched ? -1 : 1;
     }
     const providerOrder = left.provider.localeCompare(right.provider);
-    return providerOrder || left.label.localeCompare(right.label) || left.toolKey.localeCompare(right.toolKey) || left.type.localeCompare(right.type);
+    return providerOrder
+      || left.label.localeCompare(right.label)
+      || left.toolKey.localeCompare(right.toolKey)
+      || left.type.localeCompare(right.type)
+      || left.protocols.join(",").localeCompare(right.protocols.join(","));
   });
 }
 
@@ -533,12 +528,29 @@ function nativeToolOptionsFromCatalog(
   nativeTools.forEach((tool) => {
     const toolKey = tool.toolKey.trim();
     const type = tool.type.trim();
-    const id = nativeToolOptionID(toolKey, type);
-    const existing = options.get(id);
+    const protocol = canonicalNativeToolProtocol(tool.protocol);
+    const payload = tool.payload ?? {};
+    const payloadSignature = nativeToolPayloadSignature(payload);
+    const existing = Array.from(options.values()).find((option) =>
+      option.toolKey === toolKey
+      && option.type === type
+      && nativeToolPayloadSignature(option.payload) === payloadSignature,
+    );
     if (existing) {
-      existing.protocols = Array.from(new Set([...existing.protocols, tool.protocol].filter(Boolean)));
+      const existingMatchesRoute = existing.protocols.some((protocol) =>
+        routeProtocolSet.has(resolveModelOptionPolicyProtocol(protocol)),
+      );
+      const toolMatchesRoute = routeProtocolSet.has(resolveModelOptionPolicyProtocol(protocol));
+      if (toolMatchesRoute && !existingMatchesRoute) {
+        existing.provider = tool.provider || "Provider";
+        existing.label = tool.label || tool.type || tool.toolKey;
+        existing.description = tool.description || tool.type || tool.toolKey;
+        existing.payload = payload;
+      }
+      existing.protocols = Array.from(new Set([...existing.protocols, protocol].filter(Boolean)));
       return;
     }
+    const id = `${nativeToolOptionID(toolKey, type, [protocol])}:${payloadSignature}`;
     options.set(id, {
       id,
       toolKey,
@@ -546,15 +558,19 @@ function nativeToolOptionsFromCatalog(
       label: tool.label || tool.type || tool.toolKey,
       description: tool.description || tool.type || tool.toolKey,
       type,
-      payload: tool.payload ?? {},
-      protocols: [tool.protocol].filter(Boolean),
+      payload,
+      protocols: [protocol].filter(Boolean),
     });
   });
   return sortNativeToolOptionsByRoute(Array.from(options.values()), routeProtocolSet);
 }
 
-function nativeToolOptionID(key: string, type: string): string {
-  return [key.trim(), type.trim()].filter(Boolean).join(":");
+function nativeToolOptionID(key: string, type: string, protocols: string[] = []): string {
+  return [
+    key.trim(),
+    type.trim(),
+    ...protocols.map((protocol) => protocol.trim()).filter(Boolean).sort(),
+  ].filter(Boolean).join(":");
 }
 
 function nativeToolMatchesRawTool(rawTool: Record<string, unknown>, tool: NativeToolDefinition): boolean {
@@ -662,8 +678,13 @@ export function normalizeModelCapabilitiesJSON(
   return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
 }
 
+function canonicalNativeToolProtocol(protocol: string): string {
+  const value = protocol.trim();
+  return value.toLowerCase() === "google_generate_content" ? "gemini_generate_content" : value;
+}
+
 function formatNativeToolProtocols(protocols: string[]): string {
-  return protocols
+  return Array.from(new Set(protocols.map(canonicalNativeToolProtocol).filter(Boolean)))
     .map((protocol) => MODEL_OPTION_POLICY_PROTOCOL_LABELS[protocol as keyof typeof MODEL_OPTION_POLICY_PROTOCOL_LABELS] ?? protocol)
     .join(" / ");
 }
@@ -673,14 +694,14 @@ function parseNativeToolProtocolsInput(value: string): string[] {
     new Set(
       value
         .split(",")
-        .map((item) => item.trim())
+        .map(canonicalNativeToolProtocol)
         .filter(Boolean),
     ),
   );
 }
 
 function formatNativeToolProtocolsInput(protocols: string[]): string {
-  return protocols.map((protocol) => protocol.trim()).filter(Boolean).join(", ");
+  return Array.from(new Set(protocols.map(canonicalNativeToolProtocol).filter(Boolean))).join(", ");
 }
 
 function nativeToolProtocolSelectOptions(
@@ -817,7 +838,7 @@ function nativeToolRowFromConfig(value: Record<string, unknown>, index: number):
   const type = typeof value.type === "string" ? value.type.trim() : nativeToolPayloadType(payload);
   const id = typeof value.id === "string" && value.id.trim()
     ? value.id.trim()
-    : nativeToolOptionID(key, type) || createCapabilityRowID();
+    : nativeToolOptionID(key, type, protocols) || createCapabilityRowID();
   if (!key && protocols.length === 0 && !type && Object.keys(payload).length === 0) {
     return null;
   }
@@ -845,13 +866,46 @@ function parseNativeToolRows(
   const routeProtocolSet = new Set(routeProtocols.map((protocol) => resolveModelOptionPolicyProtocol(protocol)).filter(Boolean));
   const rows = options.map((option) => nativeToolRowFromOption(option, false));
   const applyRow = (row: NativeToolRow) => {
-    const id = nativeToolOptionID(row.key, row.type) || row.id;
-    const index = rows.findIndex((item) => item.id === id);
-    if (index < 0) {
-      rows.unshift({ ...row, id });
+    const configuredProtocols = new Set(
+      parseNativeToolProtocolsInput(row.protocols)
+        .map((protocol) => resolveModelOptionPolicyProtocol(protocol))
+        .filter(Boolean),
+    );
+    const matchingIndexes = rows.flatMap((item, index) => {
+      if (item.key !== row.key || item.type !== row.type) {
+        return [];
+      }
+      const protocolMatched = configuredProtocols.size === 0
+        || parseNativeToolProtocolsInput(item.protocols)
+          .some((protocol) => configuredProtocols.has(resolveModelOptionPolicyProtocol(protocol)));
+      return protocolMatched ? [index] : [];
+    });
+    if (matchingIndexes.length === 0) {
+      rows.unshift({ ...row, id: row.id || createCapabilityRowID() });
       return;
     }
-    rows[index] = { ...rows[index], ...row, id, catalog: rows[index].catalog };
+    const configuredPayload = JSON.parse(row.payload || "{}") as Record<string, unknown>;
+    for (const index of matchingIndexes) {
+      const catalogRow = rows[index];
+      if (!catalogRow) {
+        continue;
+      }
+      const matchedProtocols = parseNativeToolProtocolsInput(catalogRow.protocols)
+        .filter((protocol) => configuredProtocols.size === 0 || configuredProtocols.has(resolveModelOptionPolicyProtocol(protocol)));
+      const catalogPayload = JSON.parse(catalogRow.payload || "{}") as Record<string, unknown>;
+      rows[index] = {
+        ...catalogRow,
+        ...row,
+        id: catalogRow.id,
+        provider: row.provider || catalogRow.provider,
+        description: row.description || catalogRow.description,
+        protocols: formatNativeToolProtocolsInput(matchedProtocols),
+        payload: matchingIndexes.length === 1 || nativeToolPayloadMatchesShape(configuredPayload, catalogPayload)
+          ? row.payload
+          : catalogRow.payload,
+        catalog: true,
+      };
+    }
   };
 
   if (Array.isArray(payload.nativeTools)) {
@@ -1398,7 +1452,10 @@ export function ModelCapabilitiesQuickConfig({
                       {t("sheet.capabilitiesQuick.promptCacheDescription")}
                     </p>
                   </div>
-                  <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div className={cn(
+                    "grid min-w-0 grid-cols-1 gap-2",
+                    promptCacheConfig.mode === "explicit" ? "sm:grid-cols-3" : "sm:grid-cols-2",
+                  )}>
                     <label className="min-w-0 space-y-1">
                       <span className="block truncate px-1 text-[11px] text-muted-foreground">
                         {t("sheet.capabilitiesQuick.promptCacheAvailability")}
@@ -1441,13 +1498,11 @@ export function ModelCapabilitiesQuickConfig({
                         </SelectContent>
                       </Select>
                     </label>
-                    <label className="min-w-0 space-y-1">
-                      <span className="block truncate px-1 text-[11px] text-muted-foreground">
-                        {promptCacheConfig.mode === "explicit"
-                          ? t("sheet.capabilitiesQuick.promptCacheTTL")
-                          : t("sheet.capabilitiesQuick.promptCacheRetention")}
-                      </span>
-                      {promptCacheConfig.mode === "explicit" ? (
+                    {promptCacheConfig.mode === "explicit" ? (
+                      <label className="min-w-0 space-y-1">
+                        <span className="block truncate px-1 text-[11px] text-muted-foreground">
+                          {t("sheet.capabilitiesQuick.promptCacheTTL")}
+                        </span>
                         <Select value="30m" disabled>
                           <SelectTrigger className="h-8 w-full">
                             <SelectValue />
@@ -1456,28 +1511,8 @@ export function ModelCapabilitiesQuickConfig({
                             <SelectItem value="30m">30m</SelectItem>
                           </SelectContent>
                         </Select>
-                      ) : (
-                        <Select
-                          value={promptCacheConfig.retention || "default"}
-                          disabled={promptCacheConfig.availability === "disabled"}
-                          onValueChange={(retention) => setPromptCacheConfig((current) => ({
-                            ...current,
-                            retention: retention === "default"
-                              ? ""
-                              : retention as PromptCacheConfig["retention"],
-                          }))}
-                        >
-                          <SelectTrigger className="h-8 w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="default">{t("sheet.capabilitiesQuick.promptCacheRetentionDefault")}</SelectItem>
-                            <SelectItem value="in_memory">in_memory</SelectItem>
-                            <SelectItem value="24h">24h</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </label>
+                      </label>
+                    ) : null}
                   </div>
                 </div>
               ) : null}

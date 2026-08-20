@@ -37,6 +37,45 @@ const (
 	generationStreamKeyPrefix = "conversation:generation:"
 )
 
+// appendGenerationStreamEventScript keeps the event sequence, bounded replay
+// window, and cumulative visible-text checkpoint consistent in one Redis
+// round trip. Key TTLs are initialized only when a value is first created;
+// FinishMessageGeneration shortens them to the post-run retention window.
+var appendGenerationStreamEventScript = redis.NewScript(`
+local events_missing = redis.call("EXISTS", KEYS[2]) == 0
+local has_text_delta = ARGV[4] ~= ""
+local text_missing = false
+if has_text_delta then
+	text_missing = redis.call("EXISTS", KEYS[3]) == 0
+end
+local seq = redis.call("INCR", KEYS[1])
+if has_text_delta then
+	redis.call("APPEND", KEYS[3], ARGV[4])
+	redis.call("SET", KEYS[4], tostring(seq), "KEEPTTL")
+end
+local id = redis.call(
+	"XADD",
+	KEYS[2],
+	"MAXLEN", "~", ARGV[2],
+	"*",
+	"seq", tostring(seq),
+	"payload", ARGV[1]
+)
+
+if seq == 1 then
+	redis.call("PEXPIRE", KEYS[1], ARGV[3])
+end
+if events_missing then
+	redis.call("PEXPIRE", KEYS[2], ARGV[3])
+end
+if has_text_delta and text_missing then
+	redis.call("PEXPIRE", KEYS[3], ARGV[3])
+	redis.call("PEXPIRE", KEYS[4], ARGV[3])
+end
+
+return {id, tostring(seq)}
+`)
+
 // conversationCache 实现 repository.ConversationCacheRepository。
 type conversationCache struct {
 	client *redis.Client
@@ -358,31 +397,70 @@ func (c *conversationCache) IsGenerationStreamCanceled(ctx context.Context, runI
 	return count > 0, nil
 }
 
-// AppendGenerationStreamEvent 追加生成流事件，使用独立 seq 保持前端游标稳定。
-func (c *conversationCache) AppendGenerationStreamEvent(ctx context.Context, runID string, payloadJSON string, maxEvents int64, ttl time.Duration) (repository.GenerationStreamMessage, error) {
+// AppendGenerationStreamEvent 原子追加生成事件，并同步维护可见文本快照。
+func (c *conversationCache) AppendGenerationStreamEvent(ctx context.Context, runID string, input repository.GenerationStreamAppend, maxEvents int64, ttl time.Duration) (repository.GenerationStreamMessage, error) {
 	if c.client == nil {
 		return repository.GenerationStreamMessage{}, nil
 	}
 	if maxEvents <= 0 {
 		maxEvents = 1024
 	}
-	seq, err := c.client.Incr(ctx, generationStreamSeqKey(runID)).Result()
-	if err != nil {
-		return repository.GenerationStreamMessage{}, err
+	if ttl <= 0 {
+		ttl = time.Minute
 	}
-	id, err := c.client.XAdd(ctx, &redis.XAddArgs{
-		Stream:       generationStreamEventsKey(runID),
-		MaxLenApprox: maxEvents,
-		Values: map[string]interface{}{
-			"seq":     seq,
-			"payload": payloadJSON,
+	result, err := appendGenerationStreamEventScript.Run(
+		ctx,
+		c.client,
+		[]string{
+			generationStreamSeqKey(runID),
+			generationStreamEventsKey(runID),
+			generationStreamTextKey(runID),
+			generationStreamTextSeqKey(runID),
 		},
-	}).Result()
+		input.PayloadJSON,
+		maxEvents,
+		ttl.Milliseconds(),
+		input.TextDelta,
+	).Result()
 	if err != nil {
 		return repository.GenerationStreamMessage{}, err
 	}
-	_ = c.ExpireGenerationStream(ctx, runID, ttl)
-	return repository.GenerationStreamMessage{ID: id, Seq: seq, PayloadJSON: payloadJSON}, nil
+	values, ok := result.([]interface{})
+	if !ok || len(values) != 2 {
+		return repository.GenerationStreamMessage{}, errors.New("invalid generation stream append result")
+	}
+	id := strings.TrimSpace(getStringVal(values[0]))
+	seq := getInt64Val(values[1])
+	if id == "" || seq <= 0 {
+		return repository.GenerationStreamMessage{}, errors.New("invalid generation stream append metadata")
+	}
+	return repository.GenerationStreamMessage{ID: id, Seq: seq, PayloadJSON: input.PayloadJSON}, nil
+}
+
+// GetGenerationStreamTextSnapshot 原子读取完整可见文本及其最后事件序号。
+func (c *conversationCache) GetGenerationStreamTextSnapshot(ctx context.Context, runID string) (repository.GenerationStreamTextSnapshot, bool, error) {
+	if c.client == nil {
+		return repository.GenerationStreamTextSnapshot{}, false, nil
+	}
+	values, err := c.client.MGet(
+		ctx,
+		generationStreamTextKey(runID),
+		generationStreamTextSeqKey(runID),
+	).Result()
+	if err != nil {
+		return repository.GenerationStreamTextSnapshot{}, false, err
+	}
+	if len(values) != 2 || values[0] == nil || values[1] == nil {
+		return repository.GenerationStreamTextSnapshot{}, false, nil
+	}
+	seq := getInt64Val(values[1])
+	if seq <= 0 {
+		return repository.GenerationStreamTextSnapshot{}, false, nil
+	}
+	return repository.GenerationStreamTextSnapshot{
+		Seq:     seq,
+		Content: getStringVal(values[0]),
+	}, true, nil
 }
 
 // ListGenerationStreamEvents 返回当前保留窗口内的生成流事件。
@@ -448,7 +526,12 @@ func (c *conversationCache) ResetGenerationStreamEvents(ctx context.Context, run
 		return nil
 	}
 	// Keep seq key so subsequent appends stay monotonic for reconnect cursors.
-	return c.client.Del(ctx, generationStreamEventsKey(runID)).Err()
+	return c.client.Del(
+		ctx,
+		generationStreamEventsKey(runID),
+		generationStreamTextKey(runID),
+		generationStreamTextSeqKey(runID),
+	).Err()
 }
 
 // ExpireGenerationStream 设置生成流相关键的过期时间。
@@ -459,6 +542,8 @@ func (c *conversationCache) ExpireGenerationStream(ctx context.Context, runID st
 	pipe := c.client.Pipeline()
 	pipe.Expire(ctx, generationStreamEventsKey(runID), ttl)
 	pipe.Expire(ctx, generationStreamSeqKey(runID), ttl)
+	pipe.Expire(ctx, generationStreamTextKey(runID), ttl)
+	pipe.Expire(ctx, generationStreamTextSeqKey(runID), ttl)
 	pipe.Expire(ctx, generationStreamOwnerKey(runID), ttl)
 	pipe.Expire(ctx, generationStreamCancelKey(runID), ttl)
 	_, err := pipe.Exec(ctx)
@@ -491,6 +576,14 @@ func generationStreamEventsKey(runID string) string {
 
 func generationStreamSeqKey(runID string) string {
 	return generationStreamKeyPrefix + strings.TrimSpace(runID) + ":seq"
+}
+
+func generationStreamTextKey(runID string) string {
+	return generationStreamKeyPrefix + strings.TrimSpace(runID) + ":text"
+}
+
+func generationStreamTextSeqKey(runID string) string {
+	return generationStreamKeyPrefix + strings.TrimSpace(runID) + ":text_seq"
 }
 
 func generationStreamOwnerKey(runID string) string {

@@ -22,6 +22,7 @@ var sensitiveSettingKeys = map[string]struct{}{
 	"extract:tencent_ocr_secret_key":       {},
 	"extract:aliyun_ocr_access_key_secret": {},
 	"extract:mineru_auth_token":            {},
+	"extract:mistral_ocr_auth_token":       {},
 	"extract:llm_ocr_auth_token":           {},
 	"file:embedding_key":                   {},
 	"content_moderation:api_key":           {},

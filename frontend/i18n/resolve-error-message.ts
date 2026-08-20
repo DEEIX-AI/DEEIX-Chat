@@ -339,6 +339,8 @@ function resolveSettingsReason(locale: AppLocale, label: string, reason: string)
         return `${label}必须是 true 或 false。`;
       case "must start with http:// or https://":
         return `${label}必须以 http:// 或 https:// 开头。`;
+      case "must be an HTTP(S) EPay site URL or an exact submit.php URL without credentials, query, or fragment":
+        return `${label}必须是 HTTP(S) 易支付站点地址或完整的 submit.php 地址，且不能包含账号信息、查询参数或片段。`;
       case "must be a json array":
         return `${label}必须是 JSON 数组。`;
       case "must contain 1-10 payment types":

@@ -112,6 +112,8 @@ func processTraceFallbackMode(hasFullText bool) string {
 	return processTraceFallbackUnavailable
 }
 
+const knowledgeBaseNoEvidenceNotice = "An explicitly selected knowledge base returned no sufficiently relevant evidence for this request. Do not claim that the answer is supported by the knowledge base. If you answer from general knowledge, state that limitation clearly."
+
 func ragFileObjectNames(items []model.FileObject) []string {
 	names := make([]string, 0, len(items))
 	for _, item := range items {
@@ -502,6 +504,16 @@ func (s *Service) sendMessageInternal(
 	if imageProcessing.Routed {
 		fileContextPlan = withoutCurrentImageAttachments(fileContextPlan)
 	}
+	knowledgeBaseFiles, err := s.resolveKnowledgeBaseRAGFiles(
+		ctx,
+		input.UserID,
+		input.KnowledgeBaseIDs,
+		cfg.RAGEnabled && cfg.EmbeddingEnabled && capability.RAGAvailable,
+	)
+	if err != nil {
+		retErr = err
+		return nil, err
+	}
 
 	contextAssembler := NewContextAssembler(int64(cfg.ContextMaxInputTokens))
 	userCtx := userContextInput{ImageAnalyses: imageProcessing.Analyses}
@@ -541,8 +553,14 @@ func (s *Service) sendMessageInternal(
 	)
 	retrievalRAGFallbacks := make([]ragFallbackEvidence, 0)
 	ragContextChunks := make([]model.RAGChunk, 0)
-	if cfg.RAGEnabled && len(fileContextPlan.RAGAttachments) > 0 {
-		readyObjs := fileContextPlanRAGObjects(fileContextPlan.RAGAttachments)
+	if cfg.RAGEnabled && (len(fileContextPlan.RAGAttachments) > 0 || len(knowledgeBaseFiles) > 0) {
+		readyObjs := mergeRAGFileObjects(fileContextPlanRAGObjects(fileContextPlan.RAGAttachments), knowledgeBaseFiles)
+		knowledgeBaseFileIDs := make(map[string]struct{}, len(knowledgeBaseFiles))
+		for _, file := range knowledgeBaseFiles {
+			if fileID := strings.TrimSpace(file.FileID); fileID != "" {
+				knowledgeBaseFileIDs[fileID] = struct{}{}
+			}
+		}
 		emitEvent(input.OnEvent, "rag_search", map[string]interface{}{
 			"message": "正在检索相关内容…",
 		})
@@ -576,6 +594,13 @@ func (s *Service) sendMessageInternal(
 		ragSpan.End()
 		ragChunksRaw := ragResult.Chunks
 		ragChunks := contextAssembler.DeduplicateRAGChunks(ragChunksRaw)
+		knowledgeBaseHit := false
+		for _, chunk := range ragChunks {
+			if _, ok := knowledgeBaseFileIDs[strings.TrimSpace(chunk.FileID)]; ok {
+				knowledgeBaseHit = true
+				break
+			}
+		}
 		if ragErr != nil {
 			s.logger.Warn("rag_retrieval_failed",
 				zap.String("trace_id", traceid.FromContext(ctx)),
@@ -603,6 +628,17 @@ func (s *Service) sendMessageInternal(
 			ragFallbacks = append(ragFallbacks, evidences...)
 			retrievalRAGFallbacks = append(retrievalRAGFallbacks, evidences...)
 			appendRAGFallbackSkippedTrace(traceRecorder, skipped, fallbackReason)
+			// A selected knowledge base is an explicit source requirement. Continuing
+			// without it would produce an apparently successful answer that silently
+			// ignored the user's configured corpus. Attachment-only requests may still
+			// use their bounded full-text fallback above.
+			if len(input.KnowledgeBaseIDs) > 0 {
+				retErr = ErrKnowledgeBaseUnavailable
+				return nil, retErr
+			}
+		} else if len(input.KnowledgeBaseIDs) > 0 && ragResult.Status == apprag.RetrieveStatusUnavailable {
+			retErr = ErrKnowledgeBaseUnavailable
+			return nil, retErr
 		} else if len(ragChunks) == 0 {
 			fallbacks, skipped := splitRetrievalFallbackAttachments(fileContextPlan.RAGAttachments, cfg)
 			fallbackLabel := "已改用全文"
@@ -626,18 +662,25 @@ func (s *Service) sendMessageInternal(
 			ragFallbacks = append(ragFallbacks, evidences...)
 			retrievalRAGFallbacks = append(retrievalRAGFallbacks, evidences...)
 			appendRAGFallbackSkippedTrace(traceRecorder, skipped, ragStatus)
+			if len(input.KnowledgeBaseIDs) > 0 {
+				userCtx.RAGNotice = knowledgeBaseNoEvidenceNotice
+			}
 		} else {
 			if traceRecorder != nil {
 				summary, markdown, payload := buildRAGProcessTrace(ragQuery, readyObjs, ragChunks)
 				traceRecorder.appendProcessSection(summary, markdown, payload, messageTraceStatusStreaming)
 			}
 			ragContextChunks = append(ragContextChunks, ragChunks...)
+			if len(input.KnowledgeBaseIDs) > 0 && !knowledgeBaseHit {
+				userCtx.RAGNotice = knowledgeBaseNoEvidenceNotice
+			}
 		}
 	}
 	stableFullContextAttachments := append([]AttachmentInput{}, fileContextPlan.FullAttachments...)
 	stableFullContextAttachments = append(stableFullContextAttachments, ragFallbackEvidenceAttachments(retrievalRAGFallbacks)...)
 	userCtx.Attachments = imageAttachmentsForCurrentUser(stableFullContextAttachments)
 	userCtx.RAGChunks = ragContextChunks
+	assistantMessage.KnowledgeSources = messageKnowledgeSourcesFromRAGChunks(ragContextChunks)
 	// 语义召回注入：收集异步结果（与 RAG 解耦，独立运行）。
 	// recallCh 为 nil 时（未启用语义召回或当前分支没有历史消息）直接跳过。
 	//
@@ -1652,4 +1695,21 @@ func (s *Service) sendMessageInternal(
 		)
 	}
 	return result, nil
+}
+
+func messageKnowledgeSourcesFromRAGChunks(chunks []model.RAGChunk) []model.MessageKnowledgeSource {
+	if len(chunks) == 0 {
+		return nil
+	}
+	sources := make([]model.MessageKnowledgeSource, 0, len(chunks))
+	for _, chunk := range chunks {
+		sources = append(sources, model.MessageKnowledgeSource{
+			FileName:   strings.TrimSpace(chunk.FileName),
+			FileID:     strings.TrimSpace(chunk.FileID),
+			ChunkIndex: chunk.ChunkIndex,
+			Score:      chunk.Score,
+			Preview:    compactSnippet(chunk.Content, 100),
+		})
+	}
+	return sources
 }

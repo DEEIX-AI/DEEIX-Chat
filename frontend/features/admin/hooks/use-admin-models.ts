@@ -4,10 +4,9 @@ import { toast } from "sonner";
 
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
-  listAdminLLMModelUpstreamSources,
   listAdminLLMModels,
+  setAdminLLMModelProtocols,
   setAdminLLMModelsDisplayGroup,
-  upsertAdminLLMUpstreamModel,
   updateAdminLLMModel,
 } from "@/features/admin/api";
 import type {
@@ -471,79 +470,22 @@ export function useAdminModels(): UseAdminModelsState {
       return;
     }
 
-    const token = await resolveAccessToken();
-    if (!token) {
-      toast.error(t("sessionExpired"), { description: t("signInAgain") });
-      return;
-    }
-
-    const rollbackModels = targets.map((item) => items.find((current) => current.id === item.id) ?? item);
-    const targetIDs = new Set(targets.map((item) => item.id));
     const nextProtocolsJSON = JSON.stringify([nextProtocol]);
     const nextKindsJSON = displayToKindsJson(resolveKindsDisplayForProtocols([nextProtocol]));
-    setBatchApplying(true);
-    setItems((current) =>
-      current.map((item) => (targetIDs.has(item.id) ? { ...item, protocolsJSON: nextProtocolsJSON, kindsJSON: nextKindsJSON } : item)),
-    );
-    try {
-      const results = await runSettledBulkItems({
-        items: targets,
-        title: t("bulkProtocolUpdated", { count: targets.length }),
-        runItem: async (model) => {
-          const sources = await listAdminLLMModelUpstreamSources(token, model.id, { page: 1, pageSize: 2000 });
-          if (sources.results.length === 0) {
-            throw new Error("model upstream sources not found");
-          }
-          for (const source of sources.results) {
-            await upsertAdminLLMUpstreamModel(token, source.upstreamID, {
-              routeID: source.id,
-              platformModelName: model.platformModelName,
-              upstreamModelName: source.upstreamModelName,
-              protocol: nextProtocol,
-              kindsJSON: nextKindsJSON,
-              status: source.status,
-              priority: source.priority,
-              weight: source.weight,
-            });
-          }
-          return { ...model, kindsJSON: nextKindsJSON, protocolsJSON: nextProtocolsJSON };
-        },
-      });
-      const failedModels = results.filter((result) => result.status === "rejected").map((result) => result.item);
-      const successModels = results.filter((result) => result.status === "fulfilled").map((result) => result.item);
-      const successResponses = results
-        .filter((result): result is Extract<typeof result, { status: "fulfilled" }> => result.status === "fulfilled")
-        .map((result) => result.value);
-      setItems((current) =>
-        successResponses.reduce((next, model) => replaceByID(next, model.id, (item) => item.id, model), current),
-      );
-      if (failedModels.length > 0) {
-        const failedIDs = new Set(failedModels.map((item) => item.id));
-        setItems((current) =>
-          rollbackModels.reduce(
-            (next, model) => (failedIDs.has(model.id) ? replaceByID(next, model.id, (item) => item.id, model) : next),
-            current,
-          ),
-        );
-        setSelectedModelIDs(new Set(failedModels.map((item) => item.id)));
-        toast.error(t("bulkProtocolPartialFailed"), {
-          description: t("bulkPartialDescription", { success: successModels.length, failed: failedModels.length }),
-        });
-        return;
-      }
-
-      toast.success(t("bulkProtocolUpdated", { count: targets.length }));
-      setSelectedModelIDs(new Set());
-      setBatchProtocol("");
-    } catch (error) {
-      setItems((current) =>
-        rollbackModels.reduce((next, model) => replaceByID(next, model.id, (item) => item.id, model), current),
-      );
-      toast.error(t("bulkProtocolFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setBatchApplying(false);
-    }
-  }, [batchApplying, batchProtocol, items, selectedModels, t]);
+    await runBulkModelUpdates({
+      targets,
+      optimisticPatch: (item) => ({ ...item, protocolsJSON: nextProtocolsJSON, kindsJSON: nextKindsJSON }),
+      successMessage: t("bulkProtocolUpdated", { count: targets.length }),
+      partialFailureMessage: t("bulkProtocolPartialFailed"),
+      failureMessage: t("bulkProtocolFailed"),
+      runItem: (token, item) =>
+        setAdminLLMModelProtocols(token, item.id, {
+          protocols: [nextProtocol],
+          kindsJSON: nextKindsJSON,
+        }),
+      onSuccess: () => setBatchProtocol(""),
+    });
+  }, [batchApplying, batchProtocol, runBulkModelUpdates, selectedModels, t]);
 
   const handleRequestBulkDelete = React.useCallback(() => {
     if (selectedModels.length === 0) {

@@ -13,7 +13,9 @@ type Cache struct {
 	mu  sync.Mutex
 	ops uint64
 
-	settings map[string]expiringString
+	settings            map[string]expiringString
+	userSettings        map[string]expiringString
+	userSettingVersions map[string]expiringString
 
 	fileSeq      int64
 	fileQueue    []repository.FileProcessingMessage
@@ -52,6 +54,8 @@ type expiringRAG struct {
 func New() *Cache {
 	return &Cache{
 		settings:                 map[string]expiringString{},
+		userSettings:             map[string]expiringString{},
+		userSettingVersions:      map[string]expiringString{},
 		fileInflight:             map[string]repository.FileProcessingMessage{},
 		fileNotify:               make(chan struct{}),
 		rag:                      map[string]expiringRAG{},

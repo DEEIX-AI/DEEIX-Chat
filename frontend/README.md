@@ -22,6 +22,7 @@ DEEIX Chat 前端是基于 Next.js App Router 的管理与对话界面，负责�
 - `features/`：按业务域组织的页面组件、hooks、types、utils
 - `features/chat`：对话工作区、输入框、消息渲染、附件、模型参数可视化配置、MCP 工具选择、官方原生工具开关、处理/思考/工具链路展示
 - `features/files`：文件管理、上传状态、文件卡片、预览、单个/批量删除和存储配额展示
+- `features/knowledge-bases`：个人与内置知识库管理、资料关联、检索就绪状态和知识库文件预览
 - `features/settings`：用户侧通用、偏好、订阅和账户设置
 - `features/admin`：后台账户、上游、模型、计费、日志、身份源、登录、会话、文件、官方原生工具计费和 MCP 工具设置
 - `shared/api/`：API 请求封装与通用类型
@@ -53,6 +54,7 @@ DEEIX Chat 前端是基于 Next.js App Router 的管理与对话界面，负责�
 
 - `/chat`：对话工作区
 - `/files`：文件管理
+- `/knowledges`：知识库管理
 - `/recent`：最近会话
 - `/setting`：用户设置入口
 - `/setting/general`：通用偏好

@@ -2,9 +2,11 @@ package user
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/schema"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -178,6 +180,30 @@ func TestDeleteAccountHardRemovesUserScopedAssociations(t *testing.T) {
 	if err = db.Create(&model.ConversationProjectSkill{ProjectID: project.ID, SkillID: skill.ID}).Error; err != nil {
 		t.Fatalf("seed project Skill association: %v", err)
 	}
+	personalKnowledgeBase := model.KnowledgeBase{
+		PublicID: "kb_delete_user", Scope: "user", OwnerUserID: user.ID, Name: "Delete user knowledge base", Enabled: true,
+	}
+	if err = db.Create(&personalKnowledgeBase).Error; err != nil {
+		t.Fatalf("seed personal knowledge base: %v", err)
+	}
+	builtinKnowledgeBase := model.KnowledgeBase{
+		PublicID: "kb_builtin_keep", Scope: "builtin", Name: "Keep builtin knowledge base", Enabled: true,
+	}
+	if err = db.Create(&builtinKnowledgeBase).Error; err != nil {
+		t.Fatalf("seed builtin knowledge base: %v", err)
+	}
+	file := model.FileObject{FileID: "file_delete_user", UserID: user.ID, FileName: "knowledge.txt", Status: "active"}
+	if err = db.Create(&file).Error; err != nil {
+		t.Fatalf("seed file object: %v", err)
+	}
+	if err = db.Create(&model.KnowledgeBaseFile{
+		KnowledgeBaseID: personalKnowledgeBase.ID, FileObjectID: file.ID, AddedByUserID: user.ID,
+	}).Error; err != nil {
+		t.Fatalf("seed knowledge base file associations: %v", err)
+	}
+	if err = db.Create(&model.ConversationProjectKnowledgeBase{ProjectID: project.ID, KnowledgeBaseID: personalKnowledgeBase.ID}).Error; err != nil {
+		t.Fatalf("seed project knowledge base association: %v", err)
+	}
 
 	if err = NewRepo(db).DeleteAccountHard(context.Background(), user.ID); err != nil {
 		t.Fatalf("DeleteAccountHard() error = %v", err)
@@ -191,10 +217,12 @@ func TestDeleteAccountHardRemovesUserScopedAssociations(t *testing.T) {
 		t.Fatalf("permission group user access count = %d, want 0", count)
 	}
 	for label, item := range map[string]interface{}{
-		"conversation projects":      &model.ConversationProject{},
-		"project MCP associations":   &model.ConversationProjectMCPTool{},
-		"project Skill associations": &model.ConversationProjectSkill{},
-		"user Skills":                &model.Skill{},
+		"conversation projects":               &model.ConversationProject{},
+		"project MCP associations":            &model.ConversationProjectMCPTool{},
+		"project Skill associations":          &model.ConversationProjectSkill{},
+		"project knowledge base associations": &model.ConversationProjectKnowledgeBase{},
+		"user Skills":                         &model.Skill{},
+		"knowledge base files":                &model.KnowledgeBaseFile{},
 	} {
 		if err = db.Model(item).Count(&count).Error; err != nil {
 			t.Fatalf("count %s: %v", label, err)
@@ -202,6 +230,58 @@ func TestDeleteAccountHardRemovesUserScopedAssociations(t *testing.T) {
 		if count != 0 {
 			t.Fatalf("%s count = %d, want 0", label, count)
 		}
+	}
+	if err = db.Model(&model.KnowledgeBase{}).Where("scope = ? AND owner_user_id = ?", "user", user.ID).Count(&count).Error; err != nil {
+		t.Fatalf("count personal knowledge bases: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("personal knowledge base count = %d, want 0", count)
+	}
+	if err = db.Model(&model.KnowledgeBase{}).Where("id = ?", builtinKnowledgeBase.ID).Count(&count).Error; err != nil {
+		t.Fatalf("count builtin knowledge base: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("builtin knowledge base count = %d, want 1", count)
+	}
+}
+
+func TestDeleteAccountHardRejectsBuiltinKnowledgeBaseFileOwner(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:delete_builtin_kb_file_owner?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err = db.AutoMigrate(schema.Models()...); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	user := model.User{
+		PublicID: "u_builtin_owner", Username: "builtin-owner", DisplayName: "Builtin Owner",
+		Email: "builtin-owner@example.com", Role: "admin", Status: "active",
+	}
+	if err = db.Create(&user).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	base := model.KnowledgeBase{PublicID: "kb_builtin_owner", Scope: "builtin", Name: "Builtin", Enabled: true}
+	if err = db.Create(&base).Error; err != nil {
+		t.Fatalf("seed knowledge base: %v", err)
+	}
+	file := model.FileObject{FileID: "file_builtin_owner", UserID: user.ID, FileName: "policy.txt", Status: "active"}
+	if err = db.Create(&file).Error; err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	if err = db.Create(&model.KnowledgeBaseFile{KnowledgeBaseID: base.ID, FileObjectID: file.ID, AddedByUserID: user.ID}).Error; err != nil {
+		t.Fatalf("seed knowledge base file: %v", err)
+	}
+
+	err = NewRepo(db).DeleteAccountHard(context.Background(), user.ID)
+	if !errors.Is(err, domainknowledgebase.ErrBuiltinFileOwnerDeleteBlocked) {
+		t.Fatalf("DeleteAccountHard() error = %v, want ErrBuiltinFileOwnerDeleteBlocked", err)
+	}
+	var userCount int64
+	if countErr := db.Model(&model.User{}).Where("id = ?", user.ID).Count(&userCount).Error; countErr != nil {
+		t.Fatalf("count user: %v", countErr)
+	}
+	if userCount != 1 {
+		t.Fatalf("user count = %d, want 1", userCount)
 	}
 }
 

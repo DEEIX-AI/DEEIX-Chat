@@ -47,6 +47,20 @@ func TestResolveProcessingExtractTimeoutUsesImageOCRConfig(t *testing.T) {
 	}
 }
 
+func TestResolveProcessingExtractTimeoutUsesMistralOCRConfig(t *testing.T) {
+	cfg := config.Config{
+		ExtractEngine:                   extraction.EngineBuiltin,
+		ExtractImageOCREnabled:          true,
+		ExtractOCREngine:                extraction.OCREngineMistral,
+		ExtractMistralOCRTimeoutSeconds: 75,
+	}
+
+	got := resolveProcessingExtractTimeout(cfg, "image")
+	if got != 75*time.Second {
+		t.Fatalf("expected Mistral OCR timeout to be 75s, got %s", got)
+	}
+}
+
 func TestProcessingSupportsPresentationExtractionAndRAG(t *testing.T) {
 	if !supportsExtraction("presentation") {
 		t.Fatal("presentation should support extraction")

@@ -1,7 +1,5 @@
 "use client";
 
-import * as React from "react";
-import { useLocale, useTranslations } from "next-intl";
 import {
   Activity,
   CheckCircle2,
@@ -15,6 +13,8 @@ import {
   SlidersHorizontal,
   Trash2,
 } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
 
 import {
@@ -37,6 +37,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -48,21 +55,12 @@ import {
   TableLoadingRow,
   TableRow,
 } from "@/components/ui/table";
-import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
 import {
   deleteAdminLLMUpstreamModel,
   listAdminLLMModelUpstreamSources,
@@ -71,8 +69,6 @@ import {
   resetAdminLLMUpstreamModelCircuit,
   updateAdminLLMModelUpstreamSource,
 } from "@/features/admin/api";
-import { ModelIcon } from "@/shared/components/model-icon";
-import { resolveModelIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
 import type {
   AdminLLMModelAccessScope,
   AdminLLMModelCbPolicyMode,
@@ -86,9 +82,13 @@ import {
   resolveValue,
 } from "@/features/admin/types/llm";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import { isAdminLLMSourceAvailable } from "@/features/admin/utils/llm-source-availability";
 import { sortProtocolsForDisplay } from "@/features/admin/utils/llm-display";
+import { isAdminLLMSourceAvailable } from "@/features/admin/utils/llm-source-availability";
+import { cn } from "@/lib/utils";
+import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { ModelIcon } from "@/shared/components/model-icon";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import { resolveModelIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
 import { parseKindsJSON } from "@/shared/model/llm-schema";
 import {
   ModelSourceCircuitDialog,
@@ -304,6 +304,7 @@ type InlineSourceCircuitTarget = {
 type ModelsTableProps = {
   items: AdminLLMModelDTO[];
   loading: boolean;
+  circuitBreakerEnabled: boolean;
   selectedModelIDs: Set<number>;
   onSelectedModelIDsChange: React.Dispatch<React.SetStateAction<Set<number>>>;
   onEdit: (item: AdminLLMModelDTO) => void;
@@ -320,6 +321,7 @@ type ModelsTableProps = {
 
 type ModelTableRowProps = {
   item: AdminLLMModelDTO;
+  circuitBreakerEnabled: boolean;
   selected: boolean;
   expanded: boolean;
   opening: boolean;
@@ -350,6 +352,7 @@ function resolveModelProtocols(item: AdminLLMModelDTO): string[] {
 
 const ModelTableRow = React.memo(function ModelTableRow({
   item,
+  circuitBreakerEnabled,
   selected,
   expanded,
   opening,
@@ -622,7 +625,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
                         status={source.status}
                         upstreamStatus={source.upstreamStatus}
                         upstreamModelStatus={source.upstreamModelStatus}
-                        circuitOpen={source.circuitOpen}
+                        circuitOpen={circuitBreakerEnabled && source.circuitOpen}
                         circuitUntil={source.circuitUntil}
                         circuitScope={source.circuitScope}
                       />
@@ -689,17 +692,19 @@ const ModelTableRow = React.memo(function ModelTableRow({
                               {t("sources.enableSource")}
                             </DropdownMenuItem>
                           )}
-                          {source.circuitOpen ? (
-                            <DropdownMenuItem onSelect={() => onInlineCircuit(source, item.id, "reset")}>
-                              <RotateCcw className="size-3.5 stroke-1" />
-                              {t("sources.resetCircuit")}
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem onSelect={() => onInlineCircuit(source, item.id, "open")}>
-                              <CircleOff className="size-3.5 stroke-1" />
-                              {t("sources.openCircuit")}
-                            </DropdownMenuItem>
-                          )}
+                          {circuitBreakerEnabled ? (
+                            source.circuitOpen ? (
+                              <DropdownMenuItem onSelect={() => onInlineCircuit(source, item.id, "reset")}>
+                                <RotateCcw className="size-3.5 stroke-1" />
+                                {t("sources.resetCircuit")}
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem onSelect={() => onInlineCircuit(source, item.id, "open")}>
+                                <CircleOff className="size-3.5 stroke-1" />
+                                {t("sources.openCircuit")}
+                              </DropdownMenuItem>
+                            )
+                          ) : null}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             variant="destructive"
@@ -736,6 +741,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
 export function ModelsTable({
   items,
   loading,
+  circuitBreakerEnabled,
   selectedModelIDs,
   onSelectedModelIDsChange,
   onEdit,
@@ -776,6 +782,26 @@ export function ModelsTable({
   React.useEffect(() => {
     inlineSourcesRef.current = inlineSources;
   }, [inlineSources]);
+
+  React.useEffect(() => {
+    if (circuitBreakerEnabled) return;
+    setInlineSources((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([modelID, entry]) => [
+          modelID,
+          {
+            ...entry,
+            items: entry.items.map((source) => ({
+              ...source,
+              circuitOpen: false,
+              circuitUntil: "",
+              circuitScope: "" as const,
+            })),
+          },
+        ]),
+      ),
+    );
+  }, [circuitBreakerEnabled]);
 
   const clearCollapseTimer = React.useCallback((id: number) => {
     const timer = collapseTimersRef.current[id];
@@ -1145,6 +1171,7 @@ export function ModelsTable({
               <ModelTableRow
                 key={item.id}
                 item={item}
+                circuitBreakerEnabled={circuitBreakerEnabled}
                 selected={selectedModelIDs.has(item.id)}
                 expanded={expandedRows.has(item.id) || collapsingRows.has(item.id)}
                 opening={openingRows.has(item.id)}

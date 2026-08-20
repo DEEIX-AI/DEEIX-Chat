@@ -12,6 +12,7 @@ export const ADMIN_SECTIONS = [
   { id: "login-settings", label: "Login & auth", href: "/login" },
   { id: "conversation-settings", label: "Conversation", href: "/conversation" },
   { id: "chat-files", label: "Files & retrieval", href: "/chat-files" },
+  { id: "knowledge-bases", label: "Knowledge bases", href: "/knowledge-bases" },
   { id: "about", label: "About", href: "/about" },
 ] as const;
 

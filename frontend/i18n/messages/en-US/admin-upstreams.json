@@ -142,6 +142,7 @@
     "readTimeout": "Read timeout (ms)",
     "streamTimeout": "Stream idle timeout (ms)",
     "circuitBreak": "Circuit breaker",
+    "circuitBreakDescription": "Takes effect only when automatic circuit breaking is enabled.",
     "failureThreshold": "Failure threshold",
     "failureThresholdDescription": "Open the upstream circuit when failures in the window reach this value (0 = disabled).",
     "modelThreshold": "Model failure threshold",

@@ -102,6 +102,7 @@ type DailyStat struct {
 
 // EventListFilter filters super-admin event queries.
 type EventListFilter struct {
+	Query     string
 	Direction string
 	Modality  string
 	Result    string

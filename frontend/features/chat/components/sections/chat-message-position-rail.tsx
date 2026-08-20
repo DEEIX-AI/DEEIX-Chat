@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "motion/react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 
@@ -81,45 +82,54 @@ function ChatMessagePositionPreview({
   previewRef,
   top,
 }: {
-  item: TurnPreviewItem;
-  position: PreviewPosition;
+  item: TurnPreviewItem | null;
+  position: PreviewPosition | null;
   previewRef: React.RefObject<HTMLDivElement | null>;
-  top: number;
+  top: number | null;
 }) {
   return createPortal(
-    <div
-      ref={previewRef}
-      className="pointer-events-none fixed z-[9999] w-[min(22rem,calc(100vw-5rem))] -translate-y-1/2"
-      style={{ left: position.left, maxHeight: position.maxHeight, top }}
-      data-screenshot-exclude="true"
-    >
-      <div className="max-h-full scroll-fade-y scroll-fade-12 overflow-y-auto rounded-lg bg-sidebar-accent px-3 py-2 text-left text-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <span
-          className="block text-sm font-medium leading-5 text-foreground"
-          style={{
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
+    <AnimatePresence initial={false}>
+      {item && position && top !== null ? (
+        <motion.div
+          ref={previewRef}
+          key="chat-message-position-preview"
+          className="pointer-events-none fixed z-[9999] w-[min(22rem,calc(100vw-5rem))] -translate-y-1/2"
+          style={{ left: position.left, maxHeight: position.maxHeight, top }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15, ease: "easeOut" }}
+          data-screenshot-exclude="true"
         >
-          {item.question}
-        </span>
-        {item.answer ? (
-          <span
-            className="mt-1 block text-xs leading-5 text-muted-foreground"
-            style={{
-              display: "-webkit-box",
-              maxHeight: "3.75rem",
-              overflow: "hidden",
-              WebkitBoxOrient: "vertical",
-              WebkitLineClamp: 3,
-            }}
-          >
-            {item.answer}
-          </span>
-        ) : null}
-      </div>
-    </div>,
+          <div className="max-h-full scroll-fade-y scroll-fade-12 overflow-y-auto rounded-lg bg-sidebar-accent px-3 py-2 text-left text-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <span
+              className="block text-sm font-medium leading-5 text-foreground"
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {item.question}
+            </span>
+            {item.answer ? (
+              <span
+                className="mt-1 block text-xs leading-5 text-muted-foreground"
+                style={{
+                  display: "-webkit-box",
+                  maxHeight: "3.75rem",
+                  overflow: "hidden",
+                  WebkitBoxOrient: "vertical",
+                  WebkitLineClamp: 3,
+                }}
+              >
+                {item.answer}
+              </span>
+            ) : null}
+          </div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>,
     document.body,
   );
 }
@@ -293,7 +303,7 @@ function ChatMessagePositionRailComponent({
 
   const previewTop = previewPosition ? resolvePreviewPosition({ boundary: previewPosition, previewHeight }) : null;
   const preview =
-    previewItem && previewPosition && previewTop !== null && typeof document !== "undefined" ? (
+    typeof document !== "undefined" ? (
       <ChatMessagePositionPreview
         item={previewItem}
         position={previewPosition}

@@ -300,12 +300,12 @@ export function AdminGroupsPage() {
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead>{t("name")}</TableHead>
-            <TableHead>{t("descriptionField")}</TableHead>
-            <TableHead className="text-right">{t("rateMultiplier")}</TableHead>
-            <TableHead className="text-right">{t("modelCount")}</TableHead>
-            <TableHead className="text-right">{t("coverageCount")}</TableHead>
-            <TableHead className="w-16" />
+            <TableHead className="min-w-[180px]">{t("name")}</TableHead>
+            <TableHead className="min-w-[280px]">{t("descriptionField")}</TableHead>
+            <TableHead className="w-[96px] text-center">{t("rateMultiplier")}</TableHead>
+            <TableHead className="w-[140px] text-center">{t("modelCount")}</TableHead>
+            <TableHead className="w-[160px] text-center">{t("coverageCount")}</TableHead>
+            <TableHead className="w-[56px]" stickyEnd />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -321,56 +321,67 @@ export function AdminGroupsPage() {
                   onClick={() => setEditing(group)}
                 >
                   <TableCell className="py-1.5 whitespace-nowrap">
-                    {group.name}
-                    {group.isDefault ? (
-                      <Badge variant="secondary" className="ml-2">
-                        {t("default")}
-                      </Badge>
-                    ) : null}
+                    <div className="flex h-7 items-center gap-2">
+                      <span className="font-medium">{group.name}</span>
+                      {group.isDefault ? (
+                        <Badge variant="secondary">
+                          {t("default")}
+                        </Badge>
+                      ) : null}
+                    </div>
                   </TableCell>
-                  <TableCell className="max-w-xs truncate py-1.5 text-muted-foreground">
-                    {group.description}
+                  <TableCell className="max-w-[360px] py-1.5 text-muted-foreground">
+                    <div className="truncate" title={group.description}>
+                      {group.description || "-"}
+                    </div>
                   </TableCell>
-                  <TableCell className="py-1.5 text-right whitespace-nowrap">
-                    {(group.rateMultiplierPercent || 100) / 100}
+                  <TableCell className="py-1.5 text-center whitespace-nowrap tabular-nums">
+                    <span className="flex h-7 items-center justify-center">
+                      {(group.rateMultiplierPercent || 100) / 100}
+                    </span>
                   </TableCell>
-                  <TableCell className="py-1.5 text-right whitespace-nowrap">
-                    <div className="space-y-0.5">
-                      <div>{group.modelCount ?? 0}</div>
-                      <div className="text-[11px] text-muted-foreground">
+                  <TableCell className="py-1.5 text-center whitespace-nowrap tabular-nums">
+                    <div className="flex min-h-7 flex-col items-center justify-center leading-4">
+                      <span>{group.modelCount ?? 0}</span>
+                      <span className="text-[11px] text-muted-foreground">
                         {t("groupModelBreakdown", {
                           manual: group.manualModelCount ?? 0,
                           automatic: group.ruleModelCount ?? 0,
                         })}
-                      </div>
+                      </span>
                     </div>
                   </TableCell>
-                  <TableCell className="py-1.5 text-right whitespace-nowrap">
-                    <div className="space-y-0.5">
-                      <div>{group.userCount ?? 0}</div>
-                      <div className="text-[11px] text-muted-foreground">
+                  <TableCell className="py-1.5 text-center whitespace-nowrap tabular-nums">
+                    <div className="flex min-h-7 flex-col items-center justify-center leading-4">
+                      <span>{group.userCount ?? 0}</span>
+                      <span className="text-[11px] text-muted-foreground">
                         {group.isDefault
                           ? t("defaultCoverage")
                           : t("groupCoverageBreakdown", {
                               manual: group.manualUserCount ?? 0,
                               subscription: group.subscriptionUserCount ?? 0,
                             })}
-                      </div>
+                      </span>
                     </div>
                   </TableCell>
-                  <TableCell className="py-1.5 text-right whitespace-nowrap">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      disabled={group.isDefault}
-                      title={group.isDefault ? t("cannotDeleteDefault") : t("deleteGroup")}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setDeleting(group);
-                      }}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                  <TableCell className="w-[56px] py-1.5 whitespace-nowrap" stickyEnd>
+                    <div className="flex h-7 items-center justify-end">
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        className="text-muted-foreground shadow-none"
+                        disabled={group.isDefault}
+                        aria-label={group.isDefault ? t("cannotDeleteDefault") : t("deleteGroup")}
+                        title={group.isDefault ? t("cannotDeleteDefault") : t("deleteGroup")}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setDeleting(group);
+                        }}
+                      >
+                        <Trash2 className="size-3.5 stroke-1" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

@@ -13,6 +13,7 @@
     "loginSettings": "登录认证",
     "conversationSettings": "会话配置",
     "chatFiles": "文件与检索",
+    "knowledgeBases": "知识库",
     "about": "关于",
     "contentModeration": "内容审核"
   },

@@ -170,6 +170,8 @@ type MessageLabels = {
   imageRunning?: string;
   moderationBlocked?: string;
   moderationBlockedDescription?: string;
+  moderationEventID?: (eventID: string) => string;
+  moderationCategories?: (categories: string[]) => string;
   resolveErrorMessage?: (errorCode: string, fallback: string, details?: UpstreamDebugInfo) => string;
 };
 
@@ -190,7 +192,10 @@ export function mapServerMessage(
   labels: MessageLabels = {
     generationInterrupted: "Generation interrupted",
   },
-  options: { liveRunIDs?: ReadonlySet<string> } = {},
+  options: {
+    liveRunIDs?: ReadonlySet<string>;
+    liveActivityLabels?: ReadonlyMap<string, string>;
+  } = {},
 ): ChatAreaMessage {
   const publicID = item.publicID.trim();
   const msg: ChatAreaMessage = {
@@ -230,16 +235,32 @@ export function mapServerMessage(
     msg.reasoningTokens = item.reasoningTokens ?? 0;
     msg.latencyMS = item.latencyMS ?? 0;
     msg.billingCost = item.billingCost;
+    msg.knowledgeSources = item.knowledgeSources?.map((source) => ({
+      file_name: source.fileName,
+      file_id: source.fileID,
+      chunk_index: source.chunkIndex,
+      score: source.score,
+      preview: source.preview,
+    }));
     msg.processTrace = parseProcessTrace(item);
     const status = item.status.trim().toLowerCase();
     const moderationBlocked = status === "blocked" || item.errorCode === "content_moderation.blocked";
     if (moderationBlocked) {
+      const eventID = item.moderation?.eventID?.trim() || "";
+      const categories = item.moderation?.categories?.filter(Boolean) ?? [];
       msg.inlineAlert = {
         title: labels.moderationBlocked || "Content blocked",
-        message:
+        message: [
           labels.moderationBlockedDescription ||
-          item.errorMessage?.trim() ||
-          "This response was withdrawn after a safety check.",
+            item.errorMessage?.trim() ||
+            "This response was withdrawn after a safety check.",
+          eventID && labels.moderationEventID ? labels.moderationEventID(eventID) : "",
+          categories.length > 0 && labels.moderationCategories
+            ? labels.moderationCategories(categories)
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
       };
     } else if ((status === "error" || status === "interrupted") && item.errorMessage?.trim()) {
       const details = extractInlineAlertDetails(item);
@@ -254,7 +275,10 @@ export function mapServerMessage(
       const live = Boolean(liveRunID && options.liveRunIDs?.has(liveRunID));
       msg.isPending = live;
       msg.isStreaming = live;
-      msg.activityLabel = live && item.contentType === "image" ? labels.imageRunning : undefined;
+      msg.activityLabel = live
+        ? options.liveActivityLabels?.get(liveRunID) ||
+          (item.contentType === "image" ? labels.imageRunning : undefined)
+        : undefined;
     }
   }
   return msg;

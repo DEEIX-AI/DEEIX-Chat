@@ -61,7 +61,6 @@ type UseAdminUpstreamsState = {
   circuitState: UpstreamCircuitState;
   modelsTarget: AdminLLMUpstreamView | null;
   modelsOpen: boolean;
-  setModelsOpen: (open: boolean) => void;
   load: () => Promise<void>;
   handleSelectAll: (checked: boolean) => void;
   handleSelectOne: (id: number, checked: boolean) => void;
@@ -459,7 +458,6 @@ export function useAdminUpstreams(): UseAdminUpstreamsState {
     circuitState,
     modelsTarget,
     modelsOpen,
-    setModelsOpen,
     load,
     handleSelectAll,
     handleSelectOne,

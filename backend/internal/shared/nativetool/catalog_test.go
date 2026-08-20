@@ -62,6 +62,15 @@ func TestPayloadFromOptionPreservesToolParametersAndFixesIdentity(t *testing.T) 
 			t.Fatalf("expected %s definition payload to preserve empty object, got %#v", item, definition.Payload)
 		}
 	}
+	for _, item := range []string{"google_search", "code_execution", "url_context"} {
+		definition, ok := Find("gemini_interactions", item)
+		if !ok {
+			t.Fatalf("expected Gemini Interactions %s definition", item)
+		}
+		if definition.Payload["type"] != item {
+			t.Fatalf("expected Gemini Interactions %s type payload, got %#v", item, definition.Payload)
+		}
+	}
 
 	for _, item := range []string{"code_execution", "url_context"} {
 		_, payload, ok = PayloadFromOption("gemini_generate_content", map[string]interface{}{
@@ -125,6 +134,10 @@ func TestUsagePricingKeyMapsObservedToolUsage(t *testing.T) {
 	key, ok = UsagePricingKey("gemini_generate_content", "url_context")
 	if !ok || key != "google.url_context" {
 		t.Fatalf("expected Google URL context price key, got key=%q ok=%v", key, ok)
+	}
+	key, ok = UsagePricingKey("gemini_interactions", "code_execution")
+	if !ok || key != "google.code_execution" {
+		t.Fatalf("expected Gemini Interactions code execution price key, got key=%q ok=%v", key, ok)
 	}
 }
 

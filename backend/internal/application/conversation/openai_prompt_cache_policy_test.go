@@ -9,12 +9,11 @@ import (
 
 func TestConfigureOpenAIPromptCacheForRoute(t *testing.T) {
 	tests := []struct {
-		name          string
-		route         *channel.ResolvedRoute
-		wantKey       string
-		wantMode      string
-		wantTTL       string
-		wantRetention string
+		name     string
+		route    *channel.ResolvedRoute
+		wantKey  string
+		wantMode string
+		wantTTL  string
 	}{
 		{
 			name: "official OpenAI defaults to enabled",
@@ -52,24 +51,22 @@ func TestConfigureOpenAIPromptCacheForRoute(t *testing.T) {
 			wantTTL:  "30m",
 		},
 		{
-			name: "official OpenAI supports implicit retention",
+			name: "official OpenAI ignores legacy implicit retention",
 			route: &channel.ResolvedRoute{
 				Protocol:              llm.AdapterOpenAIChatCompletions,
 				BaseURL:               "https://api.openai.com/v1",
 				ModelCapabilitiesJSON: `{"promptCache":{"mode":"implicit","retention":"24h"}}`,
 			},
-			wantKey:       "session-1",
-			wantRetention: "24h",
+			wantKey: "session-1",
 		},
 		{
-			name: "official OpenAI preserves legacy default retention",
+			name: "official OpenAI ignores legacy default retention",
 			route: &channel.ResolvedRoute{
 				Protocol:              llm.AdapterOpenAIResponses,
 				BaseURL:               "https://api.openai.com/v1",
 				ModelCapabilitiesJSON: `{"defaultOptions":{"prompt_cache_retention":"24h"}}`,
 			},
-			wantKey:       "session-1",
-			wantRetention: "24h",
+			wantKey: "session-1",
 		},
 		{
 			name: "official OpenAI can be disabled",
@@ -109,8 +106,8 @@ func TestConfigureOpenAIPromptCacheForRoute(t *testing.T) {
 			if ttl, _ := cacheOptions["ttl"].(string); ttl != test.wantTTL {
 				t.Fatalf("expected prompt cache ttl %q, got %#v", test.wantTTL, options)
 			}
-			if retention, _ := options["prompt_cache_retention"].(string); retention != test.wantRetention {
-				t.Fatalf("expected prompt cache retention %q, got %#v", test.wantRetention, options)
+			if _, exists := options["prompt_cache_retention"]; exists {
+				t.Fatalf("expected prompt cache retention to be discarded, got %#v", options)
 			}
 			if options["temperature"] != 0.2 {
 				t.Fatalf("expected unrelated options to remain, got %#v", options)

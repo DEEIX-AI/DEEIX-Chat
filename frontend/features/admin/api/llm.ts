@@ -9,6 +9,8 @@ import type {
   AdminLLMModelDTO,
   AdminLLMModelDisplayGroupData,
   AdminLLMModelDisplayGroupDTO,
+  AdminLLMModelIconAsset,
+  AdminLLMModelIconAssetListItem,
   AdminLLMModelVendorData,
   AdminLLMModelVendorDTO,
   AdminLLMModelProbeBatchData,
@@ -28,6 +30,7 @@ import type {
   ImportAdminLLMUpstreamModelsRequest,
   ListAdminLLMRemoteModelsData,
   ReorderAdminLLMModelsRequest,
+  SetAdminLLMModelProtocolsRequest,
   SetAdminLLMModelsDisplayGroupRequest,
   ResetAdminLLMCircuitData,
   UpdateAdminLLMModelRequest,
@@ -374,6 +377,18 @@ export async function updateAdminLLMModel(
   );
 }
 
+export async function setAdminLLMModelProtocols(
+  accessToken: string,
+  modelID: number,
+  payload: SetAdminLLMModelProtocolsRequest,
+): Promise<AdminLLMModelData> {
+  return authedRequest<AdminLLMModelData>(
+    `/api/v1/admin/llm/models/${modelID}/protocols`,
+    { method: "PATCH", accessToken, body: payload },
+    true,
+  );
+}
+
 export async function reorderAdminLLMModels(
   accessToken: string,
   payload: ReorderAdminLLMModelsRequest,
@@ -432,6 +447,55 @@ export async function updateAdminLLMModelVendor(
   return authedRequest<AdminLLMModelVendorData>(
     `/api/v1/admin/llm/model-vendors/${pathParam(vendorKey)}`,
     { method: "PATCH", accessToken, body: payload },
+    true,
+  );
+}
+
+export async function deleteAdminLLMModelVendor(
+  accessToken: string,
+  vendorKey: string,
+): Promise<void> {
+  return authedRequest<void>(
+    `/api/v1/admin/llm/model-vendors/${pathParam(vendorKey)}`,
+    { method: "DELETE", accessToken },
+    true,
+  );
+}
+
+export async function uploadAdminLLMModelIcon(
+  accessToken: string,
+  file: File,
+): Promise<AdminLLMModelIconAsset> {
+  const form = new FormData();
+  form.append("file", file);
+  return authedRequest<AdminLLMModelIconAsset>(
+    "/api/v1/admin/llm/icon-assets",
+    { method: "POST", accessToken, body: form },
+    true,
+  );
+}
+
+export async function listAdminLLMModelIcons(
+  accessToken: string,
+  options: AdminListQueryOptions = {},
+): Promise<PagePayload<AdminLLMModelIconAssetListItem>> {
+  const { page, pageSize } = resolveAdminPage(options);
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  const data = await authedRequest<PagePayload<AdminLLMModelIconAssetListItem>>(
+    `/api/v1/admin/llm/icon-assets?${params.toString()}`,
+    { accessToken },
+    true,
+  );
+  return normalizeAdminPagePayload(data);
+}
+
+export async function deleteAdminLLMModelIcon(
+  accessToken: string,
+  publicID: string,
+): Promise<void> {
+  return authedRequest<void>(
+    `/api/v1/admin/llm/icon-assets/${pathParam(publicID)}`,
+    { method: "DELETE", accessToken },
     true,
   );
 }

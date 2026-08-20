@@ -100,8 +100,13 @@ function groupRAGCitations(citations: RAGCitation[], labels: ProcessTraceLabels)
     };
     current.chunkCount += 1;
     current.maxScore = Math.max(current.maxScore, item.score || 0);
-    if (item.preview?.trim() && !current.previews.includes(item.preview.trim())) {
-      current.previews.push(item.preview.trim());
+    const preview = item.preview
+      ?.replace(/\s+/g, " ")
+      .replace(/\.{4,}/g, "…")
+      .replace(/…{2,}/g, "…")
+      .trim();
+    if (preview && !current.previews.includes(preview)) {
+      current.previews.push(preview);
     }
     grouped.set(fileID, current);
   }
@@ -121,10 +126,14 @@ export function RAGCitationList({
   citations,
   embedded = false,
   labels,
+  className,
+  showScores = true,
 }: {
   citations: RAGCitation[];
   embedded?: boolean;
   labels: ProcessTraceLabels;
+  className?: string;
+  showScores?: boolean;
 }) {
   if (citations.length === 0) return null;
   const grouped = groupRAGCitations(citations, labels);
@@ -147,43 +156,45 @@ export function RAGCitationList({
     );
   }
   return (
-    <div className="border-t border-border/30 pt-2">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <span className="text-[11px] font-medium text-muted-foreground/76">{labels.rag.retrievalSources}</span>
-        <span className="text-[10px] text-muted-foreground/56">{labels.rag.matchedContents(citations.length)}</span>
+    <div className={cn("border-t border-border/25 pt-2", className)}>
+      <div className="mb-2 flex items-center justify-between gap-3 px-0.5">
+        <span className="text-[11px] font-medium text-foreground/72">{labels.rag.retrievalSources}</span>
+        <span className="text-[10px] text-muted-foreground/50">{labels.rag.chunksTotal(citations.length)}</span>
       </div>
 
-      <div className="space-y-2">
-        {grouped.map((item) => (
-          <div key={item.fileID} className="rounded-lg border border-border/35 bg-background/40 px-2.5 py-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-[12px] font-medium text-foreground/88">{item.fileName}</div>
-                <div className="mt-0.5 text-[11px] text-muted-foreground/62">
-                  {labels.rag.matchSummary(item.chunkCount, item.sharePercent, Math.round(item.maxScore * 100))}
+      <div className="space-y-3">
+        {grouped.map((item) => {
+          const itemMeta = showScores
+            ? labels.rag.chunksShort(item.chunkCount, Math.round(item.maxScore * 100))
+            : grouped.length > 1
+              ? labels.rag.chunksTotal(item.chunkCount)
+              : null;
+          return (
+            <div key={item.fileID}>
+              <div className="flex min-w-0 items-center justify-between gap-3 px-0.5">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="size-1 shrink-0 rounded-full bg-foreground/40" aria-hidden="true" />
+                  <div className="truncate text-[11px] font-medium text-foreground/82" title={item.fileName}>{item.fileName}</div>
                 </div>
+                {itemMeta ? <span className="shrink-0 text-[10px] text-muted-foreground/50">{itemMeta}</span> : null}
               </div>
-              <div className="w-20 shrink-0">
-                <div className="h-1.5 overflow-hidden rounded-full bg-muted/60">
-                  <div className="h-full rounded-full bg-foreground/70" style={{ width: `${item.sharePercent}%` }} />
+              {item.previews.length > 0 ? (
+                <div className="mt-1.5 divide-y divide-border/20 overflow-hidden rounded-md bg-muted/25">
+                  {item.previews.slice(0, 3).map((preview, index) => (
+                    <div key={`${item.fileID}-${index}`} className="px-2.5 py-2">
+                      <p
+                        className="line-clamp-2 text-[10px] leading-4 text-muted-foreground/68"
+                        title={preview}
+                      >
+                        {preview}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              ) : null}
             </div>
-            {item.previews.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {item.previews.slice(0, 3).map((preview, index) => (
-                  <span
-                    key={`${item.fileID}-${index}`}
-                    className="max-w-full truncate rounded-full border border-border/35 bg-muted/18 px-1.5 py-0 text-[11px] leading-5 text-muted-foreground/76"
-                    title={preview}
-                  >
-                    {preview}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -442,3 +442,38 @@ func openSchemaTestDB(t *testing.T) *gorm.DB {
 	}
 	return db
 }
+
+func TestInvalidateUnsignedFileEmbeddingsQueuesOnlyLegacyVectors(t *testing.T) {
+	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	db, err := gorm.Open(sqlite.Open("file:"+dbName+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err = db.AutoMigrate(&model.FileObject{}, &model.FileChunk{}); err != nil {
+		t.Fatalf("migrate file models: %v", err)
+	}
+	files := []model.FileObject{
+		{FileID: "file_legacy_vector", UserID: 1, Status: "active", EmbedStatus: "ready"},
+		{FileID: "file_signed_vector", UserID: 1, Status: "active", EmbedStatus: "ready"},
+	}
+	if err = db.Create(&files).Error; err != nil {
+		t.Fatalf("create files: %v", err)
+	}
+	chunks := []model.FileChunk{
+		{FileObjID: files[0].ID, UserID: 1, Content: "legacy", EmbeddingSignature: ""},
+		{FileObjID: files[1].ID, UserID: 1, Content: "signed", EmbeddingSignature: "model@4096"},
+	}
+	if err = db.Create(&chunks).Error; err != nil {
+		t.Fatalf("create chunks: %v", err)
+	}
+	if err = invalidateUnsignedFileEmbeddings(db); err != nil {
+		t.Fatalf("invalidate unsigned file embeddings: %v", err)
+	}
+	var statuses []string
+	if err = db.Model(&model.FileObject{}).Order("id ASC").Pluck("embed_status", &statuses).Error; err != nil {
+		t.Fatalf("load embed statuses: %v", err)
+	}
+	if len(statuses) != 2 || statuses[0] != "stale" || statuses[1] != "ready" {
+		t.Fatalf("unexpected embed statuses: %#v", statuses)
+	}
+}

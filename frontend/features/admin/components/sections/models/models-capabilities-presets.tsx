@@ -299,18 +299,20 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
       nativeTools: [
         {
           key: "google.code_execution",
-          protocols: ["google_generate_content", "gemini_generate_content"],
+          protocols: ["gemini_generate_content"],
           label: "Code Execution",
           enabled: true,
           defaultEnabled: true,
           payload: {
             code_execution: {},
           },
+          provider: "Google",
           type: "code_execution",
+          description: "Google hosted code execution tool.",
         },
         {
           key: "google.google_search",
-          protocols: ["google_generate_content", "gemini_generate_content"],
+          protocols: ["gemini_generate_content"],
           label: "Google Search",
           enabled: true,
           defaultEnabled: true,
@@ -323,14 +325,91 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
         },
         {
           key: "google.url_context",
-          protocols: ["google_generate_content", "gemini_generate_content"],
+          protocols: ["gemini_generate_content"],
           label: "URL Context",
           enabled: true,
           defaultEnabled: true,
           payload: {
             url_context: {},
           },
+          provider: "Google",
           type: "url_context",
+          description: "Google hosted URL context tool.",
+        },
+      ],
+    },
+  },
+  {
+    id: "gemini_interactions",
+    protocol: "gemini_interactions",
+    payload: {
+      defaultOptions: {
+        generation_config: {
+          thinking_level: "medium",
+          thinking_summaries: "auto",
+        },
+      },
+      optionControls: [
+        {
+          path: "generation_config.thinking_level",
+          type: "select",
+          label: "Thinking Level",
+          description: "Controls the depth of the model's internal reasoning.",
+          options: ["minimal", "low", "medium", "high"],
+        },
+        {
+          path: "generation_config.thinking_summaries",
+          type: "select",
+          label: "Thinking Summaries",
+          description: "Controls whether thought summaries are included in the response.",
+          options: ["none", "auto"],
+        },
+        {
+          path: "generation_config.max_output_tokens",
+          type: "number",
+          label: "Max Output Tokens",
+          description: "Maximum number of tokens to include in the response.",
+        },
+      ],
+      nativeTools: [
+        {
+          key: "google.code_execution",
+          protocols: ["gemini_interactions"],
+          label: "Code Execution",
+          enabled: true,
+          defaultEnabled: true,
+          payload: {
+            type: "code_execution",
+          },
+          provider: "Google",
+          type: "code_execution",
+          description: "Google hosted code execution tool.",
+        },
+        {
+          key: "google.google_search",
+          protocols: ["gemini_interactions"],
+          label: "Google Search",
+          enabled: true,
+          defaultEnabled: true,
+          payload: {
+            type: "google_search",
+          },
+          provider: "Google",
+          type: "google_search",
+          description: "Google hosted search grounding tool.",
+        },
+        {
+          key: "google.url_context",
+          protocols: ["gemini_interactions"],
+          label: "URL Context",
+          enabled: true,
+          defaultEnabled: true,
+          payload: {
+            type: "url_context",
+          },
+          provider: "Google",
+          type: "url_context",
+          description: "Google hosted URL context tool.",
         },
       ],
     },

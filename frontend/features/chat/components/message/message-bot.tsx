@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { AssistantMessageMeta } from "@/features/chat/components/message/message-meta";
 import { MessageAttachmentRow } from "@/features/chat/components/message/message-attachment";
+import { MessageKnowledgeSources } from "@/features/chat/components/message/message-knowledge-sources";
 import { MessageProcessTrace, MessageTraceEventBlocks } from "@/features/chat/components/message/message-process-trace";
 import { GrainientBackground } from "@/components/reactbits/backgrounds/grainient";
 import type { AssistantReaction } from "@/features/chat/components/message/message-meta";
@@ -130,6 +131,7 @@ type ChatMessageBotProps = {
   onRetryAssistantMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onContinueAssistantMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
+  onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onCycleMessageBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
   onReactAssistantMessage: (publicID: string, reaction: AssistantReaction) => void;
   onCopy: () => void;
@@ -157,6 +159,7 @@ export function ChatMessageBot({
   onRetryAssistantMessage,
   onContinueAssistantMessage,
   onEditAssistantMessage,
+  onForkMessage,
   onCycleMessageBranch,
   onReactAssistantMessage,
   onCopy,
@@ -186,6 +189,10 @@ export function ChatMessageBot({
   const onContinue = React.useCallback(() => {
     void onContinueAssistantMessage?.(item);
   }, [item, onContinueAssistantMessage]);
+  const onFork = React.useCallback(
+    () => onForkMessage?.(item),
+    [item, onForkMessage],
+  );
   const onEditSave = React.useCallback(async () => {
     const nextContent = editingValue.trim();
     if (!nextContent || nextContent === item.content.trim()) {
@@ -343,6 +350,7 @@ export function ChatMessageBot({
       />
 
       <div
+        data-chat-assistant-content=""
         className="w-full min-w-0 max-w-none overflow-hidden text-[15px] leading-8 text-foreground [overflow-wrap:anywhere]"
         style={{ fontFamily: "var(--font-chat)", fontWeight: "var(--font-chat-weight)" }}
       >
@@ -401,6 +409,12 @@ export function ChatMessageBot({
 
       {screenshotMeta}
 
+      <MessageKnowledgeSources
+        trace={processTrace}
+        sources={item.knowledgeSources}
+        streaming={messageStreaming}
+      />
+
       <AssistantMessageMeta
         item={item}
         busy={busy}
@@ -410,6 +424,7 @@ export function ChatMessageBot({
         onContinue={onContinueAssistantMessage ? onContinue : undefined}
         onEdit={() => setIsEditing(true)}
         onCopy={onCopy}
+        onFork={onForkMessage ? onFork : undefined}
         copySucceeded={copySucceeded}
         onReact={(value) => onReactAssistantMessage(item.publicID, value)}
         showModelInfo={showModelInfo}

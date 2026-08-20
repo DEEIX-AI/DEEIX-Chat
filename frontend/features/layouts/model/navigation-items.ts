@@ -3,6 +3,7 @@ import { MessageCircleMore } from "@/components/animate-ui/icons/message-circle-
 import { PlusIcon } from "@/components/ui/plus";
 import { Search } from "@/components/animate-ui/icons/search";
 import { Blend } from "@/components/animate-ui/icons/blend";
+import { BookOpen } from "@/components/animate-ui/icons/book-open";
 import type { NavigationItem } from "@/features/layouts/types/navigation";
 
 export const NAVIGATION_ITEMS = [
@@ -33,6 +34,13 @@ export const NAVIGATION_ITEMS = [
     kind: "link",
     href: "/files",
     icon: Layers,
+    group: "secondary",
+  },
+  {
+    id: "knowledgeBases",
+    kind: "link",
+    href: "/knowledges",
+    icon: BookOpen,
     group: "secondary",
   },
   {

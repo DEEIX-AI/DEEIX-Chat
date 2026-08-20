@@ -113,6 +113,20 @@ func DefaultModelOptionAllowedPathsJSON() string {
     "size",
     "user"
   ],
+  "anthropic_messages": [
+    "speed",
+    "top_k",
+    "thinking.type",
+    "thinking.budget_tokens"
+  ],
+  "gemini_generate_content": [
+    "generationConfig.temperature",
+    "generationConfig.topP",
+    "generationConfig.maxOutputTokens",
+    "generationConfig.responseMimeType",
+    "generationConfig.thinkingConfig.includeThoughts",
+    "generationConfig.thinkingConfig.thinkingLevel"
+  ],
   "google_image_generation": [
     "generationConfig.responseModalities",
     "generationConfig.imageConfig.aspectRatio",
@@ -123,22 +137,13 @@ func DefaultModelOptionAllowedPathsJSON() string {
     "generation_config.top_p",
     "generation_config.max_output_tokens",
     "generation_config.thinking_level",
+    "generation_config.thinking_summaries",
     "response_format.type",
     "response_format.aspect_ratio",
     "response_format.image_size",
     "response_format.mime_type",
-    "responseFormat.type",
-    "responseFormat.aspectRatio",
-    "responseFormat.imageSize",
-    "responseFormat.mimeType",
-    "generationConfig.videoConfig.task",
+    "response_format.schema",
     "generation_config.video_config.task"
-  ],
-  "anthropic_messages": [
-    "speed",
-    "top_k",
-    "thinking.type",
-    "thinking.budget_tokens"
   ],
   "xai_responses": [
     "reasoning.effort",
@@ -163,12 +168,6 @@ func DefaultModelOptionAllowedPathsJSON() string {
     "aspect_ratio",
     "duration",
     "resolution"
-  ],
-  "gemini_generate_content": [
-    "generationConfig.temperature",
-    "generationConfig.topP",
-    "generationConfig.maxOutputTokens",
-    "generationConfig.responseMimeType"
   ]
 }`
 }
@@ -471,6 +470,10 @@ type Config struct {
 	ExtractMinerUFileTypes            string // MinerU 处理的文件类型（逗号分隔）
 	ExtractMinerUTimeoutSeconds       int    // MinerU 请求超时(秒)
 	ExtractMinerUAuthToken            string // MinerU 鉴权 Token
+	ExtractMistralOCRBaseURL          string // Mistral OCR 服务地址
+	ExtractMistralOCRModel            string // Mistral OCR 请求模型
+	ExtractMistralOCRTimeoutSeconds   int    // Mistral OCR 请求超时(秒)
+	ExtractMistralOCRAuthToken        string // Mistral OCR 鉴权 Token
 	ExtractLLMOCRBaseURL              string // LLM OCR 服务地址
 	ExtractLLMOCRModel                string // LLM OCR 请求模型
 	ExtractLLMOCRTimeoutSeconds       int    // LLM OCR 请求超时(秒)
@@ -702,6 +705,10 @@ func Load() Config {
 		ExtractMinerUFileTypes:            "pdf,word,presentation",
 		ExtractMinerUTimeoutSeconds:       180,
 		ExtractMinerUAuthToken:            "",
+		ExtractMistralOCRBaseURL:          "https://api.mistral.ai/v1/ocr",
+		ExtractMistralOCRModel:            "mistral-ocr-latest",
+		ExtractMistralOCRTimeoutSeconds:   60,
+		ExtractMistralOCRAuthToken:        "",
 		ExtractLLMOCRBaseURL:              "",
 		ExtractLLMOCRModel:                "",
 		ExtractLLMOCRTimeoutSeconds:       60,

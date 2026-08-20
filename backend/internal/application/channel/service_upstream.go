@@ -32,6 +32,9 @@ type ListUpstreamsInput struct {
 func (s *Service) ListUpstreams(ctx context.Context, page int, pageSize int, input ListUpstreamsInput) ([]UpstreamView, int64, error) {
 	offset, limit := normalizePage(page, pageSize)
 	if strings.TrimSpace(input.Status) == "circuit" {
+		if s.cache == nil || !s.loadBreakerDefaults(ctx).Enabled {
+			return []UpstreamView{}, 0, nil
+		}
 		return s.listCircuitOpenUpstreams(ctx, offset, limit, input)
 	}
 	items, total, err := s.repo.ListUpstreams(ctx, repository.ListChannelUpstreamsInput{
@@ -85,15 +88,16 @@ func (s *Service) listCircuitOpenUpstreams(ctx context.Context, offset int, limi
 }
 
 func (s *Service) toUpstreamViews(ctx context.Context, items []repository.ChannelUpstreamListRow) ([]UpstreamView, error) {
+	breakerEnabled := s.cache != nil && s.loadBreakerDefaults(ctx).Enabled
 	views := make([]UpstreamView, 0, len(items))
 	for _, item := range items {
 		v := toUpstreamView(item)
 		v.APIKeysMasked = s.maskAPIKeysEnc(item.APIKeysEnc)
 		v.APIKeyItems = s.maskAPIKeyViewsEnc(item.APIKeysEnc)
-		if s.cache != nil {
+		if breakerEnabled && s.cache != nil {
 			v.CircuitOpen, v.CircuitUntil = s.cache.QueryUpstreamCircuitStatus(ctx, item.ID)
 		}
-		if err := s.normalizeUpstreamAvailability(ctx, &v); err != nil {
+		if err := s.normalizeUpstreamAvailability(ctx, &v, breakerEnabled); err != nil {
 			return nil, err
 		}
 		views = append(views, v)
@@ -101,7 +105,7 @@ func (s *Service) toUpstreamViews(ctx context.Context, items []repository.Channe
 	return views, nil
 }
 
-func (s *Service) normalizeUpstreamAvailability(ctx context.Context, view *UpstreamView) error {
+func (s *Service) normalizeUpstreamAvailability(ctx context.Context, view *UpstreamView, breakerEnabled bool) error {
 	if view == nil {
 		return nil
 	}
@@ -109,7 +113,7 @@ func (s *Service) normalizeUpstreamAvailability(ctx context.Context, view *Upstr
 		view.ActiveModelsCount = 0
 		return nil
 	}
-	if s.cache == nil || view.ModelsCount <= 0 || view.ActiveModelsCount <= 0 {
+	if !breakerEnabled || s.cache == nil || view.ModelsCount <= 0 || view.ActiveModelsCount <= 0 {
 		return nil
 	}
 	activeBindingCodes, err := s.repo.ListActiveRouteBindingCodesForUpstream(ctx, view.ID)
@@ -386,6 +390,9 @@ func (s *Service) OpenUpstreamCircuit(ctx context.Context, upstreamID uint) erro
 	if _, err := s.repo.GetUpstreamByID(ctx, upstreamID); err != nil {
 		return err
 	}
+	if s.cache == nil || !s.loadBreakerDefaults(ctx).Enabled {
+		return ErrCircuitBreakerDisabled
+	}
 	return s.cache.OpenUpstreamCircuit(ctx, upstreamID)
 }
 
@@ -393,6 +400,9 @@ func (s *Service) OpenUpstreamCircuit(ctx context.Context, upstreamID uint) erro
 func (s *Service) ResetUpstreamCircuit(ctx context.Context, upstreamID uint) error {
 	if _, err := s.repo.GetUpstreamByID(ctx, upstreamID); err != nil {
 		return err
+	}
+	if s.cache == nil {
+		return nil
 	}
 	return s.cache.ResetUpstreamCircuit(ctx, upstreamID)
 }

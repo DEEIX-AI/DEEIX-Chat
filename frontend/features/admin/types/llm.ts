@@ -31,6 +31,7 @@ export const ADAPTER_LABELS: Record<string, string> = {
   anthropic_messages: resolveProtocolLabel("anthropic_messages"),
   google_generate_content: resolveProtocolLabel("google_generate_content"),
   google_image_generation: resolveProtocolLabel("google_image_generation"),
+  gemini_interactions: resolveProtocolLabel("gemini_interactions"),
   xai_responses: resolveProtocolLabel("xai_responses"),
   xai_image: resolveProtocolLabel("xai_image"),
   xai_image_edits: resolveProtocolLabel("xai_image_edits"),

@@ -76,6 +76,12 @@ type UpdateModelInput struct {
 	CbWindowMin        *int
 }
 
+// SetModelProtocolsInput 定义平台模型全部来源的目标协议集合。
+type SetModelProtocolsInput struct {
+	Protocols []string
+	KindsJSON string
+}
+
 // CreateModelVendorInput 定义创建技术厂商入参。
 type CreateModelVendorInput struct {
 	Key  string
@@ -105,19 +111,19 @@ type UpdateModelDisplayGroupInput struct {
 
 // UpsertUpstreamModelInput 定义上游真实模型与平台路由保存入参。
 type UpsertUpstreamModelInput struct {
-	RouteID            uint
+	RouteIDs           []uint
 	PlatformModelName  string
 	UpstreamModelName  string
-	Protocol           string
+	Protocols          []string
 	KindsJSON          string
-	Status             string
-	Priority           int
-	Weight             int
-	Source             string
-	CbFailureThreshold int
-	CbDurationMin      int
-	CbWindowMin        int
-	HeadersJSON        string
+	Status             *string
+	Priority           *int
+	Weight             *int
+	Source             *string
+	CbFailureThreshold *int
+	CbDurationMin      *int
+	CbWindowMin        *int
+	HeadersJSON        *string
 }
 
 // UpdateModelUpstreamSourceInput 定义更新模型来源入参。

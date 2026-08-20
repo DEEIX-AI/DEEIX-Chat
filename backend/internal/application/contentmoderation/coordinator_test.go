@@ -335,12 +335,16 @@ func TestRecordHitRollsBackIsolatedImagesWhenEventCreateFails(t *testing.T) {
 		RawImages: []OutputImageSource{{FileID: "file_1", Data: []byte("image-bytes"), MimeType: "image/png"}},
 	}
 
-	if _, err := service.recordHit(context.Background(), task, HitEvaluation{
+	eventID, err := service.recordHit(context.Background(), task, HitEvaluation{
 		Hit:        true,
 		Categories: []string{"violence"},
 		Scores:     map[string]float64{"violence": 0.99},
-	}, 10, nil); !errors.Is(err, repo.createErr) {
+	}, 10, nil)
+	if !errors.Is(err, repo.createErr) {
 		t.Fatalf("record hit error=%v, want %v", err, repo.createErr)
+	}
+	if eventID != "" {
+		t.Fatalf("failed event persistence exposed dangling event ID %q", eventID)
 	}
 
 	store.mu.Lock()

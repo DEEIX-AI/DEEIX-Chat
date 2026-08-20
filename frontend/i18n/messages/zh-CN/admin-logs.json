@@ -136,6 +136,7 @@
       "login": "登录",
       "stream_message": "发送消息",
       "create_conversation": "创建会话",
+      "fork_conversation": "分支会话",
       "rename_conversation": "重命名会话",
       "update_conversation_labels": "更新会话标签",
       "export_conversation": "导出会话",
@@ -391,7 +392,7 @@
     "copyFailed": "复制失败"
   },
   "moderation": {
-    "searchPlaceholder": "搜索事件编号、用户、结果、运行 ID…",
+    "searchPlaceholder": "搜索完整事件编号、用户、结果或运行 ID…",
     "empty": "暂无审核事件。",
     "loadFailed": "审核事件加载失败",
     "viewDetail": "查看详情",
@@ -412,6 +413,10 @@
     "directions": {
       "input": "输入",
       "output": "输出"
+    },
+    "modalities": {
+      "text": "文本",
+      "image": "图像"
     },
     "columns": {
       "eventId": "事件编号",

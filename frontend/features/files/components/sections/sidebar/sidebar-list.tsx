@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Ellipsis, PencilLine, SquareCheckBig, Trash2 } from "lucide-react";
+import { Ellipsis, PencilLine, SquareCheckBig, Trash2, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { resolveFileIcon } from "@/shared/lib/file-display";
@@ -119,18 +119,20 @@ function SidebarListItem({
         </span>
 
         <span className="min-w-0 flex-1 truncate text-xs" title={item.fileName}>{item.fileName}</span>
-        {item.fileCategory !== "image" && item.embedStatus === "ready" ? (
-          <span
-            title={item.ragOptOut ? t("list.ragDisabled") : t("list.ragReady")}
-            className={cn(
-              "shrink-0 text-[10px]",
-              item.ragOptOut ? "text-muted-foreground/40" : "text-primary/70",
-            )}
-          >
-            ⚡
-          </span>
-        ) : null}
       </Button>
+
+      {item.fileCategory !== "image" && item.embedStatus === "ready" ? (
+        <span
+          title={item.ragOptOut ? t("list.ragDisabled") : t("list.ragReady")}
+          className={cn(
+            "pointer-events-none absolute inset-y-0 right-1 z-10 flex w-5 items-center justify-center transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0",
+            selected && "opacity-0",
+            item.ragOptOut ? "text-muted-foreground/40" : "text-primary/70",
+          )}
+        >
+          <Zap aria-hidden className="size-3" strokeWidth={1.5} />
+        </span>
+      ) : null}
 
       <div
         className={cn(

@@ -13,6 +13,7 @@
     "loginSettings": "Sign-in & auth",
     "conversationSettings": "Conversation",
     "chatFiles": "Files & retrieval",
+    "knowledgeBases": "Knowledge bases",
     "about": "About",
     "contentModeration": "Content moderation"
   },

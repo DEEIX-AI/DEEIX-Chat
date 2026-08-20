@@ -18,6 +18,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/pdfrender"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/outboundhttp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -79,6 +80,7 @@ type Client struct {
 	httpClient     *http.Client
 	llmClient      *llm.Client
 	pdfRenderer    *pdfrender.Renderer
+	mistral        bool
 }
 
 // NewRapidOCR 创建 RapidOCR client。
@@ -110,6 +112,37 @@ func NewLLM(cfg ClientConfig) *Client {
 		timeoutSeconds: cfg.TimeoutSeconds,
 		llmClient:      llm.NewClient(cfg.OutboundPolicy),
 		pdfRenderer:    pdfrender.New(),
+	}
+}
+
+// NewMistral 创建 Mistral OCR client。
+func NewMistral(cfg ClientConfig) *Client {
+	baseURL := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
+	if baseURL == "" {
+		return nil
+	}
+
+	trustedPolicy, err := cfg.OutboundPolicy.WithTrustedHTTPURLs(baseURL)
+	if err != nil {
+		return nil
+	}
+	trustedOrigin, err := security.HTTPOrigin(baseURL)
+	if err != nil {
+		return nil
+	}
+	transport := security.NewOutboundHTTPTransport(trustedPolicy, 10*time.Second)
+	httpClient := &http.Client{
+		Timeout:       resolveHTTPTimeout(cfg.TimeoutSeconds, 60*time.Second),
+		Transport:     platformtracing.NewHTTPTransport(transport),
+		CheckRedirect: outboundhttp.NewRedirectPolicy(cfg.OutboundPolicy, trustedOrigin, "Mistral OCR request"),
+	}
+	return &Client{
+		baseURL:        baseURL,
+		authToken:      strings.TrimSpace(cfg.AuthToken),
+		model:          strings.TrimSpace(cfg.Model),
+		timeoutSeconds: cfg.TimeoutSeconds,
+		httpClient:     httpClient,
+		mistral:        true,
 	}
 }
 
@@ -236,6 +269,9 @@ func (c *Client) ExtractText(ctx context.Context, req Request) (Response, error)
 	}
 	if c.llmClient != nil {
 		return c.extractTextWithLLM(ctx, req)
+	}
+	if c.mistral {
+		return c.extractTextWithMistral(ctx, req)
 	}
 	return c.extractTextRemote(ctx, req)
 }

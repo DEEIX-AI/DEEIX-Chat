@@ -13,6 +13,8 @@ import type {
   ModelDataResponse,
   ModelDisplayGroupDataResponse,
   ModelDisplayGroupResponse,
+  ModelIconAssetResponse,
+  ModelIconAssetListItemResponse,
   ModelProbeBatchResponse,
   ModelProbeDebugRequestResponse,
   ModelProbeDebugResponse,
@@ -22,6 +24,7 @@ import type {
   ModelUpstreamSourceDataResponse,
   ModelUpstreamSourceResponse,
   ReorderModelsRequest,
+  SetModelProtocolsRequest,
   SetModelsDisplayGroupRequest,
   UpdateModelDisplayGroupRequest,
   UpdateModelRequest,
@@ -37,6 +40,7 @@ import type {
   UpstreamRemoteModelsResponse,
   UpstreamResponse,
   ModelVendorDataResponse,
+  ModelVendorDeleteConflictDetails,
   ModelVendorResponse,
 } from "@deeix/api-contract";
 
@@ -177,7 +181,10 @@ export type AdminLLMSetting = {
 };
 
 export type AdminLLMModelVendorDTO = ModelVendorResponse;
+export type AdminLLMModelVendorDeleteConflictDetails = ModelVendorDeleteConflictDetails;
 export type AdminLLMModelDisplayGroupDTO = ModelDisplayGroupResponse;
+export type AdminLLMModelIconAsset = ModelIconAssetResponse;
+export type AdminLLMModelIconAssetListItem = ModelIconAssetListItemResponse;
 
 // ---------------------------------------------------------------------------
 // Request types
@@ -227,9 +234,12 @@ export type UpdateAdminLLMModelVendorRequest = UpdateModelVendorRequest;
 export type CreateAdminLLMModelDisplayGroupRequest = CreateModelDisplayGroupRequest;
 export type UpdateAdminLLMModelDisplayGroupRequest = UpdateModelDisplayGroupRequest;
 export type SetAdminLLMModelsDisplayGroupRequest = SetModelsDisplayGroupRequest;
+export type SetAdminLLMModelProtocolsRequest = Omit<SetModelProtocolsRequest, "protocols"> & {
+  protocols: AdminLLMAdapter[];
+};
 
-export type UpsertAdminLLMUpstreamModelRequest = Omit<UpsertUpstreamModelRequest, "protocol" | "status"> & {
-  protocol?: AdminLLMAdapter;
+export type UpsertAdminLLMUpstreamModelRequest = Omit<UpsertUpstreamModelRequest, "protocols" | "status"> & {
+  protocols: AdminLLMAdapter[];
   status?: AdminLLMStatus;
 };
 

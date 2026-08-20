@@ -259,6 +259,14 @@ func (r *RuntimeSettings) applyItem(cfg *config.Config, item domainsettings.Syst
 		cfg.ExtractMinerUTimeoutSeconds = toInt(item.Value, cfg.ExtractMinerUTimeoutSeconds)
 	case "extract:mineru_auth_token":
 		cfg.ExtractMinerUAuthToken = item.Value
+	case "extract:mistral_ocr_base_url":
+		cfg.ExtractMistralOCRBaseURL = item.Value
+	case "extract:mistral_ocr_auth_token":
+		cfg.ExtractMistralOCRAuthToken = item.Value
+	case "extract:mistral_ocr_model":
+		cfg.ExtractMistralOCRModel = item.Value
+	case "extract:mistral_ocr_timeout_seconds":
+		cfg.ExtractMistralOCRTimeoutSeconds = toInt(item.Value, cfg.ExtractMistralOCRTimeoutSeconds)
 	case "extract:llm_ocr_base_url":
 		cfg.ExtractLLMOCRBaseURL = item.Value
 	case "extract:llm_ocr_model":

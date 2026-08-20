@@ -3,6 +3,7 @@ package contentmoderation
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
@@ -68,6 +69,7 @@ func TestListEventsRejectsInvalidFilters(t *testing.T) {
 		{Modality: "video"},
 		{Result: "blocked"},
 		{Category: "%"},
+		{Query: strings.Repeat("x", 201)},
 	}
 	for _, input := range tests {
 		if _, _, err := service.ListEvents(context.Background(), "superadmin", input); !errors.Is(err, ErrInvalidEventFilter) {

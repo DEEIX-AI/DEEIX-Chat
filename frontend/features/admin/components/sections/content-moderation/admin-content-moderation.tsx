@@ -35,8 +35,45 @@ import {
 } from "../shared/settings-runtime-panel";
 import { ModerationCategorySelector } from "./moderation-category-selector";
 
-type ServiceConfigField = "baseUrl" | "model" | "timeoutSeconds" | "maxConcurrency" | "queueCapacity";
-type ServiceDraftField = ServiceConfigField | "apiKey";
+type ServiceDraft = {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  timeoutSeconds: string;
+  maxConcurrency: string;
+  queueCapacity: string;
+};
+
+function createServiceDraft(config: ContentModerationConfig): ServiceDraft {
+  return {
+    baseUrl: config.baseUrl,
+    apiKey: "",
+    model: config.model,
+    timeoutSeconds: String(config.timeoutSeconds),
+    maxConcurrency: String(config.maxConcurrency),
+    queueCapacity: String(config.queueCapacity),
+  };
+}
+
+function parseIntegerDraft(value: string, min: number, max: number): number | null {
+  const normalized = value.trim();
+  if (!/^\d+$/.test(normalized)) return null;
+  const parsed = Number(normalized);
+  return Number.isSafeInteger(parsed) && parsed >= min && parsed <= max ? parsed : null;
+}
+
+function createPolicyPayload(config: ContentModerationConfig) {
+  return {
+    inputTextCategories: config.policy.inputTextCategories,
+    inputImageCategories: config.policy.inputImageCategories,
+    outputTextCategories: config.policy.outputTextCategories,
+    outputImageCategories: config.policy.outputImageCategories,
+  };
+}
+
+function hasSelectedPolicy(config: ContentModerationConfig): boolean {
+  return Object.values(createPolicyPayload(config)).some((categories) => categories.length > 0);
+}
 
 export function AdminContentModeration() {
   const t = useTranslations("adminContentModeration");
@@ -47,9 +84,9 @@ export function AdminContentModeration() {
   const [probing, setProbing] = React.useState(false);
   const [config, setConfig] = React.useState<ContentModerationConfig | null>(null);
   const [savedConfig, setSavedConfig] = React.useState<ContentModerationConfig | null>(null);
+  const [serviceDraft, setServiceDraft] = React.useState<ServiceDraft | null>(null);
   const [textCategories, setTextCategories] = React.useState<string[]>([]);
   const [imageCategories, setImageCategories] = React.useState<string[]>([]);
-  const [apiKeyDraft, setApiKeyDraft] = React.useState("");
   const [probeRuntime, setProbeRuntime] = React.useState<ServiceRuntimeState | null>(null);
 
   const load = React.useCallback(async () => {
@@ -61,6 +98,7 @@ export function AdminContentModeration() {
       const cfgRes = await getContentModerationConfig(token);
       setConfig(cfgRes.config);
       setSavedConfig(cfgRes.config);
+      setServiceDraft(createServiceDraft(cfgRes.config));
       setTextCategories(cfgRes.categories.text);
       setImageCategories(cfgRes.categories.image);
     } catch (error) {
@@ -78,65 +116,99 @@ export function AdminContentModeration() {
     () => Boolean(
       config &&
       savedConfig &&
+      serviceDraft &&
       (config.enabled !== savedConfig.enabled ||
-        config.baseUrl !== savedConfig.baseUrl ||
-        config.model !== savedConfig.model ||
-        config.timeoutSeconds !== savedConfig.timeoutSeconds ||
-        config.maxConcurrency !== savedConfig.maxConcurrency ||
-        config.queueCapacity !== savedConfig.queueCapacity ||
-        apiKeyDraft.trim()),
+        serviceDraft.baseUrl !== savedConfig.baseUrl ||
+        serviceDraft.model !== savedConfig.model ||
+        serviceDraft.timeoutSeconds !== String(savedConfig.timeoutSeconds) ||
+        serviceDraft.maxConcurrency !== String(savedConfig.maxConcurrency) ||
+        serviceDraft.queueCapacity !== String(savedConfig.queueCapacity) ||
+        serviceDraft.apiKey.trim()),
     ),
-    [apiKeyDraft, config, savedConfig],
+    [config, savedConfig, serviceDraft],
   );
   const policyDirty = React.useMemo(
     () => Boolean(config && savedConfig && JSON.stringify(config.policy) !== JSON.stringify(savedConfig.policy)),
     [config, savedConfig],
   );
 
-  function updateServiceField<Key extends ServiceConfigField>(
-    key: Key,
-    value: ContentModerationConfig[Key],
-  ) {
-    setConfig((current) => (current ? { ...current, [key]: value } : current));
+  function updateServiceDraft(key: keyof ServiceDraft, value: string) {
+    setServiceDraft((current) => (current ? { ...current, [key]: value } : current));
     setProbeRuntime(null);
   }
 
-  function updateServiceDraft(key: ServiceDraftField, value: string) {
-    switch (key) {
-      case "apiKey":
-        setApiKeyDraft(value);
-        setProbeRuntime(null);
-        break;
-      case "baseUrl":
-      case "model":
-        updateServiceField(key, value);
-        break;
-      case "timeoutSeconds":
-        updateServiceField(key, Number(value) || 10);
-        break;
-      case "maxConcurrency":
-        updateServiceField(key, Number(value) || 4);
-        break;
-      case "queueCapacity":
-        updateServiceField(key, Number(value) || 256);
-        break;
-    }
-  }
-
-  const save = async () => {
-    if (!config || !isSuperAdmin) return;
-    const hasSelectedPolicy = [
-      config.policy.inputTextCategories,
-      config.policy.inputImageCategories,
-      config.policy.outputTextCategories,
-      config.policy.outputImageCategories,
-    ].some((categories) => categories.length > 0);
-    if (config.enabled && !hasSelectedPolicy) {
+  const saveService = async () => {
+    if (!config || !savedConfig || !serviceDraft || !isSuperAdmin) return;
+    const enabling = config.enabled && !savedConfig.enabled;
+    if (enabling && !hasSelectedPolicy(config)) {
       toast.error(t("saveFailed"), { description: t("validation.policyRequired") });
       return;
     }
-    if (config.enabled && !config.hasAPIKey && !apiKeyDraft.trim()) {
+    if (config.enabled && !config.hasAPIKey && !serviceDraft.apiKey.trim()) {
       toast.error(t("saveFailed"), { description: t("validation.apiKeyRequired") });
+      return;
+    }
+    let timeoutSeconds: number | null = null;
+    let maxConcurrency: number | null = null;
+    let queueCapacity: number | null = null;
+    if (config.enabled) {
+      timeoutSeconds = parseIntegerDraft(serviceDraft.timeoutSeconds, 1, 60);
+      maxConcurrency = parseIntegerDraft(serviceDraft.maxConcurrency, 1, 64);
+      queueCapacity = parseIntegerDraft(serviceDraft.queueCapacity, 1, 4096);
+      if (timeoutSeconds === null || maxConcurrency === null || queueCapacity === null) {
+        const invalidNumericField = timeoutSeconds === null
+          ? { key: "timeoutSeconds", min: 1, max: 60 }
+          : maxConcurrency === null
+            ? { key: "maxConcurrency", min: 1, max: 64 }
+            : { key: "queueCapacity", min: 1, max: 4096 };
+        toast.error(t("saveFailed"), {
+          description: t("validation.integerRange", {
+            field: t(`fields.${invalidNumericField.key}`),
+            min: invalidNumericField.min,
+            max: invalidNumericField.max,
+          }),
+        });
+        return;
+      }
+    }
+    setSaving(true);
+    try {
+      const token = await resolveAccessToken();
+      if (!token) return;
+      const res = await updateContentModerationConfig(
+        token,
+        config.enabled
+          ? {
+              enabled: true,
+              baseUrl: serviceDraft.baseUrl,
+              model: serviceDraft.model,
+              timeoutSeconds: timeoutSeconds ?? undefined,
+              maxConcurrency: maxConcurrency ?? undefined,
+              queueCapacity: queueCapacity ?? undefined,
+              apiKey: serviceDraft.apiKey.trim() || undefined,
+              policy: enabling ? createPolicyPayload(config) : undefined,
+            }
+          : { enabled: false },
+      );
+      setConfig({
+        ...res.config,
+        policy: enabling ? res.config.policy : config.policy,
+      });
+      setSavedConfig(res.config);
+      setServiceDraft(createServiceDraft(res.config));
+      setProbeRuntime(null);
+      toast.success(t("saved"));
+    } catch (error) {
+      toast.error(t("saveFailed"), { description: resolveAdminErrorMessage(error) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const savePolicy = async () => {
+    if (!config || !savedConfig?.enabled || !isSuperAdmin) return;
+    if (!hasSelectedPolicy(config)) {
+      toast.error(t("saveFailed"), { description: t("validation.policyRequired") });
       return;
     }
     setSaving(true);
@@ -144,23 +216,10 @@ export function AdminContentModeration() {
       const token = await resolveAccessToken();
       if (!token) return;
       const res = await updateContentModerationConfig(token, {
-        enabled: config.enabled,
-        baseUrl: config.baseUrl,
-        model: config.model,
-        timeoutSeconds: config.timeoutSeconds,
-        maxConcurrency: config.maxConcurrency,
-        queueCapacity: config.queueCapacity,
-        apiKey: apiKeyDraft.trim() || undefined,
-        policy: {
-          inputTextCategories: config.policy.inputTextCategories,
-          inputImageCategories: config.policy.inputImageCategories,
-          outputTextCategories: config.policy.outputTextCategories,
-          outputImageCategories: config.policy.outputImageCategories,
-        },
+        policy: createPolicyPayload(config),
       });
-      setConfig(res.config);
+      setConfig((current) => (current ? { ...current, policy: res.config.policy } : res.config));
       setSavedConfig(res.config);
-      setApiKeyDraft("");
       setProbeRuntime(null);
       toast.success(t("saved"));
     } catch (error) {
@@ -222,7 +281,7 @@ export function AdminContentModeration() {
     );
   }
 
-  if (!config || !savedConfig) {
+  if (!config || !savedConfig || !serviceDraft) {
     return (
       <SettingsPage>
         <SettingsSection title={t("title")}>
@@ -232,9 +291,9 @@ export function AdminContentModeration() {
     );
   }
 
-  const renderSaveAction = (visible: boolean) =>
+  const renderSaveAction = (visible: boolean, onSave: () => Promise<void>) =>
     visible ? (
-      <Button type="button" size="sm" disabled={saving || probing} onClick={() => void save()}>
+      <Button type="button" size="sm" disabled={saving || probing} onClick={() => void onSave()}>
         {saving ? (
           <SpinnerLabel>{t("saving")}</SpinnerLabel>
         ) : (
@@ -245,48 +304,48 @@ export function AdminContentModeration() {
         )}
       </Button>
     ) : null;
-  const serviceSaveAction = renderSaveAction(serviceDirty);
-  const policySaveAction = renderSaveAction(config.enabled && policyDirty);
+  const serviceSaveAction = renderSaveAction(serviceDirty, saveService);
+  const policySaveAction = renderSaveAction(savedConfig.enabled && config.enabled && policyDirty, savePolicy);
   const serviceFields = [
     {
       key: "baseUrl",
       type: "string",
-      value: config.baseUrl,
+      value: serviceDraft.baseUrl,
       savedValue: savedConfig.baseUrl,
       placeholder: undefined,
     },
     {
       key: "apiKey",
       type: "password",
-      value: apiKeyDraft,
+      value: serviceDraft.apiKey,
       savedValue: "",
       placeholder: t("fields.apiKeyPlaceholder"),
     },
     {
       key: "model",
       type: "string",
-      value: config.model,
+      value: serviceDraft.model,
       savedValue: savedConfig.model,
       placeholder: undefined,
     },
     {
       key: "timeoutSeconds",
       type: "int",
-      value: String(config.timeoutSeconds),
+      value: serviceDraft.timeoutSeconds,
       savedValue: String(savedConfig.timeoutSeconds),
       placeholder: undefined,
     },
     {
       key: "maxConcurrency",
       type: "int",
-      value: String(config.maxConcurrency),
+      value: serviceDraft.maxConcurrency,
       savedValue: String(savedConfig.maxConcurrency),
       placeholder: undefined,
     },
     {
       key: "queueCapacity",
       type: "int",
-      value: String(config.queueCapacity),
+      value: serviceDraft.queueCapacity,
       savedValue: String(savedConfig.queueCapacity),
       placeholder: undefined,
     },
@@ -367,7 +426,7 @@ export function AdminContentModeration() {
                             configured={field.key === "apiKey" ? config.hasAPIKey : undefined}
                             dirty={
                               field.key === "apiKey"
-                                ? Boolean(apiKeyDraft.trim())
+                                ? Boolean(serviceDraft.apiKey.trim())
                                 : field.value !== field.savedValue
                             }
                             disabled={saving || probing}

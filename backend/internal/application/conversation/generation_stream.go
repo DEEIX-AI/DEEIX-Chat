@@ -86,8 +86,9 @@ func (s *Service) SubscribeMessageGeneration(
 	userID uint,
 	runID string,
 	afterSeq int64,
+	includeTextSnapshot bool,
 ) ([]GenerationStreamEvent, <-chan GenerationStreamEvent, func(), bool) {
-	return s.generationStreams.subscribe(ctx, userID, normalizeRunID(runID), afterSeq)
+	return s.generationStreams.subscribe(ctx, userID, normalizeRunID(runID), afterSeq, includeTextSnapshot)
 }
 
 // FinishMessageGeneration 标记生成流结束，并在短期恢复窗口后释放事件缓存。
@@ -293,7 +294,11 @@ func (r *generationStreamRegistry) publish(ctx context.Context, runID string, pa
 	if err != nil {
 		return actual
 	}
-	record, err := r.append(ctx, r.store, runID, payloadJSON)
+	appendInput := repository.GenerationStreamAppend{PayloadJSON: payloadJSON}
+	if streamString(persisted["type"]) == "delta" {
+		appendInput.TextDelta = streamString(persisted["delta"])
+	}
+	record, err := r.append(ctx, r.store, runID, appendInput)
 	if err == nil && record.Seq > 0 {
 		actual["seq"] = record.Seq
 		if sanitized {
@@ -314,11 +319,11 @@ func (r *generationStreamRegistry) resetEvents(ctx context.Context, runID string
 	_ = r.store.ResetGenerationStreamEvents(ctx, runID)
 }
 
-func (r *generationStreamRegistry) append(ctx context.Context, store repository.GenerationStreamCacheRepository, runID string, payloadJSON string) (repository.GenerationStreamMessage, error) {
+func (r *generationStreamRegistry) append(ctx context.Context, store repository.GenerationStreamCacheRepository, runID string, input repository.GenerationStreamAppend) (repository.GenerationStreamMessage, error) {
 	if store == nil {
 		return repository.GenerationStreamMessage{}, nil
 	}
-	return store.AppendGenerationStreamEvent(ctx, runID, payloadJSON, int64(r.options.MaxEvents), r.options.ActiveTTL)
+	return store.AppendGenerationStreamEvent(ctx, runID, input, int64(r.options.MaxEvents), r.options.ActiveTTL)
 }
 
 func (r *generationStreamRegistry) subscribe(
@@ -326,11 +331,12 @@ func (r *generationStreamRegistry) subscribe(
 	userID uint,
 	runID string,
 	afterSeq int64,
+	includeTextSnapshot bool,
 ) ([]GenerationStreamEvent, <-chan GenerationStreamEvent, func(), bool) {
 	if runID == "" {
 		return nil, nil, nil, false
 	}
-	return r.subscribeStore(ctx, r.store, userID, runID, afterSeq)
+	return r.subscribeStore(ctx, r.store, userID, runID, afterSeq, includeTextSnapshot)
 }
 
 func (r *generationStreamRegistry) subscribeStore(
@@ -339,6 +345,7 @@ func (r *generationStreamRegistry) subscribeStore(
 	userID uint,
 	runID string,
 	afterSeq int64,
+	includeTextSnapshot bool,
 ) ([]GenerationStreamEvent, <-chan GenerationStreamEvent, func(), bool) {
 	if store == nil || !r.authorized(ctx, store, runID, userID) {
 		return nil, nil, nil, false
@@ -347,7 +354,21 @@ func (r *generationStreamRegistry) subscribeStore(
 	if err != nil {
 		return nil, nil, nil, false
 	}
-	replay, cursor, terminal := retainedStreamEvents(retained, afterSeq)
+	textSnapshot := repository.GenerationStreamTextSnapshot{}
+	hasTextSnapshot := false
+	if includeTextSnapshot {
+		// Read the snapshot after the retained window. Events appended in between
+		// are read again from cursor; visible deltas already covered by the snapshot
+		// are filtered by snapshot seq while non-text events remain replayable.
+		textSnapshot, hasTextSnapshot, err = store.GetGenerationStreamTextSnapshot(ctx, runID)
+		if err != nil {
+			return nil, nil, nil, false
+		}
+	}
+	replay, cursor, terminal, safe := retainedStreamEvents(retained, afterSeq, textSnapshot, hasTextSnapshot, includeTextSnapshot)
+	if !safe {
+		return nil, nil, nil, false
+	}
 	events := make(chan GenerationStreamEvent, r.options.SubscriberBuffer)
 	if terminal {
 		close(events)
@@ -355,7 +376,7 @@ func (r *generationStreamRegistry) subscribeStore(
 	}
 
 	readCtx, cancel := context.WithCancel(ctx)
-	go r.readStoreEvents(readCtx, store, runID, cursor, afterSeq, events)
+	go r.readStoreEvents(readCtx, store, runID, cursor, afterSeq, textSnapshot.Seq, events)
 	return replay, events, cancel, true
 }
 
@@ -365,6 +386,7 @@ func (r *generationStreamRegistry) readStoreEvents(
 	runID string,
 	cursor string,
 	afterSeq int64,
+	textSnapshotSeq int64,
 	out chan<- GenerationStreamEvent,
 ) {
 	defer close(out)
@@ -390,6 +412,9 @@ func (r *generationStreamRegistry) readStoreEvents(
 			}
 			event, ok := decodeStreamRecord(record)
 			if !ok {
+				continue
+			}
+			if streamString(event.Payload["type"]) == "delta" && event.Seq <= textSnapshotSeq {
 				continue
 			}
 			afterSeq = event.Seq
@@ -541,10 +566,32 @@ func stopActiveGeneration(active *activeGeneration) {
 	}
 }
 
-func retainedStreamEvents(records []repository.GenerationStreamMessage, afterSeq int64) ([]GenerationStreamEvent, string, bool) {
+func retainedStreamEvents(
+	records []repository.GenerationStreamMessage,
+	afterSeq int64,
+	textSnapshot repository.GenerationStreamTextSnapshot,
+	hasTextSnapshot bool,
+	includeTextSnapshot bool,
+) ([]GenerationStreamEvent, string, bool, bool) {
 	replay := make([]GenerationStreamEvent, 0)
 	cursor := "0-0"
 	terminal := false
+	snapshotPending := includeTextSnapshot && hasTextSnapshot
+	appendTextSnapshot := func() {
+		if !snapshotPending {
+			return
+		}
+		replay = append(replay, GenerationStreamEvent{
+			Seq: textSnapshot.Seq,
+			Payload: map[string]interface{}{
+				"type":    "delta",
+				"seq":     textSnapshot.Seq,
+				"delta":   textSnapshot.Content,
+				"replace": true,
+			},
+		})
+		snapshotPending = false
+	}
 	for _, record := range records {
 		if strings.TrimSpace(record.ID) != "" {
 			cursor = record.ID
@@ -553,14 +600,28 @@ func retainedStreamEvents(records []repository.GenerationStreamMessage, afterSeq
 		if !ok {
 			continue
 		}
+		if snapshotPending && event.Seq > textSnapshot.Seq {
+			appendTextSnapshot()
+		}
 		if isTerminalStreamPayload(event.Payload) {
 			terminal = true
+		}
+		if streamString(event.Payload["type"]) == "delta" {
+			// A text delta without a cumulative checkpoint cannot be replayed
+			// safely once the bounded event window has trimmed older chunks.
+			if includeTextSnapshot && !hasTextSnapshot {
+				return nil, cursor, terminal, false
+			}
+			if includeTextSnapshot && event.Seq <= textSnapshot.Seq {
+				continue
+			}
 		}
 		if event.Seq > afterSeq {
 			replay = append(replay, event)
 		}
 	}
-	return replay, cursor, terminal
+	appendTextSnapshot()
+	return replay, cursor, terminal, true
 }
 
 func decodeStreamRecord(record repository.GenerationStreamMessage) (GenerationStreamEvent, bool) {

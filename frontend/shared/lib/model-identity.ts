@@ -1,3 +1,5 @@
+import { resolveConfiguredApiBaseURL } from "@/shared/api/http-client";
+
 type ModelIdentityInput = {
   code?: string | null;
   provider?: string | null;
@@ -258,7 +260,7 @@ function normalizeValue(value: string | null | undefined): string {
 }
 
 function isModelIconResource(value: string): boolean {
-  return /^(?:https?:\/\/|\/)/iu.test(value.trim());
+  return /^(?:https?:\/\/|\/)/iu.test(value.trim()) || /^asset:ico_[a-f0-9]{32}$/iu.test(value.trim());
 }
 
 function findVendorByExactValue(value: string): VendorCatalogItem | null {
@@ -387,6 +389,10 @@ export function resolveModelIconURL(icon: string): string | null {
     return null;
   }
   if (isModelIconResource(normalized)) {
+    const assetMatch = /^asset:(ico_[a-f0-9]{32})$/iu.exec(normalized);
+    if (assetMatch) {
+      return `${resolveConfiguredApiBaseURL()}/api/v1/llm/icon-assets/${encodeURIComponent(assetMatch[1].toLowerCase())}`;
+    }
     return normalized;
   }
   return `/vendor/lobehub-icons/${normalized}.svg`;

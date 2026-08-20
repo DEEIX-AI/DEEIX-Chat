@@ -3,9 +3,12 @@ package channel
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/channelconfig"
 )
 
 // ---------------------------------------------------------------------------
@@ -16,17 +19,6 @@ type jsonBreakerErrorClassification struct {
 	CircuitErrors   []string `json:"circuit_errors"`
 	RateLimitErrors []string `json:"rate_limit_errors"`
 	IgnoreErrors    []string `json:"ignore_errors"`
-}
-
-type jsonBreakerDefaults struct {
-	ModelFailureThreshold    int    `json:"model_failure_threshold"`
-	ModelDurationMin         int    `json:"model_duration_min"`
-	ModelWindowMin           int    `json:"model_window_min"`
-	UpstreamFailureThreshold int    `json:"upstream_failure_threshold"`
-	UpstreamModelThreshold   int    `json:"upstream_model_threshold"`
-	UpstreamThresholdLogic   string `json:"upstream_threshold_logic"`
-	UpstreamDurationMin      int    `json:"upstream_duration_min"`
-	UpstreamWindowMin        int    `json:"upstream_window_min"`
 }
 
 type jsonRateLimitDefaults struct {
@@ -68,49 +60,22 @@ func (r *Repo) GetBreakerErrorClassification(ctx context.Context) (domainchannel
 
 // GetBreakerDefaults 从全局配置读取熔断器默认参数，返回含默认值的 domain 类型。
 func (r *Repo) GetBreakerDefaults(ctx context.Context) (domainchannel.BreakerDefaults, error) {
-	defaults := domainchannel.BreakerDefaults{
-		ModelFailureThreshold:    5,
-		ModelDurationMin:         15,
-		ModelWindowMin:           3,
-		UpstreamFailureThreshold: 20,
-		UpstreamModelThreshold:   3,
-		UpstreamThresholdLogic:   "or",
-		UpstreamDurationMin:      30,
-		UpstreamWindowMin:        5,
-	}
-	item, err := r.GetLLMSetting(ctx, "circuit_breaker.defaults")
-	if err != nil || strings.TrimSpace(item.Value) == "" {
+	defaults := domainchannel.DefaultBreakerDefaults()
+	item, err := r.GetLLMSetting(ctx, channelconfig.BreakerDefaultsKey)
+	if errors.Is(err, ErrLLMSettingNotFound) {
 		return defaults, nil
 	}
-	var raw jsonBreakerDefaults
-	if err = json.Unmarshal([]byte(item.Value), &raw); err != nil {
+	if err != nil {
+		return defaults, err
+	}
+	if strings.TrimSpace(item.Value) == "" {
 		return defaults, nil
 	}
-	if raw.ModelFailureThreshold > 0 {
-		defaults.ModelFailureThreshold = raw.ModelFailureThreshold
+	parsed, err := channelconfig.ParseBreakerDefaults(item.Value)
+	if err != nil {
+		return defaults, fmt.Errorf("parse circuit breaker defaults: %w", err)
 	}
-	if raw.ModelDurationMin > 0 {
-		defaults.ModelDurationMin = raw.ModelDurationMin
-	}
-	if raw.ModelWindowMin > 0 {
-		defaults.ModelWindowMin = raw.ModelWindowMin
-	}
-	if raw.UpstreamFailureThreshold > 0 {
-		defaults.UpstreamFailureThreshold = raw.UpstreamFailureThreshold
-	}
-	if raw.UpstreamModelThreshold > 0 {
-		defaults.UpstreamModelThreshold = raw.UpstreamModelThreshold
-	}
-	if raw.UpstreamThresholdLogic != "" {
-		defaults.UpstreamThresholdLogic = raw.UpstreamThresholdLogic
-	}
-	if raw.UpstreamDurationMin > 0 {
-		defaults.UpstreamDurationMin = raw.UpstreamDurationMin
-	}
-	if raw.UpstreamWindowMin > 0 {
-		defaults.UpstreamWindowMin = raw.UpstreamWindowMin
-	}
-	return defaults, nil
+	return parsed, nil
 }
 
 // GetRateLimitDefaults 从全局配置读取限流退避默认参数，返回含默认值的 domain 类型。

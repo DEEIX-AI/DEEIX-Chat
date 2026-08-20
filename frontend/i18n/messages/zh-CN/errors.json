@@ -123,6 +123,8 @@
   "conversation": {
     "invalidId": "对话 ID 无效。",
     "invalidTitle": "对话标题无效。",
+    "messageForkHistoryIncomplete": "当前对话层级过深或消息历史不完整，无法从此处分支到新聊天。",
+    "messageForkStateInvalid": "请等待当前消息生成完成后再分支到新聊天。",
     "noTitleableContent": "当前对话没有可用于生成标题的内容。",
     "notFound": "对话不存在。"
   },
@@ -169,11 +171,24 @@
   "internal": {
     "error": "服务器内部错误，请稍后重试。"
   },
+  "knowledgeBase": {
+    "conflict": "当前范围内已存在同名知识库。",
+		"fileCleanupUnavailable": "平台资料清理服务暂不可用，请稍后重试。",
+    "internal": "知识库操作失败，请稍后重试。",
+    "invalid": "知识库配置无效。",
+    "invalidReference": "所选知识库不存在、已停用或无权访问。",
+		"notFound": "知识库不存在。",
+		"notReady": "所选知识库暂无可检索文件，请等待索引完成。",
+		"ownerFileReference": "该账号仍有文件被内置知识库引用，请先移除或由其他管理员重新上传接管。",
+		"platformFileInUse": "该平台资料仍被其他资源引用，请解除引用后再删除。",
+		"unavailable": "知识库检索暂不可用，请稍后重试；若问题持续，请联系管理员检查向量服务。"
+  },
   "toolRun": {
     "finalAnswerMissing": "工具调用已到达运行上限，但模型没有生成最终回答。请重试或减少本次启用的工具。"
   },
   "llm": {
     "apiKeysRequired": "API Keys 不能为空。",
+    "circuitBreakerDisabled": "模型熔断未开启，请先启用后再执行此操作。",
     "emptyResponse": "模型返回了空响应。",
     "invalidAdapter": "接口协议不受支持，请重新选择协议。",
     "invalidApiKeysConfig": "API Keys 配置无效。",
@@ -186,6 +201,13 @@
     "invalidProtocolDefaultsConfig": "协议默认配置无效。",
     "modelAccessDenied": "当前权限组无权使用此模型。",
     "modelRouteNotConfigured": "模型路由未配置。",
+    "modelIconInvalid": "模型图标引用无效，请使用内置图标名称、上传图标或 http(s) 图片 URL。",
+    "modelIconFileInvalid": "图标文件无效，仅支持 PNG、JPEG 或 WebP。",
+    "modelIconFileTooLarge": "图标文件不能超过 1 MiB。",
+    "modelIconAssetNotFound": "图标资产不存在，请重新上传。",
+    "modelIconAssetInUse": "该图标仍被使用，请先解除关联。",
+    "modelVendorBuiltin": "内置厂商不可删除。",
+    "modelVendorInUse": "厂商仍有关联模型，请先迁移这些模型。",
     "noActiveApiKey": "没有可用的 API Key。",
     "platformModelNameExists": "平台模型名称已存在。",
     "platformModelNameRequired": "平台模型名称不能为空。",
@@ -238,6 +260,7 @@
   },
   "payment": {
     "checkoutFailed": "创建支付订单失败。",
+    "epayGatewayInvalid": "易支付页面跳转网关地址无效。",
     "epayTypeUnsupported": "该易支付类型不受支持。",
     "invalidEvent": "支付事件无效。",
     "invalidSignature": "支付签名无效。",

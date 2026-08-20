@@ -12,7 +12,7 @@ export interface PlusIconHandle {
 }
 
 interface PlusIconProps extends HTMLAttributes<HTMLDivElement> {
-  animate?: "default";
+  animate?: "default" | false;
   size?: number;
   strokeWidth?: number;
 }

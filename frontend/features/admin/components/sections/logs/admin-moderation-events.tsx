@@ -47,6 +47,23 @@ function resolveUserDisplayName(label: string | undefined, username: string | un
   return name || (fallbackID > 0 ? String(fallbackID) : "-");
 }
 
+function resolveLabel(value: string, labels: Record<string, string>): string {
+  return labels[value] ?? value;
+}
+
+function normalizeModerationSearchQuery(
+  query: string,
+  labels: Record<string, string>,
+  locale: string,
+): string {
+  const value = query.trim();
+  if (!value) return "";
+  const normalized = value.toLocaleLowerCase(locale);
+  return Object.entries(labels).find(
+    ([, label]) => label.trim().toLocaleLowerCase(locale) === normalized,
+  )?.[0] ?? value;
+}
+
 function DetailRow({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
     <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 border-b border-border/50 py-2.5 last:border-b-0">
@@ -157,8 +174,21 @@ function ModerationEventDetailSheet({
   }, [revokeImages]);
 
   const event = detail?.event;
+  const resultLabels = {
+    passed: t("results.passed"),
+    hit: t("results.hit"),
+    failed_open: t("results.failedOpen"),
+  };
+  const directionLabels = {
+    input: t("directions.input"),
+    output: t("directions.output"),
+  };
+  const modalityLabels = {
+    text: t("modalities.text"),
+    image: t("modalities.image"),
+  };
   const description = snap
-    ? `${event?.result || eventID} · ${formatDateTime(event?.createdAt, locale)}`
+    ? `${event ? resolveLabel(event.result, resultLabels) : eventID} · ${formatDateTime(event?.createdAt, locale)}`
     : "";
 
   return (
@@ -177,9 +207,9 @@ function ModerationEventDetailSheet({
             <>
               <DetailBlock title={t("blocks.event")}>
                 <DetailRow label={t("columns.eventId")} value={event.publicID} mono />
-                <DetailRow label={t("columns.result")} value={event.result} />
-                <DetailRow label={t("columns.direction")} value={event.direction} />
-                <DetailRow label={t("columns.modality")} value={event.modality} />
+                <DetailRow label={t("columns.result")} value={resolveLabel(event.result, resultLabels)} />
+                <DetailRow label={t("columns.direction")} value={resolveLabel(event.direction, directionLabels)} />
+                <DetailRow label={t("columns.modality")} value={resolveLabel(event.modality, modalityLabels)} />
                 <DetailRow label={t("columns.latency")} value={`${event.latencyMS}ms`} mono />
                 <DetailRow label={t("columns.createdAt")} value={formatDateTime(event.createdAt, locale)} />
                 <DetailRow label={t("columns.model")} value={event.model || "-"} mono />
@@ -227,7 +257,6 @@ function ModerationEventDetailSheet({
                     {JSON.stringify(
                       {
                         event: detail.event,
-                        categories: detail.event.categories,
                         categoryScores: detail.categoryScores,
                         textAvailable: detail.textAvailable,
                         imagesAvailable: detail.imagesAvailable,
@@ -259,8 +288,28 @@ export function ModerationEventTable() {
   const [resultFilter, setResultFilter] = React.useState("");
   const [directionFilter, setDirectionFilter] = React.useState("");
   const [selectedEventID, setSelectedEventID] = React.useState("");
+  const requestRef = React.useRef(0);
+  const resultLabels = {
+    passed: t("results.passed"),
+    hit: t("results.hit"),
+    failed_open: t("results.failedOpen"),
+  };
+  const directionLabels = {
+    input: t("directions.input"),
+    output: t("directions.output"),
+  };
+  const modalityLabels = {
+    text: t("modalities.text"),
+    image: t("modalities.image"),
+  };
+  const searchQuery = normalizeModerationSearchQuery(
+    query,
+    { ...resultLabels, ...directionLabels, ...modalityLabels },
+    locale,
+  );
 
   const load = React.useCallback(async () => {
+    const requestID = ++requestRef.current;
     setLoading(true);
     try {
       const token = await resolveAccessToken();
@@ -268,53 +317,40 @@ export function ModerationEventTable() {
       const res = await listContentModerationEvents(token, {
         page,
         pageSize,
+        query: searchQuery || undefined,
         result: resultFilter.trim() || undefined,
         direction: directionFilter.trim() || undefined,
       });
+      if (requestRef.current !== requestID) return;
       setItems(res.items ?? []);
       setTotal(res.total ?? 0);
     } catch (error) {
-      toast.error(t("loadFailed"), { description: resolveAdminErrorMessage(error) });
+      if (requestRef.current === requestID) {
+        toast.error(t("loadFailed"), { description: resolveAdminErrorMessage(error) });
+      }
     } finally {
-      setLoading(false);
+      if (requestRef.current === requestID) setLoading(false);
     }
-  }, [directionFilter, page, pageSize, resultFilter, t]);
+  }, [directionFilter, page, pageSize, resultFilter, searchQuery, t]);
 
   React.useEffect(() => {
     void load();
+    return () => {
+      requestRef.current += 1;
+    };
   }, [load]);
 
-  const filteredItems = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((item) => {
-      const haystack = [
-        item.publicID,
-        item.userLabel,
-        item.username,
-        String(item.userID || ""),
-        item.result,
-        item.direction,
-        item.modality,
-        item.model,
-        item.runID,
-        item.messagePublicID,
-        item.errorCode,
-        item.contentSummary,
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [items, query]);
-
   const pageCount = Math.max(1, Math.ceil(total / Math.max(1, pageSize)));
+  const closeDetail = React.useCallback(() => setSelectedEventID(""), []);
 
   return (
     <div className="space-y-3">
       <TableToolbar
         query={query}
-        onQueryChange={setQuery}
+        onQueryChange={(value) => {
+          setQuery(value);
+          setPage(1);
+        }}
         queryPlaceholder={t("searchPlaceholder")}
         filters={[
           {
@@ -364,9 +400,9 @@ export function ModerationEventTable() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {loading && filteredItems.length === 0 ? <TableLoadingRow colSpan={7} /> : null}
-          {!loading && filteredItems.length === 0 ? <TableEmptyRow colSpan={7}>{t("empty")}</TableEmptyRow> : null}
-          {filteredItems.map((item) => (
+          {loading && items.length === 0 ? <TableLoadingRow colSpan={7} /> : null}
+          {!loading && items.length === 0 ? <TableEmptyRow colSpan={7}>{t("empty")}</TableEmptyRow> : null}
+          {items.map((item) => (
             <TableRow
               key={item.publicID}
               className="cursor-pointer"
@@ -376,9 +412,9 @@ export function ModerationEventTable() {
               <TableCell className="whitespace-nowrap text-muted-foreground">
                 {resolveUserDisplayName(item.userLabel, item.username, item.userID)}
               </TableCell>
-              <TableCell>{item.result}</TableCell>
-              <TableCell>{item.direction}</TableCell>
-              <TableCell>{item.modality}</TableCell>
+              <TableCell>{resolveLabel(item.result, resultLabels)}</TableCell>
+              <TableCell>{resolveLabel(item.direction, directionLabels)}</TableCell>
+              <TableCell>{resolveLabel(item.modality, modalityLabels)}</TableCell>
               <TableCell className="tabular-nums">{item.latencyMS}ms</TableCell>
               <TableCell>{formatDateTime(item.createdAt, locale)}</TableCell>
             </TableRow>
@@ -402,7 +438,7 @@ export function ModerationEventTable() {
       <ModerationEventDetailSheet
         eventID={selectedEventID}
         open={Boolean(selectedEventID)}
-        onClose={() => setSelectedEventID("")}
+        onClose={closeDetail}
       />
     </div>
   );

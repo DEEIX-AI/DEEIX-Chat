@@ -1,8 +1,8 @@
 "use client";
 
-import * as React from "react";
-import Link from "next/link";
 import { ArrowBigUp, Command as CommandIcon } from "lucide-react";
+import Link from "next/link";
+import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
@@ -13,8 +13,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { NavigationItem, ShortcutKey } from "@/features/layouts/types/navigation";
-import { platformModifierLabel } from "@/shared/lib/platform-shortcuts";
 import { cn } from "@/lib/utils";
+import { platformModifierLabel } from "@/shared/lib/platform-shortcuts";
 
 function ShortcutGlyph({
   value,
@@ -84,15 +84,15 @@ export function NavMainItem({
               aria-hidden
               strokeWidth={1.6}
               className={cn("size-4 text-current", isHovered && "scale-105")}
-              animate={isHovered ? "default" : undefined}
+              animate={isHovered ? "default" : false}
             />
           </span>
         ) : isCollapsed ? (
           <span className="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent">
-            <Icon aria-hidden strokeWidth={1.6} className="size-4 text-current" animate={isHovered ? "default" : undefined} />
+            <Icon aria-hidden strokeWidth={1.6} className="size-4 text-current" animate={isHovered ? "default" : false} />
           </span>
         ) : (
-          <Icon aria-hidden strokeWidth={1.6} className="size-4 text-current" animate={isHovered ? "default" : undefined} />
+          <Icon aria-hidden strokeWidth={1.6} className="size-4 text-current" animate={isHovered ? "default" : false} />
         )}
       </span>
 

@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// ContentModerationEvent stores hit and failed-open moderation records only.
+// ContentModerationEvent stores retained moderation decision metadata.
 type ContentModerationEvent struct {
 	BaseModel
 	PublicID            string    `gorm:"size:40;not null;default:'';uniqueIndex:idx_content_moderation_events_public_id;comment:公开事件编号"`
@@ -13,7 +13,7 @@ type ContentModerationEvent struct {
 	MessagePublicID     string    `gorm:"size:32;not null;default:'';index:idx_content_moderation_events_message_public_id;comment:消息公开ID"`
 	Direction           string    `gorm:"size:16;not null;default:'';index:idx_content_moderation_events_direction;comment:方向(input/output)"`
 	Modality            string    `gorm:"size:16;not null;default:'';index:idx_content_moderation_events_modality;comment:模态(text/image)"`
-	Model               string    `gorm:"size:128;not null;default:'';comment:审核模型"`
+	Model               string    `gorm:"size:128;not null;default:'';index:idx_content_moderation_events_model;comment:审核模型"`
 	PolicyVersion       int64     `gorm:"not null;default:0;comment:策略版本"`
 	Result              string    `gorm:"size:32;not null;default:'';index:idx_content_moderation_events_result;comment:结果(passed/hit/failed_open)"`
 	CategoriesJSON      string    `gorm:"type:text;not null;default:'[]';comment:命中分类JSON"`
@@ -22,7 +22,7 @@ type ContentModerationEvent struct {
 	ErrorCode           string    `gorm:"size:64;not null;default:'';index:idx_content_moderation_events_error_code;comment:错误码"`
 	ErrorMessage        string    `gorm:"size:255;not null;default:'';comment:错误信息"`
 	ContentLocationJSON string    `gorm:"type:text;not null;default:'{}';comment:内容位置JSON"`
-	ContentSummary      string    `gorm:"size:255;not null;default:'';comment:内容摘要"`
+	ContentSummary      string    `gorm:"size:255;not null;default:'';index:idx_content_moderation_events_content_summary;comment:内容摘要"`
 	EncryptedText       string    `gorm:"type:text;not null;default:'';comment:命中文本AES-GCM密文"`
 	ImageCount          int       `gorm:"not null;default:0;comment:隔离图片数量"`
 	ImageMetaJSON       string    `gorm:"type:text;not null;default:'[]';comment:隔离图片元数据JSON"`

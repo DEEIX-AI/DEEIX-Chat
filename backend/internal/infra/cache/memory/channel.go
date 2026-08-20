@@ -144,6 +144,15 @@ func (c *Cache) ClearModelCircuitKeys(ctx context.Context, upstreamID uint, mode
 	return nil
 }
 
+// ResetAllCircuitStates 清除全部上游与模型熔断状态和失败计数。
+func (c *Cache) ResetAllCircuitStates(context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.upstreamCB = make(map[uint]*circuitState)
+	c.modelCB = make(map[string]*circuitState)
+	return nil
+}
+
 func (c *Cache) ReleaseRouteProbes(ctx context.Context, upstreamID uint, modelKey string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -39,7 +39,7 @@ type LLMPlatformModel struct {
 	CapabilitiesJSON   string `gorm:"type:text;not null;default:'{}';comment:平台能力配置JSON"`
 	SystemPrompt       string `gorm:"type:text;not null;default:'';comment:模型级系统提示词"`
 	AccessScope        string `gorm:"size:32;not null;default:'public';index:idx_llm_platform_models_access_scope;comment:模型使用范围: public用户可用 internal仅内部任务"`
-	Icon               string `gorm:"size:64;comment:模型图标标识"`
+	Icon               string `gorm:"size:2048;index:idx_llm_platform_models_asset_icon,where:icon LIKE 'asset:%';comment:模型图标标识、资产引用或图片 URL"`
 	Description        string `gorm:"type:text;comment:模型说明"`
 	CbPolicyMode       string `gorm:"size:16;not null;default:'default';comment:具体模型熔断策略模式: default默认配置 enforced统一覆盖"`
 	CbFailureThreshold int    `gorm:"not null;default:0;comment:具体模型默认熔断失败次数阈值"`
@@ -58,7 +58,7 @@ type LLMModelVendor struct {
 	ControlPlaneModel
 	Key       string `gorm:"size:64;not null;uniqueIndex:idx_llm_model_vendors_key;comment:稳定技术厂商标识"`
 	Name      string `gorm:"size:64;not null;index:idx_llm_model_vendors_name;comment:厂商展示名称"`
-	Icon      string `gorm:"size:2048;not null;default:'';comment:厂商图标标识或图片 URL"`
+	Icon      string `gorm:"size:2048;not null;default:'';index:idx_llm_model_vendors_asset_icon,where:icon LIKE 'asset:%';comment:厂商图标标识或图片 URL"`
 	BuiltIn   bool   `gorm:"not null;default:false;comment:是否内置厂商"`
 	SortOrder int    `gorm:"not null;default:0;index:idx_llm_model_vendors_sort_order;comment:厂商展示顺序"`
 }
@@ -72,13 +72,36 @@ func (LLMModelVendor) TableName() string {
 type LLMModelDisplayGroup struct {
 	ControlPlaneModel
 	Name      string `gorm:"size:64;not null;uniqueIndex:idx_llm_model_display_groups_name;comment:展示分组名称"`
-	Icon      string `gorm:"size:2048;not null;default:'';comment:展示分组图标标识或图片 URL"`
+	Icon      string `gorm:"size:2048;not null;default:'';index:idx_llm_model_display_groups_asset_icon,where:icon LIKE 'asset:%';comment:展示分组图标标识或图片 URL"`
 	SortOrder int    `gorm:"not null;default:0;index:idx_llm_model_display_groups_sort_order;comment:展示分组顺序"`
 }
 
 // TableName 指定模型展示分组表名。
 func (LLMModelDisplayGroup) TableName() string {
 	return "llm_model_display_groups"
+}
+
+// LLMModelIconAsset 存储管理员上传的模型展示图标元数据。
+// 图片内容由统一对象存储承载，业务表仅引用公开 ID。
+type LLMModelIconAsset struct {
+	ControlPlaneModel
+	PublicID          string     `gorm:"size:64;not null;uniqueIndex:idx_llm_model_icon_assets_public_id;comment:公开资源ID"`
+	SHA256            string     `gorm:"size:64;not null;uniqueIndex:idx_llm_model_icon_assets_sha256;comment:内容SHA256"`
+	StoragePath       string     `gorm:"size:512;not null;comment:对象存储路径"`
+	ContentType       string     `gorm:"size:64;not null;comment:后端探测媒体类型"`
+	SizeBytes         int64      `gorm:"not null;comment:文件大小(Byte)"`
+	Width             int        `gorm:"not null;comment:图片宽度"`
+	Height            int        `gorm:"not null;comment:图片高度"`
+	CreatedByUserID   uint       `gorm:"not null;default:0;index:idx_llm_model_icon_assets_created_by;comment:创建管理员ID"`
+	ReadyAt           *time.Time `gorm:"index:idx_llm_model_icon_assets_ready_at;comment:对象内容写入并校验完成时间"`
+	LeaseExpiresAt    time.Time  `gorm:"not null;default:CURRENT_TIMESTAMP;index:idx_llm_model_icon_assets_lease_expires_at;comment:上传或引用操作持有的清理保护租约截止时间"`
+	UnreferencedAt    *time.Time `gorm:"index:idx_llm_model_icon_assets_unreferenced_at;comment:首次确认连续无引用的时间"`
+	DeleteRequestedAt *time.Time `gorm:"index:idx_llm_model_icon_assets_delete_requested_at;comment:管理员从图标库移除的时间"`
+	DeletingAt        *time.Time `gorm:"index:idx_llm_model_icon_assets_deleting_at;comment:进入可重试对象删除流程的时间"`
+}
+
+func (LLMModelIconAsset) TableName() string {
+	return "llm_model_icon_assets"
 }
 
 // LLMUpstreamModel 存储上游真实模型清单。

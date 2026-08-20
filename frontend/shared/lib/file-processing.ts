@@ -8,6 +8,8 @@ type FileProcessingView = {
   embedStatus?: string;
   embedError?: string;
   ragReady?: boolean;
+  ragOptOut?: boolean;
+  chunkCount?: number;
   ocrUsed?: boolean;
 };
 
@@ -123,6 +125,47 @@ export function resolveFileProcessingBadge(
     tone: "info",
     detail: translateFileProcessing(translate, "preparingDetail", "Preparing the file. Please wait."),
   };
+}
+
+/** Resolves whether a processed file can actually participate in semantic retrieval. */
+export function resolveFileRetrievalBadge(
+  file: FileProcessingView,
+  translate?: FileProcessingTranslator,
+): FileProcessingBadge {
+  if (file.ragOptOut) {
+    return {
+      label: translateFileProcessing(translate, "retrievalDisabled", "Retrieval disabled"),
+      tone: "neutral",
+    };
+  }
+
+  if (file.processingReady && file.embedStatus === "ready" && (file.chunkCount ?? 0) > 0) {
+    return {
+      label: translateFileProcessing(translate, "searchable", "Searchable"),
+      tone: "success",
+    };
+  }
+
+  if (file.embedStatus === "processing") {
+    return {
+      label: translateFileProcessing(translate, "embedding", "Vectorizing"),
+      tone: "info",
+    };
+  }
+
+  const processingBadge = resolveFileProcessingBadge(file, translate);
+  if (processingBadge.tone === "danger" || processingBadge.tone === "warning") {
+    return processingBadge;
+  }
+
+  if (file.processingReady || file.processingStatus === "ready") {
+    return {
+      label: translateFileProcessing(translate, "embedPending", "Index pending"),
+      tone: "neutral",
+    };
+  }
+
+  return processingBadge;
 }
 
 export function resolveEmbedStatusLabel(embedStatus: string | null | undefined, translate?: FileProcessingTranslator): string {

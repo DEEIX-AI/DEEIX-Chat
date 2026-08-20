@@ -118,6 +118,7 @@ func (s *Service) persistSuccessfulMessageGeneration(ctx context.Context, input 
 		repository.AssistantMessageCompletionUpdate{
 			Content:          input.AssistantText,
 			ReasoningContent: input.AssistantReasoningContent,
+			KnowledgeSources: input.AssistantMessage.KnowledgeSources,
 			InputTokens:      assistantCompletionInputTokens(input),
 			OutputTokens:     input.OutputTokens,
 			CacheReadTokens:  assistantCompletionCacheReadTokens(input),
@@ -210,6 +211,7 @@ func (s *Service) persistAssistantImagePayloadIfPresent(ctx context.Context, inp
 				ContentType:      contentType,
 				Content:          content,
 				ReasoningContent: input.AssistantReasoningContent,
+				KnowledgeSources: input.AssistantMessage.KnowledgeSources,
 				InputTokens:      input.InputTokens,
 				OutputTokens:     input.OutputTokens,
 				CacheReadTokens:  input.CacheReadTokens,
@@ -236,6 +238,7 @@ func (s *Service) persistAssistantImagePayloadIfPresent(ctx context.Context, inp
 				ContentType:      contentType,
 				Content:          content,
 				ReasoningContent: input.AssistantReasoningContent,
+				KnowledgeSources: input.AssistantMessage.KnowledgeSources,
 				OutputTokens:     input.OutputTokens,
 				ReasoningTokens:  input.ReasoningTokens,
 				LatencyMS:        input.AssistantLatency,
@@ -354,6 +357,7 @@ func (s *Service) persistInterruptedMessageGeneration(ctx context.Context, input
 		repository.AssistantMessageCompletionUpdate{
 			Content:          input.AssistantText,
 			ReasoningContent: strings.TrimSpace(input.AssistantReasoningText),
+			KnowledgeSources: input.AssistantMessage.KnowledgeSources,
 			InputTokens:      interruptedCompletionInputTokens(input, metrics),
 			OutputTokens:     metrics.OutputTokens,
 			CacheReadTokens:  interruptedCompletionCacheReadTokens(input, metrics),

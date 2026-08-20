@@ -157,6 +157,7 @@ __pycache__/
 *$py.class
 
 # Backend & Frontend & Docker
+/backend/server
 storage/*
 data/*
 docs/rules/*

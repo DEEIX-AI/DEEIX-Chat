@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -9,6 +10,8 @@ type DeleteFilesOptionProps = {
   id: string;
   checked: boolean;
   disabled?: boolean;
+  label?: ReactNode;
+  description?: ReactNode;
   onCheckedChange: (checked: boolean) => void;
 };
 
@@ -16,6 +19,8 @@ export function DeleteFilesOption({
   id,
   checked,
   disabled = false,
+  label,
+  description,
   onCheckedChange,
 }: DeleteFilesOptionProps) {
   const t = useTranslations("recent.dialogs");
@@ -33,8 +38,8 @@ export function DeleteFilesOption({
         htmlFor={id}
         className={cn("cursor-pointer space-y-1", disabled && "cursor-not-allowed opacity-60")}
       >
-        <span className="block text-xs font-medium text-foreground">{t("deleteFilesLabel")}</span>
-        <span className="block text-xs leading-5 text-muted-foreground">{t("deleteFilesDescription")}</span>
+        <span className="block text-xs font-medium text-foreground">{label ?? t("deleteFilesLabel")}</span>
+        <span className="block text-xs leading-5 text-muted-foreground">{description ?? t("deleteFilesDescription")}</span>
       </label>
     </div>
   );

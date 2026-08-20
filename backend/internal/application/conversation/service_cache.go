@@ -2,11 +2,11 @@ package conversation
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
+	"go.uber.org/zap"
 )
 
 const (
@@ -27,12 +27,6 @@ type cachedSnapshot struct {
 
 type cachedUserMemories struct {
 	memories  []domainmemory.UserMemory
-	expiresAt time.Time
-}
-
-type cachedUserSetting struct {
-	value     string
-	valid     bool
 	expiresAt time.Time
 }
 
@@ -61,26 +55,64 @@ func (s *Service) invalidateSnapshotCache(conversationID uint) {
 	s.snapshotCache.Delete(conversationID)
 }
 
-// getUserSettingCached 从内存缓存读取用户设置，未命中时回退到 DB 查询。
+// getUserSettingCached 从共享缓存读取用户设置，未命中或缓存不可用时回退到 DB。
 func (s *Service) getUserSettingCached(ctx context.Context, userID uint, key string) (string, error) {
-	cacheKey := fmt.Sprintf("%d:%s", userID, key)
-	if v, ok := s.userSettingCache.Load(cacheKey); ok {
-		entry := v.(*cachedUserSetting)
-		if time.Now().Before(entry.expiresAt) {
-			if !entry.valid {
-				return "", fmt.Errorf("not found")
-			}
-			return entry.value, nil
-		}
-		s.userSettingCache.Delete(cacheKey)
+	if s.cache == nil {
+		return s.repo.GetUserSettingValue(ctx, userID, key)
 	}
-	val, err := s.repo.GetUserSettingValue(ctx, userID, key)
+	version, versionErr := s.cache.GetUserSettingCacheVersion(ctx, userID, key, userSettingCacheTTL)
+	if versionErr == nil {
+		if value, ok, err := s.cache.GetUserSettingCache(ctx, userID, key, version); err == nil && ok {
+			return value, nil
+		} else if err != nil && s.logger != nil {
+			s.logger.Warn("user_setting_cache_read_failed", zap.Uint("user_id", userID), zap.String("key", key), zap.Error(err))
+		}
+	} else if s.logger != nil {
+		s.logger.Warn("user_setting_cache_version_read_failed", zap.Uint("user_id", userID), zap.String("key", key), zap.Error(versionErr))
+	}
+	value, err := s.repo.GetUserSettingValue(ctx, userID, key)
 	if err != nil {
-		s.userSettingCache.Store(cacheKey, &cachedUserSetting{valid: false, expiresAt: time.Now().Add(userSettingCacheTTL)})
 		return "", err
 	}
-	s.userSettingCache.Store(cacheKey, &cachedUserSetting{value: val, valid: true, expiresAt: time.Now().Add(userSettingCacheTTL)})
-	return val, nil
+	if versionErr == nil {
+		if err := s.cache.SetUserSettingCache(ctx, userID, key, version, value, userSettingCacheTTL); err != nil && s.logger != nil {
+			s.logger.Warn("user_setting_cache_write_failed", zap.Uint("user_id", userID), zap.String("key", key), zap.Error(err))
+		}
+	}
+	return value, nil
+}
+
+// RefreshUserSettingCache 推进指定设置的共享缓存版本，并用数据库中已提交的当前值回填新版本。
+// 版本化数据键保证了在途旧读取与并发更新都无法覆盖当前值。
+func (s *Service) RefreshUserSettingCache(ctx context.Context, userID uint, keys []string) {
+	if s.cache == nil {
+		return
+	}
+	versions := make(map[string]string, len(keys))
+	refreshKeys := make([]string, 0, len(keys))
+	for _, key := range keys {
+		version, err := s.cache.AdvanceUserSettingCacheVersion(ctx, userID, key, userSettingCacheTTL)
+		if err != nil {
+			if s.logger != nil {
+				s.logger.Warn("user_setting_cache_version_advance_failed", zap.Uint("user_id", userID), zap.String("key", key), zap.Error(err))
+			}
+			continue
+		}
+		versions[key] = version
+		refreshKeys = append(refreshKeys, key)
+	}
+	values, err := s.repo.GetUserSettingValues(ctx, userID, refreshKeys)
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Warn("user_setting_cache_refresh_load_failed", zap.Uint("user_id", userID), zap.Error(err))
+		}
+		return
+	}
+	for _, key := range refreshKeys {
+		if err := s.cache.SetUserSettingCache(ctx, userID, key, versions[key], values[key], userSettingCacheTTL); err != nil && s.logger != nil {
+			s.logger.Warn("user_setting_cache_refresh_write_failed", zap.Uint("user_id", userID), zap.String("key", key), zap.Error(err))
+		}
+	}
 }
 
 // getCachedUserMemories 从内存缓存读取用户长期记忆，未命中时回退到 DB 查询。
@@ -133,13 +165,6 @@ func (s *Service) cleanupExpiredInMemoryCaches(now time.Time) {
 		entry, ok := value.(*cachedUserMemories)
 		if !ok || !now.Before(entry.expiresAt) {
 			s.userMemCache.Delete(key)
-		}
-		return true
-	})
-	s.userSettingCache.Range(func(key, value interface{}) bool {
-		entry, ok := value.(*cachedUserSetting)
-		if !ok || !now.Before(entry.expiresAt) {
-			s.userSettingCache.Delete(key)
 		}
 		return true
 	})

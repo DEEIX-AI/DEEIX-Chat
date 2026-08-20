@@ -2,6 +2,7 @@ package contentmoderation
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -131,5 +132,82 @@ func TestDeleteExpiredMetadataKeepsRowsWithUnclearedContent(t *testing.T) {
 	}
 	if len(remaining) != 1 || remaining[0].PublicID != pendingCleanup.PublicID {
 		t.Fatalf("uncleared isolation metadata must remain retryable: %#v", remaining)
+	}
+}
+
+func TestListEventsSearchesAcrossEventAndUserMetadata(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:content_moderation_search?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.User{}, &model.ContentModerationEvent{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	user := model.User{PublicID: "usr_reviewer", Username: "safety-admin", DisplayName: "Safety Reviewer"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	events := []model.ContentModerationEvent{
+		{
+			PublicID:        "cme_matching",
+			UserID:          user.ID,
+			RunID:           "run_alpha",
+			MessagePublicID: "msg_alpha",
+			Direction:       domaincm.DirectionInput,
+			Modality:        domaincm.ModalityImage,
+			Model:           "omni-moderation-latest",
+			Result:          domaincm.ResultHit,
+			ContentSummary:  "uploaded image",
+		},
+		{
+			PublicID: "cme_other",
+			UserID:   user.ID + 1,
+			RunID:    "run_beta",
+			Result:   domaincm.ResultFailedOpen,
+		},
+	}
+	if err := db.Create(&events).Error; err != nil {
+		t.Fatalf("create events: %v", err)
+	}
+
+	repo := NewRepo(db)
+	for _, query := range []string{
+		"CME_MATCHING",
+		"SAFETY-ADMIN",
+		"USR_REVIEWER",
+		"safety reviewer",
+		strconv.FormatUint(uint64(user.ID), 10),
+		"run_alpha",
+		"msg_alpha",
+		"input",
+		"image",
+		"omni-moderation-latest",
+		"uploaded image",
+		"hit",
+	} {
+		items, total, listErr := repo.ListEvents(context.Background(), domaincm.EventListFilter{Query: query, Limit: 20})
+		if listErr != nil {
+			t.Fatalf("query %q: %v", query, listErr)
+		}
+		if total != 1 || len(items) != 1 || items[0].PublicID != "cme_matching" {
+			t.Fatalf("query %q returned total=%d items=%#v", query, total, items)
+		}
+	}
+
+	items, total, err := repo.ListEvents(context.Background(), domaincm.EventListFilter{Query: "CME_MATCH", Limit: 20})
+	if err != nil {
+		t.Fatalf("partial exact query: %v", err)
+	}
+	if total != 0 || len(items) != 0 {
+		t.Fatalf("search must remain exact and indexable, total=%d items=%#v", total, items)
+	}
+
+	items, total, err = repo.ListEvents(context.Background(), domaincm.EventListFilter{Query: "%", Limit: 20})
+	if err != nil {
+		t.Fatalf("escaped wildcard query: %v", err)
+	}
+	if total != 0 || len(items) != 0 {
+		t.Fatalf("wildcard must be treated literally, total=%d items=%#v", total, items)
 	}
 }

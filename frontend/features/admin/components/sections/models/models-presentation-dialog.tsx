@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleHelp, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { CircleHelp, PencilLine, Plus, Search, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,7 @@ import type {
   AdminLLMModelVendorDTO,
 } from "@/features/admin/api/llm.types";
 import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
+import { ModelIconField } from "@/features/admin/components/sections/models/model-icon-field";
 import {
   type PresentationTab,
   useModelPresentationEditor,
@@ -58,9 +59,45 @@ function InputHelp({ help }: { help: string }) {
 
 function PresentationIcon({ icon, label }: { icon: string; label: string }) {
   return (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted/50">
-      <ModelIcon iconUrl={resolveModelIconURL(icon)} label={label} size={16} />
+    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/40 bg-muted/40">
+      <ModelIcon iconUrl={resolveModelIconURL(icon)} label={label} size={18} />
     </span>
+  );
+}
+
+function PresentationActionButton({
+  label,
+  destructive = false,
+  disabled = false,
+  onClick,
+  children,
+}: {
+  label: string;
+  destructive?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={disabled}
+          className={cn(
+            "text-muted-foreground/75 hover:bg-background/80 hover:text-foreground",
+            destructive && "hover:bg-destructive/10 hover:text-destructive",
+          )}
+          aria-label={label}
+          onClick={onClick}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -175,6 +212,7 @@ export function ModelPresentationDialog({
   const nameInputID = React.useId();
   const iconInputID = React.useId();
   const modelQueryInputID = React.useId();
+  const [iconUploading, setIconUploading] = React.useState(false);
 
   const items = tab === "vendors" ? vendors : displayGroups;
   const editorOpen = editor !== null;
@@ -188,6 +226,10 @@ export function ModelPresentationDialog({
   const editorDescription = stableEditor?.kind === "vendors"
     ? t("vendorFormDescription")
     : t("groupFormDescription");
+  const deleteTitle = deleteTarget?.kind === "vendors" ? t("deleteVendorTitle") : t("deleteGroupTitle");
+  const deleteDescription = deleteTarget?.kind === "vendors"
+    ? t("deleteVendorDescription", { name: deleteTarget.name })
+    : t("deleteGroupDescription", { name: deleteTarget?.name ?? "" });
   const normalizedModelQuery = modelQuery.trim().toLowerCase();
   const filteredCatalogModels = catalogModels?.filter((model) => {
     if (!normalizedModelQuery) {
@@ -222,6 +264,9 @@ export function ModelPresentationDialog({
                   className="flex min-h-0 flex-1 flex-col"
                   onSubmit={(event) => {
                     event.preventDefault();
+                    if (iconUploading) {
+                      return;
+                    }
                     void saveEditor();
                   }}
                 >
@@ -267,18 +312,15 @@ export function ModelPresentationDialog({
                         <Label htmlFor={iconInputID} className="text-xs font-normal text-muted-foreground">
                           {t("icon")}
                         </Label>
-                        <InputGroup>
-                          <InputGroupInput
-                            id={iconInputID}
-                            value={stableEditor.icon}
-                            disabled={pending}
-                            placeholder={t("iconPlaceholder")}
-                            onChange={(event) => setEditor((current) => current ? { ...current, icon: event.target.value } : current)}
-                          />
-                          <InputGroupAddon align="inline-end">
-                            <InputHelp help={t("iconHelp")} />
-                          </InputGroupAddon>
-                        </InputGroup>
+                        <ModelIconField
+                          id={iconInputID}
+                          value={stableEditor.icon}
+                          disabled={pending}
+                          placeholder={t("iconPlaceholder")}
+                          help={t("iconHelp")}
+                          onChange={(value) => setEditor((current) => current ? { ...current, icon: value } : current)}
+                          onUploadingChange={setIconUploading}
+                        />
                       </div>
                     </div>
 
@@ -349,8 +391,8 @@ export function ModelPresentationDialog({
                     <Button type="button" variant="ghost" disabled={pending} onClick={() => setEditor(null)}>
                       {commonT("cancel")}
                     </Button>
-                    <Button type="submit" disabled={pending}>
-                      {pending ? commonT("saving") : commonT("save")}
+                    <Button type="submit" disabled={pending || iconUploading}>
+                      {pending || iconUploading ? commonT("saving") : commonT("save")}
                     </Button>
                   </DialogFooter>
                 </form>
@@ -410,35 +452,44 @@ export function ModelPresentationDialog({
                                   </div>
                                   <p className="truncate text-[11px] text-muted-foreground">{vendor.key}</p>
                                 </div>
-                                <Button type="button" variant="ghost" size="icon-sm" onClick={() => openVendorEdit(vendor)} aria-label={commonT("edit")}>
-                                  <Pencil className="size-3.5 stroke-1.5" />
-                                </Button>
+                                <div className="grid w-13 shrink-0 grid-cols-2 gap-0.5">
+                                  <PresentationActionButton label={commonT("edit")} onClick={() => openVendorEdit(vendor)}>
+                                    <PencilLine className="size-3.5 stroke-[1.75]" />
+                                  </PresentationActionButton>
+                                  {vendor.builtIn ? <span aria-hidden="true" className="size-6" /> : (
+                                    <PresentationActionButton
+                                      destructive
+                                      label={commonT("delete")}
+                                      onClick={() => setDeleteTarget({
+                                        kind: "vendors", key: vendor.key, name: vendor.name,
+                                      })}
+                                    >
+                                      <Trash2 className="size-3.5 stroke-[1.75]" />
+                                    </PresentationActionButton>
+                                  )}
+                                </div>
                               </div>
                             ))
                           : displayGroups.map((group) => (
                               <div key={group.id} className="group flex min-h-11 items-center gap-3 rounded-md px-2 hover:bg-muted/45">
                                 <PresentationIcon icon={group.icon} label={group.name} />
                                 <span className="min-w-0 flex-1 truncate text-xs font-medium">{group.name}</span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  disabled={modelsLoading || catalogModels === null}
-                                  onClick={() => openGroupEdit(group)}
-                                  aria-label={commonT("edit")}
-                                >
-                                  <Pencil className="size-3.5 stroke-1.5" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  className="text-muted-foreground hover:text-destructive"
-                                  onClick={() => setDeleteTarget(group)}
-                                  aria-label={commonT("delete")}
-                                >
-                                  <Trash2 className="size-3.5 stroke-1.5" />
-                                </Button>
+                                <div className="grid w-13 shrink-0 grid-cols-2 gap-0.5">
+                                  <PresentationActionButton
+                                    label={commonT("edit")}
+                                    disabled={modelsLoading || catalogModels === null}
+                                    onClick={() => openGroupEdit(group)}
+                                  >
+                                    <PencilLine className="size-3.5 stroke-[1.75]" />
+                                  </PresentationActionButton>
+                                  <PresentationActionButton
+                                    destructive
+                                    label={commonT("delete")}
+                                    onClick={() => setDeleteTarget({ kind: "groups", id: group.id, name: group.name })}
+                                  >
+                                    <Trash2 className="size-3.5 stroke-[1.75]" />
+                                  </PresentationActionButton>
+                                </div>
                               </div>
                             ))}
                       </div>
@@ -461,8 +512,8 @@ export function ModelPresentationDialog({
         open={deleteTarget !== null}
         onOpenChange={(nextOpen) => !nextOpen && !pending && setDeleteTarget(null)}
         pending={pending}
-        title={t("deleteTitle")}
-        description={t("deleteDescription", { name: deleteTarget?.name ?? "" })}
+        title={deleteTitle}
+        description={deleteDescription}
         confirmLabel={commonT("delete")}
         pendingLabel={t("deleting")}
         onConfirm={() => void confirmDelete()}

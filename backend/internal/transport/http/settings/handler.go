@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -287,11 +288,37 @@ func (h *Handler) Patch(c *gin.Context) {
 		return
 	}
 
-	// 记录变更前的模型配置，用于检测模型变更
+	// Derive and persist the vector-space signature in the same settings write
+	// as the user-visible configuration. Retrieval therefore switches to the
+	// new space atomically and can never query old chunks with a new endpoint.
 	prevCfg := h.runtime.Snapshot()
-	prevSignature := appembedding.ComputeModelSignature(prevCfg.RAGModel, prevCfg.EmbeddingOutputDimensions)
+	nextModel, nextDimensions, nextHost := prospectiveEmbeddingSpace(prevCfg, req.Items)
+	embeddingSettingsTouched := touchesEmbeddingSpace(req.Items)
+	embeddingSpaceChanged := strings.TrimSpace(nextModel) != strings.TrimSpace(prevCfg.RAGModel) ||
+		nextDimensions != prevCfg.EmbeddingOutputDimensions ||
+		normalizeEmbeddingEndpoint(nextHost) != normalizeEmbeddingEndpoint(prevCfg.EmbeddingHost)
+	signatureMissing := strings.TrimSpace(prevCfg.EmbeddingModelSignature) == "" && strings.TrimSpace(nextModel) != ""
+	nextEmbeddingSignature := strings.TrimSpace(prevCfg.EmbeddingModelSignature)
+	patchItems := toAppPatchItems(req.Items)
+	if embeddingSpaceChanged {
+		nextEmbeddingSignature = appembedding.ComputeSpaceSignature(nextModel, nextDimensions, nextHost)
+	} else if signatureMissing {
+		// Preserve the legacy signature when merely backfilling this internal
+		// setting so an upgrade does not invalidate otherwise compatible vectors.
+		nextEmbeddingSignature = appembedding.ComputeModelSignature(nextModel, nextDimensions)
+	}
+	if embeddingSpaceChanged || signatureMissing || containsSettingPatch(req.Items, "file", "embedding_model_signature") {
+		// embedding_model_signature is derived server-side. Never trust a value
+		// supplied by an API client, even though the key remains in the settings
+		// schema for persistence and backwards compatibility.
+		patchItems = upsertSettingPatchItem(patchItems, appsettings.PatchItem{
+			Namespace: "file",
+			Key:       "embedding_model_signature",
+			Value:     nextEmbeddingSignature,
+		})
+	}
 
-	data, err := h.service.BatchUpdate(c.Request.Context(), toAppPatchItems(req.Items))
+	data, err := h.service.BatchUpdate(c.Request.Context(), patchItems)
 	if err != nil {
 		if errors.Is(err, appsettings.ErrInvalidSetting) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -302,30 +329,24 @@ func (h *Handler) Patch(c *gin.Context) {
 	}
 
 	// 清除 Redis 缓存，下次读取自动从 DB 刷新
-	h.runtimeSettings.InvalidateCacheMulti(c.Request.Context(), toAppPatchItems(req.Items))
+	h.runtimeSettings.InvalidateCacheMulti(c.Request.Context(), patchItems)
+
+	// Publish the new runtime before invalidating old files. In-flight jobs carry
+	// their starting signature and therefore cannot publish an old vector space as
+	// ready after this point. Signature-aware invalidation also leaves concurrently
+	// completed new-space files intact.
 	if err = h.runtimeSettings.ApplyTo(c.Request.Context(), h.runtime); err != nil {
 		response.Error(c, http.StatusInternalServerError, "refresh runtime settings failed")
 		return
 	}
-
-	// 检测 Embedding 模型签名：模型变更时标记旧向量为 stale；签名缺失时只补写当前签名。
-	newCfg := h.runtime.Snapshot()
-	newSignature := appembedding.ComputeModelSignature(newCfg.RAGModel, newCfg.EmbeddingOutputDimensions)
-	signatureMissing := strings.TrimSpace(newCfg.EmbeddingModelSignature) == "" && strings.TrimSpace(newCfg.RAGModel) != ""
-	if (newSignature != prevSignature || signatureMissing) && h.embeddingSvc != nil {
-		go func() {
-			staleCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			if newSignature != prevSignature {
-				if _, staleErr := h.embeddingSvc.MarkAllFilesStale(staleCtx); staleErr != nil {
-					return
-				}
-			}
-			_, _ = h.service.BatchUpdate(staleCtx, []appsettings.PatchItem{
-				{Namespace: "file", Key: "embedding_model_signature", Value: newSignature},
-			})
-			_ = h.runtimeSettings.ApplyTo(staleCtx, h.runtime)
-		}()
+	// Reconcile whenever vector-space settings were submitted, even when their
+	// values are unchanged. This makes a failed invalidation safely retryable
+	// through the same idempotent settings request instead of requiring restart.
+	if (embeddingSettingsTouched || signatureMissing) && h.embeddingSvc != nil {
+		if _, reconcileErr := h.embeddingSvc.ReconcileIndex(c.Request.Context()); reconcileErr != nil {
+			response.Error(c, http.StatusInternalServerError, "invalidate embedding index failed")
+			return
+		}
 	}
 
 	h.service.RecordAudit(c.Request.Context(), appsettings.AuditInput{
@@ -338,6 +359,64 @@ func (h *Handler) Patch(c *gin.Context) {
 	})
 
 	response.Success(c, toSettingResponseMap(data))
+}
+
+func prospectiveEmbeddingSpace(cfg config.Config, items []PatchItem) (string, int, string) {
+	model := cfg.RAGModel
+	dimensions := cfg.EmbeddingOutputDimensions
+	host := cfg.EmbeddingHost
+	for _, item := range items {
+		if item.Namespace != "file" {
+			continue
+		}
+		switch item.Key {
+		case "rag_model":
+			model = item.Value
+		case "embedding_output_dimensions":
+			if parsed, err := strconv.Atoi(strings.TrimSpace(item.Value)); err == nil {
+				dimensions = parsed
+			}
+		case "embedding_host":
+			host = item.Value
+		}
+	}
+	return model, dimensions, host
+}
+
+func normalizeEmbeddingEndpoint(value string) string {
+	return strings.TrimRight(strings.TrimSpace(value), "/")
+}
+
+func touchesEmbeddingSpace(items []PatchItem) bool {
+	for _, item := range items {
+		if item.Namespace != "file" {
+			continue
+		}
+		switch item.Key {
+		case "rag_model", "embedding_output_dimensions", "embedding_host":
+			return true
+		}
+	}
+	return false
+}
+
+func containsSettingPatch(items []PatchItem, namespace string, key string) bool {
+	for _, item := range items {
+		if item.Namespace == namespace && item.Key == key {
+			return true
+		}
+	}
+	return false
+}
+
+func upsertSettingPatchItem(items []appsettings.PatchItem, value appsettings.PatchItem) []appsettings.PatchItem {
+	for index := range items {
+		if items[index].Namespace == value.Namespace && items[index].Key == value.Key {
+			items[index] = value
+			return items
+		}
+	}
+	return append(items, value)
 }
 
 // GetTikaRuntime godoc

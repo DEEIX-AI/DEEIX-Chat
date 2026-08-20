@@ -55,6 +55,7 @@
   },
   "validation": {
     "apiKeyRequired": "启用内容审核前必须配置审核鉴权密钥。",
-    "policyRequired": "启用内容审核前至少需要选择一个审核类别。"
+    "policyRequired": "启用内容审核前至少需要选择一个审核类别。",
+    "integerRange": "{field}必须是 {min}–{max} 之间的整数。"
   }
 }

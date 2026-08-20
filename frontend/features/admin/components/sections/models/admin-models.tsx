@@ -1,9 +1,9 @@
 "use client";
 
-import * as React from "react";
-import dynamic from "next/dynamic";
 import { Building2, Cable, Check, ChevronDownIcon, Layers3, ListOrdered, Plus, Tags, ToggleLeft, Trash2 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -21,24 +21,11 @@ import {
 } from "@/components/ui/select";
 
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
-import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
 import {
   deleteAdminLLMUpstreamModel,
   testAdminLLMModelAll,
   testAdminLLMUpstreamModelRoute,
 } from "@/features/admin/api";
-import { useAdminModels } from "@/features/admin/hooks/use-admin-models";
-import { useAdminModelPresentation } from "@/features/admin/hooks/use-admin-model-presentation";
-import { BulkDeleteModelsDialog, DeleteModelDialog } from "./models-dialog";
-import { ModelProbeDialog } from "./models-probe-dialog";
-import { ModelsTable } from "./models-table";
-import {
-  ADAPTER_LABELS,
-  MODEL_KIND_OPTIONS,
-  MODEL_SORT_OPTIONS,
-  type ModelSortValue,
-} from "@/features/admin/types/llm";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import type {
   AdminLLMAdapter,
   AdminLLMModelDTO,
@@ -46,8 +33,23 @@ import type {
   AdminLLMModelUpstreamSourceDTO,
   AdminLLMStatus,
 } from "@/features/admin/api/llm.types";
+import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
+import { useAdminCircuitBreaker } from "@/features/admin/hooks/use-admin-circuit-breaker";
+import { useAdminModelPresentation } from "@/features/admin/hooks/use-admin-model-presentation";
+import { useAdminModels } from "@/features/admin/hooks/use-admin-models";
+import {
+  ADAPTER_LABELS,
+  MODEL_KIND_OPTIONS,
+  MODEL_SORT_OPTIONS,
+  type ModelSortValue,
+} from "@/features/admin/types/llm";
+import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { cn } from "@/lib/utils";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { AdminCircuitBreakerControl } from "../shared/admin-circuit-breaker-control";
+import { BulkDeleteModelsDialog, DeleteModelDialog } from "./models-dialog";
+import { ModelProbeDialog } from "./models-probe-dialog";
+import { ModelsTable } from "./models-table";
 
 const ModelSheet = dynamic(() => import("./models-sheet").then((module) => module.ModelSheet), {
   ssr: false,
@@ -178,6 +180,7 @@ function KindsDropdown({
 export function AdminModelsPage() {
   const t = useTranslations("adminModels");
   const models = useAdminModels();
+  const circuitBreaker = useAdminCircuitBreaker();
   const presentation = useAdminModelPresentation();
   const [createOpen, setCreateOpen] = React.useState(false);
   const [orderOpen, setOrderOpen] = React.useState(false);
@@ -268,8 +271,19 @@ export function AdminModelsPage() {
   return (
     <div className="space-y-3 pb-10">
       <div className="space-y-3">
-        <div className="flex h-10 items-center px-1">
+        <div className="flex h-10 items-center justify-between gap-3 px-1">
           <h3 className="text-sm font-semibold">{t("pageTitle")}</h3>
+          <AdminCircuitBreakerControl
+            available={circuitBreaker.available}
+            enabled={circuitBreaker.enabled}
+            loading={circuitBreaker.loading}
+            saving={circuitBreaker.saving}
+            onEnabledChange={(checked) => {
+              void circuitBreaker.updateEnabled(checked).then((updated) => {
+                if (updated) void models.loadModels(models.page, models.pageSize);
+              });
+            }}
+          />
         </div>
 
         <TableToolbar
@@ -481,6 +495,7 @@ export function AdminModelsPage() {
         <ModelsTable
           items={models.filteredItems}
           loading={models.loading}
+          circuitBreakerEnabled={circuitBreaker.enabled}
           selectedModelIDs={models.selectedModelIDs}
           onSelectedModelIDsChange={models.setSelectedModelIDs}
           onEdit={models.setEditTarget}
@@ -565,6 +580,7 @@ export function AdminModelsPage() {
       {models.sourcesModel ? (
         <UpstreamSourcesSheet
           model={models.sourcesModel}
+          circuitBreakerEnabled={circuitBreaker.enabled}
           onClose={() => models.setSourcesModel(null)}
           onRefreshModel={() => void models.loadModels(models.page, models.pageSize)}
           onSourceAvailabilityChange={models.handleSourceAvailabilityChange}

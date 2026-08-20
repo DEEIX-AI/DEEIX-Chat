@@ -609,3 +609,60 @@ func (h *Handler) DeleteConversation(c *gin.Context) {
 
 	response.Success(c, toConversationDeleteResponse(result))
 }
+
+// ForkConversationFromMessage godoc
+// @Summary 从指定消息 fork 新会话
+// @Description 将会话从开头到指定消息（含）的祖先链复制为一个新会话；不携带原会话的运行记录与计费，附件以引用方式复用
+// @Tags chat
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "会话 public_id"
+// @Param message_id path string true "消息 public_id"
+// @Success 200 {object} ConversationUpdateResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /conversations/{id}/messages/{message_id}/fork [post]
+func (h *Handler) ForkConversationFromMessage(c *gin.Context) {
+	userID := middleware.MustUserID(c)
+	conversationID, err := stringParam(c, "id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid conversation id")
+		return
+	}
+	messageID, err := stringParam(c, "message_id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid message id")
+		return
+	}
+
+	result, err := h.service.ForkConversationFromMessage(c.Request.Context(), userID, conversationID, messageID)
+	if err != nil {
+		switch {
+		case errors.Is(err, appconversation.ErrConversationNotFound):
+			response.Error(c, http.StatusNotFound, "conversation not found")
+		case errors.Is(err, appconversation.ErrMessageNotFound):
+			response.Error(c, http.StatusNotFound, "message not found")
+		case errors.Is(err, appconversation.ErrMessageForkStateInvalid):
+			response.ErrorWithCode(c, http.StatusBadRequest, "conversation.message_fork_state_invalid", "message is still generating")
+		case errors.Is(err, appconversation.ErrMessageForkHistoryIncomplete):
+			response.ErrorWithCode(c, http.StatusBadRequest, "conversation.message_fork_history_incomplete", "message history is too deep or incomplete")
+		default:
+			response.Error(c, http.StatusInternalServerError, "fork conversation failed")
+		}
+		return
+	}
+
+	h.recordAudit(c, "fork_conversation",
+		"conversation",
+		result.PublicID,
+		map[string]interface{}{
+			"source_conversation_id": conversationID,
+			"source_message_id":      messageID,
+		},
+	)
+
+	response.Success(c, toConversationResponse(result))
+}

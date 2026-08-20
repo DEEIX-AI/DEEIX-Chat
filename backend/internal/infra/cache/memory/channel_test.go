@@ -34,6 +34,34 @@ func TestRecordCircuitFailureTripsUpstreamByModelThresholdWithOR(t *testing.T) {
 	}
 }
 
+func TestResetAllCircuitStatesPreservesIndependentState(t *testing.T) {
+	cache := NewChannelCache(New())
+	ctx := t.Context()
+	if err := cache.OpenUpstreamCircuit(ctx, 1); err != nil {
+		t.Fatalf("OpenUpstreamCircuit() error = %v", err)
+	}
+	if err := cache.OpenModelCircuit(ctx, 1, "model"); err != nil {
+		t.Fatalf("OpenModelCircuit() error = %v", err)
+	}
+	cache.RecordFailureMetadata(ctx, 1, "temporary failure")
+	if err := cache.RecordRateLimitBackoff(ctx, 1, repository.RateLimitBackoffParams{BackoffBaseSec: 60, BackoffMaxSec: 60, BackoffMultiplier: 2}); err != nil {
+		t.Fatalf("RecordRateLimitBackoff() error = %v", err)
+	}
+
+	if err := cache.ResetAllCircuitStates(ctx); err != nil {
+		t.Fatalf("ResetAllCircuitStates() error = %v", err)
+	}
+	if open, _ := cache.QueryUpstreamCircuitStatus(ctx, 1); open {
+		t.Fatal("expected upstream circuit to be cleared")
+	}
+	if open, _ := cache.QueryModelCircuitStatus(ctx, 1, "model"); open {
+		t.Fatal("expected model circuit to be cleared")
+	}
+	if !cache.IsRateLimited(ctx, 1) {
+		t.Fatal("expected rate-limit state to remain independent")
+	}
+}
+
 func TestRecordCircuitFailureRequiresBothThresholdsWithAND(t *testing.T) {
 	cache := New()
 	ctx := context.Background()

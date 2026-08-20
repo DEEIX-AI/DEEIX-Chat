@@ -721,6 +721,12 @@ type UpdateModelResponseDoc struct {
 	Data     ModelDataResponse `json:"data"`
 }
 
+// SetModelProtocolsResponseDoc 平台模型协议集合更新响应文档。
+type SetModelProtocolsResponseDoc struct {
+	ErrorMsg string            `json:"errorMsg"`
+	Data     ModelDataResponse `json:"data"`
+}
+
 // UpsertUpstreamModelResponseDoc 上游模型路由绑定响应文档。
 type UpsertUpstreamModelResponseDoc struct {
 	ErrorMsg string                    `json:"errorMsg"`

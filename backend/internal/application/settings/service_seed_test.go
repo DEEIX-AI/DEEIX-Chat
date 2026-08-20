@@ -112,6 +112,28 @@ func TestSeedUsesDefaultFullContextMaxBytesForMissingSetting(t *testing.T) {
 	}
 }
 
+func TestSeedAddsMistralOCRDefaults(t *testing.T) {
+	repo := newSettingsSeedRepo()
+	service := NewService(repo, "test-data-encryption-key")
+
+	if err := service.Seed(context.Background(), config.Config{}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	want := map[string]string{
+		"extract:mistral_ocr_base_url":        "https://api.mistral.ai/v1/ocr",
+		"extract:mistral_ocr_model":           "mistral-ocr-latest",
+		"extract:mistral_ocr_timeout_seconds": "60",
+	}
+	for key, value := range want {
+		if got := repo.items[key].Value; got != value {
+			t.Fatalf("%s = %q, want %q", key, got, value)
+		}
+	}
+	if got := repo.items["extract:mistral_ocr_auth_token"]; got.Value != "" {
+		t.Fatalf("Mistral OCR auth token = %q, want empty", got.Value)
+	}
+}
+
 func TestSeedKeepsExistingFullContextMaxBytes(t *testing.T) {
 	const existingValue = "65536"
 	repo := newSettingsSeedRepo(domainsettings.SystemSetting{
@@ -181,6 +203,100 @@ func TestSeedAddsXAIVideoToPreviousDefaultModelOptionAllowedPaths(t *testing.T) 
 	}
 	if got := repo.items["chat:model_option_allowed_paths"].Value; got != config.DefaultModelOptionAllowedPathsJSON() {
 		t.Fatalf("expected xAI video defaults to be added, got %q", got)
+	}
+}
+
+func TestSeedAddsGeminiThinkingSummariesToPreviousDefaultModelOptionAllowedPaths(t *testing.T) {
+	previousDefault := map[string][]string{}
+	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &previousDefault); err != nil {
+		t.Fatalf("decode current model option defaults: %v", err)
+	}
+	previousDefault["gemini_interactions"] = removeStringValue(
+		previousDefault["gemini_interactions"],
+		"generation_config.thinking_summaries",
+	)
+	previousJSON, err := json.Marshal(previousDefault)
+	if err != nil {
+		t.Fatalf("encode previous model option defaults: %v", err)
+	}
+	repo := newSettingsSeedRepo(domainsettings.SystemSetting{
+		Namespace: "chat",
+		Key:       "model_option_allowed_paths",
+		Value:     string(previousJSON),
+		ValueType: "json",
+	})
+	service := NewService(repo, "")
+
+	if err := service.Seed(context.Background(), config.Config{}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	if got := repo.items["chat:model_option_allowed_paths"].Value; got != config.DefaultModelOptionAllowedPathsJSON() {
+		t.Fatalf("expected Gemini thinking summaries default to be added, got %q", got)
+	}
+}
+
+func TestSeedReplacesLegacyGeminiInteractionsOptionPaths(t *testing.T) {
+	previousDefault := map[string][]string{}
+	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &previousDefault); err != nil {
+		t.Fatalf("decode current model option defaults: %v", err)
+	}
+	previousDefault["gemini_interactions"] = append(
+		removeStringValue(previousDefault["gemini_interactions"], "response_format.schema"),
+		"responseFormat.type",
+		"responseFormat.aspectRatio",
+		"responseFormat.imageSize",
+		"responseFormat.mimeType",
+		"generationConfig.videoConfig.task",
+	)
+	previousJSON, err := json.Marshal(previousDefault)
+	if err != nil {
+		t.Fatalf("encode previous model option defaults: %v", err)
+	}
+	repo := newSettingsSeedRepo(domainsettings.SystemSetting{
+		Namespace: "chat",
+		Key:       "model_option_allowed_paths",
+		Value:     string(previousJSON),
+		ValueType: "json",
+	})
+	service := NewService(repo, "")
+
+	if err := service.Seed(context.Background(), config.Config{}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	if got := repo.items["chat:model_option_allowed_paths"].Value; got != config.DefaultModelOptionAllowedPathsJSON() {
+		t.Fatalf("expected legacy Gemini Interactions paths to migrate, got %q", got)
+	}
+}
+
+func TestSeedAddsGeminiGenerateContentThinkingPathsToPreviousDefaultModelOptionAllowedPaths(t *testing.T) {
+	previousDefault := map[string][]string{}
+	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &previousDefault); err != nil {
+		t.Fatalf("decode current model option defaults: %v", err)
+	}
+	previousDefault["gemini_generate_content"] = removeStringValue(
+		removeStringValue(
+			previousDefault["gemini_generate_content"],
+			"generationConfig.thinkingConfig.includeThoughts",
+		),
+		"generationConfig.thinkingConfig.thinkingLevel",
+	)
+	previousJSON, err := json.Marshal(previousDefault)
+	if err != nil {
+		t.Fatalf("encode previous model option defaults: %v", err)
+	}
+	repo := newSettingsSeedRepo(domainsettings.SystemSetting{
+		Namespace: "chat",
+		Key:       "model_option_allowed_paths",
+		Value:     string(previousJSON),
+		ValueType: "json",
+	})
+	service := NewService(repo, "")
+
+	if err := service.Seed(context.Background(), config.Config{}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	if got := repo.items["chat:model_option_allowed_paths"].Value; got != config.DefaultModelOptionAllowedPathsJSON() {
+		t.Fatalf("expected Gemini Generate Content thinking defaults to be added, got %q", got)
 	}
 }
 

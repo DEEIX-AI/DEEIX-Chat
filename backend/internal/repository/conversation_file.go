@@ -66,13 +66,14 @@ type EmbeddingRepository interface {
 	VectorStoreAvailable(ctx context.Context) (bool, error)
 	GetActiveFileObjectByID(ctx context.Context, userID uint, fileID string) (*domainconversation.FileObject, error)
 	GetFileObjectProcessingByObjectID(ctx context.Context, fileObjID uint) (*domainconversation.FileObjectProcessing, error)
-	UpdateFileObjectEmbedStatus(ctx context.Context, userID uint, fileID string, status string, embedErr string) error
-	UpdateFileObjectChunkCount(ctx context.Context, fileObjID uint, chunkCount int) error
-	ReplaceFileChunks(ctx context.Context, fileObjID uint, chunks []domainconversation.FileChunk, embeddings [][]float32) error
-	// MarkAllEmbeddedFilesStale 将所有 embed_status=ready 的文件标记为 stale，
-	// 在 Embedding 模型变更后调用，使旧向量失效并等待重建。
+	ClaimFileEmbedding(ctx context.Context, userID uint, fileID string, embeddingSignature string) (bool, error)
+	UpdateFileObjectEmbedStatus(ctx context.Context, userID uint, fileID string, embeddingSignature string, status string, embedErr string) (bool, error)
+	UpdateFileObjectChunkCount(ctx context.Context, fileObjID uint, embeddingSignature string, chunkCount int) (bool, error)
+	ReplaceFileChunks(ctx context.Context, fileObjID uint, embeddingSignature string, chunks []domainconversation.FileChunk, embeddings [][]float32) (bool, error)
+	// MarkEmbeddedFilesStale 将缺少当前向量空间签名分片的 ready/processing 文件标记为 stale。
+	// 在 Embedding 配置变更及服务启动时调用，使旧向量失效并等待重建。
 	// 返回被标记的文件数量。
-	MarkAllEmbeddedFilesStale(ctx context.Context) (int64, error)
+	MarkEmbeddedFilesStale(ctx context.Context, activeSignature string) (int64, error)
 	// CountFilesByEmbedStatus 统计指定 embed_status 的文件数量。
 	CountFilesByEmbedStatus(ctx context.Context, status string) (int64, error)
 	// ListFilesForReindex 分页返回需要重建向量的文件（embed_status 为 none、stale 或 failed）。
@@ -81,7 +82,9 @@ type EmbeddingRepository interface {
 
 // RAGRepository 封装向量检索能力。
 type RAGRepository interface {
-	SearchFileChunks(ctx context.Context, userID uint, fileObjIDs []uint, queryEmbedding []float32, topK int) ([]domainconversation.FileChunkSearchResult, error)
+	// fileObjIDs 由 application 层按本次会话选择解析；仓储层仍按 userID 二次校验，
+	// 仅允许检索用户自己的文件或当前启用的内置知识库文件。
+	SearchFileChunks(ctx context.Context, userID uint, fileObjIDs []uint, queryEmbedding []float32, embeddingSignature string, topK int) ([]domainconversation.FileChunkSearchResult, error)
 	BM25SearchFileChunks(ctx context.Context, userID uint, fileObjIDs []uint, query string, topK int) ([]domainconversation.FileChunkSearchResult, error)
 }
 
@@ -121,4 +124,5 @@ func (input UpdateFileObjectProcessingInput) IsZero() bool {
 // ConversationSettingsRepository 封装会话域设置读取能力。
 type ConversationSettingsRepository interface {
 	GetUserSettingValue(ctx context.Context, userID uint, key string) (string, error)
+	GetUserSettingValues(ctx context.Context, userID uint, keys []string) (map[string]string, error)
 }

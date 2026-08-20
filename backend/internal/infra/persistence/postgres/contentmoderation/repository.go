@@ -3,6 +3,7 @@ package contentmoderation
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,6 +79,38 @@ func (r *Repo) GetLatestHitEventByRunID(ctx context.Context, runID string) (*dom
 
 func (r *Repo) ListEvents(ctx context.Context, filter domaincm.EventListFilter) ([]domaincm.Event, int64, error) {
 	q := r.db.WithContext(ctx).Model(&model.ContentModerationEvent{})
+	if v := strings.TrimSpace(filter.Query); v != "" {
+		terms := moderationEventExactSearchTerms(v)
+		conditions := []string{
+			"content_moderation_events.public_id IN ?",
+			"content_moderation_events.run_id IN ?",
+			"content_moderation_events.message_public_id IN ?",
+			"content_moderation_events.result IN ?",
+			"content_moderation_events.direction IN ?",
+			"content_moderation_events.modality IN ?",
+			"content_moderation_events.model IN ?",
+			"content_moderation_events.error_code IN ?",
+			"content_moderation_events.content_summary IN ?",
+			`content_moderation_events.user_id IN (
+				SELECT users.id
+				FROM identity_users AS users
+				WHERE users.deleted_at IS NULL
+					AND (
+						LOWER(users.username) = ?
+						OR LOWER(users.display_name) = ?
+						OR LOWER(users.public_id) = ?
+					)
+			)`,
+		}
+		args := []interface{}{terms, terms, terms, terms, terms, terms, terms, terms, terms}
+		normalized := strings.ToLower(v)
+		args = append(args, normalized, normalized, normalized)
+		if userID, err := strconv.ParseUint(v, 10, 64); err == nil && userID > 0 {
+			conditions = append(conditions, "content_moderation_events.user_id = ?")
+			args = append(args, userID)
+		}
+		q = q.Where("("+strings.Join(conditions, " OR ")+")", args...)
+	}
 	if v := strings.TrimSpace(filter.Direction); v != "" {
 		q = q.Where("direction = ?", v)
 	}
@@ -119,6 +152,15 @@ func (r *Repo) ListEvents(ctx context.Context, filter domaincm.EventListFilter) 
 		items = append(items, toDomainEvent(row))
 	}
 	return items, total, nil
+}
+
+func moderationEventExactSearchTerms(query string) []string {
+	raw := strings.TrimSpace(query)
+	normalized := strings.ToLower(raw)
+	if raw == normalized {
+		return []string{raw}
+	}
+	return []string{raw, normalized}
 }
 
 func (r *Repo) ClearExpiredContentByPublicIDs(ctx context.Context, publicIDs []string) (int64, error) {

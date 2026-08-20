@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { listAllVisibleKnowledgeBases } from "@/shared/api/knowledge-bases";
 import { listVisibleSkills } from "@/shared/api/skills";
 import type { SkillSummaryDTO } from "@/shared/api/skills.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
@@ -12,23 +13,29 @@ export function useNewConversationDefaults({
   defaultsPending,
   defaultMCPToolIDs,
   defaultSkillIDs,
+  defaultKnowledgeBaseIDs,
   toolsLoading,
   setSelectedToolIDs,
   setSelectedSkills,
+  setSelectedKnowledgeBaseIDs,
 }: {
   conversationID: string | null;
   contextKey: string;
   defaultsPending: boolean;
   defaultMCPToolIDs: number[];
   defaultSkillIDs: number[];
+  defaultKnowledgeBaseIDs: string[];
   toolsLoading: boolean;
   setSelectedToolIDs: React.Dispatch<React.SetStateAction<number[]>>;
   setSelectedSkills: React.Dispatch<React.SetStateAction<SkillSummaryDTO[]>>;
+  setSelectedKnowledgeBaseIDs: React.Dispatch<React.SetStateAction<string[]>>;
 }) {
   const appliedMCPDefaultsKeyRef = React.useRef("");
   const appliedSkillDefaultsKeyRef = React.useRef("");
   const manuallyChangedMCPKeyRef = React.useRef("");
   const manuallyChangedSkillKeyRef = React.useRef("");
+  const appliedKnowledgeBaseDefaultsKeyRef = React.useRef("");
+  const manuallyChangedKnowledgeBaseKeyRef = React.useRef("");
 
   React.useEffect(() => {
     if (conversationID || toolsLoading || defaultsPending) {
@@ -89,6 +96,45 @@ export function useNewConversationDefaults({
     };
   }, [conversationID, contextKey, defaultSkillIDs, defaultsPending, setSelectedSkills]);
 
+  React.useEffect(() => {
+    if (
+      conversationID ||
+      defaultsPending ||
+      appliedKnowledgeBaseDefaultsKeyRef.current === contextKey ||
+      manuallyChangedKnowledgeBaseKeyRef.current === contextKey
+    ) {
+      return;
+    }
+    if (defaultKnowledgeBaseIDs.length === 0) {
+      appliedKnowledgeBaseDefaultsKeyRef.current = contextKey;
+      setSelectedKnowledgeBaseIDs([]);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await resolveAccessToken();
+        if (!token) return;
+        const available = await listAllVisibleKnowledgeBases(token);
+        if (cancelled || manuallyChangedKnowledgeBaseKeyRef.current === contextKey) return;
+        const readyIDs = new Set(
+          available.filter((item) => item.readyFileCount > 0).map((item) => item.publicID),
+        );
+        appliedKnowledgeBaseDefaultsKeyRef.current = contextKey;
+        setSelectedKnowledgeBaseIDs(defaultKnowledgeBaseIDs.filter((id) => readyIDs.has(id)).slice(0, 8));
+      } catch {
+        if (!cancelled && manuallyChangedKnowledgeBaseKeyRef.current !== contextKey) {
+          appliedKnowledgeBaseDefaultsKeyRef.current = contextKey;
+          setSelectedKnowledgeBaseIDs([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationID, contextKey, defaultKnowledgeBaseIDs, defaultsPending, setSelectedKnowledgeBaseIDs]);
+
   const onSelectedToolsChange = React.useCallback((toolIDs: number[]) => {
     if (!conversationID) {
       manuallyChangedMCPKeyRef.current = contextKey;
@@ -103,7 +149,14 @@ export function useNewConversationDefaults({
     setSelectedSkills(skills);
   }, [conversationID, contextKey, setSelectedSkills]);
 
-  return { onSelectedSkillsChange, onSelectedToolsChange };
+  const onSelectedKnowledgeBasesChange = React.useCallback((ids: string[]) => {
+    if (!conversationID) {
+      manuallyChangedKnowledgeBaseKeyRef.current = contextKey;
+    }
+    setSelectedKnowledgeBaseIDs(ids.slice(0, 8));
+  }, [conversationID, contextKey, setSelectedKnowledgeBaseIDs]);
+
+  return { onSelectedKnowledgeBasesChange, onSelectedSkillsChange, onSelectedToolsChange };
 }
 
 async function listVisibleSkillsByIDs(accessToken: string, skillIDs: number[]): Promise<SkillSummaryDTO[]> {

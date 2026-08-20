@@ -72,7 +72,16 @@ func TestFilterModelOptionsAllowlistUsesDefaultAndProtocolPaths(t *testing.T) {
 func TestFilterModelOptionsAllowsGeminiInteractionResponseFormatArray(t *testing.T) {
 	filtered := filterModelOptions(map[string]interface{}{
 		"response_format": []interface{}{
-			map[string]interface{}{"type": "text"},
+			map[string]interface{}{
+				"type":      "text",
+				"mime_type": "application/json",
+				"schema": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"answer": map[string]interface{}{"type": "string"},
+					},
+				},
+			},
 			map[string]interface{}{"type": "image", "image_size": "1K", "delivery": "b64_json"},
 		},
 	}, llm.AdapterGeminiInteractions, modelOptionPolicyConfig{
@@ -84,6 +93,11 @@ func TestFilterModelOptionsAllowsGeminiInteractionResponseFormatArray(t *testing
 	formats, ok := filtered["response_format"].([]interface{})
 	if !ok || len(formats) != 2 {
 		t.Fatalf("expected Gemini Interactions response_format array to pass, got %#v", filtered)
+	}
+	textFormat := formats[0].(map[string]interface{})
+	schema, ok := textFormat["schema"].(map[string]interface{})
+	if !ok || schema["type"] != "object" {
+		t.Fatalf("expected whitelisted text schema to pass, got %#v", textFormat)
 	}
 	imageFormat := formats[1].(map[string]interface{})
 	if imageFormat["image_size"] != "1K" {
@@ -678,6 +692,10 @@ func TestFilterModelOptionsGeminiPolicyKeyMatchesGoogleAdapter(t *testing.T) {
 			"temperature":      0.4,
 			"responseMimeType": "application/json",
 			"candidateCount":   3,
+			"thinkingConfig": map[string]interface{}{
+				"includeThoughts": true,
+				"thinkingLevel":   "high",
+			},
 		},
 		"tools": []interface{}{
 			map[string]interface{}{"type": "google_search"},
@@ -695,6 +713,10 @@ func TestFilterModelOptionsGeminiPolicyKeyMatchesGoogleAdapter(t *testing.T) {
 	}
 	if _, ok := generationConfig["candidateCount"]; ok {
 		t.Fatalf("expected unlisted gemini option removed, got %#v", generationConfig)
+	}
+	thinkingConfig, ok := generationConfig["thinkingConfig"].(map[string]interface{})
+	if !ok || thinkingConfig["includeThoughts"] != true || thinkingConfig["thinkingLevel"] != "high" {
+		t.Fatalf("expected Gemini thinking options to pass, got %#v", generationConfig)
 	}
 	tools := filtered["tools"].([]map[string]interface{})
 	if len(tools) != 1 {
@@ -968,12 +990,14 @@ func TestFilterModelOptionsGeminiInteractionsAllowsVideoParams(t *testing.T) {
 		"response_format": map[string]interface{}{
 			"aspect_ratio": "16:9",
 			"image_size":   "1K",
-			"mime_type":    "image/png",
+			"mime_type":    "image/jpeg",
 			"delivery":     "b64_json",
 		},
 		"generation_config": map[string]interface{}{
-			"temperature":    0.3,
-			"thinking_level": "low",
+			"temperature":        0.3,
+			"thinking_level":     "low",
+			"thinking_summaries": "auto",
+			"max_output_tokens":  1024,
 			"video_config": map[string]interface{}{
 				"task": "image_to_video",
 			},
@@ -987,7 +1011,7 @@ func TestFilterModelOptionsGeminiInteractionsAllowsVideoParams(t *testing.T) {
 	})
 
 	responseFormat, ok := filtered["response_format"].(map[string]interface{})
-	if !ok || responseFormat["aspect_ratio"] != "16:9" || responseFormat["image_size"] != "1K" || responseFormat["mime_type"] != "image/png" {
+	if !ok || responseFormat["aspect_ratio"] != "16:9" || responseFormat["image_size"] != "1K" || responseFormat["mime_type"] != "image/jpeg" {
 		t.Fatalf("expected Gemini response_format aspect ratio to pass, got %#v", filtered)
 	}
 	if _, ok := responseFormat["delivery"]; ok {
@@ -998,7 +1022,10 @@ func TestFilterModelOptionsGeminiInteractionsAllowsVideoParams(t *testing.T) {
 		t.Fatalf("expected Gemini generation_config to pass, got %#v", filtered)
 	}
 	videoConfig, ok := generationConfig["video_config"].(map[string]interface{})
-	if generationConfig["temperature"] != 0.3 || generationConfig["thinking_level"] != "low" {
+	if generationConfig["temperature"] != 0.3 ||
+		generationConfig["thinking_level"] != "low" ||
+		generationConfig["thinking_summaries"] != "auto" ||
+		generationConfig["max_output_tokens"] != 1024 {
 		t.Fatalf("expected Gemini generation config fields to pass, got %#v", generationConfig)
 	}
 	if !ok || videoConfig["task"] != "image_to_video" {
@@ -1011,7 +1038,116 @@ func TestFilterModelOptionsGeminiInteractionsAllowsVideoParams(t *testing.T) {
 	}
 }
 
-func TestFilterModelOptionsGeminiInteractionsAllowsCamelCaseVideoConfig(t *testing.T) {
+func TestFilterModelOptionsGeminiInteractionsPreservesConfiguredNativeTools(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"tools": []interface{}{
+			map[string]interface{}{"type": "google_search"},
+			map[string]interface{}{"type": "code_execution"},
+			map[string]interface{}{"type": "url_context"},
+			map[string]interface{}{"type": "external_function", "name": "not_allowed"},
+		},
+	}, llm.AdapterGeminiInteractions, modelOptionPolicyConfig{
+		Mode:                  modelOptionPolicyAllowlist,
+		AllowedPathsJSON:      config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:       config.DefaultModelOptionDeniedPathsJSON(),
+		ModelCapabilitiesJSON: `{"nativeToolKeys":["google.google_search","google.code_execution","google.url_context"]}`,
+	})
+
+	tools, ok := filtered["tools"].([]map[string]interface{})
+	if !ok || len(tools) != 3 {
+		t.Fatalf("expected three configured Gemini Interactions tools, got %#v", filtered["tools"])
+	}
+	wantTypes := []string{"google_search", "code_execution", "url_context"}
+	for index, wantType := range wantTypes {
+		if tools[index]["type"] != wantType {
+			t.Fatalf("tool %d type = %#v, want %q", index, tools[index]["type"], wantType)
+		}
+	}
+}
+
+func TestFilterModelOptionsSelectsGeminiToolsForResolvedRouteProtocol(t *testing.T) {
+	options := map[string]interface{}{
+		"tools": []interface{}{
+			map[string]interface{}{"google_search": map[string]interface{}{}},
+			map[string]interface{}{"code_execution": map[string]interface{}{}},
+			map[string]interface{}{"url_context": map[string]interface{}{}},
+			map[string]interface{}{"type": "google_search"},
+			map[string]interface{}{"type": "code_execution"},
+			map[string]interface{}{"type": "url_context"},
+		},
+	}
+	capabilities := `{
+		"nativeTools": [
+			{"key":"google.google_search","protocols":["gemini_generate_content"],"type":"google_search","payload":{"google_search":{}}},
+			{"key":"google.code_execution","protocols":["gemini_generate_content"],"type":"code_execution","payload":{"code_execution":{}}},
+			{"key":"google.url_context","protocols":["gemini_generate_content"],"type":"url_context","payload":{"url_context":{}}},
+			{"key":"google.google_search","protocols":["gemini_interactions"],"type":"google_search","payload":{"type":"google_search"}},
+			{"key":"google.code_execution","protocols":["gemini_interactions"],"type":"code_execution","payload":{"type":"code_execution"}},
+			{"key":"google.url_context","protocols":["gemini_interactions"],"type":"url_context","payload":{"type":"url_context"}}
+		]
+	}`
+
+	generateContent := filterModelOptions(options, llm.AdapterGoogleGenerateContent, modelOptionPolicyConfig{
+		Mode:                  modelOptionPolicyAllowlist,
+		AllowedPathsJSON:      config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:       config.DefaultModelOptionDeniedPathsJSON(),
+		ModelCapabilitiesJSON: capabilities,
+	})
+	generateContentTools, ok := generateContent["tools"].([]map[string]interface{})
+	if !ok || len(generateContentTools) != 3 {
+		t.Fatalf("expected three Generate Content tools, got %#v", generateContent["tools"])
+	}
+	missingGenerateContentTools := map[string]struct{}{
+		"google_search":  {},
+		"code_execution": {},
+		"url_context":    {},
+	}
+	for _, tool := range generateContentTools {
+		if _, exists := tool["type"]; exists {
+			t.Fatalf("Generate Content tool must use field-style payload: %#v", tool)
+		}
+		for key := range missingGenerateContentTools {
+			if _, exists := tool[key]; exists {
+				delete(missingGenerateContentTools, key)
+				break
+			}
+		}
+	}
+	if len(missingGenerateContentTools) != 0 {
+		t.Fatalf("missing Generate Content tools: %#v", missingGenerateContentTools)
+	}
+
+	interactions := filterModelOptions(options, llm.AdapterGeminiInteractions, modelOptionPolicyConfig{
+		Mode:                  modelOptionPolicyAllowlist,
+		AllowedPathsJSON:      config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:       config.DefaultModelOptionDeniedPathsJSON(),
+		ModelCapabilitiesJSON: capabilities,
+	})
+	interactionTools, ok := interactions["tools"].([]map[string]interface{})
+	if !ok || len(interactionTools) != 3 {
+		t.Fatalf("expected three Interactions tools, got %#v", interactions["tools"])
+	}
+	missingInteractionTools := map[string]struct{}{
+		"google_search":  {},
+		"code_execution": {},
+		"url_context":    {},
+	}
+	for _, tool := range interactionTools {
+		toolType, ok := tool["type"].(string)
+		if !ok {
+			t.Fatalf("Interactions tool missing type: %#v", tool)
+		}
+		if _, expected := missingInteractionTools[toolType]; !expected {
+			t.Fatalf("unexpected or duplicate Interactions tool type %q: %#v", toolType, tool)
+		}
+		delete(missingInteractionTools, toolType)
+	}
+	if len(missingInteractionTools) != 0 {
+		t.Fatalf("missing Interactions tools: %#v", missingInteractionTools)
+	}
+}
+
+func TestFilterModelOptionsGeminiInteractionsRejectsLegacyCamelCaseConfig(t *testing.T) {
 	filtered := filterModelOptions(map[string]interface{}{
 		"generationConfig": map[string]interface{}{
 			"videoConfig": map[string]interface{}{
@@ -1024,13 +1160,8 @@ func TestFilterModelOptionsGeminiInteractionsAllowsCamelCaseVideoConfig(t *testi
 		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
 	})
 
-	generationConfig, ok := filtered["generationConfig"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected camelCase Gemini generationConfig to pass, got %#v", filtered)
-	}
-	videoConfig, ok := generationConfig["videoConfig"].(map[string]interface{})
-	if !ok || videoConfig["task"] != "text_to_video" {
-		t.Fatalf("expected camelCase Gemini video task to pass, got %#v", filtered)
+	if len(filtered) != 0 {
+		t.Fatalf("expected legacy camelCase Interactions options to be rejected, got %#v", filtered)
 	}
 }
 

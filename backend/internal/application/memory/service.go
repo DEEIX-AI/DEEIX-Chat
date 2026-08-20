@@ -10,7 +10,7 @@ import (
 )
 
 type embeddingProvider interface {
-	EmbedTexts(ctx context.Context, texts []string) ([][]float32, error)
+	EmbedTextsWithSignature(ctx context.Context, texts []string) ([][]float32, string, error)
 }
 
 type auditWriter interface {
@@ -110,13 +110,13 @@ func (s *Service) ListUserMemories(ctx context.Context, userID uint) ([]domainme
 }
 
 // SearchUserMemoriesByEmbedding 语义检索用户记忆（需向量存储支持）。
-func (s *Service) SearchUserMemoriesByEmbedding(ctx context.Context, userID uint, queryEmbedding []float32, topK int, minSimilarity float64) ([]domainmemory.UserMemory, error) {
-	return s.repo.SearchUserMemoriesByEmbedding(ctx, userID, queryEmbedding, topK, minSimilarity)
+func (s *Service) SearchUserMemoriesByEmbedding(ctx context.Context, userID uint, queryEmbedding []float32, embeddingSignature string, topK int, minSimilarity float64) ([]domainmemory.UserMemory, error) {
+	return s.repo.SearchUserMemoriesByEmbedding(ctx, userID, queryEmbedding, embeddingSignature, topK, minSimilarity)
 }
 
 // UpsertUserMemoryEmbedding 更新记忆向量（异步写入，失败静默）。
-func (s *Service) UpsertUserMemoryEmbedding(ctx context.Context, userID uint, memoryKey string, expectedValue string, embedding []float32) error {
-	return s.repo.UpsertUserMemoryEmbedding(ctx, userID, memoryKey, expectedValue, embedding)
+func (s *Service) UpsertUserMemoryEmbedding(ctx context.Context, userID uint, memoryKey string, expectedValue string, embedding []float32, embeddingSignature string) error {
+	return s.repo.UpsertUserMemoryEmbedding(ctx, userID, memoryKey, expectedValue, embedding, embeddingSignature)
 }
 
 func (s *Service) embedUserMemoryAsync(userID uint, memoryKey string, value string) {
@@ -127,10 +127,10 @@ func (s *Service) embedUserMemoryAsync(userID uint, memoryKey string, value stri
 		// 记忆向量是检索增强，不属于写入主事务；失败时保留文本记忆并走关键词兜底。
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		embeddings, err := s.embedding.EmbedTexts(ctx, []string{value})
+		embeddings, embeddingSignature, err := s.embedding.EmbedTextsWithSignature(ctx, []string{value})
 		if err != nil || len(embeddings) == 0 {
 			return
 		}
-		_ = s.repo.UpsertUserMemoryEmbedding(ctx, userID, memoryKey, strings.TrimSpace(value), embeddings[0])
+		_ = s.repo.UpsertUserMemoryEmbedding(ctx, userID, memoryKey, strings.TrimSpace(value), embeddings[0], embeddingSignature)
 	}()
 }

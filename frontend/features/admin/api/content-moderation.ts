@@ -19,10 +19,7 @@ export type DailyStat = ContentModerationDailyStatResponse;
 export type ModerationEvent = ContentModerationEventResponse;
 export type ContentModerationEventDetail = ContentModerationEventDetailResponse;
 
-type ContentModerationEventListQuery = Pick<
-  Admin.ContentModerationEventsList.RequestQuery,
-  "page" | "pageSize" | "result" | "direction"
->;
+type ContentModerationEventListQuery = Admin.ContentModerationEventsList.RequestQuery;
 
 export async function getContentModerationConfig(accessToken: string) {
   return authedRequest<ContentModerationConfigDataResponse>(
@@ -66,8 +63,15 @@ export async function listContentModerationEvents(
   const query = new URLSearchParams();
   if (params.page) query.set("page", String(params.page));
   if (params.pageSize) query.set("pageSize", String(params.pageSize));
+  if (params.query) query.set("query", params.query);
   if (params.result) query.set("result", params.result);
   if (params.direction) query.set("direction", params.direction);
+  if (params.modality) query.set("modality", params.modality);
+  if (params.category) query.set("category", params.category);
+  if (params.userId) query.set("userId", String(params.userId));
+  if (params.runId) query.set("runId", params.runId);
+  if (params.from) query.set("from", params.from);
+  if (params.to) query.set("to", params.to);
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return authedRequest<ContentModerationEventListDataResponse>(
     `/api/v1/admin/content-moderation/events${suffix}`,

@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Box, ChevronDown, Globe2, Search, SlidersHorizontal, Wrench, type LucideIcon } from "lucide-react";
+import { BookOpen, Box, ChevronDown, Globe2, Search, SlidersHorizontal, Wrench, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -22,6 +23,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { listAvailableMCPTools } from "@/shared/api/mcp";
+import { listAllVisibleKnowledgeBases } from "@/shared/api/knowledge-bases";
+import type { KnowledgeBaseDTO } from "@/shared/api/knowledge-bases.types";
 import type { MCPToolDTO } from "@/shared/api/mcp.types";
 import { getMCPPolicy } from "@/shared/api/settings";
 import { listVisibleSkills } from "@/shared/api/skills";
@@ -40,12 +43,14 @@ export type ProjectDraft = {
   mcpDefaultMode: "inherit" | "custom";
   defaultMCPToolIDs: number[];
   defaultSkillIDs: number[];
+  defaultKnowledgeBaseIDs: string[];
 };
 
-type ProjectDefaultOption = {
-  id: number;
+type ProjectDefaultOption<T extends string | number> = {
+  id: T;
   label: string;
   detail: string;
+  disabled?: boolean;
 };
 
 export function ProjectDialog({
@@ -64,6 +69,7 @@ export function ProjectDialog({
   const [catalogLoading, setCatalogLoading] = React.useState(false);
   const [mcpTools, setMCPTools] = React.useState<MCPToolDTO[]>([]);
   const [skills, setSkills] = React.useState<SkillSummaryDTO[]>([]);
+  const [knowledgeBases, setKnowledgeBases] = React.useState<KnowledgeBaseDTO[]>([]);
   const [selectionLimit, setSelectionLimit] = React.useState(1);
   const stableDraft = useDialogSnapshot(draft);
   const open = Boolean(draft);
@@ -81,6 +87,7 @@ export function ProjectDialog({
       setCatalogLoading(false);
       setMCPTools([]);
       setSkills([]);
+      setKnowledgeBases([]);
       return;
     }
 
@@ -92,17 +99,20 @@ export function ProjectDialog({
         if (!token) {
           throw new Error("missing access token");
         }
-        const [tools, visibleSkills, policy] = await Promise.all([
+        const [tools, visibleSkills, visibleKnowledgeBases, policy] = await Promise.all([
           listAvailableMCPTools(token),
           listAllVisibleSkills(token),
+          listAllVisibleKnowledgeBases(token),
           getMCPPolicy(token),
         ]);
         if (!cancelled) {
           setMCPTools(tools);
           setSkills(visibleSkills);
+          setKnowledgeBases(visibleKnowledgeBases);
           setSelectionLimit(Math.max(1, policy.maxSelectedToolsPerMessage));
           const availableMCPToolIDs = new Set(tools.map((tool) => tool.id));
           const availableSkillIDs = new Set(visibleSkills.map((skill) => skill.id));
+          const availableKnowledgeBaseIDs = new Set(visibleKnowledgeBases.map((item) => item.publicID));
           setDraft((current) => {
             if (!current) {
               return current;
@@ -112,17 +122,20 @@ export function ProjectDialog({
               tools,
             );
             const defaultSkillIDs = current.defaultSkillIDs.filter((id) => availableSkillIDs.has(id));
+            const defaultKnowledgeBaseIDs = current.defaultKnowledgeBaseIDs.filter((id) => availableKnowledgeBaseIDs.has(id)).slice(0, 8);
             const unchangedMCPTools = defaultMCPToolIDs.length === current.defaultMCPToolIDs.length;
             const unchangedSkills = defaultSkillIDs.length === current.defaultSkillIDs.length;
-            return unchangedMCPTools && unchangedSkills
+            const unchangedKnowledgeBases = defaultKnowledgeBaseIDs.length === current.defaultKnowledgeBaseIDs.length;
+            return unchangedMCPTools && unchangedSkills && unchangedKnowledgeBases
               ? current
-              : { ...current, defaultMCPToolIDs, defaultSkillIDs };
+              : { ...current, defaultMCPToolIDs, defaultSkillIDs, defaultKnowledgeBaseIDs };
           });
         }
       } catch {
         if (!cancelled) {
           setMCPTools([]);
           setSkills([]);
+          setKnowledgeBases([]);
           toast.error(t("defaultsLoadFailed"));
         }
       } finally {
@@ -275,6 +288,27 @@ export function ProjectDialog({
                   setDraft((current) => current ? { ...current, defaultSkillIDs } : current);
                 }}
               />
+
+              <ProjectDefaultSelector
+                icon={BookOpen}
+                label={t("selectKnowledgeBases")}
+                description={t("knowledgeBaseDefaultsDescription")}
+                emptyLabel={t("knowledgeBaseDefaultsEmpty")}
+                searchPlaceholder={t("searchKnowledgeBases")}
+                options={knowledgeBases.map((item) => ({
+                  id: item.publicID,
+                  label: item.name,
+                  detail: `${item.scope === "builtin" ? t("builtinKnowledgeBase") : t("personalKnowledgeBase")} · ${t("knowledgeBaseFileCount", { count: item.readyFileCount })}`,
+                  disabled: item.readyFileCount === 0,
+                }))}
+                selectedIDs={stableDraft?.defaultKnowledgeBaseIDs ?? []}
+                selectionLimit={8}
+                loading={catalogLoading}
+                disabled={submitting}
+                onChange={(defaultKnowledgeBaseIDs) => {
+                  setDraft((current) => current ? { ...current, defaultKnowledgeBaseIDs } : current);
+                }}
+              />
             </div>
           </div>
 
@@ -304,7 +338,7 @@ async function listAllVisibleSkills(accessToken: string): Promise<SkillSummaryDT
   return results;
 }
 
-function ProjectDefaultSelector({
+function ProjectDefaultSelector<T extends string | number>({
   icon: Icon,
   label,
   description,
@@ -322,12 +356,12 @@ function ProjectDefaultSelector({
   description: string;
   emptyLabel: string;
   searchPlaceholder: string;
-  options: ProjectDefaultOption[];
-  selectedIDs: number[];
+  options: ProjectDefaultOption<T>[];
+  selectedIDs: T[];
   selectionLimit: number;
   loading: boolean;
   disabled: boolean;
-  onChange: (ids: number[]) => void;
+  onChange: (ids: T[]) => void;
 }) {
   const t = useTranslations("recent.projects");
   const [open, setOpen] = React.useState(false);
@@ -379,13 +413,18 @@ function ProjectDefaultSelector({
           <div className="max-h-64 space-y-0.5 overflow-y-auto">
             {filteredOptions.map((option) => {
               const selected = selectedIDSet.has(option.id);
+              const unavailable = option.disabled === true && !selected;
               return (
                 <label
                   key={option.id}
-                  className="flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent"
+                  className={cn(
+                    "flex min-h-9 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
+                    unavailable ? "cursor-not-allowed opacity-45" : "cursor-pointer hover:bg-accent",
+                  )}
                 >
                   <Checkbox
                     checked={selected}
+                    disabled={unavailable}
                     onCheckedChange={(checked) => {
                       if (checked !== true) {
                         onChange(selectedIDs.filter((id) => id !== option.id));

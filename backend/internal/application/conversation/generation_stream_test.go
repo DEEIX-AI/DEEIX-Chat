@@ -31,28 +31,194 @@ func TestGenerationStreamRegistryReplayAndTerminal(t *testing.T) {
 		t.Fatalf("unexpected seq values: first=%v second=%v", first["seq"], second["seq"])
 	}
 
-	replay, events, unsubscribe, ok := registry.subscribe(ctx, 7, runID, 1)
+	replay, events, unsubscribe, ok := registry.subscribe(ctx, 7, runID, 1, true)
 	if !ok {
 		t.Fatal("expected subscription to existing run")
 	}
 	defer unsubscribe()
-	if len(replay) != 1 || replay[0].Seq != 2 {
+	if len(replay) != 2 || replay[0].Seq != 1 || replay[0].Payload["type"] != "delta" || replay[0].Payload["delta"] != "a" || replay[0].Payload["replace"] != true || replay[1].Seq != 2 {
 		t.Fatalf("unexpected replay events: %+v", replay)
 	}
 	if _, ok := <-events; ok {
 		t.Fatal("terminal replay should close live event channel")
 	}
 
-	replay, events, unsubscribe, ok = registry.subscribe(ctx, 7, runID, 2)
+	replay, events, unsubscribe, ok = registry.subscribe(ctx, 7, runID, 2, true)
 	if !ok {
 		t.Fatal("expected subscription after terminal seq to existing run")
 	}
 	defer unsubscribe()
-	if len(replay) != 0 {
+	if len(replay) != 1 || replay[0].Payload["type"] != "delta" || replay[0].Payload["delta"] != "a" || replay[0].Payload["replace"] != true {
 		t.Fatalf("unexpected replay after terminal seq: %+v", replay)
 	}
 	if _, ok := <-events; ok {
 		t.Fatal("terminal state should close live event channel after last seq")
+	}
+}
+
+func TestGenerationStreamRegistryReplayUsesFullTextSnapshotBeyondWindow(t *testing.T) {
+	registry := newGenerationStreamRegistry(newTestGenerationStreamStore(), generationStreamOptions{
+		Retention:        time.Minute,
+		ActiveTTL:        time.Minute,
+		MaxEvents:        3,
+		SubscriberBuffer: 4,
+	})
+	ctx := context.Background()
+	runID := EnsureMessageGenerationRunID("")
+	registry.register(ctx, runID, 7, func() {})
+	defer registry.finish(ctx, runID)
+
+	for _, delta := range []string{"a", "b", "c", "d", "e", "f"} {
+		registry.publish(ctx, runID, map[string]interface{}{"type": "delta", "delta": delta})
+	}
+
+	replay, _, unsubscribe, ok := registry.subscribe(ctx, 7, runID, 0, true)
+	if !ok {
+		t.Fatal("expected long stream to remain resumable")
+	}
+	defer unsubscribe()
+	if len(replay) != 1 || replay[0].Payload["type"] != "delta" || replay[0].Payload["delta"] != "abcdef" || replay[0].Payload["replace"] != true || replay[0].Seq != 6 {
+		t.Fatalf("expected one complete text snapshot, got %+v", replay)
+	}
+}
+
+func TestGenerationStreamRegistryLegacyReplayKeepsOriginalDeltaProtocol(t *testing.T) {
+	registry := newGenerationStreamRegistry(newTestGenerationStreamStore(), generationStreamOptions{
+		Retention:        time.Minute,
+		ActiveTTL:        time.Minute,
+		MaxEvents:        8,
+		SubscriberBuffer: 4,
+	})
+	ctx := context.Background()
+	runID := EnsureMessageGenerationRunID("")
+	registry.register(ctx, runID, 7, func() {})
+	defer registry.finish(ctx, runID)
+	registry.publish(ctx, runID, map[string]interface{}{"type": "delta", "delta": "legacy"})
+
+	replay, _, unsubscribe, ok := registry.subscribe(ctx, 7, runID, 0, false)
+	if !ok {
+		t.Fatal("expected legacy subscription")
+	}
+	defer unsubscribe()
+	if len(replay) != 1 || replay[0].Payload["delta"] != "legacy" {
+		t.Fatalf("unexpected legacy replay: %+v", replay)
+	}
+	if _, exists := replay[0].Payload["replace"]; exists {
+		t.Fatalf("legacy replay unexpectedly received snapshot semantics: %+v", replay)
+	}
+}
+
+func TestGenerationStreamRegistrySnapshotThenLiveDeltaExactlyOnce(t *testing.T) {
+	registry := newGenerationStreamRegistry(newTestGenerationStreamStore(), generationStreamOptions{
+		Retention:        time.Minute,
+		ActiveTTL:        time.Minute,
+		MaxEvents:        3,
+		SubscriberBuffer: 4,
+	})
+	ctx := context.Background()
+	runID := EnsureMessageGenerationRunID("")
+	registry.register(ctx, runID, 7, func() {})
+	defer registry.finish(ctx, runID)
+	registry.publish(ctx, runID, map[string]interface{}{"type": "delta", "delta": "a"})
+	registry.publish(ctx, runID, map[string]interface{}{"type": "delta", "delta": "b"})
+
+	replay, events, unsubscribe, ok := registry.subscribe(ctx, 7, runID, 0, true)
+	if !ok {
+		t.Fatal("expected subscription")
+	}
+	defer unsubscribe()
+	if len(replay) != 1 || replay[0].Payload["delta"] != "ab" || replay[0].Payload["replace"] != true {
+		t.Fatalf("unexpected snapshot replay: %+v", replay)
+	}
+
+	registry.publish(ctx, runID, map[string]interface{}{"type": "delta", "delta": "c"})
+	select {
+	case event := <-events:
+		if event.Payload["type"] != "delta" || event.Payload["delta"] != "c" || event.Seq != 3 {
+			t.Fatalf("unexpected live event: %+v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for live delta")
+	}
+}
+
+func TestGenerationStreamRegistryKeepsNonTextReplayInSequenceOrder(t *testing.T) {
+	registry := newGenerationStreamRegistry(newTestGenerationStreamStore(), generationStreamOptions{
+		Retention:        time.Minute,
+		ActiveTTL:        time.Minute,
+		MaxEvents:        8,
+		SubscriberBuffer: 4,
+	})
+	ctx := context.Background()
+	runID := EnsureMessageGenerationRunID("")
+	registry.register(ctx, runID, 7, func() {})
+	defer registry.finish(ctx, runID)
+	registry.publish(ctx, runID, map[string]interface{}{"type": "file_proc", "message": "preparing"})
+	registry.publish(ctx, runID, map[string]interface{}{"type": "delta", "delta": "answer"})
+	registry.publish(ctx, runID, map[string]interface{}{"type": "usage", "output_tokens": 1})
+
+	replay, _, unsubscribe, ok := registry.subscribe(ctx, 7, runID, 0, true)
+	if !ok {
+		t.Fatal("expected subscription")
+	}
+	defer unsubscribe()
+	if len(replay) != 3 ||
+		replay[0].Seq != 1 || replay[0].Payload["type"] != "file_proc" ||
+		replay[1].Seq != 2 || replay[1].Payload["replace"] != true ||
+		replay[2].Seq != 3 || replay[2].Payload["type"] != "usage" {
+		t.Fatalf("unexpected ordered replay: %+v", replay)
+	}
+}
+
+func TestGenerationStreamRegistryRejectsTextReplayWithoutSnapshot(t *testing.T) {
+	store := newTestGenerationStreamStore()
+	registry := newGenerationStreamRegistry(store, generationStreamOptions{
+		Retention:        time.Minute,
+		ActiveTTL:        time.Minute,
+		MaxEvents:        3,
+		SubscriberBuffer: 4,
+	})
+	ctx := context.Background()
+	runID := EnsureMessageGenerationRunID("")
+	registry.register(ctx, runID, 7, func() {})
+	defer registry.finish(ctx, runID)
+	if _, err := store.AppendGenerationStreamEvent(ctx, runID, repository.GenerationStreamAppend{
+		PayloadJSON: `{"type":"delta","delta":"unsafe"}`,
+	}, 3, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, _, ok := registry.subscribe(ctx, 7, runID, 0, true); ok {
+		t.Fatal("expected replay without an authoritative text snapshot to be rejected")
+	}
+}
+
+func TestGenerationStreamRegistryResetClearsTextSnapshot(t *testing.T) {
+	store := newTestGenerationStreamStore()
+	registry := newGenerationStreamRegistry(store, generationStreamOptions{
+		Retention:        time.Minute,
+		ActiveTTL:        time.Minute,
+		MaxEvents:        3,
+		SubscriberBuffer: 4,
+	})
+	ctx := context.Background()
+	runID := EnsureMessageGenerationRunID("")
+	registry.register(ctx, runID, 7, func() {})
+	defer registry.finish(ctx, runID)
+	registry.publish(ctx, runID, map[string]interface{}{"type": "delta", "delta": "blocked text"})
+	registry.resetEvents(ctx, runID)
+	registry.publish(ctx, runID, map[string]interface{}{"type": "moderation_blocked"})
+
+	replay, events, unsubscribe, ok := registry.subscribe(ctx, 7, runID, 0, true)
+	if !ok {
+		t.Fatal("expected blocked stream to remain subscribable")
+	}
+	defer unsubscribe()
+	if len(replay) != 1 || replay[0].Payload["type"] != "moderation_blocked" {
+		t.Fatalf("blocked content was retained after reset: %+v", replay)
+	}
+	if _, ok := <-events; ok {
+		t.Fatal("expected moderation block to terminate replay")
 	}
 }
 
@@ -145,7 +311,7 @@ func TestGenerationStreamStoreReturnsLatestWindow(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i < 5; i++ {
-		if _, err := store.AppendGenerationStreamEvent(ctx, runID, `{"type":"delta"}`, 3, time.Minute); err != nil {
+		if _, err := store.AppendGenerationStreamEvent(ctx, runID, repository.GenerationStreamAppend{PayloadJSON: `{"type":"delta"}`}, 3, time.Minute); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -302,6 +468,8 @@ type testGenerationStream struct {
 	activeUntil time.Time
 	nextSeq     int64
 	events      []repository.GenerationStreamMessage
+	textContent strings.Builder
+	textSeq     int64
 	expiresAt   time.Time
 }
 
@@ -371,7 +539,7 @@ func (s *testGenerationStreamStore) IsGenerationStreamCanceled(_ context.Context
 	return ok && item.canceled, nil
 }
 
-func (s *testGenerationStreamStore) AppendGenerationStreamEvent(_ context.Context, runID string, payloadJSON string, maxEvents int64, ttl time.Duration) (repository.GenerationStreamMessage, error) {
+func (s *testGenerationStreamStore) AppendGenerationStreamEvent(_ context.Context, runID string, input repository.GenerationStreamAppend, maxEvents int64, ttl time.Duration) (repository.GenerationStreamMessage, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	item := s.ensureLocked(runID)
@@ -379,14 +547,32 @@ func (s *testGenerationStreamStore) AppendGenerationStreamEvent(_ context.Contex
 	record := repository.GenerationStreamMessage{
 		ID:          fmt.Sprintf("%d-0", item.nextSeq),
 		Seq:         item.nextSeq,
-		PayloadJSON: payloadJSON,
+		PayloadJSON: input.PayloadJSON,
 	}
 	item.events = append(item.events, record)
+	if input.TextDelta != "" {
+		_, _ = item.textContent.WriteString(input.TextDelta)
+		item.textSeq = item.nextSeq
+	}
 	if maxEvents > 0 && int64(len(item.events)) > maxEvents {
 		item.events = append([]repository.GenerationStreamMessage(nil), item.events[len(item.events)-int(maxEvents):]...)
 	}
 	item.expiresAt = time.Now().Add(ttl)
 	return record, nil
+}
+
+func (s *testGenerationStreamStore) GetGenerationStreamTextSnapshot(_ context.Context, runID string) (repository.GenerationStreamTextSnapshot, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleanupLocked()
+	item, ok := s.items[runID]
+	if !ok || item.textSeq <= 0 {
+		return repository.GenerationStreamTextSnapshot{}, false, nil
+	}
+	return repository.GenerationStreamTextSnapshot{
+		Seq:     item.textSeq,
+		Content: item.textContent.String(),
+	}, true, nil
 }
 
 func (s *testGenerationStreamStore) ListGenerationStreamEvents(_ context.Context, runID string, limit int64) ([]repository.GenerationStreamMessage, error) {
@@ -424,6 +610,8 @@ func (s *testGenerationStreamStore) ResetGenerationStreamEvents(_ context.Contex
 	defer s.mu.Unlock()
 	if item, ok := s.items[runID]; ok {
 		item.events = nil
+		item.textContent.Reset()
+		item.textSeq = 0
 	}
 	return nil
 }

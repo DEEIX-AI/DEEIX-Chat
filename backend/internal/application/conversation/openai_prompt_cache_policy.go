@@ -10,7 +10,6 @@ import (
 const (
 	openAIPromptCacheCapabilityKey = "promptCache"
 	openAIPromptCacheOptionKey     = "prompt_cache_options"
-	openAIPromptCacheRetentionKey  = "prompt_cache_retention"
 )
 
 type openAIPromptCacheCapabilityConfig struct {
@@ -20,7 +19,6 @@ type openAIPromptCacheCapabilityConfig struct {
 	MessageBreakpointsConfigured bool
 	Mode                         string
 	TTL                          string
-	Retention                    string
 }
 
 // configureOpenAIPromptCacheForRoute 把路由能力收敛为上游请求所需的缓存键和选项。
@@ -153,32 +151,25 @@ func openAIPromptCacheCapability(capabilitiesJSON string) openAIPromptCacheCapab
 		promptCache = nil
 	}
 	config := openAIPromptCacheCapabilityConfig{
-		Mode:      strings.ToLower(strings.TrimSpace(modelOptionStringValue(promptCache["mode"]))),
-		TTL:       strings.ToLower(strings.TrimSpace(modelOptionStringValue(promptCache["ttl"]))),
-		Retention: normalizeOpenAIPromptCacheRetention(modelOptionStringValue(promptCache["retention"])),
+		Mode: strings.ToLower(strings.TrimSpace(modelOptionStringValue(promptCache["mode"]))),
+		TTL:  strings.ToLower(strings.TrimSpace(modelOptionStringValue(promptCache["ttl"]))),
 	}
 	config.Enabled, config.EnabledConfigured = promptCache["enabled"].(bool)
 	config.MessageBreakpoints, config.MessageBreakpointsConfigured = promptCache["messageBreakpoints"].(bool)
-	if config.Mode != "explicit" && config.Retention == "" {
-		config.Retention = legacyOpenAIPromptCacheRetention(capabilitiesJSON)
-	}
 	return config
-}
-
-func legacyOpenAIPromptCacheRetention(capabilitiesJSON string) string {
-	defaults := modelCapabilityDefaultOptions(capabilitiesJSON)
-	return normalizeOpenAIPromptCacheRetention(modelOptionStringValue(defaults[openAIPromptCacheRetentionKey]))
 }
 
 func withoutOpenAIPromptCacheOptions(options map[string]interface{}) map[string]interface{} {
 	_, hasOptions := options[openAIPromptCacheOptionKey]
-	_, hasRetention := options[openAIPromptCacheRetentionKey]
+	_, hasRetention := options["prompt_cache_retention"]
 	if !hasOptions && !hasRetention {
 		return options
 	}
 	filtered := cloneModelOptionMap(options)
 	delete(filtered, openAIPromptCacheOptionKey)
-	delete(filtered, openAIPromptCacheRetentionKey)
+	// Legacy model options may still contain this key. Always discard it so the
+	// server never forwards a caller-controlled retention policy upstream.
+	delete(filtered, "prompt_cache_retention")
 	if len(filtered) == 0 {
 		return nil
 	}
@@ -197,13 +188,6 @@ func withOpenAIPromptCacheOptions(options map[string]interface{}, config openAIP
 			result = make(map[string]interface{})
 		}
 		result[openAIPromptCacheOptionKey] = cacheOptions
-	case "", "implicit":
-		if config.Retention != "" {
-			if result == nil {
-				result = make(map[string]interface{})
-			}
-			result[openAIPromptCacheRetentionKey] = config.Retention
-		}
 	}
 	return result
 }
@@ -226,15 +210,4 @@ func usesExplicitOpenAIPromptCacheMessageBreakpoints(
 	}
 	config, supported := resolveOpenAIPromptCacheRouteConfig(route)
 	return supported && config.MessageBreakpoints
-}
-
-func normalizeOpenAIPromptCacheRetention(value string) string {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "in-memory", "in_memory":
-		return "in_memory"
-	case "24h":
-		return "24h"
-	default:
-		return ""
-	}
 }

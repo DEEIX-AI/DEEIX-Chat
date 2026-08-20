@@ -5,6 +5,7 @@ import {
   createAdminLLMModelDisplayGroup,
   createAdminLLMModelVendor,
   deleteAdminLLMModelDisplayGroup,
+  deleteAdminLLMModelVendor,
   listAdminLLMModels,
   updateAdminLLMModelDisplayGroup,
   updateAdminLLMModelVendor,
@@ -12,14 +13,20 @@ import {
 import type {
   AdminLLMModelDisplayGroupDTO,
   AdminLLMModelDTO,
+  AdminLLMModelVendorDeleteConflictDetails,
   AdminLLMModelVendorDTO,
 } from "@/features/admin/api/llm.types";
 import { listAllAdminPages } from "@/features/admin/api/shared";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { ApiError } from "@/shared/api/http-client";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 
 export type PresentationTab = "vendors" | "groups";
+
+export type PresentationDeleteTarget =
+  | { kind: "vendors"; key: string; name: string }
+  | { kind: "groups"; id: number; name: string };
 
 export type ModelPresentationEditorState = {
   kind: PresentationTab;
@@ -54,7 +61,7 @@ export function useModelPresentationEditor({
   const [editor, setEditor] = React.useState<ModelPresentationEditorState | null>(null);
   const stableEditor = useDialogSnapshot(editor);
   const [pending, setPending] = React.useState(false);
-  const [deleteTarget, setDeleteTarget] = React.useState<AdminLLMModelDisplayGroupDTO | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<PresentationDeleteTarget | null>(null);
   const [catalogModels, setCatalogModels] = React.useState<AdminLLMModelDTO[] | null>(null);
   const [modelsLoading, setModelsLoading] = React.useState(false);
   const [modelQuery, setModelQuery] = React.useState("");
@@ -197,14 +204,48 @@ export function useModelPresentationEditor({
         toast.error(t("sessionExpired"));
         return;
       }
-      await deleteAdminLLMModelDisplayGroup(token, deleteTarget.id);
+      if (deleteTarget.kind === "vendors") {
+        await deleteAdminLLMModelVendor(token, deleteTarget.key);
+      } else {
+        await deleteAdminLLMModelDisplayGroup(token, deleteTarget.id);
+      }
       await onChanged();
-      await loadCatalogModels();
+      if (deleteTarget.kind === "groups") {
+        await loadCatalogModels();
+      }
       setDeleteTarget(null);
-      setEditor((current) => current?.kind === "groups" && current.id === deleteTarget.id ? null : current);
-      toast.success(t("deleted"));
+      setEditor((current) => {
+        if (!current || current.kind !== deleteTarget.kind) {
+          return current;
+        }
+        if (deleteTarget.kind === "vendors") {
+          return current.key === deleteTarget.key ? null : current;
+        }
+        return current.id === deleteTarget.id ? null : current;
+      });
+      toast.success(t(deleteTarget.kind === "vendors" ? "vendorDeleted" : "groupDeleted"));
     } catch (error) {
-      toast.error(t("deleteFailed"), { description: resolveAdminErrorMessage(error) });
+      if (
+        deleteTarget.kind === "vendors" &&
+        error instanceof ApiError &&
+        error.errorCode === "llm.model_vendor_in_use" &&
+        isModelVendorDeleteConflictDetails(error.details)
+      ) {
+        const names = error.details.models
+          .map((model) => typeof model.platformModelName === "string" ? model.platformModelName.trim() : "")
+          .filter(Boolean);
+        const hiddenCount = Math.max(0, error.details.referenceCount - names.length);
+        setDeleteTarget(null);
+        toast.error(t("vendorInUseTitle"), {
+          description: t("vendorInUseDescription", {
+            count: error.details.referenceCount,
+            models: names.join(", "),
+            more: hiddenCount > 0 ? t("vendorInUseMore", { count: hiddenCount }) : "",
+          }),
+        });
+      } else {
+        toast.error(t("deleteFailed"), { description: resolveAdminErrorMessage(error) });
+      }
     } finally {
       setPending(false);
     }
@@ -230,4 +271,12 @@ export function useModelPresentationEditor({
     saveEditor,
     confirmDelete,
   };
+}
+
+function isModelVendorDeleteConflictDetails(value: unknown): value is AdminLLMModelVendorDeleteConflictDetails {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const details = value as Partial<AdminLLMModelVendorDeleteConflictDetails>;
+  return typeof details.referenceCount === "number" && Array.isArray(details.models);
 }

@@ -66,6 +66,7 @@ var protocolOrder = []string{
 	"anthropic_messages",
 	"xai_responses",
 	"gemini_generate_content",
+	"gemini_interactions",
 	"google_image_generation",
 }
 
@@ -373,6 +374,43 @@ var definitions = []Definition{
 		PriceLabel:       "notMetered",
 		UsageAliases:     []string{"url_context"},
 		rawTypeFieldKeys: []string{"url_context", "urlContext"},
+	},
+	{
+		Protocol:       "gemini_interactions",
+		Provider:       "Google",
+		Type:           "google_search",
+		Key:            "google.google_search",
+		Label:          "Google Search",
+		Description:    "Google hosted search grounding tool.",
+		Payload:        map[string]interface{}{"type": "google_search"},
+		DefaultEnabled: true,
+		PriceLabel:     "notMetered",
+		UsageAliases:   []string{"google_search"},
+	},
+	{
+		Protocol:       "gemini_interactions",
+		Provider:       "Google",
+		Type:           "code_execution",
+		Key:            "google.code_execution",
+		Label:          "Code Execution",
+		Description:    "Google hosted code execution tool.",
+		Payload:        map[string]interface{}{"type": "code_execution"},
+		DefaultEnabled: true,
+		PriceLabel:     "notMetered",
+		RiskLevel:      "high",
+		UsageAliases:   []string{"code_execution"},
+	},
+	{
+		Protocol:       "gemini_interactions",
+		Provider:       "Google",
+		Type:           "url_context",
+		Key:            "google.url_context",
+		Label:          "URL Context",
+		Description:    "Google hosted URL context tool.",
+		Payload:        map[string]interface{}{"type": "url_context"},
+		DefaultEnabled: true,
+		PriceLabel:     "notMetered",
+		UsageAliases:   []string{"url_context"},
 	},
 }
 
@@ -898,7 +936,7 @@ func UsagePricingKey(protocol string, toolName string) (string, bool) {
 		case "file_search", "collection_search", "collections_search":
 			return "xai.collections_search", true
 		}
-	case "gemini_generate_content", "google_image_generation":
+	case "gemini_generate_content", "gemini_interactions", "google_image_generation":
 		switch tool {
 		case "google_search":
 			return "google.google_search", true

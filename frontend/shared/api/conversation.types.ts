@@ -264,6 +264,7 @@ export type StreamMessageEvent =
       type: "delta";
       seq?: number;
       delta: string;
+      replace?: boolean;
     }
   | {
       type: "usage";

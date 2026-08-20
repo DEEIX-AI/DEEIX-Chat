@@ -35,6 +35,7 @@ import {
 } from "@/features/chat/hooks/use-chat-mention-menu";
 import { ChatMentionMenuPortal } from "@/features/chat/components/shared/chat-mention-menu";
 import { ChatMCP } from "@/features/chat/components/sections/chat-mcp";
+import { ChatKnowledgeBases } from "@/features/chat/components/sections/chat-knowledge-bases";
 import { ChatModelPicker } from "@/features/chat/components/sections/chat-model-picker";
 import { ChatModelConfig } from "@/features/chat/components/sections/chat-model-config";
 import { formatBytes, resolveFileExtension, resolveFileIcon } from "@/shared/lib/file-display";
@@ -96,6 +97,8 @@ type ChatInputProps = {
   isConversationMode: boolean;
   maxFilesPerMessage: number;
   fileMode?: "auto" | "full_context" | "rag";
+  ragAvailable: boolean | null;
+  ragAvailabilityReason: string;
   sendShortcut?: SendShortcut;
   inputHeight?: "compact" | "standard" | "loose";
   attachments: PendingAttachment[];
@@ -107,6 +110,7 @@ type ChatInputProps = {
   availableTools: MCPToolDTO[];
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
+  selectedKnowledgeBaseIDs: string[];
   defaultToolIDs: number[];
   queuedMessages: QueuedComposerMessage[];
   htmlVisualPromptEnabled: boolean;
@@ -124,6 +128,7 @@ type ChatInputProps = {
   onModelCatalogRefresh?: () => void | Promise<void>;
   onSelectedToolsChange: (toolIDs: number[]) => void;
   onSelectedSkillsChange: (skills: SkillSummaryDTO[]) => void;
+  onSelectedKnowledgeBasesChange: (ids: string[]) => void;
   onDefaultToolsChange: (toolIDs: number[]) => void | Promise<void>;
   onHTMLVisualPromptChange: (enabled: boolean) => void;
   onOptionsChange: React.Dispatch<React.SetStateAction<ConversationOptions>>;
@@ -236,6 +241,8 @@ function ChatInputComponent({
   uploading,
   isConversationMode,
   fileMode,
+  ragAvailable,
+  ragAvailabilityReason,
   sendShortcut = "enter",
   inputHeight = "standard",
   attachments,
@@ -247,6 +254,7 @@ function ChatInputComponent({
   availableTools,
   selectedToolIDs,
   selectedSkills,
+  selectedKnowledgeBaseIDs,
   defaultToolIDs,
   queuedMessages,
   htmlVisualPromptEnabled,
@@ -264,6 +272,7 @@ function ChatInputComponent({
   onModelCatalogRefresh,
   onSelectedToolsChange,
   onSelectedSkillsChange,
+  onSelectedKnowledgeBasesChange,
   onDefaultToolsChange,
   onHTMLVisualPromptChange,
   onOptionsChange,
@@ -319,6 +328,17 @@ function ChatInputComponent({
   const hasDraftText = draft.trim().length > 0;
   const hasSubmitContent = hasDraftText || attachments.length > 0;
   const canSend = hasSubmitContent && !loading && !uploading;
+  const submitActionLabel = hasSubmitContent
+    ? sending
+      ? tComposer("queueMessage")
+      : tChat("send")
+    : sending
+      ? tComposer("pauseGeneration")
+      : speechInput.supported
+        ? speechInput.active
+          ? tComposer("cancelVoiceInput")
+          : tComposer("voiceInput")
+        : tComposer("voiceUnsupported");
   const showMarkdownPreview = markdownPreview && hasDraftText;
   const inputHeightClassName =
     inputHeight === "compact" ? "max-h-32" : inputHeight === "loose" ? "max-h-64" : "max-h-44";
@@ -391,7 +411,7 @@ function ChatInputComponent({
     () => modelOptions.find((item) => item.platformModelName === selectedPlatformModelName) ?? null,
     [modelOptions, selectedPlatformModelName],
   );
-  const selectedProtocol = selectedModel?.protocols[0]?.trim() ?? "";
+  const selectedProtocols = React.useMemo(() => selectedModel?.protocols ?? [], [selectedModel]);
   const selectedModelName = selectedModel?.platformModelName || selectedPlatformModelName;
   const submitDecision = resolveChatSubmitDecision(selectedModel, attachments, options);
   const submitTask = submitDecision.task;
@@ -875,25 +895,32 @@ function ChatInputComponent({
                   }
                 }}
               >
-                <DropdownMenuTrigger asChild>
-                  <InputGroupButton
-                    id="chat-tools-menu-trigger"
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
-                    disabled={loading || uploading}
-                    aria-label={tComposer("openTools")}
-                    onMouseEnter={() => setToolsMenuHovered(true)}
-                    onMouseLeave={() => setToolsMenuHovered(false)}
-                  >
-                    <PlusIcon
-                      size={20}
-                      strokeWidth={1.4}
-                      animate={toolsMenuHovered || toolsMenuOpen ? "default" : undefined}
-                    />
-                  </InputGroupButton>
-                </DropdownMenuTrigger>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <InputGroupButton
+                        id="chat-tools-menu-trigger"
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
+                        disabled={loading || uploading}
+                        aria-label={tComposer("openTools")}
+                        onMouseEnter={() => setToolsMenuHovered(true)}
+                        onMouseLeave={() => setToolsMenuHovered(false)}
+                      >
+                        <PlusIcon
+                          size={20}
+                          strokeWidth={1.4}
+                          animate={toolsMenuHovered || toolsMenuOpen ? "default" : undefined}
+                        />
+                      </InputGroupButton>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    {tComposer("openTools")}
+                  </TooltipContent>
+                </Tooltip>
                 <DropdownMenuContent side="bottom" align="start" sideOffset={8} className="w-36">
                   <DropdownMenuItem
                     onMouseEnter={() => setHoveredTool("upload")}
@@ -930,7 +957,7 @@ function ChatInputComponent({
                   nativeToolKeys={selectedModel?.nativeToolKeys ?? []}
                   nativeTools={selectedModel?.nativeTools ?? []}
                   modelOptionPolicy={modelOptionPolicy}
-                  selectedProtocol={selectedProtocol}
+                  selectedProtocols={selectedProtocols}
                   selectedModelName={selectedModelName}
                   onOptionsChange={onOptionsChange}
                   onOptionsReset={onOptionsReset}
@@ -947,6 +974,16 @@ function ChatInputComponent({
                   disabled={loading || uploading || toolsLoading}
                   onSelectedToolsChange={onSelectedToolsChange}
                   onDefaultToolsChange={onDefaultToolsChange}
+                />
+              ) : null}
+
+              {!isMediaMode ? (
+                <ChatKnowledgeBases
+                  selectedIDs={selectedKnowledgeBaseIDs}
+                  disabled={loading || uploading}
+                  available={ragAvailable}
+                  unavailableReason={ragAvailabilityReason}
+                  onChange={onSelectedKnowledgeBasesChange}
                 />
               ) : null}
 
@@ -975,10 +1012,8 @@ function ChatInputComponent({
                       />
                     </InputGroupButton>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-72 text-xs leading-5">
-                    {htmlVisualPromptEnabled
-                      ? tComposer("htmlVisualPromptEnabled")
-                      : tComposer("htmlVisualPromptDisabled")}
+                  <TooltipContent side="top" className="text-xs">
+                    {tComposer("htmlVisualPrompt")}
                   </TooltipContent>
                 </Tooltip>
               ) : null}
@@ -1045,46 +1080,52 @@ function ChatInputComponent({
                 onModelChange={onModelChange}
               />
 
-              <InputGroupButton
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
-                disabled={loading || uploading || (!sending && !hasSubmitContent && !speechInput.supported)}
-                onClick={hasSubmitContent ? onSendMessage : sending ? onStopMessage : speechInput.toggle}
-                onMouseEnter={() => setIsVoiceHovered(true)}
-                onMouseLeave={() => setIsVoiceHovered(false)}
-                aria-label={hasSubmitContent ? (sending ? tComposer("queueMessage") : tChat("send")) : sending ? tComposer("pauseGeneration") : speechInput.active ? tComposer("cancelVoiceInput") : tComposer("voiceInput")}
-                title={hasSubmitContent ? (sending ? tComposer("queueMessage") : tChat("send")) : sending ? tComposer("pauseGeneration") : speechInput.supported ? (speechInput.active ? tComposer("cancelVoiceInput") : tComposer("voiceInput")) : tComposer("voiceUnsupported")}
-              >
-                {hasSubmitContent ? (
-                  <Send
-                    size={20}
-                    strokeWidth={1.4}
-                    animate={isVoiceHovered ? "default" : undefined}
-                  />
-                ) : sending ? (
-                  <Pause
-                    size={20}
-                    strokeWidth={1.4}
-                    animate="default-loop"
-                  />
-                ) : speechInput.status === "starting" ? (
-                  <LoaderCircle className="size-5 animate-spin" strokeWidth={1.6} />
-                ) : speechInput.active ? (
-                  <AudioLines
-                    size={20}
-                    strokeWidth={1.4}
-                    animate="default"
-                  />
-                ) : (
-                  <AudioLines
-                    size={20}
-                    strokeWidth={1.4}
-                    animate={isVoiceHovered ? "default" : undefined}
-                  />
-                )}
-              </InputGroupButton>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <InputGroupButton
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
+                    disabled={loading || uploading || (!sending && !hasSubmitContent && !speechInput.supported)}
+                    onClick={hasSubmitContent ? onSendMessage : sending ? onStopMessage : speechInput.toggle}
+                    onMouseEnter={() => setIsVoiceHovered(true)}
+                    onMouseLeave={() => setIsVoiceHovered(false)}
+                    aria-label={submitActionLabel}
+                  >
+                    {hasSubmitContent ? (
+                      <Send
+                        size={20}
+                        strokeWidth={1.4}
+                        animate={isVoiceHovered ? "default" : undefined}
+                      />
+                    ) : sending ? (
+                      <Pause
+                        size={20}
+                        strokeWidth={1.4}
+                        animate="default-loop"
+                      />
+                    ) : speechInput.status === "starting" ? (
+                      <LoaderCircle className="size-5 animate-spin" strokeWidth={1.6} />
+                    ) : speechInput.active ? (
+                      <AudioLines
+                        size={20}
+                        strokeWidth={1.4}
+                        animate="default"
+                      />
+                    ) : (
+                      <AudioLines
+                        size={20}
+                        strokeWidth={1.4}
+                        animate={isVoiceHovered ? "default" : undefined}
+                      />
+                    )}
+                  </InputGroupButton>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="end" className="text-xs">
+                  {submitActionLabel}
+                </TooltipContent>
+              </Tooltip>
             </div>
           </InputGroupAddon>
         </div>

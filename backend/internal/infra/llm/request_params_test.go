@@ -244,7 +244,7 @@ func mapKeys(items map[string]struct{}) []string {
 	return keys
 }
 
-func TestBuildOpenAIChatCompletionsRequestBodyKeepsPromptCacheRetention(t *testing.T) {
+func TestBuildOpenAIChatCompletionsRequestBodyDoesNotForwardPromptCacheRetention(t *testing.T) {
 	payload := mustBuildRequestBody(t, AdapterOpenAIChatCompletions, "gpt-5", EndpointChatCompletions, GenerateInput{
 		Messages: []Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
@@ -278,8 +278,8 @@ func TestBuildOpenAIChatCompletionsRequestBodyKeepsPromptCacheRetention(t *testi
 	if payload["seed"] != 1234 {
 		t.Fatalf("expected seed=1234, got %#v", payload["seed"])
 	}
-	if payload["prompt_cache_retention"] != "24h" {
-		t.Fatalf("expected prompt_cache_retention=24h, got %#v", payload["prompt_cache_retention"])
+	if _, exists := payload["prompt_cache_retention"]; exists {
+		t.Fatalf("expected prompt_cache_retention to be omitted, got %#v", payload["prompt_cache_retention"])
 	}
 	stops, ok := payload["stop"].([]string)
 	if !ok || len(stops) != 2 || stops[0] != "END" || stops[1] != "STOP" {
@@ -475,7 +475,7 @@ func TestBuildOpenAIChatCompletionsNativeToolOptions(t *testing.T) {
 	}
 }
 
-func TestBuildOpenAIResponsesRequestBodyWebSearchKeepsPromptCacheRetention(t *testing.T) {
+func TestBuildOpenAIResponsesRequestBodyWebSearchDoesNotForwardPromptCacheRetention(t *testing.T) {
 	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5", EndpointResponses, GenerateInput{
 		Messages: []Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
@@ -517,8 +517,8 @@ func TestBuildOpenAIResponsesRequestBodyWebSearchKeepsPromptCacheRetention(t *te
 	if !ok || len(include) != 2 || include[0] != "reasoning.encrypted_content" || include[1] != "web_search_call.action.sources" {
 		t.Fatalf("expected web search sources include, got %#v", payload["include"])
 	}
-	if payload["prompt_cache_retention"] != "in_memory" {
-		t.Fatalf("expected prompt_cache_retention=in_memory, got %#v", payload["prompt_cache_retention"])
+	if _, exists := payload["prompt_cache_retention"]; exists {
+		t.Fatalf("expected prompt_cache_retention to be omitted, got %#v", payload["prompt_cache_retention"])
 	}
 }
 

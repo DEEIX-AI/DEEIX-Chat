@@ -27,7 +27,7 @@ var (
 	ErrInvalidFileName = errors.New("invalid file name")
 	// ErrFileNotFound 文件不存在。
 	ErrFileNotFound = errors.New("file not found")
-	// ErrFileInUse 文件正在被头像等资源使用。
+	// ErrFileInUse 文件正在被头像、知识库等资源使用。
 	ErrFileInUse = errors.New("file in use")
 	// ErrStorageQuotaExceeded 文件配额超限。
 	ErrStorageQuotaExceeded = errors.New("storage quota exceeded")
@@ -43,6 +43,12 @@ var (
 	ErrFileTooLargeForFullContext = errors.New("file too large for full context")
 	// ErrEmbeddingUnavailable 当前未配置可用 embedding，无法处理大文档 / RAG。
 	ErrEmbeddingUnavailable = errors.New("embedding unavailable")
+	// ErrInvalidKnowledgeBaseReference 知识库不存在、已停用或当前用户不可见。
+	ErrInvalidKnowledgeBaseReference = errors.New("invalid knowledge base reference")
+	// ErrKnowledgeBaseUnavailable 当前未启用可用的知识库检索能力。
+	ErrKnowledgeBaseUnavailable = errors.New("knowledge base retrieval unavailable")
+	// ErrKnowledgeBaseNotReady 所选知识库尚无可检索文件。
+	ErrKnowledgeBaseNotReady = errors.New("knowledge base not ready")
 	// ErrTooManyMessageFiles 单条消息文件数超限。
 	ErrTooManyMessageFiles = errors.New("too many message files")
 	// ErrTooManySelectedTools 单条消息选择的 MCP 工具数超限。
@@ -73,6 +79,10 @@ var (
 	ErrMessageEditTargetInvalid = errors.New("invalid message edit target")
 	// ErrMessageEditStateInvalid 当前消息状态不允许编辑。
 	ErrMessageEditStateInvalid = errors.New("invalid message edit state")
+	// ErrMessageForkStateInvalid 当前消息状态不允许 fork。
+	ErrMessageForkStateInvalid = errors.New("invalid message fork state")
+	// ErrMessageForkHistoryIncomplete 消息祖先链超过安全上限或已损坏，无法完整 fork。
+	ErrMessageForkHistoryIncomplete = errors.New("message fork history incomplete")
 	// ErrModelRouteNotConfigured 模型路由未配置。
 	ErrModelRouteNotConfigured = errors.New("model route not configured")
 	// ErrModelAccessDenied 当前用户无权使用此模型。

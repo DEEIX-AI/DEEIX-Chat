@@ -1,6 +1,6 @@
 # DEEIX Chat Backend
 
-DEEIX Chat 后端是 Go API 服务，负责认证、用户、对话、模型渠道、模型能力、文件处理、MCP 工具、官方原生工具、记忆、计费、支付、系统设置、审计日志与可观测性等核心业务。
+DEEIX Chat 后端是 Go API 服务，负责认证、用户、对话、模型渠道、模型能力、文件处理、知识库、MCP 工具、官方原生工具、记忆、计费、支付、系统设置、审计日志与可观测性等核心业务。
 
 ## 技术栈
 
@@ -145,6 +145,16 @@ https://api.example.com/api/v1/billing/payments/stripe/webhook
 
 在 Stripe Dashboard 中监听 `checkout.session.completed`，并把生成的 `whsec_...` 填入后台「计费 / 支付配置 / Stripe Webhook Secret」。
 
+易支付当前采用 `submit.php` 页面跳转 + MD5 签名协议。后台「页面跳转网关」可填写易支付站点地址或完整的 `submit.php` 地址，例如：
+
+```text
+https://pay.example.com
+https://pay.example.com/epay/
+https://pay.example.com/epay/submit.php
+```
+
+系统会为站点地址自动追加 `/submit.php`，并兼容既有的子目录站点配置。要求直接提交商户密钥的私有支付 API 不属于该协议；商户密钥只用于服务端签名，不会加入支付跳转 URL。
+
 ## 本地启动
 
 先确保 PostgreSQL 和 Redis 可用。若本机已有依赖，可以只启动默认应用容器；若需要完整本地栈，使用 `docker-compose.full.yml`：
@@ -198,6 +208,20 @@ storage:
 
 R2、OSS、MinIO、AWS S3 等统一走 S3 兼容协议，不为不同厂商维护重复实现。
 
+管理员为模型、厂商或展示分组上传的自定义图标属于实例级公共展示资产，三处共用同一图标库和对象存储，但不计入任何用户的文件空间或配额。后端仅接受不超过 1 MiB、最大边长 2048 像素的 PNG、JPEG 与 WebP，并按内容哈希去重。管理员可从图标库移除无引用资产；移除后立即隐藏，但在连续 24 小时无引用保护期内仍可公开读取。后台任务会在物理删除前再次检查模型、厂商、展示分组及保留的会话运行快照引用；重新上传或保存引用会自动取消待回收状态。图标读取接口无需登录，图标内容不应包含敏感信息。
+
+内置技术厂商受系统保护，不允许删除。自定义厂商仅在没有平台模型引用时可删除；冲突响应会返回关联模型总数和有界预览，管理员需先将这些模型迁移到其他厂商。删除自定义展示分组时，组内模型会自动恢复为按技术厂商展示。
+
+## 向量存储
+
+Embedding 输出支持 64–4096 维。系统会通过 OpenAI-compatible `dimensions` 参数请求目标维度，并校验上游实际返回的向量长度；维度不一致时明确失败，不会通过截断或补零伪装成目标维度。PostgreSQL 按模型原始维度保存向量，SQLite 因 vec0 固定槽限制在持久化边界补零至 4096 维。文件、历史消息和用户记忆向量都会记录模型、服务端点与维度共同生成的空间签名，检索只使用当前向量空间的数据。
+
+PostgreSQL 使用 4000 维 `halfvec` HNSW 表达式索引召回候选，再按完整 4096 维向量精确重排；这样既避开标准 `vector` ANN 的维度限制，也不会用降维距离作为最终排序结果。使用 PostgreSQL 时需安装 pgvector 0.8.0 或更高版本，以支持 `halfvec`、HNSW 迭代扫描和 4096 维 `vector` 存储；启用向量能力时，版本不满足要求会在启动迁移阶段明确失败。
+
+从旧版本升级时，PostgreSQL 会移除 `vector(1536)` 的固定维度约束，但不会扩展或重写已有向量行；SQLite 的 `FLOAT[1536]` vec0 表会迁移为固定 4096 维并在尾部补零。旧 PostgreSQL IVFFlat 索引会通过并发 DDL 替换为 HNSW 候选索引。没有向量签名的既有文件会进入待重建状态，旧历史消息和用户记忆向量在重新生成前不会参与语义检索。大型 PostgreSQL 实例首次构建 HNSW 索引仍可能消耗较多时间与数据库资源，应在维护窗口升级并先完成数据库备份。
+
+管理员切换 Embedding 模型、服务地址或输出维度时，系统只将不属于新空间的文件标记为待重建，不修改原始文件。后台重建按固定并发执行并按文件任务签名原子发布；新空间任务领取后，旧任务即使更晚完成也不能覆盖新分片或状态。1536 与 4096 可以双向切换，但切换完成前相关文件暂不参与新空间检索。
+
 ## GeoIP
 
 默认使用 HTTP GeoIP 服务：
@@ -231,9 +255,13 @@ geoip:
 
 MinerU 可在设置中选择处理的文件类型；云端 MinerU 支持 `.doc/.docx/.ppt/.pptx/.xls/.xlsx`，自部署 MinerU 支持 `.docx/.pptx/.xlsx`。
 
-OCR 引擎配置由后台文件设置管理，当前支持 RapidOCR、Tesseract OCR、Paddle OCR、腾讯云 OCR、阿里云 OCR 与 LLM OCR。服务地址、鉴权密钥和超时时间按具体引擎配置。
+OCR 引擎配置由后台文件设置管理，当前支持 RapidOCR、Tesseract OCR、Paddle OCR、腾讯云 OCR、阿里云 OCR、Mistral OCR 与 LLM OCR。服务地址、鉴权密钥和超时时间按具体引擎配置。
 
 用户文件存储配额由运行时设置 `storage:user_storage_quota_bytes` 管理。后台 `/admin/chat-files` 页面中的 `storage:max_upload_file_bytes`、`storage:user_storage_quota_bytes`、`file:image_max_bytes`、`file:doc_max_bytes` 和 `file:file_full_context_max_bytes` 统一按 MB 输入，设置值在 API、数据库和运行时内部统一按字节保存与计算；值为 `0` 表示不限制。非零时，上传、分享克隆和文件复用链路都会按用户维度校验并同步最新配额。前端 `/files` 页支持单个删除和批量删除，后端会在删除后释放对应配额。
+
+## 知识库
+
+知识库是独立于文件管理页面的检索集合。后端按 `domain/knowledgebase -> application/knowledgebase -> repository.KnowledgeBaseRepository -> infra/persistence/postgres/knowledgebase -> transport/http/knowledgebase` 分层，用户与管理员接口统一使用 `/api/v1/knowledge-bases` 资源路径。知识库只关联文件对象，不复制文件内容；删除知识库时仅在用户明确选择后清理未被其他资源引用的文件。
 
 ## 模型能力与官方原生工具
 
@@ -246,6 +274,12 @@ OCR 引擎配置由后台文件设置管理，当前支持 RapidOCR、Tesseract 
 - `image.stream`：仅对图像类模型能力生效；未配置时保持默认流式，显式写 `false` 时关闭图像流式调用。
 
 用户手写 `tools` 时，只有命中 `nativeToolKeys` 的官方原生工具会作为官方工具保留，工具子参数会随该工具透传；普通用户不能通过 JSON 自行启用未被管理员允许的 MCP Tool 或官方原生工具。MCP Tool 仍必须由管理员在工具页配置和启用。
+
+## 模型熔断
+
+模型与上游两级熔断默认关闭，可在后台模型管理页统一开启。旧版本的 `circuit_breaker.defaults` 设置没有 `enabled` 字段时同样按关闭处理，不需要逐个模型调整阈值。
+
+关闭后，路由不会读取熔断状态，也不会因上游失败累计并触发自动熔断；HTTP 429 的短期限流退避仍独立生效。重新开启前必须成功清理已有模型与上游熔断状态和失败计数；关闭后的清理由系统尽力执行。最近成功/失败健康元数据、API Key 轮询状态与限流状态不会被清理。
 
 ## 上游动态请求头
 
@@ -307,19 +341,7 @@ OpenAI 的 `X-Client-Request-Id` 要求每次请求使用唯一值，应配置�
 
 若中转站接受顶层 `prompt_cache_options`，但拒绝消息内容中的 `prompt_cache_breakpoint`，省略 `messageBreakpoints` 或将其设为 `false`。此时 DEEIX 仍发送稳定的 `prompt_cache_key` 和显式缓存选项，由中转站选择缓存边界。
 
-隐式缓存可独立配置保留策略：
-
-```json
-{
-  "promptCache": {
-    "enabled": true,
-    "mode": "implicit",
-    "retention": "24h"
-  }
-}
-```
-
-显式缓存当前只接受 `ttl=30m`；隐式缓存的 `retention` 接受 `in_memory` 或 `24h`，两者语义不互相替代。已有模型中的 `defaultOptions.prompt_cache_retention` 配置仍会生效。未声明能力的兼容中转站不会收到 `prompt_cache_key`、`prompt_cache_options`、`prompt_cache_retention` 或 `prompt_cache_breakpoint`。DEEIX 不再依赖上游错误文本执行无记忆缓存重试。
+显式缓存当前只接受 `ttl=30m`。隐式缓存使用上游默认保留策略；DEEIX 不配置或透传保留策略。未声明能力的兼容中转站不会收到 `prompt_cache_key`、`prompt_cache_options` 或 `prompt_cache_breakpoint`。DEEIX 不再依赖上游错误文本执行无记忆缓存重试。
 
 ## MCP 工具
 

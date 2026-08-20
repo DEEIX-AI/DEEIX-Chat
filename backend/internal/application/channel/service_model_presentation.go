@@ -3,15 +3,20 @@ package channel
 import (
 	"context"
 	"errors"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
-var modelVendorKeyPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+var (
+	modelVendorKeyPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+	modelIconSlugPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
+)
 
 // ListModelVendors 分页查询技术厂商目录。
 func (s *Service) ListModelVendors(ctx context.Context, page int, pageSize int, query string) ([]ModelVendorView, int64, error) {
@@ -41,8 +46,11 @@ func (s *Service) CreateModelVendor(ctx context.Context, input CreateModelVendor
 	if err != nil {
 		return nil, err
 	}
-	icon, err := normalizeModelPresentationIcon(input.Icon, ErrInvalidModelVendor)
+	icon, err := normalizeModelPresentationIcon(input.Icon)
 	if err != nil {
+		return nil, err
+	}
+	if err = s.reserveModelIconReference(ctx, icon); err != nil {
 		return nil, err
 	}
 	item := &domainchannel.ModelVendor{Key: key, Name: name, Icon: icon}
@@ -71,8 +79,11 @@ func (s *Service) UpdateModelVendor(ctx context.Context, key string, input Updat
 		update.Name = &name
 	}
 	if input.Icon != nil {
-		icon, err := normalizeModelPresentationIcon(*input.Icon, ErrInvalidModelVendor)
+		icon, err := normalizeModelPresentationIcon(*input.Icon)
 		if err != nil {
+			return nil, err
+		}
+		if err = s.reserveModelIconReference(ctx, icon); err != nil {
 			return nil, err
 		}
 		update.Icon = &icon
@@ -95,6 +106,36 @@ func (s *Service) UpdateModelVendor(ctx context.Context, key string, input Updat
 	s.InvalidateModelCatalog()
 	view := toModelVendorView(*item)
 	return &view, nil
+}
+
+// DeleteModelVendor 删除未被平台模型引用的自定义技术厂商。
+func (s *Service) DeleteModelVendor(ctx context.Context, key string) error {
+	normalizedKey, err := normalizeModelVendorKey(key)
+	if err != nil {
+		return err
+	}
+	if err = s.presentationRepo.DeleteModelVendor(ctx, normalizedKey); err != nil {
+		var blocked *repository.ModelVendorDeleteBlockedError
+		switch {
+		case errors.As(err, &blocked):
+			result := &ModelVendorDeleteBlockedError{
+				Reason: blocked.Reason, ReferenceCount: blocked.ReferenceCount,
+				Models: make([]ModelVendorReferenceView, 0, len(blocked.Models)),
+			}
+			for _, model := range blocked.Models {
+				result.Models = append(result.Models, ModelVendorReferenceView{
+					ID: model.ID, PlatformModelName: model.PlatformModelName,
+				})
+			}
+			return result
+		case errors.Is(err, repository.ErrModelVendorNotFound), errors.Is(err, repository.ErrNotFound):
+			return ErrModelVendorNotFound
+		default:
+			return err
+		}
+	}
+	s.InvalidateModelCatalog()
+	return nil
 }
 
 // ListModelDisplayGroups 分页查询管理员创建的模型展示分组。
@@ -121,12 +162,15 @@ func (s *Service) CreateModelDisplayGroup(ctx context.Context, input CreateModel
 	if err != nil {
 		return nil, err
 	}
-	icon, err := normalizeModelPresentationIcon(input.Icon, ErrInvalidModelDisplayGroup)
+	icon, err := normalizeModelPresentationIcon(input.Icon)
 	if err != nil {
 		return nil, err
 	}
 	modelIDs, err := normalizeModelDisplayGroupMembers(input.ModelIDs)
 	if err != nil {
+		return nil, err
+	}
+	if err = s.reserveModelIconReference(ctx, icon); err != nil {
 		return nil, err
 	}
 	item := &domainchannel.ModelDisplayGroup{Name: name, Icon: icon}
@@ -158,7 +202,7 @@ func (s *Service) UpdateModelDisplayGroup(ctx context.Context, groupID uint, inp
 		update.Name = &name
 	}
 	if input.Icon != nil {
-		icon, err := normalizeModelPresentationIcon(*input.Icon, ErrInvalidModelDisplayGroup)
+		icon, err := normalizeModelPresentationIcon(*input.Icon)
 		if err != nil {
 			return nil, err
 		}
@@ -170,6 +214,11 @@ func (s *Service) UpdateModelDisplayGroup(ctx context.Context, groupID uint, inp
 			return nil, err
 		}
 		update.ModelIDs = &modelIDs
+	}
+	if update.Icon != nil {
+		if err := s.reserveModelIconReference(ctx, *update.Icon); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.presentationRepo.UpdateModelDisplayGroup(ctx, groupID, update); err != nil {
 		switch {
@@ -265,12 +314,41 @@ func normalizeModelPresentationName(raw string, invalidErr error) (string, error
 	return value, nil
 }
 
-func normalizeModelPresentationIcon(raw string, invalidErr error) (string, error) {
+func normalizeModelPresentationIcon(raw string) (string, error) {
 	value := strings.TrimSpace(raw)
-	if len([]rune(value)) > 2048 {
-		return "", invalidErr
+	if value == "" {
+		return "", nil
 	}
-	return value, nil
+	if len([]rune(value)) > 2048 || strings.ContainsFunc(value, unicode.IsControl) {
+		return "", ErrInvalidModelIconReference
+	}
+	lower := strings.ToLower(value)
+	if strings.HasPrefix(lower, ModelIconAssetRefPrefix) {
+		publicID, ok := modelIconAssetPublicID(lower)
+		if !ok {
+			return "", ErrInvalidModelIconReference
+		}
+		return ModelIconAssetRefPrefix + publicID, nil
+	}
+	if strings.HasPrefix(lower, "data:") {
+		return "", ErrInvalidModelIconReference
+	}
+	if modelIconSlugPattern.MatchString(lower) {
+		return lower, nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.User != nil {
+		return "", ErrInvalidModelIconReference
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if (scheme == "http" || scheme == "https") && parsed.Host != "" {
+		return value, nil
+	}
+	if parsed.Scheme == "" && parsed.Host == "" && strings.HasPrefix(parsed.Path, "/") &&
+		!strings.HasPrefix(value, "//") && !strings.Contains(value, `\`) {
+		return value, nil
+	}
+	return "", ErrInvalidModelIconReference
 }
 
 func (s *Service) resolvePlatformModelVendor(ctx context.Context, explicit string, candidates ...string) (string, error) {

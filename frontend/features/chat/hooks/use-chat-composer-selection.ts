@@ -10,6 +10,7 @@ const useIsomorphicLayoutEffect = typeof window === "undefined" ? React.useEffec
 type ComposerSelection = {
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
+  selectedKnowledgeBaseIDs: string[];
 };
 
 type PersistedComposerSelection = ComposerSelection & {
@@ -22,6 +23,7 @@ function emptySelection(): ComposerSelection {
   return {
     selectedToolIDs: [],
     selectedSkills: [],
+    selectedKnowledgeBaseIDs: [],
   };
 }
 
@@ -29,11 +31,12 @@ function cloneSelection(selection: ComposerSelection): ComposerSelection {
   return {
     selectedToolIDs: selection.selectedToolIDs.slice(),
     selectedSkills: selection.selectedSkills.slice(),
+    selectedKnowledgeBaseIDs: selection.selectedKnowledgeBaseIDs.slice(),
   };
 }
 
 function hasSelection(selection: ComposerSelection): boolean {
-  return selection.selectedToolIDs.length > 0 || selection.selectedSkills.length > 0;
+  return selection.selectedToolIDs.length > 0 || selection.selectedSkills.length > 0 || selection.selectedKnowledgeBaseIDs.length > 0;
 }
 
 function isSkillSummary(value: unknown): value is SkillSummaryDTO {
@@ -81,6 +84,13 @@ function normalizeSkills(value: unknown): SkillSummaryDTO[] {
   return result;
 }
 
+function normalizeKnowledgeBaseIDs(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)))
+    .map((item) => item.trim())
+    .slice(0, 8);
+}
+
 function readSelectionStore(): PersistedComposerSelectionStore {
   if (typeof window === "undefined") {
     return {};
@@ -104,6 +114,7 @@ function readSelectionStore(): PersistedComposerSelectionStore {
       const selection = {
         selectedToolIDs: normalizeToolIDs(entry.selectedToolIDs),
         selectedSkills: normalizeSkills(entry.selectedSkills),
+        selectedKnowledgeBaseIDs: normalizeKnowledgeBaseIDs(entry.selectedKnowledgeBaseIDs),
       };
       if (!hasSelection(selection)) {
         continue;
@@ -171,11 +182,13 @@ export function useChatComposerSelection({
 }) {
   const [selectedToolIDs, setSelectedToolIDs] = React.useState<number[]>([]);
   const [selectedSkills, setSelectedSkills] = React.useState<SkillSummaryDTO[]>([]);
+  const [selectedKnowledgeBaseIDs, setSelectedKnowledgeBaseIDs] = React.useState<string[]>([]);
   const [hydratedKey, setHydratedKey] = React.useState<string | null>(null);
   const cacheRef = React.useRef(new Map<string, ComposerSelection>());
   const activeKeyRef = React.useRef(conversationKey);
   const selectedToolIDsRef = React.useRef(selectedToolIDs);
   const selectedSkillsRef = React.useRef(selectedSkills);
+  const selectedKnowledgeBaseIDsRef = React.useRef(selectedKnowledgeBaseIDs);
   const resetTokenRef = React.useRef(resetToken);
 
   useIsomorphicLayoutEffect(() => {
@@ -186,8 +199,10 @@ export function useChatComposerSelection({
         cacheRef.current.set(conversationKey, cloneSelection(nextSelection));
         selectedToolIDsRef.current = nextSelection.selectedToolIDs;
         selectedSkillsRef.current = nextSelection.selectedSkills;
+        selectedKnowledgeBaseIDsRef.current = nextSelection.selectedKnowledgeBaseIDs;
         setSelectedToolIDs(nextSelection.selectedToolIDs);
         setSelectedSkills(nextSelection.selectedSkills);
+        setSelectedKnowledgeBaseIDs(nextSelection.selectedKnowledgeBaseIDs);
         setHydratedKey(conversationKey);
       }
       return;
@@ -196,6 +211,7 @@ export function useChatComposerSelection({
     const previousSelection: ComposerSelection = {
       selectedToolIDs: selectedToolIDsRef.current,
       selectedSkills: selectedSkillsRef.current,
+      selectedKnowledgeBaseIDs: selectedKnowledgeBaseIDsRef.current,
     };
     cacheRef.current.set(previousKey, cloneSelection(previousSelection));
     writeSelectionEntry(previousKey, previousSelection);
@@ -219,8 +235,10 @@ export function useChatComposerSelection({
     activeKeyRef.current = conversationKey;
     selectedToolIDsRef.current = nextSelection.selectedToolIDs;
     selectedSkillsRef.current = nextSelection.selectedSkills;
+    selectedKnowledgeBaseIDsRef.current = nextSelection.selectedKnowledgeBaseIDs;
     setSelectedToolIDs(nextSelection.selectedToolIDs);
     setSelectedSkills(nextSelection.selectedSkills);
+    setSelectedKnowledgeBaseIDs(nextSelection.selectedKnowledgeBaseIDs);
     setHydratedKey(conversationKey);
   }, [conversationKey, createdConversationID]);
 
@@ -239,8 +257,10 @@ export function useChatComposerSelection({
     activeKeyRef.current = conversationKey;
     selectedToolIDsRef.current = nextSelection.selectedToolIDs;
     selectedSkillsRef.current = nextSelection.selectedSkills;
+    selectedKnowledgeBaseIDsRef.current = nextSelection.selectedKnowledgeBaseIDs;
     setSelectedToolIDs(nextSelection.selectedToolIDs);
     setSelectedSkills(nextSelection.selectedSkills);
+    setSelectedKnowledgeBaseIDs(nextSelection.selectedKnowledgeBaseIDs);
     setHydratedKey(conversationKey);
   }, [conversationKey, hasConversation, resetToken]);
 
@@ -251,17 +271,21 @@ export function useChatComposerSelection({
     const selection: ComposerSelection = {
       selectedToolIDs,
       selectedSkills,
+      selectedKnowledgeBaseIDs,
     };
     selectedToolIDsRef.current = selectedToolIDs;
     selectedSkillsRef.current = selectedSkills;
+    selectedKnowledgeBaseIDsRef.current = selectedKnowledgeBaseIDs;
     cacheRef.current.set(activeKeyRef.current, cloneSelection(selection));
     writeSelectionEntry(activeKeyRef.current, selection);
-  }, [hydratedKey, selectedToolIDs, selectedSkills]);
+  }, [hydratedKey, selectedKnowledgeBaseIDs, selectedToolIDs, selectedSkills]);
 
   return {
     selectedToolIDs,
     selectedSkills,
+    selectedKnowledgeBaseIDs,
     setSelectedToolIDs,
     setSelectedSkills,
+    setSelectedKnowledgeBaseIDs,
   };
 }

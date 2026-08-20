@@ -1,23 +1,23 @@
 "use client";
 
-import * as React from "react";
 import { Activity, Check, CircleHelp, CircleOff, MoreHorizontal, Plus, RefreshCw, ShieldAlert, SlidersHorizontal, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -44,18 +44,19 @@ import {
   TableLoadingRow,
   TableRow,
 } from "@/components/ui/table";
+import { TablePagination } from "@/components/ui/table-tools";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
 import {
   bindAdminLLMModelUpstreamSource,
   deleteAdminLLMUpstreamModel,
+  listAdminLLMModelUpstreamSources,
   listAdminLLMUpstreamModels,
   listAdminLLMUpstreams,
-  listAdminLLMModelUpstreamSources,
   openAdminLLMUpstreamModelCircuit,
   resetAdminLLMUpstreamCircuit,
   resetAdminLLMUpstreamModelCircuit,
@@ -71,32 +72,31 @@ import type {
   AdminLLMUpstreamModelDTO,
   AdminLLMUpstreamView,
 } from "@/features/admin/api/llm.types";
-
-import { TablePagination } from "@/components/ui/table-tools";
-import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
-import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import {
-  ADAPTER_LABELS,
-  formatDateTime,
-  resolveValue,
-} from "@/features/admin/types/llm";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import { isAdminLLMSourceAvailable } from "@/features/admin/utils/llm-source-availability";
-import { PROTOCOL_OPTIONS, sortProtocolsForDisplay } from "@/features/admin/utils/llm-display";
-import { ModelProbeDialog } from "./models-probe-dialog";
-import {
-  ModelSourceCircuitDialog,
-  type ModelSourceCircuitPayload,
-} from "./models-source-circuit-dialog";
 import {
   DEFAULT_MODEL_SOURCE_BIND_DRAFT,
   type ModelSourceBindDraft,
   resolveModelSourceBindDraft,
   uniqueUpstreamModels,
 } from "@/features/admin/model/models-source-binding";
+import {
+  ADAPTER_LABELS,
+  formatDateTime,
+  resolveValue,
+} from "@/features/admin/types/llm";
+import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
+import { PROTOCOL_OPTIONS, sortProtocolsForDisplay } from "@/features/admin/utils/llm-display";
+import { isAdminLLMSourceAvailable } from "@/features/admin/utils/llm-source-availability";
+import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import { ModelProbeDialog } from "./models-probe-dialog";
+import {
+  ModelSourceCircuitDialog,
+  type ModelSourceCircuitPayload,
+} from "./models-source-circuit-dialog";
 
 type UpstreamSourcesSheetProps = {
   model: AdminLLMModelDTO | null;
+  circuitBreakerEnabled: boolean;
   onClose: () => void;
   onRefreshModel: () => void;
   onSourceAvailabilityChange?: (modelID: number, previousAvailable: boolean, nextAvailable: boolean) => void;
@@ -177,6 +177,7 @@ function SourceInactiveStatus({
 
 export function UpstreamSourcesSheet({
   model,
+  circuitBreakerEnabled,
   onClose,
   onRefreshModel,
   onSourceAvailabilityChange,
@@ -207,6 +208,19 @@ export function UpstreamSourcesSheet({
   const [upstreamModelsLoading, setUpstreamModelsLoading] = React.useState(false);
   const [bindForm, setBindForm] = React.useState<ModelSourceBindDraft>(DEFAULT_MODEL_SOURCE_BIND_DRAFT);
   const stableModel = useDialogSnapshot(model);
+
+  React.useEffect(() => {
+    if (circuitBreakerEnabled) return;
+    setSources((current) =>
+      current.map((source) => ({
+        ...source,
+        circuitOpen: false,
+        circuitUntil: "",
+        circuitScope: "" as const,
+      })),
+    );
+  }, [circuitBreakerEnabled]);
+
   const loadSources = React.useCallback(
     async (modelId: number, nextPage = 1, nextPageSize = pageSize) => {
       setLoading(true);
@@ -940,7 +954,7 @@ export function UpstreamSourcesSheet({
                           </TableCell>
                           <TableCell className="w-[72px] whitespace-nowrap py-1.5">
                             <div className="flex h-7 items-center justify-center">
-                              {source.circuitOpen ? (
+                              {circuitBreakerEnabled && source.circuitOpen ? (
                                 <SourceCircuitStatus
                                   circuitUntil={source.circuitUntil}
                                   circuitScope={source.circuitScope}
@@ -997,17 +1011,19 @@ export function UpstreamSourcesSheet({
                                     <SlidersHorizontal className="size-3.5 stroke-1" />
                                     {t("circuitSettings")}
                                   </DropdownMenuItem>
-                                  {source.circuitOpen ? (
-                                    <DropdownMenuItem onSelect={() => void handleCircuitAction(source, "reset")}>
-                                      <RefreshCw className="size-3.5 stroke-1" />
-                                      {t("resetCircuit")}
-                                    </DropdownMenuItem>
-                                  ) : (
-                                    <DropdownMenuItem onSelect={() => void handleCircuitAction(source, "open")}>
-                                      <CircleOff className="size-3.5 stroke-1" />
-                                      {t("openCircuit")}
-                                    </DropdownMenuItem>
-                                  )}
+                                  {circuitBreakerEnabled ? (
+                                    source.circuitOpen ? (
+                                      <DropdownMenuItem onSelect={() => void handleCircuitAction(source, "reset")}>
+                                        <RefreshCw className="size-3.5 stroke-1" />
+                                        {t("resetCircuit")}
+                                      </DropdownMenuItem>
+                                    ) : (
+                                      <DropdownMenuItem onSelect={() => void handleCircuitAction(source, "open")}>
+                                        <CircleOff className="size-3.5 stroke-1" />
+                                        {t("openCircuit")}
+                                      </DropdownMenuItem>
+                                    )
+                                  ) : null}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>

@@ -212,7 +212,11 @@ export function AppChatArea() {
     router.push(projectID ? `/chat?project_id=${encodeURIComponent(projectID)}` : "/chat");
   }, [requestNewConversation, routeProjectID, router]);
   const activeGenerationRunsRef = React.useRef<Set<string>>(new Set());
-  const failedGenerationRunsRef = React.useRef<Set<string>>(new Set());
+  // Set 的原地增删不会触发 effect，revision 用于同步断流恢复判断。
+  const [activeGenerationRunsRevision, setActiveGenerationRunsRevision] = React.useState(0);
+  const onActiveGenerationRunsChange = React.useCallback(() => {
+    setActiveGenerationRunsRevision((current) => current + 1);
+  }, []);
   const {
     autoGenerateLabels,
     deleteFilesByDefault,
@@ -225,6 +229,7 @@ export function AppChatArea() {
     prependNewConversation,
     touchByPublicID,
     renameByPublicID,
+    upsertConversation,
     regenerateTitleByPublicID,
     updateLabelsByPublicID,
     setStarByPublicID,
@@ -242,10 +247,11 @@ export function AppChatArea() {
     messages,
     reload,
     replaceMessage,
+    resumingActivityLabel,
     resumingRunID,
   } = useChatData(conversationID, {
     activeGenerationRunsRef,
-    failedGenerationRunsRef,
+    activeGenerationRunsRevision,
   });
   const { greetingTitle } = useChatViewerProfile();
   const [manualConversationTitle, setManualConversationTitle] = React.useState("");
@@ -307,6 +313,29 @@ export function AppChatArea() {
     [newConversationProjectID, prependNewConversation],
   );
 
+  const handleConversationForked = React.useCallback(
+    async (forked: ConversationDTO) => {
+      const baseTitle = forked.title?.trim() || "";
+      let listed = false;
+      if (baseTitle) {
+        try {
+          const suffix = t("messages.forkTitle", { title: "" });
+          const title = `${Array.from(baseTitle)
+            .slice(0, Math.max(0, 255 - Array.from(suffix).length))
+            .join("")}${suffix}`;
+          listed = Boolean(await renameByPublicID(forked.publicID, title));
+        } catch {
+          listed = false;
+        }
+      }
+      if (!listed) {
+        upsertConversation(forked);
+      }
+      router.push(`/chat?conversation_id=${forked.publicID}`);
+    },
+    [renameByPublicID, router, t, upsertConversation],
+  );
+
   const {
     modelOptions,
     refreshModelCatalog,
@@ -359,8 +388,10 @@ export function AppChatArea() {
   const {
     selectedToolIDs,
     selectedSkills,
+    selectedKnowledgeBaseIDs,
     setSelectedToolIDs,
     setSelectedSkills,
+    setSelectedKnowledgeBaseIDs,
   } = useChatComposerSelection({
     conversationKey,
     createdConversationID: locallyCreatedConversationID,
@@ -386,15 +417,21 @@ export function AppChatArea() {
     () => (newConversationProject?.defaultSkillIDs ?? []).slice(0, mcpMaxSelectedTools),
     [mcpMaxSelectedTools, newConversationProject],
   );
-  const { onSelectedSkillsChange, onSelectedToolsChange: applySelectedToolsChange } = useNewConversationDefaults({
+  const newConversationDefaultKnowledgeBaseIDs = React.useMemo(
+    () => (newConversationProject?.defaultKnowledgeBaseIDs ?? []).slice(0, 8),
+    [newConversationProject],
+  );
+  const { onSelectedKnowledgeBasesChange, onSelectedSkillsChange, onSelectedToolsChange: applySelectedToolsChange } = useNewConversationDefaults({
     conversationID,
     contextKey: newConversationSelectionKey,
     defaultsPending: Boolean(newConversationProjectID && !newConversationProject),
     defaultMCPToolIDs: newConversationDefaultMCPToolIDs,
     defaultSkillIDs: newConversationDefaultSkillIDs,
+    defaultKnowledgeBaseIDs: newConversationDefaultKnowledgeBaseIDs,
     toolsLoading,
     setSelectedToolIDs,
     setSelectedSkills,
+    setSelectedKnowledgeBaseIDs,
   });
   const onSelectedToolsChange = React.useCallback((nextToolIDs: number[]) => {
     if (hasMultipleImageAttachmentProcessors(nextToolIDs, availableTools)) {
@@ -586,6 +623,8 @@ export function AppChatArea() {
     uploadingAttachments,
     maxFilesPerMessage,
     fileMode,
+    ragAvailable,
+    ragAvailabilityReason,
     releaseAttachments,
     onRemoveAttachment,
     onUploadFiles,
@@ -603,6 +642,7 @@ export function AppChatArea() {
     onEditAssistantMessage,
     onEditUserMessage,
     onContinueAssistantMessage,
+    onForkMessage,
     onRetryAssistantMessage,
     onRetryUserMessage,
     onSendMessage,
@@ -624,6 +664,7 @@ export function AppChatArea() {
     modelOptions,
     selectedToolIDs,
     selectedSkills,
+    selectedKnowledgeBaseIDs,
     htmlVisualPromptEnabled: htmlVisualPrompt.enabled,
     options: modelOptionPolicyDisabled ? EMPTY_CONVERSATION_OPTIONS : options,
     draft,
@@ -634,6 +675,7 @@ export function AppChatArea() {
     autoGenerateLabels,
     prependNewConversation: prependNewConversationInContext,
     onConversationCreated: setLocallyCreatedConversationID,
+    onConversationForked: handleConversationForked,
     touchByPublicID,
     reload,
     replaceMessage,
@@ -641,7 +683,9 @@ export function AppChatArea() {
     setAttachments,
     releaseAttachments,
     activeGenerationRunsRef,
-    failedGenerationRunsRef,
+    activeGenerationRunsRevision,
+    onActiveGenerationRunsChange,
+    resumingActivityLabel,
     resumingRunID,
   });
   const generating = sending;
@@ -1140,6 +1184,8 @@ export function AppChatArea() {
     isConversationMode,
     maxFilesPerMessage,
     fileMode,
+    ragAvailable,
+    ragAvailabilityReason,
     sendShortcut,
     inputHeight,
     attachments,
@@ -1151,6 +1197,7 @@ export function AppChatArea() {
     availableTools,
     selectedToolIDs,
     selectedSkills,
+    selectedKnowledgeBaseIDs,
     defaultToolIDs,
     queuedMessages,
     htmlVisualPromptEnabled: htmlVisualPrompt.enabled,
@@ -1167,6 +1214,7 @@ export function AppChatArea() {
     onSelectedToolsChange,
     maxSelectedSkills: mcpMaxSelectedTools,
     onSelectedSkillsChange,
+    onSelectedKnowledgeBasesChange,
     onDefaultToolsChange: onDefaultToolIDsChange,
     onHTMLVisualPromptChange: htmlVisualPrompt.setEnabled,
     onOptionsChange: setModelOptions,
@@ -1239,6 +1287,7 @@ export function AppChatArea() {
                   onContinueAssistantMessage={onContinueAssistantMessage}
                   onEditAssistantMessage={onEditAssistantMessage}
                   onEditUserMessage={onEditUserMessage}
+                  onForkMessage={onForkMessage}
                   modelOptions={modelOptions}
                   selectedPlatformModelName={selectedPlatformModelName}
                   onModelChange={setSelectedPlatformModelName}

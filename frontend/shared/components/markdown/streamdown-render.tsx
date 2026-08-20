@@ -104,12 +104,25 @@ const STREAMDOWN_CONTROLS = {
   },
   mermaid: {
     copy: true,
-    download: false,
+    download: true,
     fullscreen: true,
     panZoom: true,
   },
   table: false,
 } as const;
+
+function useStreamdownTranslations() {
+  const t = useTranslations("chat.markdown.diagram");
+  return React.useMemo(
+    () => ({
+      downloadDiagram: t("downloadDiagram"),
+      downloadDiagramAsSvg: t("downloadDiagramAsSvg"),
+      downloadDiagramAsPng: t("downloadDiagramAsPng"),
+      downloadDiagramAsMmd: t("downloadDiagramAsMmd"),
+    }),
+    [t],
+  );
+}
 
 const STREAMDOWN_REMEND = {
   linkMode: "text-only",
@@ -203,8 +216,16 @@ const SOURCE_POSITION_STREAMDOWN_REHYPE_PLUGINS = buildStreamdownRehypePlugins(t
 const FENCED_CODE_BLOCK_RE = /(?:^|\n)[ \t]*(?:```|~~~)(?!\s*(?:mermaid|mmd)\b)[^\n]*(?:\n|$)/i;
 const MERMAID_CODE_BLOCK_RE = /(?:^|\n)[ \t]*(?:```|~~~)\s*(?:mermaid|mmd)\b/i;
 
+// Streamdown does not expose a download-menu render slot. Keep its export
+// implementation and mirror the shared DropdownMenu design tokens here.
+const STREAMDOWN_MERMAID_DROPDOWN_CLASSNAME = cn(
+  "[&_[data-streamdown='mermaid-block-actions']>div>div]:!z-50 [&_[data-streamdown='mermaid-block-actions']>div>div]:!mt-1.5 [&_[data-streamdown='mermaid-block-actions']>div>div]:!min-w-32 [&_[data-streamdown='mermaid-block-actions']>div>div]:!rounded-xl [&_[data-streamdown='mermaid-block-actions']>div>div]:!border-[0.5px] [&_[data-streamdown='mermaid-block-actions']>div>div]:!border-border [&_[data-streamdown='mermaid-block-actions']>div>div]:!bg-popover [&_[data-streamdown='mermaid-block-actions']>div>div]:!p-1.5 [&_[data-streamdown='mermaid-block-actions']>div>div]:!font-sans [&_[data-streamdown='mermaid-block-actions']>div>div]:!text-popover-foreground [&_[data-streamdown='mermaid-block-actions']>div>div]:!shadow-xs [&_[data-streamdown='mermaid-block-actions']>div>div]:animate-in [&_[data-streamdown='mermaid-block-actions']>div>div]:fade-in-0 [&_[data-streamdown='mermaid-block-actions']>div>div]:zoom-in-95 [&_[data-streamdown='mermaid-block-actions']>div>div]:slide-in-from-top-2",
+  "[&_[data-streamdown='mermaid-block-actions']>div>div>button]:!rounded-md [&_[data-streamdown='mermaid-block-actions']>div>div>button]:!px-2 [&_[data-streamdown='mermaid-block-actions']>div>div>button]:!py-1.5 [&_[data-streamdown='mermaid-block-actions']>div>div>button]:!text-xs [&_[data-streamdown='mermaid-block-actions']>div>div>button]:!leading-5 [&_[data-streamdown='mermaid-block-actions']>div>div>button]:outline-none [&_[data-streamdown='mermaid-block-actions']>div>div>button:hover]:!bg-accent/40 [&_[data-streamdown='mermaid-block-actions']>div>div>button:hover]:!text-accent-foreground [&_[data-streamdown='mermaid-block-actions']>div>div>button:focus-visible]:!bg-accent/40 [&_[data-streamdown='mermaid-block-actions']>div>div>button:focus-visible]:!text-accent-foreground",
+);
+
 const BASE_MARKDOWN_CLASSNAME = cn(
   "chat-font-content min-w-0 max-w-full overflow-hidden leading-6 text-foreground [overflow-wrap:anywhere]",
+  STREAMDOWN_MERMAID_DROPDOWN_CLASSNAME,
   "[&>*:last-child]:after:text-muted-foreground/55",
   "[&_p]:min-w-0 [&_p]:max-w-full [&_p]:break-words [&_p]:[overflow-wrap:anywhere]",
   "[&_li]:min-w-0 [&_li]:max-w-full [&_li]:break-words [&_li]:[overflow-wrap:anywhere]",
@@ -216,11 +237,15 @@ const BASE_MARKDOWN_CLASSNAME = cn(
   "[&_[data-streamdown='mermaid']_svg]:mx-auto [&_[data-streamdown='mermaid']_svg]:block [&_[data-streamdown='mermaid']_svg]:h-auto [&_[data-streamdown='mermaid']_svg]:max-h-[280px] [&_[data-streamdown='mermaid']_svg]:max-w-full [&_[data-streamdown='mermaid']_svg]:bg-transparent",
   "[&_[data-streamdown='mermaid']>div>div:first-child]:!left-0 [&_[data-streamdown='mermaid']>div>div:first-child]:rounded-none [&_[data-streamdown='mermaid']>div>div:first-child]:border-0 [&_[data-streamdown='mermaid']>div>div:first-child]:bg-transparent [&_[data-streamdown='mermaid']>div>div:first-child]:p-0 [&_[data-streamdown='mermaid']>div>div:first-child]:shadow-none [&_[data-streamdown='mermaid']>div>div:first-child]:backdrop-blur-none",
   "[&_[data-streamdown='mermaid-block-actions']]:gap-2 [&_[data-streamdown='mermaid-block-actions']]:border-0 [&_[data-streamdown='mermaid-block-actions']]:rounded-none [&_[data-streamdown='mermaid-block-actions']]:bg-transparent [&_[data-streamdown='mermaid-block-actions']]:p-0 [&_[data-streamdown='mermaid-block-actions']]:shadow-none [&_[data-streamdown='mermaid-block-actions']]:backdrop-blur-none",
-  "[&_[data-streamdown='mermaid-block-actions']_button]:border-0 [&_[data-streamdown='mermaid-block-actions']_button]:bg-transparent [&_[data-streamdown='mermaid-block-actions']_button]:shadow-none [&_[data-streamdown='mermaid-block-actions']_button:hover]:bg-foreground/[0.04] [&_[data-streamdown='mermaid-block-actions']_button:hover]:text-foreground",
+  "[&_[data-streamdown='mermaid-block-actions']>button]:border-0 [&_[data-streamdown='mermaid-block-actions']>button]:bg-transparent [&_[data-streamdown='mermaid-block-actions']>button]:shadow-none [&_[data-streamdown='mermaid-block-actions']>button:hover]:bg-foreground/[0.04] [&_[data-streamdown='mermaid-block-actions']>button:hover]:text-foreground",
+  "[&_[data-streamdown='mermaid-block-actions']>div>button]:border-0 [&_[data-streamdown='mermaid-block-actions']>div>button]:bg-transparent [&_[data-streamdown='mermaid-block-actions']>div>button]:shadow-none [&_[data-streamdown='mermaid-block-actions']>div>button:hover]:bg-foreground/[0.04] [&_[data-streamdown='mermaid-block-actions']>div>button:hover]:text-foreground",
   "[&_[data-streamdown='mermaid-block-actions']_svg]:size-3",
   "[&_[data-streamdown='mermaid-block']_button>svg]:size-3",
   "[&_code:not(pre_code)]:rounded-md [&_code:not(pre_code)]:bg-foreground/[0.05] [&_code:not(pre_code)]:px-1.5 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:font-mono [&_code:not(pre_code)]:text-[0.85em] [&_code:not(pre_code)]:text-primary [&_code:not(pre_code)]:whitespace-pre-wrap [&_code:not(pre_code)]:break-words [&_code:not(pre_code)]:[overflow-wrap:anywhere]",
   "[&_[data-streamdown='code-block']]:my-4 [&_[data-streamdown='code-block']]:!w-full [&_[data-streamdown='code-block']]:min-w-0 [&_[data-streamdown='code-block']]:gap-0 [&_[data-streamdown='code-block']]:border-0 [&_[data-streamdown='code-block']]:rounded-none [&_[data-streamdown='code-block']]:bg-transparent [&_[data-streamdown='code-block']]:p-0 [&_[data-streamdown='code-block']]:shadow-none [&_[data-streamdown='code-block']]:outline-none [&_[data-streamdown='code-block']]:ring-0",
+  // Streamdown's fixed offscreen placeholder changes height when a code block
+  // enters the viewport, which can move the surrounding conversation.
+  "[&_[data-streamdown='code-block']]:![content-visibility:visible] [&_[data-streamdown='code-block']]:![contain-intrinsic-size:none]",
   "[&_[data-streamdown='code-block']>div:first-child]:min-h-0 [&_[data-streamdown='code-block']>div:first-child]:justify-between [&_[data-streamdown='code-block']>div:first-child]:gap-2 [&_[data-streamdown='code-block']>div:first-child]:border-0 [&_[data-streamdown='code-block']>div:first-child]:bg-transparent [&_[data-streamdown='code-block']>div:first-child]:mt-2 [&_[data-streamdown='code-block']>div:first-child]:pb-6 [&_[data-streamdown='code-block']>div:first-child]:text-[11px] [&_[data-streamdown='code-block']>div:first-child]:font-medium [&_[data-streamdown='code-block']>div:first-child]:tracking-[0.06em] [&_[data-streamdown='code-block']>div:first-child]:text-muted-foreground/85 [&_[data-streamdown='code-block']>div:first-child]:shadow-none",
   "[&_[data-streamdown='code-block']>div:last-child]:!w-full [&_[data-streamdown='code-block']>div:last-child]:min-w-0 [&_[data-streamdown='code-block']>div:last-child]:border-0 [&_[data-streamdown='code-block']>div:last-child]:rounded-none [&_[data-streamdown='code-block']>div:last-child]:bg-transparent [&_[data-streamdown='code-block']>div:last-child]:p-0 [&_[data-streamdown='code-block']>div:last-child]:shadow-none",
   "[&_[data-streamdown='code-block-body']]:!bg-muted/40 [&_[data-streamdown='code-block-body']]:!rounded-xl",
@@ -451,6 +476,7 @@ function ThinkingSegmentBlock({
   streaming: boolean;
 }) {
   const t = useTranslations("chat.markdown.thinking");
+  const translations = useStreamdownTranslations();
   const active = streaming || incomplete;
   const [accordionValue, setAccordionValue] = React.useState(() => (active ? "thinking" : ""));
   const wasActiveRef = React.useRef(active);
@@ -524,7 +550,8 @@ function ThinkingSegmentBlock({
               parseIncompleteMarkdown={streaming || incomplete}
               shikiTheme={["github-light", "github-dark"]}
               animated={false}
-              isAnimating={false}
+              isAnimating={active}
+              translations={translations}
             >
               {content}
             </Streamdown>
@@ -546,6 +573,7 @@ function HTMLMarkdownRenderProvider({
   components: Components;
   plugins: PluginConfig;
 }) {
+  const translations = useStreamdownTranslations();
   const renderHTMLMarkdown = React.useCallback(
     (source: string) => (
       <MarkdownHTMLMarkdownRendererContext.Provider value={null}>
@@ -563,12 +591,13 @@ function HTMLMarkdownRenderProvider({
           shikiTheme={["github-light", "github-dark"]}
           animated={false}
           isAnimating={false}
+          translations={translations}
         >
           {source}
         </Streamdown>
       </MarkdownHTMLMarkdownRendererContext.Provider>
     ),
-    [className, components, plugins],
+    [className, components, plugins, translations],
   );
 
   return (
@@ -613,6 +642,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
     () => segments.filter((segment): segment is Extract<RenderSegment, { type: "thinking" }> => segment.type === "thinking"),
     [segments],
   );
+  const translations = useStreamdownTranslations();
   const markdownSegments = React.useMemo(
     () => segments.filter((segment): segment is Extract<RenderSegment, { type: "markdown" }> => segment.type === "markdown"),
     [segments],
@@ -683,6 +713,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
                 shikiTheme={["github-light", "github-dark"]}
                 animated={false}
                 isAnimating={streaming}
+                translations={translations}
               >
                 {segment.content}
               </Streamdown>

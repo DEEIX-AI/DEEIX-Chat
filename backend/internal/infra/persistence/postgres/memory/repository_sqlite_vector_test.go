@@ -12,6 +12,7 @@ import (
 )
 
 func TestSQLiteVectorStoreSearchesAndDeletesUserMemories(t *testing.T) {
+	const embeddingSignature = "test-model@3"
 	db := openMemorySQLiteVectorTestDB(t)
 	repo := NewRepo(db)
 	ctx := context.Background()
@@ -24,26 +25,30 @@ func TestSQLiteVectorStoreSearchesAndDeletesUserMemories(t *testing.T) {
 	if err := repo.UpsertUserMemory(ctx, other); err != nil {
 		t.Fatalf("UpsertUserMemory(other) error = %v", err)
 	}
-	if err := repo.UpsertUserMemoryEmbedding(ctx, 1, "favorite_topic", "likes databases", []float32{1, 0, 0}); err != nil {
+	if err := repo.UpsertUserMemoryEmbedding(ctx, 1, "favorite_topic", "likes databases", []float32{1, 0, 0}, embeddingSignature); err != nil {
 		t.Fatalf("UpsertUserMemoryEmbedding(target) error = %v", err)
 	}
-	if err := repo.UpsertUserMemoryEmbedding(ctx, 1, "favorite_color", "likes green", []float32{0, 1, 0}); err != nil {
+	if err := repo.UpsertUserMemoryEmbedding(ctx, 1, "favorite_color", "likes green", []float32{0, 1, 0}, embeddingSignature); err != nil {
 		t.Fatalf("UpsertUserMemoryEmbedding(other) error = %v", err)
 	}
 
-	results, err := repo.SearchUserMemoriesByEmbedding(ctx, 1, []float32{1, 0, 0}, 2, 0)
+	results, err := repo.SearchUserMemoriesByEmbedding(ctx, 1, []float32{1, 0, 0}, embeddingSignature, 2, 0)
 	if err != nil {
 		t.Fatalf("SearchUserMemoriesByEmbedding() error = %v", err)
 	}
 	if len(results) == 0 || results[0].MemoryKey != "favorite_topic" {
 		t.Fatalf("expected nearest memory first, got %#v", results)
 	}
+	isolatedResults, err := repo.SearchUserMemoriesByEmbedding(ctx, 1, []float32{1, 0, 0}, "other-model@3", 2, 0)
+	if err != nil || len(isolatedResults) != 0 {
+		t.Fatalf("expected memory vectors from another signature to stay hidden, got %#v, err=%v", isolatedResults, err)
+	}
 
 	target.Value = "likes vector databases"
 	if err := repo.UpsertUserMemory(ctx, target); err != nil {
 		t.Fatalf("UpsertUserMemory(update target) error = %v", err)
 	}
-	results, err = repo.SearchUserMemoriesByEmbedding(ctx, 1, []float32{1, 0, 0}, 2, 0.5)
+	results, err = repo.SearchUserMemoriesByEmbedding(ctx, 1, []float32{1, 0, 0}, embeddingSignature, 2, 0.5)
 	if err != nil {
 		t.Fatalf("SearchUserMemoriesByEmbedding(after update) error = %v", err)
 	}
@@ -52,10 +57,10 @@ func TestSQLiteVectorStoreSearchesAndDeletesUserMemories(t *testing.T) {
 			t.Fatalf("expected stale target memory vector to be cleared, got %#v", results)
 		}
 	}
-	if err := repo.UpsertUserMemoryEmbedding(ctx, 1, "favorite_topic", "likes vector databases", []float32{1, 0, 0}); err != nil {
+	if err := repo.UpsertUserMemoryEmbedding(ctx, 1, "favorite_topic", "likes vector databases", []float32{1, 0, 0}, embeddingSignature); err != nil {
 		t.Fatalf("UpsertUserMemoryEmbedding(updated target) error = %v", err)
 	}
-	results, err = repo.SearchUserMemoriesByEmbedding(ctx, 1, []float32{1, 0, 0}, 2, 0.5)
+	results, err = repo.SearchUserMemoriesByEmbedding(ctx, 1, []float32{1, 0, 0}, embeddingSignature, 2, 0.5)
 	if err != nil {
 		t.Fatalf("SearchUserMemoriesByEmbedding(after reembed) error = %v", err)
 	}
@@ -66,7 +71,7 @@ func TestSQLiteVectorStoreSearchesAndDeletesUserMemories(t *testing.T) {
 	if err := repo.DeleteUserMemory(ctx, 1, "favorite_topic"); err != nil {
 		t.Fatalf("DeleteUserMemory() error = %v", err)
 	}
-	results, err = repo.SearchUserMemoriesByEmbedding(ctx, 1, []float32{1, 0, 0}, 2, 0)
+	results, err = repo.SearchUserMemoriesByEmbedding(ctx, 1, []float32{1, 0, 0}, embeddingSignature, 2, 0)
 	if err != nil {
 		t.Fatalf("SearchUserMemoriesByEmbedding(after delete) error = %v", err)
 	}

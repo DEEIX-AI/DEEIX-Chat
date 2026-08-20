@@ -195,6 +195,7 @@ func parseOptionalUserID(c *gin.Context) (uint, bool) {
 // @Security BearerAuth
 // @Param page query int false "Page number"
 // @Param pageSize query int false "Page size"
+// @Param query query string false "Exact event, user, run, model, result, or summary search"
 // @Param result query string false "Result filter"
 // @Param direction query string false "Direction filter"
 // @Param modality query string false "Modality filter"
@@ -223,6 +224,7 @@ func (h *Handler) ListEvents(c *gin.Context) {
 		return
 	}
 	input := appcm.EventListInput{
+		Query:     c.Query("query"),
 		Direction: c.Query("direction"),
 		Modality:  c.Query("modality"),
 		Result:    c.Query("result"),

@@ -22,8 +22,9 @@ import (
 // ---------------------------------------------------------------------------
 
 type requestPayload struct {
-	Model string   `json:"model"`
-	Input []string `json:"input"`
+	Model      string   `json:"model"`
+	Input      []string `json:"input"`
+	Dimensions int      `json:"dimensions,omitempty"`
 }
 
 type responsePayload struct {
@@ -66,13 +67,14 @@ func (c *Client) CallAPI(
 	ctx context.Context,
 	apiBase, apiKey, model string,
 	texts []string,
+	dimensions int,
 	timeoutSeconds int,
 ) ([][]float32, error) {
 	if len(texts) == 0 {
 		return nil, nil
 	}
 
-	body, err := json.Marshal(requestPayload{Model: model, Input: texts})
+	body, err := json.Marshal(requestPayload{Model: model, Input: texts, Dimensions: dimensions})
 	if err != nil {
 		return nil, fmt.Errorf("embedding: marshal request: %w", err)
 	}
@@ -110,9 +112,26 @@ func (c *Client) CallAPI(
 	}
 
 	result := make([][]float32, len(texts))
+	seen := make([]bool, len(texts))
 	for _, item := range payload.Data {
-		if item.Index < len(result) {
-			result[item.Index] = item.Embedding
+		if item.Index < 0 || item.Index >= len(result) {
+			return nil, fmt.Errorf("embedding: response index %d out of range", item.Index)
+		}
+		if seen[item.Index] {
+			return nil, fmt.Errorf("embedding: duplicate response index %d", item.Index)
+		}
+		if len(item.Embedding) == 0 {
+			return nil, fmt.Errorf("embedding: response vector %d is empty", item.Index)
+		}
+		if dimensions > 0 && len(item.Embedding) != dimensions {
+			return nil, fmt.Errorf("embedding: response vector %d has %d dimensions, expected %d", item.Index, len(item.Embedding), dimensions)
+		}
+		result[item.Index] = item.Embedding
+		seen[item.Index] = true
+	}
+	for index, present := range seen {
+		if !present {
+			return nil, fmt.Errorf("embedding: response vector %d is missing", index)
 		}
 	}
 	return result, nil

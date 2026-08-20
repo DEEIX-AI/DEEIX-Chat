@@ -1,11 +1,14 @@
 package conversation
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 )
@@ -255,7 +258,72 @@ func fileContextPlanRAGObjects(items []AttachmentInput) []model.FileObject {
 			FileName:    item.FileName,
 			EmbedStatus: item.EmbedStatus,
 			ChunkCount:  item.ChunkCount,
+			UpdatedAt:   item.FileUpdatedAt,
 		})
+	}
+	return result
+}
+
+func (s *Service) resolveKnowledgeBaseRAGFiles(
+	ctx context.Context,
+	userID uint,
+	publicIDs []string,
+	ragAvailable bool,
+) ([]model.FileObject, error) {
+	if len(publicIDs) == 0 {
+		return nil, nil
+	}
+	if !ragAvailable || s.knowledgeBaseResolver == nil || s.ragSvc == nil {
+		return nil, ErrKnowledgeBaseUnavailable
+	}
+	bases, files, err := s.knowledgeBaseResolver.ResolveFiles(ctx, userID, publicIDs)
+	if err != nil {
+		if errors.Is(err, domainknowledgebase.ErrReferenceUnavailable) {
+			return nil, ErrInvalidKnowledgeBaseReference
+		}
+		return nil, err
+	}
+	for _, base := range bases {
+		if base.ReadyFileCount == 0 {
+			return nil, ErrKnowledgeBaseNotReady
+		}
+	}
+	ready := make([]model.FileObject, 0, len(files))
+	seen := make(map[uint]struct{}, len(files))
+	for _, file := range files {
+		if file.ID == 0 || !file.ProcessingReady || file.RagOptOut || !strings.EqualFold(strings.TrimSpace(file.EmbedStatus), "ready") || file.ChunkCount <= 0 {
+			continue
+		}
+		if _, exists := seen[file.ID]; exists {
+			continue
+		}
+		seen[file.ID] = struct{}{}
+		ready = append(ready, file)
+	}
+	if len(ready) == 0 {
+		return nil, ErrKnowledgeBaseNotReady
+	}
+	return ready, nil
+}
+
+func mergeRAGFileObjects(groups ...[]model.FileObject) []model.FileObject {
+	count := 0
+	for _, group := range groups {
+		count += len(group)
+	}
+	result := make([]model.FileObject, 0, count)
+	seen := make(map[uint]struct{}, count)
+	for _, group := range groups {
+		for _, item := range group {
+			if item.ID == 0 {
+				continue
+			}
+			if _, exists := seen[item.ID]; exists {
+				continue
+			}
+			seen[item.ID] = struct{}{}
+			result = append(result, item)
+		}
 	}
 	return result
 }

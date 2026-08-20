@@ -263,15 +263,12 @@ generationConfig.safetySettings.threshold`}
     "generation_config.top_p",
     "generation_config.max_output_tokens",
     "generation_config.thinking_level",
+    "generation_config.thinking_summaries",
     "response_format.type",
     "response_format.aspect_ratio",
     "response_format.image_size",
     "response_format.mime_type",
-    "responseFormat.type",
-    "responseFormat.aspectRatio",
-    "responseFormat.imageSize",
-    "responseFormat.mimeType",
-    "generationConfig.videoConfig.task",
+    "response_format.schema",
     "generation_config.video_config.task"
   ],
   "xai_image": [
@@ -337,7 +334,7 @@ generationConfig.safetySettings.threshold`}
             <h4 className="text-sm font-medium text-foreground">{t("guide.protocolTitle")}</h4>
             <p className="text-xs">{t("guide.protocolDescription")}</p>
             <div className="flex flex-wrap gap-1.5">
-              {["default", "openai_chat_completions", "openrouter_chat_completions", "openai_responses", "openrouter_responses", "openai_image_generations", "openai_image_edits", "google_image_generation", "gemini_interactions", "xai_image", "xai_image_edits", "xai_video", "anthropic_messages", "xai_responses", "gemini_generate_content"].map((item) => (
+              {MODEL_OPTION_POLICY_PROTOCOLS.map((item) => (
                 <code key={item} className="rounded-md bg-muted/60 px-2 py-1 text-xs text-foreground">{item}</code>
               ))}
             </div>

@@ -5,9 +5,11 @@ import (
 	"strings"
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
 	models "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CreateConversationProject 创建会话项目分组。
@@ -15,6 +17,7 @@ func (r *Repo) CreateConversationProject(ctx context.Context, item *domainconver
 	entity := toConversationProjectModel(item)
 	mcpToolIDs := append([]uint(nil), item.DefaultMCPToolIDs...)
 	skillIDs := append([]uint(nil), item.DefaultSkillIDs...)
+	knowledgeBaseIDs := append([]string(nil), item.DefaultKnowledgeBaseIDs...)
 	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&entity).Error; err != nil {
 			return err
@@ -22,13 +25,17 @@ func (r *Repo) CreateConversationProject(ctx context.Context, item *domainconver
 		if err := replaceConversationProjectMCPTools(tx, entity.ID, mcpToolIDs); err != nil {
 			return err
 		}
-		return replaceConversationProjectSkills(tx, entity.ID, skillIDs)
+		if err := replaceConversationProjectSkills(tx, entity.ID, skillIDs); err != nil {
+			return err
+		}
+		return replaceConversationProjectKnowledgeBases(tx, entity.ID, entity.UserID, knowledgeBaseIDs)
 	}); err != nil {
 		return translateError(err)
 	}
 	*item = toConversationProjectDomain(entity)
 	item.DefaultMCPToolIDs = mcpToolIDs
 	item.DefaultSkillIDs = skillIDs
+	item.DefaultKnowledgeBaseIDs = knowledgeBaseIDs
 	return nil
 }
 
@@ -104,7 +111,7 @@ func (r *Repo) UpdateConversationProjectMetadataByPublicID(
 	if patch.Status != nil {
 		updates["status"] = *patch.Status
 	}
-	if len(updates) == 0 && patch.DefaultMCPToolIDs == nil && patch.DefaultSkillIDs == nil {
+	if len(updates) == 0 && patch.DefaultMCPToolIDs == nil && patch.DefaultSkillIDs == nil && patch.DefaultKnowledgeBaseIDs == nil {
 		return r.GetConversationProjectByPublicID(ctx, userID, publicID)
 	}
 	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -124,6 +131,11 @@ func (r *Repo) UpdateConversationProjectMetadataByPublicID(
 		}
 		if patch.DefaultSkillIDs != nil {
 			if err := replaceConversationProjectSkills(tx, project.ID, *patch.DefaultSkillIDs); err != nil {
+				return err
+			}
+		}
+		if patch.DefaultKnowledgeBaseIDs != nil {
+			if err := replaceConversationProjectKnowledgeBases(tx, project.ID, project.UserID, *patch.DefaultKnowledgeBaseIDs); err != nil {
 				return err
 			}
 		}
@@ -182,6 +194,9 @@ func (r *Repo) DeleteConversationProjectByPublicID(
 			return translateError(err)
 		}
 		if err := tx.Where("project_id = ?", project.ID).Delete(&models.ConversationProjectSkill{}).Error; err != nil {
+			return translateError(err)
+		}
+		if err := tx.Where("project_id = ?", project.ID).Delete(&models.ConversationProjectKnowledgeBase{}).Error; err != nil {
 			return translateError(err)
 		}
 		if err := tx.Delete(&project).Error; err != nil {
@@ -328,6 +343,22 @@ func (r *Repo) hydrateConversationProjectDefaults(ctx context.Context, items []d
 		Find(&skillRows).Error; err != nil {
 		return translateError(err)
 	}
+	knowledgeBaseRows := make([]struct {
+		ProjectID uint
+		PublicID  string
+	}, 0)
+	if err := r.db.WithContext(ctx).Table("chat_conversation_project_knowledge_bases AS project_bases").
+		Select("project_bases.project_id, knowledge_bases.public_id").
+		Joins("JOIN knowledge_bases ON knowledge_bases.id = project_bases.knowledge_base_id").
+		Joins("JOIN chat_conversation_projects AS projects ON projects.id = project_bases.project_id").
+		Where("project_bases.project_id IN ?", projectIDs).
+		Where("knowledge_bases.enabled = ?", true).
+		Where("knowledge_bases.scope = ? OR (knowledge_bases.scope = ? AND knowledge_bases.owner_user_id = projects.user_id)",
+			domainknowledgebase.ScopeBuiltin, domainknowledgebase.ScopeUser).
+		Order("project_bases.project_id ASC, project_bases.sort_order ASC, project_bases.knowledge_base_id ASC").
+		Scan(&knowledgeBaseRows).Error; err != nil {
+		return translateError(err)
+	}
 
 	mcpIDsByProject := make(map[uint][]uint, len(items))
 	for _, row := range mcpRows {
@@ -337,11 +368,44 @@ func (r *Repo) hydrateConversationProjectDefaults(ctx context.Context, items []d
 	for _, row := range skillRows {
 		skillIDsByProject[row.ProjectID] = append(skillIDsByProject[row.ProjectID], row.SkillID)
 	}
+	knowledgeBaseIDsByProject := make(map[uint][]string, len(items))
+	for _, row := range knowledgeBaseRows {
+		knowledgeBaseIDsByProject[row.ProjectID] = append(knowledgeBaseIDsByProject[row.ProjectID], row.PublicID)
+	}
 	for index := range items {
 		items[index].DefaultMCPToolIDs = mcpIDsByProject[items[index].ID]
 		items[index].DefaultSkillIDs = skillIDsByProject[items[index].ID]
+		items[index].DefaultKnowledgeBaseIDs = knowledgeBaseIDsByProject[items[index].ID]
 	}
 	return nil
+}
+
+func replaceConversationProjectKnowledgeBases(tx *gorm.DB, projectID uint, userID uint, publicIDs []string) error {
+	if err := tx.Where("project_id = ?", projectID).Delete(&models.ConversationProjectKnowledgeBase{}).Error; err != nil {
+		return err
+	}
+	if len(publicIDs) == 0 {
+		return nil
+	}
+	bases := make([]models.KnowledgeBase, 0, len(publicIDs))
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("public_id IN ? AND enabled = ?", publicIDs, true).
+		Where("scope = ? OR (scope = ? AND owner_user_id = ?)", domainknowledgebase.ScopeBuiltin, domainknowledgebase.ScopeUser, userID).
+		Find(&bases).Error; err != nil {
+		return err
+	}
+	baseIDByPublicID := make(map[string]uint, len(bases))
+	for _, base := range bases {
+		baseIDByPublicID[base.PublicID] = base.ID
+	}
+	if len(baseIDByPublicID) != len(publicIDs) {
+		return repository.ErrNotFound
+	}
+	rows := make([]models.ConversationProjectKnowledgeBase, 0, len(publicIDs))
+	for index, publicID := range publicIDs {
+		rows = append(rows, models.ConversationProjectKnowledgeBase{ProjectID: projectID, KnowledgeBaseID: baseIDByPublicID[publicID], SortOrder: index + 1})
+	}
+	return tx.Create(&rows).Error
 }
 
 // replaceConversationProjectMCPTools 在事务内替换项目默认 MCP 工具关联。

@@ -51,7 +51,7 @@ type CreateModelRequest struct {
 	Vendor             string `json:"vendor,omitempty" binding:"omitempty,max=64"`
 	DisplayGroupID     uint   `json:"displayGroupID,omitempty"`
 	KindsJSON          string `json:"kindsJSON,omitempty" binding:"omitempty,max=1000"`
-	Icon               string `json:"icon,omitempty" binding:"max=128"`
+	Icon               string `json:"icon,omitempty" binding:"max=2048"`
 	CapabilitiesJSON   string `json:"capabilitiesJSON,omitempty" binding:"max=10000"`
 	SystemPrompt       string `json:"systemPrompt,omitempty" binding:"max=20000"`
 	AccessScope        string `json:"accessScope,omitempty" binding:"omitempty,oneof=public internal"`
@@ -69,7 +69,7 @@ type UpdateModelRequest struct {
 	Vendor             *string `json:"vendor,omitempty" binding:"omitempty,max=64"`
 	DisplayGroupID     *uint   `json:"displayGroupID,omitempty"`
 	KindsJSON          *string `json:"kindsJSON,omitempty" binding:"omitempty,max=1000"`
-	Icon               *string `json:"icon,omitempty" binding:"omitempty,max=128"`
+	Icon               *string `json:"icon,omitempty" binding:"omitempty,max=2048"`
 	CapabilitiesJSON   *string `json:"capabilitiesJSON,omitempty" binding:"omitempty,max=10000"`
 	SystemPrompt       *string `json:"systemPrompt,omitempty" binding:"omitempty,max=20000"`
 	AccessScope        *string `json:"accessScope,omitempty" binding:"omitempty,oneof=public internal"`
@@ -79,6 +79,12 @@ type UpdateModelRequest struct {
 	CbFailureThreshold *int    `json:"cbFailureThreshold,omitempty" binding:"omitempty,gte=0"`
 	CbDurationMin      *int    `json:"cbDurationMin,omitempty" binding:"omitempty,gte=0"`
 	CbWindowMin        *int    `json:"cbWindowMin,omitempty" binding:"omitempty,gte=0"`
+}
+
+// SetModelProtocolsRequest 原子替换平台模型全部来源的协议集合。
+type SetModelProtocolsRequest struct {
+	Protocols []string `json:"protocols" binding:"required,min=1,max=2,unique,dive,min=1,max=64"`
+	KindsJSON string   `json:"kindsJSON" binding:"required,min=2,max=1000"`
 }
 
 // CreateModelVendorRequest 创建技术厂商请求。
@@ -121,19 +127,21 @@ type ReorderModelsRequest struct {
 
 // UpsertUpstreamModelRequest 上游模型路由绑定请求。
 type UpsertUpstreamModelRequest struct {
-	RouteID            uint   `json:"routeID,omitempty"`
-	PlatformModelName  string `json:"platformModelName" binding:"required,min=2,max=128"`
-	UpstreamModelName  string `json:"upstreamModelName" binding:"required,min=1,max=128"`
-	Protocol           string `json:"protocol,omitempty" binding:"omitempty,max=64"`
-	KindsJSON          string `json:"kindsJSON,omitempty" binding:"omitempty,max=1000"`
-	Status             string `json:"status,omitempty" binding:"omitempty,oneof=active inactive"`
-	Priority           int    `json:"priority,omitempty"`
-	Weight             int    `json:"weight,omitempty"`
-	Source             string `json:"source,omitempty" binding:"omitempty,max=64"`
-	CbFailureThreshold int    `json:"cbFailureThreshold,omitempty"`
-	CbDurationMin      int    `json:"cbDurationMin,omitempty"`
-	CbWindowMin        int    `json:"cbWindowMin,omitempty"`
-	HeadersJSON        string `json:"headersJSON,omitempty" binding:"max=10000"`
+	RouteIDs          []uint `json:"routeIDs,omitempty" binding:"omitempty,max=2,unique,dive,gt=0"`
+	PlatformModelName string `json:"platformModelName" binding:"required,min=2,max=128"`
+	UpstreamModelName string `json:"upstreamModelName" binding:"required,min=1,max=128"`
+	// Protocols 为空数组时根据模型能力和上游默认配置自动推断完整协议集合。
+	Protocols *[]string `json:"protocols" binding:"required,max=2,unique,dive,min=1,max=64"`
+	KindsJSON string    `json:"kindsJSON,omitempty" binding:"omitempty,max=1000"`
+	// 路由配置字段省略时保留已有协议各自的配置；新增协议使用服务端默认值或现有绑定模板。
+	Status             *string `json:"status,omitempty" binding:"omitempty,oneof=active inactive"`
+	Priority           *int    `json:"priority,omitempty" binding:"omitempty,gt=0"`
+	Weight             *int    `json:"weight,omitempty" binding:"omitempty,gt=0"`
+	Source             *string `json:"source,omitempty" binding:"omitempty,max=64"`
+	CbFailureThreshold *int    `json:"cbFailureThreshold,omitempty" binding:"omitempty,gte=0"`
+	CbDurationMin      *int    `json:"cbDurationMin,omitempty" binding:"omitempty,gte=0"`
+	CbWindowMin        *int    `json:"cbWindowMin,omitempty" binding:"omitempty,gte=0"`
+	HeadersJSON        *string `json:"headersJSON,omitempty" binding:"omitempty,max=10000"`
 }
 
 // UpdateModelUpstreamSourceRequest 更新模型上游来源请求。

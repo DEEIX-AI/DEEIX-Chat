@@ -6,7 +6,7 @@ export type NavigationIconProps = {
   size?: number;
   strokeWidth?: number;
   className?: string;
-  animate?: "default";
+  animate?: "default" | false;
   "aria-hidden"?: boolean;
 };
 
@@ -23,7 +23,7 @@ type NavigationCommandItem = NavigationItemBase & {
 };
 
 type NavigationLinkItem = NavigationItemBase & {
-  id: "recent" | "files" | "skillsPrompt";
+  id: "recent" | "files" | "knowledgeBases" | "skillsPrompt";
   kind: "link";
   href: string;
 };
