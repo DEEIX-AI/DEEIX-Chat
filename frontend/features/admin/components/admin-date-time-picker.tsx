@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { enUS, zhCN } from "date-fns/locale";
+import { enUS, vi, zhCN } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Matcher } from "react-day-picker";
@@ -121,7 +121,7 @@ export function AdminDateTimePicker({
             <Calendar
               mode="single"
               selected={selectedDate}
-              locale={locale === "zh-CN" ? zhCN : enUS}
+              locale={locale === "zh-CN" ? zhCN : locale === "vi-VN" ? vi : enUS}
               onSelect={(date) => onChange(date ? (dateOnly ? format(date, "yyyy-MM-dd") : buildDateTimeValue(date, normalizeTimeValue(value, defaultTime), defaultTime)) : "")}
               disabled={disabledDate}
               autoFocus

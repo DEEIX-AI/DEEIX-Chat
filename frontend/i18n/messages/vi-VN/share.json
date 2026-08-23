@@ -1,0 +1,10 @@
+{
+  "title": "Cuộc trò chuyện được chia sẻ",
+  "snapshotMessages": "{count} tin nhắn bản chụp",
+  "continueConversation": "Tiếp tục trò chuyện",
+  "continuing": "Đang tiếp tục...",
+  "signInToContinue": "Đăng nhập vào DEEIX Chat để tiếp tục",
+  "notFoundTitle": "Chia sẻ không khả dụng",
+  "notFoundDescription": "Bản chia sẻ này không tồn tại, đã bị đóng hoặc cuộc trò chuyện gốc đã bị xóa.",
+  "cloneFailed": "Không thể tiếp tục cuộc trò chuyện"
+}

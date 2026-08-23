@@ -111,6 +111,9 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
   if (locale === "en-US") {
     return DEFAULT_MESSAGES;
   }
+  if (locale === "vi-VN") {
+    return loadVietnameseMessages();
+  }
 
   const [
     common,
@@ -168,6 +171,96 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     import("@/i18n/messages/zh-CN/admin-upstreams.json"),
     import("@/i18n/messages/zh-CN/admin-users.json"),
     import("@/i18n/messages/zh-CN/admin-content-moderation.json"),
+  ]);
+
+  return {
+    common: common.default,
+    conversation: conversation.default,
+    errors: errors.default,
+    login: login.default,
+    prompts: prompts.default,
+    guide: guide.default,
+    chat: chat.default,
+    announcements: announcements.default,
+    recent: recent.default,
+    share: share.default,
+    files: files.default,
+    knowledgeBases: knowledgeBases.default,
+    settings: settings.default,
+    adminAnnouncements: adminAnnouncements.default,
+    adminBilling: adminBilling.default,
+    adminConversation: adminConversation.default,
+    adminFiles: adminFiles.default,
+    adminGroups: adminGroups.default,
+    adminLogin: adminLogin.default,
+    adminLogs: adminLogs.default,
+    adminModels: adminModels.default,
+    adminPrompts: adminPrompts.default,
+    adminStatistics: adminStatistics.default,
+    adminTools: adminTools.default,
+    adminUpstreams: adminUpstreams.default,
+    adminUsers: adminUsers.default,
+    adminContentModeration: adminContentModeration.default,
+  };
+}
+
+async function loadVietnameseMessages(): Promise<AppMessages> {
+  const [
+    common,
+    conversation,
+    errors,
+    login,
+    prompts,
+    guide,
+    chat,
+    announcements,
+    recent,
+    share,
+    files,
+    knowledgeBases,
+    settings,
+    adminAnnouncements,
+    adminBilling,
+    adminConversation,
+    adminFiles,
+    adminGroups,
+    adminLogin,
+    adminLogs,
+    adminModels,
+    adminPrompts,
+    adminStatistics,
+    adminTools,
+    adminUpstreams,
+    adminUsers,
+    adminContentModeration,
+  ] = await Promise.all([
+    import("@/i18n/messages/vi-VN/common.json"),
+    import("@/i18n/messages/vi-VN/conversation.json"),
+    import("@/i18n/messages/vi-VN/errors.json"),
+    import("@/i18n/messages/vi-VN/login.json"),
+    import("@/i18n/messages/vi-VN/prompts.json"),
+    import("@/i18n/messages/vi-VN/guide.json"),
+    import("@/i18n/messages/vi-VN/chat.json"),
+    import("@/i18n/messages/vi-VN/announcements.json"),
+    import("@/i18n/messages/vi-VN/recent.json"),
+    import("@/i18n/messages/vi-VN/share.json"),
+    import("@/i18n/messages/vi-VN/files.json"),
+    import("@/i18n/messages/vi-VN/knowledge-bases.json"),
+    import("@/i18n/messages/vi-VN/settings.json"),
+    import("@/i18n/messages/vi-VN/admin-announcements.json"),
+    import("@/i18n/messages/vi-VN/admin-billing.json"),
+    import("@/i18n/messages/vi-VN/admin-conversation.json"),
+    import("@/i18n/messages/vi-VN/admin-files.json"),
+    import("@/i18n/messages/vi-VN/admin-groups.json"),
+    import("@/i18n/messages/vi-VN/admin-login.json"),
+    import("@/i18n/messages/vi-VN/admin-logs.json"),
+    import("@/i18n/messages/vi-VN/admin-models.json"),
+    import("@/i18n/messages/vi-VN/admin-prompts.json"),
+    import("@/i18n/messages/vi-VN/admin-statistics.json"),
+    import("@/i18n/messages/vi-VN/admin-tools.json"),
+    import("@/i18n/messages/vi-VN/admin-upstreams.json"),
+    import("@/i18n/messages/vi-VN/admin-users.json"),
+    import("@/i18n/messages/vi-VN/admin-content-moderation.json"),
   ]);
 
   return {

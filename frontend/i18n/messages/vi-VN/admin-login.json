@@ -1,0 +1,214 @@
+{
+  "groups": {
+    "loginPage": {
+      "title": "Trang đăng nhập",
+      "description": "Kiểm soát tiêu đề trình duyệt của trang đăng nhập và điểm đến mặc định sau khi đăng nhập."
+    },
+    "loginAndRegistration": {
+      "title": "Đăng nhập và đăng ký",
+      "description": "Kiểm soát các phương thức đăng nhập khả dụng và cổng đăng ký bằng email."
+    },
+    "humanVerification": {
+      "title": "Xác minh người dùng",
+      "description": "Bật Cloudflare Turnstile cho đăng ký bằng email. Đăng nhập qua bên thứ ba không bị ảnh hưởng."
+    },
+    "bindingAndVerification": {
+      "title": "Liên kết và xác minh",
+      "description": "Kiểm soát xác minh email, chính sách tên miền đăng ký và liên kết danh tính bên thứ ba."
+    },
+    "loginSecurity": {
+      "title": "Bảo mật đăng nhập",
+      "description": "Kiểm soát thời gian sống của token, khóa tài khoản khi đăng nhập thất bại và giới hạn tần suất HTTP 429 của nền tảng."
+    }
+  },
+  "fields": {
+    "loginDefaultNextPath": {
+      "label": "Đường dẫn chuyển hướng mặc định",
+      "description": "Điểm đến mặc định sau khi đăng nhập khi /login không có tham số next."
+    },
+    "emailLoginEnabled": {
+      "label": "Đăng nhập bằng email",
+      "description": "Cho phép người dùng đăng nhập bằng email và mật khẩu."
+    },
+    "emailRegistrationEnabled": {
+      "label": "Đăng ký bằng email",
+      "description": "Cho phép người dùng tạo tài khoản bằng email."
+    },
+    "passwordResetEnabled": {
+      "label": "Đặt lại mật khẩu",
+      "description": "Cho phép người dùng đặt lại mật khẩu từ trang đăng nhập. Yêu cầu xác minh email."
+    },
+    "usernameLoginEnabled": {
+      "label": "Đăng nhập bằng tên người dùng",
+      "description": "Cho phép người dùng đăng nhập bằng tên người dùng và mật khẩu."
+    },
+    "thirdPartyLoginEnabled": {
+      "label": "Đăng nhập bên thứ ba",
+      "description": "Bật và hiển thị các nhà cung cấp danh tính OIDC / OAuth2 đã cấu hình."
+    },
+    "emailVerificationEnabled": {
+      "label": "Xác minh email",
+      "description": "Yêu cầu mã xác minh email trong quá trình đăng ký bằng email."
+    },
+    "smtpHost": {
+      "label": "SMTP host",
+      "description": "Địa chỉ máy chủ SMTP dùng để gửi mã xác minh đăng ký."
+    },
+    "smtpPort": {
+      "label": "Cổng SMTP",
+      "description": "Cổng máy chủ SMTP, thường là 465 hoặc 587."
+    },
+    "smtpUsername": {
+      "label": "Tên đăng nhập SMTP",
+      "description": "Tài khoản đăng nhập SMTP, thường là địa chỉ email đầy đủ."
+    },
+    "smtpPassword": {
+      "label": "Mật khẩu SMTP",
+      "description": "Mật khẩu đăng nhập SMTP hoặc mật khẩu ứng dụng riêng."
+    },
+    "smtpFrom": {
+      "label": "Người gửi",
+      "description": "Người gửi hiển thị trong email xác minh. Để trống để dùng tên đăng nhập SMTP."
+    },
+    "emailRegistrationAllowedDomains": {
+      "label": "Danh sách tên miền được phép đăng ký",
+      "description": "Các tên miền email được phép đăng ký. Để trống để cho phép tất cả tên miền."
+    },
+    "emailRegistrationBlockPlusAlias": {
+      "label": "Chặn bí danh dấu cộng",
+      "description": "Chặn đăng ký bằng địa chỉ email có bí danh dạng +."
+    },
+    "autoLinkVerifiedEmail": {
+      "label": "Tự động liên kết email trùng khớp",
+      "description": "Chỉ tự động liên kết với tài khoản nội bộ hiện có khi email của bên thứ ba trùng khớp và trường xác minh email của nhà cung cấp (mặc định là email_verified) là true."
+    },
+    "turnstileRegistrationEnabled": {
+      "label": "Xác minh người dùng khi đăng ký",
+      "description": "Yêu cầu Cloudflare Turnstile khi đăng ký bằng email. Đăng nhập OIDC / OAuth2 không yêu cầu."
+    },
+    "turnstileSiteKey": {
+      "label": "Turnstile Site Key",
+      "description": "Site key công khai của Cloudflare Turnstile dùng cho biểu mẫu đăng ký."
+    },
+    "turnstileSecretKey": {
+      "label": "Turnstile Secret Key",
+      "description": "Khóa xác thực Cloudflare Turnstile phía máy chủ. Sẽ được ẩn sau khi lưu."
+    },
+    "tokenTTLHours": {
+      "label": "Thời gian sống access token",
+      "description": "Thời gian sống của Access Token tính theo giờ. Phạm vi: 1-168."
+    },
+    "refreshTokenTTLHours": {
+      "label": "Duy trì đăng nhập",
+      "description": "Thời gian sống của Refresh Token và phiên làm việc tính theo giờ. Phạm vi: 1-8760."
+    },
+    "loginMaxFailures": {
+      "label": "Ngưỡng khóa do thất bại",
+      "description": "Khóa tài khoản sau số lần đăng nhập thất bại liên tiếp này."
+    },
+    "loginLockMinutes": {
+      "label": "Thời lượng khóa",
+      "description": "Thời gian khóa tài khoản tính theo phút sau quá nhiều lần đăng nhập thất bại."
+    },
+    "rateLimitEnabled": {
+      "label": "Giới hạn tần suất toàn nền tảng",
+      "description": "Khi bật, nền tảng sẽ trả về HTTP 429. Hãy tắt khi Traefik, gateway hoặc lớp ngoài khác đã xử lý giới hạn tần suất."
+    },
+    "rateLimitRPM": {
+      "label": "Giới hạn tần suất API người dùng",
+      "description": "Giới hạn yêu cầu mỗi phút cơ sở cho API của người dùng đã đăng nhập. Không có tác dụng khi giới hạn tần suất nền tảng đang tắt."
+    },
+    "publicAuthRateLimitRPM": {
+      "label": "Giới hạn tần suất xác minh công khai",
+      "description": "Giới hạn yêu cầu mỗi phút cơ sở cho các API công khai: đăng nhập, đăng ký và làm mới token. Không có tác dụng khi giới hạn tần suất nền tảng đang tắt."
+    }
+  },
+  "providers": {
+    "title": "Nhà cung cấp danh tính OIDC / OAuth2",
+    "create": "Thêm nhà cung cấp danh tính",
+    "customOIDC": "OIDC tùy chỉnh",
+    "customOAuth2": "OAuth2 tùy chỉnh",
+    "name": "Tên",
+    "type": "Loại",
+    "loginControl": "Đăng nhập",
+    "registrationControl": "Đăng ký",
+    "dragToReorder": "Kéo {name} để sắp xếp lại thứ tự",
+    "loginControlFor": "Kiểm soát đăng nhập {name}",
+    "registrationControlFor": "Kiểm soát đăng ký {name}",
+    "edit": "Sửa nhà cung cấp danh tính",
+    "delete": "Xóa nhà cung cấp danh tính",
+    "empty": "Không có nhà cung cấp danh tính"
+  },
+  "providerDialog": {
+    "createTitle": "Thêm nhà cung cấp danh tính",
+    "editTitle": "Sửa nhà cung cấp danh tính",
+    "description": "Client Secret sẽ không hiển thị sau khi lưu. Khi chỉnh sửa, hãy để trống để giữ nguyên secret hiện tại.",
+    "loginControlDescription": "Cho phép đăng nhập vào nền tảng.",
+    "registrationControlDescription": "Cho phép tự động tạo tài khoản.",
+    "callbackURL": "Callback URL",
+    "serverCallbackURL": "Server callback URL (khuyến nghị)",
+    "legacyWebCallbackURL": "Callback URL Web cũ (sắp ngừng hỗ trợ)",
+    "copyCallbackURL": "Sao chép URL",
+    "logoURL": "Logo URL",
+    "clientID": "Client ID",
+    "clientSecret": "Client Secret",
+    "oidcEndpoint": "OIDC endpoint",
+    "issuerURL": "Issuer URL",
+    "discoveryURL": "Discovery URL",
+    "authURL": "Auth URL",
+    "tokenURL": "Token URL",
+    "userinfoURL": "UserInfo URL",
+    "scopes": "Scopes",
+    "advancedSettings": "Cài đặt nâng cao",
+    "sourceField": "Trường nguồn",
+    "systemField": "Trường hệ thống",
+    "systemFields": {
+      "userID": "User ID",
+      "email": "Email",
+      "emailVerified": "Email đã xác minh",
+      "displayName": "Tên hiển thị",
+      "avatar": "Ảnh đại diện"
+    }
+  },
+  "deleteDialog": {
+    "title": "Xóa nhà cung cấp danh tính",
+    "thisProvider": "nhà cung cấp danh tính này",
+    "description": "Việc xóa {name} sẽ xóa cấu hình của nó và hủy liên kết tất cả tài khoản đang sử dụng. Hành động này không thể hoàn tác."
+  },
+  "forceDeleteDialog": {
+    "title": "Buộc xóa nhà cung cấp danh tính",
+    "description": "Một số tài khoản chỉ phụ thuộc vào nhà cung cấp danh tính này. Sau khi buộc xóa, những tài khoản đó sẽ không thể đăng nhập qua nó nữa.",
+    "confirm": "Buộc xóa"
+  },
+  "validation": {
+    "defaultNextPath": "Đường dẫn chuyển hướng mặc định phải là đường dẫn nội bộ, ví dụ /chat.",
+    "passwordLoginRequired": "Trước khi tắt đăng nhập bằng tên người dùng và email, hãy bật đăng nhập bên thứ ba và đảm bảo ít nhất một quản trị viên đã liên kết nhà cung cấp danh tính.",
+    "missingSMTP": "Xác minh email yêu cầu {fields}.",
+    "invalidSMTPPort": "Cổng SMTP phải là số nguyên từ 1 đến 65535.",
+    "missingTurnstile": "Xác minh Turnstile yêu cầu {fields}.",
+    "turnstileRegistrationRequired": "Hãy bật đăng ký bằng email trước khi bật xác minh Turnstile."
+  },
+  "punctuation": {
+    "listSeparator": ", "
+  },
+  "toast": {
+    "sessionExpired": "Phiên đã hết hạn",
+    "signInAgain": "Vui lòng đăng nhập lại trước khi tiếp tục.",
+    "loadFailed": "Không thể tải cài đặt xác thực",
+    "saveFailed": "Không thể lưu cài đặt xác thực",
+    "settingsUpdated": "Đã cập nhật cài đặt xác thực",
+    "cannotDisableLoginMethod": "Không thể tắt phương thức đăng nhập",
+    "thirdPartyOnlyRequiresAdminBinding": "Chỉ cho phép đăng nhập qua bên thứ ba sau khi một quản trị viên đã liên kết danh tính bên thứ ba.",
+    "providerSaved": "Đã lưu nhà cung cấp danh tính",
+    "providerSaveFailed": "Không thể lưu nhà cung cấp danh tính",
+    "providerDeleted": "Đã xóa nhà cung cấp danh tính",
+    "providerDeleteFailed": "Không thể xóa nhà cung cấp danh tính",
+    "enableLoginFirst": "Hãy bật đăng nhập trước",
+    "registrationRequiresLogin": "Chỉ có thể bật đăng ký sau khi nhà cung cấp danh tính này cho phép đăng nhập.",
+    "providerControlUpdated": "Đã cập nhật kiểm soát nhà cung cấp danh tính",
+    "providerControlSaveFailed": "Không thể lưu kiểm soát nhà cung cấp danh tính",
+    "providerOrderUpdated": "Đã cập nhật thứ tự nhà cung cấp danh tính",
+    "providerOrderSaveFailed": "Không thể lưu thứ tự nhà cung cấp danh tính",
+    "callbackCopied": "Đã sao chép Callback URL"
+  }
+}

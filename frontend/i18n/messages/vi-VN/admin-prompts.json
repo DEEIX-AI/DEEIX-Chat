@@ -1,0 +1,75 @@
+{
+  "title": "Thư viện Prompt",
+  "types": {
+    "prompts": "Prompt",
+    "skills": "Skill"
+  },
+  "libraryTitle": {
+    "prompts": "Thư viện Prompt",
+    "skills": "Thư viện Skill"
+  },
+  "create": "Tạo mới",
+  "createSkill": "Tạo Skill",
+  "edit": "Sửa",
+  "delete": "Xóa",
+  "enable": "Bật",
+  "disable": "Tắt",
+  "cancel": "Hủy",
+  "save": "Lưu",
+  "saving": "Đang lưu",
+  "searchPlaceholder": "Tìm theo tên hoặc nội dung",
+  "skillsSearchPlaceholder": "Tìm skill",
+  "createTitle": "Tạo Prompt tích hợp sẵn",
+  "editTitle": "Sửa Prompt tích hợp sẵn",
+  "dialogDescription": "Prompt do nền tảng duy trì để chèn nhanh trong chat. Người dùng chỉ có thể xem và không thể sửa.",
+  "createSkillTitle": "Tạo Skill tích hợp sẵn",
+  "editSkillTitle": "Sửa Skill tích hợp sẵn",
+  "skillDialogDescription": "Skill tích hợp sẵn được định nghĩa bởi một tệp SKILL.md. Khi được nạp, nó chỉ dùng làm ngữ cảnh cho lượt hiện tại và không chạy lệnh.",
+  "deleteTitle": "Xóa Prompt tích hợp sẵn",
+  "deleteDescription": "Prompt tích hợp sẵn sẽ không còn hiển thị cho người dùng. Prompt tùy chỉnh của người dùng không bị ảnh hưởng.",
+  "deleteSkillTitle": "Xóa Skill tích hợp sẵn",
+  "deleteSkillDescription": "Skill tích hợp sẵn sẽ không còn hiển thị cho người dùng. Skill tùy chỉnh của người dùng không bị ảnh hưởng.",
+  "empty": "Không có prompt tích hợp sẵn",
+  "skillsEmpty": "Không có skill tích hợp sẵn",
+  "settings": {
+    "skillsPrompt": {
+      "label": "Prompt cho skill",
+      "description": "Kiểm soát cách model hiểu và sử dụng các skill đã nạp. Để trống để dùng prompt mặc định có sẵn."
+    },
+    "defaultPromptPlaceholder": "Để trống để dùng prompt mặc định có sẵn"
+  },
+  "fields": {
+    "name": "Tên",
+    "description": "Mô tả",
+    "content": "Nội dung",
+    "skillMarkdown": "SKILL.md",
+    "enabled": "Đang bật",
+    "createdAt": "Ngày tạo",
+    "updatedAt": "Ngày cập nhật"
+  },
+  "toast": {
+    "loadFailed": "Không thể tải prompt",
+    "invalid": "Vui lòng nhập tên và nội dung.",
+    "tooLong": "Tên tối đa 64 ký tự, mô tả tối đa 256 ký tự và nội dung tối đa 10000 ký tự.",
+    "created": "Đã tạo prompt",
+    "createFailed": "Không thể tạo prompt",
+    "updated": "Đã cập nhật prompt",
+    "updateFailed": "Không thể cập nhật prompt",
+    "deleted": "Đã xóa prompt",
+    "deleteFailed": "Không thể xóa prompt",
+    "skillsLoadFailed": "Không thể tải skill",
+    "skillInvalid": "Vui lòng nhập tên và SKILL.md.",
+    "skillTooLong": "Tên tối đa 64 ký tự, mô tả tối đa 256 ký tự và SKILL.md tối đa 10000 ký tự.",
+    "skillCreated": "Đã tạo skill",
+    "skillCreateFailed": "Không thể tạo skill",
+    "skillUpdated": "Đã cập nhật skill",
+    "skillUpdateFailed": "Không thể cập nhật skill",
+    "skillDeleted": "Đã xóa skill",
+    "skillDeleteFailed": "Không thể xóa skill",
+    "settingsLoadFailed": "Không thể tải cài đặt prompt",
+    "settingsUpdated": "Đã cập nhật cài đặt prompt",
+    "settingsSaveFailed": "Không thể lưu cài đặt prompt",
+    "sessionExpired": "Phiên của bạn đã hết hạn.",
+    "signInAgain": "Vui lòng đăng nhập lại để tiếp tục."
+  }
+}

@@ -1,0 +1,162 @@
+{
+  "sections": {
+    "conversation": "Cài đặt hội thoại",
+    "contextCompression": "Nén ngữ cảnh",
+    "optionPassthrough": "Truyền tùy chọn",
+    "dataExport": "Xuất dữ liệu"
+  },
+  "defaultModel": {
+    "systemRecommended": "Hệ thống đề xuất"
+  },
+  "taskModel": {
+    "follow": "Theo model hiện tại"
+  },
+  "policy": {
+    "allowlist": "Danh sách cho phép",
+    "denylist": "Danh sách chặn",
+    "disabled": "Tắt"
+  },
+  "fields": {
+    "defaultModel": {
+      "label": "Model mặc định cho hội thoại mới",
+      "description": "Được ưu tiên dùng khi người dùng chọn Hệ thống đề xuất hoặc chưa có model mặc định cá nhân. Để trống sẽ quay về model khả dụng đầu tiên."
+    },
+    "taskModel": {
+      "label": "Model xử lý tác vụ",
+      "description": "Model chat dùng để tạo tiêu đề và nhãn hội thoại."
+    },
+    "defaultSystemPrompt": {
+      "label": "System prompt mặc định toàn hệ thống",
+      "description": "Hướng dẫn hành vi chung cho tất cả model chat. Để trống sẽ không chèn gì thêm. Prompt cấp model sẽ được nối vào sau nó.",
+      "placeholder": "Ví dụ: giữ câu trả lời chính xác, rõ ràng và tuân thủ yêu cầu an toàn của nền tảng."
+    },
+    "contextCompactEnabled": {
+      "label": "Nén ngữ cảnh",
+      "description": "Cho phép nén ngữ cảnh trên toàn hệ thống. Người dùng vẫn có thể tắt trong cài đặt chat của riêng mình."
+    },
+    "contextTokenBudget": {
+      "label": "Cắt theo ngân sách token",
+      "description": "Tự động tính ngân sách từ cửa sổ ngữ cảnh của model hiện tại và cắt bớt lịch sử có thể gửi đi."
+    },
+    "contextMaxTurns": {
+      "label": "Số lượt kích hoạt nén",
+      "description": "Kích hoạt nén ngữ cảnh khi hội thoại vượt quá số lượt này. Đặt 0 để tắt điều kiện này.",
+      "placeholder": "Số lượt kích hoạt"
+    },
+    "contextCompactTriggerTokens": {
+      "label": "Ngưỡng token kích hoạt nén",
+      "description": "Kích hoạt nén ngữ cảnh khi tổng token của tin nhắn vượt quá giá trị này. Đặt 0 để tắt điều kiện này.",
+      "placeholder": "Ngưỡng token"
+    },
+    "contextCompactPreserveTurns": {
+      "label": "Số lượt gần đây được giữ nguyên",
+      "description": "Số lượt gốc gần đây được giữ lại khi nén. Nội dung cũ hơn sẽ được tóm tắt.",
+      "placeholder": "Số lượt cần giữ"
+    },
+    "contextCompactHighlightsPerRole": {
+      "label": "Số điểm chính mỗi vai trò",
+      "description": "Số điểm tóm tắt tối đa được giữ lại cho mỗi vai trò người dùng và trợ lý khi nén theo mẫu.",
+      "placeholder": "Số điểm chính"
+    },
+    "contextCompactSnippetChars": {
+      "label": "Giới hạn ký tự đoạn trích",
+      "description": "Số ký tự tối đa được giữ lại trong một đoạn trích tin nhắn khi nén theo mẫu.",
+      "placeholder": "Giới hạn ký tự"
+    },
+    "contextArtifactRetentionDays": {
+      "label": "Số ngày lưu bằng chứng",
+      "description": "Thời gian lưu dữ liệu ngữ cảnh, bao gồm kết quả RAG, bằng chứng lịch sử và kết quả công cụ. 0 sẽ tắt tự động hết hạn.",
+      "placeholder": "Số ngày lưu"
+    },
+    "compactAsync": {
+      "label": "Nén trong nền",
+      "description": "Chạy nén theo mẫu hoặc nén LLM sau phản hồi hiện tại để giảm tình trạng nghẽn trong luồng xử lý trả lời."
+    },
+    "compactLLM": {
+      "label": "Nén bằng LLM",
+      "description": "Gọi model để tạo bản tóm tắt ngữ nghĩa. Khi tắt, chỉ dùng tóm tắt theo mẫu."
+    },
+    "compactTaskModel": {
+      "label": "Model nén",
+      "description": "Model dùng để tạo bản tóm tắt nén. Tùy chọn Theo model hiện tại sẽ quay về model chat mặc định khi model hội thoại đang dùng không hỗ trợ chat."
+    },
+    "compactMaxFailures": {
+      "label": "Ngưỡng ngắt mạch",
+      "description": "Ngưỡng thất bại liên tiếp của nén LLM. Sau khi đạt ngưỡng, hệ thống sẽ chuyển sang tóm tắt theo mẫu.",
+      "placeholder": "Ngưỡng ngắt mạch"
+    },
+    "compactSystemPrompt": {
+      "label": "Prompt tóm tắt đầy đủ",
+      "description": "Hướng dẫn tùy chỉnh gửi đến LLM khi nén đầy đủ. Để trống để dùng mặc định có sẵn."
+    },
+    "compactLightPrompt": {
+      "label": "Prompt tóm tắt rút gọn",
+      "description": "Hướng dẫn tùy chỉnh gửi đến LLM khi nén rút gọn. Để trống để dùng mặc định có sẵn."
+    },
+    "optionPolicyMode": {
+      "label": "Chính sách truyền tùy chọn",
+      "description": "Kiểm soát việc các tùy chọn từ yêu cầu của người dùng có được truyền đến upstream hay không. Theo mặc định, chỉ các đường dẫn nằm trong danh sách cho phép được truyền."
+    },
+    "allowedPaths": {
+      "label": "Danh sách cho phép tùy chọn model",
+      "description": "Đối tượng JSON. default áp dụng cho mọi protocol, còn các mục theo từng protocol chỉ bổ sung đường dẫn cho protocol đó. Đường dẫn có dạng xxx.xxx."
+    },
+    "deniedPaths": {
+      "label": "Danh sách chặn tùy chọn model",
+      "description": "Đối tượng JSON. Chỉ dùng ở chế độ danh sách chặn. Các trường dành riêng của hệ thống luôn bị chặn kể cả khi không được liệt kê."
+    },
+    "titlePrompt": {
+      "label": "Prompt tạo tiêu đề",
+      "description": "Model phải trả về JSON: '{' \"title\": \"your summarized title\" '}'. Hỗ trợ placeholder '{{MESSAGES}}'."
+    },
+    "labelsPrompt": {
+      "label": "Prompt tạo nhãn",
+      "description": "Model phải trả về JSON: '{' \"labels\": [\"label1\", \"label2\"] '}'. Hỗ trợ placeholder '{{MESSAGES}}'."
+    },
+    "defaultPromptPlaceholder": "Để trống để dùng prompt mặc định có sẵn"
+  },
+  "preview": {
+    "title": "Xem trước trực tiếp",
+    "passed": "Được truyền",
+    "filtered": "Bị lọc",
+    "emptyPassed": "Hiện không có đường dẫn nào được truyền qua",
+    "emptyFiltered": "Hiện không có đường dẫn nào bị lọc",
+    "systemDenied": "Hệ thống chặn",
+    "hitDenylist": "Khớp danh sách chặn",
+    "hitAllowlist": "Khớp danh sách cho phép",
+    "otherFields": "Các trường khác",
+    "notInDenylist": "Không nằm trong danh sách chặn"
+  },
+  "guide": {
+    "button": "Hướng dẫn",
+    "close": "Đóng",
+    "title": "Hướng dẫn truyền tùy chọn",
+    "description": "Kiểm soát những tùy chọn nào của người dùng có thể đi vào yêu cầu gửi lên upstream.",
+    "pathTitle": "Cú pháp đường dẫn",
+    "pathLabel": "Đường dẫn",
+    "pathDescription": "Dùng tên trường cho các trường cấp cao nhất. Dùng dấu chấm cho các trường lồng nhau. Hỗ trợ nhiều mức lồng.",
+    "strategyTitle": "Chiến lược truyền",
+    "allowlistDescription": "Chỉ các đường dẫn được liệt kê mới được truyền. Các trường khác sẽ bị bỏ.",
+    "denylistDescription": "Mặc định truyền tất cả. Các đường dẫn khớp danh sách chặn hoặc danh sách chặn của hệ thống sẽ bị loại bỏ.",
+    "openAIServiceTierNote": "service_tier của OpenAI chỉ chấp nhận default, flex hoặc priority. Sẽ bị bỏ qua khi không cấu hình.",
+    "protocolTitle": "Khóa protocol",
+    "protocolDescription": "default áp dụng cho mọi protocol. Các khóa khác chỉ áp dụng cho protocol trùng khớp.",
+    "systemDeniedTitle": "Danh sách chặn của hệ thống",
+    "systemDeniedDescription": "Các trường này luôn bị chặn và không thể được mở khóa bởi danh sách cho phép."
+  },
+  "toast": {
+    "sessionExpired": "Phiên đã hết hạn",
+    "signInAgain": "Vui lòng đăng nhập lại trước khi tiếp tục.",
+    "loadFailed": "Không thể tải cài đặt hội thoại",
+    "saveFailed": "Không thể lưu cài đặt hội thoại",
+    "updated": "Đã cập nhật cài đặt hội thoại"
+  },
+  "dataExport": {
+    "title": "Tất cả hội thoại",
+    "description": "Xuất tất cả hội thoại, tin nhắn và siêu dữ liệu thành tệp JSONL.",
+    "exportButton": "Xuất",
+    "success": "Đã xuất {count} hội thoại",
+    "partial": "Đã xuất {exported} hội thoại, {failed} hội thoại lỗi",
+    "failed": "Xuất thất bại. Vui lòng thử lại."
+  }
+}

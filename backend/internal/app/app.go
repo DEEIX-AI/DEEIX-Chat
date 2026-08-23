@@ -359,6 +359,9 @@ func NewApp() (*App, error) {
 	skillRepo := skillrepo.NewRepo(db)
 	skillService := appskill.NewService(skillRepo)
 	skillService.SetAuditWriter(auditService)
+	if err = skillService.EnsureBuiltinSeeds(context.Background()); err != nil {
+		return nil, fmt.Errorf("seed builtin skills: %w", err)
+	}
 	conversationService.SetSkillResolver(skillService)
 	skillHandler := skillhttp.NewHandler(skillService)
 	skillModule := skillhttp.NewModule(skillHandler)

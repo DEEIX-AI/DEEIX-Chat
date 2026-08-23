@@ -1,0 +1,438 @@
+{
+  "title": "Nhật ký",
+  "centerTitle": "Trung tâm nhật ký",
+  "audit": "Kiểm toán thao tác",
+  "usage": "Lượt gọi model",
+  "system": "Sự kiện hệ thống",
+  "tabs": {
+    "audit": "Kiểm toán thao tác",
+    "usage": "Lượt gọi model",
+    "auth": "Bảo mật đăng nhập",
+    "orders": "Hồ sơ đơn hàng",
+    "conversation": "Sự kiện hội thoại",
+    "moderation": "Sự kiện kiểm duyệt",
+    "system": "Sự kiện hệ thống"
+  },
+  "cleanup": {
+    "trigger": "Dọn dẹp nhật ký",
+    "title": "Dọn dẹp nhật ký lịch sử",
+    "description": "Dữ liệu trước 00:00 của ngày đã chọn sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.",
+    "typeLabel": "Loại nhật ký",
+    "dateLabel": "Ngày cắt",
+    "datePlaceholder": "Chọn một ngày",
+    "impactTitle": "Tác động",
+    "highRisk": "Rủi ro cao",
+    "boundary": "Dữ liệu trước {date} 00:00 sẽ bị xóa. Dữ liệu từ ngày đã chọn không bị ảnh hưởng.",
+    "confirm": "Dọn dẹp",
+    "deleting": "Đang dọn dẹp",
+    "types": {
+      "audit": "Kiểm toán thao tác",
+      "auth": "Bảo mật đăng nhập",
+      "usage": "Lượt gọi model",
+      "orders": "Hồ sơ đơn hàng",
+      "conversation": "Sự kiện hội thoại",
+      "system": "Sự kiện hệ thống"
+    },
+    "impacts": {
+      "audit": "Chỉ xóa các bản ghi theo dõi thao tác. Người dùng, hội thoại và dữ liệu nghiệp vụ khác không bị xóa.",
+      "auth": "Xóa lịch sử sự kiện đăng nhập, xác thực hai yếu tố, mật khẩu và các sự kiện bảo mật khác. Các phiên đang hoạt động và thông tin xác thực không bị thay đổi.",
+      "usage": "Xóa sổ ghi mức sử dụng và chi phí. Mức sử dụng theo ngày/tháng trong quá khứ, tính toán hạn mức chu kỳ hiện tại và khả năng truy vết thanh toán bị ảnh hưởng, và các khoảng thời gian đã xóa có thể hiển thị hạn mức tiêu thụ thấp hơn.",
+      "orders": "Xóa đơn hàng thanh toán và dữ liệu đối chiếu callback. Số dư và gói đăng ký đã cấp không bị thu hồi, nhưng các callback cũ có thể lỗi và khả năng truy vết thanh toán cùng bằng chứng idempotency bị mất.",
+      "conversation": "Xóa dấu vết xử lý tin nhắn, lệnh gọi công cụ và sự kiện chạy. Hội thoại và nội dung tin nhắn được giữ lại, nhưng chi tiết xử lý và công cụ trong quá khứ có thể không còn hiển thị.",
+      "system": "Xóa các sự kiện chẩn đoán và xử lý sự cố. Cấu hình hệ thống và trạng thái vận hành hiện tại không bị thay đổi."
+    },
+    "toast": {
+      "sessionExpired": "Phiên đăng nhập đã hết hạn",
+      "signInAgain": "Vui lòng đăng nhập lại trước khi tiếp tục.",
+      "success": "Dọn dẹp nhật ký hoàn tất. Đã xóa {count} bản ghi",
+      "failed": "Dọn dẹp nhật ký thất bại"
+    }
+  },
+  "toast": {
+    "sessionExpired": "Phiên đăng nhập đã hết hạn",
+    "signInAgain": "Vui lòng đăng nhập lại trước khi tiếp tục.",
+    "auditLoadFailed": "Tải nhật ký kiểm toán thất bại",
+    "authLoadFailed": "Tải nhật ký bảo mật đăng nhập thất bại",
+    "systemLoadFailed": "Tải sự kiện hệ thống thất bại",
+    "usageLoadFailed": "Tải nhật ký sử dụng thất bại",
+    "ordersLoadFailed": "Tải hồ sơ đơn hàng thất bại",
+    "conversationEventsLoadFailed": "Tải sự kiện hội thoại thất bại",
+    "conversationEventDetailLoadFailed": "Tải chi tiết sự kiện hội thoại thất bại",
+    "modelFilterLoadFailed": "Tải bộ lọc model thất bại"
+  },
+  "sort": {
+    "idDesc": "ID mới nhất trước",
+    "idAsc": "ID cũ nhất trước",
+    "createdDesc": "Tạo mới nhất trước",
+    "createdAsc": "Tạo cũ nhất trước",
+    "occurredDesc": "Xảy ra mới nhất trước",
+    "occurredAsc": "Xảy ra cũ nhất trước",
+    "callTimeDesc": "Thời điểm gọi mới nhất trước",
+    "callTimeAsc": "Thời điểm gọi cũ nhất trước",
+    "costDesc": "Chi phí giảm dần",
+    "tokensDesc": "Token giảm dần",
+    "latencyDesc": "Độ trễ giảm dần",
+    "paidDesc": "Thanh toán mới nhất trước",
+    "amountDesc": "Số tiền giảm dần",
+    "sequenceAsc": "Trình tự sự kiện cũ nhất trước"
+  },
+  "filters": {
+    "allResources": "Tất cả",
+    "allActions": "Tất cả",
+    "allSources": "Tất cả",
+    "allEvents": "Tất cả",
+    "allResults": "Tất cả",
+    "allLevels": "Tất cả",
+    "timeRange": "Khoảng thời gian",
+    "levels": {
+      "info": "Thông tin",
+      "warn": "Cảnh báo",
+      "error": "Lỗi"
+    }
+  },
+  "columns": {
+    "actor": "Đối tượng thực hiện",
+    "action": "Hành động",
+    "resource": "Tài nguyên",
+    "time": "Thời gian",
+    "requestID": "Request ID",
+    "user": "Người dùng",
+    "event": "Sự kiện",
+    "result": "Kết quả",
+    "reason": "Lý do",
+    "level": "Mức",
+    "source": "Nguồn",
+    "message": "Thông điệp",
+    "caller": "Bên gọi",
+    "model": "Model",
+    "usage": "Sử dụng",
+    "billing": "Thanh toán",
+    "balanceAfter": "Số dư sau tất toán",
+    "latency": "Độ trễ",
+    "orderNo": "Số đơn hàng",
+    "type": "Loại",
+    "provider": "Nhà cung cấp",
+    "status": "Trạng thái",
+    "upstream": "Upstream",
+    "amount": "Số tiền",
+    "scope": "Phạm vi",
+    "tool": "Công cụ",
+    "runID": "Run ID"
+  },
+  "audit": {
+    "searchPlaceholder": "Tìm kiếm ID người dùng, hành động, tài nguyên, request ID, IP hoặc chi tiết",
+    "empty": "Không có nhật ký kiểm toán nào",
+    "resources": {
+      "user": "Người dùng và tài khoản",
+      "conversation": "Hội thoại",
+      "conversation_project": "Dự án",
+      "message": "Tin nhắn",
+      "file": "Tệp",
+      "memory": "Bộ nhớ",
+      "settings": "Cài đặt hệ thống",
+      "logs": "Nhật ký"
+    },
+    "actions": {
+      "login": "Đăng nhập",
+      "stream_message": "Gửi tin nhắn",
+      "create_conversation": "Tạo hội thoại",
+      "fork_conversation": "Nhánh hội thoại",
+      "rename_conversation": "Đổi tên hội thoại",
+      "update_conversation_labels": "Cập nhật nhãn hội thoại",
+      "export_conversation": "Xuất hội thoại",
+      "delete_conversation": "Xóa hội thoại",
+      "set_conversation_star": "Đánh dấu sao hội thoại",
+      "set_conversation_archive": "Lưu trữ hội thoại",
+      "set_conversation_project": "Chuyển hội thoại vào dự án",
+      "batch_set_conversation_project": "Chuyển nhiều hội thoại vào dự án",
+      "create_conversation_project": "Tạo dự án",
+      "update_conversation_project": "Cập nhật dự án",
+      "delete_conversation_project": "Xóa dự án",
+      "reorder_conversation_projects": "Sắp xếp lại dự án",
+      "create_conversation_share": "Tạo chia sẻ",
+      "regenerate_conversation_share": "Tạo lại chia sẻ",
+      "revoke_conversation_share": "Thu hồi chia sẻ",
+      "revoke_conversation_shares": "Thu hồi các chia sẻ",
+      "clone_shared_conversation": "Nhân bản hội thoại được chia sẻ",
+      "update_message": "Cập nhật tin nhắn",
+      "set_message_feedback": "Phản hồi tin nhắn",
+      "upload_file": "Tải tệp lên",
+      "update_file": "Cập nhật tệp",
+      "delete_file": "Xóa tệp",
+      "upsert_user_memory": "Lưu bộ nhớ",
+      "delete_user_memory": "Xóa bộ nhớ",
+      "settings_update": "Cập nhật cài đặt hệ thống",
+      "admin_create_user": "Quản trị viên tạo người dùng",
+      "admin_patch_user": "Quản trị viên cập nhật người dùng",
+      "admin_update_user_status": "Quản trị viên cập nhật trạng thái người dùng",
+      "admin_revoke_user_sessions": "Quản trị viên thu hồi phiên người dùng",
+      "admin_reset_user_password": "Quản trị viên đặt lại mật khẩu",
+      "admin_reset_user_2fa": "Quản trị viên đặt lại xác thực hai yếu tố",
+      "admin_delete_user": "Quản trị viên xóa người dùng",
+      "admin_cleanup_logs": "Quản trị viên dọn dẹp nhật ký",
+      "admin_cleanup_conversation_runs": "Quản trị viên xóa dấu vết chạy hội thoại"
+    }
+  },
+  "auth": {
+    "searchPlaceholder": "Tìm kiếm ID người dùng hoặc loại sự kiện",
+    "empty": "Không có nhật ký bảo mật đăng nhập nào"
+  },
+  "system": {
+    "searchPlaceholder": "Tìm kiếm nguồn, sự kiện, tài nguyên, request ID hoặc chi tiết",
+    "empty": "Không có sự kiện hệ thống nào"
+  },
+  "usage": {
+    "searchPlaceholder": "Tìm kiếm ID người dùng, model nền tảng, model upstream, tên upstream, mã liên kết hoặc giao thức",
+    "empty": "Không có nhật ký sử dụng nào",
+    "filters": {
+      "billingMode": "Chế độ tính phí",
+      "all": "Tất cả",
+      "allModels": "Tất cả",
+      "model": "Model"
+    },
+    "billingModes": {
+      "token": "Theo mức dùng",
+      "call": "Theo lượt gọi",
+      "duration": "Theo giây",
+      "tiered": "Theo bậc"
+    },
+    "modelTooltip": {
+      "upstreamName": "Upstream",
+      "upstreamModel": "Model thực tế",
+      "bindingCode": "Mã liên kết",
+      "protocol": "Giao thức"
+    },
+    "tokens": {
+      "inputShort": "Vào",
+      "outputShort": "Ra",
+      "cacheReadShort": "Đọc",
+      "cacheWriteShort": "Ghi",
+      "input": "Đầu vào",
+      "output": "Đầu ra",
+      "reasoning": "Suy luận",
+      "outputTotal": "Tổng đầu ra",
+      "imageCount": "{count, plural, one {# image} other {# images}}",
+      "secondCount": "{count, plural, one {# second} other {# seconds}}"
+    },
+    "billing": {
+      "cacheWrite": "Ghi cache",
+      "cacheWrite5m": "Ghi cache 5 phút",
+      "cacheWrite1h": "Ghi cache 1 giờ",
+      "cacheWrite5m1h": "Ghi cache 5 phút/1 giờ",
+      "cacheWritePricingLabel": "Ghi cache 5 phút",
+      "cacheWritePricingNote": "Cache read của Claude dùng giá đã cấu hình; cache write 5 phút nhân 1.25x, 1 giờ nhân 2x, và Chế độ nhanh áp dụng thêm 6x.",
+      "claudeCacheWriteMixedNote": "Ghi cache của Claude dùng giá đã cấu hình với hệ số {multiplier}.",
+      "claudeCacheWriteNote": "Ghi cache {timeout} của Claude dùng giá đã cấu hình với hệ số {multiplier}.",
+      "claudeFastModeNote": "Chế độ nhanh của Claude tính phí đầu vào, đầu ra và cache với hệ số {multiplier}.",
+      "openaiServiceTierNote": "service_tier={tier} của OpenAI tính phí với hệ số {multiplier}.",
+      "input": "Đầu vào",
+      "output": "Đầu ra",
+      "cacheRead": "Đọc cache",
+      "rateNote": "Hệ số",
+      "cacheNote": "Cache",
+      "total": "Tổng cộng",
+      "freeModelNoBilling": "Miễn phí",
+      "perCall": "Theo lượt gọi",
+      "perSecond": "Theo giây",
+      "callUnit": "lượt gọi",
+      "secondUnit": "giây",
+      "tieredRangeBounded": "Khoảng đầu vào gốc {from}-{upTo}",
+      "tieredRangeOpen": "Khoảng đầu vào gốc {from}+",
+      "table": {
+        "item": "Khoản tính phí",
+        "usage": "Mức dùng",
+        "unitPrice": "Đơn giá",
+        "amount": "Thành tiền"
+      }
+    }
+  },
+  "orders": {
+    "searchPlaceholder": "Tìm kiếm ID người dùng, số đơn hàng, nhà cung cấp, trạng thái hoặc ID thanh toán ngoài",
+    "empty": "Không có hồ sơ đơn hàng nào",
+    "filters": {
+      "all": "Tất cả",
+      "orderType": "Loại đơn hàng",
+      "provider": "Nhà cung cấp",
+      "status": "Trạng thái thanh toán"
+    },
+    "types": {
+      "subscription": "Gói đăng ký",
+      "topup": "Nạp tiền"
+    },
+    "status": {
+      "pending": "Đang chờ",
+      "paid": "Đã thanh toán",
+      "expired": "Đã hết hạn",
+      "failed": "Thất bại"
+    }
+  },
+  "conversation": {
+    "searchPlaceholder": "Tìm kiếm ID người dùng, run ID, sự kiện, giai đoạn, tiêu đề hoặc tên công cụ",
+    "empty": "Không có sự kiện hội thoại nào",
+    "filters": {
+      "all": "Tất cả",
+      "scope": "Phạm vi",
+      "eventType": "Loại sự kiện",
+      "status": "Trạng thái"
+    },
+    "scopes": {
+      "trace_block": "Khối trace",
+      "trace_event": "Sự kiện trace",
+      "tool_call": "Lệnh gọi công cụ"
+    },
+    "status": {
+      "streaming": "Đang stream",
+      "completed": "Hoàn tất",
+      "error": "Lỗi"
+    },
+    "cleanup": {
+      "action": "Xóa dấu vết chạy",
+      "title": "Xóa dấu vết chạy",
+      "description": "Xóa vĩnh viễn tất cả sự kiện trace của {count} lần chạy đã chọn. Hội thoại, tin nhắn, tệp đính kèm, lượt gọi và bản ghi thanh toán được giữ nguyên.",
+      "confirm": "Xóa",
+      "deleting": "Đang xóa",
+      "success": "Đã xóa {events} sự kiện trace từ {runs} lần chạy",
+      "failed": "Xóa dấu vết chạy thất bại",
+      "maxSelection": "Bạn chỉ có thể chọn tối đa 100 lần chạy mỗi lượt",
+      "selectAll": "Chọn các lần chạy trên trang này",
+      "selectRun": "Chọn lần chạy {runID}"
+    }
+  },
+  "detail": {
+    "titles": {
+      "audit": "Chi tiết nhật ký kiểm toán",
+      "auth": "Chi tiết nhật ký bảo mật đăng nhập",
+      "usage": "Chi tiết nhật ký sử dụng",
+      "order": "Chi tiết hồ sơ đơn hàng",
+      "conversation": "Chi tiết sự kiện hội thoại",
+      "system": "Chi tiết sự kiện hệ thống"
+    },
+    "fallbacks": {
+      "authEvent": "Sự kiện đăng nhập",
+      "modelCall": "Lượt gọi model",
+      "order": "Hồ sơ đơn hàng",
+      "conversationEvent": "Sự kiện hội thoại",
+      "systemEvent": "Sự kiện hệ thống",
+      "auditEvent": "Sự kiện kiểm toán"
+    },
+    "blocks": {
+      "event": "Sự kiện",
+      "actor": "Đối tượng thực hiện",
+      "request": "Yêu cầu",
+      "user": "Người dùng",
+      "resource": "Tài nguyên",
+      "call": "Lượt gọi",
+      "modelRoute": "Định tuyến model",
+      "usageBilling": "Thanh toán sử dụng",
+      "order": "Đơn hàng",
+      "payment": "Thanh toán",
+      "conversationEvent": "Sự kiện hội thoại",
+      "tool": "Công cụ"
+    },
+    "fields": {
+      "action": "Hành động",
+      "resource": "Tài nguyên",
+      "resourceID": "ID tài nguyên",
+      "createdAt": "Tạo lúc",
+      "user": "Người dùng",
+      "userID": "ID người dùng",
+      "requestID": "Request ID",
+      "event": "Sự kiện",
+      "result": "Kết quả",
+      "reason": "Lý do",
+      "occurredAt": "Xảy ra lúc",
+      "level": "Mức",
+      "source": "Nguồn",
+      "message": "Thông điệp",
+      "caller": "Bên gọi",
+      "conversationID": "Conversation ID",
+      "callTime": "Thời điểm gọi",
+      "platformModel": "Model nền tảng",
+      "upstreamName": "Tên upstream",
+      "upstreamModel": "Model upstream",
+      "bindingCode": "Mã liên kết",
+      "protocol": "Giao thức",
+      "billing": "Thanh toán",
+      "balanceAfter": "Số dư sau tất toán",
+      "totalTokens": "Tổng số token",
+      "reasoning": "Suy luận",
+      "callCount": "Số lượt gọi",
+      "latency": "Độ trễ",
+      "orderNo": "Số đơn hàng",
+      "orderType": "Loại đơn hàng",
+      "provider": "Nhà cung cấp",
+      "status": "Trạng thái",
+      "paidAt": "Thanh toán lúc",
+      "amount": "Số tiền",
+      "credit": "Tín dụng",
+      "interval": "Chu kỳ",
+      "externalPaymentID": "ID thanh toán ngoài",
+      "externalCheckoutID": "ID checkout ngoài",
+      "runID": "Run ID",
+      "eventScope": "Phạm vi sự kiện",
+      "stage": "Giai đoạn",
+      "seq": "STT",
+      "messageID": "Message ID",
+      "toolName": "Tên công cụ",
+      "toolCallID": "Tool call ID",
+      "title": "Tiêu đề",
+      "summary": "Tóm tắt",
+      "payloadSize": "Dung lượng payload"
+    },
+    "result": {
+      "success": "Thành công",
+      "failure": "Thất bại",
+      "blocked": "Bị chặn"
+    },
+    "rawUsageJsonTitle": "JSON Usage thô",
+    "jsonTitle": "JSON chi tiết",
+    "loading": "Đang tải chi tiết",
+    "payloadOmitted": "Payload lịch sử này có dung lượng {size}, vượt giới hạn xem an toàn nên nội dung đã bị bỏ qua. Xóa các dấu vết chạy liên quan để loại bỏ dữ liệu lịch sử bất thường này.",
+    "copied": "Đã sao chép {label}",
+    "copyFailed": "Sao chép thất bại"
+  },
+  "moderation": {
+    "searchPlaceholder": "Tìm kiếm đúng ID sự kiện, người dùng, kết quả hoặc run ID…",
+    "empty": "Chưa có sự kiện kiểm duyệt nào.",
+    "loadFailed": "Không thể tải sự kiện kiểm duyệt",
+    "viewDetail": "Xem chi tiết",
+    "detailTitle": "Chi tiết sự kiện kiểm duyệt",
+    "detailFailed": "Không thể tải chi tiết sự kiện",
+    "detailText": "Văn bản đã giải mã",
+    "detailImages": "Ảnh cách ly",
+    "detailImageAlt": "Ảnh kiểm duyệt {index}",
+    "imageLoadFailed": "Không thể tải một hoặc nhiều ảnh cách ly",
+    "filters": {
+      "all": "Tất cả"
+    },
+    "results": {
+      "passed": "Đạt",
+      "hit": "Trúng quy định",
+      "failedOpen": "Lỗi mở (fail open)"
+    },
+    "directions": {
+      "input": "Đầu vào",
+      "output": "Đầu ra"
+    },
+    "modalities": {
+      "text": "Văn bản",
+      "image": "Ảnh"
+    },
+    "columns": {
+      "eventId": "ID sự kiện",
+      "user": "Người dùng",
+      "result": "Kết quả",
+      "direction": "Chiều",
+      "modality": "Định dạng",
+      "latency": "Độ trễ",
+      "createdAt": "Tạo lúc",
+      "actions": "Thao tác",
+      "model": "Model",
+      "userID": "ID người dùng",
+      "runID": "Run ID"
+    },
+    "blocks": {
+      "event": "Sự kiện"
+    }
+  }
+}

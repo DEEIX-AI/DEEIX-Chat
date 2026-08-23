@@ -1,0 +1,363 @@
+{
+  "admin": {
+    "defaultPermissionGroupDeleteNotAllowed": "Không thể xóa nhóm quyền mặc định.",
+    "permissionGroupNotFound": "Không tìm thấy nhóm quyền.",
+    "invalidPermissionGroupName": "Tên nhóm quyền là bắt buộc.",
+    "invalidPermissionGroupRateMultiplier": "Hệ số nhân giá không hợp lệ. Phải nằm trong khoảng từ 1 đến 10000.",
+    "invalidPermissionGroupModels": "Cấu hình model của nhóm quyền không hợp lệ.",
+    "invalidPermissionGroupUsers": "Cấu hình thành viên của nhóm quyền không hợp lệ.",
+    "defaultPermissionGroupUsersImplicit": "Thành viên của nhóm quyền mặc định được quản lý tự động.",
+    "permissionGroupReferencedByPlan": "Nhóm quyền này đang được một gói thanh toán sử dụng. Hãy hủy liên kết trước khi xóa."
+  },
+  "auth": {
+    "adminRequired": "Yêu cầu quyền quản trị viên.",
+    "authorizationCodeRequired": "Mã ủy quyền là bắt buộc.",
+    "emailAliasNotAllowed": "Không cho phép dùng bí danh email.",
+    "emailAlreadyExists": "Email này đã được sử dụng.",
+    "emailBootstrapNotAllowed": "Tài khoản này không được phép thiết lập email.",
+    "emailDomainNotAllowed": "Tên miền email này không được cho phép.",
+    "emailNotVerified": "Địa chỉ email chưa được xác minh.",
+    "emailRegistrationDisabled": "Đăng ký bằng email đã bị tắt.",
+    "emailUnchanged": "Email mới phải khác email hiện tại.",
+    "emailVerificationDisabled": "Xác minh email đã bị tắt.",
+    "forbidden": "Bạn không có quyền thực hiện hành động này.",
+    "invalidCredentials": "Tên người dùng hoặc mật khẩu không đúng.",
+    "invalidCurrentPassword": "Mật khẩu hiện tại không đúng.",
+    "invalidEmail": "Địa chỉ email không hợp lệ.",
+    "invalidPassword": "Mật khẩu phải có ít nhất 8 ký tự và không chỉ toàn chữ số.",
+    "invalidPkce": "Tham số xác minh đăng nhập không hợp lệ. Vui lòng đăng nhập lại.",
+    "invalidRedirectUri": "URL callback không hợp lệ.",
+    "invalidRefreshToken": "Phiên của bạn đã hết hạn. Vui lòng đăng nhập lại.",
+    "invalidToken": "Token phiên không hợp lệ. Vui lòng đăng nhập lại.",
+    "invalidTwoFactorCode": "Mã xác thực hai yếu tố không hợp lệ.",
+    "lastLoginMethodRequired": "Hãy đặt mật khẩu hoặc liên kết một nhà cung cấp danh tính khác trước.",
+    "oauthIntentMismatch": "Luồng OAuth không khớp. Vui lòng thử lại.",
+    "oauthStateExpired": "Trạng thái OAuth đã hết hạn. Vui lòng đăng nhập lại.",
+    "oauthStateInvalid": "Trạng thái OAuth không hợp lệ. Vui lòng đăng nhập lại.",
+    "passwordResetFailed": "Đặt lại mật khẩu thất bại. Hãy kiểm tra email, mã và mật khẩu mới của bạn.",
+    "passwordResetRequired": "Yêu cầu đặt lại mật khẩu.",
+    "passwordReuseNotAllowed": "Mật khẩu mới phải khác mật khẩu ban đầu.",
+    "providerAccountNotRegistered": "Tài khoản nhà cung cấp này chưa được đăng ký.",
+    "providerAlreadyBound": "Nhà cung cấp này đã được liên kết.",
+    "providerAuthUrlNotConfigured": "URL ủy quyền của nhà cung cấp chưa được cấu hình.",
+    "providerBindEndpointRequired": "Hãy dùng luồng liên kết tài khoản để liên kết nhà cung cấp này.",
+    "providerCallbackMisconfigured": "URL callback của nhà cung cấp bị cấu hình sai.",
+    "providerClientIdRequired": "Client ID của nhà cung cấp là bắt buộc.",
+    "providerClientSecretRequired": "Client secret của nhà cung cấp là bắt buộc.",
+    "providerDefaultRoleInvalid": "Vai trò mặc định của nhà cung cấp không hợp lệ.",
+    "providerSuperadminDefaultRoleProtected": "Chỉ siêu quản trị viên mới có thể đặt vai trò mặc định của nhà cung cấp thành superadmin.",
+    "providerEmailConflict": "Email này thuộc về một tài khoản khác.",
+    "providerIdRequired": "ID nhà cung cấp là bắt buộc.",
+    "providerIdentityConflict": "Danh tính nhà cung cấp này đã được liên kết với một tài khoản khác.",
+    "providerInvalid": "Xác thực với nhà cung cấp thất bại.",
+    "providerLoginDisabled": "Đăng nhập qua nhà cung cấp này đã bị tắt.",
+    "providerLogoUrlInvalid": "URL logo của nhà cung cấp không hợp lệ.",
+    "providerNameRequired": "Tên nhà cung cấp là bắt buộc.",
+    "providerOauthUrlsRequired": "URL ủy quyền OAuth2, URL token và URL userinfo là bắt buộc.",
+    "providerOidcIssuerRequired": "URL issuer OIDC hoặc URL discovery là bắt buộc.",
+    "providerOrderInvalid": "ID nhà cung cấp phải là duy nhất.",
+    "providerRegistrationDisabled": "Đăng ký qua nhà cung cấp đã bị tắt.",
+    "providerRegistrationRequiresLogin": "Phải bật đăng nhập qua nhà cung cấp trước khi cho phép đăng ký qua nhà cung cấp.",
+    "providerSlugRequired": "Slug của nhà cung cấp là bắt buộc.",
+    "providerSubjectMissing": "Thiếu subject từ nhà cung cấp.",
+    "providerTypeInvalid": "Loại nhà cung cấp không hợp lệ.",
+    "providerUpstreamFailed": "Xác thực với nhà cung cấp thất bại.",
+    "sessionInvalid": "Phiên của bạn đã hết hạn. Vui lòng đăng nhập lại.",
+    "superadminRequired": "Yêu cầu quyền siêu quản trị viên.",
+    "twoFactorAlreadyEnabled": "Xác thực hai yếu tố đã được bật.",
+    "twoFactorChallengeExpired": "Xác minh hai yếu tố đã hết hạn. Vui lòng đăng nhập lại.",
+    "twoFactorExpired": "Xác minh hai yếu tố đã hết hạn. Vui lòng thử lại.",
+    "twoFactorNotStarted": "Xác minh hai yếu tố chưa bắt đầu.",
+    "turnstileInvalid": "Xác minh con người thất bại. Vui lòng thử lại.",
+    "turnstileNotConfigured": "Chưa cấu hình xác minh con người.",
+    "turnstileRequired": "Vui lòng hoàn tất xác minh con người trước.",
+    "unauthorized": "Phiên của bạn đã hết hạn. Vui lòng đăng nhập lại.",
+    "usernameChangeRequired": "Hãy đổi tên người dùng ban đầu.",
+    "verificationCodeAttemptsExceeded": "Bạn đã thử xác minh quá nhiều lần. Hãy yêu cầu mã mới.",
+    "verificationCodeInvalid": "Mã xác minh không hợp lệ hoặc đã hết hạn.",
+    "verificationCodeRecent": "Mã xác minh vừa được gửi gần đây. Vui lòng thử lại sau."
+  },
+  "billing": {
+    "insufficientBalance": "Số dư không đủ.",
+    "insufficientFunds": "Số dư không đủ.",
+    "concurrencyLimitExceeded": "Tối đa 5 yêu cầu trả phí có thể chạy cùng lúc.",
+    "reservationConflict": "Yêu cầu này đã được gửi trước đó.",
+    "invalidPlan": "Gói thanh toán không hợp lệ.",
+    "planNotFound": "Không tìm thấy gói thanh toán.",
+    "invalidPermissionGroup": "Nhóm quyền không hợp lệ.",
+    "invalidDailyUsageDateRange": "Khoảng ngày mức dùng không hợp lệ.",
+    "invalidDailyUsageDays": "Số ngày mức dùng không hợp lệ.",
+    "invalidModelPricing": "Giá model không hợp lệ.",
+    "subscriptionEntitlementActive": "Quyền lợi đăng ký trả phí vẫn còn hiệu lực nên không thể chọn gói Miễn phí.",
+    "invalidRedemptionCode": "Mã đổi thưởng không hợp lệ.",
+    "redemptionCodeConflict": "Mã đổi thưởng này đã tồn tại.",
+    "redemptionCodeUnavailable": "Mã đổi thưởng không khả dụng hoặc đã hết hạn.",
+    "redemptionCodePlaintextUnavailable": "Mã này không có nội dung mã hóa có thể sao chép, nên không thể sao chép toàn bộ mã.",
+    "redemptionCodeExhausted": "Mã đổi thưởng đã hết lượt sử dụng.",
+    "redemptionSecretUnavailable": "Dịch vụ mã đổi thưởng đang không khả dụng.",
+    "redemptionUserLimitExceeded": "Tài khoản này đã đạt giới hạn số lần dùng mã trên mỗi người dùng.",
+    "redemptionValidation": {
+      "codeFormat": "Mã phải gồm 3–64 ký tự là chữ hoa, chữ số, dấu gạch ngang hoặc dấu gạch dưới.",
+      "quantity": "Số lượng phải là số nguyên từ 1 đến 100.",
+      "manualQuantity": "Mã nhập thủ công chỉ có thể tạo một lần.",
+      "mode": "Chế độ thanh toán không hợp lệ.",
+      "credit": "Số tín dụng phải lớn hơn 0.",
+      "plan": "Hãy chọn một gói trả phí đang hoạt động (không phải Miễn phí).",
+      "duration": "Số ngày hiệu lực phải lớn hơn 0.",
+      "expiresAt": "Thời gian hết hạn phải muộn hơn thời điểm hiện tại.",
+      "maxRedemptions": "Tổng số lần dùng phải là số nguyên dương, hoặc để trống nếu không giới hạn.",
+      "perUserLimit": "Số lần dùng mỗi người dùng phải là số nguyên dương.",
+      "limitRelationship": "Giới hạn mỗi người dùng không được vượt quá tổng giới hạn.",
+      "status": "Trạng thái mã đổi thưởng không hợp lệ."
+    },
+    "invalidSubscriptionExpiry": "Thời hạn gói đăng ký không hợp lệ.",
+    "invalidSubscriptionTier": "Bậc gói đăng ký không hợp lệ.",
+    "paymentRequired": "Yêu cầu thanh toán.",
+    "periodCreditExceeded": "Tín dụng trong kỳ đã dùng hết.",
+    "pricingRequired": "Giá model là bắt buộc.",
+    "subscriptionExpiryRequired": "Thời hạn gói đăng ký là bắt buộc."
+  },
+  "config": {
+    "invalidJson": "Cấu hình JSON không hợp lệ."
+  },
+  "conversation": {
+    "invalidId": "ID hội thoại không hợp lệ.",
+    "invalidTitle": "Tiêu đề hội thoại không hợp lệ.",
+    "messageForkHistoryIncomplete": "Hội thoại này quá sâu hoặc lịch sử tin nhắn không đầy đủ nên không thể tách nhánh tại đây.",
+    "messageForkStateInvalid": "Hãy đợi tin nhắn này hoàn tất việc tạo trước khi tách nhánh hội thoại.",
+    "noTitleableContent": "Hội thoại này không có nội dung nào có thể dùng để tạo tiêu đề.",
+    "notFound": "Không tìm thấy hội thoại."
+  },
+  "conversationRun": {
+    "canceled": "Việc tạo phản hồi đã bị hủy.",
+    "streamInterrupted": "Kết nối khi tạo phản hồi bị gián đoạn. Hãy thử lại tin nhắn này.",
+    "streamNotFound": "Không tìm thấy luồng tạo phản hồi."
+  },
+  "conversationShare": {
+    "invalid": "Lượt chia sẻ hội thoại không hợp lệ.",
+    "invalidId": "ID chia sẻ không hợp lệ.",
+    "notFound": "Không tìm thấy lượt chia sẻ.",
+    "schemaOutdated": "Schema chia sẻ đã lỗi thời. Hãy xây dựng lại cơ sở dữ liệu."
+  },
+  "contextArtifact": {
+    "invalidId": "ID ngữ cảnh không hợp lệ.",
+    "notFound": "Không tìm thấy ngữ cảnh."
+  },
+  "cors": {
+    "originForbidden": "Nguồn gốc (origin) này không được cho phép."
+  },
+  "embedding": {
+    "serviceNotConfigured": "Hãy bật và cấu hình dịch vụ embedding trước.",
+    "serviceUnavailable": "Dịch vụ embedding đang không khả dụng."
+  },
+  "file": {
+    "embeddingUnavailable": "Không thể dùng embedding cho tệp này.",
+    "extractNotReady": "Trích xuất tệp chưa sẵn sàng.",
+    "invalidId": "ID tệp không hợp lệ.",
+    "invalidName": "Tên tệp không hợp lệ.",
+    "invalidReference": "Tham chiếu tệp không hợp lệ.",
+    "invalidStream": "Luồng tệp không hợp lệ.",
+    "inUse": "Tệp này đang được sử dụng nên không thể xóa.",
+    "notFound": "Không tìm thấy tệp.",
+    "notReady": "Tệp chưa sẵn sàng.",
+    "required": "Bắt buộc phải có tệp.",
+    "tooLarge": "Tệp quá lớn.",
+    "tooLargeForContext": "Tệp quá lớn để chèn vào toàn bộ ngữ cảnh.",
+    "typeBlocked": "Loại tệp này không được cho phép."
+  },
+  "identityProvider": {
+    "deleteConflict": "Xóa nhà cung cấp danh tính này sẽ loại bỏ phương thức đăng nhập duy nhất của một số người dùng."
+  },
+  "internal": {
+    "error": "Lỗi máy chủ nội bộ. Vui lòng thử lại sau."
+  },
+  "knowledgeBase": {
+    "conflict": "Đã tồn tại một cơ sở tri thức trùng tên trong phạm vi này.",
+    "fileCleanupUnavailable": "Dọn dẹp nguồn nền tảng tạm thời không khả dụng. Vui lòng thử lại sau.",
+    "internal": "Thao tác với cơ sở tri thức thất bại. Vui lòng thử lại sau.",
+    "invalid": "Cấu hình cơ sở tri thức không hợp lệ.",
+    "invalidReference": "Cơ sở tri thức đã chọn không khả dụng hoặc bạn không còn quyền truy cập.",
+    "notFound": "Không tìm thấy cơ sở tri thức.",
+    "notReady": "Cơ sở tri thức đã chọn chưa có tệp nào có thể tìm kiếm. Hãy đợi quá trình đánh chỉ mục hoàn tất.",
+    "ownerFileReference": "Tài khoản này vẫn sở hữu các tệp đang được một cơ sở tri thức tích hợp sẵn tham chiếu. Hãy xóa chúng hoặc nhờ quản trị viên khác upload bản thay thế trước.",
+    "platformFileInUse": "Nguồn nền tảng này vẫn đang được một tài nguyên khác tham chiếu. Hãy gỡ tham chiếu trước khi xóa.",
+    "unavailable": "Truy xuất cơ sở tri thức tạm thời không khả dụng. Vui lòng thử lại sau; nếu vấn đề tiếp diễn, hãy nhờ quản trị viên kiểm tra dịch vụ embedding."
+  },
+  "toolRun": {
+    "finalAnswerMissing": "Lượt chạy công cụ đã đạt giới hạn trước khi model đưa ra câu trả lời cuối cùng. Hãy thử lại hoặc bật ít công cụ hơn cho tin nhắn này."
+  },
+  "llm": {
+    "apiKeysRequired": "Khóa API là bắt buộc.",
+    "circuitBreakerDisabled": "Ngắt mạch model đang bị tắt. Hãy bật tính năng này trước khi thực hiện hành động.",
+    "emptyResponse": "Model trả về phản hồi rỗng.",
+    "invalidAdapter": "Giao thức giao diện này không được hỗ trợ. Hãy chọn giao thức khác.",
+    "invalidApiKeysConfig": "Cấu hình khóa API không hợp lệ.",
+    "invalidCompatible": "Chế độ tương thích không hợp lệ.",
+    "invalidHeadersConfig": "Cấu hình headers không hợp lệ.",
+    "invalidKinds": "Loại model không hợp lệ.",
+    "invalidPlatformModelName": "Tên model nền tảng không hợp lệ.",
+    "invalidRouteProtocolCombination": "Tổ hợp giao thức này không khả dụng. Một liên kết chỉ có thể dùng một giao thức, hoặc các giao thức tạo ảnh và chỉnh sửa ảnh từ cùng một nhà cung cấp.",
+    "systemPromptTooLong": "System prompt tối đa 20000 ký tự.",
+    "invalidProtocolDefaultsConfig": "Cấu hình mặc định giao thức không hợp lệ.",
+    "modelAccessDenied": "Bạn không có quyền truy cập model này.",
+    "modelRouteNotConfigured": "Đường dẫn model chưa được cấu hình.",
+    "modelIconInvalid": "Biểu tượng model không hợp lệ. Hãy dùng tên biểu tượng tích hợp sẵn, biểu tượng đã upload hoặc URL ảnh http(s).",
+    "modelIconFileInvalid": "Tệp biểu tượng không hợp lệ. Chỉ hỗ trợ PNG, JPEG và WebP.",
+    "modelIconFileTooLarge": "Tệp biểu tượng không được vượt quá 1 MiB.",
+    "modelIconAssetNotFound": "Tài nguyên biểu tượng không còn tồn tại. Hãy upload lại.",
+    "modelIconAssetInUse": "Biểu tượng này vẫn đang được sử dụng. Hãy gỡ các tham chiếu đến nó trước.",
+    "modelVendorBuiltin": "Không thể xóa các nhà cung cấp tích hợp sẵn.",
+    "modelVendorInUse": "Nhà cung cấp này vẫn có model liên kết. Hãy chuyển chúng đi trước.",
+    "noActiveApiKey": "Không có khóa API nào đang hoạt động.",
+    "platformModelNameExists": "Tên model nền tảng đã tồn tại.",
+    "platformModelNameRequired": "Tên model nền tảng là bắt buộc.",
+    "protocolRequired": "Giao thức là bắt buộc.",
+    "remoteModelsUnavailable": "Các model từ xa không khả dụng.",
+    "routeConflict": "Model upstream này đã có liên kết cho cùng model nền tảng và giao thức. Hãy xóa liên kết trùng lặp trước khi lưu.",
+    "routesUnavailable": "Tất cả đường dẫn model đều không khả dụng."
+  },
+  "mcp": {
+    "clientUnavailable": "MCP client không khả dụng.",
+    "invalidServerBaseUrl": "URL gốc máy chủ MCP không hợp lệ.",
+    "invalidServerHeaders": "Headers của máy chủ MCP không hợp lệ.",
+    "invalidServerName": "Tên máy chủ MCP không hợp lệ.",
+    "invalidServerStatus": "Trạng thái máy chủ MCP không hợp lệ.",
+    "invalidToolDescription": "Mô tả công cụ MCP không hợp lệ.",
+    "invalidToolName": "Tên công cụ MCP không hợp lệ.",
+    "invalidToolSelection": "Lựa chọn công cụ MCP không hợp lệ.",
+    "invalidToolStatus": "Trạng thái công cụ MCP không hợp lệ.",
+    "server": {
+      "invalidId": "ID máy chủ MCP không hợp lệ."
+    },
+    "tool": {
+      "invalidId": "ID công cụ MCP không hợp lệ."
+    }
+  },
+  "memory": {
+    "keyRequired": "Khóa ghi nhớ là bắt buộc."
+  },
+  "media": {
+    "imagePromptRequired": "Hãy nhập prompt cho hình ảnh.",
+    "imageGenerationRejectsInputs": "Tạo hình ảnh không chấp nhận ảnh đầu vào. Hãy gỡ tệp đính kèm hoặc chọn chỉnh sửa ảnh.",
+    "imageEditInputRequired": "Chỉnh sửa ảnh cần ít nhất một ảnh đầu vào.",
+    "imageEditTooManyInputs": "Quá nhiều ảnh đầu vào cho việc chỉnh sửa ảnh.",
+    "imageEditInputInvalid": "Chỉnh sửa ảnh chỉ hỗ trợ các tệp hình ảnh hợp lệ.",
+    "artifactUnavailable": "Kết quả tạo ra tạm thời không khả dụng. Hãy thử lại, hoặc liên hệ quản trị viên nếu vấn đề tiếp diễn.",
+    "imageStreamUnsupported": "Mẹo: Upstream có thể không hỗ trợ phản hồi dạng stream. Hãy nhờ quản trị viên tắt \"Gọi tạo ảnh dạng stream\" trong khả năng của model (đặt image.stream=false), rồi thử lại.",
+    "routeProtocolMismatch": "Giao thức đường dẫn model hiện tại không khớp với tác vụ hình ảnh này. Hãy kiểm tra liên kết model.",
+    "invalidTask": "Tham số tác vụ hình ảnh không hợp lệ."
+  },
+  "message": {
+    "feedbackTargetInvalid": "Đánh giá cho tin nhắn không đúng đối tượng.",
+    "editStateInvalid": "Không thể sửa tin nhắn này ở trạng thái hiện tại.",
+    "editTargetInvalid": "Chỉ có thể sửa các phản hồi của AI.",
+    "invalidBranch": "Nhánh tin nhắn không hợp lệ.",
+    "invalidContent": "Nội dung tin nhắn không hợp lệ.",
+    "invalidFeedback": "Đánh giá tin nhắn không hợp lệ.",
+    "invalidId": "ID tin nhắn không hợp lệ.",
+    "notFound": "Không tìm thấy tin nhắn.",
+    "tooManyFiles": "Quá nhiều tệp trong một tin nhắn."
+  },
+  "payment": {
+    "checkoutFailed": "Không thể tạo phiên thanh toán.",
+    "epayGatewayInvalid": "URL cổng chuyển hướng EPay không hợp lệ.",
+    "epayTypeUnsupported": "Loại thanh toán EPay này không được hỗ trợ.",
+    "invalidEvent": "Sự kiện thanh toán không hợp lệ.",
+    "invalidSignature": "Chữ ký thanh toán không hợp lệ.",
+    "invalidWebhookBody": "Nội dung webhook không hợp lệ.",
+    "notificationMismatch": "Thông báo thanh toán không khớp với đơn hàng.",
+    "orderNoRequired": "Số đơn hàng là bắt buộc.",
+    "providerUnavailable": "Nhà cung cấp thanh toán không khả dụng.",
+    "returnUrlCrossOrigin": "URL quay về của thanh toán phải dùng web origin công khai đã cấu hình.",
+    "returnUrlInvalid": "URL quay về của thanh toán không hợp lệ.",
+    "webhookBodyTooLarge": "Nội dung webhook quá lớn.",
+    "webhookNotConfigured": "Webhook thanh toán chưa được cấu hình."
+  },
+  "quota": {
+    "exceeded": "Đã vượt hạn mức."
+  },
+  "rateLimit": {
+    "authenticationExceeded": "Bạn đã đăng nhập quá nhiều lần. Vui lòng thử lại sau.",
+    "exceeded": "Quá nhiều yêu cầu. Vui lòng thử lại sau.",
+    "refreshExceeded": "Quá nhiều lần làm mới phiên. Vui lòng thử lại sau."
+  },
+  "request": {
+    "invalid": "Yêu cầu không hợp lệ. Hãy kiểm tra biểu mẫu rồi thử lại.",
+    "invalid_": "Tham số yêu cầu không hợp lệ.",
+    "invalidBody": "Yêu cầu không hợp lệ. Hãy kiểm tra biểu mẫu rồi thử lại.",
+    "invalidId": "ID không hợp lệ.",
+    "invalidQuery": "Tham số truy vấn không hợp lệ.",
+    "required": "Thiếu một trường bắt buộc."
+  },
+  "resource": {
+    "conflict": "Xung đột tài nguyên. Hãy làm mới rồi thử lại.",
+    "notFound": "Không tìm thấy tài nguyên."
+  },
+  "route": {
+    "notFound": "Không tìm thấy đường dẫn."
+  },
+  "runtime": {
+    "doclingUnavailable": "Runtime Docling không khả dụng.",
+    "mineruUnavailable": "Runtime MinerU không khả dụng.",
+    "rapidocrUnavailable": "Runtime RapidOCR không khả dụng.",
+    "tesseractUnavailable": "Runtime Tesseract không khả dụng.",
+    "tikaUnavailable": "Runtime Tika không khả dụng."
+  },
+  "service": {
+    "unavailable": "Dịch vụ không khả dụng. Vui lòng thử lại sau."
+  },
+  "settings": {
+    "billingPaymentInvalid": "Cài đặt thanh toán không hợp lệ.",
+    "embeddingInvalid": "Cài đặt embedding không hợp lệ.",
+    "extractInvalid": "Cài đặt trích xuất tệp không hợp lệ.",
+    "invalidKey": "Khóa cài đặt không hợp lệ.",
+    "invalidNamespace": "Namespace cài đặt không hợp lệ.",
+    "invalidValue": "Giá trị cài đặt không hợp lệ.",
+    "modelOptionPolicyInvalid": "Cài đặt chính sách tùy chọn model không hợp lệ.",
+    "notFound": "Không tìm thấy cài đặt.",
+    "serviceUnavailable": "Dịch vụ cài đặt không khả dụng.",
+    "smtpInvalid": "Cài đặt SMTP không hợp lệ."
+  },
+  "upstream": {
+    "unavailable": "Dịch vụ upstream không khả dụng."
+  },
+  "upstreamEmptyResponse": "Upstream trả về phản hồi rỗng. Vui lòng thử lại sau hoặc nhờ quản trị viên kiểm tra đường dẫn model.",
+  "upstreamRequestFailed": "Yêu cầu đến upstream thất bại. Vui lòng thử lại sau hoặc nhờ quản trị viên kiểm tra đường dẫn model.",
+  "user": {
+    "accountDeleteVerificationRequired": "Hãy xác minh danh tính trước khi xóa tài khoản.",
+    "emptyPatch": "Hãy thay đổi ít nhất một trường thông tin người dùng.",
+    "invalidAvatarUrl": "URL ảnh đại diện không hợp lệ.",
+    "invalidEmail": "Email người dùng không hợp lệ.",
+    "invalidLocale": "Ngôn ngữ không hợp lệ.",
+    "invalidLocation": "Vị trí không hợp lệ.",
+    "invalidPhone": "Số điện thoại không hợp lệ.",
+    "invalidRole": "Vai trò người dùng không hợp lệ.",
+    "invalidStatus": "Trạng thái người dùng không hợp lệ.",
+    "invalidTimeZone": "Múi giờ không hợp lệ.",
+    "invalidUsername": "Tên người dùng phải từ 3 đến 16 ký tự.",
+    "invalidDisplayName": "Tên hiển thị phải từ 3 đến 16 ký tự.",
+    "lastSuperadminRoleProtected": "Không thể đổi vai trò của siêu quản trị viên cuối cùng.",
+    "selfDeleteNotAllowed": "Bạn không thể xóa tài khoản của mình tại đây.",
+    "selfRoleChangeNotAllowed": "Bạn không thể đổi vai trò của chính mình.",
+    "selfStatusChangeNotAllowed": "Bạn không thể đổi trạng thái của chính mình.",
+    "superadminDeleteProtected": "Không thể xóa tài khoản siêu quản trị viên.",
+    "superadminPasswordResetProtected": "Không thể đặt lại mật khẩu của siêu quản trị viên.",
+    "superadminManagementProtected": "Quản trị viên không thể quản lý tài khoản siêu quản trị viên.",
+    "superadminStatusProtected": "Không thể thay đổi trạng thái của siêu quản trị viên.",
+    "superadminTwoFactorResetProtected": "Không thể đặt lại xác thực hai yếu tố của siêu quản trị viên.",
+    "usernameAlreadyExists": "Tên người dùng này đã được sử dụng.",
+    "usernameChangeUsed": "Lượt đổi tên người dùng đã được sử dụng.",
+    "usernameTaken": "Tên người dùng này đã được sử dụng."
+  },
+  "userSettings": {
+    "invalidValue": "Giá trị cài đặt người dùng không hợp lệ.",
+    "unknownKey": "Khóa cài đặt người dùng không tồn tại."
+  },
+  "content_moderation": {
+    "blocked": "Nội dung này đã bị chặn bởi kiểm tra an toàn.",
+    "invalid_config": "Cấu hình kiểm duyệt nội dung không hợp lệ.",
+    "config_required": "Khi bật kiểm duyệt nội dung, cần có cấu hình dịch vụ đầy đủ và ít nhất một nhóm chính sách.",
+    "probe_failed": "Kiểm tra kết nối kiểm duyệt nội dung thất bại.",
+    "event_not_found": "Không tìm thấy sự kiện kiểm duyệt nội dung."
+  }
+}

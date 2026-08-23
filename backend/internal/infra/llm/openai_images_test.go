@@ -172,8 +172,11 @@ func TestBuildOpenAIImageEditMultipartRequest(t *testing.T) {
 	if _, ok := form.Value["partial_images"]; ok {
 		t.Fatalf("partial_images must not be passed without upstream image edit streaming: %#v", form.Value)
 	}
-	if len(form.File["image[]"]) != 1 || len(form.File["mask"]) != 1 {
-		t.Fatalf("expected image[] and mask files, got %#v", form.File)
+	if len(form.File["image"]) != 1 || len(form.File["mask"]) != 1 {
+		t.Fatalf("expected image and mask files (OpenAI/Grok2API field name \"image\"), got %#v", form.File)
+	}
+	if len(form.File["image[]"]) != 0 {
+		t.Fatalf("must not send PHP-style image[] field (Grok2API FastAPI rejects it): %#v", form.File)
 	}
 	var debug map[string]interface{}
 	if err = json.Unmarshal(debugBody, &debug); err != nil {
@@ -423,8 +426,11 @@ func TestOpenAIImageEditStream(t *testing.T) {
 			t.Fatalf("parse multipart request: %v", err)
 		}
 		requestValues = r.MultipartForm.Value
-		if len(r.MultipartForm.File["image[]"]) != 1 {
-			t.Fatalf("expected one edit image, got %#v", r.MultipartForm.File)
+		if len(r.MultipartForm.File["image"]) != 1 {
+			t.Fatalf("expected one edit image under field \"image\", got %#v", r.MultipartForm.File)
+		}
+		if len(r.MultipartForm.File["image[]"]) != 0 {
+			t.Fatalf("must not send image[] field, got %#v", r.MultipartForm.File)
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = w.Write([]byte("event: image_edit.partial_image\n"))

@@ -378,6 +378,14 @@ func buildOpenAIImageGenerationStreamRequestBody(model string, input GenerateInp
 }
 
 // buildOpenAIImageEditMultipartRequest 构造 OpenAI Images Edits 官方 multipart 请求体。
+//
+// File field name is "image" (repeat the part for multi-image inputs), matching:
+//   - OpenAI Images Edits classic curl/SDK: -F image=@file.png
+//   - FastAPI/Grok2API: image: List[UploadFile] = File(...) binds name "image" only
+//   - Multipart multi-file convention: same field name repeated (not PHP-style "image[]")
+//
+// Note: some Azure/gpt-image proxies document "image[]"; those gateways usually also
+// accept repeated "image". Lab Grok2API rejects "image[]" with body.image Field required.
 func buildOpenAIImageEditMultipartRequest(model string, input GenerateInput, stream bool) ([]byte, string, []byte, error) {
 	prompt := buildOpenAIImageGenerationPrompt(input.Messages)
 	if strings.TrimSpace(prompt) == "" {
@@ -416,7 +424,8 @@ func buildOpenAIImageEditMultipartRequest(model string, input GenerateInput, str
 		if strings.TrimSpace(fileName) == "" {
 			fileName = fmt.Sprintf("image-%02d%s", index+1, openAIImageFileExtension(image.MimeType))
 		}
-		if err := writeOpenAIMultipartFile(writer, "image[]", fileName, image.MimeType, image.Data); err != nil {
+		// Field name must be "image" (see function comment). Do not use "image[]".
+		if err := writeOpenAIMultipartFile(writer, openAIImageEditMultipartFileField, fileName, image.MimeType, image.Data); err != nil {
 			return nil, "", nil, err
 		}
 	}
@@ -470,6 +479,10 @@ func applyOpenAIImageEditStreamParams(fields map[string]string, options map[stri
 		fields["partial_images"] = fmt.Sprintf("%d", value)
 	}
 }
+
+// openAIImageEditMultipartFileField is the Images Edits multipart file part name.
+// Kept as a named constant so tests and wire format stay aligned with OpenAI/Grok2API.
+const openAIImageEditMultipartFileField = "image"
 
 func writeOpenAIMultipartFile(writer *multipart.Writer, fieldName string, fileName string, mimeType string, data []byte) error {
 	if len(data) == 0 {

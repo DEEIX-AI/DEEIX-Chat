@@ -1,0 +1,38 @@
+{
+  "untitled": "Trò chuyện mới",
+  "labelsDialog": {
+    "labels": "Nhãn cuộc trò chuyện",
+    "labelsDescription": "Thêm tối đa {count} nhãn để sắp xếp và tìm lại cuộc trò chuyện này.",
+    "labelsEmpty": "Chưa có nhãn nào",
+    "labelPlaceholder": "Thêm nhãn",
+    "addLabel": "Thêm nhãn",
+    "removeLabel": "Xóa nhãn {label}",
+    "labelsSaveFailed": "Không thể lưu nhãn cuộc trò chuyện"
+  },
+  "shareDialog": {
+    "title": "Chia sẻ cuộc trò chuyện này",
+    "statusShared": "Đã chia sẻ",
+    "statusNotShared": "Chưa chia sẻ",
+    "publicLink": "Liên kết công khai",
+    "emptyLink": "Chưa có liên kết công khai nào",
+    "copyLink": "Sao chép liên kết",
+    "openLink": "Mở liên kết",
+    "loadFailed": "Không thể tải trạng thái chia sẻ",
+    "noMessages": "Không có tin nhắn nào để chia sẻ",
+    "signInRequired": "Đăng nhập để tiếp tục",
+    "closed": "Đã đóng chia sẻ",
+    "regenerated": "Đã tạo lại liên kết chia sẻ",
+    "created": "Đã tạo liên kết chia sẻ",
+    "operationFailed": "Thao tác thất bại",
+    "linkCopied": "Đã sao chép liên kết",
+    "copyFailed": "Sao chép thất bại",
+    "closing": "Đang đóng",
+    "closeShare": "Ngừng chia sẻ",
+    "regenerating": "Đang tạo lại",
+    "regenerate": "Tạo lại",
+    "copyAndClose": "Sao chép và đóng",
+    "creating": "Đang tạo",
+    "createLink": "Tạo",
+    "snapshotMessages": "{title} - {count} tin nhắn bản chụp"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "title": "Thống kê sử dụng",
+  "refresh": "Làm mới",
+  "empty": "Không có dữ liệu sử dụng cho bộ lọc đã chọn.",
+  "unknownModel": "Model không xác định",
+  "unknownUser": "Người dùng #{id}",
+  "filters": {
+    "last7Days": "7 ngày qua",
+    "last30Days": "30 ngày qua",
+    "last90Days": "90 ngày qua",
+    "custom": "Tùy chọn",
+    "subject": "Đối tượng",
+    "model": "Model",
+    "allModels": "Tất cả model",
+    "billingScope": "Loại tính phí",
+    "billingAll": "Mọi lượt gọi",
+    "billingFree": "Model miễn phí",
+    "billingBillable": "Model tính phí",
+    "clear": "Xóa bộ lọc",
+    "rangeErrors": {
+      "incomplete": "Vui lòng chọn cả ngày bắt đầu và ngày kết thúc.",
+      "invalid": "Ngày kết thúc phải trễ hơn hoặc bằng ngày bắt đầu.",
+      "tooLong": "Khoảng thời gian chọn không được vượt quá 366 ngày."
+    },
+    "subjectSelect": {
+      "allUsers": "Tất cả người dùng",
+      "users": "Người dùng",
+      "permissionGroups": "Nhóm quyền",
+      "searchUsers": "Tìm tên người dùng, tên hoặc email",
+      "searchPermissionGroups": "Tìm nhóm quyền",
+      "emptyUsers": "Không có người dùng khớp.",
+      "emptyPermissionGroups": "Không có nhóm quyền khớp.",
+      "memberCount": "{count} người dùng",
+      "loadFailed": "Không thể tải danh sách người dùng"
+    }
+  },
+  "metrics": {
+    "cost": "Tổng chi phí",
+    "tokens": "Tổng token",
+    "calls": "Tổng lượt gọi",
+    "latency": "Độ trễ trung bình"
+  },
+  "rankBy": {
+    "cost": "Chi phí",
+    "tokens": "Token",
+    "calls": "Lượt gọi"
+  },
+  "trend": {
+    "title": "Xu hướng sử dụng"
+  },
+  "rankings": {
+    "models": "Model hàng đầu",
+    "users": "Người dùng hàng đầu",
+    "total": "Tổng cộng"
+  },
+  "toasts": {
+    "loadFailed": "Không thể tải thống kê sử dụng",
+    "referenceLoadFailed": "Không thể tải bộ lọc bảng điều khiển",
+    "sessionExpired": "Phiên đã hết hạn",
+    "signInAgain": "Vui lòng đăng nhập lại và thử lại."
+  },
+  "moderation": {
+    "title": "Kiểm duyệt nội dung",
+    "trendTitle": "Xu hướng kiểm duyệt",
+    "empty": "Không có dữ liệu tổng hợp kiểm duyệt trong 90 ngày qua.",
+    "loadFailed": "Không thể tải thống kê kiểm duyệt",
+    "avgLatencyLabel": "Độ trễ kiểm duyệt trung bình",
+    "metrics": {
+      "checks": "Số lần kiểm tra",
+      "hits": "Số lần phát hiện",
+      "failures": "Lỗi mở (fail-open)",
+      "hitRate": "Tỷ lệ phát hiện",
+      "latency": "Độ trễ trung bình"
+    }
+  }
+}
