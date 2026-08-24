@@ -827,7 +827,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "从 storage 缓存读取 OpenRouter 模型定价；缓存不存在、过期或 refresh=true 时由后端刷新。",
+                "description": "从 storage 缓存读取 OpenRouter 模型标识、定价和上下文限制；缓存不存在、过期或 refresh=true 时由后端刷新。",
                 "consumes": [
                     "application/json"
                 ],
@@ -837,7 +837,7 @@ const docTemplate = `{
                 "tags": [
                     "admin-billing"
                 ],
-                "summary": "管理员获取 OpenRouter 官方模型定价",
+                "summary": "管理员获取 OpenRouter 官方模型目录",
                 "parameters": [
                     {
                         "type": "boolean",
@@ -9616,6 +9616,37 @@ const docTemplate = `{
                 }
             }
         },
+        "/conversation-runs/stream": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sends an authoritative snapshot followed by live user-scoped run state events",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "Stream active conversation generations",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ActiveMessageGenerationEventResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/conversation-runs/{run_id}/cancel": {
             "post": {
                 "security": [
@@ -10684,7 +10715,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "将会话从开头到指定消息（含）的祖先链复制为一个新会话；不携带原会话的运行记录与计费，附件以引用方式复用",
+                "description": "仅允许从助手消息 fork；将会话从开头到指定助手消息（含）的祖先链复制为一个新会话，保留历史展示轨迹；不携带原会话的运行记录与计费，附件以引用方式复用",
                 "consumes": [
                     "application/json"
                 ],
@@ -13725,6 +13756,44 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "ActiveMessageGenerationEventResponse": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "conversationPublicID": {
+                    "type": "string"
+                },
+                "runID": {
+                    "type": "string"
+                },
+                "runs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ActiveMessageGenerationResponse"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "ActiveMessageGenerationResponse": {
+            "type": "object",
+            "required": [
+                "conversationPublicID",
+                "runID"
+            ],
+            "properties": {
+                "conversationPublicID": {
+                    "type": "string"
+                },
+                "runID": {
+                    "type": "string"
+                }
+            }
+        },
         "ActiveSessionListResponse": {
             "type": "object",
             "required": [
@@ -19839,6 +19908,9 @@ const docTemplate = `{
                 "stage": {
                     "type": "string"
                 },
+                "startedAt": {
+                    "type": "string"
+                },
                 "status": {
                     "type": "string"
                 },
@@ -20609,6 +20681,7 @@ const docTemplate = `{
                 "cbFailureThreshold",
                 "cbPolicyMode",
                 "cbWindowMin",
+                "contextWindow",
                 "createdAt",
                 "description",
                 "displayGroupID",
@@ -20649,6 +20722,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "cbWindowMin": {
+                    "type": "integer"
+                },
+                "contextWindow": {
                     "type": "integer"
                 },
                 "createdAt": {
@@ -21117,7 +21193,9 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "canonicalSlug",
+                "contextLength",
                 "id",
+                "maxCompletionTokens",
                 "name",
                 "pricing"
             ],
@@ -21125,8 +21203,14 @@ const docTemplate = `{
                 "canonicalSlug": {
                     "type": "string"
                 },
+                "contextLength": {
+                    "type": "integer"
+                },
                 "id": {
                     "type": "string"
+                },
+                "maxCompletionTokens": {
+                    "type": "integer"
                 },
                 "name": {
                     "type": "string"

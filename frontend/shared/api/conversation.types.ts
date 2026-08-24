@@ -48,6 +48,15 @@ export type ConversationDTO = ConversationResponse;
 
 export type ConversationSearchResultDTO = ConversationSearchResultResponse;
 
+export type ActiveConversationRunSnapshot = {
+  runID: string;
+  conversationPublicID: string;
+};
+
+export type ActiveConversationRunEvent =
+  | { type: "snapshot"; runs: ActiveConversationRunSnapshot[] }
+  | { type: "started" | "finished"; runID: string; conversationPublicID?: string };
+
 export type ConversationSearchPageDTO = Omit<ConversationSearchPageResponse, "results"> & {
   results: ConversationSearchResultDTO[];
 };

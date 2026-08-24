@@ -47,12 +47,9 @@ func withMessageRouteReasoningPassbackOptions(
 }
 
 func (s *Service) buildMessageRoutePrompt(ctx context.Context, route *channel.ResolvedRoute, input messageRoutePromptInput) (PromptPlan, error) {
-	routeMessages := s.applyContextTokenBudget(
-		input.DomainMessages,
-		route.UpstreamModel,
-		route.ModelCapabilitiesJSON,
-		input.ReasoningContentPassback,
-	)
+	// 模型上下文预算在最终 GenerateInput 完整组装后统一执行。这里保留完整活跃
+	// 分支，避免先按历史消息耗尽预算，再遗漏文件、RAG、Skill 与工具定义开销。
+	routeMessages := input.DomainMessages
 	historyMessages := historyMessagesFromDomain(routeMessages, historyMessageOptions{
 		ReasoningContentPassback: input.ReasoningContentPassback,
 	})
@@ -67,7 +64,9 @@ func (s *Service) buildMessageRoutePrompt(ctx context.Context, route *channel.Re
 		historyMessages = append(historyMessages, llm.Message{Role: "user", Content: input.UserContent})
 	}
 
-	assembler := NewContextAssembler(int64(input.Config.ContextMaxInputTokens))
+	// ContextAssembler 只负责稳定的槽位排序与去重；最终模型窗口由完整请求预算器
+	// 统一约束，避免旧的固定 32K 上限提前丢弃偏好等系统上下文。
+	assembler := NewContextAssembler(0)
 	systemPrompt := resolveMessageSystemPromptInjection(input.Config, route, input.ProjectSystemPrompt, input.HTMLVisualPromptEnabled)
 	if systemPrompt.Content != "" {
 		if systemPrompt.InlineToUser {

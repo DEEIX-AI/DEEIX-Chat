@@ -112,6 +112,40 @@ func TestSeedUsesDefaultFullContextMaxBytesForMissingSetting(t *testing.T) {
 	}
 }
 
+func TestSeedReplacesLegacyCompactTokenThresholdWithModelAwareDefaults(t *testing.T) {
+	repo := newSettingsSeedRepo(
+		domainsettings.SystemSetting{
+			Namespace: "chat",
+			Key:       "context_compact_trigger_tokens",
+			Value:     "65536",
+			ValueType: "int",
+		},
+		domainsettings.SystemSetting{
+			Namespace: "chat",
+			Key:       "context_max_input_tokens",
+			Value:     "32000",
+			ValueType: "int",
+		},
+	)
+	service := NewService(repo, "")
+
+	if err := service.Seed(context.Background(), config.Config{}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	if _, exists := repo.items["chat:context_compact_trigger_tokens"]; exists {
+		t.Fatal("expected obsolete fixed token threshold to be removed")
+	}
+	if _, exists := repo.items["chat:context_max_input_tokens"]; exists {
+		t.Fatal("expected obsolete fixed input cap to be removed")
+	}
+	if got := repo.items["chat:context_window_fallback_tokens"].Value; got != strconv.Itoa(config.DefaultContextWindowFallbackTokens) {
+		t.Fatalf("fallback window = %q, want %d", got, config.DefaultContextWindowFallbackTokens)
+	}
+	if got := repo.items["chat:context_compact_trigger_percent"].Value; got != strconv.Itoa(config.DefaultContextCompactTriggerPercent) {
+		t.Fatalf("trigger percent = %q, want %d", got, config.DefaultContextCompactTriggerPercent)
+	}
+}
+
 func TestSeedAddsMistralOCRDefaults(t *testing.T) {
 	repo := newSettingsSeedRepo()
 	service := NewService(repo, "test-data-encryption-key")

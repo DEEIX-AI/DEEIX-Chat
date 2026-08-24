@@ -41,6 +41,7 @@ func (m *Module) RegisterRoutes(authRequired *gin.RouterGroup) {
 	authRequired.POST("/conversations/:id/media/videos/generations/stream", m.Handler.StreamVideoGeneration)
 	authRequired.POST("/conversations/:id/media/videos/extensions/stream", m.Handler.StreamVideoExtension)
 	authRequired.GET("/context-artifacts/:id", m.Handler.GetContextArtifact)
+	authRequired.GET("/conversation-runs/stream", m.Handler.StreamActiveMessageGenerations)
 	authRequired.GET("/conversation-runs/:run_id/stream", m.Handler.ResumeMessageGenerationStream)
 	authRequired.POST("/conversation-runs/:run_id/cancel", m.Handler.CancelMessageGeneration)
 	authRequired.PATCH("/messages/:id", m.Handler.UpdateMessage)

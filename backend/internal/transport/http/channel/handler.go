@@ -1011,6 +1011,8 @@ func (h *Handler) CreateModel(c *gin.Context) {
 			response.Error(c, http.StatusConflict, "platform model name already exists")
 		case errors.Is(err, appchannel.ErrInvalidJSONConfig):
 			response.Error(c, http.StatusBadRequest, "invalid json config")
+		case errors.Is(err, appchannel.ErrInvalidModelCapsConfig):
+			response.Error(c, http.StatusBadRequest, "invalid model capability limits")
 		case errors.Is(err, appchannel.ErrInvalidKinds):
 			response.Error(c, http.StatusBadRequest, "invalid kinds")
 		case errors.Is(err, appchannel.ErrInvalidModelAccessScope):
@@ -1084,6 +1086,8 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, "model not found")
 		case errors.Is(err, appchannel.ErrInvalidJSONConfig):
 			response.Error(c, http.StatusBadRequest, "invalid json config")
+		case errors.Is(err, appchannel.ErrInvalidModelCapsConfig):
+			response.Error(c, http.StatusBadRequest, "invalid model capability limits")
 		case errors.Is(err, appchannel.ErrInvalidKinds):
 			response.Error(c, http.StatusBadRequest, "invalid kinds")
 		case errors.Is(err, appchannel.ErrInvalidModelAccessScope):

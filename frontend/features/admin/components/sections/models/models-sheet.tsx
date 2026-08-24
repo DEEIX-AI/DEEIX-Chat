@@ -60,11 +60,15 @@ import {
   createAdminLLMModel,
   getAdminReferenceData,
   invalidateAdminReferenceDataCache,
+  listAdminSettingsByNamespace,
   listAdminLLMModelUpstreamSources,
   listAdminLLMUpstreamModels,
   listAdminLLMUpstreams,
   updateAdminLLMModel,
 } from "@/features/admin/api";
+import { getAdminOpenRouterOfficialPricing } from "@/features/admin/api/billing";
+import type { AdminOfficialPricingCatalogItemDTO } from "@/features/admin/api/billing.types";
+import { resolveAutomaticModelContextWindow } from "@/features/admin/model/openrouter-model-catalog";
 import {
   listModelPermissionGroups,
   listPermissionGroups,
@@ -110,6 +114,11 @@ import {
   normalizeModelCapabilitiesJSON,
   setImageStreamEnabledInCapabilities,
 } from "@/features/admin/components/sections/models/models-capabilities-config";
+import {
+  modelContextWindowOverride,
+  setAutomaticModelContextWindowInCapabilities,
+  setModelContextWindowInCapabilities,
+} from "@/features/admin/model/model-context-window";
 import type { NativeToolDefinition } from "@/shared/lib/model-option-policy";
 import {
   DEFAULT_MODEL_SOURCE_BIND_DRAFT,
@@ -120,6 +129,7 @@ import {
   uniqueUpstreamModels,
 } from "@/features/admin/model/models-source-binding";
 import { PermissionGroupSelector } from "@/features/admin/components/sections/groups/permission-group-selector";
+import { ModelContextWindowField } from "@/features/admin/components/sections/models/model-context-window-field";
 import { ModelIconField } from "@/features/admin/components/sections/models/model-icon-field";
 
 // ---------------------------------------------------------------------------
@@ -143,6 +153,11 @@ type FormState = {
   cbWindowMin: string;
 };
 
+type OpenRouterCatalogState = {
+  status: "idle" | "loaded" | "unavailable";
+  items: AdminOfficialPricingCatalogItemDTO[];
+};
+
 type VendorOption = {
   value: AdminLLMModelVendor;
   label: string;
@@ -151,6 +166,22 @@ type VendorOption = {
 
 const UNKNOWN_VENDOR = "unknown";
 const FOLLOW_VENDOR_GROUP = "vendor";
+
+function normalizeModelIdentityPart(value: string | null | undefined): string {
+  return value?.normalize("NFKC").trim().toLowerCase() ?? "";
+}
+
+function isSameContextWindowTarget(
+  target: AdminLLMModelDTO | null,
+  platformModelName: string,
+  vendor: string,
+): boolean {
+  return Boolean(
+    target
+    && normalizeModelIdentityPart(platformModelName) === normalizeModelIdentityPart(target.platformModelName)
+    && normalizeModelIdentityPart(vendor) === normalizeModelIdentityPart(target.vendor),
+  );
+}
 
 const IMAGE_MEDIA_PROTOCOLS = new Set([
   "openai_image_generations",
@@ -280,6 +311,12 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
   const sheetContentRef = useRef<HTMLDivElement | null>(null);
   const [nativeTools, setNativeTools] = useState<NativeToolDefinition[]>([]);
   const [capabilitySourceModels, setCapabilitySourceModels] = useState<AdminLLMModelDTO[]>(models);
+  const [openRouterCatalog, setOpenRouterCatalog] = useState<OpenRouterCatalogState>({
+    status: "idle",
+    items: [],
+  });
+  const openRouterCatalogRequestRef = useRef<Promise<AdminOfficialPricingCatalogItemDTO[] | null> | null>(null);
+  const [contextWindowFallbackTokens, setContextWindowFallbackTokens] = useState(128_000);
   // Upstream sources for accordion
   const [sources, setSources] = useState<AdminLLMModelUpstreamSourceDTO[]>([]);
   const [sourcesLoading, setSourcesLoading] = useState(false);
@@ -298,6 +335,77 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  const loadOpenRouterCatalog = useCallback(async (
+    accessToken?: string,
+  ): Promise<AdminOfficialPricingCatalogItemDTO[] | null> => {
+    if (openRouterCatalog.status === "loaded") {
+      return openRouterCatalog.items;
+    }
+    if (openRouterCatalogRequestRef.current) {
+      return openRouterCatalogRequestRef.current;
+    }
+    const request = (async () => {
+      try {
+        const token = accessToken ?? await resolveAccessToken();
+        if (!token) {
+          setOpenRouterCatalog({ status: "unavailable", items: [] });
+          return null;
+        }
+        const result = await getAdminOpenRouterOfficialPricing(token);
+        setOpenRouterCatalog({ status: "loaded", items: result.items });
+        return result.items;
+      } catch {
+        setOpenRouterCatalog({ status: "unavailable", items: [] });
+        return null;
+      } finally {
+        openRouterCatalogRequestRef.current = null;
+      }
+    })();
+    openRouterCatalogRequestRef.current = request;
+    return request;
+  }, [openRouterCatalog]);
+
+  const contextWindowOverride = useMemo(
+    () => modelContextWindowOverride(form.capabilitiesJSON),
+    [form.capabilitiesJSON],
+  );
+  const effectiveContextWindow = useMemo(() => {
+    if (contextWindowOverride !== null) {
+      return contextWindowOverride;
+    }
+    const targetUnchanged = isSameContextWindowTarget(target, form.platformModelName, form.vendor);
+    if (targetUnchanged && target?.contextWindow) {
+      return target.contextWindow;
+    }
+    if (openRouterCatalog.status === "loaded") {
+      const resolved = resolveAutomaticModelContextWindow(
+        openRouterCatalog.items,
+        form.platformModelName,
+        form.vendor,
+      );
+      if (resolved !== null) {
+        return resolved;
+      }
+    }
+    return contextWindowFallbackTokens;
+  }, [
+    contextWindowFallbackTokens,
+    contextWindowOverride,
+    form.platformModelName,
+    form.vendor,
+    openRouterCatalog,
+    target,
+  ]);
+  function updateContextWindowOverride(value: number | null): boolean {
+    const nextValue = setModelContextWindowInCapabilities(form.capabilitiesJSON, value);
+    if (nextValue === null) {
+      toast.error(t("sheet.capabilitiesQuick.invalidJSON"));
+      return false;
+    }
+    setField("capabilitiesJSON", nextValue);
+    return true;
   }
 
   function toggleKind(kind: string) {
@@ -671,6 +779,37 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
   }, [mode, open, target]);
 
   useEffect(() => {
+    if (!open || openRouterCatalog.status !== "idle") {
+      return;
+    }
+    void loadOpenRouterCatalog();
+  }, [loadOpenRouterCatalog, open, openRouterCatalog.status]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await resolveAccessToken();
+        if (!token) return;
+        const settings = await listAdminSettingsByNamespace(token, "chat");
+        const rawValue = settings.find((item) => item.key === "context_window_fallback_tokens")?.value;
+        const parsedValue = Number(rawValue);
+        if (!cancelled && Number.isSafeInteger(parsedValue) && parsedValue >= 4_096 && parsedValue <= 16_000_000) {
+          setContextWindowFallbackTokens(parsedValue);
+        }
+      } catch {
+        // 设置读取失败时保留系统默认值；已有模型仍优先使用后端返回的生效窗口。
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
     if (open && mode === "create" && !upstreamsLoaded && !upstreamsLoading) {
       void loadUpstreams();
     }
@@ -702,6 +841,45 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
     setPending(true);
     try {
       const token = await resolveAccessToken();
+      let capabilitiesJSON = form.capabilitiesJSON;
+      if (contextWindowOverride === null) {
+        const catalog = openRouterCatalog.status === "loaded"
+          ? openRouterCatalog.items
+          : await loadOpenRouterCatalog(token);
+        if (catalog) {
+          const catalogContextWindow = resolveAutomaticModelContextWindow(
+            catalog,
+            form.platformModelName,
+            form.vendor,
+          );
+          const nextCapabilitiesJSON = setAutomaticModelContextWindowInCapabilities(
+            capabilitiesJSON,
+            catalogContextWindow,
+          );
+          if (nextCapabilitiesJSON === null) {
+            toast.error(t("sheet.capabilitiesQuick.invalidJSON"));
+            return;
+          }
+          capabilitiesJSON = nextCapabilitiesJSON;
+        } else if (!isSameContextWindowTarget(target, form.platformModelName, form.vendor)) {
+          // 自动值只属于保存时匹配到的模型身份。切换型号或厂商后目录临时
+          // 不可用时必须移除旧值，由后端内置目录或全局回退值接管。
+          const nextCapabilitiesJSON = setAutomaticModelContextWindowInCapabilities(
+            capabilitiesJSON,
+            null,
+          );
+          if (nextCapabilitiesJSON === null) {
+            toast.error(t("sheet.capabilitiesQuick.invalidJSON"));
+            return;
+          }
+          capabilitiesJSON = nextCapabilitiesJSON;
+        }
+      }
+      const normalizedCapabilitiesJSON = normalizeModelCapabilitiesJSON(
+        capabilitiesJSON,
+        nativeTools,
+        routeProtocols,
+      );
       const kindsJson =
         form.kinds.length > 0 ? stringifyKinds(form.kinds) : undefined;
       const cbFailureThreshold = Math.max(
@@ -724,7 +902,7 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
           displayGroupID: form.displayGroupID === FOLLOW_VENDOR_GROUP ? undefined : Number(form.displayGroupID),
           kindsJSON: kindsJson,
           icon: form.icon.trim() || undefined,
-          capabilitiesJSON: normalizeModelCapabilitiesJSON(form.capabilitiesJSON, nativeTools, routeProtocols) || undefined,
+          capabilitiesJSON: normalizedCapabilitiesJSON || undefined,
           systemPrompt: form.systemPrompt.trim() || undefined,
           accessScope: form.accessScope,
           status: form.status,
@@ -773,7 +951,7 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
         displayGroupID: form.displayGroupID === FOLLOW_VENDOR_GROUP ? 0 : Number(form.displayGroupID),
         kindsJSON: kindsJson,
         icon: form.icon.trim(),
-        capabilitiesJSON: normalizeModelCapabilitiesJSON(form.capabilitiesJSON, nativeTools, routeProtocols),
+        capabilitiesJSON: normalizedCapabilitiesJSON,
         systemPrompt: form.systemPrompt.trim(),
         accessScope: form.accessScope,
         status: form.status,
@@ -1010,6 +1188,12 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
                   <p className="text-xs leading-5 text-muted-foreground">
                     {t("sheet.capabilitiesDescription")}
                   </p>
+                  <ModelContextWindowField
+                    value={contextWindowOverride}
+                    effectiveValue={effectiveContextWindow}
+                    disabled={pending}
+                    onChange={updateContextWindowOverride}
+                  />
                   {showImageStreamControl ? (
                     <div className="pb-1">
                       <label

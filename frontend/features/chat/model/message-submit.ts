@@ -98,6 +98,7 @@ function toPendingTraceBlock(block: TraceBlockDTO | undefined) {
     stage: block.stage,
     roundID: block.roundID,
     parentEventID: block.parentEventID,
+    startedAt: block.startedAt,
     updatedAt: block.updatedAt,
     payloadJson: block.payloadJSON,
   };

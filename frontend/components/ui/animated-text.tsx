@@ -9,6 +9,7 @@ type AnimatedTextProps = {
   className?: string;
   textClassName?: string;
   durationMs?: number;
+  scrollOverflow?: boolean;
 };
 
 type TextTransition = {
@@ -17,11 +18,102 @@ type TextTransition = {
   active: boolean;
 };
 
+function OverflowScrollingText({
+  text,
+  className,
+  textClassName,
+}: Pick<AnimatedTextProps, "text" | "className" | "textClassName">) {
+  const viewportRef = React.useRef<HTMLSpanElement | null>(null);
+  const [hovered, setHovered] = React.useState(false);
+
+  React.useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const hoverTarget = viewport.closest<HTMLElement>("[data-animated-text-scroll-trigger]") ?? viewport;
+    const handleMouseEnter = () => setHovered(true);
+    const handleMouseLeave = () => setHovered(false);
+
+    hoverTarget.addEventListener("mouseenter", handleMouseEnter);
+    hoverTarget.addEventListener("mouseleave", handleMouseLeave);
+    setHovered(hoverTarget.matches(":hover"));
+
+    return () => {
+      hoverTarget.removeEventListener("mouseenter", handleMouseEnter);
+      hoverTarget.removeEventListener("mouseleave", handleMouseLeave);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const overflowing = viewport.scrollWidth - viewport.clientWidth > 1;
+    if (!overflowing || !hovered || reducedMotion) {
+      viewport.scrollTo({ left: 0, behavior: !hovered && !reducedMotion ? "smooth" : "auto" });
+      return;
+    }
+    const pauseMs = 800;
+    const pixelsPerSecond = 28;
+    const direction = window.getComputedStyle(viewport).direction === "rtl" ? -1 : 1;
+    let frameID = 0;
+    let startedAt = 0;
+    const animate = (timestamp: number) => {
+      if (!startedAt) {
+        startedAt = timestamp;
+      }
+      const distance = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+      const travelMs = Math.max(1, (distance / pixelsPerSecond) * 1_000);
+      const cycleMs = pauseMs * 2 + travelMs * 2;
+      const elapsed = (timestamp - startedAt) % cycleMs;
+      const forwardEnd = pauseMs + travelMs;
+      const backwardStart = forwardEnd + pauseMs;
+      let offset = 0;
+      if (elapsed > pauseMs && elapsed <= forwardEnd) {
+        offset = ((elapsed - pauseMs) / travelMs) * distance;
+      } else if (elapsed > backwardStart) {
+        offset = distance * (1 - (elapsed - backwardStart) / travelMs);
+      } else if (elapsed > forwardEnd) {
+        offset = distance;
+      }
+      viewport.scrollLeft = offset * direction;
+      frameID = requestAnimationFrame(animate);
+    };
+    frameID = requestAnimationFrame(animate);
+    return () => {
+      cancelAnimationFrame(frameID);
+    };
+  }, [hovered, text]);
+
+  return (
+    <span
+      ref={viewportRef}
+      className={cn(
+        "no-scrollbar scroll-fade-x scroll-fade-8 block min-w-0 overflow-x-hidden whitespace-nowrap",
+        className,
+      )}
+      aria-label={text}
+    >
+      <span
+        aria-hidden="true"
+        className={cn("block w-max whitespace-nowrap", textClassName)}
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
 export function AnimatedText({
   text,
   className,
   textClassName,
   durationMs = 180,
+  scrollOverflow = false,
 }: AnimatedTextProps) {
   const currentTextRef = React.useRef(text);
   const frameRef = React.useRef<number | null>(null);
@@ -66,6 +158,15 @@ export function AnimatedText({
   }, [durationMs, text]);
 
   if (!transition) {
+    if (scrollOverflow) {
+      return (
+        <OverflowScrollingText
+          text={text}
+          className={className}
+          textClassName={textClassName}
+        />
+      );
+    }
     return (
       <span className={cn("block min-w-0 truncate", className)}>
         <span className={cn("block truncate", textClassName)}>{text}</span>

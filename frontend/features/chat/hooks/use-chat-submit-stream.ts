@@ -57,6 +57,9 @@ export function useChatSubmitStream({
   activeGenerationRunsRef,
   activeGenerationRunsRevision,
   onActiveGenerationRunsChange,
+  onConversationRunDetached,
+  onConversationRunFinished,
+  onConversationRunStarted,
   resumeGenerationActive,
 }: {
   conversationID: string | null;
@@ -98,6 +101,9 @@ export function useChatSubmitStream({
   activeGenerationRunsRef?: React.RefObject<Set<string>>;
   activeGenerationRunsRevision: number;
   onActiveGenerationRunsChange?: () => void;
+  onConversationRunDetached?: (runID: string) => void;
+  onConversationRunFinished?: (runID: string) => void;
+  onConversationRunStarted?: (runID: string, conversationPublicID: string) => void;
   resumeGenerationActive?: boolean;
 }) {
   const streamBuffer = useChatStreamBuffer({
@@ -150,6 +156,9 @@ export function useChatSubmitStream({
     activeGenerationRunsRef,
     activeGenerationRunsRevision,
     onActiveGenerationRunsChange,
+    onConversationRunDetached,
+    onConversationRunFinished,
+    onConversationRunStarted,
     resumeGenerationActive,
   });
 

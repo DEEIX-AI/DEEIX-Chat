@@ -1,6 +1,8 @@
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
 
+import { CODE_BLOCK_PLAIN_TEXT_MIME } from "@/shared/lib/clipboard";
+
 type ClipboardMarkdownPaste = {
   block: boolean;
   markdown: string;
@@ -115,6 +117,9 @@ function resolveRichTextMarkdownPaste(clipboardData: DataTransfer): ClipboardMar
 }
 
 export function resolveClipboardMarkdownPaste(clipboardData: DataTransfer): ClipboardMarkdownPaste | null {
+  if (clipboardData.getData(CODE_BLOCK_PLAIN_TEXT_MIME)) {
+    return null;
+  }
   if (clipboardData.getData(VSCODE_EDITOR_DATA_MIME)) {
     return resolveVSCodeCodePaste(clipboardData);
   }

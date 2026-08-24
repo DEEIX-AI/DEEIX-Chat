@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Archive, PencilLine, Trash, type LucideIcon } from "lucide-react";
+import { Archive, Loader2Icon, PencilLine, Trash, type LucideIcon } from "lucide-react";
 import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
 
@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SIDEBAR_TRANSFER_TRANSITION } from "@/features/layouts/model/sidebar-motion";
+import { useConversationRunning } from "@/features/chat";
 import { ConversationProjectSubmenu } from "@/shared/components/conversation-project-submenu";
 import { ConversationShareExportSubmenu } from "@/shared/components/conversation-share-export-menu";
 import { ConversationLabelsMenuItem } from "@/entities/conversation";
@@ -73,8 +74,37 @@ type SidebarConversationItemProps = {
   onShare?: (publicID: string, title: string) => void;
   onExport?: (publicID: string) => void | Promise<void>;
   onDelete: (publicID: string, title: string) => void;
-  onNavigate?: (url: string, event: React.MouseEvent<HTMLAnchorElement>) => void;
+  onNavigate?: (conversationID: string, url: string, event: React.MouseEvent<HTMLAnchorElement>) => void;
 };
+
+const SidebarConversationRunIndicator = React.memo(function SidebarConversationRunIndicator({
+  running,
+  hidden,
+}: {
+  running: boolean;
+  hidden: boolean;
+}) {
+  const runtimeT = useTranslations("common.runtime.status");
+  if (!running) {
+    return null;
+  }
+  return (
+    <span
+      className={cn(
+        "pointer-events-none absolute right-0 flex size-8 items-center justify-center text-sidebar-foreground/45 opacity-100 transition-opacity duration-150 group-hover/conversation-row:opacity-0",
+        hidden && "opacity-0",
+      )}
+    >
+      <span
+        role="status"
+        aria-label={runtimeT("running")}
+        className="inline-flex size-3.5 shrink-0 animate-spin will-change-transform [animation-duration:1.6s] [animation-timing-function:linear]"
+      >
+        <Loader2Icon aria-hidden className="size-full" />
+      </span>
+    </span>
+  );
+});
 
 export function SidebarConversationItem({
   item,
@@ -102,6 +132,7 @@ export function SidebarConversationItem({
 }: SidebarConversationItemProps) {
   const t = useTranslations("recent.row");
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const running = useConversationRunning(item.publicID);
   const labels = React.useMemo(
     () => parseConversationLabelsJSON(item.labelsJSON ?? "[]"),
     [item.labelsJSON],
@@ -164,19 +195,32 @@ export function SidebarConversationItem({
           : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         rowClassName,
       )}
+      data-animated-text-scroll-trigger
     >
       <Link
         href={item.url}
         prefetch={false}
-        className={cn("flex h-full min-w-0 flex-1 items-center pl-2 pr-9", linkClassName)}
-        onClick={(event) => onNavigate?.(item.url, event)}
+        className={cn(
+          "flex h-full min-w-0 flex-1 items-center pl-2",
+          running || isMenuOpen
+            ? "pr-9"
+            : "pr-2 group-hover/conversation-row:pr-9",
+          linkClassName,
+        )}
+        onClick={(event) => onNavigate?.(item.publicID, item.url, event)}
       >
         <AnimatedText
           text={item.title}
           className="flex-1"
           textClassName="text-current"
+          scrollOverflow
         />
       </Link>
+
+      <SidebarConversationRunIndicator
+        running={running}
+        hidden={isMenuOpen}
+      />
 
       <DropdownMenu modal={false} open={isMenuOpen} onOpenChange={setIsMenuOpen}>
         <DropdownMenuTrigger asChild>
@@ -188,7 +232,7 @@ export function SidebarConversationItem({
             aria-label={t("menu")}
             title={t("menu")}
             className={cn(
-              "absolute right-0 text-sidebar-foreground/45 opacity-0 transition-[color,opacity] duration-150 hover:bg-transparent hover:text-sidebar-foreground group-hover/conversation-row:opacity-100 group-focus-within/conversation-row:opacity-100 data-[state=open]:text-sidebar-foreground dark:hover:bg-transparent [&_svg]:pointer-events-auto",
+              "absolute right-0 text-sidebar-foreground/45 opacity-0 transition-[color,opacity] duration-150 hover:bg-transparent hover:text-sidebar-foreground focus-visible:opacity-100 group-hover/conversation-row:opacity-100 data-[state=open]:text-sidebar-foreground data-[state=open]:opacity-100 dark:hover:bg-transparent [&_svg]:pointer-events-auto",
               isMenuOpen && "opacity-100",
             )}
             onClick={(event) => {

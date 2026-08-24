@@ -17,6 +17,13 @@ type UseLayoutNavigationSearchOptions = {
 
 const NAVIGATION_SEARCH_DEBOUNCE_MS = 250;
 const NAVIGATION_SEARCH_PAGE_SIZE = 20;
+const DEFAULT_SEARCH_CACHE_TTL_MS = 30_000;
+
+type DefaultSearchCache = {
+  results: ConversationSearchResult[];
+  hasMore: boolean;
+  cachedAt: number;
+};
 
 function mergeSearchResults(
   current: ConversationSearchResult[],
@@ -41,14 +48,16 @@ export function useLayoutNavigationSearch({ untitled }: UseLayoutNavigationSearc
   const requestVersionRef = React.useRef(0);
   const loadingMoreRef = React.useRef(false);
   const loadMoreAbortRef = React.useRef<AbortController | null>(null);
+  const defaultSearchCacheRef = React.useRef<DefaultSearchCache | null>(null);
   const conversationPreview = useConversationSearchPreview(open);
 
   React.useEffect(() => {
     if (!open) {
+      const defaultSearchCache = defaultSearchCacheRef.current;
       setQuery("");
-      setResults([]);
+      setResults(defaultSearchCache?.results ?? []);
       setPage(1);
-      setHasMore(false);
+      setHasMore(defaultSearchCache?.hasMore ?? false);
       setLoading(false);
       setLoadingMore(false);
       setLoadFailed(false);
@@ -69,16 +78,29 @@ export function useLayoutNavigationSearch({ untitled }: UseLayoutNavigationSearc
 
     requestVersionRef.current += 1;
     const requestVersion = requestVersionRef.current;
-    setResults([]);
+    const defaultSearchCache = normalizedQuery ? null : defaultSearchCacheRef.current;
+    const hasDefaultSearchCache = Boolean(defaultSearchCache);
+    if (defaultSearchCache) {
+      setResults(defaultSearchCache.results);
+      setHasMore(defaultSearchCache.hasMore);
+    } else {
+      setResults([]);
+      setHasMore(false);
+    }
     setPage(1);
-    setHasMore(false);
-    setLoading(true);
+    setLoading(!hasDefaultSearchCache);
     setLoadingMore(false);
     setLoadFailed(false);
     setLoadMoreFailed(false);
     loadingMoreRef.current = false;
     loadMoreAbortRef.current?.abort();
     loadMoreAbortRef.current = null;
+    if (
+      defaultSearchCache &&
+      Date.now() - defaultSearchCache.cachedAt < DEFAULT_SEARCH_CACHE_TTL_MS
+    ) {
+      return;
+    }
     const abortController = new AbortController();
     const timer = window.setTimeout(() => {
       void (async () => {
@@ -88,7 +110,9 @@ export function useLayoutNavigationSearch({ untitled }: UseLayoutNavigationSearc
             return;
           }
           if (!token) {
-            setLoadFailed(true);
+            if (!defaultSearchCache) {
+              setLoadFailed(true);
+            }
             return;
           }
           const data = await searchConversations(token, {
@@ -101,13 +125,23 @@ export function useLayoutNavigationSearch({ untitled }: UseLayoutNavigationSearc
             return;
           }
           const nextResults = data.results ?? [];
-          setResults(nextResults.map((item) => toConversationSearchResult(item, untitled)));
+          const mappedResults = nextResults.map((item) => toConversationSearchResult(item, untitled));
+          if (!normalizedQuery) {
+            defaultSearchCacheRef.current = {
+              results: mappedResults,
+              hasMore: data.hasMore ?? false,
+              cachedAt: Date.now(),
+            };
+          }
+          setResults(mappedResults);
           setHasMore(data.hasMore ?? false);
         } catch {
           if (requestVersion === requestVersionRef.current) {
-            setResults([]);
-            setHasMore(false);
-            setLoadFailed(true);
+            if (!defaultSearchCache) {
+              setResults([]);
+              setHasMore(false);
+              setLoadFailed(true);
+            }
           }
         } finally {
           if (requestVersion === requestVersionRef.current) {
@@ -177,6 +211,7 @@ export function useLayoutNavigationSearch({ untitled }: UseLayoutNavigationSearc
   }, [hasMore, loading, normalizedQuery, open, page, untitled]);
 
   const retrySearch = React.useCallback(() => {
+    defaultSearchCacheRef.current = null;
     setRefreshRevision((current) => current + 1);
   }, []);
 

@@ -1,5 +1,30 @@
 basePath: /api/v1
 definitions:
+  ActiveMessageGenerationEventResponse:
+    properties:
+      conversationPublicID:
+        type: string
+      runID:
+        type: string
+      runs:
+        items:
+          $ref: '#/definitions/ActiveMessageGenerationResponse'
+        type: array
+      type:
+        type: string
+    required:
+    - type
+    type: object
+  ActiveMessageGenerationResponse:
+    properties:
+      conversationPublicID:
+        type: string
+      runID:
+        type: string
+    required:
+    - conversationPublicID
+    - runID
+    type: object
   ActiveSessionListResponse:
     properties:
       results:
@@ -4304,6 +4329,8 @@ definitions:
         type: string
       stage:
         type: string
+      startedAt:
+        type: string
       status:
         type: string
       summary:
@@ -4854,6 +4881,8 @@ definitions:
         type: string
       cbWindowMin:
         type: integer
+      contextWindow:
+        type: integer
       createdAt:
         type: string
       description:
@@ -4902,6 +4931,7 @@ definitions:
     - cbFailureThreshold
     - cbPolicyMode
     - cbWindowMin
+    - contextWindow
     - createdAt
     - description
     - displayGroupID
@@ -5207,15 +5237,21 @@ definitions:
     properties:
       canonicalSlug:
         type: string
+      contextLength:
+        type: integer
       id:
         type: string
+      maxCompletionTokens:
+        type: integer
       name:
         type: string
       pricing:
         $ref: '#/definitions/OpenRouterOfficialPricingUnitPricingResponse'
     required:
     - canonicalSlug
+    - contextLength
     - id
+    - maxCompletionTokens
     - name
     - pricing
     type: object
@@ -9761,7 +9797,8 @@ paths:
     get:
       consumes:
       - application/json
-      description: 从 storage 缓存读取 OpenRouter 模型定价；缓存不存在、过期或 refresh=true 时由后端刷新。
+      description: 从 storage 缓存读取 OpenRouter 模型标识、定价和上下文限制；缓存不存在、过期或 refresh=true
+        时由后端刷新。
       parameters:
       - description: 强制刷新缓存
         in: query
@@ -9784,7 +9821,7 @@ paths:
             $ref: '#/definitions/BillingErrorDoc'
       security:
       - BearerAuth: []
-      summary: 管理员获取 OpenRouter 官方模型定价
+      summary: 管理员获取 OpenRouter 官方模型目录
       tags:
       - admin-billing
   /admin/billing/plans/{id}:
@@ -15393,6 +15430,26 @@ paths:
       summary: 恢复流式生成订阅
       tags:
       - chat
+  /conversation-runs/stream:
+    get:
+      description: Sends an authoritative snapshot followed by live user-scoped run
+        state events
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ActiveMessageGenerationEventResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: Stream active conversation generations
+      tags:
+      - chat
   /conversations:
     get:
       consumes:
@@ -15789,7 +15846,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: 将会话从开头到指定消息（含）的祖先链复制为一个新会话；不携带原会话的运行记录与计费，附件以引用方式复用
+      description: 仅允许从助手消息 fork；将会话从开头到指定助手消息（含）的祖先链复制为一个新会话，保留历史展示轨迹；不携带原会话的运行记录与计费，附件以引用方式复用
       parameters:
       - description: 会话 public_id
         in: path

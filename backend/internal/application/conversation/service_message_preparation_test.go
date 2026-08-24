@@ -32,8 +32,8 @@ func (r *rejectedMessageRepositoryStub) GetConversationByUser(_ context.Context,
 	return &item, nil
 }
 
-func (r *rejectedMessageRepositoryStub) ListRecentMessages(context.Context, uint, int) ([]model.Message, int64, error) {
-	return nil, 0, nil
+func (r *rejectedMessageRepositoryStub) ListLatestBranchPreviewMessages(context.Context, uint, int, int) ([]model.Message, error) {
+	return nil, nil
 }
 
 func (r *rejectedMessageRepositoryStub) CreateMessagePairWithUserAttachments(

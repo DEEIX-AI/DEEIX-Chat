@@ -49,7 +49,7 @@ type CreateForkedConversationInput struct {
 	Messages             []ForkConversationMessage
 }
 
-// ConversationForkRepository 封装新会话、消息链和附件引用的原子复制能力。
+// ConversationForkRepository 封装新会话、消息链、附件引用和历史展示轨迹的原子复制能力。
 type ConversationForkRepository interface {
 	CreateForkedConversation(ctx context.Context, input CreateForkedConversationInput) error
 }
@@ -114,17 +114,14 @@ type MessageRepository interface {
 	InterruptPendingAssistantMessageByRunID(ctx context.Context, userID uint, runID string, errorCode string, errorMessage string) (bool, error)
 	UpdateAssistantMessageCompletion(ctx context.Context, messageID uint, update AssistantMessageCompletionUpdate) error
 	UpdateMessageBilling(ctx context.Context, messageID uint, billedCurrency string, billedNanousd int64, pricingSnapshot string) error
-	SumMessageTokens(ctx context.Context, conversationID uint) (int64, error)
 	ListMessages(ctx context.Context, conversationID uint, offset int, limit int) ([]domainconversation.Message, int64, error)
 	ListMessagesBeforeID(ctx context.Context, conversationID uint, beforeID uint, limit int) ([]domainconversation.Message, int64, error)
 	ListAllMessages(ctx context.Context, conversationID uint) ([]domainconversation.Message, error)
 	ListMessagesForShare(ctx context.Context, conversationID uint, publicIDs []string) ([]domainconversation.Message, error)
 	ListRecentMessages(ctx context.Context, conversationID uint, limit int) ([]domainconversation.Message, int64, error)
 	GetMessageByID(ctx context.Context, conversationID uint, messageID uint) (*domainconversation.Message, error)
-	GetLatestMessage(ctx context.Context, conversationID uint) (*domainconversation.Message, error)
 	ListMessageAncestors(ctx context.Context, conversationID uint, leafMessageID uint, maxDepth int) ([]domainconversation.Message, error)
 	ListLatestBranchPreviewMessages(ctx context.Context, conversationID uint, maxDepth int, limit int) ([]domainconversation.Message, error)
-	ListMessageAncestorsUntil(ctx context.Context, conversationID uint, leafMessageID uint, stopMessageID uint, maxDepth int) ([]domainconversation.Message, bool, error)
 }
 
 // MessageFeedbackRepository 封装消息反馈能力。

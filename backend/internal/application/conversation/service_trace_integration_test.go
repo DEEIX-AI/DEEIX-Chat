@@ -63,3 +63,65 @@ func TestCanceledTraceSettlementPersistsCompleteReasoningForReload(t *testing.T)
 		t.Fatalf("reloaded reasoning status = %q, want %q", trace.UpstreamThink.Status, messageTraceStatusError)
 	}
 }
+
+func TestToolTraceRoundsSurviveReload(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:trace_tool_rounds?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&persistencemodels.ChatRunEvent{}); err != nil {
+		t.Fatalf("migrate trace table: %v", err)
+	}
+
+	repo := persistenceconversation.NewRepo(db)
+	cfg := config.Config{
+		ProcessTraceEnabled:            true,
+		ProcessTraceVisibleToUser:      true,
+		ProcessTraceStoreUpstreamThink: true,
+	}
+	service := &Service{cfg: config.NewRuntime(cfg), repo: repo}
+	assistant := &model.Message{
+		ID:             42,
+		ConversationID: 17,
+		UserID:         9,
+		RunID:          "run_tool_round_reload",
+		Role:           "assistant",
+	}
+	recorder := newMessageTraceRecorder(service, context.Background(), assistant, nil)
+
+	appendRound := func(callID string) {
+		summary, markdown, payload := buildToolTrace([]model.ToolCall{{
+			ToolCallID: callID,
+			ToolName:   "web_search",
+			Status:     "success",
+			InputJSON:  `{"query":"test"}`,
+			OutputJSON: `{"ok":true}`,
+		}})
+		recorder.appendToolSection(summary, markdown, payload, messageTraceStatusCompleted)
+		recorder.completeTools()
+	}
+	appendRound("call_1")
+	appendRound("call_2")
+	recorder.complete()
+
+	reloaded := []model.Message{{ID: assistant.ID, Role: "assistant"}}
+	if err := service.hydrateMessageProcessTraces(context.Background(), reloaded); err != nil {
+		t.Fatalf("hydrate persisted trace: %v", err)
+	}
+	trace := reloaded[0].ProcessTrace
+	if trace == nil {
+		t.Fatal("expected persisted trace")
+	}
+	toolEvents := make([]model.MessageTraceEvent, 0, 2)
+	for _, event := range trace.Events {
+		if event.EventType == "tool" {
+			toolEvents = append(toolEvents, event)
+		}
+	}
+	if len(toolEvents) != 2 {
+		t.Fatalf("expected two persisted tool rounds, got %#v", trace.Events)
+	}
+	if toolEvents[0].RoundID == toolEvents[1].RoundID {
+		t.Fatalf("expected distinct persisted round identities, got %#v", toolEvents)
+	}
+}

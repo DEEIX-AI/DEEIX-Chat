@@ -434,7 +434,7 @@ export function parseStreamdownSegments(
   segments.push({
     type: "thinking",
     content: thinkingBlock.content,
-    incomplete: false,
+    incomplete: thinkingBlock.incomplete,
   });
 
   const tail = normalizedSource.slice(thinkingBlock.end);
@@ -448,7 +448,9 @@ export function parseStreamdownSegments(
   return segments;
 }
 
-function parseLeadingThinkingBlock(source: string): { content: string; end: number } | null {
+function parseLeadingThinkingBlock(
+  source: string,
+): { content: string; end: number; incomplete: boolean } | null {
   const firstContentIndex = source.search(/\S/);
   if (firstContentIndex < 0) {
     return null;
@@ -467,7 +469,11 @@ function parseLeadingThinkingBlock(source: string): { content: string; end: numb
   const contentStart = firstContentIndex + openingMatch[0].length;
   const closingMatch = new RegExp(`</${tagName}\\s*>`, "i").exec(source.slice(contentStart));
   if (!closingMatch) {
-    return null;
+    return {
+      content: source.slice(contentStart),
+      end: source.length,
+      incomplete: true,
+    };
   }
 
   const closeStart = contentStart + closingMatch.index;
@@ -475,5 +481,6 @@ function parseLeadingThinkingBlock(source: string): { content: string; end: numb
   return {
     content: source.slice(contentStart, closeStart),
     end: closeEnd,
+    incomplete: false,
   };
 }

@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 
 import { useSidebar } from "@/components/ui/sidebar";
+import { useLayoutConversationNavigation } from "@/features/layouts/context/layout-conversation-navigation-context";
 
 function shouldUseNativeNavigation(event: React.MouseEvent<HTMLAnchorElement>) {
   const target = event.currentTarget.getAttribute("target");
@@ -19,16 +20,18 @@ function shouldUseNativeNavigation(event: React.MouseEvent<HTMLAnchorElement>) {
 export function useSidebarConversationNavigation() {
   const router = useRouter();
   const { isMobile, setOpenMobile } = useSidebar();
+  const { beginConversationNavigation } = useLayoutConversationNavigation();
 
-  return React.useCallback((href: string, event: React.MouseEvent<HTMLAnchorElement>) => {
+  return React.useCallback((conversationID: string, href: string, event: React.MouseEvent<HTMLAnchorElement>) => {
     if (shouldUseNativeNavigation(event)) {
       return;
     }
 
     event.preventDefault();
+    beginConversationNavigation(conversationID);
     router.push(href);
     if (isMobile) {
       setOpenMobile(false);
     }
-  }, [isMobile, router, setOpenMobile]);
+  }, [beginConversationNavigation, isMobile, router, setOpenMobile]);
 }

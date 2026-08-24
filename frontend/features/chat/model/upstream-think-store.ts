@@ -31,15 +31,18 @@ function mergeContent(previous: string, event: UpstreamThinkDeltaEvent) {
 }
 
 function mergeUpstreamThinkBlock(current: ChatTraceBlock | undefined, event: UpstreamThinkDeltaEvent): ChatTraceBlock {
-  const contentMarkdown = mergeContent(current?.contentMarkdown ?? "", event);
+  const roundID = event.roundID || current?.roundID;
+  const roundChanged = Boolean(roundID && current?.roundID && roundID !== current.roundID);
+  const contentMarkdown = mergeContent(roundChanged ? "" : (current?.contentMarkdown ?? ""), event);
   return {
     title: event.title?.trim() || current?.title || "",
     summary: event.summary?.trim() || current?.summary || "",
     contentMarkdown,
     status: event.status || current?.status || "streaming",
     stage: event.stage || current?.stage || "think",
-    roundID: event.roundID || current?.roundID,
+    roundID,
     parentEventID: current?.parentEventID,
+    startedAt: !current || roundChanged ? nowISO() : current?.startedAt ?? nowISO(),
     updatedAt: nowISO(),
     payloadJson: current?.payloadJson,
   };

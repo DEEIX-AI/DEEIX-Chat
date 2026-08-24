@@ -135,6 +135,8 @@ type ChatAreaProps = {
   onExport?: () => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
   markdownRender?: boolean;
+  autoExpandThinking?: boolean;
+  autoExpandToolCalls?: boolean;
   showModelInfo?: boolean;
   showLatency?: boolean;
   showTokenUsage?: boolean;
@@ -291,6 +293,8 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onReactAssistantMessage,
   onOpenCodeArtifact,
   markdownRender,
+  autoExpandThinking,
+  autoExpandToolCalls,
   showModelInfo,
   showLatency,
   showTokenUsage,
@@ -322,6 +326,8 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onReactAssistantMessage: (publicID: string, reaction: AssistantReaction) => void;
   onOpenCodeArtifact?: (message: ChatAreaMessage, artifact: OpenCodeArtifactInput) => void;
   markdownRender: boolean;
+  autoExpandThinking: boolean;
+  autoExpandToolCalls: boolean;
   showModelInfo: boolean;
   showLatency: boolean;
   showTokenUsage: boolean;
@@ -384,7 +390,6 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         item={item}
         onRetryUserMessage={onRetryUserMessage}
         onEditUserMessage={onEditUserMessage}
-        onForkMessage={onForkMessage}
         modelOptions={modelOptions}
         selectedPlatformModelName={selectedPlatformModelName}
         onModelChange={onModelChange}
@@ -419,6 +424,8 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         }
         artifactActions={artifactActions}
         markdownRender={markdownRender}
+        autoExpandThinking={autoExpandThinking}
+        autoExpandToolCalls={autoExpandToolCalls}
         showModelInfo={showModelInfo}
         showLatency={showLatency}
         showTokenUsage={showTokenUsage}
@@ -448,6 +455,8 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   previous.busy === next.busy &&
   previous.reaction === next.reaction &&
   previous.markdownRender === next.markdownRender &&
+  previous.autoExpandThinking === next.autoExpandThinking &&
+  previous.autoExpandToolCalls === next.autoExpandToolCalls &&
   previous.showModelInfo === next.showModelInfo &&
   previous.showLatency === next.showLatency &&
   previous.showTokenUsage === next.showTokenUsage &&
@@ -503,6 +512,8 @@ export function ChatArea({
   onExport,
   onDelete,
   markdownRender = true,
+  autoExpandThinking = true,
+  autoExpandToolCalls = true,
   showModelInfo = true,
   showLatency = true,
   showTokenUsage = true,
@@ -671,6 +682,8 @@ export function ChatArea({
                       onReactAssistantMessage={stableOnReactAssistantMessage}
                       onOpenCodeArtifact={onOpenCodeArtifact}
                       markdownRender={markdownRender}
+                      autoExpandThinking={autoExpandThinking}
+                      autoExpandToolCalls={autoExpandToolCalls}
                       showModelInfo={showModelInfo}
                       showLatency={showLatency}
                       showTokenUsage={showTokenUsage}

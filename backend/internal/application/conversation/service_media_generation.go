@@ -230,7 +230,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 	}()
 	cancelCtx, cancel := context.WithCancel(ctx)
 	ctx = cancelCtx
-	s.generationStreams.register(ctx, runID, input.UserID, cancel)
+	s.generationStreams.register(ctx, runID, input.UserID, conversation.PublicID, cancel)
 
 	assistantMessage = &model.Message{
 		ConversationID: input.ConversationID,

@@ -45,12 +45,93 @@ func syncUpstreamOutputTrace(traceRecorder *messageTraceRecorder, output *llm.Ge
 	// 当本轮没有本地函数调用时，先记录工具再记录最终 reasoning，避免 UI 看起来缺少工具后的最后一次思考。
 	var serverToolRows []model.ToolCall
 	if shouldSyncServerToolsBeforeThinking(output) {
-		serverToolRows = syncUpstreamServerToolCalls(traceRecorder, output, runID)
+		serverToolRows = upstreamServerToolCallRows(output, runID)
+		appendUpstreamServerToolTrace(traceRecorder, serverToolRows)
 		return syncUpstreamOutputThinking(traceRecorder, output), serverToolRows
 	}
 	assistantText := syncUpstreamOutputThinking(traceRecorder, output)
-	serverToolRows = syncUpstreamServerToolCalls(traceRecorder, output, runID)
+	serverToolRows = upstreamServerToolCallRows(output, runID)
+	appendUpstreamServerToolTrace(traceRecorder, serverToolRows)
 	return assistantText, serverToolRows
+}
+
+// finalizeStreamingOutputTrace reconciles the final reasoning snapshot without
+// replaying trace events already emitted by the stream. Some adapters expose
+// server-side tools only in the final output; those rows are added exactly once
+// when no live server-tool event was observed for the call.
+func finalizeStreamingOutputTrace(traceRecorder *messageTraceRecorder, output *llm.GenerateOutput, runID string, observedServerTools map[string]string) {
+	if traceRecorder == nil || output == nil {
+		return
+	}
+	serverToolRows := unreconciledServerToolRows(upstreamServerToolCallRows(output, runID), observedServerTools)
+	if shouldSyncServerToolsBeforeThinking(output) {
+		appendUpstreamServerToolTrace(traceRecorder, serverToolRows)
+	}
+	if output.Reasoning != nil {
+		traceRecorder.reconcileStructuredThink(
+			output.Reasoning.Text,
+			output.Reasoning.Summary,
+			reasoningPayload(&llm.ReasoningDelta{
+				EventType:        "response.completed",
+				ItemID:           output.Reasoning.ItemID,
+				Status:           output.Reasoning.Status,
+				Kind:             messageTraceThinkKindContent,
+				EncryptedContent: output.Reasoning.EncryptedContent,
+			}),
+		)
+	}
+	traceRecorder.completeUpstreamThink()
+	if !shouldSyncServerToolsBeforeThinking(output) {
+		appendUpstreamServerToolTrace(traceRecorder, serverToolRows)
+	}
+}
+
+func observeServerTool(statuses map[string]string, call llm.ToolCall, status string) {
+	if statuses == nil {
+		return
+	}
+	key := serverToolTraceKey(call.ToolCallID, call.ToolType, call.ToolName)
+	if key == "" {
+		return
+	}
+	statuses[key] = normalizeStreamServerToolStatus(status)
+}
+
+func unreconciledServerToolRows(rows []model.ToolCall, observed map[string]string) []model.ToolCall {
+	if len(rows) == 0 {
+		return nil
+	}
+	pending := make([]model.ToolCall, 0, len(rows))
+	for _, row := range rows {
+		key := serverToolTraceKey(row.ToolCallID, row.ToolType, row.ToolName)
+		status, found := observed[key]
+		if found && isTerminalServerToolStatus(status) {
+			continue
+		}
+		pending = append(pending, row)
+	}
+	return pending
+}
+
+func serverToolTraceKey(toolCallID string, toolType string, toolName string) string {
+	if value := strings.TrimSpace(toolCallID); value != "" {
+		return "id:" + value
+	}
+	typeKey := strings.ToLower(strings.TrimSpace(toolType))
+	nameKey := strings.ToLower(strings.TrimSpace(toolName))
+	if typeKey == "" && nameKey == "" {
+		return ""
+	}
+	return "kind:" + typeKey + "\x00" + nameKey
+}
+
+func isTerminalServerToolStatus(status string) bool {
+	switch normalizeStreamServerToolStatus(status) {
+	case "success", "error":
+		return true
+	default:
+		return false
+	}
 }
 
 func outputReasoningContent(output *llm.GenerateOutput) string {
@@ -70,7 +151,7 @@ func shouldSyncServerToolsBeforeThinking(output *llm.GenerateOutput) bool {
 	return output != nil && len(output.ServerToolCalls) > 0 && len(output.ToolCalls) == 0
 }
 
-func syncUpstreamServerToolCalls(traceRecorder *messageTraceRecorder, output *llm.GenerateOutput, runID string) []model.ToolCall {
+func upstreamServerToolCallRows(output *llm.GenerateOutput, runID string) []model.ToolCall {
 	if output == nil || len(output.ServerToolCalls) == 0 {
 		return nil
 	}
@@ -98,11 +179,15 @@ func syncUpstreamServerToolCalls(traceRecorder *messageTraceRecorder, output *ll
 			ErrorJSON:  strings.TrimSpace(item.ErrorJSON),
 		})
 	}
-	if traceRecorder != nil {
-		summary, markdown, payload := buildToolTrace(rows)
-		traceRecorder.appendToolSection(summary, markdown, payload, messageTraceStatusCompleted)
-	}
 	return rows
+}
+
+func appendUpstreamServerToolTrace(traceRecorder *messageTraceRecorder, rows []model.ToolCall) {
+	if traceRecorder == nil || len(rows) == 0 {
+		return
+	}
+	summary, markdown, payload := buildToolTrace(rows)
+	traceRecorder.appendToolSection(summary, markdown, payload, messageTraceStatusCompleted)
 }
 
 func normalizeStreamServerToolStatus(status string) string {

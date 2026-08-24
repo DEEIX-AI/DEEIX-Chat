@@ -50,6 +50,30 @@ func (s promptScope) activeMessages() []model.Message {
 	return s.FullBranchMessages
 }
 
+// estimatePromptScopeTokens mirrors the exact rolling-snapshot scope that is
+// eligible for the next upstream request. Keeping this estimate beside
+// buildPromptScope prevents the hard-budget preflight from double-counting
+// covered history or overlooking the summary and image-token reserve.
+func estimatePromptScopeTokens(
+	messages []model.Message,
+	snapshot *model.ContextSnapshot,
+	policy contextCompactionPolicy,
+	includeReasoningContent bool,
+) int64 {
+	scope := buildPromptScope(messages, snapshot, policy)
+	activeMessages := scope.activeMessages()
+	imageTokenReserve := conversationImageTokenReserveByMessage(activeMessages)
+	var total int64
+	for index, message := range activeMessages {
+		total += estimateDomainMessageTokens(message, includeReasoningContent)
+		total += imageTokenReserve[index]
+	}
+	if scope.Snapshot != nil {
+		total += estimateTokens(scope.Snapshot.SummaryText)
+	}
+	return total
+}
+
 func (s promptScope) historicalMessageScope(conversationID uint, userID uint, currentMessageID uint) repository.HistoricalMessageScope {
 	if conversationID == 0 || userID == 0 || currentMessageID == 0 {
 		return repository.HistoricalMessageScope{}

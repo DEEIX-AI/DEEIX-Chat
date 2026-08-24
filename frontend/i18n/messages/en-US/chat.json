@@ -612,56 +612,37 @@
         "codeInterpreter": "Code interpreter",
         "imageGeneration": "Image generation",
         "shell": "Shell",
-        "generic": "Tool call",
-        "thinking": "Model thinking"
+        "generic": "Tool call"
       },
       "detail": {
+        "nameLabel": "Tool",
         "request": "Request",
         "response": "Response",
         "error": "Error",
-        "expand": "Expand",
-        "collapse": "Collapse",
+        "argumentsTitle": "Parameters",
+        "resultTitle": "Result",
+        "copy": "Copy",
+        "copied": "Copied",
+        "copyFailed": "Copy failed",
         "sourceFallback": "Source {index}",
         "generatedImageAlt": "Generated image {index}",
-        "query": "Query",
-        "action": "Action",
-        "source": "Source",
-        "code": "Code",
-        "output": "Output",
-        "resultFile": "Result file",
-        "prompt": "Prompt",
-        "command": "Command",
-        "latencySeparator": "; "
-      },
-      "nativeStatus": {
-        "webSearchActive": "Searching the web",
-        "webSearchDone": "Web search complete",
-        "webSearchFailed": "Web search failed",
-        "codeActive": "Running code",
-        "codeDone": "Code run complete",
-        "codeFailed": "Code run failed",
-        "imageActive": "Generating image",
-        "imageDone": "Image generation complete",
-        "imageFailed": "Image generation failed",
-        "shellActive": "Running shell command",
-        "shellDone": "Shell command complete",
-        "shellFailed": "Shell command failed",
-        "genericActive": "Calling tool",
-        "genericDone": "Tool call complete",
-        "genericFailed": "Tool call failed"
-      },
-      "chain": {
-        "titleActive": "Calling tools",
-        "titleDone": "Tool calls",
-        "summaryCount": "{count} tool calls",
-        "summaryFallback": "Tool calls"
+        "sourceCount": "{count} sources",
+        "groundingSupportCount": "{count} grounding supports",
+        "exitCode": "Exit code {code}"
       }
     },
     "think": {
-      "titleActive": "Thinking",
-      "titleDone": "Thinking complete",
-      "subtitleActive": "Parsing the request and organizing key context",
-      "subtitleDone": "Reasoning and context integration complete"
+      "rowActive": "Deep reasoning",
+      "rowDone": "Deep reasoning",
+      "duration": "{seconds}"
+    },
+    "run": {
+      "titleActive": "Running",
+      "titleDone": "Run complete",
+      "toolCalls": "{count} tool calls",
+      "thinkRounds": "{count} deep-reasoning rounds",
+      "duration": "{duration}",
+      "labelSeparator": " · "
     },
     "promptTrace": {
       "modes": {
@@ -703,7 +684,9 @@
       "summary": "Compacted turns {fromTurn}-{toTurn}",
       "detail": "Conversation context was compacted into a rolling summary.",
       "range": "Compacted range: turns {fromTurn}-{toTurn}.",
-      "tokens": "Token reduction: {sourceTokens} -> {summaryTokens}."
+      "tokens": "Token reduction: {sourceTokens} -> {summaryTokens}.",
+      "pending": "Generating a rolling summary in the background.",
+      "failed": "Context compaction did not complete and will be retried on a later request."
     }
   },
   "optionLabels": {

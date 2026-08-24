@@ -32,6 +32,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  durationBetweenMS,
+  firstDurationMS,
+  formatDurationMS,
+} from "@/features/chat/model/duration";
+import { useElapsedDurationMS } from "@/features/chat/hooks/use-elapsed-duration";
 import { resolvePersistedPublicID } from "@/features/chat/model/message-submit";
 import type { ChatBillingCost, ChatMessageBranchNavigator } from "@/features/chat/types/messages";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
@@ -288,7 +294,6 @@ export function UserMessageMeta({
   onRetry,
   onEdit,
   onCopy,
-  onFork,
   copySucceeded = false,
   readOnly = false,
   alwaysVisible = false,
@@ -300,7 +305,6 @@ export function UserMessageMeta({
   onRetry: () => void;
   onEdit: () => void;
   onCopy: () => void;
-  onFork?: () => Promise<void> | void;
   copySucceeded?: boolean;
   readOnly?: boolean;
   alwaysVisible?: boolean;
@@ -345,13 +349,6 @@ export function UserMessageMeta({
               <Copy size={14} strokeWidth={1.8} animateOnHover="default" />
             )}
           </MetaIconButton>
-          {hasPersistedMessage && onFork ? (
-            <ForkMessageButton
-              label={t("forkMessage")}
-              disabled={messagePending}
-              onFork={onFork}
-            />
-          ) : null}
         </div>
       ) : null}
       {canShowBranchNavigator ? <BranchSwitcher item={item} onCycle={onCycleBranch} /> : null}
@@ -408,84 +405,15 @@ function TokenMetric({ label, value, icon }: { label: string; value: number; ico
   );
 }
 
-function formatDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms <= 0) {
-    return "";
-  }
-  const wholeMS = Math.max(1, Math.floor(ms));
-  if (wholeMS <= 9999) {
-    return `${wholeMS}ms`;
-  }
-  return `${Math.floor(wholeMS / 1000)}s`;
-}
-
-function useLiveElapsedMS(enabled: boolean, createdAt?: string): number {
-  const [elapsedMS, setElapsedMS] = React.useState(0);
-
-  React.useEffect(() => {
-    if (!enabled) {
-      setElapsedMS(0);
-      return;
-    }
-    const startedAt = new Date(createdAt ?? "").getTime();
-    if (Number.isNaN(startedAt)) {
-      setElapsedMS(0);
-      return;
-    }
-
-    let frameID: number | null = null;
-    let timerID: number | null = null;
-
-    const tick = () => {
-      const nextElapsedMS = Math.max(0, Date.now() - startedAt);
-      setElapsedMS(nextElapsedMS);
-
-      if (nextElapsedMS < 9999) {
-        frameID = window.requestAnimationFrame(tick);
-        return;
-      }
-
-      const delayToNextSecond = Math.max(1, 1000 - (nextElapsedMS % 1000));
-      timerID = window.setTimeout(tick, delayToNextSecond);
-    };
-
-    tick();
-
-    return () => {
-      if (frameID !== null) {
-        window.cancelAnimationFrame(frameID);
-      }
-      if (timerID !== null) {
-        window.clearTimeout(timerID);
-      }
-    };
-  }, [createdAt, enabled]);
-
-  return enabled ? elapsedMS : 0;
-}
-
-function calculateElapsedMS(startedAt?: string, endedAt?: string): number {
-  if (!startedAt || !endedAt) {
-    return 0;
-  }
-  const startMS = new Date(startedAt).getTime();
-  const endMS = new Date(endedAt).getTime();
-  if (Number.isNaN(startMS) || Number.isNaN(endMS)) {
-    return 0;
-  }
-  return Math.max(0, endMS - startMS);
-}
-
 function LatencyBadge({ item }: { item: ChatMetaMessage }) {
   const t = useTranslations("chat.meta");
   const isLive = Boolean(item.isPending || item.isStreaming);
-  const liveLatencyMS = useLiveElapsedMS(isLive, item.createdAt);
-  const storedLatencyMS = item.latencyMS && item.latencyMS > 0 ? item.latencyMS : 0;
-  const calculatedLatencyMS = calculateElapsedMS(item.createdAt, item.updatedAt);
+  const liveLatencyMS = useElapsedDurationMS(isLive, item.createdAt);
+  const calculatedLatencyMS = durationBetweenMS(item.createdAt, item.updatedAt);
   const latencyMS = isLive
-    ? liveLatencyMS || calculatedLatencyMS || storedLatencyMS
-    : storedLatencyMS || calculatedLatencyMS;
-  const label = formatDuration(latencyMS);
+    ? firstDurationMS(liveLatencyMS, calculatedLatencyMS, item.latencyMS)
+    : firstDurationMS(item.latencyMS, calculatedLatencyMS);
+  const label = formatDurationMS(latencyMS);
   if (!label) {
     return null;
   }
@@ -1053,7 +981,7 @@ export function AssistantMessageMeta({
     (
       isLive ||
       (item.latencyMS && item.latencyMS > 0) ||
-      calculateElapsedMS(item.createdAt, item.updatedAt) > 0
+      durationBetweenMS(item.createdAt, item.updatedAt) !== undefined
     ),
   );
   const hasDetailBadges = Boolean(

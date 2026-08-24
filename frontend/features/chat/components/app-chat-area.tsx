@@ -51,7 +51,6 @@ import type { ConversationDTO, ConversationOptions } from "@/shared/api/conversa
 import type { FileObjectDTO } from "@/shared/api/file.types";
 import { listAvailableMCPTools } from "@/shared/api/mcp";
 import type { MCPToolDTO } from "@/shared/api/mcp.types";
-import { getUserSettings, patchUserSettings } from "@/shared/api/user-settings";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { DeleteFilesOption } from "@/shared/components/delete-files-option";
 import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
@@ -60,6 +59,10 @@ import {
   normalizeImageAttachmentProcessorSelection,
 } from "@/shared/lib/mcp-tool-selection";
 import { resolveChatContentWidthClassName } from "@/shared/model/chat-content-width";
+import {
+  updateUserSettings,
+  useUserSettings,
+} from "@/shared/model/user-settings-store";
 
 const MODEL_OPTIONS_STORAGE_PREFIX = "deeix-chat:chat-model-options:";
 const DEFAULT_MCP_TOOLS_SETTING_KEY = "chat.default_mcp_tool_ids";
@@ -170,7 +173,14 @@ export function AppChatArea() {
   const searchParams = useSearchParams();
   const routeConversationID = searchParams.get("conversation_id")?.trim() || null;
   const routeProjectID = searchParams.get("project_id")?.trim() || null;
-  const { newConversationRevision, newConversationProjectID: requestedNewConversationProjectID, requestNewConversation } = useChatSession();
+  const {
+    detachConversationRun,
+    finishConversationRun,
+    newConversationRevision,
+    newConversationProjectID: requestedNewConversationProjectID,
+    registerConversationRun,
+    requestNewConversation,
+  } = useChatSession();
   const [locallyCreatedConversationID, setLocallyCreatedConversationID] = React.useState<string | null>(null);
   const [newConversationOverride, setNewConversationOverride] = React.useState<{
     ignoredConversationID: string | null;
@@ -217,11 +227,14 @@ export function AppChatArea() {
     setActiveGenerationRunsRevision((current) => current + 1);
   }, []);
   const {
+    autoExpandThinking,
+    autoExpandToolCalls,
     autoGenerateLabels,
     deleteFilesByDefault,
     loaded: chatPreferencesLoaded,
     reuseModelOptions,
   } = useSettingsChatPreferences();
+  const { settings: userSettings, loaded: userSettingsLoaded } = useUserSettings();
   const {
     items,
     projects,
@@ -247,10 +260,12 @@ export function AppChatArea() {
     reload,
     replaceMessage,
     resumingActivityLabel,
+    resumingConversationID,
     resumingRunID,
   } = useChatData(conversationID, {
     activeGenerationRunsRef,
     activeGenerationRunsRevision,
+    onConversationRunFinished: finishConversationRun,
   });
   const { greetingTitle } = useChatViewerProfile();
   const [manualConversationTitle, setManualConversationTitle] = React.useState("");
@@ -550,24 +565,12 @@ export function AppChatArea() {
           }
           return;
         }
-        const [toolsResult, settings] = await Promise.all([
-          listAvailableMCPTools(token),
-          getUserSettings(token).catch(() => ({} as Record<string, string>)),
-        ]);
+        const toolsResult = await listAvailableMCPTools(token);
         if (cancelled) {
           return;
         }
         const tools = normalizeAvailableMCPTools(toolsResult);
-        const userDefaultToolIDs = normalizeImageAttachmentProcessorSelection(
-          filterAvailableMCPToolIDs(
-            parseDefaultMCPToolIDs(settings[DEFAULT_MCP_TOOLS_SETTING_KEY]),
-            tools,
-            mcpMaxSelectedTools,
-          ),
-          tools,
-        );
         setAvailableTools(tools);
-        setDefaultToolIDs(userDefaultToolIDs);
         setSelectedToolIDs((previous) => normalizeImageAttachmentProcessorSelection(
           filterAvailableMCPToolIDs(previous, tools, mcpMaxSelectedTools),
           tools,
@@ -590,6 +593,20 @@ export function AppChatArea() {
     };
   }, [conversationID, mcpMaxSelectedTools, setSelectedToolIDs]);
 
+  React.useEffect(() => {
+    if (!userSettingsLoaded) {
+      return;
+    }
+    setDefaultToolIDs(normalizeImageAttachmentProcessorSelection(
+      filterAvailableMCPToolIDs(
+        parseDefaultMCPToolIDs(userSettings[DEFAULT_MCP_TOOLS_SETTING_KEY]),
+        availableTools,
+        mcpMaxSelectedTools,
+      ),
+      availableTools,
+    ));
+  }, [availableTools, mcpMaxSelectedTools, userSettings, userSettingsLoaded]);
+
   const onDefaultToolIDsChange = React.useCallback(async (nextToolIDs: number[]) => {
     const nextDefaults = filterAvailableMCPToolIDs(nextToolIDs, availableTools, mcpMaxSelectedTools);
     if (hasMultipleImageAttachmentProcessors(nextDefaults, availableTools)) {
@@ -605,7 +622,7 @@ export function AppChatArea() {
       if (!token) {
         throw new Error(t("composer.sessionExpired"));
       }
-      await patchUserSettings(token, {
+      await updateUserSettings(token, {
         [DEFAULT_MCP_TOOLS_SETTING_KEY]: JSON.stringify(nextDefaults),
       });
       toast.success(t("composer.defaultMCPToolsSaved"));
@@ -684,9 +701,21 @@ export function AppChatArea() {
     activeGenerationRunsRef,
     activeGenerationRunsRevision,
     onActiveGenerationRunsChange,
+    onConversationRunDetached: detachConversationRun,
+    onConversationRunFinished: finishConversationRun,
+    onConversationRunStarted: registerConversationRun,
     resumingActivityLabel,
     resumingRunID,
   });
+  React.useEffect(() => {
+    const normalizedConversationID = resumingConversationID.trim();
+    const normalizedRunID = resumingRunID.trim();
+    if (!normalizedConversationID || !normalizedRunID) {
+      return;
+    }
+    registerConversationRun(normalizedRunID, normalizedConversationID);
+    return () => detachConversationRun(normalizedRunID);
+  }, [detachConversationRun, registerConversationRun, resumingConversationID, resumingRunID]);
   const generating = sending;
   const uploadDropDisabled = loading || uploading;
   const onStopActiveMessage = React.useCallback(() => {
@@ -1348,6 +1377,8 @@ export function AppChatArea() {
                   onExport={onExportActiveConversation}
                   onDelete={onRequestDeleteActiveConversation}
                   markdownRender={markdownRender}
+                  autoExpandThinking={autoExpandThinking}
+                  autoExpandToolCalls={autoExpandToolCalls}
                   showModelInfo={showModelInfo}
                   showLatency={showLatency}
                   showTokenUsage={showTokenUsage}

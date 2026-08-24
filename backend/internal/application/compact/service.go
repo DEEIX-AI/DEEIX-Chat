@@ -2,6 +2,7 @@ package compact
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -10,6 +11,7 @@ import (
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"go.uber.org/zap"
 )
@@ -25,8 +27,24 @@ type MaybeCompactConversationInput struct {
 	UserID              uint
 	RunID               string
 	Messages            []domainconversation.Message
+	ExistingSnapshot    *domainconversation.ContextSnapshot
 	PromptTokenEstimate int64
 	PlatformModelName   string
+	ContextModelName    string
+	CapabilitiesJSON    string
+	Force               bool
+}
+
+type compactionDecision struct {
+	messages               []domainconversation.Message
+	coveredMessages        []domainconversation.Message
+	contextModelName       string
+	resolvedCaps           llm.ResolvedModelCaps
+	effectiveContextBudget int
+	modelTriggerTokens     int64
+	observedTokens         int64
+	preserveTurns          int
+	strategy               string
 }
 
 // Service 封装会话压缩能力。
@@ -34,6 +52,10 @@ type Service struct {
 	cfg    *config.Runtime
 	repo   repository.CompactRepository
 	logger *zap.Logger
+
+	// 同一会话的发送后异步压缩可能与下一轮发送前压缩重叠。固定分片锁避免
+	// 单进程内重复生成或用较旧快照覆盖较新滚动摘要，同时不会随会话数量增长。
+	compactionLocks [64]sync.Mutex
 
 	// LLM 语义压缩（可选，由 conversation.Service 注入）
 	mu                     sync.RWMutex
@@ -87,41 +109,8 @@ func (s *Service) llmCircuitClosed() bool {
 	return atomic.LoadInt32(&s.consecutiveLLMFailures) < int32(maxFailures)
 }
 
-// ResolveContextMessageLimit 返回祖先链查询上限。
-func (s *Service) ResolveContextMessageLimit() int {
-	cfg := s.snapshot()
-	limit := cfg.MaxContextMessages * 2
-	compactLimit := cfg.ContextMaxTurns*2 + cfg.ContextCompactPreserve*2 + 8
-	if compactLimit > limit {
-		limit = compactLimit
-	}
-	if limit <= 0 {
-		return 40
-	}
-	if limit < 40 {
-		return 40
-	}
-	if limit > 1000 {
-		return 1000
-	}
-	return limit
-}
-
-// ResolveSnapshotBoundaryLookupLimit returns the bounded ancestor scan limit
-// used only when a valid snapshot boundary is outside the normal prompt window.
-func (s *Service) ResolveSnapshotBoundaryLookupLimit() int {
-	limit := s.ResolveContextMessageLimit() * 4
-	if limit < 200 {
-		limit = 200
-	}
-	if limit > 2000 {
-		limit = 2000
-	}
-	return limit
-}
-
 // MaybeCompactConversation 根据配置判断是否压缩会话上下文。
-// platformModelName 用于 Token 感知的阈值判断与 LLM 路由选择。
+// ContextModelName/CapabilitiesJSON 用于 Token 感知阈值，PlatformModelName 仅用于摘要模型路由。
 func (s *Service) MaybeCompactConversation(
 	ctx context.Context,
 	input MaybeCompactConversationInput,
@@ -129,49 +118,33 @@ func (s *Service) MaybeCompactConversation(
 	if s == nil || s.repo == nil {
 		return nil, nil
 	}
+	lock := &s.compactionLocks[input.ConversationID%uint(len(s.compactionLocks))]
+	lock.Lock()
+	defer lock.Unlock()
 
 	cfg := s.snapshot()
-	if !cfg.ContextCompactEnabled {
+	if !cfg.ContextCompactEnabled || len(input.Messages) == 0 {
 		return nil, nil
 	}
-	maxTurns := cfg.ContextMaxTurns
-	triggerTokens := cfg.ContextCompactTrigger
-	if maxTurns <= 0 && triggerTokens <= 0 {
+	existingSnapshot, snapshotErr := s.repo.GetLatestContextSnapshot(ctx, input.ConversationID)
+	if snapshotErr != nil && !errors.Is(snapshotErr, repository.ErrNotFound) {
+		s.logCompactionFailure(input, compactionDecision{contextModelName: strings.TrimSpace(input.ContextModelName)}, "load_snapshot", snapshotErr)
+		return nil, snapshotErr
+	}
+	input.ExistingSnapshot = existingSnapshot
+	decision, ok := resolveCompactionDecision(cfg, input)
+	if !ok {
 		return nil, nil
 	}
-	messages := append([]domainconversation.Message(nil), input.Messages...)
-	if len(messages) == 0 {
-		return nil, nil
-	}
-
-	turns := countUserTurns(messages)
-	messageTokens := estimateMessageTokenTotal(messages)
-	triggerTokenEstimate := messageTokens
-	if input.PromptTokenEstimate > triggerTokenEstimate {
-		triggerTokenEstimate = input.PromptTokenEstimate
-	}
-	strategy := ""
-	switch {
-	case maxTurns > 0 && turns > maxTurns:
-		strategy = "turn_cap"
-	case triggerTokens > 0 && triggerTokenEstimate > int64(triggerTokens):
-		strategy = "token_cap"
-	default:
-		return nil, nil
-	}
-
-	preserveTurns := cfg.ContextCompactPreserve
-	if preserveTurns <= 0 {
-		preserveTurns = 8
-	}
-	if turns <= preserveTurns {
-		return nil, nil
-	}
-
-	coveredMessages, retainedMessages := splitMessagesByPreservedTurns(messages, preserveTurns)
-	if len(coveredMessages) == 0 || len(retainedMessages) == 0 {
-		return nil, nil
-	}
+	messages := decision.messages
+	coveredMessages := decision.coveredMessages
+	contextModelName := decision.contextModelName
+	resolvedCaps := decision.resolvedCaps
+	effectiveContextBudget := decision.effectiveContextBudget
+	modelTriggerTokens := decision.modelTriggerTokens
+	triggerTokenEstimate := decision.observedTokens
+	preserveTurns := decision.preserveTurns
+	strategy := decision.strategy
 	fromTurn := 1
 	toTurn := countUserTurns(coveredMessages)
 	coveredMessageCount := len(coveredMessages)
@@ -180,7 +153,7 @@ func (s *Service) MaybeCompactConversation(
 
 	summarySourceMessages := coveredMessages
 	previousSummary := ""
-	if existing, existErr := s.repo.GetLatestContextSnapshot(ctx, input.ConversationID); existErr == nil {
+	if existing := input.ExistingSnapshot; existing != nil {
 		existingIndex, ok := SnapshotBoundaryIndex(messages, existing)
 		if !ok {
 			existingIndex, ok = SnapshotBoundaryAncestorIndex(messages, existing)
@@ -210,6 +183,20 @@ func (s *Service) MaybeCompactConversation(
 	if toTurn < fromTurn {
 		return nil, nil
 	}
+	if s.logger != nil {
+		s.logger.Info("context_compaction_started",
+			zap.Uint("conversation_id", input.ConversationID),
+			zap.String("run_id", input.RunID),
+			zap.String("strategy", strategy),
+			zap.String("context_model", contextModelName),
+			zap.String("model_caps_source", string(resolvedCaps.Source)),
+			zap.Int("context_window", resolvedCaps.ContextWindow),
+			zap.Int("effective_context_budget", effectiveContextBudget),
+			zap.Int64("model_trigger_tokens", modelTriggerTokens),
+			zap.Int64("observed_tokens", triggerTokenEstimate),
+			zap.Int("preserved_turns", preserveTurns),
+		)
+	}
 
 	summaryText := s.buildCompactionSummary(ctx, summarySourceMessages, previousSummary, strategy, fromTurn, toTurn, preserveTurns, input.PlatformModelName)
 	summaryTokens := estimateTokens(summaryText)
@@ -236,14 +223,174 @@ func (s *Service) MaybeCompactConversation(
 		Strategy:              strategy,
 	}
 	if err := s.repo.CreateContextSnapshot(ctx, snapshot); err != nil {
+		s.logCompactionFailure(input, decision, "create_snapshot", err)
 		return nil, err
 	}
 
 	if err := s.repo.UpdateConversationCompactedAt(ctx, input.ConversationID, time.Now()); err != nil {
+		s.logCompactionFailure(input, decision, "update_conversation", err)
 		return nil, err
+	}
+	if s.logger != nil {
+		s.logger.Info("context_compaction_completed",
+			zap.Uint("conversation_id", input.ConversationID),
+			zap.String("run_id", input.RunID),
+			zap.String("strategy", strategy),
+			zap.String("context_model", contextModelName),
+			zap.String("model_caps_source", string(resolvedCaps.Source)),
+			zap.Int("context_window", resolvedCaps.ContextWindow),
+			zap.Int("effective_context_budget", effectiveContextBudget),
+			zap.Int64("model_trigger_tokens", modelTriggerTokens),
+			zap.Int64("observed_tokens", triggerTokenEstimate),
+			zap.Int("preserved_turns", preserveTurns),
+			zap.Int64("source_tokens", sourceTokens),
+			zap.Int64("summary_tokens", summaryTokens),
+		)
 	}
 
 	return snapshot, nil
+}
+
+// ContextBudgetExceeded reports whether the active branch has crossed the
+// effective input budget of the selected model. Callers use this as a hard
+// preflight guard; ordinary proactive compaction still follows the configured
+// turn/token trigger and may run asynchronously after a successful response.
+func (s *Service) ContextBudgetExceeded(input MaybeCompactConversationInput) bool {
+	if s == nil || len(input.Messages) == 0 {
+		return false
+	}
+	contextModelName := strings.TrimSpace(input.ContextModelName)
+	if contextModelName == "" {
+		contextModelName = strings.TrimSpace(input.PlatformModelName)
+	}
+	observedTokens := compactionScopeTokenEstimate(input)
+	cfg := s.snapshot()
+	return observedTokens > int64(llm.EffectiveContextBudgetFromCapabilitiesWithFallback(
+		contextModelName,
+		input.CapabilitiesJSON,
+		cfg.ContextWindowFallbackTokens,
+	))
+}
+
+// ShouldCompactConversation performs the cheap trigger check without writing a
+// snapshot. It is used to avoid scheduling background work (and showing a
+// pending UI state) when neither the configured turn cap nor token cap applies.
+func (s *Service) ShouldCompactConversation(input MaybeCompactConversationInput) bool {
+	if s == nil {
+		return false
+	}
+	_, ok := resolveCompactionDecision(s.snapshot(), input)
+	return ok
+}
+
+// resolveCompactionDecision is the single trigger/planning path shared by the
+// pre-check and the writer. This prevents the pending UI state, strategy and
+// actual snapshot boundary from drifting as model-aware thresholds evolve.
+func resolveCompactionDecision(cfg config.Config, input MaybeCompactConversationInput) (compactionDecision, bool) {
+	if !cfg.ContextCompactEnabled || len(input.Messages) == 0 {
+		return compactionDecision{}, false
+	}
+	messages := append([]domainconversation.Message(nil), input.Messages...)
+	contextModelName := strings.TrimSpace(input.ContextModelName)
+	if contextModelName == "" {
+		contextModelName = strings.TrimSpace(input.PlatformModelName)
+	}
+	resolvedCaps := llm.ResolveModelCapsFromCapabilitiesWithFallback(contextModelName, input.CapabilitiesJSON, cfg.ContextWindowFallbackTokens)
+	effectiveContextBudget := llm.EffectiveContextBudgetFromCapabilitiesWithFallback(contextModelName, input.CapabilitiesJSON, cfg.ContextWindowFallbackTokens)
+	modelTriggerTokens := llm.CompactionThresholdFromCapabilitiesWithFallback(
+		contextModelName,
+		input.CapabilitiesJSON,
+		cfg.ContextWindowFallbackTokens,
+		cfg.ContextCompactTriggerPercent,
+	)
+
+	activeMessages, _ := messagesAfterSnapshot(messages, input.ExistingSnapshot)
+	turns := countUserTurns(activeMessages)
+	observedTokens := compactionScopeTokenEstimate(input)
+	strategy := ""
+	switch {
+	case input.Force && observedTokens > int64(effectiveContextBudget):
+		strategy = "hard_budget"
+	case cfg.ContextMaxTurns > 0 && turns > cfg.ContextMaxTurns:
+		strategy = "turn_cap"
+	case modelTriggerTokens > 0 && observedTokens >= modelTriggerTokens:
+		strategy = "token_cap"
+	default:
+		return compactionDecision{}, false
+	}
+
+	preserveTurns := cfg.ContextCompactPreserve
+	if preserveTurns <= 0 {
+		preserveTurns = 8
+	}
+	// 保留轮次是目标值而不是硬阻塞条件。接近上下文上限时至少压缩一轮，
+	// 避免随后由 Token 预算静默裁掉更早消息。
+	if turns > 1 && preserveTurns >= turns {
+		preserveTurns = turns - 1
+	}
+	if turns <= preserveTurns || preserveTurns <= 0 {
+		return compactionDecision{}, false
+	}
+	coveredMessages, retainedMessages := splitMessagesByPreservedTurns(messages, preserveTurns)
+	if len(coveredMessages) == 0 || len(retainedMessages) == 0 {
+		return compactionDecision{}, false
+	}
+	return compactionDecision{
+		messages:               messages,
+		coveredMessages:        coveredMessages,
+		contextModelName:       contextModelName,
+		resolvedCaps:           resolvedCaps,
+		effectiveContextBudget: effectiveContextBudget,
+		modelTriggerTokens:     modelTriggerTokens,
+		observedTokens:         observedTokens,
+		preserveTurns:          preserveTurns,
+		strategy:               strategy,
+	}, true
+}
+
+func messagesAfterSnapshot(messages []domainconversation.Message, snapshot *domainconversation.ContextSnapshot) ([]domainconversation.Message, bool) {
+	boundaryIndex, ok := SnapshotBoundaryIndex(messages, snapshot)
+	if !ok {
+		boundaryIndex, ok = SnapshotBoundaryAncestorIndex(messages, snapshot)
+	}
+	if !ok {
+		return messages, false
+	}
+	if boundaryIndex+1 >= len(messages) {
+		return nil, true
+	}
+	return messages[boundaryIndex+1:], true
+}
+
+func compactionScopeTokenEstimate(input MaybeCompactConversationInput) int64 {
+	if input.PromptTokenEstimate > 0 {
+		return input.PromptTokenEstimate
+	}
+	activeMessages, snapshotMatched := messagesAfterSnapshot(input.Messages, input.ExistingSnapshot)
+	observedTokens := estimateMessageTokenTotal(activeMessages)
+	if snapshotMatched {
+		observedTokens += estimateTokens(input.ExistingSnapshot.SummaryText)
+	}
+	return observedTokens
+}
+
+func (s *Service) logCompactionFailure(input MaybeCompactConversationInput, decision compactionDecision, stage string, err error) {
+	if s == nil || s.logger == nil || err == nil {
+		return
+	}
+	s.logger.Error("context_compaction_failed",
+		zap.Uint("conversation_id", input.ConversationID),
+		zap.String("run_id", input.RunID),
+		zap.String("stage", stage),
+		zap.String("strategy", decision.strategy),
+		zap.String("context_model", decision.contextModelName),
+		zap.String("model_caps_source", string(decision.resolvedCaps.Source)),
+		zap.Int("context_window", decision.resolvedCaps.ContextWindow),
+		zap.Int("effective_context_budget", decision.effectiveContextBudget),
+		zap.Int64("model_trigger_tokens", decision.modelTriggerTokens),
+		zap.Int64("observed_tokens", decision.observedTokens),
+		zap.Error(err),
+	)
 }
 
 // GetLatestSnapshot 返回最近一次上下文压缩快照。
@@ -262,9 +409,9 @@ func (s *Service) GetSnapshotByRunID(ctx context.Context, runID string) (*domain
 	return s.repo.GetContextSnapshotByRunID(ctx, runID)
 }
 
-// buildCompactionSummary 使用 4 级回退链生成压缩摘要：
+// buildCompactionSummary 使用 3 级回退链生成压缩摘要：
 //
-//	Level 3 (LLM 全量)  → Level 2 (LLM 轻量) → Level 1 (增强模板) → Level 0 (空串，依赖截断)
+//	Level 3 (LLM 全量) → Level 2 (LLM 轻量) → Level 1 (增强模板)
 func (s *Service) buildCompactionSummary(
 	ctx context.Context,
 	messages []domainconversation.Message,

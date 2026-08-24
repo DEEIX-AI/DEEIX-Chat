@@ -22,6 +22,12 @@ import {
   displayToKindsJson,
   type ModelSortValue,
 } from "@/features/admin/types/llm";
+import {
+  isValidModelContextWindow,
+  modelContextWindowOverride,
+  modelMaxOutputTokensOverride,
+  setModelContextWindowInCapabilities,
+} from "@/features/admin/model/model-context-window";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { resolveKindsDisplayForProtocols } from "@/features/admin/utils/llm-display";
 import {
@@ -61,6 +67,8 @@ type UseAdminModelsState = {
   setBatchVendor: (value: string) => void;
   batchDisplayGroupID: string;
   setBatchDisplayGroupID: (value: string) => void;
+  batchContextWindow: string;
+  setBatchContextWindow: (value: string) => void;
   batchStatus: AdminLLMStatus | "";
   setBatchStatus: (value: AdminLLMStatus | "") => void;
   editTarget: AdminLLMModelDTO | null;
@@ -78,6 +86,7 @@ type UseAdminModelsState = {
   handleBulkApplyProtocol: () => Promise<void>;
   handleBulkApplyVendor: () => Promise<void>;
   handleBulkApplyDisplayGroup: () => Promise<void>;
+  handleBulkApplyContextWindow: () => Promise<void>;
   handleBulkApplyStatus: () => Promise<void>;
   handleSourceAvailabilityChange: (modelID: number, previousAvailable: boolean, nextAvailable: boolean) => void;
   handleSourceDeleteChange: (modelID: number, source: AdminLLMModelUpstreamSourceDTO, deleted: boolean) => void;
@@ -110,6 +119,7 @@ export function useAdminModels(): UseAdminModelsState {
   const [batchProtocol, setBatchProtocol] = React.useState<AdminLLMAdapter | "">("");
   const [batchVendor, setBatchVendor] = React.useState("");
   const [batchDisplayGroupID, setBatchDisplayGroupID] = React.useState("");
+  const [batchContextWindow, setBatchContextWindow] = React.useState("");
   const [batchStatus, setBatchStatus] = React.useState<AdminLLMStatus | "">("");
   const [, startTableTransition] = React.useTransition();
   const requestSeqRef = React.useRef(0);
@@ -435,6 +445,64 @@ export function useAdminModels(): UseAdminModelsState {
     }
   }, [batchApplying, batchDisplayGroupID, loadModels, page, pageSize, selectedModels, t]);
 
+  const handleBulkApplyContextWindow = React.useCallback(async () => {
+    const nextContextWindow = Number(batchContextWindow.trim());
+    if (!selectedModels.length || !batchContextWindow.trim() || batchApplying) {
+      return;
+    }
+    if (!isValidModelContextWindow(nextContextWindow)) {
+      toast.error(t("bulkContextWindowInvalid"));
+      return;
+    }
+
+    const capabilitiesByID = new Map<number, string>();
+    const targets: AdminLLMModelDTO[] = [];
+    for (const item of selectedModels) {
+      if (modelContextWindowOverride(item.capabilitiesJSON) === nextContextWindow) {
+        continue;
+      }
+      const maxOutputTokens = modelMaxOutputTokensOverride(item.capabilitiesJSON);
+      if (maxOutputTokens !== null && maxOutputTokens >= nextContextWindow) {
+        toast.error(t("bulkContextWindowOutputConflict", {
+          max: maxOutputTokens,
+          name: item.platformModelName,
+        }));
+        return;
+      }
+      const capabilitiesJSON = setModelContextWindowInCapabilities(
+        item.capabilitiesJSON,
+        nextContextWindow,
+      );
+      if (capabilitiesJSON === null) {
+        toast.error(t("bulkContextWindowInvalidCapabilities", { name: item.platformModelName }));
+        return;
+      }
+      capabilitiesByID.set(item.id, capabilitiesJSON);
+      targets.push(item);
+    }
+
+    if (!targets.length) {
+      toast.info(t("bulkContextWindowAlreadyApplied"));
+      return;
+    }
+
+    await runBulkModelUpdates({
+      targets,
+      optimisticPatch: (item) => ({
+        ...item,
+        capabilitiesJSON: capabilitiesByID.get(item.id) ?? item.capabilitiesJSON,
+        contextWindow: nextContextWindow,
+      }),
+      successMessage: t("bulkContextWindowUpdated", { count: targets.length }),
+      partialFailureMessage: t("bulkContextWindowPartialFailed"),
+      failureMessage: t("bulkContextWindowFailed"),
+      runItem: (token, item) => updateAdminLLMModel(token, item.id, {
+        capabilitiesJSON: capabilitiesByID.get(item.id) ?? item.capabilitiesJSON,
+      }),
+      onSuccess: () => setBatchContextWindow(""),
+    });
+  }, [batchApplying, batchContextWindow, runBulkModelUpdates, selectedModels, t]);
+
   const handleBulkApplyStatus = React.useCallback(async () => {
     const nextStatus = batchStatus;
     if (!selectedModels.length || !nextStatus || batchApplying) {
@@ -563,6 +631,8 @@ export function useAdminModels(): UseAdminModelsState {
     setBatchVendor,
     batchDisplayGroupID,
     setBatchDisplayGroupID,
+    batchContextWindow,
+    setBatchContextWindow,
     batchStatus,
     setBatchStatus,
     editTarget,
@@ -580,6 +650,7 @@ export function useAdminModels(): UseAdminModelsState {
     handleBulkApplyProtocol,
     handleBulkApplyVendor,
     handleBulkApplyDisplayGroup,
+    handleBulkApplyContextWindow,
     handleBulkApplyStatus,
     handleSourceAvailabilityChange,
     handleSourceDeleteChange,

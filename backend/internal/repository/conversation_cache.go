@@ -56,11 +56,12 @@ type RAGCacheRepository interface {
 
 // GenerationStreamCacheRepository 封装对话生成流的短期恢复存储。
 type GenerationStreamCacheRepository interface {
-	RegisterGenerationStream(ctx context.Context, runID string, userID uint, ttl time.Duration) error
+	RegisterGenerationStream(ctx context.Context, runID string, userID uint, conversationPublicID string, ttl time.Duration) error
 	GetGenerationStreamOwner(ctx context.Context, runID string) (uint, bool, error)
-	TouchGenerationStreamActive(ctx context.Context, runID string, ttl time.Duration) error
-	ClearGenerationStreamActive(ctx context.Context, runID string) error
+	TouchGenerationStreamActive(ctx context.Context, runID string, userID uint, ttl time.Duration) error
+	ClearGenerationStreamActive(ctx context.Context, runID string, userID uint) error
 	IsGenerationStreamActive(ctx context.Context, runID string) (bool, error)
+	ListActiveGenerationStreams(ctx context.Context, userID uint) ([]ActiveGenerationStream, error)
 	RequestGenerationStreamCancel(ctx context.Context, runID string, ttl time.Duration) error
 	IsGenerationStreamCanceled(ctx context.Context, runID string) (bool, error)
 	AppendGenerationStreamEvent(ctx context.Context, runID string, input GenerationStreamAppend, maxEvents int64, ttl time.Duration) (GenerationStreamMessage, error)
@@ -71,6 +72,12 @@ type GenerationStreamCacheRepository interface {
 	// blocked rounds cannot be replayed with withdrawn content on reconnect.
 	ResetGenerationStreamEvents(ctx context.Context, runID string) error
 	ExpireGenerationStream(ctx context.Context, runID string, ttl time.Duration) error
+}
+
+// ActiveGenerationStream identifies one currently leased generation owned by a user.
+type ActiveGenerationStream struct {
+	RunID                string
+	ConversationPublicID string
 }
 
 // UserSettingCacheRepository 封装用户会话设置的共享缓存能力。

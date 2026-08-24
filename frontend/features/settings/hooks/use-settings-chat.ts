@@ -10,15 +10,17 @@ import {
   groupModelsForPresentation,
   parseChatSettings,
 } from "@/features/settings/utils/chat-settings";
-import { dispatchUserSettingsUpdated } from "@/features/settings/events/user-settings-events";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { listPublicModels } from "@/shared/api/model";
 import { getBillingConfig } from "@/shared/api/billing";
 import { getChatContextPolicy } from "@/shared/api/settings";
-import { getUserSettings, patchUserSettings } from "@/shared/api/user-settings";
 import type { PublicModelDTO } from "@/shared/api/model.types";
 import type { BillingMode } from "@/shared/api/billing.types";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
+import {
+  updateUserSettings,
+  useUserSettings,
+} from "@/shared/model/user-settings-store";
 
 type UseSettingsChatResult = {
   settings: ChatSettings;
@@ -26,8 +28,8 @@ type UseSettingsChatResult = {
   billingMode: BillingMode;
   contextCompressionEnabled: boolean;
   modelGroups: ReturnType<typeof groupModelsForPresentation>;
-  handleBool: (key: string, field: keyof ChatSettings) => (checked: boolean) => void;
-  handleEnum: (key: string, field: keyof ChatSettings) => (value: string) => void;
+  handleBool: (key: string) => (checked: boolean) => void;
+  handleEnum: (key: string) => (value: string) => void;
   handleDefaultModel: (value: string) => void;
 };
 
@@ -35,20 +37,18 @@ export function useSettingsChat(): UseSettingsChatResult {
   const t = useTranslations("settings.chatPage.toasts");
   const translateError = useLocalizedErrorMessage();
   const { accessToken } = useAuthSession();
-  const [settings, setSettings] = React.useState<ChatSettings>(DEFAULT_CHAT_SETTINGS);
+  const userSettings = useUserSettings();
   const [models, setModels] = React.useState<PublicModelDTO[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const [metadataLoading, setMetadataLoading] = React.useState(true);
   const [billingMode, setBillingMode] = React.useState<BillingMode>("self");
   const [contextCompressionEnabled, setContextCompressionEnabled] = React.useState(false);
-  const settingRequestSeqRef = React.useRef<Record<string, number>>({});
 
   React.useEffect(() => {
     let cancelled = false;
 
     void (async () => {
       try {
-        const [map, modelList, billingConfig, contextPolicy] = await Promise.all([
-          getUserSettings(accessToken),
+        const [modelList, billingConfig, contextPolicy] = await Promise.all([
           listPublicModels(accessToken).catch((): PublicModelDTO[] => []),
           getBillingConfig(accessToken).catch(() => null),
           getChatContextPolicy(accessToken).catch(() => ({ contextCompactEnabled: false })),
@@ -58,13 +58,12 @@ export function useSettingsChat(): UseSettingsChatResult {
           return;
         }
 
-        setSettings(parseChatSettings(map));
         setModels(modelList);
         setBillingMode(billingConfig?.config.mode ?? "self");
         setContextCompressionEnabled(contextPolicy.contextCompactEnabled);
       } finally {
         if (!cancelled) {
-          setLoading(false);
+          setMetadataLoading(false);
         }
       }
     })();
@@ -74,26 +73,16 @@ export function useSettingsChat(): UseSettingsChatResult {
     };
   }, [accessToken]);
 
+  const settings = React.useMemo(
+    () => userSettings.loaded ? parseChatSettings(userSettings.settings) : DEFAULT_CHAT_SETTINGS,
+    [userSettings.loaded, userSettings.settings],
+  );
   const modelGroups = React.useMemo(() => groupModelsForPresentation(models), [models]);
 
   const persistSetting = React.useCallback(
-    <K extends keyof ChatSettings>(key: string, field: K, value: string, previousValue: ChatSettings[K]) => {
-      const requestSeq = (settingRequestSeqRef.current[key] ?? 0) + 1;
-      settingRequestSeqRef.current[key] = requestSeq;
-      void patchUserSettings(accessToken, { [key]: value })
-        .then((map) => {
-          if (settingRequestSeqRef.current[key] !== requestSeq) {
-            return;
-          }
-          const saved = parseChatSettings(map);
-          setSettings((current) => ({ ...current, [field]: saved[field] }));
-          dispatchUserSettingsUpdated(map);
-        })
+    (key: string, value: string) => {
+      void updateUserSettings(accessToken, { [key]: value })
         .catch((error) => {
-          if (settingRequestSeqRef.current[key] !== requestSeq) {
-            return;
-          }
-          setSettings((current) => ({ ...current, [field]: previousValue }));
           toast.error(t("saveFailed"), { description: translateError(error, t("retryLater")) });
         });
     },
@@ -101,21 +90,15 @@ export function useSettingsChat(): UseSettingsChatResult {
   );
 
   const handleBool = React.useCallback(
-    (key: string, field: keyof ChatSettings) => (checked: boolean) => {
-      setSettings((previous) => {
-        persistSetting(key, field, checked ? "true" : "false", previous[field]);
-        return { ...previous, [field]: checked };
-      });
+    (key: string) => (checked: boolean) => {
+      persistSetting(key, checked ? "true" : "false");
     },
     [persistSetting],
   );
 
   const handleEnum = React.useCallback(
-    (key: string, field: keyof ChatSettings) => (value: string) => {
-      setSettings((previous) => {
-        persistSetting(key, field, value, previous[field]);
-        return { ...previous, [field]: value };
-      });
+    (key: string) => (value: string) => {
+      persistSetting(key, value);
     },
     [persistSetting],
   );
@@ -123,17 +106,14 @@ export function useSettingsChat(): UseSettingsChatResult {
   const handleDefaultModel = React.useCallback(
     (value: string) => {
       const code = value === "none" ? "" : value;
-      setSettings((previous) => {
-        persistSetting("chat.default_model", "defaultModel", code, previous.defaultModel);
-        return { ...previous, defaultModel: code };
-      });
+      persistSetting("chat.default_model", code);
     },
     [persistSetting],
   );
 
   return {
     settings,
-    loading,
+    loading: metadataLoading || !userSettings.loaded,
     billingMode,
     contextCompressionEnabled,
     modelGroups,

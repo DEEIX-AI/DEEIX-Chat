@@ -6,7 +6,7 @@ import { getConversationPreviewMessages } from "@/shared/api/conversation";
 import type { ConversationPreviewMessageDTO } from "@/shared/api/conversation.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
-const PREVIEW_DEBOUNCE_MS = 160;
+const PREVIEW_DEBOUNCE_MS = 240;
 const PREVIEW_CACHE_LIMIT = 24;
 
 type ConversationPreviewState = {
@@ -37,7 +37,6 @@ export function useConversationSearchPreview(open: boolean) {
     setPreview(EMPTY_PREVIEW_STATE);
     requestVersionRef.current += 1;
     selectedConversationIDRef.current = "";
-    cacheRef.current.clear();
   }, [open]);
 
   React.useEffect(() => {
@@ -74,11 +73,13 @@ export function useConversationSearchPreview(open: boolean) {
             return;
           }
           writePreviewCache(cacheRef.current, conversationID, messages);
-          setPreview({
-            conversationID,
-            messages,
-            loading: false,
-            loadFailed: false,
+          React.startTransition(() => {
+            setPreview({
+              conversationID,
+              messages,
+              loading: false,
+              loadFailed: false,
+            });
           });
         } catch {
           if (requestVersion === requestVersionRef.current) {

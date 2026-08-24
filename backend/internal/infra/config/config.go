@@ -35,6 +35,16 @@ const (
 	defaultHTTPMaxHeaderBytes           = 1 << 20
 	// DefaultFileFullContextMaxBytes 是全文注入的默认提取文本大小上限（2 MiB）。
 	DefaultFileFullContextMaxBytes int64 = 2 * 1024 * 1024
+
+	// DefaultContextWindowFallbackTokens 是无法从模型能力配置或内置目录识别窗口时的默认值。
+	DefaultContextWindowFallbackTokens = 128_000
+	// MinContextWindowFallbackTokens 与 MaxContextWindowFallbackTokens 限制管理员可配置的安全范围。
+	MinContextWindowFallbackTokens = 16_384
+	MaxContextWindowFallbackTokens = 16_000_000
+	// DefaultContextCompactTriggerPercent 在有效输入预算的 80% 处主动压缩。
+	DefaultContextCompactTriggerPercent = 80
+	MinContextCompactTriggerPercent     = 10
+	MaxContextCompactTriggerPercent     = 95
 )
 
 const (
@@ -409,21 +419,21 @@ type Config struct {
 	TurnstileSiteKey             string
 	TurnstileSecretKey           string
 	// 对话配置
-	MaxContextMessages       int
-	ContextMaxTurns          int
-	ContextMaxInputTokens    int
-	ContextCompactEnabled    bool
-	ContextCompactTrigger    int
-	ContextCompactPreserve   int
-	ConversationDefaultModel string
-	ConversationTaskModel    string
-	ConversationTitlePrompt  string
-	ConversationLabelsPrompt string
-	DefaultSystemPrompt      string
-	SkillsPrompt             string
-	ModelOptionPolicyMode    string
-	ModelOptionAllowedPaths  string
-	ModelOptionDeniedPaths   string
+	MaxContextMessages           int
+	ContextMaxTurns              int
+	ContextCompactEnabled        bool
+	ContextWindowFallbackTokens  int
+	ContextCompactTriggerPercent int
+	ContextCompactPreserve       int
+	ConversationDefaultModel     string
+	ConversationTaskModel        string
+	ConversationTitlePrompt      string
+	ConversationLabelsPrompt     string
+	DefaultSystemPrompt          string
+	SkillsPrompt                 string
+	ModelOptionPolicyMode        string
+	ModelOptionAllowedPaths      string
+	ModelOptionDeniedPaths       string
 	// 存储配置
 	UserStorageQuotaBytes int64
 	MaxUploadFileBytes    int64
@@ -648,9 +658,9 @@ func Load() Config {
 		TurnstileSecretKey:                "",
 		MaxContextMessages:                20,
 		ContextMaxTurns:                   48,
-		ContextMaxInputTokens:             32000,
 		ContextCompactEnabled:             false,
-		ContextCompactTrigger:             65536,
+		ContextWindowFallbackTokens:       DefaultContextWindowFallbackTokens,
+		ContextCompactTriggerPercent:      DefaultContextCompactTriggerPercent,
 		ContextCompactPreserve:            8,
 		ConversationDefaultModel:          "",
 		ConversationTaskModel:             "follow",

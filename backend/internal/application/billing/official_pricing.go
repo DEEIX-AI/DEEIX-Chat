@@ -12,7 +12,10 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
-const openRouterPricingCacheTTL = 24 * time.Hour
+const (
+	openRouterPricingCacheTTL     = 24 * time.Hour
+	openRouterPricingCacheVersion = 2
+)
 
 var (
 	// ErrOfficialPricingProviderUnavailable 表示官方定价提供方未完成装配。
@@ -40,10 +43,12 @@ type OfficialPricingService struct {
 
 // OfficialPricingItem 表示第三方官方模型定价项。
 type OfficialPricingItem struct {
-	ID            string
-	CanonicalSlug string
-	Name          string
-	Pricing       OfficialUnitPricing
+	ID                  string
+	CanonicalSlug       string
+	Name                string
+	ContextLength       int
+	MaxCompletionTokens int
+	Pricing             OfficialUnitPricing
 }
 
 // OfficialUnitPricing 表示第三方官方价格字段。
@@ -67,10 +72,17 @@ type openRouterModelsResponse struct {
 }
 
 type openRouterModelItem struct {
-	ID            string                 `json:"id"`
-	CanonicalSlug string                 `json:"canonical_slug"`
-	Name          string                 `json:"name"`
-	Pricing       openRouterModelPricing `json:"pricing"`
+	ID            string                     `json:"id"`
+	CanonicalSlug string                     `json:"canonical_slug"`
+	Name          string                     `json:"name"`
+	ContextLength int                        `json:"context_length"`
+	TopProvider   openRouterModelTopProvider `json:"top_provider"`
+	Pricing       openRouterModelPricing     `json:"pricing"`
+}
+
+type openRouterModelTopProvider struct {
+	ContextLength       int `json:"context_length"`
+	MaxCompletionTokens int `json:"max_completion_tokens"`
 }
 
 type openRouterModelPricing struct {
@@ -81,15 +93,18 @@ type openRouterModelPricing struct {
 }
 
 type openRouterPricingCacheFile struct {
+	Version   int                          `json:"version,omitempty"`
 	FetchedAt time.Time                    `json:"fetchedAt"`
 	Items     []openRouterPricingCacheItem `json:"items"`
 }
 
 type openRouterPricingCacheItem struct {
-	ID            string                            `json:"id"`
-	CanonicalSlug string                            `json:"canonicalSlug"`
-	Name          string                            `json:"name"`
-	Pricing       openRouterPricingCacheUnitPricing `json:"pricing"`
+	ID                  string                            `json:"id"`
+	CanonicalSlug       string                            `json:"canonicalSlug"`
+	Name                string                            `json:"name"`
+	ContextLength       int                               `json:"contextLength,omitempty"`
+	MaxCompletionTokens int                               `json:"maxCompletionTokens,omitempty"`
+	Pricing             openRouterPricingCacheUnitPricing `json:"pricing"`
 }
 
 type openRouterPricingCacheUnitPricing struct {
@@ -117,7 +132,8 @@ func (s *OfficialPricingService) GetOpenRouterOfficialPricing(ctx context.Contex
 	if err != nil {
 		return OfficialPricingResult{}, fmt.Errorf("%w: %w", ErrOfficialPricingCacheReadFailed, err)
 	}
-	if cacheOK && !refresh && !openRouterOfficialPricingCacheStale(cache.FetchedAt) {
+	cacheCurrent := cache.Version >= openRouterPricingCacheVersion
+	if cacheOK && cacheCurrent && !refresh && !openRouterOfficialPricingCacheStale(cache.FetchedAt) {
 		return officialPricingResultFromCache(cache, true, false), nil
 	}
 
@@ -130,6 +146,7 @@ func (s *OfficialPricingService) GetOpenRouterOfficialPricing(ctx context.Contex
 	}
 
 	nextCache := openRouterPricingCacheFile{
+		Version:   openRouterPricingCacheVersion,
 		FetchedAt: time.Now().UTC(),
 		Items:     officialPricingCacheItems(items),
 	}
@@ -165,9 +182,11 @@ func officialPricingResultFromCache(cache openRouterPricingCacheFile, cached boo
 	items := make([]OfficialPricingItem, 0, len(cache.Items))
 	for _, item := range cache.Items {
 		items = append(items, OfficialPricingItem{
-			ID:            item.ID,
-			CanonicalSlug: item.CanonicalSlug,
-			Name:          item.Name,
+			ID:                  item.ID,
+			CanonicalSlug:       item.CanonicalSlug,
+			Name:                item.Name,
+			ContextLength:       item.ContextLength,
+			MaxCompletionTokens: item.MaxCompletionTokens,
 			Pricing: OfficialUnitPricing{
 				Prompt:          item.Pricing.Prompt,
 				Completion:      item.Pricing.Completion,
@@ -188,9 +207,11 @@ func officialPricingCacheItems(items []OfficialPricingItem) []openRouterPricingC
 	result := make([]openRouterPricingCacheItem, 0, len(items))
 	for _, item := range items {
 		result = append(result, openRouterPricingCacheItem{
-			ID:            item.ID,
-			CanonicalSlug: item.CanonicalSlug,
-			Name:          item.Name,
+			ID:                  item.ID,
+			CanonicalSlug:       item.CanonicalSlug,
+			Name:                item.Name,
+			ContextLength:       item.ContextLength,
+			MaxCompletionTokens: item.MaxCompletionTokens,
 			Pricing: openRouterPricingCacheUnitPricing{
 				Prompt:          item.Pricing.Prompt,
 				Completion:      item.Pricing.Completion,
@@ -245,10 +266,23 @@ func normalizeOpenRouterOfficialPricingItem(item openRouterModelItem) OfficialPr
 	if name == "" {
 		name = id
 	}
+	contextLength := item.TopProvider.ContextLength
+	if contextLength <= 0 {
+		contextLength = item.ContextLength
+	}
+	if contextLength < 0 {
+		contextLength = 0
+	}
+	maxCompletionTokens := item.TopProvider.MaxCompletionTokens
+	if maxCompletionTokens < 0 {
+		maxCompletionTokens = 0
+	}
 	return OfficialPricingItem{
-		ID:            id,
-		CanonicalSlug: canonicalSlug,
-		Name:          name,
+		ID:                  id,
+		CanonicalSlug:       canonicalSlug,
+		Name:                name,
+		ContextLength:       contextLength,
+		MaxCompletionTokens: maxCompletionTokens,
 		Pricing: OfficialUnitPricing{
 			Prompt:          strings.TrimSpace(item.Pricing.Prompt),
 			Completion:      strings.TrimSpace(item.Pricing.Completion),

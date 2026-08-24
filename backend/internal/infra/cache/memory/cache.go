@@ -25,7 +25,8 @@ type Cache struct {
 
 	rag map[string]expiringRAG
 
-	streams map[string]*generationStream
+	streams      map[string]*generationStream
+	streamNotify chan struct{}
 
 	upstreamCB   map[uint]*circuitState
 	modelCB      map[string]*circuitState
@@ -60,6 +61,7 @@ func New() *Cache {
 		fileNotify:               make(chan struct{}),
 		rag:                      map[string]expiringRAG{},
 		streams:                  map[string]*generationStream{},
+		streamNotify:             make(chan struct{}),
 		upstreamCB:               map[uint]*circuitState{},
 		modelCB:                  map[string]*circuitState{},
 		upstreamMeta:             map[uint]upstreamMetadata{},

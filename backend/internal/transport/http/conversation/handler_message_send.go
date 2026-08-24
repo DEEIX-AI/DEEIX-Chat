@@ -648,6 +648,87 @@ func (h *Handler) CancelMessageGeneration(c *gin.Context) {
 	response.Success(c, CancelMessageGenerationResponse{Canceled: canceled})
 }
 
+// StreamActiveMessageGenerations godoc
+// @Summary Stream active conversation generations
+// @Description Sends an authoritative snapshot followed by live user-scoped run state events
+// @Tags chat
+// @Produce text/event-stream
+// @Security BearerAuth
+// @Success 200 {object} ActiveMessageGenerationEventResponse
+// @Failure 500 {object} ErrorDoc
+// @Router /conversation-runs/stream [get]
+func (h *Handler) StreamActiveMessageGenerations(c *gin.Context) {
+	snapshot, events, unsubscribe, err := h.service.SubscribeActiveMessageGenerations(
+		c.Request.Context(),
+		middleware.MustUserID(c),
+	)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "failed to subscribe to active conversation generations")
+		return
+	}
+	defer unsubscribe()
+
+	c.Header("Content-Type", "text/event-stream; charset=utf-8")
+	c.Header("Cache-Control", "no-cache, no-transform")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+	c.Status(http.StatusOK)
+
+	writeEvent := func(payload ActiveMessageGenerationEventResponse) bool {
+		encoded, marshalErr := json.Marshal(payload)
+		if marshalErr != nil {
+			return true
+		}
+		if _, writeErr := c.Writer.Write([]byte("data: ")); writeErr != nil {
+			return false
+		}
+		if _, writeErr := c.Writer.Write(encoded); writeErr != nil {
+			return false
+		}
+		if _, writeErr := c.Writer.Write([]byte("\n\n")); writeErr != nil {
+			return false
+		}
+		c.Writer.Flush()
+		return true
+	}
+
+	runs := make([]ActiveMessageGenerationResponse, 0, len(snapshot))
+	for _, item := range snapshot {
+		runs = append(runs, ActiveMessageGenerationResponse{
+			RunID:                item.RunID,
+			ConversationPublicID: item.ConversationPublicID,
+		})
+	}
+	if !writeEvent(ActiveMessageGenerationEventResponse{Type: "snapshot", Runs: runs}) {
+		return
+	}
+
+	keepalive := time.NewTicker(20 * time.Second)
+	defer keepalive.Stop()
+	for {
+		select {
+		case <-c.Request.Context().Done():
+			return
+		case <-keepalive.C:
+			if _, writeErr := c.Writer.Write([]byte(": keepalive\n\n")); writeErr != nil {
+				return
+			}
+			c.Writer.Flush()
+		case event, ok := <-events:
+			if !ok {
+				return
+			}
+			if !writeEvent(ActiveMessageGenerationEventResponse{
+				Type:                 event.Type,
+				RunID:                event.RunID,
+				ConversationPublicID: event.ConversationPublicID,
+			}) {
+				return
+			}
+		}
+	}
+}
+
 // ResumeMessageGenerationStream godoc
 // @Summary 恢复流式生成订阅
 // @Description 页面刷新后按 run_id 重新订阅仍在运行的生成流，返回 NDJSON 事件

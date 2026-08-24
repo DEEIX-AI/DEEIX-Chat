@@ -496,6 +496,9 @@ export function useChatMessageSubmit({
   activeGenerationRunsRef,
   activeGenerationRunsRevision,
   onActiveGenerationRunsChange,
+  onConversationRunDetached,
+  onConversationRunFinished,
+  onConversationRunStarted,
   resumeGenerationActive = false,
 }: {
   conversationID: string | null;
@@ -543,6 +546,9 @@ export function useChatMessageSubmit({
   activeGenerationRunsRef?: React.RefObject<Set<string>>;
   activeGenerationRunsRevision: number;
   onActiveGenerationRunsChange?: () => void;
+  onConversationRunDetached?: (runID: string) => void;
+  onConversationRunFinished?: (runID: string) => void;
+  onConversationRunStarted?: (runID: string, conversationPublicID: string) => void;
   resumeGenerationActive?: boolean;
 }) {
   const t = useTranslations("chat.submit");
@@ -867,6 +873,9 @@ export function useChatMessageSubmit({
         cancelRequested: false,
         cancelSettlementTimer: null,
       });
+      if (targetConversationID) {
+        onConversationRunStarted?.(clientRunID, targetConversationID);
+      }
       syncActiveRuns();
       if (resetComposer) {
         setDraft("");
@@ -969,6 +978,7 @@ export function useChatMessageSubmit({
           };
           targetConversationID = created.publicID;
           targetConversation = created;
+          onConversationRunStarted?.(clientRunID, created.publicID);
           const createdActiveStream = activeStreamsRef.current.get(clientRunID);
           if (createdActiveStream) {
             createdActiveStream.conversationScopeKey = targetConversationScopeKey;
@@ -1057,6 +1067,9 @@ export function useChatMessageSubmit({
         let terminalStreamError: Extract<StreamMessageEvent, { type: "error" }> | null = null;
         const streamOptions: ConversationStreamOptions = {
           signal: streamAbortController.signal,
+          onTerminal: () => {
+            onConversationRunFinished?.(clientRunID);
+          },
           onInterrupted: (event) => {
             terminalStreamError = event;
           },
@@ -1508,6 +1521,7 @@ export function useChatMessageSubmit({
           activeStreamsRef.current.delete(clientRunID);
         }
         activeGenerationRunsRef?.current.delete(clientRunID);
+        onConversationRunDetached?.(clientRunID);
         if (
           branchRunIsVisible(
             targetBranchScope,
@@ -1535,6 +1549,9 @@ export function useChatMessageSubmit({
       flushUpstreamThinkNow,
       options,
       onConversationCreated,
+      onConversationRunDetached,
+      onConversationRunFinished,
+      onConversationRunStarted,
       prependNewConversation,
       releaseAttachments,
       reload,

@@ -574,105 +574,6 @@ func TestListMessagesBeforeIDReturnsPreviousWindowAscending(t *testing.T) {
 	}
 }
 
-func TestListMessageAncestorsUntilStopsAtBoundary(t *testing.T) {
-	db := openConversationRepositoryTestDB(t)
-	repo := NewRepo(db)
-	ctx := context.Background()
-
-	conversation := model.Conversation{
-		UserID:     1,
-		PublicID:   "conv_ancestors_until",
-		Title:      "ancestors until",
-		LabelsJSON: "[]",
-		SessionKey: "session_ancestors_until",
-		Status:     "active",
-	}
-	if err := db.Create(&conversation).Error; err != nil {
-		t.Fatalf("create conversation: %v", err)
-	}
-
-	messages := make([]model.Message, 0, 6)
-	var parentID *uint
-	for index := 1; index <= 6; index++ {
-		message := model.Message{
-			ConversationID:  conversation.ID,
-			UserID:          1,
-			PublicID:        fmt.Sprintf("msg_%d", index),
-			ParentMessageID: parentID,
-			Role:            "user",
-			ContentType:     "text",
-			Content:         fmt.Sprintf("message %d", index),
-			BranchReason:    "default",
-			Status:          "success",
-		}
-		if err := db.Create(&message).Error; err != nil {
-			t.Fatalf("create message %d: %v", index, err)
-		}
-		messages = append(messages, message)
-		nextParentID := message.ID
-		parentID = &nextParentID
-	}
-
-	got, found, err := repo.ListMessageAncestorsUntil(ctx, conversation.ID, messages[5].ID, messages[2].ID, 10)
-	if err != nil {
-		t.Fatalf("ListMessageAncestorsUntil() error = %v", err)
-	}
-	if !found {
-		t.Fatal("expected boundary to be found")
-	}
-	if len(got) != 4 {
-		t.Fatalf("expected boundary through leaf, got %#v", got)
-	}
-	if got[0].PublicID != "msg_3" || got[len(got)-1].PublicID != "msg_6" {
-		t.Fatalf("expected msg_3..msg_6, got %#v", got)
-	}
-	if got[0].ParentPublicID != "msg_2" {
-		t.Fatalf("expected boundary parent public id hydrated, got %q", got[0].ParentPublicID)
-	}
-}
-
-func TestListMessageAncestorsUntilReportsMissingBoundary(t *testing.T) {
-	db := openConversationRepositoryTestDB(t)
-	repo := NewRepo(db)
-	ctx := context.Background()
-
-	conversation := model.Conversation{
-		UserID:     1,
-		PublicID:   "conv_missing_boundary",
-		Title:      "missing boundary",
-		LabelsJSON: "[]",
-		SessionKey: "session_missing_boundary",
-		Status:     "active",
-	}
-	if err := db.Create(&conversation).Error; err != nil {
-		t.Fatalf("create conversation: %v", err)
-	}
-	message := model.Message{
-		ConversationID: conversation.ID,
-		UserID:         1,
-		PublicID:       "msg_1",
-		Role:           "user",
-		ContentType:    "text",
-		Content:        "message 1",
-		BranchReason:   "default",
-		Status:         "success",
-	}
-	if err := db.Create(&message).Error; err != nil {
-		t.Fatalf("create message: %v", err)
-	}
-
-	got, found, err := repo.ListMessageAncestorsUntil(ctx, conversation.ID, message.ID, message.ID+100, 10)
-	if err != nil {
-		t.Fatalf("ListMessageAncestorsUntil() error = %v", err)
-	}
-	if found {
-		t.Fatal("expected boundary to be missing")
-	}
-	if len(got) != 1 || got[0].PublicID != "msg_1" {
-		t.Fatalf("expected available ancestor path, got %#v", got)
-	}
-}
-
 // 祖先链走的是手写 CTE，与 GetMessageByID 的常规 GORM 查询是两条取数路径。
 // 这里逐字段比对两者结果，确保 CTE 不会丢列——曾因漏掉 reasoning_content 导致推理回传失效。
 // 注意覆盖边界：比对的是 domain.Message，因此只能守住会映射进领域模型的列；
@@ -761,20 +662,6 @@ func TestListMessageAncestorsMatchesFullColumnLoad(t *testing.T) {
 	if !reflect.DeepEqual(ancestors[1], *want) {
 		t.Fatalf("ListMessageAncestors dropped columns:\n cte = %#v\nfull = %#v", ancestors[1], *want)
 	}
-
-	until, found, err := repo.ListMessageAncestorsUntil(ctx, conversation.ID, leaf.ID, root.ID, 10)
-	if err != nil {
-		t.Fatalf("ListMessageAncestorsUntil() error = %v", err)
-	}
-	if !found {
-		t.Fatal("expected boundary to be found")
-	}
-	if len(until) != 2 {
-		t.Fatalf("expected root and leaf, got %d", len(until))
-	}
-	if !reflect.DeepEqual(until[1], *want) {
-		t.Fatalf("ListMessageAncestorsUntil dropped columns:\n cte = %#v\nfull = %#v", until[1], *want)
-	}
 }
 
 // 祖先链加载必须保留 reasoning_content，否则「回传推理上下文」在后续轮次拿不到历史推理。
@@ -843,15 +730,6 @@ func TestListMessageAncestorsPreservesReasoningContent(t *testing.T) {
 		t.Fatalf("ListMessageAncestors() error = %v", err)
 	}
 	assertReasoning(t, "ListMessageAncestors", ancestors)
-
-	until, found, err := repo.ListMessageAncestorsUntil(ctx, conversation.ID, leafID, messages[0].ID, 10)
-	if err != nil {
-		t.Fatalf("ListMessageAncestorsUntil() error = %v", err)
-	}
-	if !found {
-		t.Fatal("expected boundary to be found")
-	}
-	assertReasoning(t, "ListMessageAncestorsUntil", until)
 }
 
 func TestUpdateAssistantMessageCompletionPersistsReasoningAndKnowledgeSources(t *testing.T) {
@@ -1401,7 +1279,7 @@ func openConversationRepositoryTestDB(t *testing.T) *gorm.DB {
 
 // parent_message_id 上没有外键，「父消息同会话」只靠应用层保证。这里绕过应用层直接写入
 // 一条跨会话的父指针，确认递归查询不会走出当前会话——否则外部内容会进入 prompt 并被
-// 烤进压缩摘要反复重放。ListMessageAncestorsUntil 早已有此约束，两者需保持一致。
+// 烤进压缩摘要反复重放。
 func TestListMessageAncestorsStopsAtConversationBoundary(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
 	repo := NewRepo(db)

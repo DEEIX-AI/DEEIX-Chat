@@ -99,6 +99,7 @@ type MessageTraceBlock struct {
 	Stage           string
 	RoundID         string
 	ParentEventID   string
+	StartedAt       time.Time
 	UpdatedAt       time.Time
 	PayloadJSON     string
 }

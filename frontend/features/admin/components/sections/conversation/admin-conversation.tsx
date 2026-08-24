@@ -492,8 +492,8 @@ export function AdminConversationSettingsPage() {
     () => visibleConversationSettingsFields.filter((field) => field.section === "conversation"),
     [visibleConversationSettingsFields],
   );
-  const contextCompressionFields = React.useMemo(
-    () => visibleConversationSettingsFields.filter((field) => field.section === "contextCompression"),
+  const contextManagementFields = React.useMemo(
+    () => visibleConversationSettingsFields.filter((field) => field.section === "contextManagement"),
     [visibleConversationSettingsFields],
   );
   const modelOptionFields = React.useMemo(
@@ -533,7 +533,7 @@ export function AdminConversationSettingsPage() {
     [commonT, handleSave, hasDirtyField, loading, saving],
   );
   const modelOptionActions = renderSaveAction(modelOptionFields);
-  const contextCompressionActions = renderSaveAction(contextCompressionFields);
+  const contextManagementActions = renderSaveAction(contextManagementFields);
   const conversationActions = renderSaveAction(conversationFields);
 
   function renderField(
@@ -612,9 +612,9 @@ export function AdminConversationSettingsPage() {
 
       <SettingsSectionSeparator />
 
-      <SettingsSection title={t("sections.contextCompression")} actions={contextCompressionActions}>
+      <SettingsSection title={t("sections.contextManagement")} actions={contextManagementActions}>
         <SettingsFieldList>
-          {contextCompressionFields.map((field, index) => renderField(field, index, { inset: Boolean(field.subgroupKey) }))}
+          {contextManagementFields.map((field, index) => renderField(field, index, { inset: Boolean(field.subgroupKey) }))}
         </SettingsFieldList>
       </SettingsSection>
 

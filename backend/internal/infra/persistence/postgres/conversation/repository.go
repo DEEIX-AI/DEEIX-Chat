@@ -1423,19 +1423,6 @@ func (r *Repo) UpdateMessageBilling(ctx context.Context, messageID uint, billedC
 		Error)
 }
 
-// SumMessageTokens 统计会话 token 消耗总量。
-func (r *Repo) SumMessageTokens(ctx context.Context, conversationID uint) (int64, error) {
-	var total int64
-	if err := r.db.WithContext(ctx).
-		Model(&models.Message{}).
-		Select("COALESCE(SUM(token_usage), 0)").
-		Where("conversation_id = ?", conversationID).
-		Scan(&total).Error; err != nil {
-		return 0, translateError(err)
-	}
-	return total, nil
-}
-
 // ListMessages 查询会话消息。
 func (r *Repo) ListMessages(ctx context.Context, conversationID uint, offset int, limit int) ([]domainconversation.Message, int64, error) {
 	items := make([]models.Message, 0)
@@ -2137,29 +2124,7 @@ func (r *Repo) GetMessageByID(ctx context.Context, conversationID uint, messageI
 	return &result, nil
 }
 
-// GetLatestMessage 查询会话最新一条消息。
-func (r *Repo) GetLatestMessage(ctx context.Context, conversationID uint) (*domainconversation.Message, error) {
-	var item models.Message
-	if err := r.db.WithContext(ctx).
-		Where("conversation_id = ?", conversationID).
-		Order("id DESC").
-		Limit(1).
-		First(&item).Error; err != nil {
-		return nil, translateError(err)
-	}
-	single := []models.Message{item}
-	if err := r.hydrateMessageRefs(ctx, single); err != nil {
-		return nil, err
-	}
-	if err := r.hydrateMessageAttachments(ctx, single); err != nil {
-		return nil, err
-	}
-	item = single[0]
-	result := toMessageDomain(item)
-	return &result, nil
-}
-
-// ListMessageAncestors 从指定消息向上遍历 parent_message_id 链，返回祖先消息（按 id ASC 排列）。
+// ListMessageAncestors 从指定消息向上遍历 parent_message_id 链，返回祖先消息（根到叶排列）。
 // 使用 WITH RECURSIVE CTE 一次往返代替原来最多 40 次单行查询（N+1 反模式）。
 func (r *Repo) ListMessageAncestors(ctx context.Context, conversationID uint, leafMessageID uint, maxDepth int) ([]domainconversation.Message, error) {
 	if maxDepth <= 0 {
@@ -2190,7 +2155,7 @@ WITH RECURSIVE ancestors AS (
       AND m.deleted_at IS NULL
 )
 SELECT * FROM ancestors
-ORDER BY id ASC`
+ORDER BY _depth DESC`
 
 	path := make([]models.Message, 0)
 	if err := r.db.WithContext(ctx).Raw(cteSQL, leafMessageID, conversationID, maxDepth, conversationID).Scan(&path).Error; err != nil {
@@ -2231,12 +2196,13 @@ func (r *Repo) ListLatestBranchPreviewMessages(
 		PublicID     string `gorm:"column:public_id"`
 		Role         string `gorm:"column:role"`
 		Content      string `gorm:"column:content"`
+		Status       string `gorm:"column:status"`
 		ErrorMessage string `gorm:"column:error_message"`
 	}
 	rows := make([]previewMessageRow, 0)
 	const previewSQL = `
 WITH RECURSIVE ancestors AS (
-    SELECT id, conversation_id, parent_message_id, public_id, role, content, error_message, 1 AS depth
+    SELECT id, conversation_id, parent_message_id, public_id, role, content, status, error_message, 1 AS depth
     FROM chat_messages
     WHERE id = (
         SELECT id
@@ -2248,7 +2214,7 @@ WITH RECURSIVE ancestors AS (
       AND conversation_id = ?
       AND deleted_at IS NULL
     UNION ALL
-    SELECT m.id, m.conversation_id, m.parent_message_id, m.public_id, m.role, m.content, m.error_message, a.depth + 1
+    SELECT m.id, m.conversation_id, m.parent_message_id, m.public_id, m.role, m.content, m.status, m.error_message, a.depth + 1
     FROM chat_messages AS m
     INNER JOIN ancestors AS a ON m.id = a.parent_message_id
     WHERE a.parent_message_id IS NOT NULL
@@ -2256,13 +2222,13 @@ WITH RECURSIVE ancestors AS (
       AND m.conversation_id = ?
       AND m.deleted_at IS NULL
 ), visible_messages AS (
-    SELECT id, public_id, role, content, error_message, depth
+    SELECT id, public_id, role, content, status, error_message, depth
     FROM ancestors
     WHERE role IN ('user', 'assistant')
     ORDER BY depth ASC
     LIMIT ?
 )
-SELECT id, public_id, role, content, error_message
+SELECT id, public_id, role, content, status, error_message
 FROM visible_messages
 ORDER BY depth DESC`
 	if err := r.db.WithContext(ctx).
@@ -2279,61 +2245,11 @@ ORDER BY depth DESC`
 			PublicID:       row.PublicID,
 			Role:           row.Role,
 			Content:        row.Content,
+			Status:         row.Status,
 			ErrorMessage:   row.ErrorMessage,
 		})
 	}
 	return items, nil
-}
-
-// ListMessageAncestorsUntil 从指定消息向上遍历 parent_message_id 链，直到命中 stopMessageID 或达到深度上限。
-func (r *Repo) ListMessageAncestorsUntil(ctx context.Context, conversationID uint, leafMessageID uint, stopMessageID uint, maxDepth int) ([]domainconversation.Message, bool, error) {
-	if maxDepth <= 0 {
-		maxDepth = 200
-	}
-	if maxDepth > maxAncestorQueryDepth {
-		maxDepth = maxAncestorQueryDepth
-	}
-	if leafMessageID == 0 || stopMessageID == 0 {
-		return nil, false, repository.ErrInvalidInput
-	}
-
-	const cteSQL = `
-WITH RECURSIVE ancestors AS (
-    SELECT *, 1 AS _depth
-    FROM chat_messages
-    WHERE id = ? AND conversation_id = ? AND deleted_at IS NULL
-    UNION ALL
-    SELECT m.*, a._depth + 1
-    FROM chat_messages m
-    INNER JOIN ancestors a ON m.id = a.parent_message_id
-    WHERE a.parent_message_id IS NOT NULL
-      AND a._depth < ?
-      AND a.id <> ?
-      AND m.conversation_id = ?
-      AND m.deleted_at IS NULL
-)
-SELECT * FROM ancestors
-ORDER BY id ASC`
-
-	path := make([]models.Message, 0)
-	if err := r.db.WithContext(ctx).Raw(cteSQL, leafMessageID, conversationID, maxDepth, stopMessageID, conversationID).Scan(&path).Error; err != nil {
-		return nil, false, translateError(err)
-	}
-
-	found := false
-	for _, item := range path {
-		if item.ID == stopMessageID {
-			found = true
-			break
-		}
-	}
-	if err := r.hydrateMessageRefs(ctx, path); err != nil {
-		return nil, false, err
-	}
-	if err := r.hydrateMessageAttachments(ctx, path); err != nil {
-		return nil, false, err
-	}
-	return toMessageDomains(path), found, nil
 }
 
 // ListRecentMessages 查询会话最近消息窗口（按时间升序返回）。

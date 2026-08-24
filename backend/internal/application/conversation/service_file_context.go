@@ -234,7 +234,7 @@ func shouldUseRAGForAttachment(item AttachmentInput, fileMode string, cfg config
 			return true
 		}
 		if cfg.ContextTokenBudgetEnabled {
-			budget := llm.EffectiveContextBudgetFromCapabilities(capabilityModelName, capabilitiesJSON)
+			budget := llm.EffectiveContextBudgetFromCapabilitiesWithFallback(capabilityModelName, capabilitiesJSON, cfg.ContextWindowFallbackTokens)
 			fileTokens := int(estimateTokens(item.ExtractedText))
 			return budget > 0 && fileTokens > budget*2/5
 		}

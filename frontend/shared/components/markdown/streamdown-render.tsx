@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/accordion";
 import { Marker, MarkerContent } from "@/components/ui/marker";
 import { cn } from "@/lib/utils";
+import { useAutoExpandDisclosure } from "@/shared/hooks/use-auto-expand-disclosure";
 import {
   AdaptiveMarkdownTable,
   MarkdownTableStreamingContext,
@@ -73,6 +74,7 @@ type StreamdownRenderProps = {
   streaming?: boolean;
   variant?: "default" | "thinking" | "user";
   sourcePositions?: boolean;
+  autoExpandThinking?: boolean;
   imageActions?: MarkdownImageActions;
   artifactActions?: MarkdownArtifactActions;
 };
@@ -469,40 +471,27 @@ function ThinkingSegmentBlock({
   incomplete,
   plugins,
   streaming,
+  autoExpand,
 }: {
   content: string;
   incomplete: boolean;
   plugins: PluginConfig;
   streaming: boolean;
+  autoExpand: boolean;
 }) {
   const t = useTranslations("chat.markdown.thinking");
   const translations = useStreamdownTranslations();
-  const active = streaming || incomplete;
-  const [accordionValue, setAccordionValue] = React.useState(() => (active ? "thinking" : ""));
-  const wasActiveRef = React.useRef(active);
-
-  React.useEffect(() => {
-    if (active) {
-      setAccordionValue("thinking");
-      wasActiveRef.current = true;
-      return;
-    }
-
-    if (wasActiveRef.current) {
-      setAccordionValue("");
-    }
-    wasActiveRef.current = false;
-  }, [active]);
+  const active = streaming && incomplete;
+  const { open, onOpenChange } = useAutoExpandDisclosure({ active, autoExpand });
 
   const isActive = active;
-  const open = accordionValue === "thinking";
 
   return (
     <Accordion
       type="single"
       collapsible
-      value={accordionValue}
-      onValueChange={(value) => setAccordionValue(value || "")}
+      value={open ? "thinking" : ""}
+      onValueChange={(value) => onOpenChange(value === "thinking")}
       className="w-full"
     >
       <AccordionItem value="thinking" className="border-b-0">
@@ -546,8 +535,8 @@ function ThinkingSegmentBlock({
               plugins={plugins}
               rehypePlugins={STREAMDOWN_REHYPE_PLUGINS}
               remend={STREAMDOWN_REMEND}
-              mode={streaming ? "streaming" : "static"}
-              parseIncompleteMarkdown={streaming || incomplete}
+              mode={active ? "streaming" : "static"}
+              parseIncompleteMarkdown={active}
               shikiTheme={["github-light", "github-dark"]}
               animated={false}
               isAnimating={active}
@@ -613,6 +602,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
   streaming = false,
   variant = "default",
   sourcePositions = false,
+  autoExpandThinking = true,
   imageActions,
   artifactActions,
 }: StreamdownRenderProps) {
@@ -632,6 +622,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
   const {
     rootRef: markdownCopyRootRef,
     onClickCapture: handleMarkdownCopyClickCapture,
+    onCopyCapture: handleMarkdownCopyCapture,
     onKeyDownCapture: handleMarkdownCopyKeyDownCapture,
     onPointerDownCapture: handleMarkdownCopyPointerDownCapture,
   } = useMarkdownCopy({
@@ -678,6 +669,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
       className={cn("chat-font-content min-w-0 max-w-full overflow-hidden text-foreground [overflow-wrap:anywhere]", contentSpacingClassName, className)}
       data-chat-markdown-scope=""
       onClickCapture={handleMarkdownCopyClickCapture}
+      onCopyCapture={handleMarkdownCopyCapture}
       onKeyDownCapture={handleMarkdownCopyKeyDownCapture}
       onPointerDownCapture={handleMarkdownCopyPointerDownCapture}
     >
@@ -688,6 +680,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
             incomplete={hasIncompleteThinking}
             plugins={plugins}
             streaming={streaming}
+            autoExpand={autoExpandThinking}
           />
         ) : null}
       {markdownSegments.map((segment, index) => (

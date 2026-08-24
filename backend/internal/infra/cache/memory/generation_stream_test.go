@@ -13,7 +13,7 @@ func TestGenerationStreamRegisterDoesNotMarkCanceled(t *testing.T) {
 	ctx := context.Background()
 	runID := "run_memory_cancel_state"
 
-	if err := cache.RegisterGenerationStream(ctx, runID, 7, time.Minute); err != nil {
+	if err := cache.RegisterGenerationStream(ctx, runID, 7, "conv_test", time.Minute); err != nil {
 		t.Fatalf("register generation stream: %v", err)
 	}
 
@@ -34,7 +34,7 @@ func TestGenerationStreamRegisterDoesNotMarkCanceled(t *testing.T) {
 		t.Fatalf("requested stream canceled=%v err=%v, want true nil", canceled, err)
 	}
 
-	if err := cache.RegisterGenerationStream(ctx, runID, 7, time.Minute); err != nil {
+	if err := cache.RegisterGenerationStream(ctx, runID, 7, "conv_test", time.Minute); err != nil {
 		t.Fatalf("register generation stream after cancel: %v", err)
 	}
 	if canceled, err := cache.IsGenerationStreamCanceled(ctx, runID); err != nil || canceled {
@@ -46,7 +46,7 @@ func TestGenerationStreamTextSnapshotLifecycle(t *testing.T) {
 	cache := New()
 	ctx := context.Background()
 	runID := "run_memory_text_snapshot"
-	if err := cache.RegisterGenerationStream(ctx, runID, 7, time.Minute); err != nil {
+	if err := cache.RegisterGenerationStream(ctx, runID, 7, "conv_test", time.Minute); err != nil {
 		t.Fatal(err)
 	}
 
@@ -94,20 +94,30 @@ func TestGenerationStreamClearActiveMarksInactive(t *testing.T) {
 	ctx := context.Background()
 	runID := "run_memory_active_state"
 
-	if err := cache.RegisterGenerationStream(ctx, runID, 7, time.Minute); err != nil {
+	if err := cache.RegisterGenerationStream(ctx, runID, 7, "conv_test", time.Minute); err != nil {
 		t.Fatalf("register generation stream: %v", err)
 	}
-	if err := cache.TouchGenerationStreamActive(ctx, runID, time.Minute); err != nil {
+	if err := cache.TouchGenerationStreamActive(ctx, runID, 7, time.Minute); err != nil {
 		t.Fatalf("touch active stream: %v", err)
 	}
 	if active, err := cache.IsGenerationStreamActive(ctx, runID); err != nil || !active {
 		t.Fatalf("touched stream active=%v err=%v, want true nil", active, err)
 	}
+	items, err := cache.ListActiveGenerationStreams(ctx, 7)
+	if err != nil || len(items) != 1 || items[0].RunID != runID || items[0].ConversationPublicID != "conv_test" {
+		t.Fatalf("active streams=%+v err=%v, want registered run", items, err)
+	}
+	if otherItems, otherErr := cache.ListActiveGenerationStreams(ctx, 8); otherErr != nil || len(otherItems) != 0 {
+		t.Fatalf("other user active streams=%+v err=%v, want empty", otherItems, otherErr)
+	}
 
-	if err := cache.ClearGenerationStreamActive(ctx, runID); err != nil {
+	if err := cache.ClearGenerationStreamActive(ctx, runID, 7); err != nil {
 		t.Fatalf("clear active stream: %v", err)
 	}
 	if active, err := cache.IsGenerationStreamActive(ctx, runID); err != nil || active {
 		t.Fatalf("cleared stream active=%v err=%v, want false nil", active, err)
+	}
+	if items, err = cache.ListActiveGenerationStreams(ctx, 7); err != nil || len(items) != 0 {
+		t.Fatalf("active streams after clear=%+v err=%v, want empty", items, err)
 	}
 }

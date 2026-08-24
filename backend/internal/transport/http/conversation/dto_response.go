@@ -538,15 +538,16 @@ func toDeleteFileResponse(r *appupload.DeleteFileResult) DeleteFileResponse {
 
 // MessageTraceBlockResponse 消息轨迹块响应 DTO。
 type MessageTraceBlockResponse struct {
-	Title           string    `json:"title"`
-	Summary         string    `json:"summary"`
-	ContentMarkdown string    `json:"contentMarkdown"`
-	Status          string    `json:"status"`
-	Stage           string    `json:"stage,omitempty"`
-	RoundID         string    `json:"roundID,omitempty"`
-	ParentEventID   string    `json:"parentEventID,omitempty"`
-	UpdatedAt       time.Time `json:"updatedAt"`
-	PayloadJSON     string    `json:"payloadJSON,omitempty"`
+	Title           string     `json:"title"`
+	Summary         string     `json:"summary"`
+	ContentMarkdown string     `json:"contentMarkdown"`
+	Status          string     `json:"status"`
+	Stage           string     `json:"stage,omitempty"`
+	RoundID         string     `json:"roundID,omitempty"`
+	ParentEventID   string     `json:"parentEventID,omitempty"`
+	StartedAt       *time.Time `json:"startedAt,omitempty"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
+	PayloadJSON     string     `json:"payloadJSON,omitempty"`
 }
 
 // MessageTraceEventResponse 消息轨迹事件响应 DTO。
@@ -836,6 +837,13 @@ type MessageModerationResponse struct {
 	Categories []string `json:"categories,omitempty"`
 }
 
+func toOptionalTraceTime(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}
+
 func toTraceBlockResponse(b *model.MessageTraceBlock) *MessageTraceBlockResponse {
 	if b == nil {
 		return nil
@@ -848,6 +856,7 @@ func toTraceBlockResponse(b *model.MessageTraceBlock) *MessageTraceBlockResponse
 		Stage:           b.Stage,
 		RoundID:         b.RoundID,
 		ParentEventID:   b.ParentEventID,
+		StartedAt:       toOptionalTraceTime(b.StartedAt),
 		UpdatedAt:       b.UpdatedAt,
 		PayloadJSON:     sanitizeTracePayloadJSON(b.PayloadJSON),
 	}
@@ -865,6 +874,7 @@ func toPublicTraceBlockResponse(b *model.MessageTraceBlock) *MessageTraceBlockRe
 		Stage:           b.Stage,
 		RoundID:         b.RoundID,
 		ParentEventID:   b.ParentEventID,
+		StartedAt:       toOptionalTraceTime(b.StartedAt),
 		UpdatedAt:       b.UpdatedAt,
 		PayloadJSON:     sanitizePublicTracePayloadJSON(b.PayloadJSON),
 	}
@@ -1188,6 +1198,18 @@ type SendMessageResponse struct {
 
 type CancelMessageGenerationResponse struct {
 	Canceled bool `json:"canceled"`
+}
+
+type ActiveMessageGenerationResponse struct {
+	RunID                string `json:"runID"`
+	ConversationPublicID string `json:"conversationPublicID"`
+}
+
+type ActiveMessageGenerationEventResponse struct {
+	Type                 string                            `json:"type"`
+	Runs                 []ActiveMessageGenerationResponse `json:"runs,omitempty"`
+	RunID                string                            `json:"runID,omitempty"`
+	ConversationPublicID string                            `json:"conversationPublicID,omitempty"`
 }
 
 func toSendMessageResponse(r *appconversation.SendMessageResult) SendMessageResponse {

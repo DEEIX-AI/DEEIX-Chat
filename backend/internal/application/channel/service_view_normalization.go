@@ -68,7 +68,12 @@ func displayProtocolDefaultsJSON(raw string) string {
 	return string(normalized)
 }
 
-func toModelView(item repository.ChannelModelListRow) ModelView {
+func (s *Service) toModelView(item repository.ChannelModelListRow) ModelView {
+	fallbackContextWindow := 0
+	if s != nil && s.cfg != nil {
+		fallbackContextWindow = s.cfg.Snapshot().ContextWindowFallbackTokens
+	}
+	resolvedCaps := llm.ResolveModelCapsFromCapabilitiesWithFallback(item.PlatformModelName, item.CapabilitiesJSON, fallbackContextWindow)
 	return ModelView{
 		ID:                 item.ID,
 		PlatformModelName:  item.PlatformModelName,
@@ -81,6 +86,7 @@ func toModelView(item repository.ChannelModelListRow) ModelView {
 		KindsJSON:          item.KindsJSON,
 		Icon:               item.Icon,
 		CapabilitiesJSON:   item.CapabilitiesJSON,
+		ContextWindow:      resolvedCaps.ContextWindow,
 		SystemPrompt:       item.SystemPrompt,
 		AccessScope:        normalizeModelAccessScopeValue(item.AccessScope),
 		Status:             item.Status,

@@ -612,56 +612,37 @@
         "codeInterpreter": "代码解释器",
         "imageGeneration": "图像生成",
         "shell": "Shell",
-        "generic": "工具调用",
-        "thinking": "模型思考"
+        "generic": "工具调用"
       },
       "detail": {
+        "nameLabel": "工具",
         "request": "请求",
         "response": "响应",
         "error": "错误",
-        "expand": "展开",
-        "collapse": "收起",
+        "argumentsTitle": "参数",
+        "resultTitle": "结果",
+        "copy": "复制",
+        "copied": "已复制",
+        "copyFailed": "复制失败",
         "sourceFallback": "来源 {index}",
         "generatedImageAlt": "生成图片 {index}",
-        "query": "关键词",
-        "action": "动作",
-        "source": "来源",
-        "code": "代码",
-        "output": "输出",
-        "resultFile": "结果文件",
-        "prompt": "提示词",
-        "command": "命令",
-        "latencySeparator": "；"
-      },
-      "nativeStatus": {
-        "webSearchActive": "正在网页搜索",
-        "webSearchDone": "网页搜索完成",
-        "webSearchFailed": "网页搜索失败",
-        "codeActive": "正在运行代码",
-        "codeDone": "代码运行完成",
-        "codeFailed": "代码运行失败",
-        "imageActive": "正在生成图片",
-        "imageDone": "图像生成完成",
-        "imageFailed": "图像生成失败",
-        "shellActive": "Shell 执行中",
-        "shellDone": "Shell 执行完成",
-        "shellFailed": "Shell 执行失败",
-        "genericActive": "工具调用中",
-        "genericDone": "工具调用完成",
-        "genericFailed": "工具调用失败"
-      },
-      "chain": {
-        "titleActive": "工具调用中",
-        "titleDone": "工具调用",
-        "summaryCount": "{count} 次工具调用",
-        "summaryFallback": "工具调用"
+        "sourceCount": "{count} 个来源",
+        "groundingSupportCount": "{count} 条引用依据",
+        "exitCode": "退出码 {code}"
       }
     },
     "think": {
-      "titleActive": "正在思考",
-      "titleDone": "思考完成",
-      "subtitleActive": "正在解析问题并梳理关键信息",
-      "subtitleDone": "已理解并完成相关信息整合与推理"
+      "rowActive": "深度思考中",
+      "rowDone": "深度思考",
+      "duration": "{seconds}"
+    },
+    "run": {
+      "titleActive": "执行中",
+      "titleDone": "执行完成",
+      "toolCalls": "{count} 次工具调用",
+      "thinkRounds": "{count} 轮深度思考",
+      "duration": "{duration}",
+      "labelSeparator": " · "
     },
     "promptTrace": {
       "modes": {
@@ -703,7 +684,9 @@
       "summary": "已压缩第 {fromTurn}-{toTurn} 轮上下文",
       "detail": "对话已压缩并生成滚动摘要。",
       "range": "压缩区间：第 {fromTurn}-{toTurn} 轮。",
-      "tokens": "Tokens 缩减：{sourceTokens} -> {summaryTokens}。"
+      "tokens": "Tokens 缩减：{sourceTokens} -> {summaryTokens}。",
+      "pending": "正在后台生成滚动摘要。",
+      "failed": "上下文压缩未完成，系统将在后续请求中重试。"
     }
   },
   "optionLabels": {

@@ -2,12 +2,14 @@ package channel
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
 
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/channelconfig"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/nativetool"
@@ -52,7 +54,7 @@ func (s *Service) ListModels(ctx context.Context, page int, pageSize int, input 
 	}
 	views := make([]ModelView, 0, len(items))
 	for _, item := range items {
-		views = append(views, toModelView(item))
+		views = append(views, s.toModelView(item))
 	}
 	if err := s.normalizeModelAvailability(ctx, views); err != nil {
 		return nil, 0, err
@@ -78,7 +80,7 @@ func (s *Service) listActiveModelViews(ctx context.Context) ([]ModelView, error)
 		if err != nil {
 			return nil, err
 		}
-		return filterPublicRoutableModels(items), nil
+		return s.filterPublicRoutableModels(items), nil
 	}
 	mode, err := s.modelPricingFilter.GetBillingMode(ctx)
 	if err != nil {
@@ -89,7 +91,7 @@ func (s *Service) listActiveModelViews(ctx context.Context) ([]ModelView, error)
 		if err != nil {
 			return nil, err
 		}
-		return filterPublicRoutableModels(items), nil
+		return s.filterPublicRoutableModels(items), nil
 	}
 
 	s.modelCatalogMu.RLock()
@@ -104,7 +106,7 @@ func (s *Service) listActiveModelViews(ctx context.Context) ([]ModelView, error)
 	if err != nil {
 		return nil, err
 	}
-	views := filterPublicRoutableModels(items)
+	views := s.filterPublicRoutableModels(items)
 	pricingByPlatformModelName, err := s.modelPricingFilter.ListPublicModelPricing(ctx)
 	if err != nil {
 		return nil, err
@@ -227,7 +229,7 @@ func cloneModelViews(items []ModelView) []ModelView {
 }
 
 // filterPublicRoutableModels 过滤出公开接口可展示的有效可路由模型。
-func filterPublicRoutableModels(items []repository.ChannelModelListRow) []ModelView {
+func (s *Service) filterPublicRoutableModels(items []repository.ChannelModelListRow) []ModelView {
 	results := make([]ModelView, 0, len(items))
 	for _, item := range items {
 		if item.ActiveSourceCount <= 0 {
@@ -236,7 +238,7 @@ func filterPublicRoutableModels(items []repository.ChannelModelListRow) []ModelV
 		if normalizeModelAccessScopeValue(item.AccessScope) != ModelAccessScopePublic {
 			continue
 		}
-		results = append(results, toModelView(item))
+		results = append(results, s.toModelView(item))
 	}
 	return results
 }
@@ -369,6 +371,9 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 	if err := validateOptionalJSON(strings.TrimSpace(input.CapabilitiesJSON)); err != nil {
 		return nil, ErrInvalidJSONConfig
 	}
+	if err := llm.ValidateModelCapsOverrides(input.CapabilitiesJSON); err != nil {
+		return nil, ErrInvalidModelCapsConfig
+	}
 	systemPrompt := strings.TrimSpace(input.SystemPrompt)
 	if len([]rune(systemPrompt)) > maxSystemPromptChars {
 		return nil, ErrSystemPromptTooLong
@@ -441,6 +446,7 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 	if err != nil {
 		return nil, err
 	}
+	currentVendor := nextVendor
 	nextPlatformModelName := current.PlatformModelName
 
 	update := repository.UpdateChannelModelInput{}
@@ -484,6 +490,9 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 		normalized := strings.TrimSpace(*input.CapabilitiesJSON)
 		if err := validateOptionalJSON(normalized); err != nil {
 			return nil, ErrInvalidJSONConfig
+		}
+		if err := llm.ValidateModelCapsOverrides(normalized); err != nil {
+			return nil, ErrInvalidModelCapsConfig
 		}
 		update.CapabilitiesJSON = &normalized
 	}
@@ -535,6 +544,12 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 			nextVendor = autoVendor
 		}
 	}
+	identityChanged := nextPlatformModelName != current.PlatformModelName || nextVendor != currentVendor
+	if identityChanged && input.CapabilitiesJSON == nil {
+		if capabilitiesJSON, changed := clearAutomaticContextWindow(current.CapabilitiesJSON); changed {
+			update.CapabilitiesJSON = &capabilitiesJSON
+		}
+	}
 	if input.Icon == nil && (input.PlatformModelName != nil || input.Vendor != nil) && shouldRefreshAutoIcon(current) {
 		icon := normalizeModelIcon("", nextVendor, nextPlatformModelName)
 		update.Icon = &icon
@@ -563,12 +578,40 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 	return s.getModelViewByID(ctx, modelID)
 }
 
+// clearAutomaticContextWindow removes a catalog-derived context window after
+// the model identity changes. Explicit administrator overrides do not carry
+// the marker and are intentionally preserved.
+func clearAutomaticContextWindow(raw string) (string, bool) {
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &payload); err != nil || payload == nil {
+		return raw, false
+	}
+	mode, ok := payload["_deeixContextWindowMode"].(string)
+	if !ok || !strings.EqualFold(strings.TrimSpace(mode), "auto") {
+		return raw, false
+	}
+
+	delete(payload, "_deeixContextWindowMode")
+	delete(payload, "contextWindow")
+	delete(payload, "context_window")
+	delete(payload, "contextWindowTokens")
+	delete(payload, "context_window_tokens")
+	if len(payload) == 0 {
+		return "", true
+	}
+	normalized, err := json.Marshal(payload)
+	if err != nil {
+		return raw, false
+	}
+	return string(normalized), true
+}
+
 func (s *Service) getModelViewByID(ctx context.Context, modelID uint) (*ModelView, error) {
 	item, err := s.repo.GetModelListRowByID(ctx, modelID)
 	if err != nil {
 		return nil, err
 	}
-	view := toModelView(*item)
+	view := s.toModelView(*item)
 	views := []ModelView{view}
 	if err := s.normalizeModelAvailability(ctx, views); err != nil {
 		return nil, err

@@ -87,6 +87,81 @@ func TestUpdateModelUsesCatalogVendorAndOptionalDisplayGroup(t *testing.T) {
 	}
 }
 
+func TestUpdateModelRejectsInvalidModelCapsWithDedicatedError(t *testing.T) {
+	repo := &modelUpdateRepo{
+		model: domainchannel.PlatformModel{
+			ID:                1,
+			PlatformModelName: "custom-model",
+			Vendor:            "openai",
+			KindsJSON:         `["chat"]`,
+			AccessScope:       "public",
+			Status:            "active",
+		},
+	}
+	service := NewService(config.Config{}, repo, repo, nil, nil)
+	capabilities := `{"contextWindow":4096,"maxOutputTokens":4096}`
+
+	_, err := service.UpdateModel(context.Background(), 1, UpdateModelInput{CapabilitiesJSON: &capabilities})
+	if !errors.Is(err, ErrInvalidModelCapsConfig) {
+		t.Fatalf("UpdateModel() error = %v, want ErrInvalidModelCapsConfig", err)
+	}
+}
+
+func TestUpdateModelClearsAutomaticContextWindowWhenIdentityChanges(t *testing.T) {
+	repo := &modelUpdateRepo{
+		model: domainchannel.PlatformModel{
+			ID:                1,
+			PlatformModelName: "claude-sonnet-4.5",
+			Vendor:            "anthropic",
+			KindsJSON:         `["chat"]`,
+			CapabilitiesJSON:  `{"contextWindow":200000,"_deeixContextWindowMode":"auto","maxOutputTokens":8192}`,
+			AccessScope:       "public",
+			Status:            "active",
+		},
+	}
+	service := NewService(config.Config{}, repo, repo, nil, nil)
+	name := "claude-sonnet-4.6"
+
+	_, err := service.UpdateModel(context.Background(), 1, UpdateModelInput{PlatformModelName: &name})
+	if err != nil {
+		t.Fatalf("UpdateModel() error = %v", err)
+	}
+	if repo.lastUpdate.CapabilitiesJSON == nil {
+		t.Fatal("expected stale automatic context window to be cleared")
+	}
+	want := `{"maxOutputTokens":8192}`
+	if *repo.lastUpdate.CapabilitiesJSON != want {
+		t.Fatalf("CapabilitiesJSON = %q, want %q", *repo.lastUpdate.CapabilitiesJSON, want)
+	}
+}
+
+func TestUpdateModelPreservesManualContextWindowWhenIdentityChanges(t *testing.T) {
+	repo := &modelUpdateRepo{
+		model: domainchannel.PlatformModel{
+			ID:                1,
+			PlatformModelName: "private-model-v1",
+			Vendor:            "unknown",
+			KindsJSON:         `["chat"]`,
+			CapabilitiesJSON:  `{"contextWindow":256000}`,
+			AccessScope:       "public",
+			Status:            "active",
+		},
+	}
+	service := NewService(config.Config{}, repo, repo, nil, nil)
+	name := "private-model-v2"
+
+	_, err := service.UpdateModel(context.Background(), 1, UpdateModelInput{PlatformModelName: &name})
+	if err != nil {
+		t.Fatalf("UpdateModel() error = %v", err)
+	}
+	if repo.lastUpdate.CapabilitiesJSON != nil {
+		t.Fatalf("manual capabilities must be preserved, got update %q", *repo.lastUpdate.CapabilitiesJSON)
+	}
+	if repo.model.CapabilitiesJSON != `{"contextWindow":256000}` {
+		t.Fatalf("manual capabilities changed to %q", repo.model.CapabilitiesJSON)
+	}
+}
+
 func TestUpdateModelUpstreamSourceUpdatesRouteCircuitSettings(t *testing.T) {
 	repo := &modelUpdateRepo{
 		model: domainchannel.PlatformModel{

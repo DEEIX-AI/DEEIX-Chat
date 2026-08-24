@@ -1,3 +1,5 @@
+export const CODE_BLOCK_PLAIN_TEXT_MIME = "application/x-deeix-code-block-text";
+
 export async function writeClipboardText(value: string): Promise<void> {
   let clipboardError: unknown;
 

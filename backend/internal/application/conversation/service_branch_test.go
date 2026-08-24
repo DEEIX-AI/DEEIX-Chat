@@ -1,11 +1,108 @@
 package conversation
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"go.uber.org/zap"
 )
+
+type branchContextRepositoryStub struct {
+	repository.ConversationRepository
+	messages []model.Message
+	calls    int
+}
+
+func (s *branchContextRepositoryStub) ListMessageAncestors(_ context.Context, _ uint, leafMessageID uint, maxDepth int) ([]model.Message, error) {
+	s.calls++
+	leafIndex := -1
+	for index := range s.messages {
+		if s.messages[index].ID == leafMessageID {
+			leafIndex = index
+			break
+		}
+	}
+	if leafIndex < 0 {
+		return nil, nil
+	}
+	start := leafIndex - maxDepth + 1
+	if start < 0 {
+		start = 0
+	}
+	return append([]model.Message(nil), s.messages[start:leafIndex+1]...), nil
+}
+
+func buildBranchContextMessages(count int) []model.Message {
+	messages := make([]model.Message, 0, count)
+	for index := 1; index <= count; index++ {
+		message := model.Message{
+			ID:       uint(index),
+			PublicID: fmt.Sprintf("message_%d", index),
+			Role:     "user",
+			Status:   "success",
+			Content:  "content",
+		}
+		if index%2 == 0 {
+			message.Role = "assistant"
+		}
+		if index > 1 {
+			parentID := uint(index - 1)
+			message.ParentMessageID = &parentID
+		}
+		messages = append(messages, message)
+	}
+	return messages
+}
+
+func TestLoadMessageBranchContextStopsAtVerifiedSnapshotBoundary(t *testing.T) {
+	messages := buildBranchContextMessages(600)
+	repo := &branchContextRepositoryStub{messages: messages}
+	service := &Service{repo: repo, logger: zap.NewNop()}
+	parentID := uint(600)
+	branch := &messageBranchState{ParentMessageID: &parentID}
+	snapshot := &model.ContextSnapshot{
+		SummaryText:           "summary",
+		CoveredUntilMessageID: 300,
+		CoveredUntilPublicID:  "message_300",
+		CoveragePathHash:      "verified",
+		CoveredMessageCount:   300,
+	}
+
+	if err := service.loadMessageBranchContext(t.Context(), 9, branch, snapshot, "default"); err != nil {
+		t.Fatalf("loadMessageBranchContext() error = %v", err)
+	}
+	if repo.calls != 2 {
+		t.Fatalf("expected two bounded ancestor pages, got %d", repo.calls)
+	}
+	if len(branch.ExistingMessages) != 301 {
+		t.Fatalf("expected boundary through leaf, got %d messages", len(branch.ExistingMessages))
+	}
+	if branch.ExistingMessages[0].ID != 300 || branch.ExistingMessages[len(branch.ExistingMessages)-1].ID != 600 {
+		t.Fatalf("expected active path 300..600, got %d..%d", branch.ExistingMessages[0].ID, branch.ExistingMessages[len(branch.ExistingMessages)-1].ID)
+	}
+}
+
+func TestLoadMessageBranchContextReadsRootWithoutSnapshot(t *testing.T) {
+	messages := buildBranchContextMessages(600)
+	repo := &branchContextRepositoryStub{messages: messages}
+	service := &Service{repo: repo, logger: zap.NewNop()}
+	parentID := uint(600)
+	branch := &messageBranchState{ParentMessageID: &parentID}
+
+	if err := service.loadMessageBranchContext(t.Context(), 9, branch, nil, "default"); err != nil {
+		t.Fatalf("loadMessageBranchContext() error = %v", err)
+	}
+	if repo.calls != 3 {
+		t.Fatalf("expected three bounded ancestor pages, got %d", repo.calls)
+	}
+	if len(branch.ExistingMessages) != 600 || branch.ExistingMessages[0].ID != 1 || branch.ExistingMessages[599].ID != 600 {
+		t.Fatalf("expected complete root-to-leaf path, got %#v", branch.ExistingMessages)
+	}
+}
 
 func TestNormalizeDefaultBranchContextKeepsHistoryAfterSuccessfulAssistantRetry(t *testing.T) {
 	rootUserID := uint(1)
@@ -275,37 +372,6 @@ func TestSelectLatestDefaultParentCandidateFallsBackToSuccessfulUser(t *testing.
 
 	if parent == nil || parent.ID != 1 {
 		t.Fatalf("expected successful user fallback as parent, got %#v", parent)
-	}
-}
-
-func TestTruncateContextByTokenBudgetCountsAssistantReasoningWhenEnabled(t *testing.T) {
-	messages := []model.Message{
-		{ID: 1, Role: "user", Content: "first"},
-		{ID: 2, Role: "assistant", Content: "ok", ReasoningContent: "this reasoning content is deliberately long enough to exceed the tiny budget"},
-		{ID: 3, Role: "user", Content: "next"},
-	}
-
-	withReasoning := truncateContextByTokenBudget(messages, 6, true)
-	if len(withReasoning) != 1 || withReasoning[0].ID != 3 {
-		t.Fatalf("expected only latest message when reasoning is counted, got %#v", withReasoning)
-	}
-
-	withoutReasoning := truncateContextByTokenBudget(messages, 6, false)
-	if len(withoutReasoning) != 3 {
-		t.Fatalf("expected all messages when reasoning is omitted, got %#v", withoutReasoning)
-	}
-}
-
-func TestTruncateContextByTokenBudgetReservesHistoricalImageTokens(t *testing.T) {
-	messages := []model.Message{
-		{ID: 1, Role: "user", Content: "first", Attachments: `[{"file_id":"image_1","kind":"image","mime_type":"image/png"}]`},
-		{ID: 2, Role: "assistant", Content: "ok"},
-		{ID: 3, Role: "user", Content: "next"},
-	}
-
-	got := truncateContextByTokenBudget(messages, 100, false)
-	if len(got) != 2 || got[0].ID != 2 || got[1].ID != 3 {
-		t.Fatalf("expected image token reserve to trim the oldest image turn, got %#v", got)
 	}
 }
 

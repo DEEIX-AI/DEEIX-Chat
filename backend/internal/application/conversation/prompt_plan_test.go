@@ -185,6 +185,32 @@ func promptTraceHasBlock(trace PromptTrace, kind PromptBlockKind) bool {
 	return promptTraceBlock(trace, kind) != nil
 }
 
+func TestPromptPlanApplyMessagesReconcilesTranscriptTrace(t *testing.T) {
+	plan := buildPromptPlan(t.Context(), promptPlanInput{
+		BaseMessages: []llm.Message{
+			{Role: "system", Content: "policy"},
+			{Role: "user", Content: "old question"},
+			{Role: "assistant", Content: "old answer"},
+			{Role: "user", Content: "current question"},
+		},
+		Config: config.Config{},
+	})
+	trimmed := []llm.Message{
+		{Role: "system", Content: "policy"},
+		{Role: "user", Content: "current question"},
+	}
+
+	plan.applyMessages(trimmed)
+
+	if len(plan.Messages) != 2 || plan.Trace.TotalTokenEstimate != estimatePromptTokens(trimmed) {
+		t.Fatalf("expected plan to reflect final messages, got %#v", plan)
+	}
+	transcript := promptTraceBlock(plan.Trace, PromptBlockTranscript)
+	if transcript == nil || transcript.SourceCount != 1 || transcript.TokenEstimate != estimateTranscriptTokens(trimmed) {
+		t.Fatalf("expected reconciled transcript trace, got %#v", transcript)
+	}
+}
+
 func promptTraceBlock(trace PromptTrace, kind PromptBlockKind) *PromptBlockTrace {
 	for _, block := range trace.Blocks {
 		if block.Kind == kind {

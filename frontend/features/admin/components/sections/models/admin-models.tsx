@@ -1,12 +1,13 @@
 "use client";
 
-import { Building2, Cable, Check, ChevronDownIcon, Layers3, ListOrdered, Plus, Tags, ToggleLeft, Trash2 } from "lucide-react";
+import { Building2, Cable, Check, ChevronDownIcon, Layers3, ListOrdered, Maximize2, Plus, Tags, ToggleLeft, Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -37,6 +38,10 @@ import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm
 import { useAdminCircuitBreaker } from "@/features/admin/hooks/use-admin-circuit-breaker";
 import { useAdminModelPresentation } from "@/features/admin/hooks/use-admin-model-presentation";
 import { useAdminModels } from "@/features/admin/hooks/use-admin-models";
+import {
+  isValidModelContextWindow,
+  MODEL_CONTEXT_WINDOW_PRESETS,
+} from "@/features/admin/model/model-context-window";
 import {
   ADAPTER_LABELS,
   MODEL_KIND_OPTIONS,
@@ -74,7 +79,7 @@ const ModelPresentationDialog = dynamic(
   { ssr: false },
 );
 
-type ModelBulkAction = "kinds" | "protocol" | "vendor" | "displayGroup" | "status";
+type ModelBulkAction = "kinds" | "protocol" | "vendor" | "displayGroup" | "contextWindow" | "status";
 
 function BulkActionControlRow({
   icon,
@@ -177,8 +182,77 @@ function KindsDropdown({
   );
 }
 
+function ContextWindowBulkInput({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const t = useTranslations("adminModels");
+  const [presetsOpen, setPresetsOpen] = React.useState(false);
+  const parsedValue = Number(value);
+  const invalid = value !== "" && !isValidModelContextWindow(parsedValue);
+
+  return (
+    <div className="flex h-7 min-w-0 overflow-hidden rounded-md border border-input/40 bg-transparent focus-within:border-ring/60 focus-within:ring-[1px] focus-within:ring-ring/40">
+      <Input
+        inputMode="numeric"
+        value={value}
+        placeholder={t("fields.contextWindow")}
+        disabled={disabled}
+        aria-invalid={invalid}
+        aria-label={t("fields.contextWindow")}
+        className="h-full min-w-0 flex-1 rounded-none border-0 px-2 text-[11px] tabular-nums shadow-none focus-visible:ring-0"
+        onChange={(event) => onChange(event.target.value.replace(/\D/g, "").slice(0, 8))}
+        onBlur={() => {
+          if (invalid) {
+            toast.error(t("toast.bulkContextWindowInvalid"));
+          }
+        }}
+      />
+      <Popover open={presetsOpen} onOpenChange={setPresetsOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            disabled={disabled}
+            className="inline-flex h-full w-7 shrink-0 items-center justify-center border-l border-border/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+            aria-label={t("sheet.contextWindowPresets")}
+          >
+            <ChevronDownIcon className="size-3.5" aria-hidden="true" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="z-[100] w-32 p-1">
+          {MODEL_CONTEXT_WINDOW_PRESETS.map((preset) => (
+            <button
+              key={preset.value}
+              type="button"
+              className="relative flex w-full items-center rounded-sm py-1.5 pr-8 pl-2 text-xs font-normal hover:bg-accent"
+              onClick={() => {
+                onChange(String(preset.value));
+                setPresetsOpen(false);
+              }}
+            >
+              <span>{preset.label}</span>
+              <Check
+                className={cn(
+                  "absolute right-2 size-4 shrink-0 text-muted-foreground",
+                  parsedValue === preset.value ? "opacity-100" : "opacity-0",
+                )}
+              />
+            </button>
+          ))}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 export function AdminModelsPage() {
   const t = useTranslations("adminModels");
+  const locale = useLocale();
   const models = useAdminModels();
   const circuitBreaker = useAdminCircuitBreaker();
   const presentation = useAdminModelPresentation();
@@ -206,6 +280,9 @@ export function AdminModelsPage() {
         break;
       case "displayGroup":
         void models.handleBulkApplyDisplayGroup().then(() => setBulkConfirmAction(null));
+        break;
+      case "contextWindow":
+        void models.handleBulkApplyContextWindow().then(() => setBulkConfirmAction(null));
         break;
       case "status":
         void models.handleBulkApplyStatus().then(() => setBulkConfirmAction(null));
@@ -396,6 +473,24 @@ export function AdminModelsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </BulkActionControlRow>
+
+              <BulkActionControlRow
+                icon={<Maximize2 className="size-3 stroke-1" />}
+                label={t("actions.apply")}
+                onApply={() => setBulkConfirmAction("contextWindow")}
+                disabled={
+                  models.loading
+                  || models.batchApplying
+                  || models.selectedModels.length === 0
+                  || !isValidModelContextWindow(Number(models.batchContextWindow))
+                }
+              >
+                <ContextWindowBulkInput
+                  value={models.batchContextWindow}
+                  onChange={models.setBatchContextWindow}
+                  disabled={models.loading || models.batchApplying || models.selectedModels.length === 0}
+                />
               </BulkActionControlRow>
 
               <BulkActionControlRow
@@ -596,7 +691,12 @@ export function AdminModelsPage() {
         }}
         pending={models.batchApplying}
         title={t("bulkConfirm.title")}
-        description={t("bulkConfirm.description", { count: models.selectedModels.length })}
+        description={bulkConfirmAction === "contextWindow"
+          ? t("bulkConfirm.contextWindowDescription", {
+            count: models.selectedModels.length,
+            value: new Intl.NumberFormat(locale).format(Number(models.batchContextWindow)),
+          })
+          : t("bulkConfirm.description", { count: models.selectedModels.length })}
         confirmLabel={t("bulkConfirm.confirm")}
         pendingLabel={t("bulkConfirm.pending")}
         onConfirm={handleConfirmBulkAction}

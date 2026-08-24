@@ -23,6 +23,8 @@ var (
 	ErrInvalidPlatformModelName = errors.New("invalid platform model name")
 	// ErrInvalidJSONConfig JSON 配置无效。
 	ErrInvalidJSONConfig = errors.New("invalid json config")
+	// ErrInvalidModelCapsConfig 模型上下文窗口或输出 Token 上限无效。
+	ErrInvalidModelCapsConfig = errors.New("invalid model capability limits")
 	// ErrInvalidHeadersConfig 请求头 JSON 配置无效。
 	ErrInvalidHeadersConfig = errors.New("invalid headers config")
 	// ErrInvalidAPIKeysConfig 上游 API Key 配置无效。

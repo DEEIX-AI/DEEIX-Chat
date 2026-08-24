@@ -1,11 +1,10 @@
 "use client";
 
-import * as React from "react";
-import { BookOpen, Box, ChevronDown, Globe2, Search, SlidersHorizontal, Wrench, type LucideIcon } from "lucide-react";
+import { BookOpen, Box, ChevronDown, Globe2, type LucideIcon, Search, SlidersHorizontal, Wrench } from "lucide-react";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
 
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -22,9 +21,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { listAvailableMCPTools } from "@/shared/api/mcp";
+import { cn } from "@/lib/utils";
 import { listAllVisibleKnowledgeBases } from "@/shared/api/knowledge-bases";
 import type { KnowledgeBaseDTO } from "@/shared/api/knowledge-bases.types";
+import { listAvailableMCPTools } from "@/shared/api/mcp";
 import type { MCPToolDTO } from "@/shared/api/mcp.types";
 import { getMCPPolicy } from "@/shared/api/settings";
 import { listVisibleSkills } from "@/shared/api/skills";
@@ -169,14 +169,14 @@ export function ProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="overflow-hidden sm:max-w-xl">
-        <form className="contents" onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>{stableDraft?.publicID ? t("editTitle") : t("createTitle")}</DialogTitle>
-            <DialogDescription>{stableDraft?.publicID ? t("editDescription") : t("createDescription")}</DialogDescription>
-          </DialogHeader>
+      <DialogContent className="flex max-h-[min(86vh,760px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+        <DialogHeader className="shrink-0 px-4 py-4">
+          <DialogTitle>{stableDraft?.publicID ? t("editTitle") : t("createTitle")}</DialogTitle>
+          <DialogDescription>{stableDraft?.publicID ? t("editDescription") : t("createDescription")}</DialogDescription>
+        </DialogHeader>
 
-          <div className="min-h-0 space-y-4 overflow-y-auto px-0.5">
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
             <div className="space-y-1">
               <label htmlFor={nameInputID} className="text-xs text-muted-foreground">
                 {t("nameLabel")}
@@ -203,7 +203,7 @@ export function ProjectDialog({
                 value={stableDraft?.systemPrompt ?? ""}
                 maxLength={12000}
                 placeholder={t("systemPromptPlaceholder")}
-                className="min-h-32 resize-y"
+                className="h-48 resize-none overflow-y-auto [field-sizing:fixed]"
                 onChange={(event) => {
                   setDraft((current) => current ? { ...current, systemPrompt: event.target.value } : current);
                 }}
@@ -312,7 +312,7 @@ export function ProjectDialog({
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 px-4 py-3">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
               {t("cancel")}
             </Button>

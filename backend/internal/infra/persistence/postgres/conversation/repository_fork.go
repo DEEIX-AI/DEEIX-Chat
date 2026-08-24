@@ -2,6 +2,8 @@ package conversation
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"strings"
 	"time"
 
@@ -11,7 +13,9 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// CreateForkedConversation 在一个事务内创建 fork 会话、重建消息父链并复制仍有效的附件引用。
+const forkDisplayTraceCreateBatchSize = 200
+
+// CreateForkedConversation 在一个事务内创建 fork 会话、重建消息父链，并复制仍有效的附件引用与历史展示轨迹。
 func (r *Repo) CreateForkedConversation(ctx context.Context, input repository.CreateForkedConversationInput) error {
 	if input.Conversation == nil ||
 		input.SourceConversationID == 0 ||
@@ -86,7 +90,10 @@ func (r *Repo) CreateForkedConversation(ctx context.Context, input repository.Cr
 			targetMessageIDs[item.SourceMessageID] = entity.ID
 		}
 
-		return cloneForkedAttachments(tx, target.UserID, input.SourceConversationID, createdConversation.ID, targetMessageIDs)
+		if err := cloneForkedAttachments(tx, target.UserID, input.SourceConversationID, createdConversation.ID, targetMessageIDs); err != nil {
+			return err
+		}
+		return cloneForkedDisplayTraces(tx, target.UserID, input.SourceConversationID, createdConversation.ID, targetMessageIDs)
 	})
 	if err != nil {
 		return translateError(err)
@@ -94,6 +101,81 @@ func (r *Repo) CreateForkedConversation(ctx context.Context, input repository.Cr
 
 	*input.Conversation = toConversationDomain(createdConversation)
 	return nil
+}
+
+func cloneForkedDisplayTraces(
+	tx *gorm.DB,
+	userID uint,
+	sourceConversationID uint,
+	targetConversationID uint,
+	targetMessageIDs map[uint]uint,
+) error {
+	sourceMessageIDs := make([]uint, 0, len(targetMessageIDs))
+	for sourceMessageID := range targetMessageIDs {
+		sourceMessageIDs = append(sourceMessageIDs, sourceMessageID)
+	}
+
+	sourceEvents := make([]models.ChatRunEvent, 0)
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where(
+			"conversation_id = ? AND user_id = ? AND message_id IN ? AND event_scope IN ?",
+			sourceConversationID,
+			userID,
+			sourceMessageIDs,
+			[]string{chatRunEventScopeTraceBlock, chatRunEventScopeTraceEvent},
+		).
+		Order("message_id ASC, seq ASC, id ASC").
+		Find(&sourceEvents).Error; err != nil {
+		return err
+	}
+	if len(sourceEvents) == 0 {
+		return nil
+	}
+
+	targetEvents := make([]models.ChatRunEvent, 0, len(sourceEvents))
+	for _, source := range sourceEvents {
+		targetMessageID, exists := targetMessageIDs[source.MessageID]
+		if !exists {
+			return repository.ErrInvalidInput
+		}
+		targetEvents = append(targetEvents, models.ChatRunEvent{
+			BaseModel: models.BaseModel{
+				CreatedAt: source.CreatedAt,
+				UpdatedAt: source.UpdatedAt,
+			},
+			MessageID:       targetMessageID,
+			ConversationID:  targetConversationID,
+			UserID:          userID,
+			RunID:           forkedDisplayTraceRunID(targetMessageID, source.RunID),
+			EventScope:      source.EventScope,
+			EventID:         source.EventID,
+			EventType:       source.EventType,
+			Phase:           source.Phase,
+			Stage:           source.Stage,
+			RoundID:         source.RoundID,
+			ParentEventID:   source.ParentEventID,
+			Status:          source.Status,
+			Title:           source.Title,
+			Summary:         source.Summary,
+			ContentMarkdown: source.ContentMarkdown,
+			PayloadJSON:     source.PayloadJSON,
+			Seq:             source.Seq,
+			ToolCallID:      source.ToolCallID,
+			ToolName:        source.ToolName,
+			LatencyMS:       source.LatencyMS,
+			InputJSON:       source.InputJSON,
+			OutputJSON:      source.OutputJSON,
+			ErrorJSON:       source.ErrorJSON,
+			StartedAt:       source.StartedAt,
+			EndedAt:         source.EndedAt,
+		})
+	}
+	return tx.CreateInBatches(&targetEvents, forkDisplayTraceCreateBatchSize).Error
+}
+
+func forkedDisplayTraceRunID(targetMessageID uint, sourceRunID string) string {
+	sourceRunHash := sha256.Sum256([]byte(sourceRunID))
+	return fmt.Sprintf("fork_trace_%d_%x", targetMessageID, sourceRunHash[:8])
 }
 
 func cloneForkedAttachments(

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import { Archive, ArrowDown, ArrowUp, Folder, Maximize2, Minimize2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -26,7 +27,6 @@ import {
 } from "@/features/layouts/model/navigation-search";
 import type { ConversationSearchResult } from "@/features/layouts/types/navigation";
 import type { ConversationPreviewMessageDTO } from "@/shared/api/conversation.types";
-import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { useLoadMoreSentinel } from "@/shared/hooks/use-load-more-sentinel";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { usePointerInteraction } from "@/shared/hooks/use-pointer-interaction";
@@ -34,6 +34,10 @@ import { useStoredBoolean } from "@/shared/hooks/use-stored-boolean";
 import { cn } from "@/lib/utils";
 
 const SEARCH_PREVIEW_PANE_STORAGE_KEY = "deeix.navigation-search.preview.open";
+const StreamdownRender = dynamic(
+  () => import("@/shared/components/markdown/streamdown-render").then((mod) => mod.StreamdownRender),
+  { ssr: false },
+);
 
 function NavigationSearchResultItem({
   item,
@@ -65,7 +69,7 @@ function NavigationSearchResultItem({
       />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate font-medium text-foreground">{item.title}</span>
+          <span className="min-w-0 truncate font-medium text-foreground">{item.title}</span>
           {item.projectName ? (
             <Badge
               variant="secondary"
