@@ -1,19 +1,45 @@
 import * as React from "react"
 
-const MOBILE_BREAKPOINT = 768
+let mobileQuery: MediaQueryList | null = null
+const subscribers = new Set<() => void>()
+
+function getMobileQuery() {
+  if (typeof window === "undefined") {
+    return null
+  }
+  mobileQuery ??= window.matchMedia("(max-width: 767px)")
+  return mobileQuery
+}
+
+function getMobileSnapshot() {
+  return getMobileQuery()?.matches ?? false
+}
+
+function subscribeToMobileQuery(subscriber: () => void) {
+  const query = getMobileQuery()
+  subscribers.add(subscriber)
+  if (subscribers.size === 1) {
+    query?.addEventListener("change", notifyMobileSubscribers)
+  }
+
+  return () => {
+    subscribers.delete(subscriber)
+    if (subscribers.size === 0) {
+      query?.removeEventListener("change", notifyMobileSubscribers)
+    }
+  }
+}
+
+function notifyMobileSubscribers() {
+  for (const subscriber of subscribers) {
+    subscriber()
+  }
+}
 
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
-
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-    const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    }
-    mql.addEventListener("change", onChange)
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    return () => mql.removeEventListener("change", onChange)
-  }, [])
-
-  return !!isMobile
+  return React.useSyncExternalStore(
+    subscribeToMobileQuery,
+    getMobileSnapshot,
+    () => false,
+  )
 }

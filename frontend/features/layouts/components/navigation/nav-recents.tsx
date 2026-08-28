@@ -1,9 +1,9 @@
 "use client";
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
 import { ChevronDown, Star } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 
 import {
   AlertDialog,
@@ -17,68 +17,65 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Collapsible } from "@/components/ui/collapsible";
-import { Spinner } from "@/components/ui/spinner";
 import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
 } from "@/components/ui/sidebar";
+import { Spinner } from "@/components/ui/spinner";
 import {
   ConversationLabelsManagerDialog,
+  type ConversationLabelsTarget,
   ConversationShareDialog,
   sharePatchFromDTO,
-  type ConversationLabelsTarget,
   useConversationExport,
-  useSidebarConversations,
+  useSidebarConversationField,
 } from "@/entities/conversation";
-import { LoadingReveal } from "@/shared/components/loading-reveal";
 import { SidebarConversationItem } from "@/features/layouts/components/navigation/sidebar-conversation-item";
 import { SidebarConversationSkeleton } from "@/features/layouts/components/navigation/sidebar-conversation-skeleton";
-import { DeleteFilesOption } from "@/shared/components/delete-files-option";
-import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
-import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import { useSettingsChatPreferences } from "@/features/settings";
 import { useLayoutActiveConversation } from "@/features/layouts/hooks/use-layout-active-conversation";
 import { useLayoutSidebarListFlip } from "@/features/layouts/hooks/use-layout-sidebar-list-flip";
-import { useSidebarConversationNavigation } from "@/features/layouts/hooks/use-sidebar-conversation-navigation";
+import { useLayoutSidebarNavigation } from "@/features/layouts/hooks/use-layout-sidebar-navigation";
 import { groupConversationsByTime } from "@/features/layouts/model/conversation-time-groups";
 import type {
   SidebarConversationDeleteTarget,
   SidebarConversationRenameTarget,
 } from "@/features/layouts/types/navigation";
+import { useSettingsChatPreferences } from "@/features/settings";
+import { cn } from "@/lib/utils";
+import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
+import { DeleteFilesOption } from "@/shared/components/delete-files-option";
+import { LoadingReveal } from "@/shared/components/loading-reveal";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { useLoadMoreSentinel } from "@/shared/hooks/use-load-more-sentinel";
 import { useStoredBoolean } from "@/shared/hooks/use-stored-boolean";
-import { cn } from "@/lib/utils";
 
-const RECENT_SKELETON_WIDTHS = ["74%", "61%", "69%", "57%", "72%"] as const;
 const RECENTS_OPEN_STORAGE_KEY = "deeix.sidebar.recents.open";
 
 export function NavRecents() {
   const t = useTranslations("recent");
-  const onNavigate = useSidebarConversationNavigation();
+  const onNavigate = useLayoutSidebarNavigation();
   const router = useRouter();
   const activeConversationID = useLayoutActiveConversation();
   const { deleteFilesByDefault } = useSettingsChatPreferences();
 
-  const {
-    recentItems,
-    hasMore,
-    loadingInitial,
-    loadingMore,
-    loadMoreFailed,
-    loadMore,
-    retryLoadMore,
-    projects,
-    transferringStarPublicID,
-    renameByPublicID,
-    regenerateTitleByPublicID,
-    updateLabelsByPublicID,
-    setStarByPublicID,
-    archiveByPublicID,
-    deleteByPublicID,
-    touchByPublicID,
-    setProjectByPublicID,
-  } = useSidebarConversations();
+  const recentItems = useSidebarConversationField("recentItems");
+  const hasMore = useSidebarConversationField("hasMore");
+  const loadingInitial = useSidebarConversationField("loadingInitial");
+  const loadingMore = useSidebarConversationField("loadingMore");
+  const loadMoreFailed = useSidebarConversationField("loadMoreFailed");
+  const loadMore = useSidebarConversationField("loadMore");
+  const retryLoadMore = useSidebarConversationField("retryLoadMore");
+  const projects = useSidebarConversationField("projects");
+  const transferringStarPublicID = useSidebarConversationField("transferringStarPublicID");
+  const renameByPublicID = useSidebarConversationField("renameByPublicID");
+  const regenerateTitleByPublicID = useSidebarConversationField("regenerateTitleByPublicID");
+  const updateLabelsByPublicID = useSidebarConversationField("updateLabelsByPublicID");
+  const setStarByPublicID = useSidebarConversationField("setStarByPublicID");
+  const archiveByPublicID = useSidebarConversationField("archiveByPublicID");
+  const deleteByPublicID = useSidebarConversationField("deleteByPublicID");
+  const touchByPublicID = useSidebarConversationField("touchByPublicID");
+  const setProjectByPublicID = useSidebarConversationField("setProjectByPublicID");
 
   const [deleteTarget, setDeleteTarget] = React.useState<SidebarConversationDeleteTarget>(null);
   const [deleteFiles, setDeleteFiles] = React.useState(false);
@@ -243,7 +240,13 @@ export function NavRecents() {
               <div ref={listContainerRef} className="relative">
                 <LoadingReveal
                   loading={showInitialSkeleton}
-                  skeleton={<SidebarConversationSkeleton count={6} widths={RECENT_SKELETON_WIDTHS} prefix="sidebar-recent" />}
+                  skeleton={
+                    <SidebarConversationSkeleton
+                      count={6}
+                      widths={["74%", "61%", "69%", "57%", "72%"]}
+                      prefix="sidebar-recent"
+                    />
+                  }
                   className="min-h-0"
                 >
                   <SidebarMenu className="gap-0.5">

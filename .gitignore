@@ -162,6 +162,7 @@ storage/*
 data/*
 docs/rules/*
 frontend/public/vendor/lobehub-icons/
+frontend/public/vendor/modern-screenshot/
 frontend/public/pwa/generated/
 docker-compose.local.yml
 

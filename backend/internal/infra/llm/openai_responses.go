@@ -48,7 +48,9 @@ func buildResponsesRequestBody(
 		"input":  items,
 		"stream": stream,
 	}
-	if adapter == AdapterOpenAIResponses && input.ResponsesBackground {
+	if adapter == AdapterOpenAIResponses && input.Ephemeral {
+		payload["store"] = false
+	} else if adapter == AdapterOpenAIResponses && input.ResponsesBackground {
 		payload["background"] = true
 		payload["store"] = true
 	}
@@ -71,7 +73,7 @@ func buildResponsesRequestBody(
 	appendToolDeclarations(payload, providerTools, webSearchTools, buildOpenAITools(toolDefinitions, false))
 	// 有状态会话：提供 previous_response_id 时服务端续接存储的历史，
 	// input 仅包含本轮新消息，避免全量重传。
-	if prevID := strings.TrimSpace(input.PreviousResponseID); prevID != "" {
+	if prevID := strings.TrimSpace(input.PreviousResponseID); !input.Ephemeral && prevID != "" {
 		payload["previous_response_id"] = prevID
 	}
 	if streamOptions := responsesStreamOptions(providerStreamOptions); stream && len(streamOptions) > 0 {

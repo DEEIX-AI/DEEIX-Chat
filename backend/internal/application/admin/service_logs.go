@@ -55,6 +55,14 @@ func (s *Service) ListPaymentOrders(ctx context.Context, page int, pageSize int,
 	return s.orderLogService.ListPaymentOrders(ctx, page, pageSize, filter)
 }
 
+// ListRedemptions 查询管理员兑换记录。
+func (s *Service) ListRedemptions(ctx context.Context, page int, pageSize int, filter billing.RedemptionListFilter) ([]billing.RedemptionRecordView, int64, error) {
+	if s.orderLogService == nil {
+		return []billing.RedemptionRecordView{}, 0, nil
+	}
+	return s.orderLogService.ListRedemptions(ctx, page, pageSize, filter)
+}
+
 // ListConversationEventLogs 查询管理员对话事件。
 func (s *Service) ListConversationEventLogs(ctx context.Context, page int, pageSize int, filter appconversation.EventLogListFilter) ([]domainconversation.EventLog, int64, error) {
 	if s.conversationEventSvc == nil {

@@ -15,7 +15,7 @@ type openAIPromptCacheConfig struct {
 
 func resolveOpenAIPromptCacheConfig(adapter string, input GenerateInput) openAIPromptCacheConfig {
 	config := openAIPromptCacheConfig{}
-	if !isOpenAITextAdapter(adapter) {
+	if input.Ephemeral || !isOpenAITextAdapter(adapter) {
 		return config
 	}
 	config.Key = strings.TrimSpace(input.PromptCacheKey)

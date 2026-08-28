@@ -102,8 +102,8 @@ func (s *Service) ListEvents(ctx context.Context, actorRole string, input EventL
 	if pageSize < 1 {
 		pageSize = 20
 	}
-	if pageSize > 100 {
-		pageSize = 100
+	if pageSize > 1000 {
+		pageSize = 1000
 	}
 	return s.repo.ListEvents(ctx, domaincm.EventListFilter{
 		Query:     query,

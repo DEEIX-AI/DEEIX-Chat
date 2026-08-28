@@ -3,11 +3,7 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
-import {
-  containsGFMTable,
-  containsMarkdownInlineFormatting,
-  containsMarkdownMath,
-} from "./streamdown-content";
+import { containsMarkdownMath } from "./streamdown-content";
 import {
   sanitizeHTMLStyle,
   sanitizeKatexHTMLStyle,
@@ -28,13 +24,12 @@ type MarkdownHTMLDetailsProps = React.DetailsHTMLAttributes<HTMLDetailsElement> 
   node?: unknown;
 };
 
-type MarkdownHTMLMarkdownRenderer = (source: string) => React.ReactNode;
+type MarkdownHTMLInlineRenderer = (source: string) => React.ReactNode;
 
-export const MarkdownHTMLMarkdownRendererContext = React.createContext<MarkdownHTMLMarkdownRenderer | null>(null);
+export const MarkdownHTMLInlineRendererContext = React.createContext<MarkdownHTMLInlineRenderer | null>(null);
+export const MarkdownFootnotesContext = React.createContext(false);
 
-const INLINE_MARKDOWN_STRONG_RE = /(\*\*|__)([\s\S]+?)\1/g;
-const HTML_MARKDOWN_SOURCE_MAX_LENGTH = 64_000;
-const HTML_MARKDOWN_SOURCE_MAX_LINES = 800;
+const INLINE_MARKDOWN_STRONG_RE = /(\*\*|__)([^\n]+?)\1/g;
 const INLINE_MARKDOWN_SOURCE_MAX_LENGTH = 64_000;
 
 const KATEX_SPAN_CLASS_NAMES = [
@@ -84,7 +79,7 @@ function isKatexSpan(className: string | undefined, style: React.CSSProperties |
   ));
 }
 
-function getPlainReactNodeText(node: React.ReactNode): string | null {
+function getPlainInlineText(node: React.ReactNode): string | null {
   let text = "";
   let plain = true;
 
@@ -92,71 +87,40 @@ function getPlainReactNodeText(node: React.ReactNode): string | null {
     if (!plain || child == null || typeof child === "boolean") {
       return;
     }
-
     if (typeof child === "string" || typeof child === "number") {
       text += String(child);
-      if (text.length > HTML_MARKDOWN_SOURCE_MAX_LENGTH) {
-        plain = false;
-      }
+      plain = text.length <= INLINE_MARKDOWN_SOURCE_MAX_LENGTH;
       return;
     }
-
     if (React.isValidElement<{ children?: React.ReactNode }>(child) && child.type === React.Fragment) {
-      const fragmentText = getPlainReactNodeText(child.props.children);
+      const fragmentText = getPlainInlineText(child.props.children);
       if (fragmentText == null) {
         plain = false;
         return;
       }
       text += fragmentText;
-      if (text.length > HTML_MARKDOWN_SOURCE_MAX_LENGTH) {
-        plain = false;
-      }
+      plain = text.length <= INLINE_MARKDOWN_SOURCE_MAX_LENGTH;
       return;
     }
-
     plain = false;
   });
 
   return plain ? text : null;
 }
 
-function normalizeHTMLMarkdownText(source: string): string {
-  const trimmedSource = source.replace(/^\n+|\n+$/g, "");
-  const indents = trimmedSource
-    .split("\n")
-    .filter((line) => line.trim())
-    .map((line) => line.match(/^[ \t]*/)?.[0].length ?? 0);
-  const minIndent = indents.length > 0 ? Math.min(...indents) : 0;
-
-  if (minIndent <= 0) {
-    return trimmedSource;
-  }
-
-  return trimmedSource
-    .split("\n")
-    .map((line) => (line.trim() ? line.slice(minIndent) : line))
-    .join("\n");
-}
-
-function renderInlineStrongMarkdownText(source: string): React.ReactNode {
-  if (source.length > INLINE_MARKDOWN_SOURCE_MAX_LENGTH || !containsMarkdownInlineFormatting(source)) {
+function renderInlineStrongText(source: string): React.ReactNode {
+  if (source.length > INLINE_MARKDOWN_SOURCE_MAX_LENGTH || (!source.includes("**") && !source.includes("__"))) {
     return source;
   }
 
   const nodes: React.ReactNode[] = [];
   let cursor = 0;
   INLINE_MARKDOWN_STRONG_RE.lastIndex = 0;
-
-  while (true) {
-    const match = INLINE_MARKDOWN_STRONG_RE.exec(source);
-    if (match === null) {
-      break;
-    }
+  for (const match of source.matchAll(INLINE_MARKDOWN_STRONG_RE)) {
     const [raw, _delimiter, content] = match;
-    if (!content.trim()) {
+    if (!content.trim() || match.index == null) {
       continue;
     }
-
     if (match.index > cursor) {
       nodes.push(source.slice(cursor, match.index));
     }
@@ -175,61 +139,32 @@ function renderInlineStrongMarkdownText(source: string): React.ReactNode {
   if (cursor === 0) {
     return source;
   }
-
   if (cursor < source.length) {
     nodes.push(source.slice(cursor));
   }
-
   return nodes;
 }
 
-function renderHTMLInlineMarkdownChildren(children: React.ReactNode): React.ReactNode {
+function renderInlineStrongChildren(children: React.ReactNode): React.ReactNode {
   return React.Children.map(children, (child) => {
     if (typeof child === "string" || typeof child === "number") {
-      return renderInlineStrongMarkdownText(String(child));
+      return renderInlineStrongText(String(child));
     }
-
-    if (!React.isValidElement<{ children?: React.ReactNode }>(child)) {
+    if (!React.isValidElement<{ children?: React.ReactNode }>(child) || !("children" in child.props)) {
       return child;
     }
-
-    if (!("children" in child.props)) {
-      return child;
-    }
-
-    const renderedChildren = renderHTMLInlineMarkdownChildren(child.props.children);
-    return React.cloneElement(child, undefined, renderedChildren);
+    return React.cloneElement(child, undefined, renderInlineStrongChildren(child.props.children));
   });
 }
 
 function useHTMLMarkdownChildren(children: React.ReactNode): React.ReactNode {
-  const renderMarkdown = React.useContext(MarkdownHTMLMarkdownRendererContext);
-  const source = React.useMemo(() => getPlainReactNodeText(children), [children]);
-  const normalizedSource = React.useMemo(
-    () => (source == null ? "" : normalizeHTMLMarkdownText(source)),
-    [source],
-  );
-  const renderedInlineChildren = React.useMemo(() => {
-    if (source != null && !containsMarkdownInlineFormatting(source)) {
-      return children;
-    }
-    return renderHTMLInlineMarkdownChildren(children);
-  }, [children, source]);
+  const renderInlineMarkdown = React.useContext(MarkdownHTMLInlineRendererContext);
+  const source = React.useMemo(() => getPlainInlineText(children), [children]);
 
-  if (!renderMarkdown || !normalizedSource.trim()) {
-    return renderedInlineChildren;
+  if (source != null && !source.includes("\n") && containsMarkdownMath(source)) {
+    return renderInlineMarkdown?.(source) ?? children;
   }
-
-  const sourceLineCount = normalizedSource.split("\n", HTML_MARKDOWN_SOURCE_MAX_LINES + 1).length;
-  if (
-    normalizedSource.length > HTML_MARKDOWN_SOURCE_MAX_LENGTH ||
-    sourceLineCount > HTML_MARKDOWN_SOURCE_MAX_LINES ||
-    (!containsGFMTable(normalizedSource) && !containsMarkdownMath(normalizedSource))
-  ) {
-    return renderedInlineChildren;
-  }
-
-  return renderMarkdown(normalizedSource);
+  return renderInlineStrongChildren(children);
 }
 
 export function MarkdownHTMLDiv({ children, className, node: _node, style }: MarkdownHTMLBlockProps) {
@@ -241,13 +176,16 @@ export function MarkdownHTMLDiv({ children, className, node: _node, style }: Mar
   );
 }
 
-export function MarkdownHTMLSection({ children, className, node: _node, style }: MarkdownHTMLBlockProps) {
+export function MarkdownHTMLSection({ children, className, node: _node, style, ...props }: MarkdownHTMLBlockProps) {
   const renderedChildren = useHTMLMarkdownChildren(children);
-  return (
-    <section className={cn("min-w-0 max-w-full", className)} style={sanitizeHTMLStyle(style)}>
+  const footnotes = "data-footnotes" in props || className?.split(/\s+/).includes("footnotes") === true;
+  const section = (
+    <section {...props} className={cn("min-w-0 max-w-full", className)} style={sanitizeHTMLStyle(style)}>
       {renderedChildren}
     </section>
   );
+
+  return footnotes ? <MarkdownFootnotesContext.Provider value>{section}</MarkdownFootnotesContext.Provider> : section;
 }
 
 export function MarkdownHTMLArticle({ children, className, node: _node, style }: MarkdownHTMLBlockProps) {

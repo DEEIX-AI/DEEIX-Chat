@@ -13,27 +13,12 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-	"unicode"
 
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/outboundhttp"
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 	"github.com/google/uuid"
-)
-
-const (
-	// EndpointResponses 表示 OpenAI Responses API 端点。
-	EndpointResponses = "responses"
-	// EndpointChatCompletions 表示 OpenAI Chat Completions API 端点。
-	EndpointChatCompletions = "chat_completions"
-	// EndpointImageGenerations 表示 OpenAI Images API 生成端点。
-	EndpointImageGenerations = "image_generations"
-	// EndpointImageEdits 表示 OpenAI Images API 编辑端点。
-	EndpointImageEdits = "image_edits"
-	// EndpointVideoGenerations 表示异步视频生成端点。
-	EndpointVideoGenerations = "video_generations"
-	// EndpointInteractions 表示 Gemini Interactions API 端点。
-	EndpointInteractions = "interactions"
 )
 
 // 超时默认值。
@@ -42,6 +27,8 @@ const (
 	defaultReadTimeoutMS       = 120000 // 非流式/首字节超时 120s（含 LLM 推理）
 	defaultStreamIdleTimeoutMS = 60000  // 流式 chunk 间隔超时 60s
 	maxUpstreamBodyBytes       = 64 * 1024 * 1024
+	// maxStreamToolCallIndex 防止异常稀疏的上游索引触发无界切片扩容。
+	maxStreamToolCallIndex = 1024
 )
 
 const upstreamRequestIDHeaderTemplate = "${DEEIX_UPSTREAM_REQUEST_ID}"
@@ -50,21 +37,6 @@ const upstreamRequestIDHeaderTemplate = "${DEEIX_UPSTREAM_REQUEST_ID}"
 type Client struct {
 	httpClients *outboundhttp.Pool
 	adapters    map[string]transportAdapter
-}
-
-// RouteConfig 定义渠道路由调用参数。
-type RouteConfig struct {
-	Protocol            string
-	BaseURL             string
-	APIKey              string
-	HeadersJSON         string
-	ConnectTimeoutMS    int // TCP 建连超时（默认 10s）
-	ReadTimeoutMS       int // 非流式整体超时 / 流式首字节超时（默认 120s）
-	StreamIdleTimeoutMS int // 流式两个 chunk 之间最大间隔（默认 60s）
-	Endpoint            string
-	UpstreamModel       string
-	AttributionReferer  string
-	AttributionTitle    string
 }
 
 func resolveConnectTimeout(ms int) time.Duration {
@@ -90,77 +62,6 @@ func resolveStreamIdleTimeout(ms int) time.Duration {
 		return time.Duration(defaultStreamIdleTimeoutMS) * time.Millisecond
 	}
 	return time.Duration(ms) * time.Millisecond
-}
-
-// ContentPart 类型常量。
-const (
-	ContentPartText  = "text"  // 纯文本
-	ContentPartImage = "image" // 图片（原始字节，序列化时 base64 编码）
-	ContentPartFile  = "file"  // 文件提取文本（前端解析后注入）
-)
-
-// ContentPart 表示多模态消息中的一个内容片段。
-type ContentPart struct {
-	Kind         string        // text | image | file
-	Text         string        // Kind=text 或 Kind=file 时的文本内容
-	MimeType     string        // Kind=image 时的 MIME 类型（如 "image/jpeg"）
-	Data         []byte        // Kind=image 时的原始字节（发送时 base64 编码）
-	FileName     string        // Kind=file 时的文件显示名
-	CacheControl *CacheControl // 支持块级缓存的 adapter 可读取该提示
-}
-
-// CacheControl 表示可被支持方言渲染为 prompt cache breakpoint 的提示。
-type CacheControl struct {
-	Type string
-	TTL  string
-}
-
-// Message 定义发送给上游的消息结构。
-// Parts 非空时覆盖 Content 用于多模态内容。
-type Message struct {
-	Role             string
-	Content          string        // 纯文本消息内容（Parts 为空时使用）
-	Parts            []ContentPart // 多模态内容片段（设置后优先于 Content）
-	ReasoningContent string        // OpenAI-compatible thinking mode 的 reasoning_content 回灌字段
-	ToolCalls        []ToolCall    // assistant 请求执行的工具调用
-	ToolResults      []ToolResult  // 工具执行结果，用于回灌下一轮模型调用
-	CacheControl     *CacheControl // 支持块级缓存的 adapter 可读取该提示
-}
-
-// GenerateInput 定义上游推理请求入参。
-type GenerateInput struct {
-	RequestID              string
-	ConversationID         uint
-	ConversationPublicID   string
-	ConversationSessionKey string
-	// PromptCacheKey 是 OpenAI prompt_cache_key 的服务端受控值，用户 Options 不得覆盖。
-	PromptCacheKey string
-	Messages       []Message
-	// Instructions 承载可映射到上游原生指令字段的系统/开发者指令。
-	// 不支持原生指令字段的 adapter 应继续通过 messages 承载系统提示。
-	Instructions string
-	Tools        []ToolDefinition
-	// DisableTools 表示本轮调用必须只生成文本，adapter 不再声明 MCP 或厂商原生工具。
-	DisableTools bool
-	// Options 承载本次调用的自由 JSON 参数。系统字段（model/messages/input/stream）
-	// 由 adapter 固定构造；Options 只表达采样、推理、工具、缓存和厂商原生扩展。
-	Options map[string]interface{}
-	// PreviousResponseID 供 OpenAI Responses API 实现有状态会话。
-	// 非空时：仅在 input 中发送本轮新消息，服务端从存储状态续接历史。
-	// 空串时：退回全量发送模式，适用于所有 adapter。
-	PreviousResponseID string
-	// ResponsesBackground 表示官方 OpenAI Responses 请求使用 background mode。
-	// 这是服务端能力开关，不从用户 Options 透传，避免改变未显式启用模型的数据保留语义。
-	ResponsesBackground bool
-	// ImageEditMask 仅供图片编辑 adapter 使用，表示透明区域掩码。
-	ImageEditMask *ContentPart
-}
-
-// ToolDefinition 是模型可调用工具的统一声明。
-type ToolDefinition struct {
-	Name        string
-	Description string
-	InputSchema json.RawMessage
 }
 
 func modelParamString(params map[string]interface{}, key string) string {
@@ -496,20 +397,6 @@ func shouldSkipNormalizedProviderOption(key string, value interface{}) bool {
 	}
 }
 
-// Usage 记录上游返回 token 使用量。
-type Usage struct {
-	InputTokens        int64
-	OutputTokens       int64
-	CacheReadTokens    int64
-	CacheWriteTokens   int64
-	CacheWrite5mTokens int64
-	CacheWrite1hTokens int64
-	ReasoningTokens    int64
-	Speed              string
-	ServiceTier        string
-	RawUsageJSON       string
-}
-
 func nonCachedInputTokens(totalInputTokens int64, cacheReadTokens int64) int64 {
 	if totalInputTokens <= 0 {
 		return 0
@@ -558,120 +445,6 @@ func rawUsageJSONFromPath(payload map[string]interface{}, keys ...string) string
 	return string(raw)
 }
 
-func MergeRawUsageJSON(left string, right string) string {
-	left = strings.TrimSpace(left)
-	right = strings.TrimSpace(right)
-	if left == "" {
-		return right
-	}
-	if right == "" || right == left {
-		return left
-	}
-	items := make([]interface{}, 0, 2)
-	items = appendRawUsageJSON(items, left)
-	items = appendRawUsageJSON(items, right)
-	if len(items) == 0 {
-		return ""
-	}
-	if len(items) == 1 {
-		raw, err := json.Marshal(items[0])
-		if err != nil {
-			return ""
-		}
-		return string(raw)
-	}
-	raw, err := json.Marshal(items)
-	if err != nil {
-		return ""
-	}
-	return string(raw)
-}
-
-func appendRawUsageJSON(items []interface{}, raw string) []interface{} {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return items
-	}
-	var decoded interface{}
-	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		return items
-	}
-	switch value := decoded.(type) {
-	case []interface{}:
-		return append(items, value...)
-	case map[string]interface{}:
-		return append(items, value)
-	default:
-		return items
-	}
-}
-
-// ToolCall 记录上游返回的工具调用请求。
-type ToolCall struct {
-	ToolCallID       string
-	ToolType         string
-	ToolName         string
-	ArgumentsJSON    string
-	ThoughtSignature string
-	Status           string
-	OutputJSON       string
-	ErrorJSON        string
-}
-
-// ToolResult 记录工具执行结果，由各 adapter 序列化为对应 SDK/API 所需格式。
-type ToolResult struct {
-	ToolCallID string
-	ToolName   string
-	OutputJSON string
-	Status     string
-	Error      string
-}
-
-// ReasoningOutput 定义结构化 reasoning 输出。
-type ReasoningOutput struct {
-	ItemID           string
-	Status           string
-	Summary          string
-	Text             string
-	Signature        string
-	EncryptedContent string
-}
-
-// GenerateOutput 定义上游推理结果。
-type GenerateOutput struct {
-	ResponseID          string
-	Text                string
-	Reasoning           *ReasoningOutput
-	Usage               Usage
-	ToolCalls           []ToolCall
-	ServerToolCalls     []ToolCall
-	ServerSideToolUsage map[string]int64
-	Citations           []string
-	GeneratedImages     []GeneratedImage
-	GeneratedVideos     []GeneratedVideo
-	RawJSON             string
-	Debug               *UpstreamDebugSnapshot `json:"-"`
-
-	chatTextBuffer string
-}
-
-// GeneratedImage 表示图片生成/编辑接口返回的一张图片。
-type GeneratedImage struct {
-	URL           string
-	B64JSON       string
-	MIMEType      string
-	RevisedPrompt string
-}
-
-// GeneratedVideo 表示视频生成接口返回的一个视频结果。
-type GeneratedVideo struct {
-	URL             string
-	B64JSON         string
-	MIMEType        string
-	FileName        string
-	DurationSeconds int64
-}
-
 // generatedMediaDurationSeconds 将上游媒体时长统一向上取整为可计费秒数。
 func generatedMediaDurationSeconds(values ...interface{}) int64 {
 	for _, value := range values {
@@ -710,77 +483,6 @@ func generatedMediaDurationSeconds(values ...interface{}) int64 {
 	return 0
 }
 
-// ReasoningDelta 定义流式 reasoning 增量。
-type ReasoningDelta struct {
-	EventType        string
-	ItemID           string
-	Status           string
-	Kind             string
-	Text             string
-	Signature        string
-	EncryptedContent string
-}
-
-// GenerateStreamEvent 定义上游流式增量片段。
-type GenerateStreamEvent struct {
-	Delta                 string
-	Reasoning             *ReasoningDelta
-	Usage                 Usage
-	ServerToolCall        *ToolCall
-	ResponseID            string
-	GeneratedImage        *GeneratedImage
-	GeneratedImageIndex   int64
-	GeneratedImagePartial bool
-}
-
-// ModelItem 定义上游模型目录项。
-type ModelItem struct {
-	ID      string
-	OwnedBy string
-}
-
-// UpstreamError 是上游 HTTP 调用错误。
-type UpstreamError struct {
-	StatusCode int
-	Message    string
-	Body       string
-	Debug      *UpstreamDebugSnapshot
-}
-
-// AcceptedRequestError 表示上游已接受请求，或请求已写出但结果未知。
-// 生成请求不具备跨 Provider 幂等性，此类错误不得自动切换路由重试。
-type AcceptedRequestError struct {
-	cause error
-}
-
-func (e *AcceptedRequestError) Error() string {
-	if e == nil || e.cause == nil {
-		return "upstream request failed after acceptance"
-	}
-	return e.cause.Error()
-}
-
-func (e *AcceptedRequestError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
-	return e.cause
-}
-
-// MarkRequestAccepted 标记错误发生时请求已被上游接受，或可能已被接受。
-func MarkRequestAccepted(err error) error {
-	if err == nil || RequestWasAccepted(err) {
-		return err
-	}
-	return &AcceptedRequestError{cause: err}
-}
-
-// RequestWasAccepted 判断错误是否发生在请求已被或可能被上游接受之后。
-func RequestWasAccepted(err error) bool {
-	var acceptedErr *AcceptedRequestError
-	return errors.As(err, &acceptedErr)
-}
-
 // doGenerationRequest 记录 POST 请求是否已经写入连接。请求写出后若在响应头
 // 返回前断线，无法判断上游是否已开始生成，因此按已接受处理，避免跨路由重复生成。
 func doGenerationRequest(do func(*http.Request) (*http.Response, error), req *http.Request) (*http.Response, error) {
@@ -803,41 +505,6 @@ func doGenerationRequest(do func(*http.Request) (*http.Response, error), req *ht
 
 var errStreamDone = errors.New("llm stream done")
 
-// UpstreamDebugSnapshot 记录上游请求与响应的调试快照。
-// 对外返回前必须先经过 application 层脱敏，避免泄漏源站、密钥或上游响应头。
-type UpstreamDebugSnapshot struct {
-	Request  UpstreamDebugRequest  `json:"request"`
-	Response UpstreamDebugResponse `json:"response"`
-}
-
-// UpstreamDebugRequest 表示上游请求侧的调试信息。
-type UpstreamDebugRequest struct {
-	Method        string            `json:"method"`
-	Path          string            `json:"path"`
-	Headers       map[string]string `json:"headers,omitempty"`
-	Body          string            `json:"body"`
-	BodyBytes     int               `json:"bodyBytes,omitempty"`
-	BodyTruncated bool              `json:"bodyTruncated,omitempty"`
-	RedactedParts int               `json:"redactedParts,omitempty"`
-}
-
-// UpstreamDebugResponse 表示上游响应侧的调试信息。
-type UpstreamDebugResponse struct {
-	StatusCode    int               `json:"statusCode"`
-	Headers       map[string]string `json:"headers,omitempty"`
-	Body          string            `json:"body"`
-	BodyBytes     int               `json:"bodyBytes,omitempty"`
-	BodyTruncated bool              `json:"bodyTruncated,omitempty"`
-	RedactedParts int               `json:"redactedParts,omitempty"`
-}
-
-func (e *UpstreamError) Error() string {
-	if strings.TrimSpace(e.Message) == "" {
-		return fmt.Sprintf("upstream request failed: status=%d", e.StatusCode)
-	}
-	return fmt.Sprintf("upstream request failed: status=%d message=%s", e.StatusCode, e.Message)
-}
-
 // NewClient 创建带出站安全策略的上游调用客户端。
 func NewClient(outboundPolicy security.OutboundPolicy) *Client {
 	client := &Client{}
@@ -855,6 +522,7 @@ func NewClient(outboundPolicy security.OutboundPolicy) *Client {
 		AdapterXAIImage:               &xAIImageAdapter{client: client},
 		AdapterXAIImageEdits:          &xAIImageEditsAdapter{client: client},
 		AdapterXAIVideo:               &xAIVideoAdapter{client: client},
+		AdapterXAIVideoExtensions:     &xAIVideoExtensionsAdapter{client: client},
 		AdapterAnthropicMessages:      &anthropicMessagesAdapter{client: client},
 		AdapterGoogleGenerateContent:  &geminiGenerateContentAdapter{client: client},
 		AdapterGoogleImageGeneration:  &geminiImageGenerationAdapter{client: client},
@@ -1035,39 +703,6 @@ func decodeToolSchema(raw json.RawMessage) map[string]interface{} {
 	return payload
 }
 
-func NormalizeToolName(name string) string {
-	value := strings.TrimSpace(name)
-	if value == "" {
-		return ""
-	}
-	var builder strings.Builder
-	lastUnderscore := false
-	for _, r := range value {
-		valid := r == '_' || r == '-' || unicode.IsLetter(r) || unicode.IsDigit(r)
-		if valid {
-			builder.WriteRune(r)
-			lastUnderscore = false
-			continue
-		}
-		if !lastUnderscore {
-			builder.WriteByte('_')
-			lastUnderscore = true
-		}
-	}
-	normalized := strings.Trim(builder.String(), "_-")
-	if normalized == "" {
-		return ""
-	}
-	first := []rune(normalized)[0]
-	if !unicode.IsLetter(first) && first != '_' {
-		normalized = "tool_" + normalized
-	}
-	if len(normalized) > 64 {
-		normalized = normalized[:64]
-	}
-	return normalized
-}
-
 func buildToolResultContent(item ToolResult) string {
 	if strings.TrimSpace(item.Error) != "" {
 		payload := map[string]interface{}{
@@ -1246,8 +881,8 @@ func upstreamDebugSnapshot(req *http.Request, requestBody []byte, resp *http.Res
 			path += "?" + req.URL.RawQuery
 		}
 	}
-	requestDebugBody := sanitizeUpstreamDebugBody(requestBody)
-	responseDebugBody := sanitizeUpstreamDebugBody(responseBody)
+	requestDebugBody := portllm.SanitizeUpstreamDebugPayload(requestBody)
+	responseDebugBody := portllm.SanitizeUpstreamDebugPayload(responseBody)
 	return &UpstreamDebugSnapshot{
 		Request: UpstreamDebugRequest{
 			Method:        req.Method,
@@ -1681,6 +1316,8 @@ func normalizeEndpoint(raw string) string {
 		return EndpointImageEdits
 	case EndpointVideoGenerations:
 		return EndpointVideoGenerations
+	case EndpointVideoExtensions:
+		return EndpointVideoExtensions
 	case EndpointInteractions:
 		return EndpointInteractions
 	default:
@@ -1797,6 +1434,17 @@ func toInt64(raw interface{}) int64 {
 	default:
 		return 0
 	}
+}
+
+func streamToolCallIndex(raw interface{}, fallback int) int {
+	if fallback < 0 || fallback > maxStreamToolCallIndex {
+		fallback = 0
+	}
+	index, err := strconv.Atoi(strings.TrimSpace(getString(raw)))
+	if err != nil || index < 0 || index > maxStreamToolCallIndex {
+		return fallback
+	}
+	return index
 }
 
 func normalizeJSONString(raw interface{}) string {

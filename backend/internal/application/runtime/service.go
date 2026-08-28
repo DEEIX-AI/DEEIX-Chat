@@ -8,10 +8,6 @@ import (
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	doclingextract "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/docling"
-	mineruextract "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/mineru"
-	ocrextract "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/ocr"
-	tikaextract "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/tika"
 )
 
 const (
@@ -44,6 +40,7 @@ type ServiceRuntimeView struct {
 type Service struct {
 	cfg          *config.Runtime
 	dockerRunner DockerRunner
+	prober       EngineProber
 }
 
 // DockerRunner 是应用层所需的 Docker 命令能力。
@@ -52,9 +49,20 @@ type DockerRunner interface {
 	RunWithTimeout(ctx context.Context, timeout time.Duration, args ...string) (string, error)
 }
 
+// EngineProber 探测抽取引擎端点可用性并解析托管端点地址。
+type EngineProber interface {
+	ProbeTika(ctx context.Context, baseURL, authToken string) (reachable bool, message string)
+	ResolveManagedTikaBaseURL(ctx context.Context) string
+	ProbeDocling(ctx context.Context, baseURL, authToken string) (reachable bool, message string)
+	ProbeMinerU(ctx context.Context, baseURL, authToken string) (reachable bool, message string)
+	ProbeOCR(ctx context.Context, baseURL, authToken string) (reachable bool, message string)
+	ProbeRapidOCR(ctx context.Context, baseURL, authToken string) (reachable bool, message string)
+	ResolveManagedRapidOCRBaseURL(ctx context.Context) string
+}
+
 // NewService 创建运行时服务管理器。
-func NewService(cfg *config.Runtime) *Service {
-	return &Service{cfg: cfg}
+func NewService(cfg *config.Runtime, prober EngineProber) *Service {
+	return &Service{cfg: cfg, prober: prober}
 }
 
 // SetDockerRunner 注入 Docker 命令执行器。
@@ -76,7 +84,7 @@ func (s *Service) GetTikaStatus(ctx context.Context) ServiceRuntimeView {
 	source := extraction.NormalizeTikaSourceForRuntime(snapshot.ExtractTikaSource)
 	baseURL := strings.TrimSpace(snapshot.ExtractTikaBaseURL)
 	if source == extraction.TikaSourceManaged || baseURL == "" {
-		baseURL = tikaextract.ResolveManagedBaseURL(ctx)
+		baseURL = s.prober.ResolveManagedTikaBaseURL(ctx)
 	}
 
 	view := ServiceRuntimeView{
@@ -93,7 +101,7 @@ func (s *Service) GetTikaStatus(ctx context.Context) ServiceRuntimeView {
 			view.Message = "请先填写 Tika 服务地址。"
 			return view
 		}
-		reachable, message := tikaextract.ProbeEndpoint(ctx, baseURL, snapshot.ExtractTikaAuthToken)
+		reachable, message := s.prober.ProbeTika(ctx, baseURL, snapshot.ExtractTikaAuthToken)
 		view.Reachable = reachable
 		if reachable {
 			view.Status = "running"
@@ -124,7 +132,7 @@ func (s *Service) GetTikaStatus(ctx context.Context) ServiceRuntimeView {
 	}
 
 	view.Status = containerStatus
-	reachable, message := tikaextract.ProbeEndpoint(ctx, baseURL, "")
+	reachable, message := s.prober.ProbeTika(ctx, baseURL, "")
 	view.Reachable = reachable
 	if containerStatus == "running" {
 		if reachable {
@@ -179,7 +187,7 @@ func (s *Service) StartTika(ctx context.Context) (ServiceRuntimeView, error) {
 		}
 	}
 
-	if err := waitForManagedReachable(ctx, 20*time.Second); err != nil {
+	if err := s.waitForManagedReachable(ctx, 20*time.Second); err != nil {
 		view := s.GetTikaStatus(ctx)
 		if strings.TrimSpace(view.Message) == "" {
 			view.Message = err.Error()
@@ -229,7 +237,7 @@ func (s *Service) RestartTika(ctx context.Context) (ServiceRuntimeView, error) {
 	if _, err = s.runDocker(ctx, "restart", tikaContainerName); err != nil {
 		return s.GetTikaStatus(ctx), err
 	}
-	if err := waitForManagedReachable(ctx, 20*time.Second); err != nil {
+	if err := s.waitForManagedReachable(ctx, 20*time.Second); err != nil {
 		view := s.GetTikaStatus(ctx)
 		if strings.TrimSpace(view.Message) == "" {
 			view.Message = err.Error()
@@ -260,7 +268,7 @@ func (s *Service) GetRapidOCRStatus(ctx context.Context) ServiceRuntimeView {
 	source := extraction.NormalizeTikaSourceForRuntime(snapshot.ExtractRapidOCRSource)
 	baseURL := strings.TrimSpace(snapshot.ExtractRapidOCRBaseURL)
 	if source == extraction.TikaSourceManaged || baseURL == "" {
-		baseURL = ocrextract.ResolveManagedRapidOCRBaseURL(ctx)
+		baseURL = s.prober.ResolveManagedRapidOCRBaseURL(ctx)
 	}
 
 	view := ServiceRuntimeView{
@@ -277,7 +285,7 @@ func (s *Service) GetRapidOCRStatus(ctx context.Context) ServiceRuntimeView {
 			view.Message = "请先填写 RapidOCR 服务地址。"
 			return view
 		}
-		reachable, message := ocrextract.ProbeRapidOCREndpoint(ctx, baseURL, snapshot.ExtractRapidOCRAuthToken)
+		reachable, message := s.prober.ProbeRapidOCR(ctx, baseURL, snapshot.ExtractRapidOCRAuthToken)
 		view.Reachable = reachable
 		if reachable {
 			view.Status = "running"
@@ -308,7 +316,7 @@ func (s *Service) GetRapidOCRStatus(ctx context.Context) ServiceRuntimeView {
 	}
 
 	view.Status = containerStatus
-	reachable, message := ocrextract.ProbeRapidOCREndpoint(ctx, baseURL, "")
+	reachable, message := s.prober.ProbeRapidOCR(ctx, baseURL, "")
 	view.Reachable = reachable
 	if containerStatus == "running" {
 		if reachable {
@@ -349,7 +357,7 @@ func (s *Service) GetDoclingStatus(ctx context.Context) ServiceRuntimeView {
 		view.Message = "请先填写 Docling 服务地址。"
 		return view
 	}
-	reachable, message := doclingextract.ProbeEndpoint(ctx, baseURL, snapshot.ExtractDoclingAuthToken)
+	reachable, message := s.prober.ProbeDocling(ctx, baseURL, snapshot.ExtractDoclingAuthToken)
 	view.Reachable = reachable
 	if reachable {
 		view.Status = "running"
@@ -383,7 +391,7 @@ func (s *Service) GetTesseractStatus(ctx context.Context) ServiceRuntimeView {
 		return view
 	}
 
-	reachable, message := ocrextract.ProbeOCREndpoint(ctx, baseURL, snapshot.ExtractTesseractOCRAuthToken)
+	reachable, message := s.prober.ProbeOCR(ctx, baseURL, snapshot.ExtractTesseractOCRAuthToken)
 	view.Reachable = reachable
 	if reachable {
 		view.Status = "running"
@@ -415,7 +423,7 @@ func (s *Service) GetMinerUStatus(ctx context.Context) ServiceRuntimeView {
 		view.Message = "请先填写 MinerU 服务地址。"
 		return view
 	}
-	reachable, message := mineruextract.ProbeEndpoint(ctx, baseURL, snapshot.ExtractMinerUAuthToken)
+	reachable, message := s.prober.ProbeMinerU(ctx, baseURL, snapshot.ExtractMinerUAuthToken)
 	view.Reachable = reachable
 	if reachable {
 		view.Status = "running"
@@ -466,7 +474,7 @@ func (s *Service) StartRapidOCR(ctx context.Context) (ServiceRuntimeView, error)
 		}
 	}
 
-	if err := waitForManagedRapidOCRReachable(ctx, 20*time.Second); err != nil {
+	if err := s.waitForManagedRapidOCRReachable(ctx, 20*time.Second); err != nil {
 		view := s.GetRapidOCRStatus(ctx)
 		if strings.TrimSpace(view.Message) == "" {
 			view.Message = err.Error()
@@ -514,7 +522,7 @@ func (s *Service) RestartRapidOCR(ctx context.Context) (ServiceRuntimeView, erro
 	if _, err = s.runDocker(ctx, "restart", rapidOCRContainerName); err != nil {
 		return s.GetRapidOCRStatus(ctx), err
 	}
-	if err := waitForManagedRapidOCRReachable(ctx, 20*time.Second); err != nil {
+	if err := s.waitForManagedRapidOCRReachable(ctx, 20*time.Second); err != nil {
 		view := s.GetRapidOCRStatus(ctx)
 		if strings.TrimSpace(view.Message) == "" {
 			view.Message = err.Error()
@@ -588,11 +596,11 @@ func (s *Service) runDockerWithTimeout(ctx context.Context, timeout time.Duratio
 	return s.dockerRunner.RunWithTimeout(ctx, timeout, args...)
 }
 
-func waitForManagedReachable(ctx context.Context, timeout time.Duration) error {
+func (s *Service) waitForManagedReachable(ctx context.Context, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
-		baseURL := tikaextract.ResolveManagedBaseURL(ctx)
-		if ok, _ := tikaextract.ProbeEndpoint(ctx, baseURL, ""); ok {
+		baseURL := s.prober.ResolveManagedTikaBaseURL(ctx)
+		if ok, _ := s.prober.ProbeTika(ctx, baseURL, ""); ok {
 			return nil
 		}
 		if time.Now().After(deadline) {
@@ -606,11 +614,11 @@ func waitForManagedReachable(ctx context.Context, timeout time.Duration) error {
 	}
 }
 
-func waitForManagedRapidOCRReachable(ctx context.Context, timeout time.Duration) error {
+func (s *Service) waitForManagedRapidOCRReachable(ctx context.Context, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
-		baseURL := ocrextract.ResolveManagedRapidOCRBaseURL(ctx)
-		if ok, _ := ocrextract.ProbeRapidOCREndpoint(ctx, baseURL, ""); ok {
+		baseURL := s.prober.ResolveManagedRapidOCRBaseURL(ctx)
+		if ok, _ := s.prober.ProbeRapidOCR(ctx, baseURL, ""); ok {
 			return nil
 		}
 		if time.Now().After(deadline) {

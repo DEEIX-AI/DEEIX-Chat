@@ -1,7 +1,7 @@
 "use client";
 
-import * as React from "react";
 import { Mesh, Program, Renderer, Triangle } from "ogl";
+import * as React from "react";
 
 interface GrainientProps {
   timeSpeed?: number;
@@ -132,8 +132,6 @@ type GrainientCtx = {
   mesh: InstanceType<typeof Mesh>;
 };
 
-const ctxMap = new WeakMap<HTMLDivElement, GrainientCtx>();
-
 const Grainient: React.FC<GrainientProps> = ({
   timeSpeed = 0.25,
   colorBalance = 0.0,
@@ -160,6 +158,7 @@ const Grainient: React.FC<GrainientProps> = ({
   className = "",
 }) => {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const contextRef = React.useRef<GrainientCtx | null>(null);
 
   React.useEffect(() => {
     const container = containerRef.current;
@@ -211,7 +210,7 @@ const Grainient: React.FC<GrainientProps> = ({
     });
 
     const mesh = new Mesh(gl, { geometry, program });
-    ctxMap.set(container, { renderer, program, mesh });
+    contextRef.current = { renderer, program, mesh };
 
     const setSize = () => {
       const rect = container.getBoundingClientRect();
@@ -231,6 +230,8 @@ const Grainient: React.FC<GrainientProps> = ({
     let raf = 0;
     let isVisible = true;
     let isPageVisible = !document.hidden;
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reduceMotion = motionQuery.matches;
     const t0 = performance.now();
 
     const loop = (t: number) => {
@@ -240,7 +241,9 @@ const Grainient: React.FC<GrainientProps> = ({
     };
 
     const tryStart = () => {
-      if (isVisible && isPageVisible && raf === 0) raf = requestAnimationFrame(loop);
+      if (isVisible && isPageVisible && !reduceMotion && raf === 0) {
+        raf = requestAnimationFrame(loop);
+      }
     };
     const tryStop = () => {
       if (raf !== 0) {
@@ -258,6 +261,17 @@ const Grainient: React.FC<GrainientProps> = ({
     );
     io.observe(container);
 
+    const onMotionPreference = () => {
+      reduceMotion = motionQuery.matches;
+      if (reduceMotion) {
+        tryStop();
+        renderer.render({ scene: mesh });
+      } else {
+        tryStart();
+      }
+    };
+    motionQuery.addEventListener("change", onMotionPreference);
+
     const onVisibility = () => {
       isPageVisible = !document.hidden;
       isPageVisible ? tryStart() : tryStop();
@@ -270,8 +284,11 @@ const Grainient: React.FC<GrainientProps> = ({
       tryStop();
       ro.disconnect();
       io.disconnect();
+      motionQuery.removeEventListener("change", onMotionPreference);
       document.removeEventListener("visibilitychange", onVisibility);
-      ctxMap.delete(container);
+      contextRef.current = null;
+      geometry.remove();
+      program.remove();
       try {
         container.removeChild(canvas);
       } catch {
@@ -283,9 +300,9 @@ const Grainient: React.FC<GrainientProps> = ({
   React.useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const ctx = ctxMap.get(container);
+    const ctx = contextRef.current;
     if (!ctx) return;
-    const { program } = ctx;
+    const { mesh, program, renderer } = ctx;
     const u = program.uniforms as Record<string, { value: unknown }>;
 
     u.uTimeSpeed.value = timeSpeed;
@@ -309,6 +326,7 @@ const Grainient: React.FC<GrainientProps> = ({
     u.uColor1.value = new Float32Array(hexToRgb(color1));
     u.uColor2.value = new Float32Array(hexToRgb(color2));
     u.uColor3.value = new Float32Array(hexToRgb(color3));
+    renderer.render({ scene: mesh });
   }, [
     timeSpeed,
     colorBalance,

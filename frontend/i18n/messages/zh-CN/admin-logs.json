@@ -9,6 +9,7 @@
     "usage": "模型调用",
     "auth": "认证安全",
     "orders": "订单记录",
+    "redemptions": "兑换记录",
     "conversation": "对话事件",
     "moderation": "审核事件",
     "system": "系统事件"
@@ -56,6 +57,7 @@
     "systemLoadFailed": "系统事件加载失败",
     "usageLoadFailed": "调用日志加载失败",
     "ordersLoadFailed": "订单记录加载失败",
+    "redemptionsLoadFailed": "兑换记录加载失败",
     "conversationEventsLoadFailed": "对话事件加载失败",
     "conversationEventDetailLoadFailed": "对话事件详情加载失败",
     "modelFilterLoadFailed": "模型筛选加载失败"
@@ -117,7 +119,10 @@
     "amount": "金额",
     "scope": "范围",
     "tool": "工具",
-    "runID": "运行 ID"
+    "runID": "运行 ID",
+    "code": "兑换码",
+    "reward": "兑换内容",
+    "balanceAfterRedemption": "兑换后余额"
   },
   "audit": {
     "searchPlaceholder": "搜索用户 ID、动作、资源、请求 ID、IP、详情",
@@ -266,6 +271,21 @@
       "failed": "支付失败"
     }
   },
+  "redemptions": {
+    "searchPlaceholder": "搜索用户 ID、兑换流水号、兑换码摘要、备注",
+    "empty": "暂无兑换记录",
+    "filters": {
+      "all": "全部",
+      "rewardType": "奖励类型",
+      "code": "兑换码",
+      "clearCode": "清除兑换码筛选"
+    },
+    "rewards": {
+      "balance": "余额",
+      "subscription": "订阅套餐",
+      "durationDays": "{count} 天"
+    }
+  },
   "conversation": {
     "searchPlaceholder": "搜索用户 ID、运行 ID、事件、阶段、标题、工具名",
     "empty": "暂无对话事件",
@@ -304,6 +324,7 @@
       "auth": "认证日志详情",
       "usage": "调用日志详情",
       "order": "订单记录详情",
+      "redemption": "兑换记录详情",
       "conversation": "对话事件详情",
       "system": "系统事件详情"
     },
@@ -311,6 +332,7 @@
       "authEvent": "认证事件",
       "modelCall": "模型调用",
       "order": "订单记录",
+      "redemption": "兑换记录",
       "conversationEvent": "对话事件",
       "systemEvent": "系统事件",
       "auditEvent": "审计事件"
@@ -326,8 +348,20 @@
       "usageBilling": "用量计费",
       "order": "订单",
       "payment": "支付",
+      "redemption": "兑换",
+      "redemptionCode": "兑换码",
+      "reward": "奖励",
       "conversationEvent": "对话事件",
       "tool": "工具"
+    },
+    "codeStatus": {
+      "active": "启用",
+      "inactive": "停用",
+      "deleted": "已删除"
+    },
+    "rewardTypes": {
+      "balance": "余额",
+      "subscription": "订阅套餐"
     },
     "fields": {
       "action": "动作",
@@ -372,6 +406,18 @@
       "eventScope": "事件范围",
       "stage": "阶段",
       "seq": "序号",
+      "refNo": "兑换流水号",
+      "redeemedAt": "兑换时间",
+      "codeHint": "兑换码",
+      "codeID": "兑换码 ID",
+      "codeDescription": "兑换码备注",
+      "codeStatus": "兑换码状态",
+      "rewardType": "奖励类型",
+      "planName": "订阅套餐",
+      "subscriptionID": "订阅 ID",
+      "balanceBefore": "兑换前余额",
+      "balanceAfterRedemption": "兑换后余额",
+      "durationDays": "套餐时长",
       "messageID": "消息 ID",
       "toolName": "工具名",
       "toolCallID": "工具调用 ID",
@@ -384,6 +430,7 @@
       "failure": "失败",
       "blocked": "阻断"
     },
+    "rewardDurationDays": "{count} 天",
     "rawUsageJsonTitle": "原始 Usage JSON",
     "jsonTitle": "详情 JSON",
     "loading": "正在加载详情",

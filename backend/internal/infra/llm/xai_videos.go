@@ -25,6 +25,9 @@ func (a *xAIVideoAdapter) Name() string { return AdapterXAIVideo }
 
 func (a *xAIVideoAdapter) Generate(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
 	route.Protocol = AdapterXAIVideo
+	if input.VideoExtensionSource != nil {
+		return nil, fmt.Errorf("xai video generation protocol does not accept an extension source")
+	}
 	route.Endpoint = EndpointVideoGenerations
 	return a.client.generateXAIVideo(ctx, route, input)
 }
@@ -43,9 +46,39 @@ func (a *xAIVideoAdapter) ListModels(ctx context.Context, route RouteConfig) ([]
 	return a.client.listModelsOpenAICompatible(ctx, route)
 }
 
+// xAIVideoExtensionsAdapter 实现 xAI 异步视频扩展协议。
+type xAIVideoExtensionsAdapter struct {
+	client *Client
+}
+
+func (a *xAIVideoExtensionsAdapter) Name() string { return AdapterXAIVideoExtensions }
+
+func (a *xAIVideoExtensionsAdapter) Generate(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
+	if input.VideoExtensionSource == nil {
+		return nil, fmt.Errorf("xai video extension protocol requires an MP4 source")
+	}
+	route.Protocol = AdapterXAIVideoExtensions
+	route.Endpoint = EndpointVideoExtensions
+	return a.client.generateXAIVideo(ctx, route, input)
+}
+
+func (a *xAIVideoExtensionsAdapter) GenerateStream(
+	context.Context,
+	RouteConfig,
+	GenerateInput,
+	func(GenerateStreamEvent) error,
+) (*GenerateOutput, error) {
+	return nil, fmt.Errorf("%w: %s", ErrUnsupportedStream, AdapterXAIVideoExtensions)
+}
+
+func (a *xAIVideoExtensionsAdapter) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
+	route.Protocol = AdapterXAIVideoExtensions
+	return a.client.listModelsOpenAICompatible(ctx, route)
+}
+
 // generateXAIVideo 提交视频任务，并在同一请求超时范围内轮询官方结果端点。
 func (c *Client) generateXAIVideo(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
-	requestBody, debugBody, err := buildXAIVideoRequestBody(route.UpstreamModel, input)
+	requestBody, debugBody, err := buildXAIVideoSubmissionBody(route.UpstreamModel, input)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +86,7 @@ func (c *Client) generateXAIVideo(ctx context.Context, route RouteConfig, input 
 	if err != nil {
 		return nil, err
 	}
-	requestURL := buildOpenAIRequestURL(route.BaseURL, EndpointVideoGenerations)
+	requestURL := buildOpenAIRequestURL(route.BaseURL, route.Endpoint)
 	if requestURL == "" {
 		return nil, fmt.Errorf("invalid base url")
 	}
@@ -87,6 +120,42 @@ func (c *Client) generateXAIVideo(ctx context.Context, route RouteConfig, input 
 		return nil, acceptedXAIVideoResponseError(err, upstreamDebugSnapshot(req, debugBody, resp, body))
 	}
 	return c.pollXAIVideoResult(requestCtx, route, requestID, generatedMediaDurationSeconds(requestBody["duration"]))
+}
+
+func buildXAIVideoSubmissionBody(model string, input GenerateInput) (map[string]interface{}, []byte, error) {
+	if input.VideoExtensionSource != nil {
+		return buildXAIVideoExtensionRequestBody(model, input)
+	}
+	return buildXAIVideoRequestBody(model, input)
+}
+
+func buildXAIVideoExtensionRequestBody(model string, input GenerateInput) (map[string]interface{}, []byte, error) {
+	prompt := strings.TrimSpace(buildOpenAIImageGenerationPrompt(input.Messages))
+	source := input.VideoExtensionSource
+	if prompt == "" {
+		return nil, nil, fmt.Errorf("video extension prompt required")
+	}
+	if source == nil || source.Kind != ContentPartVideo || strings.ToLower(strings.TrimSpace(source.MimeType)) != "video/mp4" || len(source.Data) == 0 {
+		return nil, nil, fmt.Errorf("video extension source must be a non-empty MP4 video")
+	}
+	payload := map[string]interface{}{
+		"model":  strings.TrimSpace(model),
+		"prompt": prompt,
+		"video": map[string]interface{}{
+			"url": "data:video/mp4;base64," + base64.StdEncoding.EncodeToString(source.Data),
+		},
+	}
+	applyXAIVideoExtensionParams(payload, input.Options)
+	debugPayload := map[string]interface{}{
+		"model":        payload["model"],
+		"prompt":       payload["prompt"],
+		"video_source": "data:video/mp4;base64,[REDACTED]",
+	}
+	if duration, ok := payload["duration"]; ok {
+		debugPayload["duration"] = duration
+	}
+	debugBody, _ := json.Marshal(debugPayload)
+	return payload, debugBody, nil
 }
 
 func newXAIMediaRequest(ctx context.Context, method string, requestURL string, payload []byte, route RouteConfig) (*http.Request, error) {
@@ -158,47 +227,11 @@ func applyXAIVideoParams(payload map[string]interface{}, options map[string]inte
 	}
 }
 
-// SanitizeXAIVideoOptions 将 xAI 视频协议参数收敛为实际会上送的规范值。
-// Application 层复用该函数，保证有效参数、计费和 adapter 请求一致。
-func SanitizeXAIVideoOptions(options map[string]interface{}) {
-	if len(options) == 0 {
-		return
-	}
-	aspectRatio := strings.ToLower(modelParamString(options, "aspect_ratio"))
-	if isXAIVideoAspectRatio(aspectRatio) {
-		options["aspect_ratio"] = aspectRatio
-	} else {
-		delete(options, "aspect_ratio")
-	}
-	duration, durationOK := xAIMediaIntegerOption(options, "duration")
-	if durationOK && duration >= 1 && duration <= 15 {
-		options["duration"] = duration
-	} else {
-		delete(options, "duration")
-	}
-	resolution := strings.ToLower(modelParamString(options, "resolution"))
-	if isXAIVideoResolution(resolution) {
-		options["resolution"] = resolution
-	} else {
-		delete(options, "resolution")
-	}
-}
-
-func isXAIVideoAspectRatio(value string) bool {
-	switch value {
-	case "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3":
-		return true
-	default:
-		return false
-	}
-}
-
-func isXAIVideoResolution(value string) bool {
-	switch value {
-	case "480p", "720p", "1080p":
-		return true
-	default:
-		return false
+func applyXAIVideoExtensionParams(payload map[string]interface{}, options map[string]interface{}) {
+	normalized := maps.Clone(options)
+	SanitizeXAIVideoExtensionOptions(normalized)
+	if duration, ok := normalized["duration"]; ok {
+		payload["duration"] = duration
 	}
 }
 

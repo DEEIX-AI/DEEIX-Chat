@@ -225,6 +225,7 @@ type FileObject struct {
 	ExtractorVersion       string     `gorm:"size:32;not null;default:'';comment:提取器版本"`
 	ExtractedAt            *time.Time `gorm:"comment:文本提取完成时间"`
 	ProcessingPayloadJSON  string     `gorm:"type:text;not null;default:'';comment:文件处理扩展负载JSON"`
+	ProcessingAttemptID    string     `gorm:"size:64;not null;default:'';comment:当前文件处理执行令牌"`
 	ProcessingStartedAt    *time.Time `gorm:"comment:处理开始时间"`
 	ProcessingCompletedAt  *time.Time `gorm:"comment:处理完成时间"`
 	RagOptOut              bool       `gorm:"not null;default:false;comment:用户是否关闭此文件的RAG检索"`
@@ -337,6 +338,8 @@ type ChatRunEvent struct {
 	Seq              int        `gorm:"not null;default:0;index:idx_chat_run_events_seq;comment:事件顺序"`
 	ToolCallID       string     `gorm:"size:255;not null;default:'';index:idx_chat_run_events_tool_call_id;comment:工具调用ID"`
 	ToolName         string     `gorm:"size:128;not null;default:'';index:idx_chat_run_events_tool_name;comment:工具名称"`
+	MCPServerID      uint       `gorm:"not null;default:0;comment:MCP服务器ID快照(非MCP调用为0)"`
+	MCPServerName    string     `gorm:"size:128;not null;default:'';comment:MCP服务器名称快照"`
 	LatencyMS        int64      `gorm:"not null;default:0;comment:调用时长毫秒"`
 	InputJSON        string     `gorm:"type:text;not null;default:'';comment:输入JSON"`
 	OutputJSON       string     `gorm:"type:text;not null;default:'';comment:输出JSON"`

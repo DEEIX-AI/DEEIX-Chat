@@ -38,7 +38,7 @@ const distributeLogos = (allLogos: LogoCarouselLogo[], columnCount: number): Log
   }
 
   const shuffled = shuffleArray(allLogos)
-  const columns: LogoCarouselLogo[][] = Array.from({ length: columnCount }, () => [])
+  const columns: LogoCarouselLogo[][] = Array.from({ length: columnCount }, (): LogoCarouselLogo[] => [])
 
   // Distribute logos evenly across columns
   shuffled.forEach((logo, index) => {

@@ -1,9 +1,10 @@
 "use client";
 
-import * as React from "react";
+import { Pin } from "lucide-react";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { Pin } from "lucide-react";
+import * as React from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -15,13 +16,26 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
+import { cn } from "@/lib/utils";
 import { closeAnnouncement, dismissAnnouncementToday, listAnnouncements } from "@/shared/api/announcements";
 import type { AnnouncementDTO } from "@/shared/api/announcements.types";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { dispatchAnnouncementUnreadChanged, subscribeOpenAnnouncements } from "@/shared/events/announcement-events";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import { cn } from "@/lib/utils";
+
+const StreamdownRender = dynamic(
+  () => import("@/shared/components/markdown/streamdown-render").then((mod) => mod.StreamdownRender),
+  {
+    ssr: false,
+    loading: () => (
+      <div aria-hidden="true" className="space-y-2 pt-1">
+        <div className="h-3 w-11/12 animate-pulse rounded bg-muted" />
+        <div className="h-3 w-full animate-pulse rounded bg-muted" />
+        <div className="h-3 w-4/5 animate-pulse rounded bg-muted" />
+      </div>
+    ),
+  },
+);
 
 type AnnouncementSortMode = "default" | "type" | "time";
 type AnnouncementDialogMode = "auto" | "manual";

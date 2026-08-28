@@ -35,8 +35,8 @@ import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm
 import { ModelIconField } from "@/features/admin/components/sections/models/model-icon-field";
 import {
   type PresentationTab,
-  useModelPresentationEditor,
-} from "@/features/admin/hooks/use-model-presentation-editor";
+  useAdminPresentationEditor,
+} from "@/features/admin/hooks/use-admin-presentation-editor";
 import { ModelIcon } from "@/shared/components/model-icon";
 import { resolveModelIconURL } from "@/shared/lib/model-identity";
 
@@ -207,7 +207,7 @@ export function ModelPresentationDialog({
     toggleEditorModel,
     saveEditor,
     confirmDelete,
-  } = useModelPresentationEditor({ onChanged, onClose });
+  } = useAdminPresentationEditor({ onChanged, onClose });
   const keyInputID = React.useId();
   const nameInputID = React.useId();
   const iconInputID = React.useId();

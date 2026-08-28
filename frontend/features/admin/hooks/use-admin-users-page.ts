@@ -326,7 +326,7 @@ export function useAdminUsersPage({
           }
         }
       })
-      .catch(() => undefined);
+      .catch((): undefined => undefined);
     return () => {
       cancelled = true;
     };

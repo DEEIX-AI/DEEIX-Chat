@@ -45,6 +45,13 @@ func (r *Repo) ListKnowledgeBases(ctx context.Context, filter repository.Knowled
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, translateError(err)
 	}
+	if strings.TrimSpace(filter.Sort) == "files" {
+		query = query.
+			Select("knowledge_bases.*").
+			Joins("LEFT JOIN knowledge_base_files AS sort_kbf ON sort_kbf.knowledge_base_id = knowledge_bases.id").
+			Joins("LEFT JOIN file_objects AS sort_fo ON sort_fo.id = sort_kbf.file_object_id AND sort_fo.status = ? AND sort_fo.deleted_at IS NULL", "active").
+			Group("knowledge_bases.id")
+	}
 	if err := query.Order(listOrder(filter)).Offset(offset).Limit(limit).Find(&items).Error; err != nil {
 		return nil, 0, translateError(err)
 	}
@@ -57,16 +64,25 @@ func (r *Repo) ListKnowledgeBases(ctx context.Context, filter repository.Knowled
 
 // GetKnowledgeBaseByPublicID 按公开 ID 查询知识库。
 func (r *Repo) GetKnowledgeBaseByPublicID(ctx context.Context, publicID string) (*domainknowledgebase.KnowledgeBase, error) {
+	result, err := r.GetKnowledgeBaseAccessByPublicID(ctx, publicID)
+	if err != nil {
+		return nil, err
+	}
+	items := []domainknowledgebase.KnowledgeBase{*result}
+	if err := r.hydrateCounts(ctx, items); err != nil {
+		return nil, err
+	}
+	return &items[0], nil
+}
+
+// GetKnowledgeBaseAccessByPublicID 查询知识库访问控制所需的元数据，不聚合文件计数。
+func (r *Repo) GetKnowledgeBaseAccessByPublicID(ctx context.Context, publicID string) (*domainknowledgebase.KnowledgeBase, error) {
 	var item model.KnowledgeBase
 	if err := r.db.WithContext(ctx).Where("public_id = ?", strings.TrimSpace(publicID)).First(&item).Error; err != nil {
 		return nil, translateError(err)
 	}
 	result := toDomain(item)
-	items := []domainknowledgebase.KnowledgeBase{result}
-	if err := r.hydrateCounts(ctx, items); err != nil {
-		return nil, err
-	}
-	return &items[0], nil
+	return &result, nil
 }
 
 // CreateKnowledgeBase 创建知识库。
@@ -216,6 +232,52 @@ func (r *Repo) ListKnowledgeBaseFiles(ctx context.Context, knowledgeBaseID uint,
 		return nil, 0, translateError(err)
 	}
 	return toFileDomains(items), total, nil
+}
+
+// GetKnowledgeBaseFileProcessingStatuses 批量查询知识库内文件的处理状态。
+func (r *Repo) GetKnowledgeBaseFileProcessingStatuses(ctx context.Context, knowledgeBaseID uint, fileIDs []string) ([]domainconversation.FileObject, error) {
+	if knowledgeBaseID == 0 || len(fileIDs) == 0 {
+		return nil, repository.ErrInvalidInput
+	}
+	return r.listKnowledgeBaseFileProcessingStatuses(ctx, knowledgeBaseID, fileIDs)
+}
+
+func (r *Repo) listKnowledgeBaseFileProcessingStatuses(ctx context.Context, knowledgeBaseID uint, fileIDs []string) ([]domainconversation.FileObject, error) {
+	items := make([]model.FileObject, 0)
+	if len(fileIDs) > 0 {
+		if err := r.db.WithContext(ctx).Table("knowledge_base_files AS kbf").
+			Select(`
+				fo.file_id, fo.detected_mime, fo.file_category, fo.processing_status,
+				fo.processing_ready, fo.extract_status, fo.embed_status, fo.rag_opt_out, fo.chunk_count, fo.updated_at`).
+			Joins("JOIN file_objects AS fo ON fo.id = kbf.file_object_id AND fo.status = ? AND fo.deleted_at IS NULL", "active").
+			Where("kbf.knowledge_base_id = ? AND fo.file_id IN ?", knowledgeBaseID, fileIDs).
+			Scan(&items).Error; err != nil {
+			return nil, translateError(err)
+		}
+	}
+	return toFileDomains(items), nil
+}
+
+// GetKnowledgeBaseFileProcessingSnapshot 查询知识库文件处理状态及聚合计数。
+func (r *Repo) GetKnowledgeBaseFileProcessingSnapshot(ctx context.Context, knowledgeBaseID uint, fileIDs []string) (*repository.KnowledgeBaseFileProcessingSnapshot, error) {
+	if knowledgeBaseID == 0 {
+		return nil, repository.ErrInvalidInput
+	}
+	items, err := r.listKnowledgeBaseFileProcessingStatuses(ctx, knowledgeBaseID, fileIDs)
+	if err != nil {
+		return nil, err
+	}
+	counts, err := r.loadKnowledgeBaseCounts(ctx, []uint{knowledgeBaseID})
+	if err != nil {
+		return nil, err
+	}
+	count := counts[knowledgeBaseID]
+	return &repository.KnowledgeBaseFileProcessingSnapshot{
+		Files:               items,
+		FileCount:           count.FileCount,
+		ReadyFileCount:      count.ReadyFileCount,
+		ProcessingFileCount: count.ProcessingFileCount,
+	}, nil
 }
 
 // ListKnowledgeBaseSourceFiles 分页查询指定所有者的有效知识库资料。
@@ -423,9 +485,10 @@ func (r *Repo) ResolveVisibleKnowledgeBaseFiles(ctx context.Context, userID uint
 }
 
 type knowledgeBaseCountRow struct {
-	KnowledgeBaseID uint
-	FileCount       int64
-	ReadyFileCount  int64
+	KnowledgeBaseID     uint
+	FileCount           int64
+	ReadyFileCount      int64
+	ProcessingFileCount int64
 }
 
 func (r *Repo) hydrateCounts(ctx context.Context, items []domainknowledgebase.KnowledgeBase) error {
@@ -436,26 +499,51 @@ func (r *Repo) hydrateCounts(ctx context.Context, items []domainknowledgebase.Kn
 	for _, item := range items {
 		ids = append(ids, item.ID)
 	}
-	rows := make([]knowledgeBaseCountRow, 0, len(items))
+	counts, err := r.loadKnowledgeBaseCounts(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for index := range items {
+		items[index].FileCount = counts[items[index].ID].FileCount
+		items[index].ReadyFileCount = counts[items[index].ID].ReadyFileCount
+		items[index].ProcessingFileCount = counts[items[index].ID].ProcessingFileCount
+	}
+	return nil
+}
+
+func (r *Repo) loadKnowledgeBaseCounts(ctx context.Context, ids []uint) (map[uint]knowledgeBaseCountRow, error) {
+	rows := make([]knowledgeBaseCountRow, 0, len(ids))
 	if err := r.db.WithContext(ctx).Table("knowledge_base_files AS kbf").
-		Select("kbf.knowledge_base_id, COUNT(fo.id) AS file_count, SUM(CASE WHEN fo.processing_ready = ? AND fo.embed_status = ? AND fo.rag_opt_out = ? AND fo.chunk_count > 0 THEN 1 ELSE 0 END) AS ready_file_count", true, "ready", false).
+		Select(
+			"kbf.knowledge_base_id, COUNT(fo.id) AS file_count, SUM(CASE WHEN fo.processing_ready = ? AND fo.embed_status = ? AND fo.rag_opt_out = ? AND fo.chunk_count > 0 THEN 1 ELSE 0 END) AS ready_file_count, SUM(CASE WHEN fo.processing_status IN ? OR fo.extract_status = ? OR fo.embed_status = ? THEN 1 ELSE 0 END) AS processing_file_count",
+			true,
+			"ready",
+			false,
+			[]string{
+				domainconversation.FileProcessingStatusUploaded,
+				domainconversation.FileProcessingStatusQueued,
+				domainconversation.FileProcessingStatusExtracting,
+				domainconversation.FileProcessingStatusEmbedding,
+			},
+			domainconversation.FileSubprocessStatusProcessing,
+			domainconversation.FileSubprocessStatusProcessing,
+		).
 		Joins("JOIN file_objects AS fo ON fo.id = kbf.file_object_id AND fo.status = ? AND fo.deleted_at IS NULL", "active").
 		Where("kbf.knowledge_base_id IN ?", ids).
 		Group("kbf.knowledge_base_id").Scan(&rows).Error; err != nil {
-		return translateError(err)
+		return nil, translateError(err)
 	}
 	counts := make(map[uint]knowledgeBaseCountRow, len(rows))
 	for _, row := range rows {
 		counts[row.KnowledgeBaseID] = row
 	}
-	for index := range items {
-		items[index].FileCount = counts[items[index].ID].FileCount
-		items[index].ReadyFileCount = counts[items[index].ID].ReadyFileCount
-	}
-	return nil
+	return counts, nil
 }
 
 func applyListFilter(query *gorm.DB, filter repository.KnowledgeBaseListFilter) *gorm.DB {
+	if len(filter.PublicIDs) > 0 {
+		query = query.Where("public_id IN ?", filter.PublicIDs)
+	}
 	if filter.VisibleUserID != nil {
 		query = query.Where("(scope = ? AND enabled = ?) OR (scope = ? AND owner_user_id = ? AND enabled = ?)",
 			domainknowledgebase.ScopeBuiltin, true, domainknowledgebase.ScopeUser, *filter.VisibleUserID, true)
@@ -478,6 +566,16 @@ func applyListFilter(query *gorm.DB, filter repository.KnowledgeBaseListFilter) 
 }
 
 func listOrder(filter repository.KnowledgeBaseListFilter) string {
+	switch strings.TrimSpace(filter.Sort) {
+	case "name":
+		return "LOWER(name) ASC, id ASC"
+	case "created":
+		return "created_at DESC, id DESC"
+	case "updated":
+		return "updated_at DESC, id DESC"
+	case "files":
+		return "COUNT(sort_fo.id) DESC, knowledge_bases.id DESC"
+	}
 	if filter.VisibleUserID != nil {
 		return "CASE WHEN scope = 'builtin' THEN 0 ELSE 1 END ASC, sort_order ASC, updated_at DESC, id DESC"
 	}

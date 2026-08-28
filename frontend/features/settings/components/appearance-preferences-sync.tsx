@@ -16,7 +16,7 @@ import {
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { useTheme } from "@/shared/components/theme-provider";
 
-export function AppearancePreferencesSync() {
+export function AppearancePreferencesSync(): null {
   const { user, userStatus } = useAuthSession();
   const { setPreset, setTheme } = useTheme();
   const syncedAppearanceRef = React.useRef<string>("");

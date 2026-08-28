@@ -11,7 +11,7 @@ const APP_VERSION_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 
 type CheckReason = "initial" | "interval" | "focus" | "visible";
 
-export function AppVersionGuard() {
+export function AppVersionGuard(): null {
   const t = useTranslations("common.appVersion");
   const tActions = useTranslations("common.actions");
   const checkingRef = React.useRef(false);

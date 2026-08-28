@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, ImageIcon, Info, Star } from "lucide-react";
+import { ChevronDown, CircleDollarSign, ImageIcon, Info, Star } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -62,6 +62,10 @@ function MCPToolRowAction({
       {children}
     </button>
   );
+}
+
+function formatMCPToolPrice(priceNanousd: number): string {
+  return `$${priceNanousd / 1_000_000_000}`;
 }
 
 function resolveMCPToolLabel(tool: MCPToolDTO, fallback: string): string {
@@ -502,6 +506,28 @@ export function ChatMCP({
                                 ) : null}
                               </button>
                               <div className="-mr-2 flex shrink-0 items-center gap-0">
+                                {tool.priceNanousd > 0 ? (
+                                  <Tooltip disableHoverableContent>
+                                    <TooltipTrigger asChild>
+                                      <MCPToolRowAction
+                                        label={tComposer("mcpPaidTool", { price: formatMCPToolPrice(tool.priceNanousd) })}
+                                      >
+                                        <CircleDollarSign className="size-3.5" strokeWidth={1.8} />
+                                      </MCPToolRowAction>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                      side="right"
+                                      align="center"
+                                      sideOffset={6}
+                                      className="max-w-xs text-left text-xs leading-5 data-[state=closed]:[animation-duration:60ms] data-[state=open]:[animation-duration:90ms]"
+                                    >
+                                      <div className="space-y-1">
+                                        <p className="tabular-nums">{tComposer("mcpPaidTool", { price: formatMCPToolPrice(tool.priceNanousd) })}</p>
+                                        <p>{tComposer("mcpPaidToolNote")}</p>
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : null}
                                 <Tooltip disableHoverableContent>
                                   <TooltipTrigger asChild>
                                     <MCPToolRowAction

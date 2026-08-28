@@ -1,13 +1,12 @@
 "use client";
 
 import * as React from "react";
-
+import type { SidebarConversationChange } from "@/entities/conversation";
 import {
   removeByPublicID,
   sortByUpdatedAtDesc,
   upsertByPublicID,
 } from "@/entities/conversation";
-import type { SidebarConversationChange } from "@/entities/conversation";
 import { listConversations } from "@/shared/api/conversation";
 import type { ConversationDTO, ConversationProjectDTO } from "@/shared/api/conversation.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";

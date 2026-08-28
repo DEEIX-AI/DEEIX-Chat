@@ -367,6 +367,40 @@ function ChartInteractiveLegend({
   )
 }
 
+const STACKED_BAR_TOP_RADIUS: [number, number, number, number] = [4, 4, 0, 0]
+// Minimum rendered height of the column-top segment; slightly above the 4px
+// corner radius so the rounded cap stays visible for near-zero values.
+const STACKED_BAR_TOP_MIN_HEIGHT = 5
+
+// Rounds the top corners of the segment that is currently the visible top of
+// its own stacked column. A static per-series `radius` leaves square tops on
+// columns where the globally topmost series has no value.
+function createStackedBarTopRoundedShape(
+  isColumnTopSegment: (payload: unknown) => boolean
+): (props: RechartsPrimitive.BarShapeProps) => React.JSX.Element {
+  return (props) => {
+    if (!isColumnTopSegment(props.payload)) {
+      return <RechartsPrimitive.Rectangle {...props} radius={0} />
+    }
+    // A tiny top segment cannot fit the corner radius, so it would still look
+    // square. Keep its top edge in place and extend it downward over the
+    // segment below (the top segment paints last, so it wins), clamped to the
+    // stack baseline so the total column height never changes.
+    const maxHeight = Math.max(props.stackedBarStart - props.y, props.height)
+    const height = Math.min(
+      Math.max(props.height, STACKED_BAR_TOP_MIN_HEIGHT),
+      maxHeight
+    )
+    return (
+      <RechartsPrimitive.Rectangle
+        {...props}
+        height={height}
+        radius={STACKED_BAR_TOP_RADIUS}
+      />
+    )
+  }
+}
+
 // Helper to extract item config from a payload.
 function getPayloadConfigFromPayload(
   config: ChartConfig,
@@ -412,5 +446,6 @@ export {
   ChartLegendContent,
   ChartInteractiveLegend,
   ChartStyle,
+  createStackedBarTopRoundedShape,
 }
 export type { ChartInteractiveLegendItem }

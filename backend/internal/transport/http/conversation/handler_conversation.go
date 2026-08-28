@@ -612,7 +612,7 @@ func (h *Handler) DeleteConversation(c *gin.Context) {
 
 // ForkConversationFromMessage godoc
 // @Summary 从指定消息 fork 新会话
-// @Description 将会话从开头到指定消息（含）的祖先链复制为一个新会话；不携带原会话的运行记录与计费，附件以引用方式复用
+// @Description 仅允许从助手消息 fork；将会话从开头到指定助手消息（含）的祖先链复制为一个新会话，保留历史展示轨迹；不携带原会话的运行记录与计费，附件以引用方式复用
 // @Tags chat
 // @Accept json
 // @Produce json
@@ -647,6 +647,8 @@ func (h *Handler) ForkConversationFromMessage(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, "message not found")
 		case errors.Is(err, appconversation.ErrMessageForkStateInvalid):
 			response.ErrorWithCode(c, http.StatusBadRequest, "conversation.message_fork_state_invalid", "message is still generating")
+		case errors.Is(err, appconversation.ErrMessageForkTargetInvalid):
+			response.ErrorWithCode(c, http.StatusBadRequest, "conversation.message_fork_target_invalid", "only assistant messages can be forked")
 		case errors.Is(err, appconversation.ErrMessageForkHistoryIncomplete):
 			response.ErrorWithCode(c, http.StatusBadRequest, "conversation.message_fork_history_incomplete", "message history is too deep or incomplete")
 		default:

@@ -367,6 +367,10 @@ func (s *knowledgeBaseRepositoryStub) GetKnowledgeBaseByPublicID(context.Context
 	return &item, nil
 }
 
+func (s *knowledgeBaseRepositoryStub) GetKnowledgeBaseAccessByPublicID(ctx context.Context, publicID string) (*domainknowledgebase.KnowledgeBase, error) {
+	return s.GetKnowledgeBaseByPublicID(ctx, publicID)
+}
+
 func (s *knowledgeBaseRepositoryStub) CreateKnowledgeBase(_ context.Context, item *domainknowledgebase.KnowledgeBase) (*domainknowledgebase.KnowledgeBase, error) {
 	result := *item
 	return &result, nil
@@ -383,6 +387,14 @@ func (s *knowledgeBaseRepositoryStub) DeleteKnowledgeBase(context.Context, uint)
 
 func (s *knowledgeBaseRepositoryStub) ListKnowledgeBaseFiles(context.Context, uint, int, int) ([]domainconversation.FileObject, int64, error) {
 	return nil, 0, nil
+}
+
+func (s *knowledgeBaseRepositoryStub) GetKnowledgeBaseFileProcessingStatuses(context.Context, uint, []string) ([]domainconversation.FileObject, error) {
+	return nil, nil
+}
+
+func (s *knowledgeBaseRepositoryStub) GetKnowledgeBaseFileProcessingSnapshot(context.Context, uint, []string) (*repository.KnowledgeBaseFileProcessingSnapshot, error) {
+	return &repository.KnowledgeBaseFileProcessingSnapshot{}, nil
 }
 
 func (s *knowledgeBaseRepositoryStub) ListKnowledgeBaseSourceFiles(_ context.Context, ownerUserID uint, query string, offset int, limit int) ([]domainconversation.FileObject, int64, error) {

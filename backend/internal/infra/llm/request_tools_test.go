@@ -130,6 +130,7 @@ func TestParseChatCompletionsOutputSeparatesReasoningContentParts(t *testing.T) 
 
 func TestApplyChatStreamEventSeparatesReasoningContentParts(t *testing.T) {
 	result := &GenerateOutput{}
+	var buffer string
 	var visible string
 	var reasoning string
 	err := applyChatStreamEvent(AdapterOpenAIChatCompletions, map[string]interface{}{
@@ -143,7 +144,7 @@ func TestApplyChatStreamEventSeparatesReasoningContentParts(t *testing.T) {
 				},
 			},
 		},
-	}, result, func(event GenerateStreamEvent) error {
+	}, result, &buffer, func(event GenerateStreamEvent) error {
 		visible += event.Delta
 		if event.Reasoning != nil {
 			reasoning += event.Reasoning.Text
@@ -699,7 +700,7 @@ func TestChatStreamToolCallArgumentsAreConcatenatedWithoutDefaultPrefix(t *testi
 	}
 
 	for _, chunk := range chunks {
-		if err := applyChatStreamEvent(AdapterOpenAIChatCompletions, chunk, result, nil, false); err != nil {
+		if err := applyChatStreamEvent(AdapterOpenAIChatCompletions, chunk, result, nil, nil, false); err != nil {
 			t.Fatalf("apply stream event: %v", err)
 		}
 	}
@@ -756,7 +757,7 @@ func TestChatStreamCustomToolCallInputIsConcatenated(t *testing.T) {
 	}
 
 	for _, chunk := range chunks {
-		if err := applyChatStreamEvent(AdapterOpenAIChatCompletions, chunk, result, nil, false); err != nil {
+		if err := applyChatStreamEvent(AdapterOpenAIChatCompletions, chunk, result, nil, nil, false); err != nil {
 			t.Fatalf("apply stream event: %v", err)
 		}
 	}

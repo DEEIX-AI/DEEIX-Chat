@@ -33,6 +33,7 @@ type MCPTool struct {
 	AttachmentArgument       string `gorm:"size:128;not null;default:'';comment:附件内容对应的顶层参数名"`
 	AttachmentEncoding       string `gorm:"size:32;not null;default:'';comment:附件编码(base64/data_url)"`
 	AttachmentPromptArgument string `gorm:"size:128;not null;default:'';comment:用户提示词对应的顶层参数名"`
+	PriceNanousd             int64  `gorm:"not null;default:0;comment:单次调用价格(nano USD),0表示不单独计费"`
 	Status                   string `gorm:"size:32;not null;default:'inactive';index:idx_mcp_tools_status;comment:工具状态(active/inactive)"`
 	SortOrder                int    `gorm:"not null;default:0;index:idx_mcp_tools_sort_order;comment:展示顺序"`
 }

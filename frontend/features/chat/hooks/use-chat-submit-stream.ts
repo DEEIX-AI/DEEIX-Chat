@@ -4,12 +4,12 @@ import * as React from "react";
 
 import { useChatMessageSubmit } from "@/features/chat/hooks/use-chat-message-submit";
 import { useChatStreamBuffer } from "@/features/chat/hooks/use-chat-stream-buffer";
-import type { ChatAreaMessage } from "@/features/chat/types/messages";
 import type {
   ChatModelOption,
   PendingAttachment,
   PendingExchangeMap,
 } from "@/features/chat/types/chat-runtime";
+import type { ChatAreaMessage } from "@/features/chat/types/messages";
 import type {
   ConversationDTO,
   ConversationOptions,
@@ -43,6 +43,7 @@ export function useChatSubmitStream({
   setDraft,
   setAttachments,
   releaseAttachments,
+  transferAttachments,
   getPendingExchanges,
   pendingExchanges,
   setPendingExchanges,
@@ -57,6 +58,9 @@ export function useChatSubmitStream({
   activeGenerationRunsRef,
   activeGenerationRunsRevision,
   onActiveGenerationRunsChange,
+  onConversationRunDetached,
+  onConversationRunFinished,
+  onConversationRunStarted,
   resumeGenerationActive,
 }: {
   conversationID: string | null;
@@ -78,12 +82,13 @@ export function useChatSubmitStream({
   prependNewConversation: (platformModelName: string) => Promise<ConversationDTO | null | undefined>;
   onConversationCreated?: (conversationPublicID: string) => void;
   onConversationForked?: (conversation: ConversationDTO) => Promise<void> | void;
-  touchByPublicID: (publicID: string, patch?: Partial<ConversationDTO>) => void;
+  touchByPublicID: (publicID: string, patch: Partial<ConversationDTO>) => void;
   reload: () => void;
   replaceMessage: (message: MessageDTO) => void;
   setDraft: React.Dispatch<React.SetStateAction<string>>;
   setAttachments: React.Dispatch<React.SetStateAction<PendingAttachment[]>>;
   releaseAttachments: (items: PendingAttachment[]) => void;
+  transferAttachments: (items: PendingAttachment[]) => void;
   getPendingExchanges: () => PendingExchangeMap;
   pendingExchanges: PendingExchangeMap;
   setPendingExchanges: React.Dispatch<React.SetStateAction<PendingExchangeMap>>;
@@ -98,6 +103,9 @@ export function useChatSubmitStream({
   activeGenerationRunsRef?: React.RefObject<Set<string>>;
   activeGenerationRunsRevision: number;
   onActiveGenerationRunsChange?: () => void;
+  onConversationRunDetached?: (runID: string) => void;
+  onConversationRunFinished?: (runID: string) => void;
+  onConversationRunStarted?: (runID: string, conversationPublicID: string) => void;
   resumeGenerationActive?: boolean;
 }) {
   const streamBuffer = useChatStreamBuffer({
@@ -130,6 +138,7 @@ export function useChatSubmitStream({
     setDraft,
     setAttachments,
     releaseAttachments,
+    transferAttachments,
     getPendingExchanges,
     pendingExchanges,
     setPendingExchanges,
@@ -146,10 +155,14 @@ export function useChatSubmitStream({
     flushStreamTextNow: streamBuffer.flushStreamTextNow,
     flushUpstreamThinkNow: streamBuffer.flushUpstreamThinkNow,
     resetStreamBuffer: streamBuffer.resetStreamBuffer,
+    setStreamTextSnapshot: streamBuffer.setStreamTextSnapshot,
     startStream: streamBuffer.startStream,
     activeGenerationRunsRef,
     activeGenerationRunsRevision,
     onActiveGenerationRunsChange,
+    onConversationRunDetached,
+    onConversationRunFinished,
+    onConversationRunStarted,
     resumeGenerationActive,
   });
 

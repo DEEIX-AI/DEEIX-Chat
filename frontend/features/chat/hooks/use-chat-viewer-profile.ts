@@ -1,15 +1,14 @@
 "use client";
 
-import * as React from "react";
 import { useTranslations } from "next-intl";
-
+import * as React from "react";
+import type { ViewerProfile } from "@/features/chat/types/chat-runtime";
 import {
   resolveGreetingPeriodByHour,
   resolveHourByTimeZone,
 } from "@/features/chat/utils/chat-runtime";
-import type { ViewerProfile } from "@/features/chat/types/chat-runtime";
-import { useOptionalAuthSession } from "@/shared/auth/auth-session-context";
 import type { UserDTO } from "@/shared/api/auth.types";
+import { useOptionalAuthSession } from "@/shared/auth/auth-session-context";
 
 const DEFAULT_VIEWER_PROFILE: ViewerProfile = {
   name: "",

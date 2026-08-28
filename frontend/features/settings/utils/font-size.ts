@@ -67,7 +67,7 @@ export function writeFontSizePreference(value: FontSizeOption) {
 
 function subscribeFontSizePreference(onStoreChange: () => void) {
   if (typeof window === "undefined") {
-    return () => undefined;
+    return (): void => undefined;
   }
 
   function handleStorage(event: StorageEvent) {

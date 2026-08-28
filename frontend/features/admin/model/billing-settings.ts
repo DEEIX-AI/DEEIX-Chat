@@ -308,7 +308,7 @@ const DEFAULT_IMPORT_MESSAGES: ModelPricingImportMessages = {
   duplicateModel: (model) => `${model} appears more than once`,
   pricingObject: (model) => `${model} pricing must be an object`,
   invalidPricingMode: (model) => `${model}.pricingMode must be token, call, duration, or tiered`,
-  durationVideoOnly: (model) => `${model}.pricingMode=duration requires the video_gen model capability`,
+  durationVideoOnly: (model) => `${model}.pricingMode=duration requires a video model capability`,
   invalidNumber: (model, field) => `${model}.${field} must be a number greater than or equal to 0`,
   invalidTieredPricing: (model, field) => `${model}.${field} must contain a non-empty tiers array`,
   invalidTieredPricingJSON: (model) => `${model}.tieredPricingJSON is not valid JSON`,
@@ -570,7 +570,9 @@ export function buildPricingRows(models: AdminLLMModelDTO[], pricingItems: Admin
         icon: pricing?.modelIcon || model.icon || "",
         pricing,
         isFree: pricing?.isFree ?? false,
-        supportsVideoGeneration: parseKindsJSON(model.kindsJSON).includes("video_gen"),
+        supportsVideoGeneration: parseKindsJSON(model.kindsJSON).some(
+          (kind) => kind === "video_gen" || kind === "video_extension",
+        ),
       };
     });
 }

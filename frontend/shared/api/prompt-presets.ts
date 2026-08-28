@@ -92,10 +92,11 @@ export async function deleteMyPromptPreset(accessToken: string, id: number): Pro
 export async function listAdminPromptPresets(
   accessToken: string,
   options: PromptPresetListOptions = {},
+  signal?: AbortSignal,
 ): Promise<PromptPresetPage> {
   const data = await authedRequest<PagePayload<PromptPresetDTO>>(
     promptPresetListPath("/api/v1/admin/prompt-presets", options),
-    { accessToken },
+    { accessToken, signal },
     true,
   );
   return normalizePagePayload(data);

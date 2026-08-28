@@ -98,8 +98,6 @@ type Service struct {
 	queueCapacity  int
 	queuedCount    int // logical admission counter (paired with queueCapacity)
 	activeWorkers  int // logical concurrency counter (paired with maxConcurrency)
-	workerCount    int
-	workerCtx      context.Context
 	stopCh         chan struct{}
 	wg             sync.WaitGroup
 
@@ -158,17 +156,22 @@ func (s *Service) SetAuditWriter(writer auditWriter) {
 }
 
 // StartBackgroundWorkers starts the worker pool and cleanup loop.
+// Worker 循环一次性按物理上限启动，有效并发由逻辑额度（maxConcurrency）控制。
 func (s *Service) StartBackgroundWorkers(ctx context.Context) {
-	s.workerCtx = ctx
 	if cfg, err := s.readRuntimeConfig(ctx); err == nil {
 		s.resizeWorker(cfg.MaxConcurrency, cfg.QueueCapacity)
-	} else {
-		s.ensureWorkers(ctx, s.maxConcurrency)
+	}
+	for range maxPhysicalConcurrency {
+		s.wg.Add(1)
+		go s.workerLoop(ctx)
 	}
 	s.wg.Add(1)
 	go s.cleanupLoop(ctx)
+	s.wg.Add(1)
 	go func() {
-		bg, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer s.wg.Done()
+		// 从生命周期 ctx 派生，进程关停时可即时取消，避免 Stop 阻塞等待恢复任务。
+		bg, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		defer cancel()
 		s.runCleanup(bg)
 		s.recoverPendingBlocks(bg)
@@ -194,6 +197,7 @@ const maxPhysicalQueueCapacity = 4096
 // is enforced with activeWorkers so resize never replaces the semaphore channel.
 const maxPhysicalConcurrency = 64
 
+// resizeWorker 调整逻辑并发额度与队列额度，并唤醒等待逻辑槽位的 worker。
 func (s *Service) resizeWorker(maxConcurrency, queueCapacity int) {
 	s.workerMu.Lock()
 	defer s.workerMu.Unlock()
@@ -215,15 +219,6 @@ func (s *Service) resizeWorker(maxConcurrency, queueCapacity int) {
 	s.queueCapacity = queueCapacity
 	s.maxConcurrency = maxConcurrency
 
-	if s.taskQueue == nil {
-		s.taskQueue = make(chan *moderationTask, maxPhysicalQueueCapacity)
-	}
-	if s.workerSem == nil {
-		s.workerSem = make(chan struct{}, maxPhysicalConcurrency)
-	}
-	if s.workerWake == nil {
-		s.workerWake = make(chan struct{}, maxPhysicalConcurrency)
-	}
 	if maxConcurrency > previousConcurrency {
 		for i := previousConcurrency; i < maxConcurrency; i++ {
 			select {
@@ -231,31 +226,6 @@ func (s *Service) resizeWorker(maxConcurrency, queueCapacity int) {
 			default:
 			}
 		}
-	}
-
-	ctx := s.workerCtx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	// Grow worker loops with configured demand. Existing loops are retained when
-	// the limit decreases, while the logical gate enforces the new lower limit.
-	for s.workerCount < maxConcurrency {
-		s.workerCount++
-		s.wg.Add(1)
-		go s.workerLoop(ctx)
-	}
-}
-
-func (s *Service) ensureWorkers(ctx context.Context, count int) {
-	s.workerMu.Lock()
-	defer s.workerMu.Unlock()
-	if count < 1 {
-		count = 1
-	}
-	for s.workerCount < count {
-		s.workerCount++
-		s.wg.Add(1)
-		go s.workerLoop(ctx)
 	}
 }
 
@@ -295,8 +265,10 @@ func (s *Service) BeginRun(ctx context.Context, meta RunMeta) *RunCoordinator {
 	s.coordMu.Lock()
 	s.coordinators[meta.RunID] = coord
 	s.coordMu.Unlock()
-	if err := s.repo.UpdateRunModeration(ctx, meta.RunID, domaincm.ModerationStatePending, "", "[]"); err != nil {
-		s.logWarn("content_moderation_mark_pending_failed", zap.String("run_id", meta.RunID), zap.Error(err))
+	if !meta.Ephemeral {
+		if err := s.repo.UpdateRunModeration(ctx, meta.RunID, domaincm.ModerationStatePending, "", "[]"); err != nil {
+			s.logWarn("content_moderation_mark_pending_failed", zap.String("run_id", meta.RunID), zap.Error(err))
+		}
 	}
 	return coord
 }

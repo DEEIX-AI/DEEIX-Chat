@@ -4,6 +4,7 @@ import (
 	"time"
 
 	appadmin "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/admin"
+	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/userview"
 	domainaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/audit"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
@@ -383,6 +384,33 @@ type PaymentOrderResponse struct {
 	UpdatedAt          time.Time  `json:"updatedAt"`
 }
 
+// RedemptionRecordResponse 兑换记录响应。
+type RedemptionRecordResponse struct {
+	ID              uint    `json:"id"`
+	CodeID          uint    `json:"codeID"`
+	CodeHint        string  `json:"codeHint"`
+	CodeDescription string  `json:"codeDescription"`
+	CodeStatus      string  `json:"codeStatus"`
+	UserID          uint    `json:"userID"`
+	Username        string  `json:"username"`
+	UserDisplayName string  `json:"userDisplayName"`
+	UserLabel       string  `json:"userLabel"`
+	Mode            string  `json:"mode"`
+	RewardType      string  `json:"rewardType"`
+	CreditNanousd   int64   `json:"creditNanousd"`
+	CreditUSD       float64 `json:"creditUSD"`
+	PlanID          uint    `json:"planID"`
+	PlanName        string  `json:"planName"`
+	DurationDays    int     `json:"durationDays"`
+	SubscriptionID  uint    `json:"subscriptionID"`
+	// BalanceBeforeNanousd / BalanceAfterNanousd 来自余额流水；订阅类兑换无流水时为 null。
+	BalanceBeforeNanousd *int64    `json:"balanceBeforeNanousd" extensions:"x-nullable,!x-omitempty"`
+	BalanceAfterNanousd  *int64    `json:"balanceAfterNanousd" extensions:"x-nullable,!x-omitempty"`
+	RefNo                string    `json:"refNo"`
+	SnapshotJSON         string    `json:"snapshotJSON"`
+	CreatedAt            time.Time `json:"createdAt"`
+}
+
 // ConversationEventResponse 对话事件响应。
 type ConversationEventResponse struct {
 	ID                uint       `json:"id"`
@@ -634,6 +662,15 @@ type PaymentOrderListResponseDoc struct {
 	Data     struct {
 		Total   int64                  `json:"total"`
 		Results []PaymentOrderResponse `json:"results"`
+	} `json:"data"`
+}
+
+// RedemptionRecordListResponseDoc 兑换记录分页响应。
+type RedemptionRecordListResponseDoc struct {
+	ErrorMsg string `json:"errorMsg"`
+	Data     struct {
+		Total   int64                      `json:"total"`
+		Results []RedemptionRecordResponse `json:"results"`
 	} `json:"data"`
 }
 
@@ -931,6 +968,38 @@ func toPaymentOrderResponse(item domainbilling.PaymentOrder, label appadmin.User
 		SnapshotJSON:       item.SnapshotJSON,
 		CreatedAt:          item.CreatedAt,
 		UpdatedAt:          item.UpdatedAt,
+	}
+}
+
+func toRedemptionRecordResponse(item appbilling.RedemptionRecordView, label appadmin.UserLabel) RedemptionRecordResponse {
+	var balanceBefore *int64
+	if item.BalanceAfterNanousd != nil && item.BalanceAmountNanousd != nil {
+		before := *item.BalanceAfterNanousd - *item.BalanceAmountNanousd
+		balanceBefore = &before
+	}
+	return RedemptionRecordResponse{
+		ID:                   item.Redemption.ID,
+		CodeID:               item.Redemption.CodeID,
+		CodeHint:             item.CodeHint,
+		CodeDescription:      item.CodeDescription,
+		CodeStatus:           item.CodeStatus,
+		UserID:               item.Redemption.UserID,
+		Username:             label.Username,
+		UserDisplayName:      label.DisplayName,
+		UserLabel:            label.Label,
+		Mode:                 item.Redemption.Mode,
+		RewardType:           item.Redemption.RewardType,
+		CreditNanousd:        item.Redemption.CreditNanousd,
+		CreditUSD:            float64(item.Redemption.CreditNanousd) / 1_000_000_000,
+		PlanID:               item.Redemption.PlanID,
+		PlanName:             item.PlanName,
+		DurationDays:         item.DurationDays,
+		SubscriptionID:       item.Redemption.SubscriptionID,
+		BalanceBeforeNanousd: balanceBefore,
+		BalanceAfterNanousd:  item.BalanceAfterNanousd,
+		RefNo:                item.Redemption.RefNo,
+		SnapshotJSON:         item.Redemption.SnapshotJSON,
+		CreatedAt:            item.Redemption.CreatedAt,
 	}
 }
 

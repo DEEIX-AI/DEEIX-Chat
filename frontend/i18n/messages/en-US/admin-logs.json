@@ -9,6 +9,7 @@
     "usage": "Model calls",
     "auth": "Auth security",
     "orders": "Order records",
+    "redemptions": "Redemptions",
     "conversation": "Conversation events",
     "moderation": "Moderation events",
     "system": "System events"
@@ -56,6 +57,7 @@
     "systemLoadFailed": "Failed to load system events",
     "usageLoadFailed": "Failed to load usage logs",
     "ordersLoadFailed": "Failed to load order records",
+    "redemptionsLoadFailed": "Failed to load redemption records",
     "conversationEventsLoadFailed": "Failed to load conversation events",
     "conversationEventDetailLoadFailed": "Failed to load conversation event details",
     "modelFilterLoadFailed": "Failed to load model filters"
@@ -117,7 +119,10 @@
     "amount": "Amount",
     "scope": "Scope",
     "tool": "Tool",
-    "runID": "Run ID"
+    "runID": "Run ID",
+    "code": "Code",
+    "reward": "Redeemed content",
+    "balanceAfterRedemption": "Balance after"
   },
   "audit": {
     "searchPlaceholder": "Search user ID, action, resource, request ID, IP, or detail",
@@ -266,6 +271,21 @@
       "failed": "Failed"
     }
   },
+  "redemptions": {
+    "searchPlaceholder": "Search user ID, redemption ref no., code hint, or note",
+    "empty": "No redemption records",
+    "filters": {
+      "all": "All",
+      "rewardType": "Reward type",
+      "code": "Code",
+      "clearCode": "Clear code filter"
+    },
+    "rewards": {
+      "balance": "Balance",
+      "subscription": "Subscription plan",
+      "durationDays": "{count} days"
+    }
+  },
   "conversation": {
     "searchPlaceholder": "Search user ID, run ID, event, stage, title, or tool name",
     "empty": "No conversation events",
@@ -304,6 +324,7 @@
       "auth": "Auth log detail",
       "usage": "Usage log detail",
       "order": "Order record detail",
+      "redemption": "Redemption record detail",
       "conversation": "Conversation event detail",
       "system": "System event detail"
     },
@@ -311,6 +332,7 @@
       "authEvent": "Auth event",
       "modelCall": "Model call",
       "order": "Order record",
+      "redemption": "Redemption record",
       "conversationEvent": "Conversation event",
       "systemEvent": "System event",
       "auditEvent": "Audit event"
@@ -326,8 +348,20 @@
       "usageBilling": "Usage billing",
       "order": "Order",
       "payment": "Payment",
+      "redemption": "Redemption",
+      "redemptionCode": "Redemption code",
+      "reward": "Reward",
       "conversationEvent": "Conversation event",
       "tool": "Tool"
+    },
+    "codeStatus": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "deleted": "Deleted"
+    },
+    "rewardTypes": {
+      "balance": "Balance",
+      "subscription": "Subscription plan"
     },
     "fields": {
       "action": "Action",
@@ -372,6 +406,18 @@
       "eventScope": "Event scope",
       "stage": "Stage",
       "seq": "Seq",
+      "refNo": "Redemption ref no.",
+      "redeemedAt": "Redeemed at",
+      "codeHint": "Code",
+      "codeID": "Code ID",
+      "codeDescription": "Code note",
+      "codeStatus": "Code status",
+      "rewardType": "Reward type",
+      "planName": "Subscription plan",
+      "subscriptionID": "Subscription ID",
+      "balanceBefore": "Balance before redemption",
+      "balanceAfterRedemption": "Balance after redemption",
+      "durationDays": "Plan duration",
       "messageID": "Message ID",
       "toolName": "Tool name",
       "toolCallID": "Tool call ID",
@@ -384,6 +430,7 @@
       "failure": "Failed",
       "blocked": "Blocked"
     },
+    "rewardDurationDays": "{count} days",
     "rawUsageJsonTitle": "Raw Usage JSON",
     "jsonTitle": "Detail JSON",
     "loading": "Loading details",

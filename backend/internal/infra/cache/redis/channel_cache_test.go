@@ -4,6 +4,8 @@ import (
 	"context"
 	"reflect"
 	"testing"
+
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
 func TestIsCircuitStateKey(t *testing.T) {
@@ -51,5 +53,23 @@ func TestResetCircuitStateKeysScansAllPagesAndPreservesIndependentKeys(t *testin
 	want := []string{"cb:u:1:open", "cb:u:1:m:model:fails", "cb:u:2:until"}
 	if !reflect.DeepEqual(deleted, want) {
 		t.Fatalf("deleted keys = %#v, want %#v", deleted, want)
+	}
+}
+
+func TestNormalizeRateLimitBackoffParams(t *testing.T) {
+	baseSec, maxSec, multiplier, retryAfterSec := normalizeRateLimitBackoffParams(repository.RateLimitBackoffParams{
+		BackoffBaseSec:    90,
+		BackoffMaxSec:     60,
+		BackoffMultiplier: 1,
+		RetryAfterSec:     120,
+	})
+	if baseSec != 60 || maxSec != 60 || multiplier != 2 || retryAfterSec != 60 {
+		t.Fatalf(
+			"normalizeRateLimitBackoffParams() = (%d, %d, %d, %d), want (60, 60, 2, 60)",
+			baseSec,
+			maxSec,
+			multiplier,
+			retryAfterSec,
+		)
 	}
 }

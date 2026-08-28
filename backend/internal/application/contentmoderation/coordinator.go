@@ -20,6 +20,9 @@ type RunMeta struct {
 	MessagePublicID    string
 	AssistantMessageID uint
 	UserMessageID      uint
+	// Ephemeral 表示该运行没有 conversation/message/run 持久化记录。
+	// 审核事件仍按安全保留策略记录，但协调器不得写会话域状态。
+	Ephemeral bool
 }
 
 // BlockInfo is returned when a round is blocked.
@@ -169,8 +172,10 @@ func (c *RunCoordinator) AfterGeneration(ctx context.Context, outputText string,
 	if c == nil {
 		return BarrierResult{State: domaincm.ModerationStatePassed}
 	}
-	if err := c.service.repo.UpdateRunModeration(ctx, c.meta.RunID, domaincm.ModerationStateModerating, "", "[]"); err != nil {
-		c.service.logWarn("content_moderation_mark_moderating_failed", zap.String("run_id", c.meta.RunID), zap.Error(err))
+	if !c.meta.Ephemeral {
+		if err := c.service.repo.UpdateRunModeration(ctx, c.meta.RunID, domaincm.ModerationStateModerating, "", "[]"); err != nil {
+			c.service.logWarn("content_moderation_mark_moderating_failed", zap.String("run_id", c.meta.RunID), zap.Error(err))
+		}
 	}
 	c.emit("moderation_checking", map[string]interface{}{
 		"type": "moderation_checking",
@@ -246,7 +251,7 @@ func (c *RunCoordinator) settle() (bool, BlockInfo, bool) {
 }
 
 func (c *RunCoordinator) updateRunState(state, eventID, categoriesJSON string) {
-	if c == nil || c.service == nil || c.service.repo == nil {
+	if c == nil || c.meta.Ephemeral || c.service == nil || c.service.repo == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -472,6 +477,9 @@ func (c *RunCoordinator) waitAll(ctx context.Context) {
 
 // applyBlock persists withdrawal then emits the terminal stream event.
 func (c *RunCoordinator) applyBlock(info BlockInfo) (bool, error) {
+	if c.meta.Ephemeral {
+		return c.notifyBlocked(info), nil
+	}
 	// Client disconnect cancels the request context; persistence must survive that.
 	persistCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

@@ -144,7 +144,7 @@ export function AdminStatisticsSubjectFilter({
       : ALL_SUBJECT_OPTION;
 
   return (
-    <Combobox
+    <Combobox<SubjectFilterOption>
       items={options}
       value={selectedOption}
       inputValue={query}

@@ -135,7 +135,7 @@ export function writeChatFontWeightPreference(value: ChatFontWeightOption) {
 
 function subscribeChatFontPreference(onStoreChange: () => void) {
   if (typeof window === "undefined") {
-    return () => undefined;
+    return (): void => undefined;
   }
 
   function handleStorage(event: StorageEvent) {
@@ -164,7 +164,7 @@ function subscribeChatFontPreference(onStoreChange: () => void) {
 
 function subscribeChatFontWeightPreference(onStoreChange: () => void) {
   if (typeof window === "undefined") {
-    return () => undefined;
+    return (): void => undefined;
   }
 
   function handleStorage(event: StorageEvent) {

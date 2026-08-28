@@ -1,39 +1,35 @@
 "use client";
 
-import * as React from "react";
 import { useTranslations } from "next-intl";
-
+import * as React from "react";
+import { sanitizeConversationOptions } from "@/features/chat/model/conversation-options";
 import type {
   ChatModelOption,
   ModelOptionControl,
   ModelOptionControlType,
 } from "@/features/chat/types/chat-runtime";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
-import { sanitizeConversationOptions } from "@/features/chat/model/conversation-options";
-import {
-  DEFAULT_CHAT_CONTENT_WIDTH,
-  parseChatContentWidth,
-  type ChatContentWidth,
-} from "@/shared/model/chat-content-width";
-import { listConversationRuns } from "@/shared/api/conversation";
-import { listPublicModels } from "@/shared/api/model";
+import { parseSendShortcut, type SendShortcut } from "@/features/settings";
 import { getBillingConfig } from "@/shared/api/billing";
-import { getMCPPolicy, getModelOptionPolicy } from "@/shared/api/settings";
-import { getUserSettings } from "@/shared/api/user-settings";
-import type { PublicModelDTO } from "@/shared/api/model.types";
-import type { ModelNativeToolConfig, ModelOptionPolicy } from "@/shared/lib/model-option-policy";
-import { nativeToolDefinitionVariantsFromConfig, nativeToolPayloadSignature } from "@/shared/lib/native-tool-payload";
-import { parseKindsJSON } from "@/shared/model/llm-schema";
-import { resolveConversationDefaultModel } from "@/shared/model/conversation-default-model";
+import { listConversationRuns } from "@/shared/api/conversation";
 import type { ConversationOptions } from "@/shared/api/conversation.types";
-import type { SendShortcut } from "@/features/settings/types/settings";
-import { parseSendShortcut } from "@/features/settings/utils/chat-settings";
-import { USER_SETTINGS_UPDATED_EVENT } from "@/features/settings/events/user-settings-events";
+import { listPublicModels } from "@/shared/api/model";
+import type { PublicModelDTO } from "@/shared/api/model.types";
+import { getMCPPolicy, getModelOptionPolicy } from "@/shared/api/settings";
+import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
-  normalizeBillingDisplayCurrency,
   type BillingDisplayCurrency,
+  normalizeBillingDisplayCurrency,
 } from "@/shared/lib/billing-display";
+import type { ModelNativeToolConfig, ModelOptionPolicy } from "@/shared/lib/model-option-policy";
+import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
+import { nativeToolDefinitionVariantsFromConfig, nativeToolPayloadSignature } from "@/shared/lib/native-tool-payload";
+import {
+  type ChatContentWidth,
+  parseChatContentWidth,
+} from "@/shared/model/chat-content-width";
+import { resolveConversationDefaultModel } from "@/shared/model/conversation-default-model";
+import { parseKindsJSON } from "@/shared/model/llm-schema";
+import { useUserSettings } from "@/shared/model/user-settings-store";
 
 type ModelCatalogRefreshResult = {
   models: PublicModelDTO[];
@@ -138,7 +134,7 @@ function resolveNativeTools(raw: string): ModelNativeToolConfig[] {
     id: nativeToolID({ key, protocols: [], type: "", index }),
     key,
     protocol: "",
-    protocols: [],
+    protocols: [] as string[],
     type: "",
     label: key,
     enabled: true,
@@ -308,6 +304,39 @@ function resolveOptionControls(raw: string): ModelOptionControl[] {
   return controls.filter((item, index) => controls.findIndex((candidate) => candidate.path === item.path) === index);
 }
 
+function resolveVideoExtensionConfig(raw: string, protocols: string[]): ChatModelOption["videoExtension"] {
+  const parsed = parseJSONObject(raw);
+  const mediaTasks = parsed?.mediaTasks;
+  const taskSource = mediaTasks && typeof mediaTasks === "object" && !Array.isArray(mediaTasks)
+    ? (mediaTasks as Record<string, unknown>).video_extension
+    : undefined;
+  const task = taskSource && typeof taskSource === "object" && !Array.isArray(taskSource)
+    ? (taskSource as Record<string, unknown>)
+    : null;
+  const protocolSupported = protocols.includes("xai_video_extensions");
+  if (!protocolSupported || task?.enabled === false) {
+    return null;
+  }
+  const defaultOptions = task?.defaultOptions && typeof task.defaultOptions === "object" && !Array.isArray(task.defaultOptions)
+    ? sanitizeConversationOptions(task.defaultOptions as ConversationOptions)
+    : { duration: 6 };
+  const rawControls = Array.isArray(task?.optionControls) ? task.optionControls : [{ path: "duration", type: "select", label: "Duration", description: "2–10 seconds", options: ["2", "3", "4", "5", "6", "7", "8", "9", "10"] }];
+  const controls = rawControls.flatMap((item): ModelOptionControl[] => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const source = item as Record<string, unknown>;
+    const path = normalizeOptionControlPath(source.path);
+    if (path !== "duration") return [];
+    return [{
+      path,
+      type: normalizeOptionControlType(source.type) ?? "select",
+      label: normalizeOptionControlString(source.label),
+      description: normalizeOptionControlString(source.description),
+      options: normalizeOptionControlOptions(source.options) ?? ["2", "3", "4", "5", "6", "7", "8", "9", "10"],
+    }];
+  });
+  return { enabled: true, defaultOptions, optionControls: controls };
+}
+
 function resolveNativeToolKeys(raw: string): string[] {
   const parsed = parseJSONObject(raw);
   const rawKeys = parsed?.nativeToolKeys;
@@ -354,6 +383,7 @@ function toChatModelOption(
     nativeToolKeys: resolveNativeToolKeys(item.capabilitiesJSON),
     nativeTools,
     pricing: item.pricing,
+    videoExtension: resolveVideoExtensionConfig(item.capabilitiesJSON, protocols),
   };
 }
 
@@ -367,21 +397,12 @@ export function useChatModelOptions({
   resetToken?: number;
 }) {
   const t = useTranslations("chat.models");
+  const { settings: userSettings } = useUserSettings();
   const [availableModels, setAvailableModels] = React.useState<PublicModelDTO[]>([]);
   const [modelsLoading, setModelsLoading] = React.useState(true);
   const [modelsErrorMsg, setModelsErrorMsg] = React.useState("");
   const [selectedPlatformModelName, setSelectedPlatformModelName] = React.useState("");
-  const [userDefaultModel, setUserDefaultModel] = React.useState("");
-  const [sendShortcut, setSendShortcut] = React.useState<SendShortcut>("enter");
-  const [restoreDraftOnFailure, setRestoreDraftOnFailure] = React.useState(true);
-  const [preserveConversationDrafts, setPreserveConversationDrafts] = React.useState(true);
-  const [inputHeight, setInputHeight] = React.useState<"compact" | "standard" | "loose">("standard");
-  const [contentWidth, setContentWidth] = React.useState<ChatContentWidth>(DEFAULT_CHAT_CONTENT_WIDTH);
-  const [markdownRender, setMarkdownRender] = React.useState(true);
-  const [showModelInfo, setShowModelInfo] = React.useState(true);
-  const [showLatency, setShowLatency] = React.useState(true);
-  const [showTokenUsage, setShowTokenUsage] = React.useState(true);
-  const [showBillingCost, setShowBillingCost] = React.useState(false);
+  const [billingCostAvailable, setBillingCostAvailable] = React.useState(false);
   const [billingDisplayCurrency, setBillingDisplayCurrency] = React.useState<BillingDisplayCurrency>("USD");
   const [billingDisplayUsdToCnyRate, setBillingDisplayUsdToCnyRate] = React.useState<number | null>(null);
   const [modelOptionPolicy, setModelOptionPolicy] = React.useState<ModelOptionPolicy | null>(null);
@@ -390,6 +411,20 @@ export function useChatModelOptions({
   const userSelectedModelRef = React.useRef(false);
   const runModelRequestRef = React.useRef(0);
   const modelCatalogRequestRef = React.useRef<Promise<ModelCatalogRefreshResult> | null>(null);
+  const userDefaultModel = userSettings["chat.default_model"]?.trim() ?? "";
+  const sendShortcut: SendShortcut = parseSendShortcut(userSettings["chat.send_on_enter"]);
+  const restoreDraftOnFailure = userSettings["chat.restore_draft_on_failure"] !== "false";
+  const preserveConversationDrafts = userSettings["chat.preserve_conversation_drafts"] !== "false";
+  const inputHeight: "compact" | "standard" | "loose" =
+    userSettings["chat.input_height"] === "compact" || userSettings["chat.input_height"] === "loose"
+      ? userSettings["chat.input_height"]
+      : "standard";
+  const contentWidth: ChatContentWidth = resolveChatContentWidth(userSettings);
+  const markdownRender = userSettings["chat.markdown_render"] !== "false";
+  const showModelInfo = userSettings["chat.show_model_info"] !== "false";
+  const showLatency = userSettings["chat.show_latency"] !== "false";
+  const showTokenUsage = userSettings["chat.show_token_usage"] !== "false";
+  const showBillingCost = billingCostAvailable && userSettings["chat.show_billing_cost"] !== "false";
 
   const selectPlatformModelName = React.useCallback((platformModelName: string) => {
     userSelectedModelRef.current = true;
@@ -410,7 +445,7 @@ export function useChatModelOptions({
 
       const [models, modelOptionPolicy] = await Promise.all([
         listPublicModels(token),
-        getModelOptionPolicy(token).catch(() => null),
+        getModelOptionPolicy(token).catch((): null => null),
       ]);
       return { models, modelOptionPolicy };
     })().finally(() => {
@@ -458,34 +493,19 @@ export function useChatModelOptions({
           setModelsErrorMsg(t("signInRequired"));
           return;
         }
-        const [catalog, settings, billingConfig, nextMCPPolicy] = await Promise.all([
+        const [catalog, billingConfig, nextMCPPolicy] = await Promise.all([
           loadModelCatalog(token),
-          getUserSettings(token).catch(() => ({} as Record<string, string>)),
-          getBillingConfig(token).catch(() => null),
-          getMCPPolicy(token).catch(() => null),
+          getBillingConfig(token).catch((): null => null),
+          getMCPPolicy(token).catch((): null => null),
         ]);
         if (cancelled) {
           return;
         }
         applyModelCatalog(catalog);
         setMCPMaxSelectedTools(resolveMCPMaxSelectedTools(nextMCPPolicy?.maxSelectedToolsPerMessage));
-        setUserDefaultModel(settings["chat.default_model"]?.trim() ?? "");
-        setSendShortcut(parseSendShortcut(settings["chat.send_on_enter"]));
-        setRestoreDraftOnFailure(settings["chat.restore_draft_on_failure"] !== "false");
-        setPreserveConversationDrafts(settings["chat.preserve_conversation_drafts"] !== "false");
-        setMarkdownRender(settings["chat.markdown_render"] !== "false");
-        setShowModelInfo(settings["chat.show_model_info"] !== "false");
-        setShowLatency(settings["chat.show_latency"] !== "false");
-        setShowTokenUsage(settings["chat.show_token_usage"] !== "false");
-        setShowBillingCost((billingConfig?.config.mode ?? "self") !== "self" && settings["chat.show_billing_cost"] !== "false");
+        setBillingCostAvailable((billingConfig?.config.mode ?? "self") !== "self");
         setBillingDisplayCurrency(normalizeBillingDisplayCurrency(billingConfig?.config.displayCurrency));
         setBillingDisplayUsdToCnyRate(billingConfig?.config.usdToCNYRate ?? null);
-        setInputHeight(
-          settings["chat.input_height"] === "compact" || settings["chat.input_height"] === "loose"
-            ? settings["chat.input_height"]
-            : "standard",
-        );
-        setContentWidth(resolveChatContentWidth(settings));
       } catch {
         if (!cancelled) {
           setModelsErrorMsg(t("loadFailed"));
@@ -502,21 +522,6 @@ export function useChatModelOptions({
       cancelled = true;
     };
   }, [applyModelCatalog, loadModelCatalog, t]);
-
-  React.useEffect(() => {
-    const handleUserSettingsUpdated = (event: Event) => {
-      const settings = (event as CustomEvent<Record<string, string>>).detail;
-      if (!settings || typeof settings !== "object") {
-        return;
-      }
-      setContentWidth(resolveChatContentWidth(settings));
-    };
-
-    window.addEventListener(USER_SETTINGS_UPDATED_EVENT, handleUserSettingsUpdated);
-    return () => {
-      window.removeEventListener(USER_SETTINGS_UPDATED_EVENT, handleUserSettingsUpdated);
-    };
-  }, []);
 
   React.useEffect(() => {
     const normalizedConversationID = conversationPublicID?.trim() || null;
@@ -541,13 +546,16 @@ export function useChatModelOptions({
     const requestID = runModelRequestRef.current + 1;
     runModelRequestRef.current = requestID;
 
+    // 本次请求绑定的会话 ID（非空）。
+    const activeConversationID = normalizedConversationID;
+
     async function loadLatestRunModel() {
       const token = await resolveAccessToken();
       if (!token) {
         return;
       }
 
-      const runs = await listConversationRuns(token, normalizedConversationID, { page: 1, pageSize: 1 });
+      const runs = await listConversationRuns(token, activeConversationID, { page: 1, pageSize: 1 });
       if (cancelled || requestID !== runModelRequestRef.current || userSelectedModelRef.current) {
         return;
       }
@@ -556,7 +564,7 @@ export function useChatModelOptions({
       setSelectedPlatformModelName(latestRunModel || fallbackModel);
     }
 
-    void loadLatestRunModel().catch(() => undefined);
+    void loadLatestRunModel().catch((): undefined => undefined);
 
     return () => {
       cancelled = true;

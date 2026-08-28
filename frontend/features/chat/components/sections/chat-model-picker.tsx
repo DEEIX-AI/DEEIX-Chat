@@ -669,7 +669,7 @@ export function ChatModelPicker({
       if (nextOpen) {
         setActiveGroupKey(selectedGroupKey || modelGroups[0]?.key || "");
         if (onModelCatalogRefresh) {
-          void Promise.resolve(onModelCatalogRefresh()).catch(() => undefined);
+          void Promise.resolve(onModelCatalogRefresh()).catch((): undefined => undefined);
         }
       }
       setOpen(nextOpen);

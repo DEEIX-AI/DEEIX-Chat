@@ -63,6 +63,7 @@ import {
   testAdminLLMUpstreamModelRoute,
   updateAdminLLMModelUpstreamSource,
 } from "@/features/admin/api";
+import { listAllAdminPages } from "@/features/admin/api/shared";
 import type {
   AdminLLMAdapter,
   AdminLLMModelDTO,
@@ -288,8 +289,10 @@ export function UpstreamSourcesSheet({
         toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
         return;
       }
-      const data = await listAdminLLMUpstreams(token, { page: 1, pageSize: 2000, status: "active", sort: "name_asc" });
-      setUpstreams(data.results);
+      const results = await listAllAdminPages((options) =>
+        listAdminLLMUpstreams(token, { ...options, status: "active", sort: "name_asc" }),
+      );
+      setUpstreams(results);
     } catch (error) {
       toast.error(toastT("upstreamsLoadFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
@@ -311,13 +314,14 @@ export function UpstreamSourcesSheet({
         toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
         return;
       }
-      const data = await listAdminLLMUpstreamModels(token, parsedUpstreamID, {
-        page: 1,
-        pageSize: 2000,
-        upstreamStatus: "active",
-        sort: "upstream_asc",
-      });
-      setUpstreamModels(uniqueUpstreamModels(data.results).filter((item) => item.upstreamModelStatus === "active"));
+      const results = await listAllAdminPages((options) =>
+        listAdminLLMUpstreamModels(token, parsedUpstreamID, {
+          ...options,
+          upstreamStatus: "active",
+          sort: "upstream_asc",
+        }),
+      );
+      setUpstreamModels(uniqueUpstreamModels(results).filter((item) => item.upstreamModelStatus === "active"));
     } catch (error) {
       toast.error(toastT("upstreamModelsLoadFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
@@ -959,10 +963,10 @@ export function UpstreamSourcesSheet({
                                   circuitUntil={source.circuitUntil}
                                   circuitScope={source.circuitScope}
                                 />
-                              ) : model.status === "inactive" || source.upstreamStatus === "inactive" || source.upstreamModelStatus === "inactive" ? (
+                              ) : model?.status === "inactive" || source.upstreamStatus === "inactive" || source.upstreamModelStatus === "inactive" ? (
                                 <SourceInactiveStatus
                                   reason={
-                                    model.status === "inactive"
+                                    model?.status === "inactive"
                                       ? t("platformModelInactive")
                                       : source.upstreamStatus === "inactive"
                                       ? t("upstreamInactive")

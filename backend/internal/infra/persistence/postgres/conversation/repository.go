@@ -1423,19 +1423,6 @@ func (r *Repo) UpdateMessageBilling(ctx context.Context, messageID uint, billedC
 		Error)
 }
 
-// SumMessageTokens 统计会话 token 消耗总量。
-func (r *Repo) SumMessageTokens(ctx context.Context, conversationID uint) (int64, error) {
-	var total int64
-	if err := r.db.WithContext(ctx).
-		Model(&models.Message{}).
-		Select("COALESCE(SUM(token_usage), 0)").
-		Where("conversation_id = ?", conversationID).
-		Scan(&total).Error; err != nil {
-		return 0, translateError(err)
-	}
-	return total, nil
-}
-
 // ListMessages 查询会话消息。
 func (r *Repo) ListMessages(ctx context.Context, conversationID uint, offset int, limit int) ([]domainconversation.Message, int64, error) {
 	items := make([]models.Message, 0)
@@ -2117,6 +2104,26 @@ func (r *Repo) ListConversationRunsByRunIDs(
 	return toConversationRunDomains(items), nil
 }
 
+// ListConversationRunStatusesByRunIDs 按运行 ID 批量查询当前用户的最小运行状态快照。
+func (r *Repo) ListConversationRunStatusesByRunIDs(
+	ctx context.Context,
+	userID uint,
+	runIDs []string,
+) ([]domainconversation.RunStatus, error) {
+	if len(runIDs) == 0 {
+		return []domainconversation.RunStatus{}, nil
+	}
+	items := make([]domainconversation.RunStatus, 0, len(runIDs))
+	if err := r.db.WithContext(ctx).Model(&models.ConversationRun{}).
+		Select("run_id", "status").
+		Where("user_id = ? AND run_id IN ?", userID, runIDs).
+		Order("id ASC").
+		Scan(&items).Error; err != nil {
+		return nil, translateError(err)
+	}
+	return items, nil
+}
+
 // GetMessageByID 按内部 ID 查询消息。
 func (r *Repo) GetMessageByID(ctx context.Context, conversationID uint, messageID uint) (*domainconversation.Message, error) {
 	var item models.Message
@@ -2137,29 +2144,7 @@ func (r *Repo) GetMessageByID(ctx context.Context, conversationID uint, messageI
 	return &result, nil
 }
 
-// GetLatestMessage 查询会话最新一条消息。
-func (r *Repo) GetLatestMessage(ctx context.Context, conversationID uint) (*domainconversation.Message, error) {
-	var item models.Message
-	if err := r.db.WithContext(ctx).
-		Where("conversation_id = ?", conversationID).
-		Order("id DESC").
-		Limit(1).
-		First(&item).Error; err != nil {
-		return nil, translateError(err)
-	}
-	single := []models.Message{item}
-	if err := r.hydrateMessageRefs(ctx, single); err != nil {
-		return nil, err
-	}
-	if err := r.hydrateMessageAttachments(ctx, single); err != nil {
-		return nil, err
-	}
-	item = single[0]
-	result := toMessageDomain(item)
-	return &result, nil
-}
-
-// ListMessageAncestors 从指定消息向上遍历 parent_message_id 链，返回祖先消息（按 id ASC 排列）。
+// ListMessageAncestors 从指定消息向上遍历 parent_message_id 链，返回祖先消息（根到叶排列）。
 // 使用 WITH RECURSIVE CTE 一次往返代替原来最多 40 次单行查询（N+1 反模式）。
 func (r *Repo) ListMessageAncestors(ctx context.Context, conversationID uint, leafMessageID uint, maxDepth int) ([]domainconversation.Message, error) {
 	if maxDepth <= 0 {
@@ -2190,7 +2175,7 @@ WITH RECURSIVE ancestors AS (
       AND m.deleted_at IS NULL
 )
 SELECT * FROM ancestors
-ORDER BY id ASC`
+ORDER BY _depth DESC`
 
 	path := make([]models.Message, 0)
 	if err := r.db.WithContext(ctx).Raw(cteSQL, leafMessageID, conversationID, maxDepth, conversationID).Scan(&path).Error; err != nil {
@@ -2231,12 +2216,13 @@ func (r *Repo) ListLatestBranchPreviewMessages(
 		PublicID     string `gorm:"column:public_id"`
 		Role         string `gorm:"column:role"`
 		Content      string `gorm:"column:content"`
+		Status       string `gorm:"column:status"`
 		ErrorMessage string `gorm:"column:error_message"`
 	}
 	rows := make([]previewMessageRow, 0)
 	const previewSQL = `
 WITH RECURSIVE ancestors AS (
-    SELECT id, conversation_id, parent_message_id, public_id, role, content, error_message, 1 AS depth
+    SELECT id, conversation_id, parent_message_id, public_id, role, content, status, error_message, 1 AS depth
     FROM chat_messages
     WHERE id = (
         SELECT id
@@ -2248,7 +2234,7 @@ WITH RECURSIVE ancestors AS (
       AND conversation_id = ?
       AND deleted_at IS NULL
     UNION ALL
-    SELECT m.id, m.conversation_id, m.parent_message_id, m.public_id, m.role, m.content, m.error_message, a.depth + 1
+    SELECT m.id, m.conversation_id, m.parent_message_id, m.public_id, m.role, m.content, m.status, m.error_message, a.depth + 1
     FROM chat_messages AS m
     INNER JOIN ancestors AS a ON m.id = a.parent_message_id
     WHERE a.parent_message_id IS NOT NULL
@@ -2256,13 +2242,13 @@ WITH RECURSIVE ancestors AS (
       AND m.conversation_id = ?
       AND m.deleted_at IS NULL
 ), visible_messages AS (
-    SELECT id, public_id, role, content, error_message, depth
+    SELECT id, public_id, role, content, status, error_message, depth
     FROM ancestors
     WHERE role IN ('user', 'assistant')
     ORDER BY depth ASC
     LIMIT ?
 )
-SELECT id, public_id, role, content, error_message
+SELECT id, public_id, role, content, status, error_message
 FROM visible_messages
 ORDER BY depth DESC`
 	if err := r.db.WithContext(ctx).
@@ -2279,61 +2265,11 @@ ORDER BY depth DESC`
 			PublicID:       row.PublicID,
 			Role:           row.Role,
 			Content:        row.Content,
+			Status:         row.Status,
 			ErrorMessage:   row.ErrorMessage,
 		})
 	}
 	return items, nil
-}
-
-// ListMessageAncestorsUntil 从指定消息向上遍历 parent_message_id 链，直到命中 stopMessageID 或达到深度上限。
-func (r *Repo) ListMessageAncestorsUntil(ctx context.Context, conversationID uint, leafMessageID uint, stopMessageID uint, maxDepth int) ([]domainconversation.Message, bool, error) {
-	if maxDepth <= 0 {
-		maxDepth = 200
-	}
-	if maxDepth > maxAncestorQueryDepth {
-		maxDepth = maxAncestorQueryDepth
-	}
-	if leafMessageID == 0 || stopMessageID == 0 {
-		return nil, false, repository.ErrInvalidInput
-	}
-
-	const cteSQL = `
-WITH RECURSIVE ancestors AS (
-    SELECT *, 1 AS _depth
-    FROM chat_messages
-    WHERE id = ? AND conversation_id = ? AND deleted_at IS NULL
-    UNION ALL
-    SELECT m.*, a._depth + 1
-    FROM chat_messages m
-    INNER JOIN ancestors a ON m.id = a.parent_message_id
-    WHERE a.parent_message_id IS NOT NULL
-      AND a._depth < ?
-      AND a.id <> ?
-      AND m.conversation_id = ?
-      AND m.deleted_at IS NULL
-)
-SELECT * FROM ancestors
-ORDER BY id ASC`
-
-	path := make([]models.Message, 0)
-	if err := r.db.WithContext(ctx).Raw(cteSQL, leafMessageID, conversationID, maxDepth, stopMessageID, conversationID).Scan(&path).Error; err != nil {
-		return nil, false, translateError(err)
-	}
-
-	found := false
-	for _, item := range path {
-		if item.ID == stopMessageID {
-			found = true
-			break
-		}
-	}
-	if err := r.hydrateMessageRefs(ctx, path); err != nil {
-		return nil, false, err
-	}
-	if err := r.hydrateMessageAttachments(ctx, path); err != nil {
-		return nil, false, err
-	}
-	return toMessageDomains(path), found, nil
 }
 
 // ListRecentMessages 查询会话最近消息窗口（按时间升序返回）。
@@ -2483,6 +2419,27 @@ func (r *Repo) GetActiveFileObjectsByIDs(ctx context.Context, userID uint, fileI
 	return toFileObjectDomains(items), nil
 }
 
+// GetActiveFileProcessingStatusesByIDs 批量查询轮询所需的文件处理状态字段。
+func (r *Repo) GetActiveFileProcessingStatusesByIDs(ctx context.Context, userID uint, fileIDs []string) ([]domainconversation.FileObject, error) {
+	items := make([]models.FileObject, 0)
+	if len(fileIDs) == 0 {
+		return []domainconversation.FileObject{}, nil
+	}
+	if err := r.db.WithContext(ctx).
+		Select(
+			"file_id", "detected_mime", "file_category",
+			"processing_status", "processing_ready", "processing_error_code", "processing_error_message",
+			"extract_status", "extract_chars", "extract_pages", "preview_text", "ocr_used",
+			"rag_ready", "rag_reason", "embed_status", "embed_error", "chunk_count",
+			"processing_started_at", "processing_completed_at", "updated_at",
+		).
+		Where("user_id = ? AND status = ? AND file_id IN ?", userID, "active", fileIDs).
+		Find(&items).Error; err != nil {
+		return nil, translateError(err)
+	}
+	return toFileObjectDomains(items), nil
+}
+
 // GetActiveFileObjectByID 查询单个用户激活文件对象。
 func (r *Repo) GetActiveFileObjectByID(ctx context.Context, userID uint, fileID string) (*domainconversation.FileObject, error) {
 	var item models.FileObject
@@ -2490,7 +2447,7 @@ func (r *Repo) GetActiveFileObjectByID(ctx context.Context, userID uint, fileID 
 		Where("user_id = ? AND status = ? AND file_id = ?", userID, "active", fileID).
 		First(&item).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrFileNotFound
+			return nil, repository.ErrFileNotFound
 		}
 		return nil, translateError(err)
 	}
@@ -2505,7 +2462,7 @@ func (r *Repo) RenameFileObjectByID(ctx context.Context, userID uint, fileID str
 		Where("user_id = ? AND status = ? AND file_id = ?", userID, "active", fileID).
 		First(&item).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrFileNotFound
+			return nil, repository.ErrFileNotFound
 		}
 		return nil, translateError(err)
 	}
@@ -2525,7 +2482,7 @@ func (r *Repo) UpdateFileObjectRagOptOut(ctx context.Context, userID uint, fileI
 		Where("user_id = ? AND status = ? AND file_id = ?", userID, "active", fileID).
 		First(&item).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrFileNotFound
+			return nil, repository.ErrFileNotFound
 		}
 		return nil, translateError(err)
 	}
@@ -2743,7 +2700,7 @@ func (r *Repo) CreateFileObjectAndConsumeQuota(
 
 		nextUsed := quota.UsedBytes + entity.SizeBytes
 		if quota.QuotaBytes > 0 && nextUsed+quota.ReservedBytes > quota.QuotaBytes {
-			return ErrStorageQuotaExceeded
+			return repository.ErrStorageQuotaExceeded
 		}
 
 		if err = tx.Create(&entity).Error; err != nil {
@@ -2753,7 +2710,7 @@ func (r *Repo) CreateFileObjectAndConsumeQuota(
 
 		if err = tx.Model(&models.UserStorageQuota{}).
 			Where("id = ?", quota.ID).
-			Update("used_bytes", nextUsed).Error; err != nil {
+			Update("used_bytes", gorm.Expr("used_bytes + ?", entity.SizeBytes)).Error; err != nil {
 			return translateError(err)
 		}
 
@@ -2787,7 +2744,7 @@ func (r *Repo) DeleteFileObjectAndReleaseQuota(
 			Where("user_id = ? AND file_id = ? AND status = ?", userID, fileID, "active").
 			First(&deletedFile).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrFileNotFound
+				return repository.ErrFileNotFound
 			}
 			return translateError(err)
 		}
@@ -2829,15 +2786,15 @@ func (r *Repo) DeleteFileObjectAndReleaseQuota(
 			return translateError(err)
 		}
 
-		nextUsed := quota.UsedBytes
 		if remainingUserRefs == 0 {
-			nextUsed = quota.UsedBytes - deletedFile.SizeBytes
-			if nextUsed < 0 {
-				nextUsed = 0
-			}
+			// 扣减使用表达式更新并以 0 为下限（CASE WHEN 兼容 Postgres 与 SQLite），
+			// 避免内存值写回覆盖并发变更。
 			if err = tx.Model(&models.UserStorageQuota{}).
 				Where("id = ?", quota.ID).
-				Update("used_bytes", nextUsed).Error; err != nil {
+				Update("used_bytes", gorm.Expr(
+					"CASE WHEN used_bytes >= ? THEN used_bytes - ? ELSE 0 END",
+					deletedFile.SizeBytes, deletedFile.SizeBytes,
+				)).Error; err != nil {
 				return translateError(err)
 			}
 		}
@@ -4331,6 +4288,8 @@ func toConversationToolCallModel(item *domainconversation.ToolCall) models.ChatR
 		EventType:      item.ToolType,
 		ToolCallID:     item.ToolCallID,
 		ToolName:       item.ToolName,
+		MCPServerID:    item.MCPServerID,
+		MCPServerName:  item.MCPServerName,
 		Status:         item.Status,
 		LatencyMS:      item.LatencyMS,
 		InputJSON:      item.InputJSON,
@@ -4521,11 +4480,13 @@ func toFileObjectProcessingStateDomain(item models.FileObject) domainconversatio
 		DetectedMIME:       item.DetectedMIME,
 		FileCategory:       item.FileCategory,
 		ProcessingStatus:   item.ProcessingStatus,
+		ProcessingReady:    item.ProcessingReady,
 		ExtractStatus:      item.ExtractStatus,
 		ExtractEngine:      item.ExtractEngine,
 		ExtractStoragePath: item.ExtractStoragePath,
 		ExtractChars:       item.ExtractChars,
 		ExtractPages:       item.ExtractPages,
+		PageCount:          item.PageCount,
 		PreviewText:        item.PreviewText,
 		OCRUsed:            item.OCRUsed,
 		RAGReady:           item.RAGReady,
@@ -4536,6 +4497,7 @@ func toFileObjectProcessingStateDomain(item models.FileObject) domainconversatio
 		PayloadJSON:        item.ProcessingPayloadJSON,
 		StartedAt:          item.ProcessingStartedAt,
 		CompletedAt:        item.ProcessingCompletedAt,
+		ExtractedAt:        item.ExtractedAt,
 		CreatedAt:          item.CreatedAt,
 		UpdatedAt:          item.UpdatedAt,
 	}
@@ -4549,11 +4511,13 @@ func fileObjectProcessingStateUpdates(item *domainconversation.FileObjectProcess
 		"detected_mime":            item.DetectedMIME,
 		"file_category":            item.FileCategory,
 		"processing_status":        item.ProcessingStatus,
+		"processing_ready":         item.ProcessingReady,
 		"extract_status":           item.ExtractStatus,
 		"extract_engine":           item.ExtractEngine,
 		"extract_storage_path":     item.ExtractStoragePath,
 		"extract_chars":            item.ExtractChars,
 		"extract_pages":            item.ExtractPages,
+		"page_count":               item.PageCount,
 		"preview_text":             item.PreviewText,
 		"ocr_used":                 item.OCRUsed,
 		"rag_ready":                item.RAGReady,
@@ -4564,6 +4528,7 @@ func fileObjectProcessingStateUpdates(item *domainconversation.FileObjectProcess
 		"processing_payload_json":  item.PayloadJSON,
 		"processing_started_at":    item.StartedAt,
 		"processing_completed_at":  item.CompletedAt,
+		"extracted_at":             item.ExtractedAt,
 		"updated_at":               time.Now(),
 	}
 }

@@ -25,9 +25,12 @@ type CircuitFailureInput struct {
 
 // RateLimitBackoffParams rate limit 指数退避计算参数。
 type RateLimitBackoffParams struct {
+	UpstreamID        uint
+	RouteID           uint
 	BackoffBaseSec    int
 	BackoffMaxSec     int
 	BackoffMultiplier int
+	RetryAfterSec     int
 }
 
 // ChannelCacheRepository 封装 channel 模块的缓存能力，屏蔽 Redis 细节。
@@ -80,11 +83,14 @@ type ChannelCacheRepository interface {
 	// QueryModelCircuitStatus 查询模型级熔断展示状态（列表用）。
 	QueryModelCircuitStatus(ctx context.Context, upstreamID uint, modelKey string) (open bool, until string)
 
-	// IsRateLimited 判断上游当前是否处于 rate limit 退避中。
-	IsRateLimited(ctx context.Context, upstreamID uint) bool
+	// GetRateLimitBackoff 返回指定路由当前剩余的 rate limit 退避时长。
+	GetRateLimitBackoff(ctx context.Context, upstreamID uint, routeID uint) (time.Duration, error)
 
 	// RecordRateLimitBackoff 根据指数退避参数记录退避状态。
-	RecordRateLimitBackoff(ctx context.Context, upstreamID uint, params RateLimitBackoffParams) error
+	RecordRateLimitBackoff(ctx context.Context, params RateLimitBackoffParams) error
+
+	// ClearRateLimitBackoff 在路由成功后清除该路由的退避状态与累计次数。
+	ClearRateLimitBackoff(ctx context.Context, upstreamID uint, routeID uint) error
 
 	// IncrAPIKeyCounter 原子递增 API Key 轮询计数器，返回当前值（用于 round-robin）。
 	// 若 Redis 不可用则返回 (0, false)。
@@ -450,6 +456,7 @@ type ChannelRepository interface {
 	GetModelListRowByID(ctx context.Context, modelID uint) (*ChannelModelListRow, error)
 	GetModelByName(ctx context.Context, platformModelName string) (*domainchannel.PlatformModel, error)
 	GetActiveModelByName(ctx context.Context, platformModelName string) (*domainchannel.PlatformModel, error)
+	GetActiveRoutableModelKindsJSON(ctx context.Context, platformModelName string) (string, bool, error)
 	ListModels(ctx context.Context, input ListChannelModelsInput) ([]ChannelModelListRow, int64, error)
 	CreateUpstreamModel(ctx context.Context, item *domainchannel.UpstreamModel) error
 	UpsertUpstreamModel(ctx context.Context, item *domainchannel.UpstreamModel) error

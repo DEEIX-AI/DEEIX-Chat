@@ -1,8 +1,8 @@
 "use client";
 
-import * as React from "react";
 import { CircleHelp } from "lucide-react";
 import { useMessages, useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
 
 import { Cog } from "@/components/animate-ui/icons/cog";
@@ -31,8 +31,8 @@ import {
   isReservedConversationOptionKey,
   sanitizeConversationOptions,
 } from "@/features/chat/model/conversation-options";
-import { cn } from "@/lib/utils";
 import type { ModelOptionControl } from "@/features/chat/types/chat-runtime";
+import { cn } from "@/lib/utils";
 import type { ConversationOptions } from "@/shared/api/conversation.types";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";
 import type { ModelNativeToolConfig, ModelOptionPolicy, NativeToolDefinition } from "@/shared/lib/model-option-policy";
@@ -413,6 +413,7 @@ const PROTOCOL_LABELS: Record<string, string> = {
   xai_image: "Images Generations",
   xai_image_edits: "Images Edits",
   xai_video: "Video Generations",
+  xai_video_extensions: "Video Extensions",
   xai_responses: "xAI Responses",
 };
 

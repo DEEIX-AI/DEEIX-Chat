@@ -336,7 +336,7 @@ func normalizePage(page int, pageSize int) (int, int) {
 	if pageSize <= 0 {
 		pageSize = 20
 	}
-	const maxPageSize = 100
+	const maxPageSize = 1000
 	if pageSize > maxPageSize {
 		pageSize = maxPageSize
 	}

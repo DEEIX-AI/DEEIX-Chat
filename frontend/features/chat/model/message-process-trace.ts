@@ -1,4 +1,4 @@
-import type { ProcessTraceLabels } from "@/features/chat/hooks/use-process-trace-labels";
+import type { ProcessTraceLabels } from "@/features/chat/hooks/use-chat-trace-labels";
 import type { ChatPromptTrace, ChatTraceEvent, RAGCitation } from "@/features/chat/types/messages";
 
 export const TRACE_KIND_CONTEXT_PLANNING = "context_planning";
@@ -297,6 +297,9 @@ function structuredRAGDetail(stage: Record<string, unknown>, labels: ProcessTrac
 }
 
 function structuredCompactionDetails(stage: Record<string, unknown>, labels: ProcessTraceLabels): string[] {
+	const status = readString(stage.status);
+	if (status === "pending") return [labels.compaction.pending];
+	if (status === "failed") return [labels.compaction.failed];
   const fromTurn = readNumber(stage.from_turn) ?? 0;
   const toTurn = readNumber(stage.to_turn) ?? 0;
   const sourceTokens = readNumber(stage.source_tokens) ?? 0;
@@ -375,6 +378,9 @@ function structuredProcessSummaryFromPayload(payloadJson: string | undefined, la
     return hasFullText ? labels.rag.incompleteWithFullText : labels.rag.incompleteNoFullText;
   }
   if (kind === TRACE_KIND_CONTEXT_COMPACTION) {
+	const status = readString(last.status);
+	if (status === "pending") return labels.compaction.pending;
+	if (status === "failed") return labels.compaction.failed;
     const fromTurn = readNumber(last.from_turn);
     const toTurn = readNumber(last.to_turn);
     if (fromTurn !== null && toTurn !== null) {

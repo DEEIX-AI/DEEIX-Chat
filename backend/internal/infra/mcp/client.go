@@ -16,6 +16,7 @@ import (
 
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/outboundhttp"
+	portmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -31,30 +32,12 @@ type Client struct {
 	nextID      atomic.Int64
 }
 
-// CallConfig 定义 MCP 调用配置。
-type CallConfig struct {
-	BaseURL   string
-	AuthToken string
-	TimeoutMS int
-	Headers   map[string]string
-}
-
-// CallInput 定义 MCP 工具调用入参。
-type CallInput struct {
-	ToolName       string
-	ArgumentsJSON  string
-	UserID         uint
-	ConversationID uint
-	RequestID      string
-}
-
-// Tool 定义 MCP 工具元数据。
-type Tool struct {
-	Name        string          `json:"name"`
-	Title       string          `json:"title,omitempty"`
-	Description string          `json:"description,omitempty"`
-	InputSchema json.RawMessage `json:"inputSchema,omitempty"`
-}
+// 数据契约定义在 ports/mcp，此处保留同名引用供实现使用。
+type (
+	CallConfig = portmcp.CallConfig
+	CallInput  = portmcp.CallInput
+	Tool       = portmcp.Tool
+)
 
 // NewClient 创建带出站安全策略的 MCP 客户端。
 func NewClient(outboundPolicy security.OutboundPolicy) *Client {

@@ -43,6 +43,7 @@ export type SettingsFieldDefinition = {
   type: SettingsFieldType;
   placeholder?: string;
   valueUnit?: "mb";
+  valueSuffix?: string;
   options?: SettingsFieldOption[];
   actions?: SettingsFieldAction[];
   statusBadge?: ServiceRuntimeStatusBadge;
@@ -577,16 +578,23 @@ export function SettingsFieldEditor({
                 </Select>
               ) : (
                 <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
-                  <Input
-                    id={field.id}
-                    type={field.type === "password" ? "password" : "text"}
-                    value={value}
-                    onChange={(event) => onChange?.(event.target.value)}
-                    placeholder={field.type === "password" && configured && !value ? t("input.configuredPasswordPlaceholder") : field.placeholder}
-                    inputMode={field.valueUnit === "mb" ? "decimal" : field.type === "int" ? "numeric" : "text"}
-                    disabled={disabled}
-                    className="min-w-0 text-left md:text-right"
-                  />
+                  <div className="relative min-w-0">
+                    <Input
+                      id={field.id}
+                      type={field.type === "password" ? "password" : "text"}
+                      value={value}
+                      onChange={(event) => onChange?.(event.target.value)}
+                      placeholder={field.type === "password" && configured && !value ? t("input.configuredPasswordPlaceholder") : field.placeholder}
+                      inputMode={field.valueUnit === "mb" ? "decimal" : field.type === "int" ? "numeric" : "text"}
+                      disabled={disabled}
+                      className={cn("min-w-0 text-left md:text-right", field.valueSuffix ? "pr-8" : "")}
+                    />
+                    {field.valueSuffix ? (
+                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
+                        {field.valueSuffix}
+                      </span>
+                    ) : null}
+                  </div>
                   {(inlineRuntimeActions ?? []).map((action) => {
                     const Icon = action.icon;
                     return (

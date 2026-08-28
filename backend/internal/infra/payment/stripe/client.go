@@ -12,6 +12,7 @@ import (
 	"time"
 
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
+	paymentport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/payment"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -20,29 +21,6 @@ const (
 	checkoutRequestTimeout = 15 * time.Second
 	maxCheckoutResponse    = 1 << 20
 )
-
-// CheckoutInput 定义 Stripe Checkout Session 所需的协议字段。
-type CheckoutInput struct {
-	SecretKey          string
-	SuccessURL         string
-	CancelURL          string
-	OrderNo            string
-	OrderType          string
-	UserID             uint
-	BaseCurrency       string
-	BaseAmountCents    int64
-	PayCurrency        string
-	PayAmountCents     int64
-	FXRate             string
-	ProductName        string
-	ProductDescription string
-}
-
-// CheckoutResult 表示 Stripe 创建的 Checkout Session。
-type CheckoutResult struct {
-	ID  string
-	URL string
-}
 
 // Client 复用受严格出站策略保护的 Stripe HTTP 客户端。
 type Client struct {
@@ -57,42 +35,42 @@ func New(outboundPolicy security.OutboundPolicy) *Client {
 }
 
 // CreateCheckoutSession 创建 Stripe Checkout Session。
-func (c *Client) CreateCheckoutSession(ctx context.Context, input CheckoutInput) (CheckoutResult, error) {
+func (c *Client) CreateCheckoutSession(ctx context.Context, input paymentport.StripeCheckoutInput) (paymentport.CheckoutResult, error) {
 	if c == nil || c.httpClient == nil {
-		return CheckoutResult{}, fmt.Errorf("stripe checkout client is not configured")
+		return paymentport.CheckoutResult{}, fmt.Errorf("stripe checkout client is not configured")
 	}
 	if strings.TrimSpace(input.SecretKey) == "" {
-		return CheckoutResult{}, fmt.Errorf("stripe secret key is not configured")
+		return paymentport.CheckoutResult{}, fmt.Errorf("stripe secret key is not configured")
 	}
 	if strings.TrimSpace(input.OrderNo) == "" || input.PayAmountCents <= 0 {
-		return CheckoutResult{}, fmt.Errorf("stripe checkout order is invalid")
+		return paymentport.CheckoutResult{}, fmt.Errorf("stripe checkout order is invalid")
 	}
 	if !isHTTPURL(input.SuccessURL) || !isHTTPURL(input.CancelURL) {
-		return CheckoutResult{}, fmt.Errorf("stripe checkout return url is invalid")
+		return paymentport.CheckoutResult{}, fmt.Errorf("stripe checkout return url is invalid")
 	}
 
 	form := checkoutForm(input)
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, checkoutSessionsURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return CheckoutResult{}, fmt.Errorf("build stripe checkout request: %w", err)
+		return paymentport.CheckoutResult{}, fmt.Errorf("build stripe checkout request: %w", err)
 	}
 	request.SetBasicAuth(input.SecretKey, "")
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	response, err := c.httpClient.Do(request)
 	if err != nil {
-		return CheckoutResult{}, fmt.Errorf("request stripe checkout session: %w", err)
+		return paymentport.CheckoutResult{}, fmt.Errorf("request stripe checkout session: %w", err)
 	}
 	defer response.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(response.Body, maxCheckoutResponse+1))
 	if err != nil {
-		return CheckoutResult{}, fmt.Errorf("read stripe checkout response: %w", err)
+		return paymentport.CheckoutResult{}, fmt.Errorf("read stripe checkout response: %w", err)
 	}
 	if len(body) > maxCheckoutResponse {
-		return CheckoutResult{}, fmt.Errorf("stripe checkout response exceeds %d bytes", maxCheckoutResponse)
+		return paymentport.CheckoutResult{}, fmt.Errorf("stripe checkout response exceeds %d bytes", maxCheckoutResponse)
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return CheckoutResult{}, fmt.Errorf("stripe checkout request failed: status %d", response.StatusCode)
+		return paymentport.CheckoutResult{}, fmt.Errorf("stripe checkout request failed: status %d", response.StatusCode)
 	}
 
 	var session struct {
@@ -100,17 +78,17 @@ func (c *Client) CreateCheckoutSession(ctx context.Context, input CheckoutInput)
 		URL string `json:"url"`
 	}
 	if err := json.Unmarshal(body, &session); err != nil {
-		return CheckoutResult{}, fmt.Errorf("decode stripe checkout response: %w", err)
+		return paymentport.CheckoutResult{}, fmt.Errorf("decode stripe checkout response: %w", err)
 	}
 	checkoutID := strings.TrimSpace(session.ID)
 	checkoutURL, err := url.Parse(strings.TrimSpace(session.URL))
 	if checkoutID == "" || err != nil || !strings.EqualFold(checkoutURL.Scheme, "https") || checkoutURL.Host == "" {
-		return CheckoutResult{}, fmt.Errorf("stripe checkout response contains an invalid session identity or url")
+		return paymentport.CheckoutResult{}, fmt.Errorf("stripe checkout response contains an invalid session identity or url")
 	}
-	return CheckoutResult{ID: checkoutID, URL: checkoutURL.String()}, nil
+	return paymentport.CheckoutResult{ID: checkoutID, URL: checkoutURL.String()}, nil
 }
 
-func checkoutForm(input CheckoutInput) url.Values {
+func checkoutForm(input paymentport.StripeCheckoutInput) url.Values {
 	currency := strings.ToLower(firstNonEmpty(input.PayCurrency, input.BaseCurrency, "USD"))
 	form := url.Values{}
 	form.Set("mode", "payment")

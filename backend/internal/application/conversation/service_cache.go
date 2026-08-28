@@ -6,6 +6,7 @@ import (
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"go.uber.org/zap"
 )
 
@@ -139,7 +140,7 @@ func (s *Service) startInMemoryCacheCleanupWorker(ctx context.Context) {
 	if s == nil {
 		return
 	}
-	go func() {
+	background.Go(s.logger, "in_memory_cache_cleanup", func() {
 		ticker := time.NewTicker(inMemoryCacheSweepInterval)
 		defer ticker.Stop()
 		for {
@@ -150,7 +151,7 @@ func (s *Service) startInMemoryCacheCleanupWorker(ctx context.Context) {
 				s.cleanupExpiredInMemoryCaches(now)
 			}
 		}
-	}()
+	})
 }
 
 func (s *Service) cleanupExpiredInMemoryCaches(now time.Time) {

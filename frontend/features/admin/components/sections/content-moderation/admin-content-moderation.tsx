@@ -312,7 +312,7 @@ export function AdminContentModeration() {
       type: "string",
       value: serviceDraft.baseUrl,
       savedValue: savedConfig.baseUrl,
-      placeholder: undefined,
+      placeholder: undefined as string | undefined,
     },
     {
       key: "apiKey",
@@ -326,28 +326,28 @@ export function AdminContentModeration() {
       type: "string",
       value: serviceDraft.model,
       savedValue: savedConfig.model,
-      placeholder: undefined,
+      placeholder: undefined as string | undefined,
     },
     {
       key: "timeoutSeconds",
       type: "int",
       value: serviceDraft.timeoutSeconds,
       savedValue: String(savedConfig.timeoutSeconds),
-      placeholder: undefined,
+      placeholder: undefined as string | undefined,
     },
     {
       key: "maxConcurrency",
       type: "int",
       value: serviceDraft.maxConcurrency,
       savedValue: String(savedConfig.maxConcurrency),
-      placeholder: undefined,
+      placeholder: undefined as string | undefined,
     },
     {
       key: "queueCapacity",
       type: "int",
       value: serviceDraft.queueCapacity,
       savedValue: String(savedConfig.queueCapacity),
-      placeholder: undefined,
+      placeholder: undefined as string | undefined,
     },
   ] as const;
   const serviceConfigured = savedConfig.enabled && savedConfig.hasAPIKey;

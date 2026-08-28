@@ -8,20 +8,15 @@ import (
 
 	"github.com/coregx/gxpdf"
 	"golang.org/x/text/unicode/norm"
+
+	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
 )
 
-// PDFTextPage 表示单页 PDF 原生文本提取结果。
-type PDFTextPage struct {
-	PageNumber    int
-	Text          string
-	ExtractFailed bool
-}
-
-// PDFTextResult 表示 PDF 原生提取结果。
-type PDFTextResult struct {
-	PageCount int
-	Pages     []PDFTextPage
-}
+// PDF 原生提取数据契约定义在 ports/extract，此处保留同名引用供实现使用。
+type (
+	PDFTextPage   = extractport.PDFTextPage
+	PDFTextResult = extractport.PDFTextResult
+)
 
 // ExtractPDFText 从 PDF 文件中提取纯文本。
 func ExtractPDFText(absPath string, maxPages int) (string, error) {

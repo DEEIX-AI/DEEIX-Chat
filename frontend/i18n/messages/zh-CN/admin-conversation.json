@@ -1,7 +1,7 @@
 {
   "sections": {
     "conversation": "会话配置",
-    "contextCompression": "上下文压缩",
+    "contextManagement": "上下文管理",
     "optionPassthrough": "参数透传",
     "dataExport": "数据导出"
   },
@@ -32,21 +32,26 @@
     },
     "contextCompactEnabled": {
       "label": "上下文压缩",
-      "description": "全局允许上下文压缩。开启后，用户仍可在自己的聊天设置中选择是否使用。"
+      "description": "将较早的对话整理为滚动摘要。开启后，用户仍可在聊天设置中选择是否使用。"
     },
     "contextTokenBudget": {
-      "label": "Token 预算截断",
-      "description": "开启后会根据当前模型上下文窗口自动计算预算，并裁剪可发送的历史消息。"
+      "label": "Token 预算保护",
+      "description": "根据模型上下文窗口自动裁剪超出预算的历史消息。"
     },
     "contextMaxTurns": {
       "label": "压缩触发轮次",
       "description": "对话超过该轮次数时触发上下文压缩；设为 0 表示关闭按轮次触发。",
       "placeholder": "触发轮次"
     },
-    "contextCompactTriggerTokens": {
-      "label": "压缩 Token 阈值",
-      "description": "累计消息 Token 超过该值时触发上下文压缩；设为 0 表示关闭按 Token 触发。",
-      "placeholder": "Token 阈值"
+    "contextWindowFallbackTokens": {
+      "label": "默认上下文窗口",
+      "description": "无法识别模型上下文窗口时使用的默认值。",
+      "placeholder": "默认 128000"
+    },
+    "contextCompactTriggerPercent": {
+      "label": "压缩触发比例",
+      "description": "累计上下文达到当前模型有效输入预算的该比例时触发压缩；设为 0 表示关闭按 Token 触发。",
+      "placeholder": "默认 80"
     },
     "contextCompactPreserveTurns": {
       "label": "原文保留轮次",
@@ -70,7 +75,7 @@
     },
     "compactAsync": {
       "label": "后台执行压缩",
-      "description": "开启后会在当前回复完成后执行模板或 LLM 压缩，以减少回复链路阻塞。"
+      "description": "开启后会在当前回复完成后执行模板或 LLM 压缩；压缩结果写入消息处理记录，并记录后端开始、完成或失败日志。"
     },
     "compactLLM": {
       "label": "LLM 压缩",

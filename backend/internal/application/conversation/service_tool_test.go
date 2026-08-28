@@ -5,8 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 func TestExecuteToolCallRejectsToolsNotEnabledForRun(t *testing.T) {
@@ -41,6 +42,36 @@ func TestExecuteAssistantToolCallsStopsWhenToolNotEnabledForRun(t *testing.T) {
 	}
 	if len(result.ToolResults) != 1 || result.ToolResults[0].Status != "error" {
 		t.Fatalf("expected failed model tool result, got %#v", result.ToolResults)
+	}
+}
+
+func TestExecuteAssistantToolCallsEphemeralSkipsToolCallPersistence(t *testing.T) {
+	repo := &temporaryPersistenceRepositoryStub{}
+	svc := &Service{repo: repo}
+	ledger := newToolExecutionLedger()
+	ledger.store("search", `{"query":"privacy"}`, toolExecutionRecord{
+		row:    model.ToolCall{ToolName: "search", InputJSON: `{"query":"privacy"}`, OutputJSON: `{"ok":true}`, Status: "success"},
+		result: llm.ToolResult{ToolName: "search", OutputJSON: `{"ok":true}`, Status: "success"},
+	})
+
+	result := svc.executeAssistantToolCalls(t.Context(), executeAssistantToolCallsInput{
+		RunID: "temporary-run",
+		ToolCalls: []llm.ToolCall{{
+			ToolCallID:    "call-1",
+			ToolType:      "function",
+			ToolName:      "search",
+			ArgumentsJSON: `{"query":"privacy"}`,
+		}},
+		MCPBindings: map[string]mcpToolCallBinding{"search": {}},
+		Ledger:      ledger,
+		Ephemeral:   true,
+	})
+
+	if len(result.Rows) != 1 || result.Rows[0].Status != "reused" {
+		t.Fatalf("expected reused tool result, got %#v", result.Rows)
+	}
+	if repo.toolCallWrites != 0 {
+		t.Fatalf("ephemeral tool call wrote %d persistence rows", repo.toolCallWrites)
 	}
 }
 

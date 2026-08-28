@@ -1,15 +1,17 @@
+import type { ConversationSearchResult } from "@/features/layouts/types/navigation";
+import type { ConversationDTO, ConversationSearchResultDTO } from "@/shared/api/conversation.types";
 import {
   conversationMatchesSearch,
   normalizeConversationSearchText,
 } from "@/shared/lib/conversation-search";
-import type { ConversationSearchResult } from "@/features/layouts/types/navigation";
-import type { ConversationDTO, ConversationSearchResultDTO } from "@/shared/api/conversation.types";
 
 type ConversationSearchResultGroup = {
   key: string;
   label: string;
   items: ConversationSearchResult[];
 };
+
+export const NAVIGATION_SEARCH_PAGE_SIZE = 20;
 
 export function toConversationSearchResult(
   item: ConversationSearchResultDTO,

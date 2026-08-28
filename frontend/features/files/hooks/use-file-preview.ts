@@ -100,6 +100,7 @@ export function useFilePreview({ file, getAccessToken }: UseFilePreviewOptions) 
 
   React.useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     revokeObjectURL();
 
@@ -125,7 +126,7 @@ export function useFilePreview({ file, getAccessToken }: UseFilePreviewOptions) 
           throw new Error(t("viewAfterLogin"));
         }
 
-        const result = await fetchFileContent(accessToken, file.fileID);
+        const result = await fetchFileContent(accessToken, file.fileID, controller.signal);
         let kind = resolveFilePreviewKind(file, result.contentType);
         const objectURL = URL.createObjectURL(result.blob);
 
@@ -146,7 +147,7 @@ export function useFilePreview({ file, getAccessToken }: UseFilePreviewOptions) 
           }
         }
 
-        if (cancelled) {
+        if (cancelled || controller.signal.aborted) {
           URL.revokeObjectURL(objectURL);
           return;
         }
@@ -163,7 +164,7 @@ export function useFilePreview({ file, getAccessToken }: UseFilePreviewOptions) 
           isImage: isImageFile(file),
         });
       } catch (error) {
-        if (cancelled) {
+        if (cancelled || controller.signal.aborted) {
           return;
         }
 
@@ -175,6 +176,7 @@ export function useFilePreview({ file, getAccessToken }: UseFilePreviewOptions) 
 
     return () => {
       cancelled = true;
+      controller.abort();
       revokeObjectURL();
     };
   }, [file, getAccessToken, previewKey, resolveErrorMessage, revokeObjectURL, t]);

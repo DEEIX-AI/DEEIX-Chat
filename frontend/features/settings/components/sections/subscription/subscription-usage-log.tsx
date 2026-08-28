@@ -262,14 +262,43 @@ function readServiceItemsBilledNanousd(items: BillingServiceItemSnapshot[]): num
   return items.reduce((total, item) => total + readServiceItemNumber(item, "billed_nanousd"), 0);
 }
 
+type BillingServiceItemEntry = {
+  label: string;
+  callCount: number;
+  rateNanousd: number;
+  billedNanousd: number;
+};
+
+// billingServiceItemEntry 归一化服务项，按次计费口径与对话消息的费用明细保持一致。
+function billingServiceItemEntry(serviceItem: BillingServiceItemSnapshot, labels: BillingTooltipLabels): BillingServiceItemEntry {
+  const label = String(serviceItem.service_name || serviceItem.service_code || labels.baseService).trim();
+  const billedNanousd = readServiceItemNumber(serviceItem, "billed_nanousd");
+  const rawCount = readServiceItemNumber(serviceItem, "call_count");
+  const callCount = rawCount > 0 ? rawCount : 1;
+  const rawRate = readServiceItemNumber(serviceItem, "call_nanousd_per_call");
+  const rateNanousd = rawRate > 0 ? rawRate : Math.round(billedNanousd / callCount);
+  return { label, callCount, rateNanousd, billedNanousd };
+}
+
 function buildServiceItemsSummaryLines(serviceItems: BillingServiceItemSnapshot[], labels: BillingTooltipLabels, billingDisplay: BillingDisplayOptions): BillingTooltipLine[] {
   if (serviceItems.length === 0) {
     return [];
   }
   return serviceItems.map((serviceItem) => {
-    const serviceName = String(serviceItem.service_name || serviceItem.service_code || labels.baseService).trim();
-    const amount = formatTooltipUsageCost(nanousdToUSD(readServiceItemNumber(serviceItem, "billed_nanousd")), billingDisplay);
-    return { type: "row", left: serviceName, right: amount };
+    const entry = billingServiceItemEntry(serviceItem, labels);
+    return formatCountBillingFormulaLine(entry.label, entry.callCount, labels.callUnit, labels.callUnit, entry.rateNanousd, entry.billedNanousd, billingDisplay);
+  });
+}
+
+function buildServiceItemTableRows(serviceItems: BillingServiceItemSnapshot[], labels: BillingTooltipLabels, billingDisplay: BillingDisplayOptions): BillingTieredTableRow[] {
+  return serviceItems.map((serviceItem) => {
+    const entry = billingServiceItemEntry(serviceItem, labels);
+    return {
+      item: entry.label,
+      tokens: `${entry.callCount.toLocaleString("en-US")} ${labels.callUnit}`,
+      unitPrice: `${formatTooltipUnitPrice(nanousdToUSD(entry.rateNanousd), billingDisplay)} / ${labels.callUnit}`,
+      amount: formatTooltipUsageCost(nanousdToUSD(entry.billedNanousd), billingDisplay),
+    };
   });
 }
 
@@ -340,8 +369,9 @@ function buildServiceBillingTooltipLines(item: BillingUsageLedgerDTO, labels: Bi
   const cacheWriteRate = readSnapshotNumber(snapshot, "cache_write_nanousd_per_m_tokens");
   const billedOutputTokens = item.outputTokens + item.reasoningTokens;
   const totalBilledNanousd = mainBilledNanousd + currentServiceBilledNanousd;
-  const total = item.isFreeModel ? 0 : nanousdToUSD(totalBilledNanousd);
-  const totalLine = formatBillingTotalLine(labels.total, item.isFreeModel ? `${formatTooltipUsageCost(0, billingDisplay)} (${labels.freeModelNoBilling})` : formatTooltipUsageCost(total, billingDisplay));
+  // 免费模型也可能因 MCP 等服务项产生费用，只有整单为 0 才按免费展示，与对话消息一致。
+  const freeOfCharge = item.isFreeModel && totalBilledNanousd <= 0;
+  const totalLine = formatBillingTotalLine(labels.total, freeOfCharge ? `${formatTooltipUsageCost(0, billingDisplay)} (${labels.freeModelNoBilling})` : formatTooltipUsageCost(nanousdToUSD(totalBilledNanousd), billingDisplay));
   const cacheWriteLabel = cacheWriteBillingLabel(snapshot, labels.display);
   const cacheWriteNote = cacheWriteBillingNote(snapshot, labels.display);
   const rateMultiplierNote = billingRateMultiplierNote(snapshot, labels.display);
@@ -375,11 +405,13 @@ function buildServiceBillingTooltipLines(item: BillingUsageLedgerDTO, labels: Bi
     return lines;
   }
   if (pricingMode === "tiered") {
+    // 服务项并入阶梯表格行，表格总计即整单总计，与对话消息的费用明细布局一致。
     const tieredRows = [
       formatTieredTableRow(labels.input, item.inputTokens, inputRate, readSnapshotNumber(snapshot, "input_billed_nanousd"), billingDisplay),
       formatTieredTableRow(labels.output, billedOutputTokens, outputRate, readSnapshotNumber(snapshot, "output_billed_nanousd"), billingDisplay),
       formatTieredTableRow(labels.cacheRead, item.cacheReadTokens, cacheReadRate, readSnapshotNumber(snapshot, "cache_read_billed_nanousd"), billingDisplay),
       formatTieredTableRow(cacheWriteLabel, item.cacheWriteTokens, cacheWriteRate, readSnapshotNumber(snapshot, "cache_write_billed_nanousd"), billingDisplay),
+      ...buildServiceItemTableRows(currentServiceItems, labels, billingDisplay),
     ];
     if (tieredRows.length > 0) {
       const lines: BillingTooltipLine[] = [];
@@ -396,12 +428,9 @@ function buildServiceBillingTooltipLines(item: BillingUsageLedgerDTO, labels: Bi
         type: "tiered-table" as const,
         rangeLabel: formatTieredRangeLabel(snapshot.tiered_from_tokens, snapshot.tiered_up_to_tokens, labels),
         rows: tieredRows,
-        totalLabel: currentServiceItems.length > 0 ? labels.subtotal : labels.total,
-        totalAmount: item.isFreeModel ? `${formatTooltipUsageCost(0, billingDisplay)} (${labels.freeModelNoBilling})` : formatTooltipUsageCost(nanousdToUSD(mainBilledNanousd), billingDisplay),
+        totalLabel: labels.total,
+        totalAmount: freeOfCharge ? `${formatTooltipUsageCost(0, billingDisplay)} (${labels.freeModelNoBilling})` : formatTooltipUsageCost(nanousdToUSD(totalBilledNanousd), billingDisplay),
       });
-      if (currentServiceItems.length > 0) {
-        lines.push(...appendCurrentServiceItems([]), { type: "divider" as const }, totalLine);
-      }
       return lines;
     }
   }
@@ -504,7 +533,8 @@ function ServiceBillingSummary({ item, billingDisplay }: { item: BillingUsageLed
   const labels = useBillingTooltipLabels();
   const snapshot = parsePricingSnapshot(item.pricingSnapshotJSON);
   const currentServiceItems = readServiceItems(snapshot);
-  const total = item.isFreeModel ? 0 : readMainBilledNanousd(snapshot) + readServiceItemsBilledNanousd(currentServiceItems);
+  const totalNanousd = readMainBilledNanousd(snapshot) + readServiceItemsBilledNanousd(currentServiceItems);
+  const total = item.isFreeModel && totalNanousd <= 0 ? 0 : totalNanousd;
   return (
     <Tooltip>
       <TooltipTrigger asChild>

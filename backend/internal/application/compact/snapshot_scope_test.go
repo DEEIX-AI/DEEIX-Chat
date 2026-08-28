@@ -4,12 +4,16 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestSnapshotBoundaryIndexRequiresCoverageAnchors(t *testing.T) {
@@ -157,7 +161,7 @@ func TestMaybeCompactConversationRollsForwardExistingSnapshot(t *testing.T) {
 	}
 	svc := NewService(config.Config{
 		ContextCompactEnabled:           true,
-		ContextMaxTurns:                 2,
+		ContextMaxTurns:                 1,
 		ContextCompactPreserve:          1,
 		ContextCompactHighlightsPerRole: 4,
 		ContextCompactSnippetChars:      200,
@@ -192,6 +196,107 @@ func TestMaybeCompactConversationRollsForwardExistingSnapshot(t *testing.T) {
 	}
 	if snapshot.CoveragePathHash != CoveragePathHash(messages[:4]) {
 		t.Fatal("expected rolled snapshot hash to match the full covered path")
+	}
+}
+
+func TestMaybeCompactConversationSerializesSameConversation(t *testing.T) {
+	messages := []domainconversation.Message{
+		{ID: 1, PublicID: "m1", Role: "user", Content: "first"},
+		{ID: 2, PublicID: "m2", ParentMessageID: uintPtr(1), Role: "assistant", Content: "first reply"},
+		{ID: 3, PublicID: "m3", ParentMessageID: uintPtr(2), Role: "user", Content: "second"},
+		{ID: 4, PublicID: "m4", ParentMessageID: uintPtr(3), Role: "assistant", Content: "second reply"},
+		{ID: 5, PublicID: "m5", ParentMessageID: uintPtr(4), Role: "user", Content: "latest"},
+		{ID: 6, PublicID: "m6", ParentMessageID: uintPtr(5), Role: "assistant", Content: "latest reply"},
+	}
+	repo := &compactRepositoryStub{}
+	svc := NewService(config.Config{
+		ContextCompactEnabled:  true,
+		ContextMaxTurns:        1,
+		ContextCompactPreserve: 1,
+		CompactLLMEnabled:      true,
+	}, repo, nil)
+
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	var summarizerCalls atomic.Int32
+	svc.SetLLMSummarizer(func(ctx context.Context, platformModelName string, messages []domainconversation.Message, prompt string) (string, error) {
+		summarizerCalls.Add(1)
+		entered <- struct{}{}
+		<-release
+		return "serialized summary", nil
+	})
+
+	var wg sync.WaitGroup
+	run := func(runID string) {
+		defer wg.Done()
+		_, _ = svc.MaybeCompactConversation(t.Context(), MaybeCompactConversationInput{
+			ConversationID: 42,
+			RunID:          runID,
+			Messages:       messages,
+		})
+	}
+	wg.Add(1)
+	go run("run-1")
+	<-entered
+	wg.Add(1)
+	go run("run-2")
+
+	concurrent := false
+	select {
+	case <-entered:
+		concurrent = true
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(release)
+	wg.Wait()
+
+	if concurrent {
+		t.Fatal("expected same-conversation compaction to be serialized")
+	}
+	if got := summarizerCalls.Load(); got != 1 {
+		t.Fatalf("expected the second compaction to reuse the first snapshot, got %d summaries", got)
+	}
+	if repo.createCount != 1 {
+		t.Fatalf("expected one persisted snapshot, got %d", repo.createCount)
+	}
+}
+
+func TestMaybeCompactConversationDoesNotRetriggerFromCoveredHistory(t *testing.T) {
+	messages := []domainconversation.Message{
+		{ID: 1, PublicID: "m1", Role: "user", Content: strings.Repeat("old", 20_000)},
+		{ID: 2, PublicID: "m2", ParentMessageID: uintPtr(1), Role: "assistant", Content: strings.Repeat("history", 20_000)},
+		{ID: 3, PublicID: "m3", ParentMessageID: uintPtr(2), Role: "user", Content: "new user"},
+		{ID: 4, PublicID: "m4", ParentMessageID: uintPtr(3), Role: "assistant", Content: "new assistant"},
+	}
+	repo := &compactRepositoryStub{
+		latest: &domainconversation.ContextSnapshot{
+			SummaryText:           "previous summary",
+			CoveredUntilMessageID: 2,
+			CoveredUntilPublicID:  "m2",
+			CoveredMessageCount:   2,
+			CoveragePathHash:      CoveragePathHash(messages[:2]),
+		},
+	}
+	svc := NewService(config.Config{
+		ContextCompactEnabled:        true,
+		ContextMaxTurns:              1,
+		ContextCompactTriggerPercent: 10,
+		ContextCompactPreserve:       1,
+	}, repo, nil)
+
+	snapshot, err := svc.MaybeCompactConversation(t.Context(), MaybeCompactConversationInput{
+		ConversationID:      9,
+		UserID:              7,
+		RunID:               "run_no_repeat",
+		Messages:            messages,
+		ExistingSnapshot:    repo.latest,
+		PromptTokenEstimate: 128,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if snapshot != nil || repo.created != nil {
+		t.Fatalf("expected covered raw history not to retrigger compaction, got %#v", snapshot)
 	}
 }
 
@@ -263,7 +368,7 @@ func TestMaybeCompactConversationUsesPromptTokenEstimateForTokenTrigger(t *testi
 	svc := NewService(config.Config{
 		ContextCompactEnabled:           true,
 		ContextMaxTurns:                 0,
-		ContextCompactTrigger:           100,
+		ContextCompactTriggerPercent:    10,
 		ContextCompactPreserve:          1,
 		ContextCompactHighlightsPerRole: 4,
 		ContextCompactSnippetChars:      200,
@@ -274,7 +379,7 @@ func TestMaybeCompactConversationUsesPromptTokenEstimateForTokenTrigger(t *testi
 		UserID:              7,
 		RunID:               "run_prompt_tokens",
 		Messages:            messages,
-		PromptTokenEstimate: 200,
+		PromptTokenEstimate: 20_000,
 	})
 	if err != nil {
 		t.Fatalf("expected compaction to succeed, got %v", err)
@@ -287,7 +392,7 @@ func TestMaybeCompactConversationUsesPromptTokenEstimateForTokenTrigger(t *testi
 	}
 }
 
-func TestMaybeCompactConversationKeepsFullHistoryWhenPreserveCoversAllTurns(t *testing.T) {
+func TestMaybeCompactConversationReducesPreserveWindowNearTokenLimit(t *testing.T) {
 	messages := []domainconversation.Message{
 		{ID: 1, PublicID: "m1", Role: "user", Content: "small user"},
 		{ID: 2, PublicID: "m2", ParentMessageID: uintPtr(1), Role: "assistant", Content: "small assistant"},
@@ -296,9 +401,9 @@ func TestMaybeCompactConversationKeepsFullHistoryWhenPreserveCoversAllTurns(t *t
 	}
 	repo := &compactRepositoryStub{}
 	svc := NewService(config.Config{
-		ContextCompactEnabled:  true,
-		ContextCompactTrigger:  100,
-		ContextCompactPreserve: 8,
+		ContextCompactEnabled:        true,
+		ContextCompactTriggerPercent: 10,
+		ContextCompactPreserve:       8,
 	}, repo, nil)
 
 	snapshot, err := svc.MaybeCompactConversation(t.Context(), MaybeCompactConversationInput{
@@ -306,16 +411,212 @@ func TestMaybeCompactConversationKeepsFullHistoryWhenPreserveCoversAllTurns(t *t
 		UserID:              7,
 		RunID:               "run_preserve_all",
 		Messages:            messages,
-		PromptTokenEstimate: 1000,
+		PromptTokenEstimate: 20_000,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if snapshot != nil {
-		t.Fatalf("expected no compaction when preserve window covers all turns, got %#v", snapshot)
+	if snapshot == nil {
+		t.Fatal("expected compaction to reduce the preserve window instead of silently truncating history")
 	}
-	if repo.created != nil {
-		t.Fatalf("expected no snapshot persisted, got %#v", repo.created)
+	if snapshot.ToTurn != 1 || repo.created == nil {
+		t.Fatalf("unexpected compacted range: %#v", snapshot)
+	}
+}
+
+func TestMaybeCompactConversationUsesConfiguredBudgetPercentage(t *testing.T) {
+	messages := []domainconversation.Message{
+		{ID: 1, PublicID: "m1", Role: "user", Content: "old user"},
+		{ID: 2, PublicID: "m2", ParentMessageID: uintPtr(1), Role: "assistant", Content: "old assistant"},
+		{ID: 3, PublicID: "m3", ParentMessageID: uintPtr(2), Role: "user", Content: "latest user"},
+		{ID: 4, PublicID: "m4", ParentMessageID: uintPtr(3), Role: "assistant", Content: "latest assistant"},
+	}
+	repo := &compactRepositoryStub{}
+	svc := NewService(config.Config{
+		ContextCompactEnabled:        true,
+		ContextCompactTriggerPercent: 80,
+		ContextCompactPreserve:       1,
+	}, repo, nil)
+
+	snapshot, err := svc.MaybeCompactConversation(t.Context(), MaybeCompactConversationInput{
+		ConversationID:      9,
+		UserID:              7,
+		RunID:               "run_model_budget",
+		Messages:            messages,
+		PromptTokenEstimate: 100_000,
+		ContextModelName:    "unknown-128k-model",
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if snapshot == nil || snapshot.Strategy != "token_cap" {
+		t.Fatalf("expected model-aware token compaction, got %#v", snapshot)
+	}
+}
+
+func TestMaybeCompactConversationUsesConfiguredFallbackWindow(t *testing.T) {
+	messages := []domainconversation.Message{
+		{ID: 1, PublicID: "m1", Role: "user", Content: "old user"},
+		{ID: 2, PublicID: "m2", ParentMessageID: uintPtr(1), Role: "assistant", Content: "old assistant"},
+		{ID: 3, PublicID: "m3", ParentMessageID: uintPtr(2), Role: "user", Content: "latest user"},
+		{ID: 4, PublicID: "m4", ParentMessageID: uintPtr(3), Role: "assistant", Content: "latest assistant"},
+	}
+	repo := &compactRepositoryStub{}
+	svc := NewService(config.Config{
+		ContextCompactEnabled:        true,
+		ContextWindowFallbackTokens:  256_000,
+		ContextCompactTriggerPercent: 80,
+		ContextCompactPreserve:       1,
+	}, repo, nil)
+
+	snapshot, err := svc.MaybeCompactConversation(t.Context(), MaybeCompactConversationInput{
+		ConversationID:      9,
+		UserID:              7,
+		RunID:               "run_configured_fallback",
+		Messages:            messages,
+		PromptTokenEstimate: 100_000,
+		ContextModelName:    "enterprise-private-v2",
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if snapshot != nil || repo.created != nil {
+		t.Fatalf("expected 100k tokens to stay below 80%% of the configured 256k fallback, got %#v", snapshot)
+	}
+}
+
+func TestMaybeCompactConversationDoesNotUseLegacyFixedThresholdForLargeModel(t *testing.T) {
+	messages := []domainconversation.Message{
+		{ID: 1, PublicID: "m1", Role: "user", Content: "old user"},
+		{ID: 2, PublicID: "m2", ParentMessageID: uintPtr(1), Role: "assistant", Content: "old assistant"},
+		{ID: 3, PublicID: "m3", ParentMessageID: uintPtr(2), Role: "user", Content: "latest user"},
+		{ID: 4, PublicID: "m4", ParentMessageID: uintPtr(3), Role: "assistant", Content: "latest assistant"},
+	}
+	repo := &compactRepositoryStub{}
+	svc := NewService(config.Config{
+		ContextCompactEnabled:        true,
+		ContextCompactTriggerPercent: 80,
+		ContextCompactPreserve:       1,
+	}, repo, nil)
+
+	snapshot, err := svc.MaybeCompactConversation(t.Context(), MaybeCompactConversationInput{
+		ConversationID:      9,
+		UserID:              7,
+		RunID:               "run_large_model_budget",
+		Messages:            messages,
+		PromptTokenEstimate: 100_000,
+		ContextModelName:    "custom-large-model",
+		CapabilitiesJSON:    `{"contextWindow":1000000,"maxOutputTokens":8192}`,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if snapshot != nil || repo.created != nil {
+		t.Fatalf("expected no compaction below the large model's percentage threshold, got %#v", snapshot)
+	}
+}
+
+func TestContextBudgetExceededUsesSelectedModelCapabilities(t *testing.T) {
+	svc := NewService(config.Config{}, nil, nil)
+	messages := []domainconversation.Message{{Role: "user", Content: strings.Repeat("x", 40_000)}}
+	if svc.ContextBudgetExceeded(MaybeCompactConversationInput{
+		Messages:         messages,
+		ContextModelName: "custom-model",
+		CapabilitiesJSON: `{"contextWindow":8192,"maxOutputTokens":1024}`,
+	}) == false {
+		t.Fatal("expected oversized branch to cross the configured model budget")
+	}
+	if svc.ContextBudgetExceeded(MaybeCompactConversationInput{
+		Messages:         messages,
+		ContextModelName: "custom-model",
+		CapabilitiesJSON: `{"contextWindow":131072,"maxOutputTokens":4096}`,
+	}) {
+		t.Fatal("expected the same branch to fit a larger configured model budget")
+	}
+}
+
+func TestContextBudgetExceededTreatsPromptScopeEstimateAsAuthoritative(t *testing.T) {
+	svc := NewService(config.Config{}, nil, nil)
+	messages := []domainconversation.Message{{Role: "user", Content: strings.Repeat("covered", 40_000)}}
+	if svc.ContextBudgetExceeded(MaybeCompactConversationInput{
+		Messages:            messages,
+		PromptTokenEstimate: 512,
+		ContextModelName:    "custom-model",
+		CapabilitiesJSON:    `{"contextWindow":8192,"maxOutputTokens":1024}`,
+	}) {
+		t.Fatal("expected the active prompt estimate to take precedence over covered raw history")
+	}
+}
+
+func TestMaybeCompactConversationForceUsesHardBudgetStrategy(t *testing.T) {
+	repo := &compactRepositoryStub{}
+	svc := NewService(config.Config{
+		ContextCompactEnabled:  true,
+		ContextCompactPreserve: 1,
+	}, repo, nil)
+	messages := []domainconversation.Message{
+		{ID: 1, PublicID: "m1", Role: "user", Content: "first"},
+		{ID: 2, PublicID: "m2", ParentMessageID: uintPtr(1), Role: "assistant", Content: "first reply"},
+		{ID: 3, PublicID: "m3", ParentMessageID: uintPtr(2), Role: "user", Content: "second"},
+		{ID: 4, PublicID: "m4", ParentMessageID: uintPtr(3), Role: "assistant", Content: "second reply"},
+		{ID: 5, PublicID: "m5", ParentMessageID: uintPtr(4), Role: "user", Content: "third"},
+		{ID: 6, PublicID: "m6", ParentMessageID: uintPtr(5), Role: "assistant", Content: "third reply"},
+	}
+
+	snapshot, err := svc.MaybeCompactConversation(t.Context(), MaybeCompactConversationInput{
+		ConversationID:      1,
+		UserID:              1,
+		RunID:               "run-hard-budget",
+		Messages:            messages,
+		PromptTokenEstimate: 8000,
+		ContextModelName:    "custom-model",
+		CapabilitiesJSON:    `{"contextWindow":8192,"maxOutputTokens":1024}`,
+		Force:               true,
+	})
+	if err != nil {
+		t.Fatalf("MaybeCompactConversation() error = %v", err)
+	}
+	if snapshot == nil {
+		t.Fatal("expected a hard-budget snapshot")
+	}
+	if snapshot.Strategy != "hard_budget" {
+		t.Fatalf("strategy = %q, want hard_budget", snapshot.Strategy)
+	}
+	if repo.created == nil || repo.created.CoveredUntilMessageID != 4 {
+		t.Fatalf("expected the two oldest turns to be covered, got %#v", repo.created)
+	}
+}
+
+func TestMaybeCompactConversationLogsPersistenceFailure(t *testing.T) {
+	createErr := errors.New("persist snapshot")
+	repo := &compactRepositoryStub{createErr: createErr}
+	core, logs := observer.New(zap.ErrorLevel)
+	svc := NewService(config.Config{
+		ContextCompactEnabled:  true,
+		ContextMaxTurns:        1,
+		ContextCompactPreserve: 1,
+	}, repo, zap.New(core))
+	messages := []domainconversation.Message{
+		{ID: 1, PublicID: "m1", Role: "user", Content: "first"},
+		{ID: 2, PublicID: "m2", ParentMessageID: uintPtr(1), Role: "assistant", Content: "first reply"},
+		{ID: 3, PublicID: "m3", ParentMessageID: uintPtr(2), Role: "user", Content: "second"},
+		{ID: 4, PublicID: "m4", ParentMessageID: uintPtr(3), Role: "assistant", Content: "second reply"},
+	}
+
+	_, err := svc.MaybeCompactConversation(t.Context(), MaybeCompactConversationInput{
+		ConversationID: 1,
+		RunID:          "run-failed",
+		Messages:       messages,
+	})
+	if !errors.Is(err, createErr) {
+		t.Fatalf("expected persistence error, got %v", err)
+	}
+	entries := logs.FilterMessage("context_compaction_failed").All()
+	if len(entries) != 1 {
+		t.Fatalf("expected one canonical failure log, got %d", len(entries))
+	}
+	if stage := entries[0].ContextMap()["stage"]; stage != "create_snapshot" {
+		t.Fatalf("unexpected failure stage: %#v", stage)
 	}
 }
 
@@ -380,23 +681,35 @@ func uintPtr(value uint) *uint {
 }
 
 type compactRepositoryStub struct {
+	mu          sync.Mutex
 	latest      *domainconversation.ContextSnapshot
 	created     *domainconversation.ContextSnapshot
+	createCount int
 	compactedAt time.Time
+	createErr   error
 }
 
 func (r *compactRepositoryStub) CreateContextSnapshot(ctx context.Context, item *domainconversation.ContextSnapshot) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.createErr != nil {
+		return r.createErr
+	}
 	if item == nil {
 		return repository.ErrInvalidInput
 	}
 	cloned := *item
 	cloned.ID = 99
 	r.created = &cloned
+	r.latest = &cloned
+	r.createCount++
 	*item = cloned
 	return nil
 }
 
 func (r *compactRepositoryStub) GetContextSnapshotByRunID(ctx context.Context, runID string) (*domainconversation.ContextSnapshot, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.created != nil && r.created.RunID == runID {
 		return r.created, nil
 	}
@@ -404,6 +717,8 @@ func (r *compactRepositoryStub) GetContextSnapshotByRunID(ctx context.Context, r
 }
 
 func (r *compactRepositoryStub) GetLatestContextSnapshot(ctx context.Context, conversationID uint) (*domainconversation.ContextSnapshot, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.latest == nil {
 		return nil, repository.ErrNotFound
 	}
@@ -412,6 +727,8 @@ func (r *compactRepositoryStub) GetLatestContextSnapshot(ctx context.Context, co
 }
 
 func (r *compactRepositoryStub) UpdateConversationCompactedAt(ctx context.Context, conversationID uint, compactedAt time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.compactedAt = compactedAt
 	return nil
 }

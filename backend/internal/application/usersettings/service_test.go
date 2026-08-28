@@ -106,3 +106,25 @@ func TestAutoGenerateLabelsSettingIsAllowed(t *testing.T) {
 		t.Fatal("expected invalid chat.auto_generate_labels to be rejected")
 	}
 }
+
+func TestTraceAutoExpandSettingsAreAllowed(t *testing.T) {
+	t.Parallel()
+
+	keys := []string{
+		"chat.auto_expand_thinking",
+		"chat.auto_expand_tool_calls",
+	}
+	for _, key := range keys {
+		if got := allowedKeys[key]; got != "true" {
+			t.Fatalf("expected %s default to be true, got %q", key, got)
+		}
+		for _, value := range []string{"true", "false"} {
+			if err := validateValue(key, value); err != nil {
+				t.Fatalf("expected %s=%s to be accepted, got %v", key, value, err)
+			}
+		}
+		if err := validateValue(key, "yes"); err == nil {
+			t.Fatalf("expected invalid %s to be rejected", key)
+		}
+	}
+}

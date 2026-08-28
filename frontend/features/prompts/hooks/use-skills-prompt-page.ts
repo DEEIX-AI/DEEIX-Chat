@@ -197,10 +197,10 @@ export function useSkillsPromptPage() {
       const [mine, visible] = await Promise.all([
         target.mine.hasMore
           ? listMyPromptPresets(token, { page: target.mine.nextPage, pageSize: PROMPT_PRESET_PAGE_SIZE, query: debouncedQuery })
-          : Promise.resolve(null),
+          : Promise.resolve<Awaited<ReturnType<typeof listMyPromptPresets>> | null>(null),
         target.visible.hasMore
           ? listVisiblePromptPresets(token, { page: target.visible.nextPage, pageSize: PROMPT_PRESET_PAGE_SIZE, query: debouncedQuery })
-          : Promise.resolve(null),
+          : Promise.resolve<Awaited<ReturnType<typeof listVisiblePromptPresets>> | null>(null),
       ]);
       const visibleBuiltin = visible?.results.filter((item) => item.scope === "builtin") ?? [];
       const nextItems = [...(mine?.results ?? []), ...visibleBuiltin];

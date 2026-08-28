@@ -6,26 +6,25 @@ import (
 	"testing"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
-	epayinfra "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/payment/epay"
-	stripeinfra "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/payment/stripe"
+	paymentport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/payment"
 )
 
 type stripeCheckoutProviderStub struct {
-	input stripeinfra.CheckoutInput
+	input paymentport.StripeCheckoutInput
 }
 
-func (s *stripeCheckoutProviderStub) CreateCheckoutSession(_ context.Context, input stripeinfra.CheckoutInput) (stripeinfra.CheckoutResult, error) {
+func (s *stripeCheckoutProviderStub) CreateCheckoutSession(_ context.Context, input paymentport.StripeCheckoutInput) (paymentport.CheckoutResult, error) {
 	s.input = input
-	return stripeinfra.CheckoutResult{ID: "cs_test", URL: "https://checkout.stripe.com/test"}, nil
+	return paymentport.CheckoutResult{ID: "cs_test", URL: "https://checkout.stripe.com/test"}, nil
 }
 
 type epayCheckoutProviderStub struct {
-	input epayinfra.CheckoutInput
+	input paymentport.EPayCheckoutInput
 }
 
-func (s *epayCheckoutProviderStub) CreateCheckout(_ context.Context, input epayinfra.CheckoutInput) (epayinfra.CheckoutResult, error) {
+func (s *epayCheckoutProviderStub) CreateCheckout(_ context.Context, input paymentport.EPayCheckoutInput) (paymentport.CheckoutResult, error) {
 	s.input = input
-	return epayinfra.CheckoutResult{URL: "https://pay.example.com/submit.php?sign=test"}, nil
+	return paymentport.CheckoutResult{URL: "https://pay.example.com/submit.php?sign=test"}, nil
 }
 
 func (s *epayCheckoutProviderStub) VerifySignature(_ url.Values, _ string) bool {

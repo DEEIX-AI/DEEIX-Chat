@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Save } from "lucide-react";
+import { CircleHelp, Save } from "lucide-react";
 import { useMessages, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
 import { invalidateAdminReferenceDataCache, patchAdminBillingConfig } from "@/features/admin/api";
 import type {
   AdminBillingConfigDTO,
@@ -101,6 +103,12 @@ export function BillingToolsSection({ billingConfig, setBillingConfig, loading }
     setNativeToolPriceDrafts(nativeToolPriceDraftsFrom(nextPricing));
   }, [billingNativeToolBillingEnabled, billingNativeToolPricing]);
 
+  const nativeToolVirtualRows = useVirtualTableRows(nativeToolPricing, {
+    enabled: nativeToolPricing.length > 100,
+    estimateSize: 40,
+  });
+  const showNativeToolRows = nativeToolPricing.length > 0;
+
   const nativeToolBillingChanged = nativeToolBillingEnabled !== savedNativeToolBillingEnabled;
   const nativeToolPricingChanged = React.useMemo(
     () => nativeToolPricingSignature(nativeToolPricing) !== nativeToolPricingSignature(savedNativeToolPricing),
@@ -157,8 +165,33 @@ export function BillingToolsSection({ billingConfig, setBillingConfig, loading }
     }
   }
 
+  const sectionTitle = (
+    <span className="inline-flex items-center gap-1">
+      {t("toolPricing.title")}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="text-muted-foreground hover:bg-transparent hover:text-foreground"
+            aria-label={t("toolPricing.nativeHelpLabel")}
+          >
+            <CircleHelp className="size-3.5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="max-w-xs text-xs leading-5">
+          <div className="space-y-1">
+            <p>{t("toolPricing.defaultPriceDescription")}</p>
+            <p>{t("toolPricing.note")}</p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </span>
+  );
+
   return (
-    <SettingsSection title={t("toolPricing.title")} actions={toolPricingActions} className="px-1">
+    <SettingsSection title={sectionTitle} actions={toolPricingActions} className="px-1">
       <SettingsFieldList>
         <SettingsFieldItem>
           <SettingsFieldRow
@@ -174,11 +207,12 @@ export function BillingToolsSection({ billingConfig, setBillingConfig, loading }
           </SettingsFieldRow>
         </SettingsFieldItem>
       </SettingsFieldList>
-      <CollapsibleMotionContent open={nativeToolBillingEnabled} contentClassName="mt-5 space-y-2">
-        <p className="px-1 text-[11px] leading-5 text-muted-foreground">
-          {t("toolPricing.nativeToolCount", { count: nativeToolPricing.length })}
-        </p>
-        <Table>
+      <CollapsibleMotionContent open={nativeToolBillingEnabled} contentClassName="space-y-3">
+        <Table
+          viewportRef={nativeToolVirtualRows.viewportRef}
+          viewportClassName={nativeToolVirtualRows.viewportClassName}
+          viewportStyle={nativeToolVirtualRows.viewportStyle}
+        >
           <TableHeader>
             <TableRow>
               <TableHead>{t("toolPricing.provider")}</TableHead>
@@ -188,7 +222,8 @@ export function BillingToolsSection({ billingConfig, setBillingConfig, loading }
             </TableRow>
           </TableHeader>
           <TableBody>
-            {nativeToolPricing.map((row) => {
+            {showNativeToolRows ? <VirtualTablePaddingRow colSpan={4} height={nativeToolVirtualRows.paddingTop} /> : null}
+            {nativeToolVirtualRows.rows.map(({ item: row }) => {
               const label = localizedNativeToolText(messages, "nativeToolLabels", row.toolKey) || row.label || row.type || row.toolKey;
               const description = localizedNativeToolText(messages, "nativeToolDescriptions", row.toolKey) || row.description || row.type || row.toolKey;
               return (
@@ -235,10 +270,9 @@ export function BillingToolsSection({ billingConfig, setBillingConfig, loading }
                 </TableRow>
               );
             })}
+            {showNativeToolRows ? <VirtualTablePaddingRow colSpan={4} height={nativeToolVirtualRows.paddingBottom} /> : null}
           </TableBody>
         </Table>
-        <p className="text-[11px] leading-5 text-muted-foreground">{t("toolPricing.defaultPriceDescription")}</p>
-        <p className="text-[11px] leading-5 text-muted-foreground">{t("toolPricing.note")}</p>
       </CollapsibleMotionContent>
     </SettingsSection>
   );

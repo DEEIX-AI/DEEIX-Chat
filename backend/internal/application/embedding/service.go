@@ -12,8 +12,8 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	infraembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/embeddingutil"
 	"go.uber.org/zap"
 )
@@ -27,22 +27,26 @@ type Service struct {
 	cfg         *config.Runtime
 	repo        repository.EmbeddingRepository
 	extractSvc  *extraction.Service
-	embedClient *infraembedding.Client
+	embedClient EmbeddingClient
 	logger      *zap.Logger
 	workSlots   chan struct{}
-	lifecycleMu sync.RWMutex
-	lifecycle   context.Context
+	reindexJobs chan string
 	reindexMu   sync.Mutex
 	reindexing  bool
 }
 
+// EmbeddingClient 调用外部服务将文本批量转换为向量。
+type EmbeddingClient interface {
+	CallAPI(ctx context.Context, apiBase, apiKey, model string, texts []string, dimensions int, timeoutSeconds int) ([][]float32, error)
+}
+
 // NewService 创建 embedding 服务。
-func NewService(cfg config.Config, repo repository.EmbeddingRepository, extractSvc *extraction.Service, embedClient *infraembedding.Client, logger *zap.Logger) *Service {
+func NewService(cfg config.Config, repo repository.EmbeddingRepository, extractSvc *extraction.Service, embedClient EmbeddingClient, logger *zap.Logger) *Service {
 	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, extractSvc, embedClient, logger)
 }
 
 // NewServiceWithRuntime 创建使用运行时配置容器的 embedding 服务。
-func NewServiceWithRuntime(cfg *config.Runtime, repo repository.EmbeddingRepository, extractSvc *extraction.Service, embedClient *infraembedding.Client, logger *zap.Logger) *Service {
+func NewServiceWithRuntime(cfg *config.Runtime, repo repository.EmbeddingRepository, extractSvc *extraction.Service, embedClient EmbeddingClient, logger *zap.Logger) *Service {
 	if extractSvc == nil {
 		extractSvc = extraction.NewServiceWithRuntime(cfg)
 	}
@@ -53,18 +57,25 @@ func NewServiceWithRuntime(cfg *config.Runtime, repo repository.EmbeddingReposit
 		embedClient: embedClient,
 		logger:      logger,
 		workSlots:   make(chan struct{}, embeddingWorkerConcurrency),
-		lifecycle:   context.Background(),
+		reindexJobs: make(chan string, 1),
 	}
 }
 
-// StartBackgroundWorkers 绑定后台重建任务的生命周期；ctx 取消后不再继续领取新任务。
+// StartBackgroundWorkers 启动后台重建任务的常驻执行协程；ctx 取消后不再领取新任务。
 func (s *Service) StartBackgroundWorkers(ctx context.Context) {
 	if s == nil || ctx == nil {
 		return
 	}
-	s.lifecycleMu.Lock()
-	s.lifecycle = ctx
-	s.lifecycleMu.Unlock()
+	background.Go(s.logger, "embedding_reindex_dispatch", func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case signature := <-s.reindexJobs:
+				s.runReindex(ctx, signature)
+			}
+		}
+	})
 }
 
 // Available 返回当前对话 RAG 检索能力是否可用及原因。
@@ -141,7 +152,7 @@ func (s *Service) MaybeTrigger(fileObj domainconversation.FileObject) {
 
 // Trigger 异步触发 embedding。
 func (s *Service) Trigger(fileObj domainconversation.FileObject) {
-	go func() {
+	background.Go(s.logger, "embedding_process_file", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		if err := s.ProcessFile(ctx, fileObj); err != nil && s.logger != nil {
@@ -150,7 +161,7 @@ func (s *Service) Trigger(fileObj domainconversation.FileObject) {
 				zap.Error(err),
 			)
 		}
-	}()
+	})
 }
 
 // ProcessFile 执行 embedding 完整流程。
@@ -194,7 +205,7 @@ func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.Fi
 		return fmt.Errorf("no extractable text in file %s", fileObj.FileID)
 	}
 
-	chunks := infraembedding.ChunkText(text, cfg.EmbedChunkSizeTokens, cfg.EmbedChunkOverlapTokens)
+	chunks := embeddingutil.ChunkText(text, cfg.EmbedChunkSizeTokens, cfg.EmbedChunkOverlapTokens)
 	if len(chunks) == 0 {
 		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", "分片结果为空")
 		return nil
@@ -535,17 +546,9 @@ func (s *Service) ReindexStaleFiles(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	s.lifecycleMu.RLock()
-	workerCtx := s.lifecycle
-	s.lifecycleMu.RUnlock()
-	if workerCtx == nil {
-		workerCtx = context.Background()
-	}
-	if err := workerCtx.Err(); err != nil {
-		return 0, err
-	}
 	started = true
-	go s.runReindex(workerCtx, configuredModelSignature(cfg))
+	// reindexing 标记保证同一时刻至多一个待执行任务，缓冲为 1 的通道不会阻塞。
+	s.reindexJobs <- configuredModelSignature(cfg)
 	return submitted, nil
 }
 

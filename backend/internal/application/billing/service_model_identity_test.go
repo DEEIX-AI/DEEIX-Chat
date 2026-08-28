@@ -397,6 +397,9 @@ func (r *billingRepositoryStub) MarkPaymentOrderPaidAndCreditBalance(context.Con
 func (r *billingRepositoryStub) ListRedemptionCodes(context.Context, repository.RedemptionCodeListFilter, int, int) ([]domainbilling.RedemptionCode, int64, error) {
 	panic("not used")
 }
+func (r *billingRepositoryStub) ListRedemptions(context.Context, repository.RedemptionListFilter, int, int) ([]repository.RedemptionRecord, int64, error) {
+	panic("not used")
+}
 func (r *billingRepositoryStub) GetRedemptionCodeByID(context.Context, uint) (*domainbilling.RedemptionCode, error) {
 	panic("not used")
 }

@@ -12,14 +12,11 @@ import (
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
+	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
 )
 
-// Request 表示 Tika 文本提取请求。
-type Request struct {
-	AbsolutePath string
-	FileName     string
-	MimeType     string
-}
+// Request 表示 Tika 文本提取请求，契约定义在 ports/extract。
+type Request = extractport.DocumentRequest
 
 // Client 提供 Apache Tika HTTP 提取能力。
 type Client struct {
@@ -34,10 +31,11 @@ const (
 	errTikaUnauthorized        = "tika_unauthorized"
 	errTikaForbidden           = "tika_forbidden"
 	errTikaUnsupportedMimeType = "tika_unsupported_media_type"
-	DefaultTikaBaseURL         = "http://127.0.0.1:9998"
-	ManagedTikaBaseURL         = "http://deeix-chat-tika:9998"
-	managedTikaHost            = "deeix-chat-tika"
-	tikaSourceManaged          = "managed"
+	// DefaultTikaBaseURL 契约定义在 ports/extract。
+	DefaultTikaBaseURL = extractport.DefaultTikaBaseURL
+	ManagedTikaBaseURL = "http://deeix-chat-tika:9998"
+	managedTikaHost    = "deeix-chat-tika"
+	tikaSourceManaged  = "managed"
 )
 
 // New 创建 Tika 客户端；未配置地址时返回 nil。

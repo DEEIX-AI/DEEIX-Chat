@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ChatPromptTrace, ChatTraceBlock, RAGCitation } from "@/features/chat/types/messages";
-import type { ProcessTraceLabels } from "@/features/chat/hooks/use-process-trace-labels";
+import type { ProcessTraceLabels } from "@/features/chat/hooks/use-chat-trace-labels";
 import {
   displayTraceStageLabel,
   displayTraceTrigger,

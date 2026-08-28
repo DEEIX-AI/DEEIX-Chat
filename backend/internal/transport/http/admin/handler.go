@@ -707,6 +707,70 @@ func (h *Handler) ListPaymentOrders(c *gin.Context) {
 	response.SuccessPage(c, total, orders)
 }
 
+// ListRedemptions godoc
+// @Summary 管理员查询兑换记录
+// @Description 管理员分页查看兑换码兑换明细，含奖励内容与余额变动，已删除兑换码的历史仍可查询
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码"
+// @Param page_size query int false "每页数量"
+// @Param query query string false "搜索兑换流水号、兑换码摘要、兑换码备注"
+// @Param code_id query int false "兑换码ID"
+// @Param user_id query int false "用户ID"
+// @Param reward_type query string false "奖励类型(balance/subscription)"
+// @Param created_from query string false "兑换时间起点(RFC3339)"
+// @Param created_to query string false "兑换时间终点(RFC3339)"
+// @Param sort query string false "排序方式"
+// @Success 200 {object} RedemptionRecordListResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/redemptions [get]
+// ListRedemptions 查询兑换码兑换记录。
+func (h *Handler) ListRedemptions(c *gin.Context) {
+	page, pageSize := pageParams(c)
+	codeID, ok := parseOptionalUintQuery(c, "code_id")
+	if !ok {
+		return
+	}
+	userID, ok := parseOptionalUintQuery(c, "user_id")
+	if !ok {
+		return
+	}
+	createdFrom, ok := parseOptionalTimeQuery(c, "created_from")
+	if !ok {
+		return
+	}
+	createdTo, ok := parseOptionalTimeQuery(c, "created_to")
+	if !ok {
+		return
+	}
+	items, total, err := h.service.ListRedemptions(c.Request.Context(), page, pageSize, appbilling.RedemptionListFilter{
+		CodeID:      codeID,
+		UserID:      userID,
+		RewardType:  c.Query("reward_type"),
+		Query:       c.Query("query"),
+		CreatedFrom: createdFrom,
+		CreatedTo:   createdTo,
+		Sort:        c.Query("sort"),
+	})
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "list redemptions failed")
+		return
+	}
+	userIDs := make([]uint, 0, len(items))
+	for _, item := range items {
+		userIDs = append(userIDs, item.Redemption.UserID)
+	}
+	userLabels := h.service.ResolveUserLabels(c.Request.Context(), userIDs)
+	records := make([]RedemptionRecordResponse, 0, len(items))
+	for _, item := range items {
+		records = append(records, toRedemptionRecordResponse(item, userLabels[item.Redemption.UserID]))
+	}
+	response.SuccessPage(c, total, records)
+}
+
 // ListConversationEvents godoc
 // @Summary 管理员查询对话事件
 // @Description 管理员分页查看对话运行轨迹、工具、MCP 与处理事件

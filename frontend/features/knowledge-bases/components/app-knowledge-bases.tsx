@@ -33,6 +33,8 @@ export function AppKnowledgeBases({ mode = "user" }: { mode?: KnowledgeBaseMode 
         mode={mode}
         items={list.items}
         loading={list.loading}
+        loadingMore={list.loadingMore}
+        hasMore={list.hasMore}
         mobileView={list.mobileView}
         collapsed={sidebarCollapsed}
         showCollapseButton={!isMobileViewport}
@@ -43,6 +45,7 @@ export function AppKnowledgeBases({ mode = "user" }: { mode?: KnowledgeBaseMode 
         searchOpen={list.searchOpen}
         bulkDeleting={list.bulkDeleting}
         onToggleCollapsed={list.toggleSidebarCollapsed}
+        onLoadMore={() => void list.loadMore()}
         onToggleSearch={list.toggleSearch}
         onQueryChange={list.changeQuery}
         onCreate={list.create}

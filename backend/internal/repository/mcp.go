@@ -33,7 +33,9 @@ type UpdateMCPToolInput struct {
 	AttachmentArgument       *string
 	AttachmentEncoding       *string
 	AttachmentPromptArgument *string
-	Status                   *string
+	// PriceNanousd 更新单次调用价格（nano USD），0 表示不单独计费。
+	PriceNanousd *int64
+	Status       *string
 }
 
 type ReorderMCPServerInput struct {

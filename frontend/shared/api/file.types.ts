@@ -2,31 +2,14 @@ import type {
   DeleteFileResponse,
   FileListResponse,
   FileObjectResponse,
+  FileProcessingStatusResponse,
   FileUploadResponse,
   StorageQuotaResponse,
 } from "@deeix/api-contract";
 
 export type FileObjectDTO = FileObjectResponse;
 
-export type FileProcessingStatusDTO = {
-  fileID: string;
-  detectedMIME: string;
-  fileCategory: string;
-  processingStatus: string;
-  processingReady: boolean;
-  extractStatus: string;
-  embedStatus: string;
-  previewText: string;
-  ocrUsed: boolean;
-  ragReady: boolean;
-  ragReason: string;
-  errorCode: string;
-  errorMessage: string;
-  extractChars: number;
-  extractPages: number;
-  startedAt: string | null;
-  completedAt: string | null;
-};
+export type FileProcessingStatusDTO = FileProcessingStatusResponse;
 
 export type FileExtractDTO = {
   fileID: string;

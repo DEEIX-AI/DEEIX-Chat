@@ -68,6 +68,7 @@
     "imageProcessorLimitTitle": "只能选择一个图片处理器",
     "imageProcessorLimitDescription": "一个项目只能预设一个 MCP 图片附件处理器，请先取消当前选择。",
     "defaultsNoResults": "没有匹配项",
+    "loadMore": "加载更多",
     "defaultsLoadFailed": "加载项目默认能力失败",
     "rename": "重命名",
     "edit": "编辑",

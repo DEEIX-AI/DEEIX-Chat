@@ -3,15 +3,16 @@
 import * as React from "react";
 
 import {
+  type ChatArtifact,
   extractArtifactsFromContent,
   extractArtifactsFromMessages,
-  type ChatArtifact,
   type OpenCodeArtifactInput,
 } from "@/features/chat/model/chat-artifacts";
 import type { ChatAreaMessage } from "@/features/chat/types/messages";
 
 type UseChatArtifactsParams = {
-  conversationID: string | null;
+  scopeKey: string | null;
+  transient?: boolean;
   messages: ChatAreaMessage[];
 };
 
@@ -20,14 +21,15 @@ type ChatArtifactInlineLayout = "balanced" | "wide";
 const ARTIFACT_INLINE_BREAKPOINT = 768;
 const ARTIFACT_WIDE_BREAKPOINT = 1280;
 const ARTIFACT_MIN_RATIO = 1 / 3;
-const ARTIFACT_MAX_RATIO = 1 / 2;
+const ARTIFACT_MAX_RATIO = 3 / 4;
+const ARTIFACT_BALANCED_RATIO = 1 / 2;
 
 function resolveInlineLayout(viewportWidth: number): ChatArtifactInlineLayout {
   return viewportWidth >= ARTIFACT_WIDE_BREAKPOINT ? "wide" : "balanced";
 }
 
 function resolveDefaultRatio(layout: ChatArtifactInlineLayout): number {
-  return layout === "wide" ? ARTIFACT_MIN_RATIO : ARTIFACT_MAX_RATIO;
+  return layout === "wide" ? ARTIFACT_MIN_RATIO : ARTIFACT_BALANCED_RATIO;
 }
 
 function clampArtifactRatio(value: number): number {
@@ -114,7 +116,7 @@ function findReplacementArtifact(artifacts: ChatArtifact[], previous: ChatArtifa
   );
 }
 
-export function useChatArtifacts({ conversationID, messages }: UseChatArtifactsParams) {
+export function useChatArtifacts({ scopeKey, transient = false, messages }: UseChatArtifactsParams) {
   const { isInline, inlineLayout } = useArtifactViewport();
   const artifacts = React.useMemo(() => extractArtifactsFromMessages(messages), [messages]);
   const latestArtifact = artifacts.at(-1) ?? null;
@@ -123,7 +125,7 @@ export function useChatArtifacts({ conversationID, messages }: UseChatArtifactsP
   const [lastActiveArtifact, setLastActiveArtifact] = React.useState<ChatArtifact | null>(null);
   const [customArtifactRatio, setCustomArtifactRatio] = React.useState<number | null>(null);
   const dismissedArtifactRef = React.useRef<ChatArtifact | null>(null);
-  const previousConversationIDRef = React.useRef(conversationID);
+  const previousScopeRef = React.useRef({ key: scopeKey, transient });
   const artifactRatio = customArtifactRatio ?? resolveDefaultRatio(inlineLayout);
   const activeArtifact = React.useMemo(
     () =>
@@ -136,18 +138,23 @@ export function useChatArtifacts({ conversationID, messages }: UseChatArtifactsP
   );
 
   React.useEffect(() => {
-    if (previousConversationIDRef.current === conversationID) {
+    const previousScope = previousScopeRef.current;
+    if (previousScope.key === scopeKey && previousScope.transient === transient) {
       return;
     }
-    previousConversationIDRef.current = conversationID;
-    if (activeArtifact?.streaming || latestArtifact?.streaming || lastActiveArtifact?.streaming) {
+    if (
+      !previousScope.transient &&
+      !transient &&
+      (activeArtifact?.streaming || latestArtifact?.streaming || lastActiveArtifact?.streaming)
+    ) {
       return;
     }
+    previousScopeRef.current = { key: scopeKey, transient };
     setLastActiveArtifact(null);
     dismissedArtifactRef.current = null;
     setActiveArtifactID(null);
     setDismissedArtifactID(null);
-  }, [activeArtifact?.streaming, conversationID, lastActiveArtifact?.streaming, latestArtifact?.streaming]);
+  }, [activeArtifact?.streaming, lastActiveArtifact?.streaming, latestArtifact?.streaming, scopeKey, transient]);
 
   React.useEffect(() => {
     if (activeArtifact) {

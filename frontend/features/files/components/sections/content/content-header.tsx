@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { formatBytes, formatDateTime, resolveFileExtension, resolveFileIcon } from "@/shared/lib/file-display";
 import type { FilePreviewState } from "@/features/files/hooks/use-file-preview";
+import { AnimatedText } from "@/components/ui/animated-text";
 import { Button } from "@/components/ui/button";
 import { resolveFileProcessingBadge, resolveFileProcessingToneClass } from "@/shared/lib/file-processing";
 import type { FileObjectDTO } from "@/shared/api/file.types";
@@ -74,7 +75,10 @@ export function ContentHeader({
   }, (key, values) => tStatus(key, values));
 
   return (
-    <div className="flex h-15 min-w-0 shrink-0 items-center justify-between gap-3 border-b border-border/40 px-3 md:px-5">
+    <div
+      className="flex h-15 min-w-0 shrink-0 items-center justify-between gap-3 border-b border-border/40 px-3 md:px-5"
+      data-animated-text-scroll-trigger
+    >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {onBack ? (
           <Button
@@ -101,7 +105,12 @@ export function ContentHeader({
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-medium text-foreground">{file.fileName}</p>
+          <AnimatedText
+            text={file.fileName}
+            className="text-[13px] font-medium text-foreground"
+            textClassName="text-current"
+            scrollOverflow
+          />
           <div className="flex min-w-0 flex-wrap items-center gap-1.5 pt-0.5">
             <p className="text-[11px] text-muted-foreground">
               {formatDateTime(file.createdAt, locale)}

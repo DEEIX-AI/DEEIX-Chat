@@ -7,7 +7,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RAGCitationList } from "@/features/chat/components/shared/message-process-trace-shared";
-import { useProcessTraceLabels } from "@/features/chat/hooks/use-process-trace-labels";
+import { useChatTraceLabels } from "@/features/chat/hooks/use-chat-trace-labels";
 import { parseRAGCitations } from "@/features/chat/model/message-process-trace";
 import type { ChatMessageProcessTrace, RAGCitation } from "@/features/chat/types/messages";
 
@@ -21,7 +21,7 @@ export function MessageKnowledgeSources({
   streaming: boolean;
 }) {
   const t = useTranslations("chat.messages");
-  const labels = useProcessTraceLabels();
+  const labels = useChatTraceLabels();
   const citations = React.useMemo(
     () => (sources && sources.length > 0 ? sources : parseRAGCitations(trace?.process?.payloadJson)),
     [sources, trace?.process?.payloadJson],

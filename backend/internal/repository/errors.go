@@ -27,6 +27,18 @@ var (
 	ErrRedemptionUserLimitExceeded = errors.New("redemption user limit exceeded")
 	// ErrLastSuperAdminRoleChange 表示操作会移除最后一个超级管理员。
 	ErrLastSuperAdminRoleChange = errors.New("last superadmin role change not allowed")
+	// ErrFileProcessingQueueFull 表示文件处理队列已达容量上限，暂时无法接收新任务。
+	ErrFileProcessingQueueFull = errors.New("file processing queue full")
+	// ErrUserMemoryLimitExceeded 表示用户长期记忆条目数量达到上限，无法再新增。
+	ErrUserMemoryLimitExceeded = errors.New("user memory limit exceeded")
+	// ErrMCPServerLimitExceeded 表示 MCP 服务数量达到上限，无法再新增。
+	ErrMCPServerLimitExceeded = errors.New("mcp server limit exceeded")
+	// ErrConversationProjectLimitExceeded 表示单用户会话项目数量达到上限，无法再新增。
+	ErrConversationProjectLimitExceeded = errors.New("conversation project limit exceeded")
+	// ErrFileNotFound 文件对象不存在或无权限。
+	ErrFileNotFound = errors.New("file not found")
+	// ErrStorageQuotaExceeded 用户存储配额超限。
+	ErrStorageQuotaExceeded = errors.New("storage quota exceeded")
 
 	// 上游与模型仓储语义错误。
 	ErrUpstreamNotFound           = errors.New("upstream not found")

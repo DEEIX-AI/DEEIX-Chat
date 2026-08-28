@@ -1,17 +1,18 @@
 "use client";
 
-import * as React from "react";
 import { cjk } from "@streamdown/cjk";
-import { createMathPlugin } from "@streamdown/math";
+import { createMathPlugin, type MathPlugin } from "@streamdown/math";
+import { useTranslations } from "next-intl";
+import * as React from "react";
 import {
-  defaultRehypePlugins,
   type AllowedTags,
   type Components,
+  defaultRehypePlugins,
+  type IconMap,
   type PluginConfig,
   Streamdown,
   type StreamdownProps,
 } from "streamdown";
-import { useTranslations } from "next-intl";
 
 import { ChevronDown } from "@/components/animate-ui/icons/chevron-down";
 import {
@@ -22,50 +23,60 @@ import {
 } from "@/components/ui/accordion";
 import { Marker, MarkerContent } from "@/components/ui/marker";
 import { cn } from "@/lib/utils";
+import { useAutoExpandDisclosure } from "@/shared/hooks/use-auto-expand-disclosure";
 import {
   AdaptiveMarkdownTable,
   MarkdownTableStreamingContext,
 } from "./adaptive-markdown-table";
-import { useMarkdownCopy } from "./use-markdown-copy";
-
+import { StreamdownAdapterStyles } from "./streamdown-adapter-styles";
 import {
-  CollapsibleCodePre,
-  MarkdownImageActionsContext,
-  MarkdownImage,
-  MarkdownLink,
-  MarkdownParagraph,
-  MarkdownArtifactActionsContext,
-  MarkdownStrong,
-  ThinkingHeading,
   type MarkdownArtifactActions,
+  MarkdownArtifactActionsContext,
+  MarkdownCodePre,
+  MarkdownImage,
   type MarkdownImageActions,
+  MarkdownImageActionsContext,
+  MarkdownLink,
+  MarkdownOrderedList,
+  MarkdownParagraph,
+  MarkdownStrong,
+  MarkdownSup,
+  ThinkingHeading,
 } from "./streamdown-components";
+import {
+  containsMarkdownMath,
+  normalizeContent,
+  normalizeCurrencyDollars,
+  normalizeEscapedHTMLAttributeQuotes,
+  normalizeHTMLVisualMarkdownFences,
+  normalizeLatexUnicodeSymbols,
+  normalizeMathDelimiters,
+  normalizeMermaidBlocks,
+  parseStreamdownSegments,
+  type RenderSegment,
+} from "./streamdown-content";
 import {
   MarkdownHTMLArticle,
   MarkdownHTMLAside,
   MarkdownHTMLDetails,
   MarkdownHTMLDiv,
+  MarkdownHTMLInlineRendererContext,
   MarkdownHTMLMain,
-  MarkdownHTMLMarkdownRendererContext,
   MarkdownHTMLSection,
   MarkdownHTMLSpan,
   MarkdownHTMLSummary,
 } from "./streamdown-html";
 import { renderRawHTMLMathRehypePlugin } from "./streamdown-html-math";
 import {
-  normalizeContent,
-  normalizeCurrencyDollars,
-  normalizeEscapedHTMLAttributeQuotes,
-  normalizeHTMLVisualBlankLines,
-  normalizeHTMLVisualMarkdownFences,
-  normalizeLatexUnicodeSymbols,
-  normalizeMathDelimiters,
-  normalizeMermaidBlocks,
-  parseStreamdownSegments,
-  containsMarkdownMath,
-  type RenderSegment,
-} from "./streamdown-content";
+  createStreamdownTooltipIcon,
+  StreamdownCheckIcon,
+  StreamdownCloseIcon,
+  StreamdownCopyIcon,
+  StreamdownDownloadIcon,
+  StreamdownMaximizeIcon,
+} from "./streamdown-icons";
 import { normalizeBareURLRehypePlugin } from "./streamdown-url-normalize";
+import { useMarkdownCopy } from "./use-markdown-copy";
 
 type StreamdownRenderProps = {
   content: unknown;
@@ -73,6 +84,7 @@ type StreamdownRenderProps = {
   streaming?: boolean;
   variant?: "default" | "thinking" | "user";
   sourcePositions?: boolean;
+  autoExpandThinking?: boolean;
   imageActions?: MarkdownImageActions;
   artifactActions?: MarkdownArtifactActions;
 };
@@ -86,9 +98,26 @@ type StreamdownFeatureFlags = {
 const BASE_STREAMDOWN_PLUGINS: PluginConfig = {
   cjk,
 };
-const STREAMDOWN_MATH_PLUGIN = createMathPlugin({
-  singleDollarTextMath: true,
-});
+const STREAMDOWN_MATH_PLUGIN = (() => {
+  const plugin = createMathPlugin({
+    singleDollarTextMath: true,
+  });
+  if (!Array.isArray(plugin.rehypePlugin)) {
+    return plugin;
+  }
+
+  const [rehypePlugin, options] = plugin.rehypePlugin;
+  return {
+    ...plugin,
+    rehypePlugin: [
+      rehypePlugin,
+      {
+        ...(typeof options === "object" && options !== null ? options : {}),
+        strict: (errorCode: string) => (errorCode === "unicodeTextInMathMode" ? "ignore" : "warn"),
+      },
+    ] as MathPlugin["rehypePlugin"],
+  };
+})();
 const STREAMDOWN_MATH_BASE_PLUGINS: PluginConfig = {
   ...BASE_STREAMDOWN_PLUGINS,
   math: STREAMDOWN_MATH_PLUGIN,
@@ -112,13 +141,38 @@ const STREAMDOWN_CONTROLS = {
 } as const;
 
 function useStreamdownTranslations() {
+  const t = useTranslations("chat.markdown");
+  return React.useMemo(
+    () => ({
+      downloadDiagram: t("diagram.downloadDiagram"),
+      downloadDiagramAsSvg: t("diagram.downloadDiagramAsSvg"),
+      downloadDiagramAsPng: t("diagram.downloadDiagramAsPng"),
+      downloadDiagramAsMmd: t("diagram.downloadDiagramAsMmd"),
+      copyCode: t("diagram.copyDiagram"),
+      viewFullscreen: t("diagram.viewFullscreen"),
+      exitFullscreen: t("diagram.exitFullscreen"),
+      zoomIn: t("diagram.zoomIn"),
+      zoomOut: t("diagram.zoomOut"),
+      resetView: t("diagram.resetView"),
+      downloadTable: t("table.download"),
+      downloadTableAsCsv: t("table.downloadAsCsv"),
+      downloadTableAsMarkdown: t("table.downloadAsMarkdown"),
+      tableFormatCsv: t("table.formatCsv"),
+      tableFormatMarkdown: t("table.formatMarkdown"),
+    }),
+    [t],
+  );
+}
+
+function useStreamdownIcons(): Partial<IconMap> {
   const t = useTranslations("chat.markdown.diagram");
   return React.useMemo(
     () => ({
-      downloadDiagram: t("downloadDiagram"),
-      downloadDiagramAsSvg: t("downloadDiagramAsSvg"),
-      downloadDiagramAsPng: t("downloadDiagramAsPng"),
-      downloadDiagramAsMmd: t("downloadDiagramAsMmd"),
+      CheckIcon: createStreamdownTooltipIcon(StreamdownCheckIcon, t("copyDiagram")),
+      CopyIcon: createStreamdownTooltipIcon(StreamdownCopyIcon, t("copyDiagram")),
+      DownloadIcon: createStreamdownTooltipIcon(StreamdownDownloadIcon, t("downloadDiagram")),
+      Maximize2Icon: createStreamdownTooltipIcon(StreamdownMaximizeIcon, t("viewFullscreen")),
+      XIcon: createStreamdownTooltipIcon(StreamdownCloseIcon, t("exitFullscreen")),
     }),
     [t],
   );
@@ -129,16 +183,17 @@ const STREAMDOWN_REMEND = {
 } as const;
 
 const STREAMDOWN_CARET = "circle" as const;
+const STREAMDOWN_CODE_BLOCK_MAX_HEIGHT = "22rem";
 const STREAMDOWN_LINK_SAFETY = { enabled: false } as const;
-const STREAMDOWN_ALLOWED_HTML_TAGS = {
-  a: ["href", "title", "style"],
+const STREAMDOWN_SANITIZED_HTML_TAGS = {
   article: ["style"],
   aside: ["style"],
   details: ["open", "style"],
   div: ["style"],
   main: ["style"],
-  p: ["style"],
   section: ["style"],
+  a: ["href", "title", "style"],
+  p: ["style"],
   span: ["style"],
   summary: ["style"],
 } satisfies AllowedTags;
@@ -190,23 +245,23 @@ function markdownSourcePositionRehypePlugin() {
 
 function buildStreamdownRehypePlugins(includeSourcePositions = false): StreamdownRehypePlugins {
   const [sanitizePlugin, sanitizeSchema] = defaultRehypePlugins.sanitize as RehypeSanitizePlugin;
-  const extraTagNames = Object.keys(STREAMDOWN_ALLOWED_HTML_TAGS);
+  const extraTagNames = Object.keys(STREAMDOWN_SANITIZED_HTML_TAGS);
   const tagNames = Array.from(new Set([...(sanitizeSchema.tagNames ?? []), ...extraTagNames]));
   const schema = {
     ...sanitizeSchema,
     tagNames,
     attributes: {
       ...sanitizeSchema.attributes,
-      ...STREAMDOWN_ALLOWED_HTML_TAGS,
+      ...STREAMDOWN_SANITIZED_HTML_TAGS,
     },
   };
 
-  const sanitizeWithAllowedTags = [sanitizePlugin, schema] as StreamdownRehypePlugin;
+  const sanitizeWithHTMLTags = [sanitizePlugin, schema] as StreamdownRehypePlugin;
 
   return [
     renderRawHTMLMathRehypePlugin,
     defaultRehypePlugins.raw,
-    sanitizeWithAllowedTags,
+    sanitizeWithHTMLTags,
     ...(includeSourcePositions ? [markdownSourcePositionRehypePlugin] : []),
     normalizeBareURLRehypePlugin,
   ];
@@ -216,16 +271,8 @@ const SOURCE_POSITION_STREAMDOWN_REHYPE_PLUGINS = buildStreamdownRehypePlugins(t
 const FENCED_CODE_BLOCK_RE = /(?:^|\n)[ \t]*(?:```|~~~)(?!\s*(?:mermaid|mmd)\b)[^\n]*(?:\n|$)/i;
 const MERMAID_CODE_BLOCK_RE = /(?:^|\n)[ \t]*(?:```|~~~)\s*(?:mermaid|mmd)\b/i;
 
-// Streamdown does not expose a download-menu render slot. Keep its export
-// implementation and mirror the shared DropdownMenu design tokens here.
-const STREAMDOWN_MERMAID_DROPDOWN_CLASSNAME = cn(
-  "[&_[data-streamdown='mermaid-block-actions']>div>div]:!z-50 [&_[data-streamdown='mermaid-block-actions']>div>div]:!mt-1.5 [&_[data-streamdown='mermaid-block-actions']>div>div]:!min-w-32 [&_[data-streamdown='mermaid-block-actions']>div>div]:!rounded-xl [&_[data-streamdown='mermaid-block-actions']>div>div]:!border-[0.5px] [&_[data-streamdown='mermaid-block-actions']>div>div]:!border-border [&_[data-streamdown='mermaid-block-actions']>div>div]:!bg-popover [&_[data-streamdown='mermaid-block-actions']>div>div]:!p-1.5 [&_[data-streamdown='mermaid-block-actions']>div>div]:!font-sans [&_[data-streamdown='mermaid-block-actions']>div>div]:!text-popover-foreground [&_[data-streamdown='mermaid-block-actions']>div>div]:!shadow-xs [&_[data-streamdown='mermaid-block-actions']>div>div]:animate-in [&_[data-streamdown='mermaid-block-actions']>div>div]:fade-in-0 [&_[data-streamdown='mermaid-block-actions']>div>div]:zoom-in-95 [&_[data-streamdown='mermaid-block-actions']>div>div]:slide-in-from-top-2",
-  "[&_[data-streamdown='mermaid-block-actions']>div>div>button]:!rounded-md [&_[data-streamdown='mermaid-block-actions']>div>div>button]:!px-2 [&_[data-streamdown='mermaid-block-actions']>div>div>button]:!py-1.5 [&_[data-streamdown='mermaid-block-actions']>div>div>button]:!text-xs [&_[data-streamdown='mermaid-block-actions']>div>div>button]:!leading-5 [&_[data-streamdown='mermaid-block-actions']>div>div>button]:outline-none [&_[data-streamdown='mermaid-block-actions']>div>div>button:hover]:!bg-accent/40 [&_[data-streamdown='mermaid-block-actions']>div>div>button:hover]:!text-accent-foreground [&_[data-streamdown='mermaid-block-actions']>div>div>button:focus-visible]:!bg-accent/40 [&_[data-streamdown='mermaid-block-actions']>div>div>button:focus-visible]:!text-accent-foreground",
-);
-
 const BASE_MARKDOWN_CLASSNAME = cn(
   "chat-font-content min-w-0 max-w-full overflow-hidden leading-6 text-foreground [overflow-wrap:anywhere]",
-  STREAMDOWN_MERMAID_DROPDOWN_CLASSNAME,
   "[&>*:last-child]:after:text-muted-foreground/55",
   "[&_p]:min-w-0 [&_p]:max-w-full [&_p]:break-words [&_p]:[overflow-wrap:anywhere]",
   "[&_li]:min-w-0 [&_li]:max-w-full [&_li]:break-words [&_li]:[overflow-wrap:anywhere]",
@@ -248,17 +295,18 @@ const BASE_MARKDOWN_CLASSNAME = cn(
   "[&_[data-streamdown='code-block']]:![content-visibility:visible] [&_[data-streamdown='code-block']]:![contain-intrinsic-size:none]",
   "[&_[data-streamdown='code-block']>div:first-child]:min-h-0 [&_[data-streamdown='code-block']>div:first-child]:justify-between [&_[data-streamdown='code-block']>div:first-child]:gap-2 [&_[data-streamdown='code-block']>div:first-child]:border-0 [&_[data-streamdown='code-block']>div:first-child]:bg-transparent [&_[data-streamdown='code-block']>div:first-child]:mt-2 [&_[data-streamdown='code-block']>div:first-child]:pb-6 [&_[data-streamdown='code-block']>div:first-child]:text-[11px] [&_[data-streamdown='code-block']>div:first-child]:font-medium [&_[data-streamdown='code-block']>div:first-child]:tracking-[0.06em] [&_[data-streamdown='code-block']>div:first-child]:text-muted-foreground/85 [&_[data-streamdown='code-block']>div:first-child]:shadow-none",
   "[&_[data-streamdown='code-block']>div:last-child]:!w-full [&_[data-streamdown='code-block']>div:last-child]:min-w-0 [&_[data-streamdown='code-block']>div:last-child]:border-0 [&_[data-streamdown='code-block']>div:last-child]:rounded-none [&_[data-streamdown='code-block']>div:last-child]:bg-transparent [&_[data-streamdown='code-block']>div:last-child]:p-0 [&_[data-streamdown='code-block']>div:last-child]:shadow-none",
-  "[&_[data-streamdown='code-block-body']]:!bg-muted/40 [&_[data-streamdown='code-block-body']]:!rounded-xl",
-  "[&_pre]:group [&_pre]:my-0 [&_pre]:block [&_pre]:!w-full [&_pre]:!min-w-0 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:overflow-y-hidden [&_pre]:border-0 [&_pre]:bg-transparent [&_pre]:px-0 [&_pre]:pt-0 [&_pre]:pb-2 [&_pre]:shadow-none [&_pre]:outline-none [&_pre]:ring-0",
-  "[&_pre>code]:block [&_pre>code]:w-max [&_pre>code]:min-w-full [&_pre>code]:max-w-none [&_pre>code]:border-0 [&_pre>code]:bg-transparent [&_pre>code]:py-4 [&_pre>code]:font-mono [&_pre>code]:text-[13px] [&_pre>code]:leading-5 [&_pre>code]:text-foreground/92 [&_pre>code]:shadow-none [&_pre>code]:outline-none [&_pre>code]:ring-0",
+  "[&_[data-streamdown='code-block-body']]:!rounded-xl [&_[data-streamdown='code-block-body']]:!border-[0.75rem] [&_[data-streamdown='code-block-body']]:!border-transparent [&_[data-streamdown='code-block-body']]:!bg-muted/40 [&_[data-streamdown='code-block-body']]:!p-0",
+  "[&_pre]:group [&_pre]:my-0 [&_pre]:block [&_pre]:!w-full [&_pre]:!min-w-0 [&_pre]:max-w-full [&_pre]:overflow-visible [&_pre]:border-0 [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:shadow-none [&_pre]:outline-none [&_pre]:ring-0",
+  "[&_pre>code]:block [&_pre>code]:w-max [&_pre>code]:min-w-full [&_pre>code]:max-w-none [&_pre>code]:border-0 [&_pre>code]:bg-transparent [&_pre>code]:font-mono [&_pre>code]:text-[12px] [&_pre>code]:leading-5 [&_pre>code]:text-foreground/92 [&_pre>code]:shadow-none [&_pre>code]:outline-none [&_pre>code]:ring-0",
+  "[&_pre>code>span]:before:text-[11px]",
   "[&_[data-streamdown='code-block-actions']]:gap-2 [&_[data-streamdown='code-block-actions']]:!opacity-100 [&_[data-streamdown='code-block-actions']]:border-0 [&_[data-streamdown='code-block-actions']]:rounded-none [&_[data-streamdown='code-block-actions']]:bg-transparent [&_[data-streamdown='code-block-actions']]:p-0 [&_[data-streamdown='code-block-actions']]:shadow-none [&_[data-streamdown='code-block-actions']]:backdrop-blur-none",
-  "[&_[data-streamdown='code-block-actions']_button]:inline-flex [&_[data-streamdown='code-block-actions']_button]:items-center [&_[data-streamdown='code-block-actions']_button]:justify-center [&_[data-streamdown='code-block-actions']_button]:rounded-md [&_[data-streamdown='code-block-actions']_button]:border-0 [&_[data-streamdown='code-block-actions']_button]:bg-transparent [&_[data-streamdown='code-block-actions']_button]:p-1 [&_[data-streamdown='code-block-actions']_button]:text-muted-foreground [&_[data-streamdown='code-block-actions']_button]:shadow-none [&_[data-streamdown='code-block-actions']_button:hover]:bg-foreground/[0.04] [&_[data-streamdown='code-block-actions']_button:hover]:text-foreground",
+  "[&_[data-streamdown='code-block-actions']_button]:inline-flex [&_[data-streamdown='code-block-actions']_button]:items-center [&_[data-streamdown='code-block-actions']_button]:justify-center [&_[data-streamdown='code-block-actions']_button]:rounded-none [&_[data-streamdown='code-block-actions']_button]:border-0 [&_[data-streamdown='code-block-actions']_button]:bg-transparent [&_[data-streamdown='code-block-actions']_button]:p-1 [&_[data-streamdown='code-block-actions']_button]:text-muted-foreground [&_[data-streamdown='code-block-actions']_button]:shadow-none [&_[data-streamdown='code-block-actions']_button:hover]:bg-foreground/[0.04] [&_[data-streamdown='code-block-actions']_button:hover]:text-foreground",
   "[&_[data-streamdown='code-block-actions']_svg]:size-3",
-  "[&_[data-footnotes]]:mt-8 [&_[data-footnotes]]:border-t [&_[data-footnotes]]:border-border/45 [&_[data-footnotes]]:pt-3 [&_[data-footnotes]]:text-[13px] [&_[data-footnotes]]:leading-6 [&_[data-footnotes]]:text-muted-foreground/82",
+  "[&_[data-footnotes]]:mt-6 [&_[data-footnotes]]:border-t [&_[data-footnotes]]:border-foreground/15 [&_[data-footnotes]]:pt-3 [&_[data-footnotes]]:text-[11px] [&_[data-footnotes]]:leading-5 [&_[data-footnotes]]:text-muted-foreground/82",
   "[&_[data-footnotes]_h2]:sr-only",
-  "[&_[data-footnotes]_ol]:my-0 [&_[data-footnotes]_ol]:pl-4",
-  "[&_[data-footnotes]_li]:my-1 [&_[data-footnotes]_li]:pl-1 [&_[data-footnotes]_li]:text-muted-foreground/82",
-  "[&_[data-footnotes]_p]:my-0 [&_[data-footnotes]_p]:text-[13px] [&_[data-footnotes]_p]:leading-6 [&_[data-footnotes]_p]:text-muted-foreground/82",
+  "[&_[data-footnotes]_ol]:my-0 [&_[data-footnotes]_ol]:pl-4 [&_[data-footnotes]_ol]:text-[11px] [&_[data-footnotes]_ol]:leading-5",
+  "[&_[data-footnotes]_li]:my-0.5 [&_[data-footnotes]_li]:!py-0.5 [&_[data-footnotes]_li]:pl-1 [&_[data-footnotes]_li]:text-[11px] [&_[data-footnotes]_li]:leading-5 [&_[data-footnotes]_li]:text-muted-foreground/82",
+  "[&_[data-footnotes]_p]:my-0 [&_[data-footnotes]_p]:text-[11px] [&_[data-footnotes]_p]:leading-5 [&_[data-footnotes]_p]:text-muted-foreground/82",
   "[&_.katex]:text-[1.04em]",
   "[&_.katex-display]:my-3.5 [&_.katex-display]:block [&_.katex-display]:max-w-full [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden [&_.katex-display]:px-1 [&_.katex-display]:py-1.5 [&_.katex-display]:text-center",
   "[&_.katex-display>.katex]:inline-block [&_.katex-display>.katex]:min-w-fit [&_.katex-display>.katex]:max-w-none [&_.katex-display>.katex]:text-center",
@@ -319,11 +367,13 @@ const DEFAULT_STREAMDOWN_COMPONENTS = {
   div: MarkdownHTMLDiv,
   img: MarkdownImage,
   main: MarkdownHTMLMain,
+  ol: MarkdownOrderedList,
   p: MarkdownParagraph,
-  pre: CollapsibleCodePre,
+  pre: MarkdownCodePre,
   section: MarkdownHTMLSection,
   span: MarkdownHTMLSpan,
   strong: MarkdownStrong,
+  sup: MarkdownSup,
   summary: MarkdownHTMLSummary,
   table: AdaptiveMarkdownTable,
 } as const;
@@ -349,7 +399,7 @@ function normalizeStreamdownContent(content: unknown, preserveSourceLines = fals
   );
   return preserveSourceLines
     ? normalizedContent
-    : normalizeHTMLVisualBlankLines(normalizeHTMLVisualMarkdownFences(normalizedContent));
+    : normalizeHTMLVisualMarkdownFences(normalizedContent);
 }
 
 function detectStreamdownFeatures(content: string): StreamdownFeatureFlags {
@@ -469,40 +519,28 @@ function ThinkingSegmentBlock({
   incomplete,
   plugins,
   streaming,
+  autoExpand,
 }: {
   content: string;
   incomplete: boolean;
   plugins: PluginConfig;
   streaming: boolean;
+  autoExpand: boolean;
 }) {
   const t = useTranslations("chat.markdown.thinking");
   const translations = useStreamdownTranslations();
-  const active = streaming || incomplete;
-  const [accordionValue, setAccordionValue] = React.useState(() => (active ? "thinking" : ""));
-  const wasActiveRef = React.useRef(active);
-
-  React.useEffect(() => {
-    if (active) {
-      setAccordionValue("thinking");
-      wasActiveRef.current = true;
-      return;
-    }
-
-    if (wasActiveRef.current) {
-      setAccordionValue("");
-    }
-    wasActiveRef.current = false;
-  }, [active]);
+  const icons = useStreamdownIcons();
+  const active = streaming && incomplete;
+  const { open, onOpenChange } = useAutoExpandDisclosure({ active, autoExpand });
 
   const isActive = active;
-  const open = accordionValue === "thinking";
 
   return (
     <Accordion
       type="single"
       collapsible
-      value={accordionValue}
-      onValueChange={(value) => setAccordionValue(value || "")}
+      value={open ? "thinking" : ""}
+      onValueChange={(value) => onOpenChange(value === "thinking")}
       className="w-full"
     >
       <AccordionItem value="thinking" className="border-b-0">
@@ -533,21 +571,23 @@ function ThinkingSegmentBlock({
           />
         </AccordionTrigger>
         <AccordionContent className="px-0 pb-0 pt-1.5 duration-[350ms] ease-in-out">
-          <HTMLMarkdownRenderProvider
+          <HTMLInlineMarkdownProvider
             className={cn(THINKING_MARKDOWN_CLASSNAME, "text-[12px] leading-6 text-muted-foreground/84")}
             components={THINKING_STREAMDOWN_COMPONENTS}
             plugins={plugins}
           >
             <Streamdown
-              allowedTags={STREAMDOWN_ALLOWED_HTML_TAGS}
               className={cn(THINKING_MARKDOWN_CLASSNAME, "text-[12px] leading-6 text-muted-foreground/84")}
+              codeBlockMaxHeight={STREAMDOWN_CODE_BLOCK_MAX_HEIGHT}
               components={THINKING_STREAMDOWN_COMPONENTS}
               controls={STREAMDOWN_CONTROLS}
+              icons={icons}
               plugins={plugins}
               rehypePlugins={STREAMDOWN_REHYPE_PLUGINS}
               remend={STREAMDOWN_REMEND}
-              mode={streaming ? "streaming" : "static"}
-              parseIncompleteMarkdown={streaming || incomplete}
+              mode={active ? "streaming" : "static"}
+              normalizeHtmlIndentation
+              parseIncompleteMarkdown={active}
               shikiTheme={["github-light", "github-dark"]}
               animated={false}
               isAnimating={active}
@@ -555,14 +595,14 @@ function ThinkingSegmentBlock({
             >
               {content}
             </Streamdown>
-          </HTMLMarkdownRenderProvider>
+          </HTMLInlineMarkdownProvider>
         </AccordionContent>
       </AccordionItem>
     </Accordion>
   );
 }
 
-function HTMLMarkdownRenderProvider({
+function HTMLInlineMarkdownProvider({
   children,
   className,
   components,
@@ -574,14 +614,14 @@ function HTMLMarkdownRenderProvider({
   plugins: PluginConfig;
 }) {
   const translations = useStreamdownTranslations();
-  const renderHTMLMarkdown = React.useCallback(
+  const renderInlineMarkdown = React.useCallback(
     (source: string) => (
-      <MarkdownHTMLMarkdownRendererContext.Provider value={null}>
+      <MarkdownHTMLInlineRendererContext.Provider value={null}>
         <Streamdown
-          allowedTags={STREAMDOWN_ALLOWED_HTML_TAGS}
           className={className}
+          codeBlockMaxHeight={STREAMDOWN_CODE_BLOCK_MAX_HEIGHT}
           components={components}
-          controls={STREAMDOWN_CONTROLS}
+          controls={false}
           plugins={plugins}
           rehypePlugins={STREAMDOWN_REHYPE_PLUGINS}
           remend={STREAMDOWN_REMEND}
@@ -595,15 +635,15 @@ function HTMLMarkdownRenderProvider({
         >
           {source}
         </Streamdown>
-      </MarkdownHTMLMarkdownRendererContext.Provider>
+      </MarkdownHTMLInlineRendererContext.Provider>
     ),
     [className, components, plugins, translations],
   );
 
   return (
-    <MarkdownHTMLMarkdownRendererContext.Provider value={renderHTMLMarkdown}>
+    <MarkdownHTMLInlineRendererContext.Provider value={renderInlineMarkdown}>
       {children}
-    </MarkdownHTMLMarkdownRendererContext.Provider>
+    </MarkdownHTMLInlineRendererContext.Provider>
   );
 }
 
@@ -613,6 +653,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
   streaming = false,
   variant = "default",
   sourcePositions = false,
+  autoExpandThinking = true,
   imageActions,
   artifactActions,
 }: StreamdownRenderProps) {
@@ -632,6 +673,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
   const {
     rootRef: markdownCopyRootRef,
     onClickCapture: handleMarkdownCopyClickCapture,
+    onCopyCapture: handleMarkdownCopyCapture,
     onKeyDownCapture: handleMarkdownCopyKeyDownCapture,
     onPointerDownCapture: handleMarkdownCopyPointerDownCapture,
   } = useMarkdownCopy({
@@ -643,6 +685,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
     [segments],
   );
   const translations = useStreamdownTranslations();
+  const icons = useStreamdownIcons();
   const markdownSegments = React.useMemo(
     () => segments.filter((segment): segment is Extract<RenderSegment, { type: "markdown" }> => segment.type === "markdown"),
     [segments],
@@ -678,9 +721,11 @@ export const StreamdownRender = React.memo(function StreamdownRender({
       className={cn("chat-font-content min-w-0 max-w-full overflow-hidden text-foreground [overflow-wrap:anywhere]", contentSpacingClassName, className)}
       data-chat-markdown-scope=""
       onClickCapture={handleMarkdownCopyClickCapture}
+      onCopyCapture={handleMarkdownCopyCapture}
       onKeyDownCapture={handleMarkdownCopyKeyDownCapture}
       onPointerDownCapture={handleMarkdownCopyPointerDownCapture}
     >
+      <StreamdownAdapterStyles />
       <MarkdownTableStreamingContext.Provider value={streaming}>
         {mergedThinkingContent ? (
           <ThinkingSegmentBlock
@@ -688,27 +733,30 @@ export const StreamdownRender = React.memo(function StreamdownRender({
             incomplete={hasIncompleteThinking}
             plugins={plugins}
             streaming={streaming}
+            autoExpand={autoExpandThinking}
           />
         ) : null}
       {markdownSegments.map((segment, index) => (
         <MarkdownArtifactActionsContext.Provider key={`markdown-${index}`} value={artifactActions ?? null}>
           <MarkdownImageActionsContext.Provider value={imageActions ?? null}>
-            <HTMLMarkdownRenderProvider
+            <HTMLInlineMarkdownProvider
               className={activeMarkdownClassName}
               components={components}
               plugins={plugins}
             >
               <Streamdown
-                allowedTags={STREAMDOWN_ALLOWED_HTML_TAGS}
                 className={activeMarkdownClassName}
+                codeBlockMaxHeight={STREAMDOWN_CODE_BLOCK_MAX_HEIGHT}
                 components={components}
                 controls={STREAMDOWN_CONTROLS}
+                icons={icons}
                 plugins={plugins}
                 rehypePlugins={rehypePlugins}
                 remend={STREAMDOWN_REMEND}
                 linkSafety={STREAMDOWN_LINK_SAFETY}
                 caret={streaming ? STREAMDOWN_CARET : undefined}
                 mode={streaming ? "streaming" : "static"}
+                normalizeHtmlIndentation
                 parseIncompleteMarkdown={streaming}
                 shikiTheme={["github-light", "github-dark"]}
                 animated={false}
@@ -717,7 +765,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
               >
                 {segment.content}
               </Streamdown>
-            </HTMLMarkdownRenderProvider>
+            </HTMLInlineMarkdownProvider>
           </MarkdownImageActionsContext.Provider>
         </MarkdownArtifactActionsContext.Provider>
         ))}

@@ -13,6 +13,7 @@ import (
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -38,7 +39,7 @@ func (s *Service) startContextArtifactCleanupWorker(ctx context.Context) {
 	if s == nil || s.repo == nil {
 		return
 	}
-	go func() {
+	background.Go(s.logger, "context_artifact_cleanup", func() {
 		s.deleteExpiredContextArtifacts(ctx)
 		ticker := time.NewTicker(contextArtifactCleanupInterval)
 		defer ticker.Stop()
@@ -50,7 +51,7 @@ func (s *Service) startContextArtifactCleanupWorker(ctx context.Context) {
 				s.deleteExpiredContextArtifacts(ctx)
 			}
 		}
-	}()
+	})
 }
 
 func (s *Service) deleteExpiredContextArtifacts(ctx context.Context) {
@@ -106,6 +107,10 @@ func (s *Service) GetFileProcessingStatus(ctx context.Context, userID uint, file
 		return nil, ErrFileNotFound
 	}
 	return result, err
+}
+
+func (s *Service) GetFileProcessingStatuses(ctx context.Context, userID uint, fileIDs []string) ([]appprocessing.FileProcessingStatusDTO, error) {
+	return s.processingSvc.GetFileProcessingStatuses(ctx, userID, fileIDs)
 }
 
 func (s *Service) resolveAttachments(

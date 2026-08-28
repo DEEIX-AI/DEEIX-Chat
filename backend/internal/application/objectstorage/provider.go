@@ -2,11 +2,15 @@ package objectstorage
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
 )
+
+// ErrFactoryNotRegistered 表示组合根尚未注册默认对象存储工厂。
+var ErrFactoryNotRegistered = errors.New("object storage factory not registered")
 
 // Provider 为应用服务提供对象存储能力，隔离具体存储实现的创建方式。
 type Provider interface {
@@ -15,6 +19,14 @@ type Provider interface {
 
 // Factory 创建对象存储实例。
 type Factory func(ctx context.Context, cfg config.Config) (objectstore.Store, error)
+
+// defaultFactory 由组合根在启动时通过 RegisterDefaultFactory 注册。
+var defaultFactory Factory
+
+// RegisterDefaultFactory 注册默认对象存储工厂，供未显式注入工厂的 provider 使用。
+func RegisterDefaultFactory(factory Factory) {
+	defaultFactory = factory
+}
 
 // RuntimeProvider 基于运行时配置创建对象存储实例。
 type RuntimeProvider struct {
@@ -39,11 +51,8 @@ type runtimeStorageKey struct {
 	s3ForcePathStyle  bool
 }
 
-// NewRuntimeProvider 创建对象存储 provider。
+// NewRuntimeProvider 创建对象存储 provider；factory 为 nil 时使用组合根注册的默认工厂。
 func NewRuntimeProvider(cfg *config.Runtime, factory Factory) *RuntimeProvider {
-	if factory == nil {
-		factory = objectstore.New
-	}
 	return &RuntimeProvider{cfg: cfg, factory: factory}
 }
 
@@ -57,7 +66,14 @@ func (p *RuntimeProvider) Open(ctx context.Context) (objectstore.Store, error) {
 	if p.cachePresent && p.cachedKey == key {
 		return p.cachedStore, nil
 	}
-	store, err := p.factory(ctx, cfg)
+	factory := p.factory
+	if factory == nil {
+		factory = defaultFactory
+	}
+	if factory == nil {
+		return nil, ErrFactoryNotRegistered
+	}
+	store, err := factory(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}

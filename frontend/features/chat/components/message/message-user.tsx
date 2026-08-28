@@ -15,11 +15,11 @@ import {
   useChatMentionMenu,
   type ChatMentionMenuKind,
 } from "@/features/chat/hooks/use-chat-mention-menu";
-import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
+import type { ChatModelOption, PendingAttachment } from "@/features/chat/types/chat-runtime";
+import type { MCPToolDTO } from "@/shared/api/mcp.types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { FileContentResult } from "@/shared/api/file";
-import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
+import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 
 const USER_MESSAGE_COLLAPSED_LINES = 6;
@@ -30,15 +30,14 @@ const USER_MESSAGE_EXPAND_TRANSITION = {
   ease: [0.16, 1, 0.3, 1] as const,
 };
 const EDIT_MESSAGE_MENTION_KINDS: readonly ChatMentionMenuKind[] = ["model", "prompt"];
-const EDIT_MESSAGE_EMPTY_ATTACHMENTS = [];
-const EDIT_MESSAGE_EMPTY_TOOLS = [];
-const EDIT_MESSAGE_EMPTY_TOOL_IDS = [];
+const EDIT_MESSAGE_EMPTY_ATTACHMENTS: PendingAttachment[] = [];
+const EDIT_MESSAGE_EMPTY_TOOLS: MCPToolDTO[] = [];
+const EDIT_MESSAGE_EMPTY_TOOL_IDS: number[] = [];
 
 type ChatMessageUserProps = {
   item: ChatAreaMessage;
   onRetryUserMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onEditUserMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
-  onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   modelOptions?: ChatModelOption[];
   selectedPlatformModelName?: string;
   onModelChange?: (platformModelName: string) => void;
@@ -47,7 +46,7 @@ type ChatMessageUserProps = {
   onCopy: () => void;
   copySucceeded?: boolean;
   readOnly?: boolean;
-  attachmentContentLoader?: (file: PreviewDialogFile) => Promise<FileContentResult>;
+  attachmentContentLoader?: FileContentLoader;
   showBranchNavigator?: boolean;
   screenshotMeta?: React.ReactNode;
 };
@@ -56,7 +55,6 @@ export function ChatMessageUser({
   item,
   onRetryUserMessage,
   onEditUserMessage,
-  onForkMessage,
   modelOptions = [],
   selectedPlatformModelName = "",
   onModelChange = () => undefined,
@@ -136,11 +134,6 @@ export function ChatMessageUser({
   const onRetry = React.useCallback(() => {
     void onRetryUserMessage(item);
   }, [item, onRetryUserMessage]);
-
-  const onFork = React.useCallback(
-    () => onForkMessage?.(item),
-    [item, onForkMessage],
-  );
 
   const onEditSave = React.useCallback(async () => {
     const nextContent = editingValue.trim();
@@ -326,7 +319,6 @@ export function ChatMessageUser({
         onRetry={onRetry}
         onEdit={() => setIsEditing(true)}
         onCopy={onCopy}
-        onFork={onForkMessage ? onFork : undefined}
         copySucceeded={copySucceeded}
         readOnly={readOnly}
         alwaysVisible={readOnly}

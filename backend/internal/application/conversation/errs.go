@@ -1,6 +1,10 @@
 package conversation
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+)
 
 var (
 	// ErrConversationNotFound 会话不存在或无权限。
@@ -21,16 +25,18 @@ var (
 	ErrConversationProjectNotFound = errors.New("conversation project not found")
 	// ErrInvalidConversationProject 会话项目请求不合法。
 	ErrInvalidConversationProject = errors.New("invalid conversation project")
+	// ErrConversationProjectLimitExceeded 单用户会话项目数量超限。
+	ErrConversationProjectLimitExceeded = repository.ErrConversationProjectLimitExceeded
 	// ErrInvalidFileReference 文件引用无效。
 	ErrInvalidFileReference = errors.New("invalid file reference")
 	// ErrInvalidFileName 文件名不合法。
 	ErrInvalidFileName = errors.New("invalid file name")
 	// ErrFileNotFound 文件不存在。
-	ErrFileNotFound = errors.New("file not found")
+	ErrFileNotFound = repository.ErrFileNotFound
 	// ErrFileInUse 文件正在被头像、知识库等资源使用。
 	ErrFileInUse = errors.New("file in use")
 	// ErrStorageQuotaExceeded 文件配额超限。
-	ErrStorageQuotaExceeded = errors.New("storage quota exceeded")
+	ErrStorageQuotaExceeded = repository.ErrStorageQuotaExceeded
 	// ErrFileTooLarge 文件过大。
 	ErrFileTooLarge = errors.New("file too large")
 	// ErrMIMEBlocked 文件类型不被允许。
@@ -81,6 +87,8 @@ var (
 	ErrMessageEditStateInvalid = errors.New("invalid message edit state")
 	// ErrMessageForkStateInvalid 当前消息状态不允许 fork。
 	ErrMessageForkStateInvalid = errors.New("invalid message fork state")
+	// ErrMessageForkTargetInvalid 当前消息角色不允许 fork。
+	ErrMessageForkTargetInvalid = errors.New("invalid message fork target")
 	// ErrMessageForkHistoryIncomplete 消息祖先链超过安全上限或已损坏，无法完整 fork。
 	ErrMessageForkHistoryIncomplete = errors.New("message fork history incomplete")
 	// ErrModelRouteNotConfigured 模型路由未配置。

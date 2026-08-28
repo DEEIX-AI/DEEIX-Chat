@@ -1,12 +1,12 @@
 "use client";
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
 import {
   Check,
   ChevronDown,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import * as React from "react";
 
 import {
   Avatar,
@@ -17,8 +17,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
-  DropdownMenuItemIcon,
   DropdownMenuItem,
+  DropdownMenuItemIcon,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSub,
@@ -30,15 +30,17 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTransitionContent,
+  useSidebarHoverExpansionLock,
 } from "@/components/ui/sidebar";
 import { SpinnerLabel } from "@/components/ui/spinner";
+import { useAppLocale } from "@/i18n/app-i18n-provider";
+import { APP_LOCALE_LABELS, APP_LOCALES, type AppLocale } from "@/i18n/config";
 import { logout, patchMe } from "@/shared/api/auth";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { clearSessionAndRedirectToLogin } from "@/shared/auth/session";
 import { dispatchUserProfileUpdated } from "@/shared/auth/user-profile-events";
 import { dispatchOpenAnnouncements, getAnnouncementUnread, subscribeAnnouncementUnreadChanged } from "@/shared/events/announcement-events";
-import { useAppLocale } from "@/i18n/app-i18n-provider";
-import { APP_LOCALE_LABELS, APP_LOCALES, type AppLocale } from "@/i18n/config";
 
 export function NavUser({
   user,
@@ -60,6 +62,8 @@ export function NavUser({
   const [hasUnreadAnnouncement, setHasUnreadAnnouncement] = React.useState(() => getAnnouncementUnread());
   const skipTriggerFocusRef = React.useRef(false);
   const isAdmin = user.role === "admin" || user.role === "superadmin";
+
+  useSidebarHoverExpansionLock(open);
 
   React.useEffect(() => subscribeAnnouncementUnreadChanged(setHasUnreadAnnouncement), []);
 
@@ -134,17 +138,21 @@ export function NavUser({
               id="sidebar-user-menu-trigger"
               type="button"
               size="lg"
-              className="mb-1 transition-[background-color,color,width,height,padding,margin] data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:mb-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:overflow-visible"
+              className="mb-1 pr-2 pl-2.5 transition-[background-color,color,width,height,padding,margin] data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:mb-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:overflow-visible"
               aria-label={user.name}
             >
               <Avatar className="size-7 shrink-0 rounded-full">
                 <AvatarImage src={user.avatar || undefined} alt={user.name} />
                 <AvatarFallback className="rounded-full bg-foreground text-xs font-medium text-background">{user.name.charAt(0).toUpperCase()}</AvatarFallback>
               </Avatar>
-              <div className="grid min-w-0 flex-1 gap-0.5 overflow-hidden pl-1.5 text-left text-sm leading-tight transition-opacity duration-200 ease-linear group-data-[collapsible=icon]:hidden">
-                <span className="truncate font-medium text-foreground/95">{user.name}</span>
-              </div>
-              <ChevronDown aria-hidden className="ml-auto size-4 stroke-1 transition-opacity duration-200 ease-linear group-data-[collapsible=icon]:hidden" />
+              <SidebarTransitionContent asChild>
+                <div className="grid min-w-0 flex-1 gap-0.5 overflow-hidden pl-1.5 text-left text-sm leading-tight transition-opacity duration-200 ease-linear group-data-[collapsible=icon]:hidden">
+                  <span className="truncate font-medium text-foreground/95">{user.name}</span>
+                </div>
+              </SidebarTransitionContent>
+              <SidebarTransitionContent asChild>
+                <ChevronDown aria-hidden className="ml-auto size-4 stroke-1 transition-opacity duration-200 ease-linear group-data-[collapsible=icon]:hidden" />
+              </SidebarTransitionContent>
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent

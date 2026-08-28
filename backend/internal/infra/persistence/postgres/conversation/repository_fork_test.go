@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
@@ -58,6 +59,46 @@ func TestCreateForkedConversationCommitsCompleteFork(t *testing.T) {
 	if err := db.Create(&sourceAttachments).Error; err != nil {
 		t.Fatalf("create source attachments: %v", err)
 	}
+	traceStartedAt := time.Date(2026, time.August, 20, 9, 30, 0, 0, time.UTC)
+	traceEndedAt := traceStartedAt.Add(1250 * time.Millisecond)
+	sourceTraceEvents := []model.ChatRunEvent{
+		{
+			BaseModel: model.BaseModel{CreatedAt: traceStartedAt, UpdatedAt: traceEndedAt},
+			MessageID: leaf.ID, ConversationID: source.ID, UserID: 1, RunID: "run_source_leaf",
+			EventScope: chatRunEventScopeTraceBlock, EventID: "trace_context", EventType: "context",
+			Phase: "process", Stage: "process", Status: "completed", Title: "上下文规划",
+			ContentMarkdown: "选择最近消息作为上下文", PayloadJSON: `{"kind":"context_plan"}`, Seq: 1,
+			StartedAt: traceStartedAt, EndedAt: &traceEndedAt,
+		},
+		{
+			BaseModel: model.BaseModel{CreatedAt: traceStartedAt, UpdatedAt: traceEndedAt},
+			MessageID: leaf.ID, ConversationID: source.ID, UserID: 1, RunID: "run_source_leaf",
+			EventScope: chatRunEventScopeTraceEvent, EventID: "reasoning_1", EventType: "reasoning",
+			Phase: "upstream_think", Stage: "think", RoundID: "round_1", Status: "completed",
+			ContentMarkdown: "先检查上下文", PayloadJSON: `{"type":"response.reasoning_summary_text.done"}`, Seq: 2,
+			StartedAt: traceStartedAt, EndedAt: &traceEndedAt,
+		},
+		{
+			BaseModel: model.BaseModel{CreatedAt: traceStartedAt, UpdatedAt: traceEndedAt},
+			MessageID: leaf.ID, ConversationID: source.ID, UserID: 1, RunID: "run_source_leaf",
+			EventScope: chatRunEventScopeTraceEvent, EventID: "tool_1", EventType: "tool",
+			Phase: "tools", Stage: "tool", RoundID: "round_1", ParentEventID: "reasoning_1", Status: "completed",
+			Title: "读取文件", PayloadJSON: `{"type":"response.function_call_arguments.done","name":"read_file"}`, Seq: 3,
+			ToolCallID: "call_1", ToolName: "read_file", LatencyMS: 25,
+			InputJSON: `{"path":"README.md"}`, OutputJSON: `{"ok":true}`,
+			StartedAt: traceStartedAt, EndedAt: &traceEndedAt,
+		},
+		{
+			MessageID: leaf.ID, ConversationID: source.ID, UserID: 1, RunID: "run_source_leaf",
+			EventScope: chatRunEventScopeToolCall, EventID: "call_1", EventType: "tool_call",
+			Phase: "tools", Stage: "tool", Status: "completed", Seq: 4,
+			ToolCallID: "call_1", ToolName: "read_file", InputJSON: `{"path":"README.md"}`, OutputJSON: `{"ok":true}`,
+			StartedAt: traceStartedAt, EndedAt: &traceEndedAt,
+		},
+	}
+	if err := db.Create(&sourceTraceEvents).Error; err != nil {
+		t.Fatalf("create source trace events: %v", err)
+	}
 
 	target := &domainconversation.Conversation{
 		UserID: 1, PublicID: "conv_fork", Title: "Source", LabelsJSON: "[]",
@@ -98,6 +139,59 @@ func TestCreateForkedConversationCommitsCompleteFork(t *testing.T) {
 	if parent := targetMessages[1].ParentMessageID; parent == nil || *parent != targetMessages[0].ID {
 		t.Fatalf("fork leaf parent = %v, want %d", parent, targetMessages[0].ID)
 	}
+	if targetMessages[1].RunID != "" {
+		t.Fatalf("fork leaf run ID = %q, want no executable source run", targetMessages[1].RunID)
+	}
+
+	var targetTraceEvents []model.ChatRunEvent
+	if err := db.Where("conversation_id = ?", target.ID).Order("seq ASC, id ASC").Find(&targetTraceEvents).Error; err != nil {
+		t.Fatalf("load target trace events: %v", err)
+	}
+	if len(targetTraceEvents) != 3 {
+		t.Fatalf("len(targetTraceEvents) = %d, want 3 display trace rows", len(targetTraceEvents))
+	}
+	wantEventIDs := []string{"trace_context", "reasoning_1", "tool_1"}
+	targetTraceRunID := forkedDisplayTraceRunID(targetMessages[1].ID, "run_source_leaf")
+	for index, event := range targetTraceEvents {
+		if event.MessageID != targetMessages[1].ID || event.ConversationID != target.ID || event.UserID != 1 {
+			t.Fatalf("target trace ownership = (%d, %d, %d), want (%d, %d, 1)", event.MessageID, event.ConversationID, event.UserID, targetMessages[1].ID, target.ID)
+		}
+		if event.RunID != targetTraceRunID || event.RunID == "run_source_leaf" {
+			t.Fatalf("target trace run ID = %q, want remapped %q", event.RunID, targetTraceRunID)
+		}
+		if event.EventID != wantEventIDs[index] {
+			t.Fatalf("target trace event[%d] ID = %q, want %q", index, event.EventID, wantEventIDs[index])
+		}
+		if event.EventScope == chatRunEventScopeToolCall {
+			t.Fatalf("target copied raw tool-call audit row: %+v", event)
+		}
+		if !event.CreatedAt.Equal(traceStartedAt) || !event.UpdatedAt.Equal(traceEndedAt) || !event.StartedAt.Equal(traceStartedAt) {
+			t.Fatalf("target trace timing was not preserved: %+v", event)
+		}
+		if event.EndedAt == nil || !event.EndedAt.Equal(traceEndedAt) {
+			t.Fatalf("target trace ended_at = %v, want %v", event.EndedAt, traceEndedAt)
+		}
+	}
+	if toolEvent := targetTraceEvents[2]; toolEvent.RoundID != "round_1" || toolEvent.ParentEventID != "reasoning_1" || toolEvent.ToolCallID != "call_1" || toolEvent.ToolName != "read_file" {
+		t.Fatalf("target tool display linkage was not preserved: %+v", toolEvent)
+	}
+	if targetTraceEvents[0].ContentMarkdown != sourceTraceEvents[0].ContentMarkdown || targetTraceEvents[0].PayloadJSON != sourceTraceEvents[0].PayloadJSON {
+		t.Fatalf("target context trace content was not preserved: %+v", targetTraceEvents[0])
+	}
+	displayBlocks, err := repo.ListConversationMessageTracesByMessageIDs(ctx, []uint{targetMessages[1].ID})
+	if err != nil {
+		t.Fatalf("ListConversationMessageTracesByMessageIDs() error = %v", err)
+	}
+	if len(displayBlocks) != 1 || displayBlocks[0].ContentMarkdown != "选择最近消息作为上下文" {
+		t.Fatalf("fork display blocks = %+v, want copied context plan", displayBlocks)
+	}
+	displayEvents, err := repo.ListConversationMessageTraceEventsByMessageIDs(ctx, []uint{targetMessages[1].ID})
+	if err != nil {
+		t.Fatalf("ListConversationMessageTraceEventsByMessageIDs() error = %v", err)
+	}
+	if len(displayEvents) != 2 || displayEvents[0].ContentMarkdown != "先检查上下文" || displayEvents[1].EventType != "tool" || displayEvents[1].PayloadJSON != sourceTraceEvents[2].PayloadJSON {
+		t.Fatalf("fork display events = %+v, want copied reasoning and tool details", displayEvents)
+	}
 
 	var targetAttachments []model.Attachment
 	if err := db.Where("conversation_id = ?", target.ID).Find(&targetAttachments).Error; err != nil {
@@ -123,6 +217,13 @@ func TestCreateForkedConversationCommitsCompleteFork(t *testing.T) {
 	}
 	if sourceMessageCount != 2 {
 		t.Fatalf("source message count = %d, want 2", sourceMessageCount)
+	}
+	var sourceTraceCount int64
+	if err := db.Model(&model.ChatRunEvent{}).Where("conversation_id = ?", source.ID).Count(&sourceTraceCount).Error; err != nil {
+		t.Fatalf("count source trace events: %v", err)
+	}
+	if sourceTraceCount != int64(len(sourceTraceEvents)) {
+		t.Fatalf("source trace count = %d, want %d", sourceTraceCount, len(sourceTraceEvents))
 	}
 }
 

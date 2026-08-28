@@ -202,12 +202,14 @@ func isFileUploadRoute(method string, route string) bool {
 }
 
 func isPollingRoute(method string, route string) bool {
-	if method != http.MethodGet {
-		return false
+	if method == http.MethodPost {
+		return route == "/files/processing/statuses" ||
+			route == "/conversation-runs/statuses" ||
+			strings.HasSuffix(route, "/files/processing/statuses")
 	}
-	return strings.HasSuffix(route, "/processing") ||
+	return method == http.MethodGet && (strings.HasSuffix(route, "/processing") ||
 		strings.HasSuffix(route, "/runs") ||
-		strings.HasSuffix(route, "/stream")
+		strings.HasSuffix(route, "/stream"))
 }
 
 func isPublicAuthReadRoute(method string, route string) bool {

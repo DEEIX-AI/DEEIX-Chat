@@ -16,10 +16,10 @@ type MentionFileSearchRequest = {
   accessToken: string;
   query: string;
   sessionRevision: number;
+  signal?: AbortSignal;
 };
 
 const cache = new Map<MentionFileSearchCacheKey, MentionFileSearchCacheEntry>();
-const inFlight = new Map<MentionFileSearchCacheKey, Promise<FileObjectDTO[]>>();
 
 function normalizeQuery(query: string): string {
   return query.trim().toLowerCase();
@@ -59,13 +59,13 @@ export function readMentionFileSearchCache(sessionRevision: number, query: strin
 
 export function clearMentionFileSearchCache() {
   cache.clear();
-  inFlight.clear();
 }
 
 export async function searchMentionFiles({
   accessToken,
   query,
   sessionRevision,
+  signal,
 }: MentionFileSearchRequest): Promise<FileObjectDTO[]> {
   const key = cacheKey(sessionRevision, query);
   const cached = readMentionFileSearchCache(sessionRevision, query);
@@ -73,30 +73,17 @@ export async function searchMentionFiles({
     return cached;
   }
 
-  const existingRequest = inFlight.get(key);
-  if (existingRequest) {
-    return existingRequest;
-  }
-
-  const request = listFiles(accessToken, {
+  const data = await listFiles(accessToken, {
     page: 1,
     pageSize: MENTION_FILE_SEARCH_PAGE_SIZE,
     query,
     sort: "last_used",
-  })
-    .then((data) => {
-      const files = data.results ?? [];
-      cache.set(key, {
-        expiresAt: Date.now() + MENTION_FILE_SEARCH_STALE_MS,
-        files,
-      });
-      pruneCache();
-      return files;
-    })
-    .finally(() => {
-      inFlight.delete(key);
-    });
-
-  inFlight.set(key, request);
-  return request;
+  }, signal);
+  const files = data.results ?? [];
+  cache.set(key, {
+    expiresAt: Date.now() + MENTION_FILE_SEARCH_STALE_MS,
+    files,
+  });
+  pruneCache();
+  return files;
 }

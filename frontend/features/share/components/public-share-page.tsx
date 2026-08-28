@@ -6,25 +6,25 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { ChatMessageBot } from "@/features/chat/components/message/message-bot";
-import { ChatMessageUser } from "@/features/chat/components/message/message-user";
-import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import {
   buildChildrenIndex,
   buildVisibleMessages,
+  ChatMessageBot,
+  ChatMessageUser,
   mapServerMessage,
   reconcileBranchSelections,
   toBranchKey,
-} from "@/features/chat/model/chat-thread";
-import type { ChatAreaMessage } from "@/features/chat/types/messages";
+  type ChatAreaMessage,
+} from "@/features/chat";
+import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { cloneSharedConversation, getSharedConversation } from "@/shared/api/conversation";
 import type {
   MessageDTO,
   PublicSharedConversationDTO,
   PublicSharedMessageDTO,
 } from "@/shared/api/conversation.types";
-import { fetchSharedFileContent, type FileContentResult } from "@/shared/api/file";
-import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
+import { fetchSharedFileContent } from "@/shared/api/file";
+import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
 import { CenteredEmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -143,8 +143,8 @@ function mapPublicSharedMessage(
   };
 }
 
-const noop = () => undefined;
-const noopAsync = async () => undefined;
+const noop = (): undefined => undefined;
+const noopAsync = async (): Promise<undefined> => undefined;
 
 function branchSelectionsFromDefaultPath(
   messages: ChatAreaMessage[],
@@ -168,7 +168,7 @@ function PublicSharedMessage({
   onCycleBranch,
 }: {
   item: ChatAreaMessage;
-  loadContent: (file: PreviewDialogFile) => Promise<FileContentResult>;
+  loadContent: FileContentLoader;
   onCycleBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
 }) {
   if (item.role === "user") {
@@ -345,8 +345,8 @@ export function PublicSharePage() {
     [messages],
   );
 
-  const loadSharedContent = React.useCallback(
-    (file: PreviewDialogFile) => fetchSharedFileContent(shareID, file.fileID),
+  const loadSharedContent = React.useCallback<FileContentLoader>(
+    (file, signal) => fetchSharedFileContent(shareID, file.fileID, signal),
     [shareID],
   );
   const accessToken = authSession?.accessToken || resolvedAccessToken;

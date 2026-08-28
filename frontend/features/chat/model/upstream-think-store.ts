@@ -31,15 +31,25 @@ function mergeContent(previous: string, event: UpstreamThinkDeltaEvent) {
 }
 
 function mergeUpstreamThinkBlock(current: ChatTraceBlock | undefined, event: UpstreamThinkDeltaEvent): ChatTraceBlock {
-  const contentMarkdown = mergeContent(current?.contentMarkdown ?? "", event);
+  const roundID = event.roundID || current?.roundID;
+  const roundChanged = Boolean(roundID && current?.roundID && roundID !== current.roundID);
+  const contentMarkdown = mergeContent(roundChanged ? "" : (current?.contentMarkdown ?? ""), event);
+  const eventStartedAt = typeof event.startedAt === "string"
+    ? event.startedAt.trim() || undefined
+    : undefined;
+  const eventEndedAt = typeof event.endedAt === "string"
+    ? event.endedAt.trim() || undefined
+    : undefined;
   return {
     title: event.title?.trim() || current?.title || "",
     summary: event.summary?.trim() || current?.summary || "",
     contentMarkdown,
     status: event.status || current?.status || "streaming",
     stage: event.stage || current?.stage || "think",
-    roundID: event.roundID || current?.roundID,
+    roundID,
     parentEventID: current?.parentEventID,
+    startedAt: eventStartedAt ?? (roundChanged ? undefined : current?.startedAt) ?? nowISO(),
+    endedAt: eventEndedAt ?? (roundChanged ? undefined : current?.endedAt),
     updatedAt: nowISO(),
     payloadJson: current?.payloadJson,
   };
@@ -150,6 +160,6 @@ export function useLiveUpstreamThinkTrace(runID: string | null | undefined) {
   return React.useSyncExternalStore(
     React.useCallback((listener) => subscribe(key, listener), [key]),
     React.useCallback(() => readLiveUpstreamThinkTrace(key), [key]),
-    () => undefined,
+    (): undefined => undefined,
   );
 }

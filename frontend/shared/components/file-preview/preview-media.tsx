@@ -1,10 +1,10 @@
 "use client";
 
-import * as React from "react";
-import { createPortal } from "react-dom";
 import { FileAudio2, Maximize2, Minimize2, Minus, Pause, Play, Plus } from "lucide-react";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
+import * as React from "react";
+import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -84,6 +84,7 @@ export function PreviewMedia({
   const imagePreviewRef = React.useRef<HTMLDivElement | null>(null);
   const imageScrollRegionRef = React.useRef<HTMLDivElement | null>(null);
   const videoPreviewRef = React.useRef<HTMLDivElement | null>(null);
+  const mediaProgressRef = React.useRef<HTMLDivElement | null>(null);
   const videoPointerInsideRef = React.useRef(false);
   const videoFocusInsideRef = React.useRef(false);
   const videoControlsHideTimerRef = React.useRef<number | null>(null);
@@ -281,51 +282,78 @@ export function PreviewMedia({
     [scheduleVideoControlsHide],
   );
 
+  const syncMediaProgressVisual = React.useCallback(
+    (media: HTMLAudioElement | HTMLVideoElement) => {
+      const progressElement = mediaProgressRef.current;
+      if (!progressElement) {
+        return;
+      }
+      const nextDuration =
+        Number.isFinite(media.duration) && media.duration > 0 ? media.duration : 0;
+      const nextTime =
+        Number.isFinite(media.currentTime) && media.currentTime > 0 ? media.currentTime : 0;
+      const nextProgress = nextDuration > 0 ? Math.min(nextTime / nextDuration, 1) : 0;
+      progressElement.style.transform = `scaleX(${nextProgress})`;
+    },
+    [],
+  );
+
+  const syncMediaProgress = React.useCallback(
+    (media: HTMLAudioElement | HTMLVideoElement) => {
+      const nextTime =
+        Number.isFinite(media.currentTime) && media.currentTime > 0 ? media.currentTime : 0;
+      syncMediaProgressVisual(media);
+      setCurrentTime((current) => (current === nextTime ? current : nextTime));
+    },
+    [syncMediaProgressVisual],
+  );
+
   React.useEffect(() => {
     if (kind === "image" || !playing) {
       return undefined;
     }
 
     let frameID = 0;
-    const syncPlaybackTime = () => {
+    const updateProgressVisual = () => {
       const media = mediaRef.current;
-      if (!media) {
-        return;
+      if (media) {
+        syncMediaProgressVisual(media);
       }
-      setCurrentTime(media.currentTime || 0);
-      frameID = window.requestAnimationFrame(syncPlaybackTime);
+      frameID = window.requestAnimationFrame(updateProgressVisual);
     };
+    frameID = window.requestAnimationFrame(updateProgressVisual);
 
-    frameID = window.requestAnimationFrame(syncPlaybackTime);
     return () => window.cancelAnimationFrame(frameID);
-  }, [kind, playing]);
+  }, [kind, playing, syncMediaProgressVisual]);
 
   const syncMediaMetrics = React.useCallback((media: HTMLAudioElement | HTMLVideoElement) => {
-    const nextDuration = media.duration || 0;
+    const nextDuration = Number.isFinite(media.duration) && media.duration > 0 ? media.duration : 0;
     setDuration(nextDuration);
-    setCurrentTime(media.currentTime || 0);
-  }, []);
+    syncMediaProgress(media);
+  }, [syncMediaProgress]);
 
   const handleMediaLoadedMetadata = React.useCallback((event: React.SyntheticEvent<HTMLAudioElement | HTMLVideoElement>) => {
     syncMediaMetrics(event.currentTarget);
   }, [syncMediaMetrics]);
 
   const handleMediaTimeUpdate = React.useCallback((event: React.SyntheticEvent<HTMLAudioElement | HTMLVideoElement>) => {
-    setCurrentTime(event.currentTarget.currentTime || 0);
-  }, []);
+    syncMediaProgress(event.currentTarget);
+  }, [syncMediaProgress]);
 
-  const handleMediaPlay = React.useCallback(() => {
+  const handleMediaPlay = React.useCallback((event: React.SyntheticEvent<HTMLAudioElement | HTMLVideoElement>) => {
+    syncMediaProgress(event.currentTarget);
     setPlaying(true);
-  }, []);
+  }, [syncMediaProgress]);
 
-  const handleMediaPause = React.useCallback(() => {
+  const handleMediaPause = React.useCallback((event: React.SyntheticEvent<HTMLAudioElement | HTMLVideoElement>) => {
+    syncMediaProgress(event.currentTarget);
     setPlaying(false);
-  }, []);
+  }, [syncMediaProgress]);
 
   const handleMediaEnded = React.useCallback((event: React.SyntheticEvent<HTMLAudioElement | HTMLVideoElement>) => {
     setPlaying(false);
-    setCurrentTime(event.currentTarget.duration || 0);
-  }, []);
+    syncMediaMetrics(event.currentTarget);
+  }, [syncMediaMetrics]);
 
   const togglePlay = React.useCallback(async () => {
     const media = mediaRef.current;
@@ -351,8 +379,9 @@ export function PreviewMedia({
       return;
     }
     media.currentTime = nextTime;
+    syncMediaProgressVisual(media);
     setCurrentTime(nextTime);
-  }, []);
+  }, [syncMediaProgressVisual]);
 
   const imageFitScale = React.useMemo(() => {
     if (kind !== "image") {
@@ -542,13 +571,20 @@ export function PreviewMedia({
               className={cn(
                 "relative max-w-full",
                 !inline && "mx-auto",
-                videoIsFullscreen ? "flex h-full w-full items-center justify-center bg-neutral-950 p-6" : "w-full",
+                videoIsFullscreen
+                  ? "flex h-screen w-screen max-w-none items-center justify-center bg-neutral-950"
+                  : "w-full",
               )}
             >
               <div
                 className={cn(
                   "relative max-w-full",
-                  videoIsFullscreen ? "w-fit" : inline ? "w-full" : "mx-auto w-fit max-w-[80%]",
+                  inline && !videoIsFullscreen && "overflow-hidden rounded-xl bg-neutral-950",
+                  videoIsFullscreen
+                    ? "h-full w-full max-w-none"
+                    : inline
+                      ? "w-full"
+                      : "mx-auto w-fit max-w-[80%]",
                 )}
                 onPointerEnter={handleVideoPointerEnter}
                 onPointerMove={handleVideoPointerMove}
@@ -562,9 +598,13 @@ export function PreviewMedia({
                   preload="metadata"
                   playsInline
                   className={cn(
-                    "block h-auto max-w-full rounded-md bg-transparent object-contain",
-                    inline ? "w-full" : "w-auto",
-                    videoIsFullscreen ? "max-h-[calc(100vh-48px)]" : "max-h-[min(62vh,720px)]",
+                    "block bg-transparent object-contain",
+                    videoIsFullscreen
+                      ? "h-full w-full max-h-none max-w-none rounded-none"
+                      : [
+                          "h-auto max-w-full max-h-[min(62vh,720px)]",
+                          inline ? "w-full rounded-xl" : "w-auto rounded-md",
+                        ],
                   )}
                   onClick={() => void togglePlay()}
                   onDoubleClick={() => void toggleVideoFullscreen()}
@@ -581,35 +621,60 @@ export function PreviewMedia({
                     variant="ghost"
                     size="icon"
                     aria-label={tPreview("playVideo")}
-                    className="absolute left-1/2 top-1/2 z-20 size-12 -translate-x-1/2 -translate-y-1/2 rounded-full bg-neutral-950/75 text-neutral-50 backdrop-blur-md hover:bg-neutral-950/90 hover:text-neutral-50"
+                    className={cn(
+                      "absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-full text-neutral-50 backdrop-blur-md hover:text-neutral-50",
+                      inline
+                        ? "size-11 border border-white/15 bg-neutral-950/55 shadow-lg shadow-black/20 hover:bg-neutral-950/70"
+                        : "size-12 bg-neutral-950/75 hover:bg-neutral-950/90",
+                    )}
                     onClick={() => void togglePlay()}
                   >
-                    <Play className="ml-0.5 size-5" strokeWidth={1.9} />
+                    <Play className={cn("ml-0.5", inline ? "size-4.5" : "size-5")} strokeWidth={1.9} />
                   </Button>
                 ) : null}
 
                 <div
                   className={cn(
-                    "absolute inset-x-3 bottom-3 z-20 transition-opacity duration-200",
+                    "absolute z-20 transition-opacity duration-200",
+                    inline
+                      ? "inset-x-0 bottom-0 bg-gradient-to-t from-neutral-950/80 via-neutral-950/30 to-transparent px-3 pb-2 pt-9"
+                      : "inset-x-3 bottom-3",
                     videoControlsVisible ? "opacity-100" : "pointer-events-none opacity-0",
                   )}
                 >
-                  <div className="rounded-full bg-neutral-950/82 px-3 py-2 text-neutral-50 backdrop-blur-md">
-                    <div className="flex items-center gap-3 text-[10px] text-neutral-300">
+                  <div
+                    className={cn(
+                      "text-neutral-50",
+                      !inline && "rounded-full bg-neutral-950/82 px-3 py-2 backdrop-blur-md",
+                    )}
+                  >
+                    <div className={cn("flex items-center text-[10px] text-neutral-300", inline ? "gap-2" : "gap-3")}>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         aria-label={playing ? tPreview("pauseVideo") : tPreview("playVideo")}
-                        className="size-7 shrink-0 rounded-full text-neutral-50 hover:bg-neutral-50/10 hover:text-neutral-50"
+                        className={cn(
+                          "shrink-0 rounded-full text-neutral-50 hover:bg-neutral-50/10 hover:text-neutral-50",
+                          inline ? "size-6" : "size-7",
+                        )}
                         onClick={() => void togglePlay()}
                       >
                         {playing ? <Pause className="size-3.5" strokeWidth={1.9} /> : <Play className="ml-0.5 size-3.5" strokeWidth={1.9} />}
                       </Button>
                       <span className="shrink-0 tabular-nums">{formatTime(currentTime)}</span>
-                      <div className="relative h-1 flex-1 rounded-full bg-neutral-700/80">
+                      <div
+                        className={cn(
+                          "relative h-1 flex-1 rounded-full",
+                          inline ? "bg-white/25" : "bg-neutral-700/80",
+                        )}
+                      >
                         <div
-                          className="absolute inset-y-0 left-0 w-full origin-left rounded-full bg-neutral-50/90"
+                          ref={mediaProgressRef}
+                          className={cn(
+                            "absolute inset-y-0 left-0 w-full origin-left rounded-full",
+                            inline ? "bg-white/90" : "bg-neutral-50/90",
+                          )}
                           style={{ transform: `scaleX(${progress})` }}
                         />
                         <input
@@ -618,7 +683,7 @@ export function PreviewMedia({
                           max={Math.max(duration, 0)}
                           step={0.1}
                           value={Math.min(currentTime, duration || 0)}
-                          className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
+                          className="absolute -inset-y-2 inset-x-0 h-5 w-full cursor-pointer appearance-none opacity-0"
                           onChange={(event) => handleSeek(event.target.value)}
                         />
                       </div>
@@ -628,7 +693,10 @@ export function PreviewMedia({
                         variant="ghost"
                         size="icon"
                         aria-label={videoIsFullscreen ? tPreview("exitFullscreen") : tPreview("enterFullscreen")}
-                        className="size-7 shrink-0 rounded-full text-neutral-300 hover:bg-neutral-50/10 hover:text-neutral-50"
+                        className={cn(
+                          "shrink-0 rounded-full text-neutral-300 hover:bg-neutral-50/10 hover:text-neutral-50",
+                          inline ? "size-6" : "size-7",
+                        )}
                         onClick={() => void toggleVideoFullscreen()}
                       >
                         {videoIsFullscreen ? <Minimize2 className="size-3.5" strokeWidth={1.7} /> : <Maximize2 className="size-3.5" strokeWidth={1.7} />}
@@ -681,8 +749,9 @@ export function PreviewMedia({
                 <div className="mt-2">
                   <div className="relative h-1.5 rounded-full bg-neutral-700/80">
                     <div
-                      className="absolute inset-y-0 left-0 rounded-full bg-neutral-50/90 transition-[width] duration-200 ease-out"
-                      style={{ width: `${progress * 100}%` }}
+                      ref={mediaProgressRef}
+                      className="absolute inset-y-0 left-0 w-full origin-left rounded-full bg-neutral-50/90"
+                      style={{ transform: `scaleX(${progress})` }}
                     />
                     <input
                       type="range"

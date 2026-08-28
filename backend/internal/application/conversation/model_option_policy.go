@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/nativetool"
 )
 
@@ -499,6 +499,8 @@ func sanitizeModelOptionValues(options map[string]interface{}, protocolKey strin
 		sanitizeOpenAIServiceTier(options)
 	case "xai_video":
 		llm.SanitizeXAIVideoOptions(options)
+	case "xai_video_extensions":
+		llm.SanitizeXAIVideoExtensionOptions(options)
 	case "openai_image_generations", "openai_image_edits":
 		value, ok := modelParamIntFromOption(options["partial_images"])
 		if !ok {
@@ -578,6 +580,8 @@ func modelOptionPolicyProtocolKey(protocol string) string {
 		return "xai_image_edits"
 	case llm.AdapterXAIVideo:
 		return "xai_video"
+	case llm.AdapterXAIVideoExtensions:
+		return "xai_video_extensions"
 	case llm.AdapterXAIResponses:
 		return "xai_responses"
 	default:

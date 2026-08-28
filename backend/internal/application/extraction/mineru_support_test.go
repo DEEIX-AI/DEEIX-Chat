@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
-	mineruextract "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/mineru"
+	mineruextract "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
 )
 
 func TestSupportsMinerUFileUsesSourceSpecificOfficeFormats(t *testing.T) {
@@ -17,49 +17,49 @@ func TestSupportsMinerUFileUsesSourceSpecificOfficeFormats(t *testing.T) {
 	}{
 		{
 			name:     "cloud supports legacy doc",
-			source:   mineruextract.SourceCloud,
+			source:   mineruextract.MinerUSourceCloud,
 			selected: "word",
 			file:     domainconversation.FileObject{FileCategory: "word", FileName: "legacy.doc"},
 			want:     true,
 		},
 		{
 			name:     "self hosted rejects legacy doc",
-			source:   mineruextract.SourceSelfHosted,
+			source:   mineruextract.MinerUSourceSelfHosted,
 			selected: "word",
 			file:     domainconversation.FileObject{FileCategory: "word", FileName: "legacy.doc"},
 			want:     false,
 		},
 		{
 			name:     "self hosted supports docx",
-			source:   mineruextract.SourceSelfHosted,
+			source:   mineruextract.MinerUSourceSelfHosted,
 			selected: "word",
 			file:     domainconversation.FileObject{FileCategory: "word", FileName: "report.docx"},
 			want:     true,
 		},
 		{
 			name:     "cloud supports legacy ppt",
-			source:   mineruextract.SourceCloud,
+			source:   mineruextract.MinerUSourceCloud,
 			selected: "presentation",
 			file:     domainconversation.FileObject{FileCategory: "presentation", FileName: "deck.ppt"},
 			want:     true,
 		},
 		{
 			name:     "self hosted rejects legacy ppt",
-			source:   mineruextract.SourceSelfHosted,
+			source:   mineruextract.MinerUSourceSelfHosted,
 			selected: "presentation",
 			file:     domainconversation.FileObject{FileCategory: "presentation", FileName: "deck.ppt"},
 			want:     false,
 		},
 		{
 			name:     "self hosted supports pptx",
-			source:   mineruextract.SourceSelfHosted,
+			source:   mineruextract.MinerUSourceSelfHosted,
 			selected: "presentation",
 			file:     domainconversation.FileObject{FileCategory: "presentation", FileName: "deck.pptx"},
 			want:     true,
 		},
 		{
 			name:     "self hosted supports pptx detected mime without extension",
-			source:   mineruextract.SourceSelfHosted,
+			source:   mineruextract.MinerUSourceSelfHosted,
 			selected: "presentation",
 			file: domainconversation.FileObject{
 				FileCategory: "presentation",
@@ -70,35 +70,35 @@ func TestSupportsMinerUFileUsesSourceSpecificOfficeFormats(t *testing.T) {
 		},
 		{
 			name:     "excel is disabled unless selected",
-			source:   mineruextract.SourceCloud,
+			source:   mineruextract.MinerUSourceCloud,
 			selected: defaultMinerUFileTypes,
 			file:     domainconversation.FileObject{FileCategory: "excel", FileName: "data.xlsx"},
 			want:     false,
 		},
 		{
 			name:     "cloud supports legacy xls when excel selected",
-			source:   mineruextract.SourceCloud,
+			source:   mineruextract.MinerUSourceCloud,
 			selected: "excel",
 			file:     domainconversation.FileObject{FileCategory: "excel", FileName: "data.xls"},
 			want:     true,
 		},
 		{
 			name:     "self hosted rejects legacy xls",
-			source:   mineruextract.SourceSelfHosted,
+			source:   mineruextract.MinerUSourceSelfHosted,
 			selected: "excel",
 			file:     domainconversation.FileObject{FileCategory: "excel", FileName: "data.xls"},
 			want:     false,
 		},
 		{
 			name:     "empty selection uses defaults",
-			source:   mineruextract.SourceCloud,
+			source:   mineruextract.MinerUSourceCloud,
 			selected: "",
 			file:     domainconversation.FileObject{FileCategory: "presentation", FileName: "deck.pptx"},
 			want:     true,
 		},
 		{
 			name:     "unselected presentation is not supported",
-			source:   mineruextract.SourceCloud,
+			source:   mineruextract.MinerUSourceCloud,
 			selected: "pdf,word",
 			file:     domainconversation.FileObject{FileCategory: "presentation", FileName: "deck.pptx"},
 			want:     false,

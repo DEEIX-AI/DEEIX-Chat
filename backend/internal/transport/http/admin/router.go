@@ -18,6 +18,7 @@ func (m *Module) RegisterRoutes(adminGroup *gin.RouterGroup) {
 	adminGroup.GET("/usage-statistics", m.Handler.GetUsageStatistics)
 	adminGroup.GET("/call-logs", m.Handler.ListUsageLogs)
 	adminGroup.GET("/payment-orders", m.Handler.ListPaymentOrders)
+	adminGroup.GET("/redemptions", m.Handler.ListRedemptions)
 	adminGroup.GET("/conversation-events", m.Handler.ListConversationEvents)
 	adminGroup.GET("/conversation-events/:id", m.Handler.GetConversationEvent)
 	adminGroup.POST("/conversation-events/cleanup", m.Handler.CleanupConversationRuns)

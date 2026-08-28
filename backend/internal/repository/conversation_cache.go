@@ -15,6 +15,7 @@ type FileProcessingMessage struct {
 	FileID    string
 	Retry     int
 	LastError string
+	Reclaimed bool
 }
 
 // GenerationStreamMessage 是生成流中的一条可恢复事件。
@@ -43,9 +44,10 @@ type FileProcessingQueueRepository interface {
 	EnqueueFileProcessing(ctx context.Context, userID uint, fileID string, retry int, lastError string) error
 	ClaimTimedOutFileProcessingMessages(ctx context.Context, consumerName string) ([]FileProcessingMessage, error)
 	ReadFileProcessingMessages(ctx context.Context, consumerName string) ([]FileProcessingMessage, error)
-	AckFileProcessingMessage(ctx context.Context, messageID string) error
-	DeleteFileProcessingMessage(ctx context.Context, messageID string) error
-	SendFileProcessingToDLQ(ctx context.Context, userID uint, fileID string, retry int, lastError string) error
+	RenewFileProcessingMessageLease(ctx context.Context, consumerName, messageID string) (bool, error)
+	SettleFileProcessingMessage(ctx context.Context, consumerName, messageID string) (bool, error)
+	RequeueFileProcessingMessage(ctx context.Context, consumerName string, message FileProcessingMessage, retry int, lastError string) (bool, error)
+	DeadLetterFileProcessingMessage(ctx context.Context, consumerName string, message FileProcessingMessage, lastError string) (bool, error)
 }
 
 // RAGCacheRepository 封装 RAG 检索缓存能力。
@@ -56,11 +58,12 @@ type RAGCacheRepository interface {
 
 // GenerationStreamCacheRepository 封装对话生成流的短期恢复存储。
 type GenerationStreamCacheRepository interface {
-	RegisterGenerationStream(ctx context.Context, runID string, userID uint, ttl time.Duration) error
+	RegisterGenerationStream(ctx context.Context, runID string, userID uint, conversationPublicID string, ttl time.Duration) error
 	GetGenerationStreamOwner(ctx context.Context, runID string) (uint, bool, error)
-	TouchGenerationStreamActive(ctx context.Context, runID string, ttl time.Duration) error
-	ClearGenerationStreamActive(ctx context.Context, runID string) error
+	TouchGenerationStreamActive(ctx context.Context, runID string, userID uint, ttl time.Duration) error
+	ClearGenerationStreamActive(ctx context.Context, runID string, userID uint) error
 	IsGenerationStreamActive(ctx context.Context, runID string) (bool, error)
+	ListActiveGenerationStreams(ctx context.Context, userID uint) ([]ActiveGenerationStream, error)
 	RequestGenerationStreamCancel(ctx context.Context, runID string, ttl time.Duration) error
 	IsGenerationStreamCanceled(ctx context.Context, runID string) (bool, error)
 	AppendGenerationStreamEvent(ctx context.Context, runID string, input GenerationStreamAppend, maxEvents int64, ttl time.Duration) (GenerationStreamMessage, error)
@@ -71,6 +74,12 @@ type GenerationStreamCacheRepository interface {
 	// blocked rounds cannot be replayed with withdrawn content on reconnect.
 	ResetGenerationStreamEvents(ctx context.Context, runID string) error
 	ExpireGenerationStream(ctx context.Context, runID string, ttl time.Duration) error
+}
+
+// ActiveGenerationStream identifies one currently leased generation owned by a user.
+type ActiveGenerationStream struct {
+	RunID                string
+	ConversationPublicID string
 }
 
 // UserSettingCacheRepository 封装用户会话设置的共享缓存能力。

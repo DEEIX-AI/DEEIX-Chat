@@ -3,12 +3,14 @@ package conversation
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 func TestSummarizeToolTracePayloadCountsFailedCalls(t *testing.T) {
@@ -93,6 +95,106 @@ func TestBuildToolTraceStoresPreviewMetadataInsteadOfFullOutput(t *testing.T) {
 	}
 }
 
+func TestBuildToolTraceStoresBoundedSearchPresentation(t *testing.T) {
+	output := `{"content":[{"type":"text","text":"Title: 第一条新闻\nURL: https://example.com/news/1\nHighlights:\n摘要一\n\n---\n\nTitle: 第二条新闻\nURL: https://example.com/news/2\nHighlights:\n摘要二"}]}`
+	_, _, payload := buildToolTrace([]model.ToolCall{{
+		ToolCallID: "call_search",
+		ToolName:   "web_search",
+		Status:     "success",
+		InputJSON:  `{"query":"今日新闻"}`,
+		OutputJSON: output,
+	}})
+
+	items := normalizeTraceToolCalls(payload["tool_calls"])
+	if len(items) != 1 {
+		t.Fatalf("expected one tool call, got %#v", items)
+	}
+	rawPresentation, ok := items[0]["output_presentation"]
+	if !ok {
+		t.Fatalf("expected semantic output presentation, got %#v", items[0])
+	}
+	encoded, err := json.Marshal(rawPresentation)
+	if err != nil {
+		t.Fatalf("marshal output presentation: %v", err)
+	}
+	var presentation toolTraceOutputPresentation
+	if err := json.Unmarshal(encoded, &presentation); err != nil {
+		t.Fatalf("decode output presentation: %v", err)
+	}
+	if len(presentation.Sources) != 2 {
+		t.Fatalf("expected two normalized sources, got %#v", presentation.Sources)
+	}
+	if presentation.Sources[0].Title != "第一条新闻" || presentation.Sources[0].URL != "https://example.com/news/1" {
+		t.Fatalf("unexpected first source: %#v", presentation.Sources[0])
+	}
+}
+
+func TestBuildToolTracePresentationExtractsStructuredSourcesWithoutVendorRules(t *testing.T) {
+	presentation := buildToolTraceOutputPresentation(`{
+		"results": [
+			{"title":"Documentation","url":"https://docs.example.com/guide","snippet":"Guide"},
+			{"name":"Reference","href":"https://docs.example.com/reference"}
+		]
+	}`)
+	if presentation == nil || len(presentation.Sources) != 2 {
+		t.Fatalf("expected provider-neutral structured sources, got %#v", presentation)
+	}
+	if presentation.Sources[1].URL != "https://docs.example.com/reference" {
+		t.Fatalf("unexpected second source: %#v", presentation.Sources[1])
+	}
+}
+
+func TestBuildToolTracePresentationExtractsReadableMCPText(t *testing.T) {
+	presentation := buildToolTraceOutputPresentation(`{
+		"content": [
+			{"type":"text","text":"## 可用优惠券\n\n- 满 100 减 20\n<img src=\"https://example.com/coupon.jpg\" />\n![优惠券](https://example.com/coupon-2.jpg)\n- 满 50 减 8"}
+		]
+	}`)
+	if presentation == nil {
+		t.Fatal("expected readable MCP presentation")
+	}
+	if presentation.Text != "## 可用优惠券\n\n- 满 100 减 20\n\n- 满 50 减 8" {
+		t.Fatalf("unexpected MCP presentation text: %q", presentation.Text)
+	}
+}
+
+func TestBuildToolTracePresentationExtractsReadableGenericJSON(t *testing.T) {
+	presentation := buildToolTraceOutputPresentation(`{
+		"data": [
+			{"message":"第一条结果"},
+			{"message":"第二条结果"}
+		]
+	}`)
+	if presentation == nil || presentation.Text != "第一条结果；第二条结果" {
+		t.Fatalf("expected readable generic JSON presentation, got %#v", presentation)
+	}
+}
+
+func TestBuildToolTracePresentationExtractsBoundedPlainText(t *testing.T) {
+	plainText := "领券结果\n" + strings.Repeat("优惠券详情与适用条件；", 80)
+	presentation := buildToolTraceOutputPresentation(plainText)
+	if presentation == nil {
+		t.Fatal("expected readable plain-text presentation")
+	}
+	textLength := len([]rune(presentation.Text))
+	if textLength <= toolTracePreviewMaxChars {
+		t.Fatalf("expected presentation to retain more than the compact preview, got %d characters", textLength)
+	}
+	if textLength > toolTracePresentationTextChars+1 {
+		t.Fatalf("expected bounded plain-text presentation, got %d characters", textLength)
+	}
+	if !strings.HasPrefix(presentation.Text, "领券结果\n") {
+		t.Fatalf("unexpected plain-text presentation: %q", presentation.Text)
+	}
+}
+
+func TestBuildToolTracePresentationSkipsOversizedStructuredOutput(t *testing.T) {
+	output := `{"data":"` + strings.Repeat("x", toolTracePresentationMaxInputBytes) + `"}`
+	if presentation := buildToolTraceOutputPresentation(output); presentation != nil {
+		t.Fatalf("expected oversized structured output to use the existing bounded fallback, got %#v", presentation)
+	}
+}
+
 func TestToolTracePayloadMergesStreamingPlaceholderWithFinalCall(t *testing.T) {
 	_, _, streamingPayload := buildToolTrace([]model.ToolCall{{
 		ToolType:  "web_search_call",
@@ -147,6 +249,149 @@ func TestBuildMessageProcessTraceDTOIncludesOrderedEvents(t *testing.T) {
 	}
 }
 
+func TestToolTraceKeepsRepeatedCallIDsInSeparateRounds(t *testing.T) {
+	recorder := &messageTraceRecorder{
+		cfg: config.Config{
+			ProcessTraceEnabled:            true,
+			ProcessTraceVisibleToUser:      true,
+			ProcessTraceStoreUpstreamThink: true,
+		},
+		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_tool_rounds"},
+	}
+
+	appendRound := func(reasoning string, query string) {
+		recorder.appendUpstreamReasoning(messageTraceThinkKindContent, reasoning, nil)
+		recorder.completeUpstreamThink()
+		summary, markdown, payload := buildToolTrace([]model.ToolCall{
+			{
+				ToolCallID: "call_1",
+				ToolName:   "web_search",
+				Status:     "success",
+				InputJSON:  fmt.Sprintf(`{"query":%q}`, query),
+				OutputJSON: `{"ok":true}`,
+			},
+		})
+		recorder.appendToolSection(summary, markdown, payload, messageTraceStatusCompleted)
+		recorder.completeTools()
+	}
+
+	appendRound("分析第一轮", "first")
+	appendRound("分析第二轮", "second")
+
+	toolEvents := make([]model.MessageTraceEvent, 0, 2)
+	for _, event := range recorder.events {
+		if event.EventType == "tool" {
+			toolEvents = append(toolEvents, event)
+		}
+	}
+	if len(toolEvents) != 2 {
+		t.Fatalf("expected one tool event per round, got %#v", toolEvents)
+	}
+	if toolEvents[0].RoundID == toolEvents[1].RoundID {
+		t.Fatalf("expected distinct round identities, got %q", toolEvents[0].RoundID)
+	}
+	if !strings.Contains(toolEvents[0].PayloadJSON, "first") || !strings.Contains(toolEvents[1].PayloadJSON, "second") {
+		t.Fatalf("expected each round to retain its own payload, got %#v", toolEvents)
+	}
+	if recorder.tools == nil {
+		t.Fatal("expected active tool block")
+	}
+	activePayload, err := json.Marshal(recorder.tools.payload)
+	if err != nil {
+		t.Fatalf("marshal active tool payload: %v", err)
+	}
+	if !strings.Contains(string(activePayload), "second") {
+		t.Fatalf("expected active tool block to contain only the current round, got %#v", recorder.tools)
+	}
+}
+
+func TestToolTraceUpdatesStreamingCallWithoutCreatingDuplicateEvent(t *testing.T) {
+	recorder := &messageTraceRecorder{
+		cfg: config.Config{
+			ProcessTraceEnabled:       true,
+			ProcessTraceVisibleToUser: true,
+		},
+		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_tool_update"},
+	}
+
+	requestedSummary, requestedMarkdown, requestedPayload := buildToolTrace([]model.ToolCall{{
+		ToolCallID: "call_1",
+		ToolName:   "web_search",
+		Status:     "requested",
+		InputJSON:  `{"query":"test"}`,
+	}})
+	recorder.syncToolSection(requestedSummary, requestedMarkdown, requestedPayload, messageTraceStatusStreaming)
+	if len(recorder.events) != 1 {
+		t.Fatalf("expected one streaming event, got %#v", recorder.events)
+	}
+	eventID := recorder.events[0].EventID
+
+	completedSummary, completedMarkdown, completedPayload := buildToolTrace([]model.ToolCall{{
+		ToolCallID: "call_1",
+		ToolName:   "web_search",
+		Status:     "success",
+		InputJSON:  `{"query":"test"}`,
+		OutputJSON: `{"ok":true}`,
+	}})
+	recorder.appendToolSection(completedSummary, completedMarkdown, completedPayload, messageTraceStatusCompleted)
+	recorder.completeTools()
+
+	if len(recorder.events) != 1 {
+		t.Fatalf("expected the final update to reuse the streaming event, got %#v", recorder.events)
+	}
+	if recorder.events[0].EventID != eventID || recorder.events[0].Status != messageTraceStatusCompleted {
+		t.Fatalf("expected completed update for event %q, got %#v", eventID, recorder.events[0])
+	}
+	if strings.Contains(recorder.events[0].ContentMarkdown, "进行中") {
+		t.Fatalf("expected final content to replace the streaming state, got %q", recorder.events[0].ContentMarkdown)
+	}
+}
+
+func TestToolTraceStartsNewRoundAfterPreviousToolRoundCloses(t *testing.T) {
+	recorder := &messageTraceRecorder{
+		cfg: config.Config{
+			ProcessTraceEnabled:            true,
+			ProcessTraceVisibleToUser:      true,
+			ProcessTraceStoreUpstreamThink: true,
+		},
+		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_tool_without_next_think"},
+	}
+
+	recorder.appendUpstreamReasoning(messageTraceThinkKindContent, "分析", nil)
+	recorder.completeUpstreamThink()
+	firstSummary, firstMarkdown, firstPayload := buildToolTrace([]model.ToolCall{{
+		ToolCallID: "call_1",
+		ToolName:   "web_search",
+		Status:     "success",
+		InputJSON:  `{"query":"first"}`,
+	}})
+	recorder.appendToolSection(firstSummary, firstMarkdown, firstPayload, messageTraceStatusCompleted)
+	firstRoundID := recorder.tools.roundID
+	recorder.completeTools()
+
+	secondSummary, secondMarkdown, secondPayload := buildToolTrace([]model.ToolCall{{
+		ToolCallID: "call_2",
+		ToolName:   "web_search",
+		Status:     "success",
+		InputJSON:  `{"query":"second"}`,
+	}})
+	recorder.appendToolSection(secondSummary, secondMarkdown, secondPayload, messageTraceStatusCompleted)
+	recorder.completeTools()
+
+	if recorder.tools == nil || recorder.tools.roundID == firstRoundID {
+		t.Fatalf("expected a new standalone tool round after the previous round closed, got %#v", recorder.tools)
+	}
+	toolEvents := make([]model.MessageTraceEvent, 0, 2)
+	for _, event := range recorder.events {
+		if event.EventType == "tool" {
+			toolEvents = append(toolEvents, event)
+		}
+	}
+	if len(toolEvents) != 2 {
+		t.Fatalf("expected two tool events, got %#v", toolEvents)
+	}
+}
+
 func TestTracePayloadJSONBoundsOversizedPayload(t *testing.T) {
 	secret := strings.Repeat("x", maxTracePayloadBytes+1)
 	serialized := tracePayloadJSON(map[string]interface{}{"upstream_debug": secret})
@@ -188,6 +433,277 @@ func TestProcessTraceStaysStreamingUntilNextVisiblePhase(t *testing.T) {
 	}
 }
 
+func TestUpstreamReasoningPayloadStoresMetadataOnly(t *testing.T) {
+	draft := &messageTraceDraft{
+		summary:         "思考摘要",
+		contentMarkdown: strings.Repeat("完整思考内容", 256),
+		payload:         map[string]interface{}{},
+	}
+	mergeUpstreamReasoningPayload(draft, messageTraceThinkKindContent, map[string]interface{}{
+		"event_type":        "response.reasoning_text.done",
+		"item_id":           "reasoning_1",
+		"status":            "completed",
+		"signature":         "opaque-signature",
+		"encrypted_content": strings.Repeat("encrypted", 256),
+	})
+
+	encoded := tracePayloadJSON(draft.payload)
+	for _, value := range []string{"完整思考内容", "思考摘要", "opaque-signature", "encrypted"} {
+		if strings.Contains(encoded, value) {
+			t.Fatalf("reasoning trace payload must not duplicate content or opaque continuation data: %q", value)
+		}
+	}
+	for _, value := range []string{"content_text", "response.reasoning_text.done", "reasoning_1", "completed"} {
+		if !strings.Contains(encoded, value) {
+			t.Fatalf("reasoning trace payload must retain display metadata: %q", value)
+		}
+	}
+}
+
+func TestFinalReasoningSnapshotReconcilesCompletedStreamEvent(t *testing.T) {
+	recorder := &messageTraceRecorder{
+		cfg: config.Config{
+			ProcessTraceEnabled:            true,
+			ProcessTraceVisibleToUser:      true,
+			ProcessTraceStoreUpstreamThink: true,
+		},
+		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_reconcile"},
+	}
+	payload := map[string]interface{}{
+		"event_type": "response.reasoning_text.done",
+		"item_id":    "reasoning_1",
+		"status":     "completed",
+	}
+	recorder.appendUpstreamReasoning(messageTraceThinkKindContent, "streamed", payload)
+	recorder.completeUpstreamThink()
+	firstEventID := recorder.upstreamThink.eventID
+
+	recorder.reconcileStructuredThink("streamed and finalized", "", payload)
+	recorder.completeUpstreamThink()
+
+	thinkEvents := traceEventsByType(recorder.events, "think")
+	if len(thinkEvents) != 1 {
+		t.Fatalf("expected final snapshot to update the streamed reasoning event, got %#v", thinkEvents)
+	}
+	if thinkEvents[0].EventID != firstEventID || thinkEvents[0].ContentMarkdown != "streamed and finalized" {
+		t.Fatalf("expected canonical reasoning event %q to contain final text, got %#v", firstEventID, thinkEvents[0])
+	}
+}
+
+func TestFinalReasoningSnapshotStartsNewRoundForDifferentItem(t *testing.T) {
+	recorder := &messageTraceRecorder{
+		cfg: config.Config{
+			ProcessTraceEnabled:            true,
+			ProcessTraceVisibleToUser:      true,
+			ProcessTraceStoreUpstreamThink: true,
+		},
+		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_reconcile_items"},
+	}
+	recorder.appendUpstreamReasoning(messageTraceThinkKindContent, "first", map[string]interface{}{"item_id": "reasoning_1"})
+	recorder.completeUpstreamThink()
+	recorder.reconcileStructuredThink("second", "", map[string]interface{}{"item_id": "reasoning_2"})
+	recorder.completeUpstreamThink()
+
+	thinkEvents := traceEventsByType(recorder.events, "think")
+	if len(thinkEvents) != 2 {
+		t.Fatalf("expected distinct upstream reasoning items to remain separate, got %#v", thinkEvents)
+	}
+	if thinkEvents[0].RoundID == thinkEvents[1].RoundID {
+		t.Fatalf("expected different reasoning items to use distinct rounds, got %#v", thinkEvents)
+	}
+}
+
+func TestStreamingReasoningItemChangeClosesPriorToolRound(t *testing.T) {
+	recorder := &messageTraceRecorder{
+		cfg: config.Config{
+			ProcessTraceEnabled:            true,
+			ProcessTraceVisibleToUser:      true,
+			ProcessTraceStoreUpstreamThink: true,
+		},
+		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_stream_items"},
+	}
+	recorder.appendUpstreamReasoning(messageTraceThinkKindContent, "first reasoning", map[string]interface{}{"item_id": "reasoning_1"})
+	toolSummary, toolMarkdown, toolPayload := buildToolTrace([]model.ToolCall{{
+		ToolCallID: "search_1",
+		ToolType:   "web_search_call",
+		ToolName:   "web_search",
+		Status:     "success",
+	}})
+	recorder.syncToolSection(toolSummary, toolMarkdown, toolPayload, messageTraceStatusCompleted)
+	recorder.appendUpstreamReasoning(messageTraceThinkKindContent, "second reasoning", map[string]interface{}{"item_id": "reasoning_2"})
+	recorder.complete()
+
+	if len(recorder.events) != 3 {
+		t.Fatalf("expected think/tool/think events, got %#v", recorder.events)
+	}
+	if recorder.events[0].EventType != "think" || recorder.events[1].EventType != "tool" || recorder.events[2].EventType != "think" {
+		t.Fatalf("expected interleaved think/tool/think order, got %#v", recorder.events)
+	}
+	if recorder.events[0].RoundID != recorder.events[1].RoundID || recorder.events[1].ParentEventID != recorder.events[0].EventID {
+		t.Fatalf("expected tool to remain attached to the first reasoning item, got %#v", recorder.events)
+	}
+	if recorder.events[2].RoundID == recorder.events[0].RoundID {
+		t.Fatalf("expected the next reasoning item to start a new round, got %#v", recorder.events)
+	}
+	for _, event := range recorder.events {
+		if event.Status != messageTraceStatusCompleted {
+			t.Fatalf("expected settled trace events, got %#v", recorder.events)
+		}
+	}
+}
+
+func TestStreamingFinalizationDoesNotReplayObservedTraceEvents(t *testing.T) {
+	recorder := &messageTraceRecorder{
+		cfg: config.Config{
+			ProcessTraceEnabled:            true,
+			ProcessTraceVisibleToUser:      true,
+			ProcessTraceStoreUpstreamThink: true,
+		},
+		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_stream_finalize"},
+	}
+	reasoningPayload := map[string]interface{}{"item_id": "reasoning_1", "status": "completed"}
+	recorder.appendUpstreamReasoning(messageTraceThinkKindContent, "streamed reasoning", reasoningPayload)
+	recorder.completeUpstreamThink()
+	toolSummary, toolMarkdown, toolPayload := buildToolTrace([]model.ToolCall{{
+		ToolCallID: "search_1",
+		ToolType:   "web_search_call",
+		ToolName:   "web_search",
+		Status:     "success",
+	}})
+	recorder.syncToolSection(toolSummary, toolMarkdown, toolPayload, messageTraceStatusCompleted)
+
+	finalizeStreamingOutputTrace(recorder, &llm.GenerateOutput{
+		Reasoning: &llm.ReasoningOutput{ItemID: "reasoning_1", Status: "completed", Text: "streamed reasoning"},
+		ServerToolCalls: []llm.ToolCall{{
+			ToolCallID: "search_1",
+			ToolType:   "web_search_call",
+			ToolName:   "web_search",
+			Status:     "completed",
+		}},
+	}, "run_stream_finalize", map[string]string{"id:search_1": "success"})
+
+	if got := len(traceEventsByType(recorder.events, "think")); got != 1 {
+		t.Fatalf("expected one reasoning event after final reconciliation, got %d", got)
+	}
+	if got := len(traceEventsByType(recorder.events, "tool")); got != 1 {
+		t.Fatalf("expected one observed tool event without final replay, got %d", got)
+	}
+}
+
+func TestStreamingFinalizationAddsUnobservedServerToolsBeforeFinalReasoning(t *testing.T) {
+	recorder := &messageTraceRecorder{
+		cfg: config.Config{
+			ProcessTraceEnabled:            true,
+			ProcessTraceVisibleToUser:      true,
+			ProcessTraceStoreUpstreamThink: true,
+		},
+		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_stream_missing_tool_event"},
+	}
+	finalizeStreamingOutputTrace(recorder, &llm.GenerateOutput{
+		Reasoning: &llm.ReasoningOutput{ItemID: "reasoning_final", Status: "completed", Text: "final reasoning"},
+		ServerToolCalls: []llm.ToolCall{{
+			ToolCallID: "search_1",
+			ToolType:   "web_search_call",
+			ToolName:   "web_search",
+			Status:     "completed",
+		}},
+	}, "run_stream_missing_tool_event", nil)
+
+	if len(recorder.events) != 2 || recorder.events[0].EventType != "tool" || recorder.events[1].EventType != "think" {
+		t.Fatalf("expected missing live server tool to be restored before final reasoning, got %#v", recorder.events)
+	}
+}
+
+func TestStreamingFinalizationRestoresOnlyMissingServerTools(t *testing.T) {
+	recorder := &messageTraceRecorder{
+		cfg: config.Config{
+			ProcessTraceEnabled:            true,
+			ProcessTraceVisibleToUser:      true,
+			ProcessTraceStoreUpstreamThink: true,
+		},
+		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_stream_partial_tools"},
+	}
+	firstSummary, firstMarkdown, firstPayload := buildToolTrace([]model.ToolCall{{
+		ToolCallID: "search_1",
+		ToolType:   "web_search_call",
+		ToolName:   "web_search",
+		Status:     "success",
+	}})
+	recorder.syncToolSection(firstSummary, firstMarkdown, firstPayload, messageTraceStatusCompleted)
+
+	finalizeStreamingOutputTrace(recorder, &llm.GenerateOutput{
+		ServerToolCalls: []llm.ToolCall{
+			{ToolCallID: "search_1", ToolType: "web_search_call", ToolName: "web_search", Status: "completed"},
+			{ToolCallID: "code_1", ToolType: "code_interpreter_call", ToolName: "code_interpreter", Status: "completed"},
+		},
+	}, "run_stream_partial_tools", map[string]string{"id:search_1": "success"})
+
+	toolEvents := traceEventsByType(recorder.events, "tool")
+	if len(toolEvents) != 1 {
+		t.Fatalf("expected missing final tool to merge into the live round, got %#v", toolEvents)
+	}
+	toolCalls := normalizeTraceToolCalls(traceEventPayload(t, toolEvents[0])["tool_calls"])
+	if len(toolCalls) != 2 {
+		t.Fatalf("expected both observed and restored tool calls, got %#v", toolCalls)
+	}
+}
+
+func TestStreamingFinalizationReconcilesNonTerminalServerTool(t *testing.T) {
+	recorder := &messageTraceRecorder{
+		cfg: config.Config{
+			ProcessTraceEnabled:            true,
+			ProcessTraceVisibleToUser:      true,
+			ProcessTraceStoreUpstreamThink: true,
+		},
+		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_stream_pending_tool"},
+	}
+	streamSummary, streamMarkdown, streamPayload := buildToolTrace([]model.ToolCall{{
+		ToolCallID: "search_1",
+		ToolType:   "web_search_call",
+		ToolName:   "web_search",
+		Status:     "streaming",
+	}})
+	recorder.syncToolSection(streamSummary, streamMarkdown, streamPayload, messageTraceStatusStreaming)
+
+	finalizeStreamingOutputTrace(recorder, &llm.GenerateOutput{
+		ServerToolCalls: []llm.ToolCall{{
+			ToolCallID: "search_1",
+			ToolType:   "web_search_call",
+			ToolName:   "web_search",
+			Status:     "completed",
+			OutputJSON: `{"ok":true}`,
+		}},
+	}, "run_stream_pending_tool", map[string]string{"id:search_1": "streaming"})
+
+	toolEvents := traceEventsByType(recorder.events, "tool")
+	if len(toolEvents) != 1 {
+		t.Fatalf("expected final tool state to reconcile in place, got %#v", toolEvents)
+	}
+	toolCalls := normalizeTraceToolCalls(traceEventPayload(t, toolEvents[0])["tool_calls"])
+	if len(toolCalls) != 1 || getTraceString(toolCalls[0]["status"]) != "success" {
+		t.Fatalf("expected completed final tool state, got %#v", toolCalls)
+	}
+}
+
+func traceEventsByType(events []model.MessageTraceEvent, eventType string) []model.MessageTraceEvent {
+	filtered := make([]model.MessageTraceEvent, 0, len(events))
+	for _, event := range events {
+		if event.EventType == eventType {
+			filtered = append(filtered, event)
+		}
+	}
+	return filtered
+}
+
+func traceEventPayload(t *testing.T, event model.MessageTraceEvent) map[string]interface{} {
+	t.Helper()
+	payload := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(event.PayloadJSON), &payload); err != nil {
+		t.Fatalf("decode trace event payload: %v", err)
+	}
+	return payload
+}
+
 func TestUpstreamThinkingDeltaIsCoalescedBetweenFlushes(t *testing.T) {
 	eventCount := 0
 	var events []map[string]interface{}
@@ -217,6 +733,13 @@ func TestUpstreamThinkingDeltaIsCoalescedBetweenFlushes(t *testing.T) {
 	if len(events) != 1 || events[0]["delta"] != "a" {
 		t.Fatalf("expected first live event to carry only first delta, got %#v", events)
 	}
+	startedAt, ok := events[0]["startedAt"].(time.Time)
+	if !ok || recorder.upstreamThink == nil || !startedAt.Equal(recorder.upstreamThink.startedAt) {
+		t.Fatalf("expected live event to carry the authoritative thinking start, got %#v", events[0]["startedAt"])
+	}
+	if _, ok := events[0]["endedAt"]; ok {
+		t.Fatalf("streaming thinking event must not carry endedAt, got %#v", events[0]["endedAt"])
+	}
 	if _, ok := events[0]["trace"]; ok {
 		t.Fatalf("live thinking delta must not carry full trace: %#v", events[0])
 	}
@@ -233,6 +756,15 @@ func TestUpstreamThinkingDeltaIsCoalescedBetweenFlushes(t *testing.T) {
 	}
 	if events[1]["delta"] != "bc" || events[1]["status"] != messageTraceStatusCompleted {
 		t.Fatalf("expected completion to flush coalesced delta with completed status, got %#v", events[1])
+	}
+	completedStartedAt, ok := events[1]["startedAt"].(time.Time)
+	if !ok || !completedStartedAt.Equal(startedAt) {
+		t.Fatalf("expected all deltas in one thinking round to retain startedAt, got %v then %v",
+			events[0]["startedAt"], events[1]["startedAt"])
+	}
+	endedAt, ok := events[1]["endedAt"].(time.Time)
+	if !ok || recorder.upstreamThink == nil || recorder.upstreamThink.endedAt == nil || !endedAt.Equal(*recorder.upstreamThink.endedAt) {
+		t.Fatalf("expected completed thinking event to carry the authoritative end, got %#v", events[1]["endedAt"])
 	}
 }
 
@@ -488,6 +1020,101 @@ func TestBuildCompactionProcessTraceUsesReadableLines(t *testing.T) {
 	}
 	if stage["kind"] != processTraceKindCompaction || stage["status"] != processTraceStatusCompleted {
 		t.Fatalf("unexpected compaction trace stage: %#v", stage)
+	}
+}
+
+func TestTraceRecorderContinuesProcessTraceAfterRequestCompletion(t *testing.T) {
+	recorder := &messageTraceRecorder{
+		cfg: config.Config{
+			ProcessTraceEnabled:       true,
+			ProcessTraceVisibleToUser: true,
+		},
+		assistant: &model.Message{},
+		onEvent:   func(string, map[string]interface{}) error { return nil },
+	}
+	recorder.appendProcessSection("准备完成", "**准备**：请求已完成。", nil, messageTraceStatusStreaming)
+
+	recorder.completeForBackgroundContinuation()
+	if recorder.process == nil || recorder.process.status != messageTraceStatusCompleted {
+		t.Fatalf("expected request trace to be completed before background work, got %#v", recorder.process)
+	}
+	if recorder.onEvent != nil {
+		t.Fatal("background continuation must not emit into the closed request stream")
+	}
+
+	recorder.appendProcessSection(
+		"上下文已压缩",
+		"**上下文压缩**：后台压缩完成。",
+		map[string]interface{}{processTracePayloadStage: map[string]interface{}{
+			"kind":   processTraceKindCompaction,
+			"status": processTraceStatusCompleted,
+		}},
+		messageTraceStatusStreaming,
+	)
+	if recorder.process.status != messageTraceStatusStreaming || recorder.process.endedAt != nil {
+		t.Fatalf("expected background append to reopen the process trace, got %#v", recorder.process)
+	}
+
+	recorder.complete()
+	if recorder.process.status != messageTraceStatusCompleted || recorder.process.endedAt == nil {
+		t.Fatalf("expected background trace to complete, got %#v", recorder.process)
+	}
+	if !strings.Contains(recorder.process.contentMarkdown, "后台压缩完成") {
+		t.Fatalf("expected persisted process content to include background compaction, got %q", recorder.process.contentMarkdown)
+	}
+}
+
+func TestTraceRecorderKeepsAndReplacesPendingCompactionStage(t *testing.T) {
+	recorder := &messageTraceRecorder{
+		cfg: config.Config{
+			ProcessTraceEnabled:       true,
+			ProcessTraceVisibleToUser: true,
+		},
+		assistant: &model.Message{},
+		onEvent:   func(string, map[string]interface{}) error { return nil },
+	}
+	recorder.appendProcessSection("准备完成", "**准备**：请求已完成。", nil, messageTraceStatusStreaming)
+	pendingSummary, pendingPayload := buildPendingCompactionProcessTrace()
+	recorder.setCompactionProcessStage(pendingSummary, "", pendingPayload)
+
+	recorder.completeForBackgroundContinuation()
+	if recorder.process == nil || recorder.process.status != messageTraceStatusStreaming || recorder.process.endedAt != nil {
+		t.Fatalf("expected pending compaction to keep the process trace open, got %#v", recorder.process)
+	}
+	if recorder.onEvent != nil {
+		t.Fatal("background continuation must not emit into the closed request stream")
+	}
+	stages := normalizeProcessTraceStagePayloads(recorder.process.payload[processTracePayloadStages])
+	if len(stages) != 1 || stages[0]["kind"] != processTraceKindCompaction || stages[0]["status"] != processTraceStatusPending {
+		t.Fatalf("expected one pending compaction stage, got %#v", stages)
+	}
+
+	completedSummary, completedMarkdown, completedPayload := buildCompactionProcessTrace(&model.ContextSnapshot{
+		FromTurn:      1,
+		ToTurn:        4,
+		SourceTokens:  2000,
+		SummaryTokens: 300,
+	})
+	recorder.setCompactionProcessStage(completedSummary, completedMarkdown, completedPayload)
+	recorder.complete()
+
+	stages = normalizeProcessTraceStagePayloads(recorder.process.payload[processTracePayloadStages])
+	if len(stages) != 1 || stages[0]["status"] != processTraceStatusCompleted {
+		t.Fatalf("expected pending stage to be replaced in place, got %#v", stages)
+	}
+	if recorder.process.status != messageTraceStatusCompleted || recorder.process.endedAt == nil {
+		t.Fatalf("expected completed process trace, got %#v", recorder.process)
+	}
+	if !strings.Contains(recorder.process.contentMarkdown, "Tokens 缩减：2000 → 300") {
+		t.Fatalf("expected completed compaction detail, got %q", recorder.process.contentMarkdown)
+	}
+}
+
+func TestBuildFailedCompactionProcessTraceUsesStructuredStatus(t *testing.T) {
+	_, payload := buildFailedCompactionProcessTrace()
+	stage, ok := payload[processTracePayloadStage].(map[string]interface{})
+	if !ok || stage["kind"] != processTraceKindCompaction || stage["status"] != processTraceStatusFailed {
+		t.Fatalf("unexpected failed compaction stage: %#v", payload)
 	}
 }
 

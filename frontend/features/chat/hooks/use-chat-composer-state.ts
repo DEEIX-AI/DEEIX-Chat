@@ -4,8 +4,13 @@ import * as React from "react";
 
 import type { PendingAttachment } from "@/features/chat/types/chat-runtime";
 
-const CHAT_COMPOSER_STORAGE_KEY = "deeix-chat:chat-composer:v1";
+const LEGACY_CHAT_COMPOSER_STORAGE_KEY = "deeix-chat:chat-composer:v1";
+const CHAT_COMPOSER_STORAGE_KEY_PREFIX = "deeix-chat:chat-composer:v2:";
 const NEW_CONVERSATION_COMPOSER_KEY = "__new__";
+const TRANSIENT_COMPOSER_KEY = "__transient__";
+const COMPOSER_ENTRY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const COMPOSER_STORE_MAX_ENTRIES = 50;
+const COMPOSER_WRITE_DEBOUNCE_MS = 250;
 
 type PersistedAttachment = Pick<
   PendingAttachment,
@@ -39,6 +44,12 @@ type ComposerState = {
   draft: string;
   attachments: PendingAttachment[];
 };
+
+type PendingComposerPersistence = Pick<ComposerState, "conversationKey" | "draft" | "attachments"> & {
+  storageKey: string;
+};
+
+const composerStoreCache = new Map<string, PersistedComposerStore>();
 
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect;
 
@@ -79,7 +90,7 @@ function mergeAttachmentsByFileID<T extends Pick<PendingAttachment, "fileID">>(c
 }
 
 function restoreAttachments(items: PersistedAttachment[]): PendingAttachment[] {
-  return items.map((item) => ({
+  return items.map((item): PendingAttachment => ({
     ...item,
     previewURL: undefined,
   }));
@@ -99,23 +110,39 @@ function isPersistedAttachment(value: unknown): value is PersistedAttachment {
   );
 }
 
-function readComposerStore(): PersistedComposerStore {
-  if (typeof window === "undefined") {
+function resolveComposerStorageKey(storageScope: string): string {
+  const normalizedScope = storageScope.trim();
+  return normalizedScope ? `${CHAT_COMPOSER_STORAGE_KEY_PREFIX}${encodeURIComponent(normalizedScope)}` : "";
+}
+
+function readComposerStore(storageKey: string): PersistedComposerStore {
+  if (typeof window === "undefined" || !storageKey) {
     return {};
   }
 
+  const cached = composerStoreCache.get(storageKey);
+  if (cached) {
+    return cached;
+  }
+
   try {
-    const raw = window.localStorage.getItem(CHAT_COMPOSER_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_CHAT_COMPOSER_STORAGE_KEY);
+    const raw = window.localStorage.getItem(storageKey);
     if (!raw) {
-      return {};
+      const emptyStore = {};
+      composerStoreCache.set(storageKey, emptyStore);
+      return emptyStore;
     }
 
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object") {
-      return {};
+      const emptyStore = {};
+      composerStoreCache.set(storageKey, emptyStore);
+      return emptyStore;
     }
 
-    const nextStore: PersistedComposerStore = {};
+    const entries: Array<[string, PersistedComposerEntry, number]> = [];
+    const expiresBefore = Date.now() - COMPOSER_ENTRY_MAX_AGE_MS;
     for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
       if (!value || typeof value !== "object") {
         continue;
@@ -126,29 +153,50 @@ function readComposerStore(): PersistedComposerStore {
         ? entry.attachments.filter(isPersistedAttachment)
         : [];
       const updatedAt = typeof entry.updatedAt === "string" ? entry.updatedAt : new Date(0).toISOString();
-      nextStore[key] = {
+      const updatedAtMs = Date.parse(updatedAt);
+      if (!Number.isFinite(updatedAtMs) || updatedAtMs < expiresBefore) {
+        continue;
+      }
+      entries.push([key, {
         draft,
         attachments,
         updatedAt,
-      };
+      }, updatedAtMs]);
     }
+    entries.sort((left, right) => right[2] - left[2]);
+    const nextStore = Object.fromEntries(
+      entries.slice(0, COMPOSER_STORE_MAX_ENTRIES).map(([key, entry]) => [key, entry]),
+    );
+    composerStoreCache.set(storageKey, nextStore);
     return nextStore;
   } catch {
-    return {};
+    const emptyStore = {};
+    composerStoreCache.set(storageKey, emptyStore);
+    return emptyStore;
   }
 }
 
-function writeComposerStore(store: PersistedComposerStore) {
-  if (typeof window === "undefined") {
+function writeComposerStore(storageKey: string, store: PersistedComposerStore) {
+  if (typeof window === "undefined" || !storageKey) {
     return;
   }
 
+  const expiresBefore = Date.now() - COMPOSER_ENTRY_MAX_AGE_MS;
+  const boundedStore = Object.fromEntries(
+    Object.entries(store)
+      .map(([key, entry]) => [key, entry, Date.parse(entry.updatedAt)] as const)
+      .filter(([, , updatedAt]) => Number.isFinite(updatedAt) && updatedAt >= expiresBefore)
+      .sort((left, right) => right[2] - left[2])
+      .slice(0, COMPOSER_STORE_MAX_ENTRIES)
+      .map(([key, entry]) => [key, entry]),
+  );
+  composerStoreCache.set(storageKey, boundedStore);
   try {
-    if (Object.keys(store).length === 0) {
-      window.localStorage.removeItem(CHAT_COMPOSER_STORAGE_KEY);
+    if (Object.keys(boundedStore).length === 0) {
+      window.localStorage.removeItem(storageKey);
       return;
     }
-    window.localStorage.setItem(CHAT_COMPOSER_STORAGE_KEY, JSON.stringify(store));
+    window.localStorage.setItem(storageKey, JSON.stringify(boundedStore));
   } catch {
     // Ignore storage quota / serialization issues and keep runtime state usable.
   }
@@ -166,10 +214,9 @@ function hasComposerContent(state: Pick<ComposerState, "draft" | "attachments">)
   return state.draft.trim().length > 0 || state.attachments.length > 0;
 }
 
-// ComposerStorageOps centralizes localStorage access and avoids repeated readComposerStore() calls.
 const ComposerStorageOps = {
-  readEntry(conversationKey: string): ComposerState {
-    const entry = readComposerStore()[conversationKey];
+  readEntry(storageKey: string, conversationKey: string): ComposerState {
+    const entry = readComposerStore(storageKey)[conversationKey];
     return {
       conversationKey,
       draft: entry?.draft ?? "",
@@ -177,8 +224,8 @@ const ComposerStorageOps = {
     };
   },
 
-  writeEntry(conversationKey: string, draft: string, attachments: PendingAttachment[]) {
-    const store = readComposerStore();
+  writeEntry(storageKey: string, conversationKey: string, draft: string, attachments: PendingAttachment[]) {
+    const store = readComposerStore(storageKey);
     const normalizedAttachments = sanitizeAttachments(attachments);
 
     if (!draft.trim() && normalizedAttachments.length === 0) {
@@ -190,20 +237,20 @@ const ComposerStorageOps = {
         updatedAt: new Date().toISOString(),
       };
     }
-    writeComposerStore(store);
+    writeComposerStore(storageKey, store);
   },
 
-  removeEntry(conversationKey: string) {
-    const store = readComposerStore();
+  removeEntry(storageKey: string, conversationKey: string) {
+    const store = readComposerStore(storageKey);
     delete store[conversationKey];
-    writeComposerStore(store);
+    writeComposerStore(storageKey, store);
   },
 
-  appendAttachments(conversationKey: string, items: PendingAttachment[]) {
+  appendAttachments(storageKey: string, conversationKey: string, items: PendingAttachment[]) {
     if (items.length === 0) {
       return;
     }
-    const store = readComposerStore();
+    const store = readComposerStore(storageKey);
     const existing = store[conversationKey];
     const attachments = mergeAttachmentsByFileID(existing?.attachments ?? [], sanitizeAttachments(items));
     store[conversationKey] = {
@@ -211,7 +258,7 @@ const ComposerStorageOps = {
       attachments,
       updatedAt: new Date().toISOString(),
     };
-    writeComposerStore(store);
+    writeComposerStore(storageKey, store);
   },
 };
 
@@ -221,40 +268,117 @@ export function resolveConversationComposerKey(conversationID: string | null): s
 
 export function useChatComposerState(
   conversationID: string | null,
-  { preserveDrafts = true, resetToken = 0 }: { preserveDrafts?: boolean; resetToken?: number } = {},
+  {
+    preserveDrafts = true,
+    resetToken = 0,
+    storageScope = "",
+    transient = false,
+  }: {
+    preserveDrafts?: boolean;
+    resetToken?: number;
+    storageScope?: string;
+    transient?: boolean;
+  } = {},
 ) {
-  const conversationKey = React.useMemo(() => resolveConversationComposerKey(conversationID), [conversationID]);
+  const conversationKey = React.useMemo(
+    () => transient ? TRANSIENT_COMPOSER_KEY : resolveConversationComposerKey(conversationID),
+    [conversationID, transient],
+  );
+  const storageKey = React.useMemo(() => resolveComposerStorageKey(storageScope), [storageScope]);
+  const persistenceEnabled = preserveDrafts && !transient && Boolean(storageKey);
   const [state, setState] = React.useState<ComposerState>(() => createEmptyComposerState(conversationKey));
   const [hydratedConversationKey, setHydratedConversationKey] = React.useState<string | null>(null);
+  const [hydratedStorageKey, setHydratedStorageKey] = React.useState<string | null>(null);
+  const activeStorageKeyRef = React.useRef(storageKey);
+  const persistenceTimerRef = React.useRef<number | null>(null);
+  const pendingPersistenceRef = React.useRef<PendingComposerPersistence | null>(null);
+
+  const flushPendingPersistence = React.useCallback(() => {
+    if (persistenceTimerRef.current !== null) {
+      window.clearTimeout(persistenceTimerRef.current);
+      persistenceTimerRef.current = null;
+    }
+    const pending = pendingPersistenceRef.current;
+    pendingPersistenceRef.current = null;
+    if (!pending) {
+      return;
+    }
+    ComposerStorageOps.writeEntry(
+      pending.storageKey,
+      pending.conversationKey,
+      pending.draft,
+      pending.attachments,
+    );
+  }, []);
+
+  const discardPendingPersistence = React.useCallback((targetConversationKey: string) => {
+    if (pendingPersistenceRef.current?.conversationKey !== targetConversationKey) {
+      return;
+    }
+    pendingPersistenceRef.current = null;
+    if (persistenceTimerRef.current !== null) {
+      window.clearTimeout(persistenceTimerRef.current);
+      persistenceTimerRef.current = null;
+    }
+  }, []);
+
+  React.useEffect(
+    () => () => flushPendingPersistence(),
+    [conversationKey, flushPendingPersistence, storageKey],
+  );
+
+  React.useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key?.startsWith(CHAT_COMPOSER_STORAGE_KEY_PREFIX)) {
+        composerStoreCache.delete(event.key);
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   React.useEffect(() => {
     if (resetToken <= 0 || conversationID) {
       return;
     }
-    ComposerStorageOps.removeEntry(conversationKey);
+    discardPendingPersistence(conversationKey);
+    if (!transient && storageKey) {
+      ComposerStorageOps.removeEntry(storageKey, conversationKey);
+    }
     setHydratedConversationKey(conversationKey);
+    setHydratedStorageKey(storageKey);
     setState(createEmptyComposerState(conversationKey));
-  }, [conversationID, conversationKey, resetToken]);
+  }, [conversationID, conversationKey, discardPendingPersistence, resetToken, storageKey, transient]);
 
   useIsomorphicLayoutEffect(() => {
-    if (!preserveDrafts) {
-      ComposerStorageOps.removeEntry(conversationKey);
+    const previousStorageKey = activeStorageKeyRef.current;
+    const storageAccountChanged = Boolean(previousStorageKey) && previousStorageKey !== storageKey;
+    activeStorageKeyRef.current = storageKey;
+    if (!persistenceEnabled) {
+      discardPendingPersistence(conversationKey);
+      if (!transient && storageKey && !preserveDrafts) {
+        ComposerStorageOps.removeEntry(storageKey, conversationKey);
+      }
       setState((prev) => (prev.conversationKey === conversationKey ? prev : createEmptyComposerState(conversationKey)));
       setHydratedConversationKey(conversationKey);
+      setHydratedStorageKey(storageKey);
       return;
     }
 
-    const nextState = ComposerStorageOps.readEntry(conversationKey);
+    const nextState = ComposerStorageOps.readEntry(storageKey, conversationKey);
     setState((prev) => {
       const nextHasContent = hasComposerContent(nextState);
       const prevMatchesConversation = prev.conversationKey === conversationKey;
-      const prevHasContent = prevMatchesConversation && hasComposerContent(prev);
+      const prevHasContent = !storageAccountChanged && prevMatchesConversation && hasComposerContent(prev);
 
       if (!nextHasContent && !prevHasContent) {
-        return prevMatchesConversation ? prev : createEmptyComposerState(conversationKey);
+        return prevMatchesConversation && !storageAccountChanged
+          ? prev
+          : createEmptyComposerState(conversationKey);
       }
 
       if (
+        !storageAccountChanged &&
         prevMatchesConversation &&
         prev.draft === nextState.draft &&
         prev.attachments.length === nextState.attachments.length &&
@@ -274,23 +398,48 @@ export function useChatComposerState(
       return nextHasContent ? nextState : createEmptyComposerState(conversationKey);
     });
     setHydratedConversationKey(conversationKey);
-  }, [conversationKey, preserveDrafts]);
+    setHydratedStorageKey(storageKey);
+  }, [conversationKey, discardPendingPersistence, persistenceEnabled, preserveDrafts, storageKey, transient]);
 
   React.useEffect(() => {
-    if (hydratedConversationKey !== state.conversationKey) {
+    if (
+      hydratedConversationKey !== state.conversationKey ||
+      hydratedStorageKey !== storageKey ||
+      state.conversationKey !== conversationKey
+    ) {
       return;
     }
-    if (!preserveDrafts) {
-      ComposerStorageOps.removeEntry(state.conversationKey);
+    if (!persistenceEnabled) {
       return;
     }
-    ComposerStorageOps.writeEntry(state.conversationKey, state.draft, state.attachments);
-  }, [hydratedConversationKey, preserveDrafts, state]);
+    pendingPersistenceRef.current = {
+      conversationKey: state.conversationKey,
+      draft: state.draft,
+      attachments: state.attachments,
+      storageKey,
+    };
+    if (persistenceTimerRef.current !== null) {
+      window.clearTimeout(persistenceTimerRef.current);
+    }
+    persistenceTimerRef.current = window.setTimeout(
+      flushPendingPersistence,
+      COMPOSER_WRITE_DEBOUNCE_MS,
+    );
+  }, [
+    conversationKey,
+    flushPendingPersistence,
+    hydratedConversationKey,
+    hydratedStorageKey,
+    persistenceEnabled,
+    state,
+    storageKey,
+  ]);
 
   const visibleState = state.conversationKey === conversationKey ? state : createEmptyComposerState(conversationKey);
 
   const setDraft = React.useCallback((value: React.SetStateAction<string>) => {
     setHydratedConversationKey(conversationKey);
+    setHydratedStorageKey(storageKey);
     setState((prev) => ({
       ...(prev.conversationKey === conversationKey ? prev : createEmptyComposerState(conversationKey)),
       draft:
@@ -298,10 +447,11 @@ export function useChatComposerState(
           ? value(prev.conversationKey === conversationKey ? prev.draft : "")
           : value,
     }));
-  }, [conversationKey]);
+  }, [conversationKey, storageKey]);
 
   const setAttachments = React.useCallback((value: React.SetStateAction<PendingAttachment[]>) => {
     setHydratedConversationKey(conversationKey);
+    setHydratedStorageKey(storageKey);
     setState((prev) => ({
       ...(prev.conversationKey === conversationKey ? prev : createEmptyComposerState(conversationKey)),
       attachments:
@@ -309,7 +459,7 @@ export function useChatComposerState(
           ? value(prev.conversationKey === conversationKey ? prev.attachments : [])
           : value,
     }));
-  }, [conversationKey]);
+  }, [conversationKey, storageKey]);
 
   const appendAttachmentsForKey = React.useCallback((targetConversationKey: string, items: PendingAttachment[]) => {
     if (items.length === 0) {
@@ -318,6 +468,7 @@ export function useChatComposerState(
 
     if (conversationKey === targetConversationKey) {
       setHydratedConversationKey(targetConversationKey);
+      setHydratedStorageKey(storageKey);
       setState((prev) => ({
         ...(prev.conversationKey === targetConversationKey ? prev : createEmptyComposerState(targetConversationKey)),
         attachments: mergeAttachmentsByFileID(
@@ -328,12 +479,12 @@ export function useChatComposerState(
       return;
     }
 
-    if (!preserveDrafts) {
+    if (!persistenceEnabled) {
       return;
     }
 
-    ComposerStorageOps.appendAttachments(targetConversationKey, items);
-  }, [conversationKey, preserveDrafts]);
+    ComposerStorageOps.appendAttachments(storageKey, targetConversationKey, items);
+  }, [conversationKey, persistenceEnabled, storageKey]);
 
   return {
     conversationKey: visibleState.conversationKey,

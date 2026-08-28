@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
+import { cn } from "@/lib/utils";
 import { formatBytes, resolveFileExtension, resolveFilePreviewKind } from "@/shared/lib/file-display";
 import { fetchFileContent, type FileContentResult } from "@/shared/api/file";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
@@ -32,7 +33,12 @@ type PreviewState =
       contentType: string;
     };
 
-type PreviewSourceProps = {
+type PreviewViewerLoadingProps = {
+  showLoading?: boolean;
+  onLoadingChange?: (loading: boolean) => void;
+};
+
+type PreviewSourceProps = PreviewViewerLoadingProps & {
   source: string;
 };
 
@@ -51,7 +57,7 @@ type PreviewTextProps = {
 };
 
 function PreviewRendererFallback() {
-  return <PreviewLoading className="min-h-[320px]" />;
+  return <PreviewLoading className="min-h-[180px] sm:min-h-[320px]" />;
 }
 
 const PreviewDocx = dynamic<PreviewSourceProps>(
@@ -111,7 +117,10 @@ function isReadableTextContent(content: string): boolean {
   return replacements / sample.length < 0.08 && controls / sample.length < 0.02;
 }
 
-type FileContentLoader = (file: PreviewDialogFile) => Promise<FileContentResult>;
+export type FileContentLoader = (
+  file: PreviewDialogFile,
+  signal: AbortSignal,
+) => Promise<FileContentResult>;
 
 function useFilePreviewDialog(file: PreviewDialogFile | null, loadContent?: FileContentLoader) {
   const t = useTranslations("files.previewDialog");
@@ -135,19 +144,20 @@ function useFilePreviewDialog(file: PreviewDialogFile | null, loadContent?: File
     }
 
     let cancelled = false;
+    const controller = new AbortController();
     revoke();
     setState({ status: "loading" });
 
     void (async () => {
       try {
         const result = loadContent
-          ? await loadContent(file)
+          ? await loadContent(file, controller.signal)
           : await (async () => {
               const token = await resolveAccessToken();
               if (!token) {
                 throw new Error(t("sessionExpired"));
               }
-              return fetchFileContent(token, file.fileID);
+              return fetchFileContent(token, file.fileID, controller.signal);
             })();
         let kind = resolveFilePreviewKind(file, result.contentType);
         const objectURL = URL.createObjectURL(result.blob);
@@ -166,14 +176,14 @@ function useFilePreviewDialog(file: PreviewDialogFile | null, loadContent?: File
           }
         }
 
-        if (cancelled) {
+        if (cancelled || controller.signal.aborted) {
           URL.revokeObjectURL(objectURL);
           return;
         }
 
         setState({ status: "ready", kind, objectURL, textContent, contentType: result.contentType });
       } catch (error) {
-        if (cancelled) {
+        if (cancelled || controller.signal.aborted) {
           return;
         }
         setState({ status: "error", message: resolveErrorMessage(error, t("loadFailed")) });
@@ -182,6 +192,7 @@ function useFilePreviewDialog(file: PreviewDialogFile | null, loadContent?: File
 
     return () => {
       cancelled = true;
+      controller.abort();
       revoke();
     };
   }, [file, loadContent, resolveErrorMessage, revoke, t]);
@@ -217,14 +228,17 @@ export function FilePreviewDialog({
   const t = useTranslations("files.previewDialog");
   const activeFile = open ? file : null;
   const { state, download } = useFilePreviewDialog(activeFile, loadContent);
+  const [viewerLoading, setViewerLoading] = React.useState(false);
+  const previewKind = state.status === "ready" ? state.kind : null;
+  const showLoadingOverlay = Boolean(activeFile) && (state.status === "loading" || viewerLoading);
+
+  React.useEffect(() => {
+    setViewerLoading(false);
+  }, [activeFile?.fileID, state.status, previewKind]);
 
   const previewBody = React.useMemo(() => {
     if (!open || !file) {
       return null;
-    }
-
-    if (state.status === "loading") {
-      return <PreviewLoading className="min-h-[180px] sm:min-h-[320px]" />;
     }
 
     if (state.status === "error") {
@@ -254,16 +268,23 @@ export function FilePreviewDialog({
       return <PreviewMedia kind={kind} source={objectURL} alt={file.fileName} contentType={contentType} />;
     }
     if (kind === "pdf") {
-      return <PreviewPdf source={objectURL} />;
+      return <PreviewPdf source={objectURL} showLoading={false} onLoadingChange={setViewerLoading} />;
     }
     if (kind === "docx") {
-      return <PreviewDocx source={objectURL} />;
+      return <PreviewDocx source={objectURL} showLoading={false} onLoadingChange={setViewerLoading} />;
     }
     if (kind === "spreadsheet") {
-      return <PreviewSheet source={objectURL} />;
+      return <PreviewSheet source={objectURL} showLoading={false} onLoadingChange={setViewerLoading} />;
     }
     if (kind === "native") {
-      return <PreviewDocument source={objectURL} contentType={contentType} />;
+      return (
+        <PreviewDocument
+          source={objectURL}
+          contentType={contentType}
+          showLoading={false}
+          onLoadingChange={setViewerLoading}
+        />
+      );
     }
     if (kind === "markdown" || kind === "code" || kind === "text") {
       return <PreviewText kind={kind} content={textContent ?? ""} />;
@@ -315,7 +336,17 @@ export function FilePreviewDialog({
 
         <div className="min-h-0 flex-1 overflow-hidden">
           <div className="h-full max-h-[calc(68dvh-64px)] overflow-auto sm:max-h-[calc(92vh-72px)]">
-            <div className="px-3 py-3 sm:px-5 sm:py-5">{previewBody}</div>
+            <div
+              className={cn(
+                "relative px-3 py-3 sm:px-5 sm:py-5",
+                showLoadingOverlay && "min-h-[180px] sm:min-h-[320px]",
+              )}
+            >
+              {previewBody}
+              {showLoadingOverlay ? (
+                <PreviewLoading className="pointer-events-none absolute inset-0 z-10" />
+              ) : null}
+            </div>
           </div>
         </div>
       </DialogContent>

@@ -11,8 +11,8 @@ import (
 )
 
 // GetOpenRouterOfficialPricing godoc
-// @Summary 管理员获取 OpenRouter 官方模型定价
-// @Description 从 storage 缓存读取 OpenRouter 模型定价；缓存不存在、过期或 refresh=true 时由后端刷新。
+// @Summary 管理员获取 OpenRouter 官方模型目录
+// @Description 从 storage 缓存读取 OpenRouter 模型标识、定价和上下文限制；缓存不存在、过期或 refresh=true 时由后端刷新。
 // @Tags admin-billing
 // @Accept json
 // @Produce json
@@ -51,9 +51,11 @@ func toOpenRouterOfficialPricingResponses(items []appbilling.OfficialPricingItem
 	result := make([]OpenRouterOfficialPricingItemResponse, 0, len(items))
 	for _, item := range items {
 		result = append(result, OpenRouterOfficialPricingItemResponse{
-			ID:            item.ID,
-			CanonicalSlug: item.CanonicalSlug,
-			Name:          item.Name,
+			ID:                  item.ID,
+			CanonicalSlug:       item.CanonicalSlug,
+			Name:                item.Name,
+			ContextLength:       item.ContextLength,
+			MaxCompletionTokens: item.MaxCompletionTokens,
 			Pricing: OpenRouterOfficialPricingUnitPricingResponse{
 				Prompt:          item.Pricing.Prompt,
 				Completion:      item.Pricing.Completion,

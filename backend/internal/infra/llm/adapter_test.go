@@ -83,4 +83,13 @@ func TestXAIVideoAdapterCapabilities(t *testing.T) {
 	if got := DefaultEndpointForAdapter(AdapterXAIVideo); got != EndpointVideoGenerations {
 		t.Fatalf("expected xAI video endpoint, got %q", got)
 	}
+	if !IsKnownAdapter(AdapterXAIVideoExtensions) || !IsImplementedAdapter(AdapterXAIVideoExtensions) {
+		t.Fatalf("expected xAI video extensions adapter to be known and implemented")
+	}
+	if !IsVideoGenerationAdapter(AdapterXAIVideoExtensions) {
+		t.Fatalf("expected xAI video extensions adapter to use the video media pipeline")
+	}
+	if got := DefaultEndpointForAdapter(AdapterXAIVideoExtensions); got != EndpointVideoExtensions {
+		t.Fatalf("expected xAI video extensions endpoint, got %q", got)
+	}
 }

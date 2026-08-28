@@ -8,7 +8,7 @@ import (
 	"image/png"
 	"testing"
 
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 func TestDetectGeneratedImageMIMERejectsNonImageBytes(t *testing.T) {

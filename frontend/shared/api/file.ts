@@ -1,5 +1,4 @@
 import { authedFetch, authedRequest } from "@/shared/api/authed-client";
-import { pathParam, resolveApiBaseURL } from "@/shared/api/http-client";
 import type {
   ChatFilePolicyDTO,
   DeleteFileResult,
@@ -9,9 +8,16 @@ import type {
   FileProcessingStatusDTO,
   UploadFileResult,
 } from "@/shared/api/file.types";
+import {
+  ApiNetworkError,
+  apiFetch,
+  pathParam,
+  resolveAbortError,
+} from "@/shared/api/http-client";
 
 type UploadFileOptions = {
   purpose?: string;
+  signal?: AbortSignal;
 };
 
 type ListFilesParams = {
@@ -30,6 +36,33 @@ export type FileContentResult = {
 };
 
 export type RenameFileResult = FileObjectDTO;
+
+function waitForUploadRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+  const abortError = resolveAbortError(undefined, signal);
+  if (abortError) {
+    return Promise.reject(abortError);
+  }
+
+  return new Promise((resolve, reject) => {
+    let timeoutID: ReturnType<typeof setTimeout>;
+    const handleAbort = () => {
+      clearTimeout(timeoutID);
+      signal?.removeEventListener("abort", handleAbort);
+      const error = resolveAbortError(undefined, signal) ?? new Error("The operation was aborted");
+      error.name = "AbortError";
+      reject(error);
+    };
+
+    timeoutID = setTimeout(() => {
+      signal?.removeEventListener("abort", handleAbort);
+      resolve();
+    }, delayMs);
+    signal?.addEventListener("abort", handleAbort, { once: true });
+    if (signal?.aborted) {
+      handleAbort();
+    }
+  });
+}
 
 export async function readFileContentResponse(response: Response): Promise<FileContentResult> {
   const blob = await response.blob();
@@ -50,27 +83,45 @@ export async function uploadFile(
   file: File,
   options: UploadFileOptions = {},
 ): Promise<UploadFileResult> {
-  const formData = new FormData();
-  formData.append("file", file);
-  if (options.purpose) {
-    formData.append("purpose", options.purpose);
-  }
+  for (let attempt = 0; ; attempt += 1) {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (options.purpose) {
+      formData.append("purpose", options.purpose);
+    }
 
-  return authedRequest<UploadFileResult>(
-    "/api/v1/files",
-    {
-      method: "POST",
-      accessToken,
-      body: formData,
-    },
-    true,
-  );
+    try {
+      return await authedRequest<UploadFileResult>(
+        "/api/v1/files",
+        {
+          method: "POST",
+          accessToken,
+          body: formData,
+          signal: options.signal,
+        },
+        true,
+      );
+    } catch (error) {
+      const abortError = resolveAbortError(error, options.signal);
+      if (abortError) {
+        throw abortError;
+      }
+      if (!(error instanceof ApiNetworkError) || attempt >= 2) {
+        throw error;
+      }
+      await waitForUploadRetry(
+        250 * (2 ** attempt) + Math.floor(Math.random() * 150),
+        options.signal,
+      );
+    }
+  }
 }
 
 // File catalog and content
 export async function listFiles(
   accessToken: string,
   params: ListFilesParams = {},
+  signal?: AbortSignal,
 ): Promise<FileListResult> {
   const searchParams = new URLSearchParams();
 
@@ -96,6 +147,7 @@ export async function listFiles(
     {
       method: "GET",
       accessToken,
+      signal,
     },
     true,
   );
@@ -144,13 +196,18 @@ export async function updateFileRagOptOut(
   );
 }
 
-export async function fetchFileContent(accessToken: string, fileID: string): Promise<FileContentResult> {
+export async function fetchFileContent(
+  accessToken: string,
+  fileID: string,
+  signal?: AbortSignal,
+): Promise<FileContentResult> {
   const response = await authedFetch(
     `/api/v1/files/${pathParam(fileID)}/content`,
     {
       method: "GET",
       accessToken,
       cache: "no-store",
+      signal,
     },
     true,
   );
@@ -158,22 +215,15 @@ export async function fetchFileContent(accessToken: string, fileID: string): Pro
   return readFileContentResponse(response);
 }
 
-export async function fetchSharedFileContent(shareID: string, fileID: string): Promise<FileContentResult> {
-  const response = await fetch(
-    `${resolveApiBaseURL()}/api/v1/shared-conversations/${pathParam(shareID)}/files/${pathParam(fileID)}/content`,
-    {
-      method: "GET",
-      cache: "no-store",
-      credentials: "include",
-    },
+export async function fetchSharedFileContent(
+  shareID: string,
+  fileID: string,
+  signal?: AbortSignal,
+): Promise<FileContentResult> {
+  const response = await apiFetch(
+    `/api/v1/shared-conversations/${pathParam(shareID)}/files/${pathParam(fileID)}/content`,
+    { signal },
   );
-
-  if (!response.ok) {
-    const message = response.headers.get("content-type")?.includes("application/json")
-      ? ((await response.json()) as { errorMsg?: string }).errorMsg
-      : await response.text();
-    throw new Error(message?.trim() || "Failed to load file");
-  }
 
   return readFileContentResponse(response);
 }
@@ -189,27 +239,37 @@ export async function fetchFileExtract(accessToken: string, fileID: string): Pro
   );
 }
 
-// Processing and runtime policy
-export async function getFileProcessingStatus(
+export async function getFileProcessingStatuses(
   accessToken: string,
-  fileID: string,
-): Promise<FileProcessingStatusDTO> {
-  return authedRequest<FileProcessingStatusDTO>(
-    `/api/v1/files/${pathParam(fileID)}/processing`,
-    {
-      method: "GET",
-      accessToken,
-    },
-    true,
-  );
+  fileIDs: string[],
+  signal?: AbortSignal,
+): Promise<FileProcessingStatusDTO[]> {
+  if (fileIDs.length === 0) {
+    return [];
+  }
+  const requests: Promise<FileProcessingStatusDTO[]>[] = [];
+  for (let index = 0; index < fileIDs.length; index += 100) {
+    requests.push(authedRequest<FileProcessingStatusDTO[]>(
+      "/api/v1/files/processing/statuses",
+      {
+        method: "POST",
+        accessToken,
+        body: { fileIDs: fileIDs.slice(index, index + 100) },
+        signal,
+      },
+      true,
+    ));
+  }
+  return (await Promise.all(requests)).flat();
 }
 
-export async function getChatFilePolicy(accessToken: string): Promise<ChatFilePolicyDTO> {
+export async function getChatFilePolicy(accessToken: string, signal?: AbortSignal): Promise<ChatFilePolicyDTO> {
   return authedRequest<ChatFilePolicyDTO>(
     "/api/v1/runtime/chat-file-policy",
     {
       method: "GET",
       accessToken,
+      signal,
     },
     true,
   );

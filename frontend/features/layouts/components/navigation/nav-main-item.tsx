@@ -6,7 +6,10 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
-import { SidebarMenuItem } from "@/components/ui/sidebar";
+import {
+  SidebarMenuItem,
+  SidebarTransitionContent,
+} from "@/components/ui/sidebar";
 import {
   Tooltip,
   TooltipContent,
@@ -64,7 +67,7 @@ export function NavMainItem({
   }, []);
 
   const itemClassName = cn(
-    "group/item h-8 gap-0 rounded-md px-0 text-left text-sm font-normal text-sidebar-foreground transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+    "group/item h-8 gap-0 overflow-hidden rounded-md px-0 text-left text-sm font-normal text-sidebar-foreground transition-colors",
     isCollapsed
       ? "w-8 justify-center hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
       : "w-full justify-start hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
@@ -96,26 +99,28 @@ export function NavMainItem({
         )}
       </span>
 
-      <span
-        className={cn(
-          "ml-1 flex min-w-0 flex-1 items-center overflow-hidden transition-[opacity,max-width,margin-left] duration-200 ease-linear",
-          isCollapsed && "ml-0",
-        )}
-      >
-        <span className="flex-1 truncate">{title}</span>
-        {item.shortcut && !isCollapsed ? (
-          <KbdGroup className="mr-2 shrink-0 opacity-0 transition-opacity duration-150 group-hover/item:opacity-100">
-            {item.shortcut.map((value) => (
-              <Kbd
-                key={value}
-                className="h-auto min-w-0 bg-transparent px-0"
-              >
-                <ShortcutGlyph value={value} modifierLabel={modifierLabel} />
-              </Kbd>
-            ))}
-          </KbdGroup>
-        ) : null}
-      </span>
+      <SidebarTransitionContent asChild>
+        <span
+          className={cn(
+            "ml-1 flex min-w-0 flex-1 items-center overflow-hidden transition-[opacity,max-width,margin-left] duration-200 ease-linear",
+            isCollapsed && "ml-0",
+          )}
+        >
+          <span className="flex-1 truncate">{title}</span>
+          {item.shortcut && !isCollapsed ? (
+            <KbdGroup className="mr-2 shrink-0 opacity-0 transition-opacity duration-150 group-hover/item:opacity-100">
+              {item.shortcut.map((value) => (
+                <Kbd
+                  key={value}
+                  className="h-auto min-w-0 bg-transparent px-0"
+                >
+                  <ShortcutGlyph value={value} modifierLabel={modifierLabel} />
+                </Kbd>
+              ))}
+            </KbdGroup>
+          ) : null}
+        </span>
+      </SidebarTransitionContent>
     </>
   );
 

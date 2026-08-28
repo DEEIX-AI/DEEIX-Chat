@@ -34,6 +34,7 @@ const (
 	CodeFileNotReady             = "file.not_ready"
 	CodeFileTypeBlocked          = "file.type_blocked"
 	CodeUpstreamUnavailable      = "upstream.unavailable"
+	CodeUpstreamRateLimited      = "upstream.rate_limited"
 	CodeServiceUnavailable       = "service.unavailable"
 	CodeInternal                 = "internal.error"
 )
@@ -76,6 +77,7 @@ var exactErrorSpecs = map[string]errorSpec{
 	"email verification is disabled":                                        {Code: "auth.email_verification_disabled", Message: "email verification is disabled"},
 	"email already exists":                                                  {Code: "auth.email_already_exists", Message: "email already exists"},
 	"user email is invalid":                                                 {Code: "auth.invalid_email", Message: "invalid email"},
+	"verification method is unavailable":                                    {Code: "auth.verification_method_unavailable", Message: "verification method is unavailable"},
 	"admin email is invalid":                                                {Code: "auth.invalid_email", Message: "invalid email"},
 	"invalid email":                                                         {Code: "auth.invalid_email", Message: "invalid email"},
 	"user email is not verified":                                            {Code: "auth.email_not_verified", Message: "email is not verified"},
@@ -142,6 +144,7 @@ var exactErrorSpecs = map[string]errorSpec{
 
 	"invalid conversation title":                              {Code: "conversation.invalid_title", Message: "invalid conversation title"},
 	"conversation has no titleable content":                   {Code: "conversation.no_titleable_content", Message: "conversation has no titleable content"},
+	"conversation project limit exceeded":                     {Code: "conversation.project_limit_exceeded", Message: "conversation project limit exceeded"},
 	"invalid conversation share":                              {Code: "conversation_share.invalid", Message: "invalid conversation share"},
 	"conversation share schema outdated":                      {Code: "conversation_share.schema_outdated", Message: "conversation share schema is outdated"},
 	"conversation share schema is outdated, rebuild database": {Code: "conversation_share.schema_outdated", Message: "conversation share schema is outdated"},
@@ -208,6 +211,7 @@ var exactErrorSpecs = map[string]errorSpec{
 	"invalid adapter":                             {Code: "llm.invalid_adapter", Message: "invalid adapter"},
 	"invalid compatible":                          {Code: "llm.invalid_compatible", Message: "invalid compatible"},
 	"invalid json config":                         {Code: "config.invalid_json", Message: "invalid json config"},
+	"invalid model capability limits":             {Code: "llm.invalid_model_capabilities", Message: "invalid model capability limits"},
 	"invalid headers config":                      {Code: "llm.invalid_headers_config", Message: "invalid headers json config"},
 	"invalid headers json config":                 {Code: "llm.invalid_headers_config", Message: "invalid headers json config"},
 	"invalid api keys config":                     {Code: "llm.invalid_api_keys_config", Message: "invalid api keys config"},
@@ -267,6 +271,7 @@ var exactErrorSpecs = map[string]errorSpec{
 	"stripe webhook is not configured":                             {Code: "payment.webhook_not_configured", Message: "stripe webhook is not configured"},
 	"read webhook body failed":                                     {Code: "payment.invalid_webhook_body", Message: "invalid webhook body"},
 	"webhook body too large":                                       {Code: "payment.webhook_body_too_large", Message: "webhook body too large"},
+	"temporary chat context is too large":                          {Code: "temporary_chat.context_too_large", Message: "temporary chat context is too large"},
 	"invalid stripe signature":                                     {Code: "payment.invalid_signature", Message: "invalid stripe signature"},
 	"invalid stripe event":                                         {Code: "payment.invalid_event", Message: "invalid stripe event"},
 	"missing order_no":                                             {Code: "payment.order_no_required", Message: "order_no is required"},
@@ -285,6 +290,8 @@ var exactErrorSpecs = map[string]errorSpec{
 	"mineru runtime service unavailable":    {Code: "runtime.mineru_unavailable", Message: "mineru runtime service unavailable"},
 
 	"memory_key is required":          {Code: "memory.key_required", Message: "memory_key is required"},
+	"user memory limit exceeded":      {Code: "memory.limit_exceeded", Message: "user memory limit exceeded"},
+	"mcp server limit exceeded":       {Code: "mcp.server_limit_exceeded", Message: "mcp server limit exceeded"},
 	"invalid mcp server id":           {Code: "mcp.server.invalid_id", Message: "invalid mcp server id"},
 	"invalid mcp tool id":             {Code: "mcp.tool.invalid_id", Message: "invalid mcp tool id"},
 	"invalid mcp server name":         {Code: "mcp.invalid_server_name", Message: "invalid mcp server name"},
@@ -387,37 +394,13 @@ func InferErrorCode(status int, msg string) string {
 	}
 }
 
-// PublicErrorMessage normalizes legacy handler messages into a safe API fallback.
-// It intentionally preserves client-side validation context while hiding 5xx
-// internals behind requestId + server logs.
+// PublicErrorMessage 返回可对外展示的错误文案：命中白名单则用规范文本，否则用该状态码的通用文案。
 func PublicErrorMessage(status int, code string, msg string) string {
 	msg = strings.TrimSpace(msg)
 	if spec, ok := resolveErrorSpec(status, msg); ok {
 		return spec.Message
 	}
-	if msg == "" {
-		msg = fallbackMessage(status, code)
-	}
-
-	switch {
-	case status >= http.StatusInternalServerError:
-		return fallbackMessage(status, code)
-	case status == http.StatusBadGateway:
-		return fallbackMessage(status, code)
-	case status == http.StatusServiceUnavailable:
-		return fallbackMessage(status, code)
-	}
-
-	switch code {
-	case CodeAuthUnauthorized:
-		return "unauthorized"
-	case CodeAuthForbidden:
-		return "forbidden"
-	case CodeRateLimitExceeded:
-		return "rate limit exceeded"
-	default:
-		return msg
-	}
+	return fallbackMessage(status, code)
 }
 
 func fallbackMessage(status int, code string) string {
@@ -473,6 +456,8 @@ func fallbackMessage(status int, code string) string {
 		return "file type is not allowed"
 	case CodeUpstreamUnavailable:
 		return "upstream service unavailable"
+	case CodeUpstreamRateLimited:
+		return "upstream rate limited"
 	case CodeServiceUnavailable:
 		return "service unavailable"
 	}
@@ -603,6 +588,7 @@ var fallbackMessages = map[string]string{
 	"llm.invalid_adapter":                               "invalid adapter",
 	"llm.invalid_compatible":                            "invalid compatible",
 	"llm.invalid_platform_model_name":                   "invalid platform model name",
+	"llm.invalid_model_capabilities":                    "invalid model capability limits",
 	"llm.invalid_route_protocol_combination":            "invalid route protocol combination",
 	"llm.system_prompt_too_long":                        "system prompt too long",
 	"llm.platform_model_name_required":                  "platform model name is required",
@@ -637,6 +623,7 @@ var fallbackMessages = map[string]string{
 	"payment.invalid_signature":                         "invalid stripe signature",
 	"payment.invalid_event":                             "invalid stripe event",
 	"payment.order_no_required":                         "order_no is required",
+	"temporary_chat.context_too_large":                  "temporary chat context is too large",
 	"settings.invalid_namespace":                        "invalid namespace",
 	"settings.invalid_key":                              "invalid setting key",
 	"settings.not_found":                                "setting not found",

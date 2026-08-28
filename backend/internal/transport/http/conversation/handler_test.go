@@ -119,6 +119,22 @@ func TestMapStreamErrorDoesNotExposeUpstreamUnauthorizedAsPlatformUnauthorized(t
 	}
 }
 
+func TestMapStreamErrorPreservesUpstreamRateLimit(t *testing.T) {
+	err := errors.Join(appconversation.ErrUpstreamRequestFailed, &llm.UpstreamError{StatusCode: http.StatusTooManyRequests})
+
+	mapped := mapStreamError(err)
+	if mapped.Status != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want %d", mapped.Status, http.StatusTooManyRequests)
+	}
+	if mapped.Code != appconversation.MessageErrorCodeUpstreamRateLimited {
+		t.Fatalf("code = %q, want %q", mapped.Code, appconversation.MessageErrorCodeUpstreamRateLimited)
+	}
+	payload := streamErrorPayload(err)
+	if payload["status"] != http.StatusTooManyRequests {
+		t.Fatalf("payload status = %#v, want %d", payload["status"], http.StatusTooManyRequests)
+	}
+}
+
 func TestMapStreamErrorClassifiesGeneratedMediaArtifactFailure(t *testing.T) {
 	mapped := mapStreamError(appconversation.ErrGeneratedMediaArtifactUnavailable)
 	if mapped.Status != http.StatusBadGateway {

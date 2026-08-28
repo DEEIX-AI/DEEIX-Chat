@@ -2,6 +2,7 @@
 
 import { Separator } from "@/components/ui/separator";
 import { BillingConfigSection } from "@/features/admin/components/sections/billing/billing-config";
+import { BillingMCPToolsSection } from "@/features/admin/components/sections/billing/billing-mcp-tools";
 import { BillingPlanSection } from "@/features/admin/components/sections/billing/billing-plan";
 import { BillingPricesSection } from "@/features/admin/components/sections/billing/billing-prices";
 import { BillingRedemptionSection } from "@/features/admin/components/sections/billing/billing-redemption";
@@ -59,6 +60,10 @@ export function AdminBillingPage() {
         setBillingConfig={billing.setBillingConfig}
         loading={billing.loading}
       />
+
+      <Separator className="mx-1 my-10" />
+
+      <BillingMCPToolsSection />
     </div>
   );
 }

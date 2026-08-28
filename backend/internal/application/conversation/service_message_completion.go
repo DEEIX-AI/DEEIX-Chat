@@ -8,9 +8,10 @@ import (
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"go.uber.org/zap"
 )
 
@@ -56,8 +57,10 @@ type persistInterruptedMessageGenerationInput struct {
 	Route                  *channel.ResolvedRoute
 	EffectiveOptions       map[string]interface{}
 	ServerSideToolUsage    map[string]int64
-	StartedAt              time.Time
-	ReuseUserMessage       bool
+	// MCPToolUsage 聚合中断前成功的 MCP 调用；错误中断时也需带出已产生的上游费用。
+	MCPToolUsage     []MCPToolUsageItem
+	StartedAt        time.Time
+	ReuseUserMessage bool
 }
 
 type interruptedMessageGenerationMetrics struct {
@@ -105,11 +108,13 @@ func (s *Service) persistSuccessfulMessageGeneration(ctx context.Context, input 
 	}
 
 	if !input.ReuseUserMessage {
-		go func(msgID uint, inputTokens, cacheReadTokens, cacheWriteTokens int64) {
+		msgID := input.UserMessage.ID
+		inputTokens, cacheReadTokens, cacheWriteTokens := input.InputTokens, input.CacheReadTokens, input.CacheWriteTokens
+		background.Go(s.logger, "user_message_usage_update", func() {
 			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			_ = s.repo.UpdateMessageUsage(bgCtx, msgID, inputTokens, 0, cacheReadTokens, cacheWriteTokens, 0)
-		}(input.UserMessage.ID, input.InputTokens, input.CacheReadTokens, input.CacheWriteTokens)
+		})
 	}
 
 	if err := s.repo.UpdateAssistantMessageCompletion(
@@ -404,7 +409,7 @@ func shouldPersistInterruptedMessageGeneration(input persistInterruptedMessageGe
 	if input.Error == nil || input.UserMessage == nil || input.AssistantMessage == nil {
 		return false
 	}
-	hasRetainedToolTrace := len(input.ToolCallRows) > 0 || len(input.ServerSideToolUsage) > 0
+	hasRetainedToolTrace := len(input.ToolCallRows) > 0 || len(input.ServerSideToolUsage) > 0 || len(input.MCPToolUsage) > 0
 	hasObservedUsage := input.Usage.InputTokens > 0 ||
 		input.Usage.OutputTokens > 0 ||
 		input.Usage.CacheReadTokens > 0 ||
@@ -560,6 +565,7 @@ func buildInterruptedSendMessageResult(input persistInterruptedMessageGeneration
 		CacheWrite5mTokens:  input.Usage.CacheWrite5mTokens,
 		CacheWrite1hTokens:  input.Usage.CacheWrite1hTokens,
 		ServerSideToolUsage: input.ServerSideToolUsage,
+		MCPToolUsage:        input.MCPToolUsage,
 		LatencyMS:           metrics.LatencyMS,
 		StartedAt:           input.StartedAt,
 	}
@@ -633,11 +639,11 @@ func (s *Service) updateStatefulResponseAsync(conversationID uint, responseID st
 	if fingerprint == "" {
 		return
 	}
-	go func() {
+	background.Go(s.logger, "stateful_response_update", func() {
 		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = s.repo.UpdateConversationStatefulResponse(bgCtx, conversationID, respID, fingerprint)
-	}()
+	})
 }
 
 func (s *Service) embedMessagePairAsync(input SendMessageInput, userMessage *model.Message, assistantMessage *model.Message) {
@@ -645,9 +651,9 @@ func (s *Service) embedMessagePairAsync(input SendMessageInput, userMessage *mod
 	if !cfg.EmbeddingEnabled || !cfg.MessageEmbeddingEnabled {
 		return
 	}
-	go func() {
+	background.Go(s.logger, "message_pair_embedding", func() {
 		asyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		s.embedMessagePair(asyncCtx, input.ConversationID, input.UserID, userMessage, assistantMessage)
-	}()
+	})
 }

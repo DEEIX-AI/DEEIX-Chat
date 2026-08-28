@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 func TestCanFailoverMessageRoute(t *testing.T) {

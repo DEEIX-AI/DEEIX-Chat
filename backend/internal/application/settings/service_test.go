@@ -341,6 +341,39 @@ func TestRuntimeSettingsAppliesConversationDefaultModel(t *testing.T) {
 	}
 }
 
+func TestContextBudgetSettingsValidationAndRuntimeApplication(t *testing.T) {
+	valid := []PatchItem{
+		{Namespace: "chat", Key: "context_window_fallback_tokens", Value: "256000"},
+		{Namespace: "chat", Key: "context_compact_trigger_percent", Value: "80"},
+		{Namespace: "chat", Key: "context_compact_trigger_percent", Value: "0"},
+	}
+	for _, item := range valid {
+		if err := validatePatchItem(item); err != nil {
+			t.Fatalf("expected %s=%s to pass, got %v", item.Key, item.Value, err)
+		}
+	}
+
+	invalid := []PatchItem{
+		{Namespace: "chat", Key: "context_window_fallback_tokens", Value: "4096"},
+		{Namespace: "chat", Key: "context_window_fallback_tokens", Value: "16000001"},
+		{Namespace: "chat", Key: "context_compact_trigger_percent", Value: "9"},
+		{Namespace: "chat", Key: "context_compact_trigger_percent", Value: "96"},
+	}
+	for _, item := range invalid {
+		if err := validatePatchItem(item); err == nil {
+			t.Fatalf("expected %s=%s to fail", item.Key, item.Value)
+		}
+	}
+
+	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	cfg := config.Config{}
+	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "chat", Key: "context_window_fallback_tokens", Value: "256000"})
+	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "chat", Key: "context_compact_trigger_percent", Value: "75"})
+	if cfg.ContextWindowFallbackTokens != 256_000 || cfg.ContextCompactTriggerPercent != 75 {
+		t.Fatalf("unexpected runtime context settings: fallback=%d percent=%d", cfg.ContextWindowFallbackTokens, cfg.ContextCompactTriggerPercent)
+	}
+}
+
 func TestValidateMinerUFileTypesSetting(t *testing.T) {
 	if err := validatePatchItem(PatchItem{Namespace: "extract", Key: "mineru_file_types", Value: "pdf,word,presentation,excel"}); err != nil {
 		t.Fatalf("expected mineru file types to pass, got %v", err)

@@ -1,4 +1,5 @@
 type FileProcessingView = {
+  processing?: boolean;
   fileCategory?: string;
   processingStatus?: string;
   processingReady?: boolean;
@@ -20,6 +21,10 @@ type FileProcessingBadge = {
 };
 
 type FileProcessingTranslator = (key: string, values?: Record<string, string | number>) => string;
+
+export function isFileProcessing(file: FileProcessingView): boolean {
+  return file.processing === true;
+}
 
 function translateFileProcessing(
   translate: FileProcessingTranslator | undefined,

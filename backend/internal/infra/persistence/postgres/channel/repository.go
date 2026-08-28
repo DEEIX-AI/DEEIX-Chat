@@ -448,6 +448,29 @@ func (r *Repo) GetActiveModelByName(ctx context.Context, platformModelName strin
 	return &result, nil
 }
 
+// GetActiveRoutableModelKindsJSON 查询存在可用路由的启用模型能力类型。
+func (r *Repo) GetActiveRoutableModelKindsJSON(ctx context.Context, platformModelName string) (string, bool, error) {
+	var result struct {
+		KindsJSON string
+	}
+	dbResult := r.db.WithContext(ctx).
+		Table("llm_platform_models AS pm").
+		Select("pm.kinds_json").
+		Joins("JOIN llm_model_routes AS r ON r.platform_model_id = pm.id AND r.status = ?", "active").
+		Joins("JOIN llm_upstream_models AS um ON um.id = r.upstream_model_id AND um.status = ?", "active").
+		Joins("JOIN llm_upstreams AS u ON u.id = um.upstream_id AND u.status = ?", "active").
+		Where("pm.name = ? AND pm.status = ?", strings.TrimSpace(platformModelName), "active").
+		Limit(1).
+		Scan(&result)
+	if dbResult.Error != nil {
+		return "", false, translateError(dbResult.Error)
+	}
+	if dbResult.RowsAffected == 0 {
+		return "", false, nil
+	}
+	return result.KindsJSON, true, nil
+}
+
 // GetModelListRowByID 按 ID 获取带来源统计的平台模型列表行。
 func (r *Repo) GetModelListRowByID(ctx context.Context, modelID uint) (*ModelListRow, error) {
 	var item ModelListRow

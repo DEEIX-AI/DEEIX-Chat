@@ -15,6 +15,7 @@ server:
   read_timeout_seconds: 120
   idle_timeout_seconds: 120
   max_header_bytes: 1048576
+  shutdown_timeout_seconds: 10
 
 security:
   # Required. Replace both values with strong random secrets before deployment.

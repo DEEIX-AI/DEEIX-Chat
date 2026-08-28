@@ -11,7 +11,7 @@ import (
 
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 type promptStateFingerprintInput struct {
@@ -181,7 +181,8 @@ func buildPromptContextConfigSignature(cfg config.Config) string {
 		"rag_token_budget":            cfg.RAGTokenBudget,
 		"rag_query_history_turns":     cfg.RAGQueryHistoryTurns,
 		"context_compact_enabled":     cfg.ContextCompactEnabled,
-		"context_compact_trigger":     cfg.ContextCompactTrigger,
+		"context_window_fallback":     cfg.ContextWindowFallbackTokens,
+		"context_compact_percent":     cfg.ContextCompactTriggerPercent,
 		"context_compact_preserve":    cfg.ContextCompactPreserve,
 		"message_embedding_enabled":   cfg.MessageEmbeddingEnabled,
 		"semantic_context_enabled":    cfg.SemanticContextEnabled,

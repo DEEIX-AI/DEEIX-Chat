@@ -13,7 +13,7 @@ import (
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/cache/memory"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
@@ -38,6 +38,18 @@ func (r *routeResolutionRepositoryStub) ListActiveRoutesByModel(context.Context,
 func (r *routeResolutionRepositoryStub) GetBreakerDefaults(context.Context) (domainchannel.BreakerDefaults, error) {
 	r.breakerLoads++
 	return r.breakerDefaults, r.breakerErr
+}
+
+func (r *routeResolutionRepositoryStub) GetBreakerErrorClassification(context.Context) (domainchannel.BreakerErrorClassification, error) {
+	return domainchannel.BreakerErrorClassification{
+		CircuitErrors:   []string{"5xx", "timeout", "connection_error"},
+		RateLimitErrors: []string{"429"},
+		IgnoreErrors:    []string{"4xx"},
+	}, nil
+}
+
+func (r *routeResolutionRepositoryStub) GetRateLimitDefaults(context.Context) (domainchannel.RateLimitDefaults, error) {
+	return domainchannel.RateLimitDefaults{BackoffBaseSec: 5, BackoffMaxSec: 60, BackoffMultiplier: 2}, nil
 }
 
 func TestLoadBreakerDefaultsPreservesLastKnownGoodValueOnRefreshFailure(t *testing.T) {
@@ -201,6 +213,70 @@ func TestResolveRouteHonorsCircuitStateWhenBreakerEnabled(t *testing.T) {
 
 	if _, err := service.ResolveRoute(t.Context(), ResolveRouteInput{PlatformModelName: "test-model", TaskType: TaskTypeChat}); !errors.Is(err, ErrAllRoutesUnavailable) {
 		t.Fatalf("ResolveRoute() error = %v, want ErrAllRoutesUnavailable", err)
+	}
+}
+
+func TestRateLimitBackoffOnlySkipsFailedRouteAndReportsCooldown(t *testing.T) {
+	const encryptionKey = "test-data-encryption-key-32-bytes"
+	apiKeysEnc, err := encryptAPIKeys(encryptionKey, `{"strategy":"failover","keys":[{"key":"sk-test","status":"active"}]}`)
+	if err != nil {
+		t.Fatalf("encryptAPIKeys() error = %v", err)
+	}
+	repo := &routeResolutionRepositoryStub{
+		model: domainchannel.PlatformModel{ID: 10, PlatformModelName: "test-model", AccessScope: ModelAccessScopePublic},
+		routes: []repository.ChannelUpstreamRouteRow{
+			{
+				RouteID: 1, UpstreamModelID: 101, UpstreamID: 201, PlatformModelID: 10,
+				PlatformModelName: "test-model", ModelKindsJSON: `["chat"]`, Protocol: llm.AdapterOpenAIChatCompletions,
+				BaseURL: "https://example.com/v1", APIKeysEnc: apiKeysEnc, BindingCode: "first", UpstreamModelName: "first-model", Weight: 1, RoutePriority: 1,
+			},
+			{
+				RouteID: 2, UpstreamModelID: 102, UpstreamID: 201, PlatformModelID: 10,
+				PlatformModelName: "test-model", ModelKindsJSON: `["chat"]`, Protocol: llm.AdapterOpenAIChatCompletions,
+				BaseURL: "https://example.com/v1", APIKeysEnc: apiKeysEnc, BindingCode: "second", UpstreamModelName: "second-model", Weight: 1, RoutePriority: 2,
+			},
+		},
+	}
+	cache := memory.NewChannelCache(memory.New())
+	service := NewService(config.Config{DataEncryptionKey: encryptionKey}, repo, nil, cache, nil)
+
+	first, err := service.ResolveRoute(t.Context(), ResolveRouteInput{PlatformModelName: "test-model", TaskType: TaskTypeChat})
+	if err != nil || first.RouteID != 1 {
+		t.Fatalf("first ResolveRoute() route = %#v, error = %v", first, err)
+	}
+	service.MarkRouteFailure(t.Context(), first, &llm.UpstreamError{StatusCode: http.StatusTooManyRequests})
+
+	second, err := service.ResolveRoute(t.Context(), ResolveRouteInput{PlatformModelName: "test-model", TaskType: TaskTypeChat})
+	if err != nil || second.RouteID != 2 {
+		t.Fatalf("second ResolveRoute() route = %#v, error = %v", second, err)
+	}
+	service.MarkRouteFailure(t.Context(), second, &llm.UpstreamError{StatusCode: http.StatusTooManyRequests})
+
+	_, err = service.ResolveRoute(t.Context(), ResolveRouteInput{PlatformModelName: "test-model", TaskType: TaskTypeChat})
+	var limitedErr *RoutesRateLimitedError
+	if !errors.As(err, &limitedErr) || limitedErr.RetryAfter <= 0 {
+		t.Fatalf("ResolveRoute() error = %#v, want route rate-limit error", err)
+	}
+
+	service.MarkRouteSuccess(t.Context(), first)
+	recovered, err := service.ResolveRoute(t.Context(), ResolveRouteInput{PlatformModelName: "test-model", TaskType: TaskTypeChat})
+	if err != nil || recovered.RouteID != 1 {
+		t.Fatalf("recovered ResolveRoute() route = %#v, error = %v", recovered, err)
+	}
+}
+
+func TestUpstreamRetryAfterSecondsSupportsSecondsAndHTTPDate(t *testing.T) {
+	now := time.Date(2026, time.August, 26, 12, 0, 0, 0, time.UTC)
+	withHeader := func(value string) error {
+		return &llm.UpstreamError{StatusCode: http.StatusTooManyRequests, Debug: &llm.UpstreamDebugSnapshot{
+			Response: llm.UpstreamDebugResponse{Headers: map[string]string{"retry-after": value}},
+		}}
+	}
+	if got := upstreamRetryAfterSeconds(withHeader("12"), now); got != 12 {
+		t.Fatalf("seconds Retry-After = %d, want 12", got)
+	}
+	if got := upstreamRetryAfterSeconds(withHeader(now.Add(25*time.Second).Format(http.TimeFormat)), now); got != 25 {
+		t.Fatalf("date Retry-After = %d, want 25", got)
 	}
 }
 

@@ -1,14 +1,14 @@
 "use client";
 
-import * as React from "react";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
 
 import type { AssistantReaction } from "@/features/chat/components/message/message-meta";
 import type { ChatAreaMessage } from "@/features/chat/types/messages";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { setMessageFeedback } from "@/shared/api/conversation";
+import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
 export function useChatMessageFeedback(messages: ChatAreaMessage[]) {
   const t = useTranslations("chat.feedback");

@@ -30,7 +30,7 @@ DEEIX Chat 是一款开源可部署的 AI 平台，面向需要长期、稳定�
 
 系统围绕简单部署、高效静态分发和低资源的运行时占用设计，轻量而不简陋、克制而不缺能力、开放而不失秩序。
 
-![DEEIX Chat 工作区](../frontend/public/DEEIX-Chat.jpg)
+![DEEIX Chat 工作区](./assets/screenshots/DEEIX-Chat.jpg)
 
 ## 核心能力
 
@@ -48,14 +48,14 @@ DEEIX Chat 是一款开源可部署的 AI 平台，面向需要长期、稳定�
 | 部署与运维 | 支持单运行时托管前端与 API、Docker 部署、SQLite 或 PostgreSQL、内存缓存或 Redis、S3 兼容存储、Swagger、结构化日志、版本接口、GeoIP 和 OpenTelemetry。 |
 
 <p align="center">
-  <img src="../frontend/public/DEEIX-Chat-Image.png" alt="DEEIX Chat 图片生成" width="49.45%" />
-  <img src="../frontend/public/DEEIX-Chat-Dark.png" alt="DEEIX Chat 深色模式" width="49.45%" />
+  <img src="./assets/screenshots/DEEIX-Chat-Image.png" alt="DEEIX Chat 图片生成" width="49.45%" />
+  <img src="./assets/screenshots/DEEIX-Chat-Dark.png" alt="DEEIX Chat 深色模式" width="49.45%" />
 </p>
 
 <p align="center">
-  <img src="../frontend/public/DEEIX-Chat-Usage.png" alt="DEEIX Chat 用量与计费" width="32.3%" />
-  <img src="../frontend/public/DEEIX-Chat-Artifacts.png" alt="DEEIX Chat Artifacts" width="32.3%" />
-  <img src="../frontend/public/DEEIX-Chat-Html.png" alt="DEEIX Chat HTML 渲染" width="32.3%" />
+  <img src="./assets/screenshots/DEEIX-Chat-Usage.png" alt="DEEIX Chat 用量与计费" width="32.3%" />
+  <img src="./assets/screenshots/DEEIX-Chat-Artifacts.png" alt="DEEIX Chat Artifacts" width="32.3%" />
+  <img src="./assets/screenshots/DEEIX-Chat-Html.png" alt="DEEIX Chat HTML 渲染" width="32.3%" />
 </p>
 
 ## 系统架构与技术栈

@@ -20,10 +20,9 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/userview"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/geoip"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/identityprovider"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/conv"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/token"
+	idpport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/identityprovider"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/requestmeta"
 	"github.com/google/uuid"
@@ -39,14 +38,26 @@ const accessTokenSessionClockSkew = 2 * time.Minute
 type Service struct {
 	cfg                  *config.Runtime
 	repo                 repository.AuthRepository
-	geoResolver          *geoip.Client
+	geoResolver          GeoResolver
 	subscriptionResolver subscriptionResolver
-	providerHTTPClient   *identityprovider.Client
+	providerHTTPClient   identityProviderClient
 	logger               *zap.Logger
 	storeProvider        appstorage.Provider
 	auditWriter          auditWriter
 	avatarFileValidator  avatarFileValidator
 	providerAuthBridge   repository.ProviderAuthBridgeRepository
+}
+
+// GeoResolver 解析客户端 IP 的地理与网络归属信息。
+// 导出供组合根声明变量：GeoIP 关闭时应传 nil 接口，而不是 typed-nil 指针。
+type GeoResolver interface {
+	Lookup(ctx context.Context, rawIP string) (requestmeta.SessionAuditContext, error)
+}
+
+// identityProviderClient 面向可信端点白名单的身份源 HTTP 客户端。
+type identityProviderClient interface {
+	Get(ctx context.Context, targetURL string, trustedEndpoints []string, headers map[string]string) (idpport.Response, error)
+	PostForm(ctx context.Context, targetURL string, trustedEndpoints []string, form url.Values, headers map[string]string) (idpport.Response, error)
 }
 
 type subscriptionResolver interface {
@@ -69,8 +80,8 @@ type avatarFileValidator interface {
 func NewServiceWithRuntime(
 	cfg *config.Runtime,
 	repo repository.AuthRepository,
-	geoResolver *geoip.Client,
-	providerHTTPClient *identityprovider.Client,
+	geoResolver GeoResolver,
+	providerHTTPClient identityProviderClient,
 ) *Service {
 	return &Service{
 		cfg:                cfg,
@@ -871,17 +882,17 @@ func (s *Service) DeleteAccount(
 		return ErrAccountDeleteVerificationRequired
 	}
 	if !containsSecurityVerificationMethod(methods, method) {
-		return fmt.Errorf("verification method is unavailable")
+		return ErrSecurityVerificationMethodUnavailable
 	}
 	normalizedEmail := ""
 	if method == SecurityVerificationMethodEmail {
 		normalizedEmail, err = normalizeRegistrationEmail(item.Email)
 		if err != nil {
-			return fmt.Errorf("user email is invalid")
+			return ErrSecurityVerificationEmailInvalid
 		}
 	}
 	if err = s.verifySecurityCodeWithMethod(ctx, item, method, domainuser.ContactVerificationPurposeAccountDelete, normalizedEmail, code, time.Now()); err != nil {
-		return fmt.Errorf("verification code is invalid or expired")
+		return ErrSecurityVerificationCodeInvalid
 	}
 
 	normalizedAuditCtx := s.resolveSessionAuditContext(ctx, auditCtx)

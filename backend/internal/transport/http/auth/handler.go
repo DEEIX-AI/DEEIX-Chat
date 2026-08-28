@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	appauth "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/auth"
@@ -1479,7 +1478,9 @@ func (h *Handler) DeleteMe(c *gin.Context) {
 			response.ErrorWithCode(c, http.StatusConflict, "knowledge_base.owner_file_reference", "account owns files referenced by builtin knowledge bases")
 			return
 		}
-		if strings.Contains(err.Error(), "verification") || strings.Contains(err.Error(), "email") {
+		if errors.Is(err, appauth.ErrSecurityVerificationMethodUnavailable) ||
+			errors.Is(err, appauth.ErrSecurityVerificationEmailInvalid) ||
+			errors.Is(err, appauth.ErrSecurityVerificationCodeInvalid) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}

@@ -44,7 +44,9 @@ func TestResetAllCircuitStatesPreservesIndependentState(t *testing.T) {
 		t.Fatalf("OpenModelCircuit() error = %v", err)
 	}
 	cache.RecordFailureMetadata(ctx, 1, "temporary failure")
-	if err := cache.RecordRateLimitBackoff(ctx, 1, repository.RateLimitBackoffParams{BackoffBaseSec: 60, BackoffMaxSec: 60, BackoffMultiplier: 2}); err != nil {
+	if err := cache.RecordRateLimitBackoff(ctx, repository.RateLimitBackoffParams{
+		UpstreamID: 1, RouteID: 10, BackoffBaseSec: 60, BackoffMaxSec: 60, BackoffMultiplier: 2,
+	}); err != nil {
 		t.Fatalf("RecordRateLimitBackoff() error = %v", err)
 	}
 
@@ -57,8 +59,44 @@ func TestResetAllCircuitStatesPreservesIndependentState(t *testing.T) {
 	if open, _ := cache.QueryModelCircuitStatus(ctx, 1, "model"); open {
 		t.Fatal("expected model circuit to be cleared")
 	}
-	if !cache.IsRateLimited(ctx, 1) {
+	if remaining, err := cache.GetRateLimitBackoff(ctx, 1, 10); err != nil || remaining <= 0 {
 		t.Fatal("expected rate-limit state to remain independent")
+	}
+}
+
+func TestRouteRateLimitBackoffIsScopedAndClearedAfterSuccess(t *testing.T) {
+	cache := NewChannelCache(New())
+	ctx := t.Context()
+	params := repository.RateLimitBackoffParams{
+		UpstreamID: 1, RouteID: 10, BackoffBaseSec: 5, BackoffMaxSec: 60, BackoffMultiplier: 2,
+	}
+	if err := cache.RecordRateLimitBackoff(ctx, params); err != nil {
+		t.Fatalf("RecordRateLimitBackoff() error = %v", err)
+	}
+	if remaining, err := cache.GetRateLimitBackoff(ctx, 1, 10); err != nil || remaining <= 0 {
+		t.Fatalf("limited route remaining = %s, error = %v", remaining, err)
+	}
+	if remaining, err := cache.GetRateLimitBackoff(ctx, 1, 11); err != nil || remaining != 0 {
+		t.Fatalf("sibling route remaining = %s, error = %v", remaining, err)
+	}
+	if err := cache.ClearRateLimitBackoff(ctx, 1, 10); err != nil {
+		t.Fatalf("ClearRateLimitBackoff() error = %v", err)
+	}
+	if remaining, err := cache.GetRateLimitBackoff(ctx, 1, 10); err != nil || remaining != 0 {
+		t.Fatalf("cleared route remaining = %s, error = %v", remaining, err)
+	}
+}
+
+func TestRateLimitBackoffHonorsBoundedRetryAfter(t *testing.T) {
+	params := repository.RateLimitBackoffParams{
+		BackoffBaseSec: 5, BackoffMaxSec: 60, BackoffMultiplier: 2, RetryAfterSec: 45,
+	}
+	if got := calculateBackoffSeconds(1, params); got != 45 {
+		t.Fatalf("calculateBackoffSeconds() = %d, want 45", got)
+	}
+	params.RetryAfterSec = 120
+	if got := calculateBackoffSeconds(1, params); got != 60 {
+		t.Fatalf("bounded calculateBackoffSeconds() = %d, want 60", got)
 	}
 }
 

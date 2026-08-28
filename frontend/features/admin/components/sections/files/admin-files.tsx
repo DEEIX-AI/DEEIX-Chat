@@ -122,22 +122,60 @@ export function AdminFilesSettingsPage() {
   const [embeddingStatus, setEmbeddingStatus] = React.useState<AdminEmbeddingIndexStatus | null>(null);
   const [embeddingStatusLoading, setEmbeddingStatusLoading] = React.useState(false);
   const [reindexing, setReindexing] = React.useState(false);
+  const embeddingRefreshTimerRef = React.useRef<number | null>(null);
+  const embeddingStatusRequestRef = React.useRef<AbortController | null>(null);
+  const embeddingStatusRequestVersionRef = React.useRef(0);
+
+  const cancelEmbeddingStatusRefresh = React.useCallback(() => {
+    if (embeddingRefreshTimerRef.current !== null) {
+      window.clearTimeout(embeddingRefreshTimerRef.current);
+      embeddingRefreshTimerRef.current = null;
+    }
+    embeddingStatusRequestVersionRef.current += 1;
+    embeddingStatusRequestRef.current?.abort();
+    embeddingStatusRequestRef.current = null;
+  }, []);
+
+  const clearEmbeddingStatus = React.useCallback(() => {
+    cancelEmbeddingStatusRefresh();
+    setEmbeddingStatus(null);
+    setEmbeddingStatusLoading(false);
+  }, [cancelEmbeddingStatusRefresh]);
+
+  React.useEffect(
+    () => cancelEmbeddingStatusRefresh,
+    [cancelEmbeddingStatusRefresh],
+  );
 
   const loadEmbeddingStatus = React.useCallback(async () => {
+    cancelEmbeddingStatusRefresh();
+    const requestVersion = embeddingStatusRequestVersionRef.current;
+    const requestController = new AbortController();
+    embeddingStatusRequestRef.current = requestController;
     setEmbeddingStatusLoading(true);
     try {
       const token = await resolveAccessToken();
-      if (!token) return;
-      const status = await getAdminEmbeddingStatus(token);
+      if (!token || requestController.signal.aborted) return;
+      const status = await getAdminEmbeddingStatus(token, requestController.signal);
+      if (embeddingStatusRequestVersionRef.current !== requestVersion) return;
       setEmbeddingStatus(status);
     } catch {
-      setEmbeddingStatus(null);
+      if (
+        !requestController.signal.aborted &&
+        embeddingStatusRequestVersionRef.current === requestVersion
+      ) setEmbeddingStatus(null);
     } finally {
-      setEmbeddingStatusLoading(false);
+      if (embeddingStatusRequestRef.current === requestController) {
+        embeddingStatusRequestRef.current = null;
+      }
+      if (embeddingStatusRequestVersionRef.current === requestVersion) {
+        setEmbeddingStatusLoading(false);
+      }
     }
-  }, []);
+  }, [cancelEmbeddingStatusRefresh]);
 
   const handleReindex = React.useCallback(async () => {
+    const refreshVersion = embeddingStatusRequestVersionRef.current;
     setReindexing(true);
     try {
       const token = await resolveAccessToken();
@@ -149,7 +187,14 @@ export function AdminFilesSettingsPage() {
       toast.success(t("toast.reindexSubmitted"), {
         description: t("toast.reindexSubmittedDescription", { count: result.submitted }),
       });
-      setTimeout(() => { void loadEmbeddingStatus(); }, 1500);
+      if (embeddingStatusRequestVersionRef.current !== refreshVersion) return;
+      if (embeddingRefreshTimerRef.current !== null) {
+        window.clearTimeout(embeddingRefreshTimerRef.current);
+      }
+      embeddingRefreshTimerRef.current = window.setTimeout(() => {
+        embeddingRefreshTimerRef.current = null;
+        void loadEmbeddingStatus();
+      }, 1500);
     } catch (error) {
       toast.error(t("toast.reindexFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
     } finally {
@@ -216,14 +261,14 @@ export function AdminFilesSettingsPage() {
       if (flattened["file.embedding_enabled"] === EMBEDDING_MODES.ON) {
         void loadEmbeddingStatus();
       } else {
-        setEmbeddingStatus(null);
+        clearEmbeddingStatus();
       }
     } catch (error) {
       toast.error(t("toast.loadFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
     } finally {
       setLoading(false);
     }
-  }, [loadEmbeddingStatus, syncServiceRuntimes, t]);
+  }, [clearEmbeddingStatus, loadEmbeddingStatus, syncServiceRuntimes, t]);
 
   React.useEffect(() => {
     void loadSettings();
@@ -243,6 +288,9 @@ export function AdminFilesSettingsPage() {
   }, [savedMap, settingsMap]);
 
   const handleFieldChange = React.useCallback((fieldID: string, value: string) => {
+    if (fieldID === "file.embedding_enabled" && value !== EMBEDDING_MODES.ON) {
+      clearEmbeddingStatus();
+    }
     setSettingsMap((prev) => {
       let next = { ...prev, [fieldID]: value };
       if (fieldID === "extract.engine" && value === EXTRACT_ENGINE_POLICIES.MINERU) {
@@ -290,7 +338,7 @@ export function AdminFilesSettingsPage() {
       }
       return next;
     });
-  }, [t]);
+  }, [clearEmbeddingStatus, t]);
 
   const handleSaveAllowedMIMETypes = React.useCallback(
     async (nextValue: string) => {
@@ -553,19 +601,20 @@ export function AdminFilesSettingsPage() {
             description: t("toast.embeddingModelChangedDescription"),
             duration: 8000,
           });
+        } else {
+          toast.success(t("toast.groupUpdated", { group: t(`groups.${group.key}.title`) }));
+        }
+        if (
+          embeddingModelWillChange ||
+          group.fields.some((field) =>
+            field.namespace === "file" &&
+            (field.key === "embedding_enabled" || field.key === "rag_model" || field.key === "embedding_host")
+          )
+        ) {
           if (flattened["file.embedding_enabled"] === EMBEDDING_MODES.ON) {
             void loadEmbeddingStatus();
           } else {
-            setEmbeddingStatus(null);
-          }
-        } else {
-          toast.success(t("toast.groupUpdated", { group: t(`groups.${group.key}.title`) }));
-          if (group.fields.some((f) => f.namespace === "file" && (f.key === "embedding_enabled" || f.key === "rag_model" || f.key === "embedding_host"))) {
-            if (flattened["file.embedding_enabled"] === EMBEDDING_MODES.ON) {
-              void loadEmbeddingStatus();
-            } else {
-              setEmbeddingStatus(null);
-            }
+            clearEmbeddingStatus();
           }
         }
       } catch (error) {
@@ -574,7 +623,7 @@ export function AdminFilesSettingsPage() {
         setSaving(false);
       }
     },
-    [configuredMap, dirtyFieldIDs, loadEmbeddingStatus, savedMap, settingsMap, syncServiceRuntimes, t],
+    [clearEmbeddingStatus, configuredMap, dirtyFieldIDs, loadEmbeddingStatus, savedMap, settingsMap, syncServiceRuntimes, t],
   );
 
   const requestSaveGroup = React.useCallback((group: SettingsGroup) => {

@@ -6,16 +6,15 @@ import (
 	"net/url"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
-	epayinfra "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/payment/epay"
-	stripeinfra "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/payment/stripe"
+	paymentport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/payment"
 )
 
 type stripeCheckoutProvider interface {
-	CreateCheckoutSession(ctx context.Context, input stripeinfra.CheckoutInput) (stripeinfra.CheckoutResult, error)
+	CreateCheckoutSession(ctx context.Context, input paymentport.StripeCheckoutInput) (paymentport.CheckoutResult, error)
 }
 
 type epayCheckoutProvider interface {
-	CreateCheckout(ctx context.Context, input epayinfra.CheckoutInput) (epayinfra.CheckoutResult, error)
+	CreateCheckout(ctx context.Context, input paymentport.EPayCheckoutInput) (paymentport.CheckoutResult, error)
 	VerifySignature(values url.Values, key string) bool
 }
 
@@ -77,7 +76,7 @@ func (s *PaymentCheckoutService) CreateEPayCheckout(ctx context.Context, input E
 		return PaymentCheckoutResult{}, fmt.Errorf("payment order is required")
 	}
 	product := DescribePaymentProduct(input.Order, input.Plan)
-	result, err := s.epay.CreateCheckout(ctx, epayinfra.CheckoutInput{
+	result, err := s.epay.CreateCheckout(ctx, paymentport.EPayCheckoutInput{
 		GatewayURL:     input.GatewayURL,
 		MerchantID:     input.MerchantID,
 		MerchantKey:    input.MerchantKey,
@@ -104,7 +103,7 @@ func (s *PaymentCheckoutService) CreateStripeCheckoutSession(ctx context.Context
 		return PaymentCheckoutResult{}, fmt.Errorf("payment order is required")
 	}
 	product := DescribePaymentProduct(input.Order, input.Plan)
-	result, err := s.stripe.CreateCheckoutSession(ctx, stripeinfra.CheckoutInput{
+	result, err := s.stripe.CreateCheckoutSession(ctx, paymentport.StripeCheckoutInput{
 		SecretKey:          input.SecretKey,
 		SuccessURL:         input.SuccessURL,
 		CancelURL:          input.CancelURL,

@@ -4,7 +4,7 @@ import * as React from "react";
 
 const LEGACY_CACHE_PREFIX = "deeix-chat-";
 
-export function LegacyPWAServiceWorkerMigration() {
+export function LegacyPWAServiceWorkerMigration(): null {
   React.useEffect(() => {
     if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) {
       return;

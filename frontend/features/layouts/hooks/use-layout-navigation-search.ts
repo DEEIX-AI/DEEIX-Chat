@@ -1,22 +1,33 @@
 "use client";
 
-import * as React from "react";
 import { useRouter } from "next/navigation";
+import * as React from "react";
 
-import { useConversationSearchPreview } from "@/features/layouts/hooks/use-conversation-search-preview";
-import { toConversationSearchResult } from "@/features/layouts/model/navigation-search";
-import { hasPlatformModifierKey } from "@/shared/lib/platform-shortcuts";
-import { normalizeConversationSearchText } from "@/shared/lib/conversation-search";
+import { useLayoutSearchPreview } from "@/features/layouts/hooks/use-layout-search-preview";
+import {
+  NAVIGATION_SEARCH_PAGE_SIZE,
+  toConversationSearchResult,
+} from "@/features/layouts/model/navigation-search";
+import type { ConversationSearchResult } from "@/features/layouts/types/navigation";
 import { searchConversations } from "@/shared/api/conversation";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import type { ConversationSearchResult } from "@/features/layouts/types/navigation";
+import { normalizeConversationSearchText } from "@/shared/lib/conversation-search";
+import { hasPlatformModifierKey } from "@/shared/lib/platform-shortcuts";
 
 type UseLayoutNavigationSearchOptions = {
+  initialResults?: readonly ConversationSearchResult[];
   untitled: string;
 };
 
 const NAVIGATION_SEARCH_DEBOUNCE_MS = 250;
-const NAVIGATION_SEARCH_PAGE_SIZE = 20;
+const DEFAULT_SEARCH_CACHE_TTL_MS = 30_000;
+const EMPTY_SEARCH_RESULTS: readonly ConversationSearchResult[] = [];
+
+type DefaultSearchCache = {
+  results: ConversationSearchResult[];
+  hasMore: boolean;
+  cachedAt: number;
+};
 
 function mergeSearchResults(
   current: ConversationSearchResult[],
@@ -26,11 +37,14 @@ function mergeSearchResults(
   return [...current, ...next.filter((item) => !seen.has(item.publicID))];
 }
 
-export function useLayoutNavigationSearch({ untitled }: UseLayoutNavigationSearchOptions) {
+export function useLayoutNavigationSearch({
+  initialResults = EMPTY_SEARCH_RESULTS,
+  untitled,
+}: UseLayoutNavigationSearchOptions) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
-  const [results, setResults] = React.useState<ConversationSearchResult[]>([]);
+  const [results, setResults] = React.useState<ConversationSearchResult[]>(() => [...initialResults]);
   const [page, setPage] = React.useState(1);
   const [hasMore, setHasMore] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
@@ -41,14 +55,18 @@ export function useLayoutNavigationSearch({ untitled }: UseLayoutNavigationSearc
   const requestVersionRef = React.useRef(0);
   const loadingMoreRef = React.useRef(false);
   const loadMoreAbortRef = React.useRef<AbortController | null>(null);
-  const conversationPreview = useConversationSearchPreview(open);
+  const defaultSearchCacheRef = React.useRef<DefaultSearchCache | null>(null);
+  const initialResultsRef = React.useRef(initialResults);
+  initialResultsRef.current = initialResults;
+  const conversationPreview = useLayoutSearchPreview(open);
 
   React.useEffect(() => {
     if (!open) {
+      const defaultSearchCache = defaultSearchCacheRef.current;
       setQuery("");
-      setResults([]);
+      setResults(defaultSearchCache?.results ?? [...initialResults]);
       setPage(1);
-      setHasMore(false);
+      setHasMore(defaultSearchCache?.hasMore ?? false);
       setLoading(false);
       setLoadingMore(false);
       setLoadFailed(false);
@@ -58,7 +76,7 @@ export function useLayoutNavigationSearch({ untitled }: UseLayoutNavigationSearc
       loadMoreAbortRef.current = null;
       requestVersionRef.current += 1;
     }
-  }, [open]);
+  }, [initialResults, open]);
 
   const normalizedQuery = normalizeConversationSearchText(query);
 
@@ -69,16 +87,27 @@ export function useLayoutNavigationSearch({ untitled }: UseLayoutNavigationSearc
 
     requestVersionRef.current += 1;
     const requestVersion = requestVersionRef.current;
-    setResults([]);
+    const defaultSearchCache = normalizedQuery ? null : defaultSearchCacheRef.current;
+    const fallbackResults = normalizedQuery
+      ? []
+      : (defaultSearchCache?.results ?? initialResultsRef.current);
+    const hasFallbackResults = fallbackResults.length > 0;
+    setResults([...fallbackResults]);
+    setHasMore(defaultSearchCache?.hasMore ?? false);
     setPage(1);
-    setHasMore(false);
-    setLoading(true);
+    setLoading(!hasFallbackResults);
     setLoadingMore(false);
     setLoadFailed(false);
     setLoadMoreFailed(false);
     loadingMoreRef.current = false;
     loadMoreAbortRef.current?.abort();
     loadMoreAbortRef.current = null;
+    if (
+      defaultSearchCache &&
+      Date.now() - defaultSearchCache.cachedAt < DEFAULT_SEARCH_CACHE_TTL_MS
+    ) {
+      return;
+    }
     const abortController = new AbortController();
     const timer = window.setTimeout(() => {
       void (async () => {
@@ -88,7 +117,9 @@ export function useLayoutNavigationSearch({ untitled }: UseLayoutNavigationSearc
             return;
           }
           if (!token) {
-            setLoadFailed(true);
+            if (!hasFallbackResults) {
+              setLoadFailed(true);
+            }
             return;
           }
           const data = await searchConversations(token, {
@@ -101,13 +132,23 @@ export function useLayoutNavigationSearch({ untitled }: UseLayoutNavigationSearc
             return;
           }
           const nextResults = data.results ?? [];
-          setResults(nextResults.map((item) => toConversationSearchResult(item, untitled)));
+          const mappedResults = nextResults.map((item) => toConversationSearchResult(item, untitled));
+          if (!normalizedQuery) {
+            defaultSearchCacheRef.current = {
+              results: mappedResults,
+              hasMore: data.hasMore ?? false,
+              cachedAt: Date.now(),
+            };
+          }
+          setResults(mappedResults);
           setHasMore(data.hasMore ?? false);
         } catch {
           if (requestVersion === requestVersionRef.current) {
-            setResults([]);
-            setHasMore(false);
-            setLoadFailed(true);
+            if (!hasFallbackResults) {
+              setResults([]);
+              setHasMore(false);
+              setLoadFailed(true);
+            }
           }
         } finally {
           if (requestVersion === requestVersionRef.current) {
@@ -177,6 +218,7 @@ export function useLayoutNavigationSearch({ untitled }: UseLayoutNavigationSearc
   }, [hasMore, loading, normalizedQuery, open, page, untitled]);
 
   const retrySearch = React.useCallback(() => {
+    defaultSearchCacheRef.current = null;
     setRefreshRevision((current) => current + 1);
   }, []);
 

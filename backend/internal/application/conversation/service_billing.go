@@ -12,7 +12,7 @@ import (
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
@@ -318,9 +318,28 @@ func (s *Service) buildSendMessageUsageLedger(ctx context.Context, input SendMes
 		InputImageCount:     inputImageCount,
 		LatencyMS:           latencyMS,
 		ServerSideToolUsage: result.ServerSideToolUsage,
+		MCPToolUsage:        sendMessageMCPToolUsageInputs(result),
 		RawUsageJSON:        result.RawUsageJSON,
 		BillingAt:           result.StartedAt,
 	})
+}
+
+// sendMessageMCPToolUsageInputs 把运行时聚合的 MCP 调用计量映射为计费入参。
+func sendMessageMCPToolUsageInputs(result *SendMessageResult) []appbilling.MCPToolUsageInput {
+	if result == nil || len(result.MCPToolUsage) == 0 {
+		return nil
+	}
+	items := make([]appbilling.MCPToolUsageInput, 0, len(result.MCPToolUsage))
+	for _, usage := range result.MCPToolUsage {
+		items = append(items, appbilling.MCPToolUsageInput{
+			ServerID:     usage.ServerID,
+			ServerName:   usage.ServerName,
+			ToolName:     usage.ToolName,
+			CallCount:    usage.CallCount,
+			PriceNanousd: usage.PriceNanousd,
+		})
+	}
+	return items
 }
 
 func sendMessageBillingInputTokens(result *SendMessageResult) int64 {

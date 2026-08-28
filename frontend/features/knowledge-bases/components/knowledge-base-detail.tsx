@@ -202,7 +202,7 @@ function KnowledgeBaseFileList({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-5">
       {loading ? (
-        <div className="flex justify-center py-16">
+        <div className="flex h-full items-center justify-center text-muted-foreground">
           <Spinner className="size-4" />
         </div>
       ) : files.length > 0 ? (

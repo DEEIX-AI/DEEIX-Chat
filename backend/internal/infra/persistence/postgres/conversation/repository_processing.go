@@ -26,6 +26,28 @@ func (r *Repo) UpdateFileObjectProcessingState(ctx context.Context, item *domain
 	return nil
 }
 
+func (r *Repo) UpdateClaimedFileObjectProcessingState(
+	ctx context.Context,
+	item *domainconversation.FileObjectProcessing,
+	attemptID string,
+) (bool, error) {
+	if item == nil || attemptID == "" {
+		return false, nil
+	}
+	updates := fileObjectProcessingStateUpdates(item)
+	if item.ProcessingStatus == "ready" || item.ProcessingStatus == "failed" {
+		updates["processing_attempt_id"] = ""
+	}
+	result := r.db.WithContext(ctx).
+		Model(&models.FileObject{}).
+		Where("id = ? AND user_id = ? AND processing_attempt_id = ?", item.FileObjectID, item.UserID, attemptID).
+		Updates(updates)
+	if result.Error != nil {
+		return false, translateError(result.Error)
+	}
+	return result.RowsAffected > 0, nil
+}
+
 func (r *Repo) GetFileObjectProcessingByObjectID(ctx context.Context, fileObjID uint) (*domainconversation.FileObjectProcessing, error) {
 	var item models.FileObject
 	if err := r.db.WithContext(ctx).
@@ -55,55 +77,69 @@ func (r *Repo) CloneFileObjectProcessingState(ctx context.Context, sourceFileObj
 	return r.UpdateFileObjectProcessingState(ctx, &copyItem)
 }
 
-func (r *Repo) UpdateFileObjectProcessing(
+func (r *Repo) TryClaimFileObjectProcessing(
 	ctx context.Context,
 	userID uint,
 	fileID string,
-	input repository.UpdateFileObjectProcessingInput,
-) error {
-	updates := fileObjectProcessingUpdates(input)
-	if len(updates) == 0 {
-		return nil
+	allowRecovery bool,
+	extractorVersion string,
+	attemptID string,
+) (bool, error) {
+	if attemptID == "" {
+		return false, nil
 	}
-	updates["updated_at"] = time.Now()
+	claimableStatuses := []string{"queued"}
+	if allowRecovery {
+		claimableStatuses = append(claimableStatuses, "extracting", "embedding")
+	}
+	now := time.Now()
 	result := r.db.WithContext(ctx).
 		Model(&models.FileObject{}).
-		Where("user_id = ? AND file_id = ?", userID, fileID).
-		Updates(updates)
+		Where("user_id = ? AND file_id = ? AND processing_status IN ?", userID, fileID, claimableStatuses).
+		Updates(map[string]interface{}{
+			"processing_status":        "extracting",
+			"processing_ready":         false,
+			"processing_error_code":    "",
+			"processing_error_message": "",
+			"extract_status":           "processing",
+			"extractor_version":        extractorVersion,
+			"processing_attempt_id":    attemptID,
+			"processing_started_at":    now,
+			"processing_completed_at":  nil,
+			"updated_at":               now,
+		})
 	if result.Error != nil {
-		return translateError(result.Error)
+		return false, translateError(result.Error)
 	}
-	if result.RowsAffected == 0 {
-		return repository.ErrNotFound
-	}
-	return nil
+	return result.RowsAffected > 0, nil
 }
 
-func fileObjectProcessingUpdates(input repository.UpdateFileObjectProcessingInput) map[string]interface{} {
-	updates := make(map[string]interface{})
-	if input.ProcessingStatus != nil {
-		updates["processing_status"] = *input.ProcessingStatus
+func (r *Repo) ResetFileObjectProcessingForRetry(
+	ctx context.Context,
+	userID uint,
+	fileID string,
+	attemptID string,
+) (bool, error) {
+	now := time.Now()
+	result := r.db.WithContext(ctx).
+		Model(&models.FileObject{}).
+		Where(
+			"user_id = ? AND file_id = ? AND processing_attempt_id = ? AND processing_status IN ?",
+			userID,
+			fileID,
+			attemptID,
+			[]string{"extracting", "embedding"},
+		).
+		Updates(map[string]interface{}{
+			"processing_status":       "queued",
+			"processing_ready":        false,
+			"extract_status":          "none",
+			"processing_attempt_id":   "",
+			"processing_completed_at": nil,
+			"updated_at":              now,
+		})
+	if result.Error != nil {
+		return false, translateError(result.Error)
 	}
-	if input.ProcessingReady != nil {
-		updates["processing_ready"] = *input.ProcessingReady
-	}
-	if input.ProcessingErrorCode != nil {
-		updates["processing_error_code"] = *input.ProcessingErrorCode
-	}
-	if input.ProcessingErrorMessage != nil {
-		updates["processing_error_message"] = *input.ProcessingErrorMessage
-	}
-	if input.ExtractStatus != nil {
-		updates["extract_status"] = *input.ExtractStatus
-	}
-	if input.PageCount != nil {
-		updates["page_count"] = *input.PageCount
-	}
-	if input.ExtractorVersion != nil {
-		updates["extractor_version"] = *input.ExtractorVersion
-	}
-	if input.ExtractedAt != nil {
-		updates["extracted_at"] = *input.ExtractedAt
-	}
-	return updates
+	return result.RowsAffected > 0, nil
 }

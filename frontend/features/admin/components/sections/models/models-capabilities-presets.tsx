@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { Check, Copy, Search } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -15,11 +14,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
 import type { AdminLLMAdapter, AdminLLMModelDTO } from "@/features/admin/api/llm.types";
-import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
+import { cn } from "@/lib/utils";
 import { MODEL_OPTION_POLICY_PROTOCOL_LABELS, resolveModelOptionPolicyProtocol } from "@/shared/lib/model-option-policy";
+import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
 
 type CapabilityPreset = {
   id: string;
@@ -62,6 +62,7 @@ const XAI_IMAGE_ASPECT_RATIOS = [
 const XAI_IMAGE_RESOLUTIONS = ["1k", "2k"];
 const XAI_VIDEO_ASPECT_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"];
 const XAI_VIDEO_DURATIONS = Array.from({ length: 15 }, (_, index) => String(index + 1));
+const XAI_VIDEO_EXTENSION_DURATIONS = Array.from({ length: 9 }, (_, index) => String(index + 2));
 const XAI_VIDEO_RESOLUTIONS = ["480p", "720p", "1080p"];
 
 const XAI_IMAGE_OPTION_CONTROLS = [
@@ -579,6 +580,37 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
           options: XAI_VIDEO_RESOLUTIONS,
         },
       ],
+    },
+  },
+  {
+    id: "xai_video_extensions",
+    protocol: "xai_video_extensions",
+    payload: {
+      defaultOptions: { duration: 6 },
+      optionControls: [
+        {
+          path: "duration",
+          type: "select",
+          label: "Extension duration (seconds)",
+          description: "Additional video duration from 2 to 10 seconds.",
+          options: XAI_VIDEO_EXTENSION_DURATIONS,
+        },
+      ],
+      mediaTasks: {
+        video_extension: {
+          enabled: true,
+          defaultOptions: { duration: 6 },
+          optionControls: [
+            {
+              path: "duration",
+              type: "select",
+              label: "Extension duration (seconds)",
+              description: "Additional video duration from 2 to 10 seconds.",
+              options: XAI_VIDEO_EXTENSION_DURATIONS,
+            },
+          ],
+        },
+      },
     },
   },
 ];

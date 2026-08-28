@@ -54,6 +54,8 @@ func TestFetchOpenRouterOfficialPricingNormalizesCatalog(t *testing.T) {
 				"id": " openai/gpt-test ",
 				"canonical_slug": "",
 				"name": "",
+				"context_length": 128000,
+				"top_provider": {"context_length": 131072, "max_completion_tokens": 16384},
 				"pricing": {"prompt": " 0.1 ", "completion": " 0.2 "}
 			},
 			{"id": "   ", "name": "ignored"}
@@ -74,6 +76,9 @@ func TestFetchOpenRouterOfficialPricingNormalizesCatalog(t *testing.T) {
 	if item.Pricing.Prompt != "0.1" || item.Pricing.Completion != "0.2" {
 		t.Fatalf("unexpected normalized pricing: %#v", item.Pricing)
 	}
+	if item.ContextLength != 131_072 || item.MaxCompletionTokens != 16_384 {
+		t.Fatalf("unexpected model limits: %#v", item)
+	}
 }
 
 func TestGetOpenRouterOfficialPricingUsesFreshPersistentCache(t *testing.T) {
@@ -81,8 +86,9 @@ func TestGetOpenRouterOfficialPricingUsesFreshPersistentCache(t *testing.T) {
 	cache := &officialPricingCacheStub{
 		found: true,
 		data: []byte(`{
+			"version":2,
 			"fetchedAt":"` + time.Now().UTC().Format(time.RFC3339Nano) + `",
-			"items":[{"id":"openai/gpt-test","canonicalSlug":"openai/gpt-test","name":"GPT Test","pricing":{}}]
+			"items":[{"id":"openai/gpt-test","canonicalSlug":"openai/gpt-test","name":"GPT Test","contextLength":128000,"maxCompletionTokens":8192,"pricing":{}}]
 		}`),
 	}
 	service := NewOfficialPricingService(provider, cache)
@@ -96,6 +102,31 @@ func TestGetOpenRouterOfficialPricingUsesFreshPersistentCache(t *testing.T) {
 	}
 	if provider.calls != 0 {
 		t.Fatalf("provider calls = %d, want 0", provider.calls)
+	}
+	if result.Items[0].ContextLength != 128_000 || result.Items[0].MaxCompletionTokens != 8_192 {
+		t.Fatalf("cached model limits were not preserved: %#v", result.Items[0])
+	}
+}
+
+func TestGetOpenRouterOfficialPricingRefreshesLegacyCacheWithoutModelLimits(t *testing.T) {
+	provider := &officialPricingProviderStub{payload: []byte(`{
+		"data":[{"id":"openai/gpt-test","context_length":128000,"pricing":{}}]
+	}`)}
+	cache := &officialPricingCacheStub{
+		found: true,
+		data: []byte(`{
+			"fetchedAt":"` + time.Now().UTC().Format(time.RFC3339Nano) + `",
+			"items":[{"id":"openai/gpt-test","canonicalSlug":"openai/gpt-test","name":"GPT Test","pricing":{}}]
+		}`),
+	}
+	service := NewOfficialPricingService(provider, cache)
+
+	result, err := service.GetOpenRouterOfficialPricing(t.Context(), false)
+	if err != nil {
+		t.Fatalf("refresh legacy official pricing cache: %v", err)
+	}
+	if provider.calls != 1 || result.Cached || result.Items[0].ContextLength != 128_000 {
+		t.Fatalf("legacy cache was not refreshed: result=%#v calls=%d", result, provider.calls)
 	}
 }
 
@@ -121,7 +152,7 @@ func TestGetOpenRouterOfficialPricingFallsBackToStaleCache(t *testing.T) {
 
 func TestGetOpenRouterOfficialPricingRefreshesAndPersistsSnapshot(t *testing.T) {
 	provider := &officialPricingProviderStub{payload: []byte(`{
-		"data":[{"id":"openai/gpt-test","name":"GPT Test","pricing":{"prompt":"0.1"}}]
+		"data":[{"id":"openai/gpt-test","name":"GPT Test","context_length":128000,"top_provider":{"max_completion_tokens":8192},"pricing":{"prompt":"0.1"}}]
 	}`)}
 	cache := &officialPricingCacheStub{}
 	service := NewOfficialPricingService(provider, cache)
@@ -142,5 +173,11 @@ func TestGetOpenRouterOfficialPricingRefreshesAndPersistsSnapshot(t *testing.T) 
 	}
 	if len(persisted.Items) != 1 || persisted.Items[0].ID != "openai/gpt-test" {
 		t.Fatalf("unexpected persisted cache: %#v", persisted)
+	}
+	if persisted.Version != openRouterPricingCacheVersion {
+		t.Fatalf("cache version = %d, want %d", persisted.Version, openRouterPricingCacheVersion)
+	}
+	if persisted.Items[0].ContextLength != 128_000 || persisted.Items[0].MaxCompletionTokens != 8_192 {
+		t.Fatalf("model limits were not persisted: %#v", persisted.Items[0])
 	}
 }

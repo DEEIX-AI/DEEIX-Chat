@@ -12,26 +12,8 @@ import (
 	"strings"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
+	paymentport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/payment"
 )
-
-// CheckoutInput 定义易支付 submit.php 页面跳转所需的协议字段。
-type CheckoutInput struct {
-	GatewayURL     string
-	MerchantID     string
-	MerchantKey    string
-	PaymentType    string
-	OrderNo        string
-	NotifyURL      string
-	ReturnURL      string
-	PayCurrency    string
-	PayAmountCents int64
-	ProductName    string
-}
-
-// CheckoutResult 表示易支付跳转地址。
-type CheckoutResult struct {
-	URL string
-}
 
 // Client 构建易支付 submit.php 签名跳转请求。
 type Client struct{}
@@ -42,31 +24,31 @@ func New() *Client {
 }
 
 // CreateCheckout 构建签名后的易支付 submit.php 页面跳转地址。
-func (c *Client) CreateCheckout(_ context.Context, input CheckoutInput) (CheckoutResult, error) {
+func (c *Client) CreateCheckout(_ context.Context, input paymentport.EPayCheckoutInput) (paymentport.CheckoutResult, error) {
 	if c == nil {
-		return CheckoutResult{}, fmt.Errorf("epay checkout client is not configured")
+		return paymentport.CheckoutResult{}, fmt.Errorf("epay checkout client is not configured")
 	}
 	endpoint, err := domainbilling.ResolveEPaySubmitURL(input.GatewayURL)
 	if err != nil {
-		return CheckoutResult{}, err
+		return paymentport.CheckoutResult{}, err
 	}
 	if strings.TrimSpace(input.MerchantID) == "" || strings.TrimSpace(input.MerchantKey) == "" {
-		return CheckoutResult{}, fmt.Errorf("epay merchant credentials are not configured")
+		return paymentport.CheckoutResult{}, fmt.Errorf("epay merchant credentials are not configured")
 	}
 	if strings.TrimSpace(input.OrderNo) == "" || input.PayAmountCents <= 0 {
-		return CheckoutResult{}, fmt.Errorf("epay checkout order is invalid")
+		return paymentport.CheckoutResult{}, fmt.Errorf("epay checkout order is invalid")
 	}
 	if !strings.EqualFold(strings.TrimSpace(input.PayCurrency), "CNY") {
-		return CheckoutResult{}, fmt.Errorf("epay checkout currency must be CNY")
+		return paymentport.CheckoutResult{}, fmt.Errorf("epay checkout currency must be CNY")
 	}
 	if !validPaymentType(input.PaymentType) {
-		return CheckoutResult{}, fmt.Errorf("epay payment type is not supported")
+		return paymentport.CheckoutResult{}, fmt.Errorf("epay payment type is not supported")
 	}
 	if !isHTTPURL(input.NotifyURL) || !isHTTPURL(input.ReturnURL) {
-		return CheckoutResult{}, fmt.Errorf("epay checkout callback url is invalid")
+		return paymentport.CheckoutResult{}, fmt.Errorf("epay checkout callback url is invalid")
 	}
 	if strings.TrimSpace(input.ProductName) == "" {
-		return CheckoutResult{}, fmt.Errorf("epay checkout product name is required")
+		return paymentport.CheckoutResult{}, fmt.Errorf("epay checkout product name is required")
 	}
 
 	params := url.Values{}
@@ -82,10 +64,10 @@ func (c *Client) CreateCheckout(_ context.Context, input CheckoutInput) (Checkou
 
 	parsed, err := url.Parse(endpoint)
 	if err != nil {
-		return CheckoutResult{}, domainbilling.ErrEPayGatewayInvalid
+		return paymentport.CheckoutResult{}, domainbilling.ErrEPayGatewayInvalid
 	}
 	parsed.RawQuery = params.Encode()
-	return CheckoutResult{URL: parsed.String()}, nil
+	return paymentport.CheckoutResult{URL: parsed.String()}, nil
 }
 
 // VerifySignature 使用易支付 submit.php 协议的 MD5 规则校验通知签名。

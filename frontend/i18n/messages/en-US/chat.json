@@ -15,6 +15,19 @@
   "time": "Time",
   "tokens": "Tokens",
   "details": "Details",
+  "temporary": {
+    "title": "Temporary chat",
+    "historyChat": "Normal chat",
+    "notice": "This chat won't appear in your history. Its data will be cleared when you leave the page.",
+    "exitTitle": "Exit temporary chat",
+    "exitDescription": "All messages and generated content in this temporary chat will be cleared and cannot be recovered.",
+    "continue": "Cancel",
+    "exitAction": "Exit",
+    "stopped": "Generation stopped",
+    "blocked": "Content withdrawn by the safety policy",
+    "failed": "Temporary message generation failed. Please try again.",
+    "sessionExpired": "Your session has expired. Please sign in again."
+  },
   "greeting": {
     "morning": "Good morning",
     "afternoon": "Good afternoon",
@@ -91,18 +104,18 @@
     "delete": "Delete"
   },
   "screenshot": {
-    "captureFull": "Capture full conversation",
+    "captureLatest": "Capture latest 100 messages",
     "captureSelect": "Select messages to capture",
     "selectMessage": "Select this message",
-    "selectedCount": "{count} selected",
     "selectAll": "Select all",
+    "selectLatest": "Select latest 100",
     "clearSelection": "Clear selection",
     "captureSelected": "Capture",
     "exitSelection": "Exit selection",
     "generating": "Generating screenshot…",
     "ready": "Screenshot ready",
     "failed": "Failed to generate screenshot",
-    "loadLimitReached": "The conversation is too long. Please select a portion of the messages to take a screenshot.",
+    "selectionLimitReached": "You can select up to 100 messages",
     "tooLarge": "The conversation content is too large. Please select a portion of the messages to take a screenshot.",
     "emptySelection": "Select at least one message",
     "previewTitle": "Conversation screenshot",
@@ -124,6 +137,14 @@
     "downloadImage": "Download image",
     "scrollableTable": "Scrollable data table",
     "scrollableTableHint": "Scroll horizontally to view more columns.",
+    "table": {
+      "download": "Download",
+      "downloadAsCsv": "Download CSV",
+      "downloadAsMarkdown": "Download Markdown",
+      "formatCsv": "CSV",
+      "formatMarkdown": "Markdown",
+      "downloadFailed": "Could not download table"
+    },
     "copyLatex": "Copy formula source",
     "latexCopied": "Formula source copied",
     "latexCopyFailed": "Could not copy formula source",
@@ -134,10 +155,6 @@
       "copy": "Copy link",
       "copied": "Link copied",
       "copyFailed": "Could not copy link"
-    },
-    "codeBlock": {
-      "collapse": "Collapse",
-      "expand": "Expand {count} lines"
     },
     "artifact": {
       "openPreview": "Preview",
@@ -157,10 +174,16 @@
       "done": "Thinking complete"
     },
     "diagram": {
-      "downloadDiagram": "Download diagram",
+      "downloadDiagram": "Download",
       "downloadDiagramAsSvg": "Download diagram as SVG",
       "downloadDiagramAsPng": "Download diagram as PNG",
-      "downloadDiagramAsMmd": "Download diagram as MMD"
+      "downloadDiagramAsMmd": "Download diagram as MMD",
+      "copyDiagram": "Copy",
+      "viewFullscreen": "Fullscreen",
+      "exitFullscreen": "Exit",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "resetView": "Reset view"
     }
   },
   "artifacts": {
@@ -214,6 +237,7 @@
     "dislikeReply": "Dislike",
     "retryReply": "Retry",
     "continueReply": "Continue reply",
+    "extendVideo": "Extend video",
     "forkMessage": "Fork conversation here",
     "forkTitle": "{title} (Fork)",
     "rememberPreference": "Remember preference",
@@ -285,6 +309,8 @@
       "image_task_rejects_non_image_attachments": "Image tasks only support image attachments. Remove non-image files.",
       "video_generation_too_many_images": "Video generation supports one input image at most. Keep one image and try again.",
       "video_task_rejects_non_image_attachments": "Video generation only supports text prompts and image attachments. Remove non-image files.",
+      "video_extension_requires_single_mp4": "Video extension accepts exactly one MP4 file. Remove the other attachments and try again.",
+      "video_extension_unsupported": "The selected model does not support video extension. Switch to a model using the xAI video protocol.",
       "model_task_unsupported": "This model cannot process the current input. Select another model and try again."
     },
     "mediaStatus": {
@@ -297,6 +323,8 @@
     },
     "generationInterrupted": "Generation interrupted",
     "sendFailed": "Send failed",
+    "queuedParentFailed": "Queued messages canceled",
+    "queuedParentFailedDescription": "The previous message did not complete successfully, so its dependent queued messages were canceled.",
     "continueGenerationPrompt": "Continue from the previous interrupted reply without repeating content that was already generated.",
     "continueReplyFailed": "Unable to continue generation",
     "continueReplyUnavailable": "This reply cannot be continued right now.",
@@ -378,6 +406,7 @@
     "knowledgeBaseNotReady": "No searchable files yet",
     "knowledgeBaseEmpty": "No knowledge bases available",
     "knowledgeBaseLoadFailed": "Failed to load knowledge bases",
+    "knowledgeBaseLoadMore": "Load more",
     "knowledgeBaseUnavailable": "Knowledge base retrieval is unavailable",
     "knowledgeBaseUnavailableDescription": "Ask an administrator to check the RAG and embedding configuration.",
     "knowledgeBaseUnavailableRAGDisabled": "RAG retrieval is disabled. Ask an administrator to enable RAG.",
@@ -436,6 +465,8 @@
     "mcpToolLimitTitle": "Tool limit reached",
     "mcpToolLimitDescription": "A message can use up to {limit} MCP tools. Clear some tools before selecting more.",
     "mcpImageProcessor": "Image attachment processor",
+    "mcpPaidTool": "Billed per call at {price}.",
+    "mcpPaidToolNote": "Only successfully executed tool calls are billed; failed calls are not billed.",
     "mcpImageProcessorLimitTitle": "Only one image processor can be selected",
     "mcpImageProcessorLimitDescription": "One MCP image attachment processor can handle images for a message. Clear the current one first.",
     "skillLimitTitle": "Skill limit reached",
@@ -502,6 +533,9 @@
       "videoGeneration": "Video generation",
       "videoGenerationIntro": "Video generation mode is active.",
       "videoGenerationDescription": "Creates a video from the text prompt. Upload one image to use it as a reference input.",
+      "videoExtension": "Video extension",
+      "videoExtensionIntro": "Video extension mode is active.",
+      "videoExtensionDescription": "Extends the uploaded MP4 video from your prompt. Only the extension duration is configurable.",
       "invalidFile": "Invalid file detected",
       "invalidFileIntro": "This file cannot be used for a media task.",
       "blockedDescriptions": {
@@ -511,6 +545,8 @@
         "image_task_rejects_non_image_attachments": "Image tasks only support image attachments. Remove non-image files.",
         "video_generation_too_many_images": "Video generation supports one input image at most.",
         "video_task_rejects_non_image_attachments": "Video generation only supports text prompts and image attachments. Remove non-image files.",
+        "video_extension_requires_single_mp4": "Video extension accepts exactly one MP4 file. Remove the other attachments.",
+        "video_extension_unsupported": "The selected model does not support video extension. Switch to a model using the xAI video protocol.",
         "model_task_unsupported": "The selected model cannot process this input. Switch models and try again."
       }
     },
@@ -604,56 +640,37 @@
         "codeInterpreter": "Code interpreter",
         "imageGeneration": "Image generation",
         "shell": "Shell",
-        "generic": "Tool call",
-        "thinking": "Model thinking"
+        "generic": "Tool call"
       },
       "detail": {
+        "nameLabel": "Tool",
         "request": "Request",
         "response": "Response",
         "error": "Error",
-        "expand": "Expand",
-        "collapse": "Collapse",
+        "argumentsTitle": "Parameters",
+        "resultTitle": "Result",
+        "copy": "Copy",
+        "copied": "Copied",
+        "copyFailed": "Copy failed",
         "sourceFallback": "Source {index}",
         "generatedImageAlt": "Generated image {index}",
-        "query": "Query",
-        "action": "Action",
-        "source": "Source",
-        "code": "Code",
-        "output": "Output",
-        "resultFile": "Result file",
-        "prompt": "Prompt",
-        "command": "Command",
-        "latencySeparator": "; "
-      },
-      "nativeStatus": {
-        "webSearchActive": "Searching the web",
-        "webSearchDone": "Web search complete",
-        "webSearchFailed": "Web search failed",
-        "codeActive": "Running code",
-        "codeDone": "Code run complete",
-        "codeFailed": "Code run failed",
-        "imageActive": "Generating image",
-        "imageDone": "Image generation complete",
-        "imageFailed": "Image generation failed",
-        "shellActive": "Running shell command",
-        "shellDone": "Shell command complete",
-        "shellFailed": "Shell command failed",
-        "genericActive": "Calling tool",
-        "genericDone": "Tool call complete",
-        "genericFailed": "Tool call failed"
-      },
-      "chain": {
-        "titleActive": "Calling tools",
-        "titleDone": "Tool calls",
-        "summaryCount": "{count} tool calls",
-        "summaryFallback": "Tool calls"
+        "sourceCount": "{count} sources",
+        "groundingSupportCount": "{count} grounding supports",
+        "exitCode": "Exit code {code}"
       }
     },
     "think": {
-      "titleActive": "Thinking",
-      "titleDone": "Thinking complete",
-      "subtitleActive": "Parsing the request and organizing key context",
-      "subtitleDone": "Reasoning and context integration complete"
+      "rowActive": "Deep reasoning",
+      "rowDone": "Deep reasoning",
+      "duration": "{seconds}"
+    },
+    "run": {
+      "titleActive": "Running",
+      "titleDone": "Run complete",
+      "toolCalls": "{count} tool calls",
+      "thinkRounds": "{count} deep-reasoning rounds",
+      "duration": "{duration}",
+      "labelSeparator": " · "
     },
     "promptTrace": {
       "modes": {
@@ -695,7 +712,9 @@
       "summary": "Compacted turns {fromTurn}-{toTurn}",
       "detail": "Conversation context was compacted into a rolling summary.",
       "range": "Compacted range: turns {fromTurn}-{toTurn}.",
-      "tokens": "Token reduction: {sourceTokens} -> {summaryTokens}."
+      "tokens": "Token reduction: {sourceTokens} -> {summaryTokens}.",
+      "pending": "Generating a rolling summary in the background.",
+      "failed": "Context compaction did not complete and will be retried on a later request."
     }
   },
   "optionLabels": {

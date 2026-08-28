@@ -70,6 +70,10 @@ func (h *Handler) CreateConversationProject(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, "invalid conversation project")
 			return
 		}
+		if errors.Is(err, appconversation.ErrConversationProjectLimitExceeded) {
+			response.Error(c, http.StatusBadRequest, "conversation project limit exceeded")
+			return
+		}
 		response.Error(c, http.StatusInternalServerError, "create conversation project failed")
 		return
 	}

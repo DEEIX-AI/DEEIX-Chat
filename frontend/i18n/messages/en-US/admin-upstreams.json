@@ -13,7 +13,8 @@
     "audio": "Audio",
     "image_gen": "Image generation",
     "image_edit": "Image editing",
-    "video_gen": "Video generation"
+    "video_gen": "Video generation",
+    "video_extension": "Video extension"
   },
   "status": {
     "active": "Active",

@@ -102,6 +102,7 @@ type usageStatisticsService interface {
 
 type orderLogService interface {
 	ListPaymentOrders(ctx context.Context, page int, pageSize int, filter billing.PaymentOrderListFilter) ([]domainbilling.PaymentOrder, int64, error)
+	ListRedemptions(ctx context.Context, page int, pageSize int, filter billing.RedemptionListFilter) ([]billing.RedemptionRecordView, int64, error)
 }
 
 type conversationEventService interface {

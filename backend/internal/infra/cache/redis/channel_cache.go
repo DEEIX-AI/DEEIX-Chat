@@ -135,6 +135,32 @@ end
 return cjson.encode({ model_tripped = model_tripped, upstream_tripped = upstream_tripped })
 `)
 
+// rateLimitRecordBackoffScript 原子递增路由限流次数并刷新退避窗口。
+// KEYS: [count_key, backoff_key]
+// ARGV: [count_ttl_sec, base_sec, max_sec, multiplier, retry_after_sec]
+var rateLimitRecordBackoffScript = redis.NewScript(`
+local count_ttl = tonumber(ARGV[1])
+local base = tonumber(ARGV[2])
+local max_backoff = tonumber(ARGV[3])
+local multiplier = tonumber(ARGV[4])
+local retry_after = tonumber(ARGV[5])
+
+local count = redis.call('INCR', KEYS[1])
+redis.call('EXPIRE', KEYS[1], count_ttl)
+
+local backoff = base
+for _ = 2, count do
+	if backoff >= max_backoff then
+		break
+	end
+	backoff = math.min(backoff * multiplier, max_backoff)
+end
+backoff = math.min(math.max(backoff, retry_after), max_backoff)
+redis.call('SET', KEYS[2], '1', 'EX', backoff)
+
+return backoff
+`)
+
 // channelCache 实现 repository.ChannelCacheRepository。
 type channelCache struct {
 	client *redis.Client
@@ -447,36 +473,51 @@ func (c *channelCache) queryCircuitStatus(ctx context.Context, openKey, untilKey
 // 限流状态
 // ---------------------------------------------------------------------------
 
-// IsRateLimited 判断上游当前是否处于 rate limit 退避中。
-func (c *channelCache) IsRateLimited(ctx context.Context, upstreamID uint) bool {
-	if c.client == nil || upstreamID == 0 {
-		return false
+// GetRateLimitBackoff 返回指定路由当前剩余的 rate limit 退避时长。
+func (c *channelCache) GetRateLimitBackoff(ctx context.Context, upstreamID uint, routeID uint) (time.Duration, error) {
+	if c.client == nil || upstreamID == 0 || routeID == 0 {
+		return 0, nil
 	}
-	v, err := c.client.Get(ctx, rateLimitBackoffKey(upstreamID)).Result()
-	return err == nil && strings.TrimSpace(v) != ""
+	remaining, err := c.client.PTTL(ctx, rateLimitBackoffKey(upstreamID, routeID)).Result()
+	if err != nil {
+		return 0, err
+	}
+	if remaining <= 0 {
+		return 0, nil
+	}
+	return remaining, nil
 }
 
 // RecordRateLimitBackoff 根据指数退避参数记录退避状态。
-func (c *channelCache) RecordRateLimitBackoff(ctx context.Context, upstreamID uint, params repository.RateLimitBackoffParams) error {
-	if c.client == nil || upstreamID == 0 {
+func (c *channelCache) RecordRateLimitBackoff(ctx context.Context, params repository.RateLimitBackoffParams) error {
+	if c.client == nil || params.UpstreamID == 0 || params.RouteID == 0 {
 		return nil
 	}
-	backoffCount, err := c.client.Incr(ctx, rateLimitBackoffCountKey(upstreamID)).Result()
-	if err != nil {
-		return err
-	}
-	backoffSec := calculateBackoffSeconds(backoffCount, params)
-	if backoffSec <= 0 {
-		return nil
-	}
-	_ = c.client.Expire(ctx, rateLimitBackoffCountKey(upstreamID), 5*time.Minute).Err()
-	untilTS := fmt.Sprintf("%d", time.Now().UTC().Add(time.Duration(backoffSec)*time.Second).Unix())
-	_ = c.client.Set(ctx, rateLimitBackoffKey(upstreamID), "1", time.Duration(backoffSec)*time.Second).Err()
-	_ = c.client.Set(ctx, rateLimitBackoffUntilKey(upstreamID), untilTS, time.Duration(backoffSec)*time.Second).Err()
-	return nil
+	baseSec, maxSec, multiplier, retryAfterSec := normalizeRateLimitBackoffParams(params)
+	return rateLimitRecordBackoffScript.Run(
+		ctx,
+		c.client,
+		[]string{
+			rateLimitBackoffCountKey(params.UpstreamID, params.RouteID),
+			rateLimitBackoffKey(params.UpstreamID, params.RouteID),
+		},
+		int((5*time.Minute)/time.Second),
+		baseSec,
+		maxSec,
+		multiplier,
+		retryAfterSec,
+	).Err()
 }
 
-func calculateBackoffSeconds(attempt int64, params repository.RateLimitBackoffParams) int {
+// ClearRateLimitBackoff 在路由成功后清除该路由的退避状态与累计次数。
+func (c *channelCache) ClearRateLimitBackoff(ctx context.Context, upstreamID uint, routeID uint) error {
+	if c.client == nil || upstreamID == 0 || routeID == 0 {
+		return nil
+	}
+	return c.client.Del(ctx, rateLimitBackoffKey(upstreamID, routeID), rateLimitBackoffCountKey(upstreamID, routeID)).Err()
+}
+
+func normalizeRateLimitBackoffParams(params repository.RateLimitBackoffParams) (int, int, int, int) {
 	base := params.BackoffBaseSec
 	if base <= 0 {
 		base = 5
@@ -489,17 +530,17 @@ func calculateBackoffSeconds(attempt int64, params repository.RateLimitBackoffPa
 	if multiplier <= 1 {
 		multiplier = 2
 	}
-	backoff := base
-	for i := int64(1); i < attempt; i++ {
-		if backoff >= maxSec {
-			return maxSec
-		}
-		backoff *= multiplier
-		if backoff >= maxSec {
-			return maxSec
-		}
+	if base > maxSec {
+		base = maxSec
 	}
-	return backoff
+	retryAfter := params.RetryAfterSec
+	if retryAfter < 0 {
+		retryAfter = 0
+	}
+	if retryAfter > maxSec {
+		retryAfter = maxSec
+	}
+	return base, maxSec, multiplier, retryAfter
 }
 
 // ---------------------------------------------------------------------------
@@ -543,7 +584,10 @@ func cbModelProbeKey(upstreamID uint, modelKey string) string {
 	return fmt.Sprintf("cb:u:%d:m:%s:probe", upstreamID, modelKey)
 }
 
-func rateLimitBackoffKey(id uint) string      { return fmt.Sprintf("rl:u:%d:backoff", id) }
-func rateLimitBackoffUntilKey(id uint) string { return fmt.Sprintf("rl:u:%d:backoff_until", id) }
-func rateLimitBackoffCountKey(id uint) string { return fmt.Sprintf("rl:u:%d:backoff_count", id) }
-func apiKeyCounterKey(id uint) string         { return fmt.Sprintf("llm:u:%d:key_counter", id) }
+func rateLimitBackoffKey(upstreamID uint, routeID uint) string {
+	return fmt.Sprintf("rl:u:%d:r:%d:backoff", upstreamID, routeID)
+}
+func rateLimitBackoffCountKey(upstreamID uint, routeID uint) string {
+	return fmt.Sprintf("rl:u:%d:r:%d:backoff_count", upstreamID, routeID)
+}
+func apiKeyCounterKey(id uint) string { return fmt.Sprintf("llm:u:%d:key_counter", id) }

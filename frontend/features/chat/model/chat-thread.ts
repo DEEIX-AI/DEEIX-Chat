@@ -50,6 +50,7 @@ function parseProcessTrace(item: MessageDTO) {
           stage: block.stage,
           roundID: block.roundID,
           parentEventID: block.parentEventID,
+          startedAt: block.startedAt,
           updatedAt: block.updatedAt,
           payloadJson: block.payloadJSON,
         }
@@ -198,17 +199,19 @@ export function mapServerMessage(
   } = {},
 ): ChatAreaMessage {
   const publicID = item.publicID.trim();
+  const runID = item.runID?.trim() || "";
+  const role = item.role === "assistant" ? "assistant" : item.role === "system" ? "system" : "user";
   const msg: ChatAreaMessage = {
-    key: `server-${publicID}`,
+    key: chatMessageKey(role, `server-${publicID}`, runID),
     publicID,
     parentPublicID: item.parentPublicID?.trim() || null,
     sourcePublicID: item.sourcePublicID?.trim() || null,
-    role: item.role === "assistant" ? "assistant" : item.role === "system" ? "system" : "user",
+    role,
     contentType: item.contentType,
     content: item.content,
     branchReason: item.branchReason || "default",
     status: item.status || "success",
-    runID: item.runID || undefined,
+    runID: runID || undefined,
     platformModelName: item.platformModelName?.trim() || undefined,
     serverMessageID: item.id,
     createdAt: item.createdAt,
@@ -282,6 +285,17 @@ export function mapServerMessage(
     }
   }
   return msg;
+}
+
+export function chatMessageKey(
+  role: ChatAreaMessage["role"],
+  fallbackKey: string,
+  runID?: string | null,
+) {
+  const normalizedRunID = runID?.trim() || "";
+  return normalizedRunID && role !== "system"
+    ? `${role}-run-${normalizedRunID}`
+    : fallbackKey;
 }
 
 export function toBranchKey(publicID?: string | null): string {

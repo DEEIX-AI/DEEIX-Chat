@@ -85,6 +85,45 @@ func TestBuildXAIVideoRequestBodyDropsUnsupportedParams(t *testing.T) {
 	}
 }
 
+func TestBuildXAIVideoExtensionRequestBody(t *testing.T) {
+	payload, debugBody, err := buildXAIVideoExtensionRequestBody("grok-imagine-video", GenerateInput{
+		Messages:             []Message{{Role: "user", Content: "Continue the camera movement"}},
+		VideoExtensionSource: &ContentPart{Kind: ContentPartVideo, MimeType: "video/mp4", Data: []byte("source-video")},
+		Options:              map[string]interface{}{"duration": 8, "aspect_ratio": "16:9", "resolution": "1080p"},
+	})
+	if err != nil {
+		t.Fatalf("build xAI video extension request: %v", err)
+	}
+	if payload["duration"] != 8 || payload["prompt"] != "Continue the camera movement" {
+		t.Fatalf("unexpected video extension payload: %#v", payload)
+	}
+	if _, ok := payload["aspect_ratio"]; ok {
+		t.Fatalf("video extension must not forward generation-only options: %#v", payload)
+	}
+	video := asMap(payload["video"])
+	if !strings.HasPrefix(getString(video["url"]), "data:video/mp4;base64,") {
+		t.Fatalf("expected MP4 data URL, got %#v", video)
+	}
+	if strings.Contains(string(debugBody), "c291cmNlLXZpZGVv") {
+		t.Fatalf("debug body must redact source video: %s", debugBody)
+	}
+}
+
+func TestBuildXAIVideoExtensionRequestBodyRejectsInvalidSourceAndDuration(t *testing.T) {
+	payload, _, err := buildXAIVideoExtensionRequestBody("grok-imagine-video", GenerateInput{
+		Messages:             []Message{{Role: "user", Content: "Continue"}},
+		VideoExtensionSource: &ContentPart{Kind: ContentPartVideo, MimeType: "video/webm", Data: []byte("source")},
+	})
+	if err == nil || payload != nil {
+		t.Fatalf("expected invalid source error, got payload=%#v err=%v", payload, err)
+	}
+	options := map[string]interface{}{"duration": 11, "resolution": "720p"}
+	SanitizeXAIVideoExtensionOptions(options)
+	if len(options) != 0 {
+		t.Fatalf("unsupported extension options must be removed: %#v", options)
+	}
+}
+
 func TestXAIVideoPollDelayClampsUnsafeValues(t *testing.T) {
 	tests := map[string]time.Duration{
 		"":   time.Second,

@@ -369,7 +369,7 @@ func buildOpenAIImageGenerationStreamRequestBody(model string, input GenerateInp
 	if err != nil {
 		return nil, err
 	}
-	if !openAIImageGenerationModelSupportsStream(model) {
+	if !SupportsImageGenerationStream(AdapterOpenAIImageGenerations, model) {
 		return nil, fmt.Errorf("%w: %s", ErrUnsupportedStream, AdapterOpenAIImageGenerations)
 	}
 	payload["stream"] = true
@@ -387,7 +387,7 @@ func buildOpenAIImageEditMultipartRequest(model string, input GenerateInput, str
 	if len(images) == 0 {
 		return nil, "", nil, fmt.Errorf("image edit input image required")
 	}
-	if stream && !openAIImageEditModelSupportsStream(model) {
+	if stream && !SupportsImageGenerationStream(AdapterOpenAIImageEdits, model) {
 		return nil, "", nil, fmt.Errorf("%w: %s", ErrUnsupportedStream, AdapterOpenAIImageEdits)
 	}
 
@@ -556,16 +556,8 @@ func applyOpenAIImageGenerationStreamParams(payload map[string]interface{}, opti
 	}
 }
 
-func openAIImageGenerationModelSupportsStream(model string) bool {
-	return openAIImageGenerationModelSupportsGPTImageParams(model)
-}
-
 func openAIImageGenerationModelSupportsGPTImageParams(model string) bool {
 	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "gpt-image-")
-}
-
-func openAIImageEditModelSupportsStream(model string) bool {
-	return openAIImageEditModelSupportsGPTImageParams(model)
 }
 
 func openAIImageEditModelSupportsGPTImageParams(model string) bool {

@@ -5,7 +5,7 @@ export function isApplePlatform(): boolean {
     nav.userAgentData?.platform,
     navigator.platform,
     navigator.userAgent,
-  ].filter(Boolean);
+  ].filter((value): value is string => Boolean(value));
   return candidates.some((value) => /Mac|iPhone|iPad|iPod|Darwin/i.test(value)) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
 

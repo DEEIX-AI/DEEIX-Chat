@@ -344,7 +344,7 @@ export function AdminModerationStatisticsSection() {
                 >
                   <defs>
                     <linearGradient id="fillModerationTrendMetric" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-metricValue)" stopOpacity={0.3} />
+                      <stop offset="5%" stopColor="var(--color-metricValue)" stopOpacity={0.18} />
                       <stop offset="95%" stopColor="var(--color-metricValue)" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
@@ -385,9 +385,11 @@ export function AdminModerationStatisticsSection() {
                     fill="url(#fillModerationTrendMetric)"
                     fillOpacity={1}
                     stroke="var(--color-metricValue)"
-                    strokeWidth={2}
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                     dot={false}
-                    activeDot={{ r: 3, strokeWidth: 2 }}
+                    activeDot={{ r: 2.5, strokeWidth: 1.5 }}
                     isAnimationActive
                     animationDuration={240}
                     animationEasing="ease-out"
@@ -398,10 +400,11 @@ export function AdminModerationStatisticsSection() {
                     dataKey="avgLatencyMS"
                     type="monotone"
                     stroke="var(--color-avgLatencyMS)"
-                    strokeWidth={1.5}
-                    strokeDasharray="4 4"
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                    strokeLinecap="round"
                     dot={false}
-                    activeDot={{ r: 2.5, strokeWidth: 1.5 }}
+                    activeDot={{ r: 2, strokeWidth: 1 }}
                     isAnimationActive
                     animationDuration={240}
                     animationEasing="ease-out"

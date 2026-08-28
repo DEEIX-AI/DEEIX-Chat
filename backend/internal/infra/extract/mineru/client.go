@@ -15,6 +15,7 @@ import (
 	"time"
 
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
+	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -23,9 +24,10 @@ const (
 	DefaultBaseURL        = "https://mineru.net/api/v4"
 )
 
+// 解析来源模式，契约定义在 ports/extract。
 const (
-	SourceCloud      = "cloud"
-	SourceSelfHosted = "self_hosted"
+	SourceCloud      = extractport.MinerUSourceCloud
+	SourceSelfHosted = extractport.MinerUSourceSelfHosted
 )
 
 // ClientConfig 表示 MinerU 服务接入配置。
@@ -37,11 +39,8 @@ type ClientConfig struct {
 	OutboundPolicy security.OutboundPolicy
 }
 
-// Request 表示一次 MinerU 文本提取请求。
-type Request struct {
-	AbsolutePath string
-	FileName     string
-}
+// Request 表示一次 MinerU 文本提取请求，契约定义在 ports/extract（MimeType 不参与请求）。
+type Request = extractport.DocumentRequest
 
 // Client 提供 MinerU HTTP 文本提取能力。
 type Client struct {

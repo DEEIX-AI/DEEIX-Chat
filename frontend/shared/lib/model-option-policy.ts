@@ -14,6 +14,7 @@ export const MODEL_OPTION_POLICY_PROTOCOLS = [
   "xai_image",
   "xai_image_edits",
   "xai_video",
+  "xai_video_extensions",
 ] as const;
 
 export type ModelOptionPolicyProtocol = (typeof MODEL_OPTION_POLICY_PROTOCOLS)[number];
@@ -75,6 +76,7 @@ export const MODEL_OPTION_POLICY_PROTOCOL_LABELS: Record<ModelOptionPolicyProtoc
   xai_image: "xAI（Images Generations）",
   xai_image_edits: "xAI（Images Edits）",
   xai_video: "xAI（Video Generations）",
+  xai_video_extensions: "xAI（Video Extensions）",
 };
 
 export const HARD_DENIED_MODEL_OPTION_PATHS = [
@@ -151,6 +153,8 @@ export function resolveModelOptionPolicyProtocol(protocol: string): ModelOptionP
       return "xai_image_edits";
     case "xai_video":
       return "xai_video";
+    case "xai_video_extensions":
+      return "xai_video_extensions";
     case "google":
     case "gemini":
     case "google_generate_content":

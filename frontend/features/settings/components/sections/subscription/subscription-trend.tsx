@@ -5,7 +5,12 @@ import { Activity, BadgeDollarSign, Braces, Timer } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { useTranslations } from "next-intl";
 
-import { ChartContainer, ChartInteractiveLegend, ChartTooltip } from "@/components/ui/chart";
+import {
+  ChartContainer,
+  ChartInteractiveLegend,
+  ChartTooltip,
+  createStackedBarTopRoundedShape,
+} from "@/components/ui/chart";
 import type { ChartConfig, ChartInteractiveLegendItem } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -91,6 +96,26 @@ const CHART_ANIMATION_DURATION_MS = 240;
 const MAX_DAILY_MODEL_SERIES = 10;
 const OTHER_MODEL_KEY = "__other_models__";
 const OTHER_MODEL_COLOR = "#64748b";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+// 返回该列当前可见、数值大于 0 的最顶部模型分段 key，决定顶部圆角落在哪个分段。
+function dailyColumnTopSegmentKey(
+  payload: unknown,
+  modelSeries: ModelSeries[],
+  hiddenSeries: ReadonlySet<string>,
+): string | undefined {
+  if (!isRecord(payload)) return undefined;
+  for (let index = modelSeries.length - 1; index >= 0; index -= 1) {
+    const model = modelSeries[index];
+    if (hiddenSeries.has(model.platformModelName)) continue;
+    const value = payload[model.key];
+    if (typeof value === "number" && value > 0) return model.key;
+  }
+  return undefined;
+}
 
 function useHiddenUsageSeries() {
   const [hiddenSeries, setHiddenSeries] = React.useState<Set<string>>(() => new Set());
@@ -420,8 +445,17 @@ function DailyUsageChart({
       : [{ id: "totalTokens", label: "Tokens", color: "var(--chart-1)" }],
     [modelSeries],
   );
-  const topVisibleModelName = React.useMemo(
-    () => [...modelSeries].reverse().find((item) => !hiddenSeries.has(item.platformModelName))?.platformModelName,
+  // 顶部圆角按每根柱当前可见的最顶部分段绘制，而不是固定给某个系列。
+  const modelBarShapes = React.useMemo(
+    () =>
+      new Map(
+        modelSeries.map((model) => [
+          model.key,
+          createStackedBarTopRoundedShape(
+            (payload) => dailyColumnTopSegmentKey(payload, modelSeries, hiddenSeries) === model.key,
+          ),
+        ]),
+      ),
     [hiddenSeries, modelSeries],
   );
 
@@ -466,7 +500,7 @@ function DailyUsageChart({
                     fill={model.color}
                     maxBarSize={42}
                     hide={hiddenSeries.has(model.platformModelName)}
-                    radius={model.platformModelName === topVisibleModelName ? [4, 4, 0, 0] : 0}
+                    shape={modelBarShapes.get(model.key)}
                     isAnimationActive
                     animationDuration={CHART_ANIMATION_DURATION_MS}
                     animationEasing="ease-out"

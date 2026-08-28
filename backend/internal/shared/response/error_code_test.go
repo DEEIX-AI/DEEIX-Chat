@@ -103,6 +103,7 @@ func TestPublicErrorMessage(t *testing.T) {
 		want   string
 	}{
 		{name: "preserves bad request context", status: http.StatusBadRequest, code: CodeRequestInvalid, msg: "invalid user id", want: "invalid user id"},
+		{name: "hides unknown bad request internals", status: http.StatusBadRequest, code: CodeRequestInvalid, msg: "pq: permission denied for table users", want: "invalid request"},
 		{name: "hides internal details", status: http.StatusInternalServerError, code: CodeInternal, msg: "update settings failed: pq: bad column", want: "internal server error"},
 		{name: "hides upstream details", status: http.StatusBadGateway, code: CodeUpstreamUnavailable, msg: "provider said secret", want: "upstream service unavailable"},
 		{name: "normalizes service unavailable", status: http.StatusServiceUnavailable, code: CodeServiceUnavailable, msg: "embedding host down", want: "service unavailable"},

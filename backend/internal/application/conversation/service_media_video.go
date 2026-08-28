@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -14,8 +15,8 @@ import (
 	appcm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -23,11 +24,20 @@ import (
 
 const maxMediaVideoInputImages = 1
 
+// MediaVideoTaskType 区分普通视频生成与基于源视频的扩展。
+type MediaVideoTaskType string
+
+const (
+	MediaVideoTaskGeneration MediaVideoTaskType = "video_generation"
+	MediaVideoTaskExtension  MediaVideoTaskType = "video_extension"
+)
+
 // MediaVideoInput 定义视频生成任务的应用层入参。
 type MediaVideoInput struct {
 	UserID                uint
 	ConversationID        uint
 	RequestID             string
+	TaskType              MediaVideoTaskType
 	Prompt                string
 	PlatformModelName     string
 	Options               map[string]interface{}
@@ -76,6 +86,11 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	if strings.TrimSpace(input.Prompt) == "" {
 		return nil, ErrMediaVideoPromptRequired
 	}
+	taskType := normalizeMediaVideoTaskType(input.TaskType)
+	routeTaskType := channel.TaskTypeVideoGeneration
+	if taskType == MediaVideoTaskExtension {
+		routeTaskType = channel.TaskTypeVideoExtension
+	}
 
 	platformModelName := strings.TrimSpace(input.PlatformModelName)
 	if platformModelName == "" {
@@ -86,16 +101,19 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	}
 	route, err := s.routeResolver.ResolveRoute(ctx, channel.ResolveRouteInput{
 		PlatformModelName: platformModelName,
-		TaskType:          channel.TaskTypeVideoGeneration,
+		TaskType:          routeTaskType,
 		Scope:             channel.RouteScopeUser,
 		UserID:            input.UserID,
 		ConversationID:    input.ConversationID,
 		RequestID:         strings.TrimSpace(input.RequestID),
 	})
 	if err != nil {
-		return nil, ErrModelRouteNotConfigured
+		return nil, mapRouteResolutionError(err)
 	}
 	if !llm.IsVideoGenerationAdapter(route.Protocol) {
+		return nil, ErrMediaRouteProtocolMismatch
+	}
+	if taskType == MediaVideoTaskExtension && llm.NormalizeAdapter(route.Protocol) != llm.AdapterXAIVideoExtensions {
 		return nil, ErrMediaRouteProtocolMismatch
 	}
 	videoEndpoint := llm.DefaultEndpointForAdapter(route.Protocol)
@@ -106,7 +124,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 			return nil, err
 		}
 	}
-	resolvedAttachments, videoInputParts, err := s.resolveMediaVideoInputs(ctx, input)
+	resolvedAttachments, videoInputParts, videoExtensionSource, err := s.resolveMediaVideoInputs(ctx, input, taskType)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +135,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		RequestID:          strings.TrimSpace(input.RequestID),
 		UserID:             input.UserID,
 		ConversationID:     input.ConversationID,
-		TaskType:           channel.TaskTypeVideoGeneration,
+		TaskType:           routeTaskType,
 		Endpoint:           videoEndpoint,
 		Provider:           strings.TrimSpace(conversation.Provider),
 		ProviderProtocol:   route.Protocol,
@@ -186,7 +204,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	}()
 	cancelCtx, cancel := context.WithCancel(ctx)
 	ctx = cancelCtx
-	s.generationStreams.register(ctx, runID, input.UserID, cancel)
+	s.generationStreams.register(ctx, runID, input.UserID, conversation.PublicID, cancel)
 
 	assistantMessage = &model.Message{
 		ConversationID: input.ConversationID,
@@ -245,9 +263,11 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		}
 	}()
 	moderationFileIDs := make([]string, 0, len(resolvedAttachments))
-	for _, item := range resolvedAttachments {
-		if fileID := strings.TrimSpace(item.FileID); fileID != "" {
-			moderationFileIDs = append(moderationFileIDs, fileID)
+	if taskType != MediaVideoTaskExtension {
+		for _, item := range resolvedAttachments {
+			if fileID := strings.TrimSpace(item.FileID); fileID != "" {
+				moderationFileIDs = append(moderationFileIDs, fileID)
+			}
 		}
 	}
 	moderationCoord = s.startModerationRun(ctx, SendMessageInput{
@@ -285,6 +305,11 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	if llm.NormalizeAdapter(route.Protocol) == llm.AdapterGeminiInteractions {
 		filteredOptions = withGeminiInteractionResponseType(filteredOptions, "video")
 	}
+	if llm.NormalizeAdapter(route.Protocol) == llm.AdapterXAIVideoExtensions {
+		llm.SanitizeXAIVideoExtensionOptions(filteredOptions)
+	} else if llm.NormalizeAdapter(route.Protocol) == llm.AdapterXAIVideo {
+		llm.SanitizeXAIVideoOptions(filteredOptions)
+	}
 	filteredOptions = withDefaultMediaVideoDuration(filteredOptions, route.Protocol)
 	durationSeconds := mediaDurationSecondsFromOptions(filteredOptions)
 	buildFailureResult := func(failure error, usage llm.Usage) *SendMessageResult {
@@ -311,7 +336,8 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 			Role:    "user",
 			Content: strings.TrimSpace(input.Prompt),
 		}},
-		Options: filteredOptions,
+		Options:              filteredOptions,
+		VideoExtensionSource: videoExtensionSource,
 	}
 	if len(videoInputParts) > 0 {
 		parts := make([]llm.ContentPart, 0, 1+len(videoInputParts))
@@ -357,7 +383,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		return buildFailureResult(retErr, mediaOutputUsage(output)), retErr
 	}
 	videoDurations, generatedDurationSeconds := resolveGeneratedVideoDurations(output.GeneratedVideos, durationSeconds)
-	if generatedDurationSeconds > 0 {
+	if taskType != MediaVideoTaskExtension && generatedDurationSeconds > 0 {
 		durationSeconds = generatedDurationSeconds
 	}
 
@@ -498,7 +524,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	}
 	if moderationCoord != nil {
 		// Omni Moderation has no video modality. The prompt and optional input
-		// image still participate in the same barrier as other media tasks.
+		// image participate in the barrier; an extension source is intentionally excluded.
 		s.completeModerationAfterSuccess(
 			ctx,
 			moderationCoord,
@@ -512,6 +538,13 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	return result, nil
 }
 
+func normalizeMediaVideoTaskType(taskType MediaVideoTaskType) MediaVideoTaskType {
+	if taskType == MediaVideoTaskExtension {
+		return MediaVideoTaskExtension
+	}
+	return MediaVideoTaskGeneration
+}
+
 func mediaVideoUserContentType(hasInputs bool) string {
 	if hasInputs {
 		return "mixed"
@@ -519,30 +552,66 @@ func mediaVideoUserContentType(hasInputs bool) string {
 	return "text"
 }
 
-func (s *Service) resolveMediaVideoInputs(ctx context.Context, input MediaVideoInput) ([]AttachmentInput, []llm.ContentPart, error) {
+func (s *Service) resolveMediaVideoInputs(ctx context.Context, input MediaVideoInput, taskType MediaVideoTaskType) ([]AttachmentInput, []llm.ContentPart, *llm.ContentPart, error) {
 	if len(input.FileIDs) == 0 {
-		return nil, nil, nil
+		if taskType == MediaVideoTaskExtension {
+			return nil, nil, nil, ErrMediaVideoInputInvalid
+		}
+		return nil, nil, nil, nil
 	}
 	attachments, err := s.resolveAttachments(ctx, input.UserID, input.FileIDs)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if len(attachments) > maxMediaVideoInputImages {
-		return nil, nil, ErrMediaVideoTooManyInputs
+		return nil, nil, nil, ErrMediaVideoTooManyInputs
+	}
+	if taskType == MediaVideoTaskExtension {
+		if len(attachments) != 1 {
+			return nil, nil, nil, ErrMediaVideoInputInvalid
+		}
+		part, readErr := s.readMediaVideoExtensionSource(ctx, input.UserID, attachments[0].FileID)
+		if readErr != nil {
+			return nil, nil, nil, readErr
+		}
+		return attachments, nil, &part, nil
 	}
 	parts := make([]llm.ContentPart, 0, len(attachments))
 	for _, attachment := range attachments {
 		if normalizeAttachmentKind(attachment.Kind, attachment.MimeType) != "image" {
-			return nil, nil, ErrMediaVideoInputInvalid
+			return nil, nil, nil, ErrMediaVideoInputInvalid
 		}
 		part, readErr := s.readMediaImageEditFile(ctx, input.UserID, attachment.FileID)
 		if readErr != nil {
-			return nil, nil, readErr
+			return nil, nil, nil, readErr
 		}
 		part.FileName = mediaImageEditInputFileName(attachment.FileName, part.MimeType)
 		parts = append(parts, part)
 	}
-	return attachments, parts, nil
+	return attachments, parts, nil, nil
+}
+
+func (s *Service) readMediaVideoExtensionSource(ctx context.Context, userID uint, fileID string) (llm.ContentPart, error) {
+	content, err := s.OpenFileContent(ctx, userID, strings.TrimSpace(fileID))
+	if err != nil {
+		return llm.ContentPart{}, err
+	}
+	defer content.Reader.Close() //nolint:errcheck
+	limit := s.cfg.Snapshot().MaxUploadFileBytes
+	if limit <= 0 {
+		limit = 20 * 1024 * 1024
+	}
+	data, err := io.ReadAll(io.LimitReader(content.Reader, limit+1))
+	if err != nil {
+		return llm.ContentPart{}, err
+	}
+	if int64(len(data)) > limit {
+		return llm.ContentPart{}, ErrFileTooLarge
+	}
+	if detectGeneratedVideoMIME(data) != "video/mp4" {
+		return llm.ContentPart{}, ErrMediaVideoInputInvalid
+	}
+	return llm.ContentPart{Kind: llm.ContentPartVideo, MimeType: "video/mp4", Data: data, FileName: content.File.FileName}, nil
 }
 
 func mediaInputAttachmentRows(conversationID uint, userID uint, attachments []AttachmentInput) []model.Attachment {

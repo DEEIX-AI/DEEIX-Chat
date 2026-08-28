@@ -2,12 +2,10 @@ package objectstore
 
 import (
 	"context"
-	"errors"
-	"io"
 	"strings"
-	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	portobjectstore "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
 )
 
 const (
@@ -15,29 +13,17 @@ const (
 	BackendS3    = "s3"
 )
 
+// 数据契约定义在 ports/objectstore，此处保留同名引用供实现使用。
 var (
-	ErrInvalidKey = errors.New("invalid object key")
-	ErrNotFound   = errors.New("object not found")
+	ErrInvalidKey = portobjectstore.ErrInvalidKey
+	ErrNotFound   = portobjectstore.ErrNotFound
 )
 
-type PutOptions struct {
-	SizeBytes   int64
-	ContentType string
-}
-
-type ObjectInfo struct {
-	Key         string
-	SizeBytes   int64
-	ContentType string
-	ModTime     time.Time
-}
-
-type Store interface {
-	Put(ctx context.Context, key string, body io.Reader, opts PutOptions) (ObjectInfo, error)
-	Open(ctx context.Context, key string) (io.ReadCloser, ObjectInfo, error)
-	Delete(ctx context.Context, key string) error
-	Materialize(ctx context.Context, key string) (string, func(), error)
-}
+type (
+	PutOptions = portobjectstore.PutOptions
+	ObjectInfo = portobjectstore.ObjectInfo
+	Store      = portobjectstore.Store
+)
 
 func New(ctx context.Context, cfg config.Config) (Store, error) {
 	switch normalizeBackend(cfg.StorageBackend) {

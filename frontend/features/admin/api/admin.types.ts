@@ -9,6 +9,7 @@ import type {
   ImportOpenWebUIUsersResponse,
   PatchUserRequest,
   PaymentOrderResponse,
+  RedemptionRecordResponse,
   ResetUserPasswordRequest,
   ResetUserPasswordResponse,
   RevokeUserSessionsResponse,
@@ -68,6 +69,8 @@ export type AdminUsageLogDTO = Omit<UsageLogResponse, "billingAt">;
 
 export type AdminPaymentOrderDTO = PaymentOrderResponse;
 
+export type AdminRedemptionRecordDTO = RedemptionRecordResponse;
+
 export type AdminConversationEventDTO = ConversationEventResponse;
 
 export type ListAdminUsersResult = PagePayload<AdminUserDTO>;
@@ -76,6 +79,7 @@ export type ListAdminAuditLogsResult = PagePayload<AdminAuditLogDTO>;
 export type ListAdminSystemEventsResult = PagePayload<AdminSystemEventDTO>;
 export type ListAdminUsageLogsResult = PagePayload<AdminUsageLogDTO>;
 export type ListAdminPaymentOrdersResult = PagePayload<AdminPaymentOrderDTO>;
+export type ListAdminRedemptionsResult = PagePayload<AdminRedemptionRecordDTO>;
 export type ListAdminConversationEventsResult = PagePayload<AdminConversationEventDTO>;
 
 export type TikaRuntimeStatus =

@@ -1,88 +1,86 @@
 "use client";
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
-import { motion } from "motion/react";
 import { ChevronDown, StarOff } from "lucide-react";
+import { motion } from "motion/react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 
 import { List } from "@/components/animate-ui/icons/list";
-import { Button } from "@/components/ui/button";
-import { Collapsible } from "@/components/ui/collapsible";
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogDescription as AlertDialogBody,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription as AlertDialogBody,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Collapsible } from "@/components/ui/collapsible";
 import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
-  useSidebar,
+  useSidebarActions,
+  useSidebarIsMobile,
 } from "@/components/ui/sidebar";
 import {
   ConversationLabelsManagerDialog,
+  type ConversationLabelsTarget,
   ConversationShareDialog,
   sharePatchFromDTO,
-  type ConversationLabelsTarget,
   useConversationExport,
-  useSidebarConversations,
+  useSidebarConversationField,
 } from "@/entities/conversation";
-import { LoadingReveal } from "@/shared/components/loading-reveal";
 import { NavigationSearch } from "@/features/layouts/components/navigation/navigation-search";
 import { SidebarConversationItem } from "@/features/layouts/components/navigation/sidebar-conversation-item";
 import { SidebarConversationSkeleton } from "@/features/layouts/components/navigation/sidebar-conversation-skeleton";
-import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
-import { DeleteFilesOption } from "@/shared/components/delete-files-option";
-import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import { useSettingsChatPreferences } from "@/features/settings";
 import { useLayoutActiveConversation } from "@/features/layouts/hooks/use-layout-active-conversation";
 import { useLayoutSidebarListFlip } from "@/features/layouts/hooks/use-layout-sidebar-list-flip";
-import { useSidebarConversationNavigation } from "@/features/layouts/hooks/use-sidebar-conversation-navigation";
+import { useLayoutSidebarNavigation } from "@/features/layouts/hooks/use-layout-sidebar-navigation";
+import { filterConversationSearchResults } from "@/features/layouts/model/navigation-search";
 import { SIDEBAR_OVERFLOW_ROW_TRANSITION } from "@/features/layouts/model/sidebar-motion";
 import type {
   SidebarConversationDeleteTarget,
   SidebarConversationRenameTarget,
 } from "@/features/layouts/types/navigation";
-import { filterConversationSearchResults } from "@/features/layouts/model/navigation-search";
-import type { ConversationDTO } from "@/shared/api/conversation.types";
-import { useStoredBoolean } from "@/shared/hooks/use-stored-boolean";
+import { useSettingsChatPreferences } from "@/features/settings";
 import { cn } from "@/lib/utils";
+import type { ConversationDTO } from "@/shared/api/conversation.types";
+import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
+import { DeleteFilesOption } from "@/shared/components/delete-files-option";
+import { LoadingReveal } from "@/shared/components/loading-reveal";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import { useStoredBoolean } from "@/shared/hooks/use-stored-boolean";
 
-const STARRED_SKELETON_WIDTHS = ["71%", "59%", "66%", "54%", "70%"] as const;
-const MAX_VISIBLE_STARRED = 5;
 const STARRED_OPEN_STORAGE_KEY = "deeix.sidebar.starred.open";
 
 export function NavStarred() {
   const t = useTranslations("recent");
-  const { isMobile, setOpenMobile } = useSidebar();
+  const isMobile = useSidebarIsMobile();
+  const { setOpenMobile } = useSidebarActions();
   const router = useRouter();
-  const onNavigate = useSidebarConversationNavigation();
+  const onNavigate = useLayoutSidebarNavigation();
   const activeConversationID = useLayoutActiveConversation();
   const { deleteFilesByDefault } = useSettingsChatPreferences();
 
-  const {
-    starredItems,
-    projects,
-    starredTotal,
-    loadingInitial,
-    transferringStarPublicID,
-    setStarByPublicID,
-    renameByPublicID,
-    regenerateTitleByPublicID,
-    updateLabelsByPublicID,
-    loadAllStarred,
-    archiveByPublicID,
-    deleteByPublicID,
-    touchByPublicID,
-    setProjectByPublicID,
-  } = useSidebarConversations();
+  const starredItems = useSidebarConversationField("starredItems");
+  const projects = useSidebarConversationField("projects");
+  const starredTotal = useSidebarConversationField("starredTotal");
+  const loadingInitial = useSidebarConversationField("loadingInitial");
+  const transferringStarPublicID = useSidebarConversationField("transferringStarPublicID");
+  const setStarByPublicID = useSidebarConversationField("setStarByPublicID");
+  const renameByPublicID = useSidebarConversationField("renameByPublicID");
+  const regenerateTitleByPublicID = useSidebarConversationField("regenerateTitleByPublicID");
+  const updateLabelsByPublicID = useSidebarConversationField("updateLabelsByPublicID");
+  const loadAllStarred = useSidebarConversationField("loadAllStarred");
+  const archiveByPublicID = useSidebarConversationField("archiveByPublicID");
+  const deleteByPublicID = useSidebarConversationField("deleteByPublicID");
+  const touchByPublicID = useSidebarConversationField("touchByPublicID");
+  const setProjectByPublicID = useSidebarConversationField("setProjectByPublicID");
 
   const [showAllStarredDialog, setShowAllStarredDialog] = React.useState(false);
   const [dialogStarredItems, setDialogStarredItems] = React.useState<ConversationDTO[] | null>(null);
@@ -119,10 +117,10 @@ export function NavStarred() {
     [starredItems, t],
   );
   const visibleStarredItems = React.useMemo(
-    () => starredConversationItems.slice(0, MAX_VISIBLE_STARRED),
+    () => starredConversationItems.slice(0, 5),
     [starredConversationItems],
   );
-  const hasOverflowButton = starredTotal > MAX_VISIBLE_STARRED;
+  const hasOverflowButton = starredTotal > 5;
   const visibleStarredSignature = React.useMemo(
     () => `${visibleStarredItems.map((item) => item.publicID).join("|")}::overflow:${hasOverflowButton ? "1" : "0"}`,
     [hasOverflowButton, visibleStarredItems],
@@ -308,7 +306,13 @@ export function NavStarred() {
               <div ref={listContainerRef}>
                 <LoadingReveal
                   loading={showInitialSkeleton}
-                  skeleton={<SidebarConversationSkeleton count={3} widths={STARRED_SKELETON_WIDTHS} prefix="sidebar-starred" />}
+                  skeleton={
+                    <SidebarConversationSkeleton
+                      count={3}
+                      widths={["71%", "59%", "66%", "54%", "70%"]}
+                      prefix="sidebar-starred"
+                    />
+                  }
                   className="min-h-0"
                 >
                   <SidebarMenu className="gap-0.5">

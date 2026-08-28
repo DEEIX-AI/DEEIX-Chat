@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	paymentport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/payment"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -44,7 +46,7 @@ func TestCreateCheckoutSessionMapsProtocolAndValidatesResponse(t *testing.T) {
 		}, nil
 	})}}
 
-	result, err := client.CreateCheckoutSession(t.Context(), CheckoutInput{
+	result, err := client.CreateCheckoutSession(t.Context(), paymentport.StripeCheckoutInput{
 		SecretKey:          "sk_test_example",
 		SuccessURL:         "https://chat.example.com/settings?payment=success",
 		CancelURL:          "https://chat.example.com/settings?payment=cancel",
@@ -76,7 +78,7 @@ func TestCreateCheckoutSessionRejectsUntrustedCheckoutURL(t *testing.T) {
 		}, nil
 	})}}
 
-	_, err := client.CreateCheckoutSession(t.Context(), CheckoutInput{
+	_, err := client.CreateCheckoutSession(t.Context(), paymentport.StripeCheckoutInput{
 		SecretKey:      "sk_test_example",
 		SuccessURL:     "https://chat.example/success",
 		CancelURL:      "https://chat.example/cancel",

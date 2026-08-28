@@ -1,21 +1,46 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import type {
-  AdminLLMCompatible,
-  AdminLLMStatus,
-  AdminLLMUpstreamAPIKey,
-  AdminLLMUpstreamView,
-  CreateAdminLLMUpstreamRequest,
-  UpdateAdminLLMUpstreamRequest,
-} from "@/features/admin/api/llm.types";
 import {
-  createAdminLLMUpstream,
-  updateAdminLLMUpstream,
-} from "@/features/admin/api";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+  Braces,
+  ChevronDown,
+  Fingerprint,
+  KeyRound,
+  ListPlus,
+  Network,
+  RotateCcw,
+  ScanSearch,
+  Trash2,
+} from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -30,55 +55,30 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { SpinnerLabel } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { SpinnerLabel } from "@/components/ui/spinner";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import { useTranslations } from "next-intl";
-import {
-  Braces,
-  ChevronDown,
-  Fingerprint,
-  KeyRound,
-  ListPlus,
-  Network,
-  RotateCcw,
-  ScanSearch,
-  Trash2,
-} from "lucide-react";
+  createAdminLLMUpstream,
+  updateAdminLLMUpstream,
+} from "@/features/admin/api";
+import type {
+  AdminLLMCompatible,
+  AdminLLMStatus,
+  AdminLLMUpstreamAPIKey,
+  AdminLLMUpstreamView,
+  CreateAdminLLMUpstreamRequest,
+  UpdateAdminLLMUpstreamRequest,
+} from "@/features/admin/api/llm.types";
 import { COMPATIBLE_OPTIONS, resolveProtocolLabel } from "@/features/admin/utils/llm-display";
-import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import { JsonCodeEditor } from "@/shared/components/json-code-editor";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
+import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { JsonCodeEditor } from "@/shared/components/json-code-editor";
+import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 
 const PROTOCOL_DEFAULT_KINDS = [
   "chat",
@@ -86,6 +86,7 @@ const PROTOCOL_DEFAULT_KINDS = [
   "image_gen",
   "image_edit",
   "video_gen",
+  "video_extension",
 ] as const;
 
 const NO_PROTOCOL_DEFAULT = "__system_default__";
@@ -142,6 +143,7 @@ const PROTOCOL_OPTIONS_BY_KIND: Record<(typeof PROTOCOL_DEFAULT_KINDS)[number], 
     "gemini_interactions",
     "xai_video",
   ],
+  video_extension: ["xai_video_extensions"],
 };
 
 const CODE_TEXTAREA_CLASS = "font-mono text-xs placeholder:font-sans placeholder:text-xs";

@@ -246,6 +246,7 @@ func applyChatStreamEvent(
 	adapter string,
 	parsed map[string]interface{},
 	result *GenerateOutput,
+	visibleTextBuffer *string,
 	onEvent func(GenerateStreamEvent) error,
 	allowTextEncodedToolCalls bool,
 ) error {
@@ -256,7 +257,7 @@ func applyChatStreamEvent(
 	delta := extractChatStreamDelta(parsed)
 	if delta != "" {
 		if allowTextEncodedToolCalls {
-			if err := bufferChatVisibleDelta(result, delta, onEvent); err != nil {
+			if err := bufferChatVisibleDelta(result, visibleTextBuffer, delta, onEvent); err != nil {
 				return err
 			}
 		} else if err := emitChatVisibleDelta(result, delta, onEvent); err != nil {
@@ -305,10 +306,7 @@ func mergeChatStreamToolCalls(parsed map[string]interface{}, result *GenerateOut
 	}
 	for fallbackIndex, raw := range items {
 		payload := asMap(raw)
-		index := int(toInt64(payload["index"]))
-		if index < 0 {
-			index = fallbackIndex
-		}
+		index := streamToolCallIndex(payload["index"], fallbackIndex)
 		for len(result.ToolCalls) <= index {
 			result.ToolCalls = append(result.ToolCalls, ToolCall{Status: "requested"})
 		}
@@ -447,35 +445,35 @@ func extractChatVisibleContentText(raw interface{}) string {
 	}
 }
 
-func bufferChatVisibleDelta(result *GenerateOutput, delta string, onEvent func(GenerateStreamEvent) error) error {
-	if result == nil || delta == "" {
+func bufferChatVisibleDelta(result *GenerateOutput, buffer *string, delta string, onEvent func(GenerateStreamEvent) error) error {
+	if result == nil || buffer == nil || delta == "" {
 		return nil
 	}
-	result.chatTextBuffer += delta
-	return flushChatVisibleBuffer(result, onEvent, false)
+	*buffer += delta
+	return flushChatVisibleBuffer(result, buffer, onEvent, false)
 }
 
 // flushChatVisibleBuffer 在 DeepSeek DSML 模式下延迟释放可见文本，确保完整工具调用不会作为普通文本输出。
-func flushChatVisibleBuffer(result *GenerateOutput, onEvent func(GenerateStreamEvent) error, final bool) error {
-	if result == nil || result.chatTextBuffer == "" {
+func flushChatVisibleBuffer(result *GenerateOutput, buffer *string, onEvent func(GenerateStreamEvent) error, final bool) error {
+	if result == nil || buffer == nil || *buffer == "" {
 		return nil
 	}
-	if cleanText, toolCalls, ok := parseDSMLToolCalls(result.chatTextBuffer); ok {
-		result.chatTextBuffer = ""
+	if cleanText, toolCalls, ok := parseDSMLToolCalls(*buffer); ok {
+		*buffer = ""
 		result.ToolCalls = append(result.ToolCalls, toolCalls...)
 		if cleanText == "" {
 			return nil
 		}
 		return emitChatVisibleDelta(result, cleanText, onEvent)
 	}
-	if !final && maybeDSMLToolCallsPrefix(result.chatTextBuffer) {
+	if !final && maybeDSMLToolCallsPrefix(*buffer) {
 		return nil
 	}
-	if final && maybeDSMLToolCallsPrefix(result.chatTextBuffer) {
+	if final && maybeDSMLToolCallsPrefix(*buffer) {
 		return errDeepSeekDSMLToolCallsIncomplete
 	}
-	text := result.chatTextBuffer
-	result.chatTextBuffer = ""
+	text := *buffer
+	*buffer = ""
 	return emitChatVisibleDelta(result, text, onEvent)
 }
 

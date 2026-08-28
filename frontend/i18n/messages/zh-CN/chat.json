@@ -15,6 +15,19 @@
   "time": "时间",
   "tokens": "Token",
   "details": "详情",
+  "temporary": {
+    "title": "临时对话",
+    "historyChat": "正常对话",
+    "notice": "此对话不会出现在你的历史记录中，离开页面后数据将被清除。",
+    "exitTitle": "退出临时对话",
+    "exitDescription": "离开后，此临时对话中的所有消息和生成内容都将被清除，且无法恢复。",
+    "continue": "取消",
+    "exitAction": "退出",
+    "stopped": "生成已停止",
+    "blocked": "内容因安全策略已撤回",
+    "failed": "临时消息生成失败，请重试",
+    "sessionExpired": "登录状态已失效，请重新登录"
+  },
   "greeting": {
     "morning": "上午好",
     "afternoon": "下午好",
@@ -91,18 +104,18 @@
     "delete": "删除"
   },
   "screenshot": {
-    "captureFull": "完整会话截图",
+    "captureLatest": "最近 100 条消息截图",
     "captureSelect": "选择消息截图",
     "selectMessage": "选择此消息",
-    "selectedCount": "已选 {count} 条消息",
     "selectAll": "全选",
+    "selectLatest": "选择最近 100 条",
     "clearSelection": "取消",
     "captureSelected": "生成",
     "exitSelection": "退出选择",
     "generating": "正在生成截图…",
     "ready": "截图已生成",
     "failed": "截图生成失败",
-    "loadLimitReached": "会话过长，请选择部分消息进行截图。",
+    "selectionLimitReached": "最多选择 100 条消息",
     "tooLarge": "会话内容过大，请选择部分消息进行截图。",
     "emptySelection": "请至少选择一条消息",
     "previewTitle": "会话截图",
@@ -124,6 +137,14 @@
     "downloadImage": "下载图片",
     "scrollableTable": "可横向滚动的数据表格",
     "scrollableTableHint": "横向滚动可查看更多列。",
+    "table": {
+      "download": "下载",
+      "downloadAsCsv": "下载 CSV",
+      "downloadAsMarkdown": "下载 Markdown",
+      "formatCsv": "CSV",
+      "formatMarkdown": "Markdown",
+      "downloadFailed": "表格下载失败"
+    },
     "copyLatex": "复制公式源码",
     "latexCopied": "已复制公式源码",
     "latexCopyFailed": "公式源码复制失败",
@@ -134,10 +155,6 @@
       "copy": "复制链接",
       "copied": "已复制链接",
       "copyFailed": "链接复制失败"
-    },
-    "codeBlock": {
-      "collapse": "折叠",
-      "expand": "展开 {count} 行"
     },
     "artifact": {
       "openPreview": "预览",
@@ -157,10 +174,16 @@
       "done": "思考完成"
     },
     "diagram": {
-      "downloadDiagram": "下载图表",
+      "downloadDiagram": "下载",
       "downloadDiagramAsSvg": "导出为 SVG",
       "downloadDiagramAsPng": "导出为 PNG",
-      "downloadDiagramAsMmd": "导出为 MMD 源码"
+      "downloadDiagramAsMmd": "导出为 MMD 源码",
+      "copyDiagram": "复制",
+      "viewFullscreen": "全屏",
+      "exitFullscreen": "退出",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "resetView": "重置视图"
     }
   },
   "artifacts": {
@@ -214,6 +237,7 @@
     "dislikeReply": "点踩",
     "retryReply": "重试",
     "continueReply": "继续回复",
+    "extendVideo": "扩展视频",
     "forkMessage": "分支到新聊天",
     "forkTitle": "{title}（分支）",
     "rememberPreference": "记住偏好",
@@ -285,6 +309,8 @@
       "image_task_rejects_non_image_attachments": "图像任务仅支持图片附件，请移除非图片文件。",
       "video_generation_too_many_images": "视频生成最多支持一张输入图片，请保留一张图片后重试。",
       "video_task_rejects_non_image_attachments": "视频生成仅支持文字提示和图片附件，请移除非图片文件。",
+      "video_extension_requires_single_mp4": "视频扩展仅支持一个 MP4 文件，请移除其他附件后重试。",
+      "video_extension_unsupported": "当前模型不支持视频扩展，请切换至支持 xAI 视频协议的模型。",
       "model_task_unsupported": "该模型无法处理当前输入，请切换模型后重试。"
     },
     "mediaStatus": {
@@ -297,6 +323,8 @@
     },
     "generationInterrupted": "生成中断",
     "sendFailed": "发送失败",
+    "queuedParentFailed": "排队消息已取消",
+    "queuedParentFailedDescription": "上一条消息未成功完成，依赖它的排队消息已取消。",
     "continueGenerationPrompt": "请从上一条中断的回复处继续，不要重复已经生成的内容。",
     "continueReplyFailed": "无法继续生成",
     "continueReplyUnavailable": "这条回复当前不能继续生成。",
@@ -378,6 +406,7 @@
     "knowledgeBaseNotReady": "暂无可检索文件",
     "knowledgeBaseEmpty": "暂无可用知识库",
     "knowledgeBaseLoadFailed": "知识库加载失败",
+    "knowledgeBaseLoadMore": "加载更多",
     "knowledgeBaseUnavailable": "知识库检索当前不可用",
     "knowledgeBaseUnavailableDescription": "请联系管理员检查 RAG 与向量服务配置。",
     "knowledgeBaseUnavailableRAGDisabled": "RAG 检索未启用，请联系管理员开启 RAG。",
@@ -436,6 +465,8 @@
     "mcpToolLimitTitle": "工具数量已达上限",
     "mcpToolLimitDescription": "单次消息最多选择 {limit} 个 MCP 工具，请减少选择后再继续。",
     "mcpImageProcessor": "图片附件处理器",
+    "mcpPaidTool": "按次数计费，{price} / 次。",
+    "mcpPaidToolNote": "仅对成功执行的工具调用进行计费，失败不计费。",
     "mcpImageProcessorLimitTitle": "只能选择一个图片处理器",
     "mcpImageProcessorLimitDescription": "一条消息只能由一个 MCP 图片附件处理器接管图片，请先取消当前选择。",
     "skillLimitTitle": "Skills 数量已达上限",
@@ -502,6 +533,9 @@
       "videoGeneration": "视频生成",
       "videoGenerationIntro": "当前为视频生成模式。",
       "videoGenerationDescription": "将根据文字提示生成视频；上传一张图片后会作为视频参考输入。",
+      "videoExtension": "视频扩展",
+      "videoExtensionIntro": "当前为视频扩展模式。",
+      "videoExtensionDescription": "将根据文字提示扩展已上传的 MP4 视频，仅需设置扩展时长。",
       "invalidFile": "监测到无效文件",
       "invalidFileIntro": "当前文件无法用于媒体任务。",
       "blockedDescriptions": {
@@ -511,6 +545,8 @@
         "image_task_rejects_non_image_attachments": "图像任务仅支持图片附件，请移除非图片文件。",
         "video_generation_too_many_images": "视频生成最多支持一张输入图片。",
         "video_task_rejects_non_image_attachments": "视频生成仅支持文字提示和图片附件，请移除非图片文件。",
+        "video_extension_requires_single_mp4": "视频扩展仅支持一个 MP4 文件，请移除其他附件。",
+        "video_extension_unsupported": "当前模型不支持视频扩展，请切换至支持 xAI 视频协议的模型。",
         "model_task_unsupported": "当前模型不支持此输入，请切换模型后重试。"
       }
     },
@@ -604,56 +640,37 @@
         "codeInterpreter": "代码解释器",
         "imageGeneration": "图像生成",
         "shell": "Shell",
-        "generic": "工具调用",
-        "thinking": "模型思考"
+        "generic": "工具调用"
       },
       "detail": {
+        "nameLabel": "工具",
         "request": "请求",
         "response": "响应",
         "error": "错误",
-        "expand": "展开",
-        "collapse": "收起",
+        "argumentsTitle": "参数",
+        "resultTitle": "结果",
+        "copy": "复制",
+        "copied": "已复制",
+        "copyFailed": "复制失败",
         "sourceFallback": "来源 {index}",
         "generatedImageAlt": "生成图片 {index}",
-        "query": "关键词",
-        "action": "动作",
-        "source": "来源",
-        "code": "代码",
-        "output": "输出",
-        "resultFile": "结果文件",
-        "prompt": "提示词",
-        "command": "命令",
-        "latencySeparator": "；"
-      },
-      "nativeStatus": {
-        "webSearchActive": "正在网页搜索",
-        "webSearchDone": "网页搜索完成",
-        "webSearchFailed": "网页搜索失败",
-        "codeActive": "正在运行代码",
-        "codeDone": "代码运行完成",
-        "codeFailed": "代码运行失败",
-        "imageActive": "正在生成图片",
-        "imageDone": "图像生成完成",
-        "imageFailed": "图像生成失败",
-        "shellActive": "Shell 执行中",
-        "shellDone": "Shell 执行完成",
-        "shellFailed": "Shell 执行失败",
-        "genericActive": "工具调用中",
-        "genericDone": "工具调用完成",
-        "genericFailed": "工具调用失败"
-      },
-      "chain": {
-        "titleActive": "工具调用中",
-        "titleDone": "工具调用",
-        "summaryCount": "{count} 次工具调用",
-        "summaryFallback": "工具调用"
+        "sourceCount": "{count} 个来源",
+        "groundingSupportCount": "{count} 条引用依据",
+        "exitCode": "退出码 {code}"
       }
     },
     "think": {
-      "titleActive": "正在思考",
-      "titleDone": "思考完成",
-      "subtitleActive": "正在解析问题并梳理关键信息",
-      "subtitleDone": "已理解并完成相关信息整合与推理"
+      "rowActive": "深度思考中",
+      "rowDone": "深度思考",
+      "duration": "{seconds}"
+    },
+    "run": {
+      "titleActive": "执行中",
+      "titleDone": "执行完成",
+      "toolCalls": "{count} 次工具调用",
+      "thinkRounds": "{count} 轮深度思考",
+      "duration": "{duration}",
+      "labelSeparator": " · "
     },
     "promptTrace": {
       "modes": {
@@ -695,7 +712,9 @@
       "summary": "已压缩第 {fromTurn}-{toTurn} 轮上下文",
       "detail": "对话已压缩并生成滚动摘要。",
       "range": "压缩区间：第 {fromTurn}-{toTurn} 轮。",
-      "tokens": "Tokens 缩减：{sourceTokens} -> {summaryTokens}。"
+      "tokens": "Tokens 缩减：{sourceTokens} -> {summaryTokens}。",
+      "pending": "正在后台生成滚动摘要。",
+      "failed": "上下文压缩未完成，系统将在后续请求中重试。"
     }
   },
   "optionLabels": {

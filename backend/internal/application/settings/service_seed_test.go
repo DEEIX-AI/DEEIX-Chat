@@ -112,6 +112,40 @@ func TestSeedUsesDefaultFullContextMaxBytesForMissingSetting(t *testing.T) {
 	}
 }
 
+func TestSeedReplacesLegacyCompactTokenThresholdWithModelAwareDefaults(t *testing.T) {
+	repo := newSettingsSeedRepo(
+		domainsettings.SystemSetting{
+			Namespace: "chat",
+			Key:       "context_compact_trigger_tokens",
+			Value:     "65536",
+			ValueType: "int",
+		},
+		domainsettings.SystemSetting{
+			Namespace: "chat",
+			Key:       "context_max_input_tokens",
+			Value:     "32000",
+			ValueType: "int",
+		},
+	)
+	service := NewService(repo, "")
+
+	if err := service.Seed(context.Background(), config.Config{}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	if _, exists := repo.items["chat:context_compact_trigger_tokens"]; exists {
+		t.Fatal("expected obsolete fixed token threshold to be removed")
+	}
+	if _, exists := repo.items["chat:context_max_input_tokens"]; exists {
+		t.Fatal("expected obsolete fixed input cap to be removed")
+	}
+	if got := repo.items["chat:context_window_fallback_tokens"].Value; got != strconv.Itoa(config.DefaultContextWindowFallbackTokens) {
+		t.Fatalf("fallback window = %q, want %d", got, config.DefaultContextWindowFallbackTokens)
+	}
+	if got := repo.items["chat:context_compact_trigger_percent"].Value; got != strconv.Itoa(config.DefaultContextCompactTriggerPercent) {
+		t.Fatalf("trigger percent = %q, want %d", got, config.DefaultContextCompactTriggerPercent)
+	}
+}
+
 func TestSeedAddsMistralOCRDefaults(t *testing.T) {
 	repo := newSettingsSeedRepo()
 	service := NewService(repo, "test-data-encryption-key")
@@ -203,6 +237,32 @@ func TestSeedAddsXAIVideoToPreviousDefaultModelOptionAllowedPaths(t *testing.T) 
 	}
 	if got := repo.items["chat:model_option_allowed_paths"].Value; got != config.DefaultModelOptionAllowedPathsJSON() {
 		t.Fatalf("expected xAI video defaults to be added, got %q", got)
+	}
+}
+
+func TestSeedAddsXAIVideoExtensionsToPreviousDefaultModelOptionAllowedPaths(t *testing.T) {
+	previousDefault := map[string][]string{}
+	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &previousDefault); err != nil {
+		t.Fatalf("decode current model option defaults: %v", err)
+	}
+	delete(previousDefault, "xai_video_extensions")
+	previousJSON, err := json.Marshal(previousDefault)
+	if err != nil {
+		t.Fatalf("encode previous model option defaults: %v", err)
+	}
+	repo := newSettingsSeedRepo(domainsettings.SystemSetting{
+		Namespace: "chat",
+		Key:       "model_option_allowed_paths",
+		Value:     string(previousJSON),
+		ValueType: "json",
+	})
+	service := NewService(repo, "")
+
+	if err := service.Seed(context.Background(), config.Config{}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	if got := repo.items["chat:model_option_allowed_paths"].Value; got != config.DefaultModelOptionAllowedPathsJSON() {
+		t.Fatalf("expected xAI video extensions defaults to be added, got %q", got)
 	}
 }
 

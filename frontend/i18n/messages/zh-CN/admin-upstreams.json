@@ -13,7 +13,8 @@
     "audio": "语音",
     "image_gen": "图像生成",
     "image_edit": "图像编辑",
-    "video_gen": "视频生成"
+    "video_gen": "视频生成",
+    "video_extension": "视频扩展"
   },
   "status": {
     "active": "正常",

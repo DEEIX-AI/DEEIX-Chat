@@ -7,6 +7,7 @@ import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Spinner } from "@/components/ui/spinner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -203,6 +204,20 @@ export function AdminKnowledgeBases({ page }: { page: KnowledgeBasesPageModel })
           ))}
         </TableBody>
       </Table>
+      {list.hasMore ? (
+        <div className="flex justify-center">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-muted-foreground"
+            disabled={list.loadingMore}
+            onClick={() => void list.loadMore()}
+          >
+            {list.loadingMore ? <Spinner className="size-3" /> : t("loadMore")}
+          </Button>
+        </div>
+      ) : null}
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="flex h-[min(78dvh,720px)] max-h-[min(78dvh,720px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[920px]">

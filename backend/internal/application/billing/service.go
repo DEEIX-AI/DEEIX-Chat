@@ -159,9 +159,11 @@ type UsagePricingInput struct {
 	InputImageCount     int64
 	LatencyMS           int64
 	ServerSideToolUsage map[string]int64
-	ServiceItems        []ServiceUsageInput
-	RawUsageJSON        string
-	BillingAt           time.Time
+	// MCPToolUsage 聚合应用侧工具循环内成功的 MCP 调用（价格为调用时的工具配置快照）。
+	MCPToolUsage []MCPToolUsageInput
+	ServiceItems []ServiceUsageInput
+	RawUsageJSON string
+	BillingAt    time.Time
 }
 
 func upstreamUsageSnapshot(input UsagePricingInput) interface{} {
@@ -189,6 +191,16 @@ type PlatformModelIdentity struct {
 	PlatformModelName string
 	ModelVendor       string
 	ModelIcon         string
+}
+
+// MCPToolUsageInput 定义一次运行内某个 MCP 工具的成功调用计量。
+// PriceNanousd 为调用时的工具配置快照，0 表示该工具不单独计费。
+type MCPToolUsageInput struct {
+	ServerID     uint
+	ServerName   string
+	ToolName     string
+	CallCount    int64
+	PriceNanousd int64
 }
 
 // ServiceUsageInput 定义基础服务计费入参。
@@ -1712,8 +1724,16 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		serviceItems = append(serviceItems, nativeToolItems...)
 		serviceBilledNanousd += nativeToolBilledNanousd
 	}
+	mcpToolItems, mcpToolBilledNanousd := buildMCPToolServiceItems(input, mode)
+	if len(mcpToolItems) > 0 {
+		serviceItems = append(serviceItems, mcpToolItems...)
+		serviceBilledNanousd += mcpToolBilledNanousd
+	}
 	billedNanousd := inputBilledNanousd + cacheReadBilledNanousd + cacheWriteBilledNanousd + outputBilledNanousd + callBilledNanousd + durationBilledNanousd + serviceBilledNanousd
 	cacheWriteNanousdPerMTokens = resolveSnapshotRateFromBilled(cacheWriteTokens, cacheWriteBilledNanousd, cacheWriteNanousdPerMTokens)
+	// 免费模型仅豁免模型本身费用；MCP 等服务项费用仍需结算。
+	// 结算层会对免费标记整单清零，因此只有整单为 0 才落免费标记。
+	ledgerIsFreeModel := isFreeModel && billedNanousd <= 0
 
 	snapshot := map[string]interface{}{
 		"platform_model_name":                      platformModelName,
@@ -1735,7 +1755,7 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		"billing_mode":                             mode,
 		"pricing_mode":                             pricingMode,
 		"duration_billable":                        input.DurationBillable,
-		"is_free_model":                            isFreeModel,
+		"is_free_model":                            ledgerIsFreeModel,
 		"currency":                                 currency,
 		"input_nanousd_per_m_tokens":               inputNanousdPerMTokens,
 		"cache_read_nanousd_per_m_tokens":          cacheReadNanousdPerMTokens,
@@ -1771,6 +1791,8 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		"native_tool_billing_enabled":              nativeToolBillingEnabled,
 		"native_tool_pricing_source":               nativeToolPricingSourceForSnapshot(nativeToolPricingJSON, nativeToolDefinitions),
 		"native_tool_billed_nanousd":               nativeToolBilledNanousd,
+		"mcp_tool_usage":                           mcpToolUsageSnapshots(input.MCPToolUsage),
+		"mcp_tool_billed_nanousd":                  mcpToolBilledNanousd,
 		"base_service_billed_nanousd":              serviceBilledNanousd,
 		"service_items":                            usageServiceItemSnapshots(serviceItems),
 	}
@@ -1805,7 +1827,7 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		PlatformModelName:   platformModelName,
 		RoutedBindingCode:   strings.TrimSpace(input.RoutedBindingCode),
 		UpstreamModelName:   strings.TrimSpace(input.UpstreamModelName),
-		IsFreeModel:         isFreeModel,
+		IsFreeModel:         ledgerIsFreeModel,
 		BillingAt:           billingAt,
 		UsageDate:           usageDate,
 		InputTokens:         input.InputTokens,
@@ -3213,6 +3235,81 @@ func nativeToolServiceCode(provider string, toolName string) string {
 		tool = "unknown"
 	}
 	return "native_tool." + provider + "." + tool
+}
+
+// buildMCPToolServiceItems 将应用侧 MCP 工具调用转换为账单服务项。
+// 仅 self 模式与价格为 0 时不计费；MCP 调用是独立于模型的外部上游成本，
+// 因此免费模型不豁免（与原生工具计费不同）。价格取调用时的工具配置快照。
+func buildMCPToolServiceItems(input UsagePricingInput, billingMode string) ([]domainbilling.UsageServiceItem, int64) {
+	if billingMode == "self" || len(input.MCPToolUsage) == 0 {
+		return []domainbilling.UsageServiceItem{}, 0
+	}
+	results := make([]domainbilling.UsageServiceItem, 0, len(input.MCPToolUsage))
+	var total int64
+	for _, usage := range input.MCPToolUsage {
+		if usage.CallCount <= 0 || usage.PriceNanousd <= 0 {
+			continue
+		}
+		billed := usage.CallCount * usage.PriceNanousd
+		results = append(results, domainbilling.UsageServiceItem{
+			ServiceCode:        mcpToolServiceCode(usage.ServerName, usage.ToolName),
+			ServiceName:        mcpToolServiceName(usage.ServerName, usage.ToolName),
+			PlatformModelName:  strings.TrimSpace(input.PlatformModelName),
+			ProviderProtocol:   strings.TrimSpace(input.ProviderProtocol),
+			RateMultiplier:     1,
+			PricingMode:        domainbilling.PricingModeCall,
+			CallCount:          usage.CallCount,
+			CallNanousdPerCall: usage.PriceNanousd,
+			CallBilledNanousd:  billed,
+			BilledNanousd:      billed,
+		})
+		total += billed
+	}
+	return results, total
+}
+
+// mcpToolServiceCode 生成 MCP 工具服务项编码，供账单明细和快照稳定引用。
+func mcpToolServiceCode(serverName string, toolName string) string {
+	server := strings.TrimSpace(serverName)
+	tool := strings.TrimSpace(toolName)
+	if server == "" {
+		server = "unknown"
+	}
+	if tool == "" {
+		tool = "unknown"
+	}
+	return "mcp_tool." + server + "." + tool
+}
+
+func mcpToolServiceName(serverName string, toolName string) string {
+	server := strings.TrimSpace(serverName)
+	tool := strings.TrimSpace(toolName)
+	switch {
+	case server == "":
+		return tool
+	case tool == "":
+		return server
+	default:
+		return server + " / " + tool
+	}
+}
+
+// mcpToolUsageSnapshots 无论是否计费都完整落快照，保证 self 模式下也有成本可见性。
+func mcpToolUsageSnapshots(items []MCPToolUsageInput) []map[string]interface{} {
+	results := make([]map[string]interface{}, 0, len(items))
+	for _, item := range items {
+		if item.CallCount <= 0 {
+			continue
+		}
+		results = append(results, map[string]interface{}{
+			"server_id":     item.ServerID,
+			"server_name":   strings.TrimSpace(item.ServerName),
+			"tool_name":     strings.TrimSpace(item.ToolName),
+			"call_count":    item.CallCount,
+			"price_nanousd": item.PriceNanousd,
+		})
+	}
+	return results
 }
 
 func normalizeCurrency(value string) string {

@@ -1,15 +1,20 @@
 "use client";
 
-import * as React from "react";
 import { CornerUpLeft, Download, Eye, Maximize2, WandSparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 
-import { ChevronDown } from "@/components/animate-ui/icons/chevron-down";
-import { ChevronUp } from "@/components/animate-ui/icons/chevron-up";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+import { CopyActionButton } from "@/shared/components/copy-action";
+import { MediaActionBar, MediaActionButton } from "@/shared/components/media-action-bar";
+import {
+  type ArtifactPreviewKind,
+  resolveArtifactPreviewKind,
+} from "@/shared/lib/artifact-preview";
 import {
   downloadMarkdownImageSource,
   loadProtectedMarkdownImageBlobURL,
@@ -17,16 +22,13 @@ import {
   resolveMarkdownImageSource,
   resolveProtectedMarkdownImageSource,
 } from "@/shared/lib/markdown-image-source";
-import {
-  resolveArtifactPreviewKind,
-  type ArtifactPreviewKind,
-} from "@/shared/lib/artifact-preview";
-import { CopyActionButton } from "@/shared/components/copy-action";
-import { cn } from "@/lib/utils";
+import { MarkdownFootnotesContext } from "./streamdown-html";
+import { StreamdownCheckIcon, StreamdownCopyIcon } from "./streamdown-icons";
 import { sanitizeHTMLStyle } from "./streamdown-style";
 
-const CODE_BLOCK_COLLAPSE_LINE_THRESHOLD = 16;
 const DEFAULT_CODE_BLOCK_LANGUAGE = "markdown";
+const CODE_BLOCK_ACTION_BUTTON_CLASSNAME =
+  "size-5 cursor-pointer rounded-none p-1 text-muted-foreground transition-all hover:bg-foreground/[0.04] hover:text-foreground focus-visible:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35 disabled:cursor-not-allowed disabled:opacity-50";
 
 type ResolvedLinkKind = "same-origin" | "external" | "special" | "invalid";
 
@@ -37,7 +39,7 @@ type ExternalLinkSafetyDialogProps = {
   url: string;
 };
 
-type CollapsiblePreProps = React.HTMLAttributes<HTMLPreElement> & {
+type MarkdownCodePreProps = React.HTMLAttributes<HTMLPreElement> & {
   children?: React.ReactNode;
   node?: unknown;
   "data-markdown-source-line"?: string | number;
@@ -54,10 +56,7 @@ type MarkdownLinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
   href?: string;
 };
 
-type MarkdownImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
-  alt?: string;
-  src?: string;
-};
+type MarkdownImageProps = React.ImgHTMLAttributes<HTMLImageElement>;
 
 export type MarkdownImageActions = {
   canEditImage?: (src: string) => boolean;
@@ -77,7 +76,17 @@ type MarkdownParagraphProps = React.HTMLAttributes<HTMLParagraphElement> & {
   node?: unknown;
 };
 
+type MarkdownOrderedListProps = React.OlHTMLAttributes<HTMLOListElement> & {
+  children?: React.ReactNode;
+  node?: unknown;
+};
+
 type MarkdownStrongProps = React.HTMLAttributes<HTMLElement> & {
+  children?: React.ReactNode;
+  node?: unknown;
+};
+
+type MarkdownSupProps = React.HTMLAttributes<HTMLElement> & {
   children?: React.ReactNode;
   node?: unknown;
 };
@@ -100,7 +109,11 @@ function resolveLinkKind(href: string): ResolvedLinkKind {
 
   try {
     const targetURL = new URL(href, currentOrigin);
-    if (targetURL.protocol === "javascript:") {
+    if (
+      targetURL.protocol === "javascript:" ||
+      targetURL.protocol === "data:" ||
+      targetURL.protocol === "vbscript:"
+    ) {
       return "invalid";
     }
     if (targetURL.origin === currentOrigin) {
@@ -115,12 +128,28 @@ function resolveLinkKind(href: string): ResolvedLinkKind {
   }
 }
 
-function isFootnoteBackref(props: React.AnchorHTMLAttributes<HTMLAnchorElement>): boolean {
-  return "data-footnote-backref" in props;
+function isFootnoteBackref(
+  props: React.AnchorHTMLAttributes<HTMLAnchorElement>,
+  children?: React.ReactNode,
+): boolean {
+  const href = props.href?.trim() ?? "";
+  const childText = children == null ? "" : getReactNodeText(children);
+  return (
+    "data-footnote-backref" in props ||
+    /^#(?:user-content-)?fnref(?:[-\d]|$)/i.test(href) ||
+    (href.includes("#") && childText.includes("↩"))
+  );
 }
 
 function isFootnoteReference(props: React.AnchorHTMLAttributes<HTMLAnchorElement>): boolean {
   return "data-footnote-ref" in props;
+}
+
+function isSuperscriptReferenceElement(node: React.ReactNode): boolean {
+  return (
+    React.isValidElement<React.AnchorHTMLAttributes<HTMLAnchorElement>>(node) &&
+    (isFootnoteReference(node.props) || typeof node.props.href === "string")
+  );
 }
 
 function resolveHashTarget(href: string, scope: HTMLElement | null): HTMLElement | null {
@@ -191,6 +220,18 @@ function getReactNodeText(node: React.ReactNode): string {
     .join("");
 }
 
+function containsFootnoteBackref(node: React.ReactNode): boolean {
+  return React.Children.toArray(node).some((child) => {
+    if (!React.isValidElement<React.AnchorHTMLAttributes<HTMLAnchorElement>>(child)) {
+      return false;
+    }
+    if (isFootnoteBackref(child.props, child.props.children)) {
+      return true;
+    }
+    return containsFootnoteBackref(child.props.children);
+  });
+}
+
 function resolveFootnoteBackrefIndex(children: React.ReactNode, ariaLabel?: string): string {
   const ariaMatch = ariaLabel?.trim().match(/(\d+)(?:-(\d+))?$/);
   if (ariaMatch) {
@@ -214,11 +255,39 @@ function FootnoteBackrefContent({
 
   return (
     <>
-      <CornerUpLeft className="size-3.5" strokeWidth={1.8} />
+      <CornerUpLeft className="size-3" strokeWidth={2} />
       {shouldShowIndex ? <span className="ml-0.5 text-[10px] leading-none">{backrefIndex}</span> : null}
       <span className="sr-only">{t("back")}</span>
     </>
   );
+}
+
+export function MarkdownOrderedList({
+  children,
+  className,
+  node: _node,
+  style,
+  ...props
+}: MarkdownOrderedListProps) {
+  const footnoteList = containsFootnoteBackref(children);
+
+  const list = (
+    <ol
+      {...props}
+      className={cn(
+        "list-inside list-decimal whitespace-normal [li_&]:pl-6",
+        footnoteList &&
+          "mt-6 border-foreground/15 border-t pt-3 pl-4 text-[11px] leading-5 text-muted-foreground/82 [&_li]:py-0.5 [&_p]:my-0 [&_p]:text-[11px] [&_p]:leading-5",
+        className,
+      )}
+      data-streamdown={footnoteList ? "footnote-list" : "ordered-list"}
+      style={sanitizeHTMLStyle(style)}
+    >
+      {children}
+    </ol>
+  );
+
+  return footnoteList ? <MarkdownFootnotesContext.Provider value>{list}</MarkdownFootnotesContext.Provider> : list;
 }
 
 function getCodeTextFromChild(child: React.ReactElement<StreamdownCodeChildProps>): string {
@@ -255,14 +324,6 @@ function ensureCodeBlockLanguage(
   });
 }
 
-function getLineCount(value: string): number {
-  if (!value) {
-    return 0;
-  }
-
-  return value.replace(/\n$/, "").split("\n").length;
-}
-
 function isMermaidLanguage(language: string): boolean {
   return language === "mermaid" || language === "mmd";
 }
@@ -282,7 +343,7 @@ function CodeBlockActionButton({
         <button
           type="button"
           aria-label={label}
-          className="inline-flex size-6 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-foreground/[0.04] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
+          className={CODE_BLOCK_ACTION_BUTTON_CLASSNAME}
           onClick={onClick}
         >
           {children}
@@ -320,10 +381,13 @@ function CodeBlockActions({
 
   return (
     <div className="pointer-events-none absolute right-0 top-0 z-20 flex h-8 items-center justify-end">
-      <div className="pointer-events-auto flex shrink-0 items-center gap-2">
+      <div
+        className="pointer-events-auto flex shrink-0 items-center gap-2"
+        data-streamdown="code-block-actions"
+      >
         {canOpenArtifact ? (
           <CodeBlockActionButton label={artifactCopy("openPreview")} onClick={handleOpenArtifact}>
-            <Eye className="size-4" strokeWidth={1.8} />
+            <Eye className="size-3" strokeWidth={2.25} />
           </CodeBlockActionButton>
         ) : null}
         <Tooltip>
@@ -333,10 +397,11 @@ function CodeBlockActions({
               type="button"
               variant="ghost"
               size="icon-xs"
-              className="inline-flex size-6 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-foreground/[0.04] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
+              className={CODE_BLOCK_ACTION_BUTTON_CLASSNAME}
               value={copyCode}
               messages={{ copied: commonActions("copied"), failed: commonErrors("copyFailed") }}
-              iconClassName="size-3.5"
+              copyIcon={<StreamdownCopyIcon className="size-3" />}
+              copiedIcon={<StreamdownCheckIcon className="size-3" />}
               aria-label={commonActions("copy")}
             />
           </TooltipTrigger>
@@ -417,21 +482,18 @@ function isImageLinkElement(node: React.ReactNode): boolean {
 }
 
 function isFootnoteBackrefElement(node: React.ReactNode): boolean {
-  return React.isValidElement<React.AnchorHTMLAttributes<HTMLAnchorElement>>(node) && isFootnoteBackref(node.props);
+  return (
+    React.isValidElement<React.AnchorHTMLAttributes<HTMLAnchorElement>>(node) &&
+    isFootnoteBackref(node.props, node.props.children)
+  );
 }
 
-export function CollapsibleCodePre({ children, node: _node, "data-markdown-source-line": sourceLine }: CollapsiblePreProps) {
-  const t = useTranslations("chat.markdown.codeBlock");
+export function MarkdownCodePre({ children, node: _node, "data-markdown-source-line": sourceLine }: MarkdownCodePreProps) {
   const childElement = React.isValidElement<StreamdownCodeChildProps>(children) ? ensureCodeBlockLanguage(children) : null;
   const codeContent = childElement ? getCodeTextFromChild(childElement) : "";
-  const lineCount = getLineCount(codeContent);
   const language = childElement ? getCodeLanguage(childElement.props.className) : "";
   const mermaid = isMermaidLanguage(language);
   const artifactPreviewable = Boolean(resolveArtifactPreviewKind(language, codeContent));
-  const isCollapsible =
-    childElement != null && !mermaid && lineCount > CODE_BLOCK_COLLAPSE_LINE_THRESHOLD;
-  const [expanded, setExpanded] = React.useState(false);
-  const [isToggleHovered, setIsToggleHovered] = React.useState(false);
 
   if (!childElement) {
     return children;
@@ -439,55 +501,23 @@ export function CollapsibleCodePre({ children, node: _node, "data-markdown-sourc
 
   const codeBlock = React.cloneElement(childElement, { "data-block": "true" });
 
-  if (!isCollapsible) {
-    return (
-      <div className="relative w-full" data-markdown-source-line={sourceLine}>
-        {!mermaid ? <CodeBlockActions code={codeContent} language={language} previewable={artifactPreviewable} /> : null}
-        {codeBlock}
-      </div>
-    );
-  }
-
   return (
     <div className="relative w-full" data-markdown-source-line={sourceLine}>
-      <CodeBlockActions code={codeContent} language={language} previewable={artifactPreviewable} />
-      <div
-        className={cn(
-          "w-full",
-          "[&_[data-streamdown='code-block-body']]:transition-[max-height] [&_[data-streamdown='code-block-body']]:duration-300 [&_[data-streamdown='code-block-body']]:ease-out",
-          !expanded &&
-            "[mask-image:linear-gradient(to_bottom,#000_calc(100%_-_3rem),transparent)] [-webkit-mask-image:linear-gradient(to_bottom,#000_calc(100%_-_3rem),transparent)] [&_[data-streamdown='code-block-body']]:max-h-[22rem] [&_[data-streamdown='code-block-body']]:overflow-hidden",
-        )}
-      >
-        {codeBlock}
-      </div>
-      <div className="flex justify-center">
-        <button
-          type="button"
-          onClick={() => setExpanded((current) => !current)}
-          onMouseEnter={() => setIsToggleHovered(true)}
-          onMouseLeave={() => setIsToggleHovered(false)}
-          className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
-        >
-          {expanded ? (
-            <ChevronUp className="size-3.5" animate={isToggleHovered ? "default" : undefined} />
-          ) : (
-            <ChevronDown className="size-3.5" animate={isToggleHovered ? "default" : undefined} />
-          )}
-          <span>{expanded ? t("collapse") : t("expand", { count: lineCount })}</span>
-        </button>
-      </div>
+      {!mermaid ? <CodeBlockActions code={codeContent} language={language} previewable={artifactPreviewable} /> : null}
+      {codeBlock}
     </div>
   );
 }
 
 export function MarkdownLink({ children, className, href, onClick, style, ...props }: MarkdownLinkProps) {
   const t = useTranslations("chat.markdown");
+  const insideFootnotes = React.useContext(MarkdownFootnotesContext);
   const [modalOpen, setModalOpen] = React.useState(false);
   const [pendingURL, setPendingURL] = React.useState("");
   const incomplete = href === "streamdown:incomplete-link";
   const linkKind = React.useMemo(() => (href ? resolveLinkKind(href) : "invalid"), [href]);
-  const footnoteBackref = isFootnoteBackref(props);
+  const footnoteBackref =
+    isFootnoteBackref(props, children) || (insideFootnotes && getReactNodeText(children).includes("↩"));
   const footnoteReference = isFootnoteReference(props);
   const normalizedChildren = React.useMemo(
     () => React.Children.toArray(children).filter((child) => !isEmptyReactNode(child)),
@@ -564,8 +594,10 @@ export function MarkdownLink({ children, className, href, onClick, style, ...pro
         {...props}
         className={cn(
           "wrap-anywhere font-medium text-primary underline",
-          footnoteReference && "text-[0.72em] no-underline",
-          footnoteBackref && "ml-1 inline-flex align-baseline text-muted-foreground/75 no-underline hover:text-muted-foreground",
+          footnoteReference &&
+            "inline-block whitespace-nowrap font-normal leading-none no-underline",
+          footnoteBackref &&
+            "ml-1 inline-flex size-4 items-center justify-center align-middle text-muted-foreground/75 no-underline hover:text-foreground",
           className,
         )}
         aria-label={footnoteBackref ? t("footnoteBackref") : props["aria-label"]}
@@ -594,7 +626,29 @@ export function MarkdownLink({ children, className, href, onClick, style, ...pro
   );
 }
 
-export function MarkdownImage({ alt, className, onError, onLoad, src, ...props }: MarkdownImageProps) {
+export function MarkdownSup({ children, className, node: _node, style, ...props }: MarkdownSupProps) {
+  const reference = React.Children.toArray(children).some(isSuperscriptReferenceElement);
+
+  return (
+    <sup
+      {...props}
+      className={cn(
+        reference
+          ? "relative -top-[0.42em] ml-1 align-baseline text-[11px] font-normal leading-none [&_a]:!font-normal [&_a]:no-underline"
+          : "text-sm",
+        className,
+      )}
+      data-streamdown={reference ? "footnote-reference" : "superscript"}
+      style={sanitizeHTMLStyle(style)}
+    >
+      {children}
+    </sup>
+  );
+}
+
+export function MarkdownImage({ alt, className, onError, onLoad, src: srcProp, ...props }: MarkdownImageProps) {
+  // Markdown 渲染只产生字符串 src；Blob 形态的 src 不在渲染范围内。
+  const src = typeof srcProp === "string" ? srcProp : undefined;
   const t = useTranslations("chat.markdown");
   const insideLink = React.useContext(StreamdownLinkContext);
   const imageActions = React.useContext(MarkdownImageActionsContext);
@@ -708,54 +762,24 @@ export function MarkdownImage({ alt, className, onError, onLoad, src, ...props }
         />
       )}
       {canUseImageActions ? (
-        <span
+        <MediaActionBar
           className={cn(
-            "absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/88 p-1 text-muted-foreground shadow-sm transition-opacity",
+            "absolute bottom-2 right-2 transition-opacity",
             loaded ? "opacity-100" : "opacity-0",
           )}
         >
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                aria-label={t("previewImage")}
-                className="inline-flex size-7 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-                type="button"
-                onClick={() => setPreviewOpen(true)}
-              >
-                <Maximize2 className="size-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{t("previewImage")}</TooltipContent>
-          </Tooltip>
+          <MediaActionButton label={t("previewImage")} onClick={() => setPreviewOpen(true)}>
+            <Maximize2 className="size-3.5" />
+          </MediaActionButton>
           {canEditImage ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  aria-label={t("editImage")}
-                  className="inline-flex size-7 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-                  type="button"
-                  onClick={() => imageActions?.onEditImage?.(src)}
-                >
-                  <WandSparkles className="size-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{t("editImage")}</TooltipContent>
-            </Tooltip>
+            <MediaActionButton label={t("editImage")} onClick={() => imageActions?.onEditImage?.(src)}>
+              <WandSparkles className="size-3.5" />
+            </MediaActionButton>
           ) : null}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                aria-label={t("downloadImage")}
-                className="inline-flex size-7 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-                type="button"
-                onClick={() => void handleDownload()}
-              >
-                <Download className="size-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{t("downloadImage")}</TooltipContent>
-          </Tooltip>
-        </span>
+          <MediaActionButton label={t("downloadImage")} onClick={() => void handleDownload()}>
+            <Download className="size-3.5" />
+          </MediaActionButton>
+        </MediaActionBar>
       ) : null}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="w-fit max-w-[96vw] border-0 bg-transparent p-0 shadow-none sm:max-w-[96vw] [&>button]:border [&>button]:border-border/70 [&>button]:bg-background/90 [&>button]:text-foreground [&>button]:shadow-sm">

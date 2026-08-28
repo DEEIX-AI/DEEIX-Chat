@@ -125,6 +125,7 @@
     "invalidTitle": "Invalid conversation title.",
     "messageForkHistoryIncomplete": "This conversation is too deep or its message history is incomplete, so it cannot be forked here.",
     "messageForkStateInvalid": "Wait for this message to finish generating before forking the conversation.",
+    "messageForkTargetInvalid": "Only assistant messages can be forked into a new conversation.",
     "noTitleableContent": "This conversation has no content that can be used to generate a title.",
     "notFound": "Conversation not found."
   },
@@ -194,8 +195,9 @@
     "invalidApiKeysConfig": "Invalid API keys configuration.",
     "invalidCompatible": "Invalid compatibility mode.",
     "invalidHeadersConfig": "Invalid headers configuration.",
-    "invalidKinds": "Invalid model kinds.",
-    "invalidPlatformModelName": "Invalid platform model name.",
+		"invalidKinds": "Invalid model kinds.",
+		"invalidModelCapabilities": "The context window must be between 4,096 and 16,000,000 tokens, and the output token limit must be smaller than the context window.",
+		"invalidPlatformModelName": "Invalid platform model name.",
     "invalidRouteProtocolCombination": "This protocol combination is not available. A binding can use one protocol, or image generation and image editing protocols from the same provider.",
     "systemPromptTooLong": "System prompt must be at most 20000 characters.",
     "invalidProtocolDefaultsConfig": "Invalid protocol defaults configuration.",
@@ -258,6 +260,9 @@
     "notFound": "Message not found.",
     "tooManyFiles": "Too many files in one message."
   },
+  "temporaryChat": {
+    "contextTooLarge": "The temporary chat context is too large. Start a new temporary chat or shorten the conversation."
+  },
   "payment": {
     "checkoutFailed": "Failed to create checkout.",
     "epayGatewayInvalid": "The EPay redirect gateway URL is invalid.",
@@ -319,6 +324,7 @@
     "smtpInvalid": "Invalid SMTP settings."
   },
   "upstream": {
+    "rateLimited": "The upstream is rate limiting requests. Try again shortly.",
     "unavailable": "Upstream service is unavailable."
   },
   "upstreamEmptyResponse": "The upstream returned an empty response. Try again later or ask an administrator to check the model route.",

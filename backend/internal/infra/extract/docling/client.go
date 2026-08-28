@@ -13,6 +13,7 @@ import (
 	"time"
 
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
+	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
 )
 
 const (
@@ -28,12 +29,8 @@ type ClientConfig struct {
 	TimeoutSeconds int
 }
 
-// Request 表示一次 Docling 文本提取请求。
-type Request struct {
-	AbsolutePath string
-	FileName     string
-	MimeType     string
-}
+// Request 表示一次 Docling 文本提取请求，契约定义在 ports/extract。
+type Request = extractport.DocumentRequest
 
 // Client 提供 Docling HTTP 文本提取能力。
 type Client struct {

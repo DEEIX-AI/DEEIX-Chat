@@ -11,7 +11,7 @@ import (
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	domainsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/settings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	mineruextract "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/mineru"
+	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
@@ -85,17 +85,19 @@ func (s *Service) RecordAudit(ctx context.Context, input AuditInput) {
 
 // Seed 将默认配置写入数据库（仅插入不存在的 key）。
 func (s *Service) Seed(ctx context.Context, cfg config.Config) error {
-	for _, item := range obsoleteSettings() {
-		if err := s.repo.Delete(ctx, item.Namespace, item.Key); err != nil {
-			return err
-		}
-	}
 	items, err := s.encryptSettingsForStorage(defaultSettingsWithConfig(cfg))
 	if err != nil {
 		return err
 	}
 	if err := s.repo.UpsertWithDescription(ctx, items); err != nil {
 		return err
+	}
+	// Install replacement defaults before deleting obsolete keys so a partial
+	// startup failure never leaves the deployment without either configuration.
+	for _, item := range obsoleteSettings() {
+		if err := s.repo.Delete(ctx, item.Namespace, item.Key); err != nil {
+			return err
+		}
 	}
 	if err := s.migrateDefaultAllowedMIMETypes(ctx); err != nil {
 		return err
@@ -237,7 +239,10 @@ func isLegacyDefaultModelOptionAllowedPaths(value string) bool {
 	)
 	legacyCombinedDefault := cloneStringSliceMap(legacyInteractionsWithoutSummaries)
 	legacyCombinedDefault["gemini_generate_content"] = previousGenerateContentDefault["gemini_generate_content"]
+	previousWithoutXAIVideoExtensions := cloneStringSliceMap(latestDefault)
+	delete(previousWithoutXAIVideoExtensions, "xai_video_extensions")
 	previousDefaults := []map[string][]string{
+		previousWithoutXAIVideoExtensions,
 		previousGenerateContentDefault,
 		previousInteractionsDefault,
 		previousCombinedDefault,
@@ -474,6 +479,10 @@ func validatePatchItem(item PatchItem) error {
 		}
 	case "chat:model_option_allowed_paths", "chat:model_option_denied_paths":
 		return validateModelOptionPathsJSON(value, key)
+	case "chat:context_window_fallback_tokens":
+		return validateIntMinMax(value, config.MinContextWindowFallbackTokens, config.MaxContextWindowFallbackTokens, key)
+	case "chat:context_compact_trigger_percent":
+		return validateOptionalIntZeroOrMinMax(value, config.MinContextCompactTriggerPercent, config.MaxContextCompactTriggerPercent, key)
 	case "auth:login_default_next_path":
 		if value == "" {
 			return fmt.Errorf("%s cannot be empty", key)
@@ -584,10 +593,10 @@ func validatePatchItem(item PatchItem) error {
 		}
 	case "extract:mineru_source":
 		switch value {
-		case mineruextract.SourceCloud, mineruextract.SourceSelfHosted:
+		case extractport.MinerUSourceCloud, extractport.MinerUSourceSelfHosted:
 			return nil
 		default:
-			return fmt.Errorf("%s must be one of: %s, %s", key, mineruextract.SourceCloud, mineruextract.SourceSelfHosted)
+			return fmt.Errorf("%s must be one of: %s, %s", key, extractport.MinerUSourceCloud, extractport.MinerUSourceSelfHosted)
 		}
 	case "extract:mineru_file_types":
 		return validateMinerUFileTypes(value, key)

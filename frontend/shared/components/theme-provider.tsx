@@ -113,7 +113,7 @@ export function ThemeProvider({
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
-export function useTheme() {
+export function useTheme(): ThemeContextValue {
   const context = React.useContext(ThemeContext);
   if (!context) {
     return {

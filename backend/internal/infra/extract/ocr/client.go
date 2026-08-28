@@ -19,6 +19,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/outboundhttp"
+	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -43,32 +44,13 @@ type ClientConfig struct {
 	OutboundPolicy security.OutboundPolicy
 }
 
-// Request 表示一次 PDF OCR 请求。
-type Request struct {
-	AbsolutePath string
-	FileName     string
-	MimeType     string
-	PageRanges   []PageRange
-}
-
-// Response 表示 OCR 返回结果。
-type Response struct {
-	Text          string
-	RenderedPages int
-	Pages         []PageText
-}
-
-// PageRange 表示 OCR 需要处理的连续页区间。
-type PageRange struct {
-	Start int
-	End   int
-}
-
-// PageText 表示单页 OCR 结果。
-type PageText struct {
-	PageNumber int
-	Text       string
-}
+// OCR 请求/响应数据契约定义在 ports/extract，此处保留同名引用供实现使用。
+type (
+	Request   = extractport.OCRRequest
+	Response  = extractport.OCRResponse
+	PageRange = extractport.PageRange
+	PageText  = extractport.PageText
+)
 
 // Client 封装 PDF OCR 回退能力。
 type Client struct {

@@ -169,6 +169,41 @@ func (h *Handler) GetFileProcessingStatus(c *gin.Context) {
 	response.Success(c, toFileProcessingStatusResponse(result))
 }
 
+// GetFileProcessingStatuses godoc
+// @Summary 批量查询文件处理状态
+// @Description 一次查询当前用户多个文件的处理状态
+// @Tags chat
+// @Produce json
+// @Security BearerAuth
+// @Accept json
+// @Param request body GetFileProcessingStatusesRequest true "文件ID，最多100个"
+// @Success 200 {array} FileProcessingStatusResponse
+// @Failure 400 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /files/processing/statuses [post]
+func (h *Handler) GetFileProcessingStatuses(c *gin.Context) {
+	var req GetFileProcessingStatusesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid file ids")
+		return
+	}
+
+	result, err := h.service.GetFileProcessingStatuses(
+		c.Request.Context(),
+		middleware.MustUserID(c),
+		req.FileIDs,
+	)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "get file processing statuses failed")
+		return
+	}
+	statuses := make([]FileProcessingStatusResponse, 0, len(result))
+	for i := range result {
+		statuses = append(statuses, toFileProcessingStatusResponse(&result[i]))
+	}
+	response.Success(c, statuses)
+}
+
 // GetFileExtract 获取文件提取文本。
 func (h *Handler) GetFileExtract(c *gin.Context) {
 	userID := middleware.MustUserID(c)

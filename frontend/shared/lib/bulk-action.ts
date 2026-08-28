@@ -37,6 +37,13 @@ type RunSettledBulkItemsArgs<TItem, TValue> = {
   title: string;
 };
 
+type RunSettledItemsWithConcurrencyArgs<TItem, TValue> = {
+  concurrency?: number;
+  items: TItem[];
+  runItem: (item: TItem) => Promise<TValue>;
+  signal?: AbortSignal;
+};
+
 type BatchResultData<TResult> = {
   total: number;
   successCount: number;
@@ -166,4 +173,36 @@ export async function runSettledBulkItems<TItem, TValue>({
   });
 
   return chunks.flat();
+}
+
+export async function runSettledItemsWithConcurrency<TItem, TValue>({
+  concurrency = 4,
+  items,
+  runItem,
+  signal,
+}: RunSettledItemsWithConcurrencyArgs<TItem, TValue>): Promise<Array<SettledBulkItemResult<TItem, TValue>>> {
+  const results: Array<SettledBulkItemResult<TItem, TValue> | undefined> = new Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, Math.floor(concurrency)), items.length);
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (!signal?.aborted && nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const item = items[index];
+      try {
+        results[index] = {
+          item,
+          status: "fulfilled",
+          value: await runItem(item),
+        };
+      } catch (reason) {
+        if (!signal?.aborted) {
+          results[index] = { item, reason, status: "rejected" };
+        }
+      }
+    }
+  }));
+
+  return results.filter((result): result is SettledBulkItemResult<TItem, TValue> => result !== undefined);
 }

@@ -10,6 +10,8 @@ import (
 
 	docx "github.com/mmonterroca/docxgo/v2"
 	"github.com/mmonterroca/docxgo/v2/domain"
+
+	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
 )
 
 const (
@@ -24,10 +26,8 @@ type wordCommandRunner interface {
 
 type execWordRunner struct{}
 
-type WordResult struct {
-	Text   string
-	Engine string
-}
+// WordResult 表示 Word 文档提取结果，契约定义在 ports/extract。
+type WordResult = extractport.WordTextResult
 
 // ExtractWordText 从 DOC / DOCX 中提取纯文本。
 func ExtractWordText(ctx context.Context, absPath string, data []byte, mimeType string, fileName string) WordResult {

@@ -1,5 +1,24 @@
+import { authedFetch } from "@/shared/api/authed-client";
 import { resolveApiBaseURL } from "@/shared/api/http-client";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+
+// 将受保护的完整图片 URL 还原为 API 相对路径，供 authedFetch 统一携带凭证与 401 刷新。
+function resolveProtectedMarkdownImagePath(src: string): string | null {
+  const protectedSrc = resolveProtectedMarkdownImageSource(src);
+  if (!protectedSrc) {
+    return null;
+  }
+  const url = new URL(protectedSrc, window.location.origin);
+  return `${url.pathname}${url.search}`;
+}
+
+async function fetchProtectedMarkdownImage(path: string, signal?: AbortSignal): Promise<Response> {
+  const accessToken = await resolveAccessToken();
+  if (!accessToken) {
+    throw new Error("Missing access token");
+  }
+  return authedFetch(path, { accessToken, cache: "no-store", signal });
+}
 
 export function resolveMarkdownImageSource(src: string): string {
   if (typeof window === "undefined") {
@@ -48,11 +67,13 @@ export function resolveMarkdownImageDownloadName(src: string, alt: string | unde
 }
 
 export async function downloadMarkdownImageSource(src: string, fileName: string): Promise<void> {
-  const protectedSrc = resolveProtectedMarkdownImageSource(src);
-  const accessToken = protectedSrc ? await resolveAccessToken() : null;
-  const response = await fetch(resolveMarkdownImageSource(src), {
-    headers: protectedSrc && accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-  });
+  const protectedPath = resolveProtectedMarkdownImagePath(src);
+  let response: Response;
+  if (protectedPath) {
+    response = await fetchProtectedMarkdownImage(protectedPath);
+  } else {
+    response = await fetch(resolveMarkdownImageSource(src));
+  }
   if (!response.ok) {
     throw new Error("Failed to download image");
   }
@@ -71,17 +92,10 @@ export async function downloadMarkdownImageSource(src: string, fileName: string)
 }
 
 export async function loadProtectedMarkdownImageBlobURL(src: string, signal: AbortSignal): Promise<string> {
-  const accessToken = await resolveAccessToken();
-  if (!accessToken) {
-    throw new Error("Missing access token");
+  const protectedPath = resolveProtectedMarkdownImagePath(src);
+  if (!protectedPath) {
+    throw new Error("Not a protected image source");
   }
-  const response = await fetch(src, {
-    cache: "no-store",
-    headers: { Authorization: `Bearer ${accessToken}` },
-    signal,
-  });
-  if (!response.ok) {
-    throw new Error("Failed to load image");
-  }
+  const response = await fetchProtectedMarkdownImage(protectedPath, signal);
   return URL.createObjectURL(await response.blob());
 }

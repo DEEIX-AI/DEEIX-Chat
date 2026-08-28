@@ -12,6 +12,9 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// maxConversationProjectsPerUser 单用户会话项目数量上限；列表接口为全量加载，需要写入侧兜底有界。
+const maxConversationProjectsPerUser = 200
+
 // CreateConversationProject 创建会话项目分组。
 func (r *Repo) CreateConversationProject(ctx context.Context, item *domainconversation.ConversationProject) error {
 	entity := toConversationProjectModel(item)
@@ -19,6 +22,15 @@ func (r *Repo) CreateConversationProject(ctx context.Context, item *domainconver
 	skillIDs := append([]uint(nil), item.DefaultSkillIDs...)
 	knowledgeBaseIDs := append([]string(nil), item.DefaultKnowledgeBaseIDs...)
 	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Model(&models.ConversationProject{}).
+			Where("user_id = ?", entity.UserID).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count >= maxConversationProjectsPerUser {
+			return repository.ErrConversationProjectLimitExceeded
+		}
 		if err := tx.Create(&entity).Error; err != nil {
 			return err
 		}

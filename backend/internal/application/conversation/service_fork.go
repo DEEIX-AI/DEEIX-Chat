@@ -14,8 +14,9 @@ import (
 const forkAncestorMaxDepth = 2000
 
 // ForkConversationFromMessage 将会话从开头到指定消息（含）的祖先链复制为一个新会话。
-// 新会话不携带原会话的生成运行、处理轨迹、计费与压缩快照；附件以引用方式复用原文件
-// 对象（同用户，不重复占用存储配额）。原会话保持不变。
+// 新会话保留历史消息的上下文规划、思考和工具展示轨迹，但不携带可执行的生成运行、
+// 原始工具审计日志、计费与压缩快照；附件以引用方式复用原文件对象（同用户，不重复
+// 占用存储配额）。原会话保持不变。
 func (s *Service) ForkConversationFromMessage(ctx context.Context, userID uint, conversationPublicID string, messagePublicID string) (*model.Conversation, error) {
 	normalizedConversationID := strings.TrimSpace(conversationPublicID)
 	if normalizedConversationID == "" {
@@ -43,6 +44,9 @@ func (s *Service) ForkConversationFromMessage(ctx context.Context, userID uint, 
 	}
 	if message.ConversationID != conversation.ID {
 		return nil, ErrMessageNotFound
+	}
+	if !strings.EqualFold(strings.TrimSpace(message.Role), "assistant") {
+		return nil, ErrMessageForkTargetInvalid
 	}
 	if strings.EqualFold(strings.TrimSpace(message.Status), "pending") {
 		return nil, ErrMessageForkStateInvalid

@@ -40,6 +40,7 @@ const PROTOCOL_DEFAULT_KIND_ORDER = [
   "image_gen",
   "image_edit",
   "video_gen",
+  "video_extension",
 ];
 const PROTOCOL_DEFAULT_KINDS = new Set(PROTOCOL_DEFAULT_KIND_ORDER);
 

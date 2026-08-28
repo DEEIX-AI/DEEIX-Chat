@@ -1,8 +1,8 @@
 import type {
   ChatInlineAlert,
+  ChatMessageProcessTrace,
   ImageLoadingAspectRatio,
   MessageAttachment,
-  ChatMessageProcessTrace,
 } from "@/features/chat/types/messages";
 import type { ConversationOptions } from "@/shared/api/conversation.types";
 import type { PublicModelPricingDTO } from "@/shared/api/model.types";
@@ -30,6 +30,13 @@ export type ChatModelOption = {
   nativeToolKeys: string[];
   nativeTools: ModelNativeToolConfig[];
   pricing: PublicModelPricingDTO | null;
+  videoExtension: ModelMediaTaskConfig | null;
+};
+
+export type ModelMediaTaskConfig = {
+  enabled: boolean;
+  defaultOptions: ConversationOptions;
+  optionControls: ModelOptionControl[];
 };
 
 export type ModelOptionControlType = "boolean" | "number" | "select" | "text";

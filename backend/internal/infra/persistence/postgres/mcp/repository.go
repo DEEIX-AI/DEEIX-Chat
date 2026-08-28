@@ -12,6 +12,9 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// maxMCPServers MCP 服务数量上限；列表接口为全量加载，需要写入侧兜底有界。
+const maxMCPServers = 100
+
 type Repo struct {
 	db *gorm.DB
 }
@@ -23,6 +26,13 @@ func NewRepo(db *gorm.DB) *Repo {
 func (r *Repo) CreateServer(ctx context.Context, input repository.CreateMCPServerInput) (*domainmcp.Server, error) {
 	var result domainmcp.Server
 	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Model(&model.MCPServer{}).Count(&count).Error; err != nil {
+			return err
+		}
+		if count >= maxMCPServers {
+			return repository.ErrMCPServerLimitExceeded
+		}
 		var maxSortOrder int
 		if err := tx.Model(&model.MCPServer{}).
 			Select("COALESCE(MAX(sort_order), 0)").
@@ -345,6 +355,9 @@ func (r *Repo) UpdateTool(ctx context.Context, toolID uint, input repository.Upd
 		if metadataChanged {
 			updates["metadata_customized"] = true
 		}
+		if input.PriceNanousd != nil && *input.PriceNanousd != row.PriceNanousd {
+			updates["price_nanousd"] = *input.PriceNanousd
+		}
 		if input.Status != nil && *input.Status != row.Status {
 			updates["status"] = *input.Status
 		}
@@ -500,6 +513,7 @@ func toDomainTool(row model.MCPTool) domainmcp.Tool {
 		AttachmentArgument:       row.AttachmentArgument,
 		AttachmentEncoding:       row.AttachmentEncoding,
 		AttachmentPromptArgument: row.AttachmentPromptArgument,
+		PriceNanousd:             row.PriceNanousd,
 		Status:                   row.Status,
 		SortOrder:                row.SortOrder,
 		CreatedAt:                row.CreatedAt,

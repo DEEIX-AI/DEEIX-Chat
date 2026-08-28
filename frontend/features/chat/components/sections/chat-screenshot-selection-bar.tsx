@@ -8,6 +8,7 @@ import { SpinnerLabel } from "@/components/ui/spinner";
 type ChatScreenshotSelectionBarProps = {
   selectedCount: number;
   totalCount: number;
+  maxSelectionCount: number;
   capturing: boolean;
   onSelectAll: () => void;
   onClearSelection: () => void;
@@ -18,6 +19,7 @@ type ChatScreenshotSelectionBarProps = {
 export function ChatScreenshotSelectionBar({
   selectedCount,
   totalCount,
+  maxSelectionCount,
   capturing,
   onSelectAll,
   onClearSelection,
@@ -25,7 +27,9 @@ export function ChatScreenshotSelectionBar({
   onExit,
 }: ChatScreenshotSelectionBarProps) {
   const t = useTranslations("chat.screenshot");
-  const allSelected = totalCount > 0 && selectedCount >= totalCount;
+  const selectableCount = Math.min(totalCount, maxSelectionCount);
+  const selectionAtCapacity = selectableCount > 0 && selectedCount >= selectableCount;
+  const selectAllLabel = totalCount > maxSelectionCount ? t("selectLatest") : t("selectAll");
 
   return (
     <div className="flex w-full flex-col gap-2 rounded-lg bg-muted/25 px-2 py-1.5 sm:flex-row sm:items-center sm:justify-between">
@@ -34,7 +38,7 @@ export function ChatScreenshotSelectionBar({
           {t("captureSelect")}
         </span>
         <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
-          {selectedCount}/{totalCount}
+          {selectedCount}/{selectableCount}
         </span>
       </div>
       <div className="flex min-w-0 items-center justify-end gap-1">
@@ -43,9 +47,9 @@ export function ChatScreenshotSelectionBar({
           variant="ghost"
           size="sm"
           className="h-7 shrink-0 rounded-md px-2 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground"
-          onClick={allSelected ? onClearSelection : onSelectAll}
+          onClick={selectionAtCapacity ? onClearSelection : onSelectAll}
         >
-          {allSelected ? t("clearSelection") : t("selectAll")}
+          {selectionAtCapacity ? t("clearSelection") : selectAllLabel}
         </Button>
         <Button
           type="button"

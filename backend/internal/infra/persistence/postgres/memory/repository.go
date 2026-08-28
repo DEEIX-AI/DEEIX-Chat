@@ -14,6 +14,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// maxUserMemoriesPerUser 单用户长期记忆条目上限；列表接口为全量加载，需要写入侧兜底有界。
+const maxUserMemoriesPerUser = 500
+
 // float32SliceToVec 按模型原始维度序列化 PostgreSQL 向量。
 func float32SliceToVec(v []float32) (string, error) {
 	return vectorutil.PostgresLiteral(v)
@@ -62,6 +65,17 @@ func (r *Repo) UpsertUserMemory(ctx context.Context, item *domainmemory.UserMemo
 		})
 	}
 	if dberror.IsRecordNotFound(err) {
+		// 新增前检查单用户记忆条数上限。
+		var count int64
+		if err := r.db.WithContext(ctx).
+			Model(&model.UserMemory{}).
+			Where("user_id = ?", item.UserID).
+			Count(&count).Error; err != nil {
+			return translateError(err)
+		}
+		if count >= maxUserMemoriesPerUser {
+			return repository.ErrUserMemoryLimitExceeded
+		}
 		record := model.UserMemory{
 			UserID:    item.UserID,
 			MemoryKey: item.MemoryKey,

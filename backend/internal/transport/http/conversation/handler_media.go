@@ -29,6 +29,38 @@ func (h *Handler) StreamImageEdit(c *gin.Context) {
 
 // StreamVideoGeneration 处理会话内视频生成流式状态接口。
 func (h *Handler) StreamVideoGeneration(c *gin.Context) {
+	h.streamMediaVideo(c, appconversation.MediaVideoTaskGeneration)
+}
+
+// StreamVideoExtension 处理会话内视频扩展流式状态接口。
+// @Summary 扩展会话视频
+// @Tags Conversations
+// @Accept json
+// @Produce application/x-ndjson
+// @Param id path string true "会话 Public ID"
+// @Param payload body MediaVideoExtensionRequest true "视频扩展请求"
+// @Success 200 {string} string "NDJSON stream"
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Router /conversations/{id}/media/videos/extensions/stream [post]
+func (h *Handler) StreamVideoExtension(c *gin.Context) {
+	h.streamMediaVideo(c, appconversation.MediaVideoTaskExtension)
+}
+
+type mediaVideoTransportRequest struct {
+	Prompt                string
+	Model                 string
+	Options               map[string]interface{}
+	ClientRunID           string
+	FileIDs               []string
+	ParentMessagePublicID string
+	SourceMessagePublicID string
+	BranchReason          string
+}
+
+// streamMediaVideo 统一视频生成与扩展的 HTTP、授权和事件转发流程。
+func (h *Handler) streamMediaVideo(c *gin.Context, taskType appconversation.MediaVideoTaskType) {
 	userID := middleware.MustUserID(c)
 	publicID, err := stringParam(c, "id")
 	if err != nil {
@@ -44,10 +76,39 @@ func (h *Handler) StreamVideoGeneration(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, "load conversation failed")
 		return
 	}
-	var req MediaVideoRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, err.Error())
-		return
+	var req mediaVideoTransportRequest
+	if taskType == appconversation.MediaVideoTaskExtension {
+		var payload MediaVideoExtensionRequest
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			response.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		req = mediaVideoTransportRequest{
+			Prompt:                payload.Prompt,
+			Model:                 payload.Model,
+			Options:               payload.Options,
+			ClientRunID:           payload.ClientRunID,
+			FileIDs:               []string{payload.SourceVideoFileID},
+			ParentMessagePublicID: payload.ParentMessagePublicID,
+			SourceMessagePublicID: payload.SourceMessagePublicID,
+			BranchReason:          payload.BranchReason,
+		}
+	} else {
+		var payload MediaVideoRequest
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			response.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		req = mediaVideoTransportRequest{
+			Prompt:                payload.Prompt,
+			Model:                 payload.Model,
+			Options:               payload.Options,
+			ClientRunID:           payload.ClientRunID,
+			FileIDs:               payload.FileIDs,
+			ParentMessagePublicID: payload.ParentMessagePublicID,
+			SourceMessagePublicID: payload.SourceMessagePublicID,
+			BranchReason:          payload.BranchReason,
+		}
 	}
 	req.ClientRunID = appconversation.EnsureMessageGenerationRunID(req.ClientRunID)
 	req.Options = sanitizeMessageOptions(req.Options)
@@ -67,6 +128,7 @@ func (h *Handler) StreamVideoGeneration(c *gin.Context) {
 				UserID:                userID,
 				ConversationID:        conversation.ID,
 				RequestID:             middleware.MustRequestID(c),
+				TaskType:              taskType,
 				Prompt:                req.Prompt,
 				PlatformModelName:     req.Model,
 				Options:               req.Options,
@@ -306,7 +368,7 @@ func mediaImageBillingInput(
 func mediaVideoBillingInput(
 	userID uint,
 	conversation *model.Conversation,
-	req *MediaVideoRequest,
+	req *mediaVideoTransportRequest,
 	result *appconversation.SendMessageResult,
 ) appconversation.SendMessageBillingInput {
 	input := appconversation.SendMessageBillingInput{

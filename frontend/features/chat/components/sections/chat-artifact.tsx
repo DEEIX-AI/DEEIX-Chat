@@ -24,8 +24,8 @@ import {
 import {
   useChatFontPreference,
   useChatFontWeightPreference,
-} from "@/features/settings/utils/chat-font";
-import { useFontSizePreference } from "@/features/settings/utils/font-size";
+  useFontSizePreference,
+} from "@/features/settings";
 import { cn } from "@/lib/utils";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { useTheme } from "@/shared/components/theme-provider";

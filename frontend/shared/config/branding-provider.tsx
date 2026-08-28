@@ -70,7 +70,7 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
       window.clearTimeout(fallbackTimer);
       setReady(true);
       retryTimer = window.setTimeout(() => {
-        void requestBranding().then(applyBranding).catch(() => undefined);
+        void requestBranding().then(applyBranding).catch((): undefined => undefined);
       }, BRANDING_RETRY_DELAY_MS);
     };
 

@@ -207,11 +207,21 @@ func (h *Handler) recordAndApplySendMessageBilling(
 	result *appconversation.SendMessageResult,
 	authorization *domainbilling.UsageAuthorization,
 ) error {
-	usageLedger, err := h.service.RecordSendMessageBilling(
+	return h.recordAndApplyUsageBilling(
 		ctx,
 		sendMessageBillingInput(userID, conversation, req, result),
+		result,
 		authorization,
 	)
+}
+
+func (h *Handler) recordAndApplyUsageBilling(
+	ctx context.Context,
+	billingInput appconversation.SendMessageBillingInput,
+	result *appconversation.SendMessageResult,
+	authorization *domainbilling.UsageAuthorization,
+) error {
+	usageLedger, err := h.service.RecordSendMessageBilling(ctx, billingInput, authorization)
 	if err != nil {
 		return err
 	}
@@ -399,6 +409,8 @@ func handleSendMessageError(c *gin.Context, err error) {
 		response.ErrorWithCode(c, http.StatusBadGateway, appconversation.MessageErrorCode(err), "generated media artifact is temporarily unavailable")
 	case errors.Is(err, appconversation.ErrUpstreamEmptyResponse):
 		response.Error(c, http.StatusBadGateway, "model returned empty response")
+	case appconversation.IsUpstreamRateLimitError(err):
+		response.ErrorWithCode(c, http.StatusTooManyRequests, appconversation.MessageErrorCodeUpstreamRateLimited, "upstream rate limited")
 	case errors.Is(err, appconversation.ErrUpstreamRequestFailed):
 		if code := appconversation.MessageErrorCode(err); code != "" {
 			response.ErrorWithCode(c, http.StatusBadGateway, code, mapClientErrorMessage(err))
@@ -648,6 +660,103 @@ func (h *Handler) CancelMessageGeneration(c *gin.Context) {
 	response.Success(c, CancelMessageGenerationResponse{Canceled: canceled})
 }
 
+// StreamActiveMessageGenerations godoc
+// @Summary Stream active conversation generations
+// @Description Sends an authoritative snapshot followed by live user-scoped run state events; the snapshot is re-sent periodically for client-side reconciliation
+// @Tags chat
+// @Produce text/event-stream
+// @Security BearerAuth
+// @Success 200 {object} ActiveMessageGenerationEventResponse
+// @Failure 500 {object} ErrorDoc
+// @Router /conversation-runs/stream [get]
+func (h *Handler) StreamActiveMessageGenerations(c *gin.Context) {
+	userID := middleware.MustUserID(c)
+	snapshot, events, unsubscribe, err := h.service.SubscribeActiveMessageGenerations(
+		c.Request.Context(),
+		userID,
+	)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "failed to subscribe to active conversation generations")
+		return
+	}
+	defer unsubscribe()
+
+	c.Header("Content-Type", "text/event-stream; charset=utf-8")
+	c.Header("Cache-Control", "no-cache, no-transform")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+	c.Status(http.StatusOK)
+
+	writeEvent := func(payload ActiveMessageGenerationEventResponse) bool {
+		encoded, marshalErr := json.Marshal(payload)
+		if marshalErr != nil {
+			return true
+		}
+		if _, writeErr := c.Writer.Write([]byte("data: ")); writeErr != nil {
+			return false
+		}
+		if _, writeErr := c.Writer.Write(encoded); writeErr != nil {
+			return false
+		}
+		if _, writeErr := c.Writer.Write([]byte("\n\n")); writeErr != nil {
+			return false
+		}
+		c.Writer.Flush()
+		return true
+	}
+	writeSnapshot := func(items []appconversation.ActiveMessageGeneration) bool {
+		runs := make([]ActiveMessageGenerationResponse, 0, len(items))
+		for _, item := range items {
+			runs = append(runs, ActiveMessageGenerationResponse{
+				RunID:                item.RunID,
+				ConversationPublicID: item.ConversationPublicID,
+			})
+		}
+		return writeEvent(ActiveMessageGenerationEventResponse{Type: "snapshot", Runs: runs})
+	}
+
+	if !writeSnapshot(snapshot) {
+		return
+	}
+
+	// 周期重发权威快照兼作心跳：增量事件在断线间隙丢失时，客户端可在一个周期内对账清除失效运行。
+	snapshotTicker := time.NewTicker(20 * time.Second)
+	defer snapshotTicker.Stop()
+	for {
+		select {
+		case <-c.Request.Context().Done():
+			return
+		case <-h.shutdown.Done():
+			// 关停排空：订阅流立即退出，客户端按既有退避逻辑重连。
+			return
+		case <-snapshotTicker.C:
+			latest, listErr := h.service.ListActiveMessageGenerations(c.Request.Context(), userID)
+			if listErr != nil {
+				// 快照查询失败时退回注释帧，仅维持连接心跳。
+				if _, writeErr := c.Writer.Write([]byte(": keepalive\n\n")); writeErr != nil {
+					return
+				}
+				c.Writer.Flush()
+				continue
+			}
+			if !writeSnapshot(latest) {
+				return
+			}
+		case event, ok := <-events:
+			if !ok {
+				return
+			}
+			if !writeEvent(ActiveMessageGenerationEventResponse{
+				Type:                 event.Type,
+				RunID:                event.RunID,
+				ConversationPublicID: event.ConversationPublicID,
+			}) {
+				return
+			}
+		}
+	}
+}
+
 // ResumeMessageGenerationStream godoc
 // @Summary 恢复流式生成订阅
 // @Description 页面刷新后按 run_id 重新订阅仍在运行的生成流，返回 NDJSON 事件
@@ -737,6 +846,9 @@ func (h *Handler) ResumeMessageGenerationStream(c *gin.Context) {
 	for {
 		select {
 		case <-c.Request.Context().Done():
+			return
+		case <-h.shutdown.Done():
+			// 关停排空：观看流立即退出，生成本体不受影响；客户端重连后经 Redis 重放续传。
 			return
 		case <-activeTicker.C:
 			if !isActive() {

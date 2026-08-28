@@ -6,7 +6,7 @@ import (
 
 	appcompact "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/compact"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
-	"go.uber.org/zap"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 )
 
 // postBillingCompactionTask 保存主调用结算后执行上下文压缩所需的运行信息。
@@ -28,6 +28,9 @@ func (s *Service) runPostBillingCompaction(task *postBillingCompactionTask, mess
 		return
 	}
 	if s.compactSvc == nil {
+		if task.TraceRecorder != nil {
+			task.TraceRecorder.removeProcessStage(processTraceKindCompaction)
+		}
 		s.completePostBillingCompactionTrace(task, message)
 		return
 	}
@@ -35,12 +38,9 @@ func (s *Service) runPostBillingCompaction(task *postBillingCompactionTask, mess
 		ctx = withBasicServiceBillingContext(ctx, task.UserID, task.ConversationID)
 		snapshot, err := s.compactSvc.MaybeCompactConversation(ctx, task.Input)
 		if err != nil {
-			if s.logger != nil {
-				s.logger.Warn("post_billing_compaction_failed",
-					zap.Uint("user_id", task.UserID),
-					zap.Uint("conversation_id", task.ConversationID),
-					zap.Error(err),
-				)
+			if task.TraceRecorder != nil {
+				summary, payload := buildFailedCompactionProcessTrace()
+				task.TraceRecorder.setCompactionProcessStage(summary, "", payload)
 			}
 			s.completePostBillingCompactionTrace(task, message)
 			return
@@ -57,7 +57,7 @@ func (s *Service) runPostBillingCompaction(task *postBillingCompactionTask, mess
 			})
 			if task.TraceRecorder != nil {
 				summary, markdown, payload := buildCompactionProcessTrace(snapshot)
-				task.TraceRecorder.appendProcessSection(summary, markdown, payload, messageTraceStatusStreaming)
+				task.TraceRecorder.setCompactionProcessStage(summary, markdown, payload)
 			}
 			if task.OnEvent != nil {
 				preview := []rune(snapshot.SummaryText)
@@ -71,6 +71,8 @@ func (s *Service) runPostBillingCompaction(task *postBillingCompactionTask, mess
 					"summary_preview": string(preview),
 				})
 			}
+		} else if task.Async && task.TraceRecorder != nil {
+			task.TraceRecorder.removeProcessStage(processTraceKindCompaction)
 		}
 		s.completePostBillingCompactionTrace(task, message)
 	}
@@ -91,10 +93,10 @@ func (s *Service) runPostBillingTasks(input SendMessageBillingInput) {
 		// 异步任务只读取请求完成时的快照，不能继续持有 handler 正在返回的结果对象。
 		result := *input.Result
 		input.Result = &result
-		go func() {
+		background.Go(s.logger, "post_billing_compaction", func() {
 			s.runPostBillingCompaction(task, &result.AssistantMessage)
 			s.scheduleConversationMetadataAfterBilling(input)
-		}()
+		})
 		return
 	}
 	s.runPostBillingCompaction(task, &input.Result.AssistantMessage)
@@ -108,6 +110,9 @@ func (s *Service) discardPostBillingCompaction(result *SendMessageResult) {
 	}
 	task := result.postBillingCompaction
 	result.postBillingCompaction = nil
+	if task.TraceRecorder != nil {
+		task.TraceRecorder.removeProcessStage(processTraceKindCompaction)
+	}
 	s.completePostBillingCompactionTrace(task, &result.AssistantMessage)
 }
 

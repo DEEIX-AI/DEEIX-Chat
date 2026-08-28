@@ -8,6 +8,7 @@ import {
   ChartContainer,
   ChartInteractiveLegend,
   ChartTooltip,
+  createStackedBarTopRoundedShape,
   type ChartConfig,
   type ChartInteractiveLegendItem,
 } from "@/components/ui/chart";
@@ -268,7 +269,7 @@ export const StatisticsTrendChart = React.memo(function StatisticsTrendChart({
         >
         <defs>
           <linearGradient id="fillUsageTrendMetric" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="var(--color-metricValue)" stopOpacity={0.3} />
+            <stop offset="5%" stopColor="var(--color-metricValue)" stopOpacity={0.18} />
             <stop offset="95%" stopColor="var(--color-metricValue)" stopOpacity={0.02} />
           </linearGradient>
         </defs>
@@ -309,9 +310,11 @@ export const StatisticsTrendChart = React.memo(function StatisticsTrendChart({
           fill="url(#fillUsageTrendMetric)"
           fillOpacity={1}
           stroke="var(--color-metricValue)"
-          strokeWidth={2}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
           dot={false}
-          activeDot={{ r: 3, strokeWidth: 2 }}
+          activeDot={{ r: 2.5, strokeWidth: 1.5 }}
           isAnimationActive
           animationDuration={CHART_ANIMATION_DURATION_MS}
           animationEasing="ease-out"
@@ -322,10 +325,11 @@ export const StatisticsTrendChart = React.memo(function StatisticsTrendChart({
           dataKey="avgLatencyMS"
           type="monotone"
           stroke="var(--color-avgLatencyMS)"
-          strokeWidth={1.5}
-          strokeDasharray="4 4"
+          strokeWidth={1}
+          strokeDasharray="3 3"
+          strokeLinecap="round"
           dot={false}
-          activeDot={{ r: 2.5, strokeWidth: 1.5 }}
+          activeDot={{ r: 2, strokeWidth: 1 }}
           isAnimationActive
           animationDuration={CHART_ANIMATION_DURATION_MS}
           animationEasing="ease-out"
@@ -366,6 +370,20 @@ type StatisticsStackedChartPoint = Record<string, unknown> & {
 
 function statisticsPeriodKey(value: string): string {
   return value.slice(0, 10);
+}
+
+function isStatisticsStackedChartPoint(value: unknown): value is StatisticsStackedChartPoint {
+  return typeof value === "object" && value !== null && "segments" in value && Array.isArray(value.segments);
+}
+
+// 返回该列在当前图例可见性下、数值大于 0 的最顶部分段 key，决定顶部圆角落在哪个分段。
+function stackedColumnTopSegmentKey(payload: unknown, hiddenSeries: ReadonlySet<string>): string | undefined {
+  if (!isStatisticsStackedChartPoint(payload)) return undefined;
+  for (let index = payload.segments.length - 1; index >= 0; index -= 1) {
+    const segment = payload.segments[index];
+    if (!hiddenSeries.has(segment.id) && segment.chartValue > 0) return segment.key;
+  }
+  return undefined;
 }
 
 function formatStackedMetricValue(
@@ -491,8 +509,17 @@ function StatisticsStackedTrendChart({
     () => series.map((item) => ({ id: item.id, label: item.label, title: item.fullLabel, color: item.color })),
     [series],
   );
-  const topVisibleSeriesID = React.useMemo(
-    () => [...series].reverse().find((item) => !hiddenSeries.has(item.id))?.id,
+  // 顶部圆角按每根柱当前可见的最顶部分段绘制，而不是固定给某个系列。
+  const seriesBarShapes = React.useMemo(
+    () =>
+      new Map(
+        series.map((item) => [
+          item.key,
+          createStackedBarTopRoundedShape(
+            (payload) => stackedColumnTopSegmentKey(payload, hiddenSeries) === item.key,
+          ),
+        ]),
+      ),
     [hiddenSeries, series],
   );
   if (loading) return <ChartLoadingSkeleton />;
@@ -545,7 +572,7 @@ function StatisticsStackedTrendChart({
               animationDuration={CHART_ANIMATION_DURATION_MS}
               animationEasing="ease-out"
               hide={hiddenSeries.has(item.id)}
-              radius={item.id === topVisibleSeriesID ? [4, 4, 0, 0] : 0}
+              shape={seriesBarShapes.get(item.key)}
             />
           ))}
         </BarChart>

@@ -11,6 +11,8 @@ import (
 
 type testRAGCache struct {
 	setCalls int
+	getCalls int
+	chunks   []domainconversation.RAGChunk
 }
 
 type testRAGRepository struct {
@@ -27,7 +29,30 @@ func (r *testRAGRepository) BM25SearchFileChunks(context.Context, uint, []uint, 
 }
 
 func (c *testRAGCache) GetRAGCache(ctx context.Context, key string) ([]domainconversation.RAGChunk, bool) {
-	return nil, false
+	c.getCalls++
+	return append([]domainconversation.RAGChunk(nil), c.chunks...), len(c.chunks) > 0
+}
+
+func TestRetrieveWithStatusEphemeralBypassesRetrievalCache(t *testing.T) {
+	cache := &testRAGCache{chunks: []domainconversation.RAGChunk{{Content: "cached secret"}}}
+	svc := NewServiceWithRuntime(config.NewRuntime(config.Config{
+		RAGEnabled:       true,
+		EmbeddingEnabled: true,
+		RAGModel:         "embed",
+	}), &testRAGRepository{}, cache, nil)
+
+	_, err := svc.RetrieveWithStatus(t.Context(), RetrieveInput{
+		UserID:    1,
+		Query:     "private query",
+		FileObjs:  []domainconversation.FileObject{{ID: 1, FileID: "file"}},
+		Ephemeral: true,
+	})
+	if err == nil {
+		t.Fatal("expected retrieval to continue past cache and fail without an embedding client")
+	}
+	if cache.getCalls != 0 || cache.setCalls != 0 {
+		t.Fatalf("ephemeral retrieval touched cache: get=%d set=%d", cache.getCalls, cache.setCalls)
+	}
 }
 
 func (c *testRAGCache) SetRAGCache(ctx context.Context, key string, chunks []domainconversation.RAGChunk, ttl time.Duration) {

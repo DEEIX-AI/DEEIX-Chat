@@ -3,10 +3,12 @@ package epay
 import (
 	"net/url"
 	"testing"
+
+	paymentport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/payment"
 )
 
 func TestCreateCheckoutBuildsClassicEPayRequest(t *testing.T) {
-	result, err := New().CreateCheckout(t.Context(), CheckoutInput{
+	result, err := New().CreateCheckout(t.Context(), paymentport.EPayCheckoutInput{
 		GatewayURL:     "https://pay.example.com/epay/",
 		MerchantID:     "merchant-1",
 		MerchantKey:    "secret",
@@ -52,7 +54,7 @@ func TestCreateCheckoutBuildsClassicEPayRequest(t *testing.T) {
 }
 
 func TestCreateCheckoutAcceptsExactSubmitEndpoint(t *testing.T) {
-	result, err := New().CreateCheckout(t.Context(), CheckoutInput{
+	result, err := New().CreateCheckout(t.Context(), paymentport.EPayCheckoutInput{
 		GatewayURL:     "https://pay.example.com/custom/submit.php",
 		MerchantID:     "merchant-1",
 		MerchantKey:    "secret",
@@ -74,7 +76,7 @@ func TestCreateCheckoutAcceptsExactSubmitEndpoint(t *testing.T) {
 }
 
 func TestCreateCheckoutPreservesLegacySubdirectoryBaseURLBehavior(t *testing.T) {
-	result, err := New().CreateCheckout(t.Context(), CheckoutInput{
+	result, err := New().CreateCheckout(t.Context(), paymentport.EPayCheckoutInput{
 		GatewayURL:     "https://pay.example.com/api/pay",
 		MerchantID:     "merchant-1",
 		MerchantKey:    "secret",

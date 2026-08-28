@@ -645,7 +645,7 @@ export function useChatMentionMenu({
     }
 
     modelCatalogRefreshRequestedRef.current = true;
-    void Promise.resolve(onModelCatalogRefresh()).catch(() => undefined);
+    void Promise.resolve(onModelCatalogRefresh()).catch((): undefined => undefined);
   }, [disabled, enabledKindSet, inputFocused, mentionQuery, onModelCatalogRefresh]);
 
   React.useEffect(() => {
@@ -678,6 +678,7 @@ export function useChatMentionMenu({
             accessToken: token,
             query: mentionQuery,
             sessionRevision,
+            signal: controller.signal,
           });
           if (!controller.signal.aborted) {
             setFiles(results);

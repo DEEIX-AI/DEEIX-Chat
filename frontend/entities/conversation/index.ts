@@ -1,19 +1,19 @@
 export {
-  ConversationShareDialog,
-} from "@/entities/conversation/components/conversation-share-dialog";
-export {
   ConversationLabelsDialog,
 } from "@/entities/conversation/components/conversation-labels-dialog";
-export {
-  ConversationLabelsMenuItem,
-} from "@/entities/conversation/components/conversation-labels-menu-item";
 export {
   ConversationLabelsManagerDialog,
   type ConversationLabelsTarget,
 } from "@/entities/conversation/components/conversation-labels-manager-dialog";
 export {
+  ConversationLabelsMenuItem,
+} from "@/entities/conversation/components/conversation-labels-menu-item";
+export {
+  ConversationShareDialog,
+} from "@/entities/conversation/components/conversation-share-dialog";
+export {
   SidebarConversationsProvider,
-  useSidebarConversations,
+  useSidebarConversationField,
 } from "@/entities/conversation/context/sidebar-conversations-context";
 export { useConversationExport } from "@/entities/conversation/hooks/use-conversation-export";
 export { sharePatchFromDTO } from "@/entities/conversation/hooks/use-conversation-share-dialog";

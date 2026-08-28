@@ -1,5 +1,5 @@
 import type { AdminLLMModelDTO, AdminLLMModelVendor, AdminLLMStatus } from "@/features/admin/api/llm.types";
-import { MODEL_KIND_META, resolveProtocolLabel } from "@/features/admin/utils/llm-display";
+import { MODEL_KINDS, resolveProtocolLabel } from "@/features/admin/utils/llm-display";
 import { parseKindsJSON, stringifyKinds } from "@/shared/model/llm-schema";
 
 // ---------------------------------------------------------------------------
@@ -36,16 +36,15 @@ export const ADAPTER_LABELS: Record<string, string> = {
   xai_image: resolveProtocolLabel("xai_image"),
   xai_image_edits: resolveProtocolLabel("xai_image_edits"),
   xai_video: resolveProtocolLabel("xai_video"),
+  xai_video_extensions: resolveProtocolLabel("xai_video_extensions"),
 };
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export const MODEL_KIND_OPTIONS = Object.entries(MODEL_KIND_META).map(([value, meta]) => ({
-  value,
-  label: meta.label,
-}));
+// 展示文案由消费组件通过 i18n（kinds.*）解析，此处仅提供枚举值。
+export const MODEL_KIND_OPTIONS = MODEL_KINDS.map((value) => ({ value: value as string }));
 
 export type ModelFormPayload = {
   platformModelName: string;

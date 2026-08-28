@@ -13,14 +13,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/conv"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -62,6 +63,14 @@ type Service struct {
 	errors           ErrorSet
 	extractorVersion string
 	storeProvider    appstorage.Provider
+	uploadGatesMu    sync.Mutex
+	uploadGates      map[string]*uploadContentGate
+}
+
+// uploadContentGate 同一内容（用户+SHA+大小）上传的互斥闸门：token 为容量 1 的许可通道，users 记录等待者数量用于回收。
+type uploadContentGate struct {
+	token chan struct{}
+	users int
 }
 
 // UploadFileInput 定义文件上传请求。
@@ -129,6 +138,7 @@ func NewServiceWithRuntime(cfg *config.Runtime, repo repository.UploadRepository
 		errors:           errors,
 		extractorVersion: strings.TrimSpace(extractorVersion),
 		storeProvider:    appstorage.NewRuntimeProvider(cfg, nil),
+		uploadGates:      make(map[string]*uploadContentGate),
 	}
 }
 
@@ -148,7 +158,7 @@ func (s *Service) openObjectStore(ctx context.Context) (objectstore.Store, error
 
 const (
 	defaultPageSize            = 20
-	maxPageSize                = 100
+	maxPageSize                = 1000
 	embeddingTimeoutStaleAfter = 6 * time.Minute
 )
 
@@ -268,30 +278,39 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (*Uploa
 		return nil, err
 	}
 	category := inferFileCategory(detectedMIME, normalizedName)
-	logRemoveErr := func(path string, err error) {
+	removeUploadedObject := func(path string) {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		err := store.Delete(cleanupCtx, path)
 		if err != nil && s.logger != nil {
 			s.logger.Warn("remove_uploaded_file_failed", zap.String("path", path), zap.Error(err))
 		}
 	}
 
 	if isDangerousMIME(detectedMIME) {
-		logRemoveErr(relativePath, store.Delete(ctx, relativePath))
+		removeUploadedObject(relativePath)
 		return nil, s.errDangerousMIMEType()
 	}
 	if !isAllowedMIME(detectedMIME, cfg) {
-		logRemoveErr(relativePath, store.Delete(ctx, relativePath))
+		removeUploadedObject(relativePath)
 		return nil, s.errMIMEBlocked()
 	}
 	if typeLimit := maxBytesForCategory(category, cfg); typeLimit > 0 && sizeBytes > typeLimit {
-		logRemoveErr(relativePath, store.Delete(ctx, relativePath))
+		removeUploadedObject(relativePath)
 		return nil, s.errFileTooLarge()
 	}
+	releaseUploadGate, err := s.acquireUploadGate(ctx, ownerUserID, shaValue, sizeBytes)
+	if err != nil {
+		removeUploadedObject(relativePath)
+		return nil, err
+	}
+	defer releaseUploadGate()
 
 	if result, reused, reuseErr := s.tryReuseExistingFile(ctx, store, ownerUserID, shaValue, sizeBytes, quotaBytes); reuseErr != nil {
-		logRemoveErr(relativePath, store.Delete(ctx, relativePath))
+		removeUploadedObject(relativePath)
 		return nil, reuseErr
 	} else if reused {
-		logRemoveErr(relativePath, store.Delete(ctx, relativePath))
+		removeUploadedObject(relativePath)
 		return result, nil
 	}
 
@@ -318,26 +337,29 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (*Uploa
 	quota, err := s.repo.CreateFileObjectAndConsumeQuota(ctx, fileItem, quotaBytes)
 	if err != nil && errors.Is(err, repository.ErrDuplicate) {
 		if result, reused, reuseErr := s.tryReuseExistingFile(ctx, store, ownerUserID, shaValue, sizeBytes, quotaBytes); reuseErr != nil {
-			logRemoveErr(relativePath, store.Delete(ctx, relativePath))
+			removeUploadedObject(relativePath)
 			return nil, reuseErr
 		} else if reused {
-			logRemoveErr(relativePath, store.Delete(ctx, relativePath))
+			removeUploadedObject(relativePath)
 			return result, nil
 		}
 		quota, err = s.repo.CreateFileObjectAndConsumeQuota(ctx, fileItem, quotaBytes)
 	}
 	if err != nil {
 		if errors.Is(err, repository.ErrDuplicate) {
-			logRemoveErr(relativePath, store.Delete(ctx, relativePath))
+			removeUploadedObject(relativePath)
 			return nil, err
 		}
-		logRemoveErr(relativePath, store.Delete(ctx, relativePath))
+		removeUploadedObject(relativePath)
 		if errors.Is(err, s.errors.StorageQuotaExceeded) {
 			return nil, s.errStorageQuotaExceeded()
 		}
 		return nil, err
 	}
-	if initErr := s.initializeUploadedFile(ctx, fileItem); initErr != nil {
+	initializeCtx, cancelInitialize := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+	initErr := s.initializeUploadedFile(initializeCtx, fileItem)
+	cancelInitialize()
+	if initErr != nil {
 		if s.logger != nil {
 			s.logger.Warn("initialize_uploaded_file_failed",
 				zap.String("file_id", fileItem.FileID),
@@ -357,6 +379,42 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (*Uploa
 		Quota:  *quota,
 		Reused: false,
 	}, nil
+}
+
+// acquireUploadGate 获取同一内容的上传互斥许可，保证相同内容的并发上传串行执行；
+// 返回释放函数，ctx 取消时返回错误并回收等待计数。
+func (s *Service) acquireUploadGate(ctx context.Context, userID uint, shaValue string, sizeBytes int64) (func(), error) {
+	key := fmt.Sprintf("%d:%s:%d", userID, shaValue, sizeBytes)
+	s.uploadGatesMu.Lock()
+	gate := s.uploadGates[key]
+	if gate == nil {
+		gate = &uploadContentGate{token: make(chan struct{}, 1)}
+		gate.token <- struct{}{}
+		s.uploadGates[key] = gate
+	}
+	gate.users++
+	s.uploadGatesMu.Unlock()
+
+	select {
+	case <-gate.token:
+		return func() {
+			gate.token <- struct{}{}
+			s.releaseUploadGate(key, gate)
+		}, nil
+	case <-ctx.Done():
+		s.releaseUploadGate(key, gate)
+		return nil, ctx.Err()
+	}
+}
+
+// releaseUploadGate 递减闸门使用计数，最后一个使用者负责从映射中删除闸门，避免条目泄漏。
+func (s *Service) releaseUploadGate(key string, gate *uploadContentGate) {
+	s.uploadGatesMu.Lock()
+	defer s.uploadGatesMu.Unlock()
+	gate.users--
+	if gate.users == 0 && s.uploadGates[key] == gate {
+		delete(s.uploadGates, key)
+	}
 }
 
 func (s *Service) tryReuseExistingFile(

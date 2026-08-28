@@ -490,10 +490,12 @@ type ModelPricingDataResponse struct {
 
 // OpenRouterOfficialPricingItemResponse OpenRouter 官方模型定价项。
 type OpenRouterOfficialPricingItemResponse struct {
-	ID            string                                       `json:"id"`
-	CanonicalSlug string                                       `json:"canonicalSlug"`
-	Name          string                                       `json:"name"`
-	Pricing       OpenRouterOfficialPricingUnitPricingResponse `json:"pricing"`
+	ID                  string                                       `json:"id"`
+	CanonicalSlug       string                                       `json:"canonicalSlug"`
+	Name                string                                       `json:"name"`
+	ContextLength       int                                          `json:"contextLength"`
+	MaxCompletionTokens int                                          `json:"maxCompletionTokens"`
+	Pricing             OpenRouterOfficialPricingUnitPricingResponse `json:"pricing"`
 }
 
 // OpenRouterOfficialPricingUnitPricingResponse OpenRouter 官方模型价格字段。

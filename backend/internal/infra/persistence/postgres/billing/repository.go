@@ -550,9 +550,8 @@ func (r *Repo) AddUsageAndSettleBalance(ctx context.Context, usage *domainbillin
 			return translateError(err)
 		}
 		if chargeNanousd > 0 {
-			// 上游已产生真实用量时必须完整入账；余额可以转负，后续调用由原子预算预留拦截。
 			if err := tx.Model(account).Updates(map[string]interface{}{
-				"balance_nanousd": nextBalance,
+				"balance_nanousd": gorm.Expr("balance_nanousd - ?", chargeNanousd),
 				"currency":        "USD",
 				"status":          "active",
 			}).Error; err != nil {
@@ -672,8 +671,9 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 		}
 		if overageNanousd > 0 {
 			// 超出周期额度的真实用量必须完整入账；预留仅限制并发风险，不改变最终扣费金额。
+			// 扣减使用表达式更新而非内存值写回，避免任何绕开行锁的并发写导致覆盖。
 			if err := tx.Model(account).Updates(map[string]interface{}{
-				"balance_nanousd": nextBalance,
+				"balance_nanousd": gorm.Expr("balance_nanousd - ?", overageNanousd),
 				"currency":        "USD",
 				"status":          "active",
 			}).Error; err != nil {
@@ -968,6 +968,112 @@ func (r *Repo) ListRedemptionCodes(ctx context.Context, filter repository.Redemp
 	results := make([]domainbilling.RedemptionCode, 0, len(items))
 	for _, item := range items {
 		results = append(results, toDomainRedemptionCode(item))
+	}
+	return results, total, nil
+}
+
+// redemptionRecordRow 承载兑换记录与联表出的兑换码、套餐、余额流水上下文。
+type redemptionRecordRow struct {
+	ID                   uint
+	CodeID               uint
+	UserID               uint
+	Mode                 string
+	RewardType           string
+	CreditNanousd        int64
+	PlanID               uint
+	SubscriptionID       uint
+	BalanceTransactionID uint
+	RefNo                string
+	SnapshotJSON         string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	CodeHint             string
+	CodeDescription      string
+	CodeStatus           string
+	PlanName             string
+	BalanceAmountNanousd *int64
+	BalanceAfterNanousd  *int64
+}
+
+// ListRedemptions 分页查询兑换记录，联表补齐兑换码、套餐与余额流水上下文。
+// 兑换码为状态软删，已删除码的历史兑换仍可查询。
+func (r *Repo) ListRedemptions(ctx context.Context, filter repository.RedemptionListFilter, offset int, limit int) ([]repository.RedemptionRecord, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	query := r.db.WithContext(ctx).Model(&model.Redemption{}).
+		Joins("LEFT JOIN billing_redemption_codes AS rc ON rc.id = billing_redemptions.code_id").
+		Joins("LEFT JOIN billing_plans AS rp ON rp.id = billing_redemptions.plan_id AND billing_redemptions.plan_id > 0").
+		Joins("LEFT JOIN billing_balance_transactions AS rt ON rt.id = billing_redemptions.balance_transaction_id AND billing_redemptions.balance_transaction_id > 0")
+	if filter.CodeID > 0 {
+		query = query.Where("billing_redemptions.code_id = ?", filter.CodeID)
+	}
+	if filter.UserID > 0 {
+		query = query.Where("billing_redemptions.user_id = ?", filter.UserID)
+	}
+	if rewardType := strings.TrimSpace(filter.RewardType); rewardType != "" {
+		query = query.Where("billing_redemptions.reward_type = ?", rewardType)
+	}
+	if keyword := strings.TrimSpace(filter.Query); keyword != "" {
+		like := "%" + strings.ToLower(keyword) + "%"
+		query = query.Where(
+			"LOWER(billing_redemptions.ref_no) LIKE ? OR LOWER(rc.code_hint) LIKE ? OR LOWER(rc.description) LIKE ?",
+			like,
+			like,
+			like,
+		)
+	}
+	if filter.CreatedFrom != nil {
+		query = query.Where("billing_redemptions.created_at >= ?", *filter.CreatedFrom)
+	}
+	if filter.CreatedTo != nil {
+		query = query.Where("billing_redemptions.created_at <= ?", *filter.CreatedTo)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, translateError(err)
+	}
+	order := "billing_redemptions.created_at DESC, billing_redemptions.id DESC"
+	if strings.TrimSpace(filter.Sort) == "created_asc" {
+		order = "billing_redemptions.created_at ASC, billing_redemptions.id ASC"
+	}
+	rows := make([]redemptionRecordRow, 0)
+	if err := query.
+		Select("billing_redemptions.*, rc.code_hint AS code_hint, rc.description AS code_description, rc.status AS code_status, rp.name AS plan_name, rt.amount_nanousd AS balance_amount_nanousd, rt.balance_after_nanousd AS balance_after_nanousd").
+		Order(order).
+		Offset(offset).
+		Limit(limit).
+		Scan(&rows).Error; err != nil {
+		return nil, 0, translateError(err)
+	}
+	results := make([]repository.RedemptionRecord, 0, len(rows))
+	for _, row := range rows {
+		results = append(results, repository.RedemptionRecord{
+			Redemption: domainbilling.Redemption{
+				ID:                   row.ID,
+				CodeID:               row.CodeID,
+				UserID:               row.UserID,
+				Mode:                 row.Mode,
+				RewardType:           row.RewardType,
+				CreditNanousd:        row.CreditNanousd,
+				PlanID:               row.PlanID,
+				SubscriptionID:       row.SubscriptionID,
+				BalanceTransactionID: row.BalanceTransactionID,
+				RefNo:                row.RefNo,
+				SnapshotJSON:         row.SnapshotJSON,
+				CreatedAt:            row.CreatedAt,
+				UpdatedAt:            row.UpdatedAt,
+			},
+			CodeHint:             row.CodeHint,
+			CodeDescription:      row.CodeDescription,
+			CodeStatus:           row.CodeStatus,
+			PlanName:             row.PlanName,
+			BalanceAmountNanousd: row.BalanceAmountNanousd,
+			BalanceAfterNanousd:  row.BalanceAfterNanousd,
+		})
 	}
 	return results, total, nil
 }

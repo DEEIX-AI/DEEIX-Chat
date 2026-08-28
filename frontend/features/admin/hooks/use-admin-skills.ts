@@ -42,6 +42,13 @@ export function useAdminSkills() {
   const [deleteTarget, setDeleteTarget] = React.useState<SkillDTO | null>(null);
   const [, startTableTransition] = React.useTransition();
   const requestSeqRef = React.useRef(0);
+  const requestControllerRef = React.useRef<AbortController | null>(null);
+
+  React.useEffect(() => () => {
+    requestSeqRef.current += 1;
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = null;
+  }, []);
 
   React.useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -53,9 +60,16 @@ export function useAdminSkills() {
   const load = React.useCallback(async () => {
     const requestSeq = requestSeqRef.current + 1;
     requestSeqRef.current = requestSeq;
+    requestControllerRef.current?.abort();
+    const requestController = new AbortController();
+    requestControllerRef.current = requestController;
     setLoading(true);
     try {
-      const data = await listAdminSkills(accessToken, { page, pageSize, query: debouncedQuery });
+      const data = await listAdminSkills(
+        accessToken,
+        { page, pageSize, query: debouncedQuery },
+        requestController.signal,
+      );
       if (requestSeq !== requestSeqRef.current) {
         return;
       }
@@ -64,9 +78,14 @@ export function useAdminSkills() {
         setTotal(data.total);
       });
     } catch (error) {
-      toast.error(t("toast.skillsLoadFailed"), { description: resolveAdminErrorMessage(error) });
+      if (!requestController.signal.aborted) {
+        toast.error(t("toast.skillsLoadFailed"), { description: resolveAdminErrorMessage(error) });
+      }
     } finally {
-      if (requestSeq === requestSeqRef.current) {
+      if (requestControllerRef.current === requestController) {
+        requestControllerRef.current = null;
+      }
+      if (!requestController.signal.aborted && requestSeq === requestSeqRef.current) {
         setLoading(false);
       }
     }
@@ -153,13 +172,19 @@ export function useAdminSkills() {
     try {
       await deleteAdminSkill(accessToken, target.id);
       setItems((current) => removeByID(current, target.id, (item) => item.id));
-      setTotal((current) => Math.max(0, current - 1));
-      await load();
+      const nextTotal = Math.max(0, total - 1);
+      const nextPage = Math.min(page, Math.max(1, Math.ceil(nextTotal / pageSize)));
+      setTotal(nextTotal);
+      if (nextPage !== page) {
+        setPage(nextPage);
+      } else {
+        await load();
+      }
       toast.success(t("toast.skillDeleted"));
     } catch (error) {
       toast.error(t("toast.skillDeleteFailed"), { description: resolveAdminErrorMessage(error) });
     }
-  }, [accessToken, deleteTarget, load, t]);
+  }, [accessToken, deleteTarget, load, page, pageSize, t, total]);
 
   return {
     items,

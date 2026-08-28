@@ -83,7 +83,7 @@ function KindBadges({ kindsJSON }: { kindsJSON: string }) {
     <div className="flex min-w-0 shrink-0 items-center justify-end gap-1 overflow-hidden">
       {kinds.map((kind) => (
         <Badge key={kind} variant="secondary" className="h-5 max-w-24 shrink-0 truncate px-1.5 py-0">
-          {["chat", "audio", "image_gen", "image_edit", "video_gen"].includes(kind)
+          {["chat", "audio", "image_gen", "image_edit", "video_gen", "video_extension"].includes(kind)
             ? t(`kinds.${kind}`)
             : kind}
         </Badge>

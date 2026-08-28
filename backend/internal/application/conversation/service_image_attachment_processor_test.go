@@ -17,9 +17,9 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
@@ -81,8 +81,14 @@ func TestProcessImageAttachmentsRoutesOnlyTextToMainModelContext(t *testing.T) {
 	}
 	runtime := selectedToolRuntime{
 		nameMap: map[string]string{"vision_analyze": "vision_analyze"},
-		mcpConfigs: map[string]mcp.CallConfig{
-			"vision_analyze": {BaseURL: server.URL, TimeoutMS: 5000},
+		mcpBindings: map[string]mcpToolCallBinding{
+			"vision_analyze": {
+				Config:       mcp.CallConfig{BaseURL: server.URL, TimeoutMS: 5000},
+				ServerID:     11,
+				ServerName:   "vision-server",
+				ToolName:     "vision_analyze",
+				PriceNanousd: 2_000_000,
+			},
 		},
 		schemas: map[string]json.RawMessage{
 			"vision_analyze": json.RawMessage(`{"type":"object","properties":{"image":{"type":"string"},"prompt":{"type":"string"}},"required":["image"]}`),

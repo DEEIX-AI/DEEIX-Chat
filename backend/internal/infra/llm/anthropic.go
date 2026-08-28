@@ -94,9 +94,11 @@ func buildAnthropicRequestBody(model string, input GenerateInput, stream bool) (
 			if text := extractMessageText(msg); text != "" {
 				systemParts = append(systemParts, text)
 				block := map[string]interface{}{"type": "text", "text": text}
-				if cacheControl := anthropicCacheControlFromHint(msg.CacheControl, input.Options); len(cacheControl) > 0 {
-					block["cache_control"] = cacheControl
-					explicitCacheControl = true
+				if !input.Ephemeral {
+					if cacheControl := anthropicCacheControlFromHint(msg.CacheControl, input.Options); len(cacheControl) > 0 {
+						block["cache_control"] = cacheControl
+						explicitCacheControl = true
+					}
 				}
 				systemBlocks = append(systemBlocks, block)
 			}
@@ -153,7 +155,7 @@ func buildAnthropicRequestBody(model string, input GenerateInput, stream bool) (
 			payload["system"] = strings.Join(systemParts, "\n\n")
 		}
 	}
-	if !explicitCacheControl {
+	if !input.Ephemeral && !explicitCacheControl {
 		if cacheControl := anthropicCacheControlFromOptions(input.Options); len(cacheControl) > 0 {
 			payload["cache_control"] = cacheControl
 		}
@@ -1352,11 +1354,7 @@ func applyAnthropicStreamEvent(
 }
 
 func anthropicContentBlockIndex(parsed map[string]interface{}) int {
-	index := int(toInt64(parsed["index"]))
-	if index < 0 {
-		return 0
-	}
-	return index
+	return streamToolCallIndex(parsed["index"], 0)
 }
 
 func upsertAnthropicStreamToolCall(result *GenerateOutput, index int, item ToolCall) ToolCall {

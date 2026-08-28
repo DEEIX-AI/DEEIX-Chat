@@ -146,6 +146,7 @@ type ModelView struct {
 	KindsJSON          string
 	Icon               string
 	CapabilitiesJSON   string
+	ContextWindow      int
 	SystemPrompt       string
 	AccessScope        string
 	Status             string

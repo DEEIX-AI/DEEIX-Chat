@@ -31,6 +31,12 @@ var (
 	ErrDeleteSuperAdminNotAllowed = errors.New("superadmin account deletion not allowed")
 	// ErrAccountDeleteVerificationRequired 删除账号必须先完成安全验证。
 	ErrAccountDeleteVerificationRequired = errors.New("account deletion requires verification")
+	// ErrSecurityVerificationMethodUnavailable 所选安全验证方式当前不可用。
+	ErrSecurityVerificationMethodUnavailable = errors.New("verification method is unavailable")
+	// ErrSecurityVerificationEmailInvalid 用户邮箱缺失或格式非法，无法完成邮箱验证。
+	ErrSecurityVerificationEmailInvalid = errors.New("user email is invalid")
+	// ErrSecurityVerificationCodeInvalid 安全验证码错误或已过期。
+	ErrSecurityVerificationCodeInvalid = errors.New("verification code is invalid or expired")
 	// ErrInvalidRefreshToken 无效刷新令牌。
 	ErrInvalidRefreshToken = errors.New("invalid refresh token")
 	// ErrSessionRevoked 会话已吊销。

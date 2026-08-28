@@ -1063,7 +1063,9 @@ export function AdminToolsPage() {
                               <div className="flex min-h-7 min-w-0 max-w-[18rem] items-center gap-2">
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate text-xs font-medium">{toolDisplayName(tool)}</p>
-                                  <p className="truncate text-xs leading-4 text-muted-foreground">{tool.name}</p>
+                                  {toolDisplayName(tool) !== tool.name ? (
+                                    <p className="truncate text-xs leading-4 text-muted-foreground">{tool.name}</p>
+                                  ) : null}
                                 </div>
                                 <Button
                                   type="button"

@@ -10,13 +10,14 @@ import (
 	"sort"
 	"strings"
 
+	appchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/conv"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
 )
 
 const (
@@ -24,6 +25,7 @@ const (
 	MessageErrorCodeKnowledgeBaseInvalidReference = "knowledge_base.invalid_reference"
 	MessageErrorCodeKnowledgeBaseUnavailable      = "knowledge_base.unavailable"
 	MessageErrorCodeKnowledgeBaseNotReady         = "knowledge_base.not_ready"
+	MessageErrorCodeUpstreamRateLimited           = "upstream.rate_limited"
 	messageErrorCodeInternal                      = "internal.error"
 )
 
@@ -144,11 +146,11 @@ func firstNonEmptyString(values ...string) string {
 
 func buildContextPolicyJSON(cfg config.Config) string {
 	policy := map[string]interface{}{
-		"max_turns":                     cfg.ContextMaxTurns,
-		"max_input_tokens":              cfg.ContextMaxInputTokens,
-		"compact_enabled":               cfg.ContextCompactEnabled,
-		"compact_trigger_tokens":        cfg.ContextCompactTrigger,
-		"compact_preserve_recent_turns": cfg.ContextCompactPreserve,
+		"max_turns":                      cfg.ContextMaxTurns,
+		"compact_enabled":                cfg.ContextCompactEnabled,
+		"context_window_fallback_tokens": cfg.ContextWindowFallbackTokens,
+		"compact_trigger_percent":        cfg.ContextCompactTriggerPercent,
+		"compact_preserve_recent_turns":  cfg.ContextCompactPreserve,
 	}
 	raw, err := json.Marshal(policy)
 	if err != nil {
@@ -195,6 +197,8 @@ func classifyRunErrorCode(err error) string {
 		return MessageErrorCodeMediaImageStreamUnsupported
 	}
 	switch {
+	case IsUpstreamRateLimitError(err):
+		return MessageErrorCodeUpstreamRateLimited
 	case errors.Is(err, ErrConversationNotFound):
 		return "conversation_not_found"
 	case errors.Is(err, ErrInvalidFileReference):
@@ -242,6 +246,18 @@ func classifyRunErrorCode(err error) string {
 	default:
 		return messageErrorCodeInternal
 	}
+}
+
+// IsUpstreamRateLimitError 判断错误是否来自真实上游 429 或本地路由级退避。
+func IsUpstreamRateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, appchannel.ErrAllRoutesRateLimited) {
+		return true
+	}
+	var upstreamErr *llm.UpstreamError
+	return errors.As(err, &upstreamErr) && upstreamErr.StatusCode == 429
 }
 
 func messageErrorSummary(err error) string {
@@ -494,6 +510,21 @@ func wrapUpstreamRequestError(cause error) error {
 	return fmt.Errorf("%w: %w", ErrUpstreamRequestFailed, cause)
 }
 
+func mapRouteResolutionError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, appchannel.ErrModelAccessDenied):
+		return ErrModelAccessDenied
+	case errors.Is(err, appchannel.ErrRouteNotFound), errors.Is(err, appchannel.ErrModelNotFound):
+		return ErrModelRouteNotConfigured
+	case errors.Is(err, appchannel.ErrAllRoutesUnavailable), errors.Is(err, appchannel.ErrAllRoutesRateLimited):
+		return wrapUpstreamRequestError(err)
+	default:
+		return err
+	}
+}
+
 // MessageErrorSummary 返回适合边界层展示的错误摘要。
 func MessageErrorSummary(err error) string {
 	return messageErrorSummary(err)
@@ -503,6 +534,9 @@ func MessageErrorSummary(err error) string {
 func MessageErrorCode(err error) string {
 	if err == nil {
 		return ""
+	}
+	if IsUpstreamRateLimitError(err) {
+		return MessageErrorCodeUpstreamRateLimited
 	}
 	if errors.Is(err, ErrGeneratedMediaArtifactUnavailable) {
 		return MessageErrorCodeMediaArtifactUnavailable

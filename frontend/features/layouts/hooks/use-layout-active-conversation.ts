@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
+
+import { useLayoutConversationNavigation } from "@/features/layouts/context/layout-conversation-navigation-context";
 
 export function useLayoutActiveConversation() {
-  const searchParams = useSearchParams();
-  const activeConversationID = searchParams.get("conversation_id");
+  const { activeConversationID } = useLayoutConversationNavigation();
   const previousActiveConversationIDRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {

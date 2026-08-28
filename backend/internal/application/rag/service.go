@@ -12,7 +12,6 @@ import (
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/embeddingutil"
 )
@@ -22,14 +21,20 @@ type Service struct {
 	cfg         *config.Runtime
 	repo        repository.RAGRepository
 	cache       repository.RAGCacheRepository
-	embedClient *embedding.Client
+	embedClient EmbeddingClient
+}
+
+// EmbeddingClient 调用外部服务将文本批量转换为向量。
+type EmbeddingClient interface {
+	CallAPI(ctx context.Context, apiBase, apiKey, model string, texts []string, dimensions int, timeoutSeconds int) ([][]float32, error)
 }
 
 // RetrieveInput 定义 RAG 检索输入。
 type RetrieveInput struct {
-	UserID   uint
-	Query    string
-	FileObjs []domainconversation.FileObject
+	UserID    uint
+	Query     string
+	FileObjs  []domainconversation.FileObject
+	Ephemeral bool
 }
 
 // RetrieveStatus 表示一次文件 RAG 检索的稳定结果状态。
@@ -62,12 +67,12 @@ const ragInitialPerFileLimit = 2
 const ragDiversityMinScoreRatio float32 = 0.75
 
 // NewService 创建服务。
-func NewService(cfg config.Config, repo repository.RAGRepository, cache repository.RAGCacheRepository, embedClient *embedding.Client) *Service {
+func NewService(cfg config.Config, repo repository.RAGRepository, cache repository.RAGCacheRepository, embedClient EmbeddingClient) *Service {
 	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, cache, embedClient)
 }
 
 // NewServiceWithRuntime 创建使用运行时配置容器的服务。
-func NewServiceWithRuntime(cfg *config.Runtime, repo repository.RAGRepository, cache repository.RAGCacheRepository, embedClient *embedding.Client) *Service {
+func NewServiceWithRuntime(cfg *config.Runtime, repo repository.RAGRepository, cache repository.RAGCacheRepository, embedClient EmbeddingClient) *Service {
 	return &Service{
 		cfg:         cfg,
 		repo:        repo,
@@ -91,16 +96,18 @@ func (s *Service) RetrieveWithStatus(ctx context.Context, input RetrieveInput) (
 	if len(input.FileObjs) == 0 || strings.TrimSpace(input.Query) == "" {
 		return RetrieveResult{Status: RetrieveStatusEmpty, Reason: "empty_query_or_files"}, nil
 	}
-	if cached, ok := s.loadRAGCache(ctx, input.UserID, input.Query, input.FileObjs, cfg); ok {
-		return RetrieveResult{
-			Chunks:         cached,
-			Status:         RetrieveStatusHit,
-			Reason:         "cache_hit",
-			CandidateCount: len(cached),
-			FilteredCount:  len(cached),
-			MaxScore:       maxRAGChunkScore(cached),
-			Cached:         true,
-		}, nil
+	if !input.Ephemeral {
+		if cached, ok := s.loadRAGCache(ctx, input.UserID, input.Query, input.FileObjs, cfg); ok {
+			return RetrieveResult{
+				Chunks:         cached,
+				Status:         RetrieveStatusHit,
+				Reason:         "cache_hit",
+				CandidateCount: len(cached),
+				FilteredCount:  len(cached),
+				MaxScore:       maxRAGChunkScore(cached),
+				Cached:         true,
+			}, nil
+		}
 	}
 
 	fileObjIDs := make([]uint, 0, len(input.FileObjs))
@@ -198,7 +205,9 @@ func (s *Service) RetrieveWithStatus(ctx context.Context, input RetrieveInput) (
 			Score:      retrievalScore(c, cfg.RAGHybridEnabled),
 		})
 	}
-	s.storeRAGCache(ctx, input.UserID, input.Query, input.FileObjs, cfg, results)
+	if !input.Ephemeral {
+		s.storeRAGCache(ctx, input.UserID, input.Query, input.FileObjs, cfg, results)
+	}
 	return RetrieveResult{
 		Chunks:         results,
 		Status:         RetrieveStatusHit,

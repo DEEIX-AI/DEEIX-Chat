@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { dispatchUserProfileUpdated } from "@/features/settings/events/user-profile-events";
-import { useAppearancePreferencesPersistence } from "@/features/settings/hooks/use-appearance-preferences-persistence";
+import { useSettingsAppearancePersistence } from "@/features/settings/hooks/use-settings-appearance-persistence";
 import {
   type FontSizeOption,
   useFontSizePreference,
@@ -90,7 +90,7 @@ export function SettingsGeneral() {
   const [saving, setSaving] = React.useState(false);
   const [usernameDraft, setUsernameDraft] = React.useState("");
   const initialUsernameToastShownRef = React.useRef(false);
-  const persistAppearancePreferences = useAppearancePreferencesPersistence();
+  const persistAppearancePreferences = useSettingsAppearancePersistence();
 
   React.useEffect(() => {
     if (userStatus === "loading") {

@@ -68,6 +68,7 @@
     "imageProcessorLimitTitle": "Only one image processor can be selected",
     "imageProcessorLimitDescription": "A project can preset one MCP image attachment processor. Clear the current one first.",
     "defaultsNoResults": "No matching items",
+    "loadMore": "Load more",
     "defaultsLoadFailed": "Failed to load project defaults",
     "rename": "Rename",
     "edit": "Edit",

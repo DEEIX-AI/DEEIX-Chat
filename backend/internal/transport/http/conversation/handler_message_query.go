@@ -329,3 +329,41 @@ func (h *Handler) ListConversationRuns(c *gin.Context) {
 	}
 	response.SuccessPage(c, total, runResults)
 }
+
+// GetConversationRunStatuses godoc
+// @Summary 批量查询会话运行状态
+// @Description 按运行 ID 一次查询当前用户多个会话任务的最小状态快照
+// @Tags chat
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body GetConversationRunStatusesRequest true "运行ID，最多100个"
+// @Success 200 {array} ConversationRunStatusResponse
+// @Failure 400 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /conversation-runs/statuses [post]
+func (h *Handler) GetConversationRunStatuses(c *gin.Context) {
+	var req GetConversationRunStatusesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid run ids")
+		return
+	}
+
+	items, err := h.service.ListConversationRunStatusesByRunIDs(
+		c.Request.Context(),
+		middleware.MustUserID(c),
+		req.RunIDs,
+	)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "get conversation run statuses failed")
+		return
+	}
+	statuses := make([]ConversationRunStatusResponse, 0, len(items))
+	for _, item := range items {
+		statuses = append(statuses, ConversationRunStatusResponse{
+			RunID:  item.RunID,
+			Status: item.Status,
+		})
+	}
+	response.Success(c, statuses)
+}

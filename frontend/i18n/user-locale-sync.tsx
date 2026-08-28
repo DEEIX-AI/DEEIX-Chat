@@ -6,7 +6,7 @@ import { useAppLocale } from "@/i18n/app-i18n-provider";
 import { normalizeAppLocale } from "@/i18n/config";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 
-export function UserLocaleSync() {
+export function UserLocaleSync(): null {
   const { setLocale } = useAppLocale();
   const { user, userStatus } = useAuthSession();
   const syncedUserLocaleRef = React.useRef("");

@@ -53,7 +53,7 @@ func Error(c *gin.Context, status int, msg string) {
 	ErrorWithDetails(c, status, code, PublicErrorMessage(status, code, msg), nil)
 }
 
-// ErrorFrom maps an error through the same normalized error response pipeline.
+// ErrorFrom 把 error 转成统一错误响应；对外文案由 PublicErrorMessage 白名单决定。
 func ErrorFrom(c *gin.Context, status int, err error) {
 	msg := ""
 	if err != nil {

@@ -46,8 +46,10 @@ type Tool struct {
 	AttachmentArgument       string
 	AttachmentEncoding       string
 	AttachmentPromptArgument string
-	Status                   string
-	SortOrder                int
-	CreatedAt                time.Time
-	UpdatedAt                time.Time
+	// PriceNanousd 为管理员配置的单次调用价格（nano USD），0 表示该工具不单独计费。
+	PriceNanousd int64
+	Status       string
+	SortOrder    int
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }

@@ -2,7 +2,9 @@ package channel
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,7 +54,7 @@ func (s *Service) ListModels(ctx context.Context, page int, pageSize int, input 
 	}
 	views := make([]ModelView, 0, len(items))
 	for _, item := range items {
-		views = append(views, toModelView(item))
+		views = append(views, s.toModelView(item))
 	}
 	if err := s.normalizeModelAvailability(ctx, views); err != nil {
 		return nil, 0, err
@@ -73,45 +75,60 @@ func (s *Service) ListActiveModels(ctx context.Context, userID uint) ([]ModelVie
 
 func (s *Service) listActiveModelViews(ctx context.Context) ([]ModelView, error) {
 	now := time.Now()
-	if s.modelPricingFilter == nil {
-		items, err := s.listAllActiveModelRows(ctx)
+	mode := "unfiltered"
+	if s.modelPricingFilter != nil {
+		var err error
+		mode, err = s.modelPricingFilter.GetBillingMode(ctx)
 		if err != nil {
 			return nil, err
 		}
-		return filterPublicRoutableModels(items), nil
-	}
-	mode, err := s.modelPricingFilter.GetBillingMode(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if mode == "self" {
-		items, err := s.listAllActiveModelRows(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return filterPublicRoutableModels(items), nil
 	}
 
 	s.modelCatalogMu.RLock()
-	if s.modelCatalog != nil && now.Before(s.modelCatalogValidUntil) {
+	generation := s.modelCatalogGeneration
+	if s.modelCatalog != nil && s.modelCatalogMode == mode && now.Before(s.modelCatalogValidUntil) {
 		result := cloneModelViews(s.modelCatalog)
 		s.modelCatalogMu.RUnlock()
 		return result, nil
 	}
 	s.modelCatalogMu.RUnlock()
 
-	items, err := s.listAllActiveModelRows(ctx)
-	if err != nil {
-		return nil, err
+	resultCh := s.modelCatalogRequests.DoChan(mode+":"+strconv.FormatUint(generation, 10), func() (any, error) {
+		refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		refreshStartedAt := time.Now()
+		s.modelCatalogMu.RLock()
+		if s.modelCatalog != nil && s.modelCatalogMode == mode && refreshStartedAt.Before(s.modelCatalogValidUntil) {
+			result := cloneModelViews(s.modelCatalog)
+			s.modelCatalogMu.RUnlock()
+			return result, nil
+		}
+		s.modelCatalogMu.RUnlock()
+
+		items, err := s.listAllActiveModelRows(refreshCtx)
+		if err != nil {
+			return nil, err
+		}
+		views := s.filterPublicRoutableModels(items)
+		if s.modelPricingFilter != nil && mode != "self" {
+			pricingByPlatformModelName, err := s.modelPricingFilter.ListPublicModelPricing(refreshCtx)
+			if err != nil {
+				return nil, err
+			}
+			views = filterPricedModelViews(views, pricingByPlatformModelName)
+		}
+		s.storeModelCatalog(refreshStartedAt, mode, generation, views)
+		return views, nil
+	})
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case result := <-resultCh:
+		if result.Err != nil {
+			return nil, result.Err
+		}
+		return cloneModelViews(result.Val.([]ModelView)), nil
 	}
-	views := filterPublicRoutableModels(items)
-	pricingByPlatformModelName, err := s.modelPricingFilter.ListPublicModelPricing(ctx)
-	if err != nil {
-		return nil, err
-	}
-	views = filterPricedModelViews(views, pricingByPlatformModelName)
-	s.storeModelCatalog(now, views)
-	return cloneModelViews(views), nil
 }
 
 // filterModelsByPermission 按权限组过滤用户可访问的模型。
@@ -194,14 +211,18 @@ func (s *Service) ListNativeToolDefinitions(ctx context.Context) ([]nativetool.D
 	}
 }
 
-func (s *Service) storeModelCatalog(now time.Time, views []ModelView) {
+func (s *Service) storeModelCatalog(now time.Time, mode string, generation uint64, views []ModelView) {
 	if s == nil {
 		return
 	}
 	s.modelCatalogMu.Lock()
+	defer s.modelCatalogMu.Unlock()
+	if s.modelCatalogGeneration != generation {
+		return
+	}
 	s.modelCatalog = cloneModelViews(views)
+	s.modelCatalogMode = mode
 	s.modelCatalogValidUntil = now.Add(modelCatalogCacheTTL)
-	s.modelCatalogMu.Unlock()
 }
 
 func cloneModelViews(items []ModelView) []ModelView {
@@ -227,7 +248,7 @@ func cloneModelViews(items []ModelView) []ModelView {
 }
 
 // filterPublicRoutableModels 过滤出公开接口可展示的有效可路由模型。
-func filterPublicRoutableModels(items []repository.ChannelModelListRow) []ModelView {
+func (s *Service) filterPublicRoutableModels(items []repository.ChannelModelListRow) []ModelView {
 	results := make([]ModelView, 0, len(items))
 	for _, item := range items {
 		if item.ActiveSourceCount <= 0 {
@@ -236,7 +257,7 @@ func filterPublicRoutableModels(items []repository.ChannelModelListRow) []ModelV
 		if normalizeModelAccessScopeValue(item.AccessScope) != ModelAccessScopePublic {
 			continue
 		}
-		results = append(results, toModelView(item))
+		results = append(results, s.toModelView(item))
 	}
 	return results
 }
@@ -330,23 +351,21 @@ func (s *Service) ListActivePlatformModelNames(ctx context.Context) (map[string]
 	return keys, nil
 }
 
-// SupportsVideoGeneration 返回平台模型是否具有真实可路由的视频生成能力。
+// SupportsVideoGeneration 返回平台模型是否具有可按时长计费的视频能力。
 func (s *Service) SupportsVideoGeneration(ctx context.Context, platformModelName string) (bool, error) {
 	name, err := normalizePlatformModelName(platformModelName)
 	if err != nil {
 		return false, nil
 	}
-	items, err := s.listAllActiveModelRows(ctx)
+	kindsJSON, found, err := s.repo.GetActiveRoutableModelKindsJSON(ctx, name)
 	if err != nil {
 		return false, err
 	}
-	for _, item := range items {
-		if item.ActiveSourceCount <= 0 || strings.TrimSpace(item.PlatformModelName) != name {
-			continue
-		}
-		return hasModelKind(parseKinds(item.KindsJSON), modelKindVideoGen), nil
+	if !found {
+		return false, nil
 	}
-	return false, nil
+	kinds := parseKinds(kindsJSON)
+	return hasModelKind(kinds, modelKindVideoGen) || hasModelKind(kinds, modelKindVideoExtension), nil
 }
 
 // CreateModel 创建平台模型目录项。
@@ -367,6 +386,9 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 	}
 	if err := validateOptionalJSON(strings.TrimSpace(input.CapabilitiesJSON)); err != nil {
 		return nil, ErrInvalidJSONConfig
+	}
+	if err := domainchannel.ValidateModelCapsOverrides(input.CapabilitiesJSON); err != nil {
+		return nil, ErrInvalidModelCapsConfig
 	}
 	systemPrompt := strings.TrimSpace(input.SystemPrompt)
 	if len([]rune(systemPrompt)) > maxSystemPromptChars {
@@ -440,6 +462,7 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 	if err != nil {
 		return nil, err
 	}
+	currentVendor := nextVendor
 	nextPlatformModelName := current.PlatformModelName
 
 	update := repository.UpdateChannelModelInput{}
@@ -483,6 +506,9 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 		normalized := strings.TrimSpace(*input.CapabilitiesJSON)
 		if err := validateOptionalJSON(normalized); err != nil {
 			return nil, ErrInvalidJSONConfig
+		}
+		if err := domainchannel.ValidateModelCapsOverrides(normalized); err != nil {
+			return nil, ErrInvalidModelCapsConfig
 		}
 		update.CapabilitiesJSON = &normalized
 	}
@@ -534,6 +560,12 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 			nextVendor = autoVendor
 		}
 	}
+	identityChanged := nextPlatformModelName != current.PlatformModelName || nextVendor != currentVendor
+	if identityChanged && input.CapabilitiesJSON == nil {
+		if capabilitiesJSON, changed := clearAutomaticContextWindow(current.CapabilitiesJSON); changed {
+			update.CapabilitiesJSON = &capabilitiesJSON
+		}
+	}
 	if input.Icon == nil && (input.PlatformModelName != nil || input.Vendor != nil) && shouldRefreshAutoIcon(current) {
 		icon := normalizeModelIcon("", nextVendor, nextPlatformModelName)
 		update.Icon = &icon
@@ -562,12 +594,40 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 	return s.getModelViewByID(ctx, modelID)
 }
 
+// clearAutomaticContextWindow removes a catalog-derived context window after
+// the model identity changes. Explicit administrator overrides do not carry
+// the marker and are intentionally preserved.
+func clearAutomaticContextWindow(raw string) (string, bool) {
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &payload); err != nil || payload == nil {
+		return raw, false
+	}
+	mode, ok := payload["_deeixContextWindowMode"].(string)
+	if !ok || !strings.EqualFold(strings.TrimSpace(mode), "auto") {
+		return raw, false
+	}
+
+	delete(payload, "_deeixContextWindowMode")
+	delete(payload, "contextWindow")
+	delete(payload, "context_window")
+	delete(payload, "contextWindowTokens")
+	delete(payload, "context_window_tokens")
+	if len(payload) == 0 {
+		return "", true
+	}
+	normalized, err := json.Marshal(payload)
+	if err != nil {
+		return raw, false
+	}
+	return string(normalized), true
+}
+
 func (s *Service) getModelViewByID(ctx context.Context, modelID uint) (*ModelView, error) {
 	item, err := s.repo.GetModelListRowByID(ctx, modelID)
 	if err != nil {
 		return nil, err
 	}
-	view := toModelView(*item)
+	view := s.toModelView(*item)
 	views := []ModelView{view}
 	if err := s.normalizeModelAvailability(ctx, views); err != nil {
 		return nil, err
