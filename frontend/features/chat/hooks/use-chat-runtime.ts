@@ -270,6 +270,7 @@ export function useChatRuntime({
     onEditAssistantMessage: submitState.onEditAssistantMessage,
     onEditUserMessage: submitState.onEditUserMessage,
     onForkMessage: submitState.onForkMessage,
+    onDeleteMessage: submitState.onDeleteMessage,
     onContinueAssistantMessage: submitState.onContinueAssistantMessage,
     onRetryAssistantMessage: submitState.onRetryAssistantMessage,
     onRetryUserMessage: submitState.onRetryUserMessage,

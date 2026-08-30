@@ -28,8 +28,10 @@ import { Heart } from "@/components/animate-ui/icons/heart";
 import { RotateCcw } from "@/components/animate-ui/icons/rotate-ccw";
 import { ThumbsDown } from "@/components/animate-ui/icons/thumbs-down";
 import { ThumbsUp } from "@/components/animate-ui/icons/thumbs-up";
+import { Trash2 } from "@/components/animate-ui/icons/trash-2";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -287,6 +289,64 @@ function ForkMessageButton({
   );
 }
 
+function DeleteMessageButton({
+  disabled = false,
+  label,
+  confirmTitle,
+  confirmDescription,
+  confirmAction,
+  cancelAction,
+  onDelete,
+}: {
+  disabled?: boolean;
+  label: string;
+  confirmTitle: string;
+  confirmDescription: string;
+  confirmAction: string;
+  cancelAction: string;
+  onDelete: () => Promise<void> | void;
+}) {
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [inFlight, setInFlight] = React.useState(false);
+
+  const handleDelete = React.useCallback(async () => {
+    if (inFlight) {
+      return;
+    }
+    setInFlight(true);
+    try {
+      await onDelete();
+      setConfirmOpen(false);
+    } finally {
+      setInFlight(false);
+    }
+  }, [inFlight, onDelete]);
+
+  return (
+    <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <MetaIconButton
+        label={label}
+        disabled={disabled}
+        onClick={() => setConfirmOpen(true)}
+      >
+        <Trash2 size={14} strokeWidth={1.8} animateOnHover="shake" />
+      </MetaIconButton>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{confirmTitle}</AlertDialogTitle>
+          <AlertDialogDescription>{confirmDescription}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={inFlight}>{cancelAction}</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" disabled={inFlight} onClick={() => void handleDelete()}>
+            {confirmAction}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 export function UserMessageMeta({
   item,
   showRetry,
@@ -294,6 +354,7 @@ export function UserMessageMeta({
   onRetry,
   onEdit,
   onCopy,
+  onDelete,
   copySucceeded = false,
   readOnly = false,
   alwaysVisible = false,
@@ -305,6 +366,7 @@ export function UserMessageMeta({
   onRetry: () => void;
   onEdit: () => void;
   onCopy: () => void;
+  onDelete?: () => Promise<void> | void;
   copySucceeded?: boolean;
   readOnly?: boolean;
   alwaysVisible?: boolean;
@@ -349,6 +411,16 @@ export function UserMessageMeta({
               <Copy size={14} strokeWidth={1.8} animateOnHover="default" />
             )}
           </MetaIconButton>
+          {onDelete && hasPersistedMessage ? (
+            <DeleteMessageButton
+              label={t("deleteMessage")}
+              confirmTitle={t("deleteConfirmTitle")}
+              confirmDescription={t("deleteConfirmDescription")}
+              confirmAction={t("deleteConfirmAction")}
+              cancelAction={t("deleteCancelAction")}
+              onDelete={onDelete}
+            />
+          ) : null}
         </div>
       ) : null}
       {canShowBranchNavigator ? <BranchSwitcher item={item} onCycle={onCycleBranch} /> : null}
@@ -977,6 +1049,7 @@ export function AssistantMessageMeta({
   onEdit,
   onCopy,
   onFork,
+  onDelete,
   copySucceeded = false,
   onReact,
   showModelInfo = true,
@@ -998,6 +1071,7 @@ export function AssistantMessageMeta({
   onEdit?: () => void;
   onCopy: () => void;
   onFork?: () => Promise<void> | void;
+  onDelete?: () => Promise<void> | void;
   copySucceeded?: boolean;
   onReact: (value: AssistantReaction) => void;
   showModelInfo?: boolean;
@@ -1023,6 +1097,7 @@ export function AssistantMessageMeta({
   const canEdit = Boolean(canRetry && !busy && onEdit);
   const canContinue = Boolean(canRetry && !busy && item.status === "interrupted");
   const canFork = Boolean(canRetry && onFork);
+  const canDelete = Boolean(canRetry && !busy && onDelete);
   const canShowBranchNavigator = Boolean(showBranchNavigator && item.branchNavigator);
   const hasTokenUsage = Boolean(
     (item.inputTokens ?? 0) > 0 ||
@@ -1134,6 +1209,16 @@ export function AssistantMessageMeta({
                   <ForkMessageButton
                     label={t("forkMessage")}
                     onFork={onFork}
+                  />
+                ) : null}
+                {canDelete && onDelete ? (
+                  <DeleteMessageButton
+                    label={t("deleteReply")}
+                    confirmTitle={t("deleteConfirmTitle")}
+                    confirmDescription={t("deleteConfirmDescription")}
+                    confirmAction={t("deleteConfirmAction")}
+                    cancelAction={t("deleteCancelAction")}
+                    onDelete={onDelete}
                   />
                 ) : null}
                 <QuickMemoryPin disabled={messagePending} />

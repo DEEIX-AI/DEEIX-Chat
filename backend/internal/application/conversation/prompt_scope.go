@@ -119,3 +119,79 @@ func historyMessagesFromDomain(messages []model.Message, options historyMessageO
 	}
 	return historyMsgs
 }
+
+// mergeConsecutiveSameRoleMessages 合并历史中相邻的同角色消息（仅 user/assistant）。
+// 消息删除（splice）会让后续消息向前衔接，历史里可能出现连续同角色轮次；要求严格
+// 交替的上游协议会拒收这类请求，这里在出站前做规范化，只影响发送给模型的消息形态，
+// 界面展示与落库内容不变。工具调用链路（ToolCalls/ToolResults）与缓存断点不参与合并。
+func mergeConsecutiveSameRoleMessages(messages []llm.Message) []llm.Message {
+	if len(messages) < 2 {
+		return messages
+	}
+	merged := make([]llm.Message, 0, len(messages))
+	for _, message := range messages {
+		if last := len(merged) - 1; last >= 0 && mergeableSameRolePair(merged[last], message) {
+			merged[last] = mergeSameRoleMessagePair(merged[last], message)
+			continue
+		}
+		merged = append(merged, message)
+	}
+	return merged
+}
+
+func mergeableSameRolePair(left llm.Message, right llm.Message) bool {
+	role := strings.ToLower(strings.TrimSpace(left.Role))
+	if role != strings.ToLower(strings.TrimSpace(right.Role)) {
+		return false
+	}
+	if role != "user" && role != "assistant" {
+		return false
+	}
+	if len(left.ToolCalls) > 0 || len(left.ToolResults) > 0 ||
+		len(right.ToolCalls) > 0 || len(right.ToolResults) > 0 ||
+		left.CacheControl != nil || right.CacheControl != nil {
+		return false
+	}
+	return true
+}
+
+func mergeSameRoleMessagePair(left llm.Message, right llm.Message) llm.Message {
+	merged := left
+	merged.Content = joinMessageTextSegments(left.Content, right.Content)
+	merged.ReasoningContent = joinMessageTextSegments(left.ReasoningContent, right.ReasoningContent)
+	// 双方都是纯文本时保持 Content 承载；任一侧带多模态片段才合并 Parts。
+	if len(left.Parts) > 0 || len(right.Parts) > 0 {
+		leftParts := messageContentParts(left)
+		rightParts := messageContentParts(right)
+		merged.Parts = append(append([]llm.ContentPart(nil), leftParts...), rightParts...)
+		merged.Content = ""
+	}
+	return merged
+}
+
+// messageContentParts 把消息规整为内容片段列表：多模态消息直接取 Parts（Content 非空时
+// 兜底转成首个文本片段，与图片注入的转换约定一致），纯文本消息保持 Content 承载。
+func messageContentParts(message llm.Message) []llm.ContentPart {
+	if len(message.Parts) > 0 {
+		parts := append([]llm.ContentPart(nil), message.Parts...)
+		if strings.TrimSpace(message.Content) != "" {
+			parts = append([]llm.ContentPart{{Kind: llm.ContentPartText, Text: message.Content}}, parts...)
+		}
+		return parts
+	}
+	if strings.TrimSpace(message.Content) == "" {
+		return nil
+	}
+	return []llm.ContentPart{{Kind: llm.ContentPartText, Text: message.Content}}
+}
+
+func joinMessageTextSegments(left string, right string) string {
+	switch {
+	case strings.TrimSpace(left) == "":
+		return right
+	case strings.TrimSpace(right) == "":
+		return left
+	default:
+		return left + "\n\n" + right
+	}
+}

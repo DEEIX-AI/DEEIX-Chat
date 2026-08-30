@@ -4288,6 +4288,26 @@ definitions:
     - billingMode
     - pricingSnapshotJSON
     type: object
+  MessageDeleteResponse:
+    properties:
+      deleted:
+        type: boolean
+      reparentedMessageCount:
+        type: integer
+    required:
+    - deleted
+    - reparentedMessageCount
+    type: object
+  MessageDeleteResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/MessageDeleteResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   MessageFeedbackResponse:
     properties:
       messageID:
@@ -16654,6 +16674,50 @@ paths:
       security:
       - BearerAuth: []
       summary: 发送消息
+      tags:
+      - chat
+  /conversations/{id}/messages/{message_id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除会话中任意位置的一条消息；其子消息将重接到被删消息的父消息上，后续消息保留并向前衔接。会话第一条消息与生成中的消息不允许删除
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 消息 public_id
+        in: path
+        name: message_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/MessageDeleteResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 删除指定消息
       tags:
       - chat
   /conversations/{id}/messages/{message_id}/fork:

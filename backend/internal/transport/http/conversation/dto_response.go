@@ -411,6 +411,12 @@ type ConversationDeleteResponse struct {
 	Quota            *StorageQuotaResponse `json:"quota,omitempty"`
 }
 
+// MessageDeleteResponse 删除消息响应 DTO。
+type MessageDeleteResponse struct {
+	Deleted                bool  `json:"deleted"`
+	ReparentedMessageCount int64 `json:"reparentedMessageCount"`
+}
+
 func toConversationDeleteResponse(result *appconversation.DeleteConversationResult) ConversationDeleteResponse {
 	if result == nil {
 		return ConversationDeleteResponse{Deleted: true}
@@ -1612,6 +1618,12 @@ type ConversationUpdateResponseDoc struct {
 type ConversationDeleteResponseDoc struct {
 	ErrorMsg string                     `json:"errorMsg"`
 	Data     ConversationDeleteResponse `json:"data"`
+}
+
+// MessageDeleteResponseDoc 删除消息响应文档。
+type MessageDeleteResponseDoc struct {
+	ErrorMsg string                `json:"errorMsg"`
+	Data     MessageDeleteResponse `json:"data"`
 }
 
 // ConversationShareResponseDoc 会话分享响应文档。
