@@ -53,6 +53,9 @@ const HTML_VISUAL_MARKDOWN_FENCE_RE = /(^|\n)([ \t]{0,3})(```|~~~)[ \t]*(?:(?:ma
 const HTML_VISUAL_FRAGMENT_RE = /^\s*<(?:div|section|article|aside|main|details|table)\b[\s\S]*<\/(?:div|section|article|aside|main|details|table)>\s*$/i;
 const HTML_VISUAL_STYLE_RE = /\sstyle\s*=\s*["'][^"']{8,}["']/i;
 const HTML_TAG_RE = /<\/?[A-Za-z][^>\n]*>/g;
+const HTML_BLOCK_ROOT_RE = /(^|\n)([ \t]{0,3})<(article|aside|details|div|main|section|table)\b/gi;
+const HTML_STRUCTURE_TAG_RE = /<!--[\s\S]*?-->|<\/?([A-Za-z][A-Za-z0-9-]*)\b(?:[^>"']|"[^"]*"|'[^']*')*>/g;
+const HTML_BLANK_LINE_RE = /(\r?\n)[ \t]*(?=\r?\n)/g;
 const INLINE_DOLLAR_MATH_RE = /(^|[^\\$])\$([^$\n]{1,800})\$/g;
 const ESCAPED_INLINE_DOLLAR_MATH_RE = /\\\$([^$\n]{1,400})\\\$/g;
 const DISPLAY_DOLLAR_MATH_RE = /(\${2,})([\s\S]*?)(\1)/g;
@@ -316,6 +319,110 @@ export function normalizeHTMLVisualMarkdownFences(source: string): string {
       return `${prefix}${trimmedCode}`;
     },
   );
+}
+
+function findHTMLBlockEnd(
+  source: string,
+  start: number,
+  rootTagName: string,
+  streaming: boolean,
+): number | null {
+  const tagPattern = new RegExp(HTML_STRUCTURE_TAG_RE.source, HTML_STRUCTURE_TAG_RE.flags);
+  tagPattern.lastIndex = start;
+  const openingTag = tagPattern.exec(source);
+  if (
+    !openingTag ||
+    openingTag.index !== start ||
+    openingTag[0].startsWith("</") ||
+    openingTag[1]?.toLowerCase() !== rootTagName
+  ) {
+    return null;
+  }
+
+  let depth = /\/\s*>$/.test(openingTag[0]) ? 0 : 1;
+  if (depth === 0) {
+    return tagPattern.lastIndex;
+  }
+
+  for (let match = tagPattern.exec(source); match; match = tagPattern.exec(source)) {
+    if (!match[1] || match[1].toLowerCase() !== rootTagName) {
+      continue;
+    }
+
+    if (match[0].startsWith("</")) {
+      depth -= 1;
+      if (depth === 0) {
+        return tagPattern.lastIndex;
+      }
+    } else if (!/\/\s*>$/.test(match[0])) {
+      depth += 1;
+    }
+  }
+
+  return streaming && depth > 0 ? source.length : null;
+}
+
+function isInsideOpenMarkdownFence(source: string, index: number): boolean {
+  const fencePattern = /(^|\n)[ \t]{0,3}(`{3,}|~{3,})([^\n]*)/g;
+  let opening: { character: string; length: number } | null = null;
+
+  for (const match of source.slice(0, index).matchAll(fencePattern)) {
+    const marker = match[2];
+    if (!opening) {
+      opening = { character: marker[0], length: marker.length };
+      continue;
+    }
+    if (
+      marker[0] === opening.character &&
+      marker.length >= opening.length &&
+      match[3].trim() === ""
+    ) {
+      opening = null;
+    }
+  }
+
+  return opening != null;
+}
+
+export function normalizeHTMLBlockBlankLines(source: string, streaming = false): string {
+  if (!source || !HTML_BLANK_LINE_RE.test(source)) {
+    HTML_BLANK_LINE_RE.lastIndex = 0;
+    return source;
+  }
+  HTML_BLANK_LINE_RE.lastIndex = 0;
+
+  return mapMarkdownTextFragments(source, (fragment) => {
+    const rootPattern = new RegExp(HTML_BLOCK_ROOT_RE.source, HTML_BLOCK_ROOT_RE.flags);
+    const output: string[] = [];
+    let cursor = 0;
+
+    for (let match = rootPattern.exec(fragment); match; match = rootPattern.exec(fragment)) {
+      const blockStart = match.index + match[1].length + match[2].length;
+      if (blockStart < cursor || isInsideOpenMarkdownFence(fragment, blockStart)) {
+        continue;
+      }
+
+      const blockEnd = findHTMLBlockEnd(fragment, blockStart, match[3].toLowerCase(), streaming);
+      if (blockEnd == null) {
+        continue;
+      }
+
+      output.push(fragment.slice(cursor, blockStart));
+      output.push(
+        fragment
+          .slice(blockStart, blockEnd)
+          .replace(HTML_BLANK_LINE_RE, "$1<!-- -->"),
+      );
+      cursor = blockEnd;
+      rootPattern.lastIndex = blockEnd;
+    }
+
+    if (cursor === 0) {
+      return fragment;
+    }
+    output.push(fragment.slice(cursor));
+    return output.join("");
+  });
 }
 
 export function parseStreamdownSegments(

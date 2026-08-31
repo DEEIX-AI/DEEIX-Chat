@@ -10110,7 +10110,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "boolean",
-                        "description": "是否返回可替换当前正文的权威文本快照",
+                        "description": "是否返回正文与当前思考轮次的权威内容快照",
                         "name": "snapshot",
                         "in": "query"
                     }

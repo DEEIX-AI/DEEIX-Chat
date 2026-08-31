@@ -12,7 +12,6 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
   useMessageScroller,
-  useMessageScrollerScrollable,
 } from "@/components/ui/message-scroller";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -45,108 +44,16 @@ import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
 import { useBranding } from "@/shared/config/branding-provider";
 import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
 
-function ScrollToLiveUser({
-  scrollKey,
-  viewportRef,
-}: {
-  scrollKey: string;
-  viewportRef: React.RefObject<HTMLDivElement | null>;
-}): null {
-  const handledScrollKeyRef = React.useRef("");
-  const waitingForOverflowRef = React.useRef(false);
-  const userTookOverRef = React.useRef(false);
-  const { scrollToEnd, scrollToMessage } = useMessageScroller();
-  const scrollable = useMessageScrollerScrollable();
+function LiveMessageFollower({ activeKey }: { activeKey: string }): null {
+  const { scrollToEnd } = useMessageScroller();
 
   React.useLayoutEffect(() => {
-    if (!scrollKey) {
-      const previousScrollKey = handledScrollKeyRef.current;
-      const preserveScrollPosition = userTookOverRef.current;
-      handledScrollKeyRef.current = "";
-      waitingForOverflowRef.current = false;
-      userTookOverRef.current = false;
-      if (!previousScrollKey) {
-        return;
-      }
-
-      const viewport = viewportRef.current;
-      const previousScrollTop = viewport?.scrollTop ?? 0;
-      // scrollToMessage may add an internal spacer while keeping the live user
-      // message at the top. Releasing the live anchor through the public API
-      // clears that spacer when the run reaches a terminal state.
-      scrollToEnd({ behavior: "auto" });
-      if (viewport && preserveScrollPosition) {
-        viewport.scrollTop = Math.min(
-          previousScrollTop,
-          Math.max(0, viewport.scrollHeight - viewport.clientHeight),
-        );
-      }
+    if (!activeKey) {
       return;
     }
-    if (handledScrollKeyRef.current === scrollKey) {
-      return;
-    }
-
-    handledScrollKeyRef.current = scrollKey;
-    waitingForOverflowRef.current = true;
-    userTookOverRef.current = false;
-    let secondFrameID: number | null = null;
-    const firstFrameID = window.requestAnimationFrame(() => {
-      secondFrameID = window.requestAnimationFrame(() => {
-        if (userTookOverRef.current) {
-          return;
-        }
-        const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-        scrollToMessage(scrollKey, {
-          align: "start",
-          behavior: reducedMotion ? "auto" : "smooth",
-        });
-      });
-    });
-    return () => {
-      window.cancelAnimationFrame(firstFrameID);
-      if (secondFrameID !== null) {
-        window.cancelAnimationFrame(secondFrameID);
-      }
-    };
-  }, [scrollKey, scrollToEnd, scrollToMessage, viewportRef]);
-
-  React.useLayoutEffect(() => {
-    if (
-      !scrollKey ||
-      !scrollable.end ||
-      !waitingForOverflowRef.current ||
-      userTookOverRef.current
-    ) {
-      return;
-    }
-    waitingForOverflowRef.current = false;
-    scrollToEnd({ behavior: "auto" });
-  }, [scrollKey, scrollToEnd, scrollable.end]);
-
-  React.useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!scrollKey || !viewport) {
-      return;
-    }
-    const stopFollowing = () => {
-      waitingForOverflowRef.current = false;
-      userTookOverRef.current = true;
-    };
-    const stopFollowingFromKeyboard = (event: KeyboardEvent) => {
-      if (["ArrowDown", "ArrowUp", "End", "Home", "PageDown", "PageUp", " "].includes(event.key)) {
-        stopFollowing();
-      }
-    };
-    viewport.addEventListener("wheel", stopFollowing, { passive: true });
-    viewport.addEventListener("touchmove", stopFollowing, { passive: true });
-    viewport.addEventListener("keydown", stopFollowingFromKeyboard);
-    return () => {
-      viewport.removeEventListener("wheel", stopFollowing);
-      viewport.removeEventListener("touchmove", stopFollowing);
-      viewport.removeEventListener("keydown", stopFollowingFromKeyboard);
-    };
-  }, [scrollKey, viewportRef]);
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    scrollToEnd({ behavior: reducedMotion ? "auto" : "smooth" });
+  }, [activeKey, scrollToEnd]);
 
   return null;
 }
@@ -737,10 +644,7 @@ export function ChatArea({
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <MessageScrollerProvider autoScroll={Boolean(liveUserScrollKey)}>
           <MessageScroller>
-            <ScrollToLiveUser
-              scrollKey={liveUserScrollKey}
-              viewportRef={messageViewportBoundaryRef}
-            />
+            <LiveMessageFollower activeKey={liveUserScrollKey} />
             <MessageScrollerViewport
               ref={messageViewportBoundaryRef}
               className="px-3 pb-8 pt-2 md:px-6"

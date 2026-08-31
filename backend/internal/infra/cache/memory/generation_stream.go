@@ -10,17 +10,21 @@ import (
 )
 
 type generationStream struct {
-	ownerID         uint
-	conversationID  string
-	ownerExpiresAt  time.Time
-	activeExpiresAt time.Time
-	cancelExpiresAt time.Time
-	eventsExpiresAt time.Time
-	seq             int64
-	events          []repository.GenerationStreamMessage
-	textContent     strings.Builder
-	textSeq         int64
-	notify          chan struct{}
+	ownerID               uint
+	conversationID        string
+	ownerExpiresAt        time.Time
+	activeExpiresAt       time.Time
+	cancelExpiresAt       time.Time
+	eventsExpiresAt       time.Time
+	seq                   int64
+	events                []repository.GenerationStreamMessage
+	textContent           strings.Builder
+	textSeq               int64
+	upstreamThinkContent  strings.Builder
+	upstreamThinkSeq      int64
+	upstreamThinkRoundID  string
+	upstreamThinkMetadata string
+	notify                chan struct{}
 }
 
 func (c *Cache) RegisterGenerationStream(ctx context.Context, runID string, userID uint, conversationPublicID string, ttl time.Duration) error {
@@ -126,6 +130,24 @@ func (c *Cache) AppendGenerationStreamEvent(ctx context.Context, runID string, i
 		_, _ = stream.textContent.WriteString(input.TextDelta)
 		stream.textSeq = stream.seq
 	}
+	if input.UpstreamThink != nil {
+		roundID := strings.TrimSpace(input.UpstreamThink.RoundID)
+		if roundID == "" {
+			roundID = stream.upstreamThinkRoundID
+		}
+		if roundID != "" && stream.upstreamThinkRoundID != "" && roundID != stream.upstreamThinkRoundID {
+			stream.upstreamThinkContent.Reset()
+		}
+		if input.UpstreamThink.Replace {
+			stream.upstreamThinkContent.Reset()
+			_, _ = stream.upstreamThinkContent.WriteString(input.UpstreamThink.ContentMarkdown)
+		} else {
+			_, _ = stream.upstreamThinkContent.WriteString(input.UpstreamThink.Delta)
+		}
+		stream.upstreamThinkSeq = stream.seq
+		stream.upstreamThinkRoundID = roundID
+		stream.upstreamThinkMetadata = input.UpstreamThink.MetadataJSON
+	}
 	if maxEvents <= 0 {
 		maxEvents = 1024
 	}
@@ -137,6 +159,22 @@ func (c *Cache) AppendGenerationStreamEvent(ctx context.Context, runID string, i
 	c.notifyGenerationStreamsLocked()
 	c.maybeSweepLocked(time.Now())
 	return record, nil
+}
+
+func (c *Cache) GetGenerationStreamUpstreamThinkSnapshot(ctx context.Context, runID string) (repository.GenerationStreamUpstreamThinkSnapshot, bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	stream := c.streams[strings.TrimSpace(runID)]
+	now := time.Now()
+	if stream == nil || stream.eventsExpired(now) || stream.upstreamThinkSeq <= 0 {
+		return repository.GenerationStreamUpstreamThinkSnapshot{}, false, nil
+	}
+	return repository.GenerationStreamUpstreamThinkSnapshot{
+		Seq:             stream.upstreamThinkSeq,
+		RoundID:         stream.upstreamThinkRoundID,
+		ContentMarkdown: stream.upstreamThinkContent.String(),
+		MetadataJSON:    stream.upstreamThinkMetadata,
+	}, true, nil
 }
 
 func (c *Cache) GetGenerationStreamTextSnapshot(ctx context.Context, runID string) (repository.GenerationStreamTextSnapshot, bool, error) {
@@ -224,6 +262,10 @@ func (c *Cache) ResetGenerationStreamEvents(ctx context.Context, runID string) e
 	stream.events = nil
 	stream.textContent.Reset()
 	stream.textSeq = 0
+	stream.upstreamThinkContent.Reset()
+	stream.upstreamThinkSeq = 0
+	stream.upstreamThinkRoundID = ""
+	stream.upstreamThinkMetadata = ""
 	// Keep seq monotonic so any in-flight afterSeq cursors stay valid.
 	stream.notifyLocked()
 	return nil

@@ -48,6 +48,7 @@ import {
   normalizeContent,
   normalizeCurrencyDollars,
   normalizeEscapedHTMLAttributeQuotes,
+  normalizeHTMLBlockBlankLines,
   normalizeHTMLVisualMarkdownFences,
   normalizeLatexUnicodeSymbols,
   normalizeMathDelimiters,
@@ -388,7 +389,11 @@ const THINKING_STREAMDOWN_COMPONENTS = {
   h6: ThinkingHeading,
 } as const;
 
-function normalizeStreamdownContent(content: unknown, preserveSourceLines = false): string {
+function normalizeStreamdownContent(
+  content: unknown,
+  preserveSourceLines = false,
+  streaming = false,
+): string {
   const escapedContent = normalizeCurrencyDollars(
     normalizeEscapedHTMLAttributeQuotes(normalizeContent(content)),
   );
@@ -399,7 +404,7 @@ function normalizeStreamdownContent(content: unknown, preserveSourceLines = fals
   );
   return preserveSourceLines
     ? normalizedContent
-    : normalizeHTMLVisualMarkdownFences(normalizedContent);
+    : normalizeHTMLBlockBlankLines(normalizeHTMLVisualMarkdownFences(normalizedContent), streaming);
 }
 
 function detectStreamdownFeatures(content: string): StreamdownFeatureFlags {
@@ -658,8 +663,8 @@ export const StreamdownRender = React.memo(function StreamdownRender({
   artifactActions,
 }: StreamdownRenderProps) {
   const normalizedContent = React.useMemo(
-    () => normalizeStreamdownContent(content, sourcePositions),
-    [content, sourcePositions],
+    () => normalizeStreamdownContent(content, sourcePositions, streaming),
+    [content, sourcePositions, streaming],
   );
   const plugins = useStreamdownPlugins(normalizedContent);
   const segments = React.useMemo(

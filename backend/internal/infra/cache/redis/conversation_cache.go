@@ -50,9 +50,9 @@ type fileQueueConfig struct {
 }
 
 // appendGenerationStreamEventScript keeps the event sequence, bounded replay
-// window, and cumulative visible-text checkpoint consistent in one Redis
-// round trip. Key TTLs are initialized only when a value is first created;
-// FinishMessageGeneration shortens them to the post-run retention window.
+// window, and cumulative visible-text/upstream-thinking checkpoints consistent
+// in one Redis round trip. Key TTLs are initialized only when a value is first
+// created; FinishMessageGeneration shortens them to the post-run retention window.
 var appendGenerationStreamEventScript = redis.NewScript(`
 local events_missing = redis.call("EXISTS", KEYS[2]) == 0
 local has_text_delta = ARGV[4] ~= ""
@@ -60,10 +60,38 @@ local text_missing = false
 if has_text_delta then
 	text_missing = redis.call("EXISTS", KEYS[3]) == 0
 end
+local has_think_update = ARGV[5] == "1"
+local think_content_missing = false
+local think_meta_missing = false
+if has_think_update then
+	think_content_missing = redis.call("EXISTS", KEYS[5]) == 0
+	think_meta_missing = redis.call("EXISTS", KEYS[6]) == 0
+end
 local seq = redis.call("INCR", KEYS[1])
 if has_text_delta then
 	redis.call("APPEND", KEYS[3], ARGV[4])
 	redis.call("SET", KEYS[4], tostring(seq), "KEEPTTL")
+end
+if has_think_update then
+	local previous_round = redis.call("HGET", KEYS[6], "round") or ""
+	local next_round = ARGV[8]
+	if next_round == "" then
+		next_round = previous_round
+	end
+	if next_round ~= "" and previous_round ~= "" and next_round ~= previous_round then
+		redis.call("DEL", KEYS[5])
+		think_content_missing = true
+	end
+	if ARGV[6] == "1" then
+		redis.call("SET", KEYS[5], ARGV[7], "KEEPTTL")
+	else
+		redis.call("APPEND", KEYS[5], ARGV[7])
+	end
+	redis.call("HSET", KEYS[6],
+		"seq", tostring(seq),
+		"round", next_round,
+		"metadata", ARGV[9]
+	)
 end
 local id = redis.call(
 	"XADD",
@@ -84,8 +112,27 @@ if has_text_delta and text_missing then
 	redis.call("PEXPIRE", KEYS[3], ARGV[3])
 	redis.call("PEXPIRE", KEYS[4], ARGV[3])
 end
+if has_think_update and think_content_missing then
+	redis.call("PEXPIRE", KEYS[5], ARGV[3])
+end
+if has_think_update and think_meta_missing then
+	redis.call("PEXPIRE", KEYS[6], ARGV[3])
+end
 
 return {id, tostring(seq)}
+`)
+
+var getGenerationStreamUpstreamThinkSnapshotScript = redis.NewScript(`
+if redis.call("EXISTS", KEYS[1]) == 0 or redis.call("EXISTS", KEYS[2]) == 0 then
+	return {"0"}
+end
+return {
+	"1",
+	redis.call("GET", KEYS[1]) or "",
+	redis.call("HGET", KEYS[2], "seq") or "",
+	redis.call("HGET", KEYS[2], "round") or "",
+	redis.call("HGET", KEYS[2], "metadata") or ""
+}
 `)
 
 var renewFileProcessingLeaseScript = redis.NewScript(`
@@ -792,7 +839,7 @@ func (c *conversationCache) IsGenerationStreamCanceled(ctx context.Context, runI
 	return count > 0, nil
 }
 
-// AppendGenerationStreamEvent 原子追加生成事件，并同步维护可见文本快照。
+// AppendGenerationStreamEvent 原子追加生成事件，并同步维护正文与当前思考轮次快照。
 func (c *conversationCache) AppendGenerationStreamEvent(ctx context.Context, runID string, input repository.GenerationStreamAppend, maxEvents int64, ttl time.Duration) (repository.GenerationStreamMessage, error) {
 	if c.client == nil {
 		return repository.GenerationStreamMessage{}, nil
@@ -803,6 +850,22 @@ func (c *conversationCache) AppendGenerationStreamEvent(ctx context.Context, run
 	if ttl <= 0 {
 		ttl = time.Minute
 	}
+	hasUpstreamThink := "0"
+	upstreamThinkReplace := "0"
+	upstreamThinkContent := ""
+	upstreamThinkRoundID := ""
+	upstreamThinkMetadata := ""
+	if input.UpstreamThink != nil {
+		hasUpstreamThink = "1"
+		if input.UpstreamThink.Replace {
+			upstreamThinkReplace = "1"
+			upstreamThinkContent = input.UpstreamThink.ContentMarkdown
+		} else {
+			upstreamThinkContent = input.UpstreamThink.Delta
+		}
+		upstreamThinkRoundID = input.UpstreamThink.RoundID
+		upstreamThinkMetadata = input.UpstreamThink.MetadataJSON
+	}
 	result, err := appendGenerationStreamEventScript.Run(
 		ctx,
 		c.client,
@@ -811,11 +874,18 @@ func (c *conversationCache) AppendGenerationStreamEvent(ctx context.Context, run
 			generationStreamEventsKey(runID),
 			generationStreamTextKey(runID),
 			generationStreamTextSeqKey(runID),
+			generationStreamUpstreamThinkContentKey(runID),
+			generationStreamUpstreamThinkMetaKey(runID),
 		},
 		input.PayloadJSON,
 		maxEvents,
 		ttl.Milliseconds(),
 		input.TextDelta,
+		hasUpstreamThink,
+		upstreamThinkReplace,
+		upstreamThinkContent,
+		upstreamThinkRoundID,
+		upstreamThinkMetadata,
 	).Result()
 	if err != nil {
 		return repository.GenerationStreamMessage{}, err
@@ -830,6 +900,41 @@ func (c *conversationCache) AppendGenerationStreamEvent(ctx context.Context, run
 		return repository.GenerationStreamMessage{}, errors.New("invalid generation stream append metadata")
 	}
 	return repository.GenerationStreamMessage{ID: id, Seq: seq, PayloadJSON: input.PayloadJSON}, nil
+}
+
+// GetGenerationStreamUpstreamThinkSnapshot 原子读取当前思考轮次的完整恢复快照。
+func (c *conversationCache) GetGenerationStreamUpstreamThinkSnapshot(ctx context.Context, runID string) (repository.GenerationStreamUpstreamThinkSnapshot, bool, error) {
+	if c.client == nil {
+		return repository.GenerationStreamUpstreamThinkSnapshot{}, false, nil
+	}
+	result, err := getGenerationStreamUpstreamThinkSnapshotScript.Run(
+		ctx,
+		c.client,
+		[]string{
+			generationStreamUpstreamThinkContentKey(runID),
+			generationStreamUpstreamThinkMetaKey(runID),
+		},
+	).Result()
+	if err != nil {
+		return repository.GenerationStreamUpstreamThinkSnapshot{}, false, err
+	}
+	values, ok := result.([]interface{})
+	if !ok || len(values) == 0 || getStringVal(values[0]) != "1" {
+		return repository.GenerationStreamUpstreamThinkSnapshot{}, false, nil
+	}
+	if len(values) != 5 {
+		return repository.GenerationStreamUpstreamThinkSnapshot{}, false, nil
+	}
+	seq := getInt64Val(values[2])
+	if seq <= 0 {
+		return repository.GenerationStreamUpstreamThinkSnapshot{}, false, nil
+	}
+	return repository.GenerationStreamUpstreamThinkSnapshot{
+		Seq:             seq,
+		RoundID:         getStringVal(values[3]),
+		ContentMarkdown: getStringVal(values[1]),
+		MetadataJSON:    getStringVal(values[4]),
+	}, true, nil
 }
 
 // GetGenerationStreamTextSnapshot 原子读取完整可见文本及其最后事件序号。
@@ -926,6 +1031,8 @@ func (c *conversationCache) ResetGenerationStreamEvents(ctx context.Context, run
 		generationStreamEventsKey(runID),
 		generationStreamTextKey(runID),
 		generationStreamTextSeqKey(runID),
+		generationStreamUpstreamThinkContentKey(runID),
+		generationStreamUpstreamThinkMetaKey(runID),
 	).Err()
 }
 
@@ -939,6 +1046,8 @@ func (c *conversationCache) ExpireGenerationStream(ctx context.Context, runID st
 	pipe.Expire(ctx, generationStreamSeqKey(runID), ttl)
 	pipe.Expire(ctx, generationStreamTextKey(runID), ttl)
 	pipe.Expire(ctx, generationStreamTextSeqKey(runID), ttl)
+	pipe.Expire(ctx, generationStreamUpstreamThinkContentKey(runID), ttl)
+	pipe.Expire(ctx, generationStreamUpstreamThinkMetaKey(runID), ttl)
 	pipe.Expire(ctx, generationStreamOwnerKey(runID), ttl)
 	pipe.Expire(ctx, generationStreamConversationKey(runID), ttl)
 	pipe.Expire(ctx, generationStreamCancelKey(runID), ttl)
@@ -980,6 +1089,14 @@ func generationStreamTextKey(runID string) string {
 
 func generationStreamTextSeqKey(runID string) string {
 	return generationStreamKeyPrefix + strings.TrimSpace(runID) + ":text_seq"
+}
+
+func generationStreamUpstreamThinkContentKey(runID string) string {
+	return generationStreamKeyPrefix + strings.TrimSpace(runID) + ":upstream_think"
+}
+
+func generationStreamUpstreamThinkMetaKey(runID string) string {
+	return generationStreamKeyPrefix + strings.TrimSpace(runID) + ":upstream_think_meta"
 }
 
 func generationStreamOwnerKey(runID string) string {

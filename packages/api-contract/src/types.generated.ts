@@ -8195,7 +8195,7 @@ export namespace ConversationRuns {
     export type RequestQuery = {
       /** 已接收的最后事件序号 */
       after?: number;
-      /** 是否返回可替换当前正文的权威文本快照 */
+      /** 是否返回正文与当前思考轮次的权威内容快照 */
       snapshot?: boolean;
     };
     export type RequestBody = never;

@@ -89,6 +89,59 @@ func TestGenerationStreamTextSnapshotLifecycle(t *testing.T) {
 	}
 }
 
+func TestGenerationStreamUpstreamThinkSnapshotLifecycle(t *testing.T) {
+	cache := New()
+	ctx := context.Background()
+	runID := "run_memory_upstream_think_snapshot"
+	if err := cache.RegisterGenerationStream(ctx, runID, 7, "conv_test", time.Minute); err != nil {
+		t.Fatal(err)
+	}
+
+	updates := []*repository.GenerationStreamUpstreamThinkAppend{
+		{RoundID: "round_1", Delta: "思考", MetadataJSON: `{"type":"upstream_think_delta","roundID":"round_1"}`},
+		{RoundID: "round_1", ContentMarkdown: "完整思考", Replace: true, MetadataJSON: `{"type":"upstream_think_delta","roundID":"round_1"}`},
+		{RoundID: "round_1", Delta: "继续", MetadataJSON: `{"type":"upstream_think_delta","roundID":"round_1"}`},
+	}
+	for _, update := range updates {
+		if _, err := cache.AppendGenerationStreamEvent(ctx, runID, repository.GenerationStreamAppend{
+			PayloadJSON:   `{"type":"upstream_think_delta"}`,
+			UpstreamThink: update,
+		}, 2, time.Minute); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	snapshot, ok, err := cache.GetGenerationStreamUpstreamThinkSnapshot(ctx, runID)
+	if err != nil || !ok {
+		t.Fatalf("snapshot ok=%v err=%v", ok, err)
+	}
+	if snapshot.ContentMarkdown != "完整思考继续" || snapshot.RoundID != "round_1" || snapshot.Seq != 3 {
+		t.Fatalf("unexpected snapshot: %+v", snapshot)
+	}
+
+	if _, err := cache.AppendGenerationStreamEvent(ctx, runID, repository.GenerationStreamAppend{
+		PayloadJSON: `{"type":"upstream_think_delta"}`,
+		UpstreamThink: &repository.GenerationStreamUpstreamThinkAppend{
+			RoundID:      "round_2",
+			Delta:        "下一轮",
+			MetadataJSON: `{"type":"upstream_think_delta","roundID":"round_2"}`,
+		},
+	}, 2, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, ok, err = cache.GetGenerationStreamUpstreamThinkSnapshot(ctx, runID)
+	if err != nil || !ok || snapshot.ContentMarkdown != "下一轮" || snapshot.RoundID != "round_2" || snapshot.Seq != 4 {
+		t.Fatalf("unexpected snapshot after round change: snapshot=%+v ok=%v err=%v", snapshot, ok, err)
+	}
+
+	if err := cache.ResetGenerationStreamEvents(ctx, runID); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot, ok, err = cache.GetGenerationStreamUpstreamThinkSnapshot(ctx, runID); err != nil || ok {
+		t.Fatalf("snapshot survived reset: snapshot=%+v ok=%v err=%v", snapshot, ok, err)
+	}
+}
+
 func TestGenerationStreamClearActiveMarksInactive(t *testing.T) {
 	cache := New()
 	ctx := context.Background()
