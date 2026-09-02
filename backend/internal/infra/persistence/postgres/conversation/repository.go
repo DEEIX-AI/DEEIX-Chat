@@ -946,6 +946,34 @@ func (r *Repo) CreateMessage(ctx context.Context, item *domainconversation.Messa
 	return nil
 }
 
+// lockConversationForMessageWrite 以会话行为写消息事务的首把锁。消息删除、fork 与
+// 发送路径统一先锁会话行再锁消息行，保证各方加锁顺序一致，不会互等形成死锁。
+func lockConversationForMessageWrite(tx *gorm.DB, conversationID uint) error {
+	var conversation models.Conversation
+	return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id").
+		Where("id = ?", conversationID).
+		First(&conversation).Error
+}
+
+// lockParentMessageForAppend 锁定即将挂载新消息的父消息并确认其未被删除。并发删除
+// 会把被删消息的子消息重接到祖父节点，若不持锁校验，新建消息会指向已删除的父节点
+// 成为孤儿，后续发送会把它当作叶子解析导致消息在界面上隐身。
+func lockParentMessageForAppend(tx *gorm.DB, parentMessageID uint) error {
+	var parent models.Message
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id").
+		Where("id = ?", parentMessageID).
+		First(&parent).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 模型带软删除作用域，查不到即父消息已被删除（或本就不存在）。
+			return repository.ErrMessageParentDeleted
+		}
+		return err
+	}
+	return nil
+}
+
 // CreateAssistantBranchMessage 原子创建 assistant 分支消息并递增会话消息数。
 func (r *Repo) CreateAssistantBranchMessage(ctx context.Context, assistantMessage *domainconversation.Message) error {
 	if assistantMessage == nil || assistantMessage.ParentMessageID == nil {
@@ -953,6 +981,12 @@ func (r *Repo) CreateAssistantBranchMessage(ctx context.Context, assistantMessag
 	}
 	attachmentSnapshot := assistantMessage.Attachments
 	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockConversationForMessageWrite(tx, assistantMessage.ConversationID); err != nil {
+			return err
+		}
+		if err := lockParentMessageForAppend(tx, *assistantMessage.ParentMessageID); err != nil {
+			return err
+		}
 		entity := toMessageModel(assistantMessage)
 		if err := tx.Create(&entity).Error; err != nil {
 			return err
@@ -986,6 +1020,14 @@ func (r *Repo) CreateMessagePairWithUserAttachments(
 	userAttachmentSnapshot := userMessage.Attachments
 	assistantAttachmentSnapshot := assistantMessage.Attachments
 	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockConversationForMessageWrite(tx, userMessage.ConversationID); err != nil {
+			return err
+		}
+		if userMessage.ParentMessageID != nil {
+			if err := lockParentMessageForAppend(tx, *userMessage.ParentMessageID); err != nil {
+				return err
+			}
+		}
 		userEntity := toMessageModel(userMessage)
 		if err := tx.Create(&userEntity).Error; err != nil {
 			return err

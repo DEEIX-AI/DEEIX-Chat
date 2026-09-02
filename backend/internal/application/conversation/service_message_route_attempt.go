@@ -60,6 +60,8 @@ func (s *Service) buildMessageRoutePrompt(ctx context.Context, route *channel.Re
 			return PromptPlan{}, err
 		}
 	}
+	// 图片注入按「过滤后的历史下标」对齐，必须在注入之后合并，避免下标错位。
+	historyMessages = mergeConsecutiveSameRoleMessages(historyMessages)
 	if len(historyMessages) == 0 {
 		historyMessages = append(historyMessages, llm.Message{Role: "user", Content: input.UserContent})
 	}

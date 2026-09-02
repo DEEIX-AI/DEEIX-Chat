@@ -13,6 +13,7 @@ type Trash2Props = IconProps<keyof typeof animations>;
 
 const animations = {
   default: {
+    root: {},
     group: {
       initial: {
         y: 0,
@@ -66,6 +67,39 @@ const animations = {
       },
     },
   } satisfies Record<string, Variants>,
+  shake: {
+    // 摆动挂在 svg 根元素上：整只垃圾桶围绕中心晃动，盖子随之抬起，比 default 的
+    // 1px 掀盖在小尺寸下更可感知。
+    root: {
+      initial: {
+        rotate: 0,
+      },
+      animate: {
+        rotate: [0, -12, 9, -6, 3, 0],
+        transition: {
+          duration: 0.55,
+          ease: 'easeInOut',
+        },
+      },
+    },
+    group: {
+      initial: {
+        y: 0,
+      },
+      animate: {
+        y: -1.5,
+        transition: {
+          duration: 0.55,
+          ease: 'easeInOut',
+        },
+      },
+    },
+    path1: {},
+    path2: {},
+    path3: {},
+    line1: {},
+    line2: {},
+  } satisfies Record<string, Variants>,
 } as const;
 
 function IconComponent({ size, ...props }: Trash2Props) {
@@ -83,6 +117,9 @@ function IconComponent({ size, ...props }: Trash2Props) {
       strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
+      variants={variants.root}
+      initial="initial"
+      animate={controls}
       {...props}
     >
       <motion.g variants={variants.group} initial="initial" animate={controls}>

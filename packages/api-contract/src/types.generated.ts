@@ -1922,6 +1922,16 @@ export interface MessageBillingCostResponse {
   pricingSnapshotJSON: string;
 }
 
+export interface MessageDeleteResponse {
+  deleted: boolean;
+  reparentedMessageCount: number;
+}
+
+export interface MessageDeleteResponseDoc {
+  data: MessageDeleteResponse;
+  errorMsg: string;
+}
+
 export interface MessageFeedbackResponse {
   messageID: number;
   messagePublicID: string;
@@ -8567,6 +8577,27 @@ export namespace Conversations {
     export type RequestBody = SendMessageRequest;
     export type RequestHeaders = {};
     export type ResponseBody = string;
+  }
+
+  /**
+   * @description 删除会话中任意位置的一条消息；其子消息将重接到被删消息的父消息上，后续消息保留并向前衔接。会话第一条消息与生成中的消息不允许删除
+   * @tags chat
+   * @name MessagesDelete
+   * @summary 删除指定消息
+   * @request DELETE:/conversations/{id}/messages/{message_id}
+   * @secure
+   */
+  export namespace MessagesDelete {
+    export type RequestParams = {
+      /** 会话 public_id */
+      id: string;
+      /** 消息 public_id */
+      messageId: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = MessageDeleteResponseDoc;
   }
 
   /**

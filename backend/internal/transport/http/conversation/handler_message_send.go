@@ -419,6 +419,8 @@ func handleSendMessageError(c *gin.Context, err error) {
 			return
 		}
 		response.Error(c, http.StatusBadGateway, mapClientErrorMessage(err))
+	case errors.Is(err, appconversation.ErrMessageParentDeleted):
+		response.ErrorWithCode(c, http.StatusConflict, "conversation.message_parent_deleted", "the message being replied to was deleted, please retry")
 	default:
 		response.Error(c, http.StatusInternalServerError, "send message failed")
 	}

@@ -93,6 +93,14 @@ var (
 	ErrMessageForkTargetInvalid = errors.New("invalid message fork target")
 	// ErrMessageForkHistoryIncomplete 消息祖先链超过安全上限或已损坏，无法完整 fork。
 	ErrMessageForkHistoryIncomplete = errors.New("message fork history incomplete")
+	// ErrMessageDeleteTargetInvalid 当前消息角色不允许删除。
+	ErrMessageDeleteTargetInvalid = errors.New("invalid message delete target")
+	// ErrMessageDeleteStateInvalid 当前消息状态不允许删除。
+	ErrMessageDeleteStateInvalid = repository.ErrMessageDeleteStateInvalid
+	// ErrMessageDeleteRootInvalid 会话第一条消息不允许删除，否则历史将以助手消息开头。
+	ErrMessageDeleteRootInvalid = repository.ErrMessageDeleteRootInvalid
+	// ErrMessageParentDeleted 父消息已被删除，无法再挂在其下创建新消息。
+	ErrMessageParentDeleted = repository.ErrMessageParentDeleted
 	// ErrModelRouteNotConfigured 模型路由未配置。
 	ErrModelRouteNotConfigured = errors.New("model route not configured")
 	// ErrModelAccessDenied 当前用户无权使用此模型。
