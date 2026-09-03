@@ -1,15 +1,18 @@
 import enErrors from "@/i18n/messages/en-US/errors.json";
+import viErrors from "@/i18n/messages/vi-VN/errors.json";
 import zhErrors from "@/i18n/messages/zh-CN/errors.json";
 import { DEFAULT_LOCALE, LOCALE_COOKIE_NAME, normalizeAppLocale, resolveBrowserLocale, type AppLocale } from "@/i18n/config";
 import { ApiError } from "@/shared/api/http-client";
 
 const ERROR_MESSAGES: Record<AppLocale, unknown> = {
   "en-US": enErrors,
+  "vi-VN": viErrors,
   "zh-CN": zhErrors,
 };
 
 const FALLBACK_MESSAGES: Record<AppLocale, string> = {
   "en-US": "Request failed. Please try again later.",
+  "vi-VN": "Yêu cầu thất bại. Vui lòng thử lại sau.",
   "zh-CN": "请求失败，请稍后重试。",
 };
 
@@ -85,6 +88,35 @@ const REQUEST_FIELD_LABELS: Record<AppLocale, Record<string, string>> = {
     subscriptionTier: "订阅方案",
     timezone: "时区",
     username: "用户名",
+  },
+  "vi-VN": {
+    apiKeys: "API keys",
+    avatarURL: "URL ảnh đại diện",
+    baseURL: "Base URL",
+    cbDurationMin: "Thời gian ngắt mạch",
+    cbFailureThreshold: "Ngưỡng lỗi",
+    cbModelThreshold: "Ngưỡng theo model",
+    cbThresholdLogic: "Logic ngưỡng",
+    cbWindowMin: "Cửa sổ thống kê",
+    compatible: "Chế độ tương thích",
+    connectTimeoutMS: "Timeout kết nối",
+    displayName: "Tên hiển thị",
+    email: "Email",
+    headersJSON: "Headers JSON",
+    locale: "Ngôn ngữ",
+    maskFileID: "Tệp mặt nạ",
+    name: "Tên",
+    password: "Mật khẩu",
+    phone: "Số điện thoại",
+    protocolDefaultsJSON: "Cấu hình mặc định giao thức (JSON)",
+    readTimeoutMS: "Timeout đọc",
+    status: "Trạng thái",
+    systemPrompt: "System prompt",
+    streamIdleTimeoutMS: "Timeout idle của stream",
+    subscriptionExpiresAt: "Hạn gói đăng ký",
+    subscriptionTier: "Gói đăng ký",
+    timezone: "Múi giờ",
+    username: "Tên người dùng",
   },
 };
 
@@ -185,6 +217,54 @@ const SETTINGS_FIELD_LABELS: Record<AppLocale, Record<string, string>> = {
     "file:full_context_pdf_max_pages": "全文页数上限",
     "mcp:mcp_enable": "MCP",
   },
+  "vi-VN": {
+    "auth:auto_link_verified_email": "Tự liên kết email trùng khớp",
+    "auth:email_login_enabled": "Đăng nhập bằng email",
+    "auth:email_registration_allowed_domains": "Tên miền email được phép đăng ký",
+    "auth:email_registration_block_plus_alias": "Chặn email dạng +alias",
+    "auth:email_registration_enabled": "Đăng ký bằng email",
+    "auth:email_verification_enabled": "Xác thực email",
+    "auth:password_reset_enabled": "Đặt lại mật khẩu",
+    "auth:login_default_next_path": "Đường dẫn chuyển hướng mặc định sau đăng nhập",
+    "auth:login_lock_minutes": "Thời gian khóa",
+    "auth:login_max_failures": "Giới hạn số lần đăng nhập sai",
+    "auth:rate_limit_enabled": "Giới hạn tốc độ toàn nền tảng",
+    "auth:rate_limit_rpm": "Giới hạn tốc độ API người dùng",
+    "auth:public_auth_rate_limit_rpm": "Giới hạn tốc độ xác thực công khai",
+    "auth:refresh_token_ttl_hours": "Thời hạn refresh token",
+    "auth:smtp_from": "Địa chỉ gửi SMTP",
+    "auth:smtp_host": "Máy chủ SMTP",
+    "auth:smtp_password": "Mật khẩu SMTP",
+    "auth:smtp_port": "Cổng SMTP",
+    "auth:smtp_username": "Tên người dùng SMTP",
+    "auth:third_party_login_enabled": "Đăng nhập bên thứ ba",
+    "auth:token_ttl_hours": "Thời hạn access token",
+    "auth:turnstile_registration_enabled": "Xác minh người dùng khi đăng ký",
+    "auth:turnstile_secret_key": "Turnstile Secret Key",
+    "auth:turnstile_site_key": "Turnstile Site Key",
+    "auth:username_login_enabled": "Đăng nhập bằng tên người dùng",
+    "billing:epay_gateway_url": "Địa chỉ cổng EPay",
+    "billing:epay_key": "Khóa merchant EPay",
+    "billing:epay_pid": "Mã merchant EPay",
+    "billing:epay_types": "Phương thức thanh toán EPay",
+    "billing:mode": "Chế độ tính phí",
+    "billing:payment_providers": "Kênh thanh toán",
+    "billing:prepaid_amount_usd": "Số tiền đặt trước mỗi yêu cầu",
+    "billing:stripe_publishable_key": "Stripe Publishable Key",
+    "billing:stripe_secret_key": "Stripe Secret Key",
+    "billing:stripe_webhook_secret": "Stripe Webhook Secret",
+    "billing:usd_to_cny_rate": "Tỷ giá USD sang CNY",
+    "chat:model_option_allowed_paths": "Danh sách trắng tham số model",
+    "chat:default_system_prompt": "System prompt mặc định toàn cục",
+    "chat:model_option_denied_paths": "Danh sách đen tham số model",
+    "chat:model_option_policy_mode": "Chính sách truyền tham số model",
+    "file:embedding_enabled": "Dịch vụ embedding",
+    "file:full_context_limit_enabled": "Giới hạn chèn toàn văn",
+    "file:file_full_context_max_bytes": "Giới hạn dung lượng toàn văn",
+    "file:full_context_max_tokens": "Giới hạn token toàn văn",
+    "file:full_context_pdf_max_pages": "Giới hạn số trang toàn văn",
+    "mcp:mcp_enable": "MCP",
+  },
 };
 
 export function toErrorMessagePath(errorCode: string): string[] {
@@ -246,6 +326,27 @@ function resolveRequestFieldError(locale: AppLocale, item: RequestBodyFieldError
   if (!field || !rule) return undefined;
 
   const label = resolveRequestFieldLabel(locale, field);
+  if (locale === "vi-VN") {
+    switch (rule) {
+      case "required":
+      case "required_without":
+        return `${label} không được để trống.`;
+      case "min":
+        return `${label} phải có ít nhất ${param} ký tự.`;
+      case "max":
+        return `${label} không được vượt quá ${param} ký tự.`;
+      case "len":
+        return `${label} phải có đúng ${param} ký tự.`;
+      case "email":
+        return `${label} không đúng định dạng.`;
+      case "url":
+        return `${label} phải là URL đầy đủ, ví dụ https://api.example.com.`;
+      case "oneof":
+        return `${label} phải là một trong các giá trị: ${param}.`;
+      default:
+        return `${label} không hợp lệ.`;
+    }
+  }
   if (locale === "zh-CN") {
     switch (rule) {
       case "required":
@@ -308,6 +409,55 @@ function resolveSettingsFieldLabel(locale: AppLocale, key: string): string {
 function resolveSettingsReason(locale: AppLocale, label: string, reason: string): string {
   const normalized = reason.trim();
   if (!normalized) return "";
+  if (locale === "vi-VN") {
+    const integerRange = normalized.match(/^must be an integer between (.+) and (.+)$/);
+    if (integerRange) return `${label} phải là số nguyên từ ${integerRange[1]} đến ${integerRange[2]}.`;
+    const optionalZeroRange = normalized.match(/^must be empty, 0, or between (.+) and (.+)$/);
+    if (optionalZeroRange) return `${label} phải để trống, bằng 0, hoặc trong khoảng ${optionalZeroRange[1]} đến ${optionalZeroRange[2]}.`;
+    const range = normalized.match(/^must be between (.+) and (.+)$/);
+    if (range) return `${label} phải trong khoảng ${range[1]} đến ${range[2]}.`;
+    const optionalMin = normalized.match(/^must be empty or >= (.+)$/);
+    if (optionalMin) return `${label} phải để trống, hoặc lớn hơn hoặc bằng ${optionalMin[1]}.`;
+    const min = normalized.match(/^must be >= (.+)$/);
+    if (min) return `${label} phải lớn hơn hoặc bằng ${min[1]}.`;
+    const maxLength = normalized.match(/^length must be <= (.+)$/);
+    if (maxLength) return `${label} không được vượt quá ${maxLength[1]} ký tự.`;
+    const oneOf = normalized.match(/^must be one of: (.+)$/);
+    if (oneOf) return `${label} phải là một trong các giá trị: ${oneOf[1]}.`;
+    const only = normalized.match(/^must contain only: (.+)$/);
+    if (only) return `${label} chỉ được chứa: ${only[1]}.`;
+    const invalidDomain = normalized.match(/^contains invalid domain: (.+)$/);
+    if (invalidDomain) return `${label} chứa tên miền không hợp lệ: ${invalidDomain[1]}.`;
+    const invalidMime = normalized.match(/^contains invalid mime: (.+)$/);
+    if (invalidMime) return `${label} chứa kiểu MIME không hợp lệ: ${invalidMime[1]}.`;
+    switch (normalized) {
+      case "cannot be empty":
+      case "is required":
+        return `${label} không được để trống.`;
+      case "must be a local path":
+        return `${label} phải là đường dẫn nội bộ, ví dụ /chat.`;
+      case "must be bool":
+        return `${label} phải là true hoặc false.`;
+      case "must start with http:// or https://":
+        return `${label} phải bắt đầu bằng http:// hoặc https://.`;
+      case "must be an HTTP(S) EPay site URL or an exact submit.php URL without credentials, query, or fragment":
+        return `${label} phải là địa chỉ trang EPay HTTP(S) hoặc URL submit.php đầy đủ, không chứa thông tin đăng nhập, query hay fragment.`;
+      case "must be a json array":
+        return `${label} phải là mảng JSON.`;
+      case "must contain 1-10 payment types":
+        return `${label} phải chứa từ 1 đến 10 phương thức thanh toán.`;
+      case "items require name and type":
+        return `${label} mỗi phần tử phải có name và type.`;
+      case "item is too long":
+        return `${label} một phần tử quá dài.`;
+      case "type contains invalid characters":
+        return `${label} type chứa ký tự không hợp lệ.`;
+      case "type must be unique":
+        return `${label} type không được trùng lặp.`;
+      default:
+        return `${label}: ${normalized}.`;
+    }
+  }
   if (locale === "zh-CN") {
     const integerRange = normalized.match(/^must be an integer between (.+) and (.+)$/);
     if (integerRange) return `${label}必须是 ${integerRange[1]} 到 ${integerRange[2]} 之间的整数。`;
@@ -385,6 +535,10 @@ function resolveSettingsValidationMessage(error: ApiError, locale: AppLocale): s
     "zh-CN": {
       "auth:third_party_login_enabled must be enabled before disabling username and email login": "关闭用户名和邮箱登录前，必须先启用第三方登录。",
       "embedding service must be enabled and configured before enabling rag or semantic enhancement": "启用 RAG 或语义增强前，必须先启用并配置向量服务。",
+    },
+    "vi-VN": {
+      "auth:third_party_login_enabled must be enabled before disabling username and email login": "Phải bật đăng nhập bên thứ ba trước khi tắt đăng nhập bằng tên người dùng và email.",
+      "embedding service must be enabled and configured before enabling rag or semantic enhancement": "Phải bật và cấu hình dịch vụ embedding trước khi bật RAG hoặc ngữ cảnh ngữ nghĩa.",
     },
   };
   const dependencyMessage = dependencyMessages[locale][detail.toLowerCase()];

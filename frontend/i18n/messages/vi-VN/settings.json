@@ -1,0 +1,655 @@
+{
+  "title": "Cài đặt",
+  "general": "Chung",
+  "account": "Tài khoản",
+  "chat": "Chat",
+  "subscription": "Gói đăng ký",
+  "about": "Giới thiệu",
+  "navigation": "Điều hướng cài đặt",
+  "aboutPage": {
+    "title": "Giới thiệu",
+    "description": "DEEIX Chat là nền tảng truy cập model và vận hành hội thoại cho các ứng dụng AI nhiều người dùng. Nền tảng hợp nhất danh mục model, định tuyến đa nhà cung cấp, quản trị tham số, tệp và RAG, công cụ MCP, thanh toán theo mức dùng, bảo mật danh tính, kiểm toán và cài đặt vận hành trong một bảng điều khiển duy nhất.",
+    "details": "Thông tin sản phẩm",
+    "product": "Sản phẩm",
+    "version": "Phiên bản",
+    "console": "Console",
+    "userConsole": "Console người dùng",
+    "official": "Chính thức",
+    "website": "Trang web",
+    "repository": "Kho mã nguồn",
+    "social": "X",
+    "blog": "Blog",
+    "contact": "Liên hệ & hỗ trợ",
+    "copyright": "© 2026 DEEIX. DEEIX Chat.",
+    "license": "Mã nguồn được cấp phép theo Apache License 2.0."
+  },
+  "appearance": "Giao diện",
+  "language": "Ngôn ngữ",
+  "languageDescription": "Chọn ngôn ngữ giao diện cho trình duyệt này và tài khoản của bạn.",
+  "generalPage": {
+    "profile": {
+      "avatar": "Ảnh đại diện",
+      "avatarAlt": "Ảnh đại diện người dùng",
+      "username": "Tên người dùng",
+      "usernamePlaceholder": "Đặt tên người dùng",
+      "displayName": "Tên hiển thị",
+      "displayNamePlaceholder": "Tên hiển thị trong giao diện",
+      "displayNameInvalid": "Tên hiển thị phải từ 3 đến 16 ký tự.",
+      "timezone": "Múi giờ",
+      "conversationPreferences": "Tùy chọn hội thoại",
+      "conversationPreferencesPlaceholder": "Phong cách ưa thích, thói quen ngôn ngữ, định dạng đầu ra và quy trình làm việc thường dùng."
+    },
+    "username": {
+      "invalid": "Tên người dùng phải có từ 3 đến 16 ký tự gồm chữ cái thường, chữ số, dấu gạch dưới hoặc gạch ngang và không được trùng với tên đã dành riêng.",
+      "alreadyChanged": "Tên người dùng chỉ có thể đặt một lần.",
+      "taken": "Tên người dùng này đã được sử dụng."
+    },
+    "toast": {
+      "initialUsernameRequired": "Hãy đổi tên người dùng ban đầu.",
+      "setUsernameFailed": "Không thể đặt tên người dùng",
+      "usernameUpdated": "Đã cập nhật tên người dùng",
+      "profileUpdated": "Đã cập nhật hồ sơ",
+      "saveProfileFailed": "Không thể lưu hồ sơ"
+    },
+    "notifications": {
+      "responseCompletionTitle": "Thông báo khi hoàn tất phản hồi",
+      "responseCompletionDescription": "Thông báo cho bạn khi model hoàn tất một phản hồi. Tính năng này hữu ích cho các tác vụ chạy lâu như gọi công cụ hoặc nghiên cứu.",
+      "toggleResponseCompletion": "Bật/tắt thông báo hoàn tất phản hồi",
+      "unsupportedTitle": "Trình duyệt này không hỗ trợ thông báo",
+      "unsupportedDescription": "Hãy dùng trình duyệt máy tính có hỗ trợ Notification API.",
+      "deniedTitle": "Quyền thông báo đã bị từ chối",
+      "deniedDescription": "Hãy cho phép thông báo trong quyền của trình duyệt dành cho trang này trước khi bật tùy chọn.",
+      "enabledTitle": "Đã bật thông báo trình duyệt",
+      "enabledDescription": "Bạn sẽ nhận thông báo hệ thống khi một phản hồi hoàn tất ở chế độ nền.",
+      "defaultHelp": "Khi bật, quyền thông báo của trình duyệt sẽ được dùng để cảnh báo bạn qua thông báo hệ thống.",
+      "unsupportedHelp": "Trình duyệt này không hỗ trợ thông báo hệ thống.",
+      "deniedHelp": "Thông báo đang bị trình duyệt chặn. Hãy cho phép thủ công trong cài đặt trình duyệt.",
+      "grantedHelp": "Thông báo trình duyệt đã được bật. Khi model hoàn tất phản hồi, một thông báo sẽ hiện ra."
+    },
+    "appearance": {
+      "colorMode": "Chế độ màu",
+      "themePreset": "Chủ đề",
+      "fontSize": "Cỡ chữ",
+      "preset": {
+        "default": "Mặc định",
+        "azure": "Azure",
+        "cobalt": "Cobalt",
+        "graphite": "Graphite",
+        "lagoon": "Lagoon",
+        "ink": "Ink",
+        "ochre": "Ochre",
+        "sepia": "Sepia"
+      },
+      "theme": {
+        "light": "Sáng",
+        "system": "Theo hệ thống",
+        "dark": "Tối"
+      },
+      "fontSizeOption": {
+        "small": "Nhỏ",
+        "standard": "Tiêu chuẩn",
+        "medium": "Vừa",
+        "large": "Lớn"
+      }
+    },
+    "avatarDialog": {
+      "title": "Chỉnh sửa ảnh đại diện",
+      "description": "Upload một hình ảnh, nhập URL ảnh đại diện hoặc tạo ảnh đại diện kiểu pixel.",
+      "avatarURL": "URL ảnh đại diện",
+      "upload": "Upload ảnh",
+      "uploading": "Đang upload",
+      "uploaded": "Đã upload ảnh đại diện",
+      "uploadFailed": "Không thể upload ảnh đại diện",
+      "uploadInvalid": "Vui lòng chọn tệp hình ảnh",
+      "generate": "Tạo ảnh đại diện",
+      "apply": "Áp dụng"
+    }
+  },
+  "profile": "Hồ sơ",
+  "security": "Bảo mật",
+  "notifications": "Thông báo",
+  "memory": "Ghi nhớ tùy chọn AI",
+  "accountPage": {
+    "title": "Tài khoản",
+    "password": "Mật khẩu đăng nhập",
+    "twoFactor": "Xác thực hai yếu tố",
+    "logoutAllDevices": "Đăng xuất khỏi tất cả thiết bị đang hoạt động",
+    "deleteAccount": "Xóa tài khoản của bạn",
+    "publicID": "ID người dùng công khai",
+    "copyPublicID": "Sao chép ID người dùng công khai",
+    "email": {
+      "label": "Email",
+      "withAddress": "Email ({email})",
+      "verified": "Đã xác minh",
+      "unverified": "Chưa xác minh"
+    },
+    "actions": {
+      "set": "Đặt",
+      "update": "Cập nhật",
+      "manage": "Quản lý",
+      "generating": "Đang tạo",
+      "logOut": "Đăng xuất",
+      "loggingOut": "Đang đăng xuất",
+      "deleteAccount": "Xóa tài khoản",
+      "deleting": "Đang xóa",
+      "bind": "Liên kết",
+      "cancel": "Hủy",
+      "verify": "Xác minh"
+    },
+    "identity": {
+      "title": "Nhà cung cấp danh tính đã liên kết",
+      "provider": "Nhà cung cấp",
+      "username": "Tên người dùng",
+      "email": "Email",
+      "linkedAt": "Thời gian liên kết",
+      "empty": "Chưa liên kết nhà cung cấp danh tính bên thứ ba nào.",
+      "unlink": "Hủy liên kết nhà cung cấp danh tính",
+      "unlinkDisabled": "Hãy đặt mật khẩu hoặc liên kết một nhà cung cấp danh tính khác trước."
+    },
+    "session": {
+      "title": "Các phiên đang hoạt động",
+      "device": "Thiết bị",
+      "location": "Vị trí",
+      "createdAt": "Đã tạo",
+      "updatedAt": "Đã cập nhật",
+      "empty": "Không có phiên nào đang hoạt động.",
+      "current": "Phiên hiện tại",
+      "actions": "Thao tác phiên",
+      "logoutThisSession": "Đăng xuất phiên này",
+      "unknownDevice": "Thiết bị không xác định",
+      "unknownLocation": "Vị trí không xác định",
+      "unknownIP": "IP không xác định"
+    },
+    "logoutAllDialog": {
+      "title": "Đăng xuất khỏi tất cả thiết bị đang hoạt động?",
+      "description": "Sau khi xác nhận, các phiên đang hoạt động của tài khoản này trên trình duyệt, ứng dụng máy tính hoặc thiết bị di động khác sẽ bị vô hiệu hóa. Thiết bị này cũng sẽ quay về trang đăng nhập.",
+      "confirm": "Đăng xuất tất cả thiết bị"
+    },
+    "deleteDialog": {
+      "title": "Xóa tài khoản",
+      "description": "Việc xóa tài khoản là vĩnh viễn. Tài khoản và lịch sử chat của bạn sẽ không thể khôi phục.",
+      "verificationTitle": "Xác minh việc xóa tài khoản",
+      "verificationDescription": {
+        "twoFactor": "Nhập mã từ ứng dụng xác thực hoặc mã khôi phục để xóa tài khoản.",
+        "email": "Gửi mã đến email đã xác minh của bạn, sau đó nhập mã để xóa tài khoản."
+      },
+      "verificationUnavailable": "Việc xóa tài khoản yêu cầu xác minh danh tính. Hãy xác minh email hoặc bật xác thực hai yếu tố trước."
+    },
+    "securityDialog": {
+      "common": {
+        "cancel": "Hủy",
+        "save": "Lưu",
+        "saving": "Đang lưu",
+        "sending": "Đang gửi",
+        "sendCode": "Gửi",
+        "resendIn": "Gửi lại sau {seconds}s",
+        "processing": "Đang xử lý",
+        "done": "Xong",
+        "verify": "Xác minh",
+        "continue": "Tiếp tục",
+        "back": "Quay lại",
+        "debugCode": "Mã phát triển: {code}",
+        "copiedLabel": "Đã sao chép {label}",
+        "copyFailed": "Sao chép thất bại",
+        "copyManually": "Vui lòng tự chọn nội dung để sao chép."
+      },
+      "password": {
+        "title": {
+          "required": "Đặt mật khẩu đầu tiên",
+          "change": "Đổi mật khẩu",
+          "set": "Đặt mật khẩu"
+        },
+        "description": {
+          "required": "Bạn phải đổi mật khẩu ban đầu trước khi tiếp tục. Phiên này sẽ hết hạn sau khi thay đổi.",
+          "change": "Phiên hiện tại sẽ hết hạn sau khi đổi mật khẩu. Vui lòng đăng nhập lại bằng mật khẩu mới.",
+          "set": "Sau khi đặt mật khẩu, bạn có thể đăng nhập bằng tên người dùng và mật khẩu, đồng thời dùng nó làm phương thức xác thực dự phòng trước khi hủy liên kết nhà cung cấp danh tính."
+        },
+        "verificationTitle": "Xác minh việc đổi mật khẩu",
+        "verificationDescription": {
+          "twoFactor": "Nhập mã từ ứng dụng xác thực hoặc mã khôi phục để tiếp tục.",
+          "email": "Gửi mã đến email đã xác minh của bạn, sau đó nhập mã để tiếp tục."
+        },
+        "labels": {
+          "currentPassword": "Mật khẩu hiện tại",
+          "newPassword": "Mật khẩu mới",
+          "loginPassword": "Mật khẩu đăng nhập",
+          "twoFactorCode": "Mã xác thực hai yếu tố",
+          "emailCode": "Mã email"
+        },
+        "placeholders": {
+          "password": "Ít nhất 8 ký tự, không chỉ toàn chữ số",
+          "otpOrRecovery": "Mã hoặc mã khôi phục",
+          "sixDigitCode": "Mã 6 chữ số"
+        }
+      },
+      "email": {
+        "title": {
+          "set": "Đặt email",
+          "change": "Đổi email"
+        },
+        "description": {
+          "bootstrapVerified": "Việc đặt email đầu tiên yêu cầu xác minh quyền sở hữu địa chỉ mới.",
+          "saveOnly": "Địa chỉ email sẽ được cập nhật sau khi lưu.",
+          "change": "DEEIX Chat sẽ yêu cầu bước xác minh mà tài khoản của bạn cần trước khi lưu thay đổi này."
+        },
+        "labels": {
+          "newEmail": "Email mới"
+        }
+      },
+      "verification": {
+        "title": {
+          "emailBootstrap": "Xác minh email mới",
+          "emailChange": "Xác minh việc đổi email",
+          "currentEmail": "Xác minh email"
+        },
+        "description": {
+          "emailBootstrap": "Gửi mã đến địa chỉ email mới, sau đó nhập mã để lưu email.",
+          "emailChange": "Hoàn tất bước xác minh cần thiết trước khi lưu thay đổi email.",
+          "currentEmail": "Gửi mã đến {email}, sau đó nhập mã để đánh dấu địa chỉ này là đã xác minh."
+        },
+        "labels": {
+          "twoFactorCode": "Mã xác thực hai yếu tố",
+          "emailCode": "Mã email",
+          "currentEmailCode": "Mã email hiện tại",
+          "newEmail": "Email mới",
+          "newEmailCode": "Mã email mới",
+          "verificationCode": "Mã xác minh"
+        },
+        "placeholders": {
+          "otpOrRecovery": "Mã hoặc mã khôi phục",
+          "sixDigitCode": "Mã 6 chữ số"
+        },
+        "actions": {
+          "useEmail": "Dùng email thay thế",
+          "useTwoFactor": "Dùng xác thực hai yếu tố thay thế"
+        }
+      },
+      "twoFactor": {
+        "title": {
+          "setup": "Bật xác thực hai yếu tố",
+          "manage": "Quản lý xác thực hai yếu tố",
+          "recovery": "Lưu mã khôi phục"
+        },
+        "description": {
+          "setup": "Quét mã QR bằng ứng dụng xác thực hoặc nhập khóa thủ công.",
+          "manage": "Nhập mã hoặc mã khôi phục để tiếp tục.",
+          "recovery": "Mã khôi phục chỉ hiển thị một lần. Hãy lưu chúng ở nơi an toàn."
+        },
+        "tabs": {
+          "qr": "Mã QR",
+          "manual": "Thiết lập thủ công"
+        },
+        "errors": {
+          "codeRequired": "Vui lòng nhập mã xác minh."
+        },
+        "qrLabel": "Mã QR xác thực hai yếu tố",
+        "setupExpired": "Phiên thiết lập này đã hết hạn.",
+        "qrUnavailable": "Mã QR không khả dụng. Hãy dùng khóa thủ công thay thế.",
+        "scanThenVerify": "Quét mã, sau đó nhập mã xác minh để hoàn tất thiết lập.",
+        "regenerate": "Tạo lại",
+        "validUntil": "Hiệu lực đến {time}",
+        "secret": "Khóa bí mật",
+        "copySecret": "Sao chép khóa bí mật",
+        "otpAuthUri": "OTP Auth URI",
+        "copyOtpUri": "Sao chép URI",
+        "code": "Mã xác minh",
+        "sixDigitCode": "Mã 6 chữ số",
+        "codeOrRecovery": "Mã xác minh hoặc mã khôi phục",
+        "regenerateRecoveryCodes": "Tạo lại mã",
+        "recoveryCodes": "Mã khôi phục",
+        "copyRecoveryCodes": "Sao chép mã",
+        "enable": "Bật",
+        "disable": "Tắt"
+      }
+    },
+    "toasts": {
+      "retryLater": "Vui lòng thử lại sau.",
+      "sessionMissing": "Không tìm thấy phiên hoạt động nào.",
+      "loadFailed": "Không thể tải thông tin tài khoản",
+      "publicIDCopied": "Đã sao chép ID công khai",
+      "copyFailed": "Sao chép thất bại",
+      "codeSent": "Đã gửi mã xác minh",
+      "sendCodeFailed": "Không thể gửi mã xác minh",
+      "passwordChanged": "Đã đổi mật khẩu",
+      "passwordChangedDescription": "Vui lòng đăng nhập lại bằng mật khẩu mới.",
+      "changePasswordFailed": "Không thể đổi mật khẩu",
+      "emailSet": "Đã đặt email",
+      "setEmailFailed": "Không thể đặt email",
+      "emailVerified": "Đã xác minh email",
+      "verifyEmailFailed": "Không thể xác minh email",
+      "currentEmailCodeSent": "Đã gửi mã xác minh email hiện tại",
+      "newEmailCodeSent": "Đã gửi mã xác minh email mới",
+      "deleteAccountCodeSent": "Đã gửi mã xóa tài khoản",
+      "emailChanged": "Đã đổi email",
+      "changeEmailFailed": "Không thể đổi email",
+      "deleteAccountFailed": "Không thể xóa tài khoản",
+      "sessionLoggedOut": "Đã đăng xuất phiên",
+      "logoutSessionFailed": "Không thể đăng xuất phiên",
+      "identityUnlinked": "Đã hủy liên kết nhà cung cấp danh tính",
+      "unlinkIdentityFailed": "Không thể hủy liên kết nhà cung cấp danh tính",
+      "startTwoFactorFailed": "Không thể bắt đầu thiết lập xác thực hai yếu tố",
+      "twoFactorEnabled": "Đã bật xác thực hai yếu tố",
+      "enableTwoFactorFailed": "Không thể bật xác thực hai yếu tố",
+      "twoFactorDisabled": "Đã tắt xác thực hai yếu tố",
+      "disableTwoFactorFailed": "Không thể tắt xác thực hai yếu tố",
+      "recoveryCodesRegenerated": "Đã tạo lại mã khôi phục",
+      "regenerateRecoveryCodesFailed": "Không thể tạo lại mã khôi phục",
+      "providerUnavailable": "Nhà cung cấp danh tính này không khả dụng để liên kết.",
+      "bindIdentityFailed": "Không thể liên kết nhà cung cấp danh tính"
+    }
+  },
+  "chatPage": {
+    "defaultModel": {
+      "sectionTitle": "Cơ bản về hội thoại",
+      "title": "Model mặc định cho chat mới",
+      "description": "Model được chọn sẵn cho các chat mới. Để trống để dùng model đầu tiên do hệ thống đề xuất.",
+      "systemRecommended": "Mặc định của hệ thống",
+      "autoTitle": "Tự động tạo tiêu đề",
+      "autoTitleDescription": "Khi tắt, các chat mới sẽ dùng 16 ký tự đầu tiên của tin nhắn đầu tiên làm tiêu đề.",
+      "autoLabels": "Tự động tạo nhãn",
+      "autoLabelsDescription": "Khi tắt, nhãn hội thoại sẽ không còn được tạo tự động, giúp giảm số lần gọi model phụ trợ và lượng token tương ứng."
+    },
+    "input": {
+      "sectionTitle": "Nhập liệu và gửi",
+      "shortcutTitle": "Phím tắt gửi",
+      "shortcutDescription": "Nền tảng này dùng {shortcut} để gửi tin nhắn.",
+      "heightTitle": "Chiều cao vùng nhập liệu",
+      "heightDescription": "Kiểm soát chiều cao tối đa cho phép khi ô nhập tự động mở rộng.",
+      "height": {
+        "compact": "Gọn",
+        "standard": "Tiêu chuẩn",
+        "loose": "Rộng"
+      },
+      "restoreDraftTitle": "Khôi phục bản nháp khi gửi thất bại",
+      "restoreDraftDescription": "Kiểm soát việc có tự động khôi phục văn bản và tệp đính kèm từ lần gửi thất bại hay không.",
+      "preserveDraftTitle": "Giữ bản nháp hội thoại",
+      "preserveDraftDescription": "Kiểm soát việc giữ lại và khôi phục nội dung chưa gửi khi chuyển giữa các hội thoại.",
+      "reuseModelOptionsTitle": "Tái sử dụng cấu hình model",
+      "reuseModelOptionsDescription": "Khi bật, các chat mới dùng cùng model sẽ tự động điền bộ tham số model đã dùng lần gần nhất.",
+      "deleteFilesDefaultTitle": "Mặc định xóa tệp khi xóa chat",
+      "deleteFilesDefaultDescription": "Khi bật, hộp xác nhận xóa sẽ chọn sẵn việc xóa tệp. Các tệp vẫn được hội thoại khác tham chiếu sẽ được giữ lại."
+    },
+    "display": {
+      "sectionTitle": "Hiển thị và kết xuất",
+      "markdownTitle": "Kết xuất Markdown",
+      "markdownDescription": "Kiểm soát việc phản hồi AI có được kết xuất dưới dạng Markdown có định dạng hay không.",
+      "modelTitle": "Hiển thị model được gọi",
+      "modelDescription": "Kiểm soát việc hiển thị model đã dùng cho lượt gọi bên dưới các phản hồi AI.",
+      "tokenTitle": "Hiển thị mức dùng token",
+      "tokenDescription": "Kiểm soát việc hiển thị mức dùng token của yêu cầu bên dưới các phản hồi AI.",
+      "latencyTitle": "Hiển thị độ trễ tổng",
+      "latencyDescription": "Kiểm soát việc hiển thị độ trễ tổng của lượt gọi bên dưới các phản hồi AI.",
+      "costTitle": "Hiển thị tổng chi phí",
+      "costDescription": "Kiểm soát việc hiển thị tổng chi phí của lượt gọi bên dưới các phản hồi AI.",
+      "costDescriptionSelfMode": "Kiểm soát việc hiển thị tổng chi phí của lượt gọi bên dưới các phản hồi AI. Bị ẩn ở chế độ tự dùng.",
+      "widthTitle": "Chiều rộng vùng chat",
+      "width": {
+        "compact": "Gọn",
+        "standard": "Tiêu chuẩn",
+        "wide": "Rộng"
+      },
+      "chatFont": "Phông chữ chat",
+      "chatFontWeight": "Độ đậm phông chữ chat",
+      "font": {
+        "default": "Mặc định",
+        "songti": "Serif",
+        "heiti": "Sans",
+        "mono": "Mono"
+      },
+      "fontWeight": {
+        "regular": "Thường",
+        "medium": "Vừa",
+        "semibold": "Nửa đậm",
+        "bold": "Đậm"
+      }
+    },
+    "context": {
+      "sectionTitle": "Quản lý ngữ cảnh",
+      "autoCompactTitle": "Tự động nén ngữ cảnh",
+      "autoCompactDescription": "Khi hội thoại vượt ngưỡng số lượt hoặc token, hệ thống sẽ tóm tắt các tin nhắn trước đó và giữ nguyên các lượt gần nhất để thu nhỏ ngữ cảnh. Tắt tùy chọn này để vô hiệu hóa nén ngữ cảnh tự động.",
+      "reasoningPassbackTitle": "Truyền lại ngữ cảnh suy luận",
+      "reasoningPassbackDescription": "Khi bật, các model suy luận hỗ trợ Chat Completions sẽ đưa nội dung suy luận trước đó vào các lượt tiếp theo để cải thiện tính liền mạch trong chuỗi nhiều bước."
+    },
+    "file": {
+      "sectionTitle": "Xử lý tệp",
+      "modeTitle": "Chế độ xử lý tệp",
+      "mode": {
+        "auto": "Tự động",
+        "fullContext": "Toàn bộ ngữ cảnh",
+        "rag": "Truy xuất vector"
+      },
+      "modeDescription": {
+        "auto": "Hiện tại: Tự động. Hệ thống chọn giữa chèn toàn bộ ngữ cảnh hoặc RAG dựa trên kích thước tệp, loại tệp, ngân sách ngữ cảnh và khả năng truy xuất.",
+        "fullContext": "Hiện tại: Toàn bộ ngữ cảnh. Các lượt sau sẽ cố đưa trực tiếp nội dung tệp trong hội thoại vào, phù hợp nhất khi phân tích chính xác các tệp nhỏ.",
+        "rag": "Hiện tại: RAG. Các lượt sau sẽ truy xuất trước các đoạn tệp liên quan, rồi quay về chèn toàn bộ ngữ cảnh khi truy xuất không khả dụng."
+      }
+    },
+    "memory": {
+      "sectionTitle": "Ghi nhớ tùy chọn AI",
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "delete": "Xóa",
+      "edit": "Sửa tùy chọn",
+      "confirmDelete": "Xóa tùy chọn này?",
+      "separator": ": ",
+      "addTitle": "Thêm tùy chọn",
+      "addDescription": "Các tùy chọn đã lưu được dùng làm định hướng dài hạn cho phản hồi AI.",
+      "name": "Tên",
+      "namePlaceholder": "Ví dụ: Phong cách trả lời",
+      "content": "Nội dung tùy chọn",
+      "contentPlaceholder": "Ví dụ: ngắn gọn và đi thẳng vào vấn đề, tránh lời thừa",
+      "adding": "Đang thêm",
+      "add": "Thêm",
+      "added": "Đã thêm tùy chọn",
+      "addFailed": "Không thể thêm tùy chọn",
+      "updated": "Đã cập nhật",
+      "updateFailed": "Không thể cập nhật",
+      "deleted": "Đã xóa",
+      "deleteFailed": "Không thể xóa",
+      "full": "Đầy đủ",
+      "addPreference": "Thêm tùy chọn",
+      "empty": "Chưa có ghi nhớ tùy chọn nào."
+    },
+    "toasts": {
+      "saveFailed": "Lưu thất bại",
+      "retryLater": "Vui lòng thử lại sau."
+    }
+  },
+  "subscriptionPage": {
+    "title": "Gói đăng ký",
+    "actions": {
+      "cancel": "Hủy",
+      "processing": "Đang xử lý"
+    },
+    "interval": {
+      "lifetime": "trọn đời",
+      "year": "năm",
+      "month": "tháng"
+    },
+    "currentSubscription": {
+      "title": "Gói đăng ký hiện tại",
+      "none": "Chưa có gói đăng ký",
+      "empty": "Không có gói đăng ký nào khả dụng.",
+      "subscribe": "Đăng ký"
+    },
+    "periodUsage": {
+      "title": "Mức dùng của gói",
+      "currentPeriod": "Kỳ thanh toán hiện tại",
+      "used": "Đã dùng {value}",
+      "total": "Tổng {value}"
+    },
+    "periodOverage": {
+      "title": "Thanh toán phần vượt mức",
+      "balance": "Số dư khả dụng {value}"
+    },
+    "entitlements": {
+      "title": "Quyền lợi gói đăng ký",
+      "count": "{count} phân đoạn",
+      "current": "Hiện tại",
+      "upcoming": "Sắp tới",
+      "range": "{start} - {end}",
+      "credit": "{credit} tín dụng"
+    },
+    "usageBilling": {
+      "title": "Thanh toán theo mức dùng",
+      "balance": "Số dư tài khoản {value}",
+      "topUp": "Nạp tiền"
+    },
+    "selfMode": {
+      "title": "Chế độ thanh toán",
+      "value": "Chế độ tự dùng"
+    },
+    "usageTrend": {
+      "dailyTitle": "Xu hướng mức dùng theo ngày",
+      "monthlyTitle": "Xu hướng mức dùng theo tháng",
+      "daily": "Theo ngày",
+      "monthly": "Theo tháng",
+      "dailyUsage": "Mức dùng theo ngày",
+      "monthlyUsage": "Mức dùng theo tháng",
+      "otherModels": "Khác",
+      "empty": "Không có dữ liệu mức dùng.",
+      "metrics": {
+        "totalCost": "Tổng chi phí",
+        "totalTokens": "Tổng token",
+        "totalCalls": "Tổng số lượt gọi",
+        "averageLatency": "Độ trễ trung bình"
+      },
+      "tooltip": {
+        "cost": "Chi phí",
+        "calls": "Lượt gọi",
+        "latency": "Độ trễ trung bình"
+      }
+    },
+    "usageLog": {
+      "title": "Nhật ký mức dùng",
+      "searchModel": "Tìm kiếm model",
+      "type": "Loại",
+      "filters": {
+        "all": "Tất cả",
+        "free": "Model miễn phí",
+        "billable": "Model tính phí"
+      },
+      "sort": {
+        "newest": "Lượt gọi mới nhất",
+        "oldest": "Lượt gọi cũ nhất",
+        "tokensDesc": "Nhiều token nhất",
+        "costDesc": "Chi phí cao nhất",
+        "latencyDesc": "Độ trễ lâu nhất"
+      },
+      "columns": {
+        "time": "Thời gian",
+        "model": "Model",
+        "baseBilling": "Thanh toán cơ bản",
+        "serviceBilling": "Thanh toán dịch vụ",
+        "balanceAfter": "Số dư sau quyết toán",
+        "latency": "Độ trễ"
+      },
+      "empty": "Không có nhật ký mức dùng."
+    },
+    "billingTooltip": {
+      "cacheWrite": "Ghi cache",
+      "cacheWrite5m": "Ghi cache 5 phút",
+      "cacheWrite1h": "Ghi cache 1 giờ",
+      "cacheWrite5m1h": "Ghi cache 5 phút/1 giờ",
+      "cacheWritePricingLabel": "Ghi cache 5 phút",
+      "cacheWritePricingNote": "Đọc cache của Claude dùng mức giá đã cấu hình; ghi cache 5 phút nhân 1.25x, 1 giờ nhân 2x, và Fast Mode nhân thêm 6x nữa.",
+      "claudeCacheWriteMixedNote": "Ghi cache của Claude dùng mức giá đã cấu hình với hệ số {multiplier}.",
+      "claudeCacheWriteNote": "Ghi cache {timeout} của Claude dùng mức giá đã cấu hình với hệ số {multiplier}.",
+      "claudeFastModeNote": "Claude Fast Mode tính phí input, output và mức dùng cache với hệ số {multiplier}.",
+      "openaiServiceTierNote": "OpenAI service_tier={tier} được tính phí với hệ số {multiplier}.",
+      "baseService": "Dịch vụ cơ bản",
+      "input": "Input",
+      "output": "Output",
+      "cacheRead": "Đọc cache",
+      "rateNote": "Hệ số nhân",
+      "cacheNote": "Cache",
+      "total": "Tổng",
+      "subtotal": "Tạm tính",
+      "freeModelNoBilling": "model miễn phí, không tính phí",
+      "perCall": "Mỗi lượt gọi",
+      "perSecond": "Mỗi giây",
+      "callUnit": "lượt gọi",
+      "secondUnit": "giây",
+      "tieredRangeBounded": "Khoảng input gốc {from}-{upTo}",
+      "tieredRangeOpen": "Khoảng input gốc {from}+",
+      "table": {
+        "item": "Khoản thanh toán",
+        "usage": "Mức dùng",
+        "unitPrice": "Đơn giá",
+        "amount": "Thành tiền"
+      }
+    },
+    "plans": {
+      "title": "Các gói đăng ký",
+      "actions": {
+        "current": "Gói hiện tại",
+        "unavailable": "Không khả dụng",
+        "renew": "Gia hạn",
+        "subscribe": "Đăng ký",
+        "switch": "Chuyển",
+        "upgrade": "Nâng cấp",
+        "freeBlocked": "Gói cơ bản"
+      },
+      "features": {
+        "monthlyCredit": "{credit} tín dụng mỗi tháng",
+        "freeModelsNotIncluded": "Model miễn phí không tính vào tín dụng."
+      }
+    },
+    "payment": {
+      "title": "Phương thức thanh toán",
+      "renewTitle": "Gia hạn gói đăng ký",
+      "upgradeTitle": "Nâng cấp gói đăng ký",
+      "description": "Xác nhận phương thức thanh toán để tiếp tục.",
+      "renewDescription": "Việc gia hạn sẽ cộng thêm thời gian cho gói hiện tại của bạn.",
+      "renewAfterHigherDescription": "Việc này sẽ gia hạn bằng gói đã chọn. Quyền lợi và tín dụng ở bậc cao hơn hiện tại của bạn vẫn giữ nguyên, và gói mới bắt đầu sau khi quyền lợi ở bậc cao hơn kết thúc.",
+      "upgradeDescription": "Gói cao hơn bắt đầu ngay lập tức và phần quyền lợi chưa dùng sẽ được bảo lưu sau đó.",
+      "method": "Phương thức thanh toán",
+      "card": "Thẻ",
+      "disabled": "Đã tắt",
+      "continue": "Tiếp tục",
+      "epay": {
+        "alipay": "Alipay",
+        "wxpay": "WeChat Pay",
+        "qqpay": "QQ Wallet",
+        "custom": "Tùy chỉnh · {type}"
+      }
+    },
+    "topUp": {
+      "title": "Nạp tiền",
+      "description": "Nhập số tiền nạp và xác nhận phương thức thanh toán.",
+      "currentBalance": "Số dư hiện tại {value}",
+      "amount": "Số tiền nạp",
+      "amountAria": "Số tiền nạp",
+      "confirm": "Nạp tiền"
+    },
+    "redemption": {
+      "open": "Đổi mã",
+      "title": "Mã đổi thưởng",
+      "description": "Nhập mã đổi thưởng do quản trị viên cung cấp.",
+      "code": "Mã đổi thưởng",
+      "confirm": "Đổi mã"
+    },
+    "toasts": {
+      "retryLater": "Vui lòng thử lại sau.",
+      "subscriptionLoadFailed": "Không thể tải thông tin gói đăng ký",
+      "usageLogLoadFailed": "Không thể tải nhật ký mức dùng",
+      "checkoutCreateFailed": "Không thể tạo thanh toán",
+      "checkoutURLMissing": "Nhà cung cấp thanh toán không trả về URL checkout.",
+      "planUpdated": "Đã cập nhật gói đăng ký",
+      "subscribeFailed": "Đăng ký thất bại",
+      "invalidTopUpAmount": "Số tiền nạp không hợp lệ",
+      "invalidTopUpAmountDescription": "Nhập số tiền USD lớn hơn 0.",
+      "planUnavailable": "Gói không khả dụng",
+      "planUnavailableDescription": "Gói này chưa có mức giá khả dụng. Hãy nhờ quản trị viên kiểm tra cấu hình thanh toán.",
+      "paymentDisabled": "Nhà cung cấp thanh toán đang bị tắt",
+      "paymentDisabledDescription": "Hãy cấu hình nhà cung cấp thanh toán trong bảng điều khiển quản trị trước khi đăng ký gói trả phí.",
+      "freeSwitchBlocked": "Quyền lợi đăng ký trả phí còn hiệu lực",
+      "freeSwitchBlockedDescription": "Bạn không thể chuyển sang gói Miễn phí trước khi quyền lợi trả phí hết hạn. Hãy gia hạn hoặc chọn một gói trả phí khác.",
+      "noPlanSelected": "Chưa chọn gói",
+      "noPlanSelectedDescription": "Hãy chọn một gói trước khi đăng ký.",
+      "invalidRedemptionCode": "Vui lòng nhập mã đổi thưởng.",
+      "redemptionSucceeded": "Đã áp dụng mã đổi thưởng",
+      "redemptionFailed": "Đổi mã thất bại"
+    }
+  }
+}

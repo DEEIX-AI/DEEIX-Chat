@@ -858,7 +858,7 @@ func normalizeLocale(raw string) (string, error) {
 	}
 	normalized := strings.ReplaceAll(trimmed, "_", "-")
 	switch normalized {
-	case "en", "en-US", "zh", "zh-CN":
+	case "en", "en-US", "zh", "zh-CN", "vi", "vi-VN":
 		return normalized, nil
 	default:
 		return "", ErrInvalidLocale

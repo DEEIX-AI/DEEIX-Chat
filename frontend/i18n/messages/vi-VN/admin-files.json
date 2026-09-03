@@ -1,0 +1,480 @@
+{
+  "groups": {
+    "uploadLimits": {
+      "title": "Upload limits",
+      "description": "Controls attachment count, MIME allowlist, and file size limits for chat messages."
+    },
+    "extraction": {
+      "title": "Content extraction",
+      "description": "Controls the primary extraction pipeline, shared OCR engine, and OCR activation scope."
+    },
+    "fullContext": {
+      "title": "Full-text injection",
+      "description": "Controls whether extracted file text can be injected directly into context instead of using RAG."
+    },
+    "embedding": {
+      "title": "Vector retrieval",
+      "description": "Configures whether the external Embedding service is enabled. Changing the model marks old vectors stale."
+    },
+    "semantic": {
+      "title": "Semantic enhancement",
+      "description": "Semantic recall for historical messages based on vector retrieval. Requires message embedding to be ready."
+    },
+    "rag": {
+      "title": "RAG",
+      "description": "Controls retrieval, similarity thresholds, injection budget, and readiness wait strategy."
+    }
+  },
+  "runtime": {
+    "address": "Address",
+    "testConnection": "Test connection"
+  },
+  "embeddingStatus": {
+    "title": "Vector index status",
+    "noSignature": "No signature yet. It is computed automatically after the first save.",
+    "reindex": "Rebuild index",
+    "reindexing": "Rebuilding...",
+    "ready": "Ready",
+    "stale": "Stale",
+    "pending": "Pending",
+    "failed": "Failed",
+    "empty": "No index data yet. This appears after the embedding service is configured.",
+    "needsReindex": "Stale vectors detected. Rebuild the index to restore retrieval quality."
+  },
+  "toast": {
+    "sessionExpired": "Your session has expired.",
+    "sessionExpiredDescription": "Please sign in again to continue.",
+    "unknownError": "Request failed. Please try again later.",
+    "cannotEnable": "Cannot enable",
+    "saveFailed": "Could not save file settings",
+    "loadFailed": "Failed to load file settings",
+    "serviceTestFailed": "{service} test failed",
+    "reindexSubmitted": "Index rebuild submitted",
+    "reindexSubmittedDescription": "{count} files submitted for background reindexing.",
+    "reindexFailed": "Failed to rebuild index",
+    "embeddingModelChanged": "Embedding model changed",
+    "embeddingModelChangedDescription": "Existing vectors were marked stale. Rebuild the index in the status panel to vectorize all files again.",
+    "mimeTypesUpdated": "Attachment MIME allowlist updated",
+    "groupUpdated": "{group} updated"
+  },
+  "mineruMimeHint": {
+    "missing": "Upload allowlist is missing MIME types required for selected MinerU formats: {formats}.",
+    "addAndSave": "Add and save missing MIME types"
+  },
+  "validation": {
+    "embeddingRequired": "Enable vector retrieval and configure both the Embedding service URL and model first.",
+    "messageEmbeddingRequired": "Enable message embedding first.",
+    "messageEmbeddingRequiredBeforeSemantic": "Enable message embedding before semantic context recall.",
+    "tikaBaseURLRequired": "Tika service URL is required.",
+    "doclingBaseURLRequired": "Docling service URL is required.",
+    "mineruBaseURLRequired": "MinerU service URL is required.",
+    "tesseractBaseURLRequired": "Tesseract OCR service URL is required.",
+    "rapidOCRBaseURLRequired": "Rapid OCR service URL is required.",
+    "paddleOCRBaseURLRequired": "Paddle OCR service URL is required.",
+    "tencentOCRRequired": "Tencent Cloud OCR SecretId, SecretKey, and region are required.",
+    "aliyunOCRRequired": "Alibaba Cloud OCR AccessKey ID, AccessKey Secret, and region are required.",
+    "mistralOCRBaseURLRequired": "Mistral OCR service URL is required.",
+    "mistralOCRAPIKeyRequired": "Mistral OCR API key is required.",
+    "mistralOCRModelRequired": "Mistral OCR model is required.",
+    "llmOCRBaseURLRequired": "LLM OCR service URL is required.",
+    "llmOCRModelRequired": "LLM OCR model is required.",
+    "embeddingModelRequired": "Embedding model is required.",
+    "embeddingHostRequired": "Embedding service URL is required."
+  },
+  "fields": {
+    "storage": {
+      "max_message_files": {
+        "label": "Attachment limit",
+        "description": "Maximum number of attachments allowed in one chat message.",
+        "placeholder": "Enter a count"
+      },
+      "max_upload_file_bytes": {
+        "label": "Default size limit",
+        "description": "Default size limit for a single attachment. The UI uses MB.",
+        "placeholder": "Size limit (MB)"
+      },
+      "user_storage_quota_bytes": {
+        "label": "User storage quota",
+        "description": "Maximum total file storage per user. The UI uses MB; set 0 for unlimited.",
+        "placeholder": "0 for unlimited"
+      }
+    },
+    "file": {
+      "allowed_mime_types": {
+        "label": "Attachment MIME allowlist",
+        "description": "Allowed attachment MIME types. Separate multiple values with commas.",
+        "placeholder": "MIME types, comma separated"
+      },
+      "image_max_bytes": {
+        "label": "Image size limit",
+        "description": "Override the size limit for image attachments. The UI uses MB; leave empty to use the default attachment limit.",
+        "placeholder": "Leave empty to use the default attachment limit"
+      },
+      "doc_max_bytes": {
+        "label": "Document size limit",
+        "description": "Override the size limit for document attachments. The UI uses MB; leave empty to use the default attachment limit.",
+        "placeholder": "Leave empty to use the default attachment limit"
+      },
+      "full_context_limit_enabled": {
+        "label": "Full-text injection limits",
+        "description": "When enabled, full-text injection is limited by size in MB, token budget, and PDF pages. When disabled, these limits are ignored."
+      },
+      "file_full_context_max_bytes": {
+        "label": "Full-text size limit",
+        "description": "Maximum extracted text size allowed for full-context injection. The UI uses MB; leave empty or use 0 for no size limit.",
+        "placeholder": "Size limit (MB); empty or 0 means unlimited"
+      },
+      "full_context_max_tokens": {
+        "label": "Full-text token limit",
+        "description": "Maximum token budget allowed for full-context injection. Leave empty or use 0 for no token limit.",
+        "placeholder": "Empty or 0 means unlimited"
+      },
+      "full_context_pdf_max_pages": {
+        "label": "Full-text page limit",
+        "description": "Maximum PDF pages allowed for full-context injection. Leave empty or use 0 for no page limit.",
+        "placeholder": "Empty or 0 means unlimited"
+      },
+      "embedding_enabled": {
+        "label": "Enable Embedding",
+        "description": "Enable file vectorization and vector retrieval. Related pipelines are disabled when this is off."
+      },
+      "embedding_host": {
+        "label": "Embedding service URL *",
+        "description": "Embedding service URL. The service must be compatible with the OpenAI /embeddings API.",
+        "placeholder": "Service URL"
+      },
+      "embedding_key": {
+        "label": "Embedding auth key",
+        "description": "Auth key used when calling the Embedding service.",
+        "placeholder": "Auth key"
+      },
+      "rag_model": {
+        "label": "Embedding model *",
+        "description": "Model name used for vectorization.",
+        "placeholder": "Model name"
+      },
+      "embedding_timeout_seconds": {
+        "label": "Embedding timeout",
+        "description": "Maximum wait time for one Embedding API request, in seconds.",
+        "placeholder": "Timeout (seconds)"
+      },
+      "embedding_output_dimensions": {
+        "label": "Vector dimensions",
+        "description": "Vector dimensions used consistently for storage and retrieval.",
+        "placeholder": "Vector dimensions"
+      },
+      "embedding_normalize": {
+        "label": "Normalize vectors",
+        "description": "Normalize vectors before storage and retrieval."
+      },
+      "embed_trigger_on_upload": {
+        "label": "Auto-vectorize",
+        "description": "Trigger Embedding asynchronously after file upload completes."
+      },
+      "embed_batch_size": {
+        "label": "Batch size",
+        "description": "Number of text chunks sent in one Embedding API request.",
+        "placeholder": "Batch size"
+      },
+      "embed_chunk_size_tokens": {
+        "label": "Chunk size",
+        "description": "Document vectorization chunk size, estimated by tokens.",
+        "placeholder": "Chunk size (tokens)"
+      },
+      "embed_chunk_overlap_tokens": {
+        "label": "Chunk overlap",
+        "description": "Token overlap between adjacent chunks.",
+        "placeholder": "Chunk overlap (tokens)"
+      },
+      "rag_top_k": {
+        "label": "Retrieved chunks",
+        "description": "Number of RAG chunks returned and injected.",
+        "placeholder": "Chunk count"
+      }
+    },
+    "extract": {
+      "engine": {
+        "label": "Extraction engine",
+        "description": "Primary engine used for file content extraction.",
+        "options": {
+          "builtin": "Built-in",
+          "tika": "Tika",
+          "docling": "Docling",
+          "mineru": "MinerU"
+        }
+      },
+      "tika_base_url": {
+        "label": "Tika service URL *",
+        "description": "Apache Tika service URL.",
+        "placeholder": "Service URL"
+      },
+      "tika_auth_token": {
+        "label": "Tika auth key",
+        "description": "Auth key sent when calling the Tika service.",
+        "placeholder": "Auth key (optional)"
+      },
+      "tika_timeout_seconds": {
+        "label": "Tika timeout",
+        "description": "Maximum wait time for one Tika parsing request, in seconds.",
+        "placeholder": "Timeout (seconds)"
+      },
+      "docling_base_url": {
+        "label": "Docling service URL *",
+        "description": "Docling service URL.",
+        "placeholder": "Service URL"
+      },
+      "docling_auth_token": {
+        "label": "Docling auth key",
+        "description": "Auth key sent when calling the Docling service.",
+        "placeholder": "Auth key (optional)"
+      },
+      "docling_timeout_seconds": {
+        "label": "Docling timeout",
+        "description": "Maximum wait time for one Docling parsing request, in seconds.",
+        "placeholder": "Timeout (seconds)"
+      },
+      "mineru_source": {
+        "label": "MinerU service type",
+        "description": "Choose MinerU cloud service or a self-hosted service.",
+        "options": {
+          "cloud": "Cloud",
+          "self_hosted": "Self-hosted"
+        }
+      },
+      "mineru_base_url": {
+        "label": "MinerU service URL *",
+        "description": "MinerU service URL.",
+        "placeholder": "Service URL"
+      },
+      "mineru_file_types": {
+        "label": "MinerU file types",
+        "description": "Select file categories sent to MinerU.",
+        "options": {
+          "pdf": "PDF",
+          "word": "Word",
+          "presentation": "PowerPoint",
+          "excel": "Excel"
+        }
+      },
+      "mineru_auth_token": {
+        "label": "MinerU auth key",
+        "description": "Token or API key used when calling MinerU.",
+        "placeholder": "Auth key (optional)"
+      },
+      "mineru_timeout_seconds": {
+        "label": "MinerU timeout",
+        "description": "Maximum wait time for one MinerU parsing request, in seconds.",
+        "placeholder": "Timeout (seconds)"
+      },
+      "image_ocr_enabled": {
+        "label": "Image OCR",
+        "description": "Send image attachments through OCR and generate text for retrieval."
+      },
+      "pdf_ocr_fallback_enabled": {
+        "label": "PDF OCR fallback",
+        "description": "Use OCR fallback when native PDF text extraction fails or has poor quality."
+      },
+      "ocr_engine": {
+        "label": "OCR engine",
+        "description": "Shared OCR engine for image OCR and PDF OCR fallback.",
+        "options": {
+          "rapidocr": "Rapid OCR",
+          "tesseract": "Tesseract OCR",
+          "paddle": "Paddle OCR",
+          "tencent": "Tencent Cloud OCR",
+          "aliyun": "Alibaba Cloud OCR",
+          "mistral": "Mistral OCR",
+          "llm": "LLM OCR"
+        }
+      },
+      "tesseract_ocr_base_url": {
+        "label": "Tesseract OCR service URL *",
+        "description": "Tesseract OCR service URL.",
+        "placeholder": "Service URL"
+      },
+      "tesseract_ocr_auth_token": {
+        "label": "Tesseract OCR auth key",
+        "description": "Auth key sent when calling Tesseract OCR.",
+        "placeholder": "Auth key (optional)"
+      },
+      "tesseract_ocr_timeout_seconds": {
+        "label": "Tesseract OCR timeout",
+        "description": "Maximum wait time for one Tesseract OCR request, in seconds.",
+        "placeholder": "Timeout (seconds)"
+      },
+      "rapidocr_base_url": {
+        "label": "Rapid OCR service URL *",
+        "description": "Rapid OCR service URL.",
+        "placeholder": "Service URL"
+      },
+      "rapidocr_auth_token": {
+        "label": "Rapid OCR auth key",
+        "description": "Auth key sent when calling Rapid OCR.",
+        "placeholder": "Auth key (optional)"
+      },
+      "rapidocr_timeout_seconds": {
+        "label": "Rapid OCR timeout",
+        "description": "Maximum wait time for one Rapid OCR request, in seconds.",
+        "placeholder": "Timeout (seconds)"
+      },
+      "paddle_ocr_base_url": {
+        "label": "Paddle OCR service URL *",
+        "description": "Paddle OCR service URL.",
+        "placeholder": "Service URL"
+      },
+      "paddle_ocr_auth_token": {
+        "label": "Paddle OCR auth key",
+        "description": "Auth key sent when calling Paddle OCR.",
+        "placeholder": "Auth key (optional)"
+      },
+      "paddle_ocr_timeout_seconds": {
+        "label": "Paddle OCR timeout",
+        "description": "Maximum wait time for one Paddle OCR request, in seconds.",
+        "placeholder": "Timeout (seconds)"
+      },
+      "tencent_ocr_secret_id": {
+        "label": "Tencent Cloud SecretId *",
+        "description": "SecretId required for Tencent Cloud OCR API.",
+        "placeholder": "SecretId"
+      },
+      "tencent_ocr_secret_key": {
+        "label": "Tencent Cloud SecretKey *",
+        "description": "SecretKey required for Tencent Cloud OCR API.",
+        "placeholder": "SecretKey"
+      },
+      "tencent_ocr_region": {
+        "label": "Tencent Cloud region",
+        "description": "Request region for Tencent Cloud OCR API.",
+        "placeholder": "Region"
+      },
+      "tencent_ocr_endpoint": {
+        "label": "Tencent Cloud endpoint",
+        "description": "Endpoint for Tencent Cloud OCR API.",
+        "placeholder": "Endpoint"
+      },
+      "tencent_ocr_timeout_seconds": {
+        "label": "Tencent Cloud OCR timeout",
+        "description": "Maximum wait time for one Tencent Cloud OCR request, in seconds.",
+        "placeholder": "Timeout (seconds)"
+      },
+      "aliyun_ocr_access_key_id": {
+        "label": "Alibaba Cloud AccessKey ID *",
+        "description": "AccessKey ID required for Alibaba Cloud OCR API.",
+        "placeholder": "AccessKey ID"
+      },
+      "aliyun_ocr_access_key_secret": {
+        "label": "Alibaba Cloud AccessKey Secret *",
+        "description": "AccessKey Secret required for Alibaba Cloud OCR API.",
+        "placeholder": "AccessKey Secret"
+      },
+      "aliyun_ocr_region": {
+        "label": "Alibaba Cloud region",
+        "description": "Request region for Alibaba Cloud OCR API.",
+        "placeholder": "Region"
+      },
+      "aliyun_ocr_endpoint": {
+        "label": "Alibaba Cloud endpoint",
+        "description": "Endpoint for Alibaba Cloud OCR API.",
+        "placeholder": "Endpoint"
+      },
+      "aliyun_ocr_timeout_seconds": {
+        "label": "Alibaba Cloud OCR timeout",
+        "description": "Maximum wait time for one Alibaba Cloud OCR request, in seconds.",
+        "placeholder": "Timeout (seconds)"
+      },
+      "mistral_ocr_base_url": {
+        "label": "Mistral OCR service URL *",
+        "description": "Mistral OCR endpoint. Defaults to https://api.mistral.ai/v1/ocr.",
+        "placeholder": "https://api.mistral.ai/v1/ocr"
+      },
+      "mistral_ocr_auth_token": {
+        "label": "Mistral OCR API key *",
+        "description": "API key used when calling Mistral OCR.",
+        "placeholder": "API Key"
+      },
+      "mistral_ocr_model": {
+        "label": "Mistral OCR model *",
+        "description": "Mistral OCR model used for extraction.",
+        "placeholder": "mistral-ocr-latest"
+      },
+      "mistral_ocr_timeout_seconds": {
+        "label": "Mistral OCR timeout",
+        "description": "Maximum wait time for one Mistral OCR request, in seconds.",
+        "placeholder": "60"
+      },
+      "llm_ocr_base_url": {
+        "label": "LLM OCR service URL *",
+        "description": "OpenAI-compatible vision model service URL.",
+        "placeholder": "Service URL"
+      },
+      "llm_ocr_auth_token": {
+        "label": "LLM OCR auth key",
+        "description": "API key used when calling the LLM OCR service.",
+        "placeholder": "API Key (optional)"
+      },
+      "llm_ocr_model": {
+        "label": "LLM OCR model *",
+        "description": "Vision model name used for OCR.",
+        "placeholder": "Model name"
+      },
+      "llm_ocr_timeout_seconds": {
+        "label": "LLM OCR timeout",
+        "description": "Maximum wait time for one LLM OCR request, in seconds.",
+        "placeholder": "Timeout (seconds)"
+      },
+      "llm_ocr_prompt": {
+        "label": "LLM OCR prompt",
+        "description": "OCR instruction sent to the vision model.",
+        "placeholder": "Prompt (optional)"
+      }
+    },
+    "chat": {
+      "message_embedding_enabled": {
+        "label": "Message embedding",
+        "description": "Generate message vectors asynchronously after each conversation turn. Requires an available Embedding service."
+      },
+      "semantic_context_enabled": {
+        "label": "Semantic context recall",
+        "description": "Recall historically relevant snippets and inject them into context before sending a message."
+      },
+      "rag_enabled": {
+        "label": "RAG",
+        "description": "Allow files to enter the retrieval-augmented pipeline. Requires an available Embedding service."
+      },
+      "rag_min_similarity": {
+        "label": "Similarity threshold",
+        "description": "Minimum similarity threshold for injecting retrieved chunks.",
+        "placeholder": "Similarity threshold"
+      },
+      "rag_token_budget": {
+        "label": "Injected token budget",
+        "description": "Token budget available for injecting retrieved chunks into context.",
+        "placeholder": "Token budget"
+      },
+      "rag_fetch_multiplier": {
+        "label": "Fetch multiplier",
+        "description": "Multiplier for candidate retrieval. The system fetches extra candidates before reranking and filtering.",
+        "placeholder": "Fetch multiplier"
+      },
+      "rag_wait_ready_ms": {
+        "label": "Ready wait",
+        "description": "Maximum time to wait for vectorization before sending a request, in milliseconds.",
+        "placeholder": "Wait time (ms)"
+      },
+      "rag_query_history_turns": {
+        "label": "Query history turns",
+        "description": "Recent user turns included when generating the retrieval query.",
+        "placeholder": "History turns"
+      },
+      "rag_retrieval_cache_ttl_seconds": {
+        "label": "Retrieval cache TTL",
+        "description": "RAG retrieval result cache duration, in seconds.",
+        "placeholder": "Cache duration (seconds)"
+      },
+      "rag_hybrid_enabled": {
+        "label": "Hybrid retrieval (BM25 + vector)",
+        "description": "Run vector retrieval and full-text retrieval in parallel, then merge results with RRF."
+      }
+    }
+  }
+}

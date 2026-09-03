@@ -1,0 +1,72 @@
+{
+  "title": "Thông báo",
+  "description": "Quản lý thông báo, thay đổi model và thông điệp vận hành hiển thị sau khi đăng nhập.",
+  "create": "Tạo",
+  "edit": "Sửa",
+  "delete": "Xóa",
+  "enable": "Bật",
+  "disable": "Tắt",
+  "deleting": "Đang xóa",
+  "searchPlaceholder": "Tìm theo tiêu đề hoặc nội dung",
+  "statusFilter": "Trạng thái",
+  "allStatuses": "Tất cả",
+  "typeFilter": "Loại",
+  "allTypes": "Tất cả",
+  "pinnedFilter": "Ghim",
+  "allPinned": "Tất cả",
+  "createTitle": "Tạo thông báo",
+  "editTitle": "Sửa thông báo",
+  "dialogDescription": "Viết nội dung thông báo bằng Markdown. Nội dung cập nhật sẽ được hiển thị lại dưới dạng phiên bản mới.",
+  "deleteTitle": "Xóa thông báo",
+  "deleteDescription": "Thông báo đã xóa sẽ không còn hiển thị và không ảnh hưởng đến dữ liệu khác của người dùng.",
+  "empty": "Chưa có thông báo",
+  "previewEmpty": "Xem trước",
+  "status": {
+    "active": "Đang hoạt động",
+    "inactive": "Không hoạt động"
+  },
+  "pinned": {
+    "yes": "Đã ghim",
+    "no": "Chưa ghim"
+  },
+  "types": {
+    "critical": "Nghiêm trọng",
+    "warning": "Cảnh báo",
+    "info": "Thông tin",
+    "normal": "Bình thường",
+    "general": "Chung"
+  },
+  "columns": {
+    "title": "Thông báo",
+    "type": "Loại",
+    "pinned": "Ghim",
+    "status": "Trạng thái",
+    "priority": "Độ ưu tiên",
+    "window": "Thời gian hiển thị"
+  },
+  "fields": {
+    "title": "Tiêu đề",
+    "priority": "Độ ưu tiên",
+    "type": "Loại",
+    "pinned": "Ghim",
+    "status": "Trạng thái",
+    "timeRange": "Thời gian hiển thị",
+    "alwaysActive": "Luôn hoạt động",
+    "startsAt": "Bắt đầu",
+    "expiresAt": "Kết thúc",
+    "contentMarkdown": "Nội dung",
+    "preview": "Xem trước"
+  },
+  "toast": {
+    "loadFailed": "Không thể tải thông báo",
+    "invalid": "Vui lòng nhập tiêu đề và nội dung.",
+    "created": "Đã tạo thông báo",
+    "createFailed": "Không thể tạo thông báo",
+    "updated": "Đã cập nhật thông báo",
+    "updateFailed": "Không thể cập nhật thông báo",
+    "priorityInvalid": "Độ ưu tiên phải là số",
+    "statusFailed": "Không thể cập nhật trạng thái",
+    "deleted": "Đã xóa thông báo",
+    "deleteFailed": "Không thể xóa thông báo"
+  }
+}

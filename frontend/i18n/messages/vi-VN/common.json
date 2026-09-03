@@ -1,0 +1,155 @@
+{
+  "actions": {
+    "cancel": "Huỷ",
+    "confirm": "Xác nhận",
+    "save": "Lưu",
+    "saving": "Đang lưu",
+    "delete": "Xoá",
+    "edit": "Chỉnh sửa",
+    "close": "Đóng",
+    "copy": "Sao chép",
+    "copied": "Đã sao chép",
+    "retry": "Thử lại",
+    "refresh": "Làm mới",
+    "search": "Tìm kiếm",
+    "reset": "Đặt lại",
+    "create": "Tạo",
+    "update": "Cập nhật",
+    "open": "Mở",
+    "back": "Quay lại",
+    "continue": "Tiếp tục"
+  },
+  "states": {
+    "loading": "Đang tải",
+    "empty": "Không có gì để hiển thị",
+    "unknown": "Không xác định",
+    "active": "Đang hoạt động",
+    "inactive": "Không hoạt động",
+    "enabled": "Đã bật",
+    "disabled": "Đã tắt",
+    "unsaved": "Chưa lưu",
+    "success": "Thành công",
+    "failed": "Thất bại"
+  },
+  "locale": {
+    "label": "Ngôn ngữ",
+    "english": "English",
+    "chinese": "简体中文"
+  },
+  "errors": {
+    "unknown": "Đã xảy ra lỗi. Vui lòng thử lại sau.",
+    "sessionExpired": "Phiên của bạn đã hết hạn. Vui lòng đăng nhập lại.",
+    "copyFailed": "Sao chép thất bại. Vui lòng tự chọn nội dung để sao chép."
+  },
+  "navigation": {
+    "newChat": "Trò chuyện mới",
+    "search": "Tìm kiếm",
+    "recent": "Gần đây",
+    "files": "Tệp",
+    "knowledgeBases": "Cơ sở tri thức",
+    "skillsPrompt": "Kỹ năng & Prompt",
+    "searchTitle": "Tìm kiếm",
+    "searchDescription": "Tìm kiếm tiêu đề cuộc trò chuyện, nhãn, dự án và nội dung tin nhắn",
+    "searchPlaceholder": "Tìm cuộc trò chuyện hoặc nội dung tin nhắn",
+    "searchLoading": "Đang tìm kiếm...",
+    "searchLoadingMore": "Đang tải thêm cuộc trò chuyện...",
+    "searchLoadFailed": "Không thể tải cuộc trò chuyện",
+    "searchLoadMoreFailed": "Không thể tải thêm cuộc trò chuyện",
+    "searchEmpty": "Không có kết quả phù hợp",
+    "searchPreviewHint": "Di chuột lên một cuộc trò chuyện để xem trước các tin nhắn gần đây",
+    "searchPreviewLoading": "Đang tải tin nhắn gần đây...",
+    "searchPreviewLoadFailed": "Không thể tải tin nhắn gần đây",
+    "searchPreviewEmpty": "Cuộc trò chuyện này không có tin nhắn để xem trước",
+    "searchRoleUser": "Bạn",
+    "searchRoleAssistant": "Trợ lý",
+    "searchShortcutNavigate": "Di chuyển",
+    "searchShortcutOpen": "Mở",
+    "searchCompactView": "Chuyển sang danh sách gọn",
+    "searchPreviewView": "Hiện xem trước cuộc trò chuyện",
+    "sidebarTitle": "Thanh bên",
+    "mobileSidebarDescription": "Hiển thị thanh bên trên thiết bị di động.",
+    "openSidebar": "Mở thanh bên",
+    "toggleSidebar": "Bật/tắt thanh bên",
+    "settings": "Cài đặt",
+    "announcements": "Thông báo",
+    "language": "Ngôn ngữ",
+    "upgradePlan": "Nâng cấp gói",
+    "admin": "Quản trị",
+    "logout": "Đăng xuất",
+    "loggingOut": "Đang đăng xuất",
+    "fallbackUser": "Người dùng",
+    "today": "Hôm nay",
+    "archived": "Đã lưu trữ",
+    "yesterday": "Hôm qua"
+  },
+  "time": {
+    "todayTime": "{time}",
+    "thisYearDateTime": "{day}/{month} {time}",
+    "fullDateTime": "{day}/{month}/{year} {time}"
+  },
+  "table": {
+    "search": "Tìm kiếm",
+    "searchPlaceholder": "Từ khoá tìm kiếm",
+    "clearSearch": "Xoá tìm kiếm",
+    "filter": "Lọc",
+    "sort": "Sắp xếp",
+    "bulk": "Hàng loạt",
+    "refresh": "Làm mới",
+    "selectedItems": "Đã chọn {count}",
+    "pagination": "Tổng {total}, trang {page} / {pageCount}",
+    "pageSize": "{size} / trang",
+    "previousPage": "Trang trước",
+    "nextPage": "Trang sau"
+  },
+  "select": {
+    "placeholder": "Chọn",
+    "searchPlaceholder": "Tìm kiếm",
+    "empty": "Không có tuỳ chọn phù hợp"
+  },
+  "input": {
+    "configuredPasswordPlaceholder": "Đã cấu hình. Để trống nếu muốn giữ nguyên."
+  },
+  "runtime": {
+    "status": {
+      "available": "Khả dụng",
+      "running": "Đang chạy",
+      "restarting": "Đang khởi động lại",
+      "created": "Đã tạo",
+      "paused": "Đã tạm dừng",
+      "unhealthy": "Không ổn định",
+      "failed": "Thất bại",
+      "unavailable": "Không khả dụng",
+      "unconfigured": "Chưa cấu hình",
+      "stopped": "Đã dừng"
+    },
+    "detail": {
+      "status": "Trạng thái",
+      "connection": "Kết nối",
+      "reachable": "Có thể kết nối",
+      "unreachable": "Không thể kết nối",
+      "detail": "Chi tiết"
+    }
+  },
+  "modelSelect": {
+    "searchPlaceholder": "Tìm kiếm model",
+    "empty": "Không có model phù hợp"
+  },
+  "timeZoneSelect": {
+    "placeholder": "Chọn múi giờ",
+    "searchPlaceholder": "Tìm kiếm múi giờ",
+    "empty": "Không có múi giờ phù hợp"
+  },
+  "dateRange": {
+    "placeholder": "Chọn khoảng ngày",
+    "clear": "Xoá"
+  },
+  "jsonEditor": {
+    "errors": "{count} lỗi",
+    "format": "Định dạng",
+    "loading": "Đang tải trình chỉnh sửa..."
+  },
+  "appVersion": {
+    "title": "Có phiên bản mới",
+    "description": "Làm mới trang để sử dụng phiên bản mới nhất."
+  }
+}

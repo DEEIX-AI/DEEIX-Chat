@@ -1,0 +1,22 @@
+{
+  "title": "Thông báo",
+  "types": {
+    "critical": "Nghiêm trọng",
+    "warning": "Cảnh báo",
+    "info": "Thông tin",
+    "normal": "Bình thường",
+    "general": "Chung"
+  },
+  "sort": {
+    "default": "Mặc định",
+    "type": "Loại",
+    "time": "Thời gian"
+  },
+  "loading": "Đang tải thông báo...",
+  "empty": "Không có thông báo nào",
+  "openFailed": "Không thể tải thông báo",
+  "dismissAllToday": "Không hiển thị lại hôm nay",
+  "dismissFailed": "Không thể lưu trạng thái thông báo",
+  "closeFailed": "Không thể lưu trạng thái đóng thông báo",
+  "close": "Đóng"
+}

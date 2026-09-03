@@ -1,0 +1,61 @@
+{
+  "title": "Kiểm duyệt nội dung",
+  "loading": "Đang tải…",
+  "loadFailed": "Không thể tải cài đặt kiểm duyệt nội dung",
+  "saved": "Đã lưu cấu hình",
+  "saveFailed": "Không thể lưu cấu hình",
+  "save": "Lưu",
+  "saving": "Đang lưu…",
+  "selectAll": "Chọn tất cả",
+  "probe": "Kiểm tra kết nối",
+  "probeFailed": "Kiểm tra kết nối thất bại",
+  "probeText": "Văn bản",
+  "probeImage": "Hình ảnh",
+  "valid": "hợp lệ",
+  "invalid": "không hợp lệ",
+  "noneEnabled": "Đã tắt",
+  "enabledCount": "Đã bật {selected}/{total}",
+  "policyRequiresEnabled": "Hãy bật kiểm duyệt nội dung trước khi cấu hình chính sách kiểm duyệt.",
+  "superAdminOnly": "Chỉ superadmin mới có thể quản lý chính sách kiểm duyệt và cài đặt dịch vụ. Xem số liệu trong Thống kê sử dụng và sự kiện trong Logs.",
+  "sections": {
+    "service": "Dịch vụ kiểm duyệt",
+    "policy": "Chính sách kiểm duyệt"
+  },
+  "surfaces": {
+    "inputText": "Văn bản đầu vào",
+    "inputImage": "Hình ảnh đầu vào",
+    "outputText": "Văn bản đầu ra",
+    "outputImage": "Hình ảnh đầu ra"
+  },
+  "surfaceDescriptions": {
+    "inputText": "Kiểm duyệt prompt và văn bản được gửi trong lượt hiện tại.",
+    "inputImage": "Kiểm duyệt hình ảnh được tải lên dùng trong lượt hiện tại.",
+    "outputText": "Kiểm duyệt văn bản do trợ lý tạo trong lượt hiện tại.",
+    "outputImage": "Kiểm duyệt hình ảnh được tạo hiển thị dưới dạng tệp đính kèm của phản hồi."
+  },
+  "fields": {
+    "enabled": "Bật kiểm duyệt nội dung",
+    "baseUrl": "URL dịch vụ kiểm duyệt *",
+    "model": "Model kiểm duyệt *",
+    "apiKey": "API key kiểm duyệt *",
+    "apiKeyPlaceholder": "Nhập API key kiểm duyệt mới",
+    "timeoutSeconds": "Thời gian chờ kiểm duyệt",
+    "maxConcurrency": "Số tác vụ kiểm duyệt đồng thời tối đa",
+    "queueCapacity": "Dung lượng hàng đợi kiểm duyệt"
+  },
+  "fieldDescriptions": {
+    "enabled": "Khi bật, sẽ kiểm duyệt dữ liệu đầu vào của hội thoại và đầu ra của model; cài đặt dịch vụ và chính sách vẫn được giữ lại khi tắt.",
+    "baseUrl": "Gốc dịch vụ tương thích OpenAI, URL dạng /v1 hoặc URL đầy đủ tới /moderations.",
+    "model": "Model dùng để kiểm duyệt văn bản và hình ảnh.",
+    "apiKey": "Để trống để giữ key hiện tại, hoặc nhập key thay thế rồi lưu.",
+    "apiKeyRequired": "Lưu API key để kiểm tra kết nối và cấu hình chính sách kiểm duyệt.",
+    "timeoutSeconds": "Tổng thời gian chờ cho một lần kiểm duyệt, từ 1 đến 60 giây.",
+    "maxConcurrency": "Số tác vụ kiểm duyệt có thể chạy cùng lúc, từ 1 đến 64.",
+    "queueCapacity": "Số tác vụ kiểm duyệt tối đa trong hàng đợi, từ 1 đến 4096."
+  },
+  "validation": {
+    "apiKeyRequired": "Cần có API key trước khi có thể bật kiểm duyệt nội dung.",
+    "policyRequired": "Chọn ít nhất một danh mục kiểm duyệt trước khi bật kiểm duyệt nội dung.",
+    "integerRange": "{field} phải là số nguyên từ {min} đến {max}."
+  }
+}

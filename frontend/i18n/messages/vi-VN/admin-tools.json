@@ -1,0 +1,197 @@
+{
+  "title": "Công cụ",
+  "sections": {
+    "mcpTools": "Công cụ MCP",
+    "servers": "Máy chủ MCP",
+    "tools": "Công cụ MCP"
+  },
+  "fields": {
+    "mcpEnable": {
+      "label": "Bật công cụ MCP",
+      "description": "Cho phép người dùng chọn các công cụ MCP đã bật trong hội thoại."
+    },
+    "toolPrompt": {
+      "label": "Prompt công cụ MCP",
+      "description": "Kiểm soát thời điểm và cách model gọi công cụ MCP. Để trống sẽ dùng prompt mặc định có sẵn."
+    },
+    "defaultPromptPlaceholder": "Để trống sẽ dùng prompt mặc định có sẵn",
+    "maxSelectedTools": {
+      "label": "Số công cụ được chọn mỗi tin nhắn",
+      "description": "Số công cụ MCP tối đa mà người dùng có thể chọn cho một tin nhắn. Mặc định 32, tối đa 128."
+    },
+    "maxLLMCalls": {
+      "label": "Số yêu cầu LLM tối đa",
+      "description": "Tổng số yêu cầu LLM được phép trong một tin nhắn, bao gồm yêu cầu đầu tiên và bản tóm tắt cuối cùng. Mặc định 5, tối thiểu 2."
+    },
+    "maxToolCalls": {
+      "label": "Số lệnh gọi công cụ MCP tối đa",
+      "description": "Tổng số lệnh gọi công cụ MCP được phép trong một tin nhắn. Các lệnh gọi thất bại vẫn tính vào giới hạn. Mặc định 8."
+    },
+    "maxConcurrentCalls": {
+      "label": "Đồng thời của công cụ MCP",
+      "description": "Số lệnh gọi công cụ MCP đồng thời tối đa cho mỗi phiên bản dịch vụ. Mặc định 8."
+    },
+    "toolTimeout": {
+      "label": "Timeout công cụ MCP",
+      "description": "Thời gian chờ tối đa cho một lệnh gọi công cụ MCP, tính bằng giây. Mặc định 10."
+    },
+    "toolRetry": {
+      "label": "Số lần thử lại của công cụ MCP",
+      "description": "Số lần thử lại sau khi lệnh gọi công cụ MCP thất bại. Mặc định 0."
+    }
+  },
+  "status": {
+    "active": "Bật",
+    "inactive": "Tắt",
+    "all": "Tất cả",
+    "enabled": "Đã bật",
+    "disabled": "Đã tắt"
+  },
+  "sort": {
+    "customOrder": "Thứ tự tùy chỉnh",
+    "nameAsc": "Tên A-Z",
+    "nameDesc": "Tên Z-A",
+    "statusAsc": "Trạng thái",
+    "updatedDesc": "Cập nhật gần đây",
+    "updatedAsc": "Cập nhật cũ nhất"
+  },
+  "table": {
+    "name": "Tên",
+    "url": "URL",
+    "status": "Trạng thái",
+    "tools": "Công cụ",
+    "lastSynced": "Đồng bộ gần nhất",
+    "tool": "Công cụ",
+    "description": "Mô tả",
+    "schema": "Schema",
+    "enabled": "Đã bật",
+    "emptyServers": "Chưa có máy chủ MCP nào",
+    "emptyTools": "Chưa có công cụ nào. Hãy đồng bộ trước.",
+    "emptyFilteredTools": "Không có công cụ nào khớp",
+    "noDescription": "Không có mô tả",
+    "unsynced": "Chưa đồng bộ"
+  },
+  "toolbar": {
+    "searchServers": "Tìm kiếm tên máy chủ hoặc URL",
+    "searchTools": "Tìm kiếm tên hoặc mô tả công cụ",
+    "add": "Thêm",
+    "sync": "Đồng bộ",
+    "syncTools": "Đồng bộ",
+    "editServer": "Sửa",
+    "deleteServer": "Xóa",
+    "viewTools": "Xem công cụ MCP của {name}",
+    "toggleServer": "Bật/tắt máy chủ MCP {name}",
+    "selectPageTools": "Chọn trang này",
+    "selectTool": "Chọn công cụ {name}",
+    "editTool": "Sửa",
+    "viewSchema": "Schema",
+    "viewToolSchema": "Xem schema của {name}",
+    "toggleTool": "Bật/tắt công cụ {name}",
+    "activateSelected": "Bật",
+    "deactivateSelected": "Tắt",
+    "order": "Thứ tự"
+  },
+  "order": {
+    "title": "Thứ tự hiển thị MCP",
+    "description": "Cấu hình cách các máy chủ MCP và công cụ của chúng hiển thị trong trình chọn hội thoại.",
+    "loading": "Đang tải thứ tự MCP",
+    "empty": "Không có máy chủ MCP nào để sắp xếp",
+    "loadFailed": "Tải thứ tự MCP thất bại",
+    "serverHeader": "Máy chủ MCP",
+    "toolHeader": "Công cụ",
+    "itemCount": "{count}",
+    "dragServer": "Kéo để sắp xếp máy chủ MCP {name}",
+    "dragTool": "Kéo để sắp xếp {name}",
+    "statusActive": "Đã bật",
+    "statusInactive": "Đã tắt",
+    "emptyTools": "Máy chủ này không có công cụ nào để sắp xếp",
+    "saveSuccess": "Đã lưu thứ tự hiển thị MCP",
+    "saveFailed": "Lưu thứ tự hiển thị MCP thất bại"
+  },
+  "bulkConfirm": {
+    "title": "Xác nhận thao tác hàng loạt",
+    "description": "Thực hiện thao tác hàng loạt này cho {count} công cụ đã chọn.",
+    "confirm": "Xác nhận",
+    "pending": "Đang xử lý"
+  },
+  "syncConfirm": {
+    "title": "Đồng bộ công cụ MCP",
+    "description": "Chọn cách xử lý tên và mô tả của công cụ đối với \"{name}\".",
+    "preserve": "Giữ nội dung hiện tại",
+    "preserveDescription": "Giữ nguyên tên và mô tả, chỉ đồng bộ dữ liệu khác của công cụ",
+    "overwrite": "Dùng nội dung từ máy chủ",
+    "overwriteDescription": "Đồng bộ tên và mô tả do máy chủ MCP trả về"
+  },
+  "serverDialog": {
+    "createTitle": "Thêm máy chủ MCP",
+    "editTitle": "Chỉnh sửa máy chủ MCP",
+    "description": "Cấu hình endpoint MCP Streamable HTTP và thông tin xác thực.",
+    "name": "Tên máy chủ",
+    "namePlaceholder": "Tên máy chủ",
+    "status": "Trạng thái máy chủ",
+    "url": "URL máy chủ",
+    "authToken": "Token xác thực",
+    "authTokenCreatePlaceholder": "Không bắt buộc",
+    "authTokenEditPlaceholder": "Để trống nếu giữ nguyên",
+    "headers": "Headers"
+  },
+  "toolDialog": {
+    "title": "Chỉnh sửa công cụ MCP",
+    "description": "Chỉnh sửa tên, mô tả và các khả năng gọi tùy chọn của công cụ.",
+    "displayName": "Tên hiển thị",
+    "displayNamePlaceholder": "Tên hiển thị của công cụ",
+    "toolDescription": "Mô tả",
+    "toolDescriptionPlaceholder": "Mô tả công cụ này hữu ích cho việc gì",
+    "imageRoutingTitle": "Xử lý tệp ảnh đính kèm",
+    "imageRoutingTooltip": "Chỉ dành cho công cụ nhận dữ liệu ảnh. Backend sẽ gọi công cụ này trước và model chính chỉ nhận kết quả dạng văn bản. Cần ánh xạ tham số thủ công từ schema của công cụ; các trường không được tự động phát hiện.",
+    "imageArgument": "Tham số dữ liệu ảnh",
+    "imageArgumentTooltip": "Chọn tham số dạng chuỗi trong schema của công cụ thực sự nhận dữ liệu ảnh đã mã hóa.",
+    "selectImageArgument": "Chọn tham số dữ liệu ảnh",
+    "noStringArguments": "Schema của công cụ này không có tham số chuỗi nào cho dữ liệu ảnh nên không thể bật khả năng này.",
+    "schemaArgumentRequired": "Bắt buộc",
+    "imageEncoding": "Định dạng truyền",
+    "imageEncodingTooltip": "Khớp với hợp đồng của công cụ. Data URL bao gồm cả MIME type; Base64 thô chỉ chứa dữ liệu đã mã hóa.",
+    "imageEncodingDataURL": "Data URL (bao gồm MIME type)",
+    "imageEncodingBase64": "Base64 thô",
+    "passUserPrompt": "Đồng thời chuyển yêu cầu của người dùng",
+    "passUserPromptTooltip": "Gửi thêm nội dung người dùng đang nhập tới công cụ. Dùng cho các công cụ thị giác cần hướng dẫn phân tích.",
+    "promptArgument": "Tham số yêu cầu người dùng",
+    "selectPromptArgument": "Chọn tham số yêu cầu người dùng",
+    "unmappedRequiredArguments": "Các tham số bắt buộc chưa được ánh xạ: {names}"
+  },
+  "schemaDialog": {
+    "fallbackTitle": "Schema công cụ",
+    "description": "JSON Schema tham số đầu vào của {name}",
+    "fallbackDescription": "JSON Schema tham số đầu vào"
+  },
+  "confirm": {
+    "deleteServer": "Xóa máy chủ MCP \"{name}\"?"
+  },
+  "toast": {
+    "settingsUpdated": "Đã cập nhật cài đặt công cụ",
+    "settingsLoadFailed": "Tải cài đặt công cụ thất bại",
+    "saveFailed": "Không thể lưu cài đặt công cụ",
+    "serversLoadFailed": "Tải máy chủ MCP thất bại",
+    "toolsLoadFailed": "Tải công cụ MCP thất bại",
+    "toolsSynced": "Đã đồng bộ công cụ MCP",
+    "toolsSyncFailed": "Đồng bộ công cụ MCP thất bại",
+    "serverUpdated": "Đã cập nhật máy chủ MCP",
+    "serverCreated": "Đã tạo máy chủ MCP",
+    "serverSaveFailed": "Lưu máy chủ MCP thất bại",
+    "serverDeleted": "Đã xóa máy chủ MCP",
+    "serverDeleteFailed": "Xóa máy chủ MCP thất bại",
+    "serverStatusUpdated": "Máy chủ MCP {status}",
+    "serverStatusFailed": "Cập nhật trạng thái máy chủ MCP thất bại",
+    "toolStatusFailed": "Cập nhật trạng thái công cụ thất bại",
+    "selectedToolsEnabled": "Đã bật các công cụ đã chọn",
+    "selectedToolsDisabled": "Đã tắt các công cụ đã chọn",
+    "selectedToolsUpdateFailed": "Cập nhật các công cụ đã chọn thất bại",
+    "toolUpdated": "Đã cập nhật công cụ",
+    "toolSaveFailed": "Lưu công cụ thất bại",
+    "schemaCopied": "Đã sao chép schema",
+    "copyFailed": "Sao chép thất bại",
+    "unknownError": "Yêu cầu thất bại. Vui lòng thử lại sau.",
+    "sessionExpired": "Phiên đăng nhập của bạn đã hết hạn.",
+    "sessionExpiredDescription": "Vui lòng đăng nhập lại để tiếp tục."
+  }
+}

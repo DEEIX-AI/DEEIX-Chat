@@ -1,7 +1,7 @@
 "use client";
 
 import { differenceInCalendarDays, format } from "date-fns";
-import { enUS, zhCN } from "date-fns/locale";
+import { enUS, vi, zhCN } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import type { DateRange, Matcher } from "react-day-picker";
@@ -96,7 +96,7 @@ export function AdminDateRangeFilter({
             disabled={disabledDates}
             max={maxRangeDays ? maxRangeDays - 1 : undefined}
             resetOnSelect={Boolean(maxRangeDays)}
-            locale={locale === "zh-CN" ? zhCN : enUS}
+            locale={locale === "zh-CN" ? zhCN : locale === "vi-VN" ? vi : enUS}
             onSelect={(range) => {
               onFromChange(range?.from ? format(range.from, "yyyy-MM-dd") : "");
               onToChange(range?.to ? format(range.to, "yyyy-MM-dd") : "");
