@@ -3,7 +3,13 @@ import { listPublicModels } from "@/shared/api/model";
 import type { PublicModelDTO } from "@/shared/api/model.types";
 import { loadUserSettingsSnapshot } from "@/shared/model/user-settings-store";
 
-export type ConversationDefaultModelSource = "explicit" | "user_default" | "system_default" | "recommended" | "none";
+export type ConversationDefaultModelSource =
+  | "explicit"
+  | "project_default"
+  | "user_default"
+  | "system_default"
+  | "recommended"
+  | "none";
 
 export type ConversationDefaultModelResult = {
   platformModelName: string;
@@ -13,6 +19,7 @@ export type ConversationDefaultModelResult = {
 type ResolveConversationDefaultModelInput = {
   accessToken: string;
   explicitModel?: string;
+  projectDefaultModel?: string;
   availableModels?: PublicModelDTO[];
   userDefaultModel?: string;
 };
@@ -28,6 +35,7 @@ function findAvailableModel(models: PublicModelDTO[], platformModelName: string)
 export async function resolveConversationDefaultModel({
   accessToken,
   explicitModel,
+  projectDefaultModel,
   availableModels,
   userDefaultModel,
 }: ResolveConversationDefaultModelInput): Promise<ConversationDefaultModelResult> {
@@ -35,6 +43,11 @@ export async function resolveConversationDefaultModel({
   const explicit = findAvailableModel(models, explicitModel ?? "");
   if (explicit) {
     return { platformModelName: explicit, source: "explicit" };
+  }
+
+  const projectDefault = findAvailableModel(models, projectDefaultModel ?? "");
+  if (projectDefault) {
+    return { platformModelName: projectDefault, source: "project_default" };
   }
 
   const defaultModel = userDefaultModel

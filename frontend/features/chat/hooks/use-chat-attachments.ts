@@ -7,7 +7,11 @@ import type {
   PendingAttachment,
   UploadingAttachment,
 } from "@/features/chat/types/chat-runtime";
-import { resolveUploadPolicyRejection } from "@/features/chat/utils/attachments";
+import {
+  inferUploadCategory,
+  normalizeUploadMime,
+  resolveUploadPolicyRejection,
+} from "@/features/chat/utils/attachments";
 import { captureScreenshotFile } from "@/features/chat/utils/browser-media";
 import { resolveMaxFilesPerMessage } from "@/features/chat/utils/chat-runtime";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
@@ -23,6 +27,7 @@ import {
 } from "@/shared/hooks/use-file-processing-status-polling";
 import { runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
 import { isFileProcessing } from "@/shared/lib/file-processing";
+import { createSecureUUID } from "@/shared/lib/secure-id";
 
 function revokeAttachmentPreview(item: PendingAttachment) {
   if (item.previewURL) {
@@ -35,11 +40,13 @@ export function useChatAttachments({
   attachments,
   setAttachments,
   appendAttachmentsForKey,
+  temporary = false,
 }: {
   conversationKey: string;
   attachments: PendingAttachment[];
   setAttachments: React.Dispatch<React.SetStateAction<PendingAttachment[]>>;
   appendAttachmentsForKey: (conversationKey: string, items: PendingAttachment[]) => void;
+  temporary?: boolean;
 }) {
   const t = useTranslations("chat.attachments");
   const resolveErrorMessage = useLocalizedErrorMessage();
@@ -215,7 +222,9 @@ export function useChatAttachments({
         sizeLimitExceeded: (limit: string) => t("policy.sizeLimitExceeded", { limit }),
       };
       for (const file of files) {
-        const rejection = resolveUploadPolicyRejection(file, chatFilePolicy, policyLabels);
+        const rejection = temporary && normalizeUploadMime(file).startsWith("video/")
+          ? t("temporaryVideoUnsupported")
+          : resolveUploadPolicyRejection(file, chatFilePolicy, policyLabels);
         if (rejection) {
           toast.error(t("policyRejected"), {
             description: t("fileRejected", { name: file.name, reason: rejection }),
@@ -234,6 +243,30 @@ export function useChatAttachments({
         });
       }
       if (policyAcceptedFiles.length === 0) {
+        return;
+      }
+
+      if (temporary) {
+        const localAttachments = policyAcceptedFiles.map((file): PendingAttachment => {
+          const category = inferUploadCategory(file);
+          return {
+            fileID: `temporary_${createSecureUUID()}`,
+            fileName: file.name,
+            mimeType: file.type || "application/octet-stream",
+            detectedMime: file.type || "application/octet-stream",
+            fileCategory: category,
+            sizeBytes: file.size,
+            previewURL: category === "image" ? URL.createObjectURL(file) : undefined,
+            processingStatus: "ready",
+            processingReady: true,
+            extractStatus: "none",
+            embedStatus: "none",
+            ragReady: false,
+            ragOptOut: false,
+            localFile: file,
+          };
+        });
+        appendAttachmentsForKey(targetConversationKey, localAttachments);
         return;
       }
 
@@ -358,6 +391,7 @@ export function useChatAttachments({
       releaseAttachments,
       resolveErrorMessage,
       t,
+      temporary,
       uploading,
       uploadingByKey,
     ],
@@ -412,7 +446,7 @@ export function useChatAttachments({
     uploading,
     uploadingAttachments,
     maxFilesPerMessage,
-    fileMode: chatFilePolicy?.fileMode ?? "auto",
+    fileMode: temporary ? "full_context" : (chatFilePolicy?.fileMode ?? "auto"),
     ragAvailable: chatFilePolicy?.ragAvailable ?? null,
     ragAvailabilityReason: chatFilePolicy?.ragAvailabilityReason ?? "",
     releaseAttachments,

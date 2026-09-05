@@ -11,14 +11,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// translateError 将 gorm 底层错误统一映射为仓储语义错误。
-func translateError(err error) error {
-	if dberror.IsRecordNotFound(err) {
-		return repository.ErrNotFound
-	}
-	return err
-}
-
 // Repo 封装审计数据访问。
 type Repo struct {
 	db *gorm.DB
@@ -33,7 +25,7 @@ func NewRepo(db *gorm.DB) *Repo {
 func (r *Repo) Create(ctx context.Context, item *domainaudit.Log) error {
 	dbItem := toModelAuditLog(item)
 	if err := r.db.WithContext(ctx).Create(dbItem).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	item.ID = dbItem.ID
 	item.CreatedAt = dbItem.CreatedAt
@@ -77,7 +69,7 @@ func (r *Repo) List(ctx context.Context, offset int, limit int, filter repositor
 	}
 
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	order := "id DESC"
 	switch strings.TrimSpace(filter.Sort) {
@@ -93,7 +85,7 @@ func (r *Repo) List(ctx context.Context, offset int, limit int, filter repositor
 		Offset(offset).
 		Limit(limit).
 		Find(&items).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	return toDomainAuditLogs(items), total, nil
 }

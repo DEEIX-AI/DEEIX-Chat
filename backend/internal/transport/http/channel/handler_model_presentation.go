@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	appchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -34,15 +35,15 @@ func (h *Handler) UploadModelIconAsset(c *gin.Context) {
 	if err != nil {
 		var maxBytesError *http.MaxBytesError
 		if errors.As(err, &maxBytesError) {
-			response.Error(c, http.StatusRequestEntityTooLarge, "model icon file too large")
+			response.ErrorFrom(c, http.StatusRequestEntityTooLarge, errModelIconFileTooLarge)
 			return
 		}
-		response.Error(c, http.StatusBadRequest, "invalid model icon file")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidModelIconFile)
 		return
 	}
 	file, err := header.Open()
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid model icon file")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidModelIconFile)
 		return
 	}
 	defer file.Close()
@@ -51,11 +52,11 @@ func (h *Handler) UploadModelIconAsset(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, appchannel.ErrModelIconFileTooLarge):
-			response.Error(c, http.StatusRequestEntityTooLarge, "model icon file too large")
+			response.ErrorFrom(c, http.StatusRequestEntityTooLarge, err)
 		case errors.Is(err, appchannel.ErrInvalidModelIconFile):
-			response.Error(c, http.StatusBadRequest, "invalid model icon file")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 		default:
-			response.Error(c, http.StatusInternalServerError, "upload model icon failed")
+			response.InternalError(c)
 		}
 		return
 	}
@@ -74,10 +75,10 @@ func (h *Handler) UploadModelIconAsset(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/llm/icon-assets [get]
 func (h *Handler) ListModelIconAssets(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListModelIconAssets(c.Request.Context(), page, pageSize)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list model icon assets failed")
+		response.InternalError(c)
 		return
 	}
 	results := make([]ModelIconAssetListItemResponse, 0, len(items))
@@ -107,17 +108,17 @@ func (h *Handler) DeleteModelIconAsset(c *gin.Context) {
 	var inUse *appchannel.ModelIconAssetInUseError
 	if errors.As(err, &inUse) {
 		references := inUse.References
-		response.ErrorWithDetails(c, http.StatusConflict, "llm.model_icon_asset_in_use", appchannel.ErrModelIconAssetInUse.Error(), ModelIconAssetDeleteConflictDetails{
+		response.ErrorWithDetails(c, http.StatusConflict, "llm.model_icon_asset_in_use", ModelIconAssetDeleteConflictDetails{
 			ReferenceCount: references.Total(), Models: references.Models, Vendors: references.Vendors,
 			DisplayGroups: references.DisplayGroups, ConversationRuns: references.ConversationRuns,
 		})
 		return
 	}
 	if errors.Is(err, appchannel.ErrModelIconAssetNotFound) {
-		response.Error(c, http.StatusNotFound, "model icon asset not found")
+		response.ErrorFrom(c, http.StatusNotFound, err)
 		return
 	}
-	response.Error(c, http.StatusInternalServerError, "delete model icon asset failed")
+	response.InternalError(c)
 }
 
 // GetModelIconAsset godoc
@@ -133,20 +134,20 @@ func (h *Handler) GetModelIconAsset(c *gin.Context) {
 	info, err := h.service.GetModelIconAssetInfo(c.Request.Context(), c.Param("public_id"))
 	if err != nil {
 		if errors.Is(err, appchannel.ErrModelIconAssetNotFound) {
-			response.Error(c, http.StatusNotFound, "model icon asset not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "open model icon failed")
+		response.InternalError(c)
 		return
 	}
 
 	item, err := h.service.OpenModelIconAsset(c.Request.Context(), *info)
 	if err != nil {
 		if errors.Is(err, appchannel.ErrModelIconAssetNotFound) {
-			response.Error(c, http.StatusNotFound, "model icon asset not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "open model icon failed")
+		response.InternalError(c)
 		return
 	}
 	defer item.Reader.Close()
@@ -183,10 +184,10 @@ func (h *Handler) GetModelIconAsset(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/llm/model-vendors [get]
 func (h *Handler) ListModelVendors(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListModelVendors(c.Request.Context(), page, pageSize, c.Query("q"))
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list model vendors failed")
+		response.InternalError(c)
 		return
 	}
 	results := make([]ModelVendorResponse, 0, len(items))
@@ -218,7 +219,7 @@ func (h *Handler) CreateModelVendor(c *gin.Context) {
 		Key: request.Key, Name: request.Name, Icon: request.Icon,
 	})
 	if err != nil {
-		writeModelVendorError(c, err, "create model vendor failed")
+		writeModelVendorError(c, err)
 		return
 	}
 	response.Success(c, ModelVendorDataResponse{Vendor: toModelVendorResponse(*item)})
@@ -247,7 +248,7 @@ func (h *Handler) UpdateModelVendor(c *gin.Context) {
 		Name: request.Name, Icon: request.Icon,
 	})
 	if err != nil {
-		writeModelVendorError(c, err, "update model vendor failed")
+		writeModelVendorError(c, err)
 		return
 	}
 	response.Success(c, ModelVendorDataResponse{Vendor: toModelVendorResponse(*item)})
@@ -280,17 +281,15 @@ func (h *Handler) DeleteModelVendor(c *gin.Context) {
 			})
 		}
 		code := "llm.model_vendor_in_use"
-		message := "model vendor is in use"
 		if blocked.Reason == appchannel.ModelVendorDeleteReasonBuiltIn {
 			code = "llm.model_vendor_builtin"
-			message = "built-in model vendor cannot be deleted"
 		}
-		response.ErrorWithDetails(c, http.StatusConflict, code, message, ModelVendorDeleteConflictDetails{
+		response.ErrorWithDetails(c, http.StatusConflict, code, ModelVendorDeleteConflictDetails{
 			Reason: blocked.Reason, ReferenceCount: blocked.ReferenceCount, Models: models,
 		})
 		return
 	}
-	writeModelVendorError(c, err, "delete model vendor failed")
+	writeModelVendorError(c, err)
 }
 
 // ListModelDisplayGroups godoc
@@ -306,10 +305,10 @@ func (h *Handler) DeleteModelVendor(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/llm/model-display-groups [get]
 func (h *Handler) ListModelDisplayGroups(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListModelDisplayGroups(c.Request.Context(), page, pageSize, c.Query("q"))
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list model display groups failed")
+		response.InternalError(c)
 		return
 	}
 	results := make([]ModelDisplayGroupResponse, 0, len(items))
@@ -341,7 +340,7 @@ func (h *Handler) CreateModelDisplayGroup(c *gin.Context) {
 		Name: request.Name, Icon: request.Icon, ModelIDs: request.ModelIDs,
 	})
 	if err != nil {
-		writeModelDisplayGroupError(c, err, "create model display group failed")
+		writeModelDisplayGroupError(c, err)
 		return
 	}
 	response.Success(c, ModelDisplayGroupDataResponse{Group: toModelDisplayGroupResponse(*item)})
@@ -363,7 +362,7 @@ func (h *Handler) CreateModelDisplayGroup(c *gin.Context) {
 func (h *Handler) UpdateModelDisplayGroup(c *gin.Context) {
 	groupID, err := uintParam(c, "id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid model display group id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidModelDisplayGroupID)
 		return
 	}
 	var request UpdateModelDisplayGroupRequest
@@ -375,7 +374,7 @@ func (h *Handler) UpdateModelDisplayGroup(c *gin.Context) {
 		Name: request.Name, Icon: request.Icon, ModelIDs: request.ModelIDs,
 	})
 	if err != nil {
-		writeModelDisplayGroupError(c, err, "update model display group failed")
+		writeModelDisplayGroupError(c, err)
 		return
 	}
 	response.Success(c, ModelDisplayGroupDataResponse{Group: toModelDisplayGroupResponse(*item)})
@@ -400,7 +399,7 @@ func (h *Handler) SetModelsDisplayGroup(c *gin.Context) {
 		return
 	}
 	if err := h.service.SetModelsDisplayGroup(c.Request.Context(), request.ModelIDs, *request.DisplayGroupID); err != nil {
-		writeModelDisplayGroupError(c, err, "set model display group failed")
+		writeModelDisplayGroupError(c, err)
 		return
 	}
 	response.Success(c, nil)
@@ -420,46 +419,46 @@ func (h *Handler) SetModelsDisplayGroup(c *gin.Context) {
 func (h *Handler) DeleteModelDisplayGroup(c *gin.Context) {
 	groupID, err := uintParam(c, "id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid model display group id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidModelDisplayGroupID)
 		return
 	}
 	if err = h.service.DeleteModelDisplayGroup(c.Request.Context(), groupID); err != nil {
-		writeModelDisplayGroupError(c, err, "delete model display group failed")
+		writeModelDisplayGroupError(c, err)
 		return
 	}
 	response.Success(c, nil)
 }
 
-func writeModelVendorError(c *gin.Context, err error, fallback string) {
+func writeModelVendorError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, appchannel.ErrInvalidModelVendor):
-		response.Error(c, http.StatusBadRequest, "invalid model vendor")
+		response.ErrorFrom(c, http.StatusBadRequest, err)
 	case errors.Is(err, appchannel.ErrModelVendorNotFound):
-		response.Error(c, http.StatusNotFound, "model vendor not found")
+		response.ErrorFrom(c, http.StatusNotFound, errModelVendorNotFound)
 	case errors.Is(err, appchannel.ErrModelVendorConflict):
-		response.Error(c, http.StatusConflict, "model vendor already exists")
+		response.ErrorFrom(c, http.StatusConflict, err)
 	case errors.Is(err, appchannel.ErrModelIconAssetNotFound):
-		response.Error(c, http.StatusBadRequest, "model icon asset not found")
+		response.ErrorFrom(c, http.StatusBadRequest, err)
 	case errors.Is(err, appchannel.ErrInvalidModelIconReference):
-		response.Error(c, http.StatusBadRequest, "invalid model icon")
+		response.ErrorFrom(c, http.StatusBadRequest, err)
 	default:
-		response.Error(c, http.StatusInternalServerError, fallback)
+		response.InternalError(c)
 	}
 }
 
-func writeModelDisplayGroupError(c *gin.Context, err error, fallback string) {
+func writeModelDisplayGroupError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, appchannel.ErrInvalidModelDisplayGroup):
-		response.Error(c, http.StatusBadRequest, "invalid model display group")
+		response.ErrorFrom(c, http.StatusBadRequest, err)
 	case errors.Is(err, appchannel.ErrModelDisplayGroupNotFound):
-		response.Error(c, http.StatusNotFound, "model display group not found")
+		response.ErrorFrom(c, http.StatusNotFound, errModelDisplayGroupNotFound)
 	case errors.Is(err, appchannel.ErrModelDisplayGroupConflict):
-		response.Error(c, http.StatusConflict, "model display group already exists")
+		response.ErrorFrom(c, http.StatusConflict, err)
 	case errors.Is(err, appchannel.ErrModelIconAssetNotFound):
-		response.Error(c, http.StatusBadRequest, "model icon asset not found")
+		response.ErrorFrom(c, http.StatusBadRequest, err)
 	case errors.Is(err, appchannel.ErrInvalidModelIconReference):
-		response.Error(c, http.StatusBadRequest, "invalid model icon")
+		response.ErrorFrom(c, http.StatusBadRequest, err)
 	default:
-		response.Error(c, http.StatusInternalServerError, fallback)
+		response.InternalError(c)
 	}
 }

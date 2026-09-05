@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -34,6 +35,74 @@ function nanousdToUSD(value: number | null | undefined): number | null {
     return null;
   }
   return value / 1_000_000_000;
+}
+
+function RedemptionIDFilter({
+  value,
+  placeholder,
+  clearLabel,
+  onValueChange,
+}: {
+  value: number;
+  placeholder: string;
+  clearLabel: string;
+  onValueChange: (value: number) => void;
+}) {
+  const [draft, setDraft] = React.useState(value > 0 ? String(value) : "");
+
+  React.useEffect(() => {
+    setDraft(value > 0 ? String(value) : "");
+  }, [value]);
+
+  const commit = React.useCallback(() => {
+    const parsed = /^\d+$/.test(draft) ? Number.parseInt(draft, 10) : 0;
+    const nextValue = Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 0;
+
+    setDraft(nextValue > 0 ? String(nextValue) : "");
+    if (nextValue !== value) {
+      onValueChange(nextValue);
+    }
+  }, [draft, onValueChange, value]);
+
+  const clear = React.useCallback(() => {
+    setDraft("");
+    if (value > 0) {
+      onValueChange(0);
+    }
+  }, [onValueChange, value]);
+
+  return (
+    <div className="relative">
+      <Input
+        value={draft}
+        inputMode="numeric"
+        pattern="[0-9]*"
+        placeholder={placeholder}
+        className="h-7 pr-7 pl-2 text-[11px] tabular-nums"
+        onChange={(event) => setDraft(event.target.value.replace(/\D/g, ""))}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            event.currentTarget.blur();
+          }
+        }}
+      />
+      {draft ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="absolute top-1/2 right-1 h-5 w-5 -translate-y-1/2 text-muted-foreground shadow-none"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={clear}
+          aria-label={clearLabel}
+        >
+          <X className="size-3 stroke-1" />
+        </Button>
+      ) : null}
+    </div>
+  );
 }
 
 export function RedemptionRecordTable({
@@ -83,30 +152,32 @@ export function RedemptionRecordTable({
               { label: t("redemptions.rewards.subscription"), value: "subscription" },
             ],
           },
-          ...(logs.codeIDFilter > 0
-            ? [
-                {
-                  key: "code",
-                  label: t("redemptions.filters.code"),
-                  active: true,
-                  content: (
-                    <div className="flex items-center gap-2 px-2 py-1.5 text-xs">
-                      <span className="font-mono text-muted-foreground">#{logs.codeIDFilter}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        className="h-6 w-6 text-muted-foreground shadow-none"
-                        onClick={() => logs.setCodeIDFilter(0)}
-                        aria-label={t("redemptions.filters.clearCode")}
-                      >
-                        <X className="size-3.5 stroke-1" />
-                      </Button>
-                    </div>
-                  ),
-                },
-              ]
-            : []),
+          {
+            key: "code_id",
+            label: t("redemptions.filters.codeID"),
+            active: logs.codeIDFilter > 0,
+            content: (
+              <RedemptionIDFilter
+                value={logs.codeIDFilter}
+                placeholder={t("redemptions.filters.codeIDPlaceholder")}
+                clearLabel={t("redemptions.filters.clearCodeID")}
+                onValueChange={logs.setCodeIDFilter}
+              />
+            ),
+          },
+          {
+            key: "user_id",
+            label: t("redemptions.filters.userID"),
+            active: logs.userIDFilter > 0,
+            content: (
+              <RedemptionIDFilter
+                value={logs.userIDFilter}
+                placeholder={t("redemptions.filters.userIDPlaceholder")}
+                clearLabel={t("redemptions.filters.clearUserID")}
+                onValueChange={logs.setUserIDFilter}
+              />
+            ),
+          },
           {
             key: "created_range",
             label: t("filters.timeRange"),

@@ -6,8 +6,10 @@ import (
 	"strconv"
 
 	apppromptpreset "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/promptpreset"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/queryparam"
 	"github.com/gin-gonic/gin"
 )
 
@@ -35,7 +37,7 @@ func NewHandler(service *apppromptpreset.Service) *Handler {
 // @Failure 500 {object} ErrorDoc
 // @Router /prompt-presets [get]
 func (h *Handler) ListVisiblePromptPresets(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListVisible(c.Request.Context(), middleware.MustUserID(c), apppromptpreset.ListInput{
 		Query:    c.Query("q"),
 		Page:     page,
@@ -63,10 +65,10 @@ func (h *Handler) ListVisiblePromptPresets(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /prompt-presets/mine [get]
 func (h *Handler) ListMyPromptPresets(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListMine(c.Request.Context(), middleware.MustUserID(c), apppromptpreset.ListInput{
 		Query:    c.Query("q"),
-		Enabled:  boolQuery(c, "enabled"),
+		Enabled:  queryparam.OptionalBool(c.Query("enabled")),
 		Page:     page,
 		PageSize: pageSize,
 	})
@@ -173,10 +175,10 @@ func (h *Handler) DeleteMyPromptPreset(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/prompt-presets [get]
 func (h *Handler) ListAdminPromptPresets(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListAdminBuiltin(c.Request.Context(), apppromptpreset.ListInput{
 		Query:    c.Query("q"),
-		Enabled:  boolQuery(c, "enabled"),
+		Enabled:  queryparam.OptionalBool(c.Query("enabled")),
 		Page:     page,
 		PageSize: pageSize,
 	})
@@ -211,7 +213,7 @@ func (h *Handler) CreateAdminPromptPreset(c *gin.Context) {
 		writePromptPresetError(c, err)
 		return
 	}
-	h.service.RecordAudit(c.Request.Context(), auditInput(c, "prompt_preset.create_builtin", item.ID, map[string]interface{}{"trigger": item.Trigger}))
+	h.service.RecordAudit(c.Request.Context(), auditInput(c, "prompt_preset.create_builtin", item.ID, map[string]any{"trigger": item.Trigger}))
 	response.Success(c, PromptPresetDataResponse{PromptPreset: toPromptPresetResponse(*item)})
 }
 
@@ -244,7 +246,7 @@ func (h *Handler) PatchAdminPromptPreset(c *gin.Context) {
 		writePromptPresetError(c, err)
 		return
 	}
-	h.service.RecordAudit(c.Request.Context(), auditInput(c, "prompt_preset.update_builtin", item.ID, map[string]interface{}{"trigger": item.Trigger}))
+	h.service.RecordAudit(c.Request.Context(), auditInput(c, "prompt_preset.update_builtin", item.ID, map[string]any{"trigger": item.Trigger}))
 	response.Success(c, PromptPresetDataResponse{PromptPreset: toPromptPresetResponse(*item)})
 }
 
@@ -298,45 +300,13 @@ func patchInputFromRequest(req PatchPromptPresetRequest) apppromptpreset.PatchIn
 func idParam(c *gin.Context) (uint, bool) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil || id == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid prompt preset id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidPromptPresetID)
 		return 0, false
 	}
 	return uint(id), true
 }
 
-func boolQuery(c *gin.Context, key string) *bool {
-	raw := c.Query(key)
-	if raw == "" {
-		return nil
-	}
-	parsed, err := strconv.ParseBool(raw)
-	if err != nil {
-		return nil
-	}
-	return &parsed
-}
-
-func pageParams(c *gin.Context) (int, int) {
-	page := 1
-	pageSize := 20
-	const maxPageSize = 1000
-	if raw := c.Query("page"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			page = parsed
-		}
-	}
-	if raw := c.Query("page_size"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			pageSize = parsed
-		}
-	}
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	return page, pageSize
-}
-
-func auditInput(c *gin.Context, action string, resourceID uint, detail interface{}) apppromptpreset.AuditInput {
+func auditInput(c *gin.Context, action string, resourceID uint, detail any) apppromptpreset.AuditInput {
 	return apppromptpreset.AuditInput{
 		UserID:     middleware.MustUserID(c),
 		RequestID:  middleware.MustRequestID(c),
@@ -350,16 +320,16 @@ func auditInput(c *gin.Context, action string, resourceID uint, detail interface
 
 func writePromptPresetError(c *gin.Context, err error) {
 	if errors.Is(err, apppromptpreset.ErrPromptPresetNotFound) {
-		response.Error(c, http.StatusNotFound, "prompt preset not found")
+		response.ErrorFrom(c, http.StatusNotFound, err)
 		return
 	}
 	if errors.Is(err, apppromptpreset.ErrPromptPresetConflict) {
-		response.Error(c, http.StatusConflict, "prompt preset trigger already exists")
+		response.ErrorFrom(c, http.StatusConflict, err)
 		return
 	}
 	if errors.Is(err, apppromptpreset.ErrInvalidPromptPreset) {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 		return
 	}
-	response.Error(c, http.StatusInternalServerError, "prompt preset operation failed")
+	response.InternalError(c)
 }

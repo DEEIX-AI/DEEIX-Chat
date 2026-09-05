@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	runtimeport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/runtime"
 )
 
 // DockerRunner 执行本机 Docker 命令。
@@ -35,10 +37,23 @@ func (r *DockerRunner) RunWithTimeout(ctx context.Context, timeout time.Duration
 		return text, fmt.Errorf("docker_timeout")
 	}
 	if err != nil {
+		if isContainerInspect(args) && isContainerNotFoundOutput(text) {
+			return text, fmt.Errorf("%w: %s", runtimeport.ErrContainerNotFound, text)
+		}
 		if text == "" {
 			return "", fmt.Errorf("docker_command_failed")
 		}
 		return text, errors.New(text)
 	}
 	return text, nil
+}
+
+func isContainerInspect(args []string) bool {
+	return len(args) >= 2 && args[0] == "container" && args[1] == "inspect"
+}
+
+func isContainerNotFoundOutput(output string) bool {
+	value := strings.ToLower(strings.TrimSpace(output))
+	return strings.Contains(value, "no such object") ||
+		strings.Contains(value, "no such container")
 }

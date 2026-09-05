@@ -4,18 +4,14 @@ import (
 	"net"
 	"net/netip"
 	"strings"
-	"sync"
 
 	"github.com/gin-gonic/gin"
 )
 
-var (
-	trustedProxyHeadersMu sync.RWMutex
-	trustedProxyPrefixes  []netip.Prefix
-)
+const trustedProxyHeadersContextKey = "ctx_trusted_proxy_headers"
 
-// ConfigureTrustedProxyHeaders 配置可被信任的上游代理地址范围。
-func ConfigureTrustedProxyHeaders(items []string) error {
+// TrustedProxyHeaders 创建可信代理头识别中间件。
+func TrustedProxyHeaders(items []string) (gin.HandlerFunc, error) {
 	prefixes := make([]netip.Prefix, 0, len(items))
 	for _, item := range items {
 		value := strings.TrimSpace(item)
@@ -26,7 +22,7 @@ func ConfigureTrustedProxyHeaders(items []string) error {
 		if strings.Contains(value, "/") {
 			prefix, err := netip.ParsePrefix(value)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			prefixes = append(prefixes, prefix.Masked())
 			continue
@@ -34,7 +30,7 @@ func ConfigureTrustedProxyHeaders(items []string) error {
 
 		addr, err := netip.ParseAddr(value)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		bits := 32
 		if addr.Is6() {
@@ -43,16 +39,21 @@ func ConfigureTrustedProxyHeaders(items []string) error {
 		prefixes = append(prefixes, netip.PrefixFrom(addr, bits))
 	}
 
-	trustedProxyHeadersMu.Lock()
-	trustedProxyPrefixes = prefixes
-	trustedProxyHeadersMu.Unlock()
-	return nil
+	return func(c *gin.Context) {
+		c.Set(trustedProxyHeadersContextKey, remoteAddressMatchesPrefixes(c, prefixes))
+		c.Next()
+	}, nil
 }
 
 func requestCameFromTrustedProxy(c *gin.Context) bool {
-	trustedProxyHeadersMu.RLock()
-	prefixes := append([]netip.Prefix(nil), trustedProxyPrefixes...)
-	trustedProxyHeadersMu.RUnlock()
+	if c == nil {
+		return false
+	}
+	trusted, _ := c.Get(trustedProxyHeadersContextKey)
+	return trusted == true
+}
+
+func remoteAddressMatchesPrefixes(c *gin.Context, prefixes []netip.Prefix) bool {
 	if len(prefixes) == 0 || c == nil || c.Request == nil {
 		return false
 	}

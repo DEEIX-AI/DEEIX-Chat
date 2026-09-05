@@ -38,8 +38,8 @@ const historicalMessageScopeSubquerySQL = historicalMessageScopeCTE + `
 SELECT id
 FROM valid_historical_message_scope`
 
-func historicalMessageScopeArgs(scope repository.HistoricalMessageScope) []interface{} {
-	return []interface{}{
+func historicalMessageScopeArgs(scope repository.HistoricalMessageScope) []any {
+	return []any{
 		scope.LeafMessageID,
 		scope.ConversationID,
 		scope.UserID,

@@ -8,13 +8,13 @@ import (
 const maxToolSchemaReferenceDepth = 32
 
 func toolSchemaPropertyAcceptsString(schemaJSON string, propertyName string) bool {
-	var root map[string]interface{}
+	var root map[string]any
 	decoder := json.NewDecoder(strings.NewReader(strings.TrimSpace(schemaJSON)))
 	decoder.UseNumber()
 	if err := decoder.Decode(&root); err != nil || len(root) == 0 {
 		return false
 	}
-	properties, ok := root["properties"].(map[string]interface{})
+	properties, ok := root["properties"].(map[string]any)
 	if !ok {
 		return false
 	}
@@ -26,15 +26,15 @@ func toolSchemaPropertyAcceptsString(schemaJSON string, propertyName string) boo
 }
 
 func jsonSchemaNodeAcceptsString(
-	root map[string]interface{},
-	node interface{},
+	root map[string]any,
+	node any,
 	resolving map[string]struct{},
 	depth int,
 ) bool {
 	if depth > maxToolSchemaReferenceDepth {
 		return false
 	}
-	schema, ok := node.(map[string]interface{})
+	schema, ok := node.(map[string]any)
 	if !ok {
 		return false
 	}
@@ -60,7 +60,7 @@ func jsonSchemaNodeAcceptsString(
 		if len(schema) == 1 {
 			return true
 		}
-		siblings := make(map[string]interface{}, len(schema)-1)
+		siblings := make(map[string]any, len(schema)-1)
 		for key, value := range schema {
 			if key != "$ref" {
 				siblings[key] = value
@@ -79,7 +79,7 @@ func jsonSchemaNodeAcceptsString(
 		}
 	}
 	if enumValues, exists := schema["enum"]; exists {
-		items, valid := enumValues.([]interface{})
+		items, valid := enumValues.([]any)
 		if !valid {
 			return false
 		}
@@ -96,7 +96,7 @@ func jsonSchemaNodeAcceptsString(
 	}
 	for _, keyword := range []string{"anyOf", "oneOf"} {
 		if branches, exists := schema[keyword]; exists {
-			items, valid := branches.([]interface{})
+			items, valid := branches.([]any)
 			if !valid || len(items) == 0 {
 				return false
 			}
@@ -113,7 +113,7 @@ func jsonSchemaNodeAcceptsString(
 		}
 	}
 	if branches, exists := schema["allOf"]; exists {
-		items, valid := branches.([]interface{})
+		items, valid := branches.([]any)
 		if !valid || len(items) == 0 {
 			return false
 		}
@@ -126,11 +126,11 @@ func jsonSchemaNodeAcceptsString(
 	return true
 }
 
-func jsonSchemaTypeIncludesString(value interface{}) bool {
+func jsonSchemaTypeIncludesString(value any) bool {
 	switch item := value.(type) {
 	case string:
 		return item == "string"
-	case []interface{}:
+	case []any:
 		for _, candidate := range item {
 			if candidate == "string" {
 				return true
@@ -140,17 +140,17 @@ func jsonSchemaTypeIncludesString(value interface{}) bool {
 	return false
 }
 
-func resolveLocalJSONSchemaReference(root map[string]interface{}, reference string) (interface{}, bool) {
+func resolveLocalJSONSchemaReference(root map[string]any, reference string) (any, bool) {
 	if reference == "#" {
 		return root, true
 	}
 	if !strings.HasPrefix(reference, "#/") {
 		return nil, false
 	}
-	var current interface{} = root
+	var current any = root
 	for _, rawSegment := range strings.Split(strings.TrimPrefix(reference, "#/"), "/") {
 		segment := strings.ReplaceAll(strings.ReplaceAll(rawSegment, "~1", "/"), "~0", "~")
-		object, ok := current.(map[string]interface{})
+		object, ok := current.(map[string]any)
 		if !ok {
 			return nil, false
 		}

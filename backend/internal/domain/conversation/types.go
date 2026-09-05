@@ -46,6 +46,7 @@ type ConversationProject struct {
 	Name                    string
 	Description             string
 	SystemPrompt            string
+	DefaultModel            string
 	MCPDefaultMode          string
 	DefaultMCPToolIDs       []uint
 	DefaultSkillIDs         []uint
@@ -63,6 +64,7 @@ type ConversationProjectPatch struct {
 	Name                    *string
 	Description             *string
 	SystemPrompt            *string
+	DefaultModel            *string
 	MCPDefaultMode          *string
 	DefaultMCPToolIDs       *[]uint
 	DefaultSkillIDs         *[]uint
@@ -288,7 +290,7 @@ type FileObject struct {
 	ProcessingPayloadJSON  string
 	ProcessingStartedAt    *time.Time
 	ProcessingCompletedAt  *time.Time
-	RagOptOut              bool
+	RAGOptOut              bool
 	CreatedAt              time.Time
 	UpdatedAt              time.Time
 }
@@ -298,6 +300,7 @@ const (
 	FileProcessingStatusQueued     = "queued"
 	FileProcessingStatusExtracting = "extracting"
 	FileProcessingStatusEmbedding  = "embedding"
+	FileSubprocessStatusQueued     = "queued"
 	FileSubprocessStatusProcessing = "processing"
 )
 
@@ -311,6 +314,7 @@ func IsFileProcessing(file FileObject) bool {
 		return true
 	default:
 		return file.ExtractStatus == FileSubprocessStatusProcessing ||
+			file.EmbedStatus == FileSubprocessStatusQueued ||
 			file.EmbedStatus == FileSubprocessStatusProcessing
 	}
 }
@@ -502,12 +506,32 @@ type EventLog struct {
 	ToolName          string
 	LatencyMS         int64
 	InputJSON         string
+	InputSizeBytes    int64
+	InputOmitted      bool
 	OutputJSON        string
+	OutputSizeBytes   int64
+	OutputOmitted     bool
 	ErrorJSON         string
+	ErrorSizeBytes    int64
+	ErrorOmitted      bool
 	StartedAt         time.Time
 	EndedAt           *time.Time
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+}
+
+// ToolCallDetail 表示当前用户可读取的工具调用结果详情。
+type ToolCallDetail struct {
+	RunID           string
+	ToolCallID      string
+	ToolName        string
+	Status          string
+	OutputJSON      string
+	OutputSizeBytes int64
+	OutputOmitted   bool
+	ErrorJSON       string
+	ErrorSizeBytes  int64
+	ErrorOmitted    bool
 }
 
 // ToolCall 表示工具调用记录。

@@ -16,8 +16,11 @@ import (
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/conv"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
 const (
@@ -26,6 +29,10 @@ const (
 	MessageErrorCodeKnowledgeBaseUnavailable      = "knowledge_base.unavailable"
 	MessageErrorCodeKnowledgeBaseNotReady         = "knowledge_base.not_ready"
 	MessageErrorCodeUpstreamRateLimited           = "upstream.rate_limited"
+	MessageErrorCodeUpstreamEmptyResponse         = "llm.empty_response"
+	MessageErrorCodeUpstreamUnavailable           = "upstream.unavailable"
+	MessageErrorCodeToolRunFinalAnswerMissing     = "tool_run.final_answer_missing"
+	MessageErrorCodeQuotaExceeded                 = "quota.exceeded"
 	messageErrorCodeInternal                      = "internal.error"
 )
 
@@ -39,34 +46,11 @@ func normalizePublicID(raw string) string {
 	return conv.NormalizePublicID(raw)
 }
 
-// isCJKRune 判断字符是否属于 CJK 字符范围（中文、日文、韩文）。
-func isCJKRune(r rune) bool {
-	return (r >= 0x2E80 && r <= 0x9FFF) || // CJK 部首、假名、统一表意文字
-		(r >= 0xAC00 && r <= 0xD7AF) || // 韩文音节
-		(r >= 0xF900 && r <= 0xFAFF) || // CJK 兼容汉字
-		(r >= 0x20000 && r <= 0x2A6DF) // CJK 扩展 B
-}
-
-// estimateTokens 估算文本 token 数，区分 CJK 与其他字符权重。
-// CJK 字符：约 1.5 chars/token；ASCII 及其他：约 4 chars/token。
-func estimateTokens(content string) int64 {
-	if len(content) == 0 {
-		return 0
-	}
-	var cjk, other int64
-	for _, r := range content {
-		if isCJKRune(r) {
-			cjk++
-		} else {
-			other++
-		}
-	}
-	// CJK: tokens = ceil(cjk * 2/3)；other: tokens = ceil(other / 4)
-	tokens := (cjk*2+2)/3 + (other+3)/4
-	if tokens == 0 {
-		return 1
-	}
-	return tokens
+func isCJKRune(char rune) bool {
+	return (char >= 0x2E80 && char <= 0x9FFF) ||
+		(char >= 0xAC00 && char <= 0xD7AF) ||
+		(char >= 0xF900 && char <= 0xFAFF) ||
+		(char >= 0x20000 && char <= 0x2A6DF)
 }
 
 func estimateContentPartTokens(part llm.ContentPart) int64 {
@@ -74,9 +58,9 @@ func estimateContentPartTokens(part llm.ContentPart) int64 {
 	case llm.ContentPartImage:
 		return 255
 	case llm.ContentPartFile:
-		return estimateTokens(part.FileName) + estimateTokens(part.Text) + 8
+		return tokenestimate.Estimate(part.FileName) + tokenestimate.Estimate(part.Text) + 8
 	default:
-		return estimateTokens(part.Text)
+		return tokenestimate.Estimate(part.Text)
 	}
 }
 
@@ -90,20 +74,20 @@ func estimateMessageTokens(message llm.Message) int64 {
 			tokens += estimateContentPartTokens(part)
 		}
 	} else {
-		tokens += estimateTokens(message.Content)
+		tokens += tokenestimate.Estimate(message.Content)
 	}
-	tokens += estimateTokens(message.ReasoningContent)
+	tokens += tokenestimate.Estimate(message.ReasoningContent)
 	for _, call := range message.ToolCalls {
-		tokens += estimateTokens(call.ToolCallID)
-		tokens += estimateTokens(call.ToolName)
-		tokens += estimateTokens(call.ArgumentsJSON)
+		tokens += tokenestimate.Estimate(call.ToolCallID)
+		tokens += tokenestimate.Estimate(call.ToolName)
+		tokens += tokenestimate.Estimate(call.ArgumentsJSON)
 		tokens += 8
 	}
 	for _, result := range message.ToolResults {
-		tokens += estimateTokens(result.ToolCallID)
-		tokens += estimateTokens(result.ToolName)
-		tokens += estimateTokens(result.OutputJSON)
-		tokens += estimateTokens(result.Error)
+		tokens += tokenestimate.Estimate(result.ToolCallID)
+		tokens += tokenestimate.Estimate(result.ToolName)
+		tokens += tokenestimate.Estimate(result.OutputJSON)
+		tokens += tokenestimate.Estimate(result.Error)
 		tokens += 8
 	}
 	return tokens
@@ -120,32 +104,8 @@ func estimatePromptTokens(messages []llm.Message) int64 {
 	return tokens
 }
 
-func compactSnippet(content string, maxLen int) string {
-	value := strings.Join(strings.Fields(strings.TrimSpace(content)), " ")
-	if value == "" {
-		return ""
-	}
-	if maxLen <= 0 {
-		maxLen = 120
-	}
-	runes := []rune(value)
-	if len(runes) <= maxLen {
-		return value
-	}
-	return string(runes[:maxLen]) + "..."
-}
-
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if normalized := strings.TrimSpace(value); normalized != "" {
-			return normalized
-		}
-	}
-	return ""
-}
-
 func buildContextPolicyJSON(cfg config.Config) string {
-	policy := map[string]interface{}{
+	policy := map[string]any{
 		"max_turns":                      cfg.ContextMaxTurns,
 		"compact_enabled":                cfg.ContextCompactEnabled,
 		"context_window_fallback_tokens": cfg.ContextWindowFallbackTokens,
@@ -157,23 +117,6 @@ func buildContextPolicyJSON(cfg config.Config) string {
 		return "{}"
 	}
 	return string(raw)
-}
-
-func truncateError(message string, limit int) string {
-	value := strings.TrimSpace(message)
-	if limit <= 0 || len([]rune(value)) <= limit {
-		return value
-	}
-	runes := []rune(value)
-	return string(runes[:limit])
-}
-
-func getStringFromAny(raw interface{}) string {
-	return conv.GetStringFromAny(raw)
-}
-
-func getIntFromAny(raw interface{}) int {
-	return conv.GetIntFromAny(raw)
 }
 
 func inferProvider(platformModelName string) string {
@@ -196,56 +139,19 @@ func classifyRunErrorCode(err error) string {
 	if errors.As(err, &upstreamErr) && isImageStreamConfigurationFailure(upstreamErr) {
 		return MessageErrorCodeMediaImageStreamUnsupported
 	}
-	switch {
-	case IsUpstreamRateLimitError(err):
+	if IsUpstreamRateLimitError(err) {
 		return MessageErrorCodeUpstreamRateLimited
-	case errors.Is(err, ErrConversationNotFound):
-		return "conversation_not_found"
-	case errors.Is(err, ErrInvalidFileReference):
-		return "invalid_file_reference"
-	case errors.Is(err, ErrFileNotFound):
-		return "file_not_found"
-	case errors.Is(err, ErrStorageQuotaExceeded):
-		return "storage_quota_exceeded"
-	case errors.Is(err, ErrFileTooLarge):
-		return "file_too_large"
-	case errors.Is(err, ErrInvalidKnowledgeBaseReference):
-		return MessageErrorCodeKnowledgeBaseInvalidReference
-	case errors.Is(err, ErrKnowledgeBaseUnavailable):
-		return MessageErrorCodeKnowledgeBaseUnavailable
-	case errors.Is(err, ErrKnowledgeBaseNotReady):
-		return MessageErrorCodeKnowledgeBaseNotReady
-	case errors.Is(err, ErrModelRouteNotConfigured):
-		return "model_route_not_configured"
-	case errors.Is(err, ErrUpstreamEmptyResponse):
-		return "upstream_empty_response"
-	case errors.Is(err, ErrToolRunFinalAnswerMissing):
-		return "tool_run_final_answer_missing"
-	case errors.Is(err, ErrMessageGenerationCanceled):
-		return "generation_canceled"
-	case errors.Is(err, ErrMediaImagePromptRequired):
-		return "media_image_prompt_required"
-	case errors.Is(err, ErrMediaImageGenerationRejectsInputs):
-		return "media_image_generation_rejects_inputs"
-	case errors.Is(err, ErrMediaImageEditInputRequired):
-		return "media_image_edit_input_required"
-	case errors.Is(err, ErrMediaImageEditTooManyInputs):
-		return "media_image_edit_too_many_inputs"
-	case errors.Is(err, ErrMediaImageEditInputInvalid):
-		return "media_image_edit_input_invalid"
-	case errors.Is(err, ErrMediaVideoPromptRequired):
-		return "media_video_prompt_required"
-	case errors.Is(err, ErrMediaVideoInputInvalid):
-		return "media_video_input_invalid"
-	case errors.Is(err, ErrMediaVideoTooManyInputs):
-		return "media_video_too_many_inputs"
-	case errors.Is(err, ErrMediaRouteProtocolMismatch):
-		return "media_route_protocol_mismatch"
-	case errors.Is(err, ErrUpstreamRequestFailed):
-		return "upstream_request_failed"
-	default:
-		return messageErrorCodeInternal
 	}
+	if errors.Is(err, ErrUpstreamEmptyResponse) {
+		return MessageErrorCodeUpstreamEmptyResponse
+	}
+	if errors.Is(err, ErrUpstreamRequestFailed) {
+		return MessageErrorCodeUpstreamUnavailable
+	}
+	if code := apperr.Code(err); code != "" {
+		return code
+	}
+	return messageErrorCodeInternal
 }
 
 // IsUpstreamRateLimitError 判断错误是否来自真实上游 429 或本地路由级退避。
@@ -268,29 +174,19 @@ func messageErrorSummary(err error) string {
 	if errors.As(err, &upstreamErr) {
 		return upstreamErrorSummary(upstreamErr)
 	}
-	value := strings.TrimSpace(err.Error())
-	if value == "" {
-		return ""
+	if errors.Is(err, ErrUpstreamRequestFailed) {
+		return "upstream service unavailable"
 	}
-	prefix := ErrUpstreamRequestFailed.Error() + ":"
-	for strings.HasPrefix(value, prefix) {
-		value = strings.TrimSpace(strings.TrimPrefix(value, prefix))
+	if coded, ok := apperr.Find(err); ok {
+		if message := strings.TrimSpace(coded.Message()); message != "" {
+			return message
+		}
 	}
-	return value
+	return "internal server error"
 }
 
 func isMessageGenerationCanceledError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, ErrMessageGenerationCanceled) {
-		return true
-	}
-	var upstreamErr *llm.UpstreamError
-	if !errors.As(err, &upstreamErr) || !isSuccessfulUpstreamStatus(upstreamErr.StatusCode) {
-		return false
-	}
-	return strings.TrimSpace(upstreamErr.Message) == ErrMessageGenerationCanceled.Error()
+	return errors.Is(err, ErrMessageGenerationCanceled)
 }
 
 func messageErrorDebug(err error) *llm.UpstreamDebugSnapshot {
@@ -332,7 +228,7 @@ func sanitizeUpstreamNameJSON(raw string) string {
 	if value == "" {
 		return raw
 	}
-	var payload interface{}
+	var payload any
 	if err := json.Unmarshal([]byte(value), &payload); err != nil {
 		return raw
 	}
@@ -344,9 +240,9 @@ func sanitizeUpstreamNameJSON(raw string) string {
 	return string(data)
 }
 
-func deleteUpstreamNameValues(value interface{}, parentKey string) {
+func deleteUpstreamNameValues(value any, parentKey string) {
 	switch current := value.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		for key, child := range current {
 			if isUpstreamNameKey(key, parentKey) {
 				delete(current, key)
@@ -354,7 +250,7 @@ func deleteUpstreamNameValues(value interface{}, parentKey string) {
 			}
 			deleteUpstreamNameValues(child, key)
 		}
-	case []interface{}:
+	case []any:
 		for _, child := range current {
 			deleteUpstreamNameValues(child, parentKey)
 		}
@@ -443,7 +339,7 @@ func isImageStreamingUpstreamRequest(debug *llm.UpstreamDebugSnapshot) bool {
 }
 
 func jsonObjectFieldIsTrue(raw string, key string) bool {
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &payload); err != nil {
 		return false
 	}
@@ -458,22 +354,22 @@ func jsonObjectFieldIsTrue(raw string, key string) bool {
 }
 
 func geminiImageResponseRequested(raw string) bool {
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &payload); err != nil {
 		return false
 	}
-	config, ok := payload["generationConfig"].(map[string]interface{})
+	config, ok := payload["generationConfig"].(map[string]any)
 	if !ok {
 		return false
 	}
 	return containsImageModality(config["responseModalities"])
 }
 
-func containsImageModality(raw interface{}) bool {
+func containsImageModality(raw any) bool {
 	switch value := raw.(type) {
 	case string:
 		return strings.EqualFold(strings.TrimSpace(value), "image")
-	case []interface{}:
+	case []any:
 		for _, item := range value {
 			if containsImageModality(item) {
 				return true
@@ -525,18 +421,10 @@ func mapRouteResolutionError(err error) error {
 	}
 }
 
-// MessageErrorSummary 返回适合边界层展示的错误摘要。
-func MessageErrorSummary(err error) string {
-	return messageErrorSummary(err)
-}
-
 // MessageErrorCode 返回适合边界层和前端本地化使用的稳定错误码。
 func MessageErrorCode(err error) string {
 	if err == nil {
 		return ""
-	}
-	if IsUpstreamRateLimitError(err) {
-		return MessageErrorCodeUpstreamRateLimited
 	}
 	if errors.Is(err, ErrGeneratedMediaArtifactUnavailable) {
 		return MessageErrorCodeMediaArtifactUnavailable
@@ -544,6 +432,12 @@ func MessageErrorCode(err error) string {
 	var upstreamErr *llm.UpstreamError
 	if errors.As(err, &upstreamErr) && isImageStreamConfigurationFailure(upstreamErr) {
 		return MessageErrorCodeMediaImageStreamUnsupported
+	}
+	if IsUpstreamRateLimitError(err) {
+		return MessageErrorCodeUpstreamRateLimited
+	}
+	if errors.Is(err, ErrUpstreamEmptyResponse) {
+		return MessageErrorCodeUpstreamEmptyResponse
 	}
 	return ""
 }
@@ -616,16 +510,6 @@ func fallbackContentType(contentType string) string {
 	return value
 }
 
-func appendAssistantText(base string, suffix string) string {
-	if suffix == "" {
-		return base
-	}
-	if strings.TrimSpace(base) == "" {
-		return suffix
-	}
-	return base + "\n\n" + suffix
-}
-
 func shouldFallbackToNonStreaming(err error) bool {
 	var upstreamErr *llm.UpstreamError
 	if !errors.As(err, &upstreamErr) {
@@ -667,74 +551,6 @@ func isStreamUnsupportedError(err *llm.UpstreamError) bool {
 		"doesn't support",
 	} {
 		if strings.Contains(detail, marker) {
-			return true
-		}
-	}
-	return false
-}
-
-func emitFallbackText(text string, onDelta func(string) error) error {
-	if onDelta == nil {
-		return nil
-	}
-	content := text
-	if content == "" {
-		return nil
-	}
-
-	runes := []rune(content)
-	const chunkSize = 24
-	for start := 0; start < len(runes); start += chunkSize {
-		end := start + chunkSize
-		if end > len(runes) {
-			end = len(runes)
-		}
-		if err := onDelta(string(runes[start:end])); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// isDocxMIME 判断文件是否为 DOCX 格式。
-func isDocxMIME(mimeType, fileName string) bool {
-	m := strings.ToLower(strings.TrimSpace(mimeType))
-	ext := ""
-	if idx := strings.LastIndex(fileName, "."); idx >= 0 {
-		ext = strings.ToLower(fileName[idx+1:])
-	}
-	return strings.Contains(m, "wordprocessingml") || strings.Contains(m, "msword") ||
-		ext == "docx" || ext == "doc"
-}
-
-func isPDFMIME(mimeType, fileName string) bool {
-	m := strings.ToLower(strings.TrimSpace(mimeType))
-	if m == "application/pdf" {
-		return true
-	}
-	if idx := strings.LastIndex(fileName, "."); idx >= 0 {
-		return strings.ToLower(fileName[idx+1:]) == "pdf"
-	}
-	return false
-}
-
-func isTextMIMEForEmbed(mimeType, fileName string) bool {
-	m := strings.ToLower(strings.TrimSpace(mimeType))
-	if strings.HasPrefix(m, "text/") {
-		return true
-	}
-	switch m {
-	case "application/json", "application/xml", "application/javascript", "application/typescript",
-		"application/yaml", "application/x-yaml", "application/toml":
-		return true
-	}
-	if idx := strings.LastIndex(fileName, "."); idx >= 0 {
-		ext := strings.ToLower(fileName[idx+1:])
-		switch ext {
-		case "txt", "md", "markdown", "csv", "json", "xml", "html", "htm",
-			"css", "js", "ts", "jsx", "tsx", "py", "go", "rs", "java",
-			"c", "cpp", "h", "hpp", "cs", "rb", "php", "swift", "kt",
-			"sh", "bash", "zsh", "yaml", "yml", "toml", "ini", "conf", "sql":
 			return true
 		}
 	}
@@ -838,7 +654,7 @@ func conversationImageRefs(messages []domainconversation.Message, attachments []
 			continue
 		}
 		if strings.EqualFold(strings.TrimSpace(att.ContextMode), fileContextModeDirectImage) &&
-			normalizeAttachmentKind(att.Kind, firstNonEmptyString(att.DetectedMIME, att.MimeType)) == "image" {
+			normalizeAttachmentKind(att.Kind, textutil.FirstNonEmpty(att.DetectedMIME, att.MimeType)) == "image" {
 			available[fileID] = att
 		}
 	}
@@ -859,7 +675,7 @@ func conversationImageRefs(messages []domainconversation.Message, attachments []
 					continue
 				}
 				_, isAvailable := available[fileID]
-				snapshotMIME := firstNonEmptyString(snapshot.DetectedMIME, snapshot.MimeType)
+				snapshotMIME := textutil.FirstNonEmpty(snapshot.DetectedMIME, snapshot.MimeType)
 				if !isAvailable && normalizeAttachmentKind(snapshot.Kind, snapshotMIME) != "image" {
 					continue
 				}
@@ -899,9 +715,6 @@ func (s *Service) injectConversationImageContext(
 		cache = defaultPreparedConversationImageCache()
 	}
 	storeProvider := s.storeProvider
-	if storeProvider == nil {
-		storeProvider = appstorage.NewRuntimeProvider(config.NewRuntime(cfg), nil)
-	}
 
 	var store objectstore.Store
 	partsByRef := make(map[int]llm.ContentPart, len(refs))
@@ -915,29 +728,32 @@ func (s *Service) injectConversationImageContext(
 			if !ok || strings.TrimSpace(att.StoragePath) == "" {
 				return nil, fmt.Errorf("%w: historical image %s", ErrInvalidFileReference, ref.fileID)
 			}
-			mime := resolveImageMimeType(firstNonEmptyString(att.DetectedMIME, att.MimeType))
+			mime := resolveImageMimeType(textutil.FirstNonEmpty(att.DetectedMIME, att.MimeType))
 			cacheKey := preparedConversationImageCacheKey(att, maxDim, mime)
 			if cached, ok := cache.get(cacheKey); ok {
 				part = llm.ContentPart{Kind: llm.ContentPartImage, MimeType: cached.mimeType, Data: cached.data}
 			} else {
 				if store == nil {
+					if storeProvider == nil {
+						return nil, fmt.Errorf("%w: open object storage: %w", ErrFileNotFound, appstorage.ErrProviderNotConfigured)
+					}
 					openedStore, openErr := storeProvider.Open(ctx)
 					if openErr != nil {
-						return nil, fmt.Errorf("%w: open object storage: %v", ErrFileNotFound, openErr)
+						return nil, fmt.Errorf("%w: open object storage: %w", ErrFileNotFound, openErr)
 					}
 					store = openedStore
 				}
 				reader, _, openErr := store.Open(ctx, strings.TrimSpace(att.StoragePath))
 				if openErr != nil {
-					return nil, fmt.Errorf("%w: historical image %s: %v", ErrFileNotFound, ref.fileID, openErr)
+					return nil, fmt.Errorf("%w: historical image %s: %w", ErrFileNotFound, ref.fileID, openErr)
 				}
 				data, readErr := io.ReadAll(io.LimitReader(reader, maxConversationImageSourceBytes+1))
 				closeErr := reader.Close()
 				if readErr != nil {
-					return nil, fmt.Errorf("%w: read historical image %s: %v", ErrFileNotFound, ref.fileID, readErr)
+					return nil, fmt.Errorf("%w: read historical image %s: %w", ErrFileNotFound, ref.fileID, readErr)
 				}
 				if closeErr != nil {
-					return nil, fmt.Errorf("%w: close historical image %s: %v", ErrFileNotFound, ref.fileID, closeErr)
+					return nil, fmt.Errorf("%w: close historical image %s: %w", ErrFileNotFound, ref.fileID, closeErr)
 				}
 				if len(data) == 0 {
 					return nil, fmt.Errorf("%w: historical image %s is empty", ErrInvalidFileReference, ref.fileID)
@@ -1045,7 +861,7 @@ func injectUserContext(
 				continue
 			}
 			if storeProvider == nil {
-				storeProvider = appstorage.NewRuntimeProvider(config.NewRuntime(cfg), nil)
+				continue
 			}
 			store, storeErr := storeProvider.Open(ctx)
 			if storeErr != nil {
@@ -1170,8 +986,8 @@ func formatImageAnalysisContext(analyses []imageAttachmentAnalysis) []string {
 		if content == "" {
 			continue
 		}
-		name := firstNonEmptyString(analysis.FileName, analysis.FileID, "unknown")
-		toolName := firstNonEmptyString(analysis.ToolName, "MCP")
+		name := textutil.FirstNonEmpty(analysis.FileName, analysis.FileID, "unknown")
+		toolName := textutil.FirstNonEmpty(analysis.ToolName, "MCP")
 		items = append(items, `<img name="`+xmlEscapeAttr(name)+`" via="`+xmlEscapeAttr(toolName)+`">`+xmlEscapeText(content)+`</img>`)
 	}
 	return items
@@ -1251,7 +1067,7 @@ func formatHistoricalEvidenceContext(artifacts []domainconversation.ContextArtif
 		if source == "" {
 			source = "unknown"
 		}
-		items = append(items, `<ev k="`+xmlEscapeAttr(kind)+`" src="`+xmlEscapeAttr(source)+`">`+xmlEscapeText(compactSnippet(content, 500))+`</ev>`)
+		items = append(items, `<ev k="`+xmlEscapeAttr(kind)+`" src="`+xmlEscapeAttr(source)+`">`+xmlEscapeText(textutil.CompactSnippet(content, 500))+`</ev>`)
 	}
 	return items
 }
@@ -1274,7 +1090,7 @@ func formatRecallContext(chunks []domainconversation.MessageChunk) []string {
 		if chunkIndex <= 0 {
 			chunkIndex = index + 1
 		}
-		items = append(items, `<msg role="`+xmlEscapeAttr(role)+`" i="`+xmlEscapeAttr(fmt.Sprintf("%d", chunkIndex))+`">`+xmlEscapeText(compactSnippet(content, 300))+`</msg>`)
+		items = append(items, `<msg role="`+xmlEscapeAttr(role)+`" i="`+xmlEscapeAttr(fmt.Sprintf("%d", chunkIndex))+`">`+xmlEscapeText(textutil.CompactSnippet(content, 300))+`</msg>`)
 	}
 	return items
 }
@@ -1472,10 +1288,10 @@ func buildPreferencePrompt(memories []domainmemory.UserMemory, maxTokens int) st
 	}
 	var sb strings.Builder
 	sb.WriteString("# prefs\n")
-	tokenCount := estimateTokens(sb.String())
+	tokenCount := tokenestimate.Estimate(sb.String())
 	for _, m := range memories {
 		line := "- " + strings.TrimSpace(m.MemoryKey) + ": " + strings.TrimSpace(m.Value) + "\n"
-		lineTokens := estimateTokens(line)
+		lineTokens := tokenestimate.Estimate(line)
 		if int(tokenCount)+int(lineTokens) > maxTokens {
 			break
 		}

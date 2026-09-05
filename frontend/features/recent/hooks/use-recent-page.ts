@@ -35,6 +35,7 @@ import type {
   ConversationStatusFilter,
 } from "@/shared/api/conversation.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { useLoadMoreSentinel } from "@/shared/hooks/use-load-more-sentinel";
 import { runBulkActionInChunks } from "@/shared/lib/bulk-action";
 import { normalizeConversationSearchText } from "@/shared/lib/conversation-search";
@@ -124,7 +125,7 @@ export function useRecentPage() {
   const searchParams = useSearchParams();
   const [projectFilter, setProjectFilter] = React.useState<ConversationProjectFilter>(() => searchParams.get("project") || "all");
   const [query, setQuery] = React.useState("");
-  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const debouncedQuery = useDebouncedValue(query, RECENT_SEARCH_DEBOUNCE_MS);
   const [selectionMode, setSelectionMode] = React.useState(false);
   const [hoveredConversationID, setHoveredConversationID] = React.useState<string | null>(null);
   const [selectedConversationIDs, setSelectedConversationIDs] = React.useState<string[]>([]);
@@ -158,14 +159,6 @@ export function useRecentPage() {
 
   const normalizedQuery = normalizeConversationSearchText(debouncedQuery);
   const filteredItems = items;
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedQuery(query);
-    }, RECENT_SEARCH_DEBOUNCE_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [query]);
 
   const lastAppliedChangeSequenceRef = React.useRef(0);
 

@@ -11,11 +11,11 @@ import (
 
 // ErrorDoc 用于 Swagger 标注通用错误响应。
 type ErrorDoc struct {
-	ErrorMsg  string      `json:"errorMsg" example:"invalid request"`
-	ErrorCode string      `json:"errorCode,omitempty" example:"invalid_request"`
-	Details   interface{} `json:"details,omitempty"`
-	RequestID string      `json:"requestId,omitempty" example:""`
-	Data      interface{} `json:"data"`
+	ErrorMsg  string `json:"errorMsg" example:"invalid request"`
+	ErrorCode string `json:"errorCode,omitempty" example:"invalid_request"`
+	Details   any    `json:"details,omitempty"`
+	RequestID string `json:"requestId,omitempty" example:""`
+	Data      any    `json:"data"`
 }
 
 // AnnouncementResponse 面向前端的公告响应。

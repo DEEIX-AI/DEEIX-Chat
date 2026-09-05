@@ -99,7 +99,7 @@ func (s *Service) SetModelProtocols(ctx context.Context, modelID uint, input Set
 	})
 	if err != nil {
 		switch {
-		case isDuplicateKeyError(err):
+		case errors.Is(err, repository.ErrDuplicate):
 			return nil, ErrUpstreamModelConflict
 		case errors.Is(err, repository.ErrConflict):
 			return nil, ErrUpstreamModelBindingChanged

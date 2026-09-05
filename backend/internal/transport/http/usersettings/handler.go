@@ -1,6 +1,7 @@
 package usersettings
 
 import (
+	"errors"
 	"net/http"
 
 	appusersettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/usersettings"
@@ -32,7 +33,7 @@ func (h *Handler) GetSettings(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	data, err := h.service.ListSettings(c.Request.Context(), userID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "load settings failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, UserSettingsResponse{Settings: data})
@@ -60,10 +61,10 @@ func (h *Handler) PatchSettings(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	data, err := h.service.PatchSettings(c.Request.Context(), userID, req.Settings)
 	if err != nil {
-		if appusersettings.IsValidationError(err) {
+		if errors.Is(err, appusersettings.ErrUnknownSetting) || errors.Is(err, appusersettings.ErrInvalidSettingValue) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 		} else {
-			response.Error(c, http.StatusInternalServerError, "settings update failed")
+			response.InternalError(c)
 		}
 		return
 	}

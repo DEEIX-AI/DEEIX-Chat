@@ -34,15 +34,33 @@ type assistantImagePayload struct {
 	MIMEType string
 }
 
-func (s *Service) normalizeAssistantImageContent(
-	ctx context.Context,
-	userID uint,
-	conversationID uint,
-	assistantMessageID uint,
-	modelName string,
-	content string,
-) (*assistantImageContentNormalization, error) {
-	candidates := extractAssistantImageCandidates(content)
+type assistantImageContentInput struct {
+	UserID             uint
+	ConversationID     uint
+	AssistantMessageID uint
+	ModelName          string
+	Content            string
+}
+
+type assistantGeneratedImagesInput struct {
+	UserID                  uint
+	ConversationID          uint
+	AssistantMessageID      uint
+	ModelName               string
+	TrustedProviderEndpoint string
+	GeneratedImages         []llm.GeneratedImage
+}
+
+type assistantImageSaveInput struct {
+	UserID             uint
+	ConversationID     uint
+	AssistantMessageID uint
+	ModelName          string
+	Images             []assistantImagePayload
+}
+
+func (s *Service) normalizeAssistantImageContent(ctx context.Context, input assistantImageContentInput) (*assistantImageContentNormalization, error) {
+	candidates := extractAssistantImageCandidates(input.Content)
 	if len(candidates) == 0 {
 		return nil, nil
 	}
@@ -57,22 +75,20 @@ func (s *Service) normalizeAssistantImageContent(
 			break
 		}
 	}
-	return s.saveAssistantImages(ctx, userID, conversationID, assistantMessageID, modelName, images)
+	return s.saveAssistantImages(ctx, assistantImageSaveInput{
+		UserID:             input.UserID,
+		ConversationID:     input.ConversationID,
+		AssistantMessageID: input.AssistantMessageID,
+		ModelName:          input.ModelName,
+		Images:             images,
+	})
 }
 
 // normalizeAssistantGeneratedImages 将协议层结构化图片结果转换为消息附件。
-func (s *Service) normalizeAssistantGeneratedImages(
-	ctx context.Context,
-	userID uint,
-	conversationID uint,
-	assistantMessageID uint,
-	modelName string,
-	trustedProviderEndpoint string,
-	generatedImages []llm.GeneratedImage,
-) (*assistantImageContentNormalization, error) {
-	images := make([]assistantImagePayload, 0, len(generatedImages))
-	for _, image := range generatedImages {
-		data, mimeType, err := s.readGeneratedImage(ctx, image, trustedProviderEndpoint)
+func (s *Service) normalizeAssistantGeneratedImages(ctx context.Context, input assistantGeneratedImagesInput) (*assistantImageContentNormalization, error) {
+	images := make([]assistantImagePayload, 0, len(input.GeneratedImages))
+	for _, image := range input.GeneratedImages {
+		data, mimeType, err := s.readGeneratedImage(ctx, image, input.TrustedProviderEndpoint)
 		if err != nil {
 			return nil, err
 		}
@@ -81,29 +97,28 @@ func (s *Service) normalizeAssistantGeneratedImages(
 			break
 		}
 	}
-	return s.saveAssistantImages(ctx, userID, conversationID, assistantMessageID, modelName, images)
+	return s.saveAssistantImages(ctx, assistantImageSaveInput{
+		UserID:             input.UserID,
+		ConversationID:     input.ConversationID,
+		AssistantMessageID: input.AssistantMessageID,
+		ModelName:          input.ModelName,
+		Images:             images,
+	})
 }
 
 // saveAssistantImages 统一保存助手生成的图片，并构造消息附件快照。
-func (s *Service) saveAssistantImages(
-	ctx context.Context,
-	userID uint,
-	conversationID uint,
-	assistantMessageID uint,
-	modelName string,
-	images []assistantImagePayload,
-) (*assistantImageContentNormalization, error) {
-	if len(images) == 0 {
+func (s *Service) saveAssistantImages(ctx context.Context, input assistantImageSaveInput) (*assistantImageContentNormalization, error) {
+	if len(input.Images) == 0 {
 		return nil, nil
 	}
 
-	uploaded := make([]model.FileObject, 0, len(images))
-	attachmentRows := make([]model.Attachment, 0, len(images))
+	uploaded := make([]model.FileObject, 0, len(input.Images))
+	attachmentRows := make([]model.Attachment, 0, len(input.Images))
 	now := time.Now()
-	for _, image := range images {
-		fileName := generatedImageFileName(modelName, now, len(uploaded), len(images), image.MIMEType)
-		uploadResult, uploadErr := s.UploadFile(ctx, appupload.UploadFileInput{
-			UserID:       userID,
+	for _, image := range input.Images {
+		fileName := generatedImageFileName(input.ModelName, now, len(uploaded), len(input.Images), image.MIMEType)
+		uploadResult, uploadErr := s.uploadSvc.UploadFile(ctx, appupload.UploadFileInput{
+			UserID:       input.UserID,
 			Purpose:      "generated_image",
 			FileName:     fileName,
 			MimeType:     image.MIMEType,
@@ -116,9 +131,9 @@ func (s *Service) saveAssistantImages(
 		file := uploadResult.File
 		uploaded = append(uploaded, file)
 		attachmentRows = append(attachmentRows, model.Attachment{
-			ConversationID: conversationID,
-			MessageID:      assistantMessageID,
-			UserID:         userID,
+			ConversationID: input.ConversationID,
+			MessageID:      input.AssistantMessageID,
+			UserID:         input.UserID,
 			FileID:         file.FileID,
 			Kind:           "image",
 			FileName:       file.FileName,
@@ -154,7 +169,7 @@ func extractAssistantImageCandidates(content string) []assistantImageCandidate {
 	if !strings.HasPrefix(text, "{") && !strings.HasPrefix(text, "[") {
 		return nil
 	}
-	var payload interface{}
+	var payload any
 	if err := json.Unmarshal([]byte(text), &payload); err != nil {
 		return nil
 	}
@@ -203,7 +218,7 @@ func directAssistantImageCandidate(text string) (assistantImageCandidate, bool) 
 	return assistantImageCandidate{Value: text}, true
 }
 
-func collectAssistantImageCandidates(value interface{}, key string, result *[]assistantImageCandidate) {
+func collectAssistantImageCandidates(value any, key string, result *[]assistantImageCandidate) {
 	if len(*result) >= maxAssistantImageContentItems {
 		return
 	}
@@ -212,14 +227,14 @@ func collectAssistantImageCandidates(value interface{}, key string, result *[]as
 		if candidate, ok := assistantImageCandidateFromString(typed, assistantImagePayloadKey(key)); ok {
 			*result = append(*result, candidate)
 		}
-	case []interface{}:
+	case []any:
 		for _, item := range typed {
 			collectAssistantImageCandidates(item, key, result)
 			if len(*result) >= maxAssistantImageContentItems {
 				return
 			}
 		}
-	case map[string]interface{}:
+	case map[string]any:
 		for childKey, childValue := range typed {
 			collectAssistantImageCandidates(childValue, childKey, result)
 			if len(*result) >= maxAssistantImageContentItems {

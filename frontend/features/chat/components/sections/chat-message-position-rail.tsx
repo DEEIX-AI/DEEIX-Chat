@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/message-scroller";
 import type { ChatAreaMessage } from "@/features/chat/types/messages";
 import { cn } from "@/lib/utils";
+import { useScrollFadeFallbackRef } from "@/shared/hooks/use-scroll-fade-fallback-ref";
 
 const QUESTION_PREVIEW_MAX_LENGTH = 240;
 const ANSWER_PREVIEW_MAX_LENGTH = 420;
@@ -88,6 +89,8 @@ function ChatMessagePositionPreview({
   previewRef: React.RefObject<HTMLDivElement | null>;
   top: number | null;
 }) {
+  const scrollFadeRef = useScrollFadeFallbackRef<HTMLDivElement>();
+
   return createPortal(
     <AnimatePresence initial={false}>
       {item && position && top !== null ? (
@@ -102,7 +105,10 @@ function ChatMessagePositionPreview({
           transition={{ duration: 0.15, ease: "easeOut" }}
           data-screenshot-exclude="true"
         >
-          <div className="max-h-full scroll-fade-y scroll-fade-12 overflow-y-auto rounded-lg bg-sidebar-accent px-3 py-2 text-left text-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div
+            ref={scrollFadeRef}
+            className="max-h-full scroll-fade-y scroll-fade-12 overflow-y-auto rounded-lg bg-sidebar-accent px-3 py-2 text-left text-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
             <span
               className="block text-sm font-medium leading-5 text-foreground"
               style={{

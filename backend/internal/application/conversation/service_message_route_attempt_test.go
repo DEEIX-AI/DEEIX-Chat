@@ -66,7 +66,7 @@ func TestBuildMessageRoutePromptRebuildsRouteSpecificFields(t *testing.T) {
 
 func TestWithMessageRouteReasoningPassbackOptions(t *testing.T) {
 	route := &channel.ResolvedRoute{
-		ReasoningPassbackRequestOptions: map[string]interface{}{
+		ReasoningPassbackRequestOptions: map[string]any{
 			"preserve_thinking": true,
 		},
 	}
@@ -79,7 +79,7 @@ func TestWithMessageRouteReasoningPassbackOptions(t *testing.T) {
 
 	explicit := withMessageRouteReasoningPassbackOptions(
 		nil,
-		map[string]interface{}{"preserve_thinking": false},
+		map[string]any{"preserve_thinking": false},
 		route,
 		true,
 		messages,

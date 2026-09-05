@@ -16,6 +16,10 @@ export type ChatContextPolicy = {
   contextCompactEnabled: boolean;
 };
 
+export type FeaturePolicy = {
+  knowledgeBaseEnabled: boolean;
+};
+
 export async function getModelOptionPolicy(accessToken: string): Promise<ModelOptionPolicy> {
   const data = await authedRequest<ModelOptionPolicyResponse>(
     "/api/v1/settings/model-option-policy",
@@ -44,6 +48,14 @@ export async function getMCPPolicy(accessToken: string): Promise<MCPPolicy> {
 export async function getChatContextPolicy(accessToken: string): Promise<ChatContextPolicy> {
   return authedRequest<ChatContextPolicy>(
     "/api/v1/settings/chat-context-policy",
+    { accessToken },
+    true,
+  );
+}
+
+export async function getFeaturePolicy(accessToken: string): Promise<FeaturePolicy> {
+  return authedRequest<FeaturePolicy>(
+    "/api/v1/settings/feature-policy",
     { accessToken },
     true,
   );

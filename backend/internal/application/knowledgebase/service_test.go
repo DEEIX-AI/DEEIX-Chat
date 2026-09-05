@@ -324,11 +324,11 @@ func (s *knowledgeBaseFileOpenerStub) OpenFileContent(_ context.Context, userID 
 	return s.result, s.err
 }
 
-func (s *knowledgeBaseFileCleanerStub) DeleteFileIfUnreferenced(_ context.Context, userID uint, fileID string) (bool, error) {
+func (s *knowledgeBaseFileCleanerStub) DeleteFileIfUnreferenced(_ context.Context, userID uint, fileID string) (*appupload.DeleteFileResult, bool, error) {
 	s.calls++
 	s.userID = userID
 	s.fileID = fileID
-	return s.deleted[fileID], s.err
+	return nil, s.deleted[fileID], s.err
 }
 
 type knowledgeBaseRepositoryStub struct {

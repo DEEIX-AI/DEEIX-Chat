@@ -3,6 +3,12 @@
 import * as React from "react";
 
 import {
+  type CommandRecentsEntry,
+  type CommandRecentsKind,
+  readCommandRecents,
+  recordCommandRecentUsage,
+} from "@/features/chat/model/command-recents-store";
+import {
   readMentionFileSearchCache,
   searchMentionFiles,
 } from "@/features/chat/model/mention-file-search";
@@ -15,21 +21,14 @@ import { listVisibleSkills } from "@/shared/api/skills";
 import type { SkillSummaryDTO } from "@/shared/api/skills.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { readSessionRevision } from "@/shared/auth/session";
+import { resolveModelPresentationGroup } from "@/shared/lib/model-presentation";
 
-const MENTION_MENU_MAX_HEIGHT = 280;
-const MENTION_MENU_MIN_HEIGHT = 32;
-const MENTION_MENU_ROW_HEIGHT = 32;
-const MENTION_MENU_ROW_GAP = 2;
-const MENTION_MENU_SECTION_HEADER_HEIGHT = 28;
-const MENTION_MENU_SECTION_GAP = 2;
-const MENTION_MENU_CHROME_HEIGHT = 12;
-const MENTION_MENU_VIEWPORT_GUTTER = 16;
-const MENTION_MENU_OFFSET = 8;
-const MENTION_MENU_FILE_QUERY_DELAY_MS = 180;
-const MENTION_MENU_PROMPT_QUERY_DELAY_MS = 180;
 const DEFAULT_MENTION_MENU_KINDS: readonly ChatMentionMenuKind[] = ["model", "file", "tool", "skill", "prompt"];
+const MENTION_TRIGGER_KINDS: readonly ChatMentionMenuKind[] = ["model", "file", "tool"];
+const PROMPT_TRIGGER_KINDS: readonly ChatMentionMenuKind[] = ["skill", "prompt"];
 
 export type ChatMentionMenuKind = "file" | "tool" | "model" | "skill" | "prompt";
+export type ChatMentionMenuTab = "all" | ChatMentionMenuKind;
 
 type ChatMentionFileMenuItem = {
   id: string;
@@ -83,9 +82,15 @@ export type ChatMentionMenuItem =
   | ChatMentionSkillMenuItem
   | ChatMentionPromptMenuItem;
 
-export type ChatMentionMenuSection = {
-  kind: ChatMentionMenuKind;
-  items: ChatMentionMenuItem[];
+export type ChatMentionMenuRow =
+  | { type: "header"; key: string; labelKey?: string; label?: string }
+  | { type: "item"; key: string; item: ChatMentionMenuItem }
+  | { type: "viewAll"; key: string; tab: ChatMentionMenuKind; count: number }
+  | { type: "loading"; key: string };
+
+export type ChatMentionMenuTabInfo = {
+  id: ChatMentionMenuTab;
+  count: number | null;
 };
 
 export type ChatMentionMenuLayout = {
@@ -99,6 +104,7 @@ export type ChatMentionMenuLayout = {
 
 type ChatMentionMenuPlacementPreference = "auto" | "bottom" | "top";
 type ChatMentionMenuPlacementAnchor = "caret" | "container";
+type ChatMentionTriggerKind = "mention" | "prompt";
 
 type ChatMentionMenuControllerArgs = {
   availableTools: MCPToolDTO[];
@@ -129,7 +135,7 @@ type ChatMentionMenuControllerArgs = {
 };
 
 type ChatMentionTriggerQuery = {
-  kind: "mention" | "prompt";
+  kind: ChatMentionTriggerKind;
   query: string;
   range: {
     start: number;
@@ -148,6 +154,8 @@ type ChatMentionSelection = {
   end: number;
   start: number;
 };
+
+type CommandRecentsSnapshot = Partial<Record<CommandRecentsKind, CommandRecentsEntry[]>>;
 
 function canStartTrigger(value: string, triggerIndex: number, trigger: "@" | "/"): boolean {
   if (triggerIndex === 0) {
@@ -297,6 +305,18 @@ function replaceTriggerRange(value: string, range: ChatMentionTriggerQuery["rang
   };
 }
 
+function insertAtCaret(value: string, caretIndex: number, content: string): {
+  caretIndex: number;
+  value: string;
+} {
+  const index = Math.min(Math.max(caretIndex, 0), value.length);
+  const nextContent = content.trim();
+  return {
+    caretIndex: index + nextContent.length,
+    value: `${value.slice(0, index)}${nextContent}${value.slice(index)}`,
+  };
+}
+
 function itemMatchesQuery(values: Array<string | undefined>, query: string): boolean {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) {
@@ -317,7 +337,11 @@ function resolveToolDescription(tool: MCPToolDTO): string {
   return [serverName, description].filter(Boolean).join(" - ");
 }
 
-function filterModels(modelOptions: ChatModelOption[], query: string): ChatMentionModelMenuItem[] {
+function filterModels(
+  modelOptions: ChatModelOption[],
+  query: string,
+  selectedPlatformModelName: string,
+): ChatMentionModelMenuItem[] {
   return modelOptions
     .filter((model) =>
       itemMatchesQuery([model.platformModelName, model.vendor], query),
@@ -328,7 +352,7 @@ function filterModels(modelOptions: ChatModelOption[], query: string): ChatMenti
       label: model.platformModelName,
       description: model.vendor,
       model,
-      selected: false,
+      selected: model.platformModelName === selectedPlatformModelName,
     }));
 }
 
@@ -391,160 +415,332 @@ function filesToItems(
   }));
 }
 
-function buildSections({
-  attachments,
-  availableTools,
-  defaultFileLabel,
-  files,
-  filesQuery,
-  fileLoading,
-  promptLoading,
-  skillLoading,
-  modelOptions,
-  prompts,
-  skills,
-  query,
-  queryKind,
-  selectedPlatformModelName,
-  selectedSkills = [],
-  selectedToolIDs,
-  toolsDisabled,
-  enabledKinds,
-}: {
-  attachments: PendingAttachment[];
-  availableTools: MCPToolDTO[];
-  defaultFileLabel: string;
-  files: FileObjectDTO[];
-  filesQuery: string;
-  fileLoading: boolean;
-  modelOptions: ChatModelOption[];
-  prompts: PromptPresetDTO[];
-  promptLoading: boolean;
-  skills: SkillSummaryDTO[];
-  skillLoading: boolean;
-  query: string | null;
-  queryKind: "mention" | "prompt" | null;
-  selectedPlatformModelName: string;
-  selectedSkills: SkillSummaryDTO[];
-  selectedToolIDs: number[];
-  toolsDisabled: boolean;
-  enabledKinds: ReadonlySet<ChatMentionMenuKind>;
-}): ChatMentionMenuSection[] {
-  if (query === null) {
-    return [];
+function mentionItemRecentsID(item: ChatMentionMenuItem): string {
+  switch (item.kind) {
+    case "model":
+      return item.model.platformModelName;
+    case "file":
+      return item.file.fileID;
+    case "tool":
+      return String(item.tool.id);
+    case "skill":
+      return String(item.skill.id);
+    case "prompt":
+      return String(item.prompt.id);
   }
-
-  const normalizedQuery = query.trim().toLowerCase();
-  if (queryKind === "prompt") {
-    const sections: ChatMentionMenuSection[] = [];
-    if (enabledKinds.has("skill")) {
-      const skillItems = skillLoading ? [] : skillsToItems(skills, selectedSkills);
-      if (skillItems.length > 0) {
-        sections.push({ kind: "skill" as const, items: skillItems });
-      }
-    }
-    if (enabledKinds.has("prompt")) {
-      const promptItems = promptLoading ? [] : promptsToItems(prompts);
-      if (promptItems.length > 0) {
-        sections.push({ kind: "prompt" as const, items: promptItems });
-      }
-    }
-    if (sections.length === 0) {
-      return [];
-    }
-    return sections;
-  }
-
-  const fileItems = enabledKinds.has("file") && !fileLoading && filesQuery === normalizedQuery
-    ? filesToItems(files, attachments, defaultFileLabel)
-    : [];
-  const toolItems = enabledKinds.has("tool") && !toolsDisabled
-    ? filterTools(availableTools, query, selectedToolIDs)
-    : [];
-  const modelItems = enabledKinds.has("model")
-    ? filterModels(modelOptions, query).map((item) => ({
-        ...item,
-        selected: item.model.platformModelName === selectedPlatformModelName,
-      }))
-    : [];
-
-  return [
-    { kind: "model" as const, items: modelItems },
-    { kind: "file" as const, items: fileItems },
-    { kind: "tool" as const, items: toolItems },
-  ].filter((section) => section.items.length > 0);
 }
 
-function flattenSections(sections: ChatMentionMenuSection[]): ChatMentionMenuItem[] {
-  return sections.flatMap((section) => section.items);
+function resolveRecentItems<T extends ChatMentionMenuItem>(
+  items: T[],
+  recents: CommandRecentsEntry[] | undefined,
+  limit: number,
+): Array<{ item: T; usedAt: number }> {
+  if (!recents || recents.length === 0 || items.length === 0) {
+    return [];
+  }
+  const byID = new Map(items.map((item) => [mentionItemRecentsID(item), item]));
+  const resolved: Array<{ item: T; usedAt: number }> = [];
+  for (const entry of recents) {
+    const item = byID.get(entry.id);
+    if (!item) {
+      continue;
+    }
+    resolved.push({ item, usedAt: entry.usedAt });
+    if (resolved.length >= limit) {
+      break;
+    }
+  }
+  return resolved;
+}
+
+function orderByRecents<T extends ChatMentionMenuItem>(
+  items: T[],
+  recents: CommandRecentsEntry[] | undefined,
+): T[] {
+  if (!recents || recents.length === 0 || items.length === 0) {
+    return items;
+  }
+  const rank = new Map(recents.map((entry, index) => [entry.id, index]));
+  const recentItems: T[] = [];
+  const rest: T[] = [];
+  for (const item of items) {
+    if (rank.has(mentionItemRecentsID(item))) {
+      recentItems.push(item);
+    } else {
+      rest.push(item);
+    }
+  }
+  recentItems.sort(
+    (a, b) => (rank.get(mentionItemRecentsID(a)) ?? 0) - (rank.get(mentionItemRecentsID(b)) ?? 0),
+  );
+  return [...recentItems, ...rest];
+}
+
+type ChatMentionKindData = {
+  items: ChatMentionMenuItem[];
+  /** Total available count; differs from items.length for server-paged kinds. */
+  total: number;
+  loading: boolean;
+};
+
+type BuildRowsArgs = {
+  tab: ChatMentionMenuTab;
+  sessionKinds: ChatMentionMenuKind[];
+  kindData: Partial<Record<ChatMentionMenuKind, ChatMentionKindData>>;
+  recents: CommandRecentsSnapshot;
+  hasQuery: boolean;
+  filesHasMore: boolean;
+  filesLoadingMore: boolean;
+};
+
+function buildScopeGroupedRows(
+  rows: ChatMentionMenuRow[],
+  items: ChatMentionMenuItem[],
+  scopeOf: (item: ChatMentionMenuItem) => "builtin" | "user",
+) {
+  const builtin = items.filter((item) => scopeOf(item) === "builtin");
+  const mine = items.filter((item) => scopeOf(item) !== "builtin");
+  if (builtin.length > 0) {
+    rows.push({ type: "header", key: "header:builtin", labelKey: "mention.groups.builtin" });
+    for (const item of builtin) {
+      rows.push({ type: "item", key: `tab:${item.id}`, item });
+    }
+  }
+  if (mine.length > 0) {
+    rows.push({ type: "header", key: "header:mine", labelKey: "mention.groups.mine" });
+    for (const item of mine) {
+      rows.push({ type: "item", key: `tab:${item.id}`, item });
+    }
+  }
+}
+
+function buildKindTabRows(
+  kind: ChatMentionMenuKind,
+  data: ChatMentionKindData,
+  recents: CommandRecentsSnapshot,
+  filesHasMore: boolean,
+  filesLoadingMore: boolean,
+): ChatMentionMenuRow[] {
+  const rows: ChatMentionMenuRow[] = [];
+
+  if (kind !== "file") {
+    const recentItems = resolveRecentItems(data.items, recents[kind], 5);
+    if (recentItems.length > 0) {
+      rows.push({ type: "header", key: "header:recent", labelKey: "mention.recent" });
+      for (const { item } of recentItems) {
+        rows.push({ type: "item", key: `recent:${item.id}`, item });
+      }
+    }
+  }
+
+  if (kind === "model") {
+    const groups = new Map<string, { label: string; items: ChatMentionMenuItem[] }>();
+    for (const item of data.items) {
+      if (item.kind !== "model") {
+        continue;
+      }
+      const presentation = resolveModelPresentationGroup(item.model);
+      const group = groups.get(presentation.key);
+      if (group) {
+        group.items.push(item);
+      } else {
+        groups.set(presentation.key, { label: presentation.label, items: [item] });
+      }
+    }
+    for (const [key, group] of groups) {
+      rows.push({ type: "header", key: `header:${key}`, label: group.label });
+      for (const item of group.items) {
+        rows.push({ type: "item", key: `tab:${item.id}`, item });
+      }
+    }
+    return rows;
+  }
+
+  if (kind === "tool") {
+    const groups = new Map<string, { label: string; items: ChatMentionMenuItem[] }>();
+    for (const item of data.items) {
+      if (item.kind !== "tool") {
+        continue;
+      }
+      const serverName = item.tool.serverName?.trim() ?? "";
+      const key = Number.isFinite(item.tool.serverID) && item.tool.serverID > 0
+        ? `server:${item.tool.serverID}`
+        : `server-name:${serverName || "unknown"}`;
+      const group = groups.get(key);
+      if (group) {
+        group.items.push(item);
+      } else {
+        groups.set(key, { label: serverName, items: [item] });
+      }
+    }
+    for (const [key, group] of groups) {
+      if (group.label) {
+        rows.push({ type: "header", key: `header:${key}`, label: group.label });
+      }
+      for (const item of group.items) {
+        rows.push({ type: "item", key: `tab:${item.id}`, item });
+      }
+    }
+    return rows;
+  }
+
+  if (kind === "skill") {
+    buildScopeGroupedRows(rows, data.items, (item) => (item.kind === "skill" ? item.skill.scope : "user"));
+    return rows;
+  }
+
+  if (kind === "prompt") {
+    buildScopeGroupedRows(rows, data.items, (item) => (item.kind === "prompt" ? item.prompt.scope : "user"));
+    return rows;
+  }
+
+  for (const item of data.items) {
+    rows.push({ type: "item", key: `tab:${item.id}`, item });
+  }
+  if (data.loading && data.items.length === 0) {
+    rows.push({ type: "loading", key: "loading:file" });
+  } else if (filesLoadingMore) {
+    rows.push({ type: "loading", key: "loading:file-more" });
+  } else if (filesHasMore) {
+    // Placeholder row keeps scroll room so the load-more trigger can fire.
+    rows.push({ type: "loading", key: "loading:file-pending" });
+  }
+  return rows;
+}
+
+function buildMenuRows({
+  tab,
+  sessionKinds,
+  kindData,
+  recents,
+  hasQuery,
+  filesHasMore,
+  filesLoadingMore,
+}: BuildRowsArgs): ChatMentionMenuRow[] {
+  if (tab !== "all") {
+    const data = kindData[tab];
+    if (!data) {
+      return [];
+    }
+    return buildKindTabRows(tab, data, recents, filesHasMore, filesLoadingMore);
+  }
+
+  const rows: ChatMentionMenuRow[] = [];
+
+  const recentShownIDs = new Set<string>();
+  const recentShownByKind = new Map<ChatMentionMenuKind, number>();
+  if (!hasQuery) {
+    const merged: Array<{ item: ChatMentionMenuItem; usedAt: number }> = [];
+    for (const kind of sessionKinds) {
+      const data = kindData[kind];
+      if (!data) {
+        continue;
+      }
+      merged.push(...resolveRecentItems(data.items, recents[kind], 5));
+    }
+    merged.sort((a, b) => b.usedAt - a.usedAt);
+    const recentRows = merged.slice(0, 5);
+    if (recentRows.length > 0) {
+      rows.push({ type: "header", key: "header:recent", labelKey: "mention.recent" });
+      for (const { item } of recentRows) {
+        recentShownIDs.add(item.id);
+        recentShownByKind.set(item.kind, (recentShownByKind.get(item.kind) ?? 0) + 1);
+        rows.push({ type: "item", key: `recent:${item.id}`, item });
+      }
+    }
+  }
+
+  for (const kind of sessionKinds) {
+    const data = kindData[kind];
+    if (!data || (data.items.length === 0 && !data.loading)) {
+      continue;
+    }
+    const ordered = orderByRecents(data.items, recents[kind]).filter(
+      (item) => !recentShownIDs.has(item.id),
+    );
+    const preview = ordered.slice(0, 4);
+    if (preview.length === 0 && !data.loading) {
+      continue;
+    }
+    rows.push({ type: "header", key: `header:${kind}`, labelKey: `mention.sections.${kind}` });
+    for (const item of preview) {
+      rows.push({ type: "item", key: `all:${item.id}`, item });
+    }
+    if (data.loading && preview.length === 0) {
+      rows.push({ type: "loading", key: `loading:${kind}` });
+    }
+    const shownCount = preview.length + (recentShownByKind.get(kind) ?? 0);
+    if (data.total > shownCount) {
+      rows.push({ type: "viewAll", key: `viewAll:${kind}`, tab: kind, count: data.total });
+    }
+  }
+
+  return rows;
+}
+
+function resolveRowHeight(row: ChatMentionMenuRow): number {
+  switch (row.type) {
+    case "header":
+    case "viewAll":
+      return 28;
+    default:
+      return 32;
+  }
 }
 
 function resolveMentionMenuWidth(anchorWidth: number, viewportWidth: number): number {
-  const availableWidth = Math.max(0, viewportWidth - MENTION_MENU_VIEWPORT_GUTTER * 2);
+  const availableWidth = Math.max(0, viewportWidth - 16 * 2);
   return Math.min(anchorWidth, availableWidth);
 }
 
-function resolveMentionMenuContentHeight(sections: ChatMentionMenuSection[]): number {
-  const itemCount = sections.reduce((total, section) => total + section.items.length, 0);
-  if (itemCount === 0) {
-    return MENTION_MENU_MIN_HEIGHT;
+function resolveMentionMenuContentHeight(rows: ChatMentionMenuRow[], showTabBar: boolean): number {
+  const tabBarHeight = showTabBar ? 34 : 0;
+  const maxHeight = showTabBar ? 340 : 280;
+  if (rows.length === 0) {
+    return Math.min(maxHeight, tabBarHeight + 96 + 12);
   }
-  const sectionChrome = sections.length * MENTION_MENU_SECTION_HEADER_HEIGHT;
-  const sectionGaps = sections.length * MENTION_MENU_SECTION_GAP;
-  return Math.min(
-    MENTION_MENU_MAX_HEIGHT,
-    itemCount * MENTION_MENU_ROW_HEIGHT
-      + Math.max(0, itemCount - 1) * MENTION_MENU_ROW_GAP
-      + sectionChrome
-      + sectionGaps
-      + MENTION_MENU_CHROME_HEIGHT,
-  );
+  const rowsHeight = rows.reduce((total, row) => total + resolveRowHeight(row), 0);
+  const gaps = Math.max(0, rows.length - 1) * 2;
+  return Math.min(maxHeight, tabBarHeight + rowsHeight + gaps + 12);
 }
 
 function resolveMentionMenuLayout(
   anchor: ChatMentionMenuAnchor,
-  sections: ChatMentionMenuSection[],
+  desiredHeight: number,
   viewportWidth: number,
   viewportHeight: number,
   placementPreference: ChatMentionMenuPlacementPreference,
 ): ChatMentionMenuLayout {
-  const preferredTop = anchor.top + anchor.height + MENTION_MENU_OFFSET;
-  const preferredBottom = anchor.top - MENTION_MENU_OFFSET;
-  const desiredHeight = resolveMentionMenuContentHeight(sections);
-  const availableBelow = viewportHeight - preferredTop - MENTION_MENU_VIEWPORT_GUTTER;
-  const availableAbove = preferredBottom - MENTION_MENU_VIEWPORT_GUTTER;
+  const preferredTop = anchor.top + anchor.height + 8;
+  const preferredBottom = anchor.top - 8;
+  const availableBelow = viewportHeight - preferredTop - 16;
+  const availableAbove = preferredBottom - 16;
   const anchorInLowerHalf = anchor.top + anchor.height / 2 > viewportHeight / 2;
-  const hasUsableAbove = availableAbove >= Math.min(desiredHeight, MENTION_MENU_MIN_HEIGHT);
+  const hasUsableAbove = availableAbove >= Math.min(desiredHeight, 32);
   const openBelow =
     placementPreference === "bottom" ||
     (placementPreference === "top"
       ? !hasUsableAbove
       : !anchorInLowerHalf ||
-        availableBelow >= Math.min(desiredHeight, MENTION_MENU_MIN_HEIGHT) ||
+        availableBelow >= Math.min(desiredHeight, 32) ||
         availableBelow >= availableAbove);
   const availableHeight = Math.max(0, openBelow ? availableBelow : availableAbove);
   const maxHeight = Math.max(
-    Math.min(MENTION_MENU_MIN_HEIGHT, availableHeight),
+    Math.min(32, availableHeight),
     Math.min(desiredHeight, availableHeight),
   );
   const preferredWidth = resolveMentionMenuWidth(anchor.width, viewportWidth);
   const preferredLeft = anchor.left;
-  const maxLeft = Math.max(
-    MENTION_MENU_VIEWPORT_GUTTER,
-    viewportWidth - preferredWidth - MENTION_MENU_VIEWPORT_GUTTER,
-  );
-  const left = Math.min(Math.max(preferredLeft, MENTION_MENU_VIEWPORT_GUTTER), maxLeft);
-  const width = Math.min(
-    preferredWidth,
-    Math.max(0, viewportWidth - left - MENTION_MENU_VIEWPORT_GUTTER),
-  );
+  const maxLeft = Math.max(16, viewportWidth - preferredWidth - 16);
+  const left = Math.min(Math.max(preferredLeft, 16), maxLeft);
+  const width = Math.min(preferredWidth, Math.max(0, viewportWidth - left - 16));
 
   if (openBelow) {
     return { height: maxHeight, left, placement: "bottom", top: preferredTop, width };
   }
 
   return {
-    bottom: Math.max(MENTION_MENU_VIEWPORT_GUTTER, viewportHeight - preferredBottom),
+    bottom: Math.max(16, viewportHeight - preferredBottom),
     height: maxHeight,
     left,
     placement: "top",
@@ -598,29 +794,57 @@ export function useChatMentionMenu({
   const menuID = React.useId();
   const [inputFocused, setInputFocused] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState(0);
+  const [activeTab, setActiveTab] = React.useState<ChatMentionMenuTab>("all");
+  const [browseKind, setBrowseKind] = React.useState<ChatMentionTriggerKind | null>(null);
   const [dismissedTriggerKey, setDismissedTriggerKey] = React.useState<string | null>(null);
   const [menuLayout, setMenuLayout] = React.useState<ChatMentionMenuLayout | null>(null);
+  const [recentsSnapshot, setRecentsSnapshot] = React.useState<CommandRecentsSnapshot>({});
   const [files, setFiles] = React.useState<FileObjectDTO[]>([]);
+  const [filesTotal, setFilesTotal] = React.useState(0);
+  const [filesPage, setFilesPage] = React.useState(1);
   const [filesLoading, setFilesLoading] = React.useState(false);
-  const [filesQuery, setFilesQuery] = React.useState("");
+  const [filesLoadingMore, setFilesLoadingMore] = React.useState(false);
+  const [filesQueryKey, setFilesQueryKey] = React.useState<string | null>(null);
   const [prompts, setPrompts] = React.useState<PromptPresetDTO[]>([]);
+  const [promptsTotal, setPromptsTotal] = React.useState(0);
   const [promptsLoading, setPromptsLoading] = React.useState(false);
   const [skills, setSkills] = React.useState<SkillSummaryDTO[]>([]);
+  const [skillsTotal, setSkillsTotal] = React.useState(0);
   const [skillsLoading, setSkillsLoading] = React.useState(false);
   const [selection, setSelection] = React.useState<ChatMentionSelection>(() => ({
     end: draft.length,
     start: draft.length,
   }));
   const modelCatalogRefreshRequestedRef = React.useRef(false);
+  const filesGenerationRef = React.useRef(0);
   const enabledKindSet = React.useMemo(() => new Set(enabledKinds), [enabledKinds]);
   const triggerQuery = selection.start === selection.end ? resolveTriggerQuery(draft, selection.start) : null;
-  const mentionQuery = triggerQuery?.kind === "mention" ? triggerQuery.query : null;
-  const promptQuery = triggerQuery?.kind === "prompt" ? triggerQuery.query : null;
-  const query = mentionQuery ?? promptQuery;
-  const queryKind = mentionQuery !== null ? "mention" : promptQuery !== null ? "prompt" : null;
+  const sessionKind: ChatMentionTriggerKind | null = triggerQuery?.kind ?? browseKind;
+  const sessionActive = sessionKind !== null;
+  const query = triggerQuery ? triggerQuery.query : browseKind ? "" : null;
+  const normalizedQuery = (query ?? "").trim().toLowerCase();
+  const hasQuery = normalizedQuery.length > 0;
   const triggerKey = triggerQuery
     ? `${draft}:${triggerQuery.kind}:${triggerQuery.range.start}:${triggerQuery.range.end}:${triggerQuery.query}`
     : null;
+
+  const sessionKinds = React.useMemo<ChatMentionMenuKind[]>(() => {
+    if (sessionKind === "mention") {
+      return MENTION_TRIGGER_KINDS.filter(
+        (kind) => enabledKindSet.has(kind) && (kind !== "tool" || !toolsDisabled),
+      );
+    }
+    if (sessionKind === "prompt") {
+      return PROMPT_TRIGGER_KINDS.filter((kind) => enabledKindSet.has(kind));
+    }
+    return [];
+  }, [enabledKindSet, sessionKind, toolsDisabled]);
+  const showTabBar = sessionKinds.length > 1;
+  const tabIDs = React.useMemo<ChatMentionMenuTab[]>(
+    () => (showTabBar ? ["all", ...sessionKinds] : sessionKinds),
+    [sessionKinds, showTabBar],
+  );
+  const effectiveTab: ChatMentionMenuTab = tabIDs.includes(activeTab) ? activeTab : tabIDs[0] ?? "all";
 
   const updateSelection = React.useCallback(() => {
     const nextSelection = readTextareaSelection(textareaRef.current, draft.length);
@@ -636,7 +860,34 @@ export function useChatMentionMenu({
   }, [draft, updateSelection]);
 
   React.useEffect(() => {
-    if (!inputFocused || mentionQuery === null || !enabledKindSet.has("model")) {
+    if (disabled) {
+      setBrowseKind(null);
+    }
+  }, [disabled]);
+
+  React.useEffect(() => {
+    if (sessionKind === null) {
+      return;
+    }
+    setActiveTab("all");
+  }, [sessionKind]);
+
+  // Freeze the recents snapshot per menu session so rows do not reorder mid-interaction.
+  React.useEffect(() => {
+    if (!sessionActive) {
+      return;
+    }
+    setRecentsSnapshot({
+      model: readCommandRecents("model"),
+      file: readCommandRecents("file"),
+      tool: readCommandRecents("tool"),
+      skill: readCommandRecents("skill"),
+      prompt: readCommandRecents("prompt"),
+    });
+  }, [sessionActive]);
+
+  React.useEffect(() => {
+    if (!inputFocused || sessionKind !== "mention" || !enabledKindSet.has("model")) {
       modelCatalogRefreshRequestedRef.current = false;
       return;
     }
@@ -646,22 +897,37 @@ export function useChatMentionMenu({
 
     modelCatalogRefreshRequestedRef.current = true;
     void Promise.resolve(onModelCatalogRefresh()).catch((): undefined => undefined);
-  }, [disabled, enabledKindSet, inputFocused, mentionQuery, onModelCatalogRefresh]);
+  }, [disabled, enabledKindSet, inputFocused, onModelCatalogRefresh, sessionKind]);
+
+  const fileSearchKey =
+    sessionKind === "mention" && enabledKindSet.has("file") && !disabled ? normalizedQuery : null;
 
   React.useEffect(() => {
-    if (mentionQuery === null || disabled || !enabledKindSet.has("file")) {
+    filesGenerationRef.current += 1;
+    if (fileSearchKey === null) {
       setFiles([]);
-      setFilesQuery("");
+      setFilesTotal(0);
+      setFilesPage(1);
+      setFilesQueryKey(null);
       setFilesLoading(false);
+      setFilesLoadingMore(false);
       return;
     }
 
+    const generation = filesGenerationRef.current;
     const sessionRevision = readSessionRevision();
-    const cachedFiles = readMentionFileSearchCache(sessionRevision, mentionQuery);
-    if (cachedFiles) {
-      setFiles(cachedFiles);
-      setFilesQuery(mentionQuery);
+    const applyPage = (page: { files: FileObjectDTO[]; total: number }) => {
+      setFiles(page.files);
+      setFilesTotal(page.total);
+      setFilesPage(1);
+      setFilesQueryKey(fileSearchKey);
       setFilesLoading(false);
+      setFilesLoadingMore(false);
+    };
+
+    const cachedPage = readMentionFileSearchCache(sessionRevision, fileSearchKey, 1);
+    if (cachedPage) {
+      applyPage(cachedPage);
       return;
     }
 
@@ -671,40 +937,91 @@ export function useChatMentionMenu({
       void (async () => {
         try {
           const token = await resolveAccessToken();
-          if (!token || controller.signal.aborted) {
+          if (!token || controller.signal.aborted || filesGenerationRef.current !== generation) {
             return;
           }
-          const results = await searchMentionFiles({
+          const page = await searchMentionFiles({
             accessToken: token,
-            query: mentionQuery,
+            query: fileSearchKey,
+            page: 1,
             sessionRevision,
             signal: controller.signal,
           });
-          if (!controller.signal.aborted) {
-            setFiles(results);
-            setFilesQuery(mentionQuery);
+          if (!controller.signal.aborted && filesGenerationRef.current === generation) {
+            applyPage(page);
           }
         } catch {
-          if (!controller.signal.aborted) {
+          if (!controller.signal.aborted && filesGenerationRef.current === generation) {
             setFiles([]);
+            setFilesTotal(0);
+            setFilesQueryKey(fileSearchKey);
+            setFilesLoading(false);
           }
         } finally {
-          if (!controller.signal.aborted) {
+          if (!controller.signal.aborted && filesGenerationRef.current === generation) {
             setFilesLoading(false);
           }
         }
       })();
-    }, MENTION_MENU_FILE_QUERY_DELAY_MS);
+    }, 180);
 
     return () => {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [disabled, enabledKindSet, mentionQuery]);
+  }, [fileSearchKey]);
+
+  const filesHasMore = filesQueryKey !== null && files.length < filesTotal;
+
+  const loadMoreFiles = React.useCallback(() => {
+    if (fileSearchKey === null || filesQueryKey !== fileSearchKey || filesLoading || filesLoadingMore) {
+      return;
+    }
+    if (files.length >= filesTotal) {
+      return;
+    }
+    const generation = filesGenerationRef.current;
+    const nextPage = filesPage + 1;
+    const sessionRevision = readSessionRevision();
+    setFilesLoadingMore(true);
+    void (async () => {
+      try {
+        const token = await resolveAccessToken();
+        if (!token || filesGenerationRef.current !== generation) {
+          return;
+        }
+        const page = await searchMentionFiles({
+          accessToken: token,
+          query: fileSearchKey,
+          page: nextPage,
+          sessionRevision,
+        });
+        if (filesGenerationRef.current !== generation) {
+          return;
+        }
+        setFiles((current) => {
+          const seen = new Set(current.map((file) => file.fileID));
+          return [...current, ...page.files.filter((file) => !seen.has(file.fileID))];
+        });
+        setFilesTotal(page.total);
+        setFilesPage(nextPage);
+      } catch {
+        // Keep already-loaded pages; a later scroll retries.
+      } finally {
+        if (filesGenerationRef.current === generation) {
+          setFilesLoadingMore(false);
+        }
+      }
+    })();
+  }, [fileSearchKey, files.length, filesLoading, filesLoadingMore, filesPage, filesQueryKey, filesTotal]);
+
+  const promptSearchKey =
+    sessionKind === "prompt" && enabledKindSet.has("prompt") && !disabled ? normalizedQuery : null;
 
   React.useEffect(() => {
-    if (promptQuery === null || disabled || !enabledKindSet.has("prompt")) {
+    if (promptSearchKey === null) {
       setPrompts([]);
+      setPromptsTotal(0);
       setPromptsLoading(false);
       return;
     }
@@ -718,13 +1035,15 @@ export function useChatMentionMenu({
           if (!token || controller.signal.aborted) {
             return;
           }
-          const data = await listVisiblePromptPresets(token, { query: promptQuery, page: 1, pageSize: 50 });
+          const data = await listVisiblePromptPresets(token, { query: promptSearchKey, page: 1, pageSize: 50 });
           if (!controller.signal.aborted) {
             setPrompts(data.results);
+            setPromptsTotal(data.total ?? data.results.length);
           }
         } catch {
           if (!controller.signal.aborted) {
             setPrompts([]);
+            setPromptsTotal(0);
           }
         } finally {
           if (!controller.signal.aborted) {
@@ -732,17 +1051,21 @@ export function useChatMentionMenu({
           }
         }
       })();
-    }, MENTION_MENU_PROMPT_QUERY_DELAY_MS);
+    }, 180);
 
     return () => {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [disabled, enabledKindSet, promptQuery]);
+  }, [promptSearchKey]);
+
+  const skillSearchKey =
+    sessionKind === "prompt" && enabledKindSet.has("skill") && !disabled ? normalizedQuery : null;
 
   React.useEffect(() => {
-    if (promptQuery === null || disabled || !enabledKindSet.has("skill")) {
+    if (skillSearchKey === null) {
       setSkills([]);
+      setSkillsTotal(0);
       setSkillsLoading(false);
       return;
     }
@@ -756,13 +1079,15 @@ export function useChatMentionMenu({
           if (!token || controller.signal.aborted) {
             return;
           }
-          const data = await listVisibleSkills(token, { query: promptQuery, page: 1, pageSize: 50 });
+          const data = await listVisibleSkills(token, { query: skillSearchKey, page: 1, pageSize: 50 }, controller.signal);
           if (!controller.signal.aborted) {
             setSkills(data.results);
+            setSkillsTotal(data.total ?? data.results.length);
           }
         } catch {
           if (!controller.signal.aborted) {
             setSkills([]);
+            setSkillsTotal(0);
           }
         } finally {
           if (!controller.signal.aborted) {
@@ -770,68 +1095,126 @@ export function useChatMentionMenu({
           }
         }
       })();
-    }, MENTION_MENU_PROMPT_QUERY_DELAY_MS);
+    }, 180);
 
     return () => {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [disabled, enabledKindSet, promptQuery]);
+  }, [skillSearchKey]);
 
-  const sections = React.useMemo(
+  const kindData = React.useMemo<Partial<Record<ChatMentionMenuKind, ChatMentionKindData>>>(() => {
+    if (query === null) {
+      return {};
+    }
+    const data: Partial<Record<ChatMentionMenuKind, ChatMentionKindData>> = {};
+    for (const kind of sessionKinds) {
+      if (kind === "model") {
+        const items = filterModels(modelOptions, normalizedQuery, selectedPlatformModelName);
+        data.model = { items, total: items.length, loading: false };
+        continue;
+      }
+      if (kind === "tool") {
+        const items = filterTools(availableTools, normalizedQuery, selectedToolIDs);
+        data.tool = { items, total: items.length, loading: false };
+        continue;
+      }
+      if (kind === "file") {
+        const ready = filesQueryKey === normalizedQuery;
+        const items = ready ? filesToItems(files, attachments, defaultFileLabel) : [];
+        data.file = {
+          items,
+          total: ready ? Math.max(filesTotal, items.length) : 0,
+          loading: filesLoading || (!ready && fileSearchKey !== null),
+        };
+        continue;
+      }
+      if (kind === "skill") {
+        const items = skillsToItems(skills, selectedSkills);
+        data.skill = { items, total: Math.max(skillsTotal, items.length), loading: skillsLoading };
+        continue;
+      }
+      const items = promptsToItems(prompts);
+      data.prompt = { items, total: Math.max(promptsTotal, items.length), loading: promptsLoading };
+    }
+    return data;
+  }, [
+    attachments,
+    availableTools,
+    defaultFileLabel,
+    fileSearchKey,
+    files,
+    filesLoading,
+    filesQueryKey,
+    filesTotal,
+    modelOptions,
+    normalizedQuery,
+    prompts,
+    promptsLoading,
+    promptsTotal,
+    query,
+    selectedPlatformModelName,
+    selectedSkills,
+    selectedToolIDs,
+    sessionKinds,
+    skills,
+    skillsLoading,
+    skillsTotal,
+  ]);
+
+  const rows = React.useMemo(
     () =>
-      buildSections({
-        attachments,
-        availableTools,
-        defaultFileLabel,
-        files,
-        filesQuery,
-        fileLoading: filesLoading,
-        modelOptions,
-        prompts,
-        promptLoading: promptsLoading,
-        skills,
-        skillLoading: skillsLoading,
-        query,
-        queryKind,
-        selectedPlatformModelName,
-        selectedSkills,
-        selectedToolIDs,
-        toolsDisabled,
-        enabledKinds: enabledKindSet,
+      buildMenuRows({
+        tab: effectiveTab,
+        sessionKinds,
+        kindData,
+        recents: recentsSnapshot,
+        hasQuery,
+        filesHasMore,
+        filesLoadingMore,
       }),
-    [
-      attachments,
-      availableTools,
-      defaultFileLabel,
-      files,
-      filesQuery,
-      filesLoading,
-      modelOptions,
-      prompts,
-      promptsLoading,
-      skills,
-      skillsLoading,
-      query,
-      queryKind,
-      selectedPlatformModelName,
-      selectedSkills,
-      selectedToolIDs,
-      toolsDisabled,
-      enabledKindSet,
-    ],
+    [effectiveTab, filesHasMore, filesLoadingMore, hasQuery, kindData, recentsSnapshot, sessionKinds],
   );
-  const items = React.useMemo(() => flattenSections(sections), [sections]);
-  const open = inputFocused && query !== null && dismissedTriggerKey !== triggerKey && !disabled && items.length > 0;
-  const activeItem = open ? items[Math.min(activeIndex, items.length - 1)] : null;
+  const selectableRows = React.useMemo(
+    () => rows.filter((row): row is Extract<ChatMentionMenuRow, { type: "item" | "viewAll" }> =>
+      row.type === "item" || row.type === "viewAll",
+    ),
+    [rows],
+  );
+
+  const tabs = React.useMemo<ChatMentionMenuTabInfo[]>(
+    () =>
+      tabIDs.map((id) => ({
+        id,
+        count: hasQuery && id !== "all" ? kindData[id]?.total ?? 0 : null,
+      })),
+    [hasQuery, kindData, tabIDs],
+  );
+
+  const hasAnyContent = React.useMemo(
+    () => sessionKinds.some((kind) => {
+      const data = kindData[kind];
+      return Boolean(data && (data.total > 0 || data.loading));
+    }),
+    [kindData, sessionKinds],
+  );
+
+  const open =
+    inputFocused &&
+    sessionActive &&
+    !disabled &&
+    (triggerQuery ? dismissedTriggerKey !== triggerKey : true) &&
+    hasAnyContent;
+  const activeRow = open ? selectableRows[Math.min(activeIndex, selectableRows.length - 1)] ?? null : null;
+  const activeRowKey = activeRow?.key ?? null;
 
   React.useEffect(() => {
     setActiveIndex(0);
-  }, [query]);
+  }, [normalizedQuery, effectiveTab]);
 
   React.useEffect(() => {
-    setActiveIndex((current) => (items.length === 0 ? 0 : Math.min(current, items.length - 1)));
-  }, [items.length]);
+    setActiveIndex((current) => (selectableRows.length === 0 ? 0 : Math.min(current, selectableRows.length - 1)));
+  }, [selectableRows.length]);
 
   React.useEffect(() => {
     if (!open) {
@@ -851,6 +1234,8 @@ export function useChatMentionMenu({
     return () => window.cancelAnimationFrame(frameID);
   }, [activeIndex, open]);
 
+  const triggerStart = triggerQuery?.range.start ?? null;
+
   const updateLayout = React.useCallback(() => {
     if (!open || typeof window === "undefined") {
       return;
@@ -862,12 +1247,19 @@ export function useChatMentionMenu({
     }
 
     const menuAnchor =
-      placementAnchor === "container"
+      placementAnchor === "container" || triggerStart === null
         ? resolveContainerAnchor(anchor)
-        : resolveTextareaCaretAnchor(textareaRef.current, anchor, triggerQuery?.range.start ?? draft.length);
-    const nextLayout = resolveMentionMenuLayout(menuAnchor, sections, window.innerWidth, window.innerHeight, placementPreference);
+        : resolveTextareaCaretAnchor(textareaRef.current, anchor, triggerStart);
+    const desiredHeight = resolveMentionMenuContentHeight(rows, showTabBar);
+    const nextLayout = resolveMentionMenuLayout(
+      menuAnchor,
+      desiredHeight,
+      window.innerWidth,
+      window.innerHeight,
+      placementPreference,
+    );
     setMenuLayout((current) => (mentionMenuLayoutsEqual(current, nextLayout) ? current : nextLayout));
-  }, [anchorRef, draft.length, open, placementAnchor, placementPreference, sections, textareaRef, triggerQuery?.range.start]);
+  }, [anchorRef, open, placementAnchor, placementPreference, rows, showTabBar, textareaRef, triggerStart]);
 
   React.useLayoutEffect(() => {
     if (!open) {
@@ -897,7 +1289,10 @@ export function useChatMentionMenu({
     });
   }, [textareaRef]);
 
-  const finishSelection = React.useCallback(() => {
+  const closeSession = React.useCallback(() => {
+    if (browseKind !== null) {
+      setBrowseKind(null);
+    }
     if (!triggerQuery) {
       return;
     }
@@ -905,23 +1300,57 @@ export function useChatMentionMenu({
     onDraftChange(nextDraft.value);
     setDismissedTriggerKey(null);
     focusTextarea(nextDraft.caretIndex);
+  }, [browseKind, draft, focusTextarea, onDraftChange, triggerQuery]);
+
+  // First multi-select pick: remove the trigger text but keep the menu open for more picks.
+  const enterBrowseMode = React.useCallback(() => {
+    if (!triggerQuery) {
+      return;
+    }
+    const nextDraft = removeTriggerRange(draft, triggerQuery.range);
+    setBrowseKind(triggerQuery.kind);
+    onDraftChange(nextDraft.value);
+    setDismissedTriggerKey(null);
+    focusTextarea(nextDraft.caretIndex);
   }, [draft, focusTextarea, onDraftChange, triggerQuery]);
 
+  const selectTab = React.useCallback((tab: ChatMentionMenuTab) => {
+    setActiveTab(tab);
+    setActiveIndex(0);
+  }, []);
+
   const select = React.useCallback(
-    (item: ChatMentionMenuItem) => {
+    (row: ChatMentionMenuRow) => {
+      if (row.type === "viewAll") {
+        selectTab(row.tab);
+        return;
+      }
+      if (row.type !== "item") {
+        return;
+      }
+      const item = row.item;
+
       if (item.kind === "model") {
+        recordCommandRecentUsage("model", item.model.platformModelName);
         onModelChange(item.model.platformModelName);
-        finishSelection();
+        closeSession();
         return;
       }
 
       if (item.kind === "prompt") {
-        if (!triggerQuery) {
+        recordCommandRecentUsage("prompt", String(item.prompt.id));
+        if (triggerQuery) {
+          const nextDraft = replaceTriggerRange(draft, triggerQuery.range, item.prompt.content);
+          onDraftChange(nextDraft.value);
+          setDismissedTriggerKey(null);
+          setBrowseKind(null);
+          focusTextarea(nextDraft.caretIndex);
           return;
         }
-        const nextDraft = replaceTriggerRange(draft, triggerQuery.range, item.prompt.content);
+        const caret = readTextareaSelection(textareaRef.current, draft.length).start;
+        const nextDraft = insertAtCaret(draft, caret, item.prompt.content);
         onDraftChange(nextDraft.value);
-        setDismissedTriggerKey(null);
+        setBrowseKind(null);
         focusTextarea(nextDraft.caretIndex);
         return;
       }
@@ -932,12 +1361,17 @@ export function useChatMentionMenu({
           onSkillLimitReached?.();
           return;
         }
+        if (!alreadySelected) {
+          recordCommandRecentUsage("skill", String(item.skill.id));
+        }
         onSelectedSkillsChange?.(
           alreadySelected
             ? selectedSkills.filter((skill) => skill.id !== item.skill.id)
             : [...selectedSkills, item.skill],
         );
-        finishSelection();
+        if (triggerQuery) {
+          enterBrowseMode();
+        }
         return;
       }
 
@@ -947,33 +1381,42 @@ export function useChatMentionMenu({
           onToolLimitReached?.();
           return;
         }
+        if (!alreadySelected) {
+          recordCommandRecentUsage("tool", String(item.tool.id));
+        }
         onSelectedToolsChange(
           alreadySelected
             ? selectedToolIDs.filter((toolID) => toolID !== item.tool.id)
             : [...selectedToolIDs, item.tool.id],
         );
-        finishSelection();
+        if (triggerQuery) {
+          enterBrowseMode();
+        }
         return;
       }
 
+      recordCommandRecentUsage("file", item.file.fileID);
       void onFileSelect(item.file);
-      finishSelection();
+      closeSession();
     },
     [
-      finishSelection,
+      closeSession,
+      draft,
+      enterBrowseMode,
+      focusTextarea,
       maxSelectedSkills,
       maxSelectedTools,
-      onFileSelect,
       onDraftChange,
+      onFileSelect,
       onModelChange,
       onSelectedSkillsChange,
-      onSkillLimitReached,
       onSelectedToolsChange,
+      onSkillLimitReached,
       onToolLimitReached,
+      selectTab,
       selectedSkills,
       selectedToolIDs,
-      draft,
-      focusTextarea,
+      textareaRef,
       triggerQuery,
     ],
   );
@@ -983,15 +1426,32 @@ export function useChatMentionMenu({
       if (dismissedTriggerKey !== null) {
         setDismissedTriggerKey(null);
       }
+      if (browseKind !== null) {
+        setBrowseKind(null);
+      }
       updateSelection();
       onDraftChange(value);
     },
-    [dismissedTriggerKey, onDraftChange, updateSelection],
+    [browseKind, dismissedTriggerKey, onDraftChange, updateSelection],
   );
 
   const handleSelectionChange = React.useCallback(() => {
     updateSelection();
   }, [updateSelection]);
+
+  const handleListScroll = React.useCallback(
+    (event: React.UIEvent<HTMLElement>) => {
+      if (effectiveTab !== "file" || !filesHasMore || filesLoading || filesLoadingMore) {
+        return;
+      }
+      const target = event.currentTarget;
+      const remaining = target.scrollHeight - target.clientHeight - target.scrollTop;
+      if (remaining <= 48) {
+        loadMoreFiles();
+      }
+    },
+    [effectiveTab, filesHasMore, filesLoading, filesLoadingMore, loadMoreFiles],
+  );
 
   const handleKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
@@ -1000,46 +1460,71 @@ export function useChatMentionMenu({
       }
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setActiveIndex((current) => (current + 1) % items.length);
+        if (selectableRows.length > 0) {
+          setActiveIndex((current) => (current + 1) % selectableRows.length);
+        }
         return true;
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        setActiveIndex((current) => (current - 1 + items.length) % items.length);
+        if (selectableRows.length > 0) {
+          setActiveIndex((current) => (current - 1 + selectableRows.length) % selectableRows.length);
+        }
         return true;
       }
-      if ((event.key === "Enter" || event.key === "Tab") && activeItem) {
+      if (event.key === "Tab" && showTabBar) {
         event.preventDefault();
-        select(activeItem);
+        const currentIndex = tabIDs.indexOf(effectiveTab);
+        const delta = event.shiftKey ? -1 : 1;
+        const nextTab = tabIDs[(currentIndex + delta + tabIDs.length) % tabIDs.length];
+        if (nextTab) {
+          selectTab(nextTab);
+        }
+        return true;
+      }
+      if ((event.key === "Enter" || (event.key === "Tab" && !showTabBar)) && activeRow) {
+        event.preventDefault();
+        select(activeRow);
         return true;
       }
       if (event.key === "Escape") {
         event.preventDefault();
-        setDismissedTriggerKey(triggerKey);
+        if (browseKind !== null) {
+          setBrowseKind(null);
+        } else {
+          setDismissedTriggerKey(triggerKey);
+        }
         return true;
       }
       return false;
     },
-    [activeItem, items.length, open, select, triggerKey],
+    [activeRow, browseKind, effectiveTab, open, select, selectTab, selectableRows.length, showTabBar, tabIDs, triggerKey],
   );
 
   return {
-    activeIndex,
-    filesLoading,
-    handleBlur: () => setInputFocused(false),
+    activeRowKey,
+    activeTab: effectiveTab,
+    handleBlur: () => {
+      setInputFocused(false);
+      setBrowseKind(null);
+    },
     handleChange,
     handleFocus: () => {
       setInputFocused(true);
       updateSelection();
     },
     handleKeyDown,
+    handleListScroll,
     handleSelectionChange,
     menuID,
     menuRef,
     menuLayout,
     menuReady: open && menuLayout !== null && menuLayout.height > 0 && menuLayout.width > 0,
     open,
-    sections,
+    rows,
     select,
+    selectTab,
+    showTabBar,
+    tabs,
   };
 }

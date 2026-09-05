@@ -17,11 +17,9 @@ type Cache struct {
 	userSettings        map[string]expiringString
 	userSettingVersions map[string]expiringString
 
-	fileSeq      int64
-	fileQueue    []repository.FileProcessingMessage
-	fileInflight map[string]fileProcessingLease
-	fileDLQ      []repository.FileProcessingMessage
-	fileNotify   chan struct{}
+	fileSeq             int64
+	fileProcessingQueue fileQueueState
+	fileEmbeddingQueue  fileQueueState
 
 	rag map[string]expiringRAG
 
@@ -57,8 +55,8 @@ func New() *Cache {
 		settings:                 map[string]expiringString{},
 		userSettings:             map[string]expiringString{},
 		userSettingVersions:      map[string]expiringString{},
-		fileInflight:             map[string]fileProcessingLease{},
-		fileNotify:               make(chan struct{}),
+		fileProcessingQueue:      newFileQueueState(),
+		fileEmbeddingQueue:       newFileQueueState(),
 		rag:                      map[string]expiringRAG{},
 		streams:                  map[string]*generationStream{},
 		streamNotify:             make(chan struct{}),

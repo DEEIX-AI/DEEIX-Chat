@@ -21,11 +21,12 @@ type RateLimiter interface {
 }
 
 type rateLimitPolicy struct {
-	Name    string
-	Limit   int
-	Window  time.Duration
-	TTL     time.Duration
-	Message string
+	Name   string
+	Limit  int
+	Window time.Duration
+	TTL    time.Duration
+	// Err 是触发限流时写回客户端的类型化错误，决定错误码与文案。
+	Err error
 }
 
 const (
@@ -122,19 +123,19 @@ func authenticatedRateLimitPolicy(c *gin.Context, baseRPM int) rateLimitPolicy {
 
 	switch {
 	case isMediaGenerationRoute(method, route):
-		return newRateLimitPolicy("media_generation", atLeast(baseRPM/2, 30), "rate limit exceeded")
+		return newRateLimitPolicy("media_generation", atLeast(baseRPM/2, 30), errRateLimitExceeded)
 	case isMessageGenerationRoute(method, route):
-		return newRateLimitPolicy("message_generation", atLeast(baseRPM, defaultAuthenticatedRateLimitRPM), "rate limit exceeded")
+		return newRateLimitPolicy("message_generation", atLeast(baseRPM, defaultAuthenticatedRateLimitRPM), errRateLimitExceeded)
 	case isFileUploadRoute(method, route):
-		return newRateLimitPolicy("file_upload", atLeast(baseRPM*2, 120), "rate limit exceeded")
+		return newRateLimitPolicy("file_upload", atLeast(baseRPM*2, 120), errRateLimitExceeded)
 	case isPollingRoute(method, route):
-		return newRateLimitPolicy("polling", atLeast(baseRPM*10, 600), "rate limit exceeded")
+		return newRateLimitPolicy("polling", atLeast(baseRPM*10, 600), errRateLimitExceeded)
 	case method == http.MethodGet:
-		return newRateLimitPolicy("read", atLeast(baseRPM*10, 600), "rate limit exceeded")
+		return newRateLimitPolicy("read", atLeast(baseRPM*10, 600), errRateLimitExceeded)
 	case method == http.MethodPost || method == http.MethodPut || method == http.MethodPatch || method == http.MethodDelete:
-		return newRateLimitPolicy("write", atLeast(baseRPM*4, 240), "rate limit exceeded")
+		return newRateLimitPolicy("write", atLeast(baseRPM*4, 240), errRateLimitExceeded)
 	default:
-		return newRateLimitPolicy("general", atLeast(baseRPM*6, 360), "rate limit exceeded")
+		return newRateLimitPolicy("general", atLeast(baseRPM*6, 360), errRateLimitExceeded)
 	}
 }
 
@@ -144,30 +145,30 @@ func publicRateLimitPolicy(c *gin.Context, baseRPM int) rateLimitPolicy {
 
 	switch {
 	case route == "/auth/refresh":
-		return newRateLimitPolicy("auth_refresh", atLeast(baseRPM*10, 300), "too many refresh attempts")
+		return newRateLimitPolicy("auth_refresh", atLeast(baseRPM*10, 300), errRefreshRateLimitExceeded)
 	case isPublicAuthReadRoute(method, route):
-		return newRateLimitPolicy("public_auth_read", atLeast(baseRPM*10, 300), "rate limit exceeded")
+		return newRateLimitPolicy("public_auth_read", atLeast(baseRPM*10, 300), errRateLimitExceeded)
 	case strings.HasPrefix(route, "/auth/"):
-		return newRateLimitPolicy("public_auth", baseRPM, "too many authentication attempts")
+		return newRateLimitPolicy("public_auth", baseRPM, errAuthRateLimitExceeded)
 	case strings.HasPrefix(route, "/billing/payments/"):
-		return newRateLimitPolicy("payment_callback", atLeast(baseRPM*20, 600), "rate limit exceeded")
+		return newRateLimitPolicy("payment_callback", atLeast(baseRPM*20, 600), errRateLimitExceeded)
 	case route == "/settings/login-page" || strings.HasPrefix(route, "/shared-conversations/"):
-		return newRateLimitPolicy("public_read", atLeast(baseRPM*20, 600), "rate limit exceeded")
+		return newRateLimitPolicy("public_read", atLeast(baseRPM*20, 600), errRateLimitExceeded)
 	default:
-		return newRateLimitPolicy("public", atLeast(baseRPM*10, 300), "rate limit exceeded")
+		return newRateLimitPolicy("public", atLeast(baseRPM*10, 300), errRateLimitExceeded)
 	}
 }
 
-func newRateLimitPolicy(name string, limit int, message string) rateLimitPolicy {
+func newRateLimitPolicy(name string, limit int, err error) rateLimitPolicy {
 	if limit <= 0 {
 		limit = defaultAuthenticatedRateLimitRPM
 	}
 	return rateLimitPolicy{
-		Name:    name,
-		Limit:   limit,
-		Window:  rateLimitWindow,
-		TTL:     2 * rateLimitWindow,
-		Message: message,
+		Name:   name,
+		Limit:  limit,
+		Window: rateLimitWindow,
+		TTL:    2 * rateLimitWindow,
+		Err:    err,
 	}
 }
 
@@ -228,7 +229,7 @@ func writeRateLimitError(c *gin.Context, policy rateLimitPolicy) {
 	c.Header("X-RateLimit-Limit", strconv.Itoa(policy.Limit))
 	c.Header("X-RateLimit-Remaining", "0")
 	c.Header("X-RateLimit-Reset", strconv.FormatInt(time.Now().Add(policy.Window).Unix(), 10))
-	response.Error(c, http.StatusTooManyRequests, policy.Message)
+	response.ErrorFrom(c, http.StatusTooManyRequests, policy.Err)
 	c.Abort()
 }
 

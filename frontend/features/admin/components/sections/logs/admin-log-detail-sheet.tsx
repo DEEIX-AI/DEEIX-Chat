@@ -44,6 +44,52 @@ function DetailBlock({ title, children }: { title: string; children: React.React
   );
 }
 
+function JSONDetailSection({
+  title,
+  value,
+  omitted,
+  omittedMessage,
+  copyMessages,
+  copiedMessage,
+}: {
+  title: string;
+  value: string;
+  omitted: boolean;
+  omittedMessage?: string;
+  copyMessages: { copied: string; failed: string };
+  copiedMessage: string;
+}) {
+  const formatted = formatJSON(value);
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between gap-3 px-1">
+        <h4 className="text-xs font-medium text-foreground/88">{title}</h4>
+        <CopyActionButton
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs shadow-none"
+          value={formatted}
+          disabled={omitted}
+          messages={copyMessages}
+          copyOptions={{ copied: copiedMessage }}
+        >
+          JSON
+        </CopyActionButton>
+      </div>
+      {omitted ? (
+        <p className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
+          {omittedMessage}
+        </p>
+      ) : (
+        <pre className="max-h-[320px] overflow-auto rounded-lg border border-border/60 bg-muted/35 p-3 text-xs leading-5 text-foreground/86">
+          <code>{formatted}</code>
+        </pre>
+      )}
+    </section>
+  );
+}
+
 export function LogDetailSheet({
   detail: rawDetail,
   billingDisplay,
@@ -116,10 +162,42 @@ export function LogDetailSheet({
       : detail?.kind === "order" || detail?.kind === "redemption"
         ? detail.item.snapshotJSON
         : detail?.kind === "conversation"
-          ? detail.item.payloadJSON || detail.item.inputJSON || detail.item.outputJSON || detail.item.errorJSON
+          ? ""
           : detail?.item.detailJSON;
   const rawUsageJSON = detail?.kind === "usage" ? usageLogRawUsageJSON(detail.item) : "";
   const formattedJSON = formatJSON(detailJSON);
+  const conversationJSONSections = detail?.kind === "conversation"
+    ? [
+        {
+          key: "payload",
+          label: t("jsonFields.payload"),
+          value: detail.item.payloadJSON,
+          size: detail.item.payloadSizeBytes,
+          omitted: detail.item.payloadOmitted,
+        },
+        {
+          key: "input",
+          label: t("jsonFields.input"),
+          value: detail.item.inputJSON,
+          size: detail.item.inputSizeBytes,
+          omitted: detail.item.inputOmitted,
+        },
+        {
+          key: "output",
+          label: t("jsonFields.output"),
+          value: detail.item.outputJSON,
+          size: detail.item.outputSizeBytes,
+          omitted: detail.item.outputOmitted,
+        },
+        {
+          key: "error",
+          label: t("jsonFields.error"),
+          value: detail.item.errorJSON,
+          size: detail.item.errorSizeBytes,
+          omitted: detail.item.errorOmitted,
+        },
+      ].filter((section) => section.omitted || section.value.trim())
+    : [];
 
   return (
     <Sheet open={Boolean(rawDetail)} onOpenChange={(open) => !open && onClose()}>
@@ -374,54 +452,67 @@ export function LogDetailSheet({
             </>
           ) : null}
 
-          <section className="space-y-2">
-            <div className="flex items-center justify-between gap-3 px-1">
-              <h4 className="text-xs font-medium text-foreground/88">{t("jsonTitle")}</h4>
-              <div className="flex items-center gap-1">
-                {requestID ? (
+          {conversationDetailLoading ? (
+            <div className="flex h-28 items-center justify-center rounded-lg border border-border/60 bg-muted/20">
+              <Spinner label={t("loading")} className="size-4 text-muted-foreground" />
+            </div>
+          ) : detail?.kind === "conversation" ? (
+            conversationJSONSections.length > 0 ? (
+              conversationJSONSections.map((section) => (
+                <JSONDetailSection
+                  key={section.key}
+                  title={section.label}
+                  value={section.value}
+                  omitted={section.omitted}
+                  omittedMessage={t("jsonOmitted", {
+                    label: section.label,
+                    size: formatBytes(section.size),
+                  })}
+                  copyMessages={copyMessages}
+                  copiedMessage={t("copied", { label: section.label })}
+                />
+              ))
+            ) : (
+              <p className="rounded-lg border border-border/60 bg-muted/20 px-3 py-6 text-center text-xs text-muted-foreground">
+                {t("jsonEmpty")}
+              </p>
+            )
+          ) : (
+            <section className="space-y-2">
+              <div className="flex items-center justify-between gap-3 px-1">
+                <h4 className="text-xs font-medium text-foreground/88">{t("jsonTitle")}</h4>
+                <div className="flex items-center gap-1">
+                  {requestID ? (
+                    <CopyActionButton
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs shadow-none"
+                      value={requestID}
+                      messages={copyMessages}
+                      copyOptions={{ copied: t("copied", { label: t("fields.requestID") }) }}
+                    >
+                      {t("fields.requestID")}
+                    </CopyActionButton>
+                  ) : null}
                   <CopyActionButton
                     type="button"
                     variant="ghost"
                     size="sm"
                     className="h-7 px-2 text-xs shadow-none"
-                    value={requestID}
+                    value={formattedJSON}
                     messages={copyMessages}
-                    copyOptions={{ copied: t("copied", { label: t("fields.requestID") }) }}
+                    copyOptions={{ copied: t("copied", { label: t("jsonTitle") }) }}
                   >
-                    {t("fields.requestID")}
+                    JSON
                   </CopyActionButton>
-                ) : null}
-                <CopyActionButton
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs shadow-none"
-                  value={formattedJSON}
-                  disabled={conversationDetailLoading || (detail?.kind === "conversation" && detail.item.payloadOmitted)}
-                  messages={copyMessages}
-                  copyOptions={{ copied: t("copied", { label: t("jsonTitle") }) }}
-                >
-                  JSON
-                </CopyActionButton>
+                </div>
               </div>
-            </div>
-            {conversationDetailLoading ? (
-              <div className="flex h-28 items-center justify-center rounded-lg border border-border/60 bg-muted/20">
-                <Spinner label={t("loading")} className="size-4 text-muted-foreground" />
-              </div>
-            ) : (
-              <>
-                {detail?.kind === "conversation" && detail.item.payloadOmitted ? (
-                  <p className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
-                    {t("payloadOmitted", { size: formatBytes(detail.item.payloadSizeBytes) })}
-                  </p>
-                ) : null}
-                <pre className="max-h-[320px] overflow-auto rounded-lg border border-border/60 bg-muted/35 p-3 text-xs leading-5 text-foreground/86">
-                  <code>{formattedJSON}</code>
-                </pre>
-              </>
-            )}
-          </section>
+              <pre className="max-h-[320px] overflow-auto rounded-lg border border-border/60 bg-muted/35 p-3 text-xs leading-5 text-foreground/86">
+                <code>{formattedJSON}</code>
+              </pre>
+            </section>
+          )}
         </div>
       </SheetContent>
     </Sheet>

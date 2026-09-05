@@ -133,9 +133,9 @@ func (r *coordinatorTestRepo) ListStaleModeratingRuns(context.Context, time.Time
 func TestEphemeralCoordinatorBlockDoesNotMutateConversationRun(t *testing.T) {
 	repo := &coordinatorTestRepo{}
 	service := &Service{repo: repo}
-	coord := newRunCoordinator(service, RunMeta{RunID: "temporary-run", Ephemeral: true}, runtimeConfig{})
+	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "temporary-run", Ephemeral: true}, runtimeConfig{})
 	emitted := false
-	coord.SetLiveEmitter(func(eventType string, _ map[string]interface{}) {
+	coord.SetLiveEmitter(func(eventType string, _ map[string]any) {
 		emitted = eventType == "moderation_blocked"
 	})
 
@@ -154,12 +154,12 @@ func TestEphemeralCoordinatorBlockDoesNotMutateConversationRun(t *testing.T) {
 func TestKnownHitRemainsBlockedWhenDurableApplyFails(t *testing.T) {
 	repo := &coordinatorTestRepo{applyErr: errors.New("database unavailable")}
 	service := NewService(nil, repo, "", nil)
-	coord := newRunCoordinator(service, RunMeta{RunID: "run_known_hit"}, runtimeConfig{Timeout: time.Second})
+	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_known_hit"}, runtimeConfig{Timeout: time.Second})
 	coord.blocked = true
 	coord.blockInfo = BlockInfo{EventID: "cme_hit", Direction: domaincm.DirectionOutput, Categories: []string{"violence"}}
 
 	var emitted string
-	coord.SetLiveEmitter(func(eventType string, _ map[string]interface{}) {
+	coord.SetLiveEmitter(func(eventType string, _ map[string]any) {
 		emitted = eventType
 	})
 
@@ -185,13 +185,13 @@ func TestKnownHitRemainsBlockedWhenDurableApplyFails(t *testing.T) {
 func TestLateHitRunsFullBlockCompensation(t *testing.T) {
 	repo := &coordinatorTestRepo{}
 	service := NewService(nil, repo, "", nil)
-	coord := newRunCoordinator(service, RunMeta{RunID: "run_late_hit"}, runtimeConfig{})
+	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_late_hit"}, runtimeConfig{})
 	coord.pending = 1
 	coord.outputEnqueued = true
 	coord.settled = true
 
 	var emitted string
-	service.SetEventEmitter(func(_ string, eventType string, _ map[string]interface{}) {
+	service.SetEventEmitter(func(_ context.Context, _ string, eventType string, _ map[string]any) {
 		emitted = eventType
 	})
 	task := &moderationTask{Coord: coord, Direction: domaincm.DirectionOutput, Modality: domaincm.ModalityText}
@@ -199,7 +199,7 @@ func TestLateHitRunsFullBlockCompensation(t *testing.T) {
 	if lateBlock == nil {
 		t.Fatal("late hit must request background block compensation")
 	}
-	service.handleLateBlock(coord.meta, *lateBlock)
+	service.handleLateBlock(coord.ctx, coord.meta, *lateBlock)
 
 	repo.mu.Lock()
 	applyCalls := repo.applyCalls
@@ -216,8 +216,8 @@ func TestInputHitTakesPrecedenceOverOutputHit(t *testing.T) {
 	repo := &coordinatorTestRepo{}
 	service := NewService(nil, repo, "", nil)
 	cancelCalls := 0
-	service.SetCancelRun(func(string) { cancelCalls++ })
-	coord := newRunCoordinator(service, RunMeta{RunID: "run_input_priority"}, runtimeConfig{})
+	service.SetCancelRun(func(context.Context, string) { cancelCalls++ })
+	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_input_priority"}, runtimeConfig{})
 	coord.pending = 2
 	coord.outputEnqueued = true
 
@@ -238,7 +238,7 @@ func TestInputHitTakesPrecedenceOverOutputHit(t *testing.T) {
 func TestLateInputHitUpgradesHandledOutputBlock(t *testing.T) {
 	repo := &coordinatorTestRepo{}
 	service := NewService(nil, repo, "", nil)
-	coord := newRunCoordinator(service, RunMeta{RunID: "run_late_input"}, runtimeConfig{})
+	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_late_input"}, runtimeConfig{})
 	coord.pending = 1
 	coord.outputEnqueued = true
 	coord.settled = true
@@ -251,7 +251,7 @@ func TestLateInputHitUpgradesHandledOutputBlock(t *testing.T) {
 	if lateBlock == nil || lateBlock.Direction != domaincm.DirectionInput {
 		t.Fatalf("late input hit must request an upgraded block, got %#v", lateBlock)
 	}
-	service.handleLateBlock(coord.meta, *lateBlock)
+	service.handleLateBlock(coord.ctx, coord.meta, *lateBlock)
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -271,7 +271,7 @@ func TestWorkerPrefetchDoesNotBypassQueueCapacity(t *testing.T) {
 	service.wg.Add(1)
 	go service.workerLoop(ctx)
 
-	coord := newRunCoordinator(service, RunMeta{RunID: "run_queue"}, runtimeConfig{})
+	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_queue"}, runtimeConfig{})
 	first := &moderationTask{Coord: coord, Direction: domaincm.DirectionOutput, Modality: domaincm.ModalityText}
 	if err := service.enqueue(first); err != nil {
 		t.Fatalf("enqueue first task: %v", err)
@@ -300,7 +300,7 @@ func TestOutputImageLoadFailureIsAuditedAsFailedOpen(t *testing.T) {
 	}
 	service.cachedConfig = &cfg
 	service.cachedAt = time.Now()
-	coord := newRunCoordinator(service, RunMeta{RunID: "run_image_load"}, cfg)
+	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_image_load"}, cfg)
 
 	coord.RecordOutputImageFailure("file_123", errors.New("object missing"))
 
@@ -327,7 +327,7 @@ func TestInputImageModerationSkipsNonImageAttachments(t *testing.T) {
 		return PreparedImage{}, ErrNonImageAttachment
 	})
 	cfg := runtimeConfig{Policy: Policy{InputImageCategories: []string{"violence"}}}
-	coord := newRunCoordinator(service, RunMeta{RunID: "run_document_attachment"}, cfg)
+	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_document_attachment"}, cfg)
 
 	coord.EnqueueInputImages(context.Background(), []string{"file_pdf"})
 
@@ -343,12 +343,35 @@ func TestInputImageModerationSkipsNonImageAttachments(t *testing.T) {
 	}
 }
 
+func TestEphemeralInputImageModerationQueuesRequestScopedBytes(t *testing.T) {
+	service := NewService(nil, &coordinatorTestRepo{}, "", nil)
+	cfg := runtimeConfig{Policy: Policy{InputImageCategories: []string{"violence"}}}
+	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_ephemeral_image", Ephemeral: true}, cfg)
+
+	coord.EnqueueInputImageSources([]OutputImageSource{
+		{FileID: "temporary_image", Data: []byte("image-bytes"), MimeType: "image/png", SHA256: "sha"},
+		{FileID: "temporary_duplicate", Data: []byte("duplicate"), MimeType: "image/png", SHA256: "sha"},
+	})
+
+	select {
+	case task := <-service.taskQueue:
+		if task == nil || task.Modality != domaincm.ModalityImage || !task.IsolateOnly {
+			t.Fatalf("unexpected request-scoped moderation task: %#v", task)
+		}
+		if len(task.RawImages) != 1 || string(task.RawImages[0].Data) != "image-bytes" {
+			t.Fatalf("request-scoped image bytes were not queued safely: %#v", task.RawImages)
+		}
+	default:
+		t.Fatal("request-scoped image moderation task was not queued")
+	}
+}
+
 func TestRecordHitRollsBackIsolatedImagesWhenEventCreateFails(t *testing.T) {
 	repo := &coordinatorTestRepo{createErr: errors.New("database unavailable")}
 	store := &coordinatorTestObjectStore{}
 	service := NewService(nil, repo, "test-encryption-key", nil)
 	service.SetObjectStore(store)
-	coord := newRunCoordinator(service, RunMeta{RunID: "run_rollback", UserID: 42}, runtimeConfig{})
+	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_rollback", UserID: 42}, runtimeConfig{})
 	task := &moderationTask{
 		Coord:     coord,
 		Direction: domaincm.DirectionOutput,

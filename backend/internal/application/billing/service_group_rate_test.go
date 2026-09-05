@@ -62,7 +62,7 @@ func (s *groupRateResolverStub) GetUserModelGroupRateMultiplierPercent(_ context
 
 func TestResolveGroupRatePercentNoResolverReturnsIdentity(t *testing.T) {
 	s := &Service{}
-	got, err := s.resolveGroupRatePercent(nil, 1, 99, nil)
+	got, err := s.resolveGroupRatePercent(context.TODO(), 1, 99, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestBuildUsageLedgerAppliesGroupRateMultiplier(t *testing.T) {
 		t.Fatalf("expected 80%% group rate, got billed=%d (want 800000000)", ledger.BilledNanousd)
 	}
 
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal snapshot: %v", err)
 	}
@@ -204,15 +204,15 @@ func TestBuildUsageLedgerAppliesGroupRateToServiceItems(t *testing.T) {
 		t.Fatalf("expected 50%% group rate on service items, got billed=%d (want 1500000000)", ledger.BilledNanousd)
 	}
 
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal snapshot: %v", err)
 	}
-	items, ok := snapshot["service_items"].([]interface{})
+	items, ok := snapshot["service_items"].([]any)
 	if !ok || len(items) != 1 {
 		t.Fatalf("expected 1 service item, got %v", snapshot["service_items"])
 	}
-	item := items[0].(map[string]interface{})
+	item := items[0].(map[string]any)
 	if item["rate_multiplier"] != 0.5 {
 		t.Fatalf("expected service item rate_multiplier=0.5, got %v", item["rate_multiplier"])
 	}
@@ -305,7 +305,7 @@ func TestBuildUsageLedgerComposesGroupRateWithFastMode(t *testing.T) {
 		t.Fatalf("expected fast(6x) * group(0.8) = 4.8x billing, got %d (want 28800000000)", ledger.BilledNanousd)
 	}
 
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal snapshot: %v", err)
 	}

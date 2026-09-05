@@ -8,7 +8,7 @@ import { updateAdminBillingPlan, invalidateAdminReferenceDataCache } from "@/fea
 import type { AdminBillingPlanDTO } from "@/features/admin/api/billing.types";
 import type { PermissionGroup } from "@/features/admin/api/permission-groups";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import { createPlanFormState, parseIntValue, parsePrice, type PlanFormState } from "@/features/admin/model/billing-settings";
+import { createPlanFormState, parsePrice, type PlanFormState } from "@/features/admin/model/billing-settings";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { PlanBillingDialog } from "@/features/admin/components/sections/billing/billing-dialogs";
@@ -50,7 +50,6 @@ export function BillingPlanSection({ plans, setPlans, permissionGroups, loading 
         currency: "USD",
         billingInterval: planForm.billingInterval,
         periodCreditUSD: parsePrice(planForm.periodCredit),
-        discountPercent: Math.min(100, parseIntValue(planForm.discountPercent)),
         permissionGroupID: Number(planForm.permissionGroupID) || undefined,
       });
       setPlans((current) => current.map((plan) => plan.id === data.plan.id ? data.plan : plan));

@@ -17,7 +17,7 @@ func TestEnabledFlagOverridesEndpoint(t *testing.T) {
 
 func TestInitRequiresEndpointWhenExplicitlyEnabled(t *testing.T) {
 	enabled := true
-	if err := Init(t.Context(), Config{Enabled: &enabled}); err == nil {
+	if _, err := Init(t.Context(), Config{Enabled: &enabled}); err == nil {
 		t.Fatal("expected endpoint validation error")
 	}
 }

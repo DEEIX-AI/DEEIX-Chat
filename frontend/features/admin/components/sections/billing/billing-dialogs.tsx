@@ -204,10 +204,6 @@ export function PlanBillingDialog({
                     <Input value={planForm.periodCredit} type="number" min="0" step="0.01" onChange={(event) => setPlanForm({ ...planForm, periodCredit: event.target.value })} />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">{t("plans.discount")}</p>
-                    <Input value={planForm.discountPercent} type="number" min="0" max="100" step="1" onChange={(event) => setPlanForm({ ...planForm, discountPercent: event.target.value })} />
-                  </div>
-                  <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">{t("plans.description")}</p>
                     <Input value={planForm.description} onChange={(event) => setPlanForm({ ...planForm, description: event.target.value })} />
                   </div>

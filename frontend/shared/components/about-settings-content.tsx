@@ -57,7 +57,8 @@ function AboutLink({ item, className }: { item: AboutLinkItem; className?: strin
       target={item.href.startsWith("mailto:") ? undefined : "_blank"}
       rel={item.href.startsWith("mailto:") ? undefined : "noreferrer"}
       className={cn(
-        "group flex min-w-0 items-center justify-between gap-4 border-b border-border/60 py-3 text-sm transition-colors hover:border-foreground/30",
+        "group relative isolate flex min-w-0 items-center justify-between gap-4 border-b border-border/60 px-2.5 py-3 text-sm transition-colors outline-none hover:border-foreground/30 focus-visible:border-foreground/30 focus-visible:ring-0",
+        "before:pointer-events-none before:absolute before:-inset-x-0.5 before:inset-y-1 before:-z-10 before:rounded-md before:bg-muted/60 before:opacity-0 before:transition-opacity focus-visible:before:opacity-100",
         className,
       )}
     >
@@ -76,7 +77,7 @@ function AboutLink({ item, className }: { item: AboutLinkItem; className?: strin
       </span>
       <span className="flex min-w-0 items-center gap-1.5 text-right font-medium text-foreground">
         <span className="truncate">{item.value}</span>
-        <ExternalLink className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+        <ExternalLink className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
       </span>
     </a>
   );
@@ -174,7 +175,7 @@ export function AboutSettingsContent({
             href="https://www.apache.org/licenses/LICENSE-2.0"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 font-medium text-foreground/80 transition-colors hover:text-foreground"
+            className="inline-flex items-center gap-1 font-medium text-foreground/80 transition-colors outline-none hover:text-foreground focus-visible:text-foreground focus-visible:ring-0"
           >
             <span>{labels.license}</span>
             <ExternalLink className="size-3 shrink-0 text-muted-foreground" />

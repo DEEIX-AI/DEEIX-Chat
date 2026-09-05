@@ -11,8 +11,10 @@ import (
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/channelconfig"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/nativetool"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"go.uber.org/zap"
 )
 
@@ -36,7 +38,7 @@ type ListModelsInput struct {
 
 // ListModels 分页查询模型目录。
 func (s *Service) ListModels(ctx context.Context, page int, pageSize int, input ListModelsInput) ([]ModelView, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	items, total, err := s.repo.ListModels(ctx, repository.ListChannelModelsInput{
 		Offset:        offset,
 		Limit:         limit,
@@ -436,7 +438,7 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 		return nil, err
 	}
 	if err := s.repo.CreateModel(ctx, item); err != nil {
-		if isDuplicateKeyError(err) {
+		if errors.Is(err, repository.ErrDuplicate) {
 			return nil, ErrDuplicatePlatformModelName
 		}
 		if errors.Is(err, repository.ErrModelVendorNotFound) {
@@ -699,7 +701,7 @@ func (s *Service) BatchDeleteModels(ctx context.Context, modelIDs []uint) *Batch
 			result.Results = append(result.Results, BatchDeleteResultView{
 				ID:     modelID,
 				Status: BatchDeleteStatusFailed,
-				Error:  err.Error(),
+				Error:  apperr.MessageOr(err, "batch delete failed"),
 			})
 		}
 	}
@@ -717,7 +719,7 @@ func (s *Service) ListModelUpstreamSources(ctx context.Context, modelID uint, pa
 	if err != nil {
 		return nil, 0, err
 	}
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	items, total, err := s.repo.ListModelUpstreamSources(ctx, modelItem.PlatformModelName, offset, limit)
 	if err != nil {
 		return nil, 0, err
@@ -777,7 +779,7 @@ func (s *Service) BindModelUpstreamSource(ctx context.Context, modelID uint, inp
 		CbWindowMin:        normalizeNonNegative(input.CbWindowMin),
 	}
 	if err := s.repo.UpsertPlatformModelRoute(ctx, route); err != nil {
-		if isDuplicateKeyError(err) {
+		if errors.Is(err, repository.ErrDuplicate) {
 			return nil, ErrUpstreamModelConflict
 		}
 		return nil, err
@@ -847,7 +849,7 @@ func (s *Service) UpdateModelUpstreamSource(ctx context.Context, modelID uint, r
 	}
 
 	if err := s.repo.UpdatePlatformModelRouteByID(ctx, routeID, source.UpstreamID, updateInput); err != nil {
-		if isDuplicateKeyError(err) {
+		if errors.Is(err, repository.ErrDuplicate) {
 			return nil, ErrUpstreamModelConflict
 		}
 		return nil, err

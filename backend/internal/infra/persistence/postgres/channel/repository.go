@@ -17,22 +17,6 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// translateError 将 gorm 底层错误统一映射为仓储语义错误。
-// channel 包内部的语义错误（ErrUpstreamNotFound 等）优先在调用点直接返回，
-// 此函数处理未在调用点明确转换的 gorm 错误。
-func translateError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if dberror.IsRecordNotFound(err) {
-		return repository.ErrNotFound
-	}
-	if dberror.IsUniqueConstraint(err) {
-		return repository.ErrDuplicate
-	}
-	return err
-}
-
 // Repo 封装上游域数据访问。
 type Repo struct {
 	db            *gorm.DB
@@ -44,7 +28,7 @@ func (r *Repo) WithinTransaction(ctx context.Context, fn func(repository.Channel
 	if fn == nil {
 		return repository.ErrInvalidInput
 	}
-	return translateError(r.transact(ctx, func(tx *gorm.DB) error {
+	return dberror.Translate(r.transact(ctx, func(tx *gorm.DB) error {
 		return fn(&Repo{db: tx, inTransaction: true})
 	}))
 }
@@ -76,7 +60,7 @@ func NewRepo(db *gorm.DB) *Repo {
 func (r *Repo) CreateUpstream(ctx context.Context, item *domainchannel.Upstream) error {
 	entity := toUpstreamModel(item)
 	if err := r.db.WithContext(ctx).Create(&entity).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	*item = toUpstreamDomain(entity)
 	return nil
@@ -93,7 +77,7 @@ func (r *Repo) UpdateUpstream(ctx context.Context, upstreamID uint, input reposi
 		Where("id = ?", upstreamID).
 		Updates(updates)
 	if result.Error != nil {
-		return translateError(result.Error)
+		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return ErrUpstreamNotFound
@@ -101,8 +85,8 @@ func (r *Repo) UpdateUpstream(ctx context.Context, upstreamID uint, input reposi
 	return nil
 }
 
-func upstreamUpdates(input repository.UpdateChannelUpstreamInput) map[string]interface{} {
-	updates := make(map[string]interface{})
+func upstreamUpdates(input repository.UpdateChannelUpstreamInput) map[string]any {
+	updates := make(map[string]any)
 	if input.Name != nil {
 		updates["name"] = *input.Name
 	}
@@ -158,7 +142,7 @@ func (r *Repo) GetUpstreamByID(ctx context.Context, upstreamID uint) (*domaincha
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrUpstreamNotFound
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toUpstreamDomain(item)
 	return &result, nil
@@ -171,7 +155,7 @@ func (r *Repo) ListUpstreams(ctx context.Context, input repository.ListChannelUp
 
 	query := applyUpstreamListFilters(r.db.WithContext(ctx).Model(&model.LLMUpstream{}), input)
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	listQuery := r.db.WithContext(ctx).
 		Table("llm_upstreams AS u").
@@ -185,7 +169,7 @@ func (r *Repo) ListUpstreams(ctx context.Context, input repository.ListChannelUp
 		Offset(input.Offset).
 		Limit(input.Limit).
 		Scan(&items).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	return items, total, nil
 }
@@ -201,7 +185,7 @@ func (r *Repo) GetUpstreamListRowByID(ctx context.Context, upstreamID uint) (*Up
 		Where("u.id = ?", upstreamID).
 		Scan(&item)
 	if result.Error != nil {
-		return nil, translateError(result.Error)
+		return nil, dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return nil, ErrUpstreamNotFound
@@ -271,12 +255,12 @@ func (r *Repo) CreateModel(ctx context.Context, item *domainchannel.PlatformMode
 				Model(&model.LLMPlatformModel{}).
 				Select("COALESCE(MAX(sort_order), 0)").
 				Scan(&maxSortOrder).Error; err != nil {
-				return translateError(err)
+				return dberror.Translate(err)
 			}
 			entity.SortOrder = maxSortOrder + 100
 		}
 		if err := tx.Create(&entity).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		return nil
 	}); err != nil {
@@ -288,7 +272,7 @@ func (r *Repo) CreateModel(ctx context.Context, item *domainchannel.PlatformMode
 
 // UpdateModel 更新平台模型。
 func (r *Repo) UpdateModel(ctx context.Context, modelID uint, input repository.UpdateChannelModelInput) error {
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	if input.PlatformModelName != nil {
 		updates["name"] = *input.PlatformModelName
 	}
@@ -354,7 +338,7 @@ func (r *Repo) UpdateModel(ctx context.Context, modelID uint, input repository.U
 			Where("id = ?", modelID).
 			Updates(updates)
 		if result.Error != nil {
-			return translateError(result.Error)
+			return dberror.Translate(result.Error)
 		}
 		if result.RowsAffected == 0 {
 			return ErrModelNotFound
@@ -374,7 +358,7 @@ func (r *Repo) ReorderModels(ctx context.Context, orderedModelIDs []uint) error 
 			Select("id").
 			Where("id IN ?", orderedModelIDs).
 			Find(&existingRows).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		existingIDs := make(map[uint]struct{}, len(existingRows))
 		for _, row := range existingRows {
@@ -398,7 +382,7 @@ func (r *Repo) ReorderModels(ctx context.Context, orderedModelIDs []uint) error 
 				Model(&model.LLMPlatformModel{}).
 				Where("id = ?", modelID).
 				Update("sort_order", sortOrder).Error; err != nil {
-				return translateError(err)
+				return dberror.Translate(err)
 			}
 		}
 		return nil
@@ -412,7 +396,7 @@ func (r *Repo) GetModelByID(ctx context.Context, modelID uint) (*domainchannel.P
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrModelNotFound
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toPlatformModelDomain(item)
 	return &result, nil
@@ -427,7 +411,7 @@ func (r *Repo) GetModelByName(ctx context.Context, platformModelName string) (*d
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrModelNotFound
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toPlatformModelDomain(item)
 	return &result, nil
@@ -442,7 +426,7 @@ func (r *Repo) GetActiveModelByName(ctx context.Context, platformModelName strin
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrModelNotFound
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toPlatformModelDomain(item)
 	return &result, nil
@@ -463,7 +447,7 @@ func (r *Repo) GetActiveRoutableModelKindsJSON(ctx context.Context, platformMode
 		Limit(1).
 		Scan(&result)
 	if dbResult.Error != nil {
-		return "", false, translateError(dbResult.Error)
+		return "", false, dberror.Translate(dbResult.Error)
 	}
 	if dbResult.RowsAffected == 0 {
 		return "", false, nil
@@ -478,7 +462,7 @@ func (r *Repo) GetModelListRowByID(ctx context.Context, modelID uint) (*ModelLis
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrModelNotFound
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	items := []ModelListRow{item}
 	if err := r.applyModelListRouteMetadata(ctx, items); err != nil {
@@ -494,7 +478,7 @@ func (r *Repo) ListModels(ctx context.Context, input repository.ListChannelModel
 
 	query := applyModelListFilters(r.modelListBaseQuery(ctx), input)
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 
 	listQuery := r.modelListQuery(ctx)
@@ -504,7 +488,7 @@ func (r *Repo) ListModels(ctx context.Context, input repository.ListChannelModel
 		Offset(input.Offset).
 		Limit(input.Limit).
 		Scan(&items).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	if err := r.applyModelListRouteMetadata(ctx, items); err != nil {
 		return nil, 0, err
@@ -567,7 +551,7 @@ func (r *Repo) applyModelListRouteMetadata(ctx context.Context, items []ModelLis
 		Where("r.platform_model_id IN ? AND r.status = ? AND um.status = ? AND u.status = ?", modelIDs, "active", "active", "active").
 		Order("r.platform_model_id ASC, r.protocol ASC, u.name ASC").
 		Scan(&rows).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 
 	protocolsByModelID := make(map[uint]map[string]struct{})
@@ -754,7 +738,7 @@ func (r *Repo) CreateUpstreamModel(ctx context.Context, item *domainchannel.Upst
 		}).
 		Create(&entity)
 	if result.Error != nil {
-		return translateError(result.Error)
+		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return repository.ErrDuplicate
@@ -775,11 +759,11 @@ func (r *Repo) UpsertUpstreamModel(ctx context.Context, item *domainchannel.Upst
 		Limit(1).
 		Find(&existing)
 	if query.Error != nil {
-		return translateError(query.Error)
+		return dberror.Translate(query.Error)
 	}
 	if query.RowsAffected == 0 {
 		if err := r.db.WithContext(ctx).Create(&entity).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		*item = toUpstreamModelDomain(entity)
 		return nil
@@ -793,7 +777,7 @@ func (r *Repo) UpsertUpstreamModel(ctx context.Context, item *domainchannel.Upst
 	if err := r.db.WithContext(ctx).
 		Model(&model.LLMUpstreamModel{}).
 		Where("id = ?", existing.ID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"binding_code":        entity.BindingCode,
 			"upstream_model_name": entity.UpstreamModelName,
 			"vendor":              entity.Vendor,
@@ -806,7 +790,7 @@ func (r *Repo) UpsertUpstreamModel(ctx context.Context, item *domainchannel.Upst
 			"raw_json":            entity.RawJSON,
 		}).
 		Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	entity.ID = existing.ID
 	*item = toUpstreamModelDomain(entity)
@@ -822,7 +806,7 @@ func (r *Repo) GetUpstreamModelByID(ctx context.Context, sourceID uint, upstream
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrUpstreamModelNotFound
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toUpstreamModelDomain(item)
 	return &result, nil
@@ -837,7 +821,7 @@ func (r *Repo) GetUpstreamModelByUpstreamName(ctx context.Context, upstreamID ui
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrUpstreamModelNotFound
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toUpstreamModelDomain(item)
 	return &result, nil
@@ -845,7 +829,7 @@ func (r *Repo) GetUpstreamModelByUpstreamName(ctx context.Context, upstreamID ui
 
 // DeleteUpstreamModel 硬删除单条上游真实模型及其平台路由。
 func (r *Repo) DeleteUpstreamModel(ctx context.Context, sourceID uint, upstreamID uint) error {
-	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var item model.LLMUpstreamModel
 		if err := tx.Where("id = ? AND upstream_id = ?", sourceID, upstreamID).First(&item).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -860,19 +844,108 @@ func (r *Repo) DeleteUpstreamModel(ctx context.Context, sourceID uint, upstreamI
 	}))
 }
 
-// MarkMissingSyncedUpstreamModelsInactive 将本次同步未返回的同步来源模型置为停用。
-func (r *Repo) MarkMissingSyncedUpstreamModelsInactive(ctx context.Context, upstreamID uint, activeNames []string) (int64, error) {
-	query := r.db.WithContext(ctx).
-		Model(&model.LLMUpstreamModel{}).
-		Where("upstream_id = ? AND source = ? AND status = ?", upstreamID, "sync", "active")
-	if len(activeNames) > 0 {
-		query = query.Where("upstream_model_name NOT IN ?", activeNames)
+// ListManagedUpstreamModels 返回由远端同步管理的目录项，用于生成同步变更预览。
+func (r *Repo) ListManagedUpstreamModels(ctx context.Context, upstreamID uint) ([]domainchannel.UpstreamModel, error) {
+	items := make([]model.LLMUpstreamModel, 0)
+	if err := r.db.WithContext(ctx).
+		Where("upstream_id = ? AND source IN ?", upstreamID, []string{"sync", "import"}).
+		Order("upstream_model_name ASC, id ASC").
+		Find(&items).Error; err != nil {
+		return nil, dberror.Translate(err)
 	}
-	result := query.Update("status", "inactive")
-	if result.Error != nil {
-		return 0, translateError(result.Error)
+	result := make([]domainchannel.UpstreamModel, 0, len(items))
+	for _, item := range items {
+		result = append(result, toUpstreamModelDomain(item))
 	}
-	return result.RowsAffected, nil
+	return result, nil
+}
+
+// ApplyUpstreamModelCatalogChanges 批量应用应用层已经分类完成的目录变更。
+// import 是旧版本写入目录项时使用的来源值，停用条件中保留该值用于平滑迁移。
+func (r *Repo) ApplyUpstreamModelCatalogChanges(
+	ctx context.Context,
+	upstreamID uint,
+	input repository.ApplyUpstreamModelCatalogChangesInput,
+) (int64, error) {
+	if upstreamID == 0 {
+		return 0, repository.ErrInvalidInput
+	}
+
+	createdRows := make([]model.LLMUpstreamModel, 0, len(input.Create))
+	for i := range input.Create {
+		item := input.Create[i]
+		if item.ID != 0 || item.UpstreamID != upstreamID || strings.TrimSpace(item.UpstreamModelName) == "" || strings.TrimSpace(item.BindingCode) == "" {
+			return 0, repository.ErrInvalidInput
+		}
+		createdRows = append(createdRows, toUpstreamModelModel(&item))
+	}
+
+	now := time.Now()
+	updatedRows := make([]model.LLMUpstreamModel, 0, len(input.Update))
+	for i := range input.Update {
+		item := input.Update[i]
+		if item.ID == 0 || item.UpstreamID != upstreamID || strings.TrimSpace(item.UpstreamModelName) == "" || strings.TrimSpace(item.BindingCode) == "" {
+			return 0, repository.ErrInvalidInput
+		}
+		entity := toUpstreamModelModel(&item)
+		entity.ID = item.ID
+		entity.CreatedAt = item.CreatedAt
+		entity.UpdatedAt = now
+		updatedRows = append(updatedRows, entity)
+	}
+
+	db := r.db.WithContext(ctx)
+	if len(createdRows) > 0 {
+		if err := db.CreateInBatches(&createdRows, 200).Error; err != nil {
+			return 0, dberror.Translate(err)
+		}
+	}
+	if len(updatedRows) > 0 {
+		if err := db.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"binding_code",
+				"upstream_model_name",
+				"vendor",
+				"icon",
+				"suggested_protocol",
+				"kinds_json",
+				"status",
+				"source",
+				"last_synced_at",
+				"raw_json",
+				"updated_at",
+			}),
+		}).CreateInBatches(&updatedRows, 200).Error; err != nil {
+			return 0, dberror.Translate(err)
+		}
+	}
+
+	uniqueInactiveIDs := make([]uint, 0, len(input.InactivateIDs))
+	seenInactiveIDs := make(map[uint]struct{}, len(input.InactivateIDs))
+	for _, id := range input.InactivateIDs {
+		if id == 0 {
+			return 0, repository.ErrInvalidInput
+		}
+		if _, exists := seenInactiveIDs[id]; exists {
+			continue
+		}
+		seenInactiveIDs[id] = struct{}{}
+		uniqueInactiveIDs = append(uniqueInactiveIDs, id)
+	}
+
+	var inactivated int64
+	for start := 0; start < len(uniqueInactiveIDs); start += 200 {
+		end := min(start+200, len(uniqueInactiveIDs))
+		result := db.Model(&model.LLMUpstreamModel{}).
+			Where("upstream_id = ? AND id IN ? AND source IN ? AND status = ?", upstreamID, uniqueInactiveIDs[start:end], []string{"sync", "import"}, "active").
+			Update("status", "inactive")
+		if result.Error != nil {
+			return 0, dberror.Translate(result.Error)
+		}
+		inactivated += result.RowsAffected
+	}
+	return inactivated, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -892,7 +965,7 @@ func (r *Repo) ListUpstreamModels(ctx context.Context, upstreamID uint, input re
 	if err := r.db.WithContext(ctx).
 		Table("(?) AS binding_groups", groupedQuery).
 		Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 
 	pageKeys := make([]upstreamModelBindingPageKey, 0)
@@ -902,7 +975,7 @@ func (r *Repo) ListUpstreamModels(ctx context.Context, upstreamID uint, input re
 			Offset(input.Offset).
 			Limit(input.Limit).
 			Scan(&pageKeys).Error; err != nil {
-			return nil, 0, translateError(err)
+			return nil, 0, dberror.Translate(err)
 		}
 	}
 	if len(pageKeys) == 0 {
@@ -931,7 +1004,7 @@ func (r *Repo) ListUpstreamModels(ctx context.Context, upstreamID uint, input re
 	if err := listQuery.
 		Order("um.id ASC, r.id ASC NULLS LAST").
 		Scan(&items).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 
 	itemsByKey := make(map[string][]UpstreamModelListRow, len(pageKeys))
@@ -1000,19 +1073,24 @@ func (r *Repo) ListUpstreamModelsByNames(ctx context.Context, upstreamID uint, u
 		return []UpstreamModelListRow{}, nil
 	}
 	items := make([]UpstreamModelListRow, 0)
-	if err := r.db.WithContext(ctx).
-		Table("llm_upstream_models AS um").
-		Select(
-			"um.*, r.id AS route_id, r.platform_model_id, pm.name AS platform_model_name, pm.vendor AS model_vendor, pm.kinds_json AS model_kinds_json, pm.icon AS model_icon, "+
-				"r.protocol, r.status AS route_status, r.priority, r.weight, r.source AS route_source, "+
-				"r.cb_failure_threshold, r.cb_duration_min, r.cb_window_min, r.headers_json",
-		).
-		Joins("LEFT JOIN llm_model_routes r ON r.upstream_model_id = um.id").
-		Joins("LEFT JOIN llm_platform_models pm ON pm.id = r.platform_model_id").
-		Where("um.upstream_id = ? AND um.upstream_model_name IN ?", upstreamID, names).
-		Order("um.upstream_model_name ASC, r.id ASC NULLS LAST").
-		Scan(&items).Error; err != nil {
-		return nil, translateError(err)
+	for start := 0; start < len(names); start += 500 {
+		end := min(start+500, len(names))
+		chunk := make([]UpstreamModelListRow, 0)
+		if err := r.db.WithContext(ctx).
+			Table("llm_upstream_models AS um").
+			Select(
+				"um.*, r.id AS route_id, r.platform_model_id, pm.name AS platform_model_name, pm.vendor AS model_vendor, pm.kinds_json AS model_kinds_json, pm.icon AS model_icon, "+
+					"r.protocol, r.status AS route_status, r.priority, r.weight, r.source AS route_source, "+
+					"r.cb_failure_threshold, r.cb_duration_min, r.cb_window_min, r.headers_json",
+			).
+			Joins("LEFT JOIN llm_model_routes r ON r.upstream_model_id = um.id").
+			Joins("LEFT JOIN llm_platform_models pm ON pm.id = r.platform_model_id").
+			Where("um.upstream_id = ? AND um.upstream_model_name IN ?", upstreamID, names[start:end]).
+			Order("um.upstream_model_name ASC, r.id ASC NULLS LAST").
+			Scan(&chunk).Error; err != nil {
+			return nil, dberror.Translate(err)
+		}
+		items = append(items, chunk...)
 	}
 	return items, nil
 }
@@ -1034,7 +1112,7 @@ func (r *Repo) GetUpstreamModelRouteByID(ctx context.Context, upstreamID uint, r
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrUpstreamModelNotFound
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return &item, nil
 }
@@ -1065,7 +1143,7 @@ func (r *Repo) GetUpstreamModelRouteByNames(
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrUpstreamModelNotFound
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return &item, nil
 }
@@ -1113,11 +1191,11 @@ func (r *Repo) UpsertPlatformModelRoute(ctx context.Context, item *domainchannel
 		Limit(1).
 		Find(&existing)
 	if query.Error != nil {
-		return translateError(query.Error)
+		return dberror.Translate(query.Error)
 	}
 	if query.RowsAffected == 0 {
 		if err := r.db.WithContext(ctx).Create(&entity).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		*item = toPlatformModelRouteDomain(entity)
 		return nil
@@ -1126,7 +1204,7 @@ func (r *Repo) UpsertPlatformModelRoute(ctx context.Context, item *domainchannel
 	if err := r.db.WithContext(ctx).
 		Model(&model.LLMPlatformModelRoute{}).
 		Where("id = ?", existing.ID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"protocol":             entity.Protocol,
 			"status":               entity.Status,
 			"priority":             entity.Priority,
@@ -1137,7 +1215,7 @@ func (r *Repo) UpsertPlatformModelRoute(ctx context.Context, item *domainchannel
 			"cb_window_min":        entity.CbWindowMin,
 			"headers_json":         entity.HeadersJSON,
 		}).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	*item = toPlatformModelRouteDomain(entity)
 	return nil
@@ -1162,7 +1240,7 @@ func (r *Repo) ReplacePlatformModelRoutes(
 		return err
 	})
 	if err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return replaced, nil
 }
@@ -1539,7 +1617,7 @@ func (r *Repo) ListPlatformModelRoutesByPair(
 		Where("um.upstream_id = ? AND r.platform_model_id = ? AND r.upstream_model_id = ?", upstreamID, platformModelID, upstreamModelID).
 		Order("r.id ASC").
 		Scan(&items).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	results := make([]domainchannel.PlatformModelRoute, 0, len(items))
 	for _, item := range items {
@@ -1559,7 +1637,7 @@ func (r *Repo) GetPlatformModelRouteByID(ctx context.Context, routeID uint, upst
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrUpstreamModelNotFound
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toPlatformModelRouteDomain(item)
 	return &result, nil
@@ -1580,7 +1658,7 @@ func (r *Repo) UpdatePlatformModelRouteByID(ctx context.Context, routeID uint, u
 		Where("id IN (?)", sub).
 		Updates(updates)
 	if result.Error != nil {
-		return translateError(result.Error)
+		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return ErrUpstreamModelNotFound
@@ -1588,8 +1666,8 @@ func (r *Repo) UpdatePlatformModelRouteByID(ctx context.Context, routeID uint, u
 	return nil
 }
 
-func platformRouteUpdates(input repository.UpdateChannelPlatformRouteInput) map[string]interface{} {
-	updates := make(map[string]interface{})
+func platformRouteUpdates(input repository.UpdateChannelPlatformRouteInput) map[string]any {
+	updates := make(map[string]any)
 	if input.PlatformModelID != nil {
 		updates["platform_model_id"] = *input.PlatformModelID
 	}
@@ -1637,7 +1715,7 @@ func (r *Repo) DeletePlatformModelRoute(ctx context.Context, routeID uint, upstr
 		Where("id IN (?)", sub).
 		Delete(&model.LLMPlatformModelRoute{})
 	if result.Error != nil {
-		return translateError(result.Error)
+		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return ErrUpstreamModelNotFound
@@ -1652,14 +1730,14 @@ func (r *Repo) ListModelUpstreamSources(ctx context.Context, platformModelName s
 
 	name := strings.TrimSpace(platformModelName)
 	if err := r.modelUpstreamSourcesBaseQuery(ctx, name).Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	if err := r.modelUpstreamSourcesQuery(ctx, name).
 		Order("r.priority ASC, r.id DESC").
 		Offset(offset).
 		Limit(limit).
 		Scan(&items).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	return items, total, nil
 }
@@ -1671,7 +1749,7 @@ func (r *Repo) ListModelUpstreamSourcesForUpdate(ctx context.Context, platformMo
 		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Order("r.id ASC").
 		Scan(&items).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return items, nil
 }
@@ -1704,7 +1782,7 @@ func (r *Repo) GetModelUpstreamSourceByRouteID(ctx context.Context, platformMode
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrUpstreamModelNotFound
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return &item, nil
 }
@@ -1780,7 +1858,7 @@ func (r *Repo) ListActiveRoutesByModel(ctx context.Context, platformModelName st
 		Where("pm.name = ? AND pm.status = ? AND r.status = ? AND um.status = ? AND u.status = ?", strings.TrimSpace(platformModelName), "active", "active", "active", "active").
 		Order("r.priority ASC, r.id ASC").
 		Scan(&scanned).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 
 	rows := make([]UpstreamRouteRow, 0, len(scanned))
@@ -1837,7 +1915,7 @@ func (r *Repo) ListActiveRouteBindingCodesForUpstream(ctx context.Context, upstr
 		Where("um.upstream_id = ? AND r.status = ? AND um.status = ? AND pm.status = ?", upstreamID, "active", "active", "active").
 		Order("um.binding_code ASC").
 		Pluck("um.binding_code", &codes).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return codes, nil
 }
@@ -1855,7 +1933,7 @@ func (r *Repo) GetLLMSetting(ctx context.Context, key string) (*domainchannel.LL
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrLLMSettingNotFound
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toLLMSettingDomain(item)
 	return &result, nil
@@ -1868,7 +1946,7 @@ func (r *Repo) ListLLMSettings(ctx context.Context) ([]domainchannel.LLMSetting,
 		Where("namespace = ?", "llm").
 		Order("id ASC").
 		Find(&items).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	results := make([]domainchannel.LLMSetting, 0, len(items))
 	for _, item := range items {
@@ -1886,11 +1964,11 @@ func (r *Repo) UpsertLLMSetting(ctx context.Context, item *domainchannel.LLMSett
 		Limit(1).
 		Find(&existing)
 	if query.Error != nil {
-		return translateError(query.Error)
+		return dberror.Translate(query.Error)
 	}
 	if query.RowsAffected == 0 {
 		if err := r.db.WithContext(ctx).Create(&entity).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		*item = toLLMSettingDomain(entity)
 		return nil
@@ -1901,12 +1979,12 @@ func (r *Repo) UpsertLLMSetting(ctx context.Context, item *domainchannel.LLMSett
 	if err := r.db.WithContext(ctx).
 		Model(&model.SystemSetting{}).
 		Where("id = ?", existing.ID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"value":       entity.Value,
 			"description": entity.Description,
 		}).
 		Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	entity.ID = existing.ID
 	*item = toLLMSettingDomain(entity)
@@ -1915,7 +1993,7 @@ func (r *Repo) UpsertLLMSetting(ctx context.Context, item *domainchannel.LLMSett
 
 // DeleteUpstreamCascade 硬删除上游及其全部绑定，保留模型目录。
 func (r *Repo) DeleteUpstreamCascade(ctx context.Context, upstreamID uint) error {
-	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var item model.LLMUpstream
 		if err := tx.Where("id = ?", upstreamID).First(&item).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1947,7 +2025,7 @@ func (r *Repo) DeleteUpstreamCascade(ctx context.Context, upstreamID uint) error
 
 // DeleteModelCascade 硬删除平台模型及其全部路由绑定，保留上游真实模型清单。
 func (r *Repo) DeleteModelCascade(ctx context.Context, modelID uint) error {
-	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var item model.LLMPlatformModel
 		if err := tx.Where("id = ?", modelID).First(&item).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {

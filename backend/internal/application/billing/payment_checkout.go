@@ -3,6 +3,7 @@ package billing
 import (
 	"context"
 	"fmt"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"net/url"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
@@ -133,13 +134,13 @@ func DescribePaymentProduct(order *domainbilling.PaymentOrder, plan *domainbilli
 		}
 		return PaymentProduct{
 			Name:        "按量余额充值",
-			Description: fmt.Sprintf("充值 %s %.2f 至按量余额", firstNonEmpty(order.PayCurrency, order.BaseCurrency, "USD"), float64(amountCents)/100),
+			Description: fmt.Sprintf("充值 %s %.2f 至按量余额", textutil.FirstNonEmpty(order.PayCurrency, order.BaseCurrency, "USD"), float64(amountCents)/100),
 		}
 	}
 	if plan != nil {
 		return PaymentProduct{
-			Name:        firstNonEmpty(plan.Name, plan.Code),
-			Description: firstNonEmpty(plan.Description, plan.Code),
+			Name:        textutil.FirstNonEmpty(plan.Name, plan.Code),
+			Description: textutil.FirstNonEmpty(plan.Description, plan.Code),
 		}
 	}
 	return PaymentProduct{Name: "订阅方案", Description: "订阅方案支付"}

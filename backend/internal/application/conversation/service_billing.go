@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
+	appaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
@@ -118,6 +120,108 @@ func (s *Service) RenewSendMessageUsageAuthorization(ctx context.Context, author
 	return s.billingSvc.RenewUsageAuthorization(ctx, authorization)
 }
 
+// usageBudgetEstimate 描述上游调用前已确定的请求形状，用于成本预估与预算校验。
+// 工具循环中再次调用时，字段是本条消息已产生的用量与下一次调用预估之和。
+type usageBudgetEstimate struct {
+	InputTokens      int64
+	CacheReadTokens  int64
+	CacheWriteTokens int64
+	OutputTokens     int64
+	CallCount        int64
+	DurationSeconds  int64
+}
+
+// followUpUsageBudgetEstimate 构造再次调用上游前的累计成本形状：本条消息已产生的计费用量加上
+// 下一次调用的预估输入与请求限定的最大输出。billed 是按计费口径汇总的已产生用量：输入与输出侧
+// 含未上报调用的预估补齐，缓存读写为观测值。
+func followUpUsageBudgetEstimate(billed llm.Usage, nextInputTokens int64, options map[string]any) usageBudgetEstimate {
+	return usageBudgetEstimate{
+		InputTokens:      billed.InputTokens + nextInputTokens,
+		CacheReadTokens:  billed.CacheReadTokens,
+		CacheWriteTokens: billed.CacheWriteTokens,
+		OutputTokens:     billed.OutputTokens + billed.ReasoningTokens + messageRequestMaxOutputTokens(options),
+	}
+}
+
+// ensureUsageBudgetCoversEstimate 在上游调用前按请求形状预估成本并抬高预算预留，
+// 让余额不足的请求在产生任何上游费用之前被拒绝。没有预留（self 模式、免费模型）直接放行。
+func (s *Service) ensureUsageBudgetCoversEstimate(
+	ctx context.Context,
+	authorization *domainbilling.UsageAuthorization,
+	route *channel.ResolvedRoute,
+	options map[string]any,
+	estimate usageBudgetEstimate,
+) error {
+	if s.billingSvc == nil || authorization == nil || authorization.Reservation == nil || route == nil {
+		return nil
+	}
+	requiredNanousd, err := s.billingSvc.EstimateUsageNanousd(ctx, authorization.Reservation.UserID, appbilling.UsageEstimateInput{
+		PlatformModelName:  route.PlatformModelName,
+		ProviderProtocol:   route.Protocol,
+		UpstreamModelName:  route.UpstreamModel,
+		CacheTimeout:       messageCacheTimeout(options),
+		RequestSpeed:       messageRequestSpeed(options),
+		RequestServiceTier: messageRequestServiceTier(options),
+		InputTokens:        estimate.InputTokens,
+		CacheReadTokens:    estimate.CacheReadTokens,
+		CacheWriteTokens:   estimate.CacheWriteTokens,
+		OutputTokens:       estimate.OutputTokens,
+		CallCount:          estimate.CallCount,
+		DurationSeconds:    estimate.DurationSeconds,
+	})
+	if err != nil {
+		return err
+	}
+	return s.billingSvc.EnsureUsageAuthorizationBudget(ctx, authorization, requiredNanousd)
+}
+
+// messageRequestMaxOutputTokens 读取请求明确限定的最大输出 token 数，未限定返回 0。
+func messageRequestMaxOutputTokens(options map[string]any) int64 {
+	paths := [][]string{
+		{"max_output_tokens"},
+		{"max_completion_tokens"},
+		{"max_tokens"},
+		{"maxOutputTokens"},
+		{"generationConfig", "maxOutputTokens"},
+		{"generation_config", "max_output_tokens"},
+	}
+	for _, path := range paths {
+		value, ok := readModelOptionPath(options, path)
+		if !ok {
+			continue
+		}
+		if tokens := int64FromOptionValue(value); tokens > 0 {
+			return tokens
+		}
+	}
+	return 0
+}
+
+func int64FromOptionValue(value any) int64 {
+	switch v := value.(type) {
+	case int:
+		return int64(v)
+	case int64:
+		return v
+	case float64:
+		return int64(v)
+	case json.Number:
+		parsed, err := v.Int64()
+		if err != nil {
+			return 0
+		}
+		return parsed
+	case string:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		if err != nil {
+			return 0
+		}
+		return parsed
+	default:
+		return 0
+	}
+}
+
 // RecordSendMessageBilling 记录发送消息产生的用量账本，并把账单快照回写到 assistant 消息。
 func (s *Service) RecordSendMessageBilling(
 	ctx context.Context,
@@ -128,7 +232,7 @@ func (s *Service) RecordSendMessageBilling(
 		return nil, nil
 	}
 	if s.billingSvc == nil {
-		s.runPostBillingTasks(input)
+		s.runPostBillingTasks(ctx, input)
 		return nil, nil
 	}
 	var usageLedger *domainbilling.UsageLedger
@@ -154,12 +258,12 @@ func (s *Service) RecordSendMessageBilling(
 		s.discardPostBillingCompaction(input.Result)
 		return nil, err
 	}
-	s.runPostBillingTasks(input)
+	s.runPostBillingTasks(ctx, input)
 	return usageLedger, nil
 }
 
 // scheduleConversationMetadataAfterBilling 仅在主调用完成计费后安排标题与标签生成。
-func (s *Service) scheduleConversationMetadataAfterBilling(input SendMessageBillingInput) {
+func (s *Service) scheduleConversationMetadataAfterBilling(ctx context.Context, input SendMessageBillingInput) {
 	if input.Conversation == nil || input.Result == nil || input.Result.MetadataRefreshHint != conversationMetadataRefreshPending {
 		return
 	}
@@ -170,7 +274,7 @@ func (s *Service) scheduleConversationMetadataAfterBilling(input SendMessageBill
 	if platformModelName := strings.TrimSpace(input.Result.PlatformModelName); platformModelName != "" {
 		conversation.Model = platformModelName
 	}
-	s.maybeGenerateConversationMetadataAsync(conversation, input.Result.UserMessage)
+	s.maybeGenerateConversationMetadataAsync(ctx, conversation, input.Result.UserMessage)
 }
 
 // markUsageAuthorizationForReconciliation 将已产生上游费用的结算失败转为保守阻断状态。
@@ -191,15 +295,23 @@ func (s *Service) markUsageAuthorizationForReconciliation(
 	return cause
 }
 
-// recordUsageWithRetry 仅对持有持久化 reservation 的结算执行安全重试。
+// recordUsageWithRetry 只在结算可幂等时重试：持有预留的结算由预留状态机回读首次结果，
+// 无预留的结算靠账本运行级幂等键回读；两者都没有的账本重试可能重复入账，只执行一次。
 func (s *Service) recordUsageWithRetry(ctx context.Context, usage *domainbilling.UsageLedger, authorization *domainbilling.UsageAuthorization) error {
 	operation := func() error {
 		return s.billingSvc.RecordUsageWithAuthorization(ctx, usage, authorization)
 	}
-	if authorization == nil || authorization.Reservation == nil {
+	if !usageRecordIsIdempotent(usage, authorization) {
 		return operation()
 	}
 	return retryUsageBillingOperation(ctx, operation)
+}
+
+func usageRecordIsIdempotent(usage *domainbilling.UsageLedger, authorization *domainbilling.UsageAuthorization) bool {
+	if authorization != nil && authorization.Reservation != nil {
+		return true
+	}
+	return usage != nil && strings.TrimSpace(usage.RefNo) != ""
 }
 
 // retryUsageBillingOperation 对临时账务错误进行短暂退避重试，不重试业务语义错误。
@@ -255,21 +367,20 @@ func (s *Service) RecordSendMessageAudit(ctx context.Context, input SendMessageA
 		return
 	}
 	imageCount, fileCount := countAttachmentKinds(input.Result.UserMessage.Attachments)
-	s.auditWriter.Write(
-		ctx,
-		strings.TrimSpace(input.RequestID),
-		input.UserID,
-		strings.TrimSpace(input.Action),
-		"conversation",
-		strconv.FormatUint(uint64(input.ConversationID), 10),
-		strings.TrimSpace(input.ClientIP),
-		strings.TrimSpace(input.UserAgent),
-		map[string]interface{}{
+	s.auditWriter.Write(ctx, appaudit.WriteInput{
+		RequestID:   input.RequestID,
+		ActorUserID: input.UserID,
+		Action:      input.Action,
+		Resource:    "conversation",
+		ResourceID:  strconv.FormatUint(uint64(input.ConversationID), 10),
+		IP:          input.ClientIP,
+		UserAgent:   input.UserAgent,
+		Detail: map[string]any{
 			"content_type": strings.TrimSpace(input.ContentType),
 			"attachments":  imageCount + fileCount,
 			"file_ids":     len(input.FileIDs),
 		},
-	)
+	})
 }
 
 // buildSendMessageUsageLedger 根据请求开始时的授权快照构建主调用账本。
@@ -304,6 +415,7 @@ func (s *Service) buildSendMessageUsageLedger(ctx context.Context, input SendMes
 		RequestServiceTier:  messageRequestServiceTier(result.EffectiveOptions),
 		UsageServiceTier:    strings.TrimSpace(result.UsageServiceTier),
 		UsageSource:         strings.TrimSpace(result.UsageSource),
+		BilledReason:        ModerationBlockedBilledReason(result, authorization),
 		InputTokens:         sendMessageBillingInputTokens(result),
 		CacheReadTokens:     sendMessageBillingCacheReadTokens(result),
 		CacheWriteTokens:    sendMessageBillingCacheWriteTokens(result),
@@ -311,7 +423,7 @@ func (s *Service) buildSendMessageUsageLedger(ctx context.Context, input SendMes
 		CacheWrite1hTokens:  result.CacheWrite1hTokens,
 		OutputTokens:        result.AssistantMessage.OutputTokens,
 		ReasoningTokens:     result.AssistantMessage.ReasoningTokens,
-		CallCount:           1,
+		CallCount:           sendMessageBillingCallCount(result),
 		DurationBillable:    isVideoGeneration,
 		DurationSeconds:     sendMessageBillingDurationSeconds(result),
 		MediaType:           mediaType,
@@ -387,6 +499,15 @@ func sendMessageBillingDurationSeconds(result *SendMessageResult) int64 {
 	return result.DurationSeconds
 }
 
+// sendMessageBillingCallCount 返回按次计费的调用数：本次运行成功返回的上游 LLM 调用数，
+// 与 token 用量一样覆盖工具循环的每次回灌；中断运行已产生可计费用量，至少计 1 次。
+func sendMessageBillingCallCount(result *SendMessageResult) int64 {
+	if result == nil || result.LLMCallCount <= 0 {
+		return 1
+	}
+	return int64(result.LLMCallCount)
+}
+
 // sendMessageResultUsesAssistantSideInput 判断 prompt-side usage 是否归属 assistant 消息。
 // assistant-only retry 会复用原用户消息，因此本轮 input/cache usage 不能回写到 user。
 func sendMessageResultUsesAssistantSideInput(result *SendMessageResult) bool {
@@ -405,7 +526,7 @@ func sendMessageBillingPlatformModelName(input SendMessageBillingInput) string {
 	return strings.TrimSpace(input.ConversationModel)
 }
 
-func messageCacheTimeout(options map[string]interface{}) string {
+func messageCacheTimeout(options map[string]any) string {
 	if len(options) == 0 {
 		return "5m"
 	}
@@ -415,7 +536,7 @@ func messageCacheTimeout(options map[string]interface{}) string {
 		}
 		return "5m"
 	}
-	if cacheControl, ok := options["cache_control"].(map[string]interface{}); ok {
+	if cacheControl, ok := options["cache_control"].(map[string]any); ok {
 		if value := strings.TrimSpace(stringOption(cacheControl, "ttl")); strings.EqualFold(value, "1h") {
 			return "1h"
 		}
@@ -423,7 +544,7 @@ func messageCacheTimeout(options map[string]interface{}) string {
 	return "5m"
 }
 
-func messageRequestSpeed(options map[string]interface{}) string {
+func messageRequestSpeed(options map[string]any) string {
 	if len(options) == 0 {
 		return ""
 	}
@@ -434,14 +555,14 @@ func messageRequestSpeed(options map[string]interface{}) string {
 	return speed
 }
 
-func messageRequestServiceTier(options map[string]interface{}) string {
+func messageRequestServiceTier(options map[string]any) string {
 	if len(options) == 0 {
 		return ""
 	}
 	return strings.TrimSpace(stringOption(options, "service_tier"))
 }
 
-func stringOption(options map[string]interface{}, key string) string {
+func stringOption(options map[string]any, key string) string {
 	raw, ok := options[key]
 	if !ok || raw == nil {
 		return ""

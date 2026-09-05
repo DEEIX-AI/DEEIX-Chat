@@ -18,6 +18,7 @@ import type {
   WritePromptPresetRequest,
 } from "@/shared/api/prompt-presets.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { useLoadMoreSentinel } from "@/shared/hooks/use-load-more-sentinel";
 import { PROMPT_PRESET_LIMITS, normalizePromptPresetName } from "@/shared/model/prompt-presets";
 
@@ -156,7 +157,7 @@ export function useSkillsPromptPage() {
   const [viewTarget, setViewTarget] = React.useState<PromptPresetDTO | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<PromptPresetDTO | null>(null);
   const [query, setQuery] = React.useState("");
-  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const debouncedQuery = useDebouncedValue(query.trim(), PROMPT_PRESET_SEARCH_DEBOUNCE_MS);
   const loadingMoreRef = React.useRef(false);
   const loadMoreFailedRef = React.useRef(false);
 
@@ -165,13 +166,6 @@ export function useSkillsPromptPage() {
   }, [items, query]);
 
   const hasMore = pagination.mine.hasMore || pagination.visible.hasMore;
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedQuery(query.trim());
-    }, PROMPT_PRESET_SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [query]);
 
   React.useEffect(() => {
     loadingMoreRef.current = loadingMore;

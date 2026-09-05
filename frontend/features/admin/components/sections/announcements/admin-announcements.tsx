@@ -597,6 +597,7 @@ export function AdminAnnouncementsPage() {
                   toValue={toDateRangeValue(form.expiresAt)}
                   disabled={saving}
                   placeholder={t("fields.alwaysActive")}
+                  triggerClassName="h-8 px-3"
                   onFromChange={(value) => setForm((current) => ({ ...current, startsAt: dateRangeBoundaryValue(value, "start") }))}
                   onToChange={(value) => setForm((current) => ({ ...current, expiresAt: dateRangeBoundaryValue(value, "end") }))}
                 />

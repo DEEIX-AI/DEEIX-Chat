@@ -7,7 +7,18 @@
     "invalidPermissionGroupModels": "权限组模型配置无效。",
     "invalidPermissionGroupUsers": "权限组成员配置无效。",
     "defaultPermissionGroupUsersImplicit": "默认权限组成员由系统自动维护。",
-    "permissionGroupReferencedByPlan": "该权限组已被计费套餐引用，请先解除绑定再删除。"
+    "permissionGroupReferencedByPlan": "该权限组已被计费套餐引用，请先解除绑定再删除。",
+    "permissionGroupRepoUnavailable": "权限组服务暂不可用，请稍后重试。"
+  },
+  "announcement": {
+    "invalidId": "公告 ID 无效。",
+    "notFound": "公告不存在。"
+  },
+  "avatar": {
+    "notFound": "头像不存在。"
+  },
+  "beforeMessage": {
+    "invalidId": "消息游标 ID 无效。"
   },
   "auth": {
     "adminRequired": "需要管理员权限。",
@@ -73,6 +84,7 @@
     "turnstileRequired": "请先完成人机验证。",
     "unauthorized": "登录状态已失效，请重新登录。",
     "usernameChangeRequired": "请修改初始化用户名。",
+    "verificationMethodUnavailable": "所选验证方式暂不可用。",
     "verificationCodeAttemptsExceeded": "验证码尝试次数过多，请重新获取验证码。",
     "verificationCodeInvalid": "验证码无效或已过期。",
     "verificationCodeRecent": "验证码刚刚已发送，请稍后再试。"
@@ -88,6 +100,9 @@
     "invalidDailyUsageDateRange": "用量日期范围无效。",
     "invalidDailyUsageDays": "用量天数无效。",
     "invalidModelPricing": "模型定价无效。",
+    "invalidAccountBalance": "计费账户余额无效。",
+    "invalidNativeToolPricing": "原生工具定价无效。",
+    "subscribeFailed": "订阅失败，请稍后重试。",
     "subscriptionEntitlementActive": "当前仍有有效付费订阅权益，不能切换到免费方案。",
     "invalidRedemptionCode": "兑换码无效。",
     "redemptionCodeConflict": "兑换码已存在。",
@@ -127,7 +142,16 @@
     "messageForkStateInvalid": "请等待当前消息生成完成后再分支到新聊天。",
     "messageForkTargetInvalid": "只能从助手回复处分支到新聊天。",
     "noTitleableContent": "当前对话没有可用于生成标题的内容。",
+    "projectLimitExceeded": "已达到对话项目数量上限。",
     "notFound": "对话不存在。"
+  },
+  "conversationEvent": {
+    "invalidId": "对话事件 ID 无效。",
+    "notFound": "对话事件不存在。"
+  },
+  "conversationProject": {
+    "invalidId": "对话项目 ID 无效。",
+    "notFound": "对话项目不存在。"
   },
   "conversationRun": {
     "canceled": "生成已取消。",
@@ -149,7 +173,9 @@
   },
   "embedding": {
     "serviceNotConfigured": "请先启用并配置 Embedding 服务。",
-    "serviceUnavailable": "向量服务不可用。"
+    "serviceUnavailable": "向量服务不可用。",
+    "submitFailed": "向量化任务提交失败，请稍后重试。",
+    "tooManyFiles": "单次最多提交 100 个文件进行向量化。"
   },
   "file": {
     "embeddingUnavailable": "当前文件暂不支持向量处理。",
@@ -169,20 +195,25 @@
   "identityProvider": {
     "deleteConflict": "删除该身份源会导致部分用户失去唯一登录方式。"
   },
+  "identity": {
+    "invalidId": "身份 ID 无效。",
+    "notFound": "身份不存在。"
+  },
   "internal": {
     "error": "服务器内部错误，请稍后重试。"
   },
   "knowledgeBase": {
     "conflict": "当前范围内已存在同名知识库。",
-		"fileCleanupUnavailable": "平台资料清理服务暂不可用，请稍后重试。",
+    "disabled": "知识库检索功能已停用。",
+    "fileCleanupUnavailable": "平台资料清理服务暂不可用，请稍后重试。",
     "internal": "知识库操作失败，请稍后重试。",
     "invalid": "知识库配置无效。",
     "invalidReference": "所选知识库不存在、已停用或无权访问。",
-		"notFound": "知识库不存在。",
-		"notReady": "所选知识库暂无可检索文件，请等待索引完成。",
-		"ownerFileReference": "该账号仍有文件被内置知识库引用，请先移除或由其他管理员重新上传接管。",
-		"platformFileInUse": "该平台资料仍被其他资源引用，请解除引用后再删除。",
-		"unavailable": "知识库检索暂不可用，请稍后重试；若问题持续，请联系管理员检查向量服务。"
+    "notFound": "知识库不存在。",
+    "notReady": "所选知识库暂无可检索文件，请等待索引完成。",
+    "ownerFileReference": "该账号仍有文件被内置知识库引用，请先移除或由其他管理员重新上传接管。",
+    "platformFileInUse": "该平台资料仍被其他资源引用，请解除引用后再删除。",
+    "unavailable": "知识库检索暂不可用，请稍后重试；若问题持续，请联系管理员检查向量服务。"
   },
   "toolRun": {
     "finalAnswerMissing": "工具调用已到达运行上限，但模型没有生成最终回答。请重试或减少本次启用的工具。"
@@ -195,9 +226,9 @@
     "invalidApiKeysConfig": "API Keys 配置无效。",
     "invalidCompatible": "兼容模式无效。",
     "invalidHeadersConfig": "请求头配置无效。",
-		"invalidKinds": "模型类型无效。",
-		"invalidModelCapabilities": "模型上下文窗口必须在 4096 到 16000000 之间，输出 Token 上限必须小于上下文窗口。",
-		"invalidPlatformModelName": "平台模型名称无效。",
+    "invalidKinds": "模型类型无效。",
+    "invalidModelCapabilities": "模型上下文窗口必须在 4096 到 16000000 之间，输出 Token 上限必须小于上下文窗口。",
+    "invalidPlatformModelName": "平台模型名称无效。",
     "invalidRouteProtocolCombination": "当前协议组合不可用。同一绑定只能选择单个协议，或同时选择同一厂商的图像生成与图像编辑协议。",
     "systemPromptTooLong": "系统提示词不能超过 20000 个字符。",
     "invalidProtocolDefaultsConfig": "协议默认配置无效。",
@@ -207,6 +238,7 @@
     "modelIconFileInvalid": "图标文件无效，仅支持 PNG、JPEG 或 WebP。",
     "modelIconFileTooLarge": "图标文件不能超过 1 MiB。",
     "modelIconAssetNotFound": "图标资产不存在，请重新上传。",
+    "modelIconAssetUnavailable": "图标资产暂时不可用。",
     "modelIconAssetInUse": "该图标仍被使用，请先解除关联。",
     "modelVendorBuiltin": "内置厂商不可删除。",
     "modelVendorInUse": "厂商仍有关联模型，请先迁移这些模型。",
@@ -214,12 +246,19 @@
     "platformModelNameExists": "平台模型名称已存在。",
     "platformModelNameRequired": "平台模型名称不能为空。",
     "protocolRequired": "协议不能为空。",
+    "remoteModelsEmptyConfirmationRequired": "上游返回了空模型目录，请刷新后确认是否继续同步。",
+    "remoteModelsSnapshotChanged": "上游模型目录在预览后发生了变化，已重新加载，请确认最新变更。",
     "remoteModelsUnavailable": "远程模型列表暂不可用。",
+    "upstreamModelBindingChanged": "上游模型绑定已发生变化，请重新加载后重试。",
+    "upstreamModelConflict": "该模型存在冲突的上游来源。",
+    "upstreamSourceUnavailable": "上游模型来源暂不可用。",
     "routeConflict": "该上游模型已存在相同平台模型和协议的绑定，请删除重复绑定后再保存。",
     "routesUnavailable": "所有模型路由都不可用。"
   },
   "mcp": {
     "clientUnavailable": "MCP 客户端不可用。",
+    "imageProcessingFailed": "MCP 图片处理工具执行失败。",
+    "invalidAttachmentConfiguration": "MCP 工具附件配置无效。",
     "invalidServerBaseUrl": "MCP 服务地址无效。",
     "invalidServerHeaders": "MCP 服务请求头配置无效。",
     "invalidServerName": "MCP 服务名称无效。",
@@ -228,6 +267,7 @@
     "invalidToolName": "MCP 工具名称无效。",
     "invalidToolSelection": "MCP 工具选择配置无效。",
     "invalidToolStatus": "MCP 工具状态无效。",
+    "serverLimitExceeded": "已达到 MCP 服务数量上限。",
     "server": {
       "invalidId": "MCP 服务 ID 无效。"
     },
@@ -236,7 +276,8 @@
     }
   },
   "memory": {
-    "keyRequired": "记忆键不能为空。"
+    "keyRequired": "记忆键不能为空。",
+    "limitExceeded": "已达到记忆数量上限。"
   },
   "media": {
     "imagePromptRequired": "请输入图片提示词。",
@@ -247,7 +288,10 @@
     "artifactUnavailable": "生成结果暂时无法获取，请稍后重试；若问题持续，请联系管理员。",
     "imageStreamUnsupported": "Tips：当前上游可能不支持流式响应，请管理员在模型能力中关闭“图像流式调用”（设置 image.stream=false）后重试。",
     "routeProtocolMismatch": "当前模型路由协议与图片任务不匹配，请检查模型绑定。",
-    "invalidTask": "图片任务参数无效。"
+    "invalidTask": "图片任务参数无效。",
+    "videoInputInvalid": "视频生成输入无效。",
+    "videoPromptRequired": "请输入视频提示词。",
+    "videoTooManyInputs": "视频生成输入图片过多。"
   },
   "message": {
     "feedbackTargetInvalid": "消息反馈目标无效。",
@@ -258,7 +302,13 @@
     "invalidFeedback": "消息反馈无效。",
     "invalidId": "消息 ID 无效。",
     "notFound": "消息不存在。",
-    "tooManyFiles": "单条消息包含的文件过多。"
+    "multipleImageProcessors": "一条消息只能选择一个图片处理器。",
+    "tooManyFiles": "单条消息包含的文件过多。",
+    "tooManySelectedSkills": "本条消息选择的技能过多。",
+    "tooManySelectedTools": "本条消息选择的工具过多。"
+  },
+  "messageGenerationRun": {
+    "alreadyExists": "该消息生成任务已提交。"
   },
   "temporaryChat": {
     "contextTooLarge": "临时对话上下文过长，请新建临时对话或缩短当前内容。"
@@ -268,10 +318,13 @@
     "epayGatewayInvalid": "易支付页面跳转网关地址无效。",
     "epayTypeUnsupported": "该易支付类型不受支持。",
     "invalidEvent": "支付事件无效。",
+    "invalidOrder": "支付订单无效。",
     "invalidSignature": "支付签名无效。",
     "invalidWebhookBody": "支付回调内容无效。",
     "notificationMismatch": "支付回调与订单不匹配。",
     "orderNoRequired": "订单号不能为空。",
+    "orderNotFound": "支付订单不存在。",
+    "orderStateInvalid": "支付订单状态无效。",
     "providerUnavailable": "支付服务不可用。",
     "returnUrlCrossOrigin": "支付返回地址必须使用已配置的公开站点域名。",
     "returnUrlInvalid": "支付返回地址无效。",
@@ -292,14 +345,90 @@
     "invalidBody": "请求参数无效，请检查后重试。",
     "invalidId": "ID 无效。",
     "invalidQuery": "查询参数无效。",
-    "required": "缺少必填参数。"
+    "required": "缺少必填参数。",
+    "invalidAnnouncement": "公告请求无效。",
+    "invalidAppearancePreferences": "外观偏好设置无效。",
+    "invalidConversationLabels": "对话标签无效。",
+    "invalidConversationProject": "对话项目请求无效。",
+    "invalidConversationRunIds": "对话运行 ID 无效。",
+    "invalidDailyActivityDays": "每日活动天数无效。",
+    "invalidFile": "文件无效。",
+    "invalidImageIndex": "图片索引无效。",
+    "invalidImportCreditMultiplier": "导入计费倍率无效。",
+    "invalidImportDsn": "导入数据源无效。",
+    "invalidLocationPayload": "位置数据无效。",
+    "invalidLogCleanupBefore": "日志清理截止时间无效。",
+    "invalidLogCleanupType": "日志清理类型无效。",
+    "invalidMcpToolPrice": "MCP 工具价格无效。",
+    "invalidModelAccessScope": "模型访问范围无效。",
+    "invalidModelDisplayGroup": "模型展示分组无效。",
+    "invalidModelOrder": "模型排序无效。",
+    "invalidModelVendor": "模型厂商无效。",
+    "invalidOverwriteCustomizedMetadata": "元数据覆盖选项无效。",
+    "invalidPage": "页码无效。",
+    "invalidPagesize": "分页大小无效。",
+    "invalidPromptPreset": "提示词预设无效。",
+    "invalidRunIds": "运行 ID 无效。",
+    "invalidSkill": "技能无效。",
+    "invalidSkillUse": "技能配置无效。",
+    "invalidTemporaryChatMessages": "临时对话消息无效。",
+    "invalidTwoFactorChallenge": "两步验证挑战无效。",
+    "invalidUpstreamBaseUrl": "上游地址无效。",
+    "invalidUserid": "用户 ID 无效。"
   },
   "resource": {
     "conflict": "资源冲突，请刷新后重试。",
     "notFound": "资源不存在。"
   },
+  "model": {
+    "invalidId": "模型 ID 无效。",
+    "notFound": "模型不存在。"
+  },
+  "modelDisplayGroup": {
+    "alreadyExists": "模型展示分组已存在。",
+    "invalidId": "模型展示分组 ID 无效。",
+    "notFound": "模型展示分组不存在。"
+  },
+  "modelUpstreamSources": {
+    "notFound": "模型上游来源不存在。"
+  },
+  "modelVendor": {
+    "alreadyExists": "模型厂商已存在。",
+    "invalidId": "模型厂商 ID 无效。",
+    "notFound": "模型厂商不存在。"
+  },
+  "permissionGroup": {
+    "invalidId": "权限组 ID 无效。"
+  },
+  "plan": {
+    "invalidId": "套餐 ID 无效。"
+  },
+  "promptPreset": {
+    "invalidId": "提示词预设 ID 无效。",
+    "notFound": "提示词预设不存在。"
+  },
+  "promptPresetTrigger": {
+    "alreadyExists": "提示词预设触发器已存在。"
+  },
+  "redemptionCode": {
+    "invalidId": "兑换码 ID 无效。",
+    "notFound": "兑换码不存在。"
+  },
   "route": {
+    "invalidId": "路由 ID 无效。",
     "notFound": "路由不存在。"
+  },
+  "run": {
+    "invalidId": "运行 ID 无效。"
+  },
+  "share": {
+    "invalidId": "分享 ID 无效。"
+  },
+  "sharedFile": {
+    "notFound": "共享文件不存在。"
+  },
+  "logCleanup": {
+    "beforeInFuture": "日志清理截止时间不能晚于当前时间。"
   },
   "runtime": {
     "doclingUnavailable": "Docling 运行时不可用。",
@@ -323,9 +452,33 @@
     "serviceUnavailable": "设置服务不可用。",
     "smtpInvalid": "SMTP 设置无效。"
   },
+  "skill": {
+    "invalidId": "技能 ID 无效。",
+    "notFound": "技能不存在。",
+    "tooManyIds": "选择的技能过多。"
+  },
+  "skillTrigger": {
+    "alreadyExists": "技能触发器已存在。"
+  },
+  "toolCall": {
+    "invalidId": "工具调用 ID 无效。",
+    "notFound": "工具调用不存在。"
+  },
   "upstream": {
+    "invalidId": "上游 ID 无效。",
+    "notFound": "上游不存在。",
     "rateLimited": "上游请求正在限流，请稍后重试。",
     "unavailable": "上游服务不可用。"
+  },
+  "upstreamModel": {
+    "notFound": "上游模型不存在。"
+  },
+  "usageStatistics": {
+    "invalidBillingScope": "计费范围无效。",
+    "invalidDateRange": "用量统计日期范围无效。",
+    "invalidRankBy": "用量排序字段无效。",
+    "invalidSection": "用量统计分区无效。",
+    "subjectConflict": "用户和权限组筛选条件不能同时使用。"
   },
   "upstreamEmptyResponse": "上游返回了空响应，请稍后重试或联系管理员检查模型路由。",
   "upstreamRequestFailed": "上游请求失败，请稍后重试或联系管理员检查模型路由。",
@@ -333,6 +486,7 @@
     "accountDeleteVerificationRequired": "删除账号前需要先验证身份。",
     "emptyPatch": "请至少修改一个用户字段。",
     "invalidAvatarUrl": "头像地址无效。",
+    "invalidId": "用户 ID 无效。",
     "invalidEmail": "用户邮箱无效。",
     "invalidLocale": "语言区域无效。",
     "invalidLocation": "位置信息无效。",
@@ -352,6 +506,7 @@
     "superadminStatusProtected": "不能修改超级管理员状态。",
     "superadminTwoFactorResetProtected": "不能重置超级管理员两步验证。",
     "usernameAlreadyExists": "该用户名已被占用。",
+    "notFound": "用户不存在。",
     "usernameChangeUsed": "用户名修改次数已用完。",
     "usernameTaken": "该用户名已被占用。"
   },
@@ -359,11 +514,11 @@
     "invalidValue": "用户设置值无效。",
     "unknownKey": "未知的用户设置项。"
   },
-  "content_moderation": {
+  "contentModeration": {
     "blocked": "内容已被安全检查拦截。",
-    "invalid_config": "内容审核配置无效。",
-    "config_required": "启用内容审核时必须配置完整服务并至少选择一个审核类别。",
-    "probe_failed": "内容审核连接测试失败。",
-    "event_not_found": "未找到内容审核事件。"
+    "invalidConfig": "内容审核配置无效。",
+    "configRequired": "启用内容审核时必须配置完整服务并至少选择一个审核类别。",
+    "probeFailed": "内容审核连接测试失败。",
+    "eventNotFound": "未找到内容审核事件。"
   }
 }

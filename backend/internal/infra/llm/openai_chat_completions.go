@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"strings"
+
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 // openAIChatCompletionsAdapter 实现 OpenAI Chat Completions API（POST /v1/chat/completions）。
@@ -11,38 +15,38 @@ type openAIChatCompletionsAdapter struct {
 	client *Client
 }
 
-func (a *openAIChatCompletionsAdapter) Name() string { return AdapterOpenAIChatCompletions }
+func (a *openAIChatCompletionsAdapter) Name() string { return portllm.AdapterOpenAIChatCompletions }
 
-func (a *openAIChatCompletionsAdapter) Generate(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
-	route.Endpoint = EndpointChatCompletions
+func (a *openAIChatCompletionsAdapter) Generate(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput) (*portllm.GenerateOutput, error) {
+	route.Endpoint = portllm.EndpointChatCompletions
 	return a.client.generateOpenAICompatible(ctx, route, input)
 }
 
-func (a *openAIChatCompletionsAdapter) GenerateStream(ctx context.Context, route RouteConfig, input GenerateInput, onEvent func(GenerateStreamEvent) error) (*GenerateOutput, error) {
-	route.Endpoint = EndpointChatCompletions
+func (a *openAIChatCompletionsAdapter) GenerateStream(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput, onEvent func(portllm.GenerateStreamEvent) error) (*portllm.GenerateOutput, error) {
+	route.Endpoint = portllm.EndpointChatCompletions
 	return a.client.generateChatCompletionsStreamWithAutoUsageFallback(ctx, route, input, onEvent)
 }
 
-func (a *openAIChatCompletionsAdapter) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
+func (a *openAIChatCompletionsAdapter) ListModels(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
 	return a.client.listModelsOpenAICompatible(ctx, route)
 }
 
 func buildChatCompletionsRequestBody(
 	adapter string,
 	model string,
-	input GenerateInput,
-	messages []Message,
-	providerTools []map[string]interface{},
-	toolDefinitions []ToolDefinition,
-	providerStreamOptions map[string]interface{},
+	input portllm.GenerateInput,
+	messages []portllm.Message,
+	providerTools []map[string]any,
+	toolDefinitions []portllm.ToolDefinition,
+	providerStreamOptions map[string]any,
 	stream bool,
-) map[string]interface{} {
+) map[string]any {
 	promptCache := resolveOpenAIPromptCacheConfig(adapter, input)
-	items := make([]map[string]interface{}, 0, len(messages))
+	items := make([]map[string]any, 0, len(messages))
 	for _, item := range messages {
 		items = append(items, buildChatCompletionsMessages(adapter, item, &promptCache)...)
 	}
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model":    strings.TrimSpace(model),
 		"messages": items,
 		"stream":   stream,
@@ -58,7 +62,7 @@ func buildChatCompletionsRequestBody(
 		if modelParamBool(input.Options, "thinking") {
 			thinkingType = "enabled"
 		}
-		payload["thinking"] = map[string]interface{}{
+		payload["thinking"] = map[string]any{
 			"type": thinkingType,
 		}
 	}
@@ -79,18 +83,18 @@ func buildChatCompletionsRequestBody(
 	return payload
 }
 
-func chatCompletionsStreamOptions(options map[string]interface{}, stream bool) map[string]interface{} {
+func chatCompletionsStreamOptions(options map[string]any, stream bool) map[string]any {
 	if !stream {
 		return nil
 	}
-	result := map[string]interface{}{"include_usage": true}
+	result := map[string]any{"include_usage": true}
 	for key, value := range options {
 		result[key] = value
 	}
 	return result
 }
 
-func normalizedChatCompletionResponseFormat(options map[string]interface{}) (interface{}, bool) {
+func normalizedChatCompletionResponseFormat(options map[string]any) (any, bool) {
 	format, ok := normalizedJSONResponseFormat(options)
 	if !ok {
 		return nil, false
@@ -102,7 +106,7 @@ func normalizedChatCompletionResponseFormat(options map[string]interface{}) (int
 	if _, ok := payload["json_schema"]; ok {
 		return payload, true
 	}
-	jsonSchema := map[string]interface{}{}
+	jsonSchema := map[string]any{}
 	for _, key := range []string{"name", "description", "schema", "strict"} {
 		if value, ok := payload[key]; ok {
 			jsonSchema[key] = value
@@ -111,17 +115,17 @@ func normalizedChatCompletionResponseFormat(options map[string]interface{}) (int
 	if len(jsonSchema) == 0 {
 		return payload, true
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"type":        "json_schema",
 		"json_schema": jsonSchema,
 	}, true
 }
 
-func buildChatCompletionsMessages(adapter string, msg Message, promptCache *openAIPromptCacheConfig) []map[string]interface{} {
-	result := make([]map[string]interface{}, 0, 1+len(msg.ToolResults))
+func buildChatCompletionsMessages(adapter string, msg portllm.Message, promptCache *openAIPromptCacheConfig) []map[string]any {
+	result := make([]map[string]any, 0, 1+len(msg.ToolResults))
 	if len(msg.ToolResults) > 0 {
 		for _, item := range msg.ToolResults {
-			result = append(result, map[string]interface{}{
+			result = append(result, map[string]any{
 				"role":         "tool",
 				"tool_call_id": strings.TrimSpace(item.ToolCallID),
 				"content":      buildToolResultContent(item),
@@ -130,12 +134,12 @@ func buildChatCompletionsMessages(adapter string, msg Message, promptCache *open
 		return result
 	}
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"role":    normalizeRole(msg.Role),
 		"content": buildChatCompletionsContent(msg, promptCache),
 	}
 	if reasoningContent := strings.TrimSpace(msg.ReasoningContent); reasoningContent != "" && normalizeRole(msg.Role) == "assistant" {
-		if NormalizeAdapter(adapter) == AdapterOpenRouterChat {
+		if portllm.NormalizeAdapter(adapter) == portllm.AdapterOpenRouterChat {
 			payload["reasoning"] = reasoningContent
 		} else {
 			payload["reasoning_content"] = reasoningContent
@@ -151,8 +155,8 @@ func buildChatCompletionsMessages(adapter string, msg Message, promptCache *open
 	return result
 }
 
-func buildChatCompletionsToolCalls(toolCalls []ToolCall) []map[string]interface{} {
-	items := make([]map[string]interface{}, 0, len(toolCalls))
+func buildChatCompletionsToolCalls(toolCalls []portllm.ToolCall) []map[string]any {
+	items := make([]map[string]any, 0, len(toolCalls))
 	for _, item := range toolCalls {
 		toolType := strings.TrimSpace(item.ToolType)
 		if toolType == "" {
@@ -163,20 +167,20 @@ func buildChatCompletionsToolCalls(toolCalls []ToolCall) []map[string]interface{
 			args = "{}"
 		}
 		if toolType == "custom" {
-			items = append(items, map[string]interface{}{
+			items = append(items, map[string]any{
 				"id":   strings.TrimSpace(item.ToolCallID),
 				"type": toolType,
-				"custom": map[string]interface{}{
+				"custom": map[string]any{
 					"name":  strings.TrimSpace(item.ToolName),
 					"input": args,
 				},
 			})
 			continue
 		}
-		items = append(items, map[string]interface{}{
+		items = append(items, map[string]any{
 			"id":   strings.TrimSpace(item.ToolCallID),
 			"type": toolType,
-			"function": map[string]interface{}{
+			"function": map[string]any{
 				"name":      strings.TrimSpace(item.ToolName),
 				"arguments": args,
 			},
@@ -187,19 +191,19 @@ func buildChatCompletionsToolCalls(toolCalls []ToolCall) []map[string]interface{
 
 // buildChatCompletionsContent 将消息内容序列化为 Chat Completions API 格式。
 // 多模态或显式缓存消息返回 parts 数组；其余纯文本消息保持字符串结构。
-func buildChatCompletionsContent(msg Message, promptCache *openAIPromptCacheConfig) interface{} {
+func buildChatCompletionsContent(msg portllm.Message, promptCache *openAIPromptCacheConfig) any {
 	if len(msg.Parts) == 0 {
 		if msg.CacheControl != nil && promptCache != nil && promptCache.Explicit {
-			block := map[string]interface{}{"type": "text", "text": msg.Content}
+			block := map[string]any{"type": "text", "text": msg.Content}
 			appendOpenAIPromptCacheBreakpoint(block, msg.CacheControl, promptCache)
-			return []map[string]interface{}{block}
+			return []map[string]any{block}
 		}
 		return msg.Content
 	}
-	parts := make([]map[string]interface{}, 0, len(msg.Parts))
+	parts := make([]map[string]any, 0, len(msg.Parts))
 	for _, part := range msg.Parts {
 		switch part.Kind {
-		case ContentPartImage:
+		case portllm.ContentPartImage:
 			if len(part.Data) == 0 {
 				continue
 			}
@@ -208,7 +212,7 @@ func buildChatCompletionsContent(msg Message, promptCache *openAIPromptCacheConf
 				mime = "image/jpeg"
 			}
 			b64 := base64.StdEncoding.EncodeToString(part.Data)
-			block := map[string]interface{}{
+			block := map[string]any{
 				"type": "image_url",
 				"image_url": map[string]string{
 					"url": "data:" + mime + ";base64," + b64,
@@ -221,7 +225,7 @@ func buildChatCompletionsContent(msg Message, promptCache *openAIPromptCacheConf
 			if strings.TrimSpace(text) == "" {
 				continue
 			}
-			block := map[string]interface{}{
+			block := map[string]any{
 				"type": "text",
 				"text": text,
 			}
@@ -244,10 +248,10 @@ func buildChatCompletionsContent(msg Message, promptCache *openAIPromptCacheConf
 
 func applyChatStreamEvent(
 	adapter string,
-	parsed map[string]interface{},
-	result *GenerateOutput,
+	parsed map[string]any,
+	result *portllm.GenerateOutput,
 	visibleTextBuffer *string,
-	onEvent func(GenerateStreamEvent) error,
+	onEvent func(portllm.GenerateStreamEvent) error,
 	allowTextEncodedToolCalls bool,
 ) error {
 	if responseID := strings.TrimSpace(getString(parsed["id"])); responseID != "" {
@@ -267,7 +271,7 @@ func applyChatStreamEvent(
 	if reasoning := extractChatStreamReasoningDelta(parsed); reasoning != nil && reasoning.Text != "" {
 		mergeReasoningDeltaOutput(&result.Reasoning, reasoning)
 		if onEvent != nil {
-			if err := onEvent(GenerateStreamEvent{
+			if err := onEvent(portllm.GenerateStreamEvent{
 				Reasoning:  reasoning,
 				ResponseID: result.ResponseID,
 			}); err != nil {
@@ -280,13 +284,13 @@ func applyChatStreamEvent(
 		result.Usage.ServiceTier = serviceTier
 	}
 
-	if usage := parseChatStreamUsage(adapter, parsed); usage != (Usage{}) {
+	if usage := parseChatStreamUsage(adapter, parsed); usage != (portllm.Usage{}) {
 		if usage.ServiceTier == "" {
 			usage.ServiceTier = result.Usage.ServiceTier
 		}
 		result.Usage = usage
 		if onEvent != nil {
-			if err := onEvent(GenerateStreamEvent{
+			if err := onEvent(portllm.GenerateStreamEvent{
 				Usage:      usage,
 				ResponseID: result.ResponseID,
 			}); err != nil {
@@ -297,7 +301,7 @@ func applyChatStreamEvent(
 	return nil
 }
 
-func mergeChatStreamToolCalls(parsed map[string]interface{}, result *GenerateOutput) {
+func mergeChatStreamToolCalls(parsed map[string]any, result *portllm.GenerateOutput) {
 	choice := firstMapItem(asSlice(parsed["choices"]))
 	delta := asMap(choice["delta"])
 	items := asSlice(delta["tool_calls"])
@@ -308,7 +312,7 @@ func mergeChatStreamToolCalls(parsed map[string]interface{}, result *GenerateOut
 		payload := asMap(raw)
 		index := streamToolCallIndex(payload["index"], fallbackIndex)
 		for len(result.ToolCalls) <= index {
-			result.ToolCalls = append(result.ToolCalls, ToolCall{Status: "requested"})
+			result.ToolCalls = append(result.ToolCalls, portllm.ToolCall{Status: "requested"})
 		}
 		current := result.ToolCalls[index]
 		if id := strings.TrimSpace(getString(payload["id"])); id != "" {
@@ -337,7 +341,7 @@ func mergeChatStreamToolCalls(parsed map[string]interface{}, result *GenerateOut
 	}
 }
 
-func parseChatCompletionsOutput(adapter string, parsed map[string]interface{}, result *GenerateOutput, allowTextEncodedToolCalls bool) {
+func parseChatCompletionsOutput(adapter string, parsed map[string]any, result *portllm.GenerateOutput, allowTextEncodedToolCalls bool) {
 	choice := firstMapItem(asSlice(parsed["choices"]))
 	message := asMap(choice["message"])
 	result.Text = extractChatVisibleContentText(message["content"])
@@ -354,11 +358,11 @@ func parseChatCompletionsOutput(adapter string, parsed map[string]interface{}, r
 	}
 }
 
-func parseChatReasoningOutput(message map[string]interface{}) *ReasoningOutput {
+func parseChatReasoningOutput(message map[string]any) *portllm.ReasoningOutput {
 	if len(message) == 0 {
 		return nil
 	}
-	text := firstNonEmptyString(
+	text := textutil.FirstNonEmpty(
 		extractReasoningDeltaText(message["reasoning"]),
 		extractReasoningDeltaText(message["reasoning_content"]),
 		extractChatReasoningContentText(message["content"]),
@@ -366,29 +370,29 @@ func parseChatReasoningOutput(message map[string]interface{}) *ReasoningOutput {
 	if text == "" {
 		return nil
 	}
-	return &ReasoningOutput{
+	return &portllm.ReasoningOutput{
 		Text: text,
 	}
 }
 
-func extractChatStreamDelta(parsed map[string]interface{}) string {
+func extractChatStreamDelta(parsed map[string]any) string {
 	choice := firstMapItem(asSlice(parsed["choices"]))
 	delta := asMap(choice["delta"])
 	return extractChatVisibleContentText(delta["content"])
 }
 
-func extractChatStreamReasoningDelta(parsed map[string]interface{}) *ReasoningDelta {
+func extractChatStreamReasoningDelta(parsed map[string]any) *portllm.ReasoningDelta {
 	choice := firstMapItem(asSlice(parsed["choices"]))
 	delta := asMap(choice["delta"])
 	if think := extractReasoningDeltaText(delta["reasoning"]); think != "" {
-		return &ReasoningDelta{
+		return &portllm.ReasoningDelta{
 			EventType: "chat.completion.chunk",
 			Kind:      "content_text",
 			Text:      think,
 		}
 	}
 	if think := extractReasoningDeltaText(delta["reasoning_content"]); think != "" {
-		return &ReasoningDelta{
+		return &portllm.ReasoningDelta{
 			EventType: "chat.completion.chunk",
 			Kind:      "content_text",
 			Text:      think,
@@ -403,7 +407,7 @@ func extractChatStreamReasoningDelta(parsed map[string]interface{}) *ReasoningDe
 				if strings.Contains(itemType, "summary") {
 					kind = "summary_text"
 				}
-				return &ReasoningDelta{
+				return &portllm.ReasoningDelta{
 					EventType: "chat.completion.chunk",
 					Kind:      kind,
 					Text:      think,
@@ -414,11 +418,11 @@ func extractChatStreamReasoningDelta(parsed map[string]interface{}) *ReasoningDe
 	return nil
 }
 
-func extractChatVisibleContentText(raw interface{}) string {
+func extractChatVisibleContentText(raw any) string {
 	switch value := raw.(type) {
 	case string:
 		return value
-	case []interface{}:
+	case []any:
 		chunks := make([]string, 0, len(value))
 		for _, item := range value {
 			if text := extractChatVisibleContentText(item); text != "" {
@@ -426,7 +430,7 @@ func extractChatVisibleContentText(raw interface{}) string {
 			}
 		}
 		return strings.Join(chunks, "")
-	case map[string]interface{}:
+	case map[string]any:
 		if isChatReasoningContentType(value["type"]) {
 			return ""
 		}
@@ -445,7 +449,7 @@ func extractChatVisibleContentText(raw interface{}) string {
 	}
 }
 
-func bufferChatVisibleDelta(result *GenerateOutput, buffer *string, delta string, onEvent func(GenerateStreamEvent) error) error {
+func bufferChatVisibleDelta(result *portllm.GenerateOutput, buffer *string, delta string, onEvent func(portllm.GenerateStreamEvent) error) error {
 	if result == nil || buffer == nil || delta == "" {
 		return nil
 	}
@@ -454,7 +458,7 @@ func bufferChatVisibleDelta(result *GenerateOutput, buffer *string, delta string
 }
 
 // flushChatVisibleBuffer 在 DeepSeek DSML 模式下延迟释放可见文本，确保完整工具调用不会作为普通文本输出。
-func flushChatVisibleBuffer(result *GenerateOutput, buffer *string, onEvent func(GenerateStreamEvent) error, final bool) error {
+func flushChatVisibleBuffer(result *portllm.GenerateOutput, buffer *string, onEvent func(portllm.GenerateStreamEvent) error, final bool) error {
 	if result == nil || buffer == nil || *buffer == "" {
 		return nil
 	}
@@ -478,7 +482,7 @@ func flushChatVisibleBuffer(result *GenerateOutput, buffer *string, onEvent func
 }
 
 // emitChatVisibleDelta 统一写入可见文本并发送流式增量事件。
-func emitChatVisibleDelta(result *GenerateOutput, delta string, onEvent func(GenerateStreamEvent) error) error {
+func emitChatVisibleDelta(result *portllm.GenerateOutput, delta string, onEvent func(portllm.GenerateStreamEvent) error) error {
 	if delta == "" {
 		return nil
 	}
@@ -486,7 +490,7 @@ func emitChatVisibleDelta(result *GenerateOutput, delta string, onEvent func(Gen
 	if onEvent == nil {
 		return nil
 	}
-	return onEvent(GenerateStreamEvent{
+	return onEvent(portllm.GenerateStreamEvent{
 		Delta:      delta,
 		ResponseID: result.ResponseID,
 	})
@@ -512,9 +516,9 @@ func maybeDSMLToolCallsPrefix(text string) bool {
 	return false
 }
 
-func extractChatReasoningContentText(raw interface{}) string {
+func extractChatReasoningContentText(raw any) string {
 	switch value := raw.(type) {
-	case []interface{}:
+	case []any:
 		parts := make([]string, 0, len(value))
 		for _, item := range value {
 			if text := extractChatReasoningContentText(item); text != "" {
@@ -522,7 +526,7 @@ func extractChatReasoningContentText(raw interface{}) string {
 			}
 		}
 		return strings.Join(parts, "")
-	case map[string]interface{}:
+	case map[string]any:
 		if isChatReasoningContentType(value["type"]) {
 			return extractReasoningDeltaText(value)
 		}
@@ -532,23 +536,19 @@ func extractChatReasoningContentText(raw interface{}) string {
 	}
 }
 
-func isChatReasoningContentType(raw interface{}) bool {
+func isChatReasoningContentType(raw any) bool {
 	itemType := strings.ToLower(strings.TrimSpace(getString(raw)))
 	return strings.Contains(itemType, "reason") || strings.Contains(itemType, "think")
 }
 
-func parseChatStreamUsage(adapter string, parsed map[string]interface{}) Usage {
+func parseChatStreamUsage(adapter string, parsed map[string]any) portllm.Usage {
 	if len(asMap(parsed["usage"])) == 0 {
-		return Usage{}
+		return portllm.Usage{}
 	}
 	return parseOpenAICompatibleUsageForAdapter(adapter, parsed)
 }
 
-func parseOpenAICompatibleUsage(parsed map[string]interface{}) Usage {
-	return parseOpenAICompatibleUsageForAdapter(AdapterOpenAIResponses, parsed)
-}
-
-func parseOpenAICompatibleUsageForAdapter(adapter string, parsed map[string]interface{}) Usage {
+func parseOpenAICompatibleUsageForAdapter(adapter string, parsed map[string]any) portllm.Usage {
 	totalInputTokens := firstNonZero(
 		getInt64FromPath(parsed, "usage", "input_tokens"),
 		getInt64FromPath(parsed, "usage", "prompt_tokens"),
@@ -576,33 +576,39 @@ func parseOpenAICompatibleUsageForAdapter(adapter string, parsed map[string]inte
 		getInt64FromPath(parsed, "usage", "cache_read_input_tokens"),
 		getInt64FromPath(parsed, "usage", "cache_read_tokens"),
 	)
-	return Usage{
-		InputTokens:     nonCachedInputTokens(totalInputTokens, cacheReadTokens),
-		OutputTokens:    visibleTokens,
-		CacheReadTokens: cacheReadTokens,
-		CacheWriteTokens: firstNonZero(
-			getInt64FromPath(parsed, "usage", "input_tokens_details", "cache_write_tokens"),
-			getInt64FromPath(parsed, "usage", "prompt_tokens_details", "cache_write_tokens"),
-			getInt64FromPath(parsed, "usage", "input_tokens_details", "cache_creation_tokens"),
-			getInt64FromPath(parsed, "usage", "prompt_tokens_details", "cache_creation_tokens"),
-			getInt64FromPath(parsed, "usage", "input_tokens_details", "cache_creation_input_tokens"),
-			getInt64FromPath(parsed, "usage", "prompt_tokens_details", "cache_creation_input_tokens"),
-			getInt64FromPath(parsed, "usage", "cache_write_input_tokens"),
-			getInt64FromPath(parsed, "usage", "cache_write_tokens"),
-			getInt64FromPath(parsed, "usage", "cache_creation_input_tokens"),
-			getInt64FromPath(parsed, "usage", "cache_creation", "input_tokens"),
-			getInt64FromPath(parsed, "usage", "cache_creation", "ephemeral_1h_input_tokens")+
-				getInt64FromPath(parsed, "usage", "cache_creation", "ephemeral_5m_input_tokens"),
-		),
-		ReasoningTokens: reasoningTokens,
-		ServiceTier:     strings.TrimSpace(getString(parsed["service_tier"])),
-		RawUsageJSON:    rawUsageJSONFromPath(parsed, "usage"),
+	cacheWriteTokens := firstNonZero(
+		getInt64FromPath(parsed, "usage", "input_tokens_details", "cache_write_tokens"),
+		getInt64FromPath(parsed, "usage", "prompt_tokens_details", "cache_write_tokens"),
+		getInt64FromPath(parsed, "usage", "input_tokens_details", "cache_creation_tokens"),
+		getInt64FromPath(parsed, "usage", "prompt_tokens_details", "cache_creation_tokens"),
+		getInt64FromPath(parsed, "usage", "input_tokens_details", "cached_creation_tokens"),
+		getInt64FromPath(parsed, "usage", "prompt_tokens_details", "cached_creation_tokens"),
+		getInt64FromPath(parsed, "usage", "input_tokens_details", "cache_creation_input_tokens"),
+		getInt64FromPath(parsed, "usage", "prompt_tokens_details", "cache_creation_input_tokens"),
+		getInt64FromPath(parsed, "usage", "cache_write_input_tokens"),
+		getInt64FromPath(parsed, "usage", "cache_write_tokens"),
+		getInt64FromPath(parsed, "usage", "cache_creation_input_tokens"),
+		getInt64FromPath(parsed, "usage", "cache_creation", "input_tokens"),
+		getInt64FromPath(parsed, "usage", "cache_creation", "ephemeral_1h_input_tokens")+
+			getInt64FromPath(parsed, "usage", "cache_creation", "ephemeral_5m_input_tokens"),
+	)
+	// OpenAI 兼容 usage 的 prompt_tokens/input_tokens 是提示词侧总量，缓存读取与缓存写入都是它的子集
+	// （OpenAI 原生、new-api、OpenRouter 均如此）。非缓存输入必须同时扣除两者，否则缓存写入的 token
+	// 会先按输入价、再按写入价重复计费。
+	return portllm.Usage{
+		InputTokens:      nonCachedInputTokens(totalInputTokens, cacheReadTokens+cacheWriteTokens),
+		OutputTokens:     visibleTokens,
+		CacheReadTokens:  cacheReadTokens,
+		CacheWriteTokens: cacheWriteTokens,
+		ReasoningTokens:  reasoningTokens,
+		ServiceTier:      strings.TrimSpace(getString(parsed["service_tier"])),
+		RawUsageJSON:     rawUsageJSONFromPath(parsed, "usage"),
 	}
 }
 
 func openAICompatibleOutputIncludesReasoning(adapter string) bool {
-	switch NormalizeAdapter(adapter) {
-	case AdapterXAIResponses, AdapterXAIImage, AdapterXAIImageEdits:
+	switch portllm.NormalizeAdapter(adapter) {
+	case portllm.AdapterXAIResponses, portllm.AdapterXAIImage, portllm.AdapterXAIImageEdits:
 		return false
 	default:
 		return true
@@ -622,9 +628,9 @@ func visibleOutputTokens(outputTokens int64, reasoningTokens int64) int64 {
 	return outputTokens - reasoningTokens
 }
 
-func parseChatToolCalls(raw interface{}) []ToolCall {
+func parseChatToolCalls(raw any) []portllm.ToolCall {
 	items := asSlice(raw)
-	result := make([]ToolCall, 0, len(items))
+	result := make([]portllm.ToolCall, 0, len(items))
 	for _, item := range items {
 		payload := asMap(item)
 		function := asMap(payload["function"])
@@ -642,7 +648,7 @@ func parseChatToolCalls(raw interface{}) []ToolCall {
 		if arguments == "" {
 			arguments = "{}"
 		}
-		result = append(result, ToolCall{
+		result = append(result, portllm.ToolCall{
 			ToolCallID:    strings.TrimSpace(getString(payload["id"])),
 			ToolType:      toolType,
 			ToolName:      toolName,

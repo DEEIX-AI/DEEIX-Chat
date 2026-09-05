@@ -7,28 +7,39 @@ import (
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 )
 
+// AuthEventInput describes an authentication event persisted for audit and security history.
+type AuthEventInput struct {
+	UserID     uint
+	RequestID  string
+	EventType  string
+	Result     string
+	Reason     string
+	ClientIP   string
+	UserAgent  string
+	DetailJSON string
+}
+
+// CreateWithCredentialInput 描述原子创建用户、凭据与订阅的输入。
+type CreateWithCredentialInput struct {
+	User                *domainuser.User
+	Credential          domainuser.Credential
+	SubscriptionPlanID  uint
+	SubscriptionPriceID uint
+	SubscriptionEndAt   *time.Time
+	AutoRenew           bool
+}
+
+// CreateWithCredentialAndIdentityInput 描述原子创建用户、凭据与第三方身份的输入。
+type CreateWithCredentialAndIdentityInput struct {
+	CreateWithCredentialInput
+	Identity *domainuser.UserIdentity
+}
+
 // AuthRepository 定义认证流程依赖的持久化能力。
 type AuthRepository interface {
 	CountSuperAdmins(ctx context.Context) (int64, error)
-	CreateWithCredential(
-		ctx context.Context,
-		item *domainuser.User,
-		credential domainuser.Credential,
-		subscriptionPlanID uint,
-		subscriptionPriceID uint,
-		subscriptionEndAt *time.Time,
-		autoRenew bool,
-	) error
-	CreateWithCredentialAndIdentity(
-		ctx context.Context,
-		user *domainuser.User,
-		credential domainuser.Credential,
-		identity *domainuser.UserIdentity,
-		subscriptionPlanID uint,
-		subscriptionPriceID uint,
-		subscriptionEndAt *time.Time,
-		autoRenew bool,
-	) error
+	CreateWithCredential(ctx context.Context, input CreateWithCredentialInput) error
+	CreateWithCredentialAndIdentity(ctx context.Context, input CreateWithCredentialAndIdentityInput) error
 	GetByUsername(ctx context.Context, username string) (*domainuser.User, error)
 	GetByEmail(ctx context.Context, email string) (*domainuser.User, error)
 	GetByID(ctx context.Context, userID uint) (*domainuser.User, error)
@@ -43,22 +54,11 @@ type AuthRepository interface {
 	ResetLoginFailure(ctx context.Context, userID uint) error
 	UpdateUserStatus(ctx context.Context, userID uint, status string) error
 	UpdatePassword(ctx context.Context, userID uint, passwordHash string, passwordOrigin string, mustResetPassword bool) error
-	ResetPasswordByAdmin(ctx context.Context, userID uint, passwordHash string, mustResetPassword bool) error
 	MarkBootstrapSuperAdminPasswordResetRequired(ctx context.Context, username string) error
 	UpdateLastLogin(ctx context.Context, userID uint) error
 	DeleteAccountHard(ctx context.Context, userID uint) error
 	ListDistinctFileStoragePathsByUserID(ctx context.Context, userID uint) ([]string, error)
-	RecordAuthEvent(
-		ctx context.Context,
-		userID uint,
-		requestID string,
-		eventType string,
-		result string,
-		reason string,
-		clientIP string,
-		userAgent string,
-		detailJSON string,
-	) error
+	RecordAuthEvent(ctx context.Context, input AuthEventInput) error
 	CreateSession(ctx context.Context, item *domainuser.Session) error
 	GetSessionByUserAndSessionID(ctx context.Context, userID uint, sessionID string) (*domainuser.Session, error)
 	RotateSessionTokens(ctx context.Context, input RotateSessionTokensInput) error

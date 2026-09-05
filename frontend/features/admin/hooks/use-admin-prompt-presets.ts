@@ -17,6 +17,7 @@ import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { removeByID, replaceByID } from "@/shared/lib/optimistic-list";
 import { PROMPT_PRESET_LIMITS, normalizePromptPresetName } from "@/shared/model/prompt-presets";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
+import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 
 export type AdminPromptPresetForm = {
   id?: number;
@@ -71,7 +72,7 @@ export function useAdminPromptPresets() {
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSizeState] = React.useState(25);
   const [query, setQueryState] = React.useState("");
-  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const debouncedQuery = useDebouncedValue(query.trim());
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [form, setForm] = React.useState<AdminPromptPresetForm>(emptyForm);
@@ -86,13 +87,6 @@ export function useAdminPromptPresets() {
     requestControllerRef.current?.abort();
     requestControllerRef.current = null;
   }, []);
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedQuery(query.trim());
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [query]);
 
   const load = React.useCallback(async () => {
     const requestSeq = requestSeqRef.current + 1;

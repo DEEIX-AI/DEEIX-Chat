@@ -2,11 +2,12 @@ package contentmoderation
 
 import (
 	"context"
-	"strings"
+
+	appaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 )
 
 type auditWriter interface {
-	Write(ctx context.Context, requestID string, actorUserID uint, action string, resource string, resourceID string, ip string, userAgent string, detail interface{})
+	Write(ctx context.Context, input appaudit.WriteInput)
 }
 
 // ReviewAuditInput contains request metadata for a privileged retained-content read.
@@ -17,7 +18,7 @@ type ReviewAuditInput struct {
 	EventID     string
 	ClientIP    string
 	UserAgent   string
-	Detail      interface{}
+	Detail      any
 }
 
 // RecordReviewAudit records which administrator viewed retained moderation content.
@@ -25,15 +26,14 @@ func (s *Service) RecordReviewAudit(ctx context.Context, input ReviewAuditInput)
 	if s == nil || s.auditWriter == nil {
 		return
 	}
-	s.auditWriter.Write(
-		ctx,
-		strings.TrimSpace(input.RequestID),
-		input.ActorUserID,
-		strings.TrimSpace(input.Action),
-		"content_moderation_event",
-		strings.TrimSpace(input.EventID),
-		strings.TrimSpace(input.ClientIP),
-		strings.TrimSpace(input.UserAgent),
-		input.Detail,
-	)
+	s.auditWriter.Write(ctx, appaudit.WriteInput{
+		RequestID:   input.RequestID,
+		ActorUserID: input.ActorUserID,
+		Action:      input.Action,
+		Resource:    "content_moderation_event",
+		ResourceID:  input.EventID,
+		IP:          input.ClientIP,
+		UserAgent:   input.UserAgent,
+		Detail:      input.Detail,
+	})
 }

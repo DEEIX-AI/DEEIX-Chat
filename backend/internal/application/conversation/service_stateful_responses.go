@@ -21,7 +21,7 @@ func resolveStatefulPreviousResponseID(
 	lastResponseID string,
 	lastPromptFingerprint string,
 	currentPrefixFingerprint string,
-	options map[string]interface{},
+	options map[string]any,
 ) statefulResponseDecision {
 	if usesExplicitOpenAIPromptCacheMessageBreakpoints(route, options) {
 		return statefulResponseDecision{DisabledReason: "explicit_prompt_cache"}
@@ -72,15 +72,15 @@ func supportsOpenAIResponsesBackgroundMode(route *channel.ResolvedRoute) bool {
 		nestedBoolCapability(capabilities, "responses", "backgroundMode")
 }
 
-func decodeModelCapabilities(raw string) map[string]interface{} {
-	parsed := make(map[string]interface{})
+func decodeModelCapabilities(raw string) map[string]any {
+	parsed := make(map[string]any)
 	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &parsed); err != nil {
 		return nil
 	}
 	return parsed
 }
 
-func boolCapability(capabilities map[string]interface{}, key string) bool {
+func boolCapability(capabilities map[string]any, key string) bool {
 	value, ok := capabilities[key]
 	if !ok {
 		return false
@@ -89,8 +89,8 @@ func boolCapability(capabilities map[string]interface{}, key string) bool {
 	return ok && enabled
 }
 
-func nestedBoolCapability(capabilities map[string]interface{}, parentKey string, childKey string) bool {
-	parent, ok := capabilities[parentKey].(map[string]interface{})
+func nestedBoolCapability(capabilities map[string]any, parentKey string, childKey string) bool {
+	parent, ok := capabilities[parentKey].(map[string]any)
 	if !ok {
 		return false
 	}

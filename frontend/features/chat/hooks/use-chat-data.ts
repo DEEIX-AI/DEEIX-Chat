@@ -26,11 +26,6 @@ type ActiveResumeStream = {
   accessToken: string | null;
 };
 
-type ResumingRun = {
-  conversationPublicID: string;
-  runID: string;
-};
-
 export function useChatData(
   conversationID: string | null,
   {
@@ -55,8 +50,7 @@ export function useChatData(
     hasOlder: false,
   });
   const [reloadToken, setReloadToken] = React.useState(0);
-  const [resumingRun, setResumingRun] = React.useState<ResumingRun | null>(null);
-  const resumingRunID = resumingRun?.runID ?? "";
+  const [resumingRunID, setResumingRunID] = React.useState("");
   const [resumingActivityLabel, setResumingActivityLabel] = React.useState("");
   const stateRef = React.useRef(state);
   stateRef.current = state;
@@ -261,7 +255,7 @@ export function useChatData(
 
     active.controller.abort();
     clearResumeCheckpoint(active.runID);
-    setResumingRun(null);
+    setResumingRunID("");
 
     const token = active.accessToken ?? (await resolveAccessToken());
     if (!token) {
@@ -306,7 +300,7 @@ export function useChatData(
       !pendingRunID ||
       pendingRunIsActive
     ) {
-      setResumingRun(null);
+      setResumingRunID("");
       setResumingActivityLabel("");
       return;
     }
@@ -333,7 +327,7 @@ export function useChatData(
       runID: pendingRunID,
       accessToken: null,
     };
-    setResumingRun({ conversationPublicID: conversationID, runID: pendingRunID });
+    setResumingRunID(pendingRunID);
     setResumingActivityLabel("");
 
     async function resume() {
@@ -436,7 +430,7 @@ export function useChatData(
               ...prev,
               messages: prev.messages.map((message) =>
                 message.runID === pendingRunID && message.role === "assistant" && message.status === "pending"
-                  ? { ...message, processTrace: event.trace }
+                  ? { ...message, processTrace: event.trace ?? message.processTrace }
                   : message,
               ),
             }));
@@ -512,7 +506,7 @@ export function useChatData(
       } catch (error) {
         if (!controller.signal.aborted && error instanceof Error && error.name !== "AbortError") {
           clearResumeCheckpoint(pendingRunID);
-          setResumingRun(null);
+          setResumingRunID("");
           setResumingActivityLabel("");
           reload();
         }
@@ -521,7 +515,7 @@ export function useChatData(
           activeResumeStreamRef.current = null;
         }
         if (!controller.signal.aborted && !closed) {
-          setResumingRun(null);
+          setResumingRunID("");
           setResumingActivityLabel("");
         }
       }
@@ -571,7 +565,6 @@ export function useChatData(
     reload,
     replaceMessage,
     resumingActivityLabel,
-    resumingConversationID: resumingRun?.conversationPublicID ?? "",
     resumingRunID,
   };
 }

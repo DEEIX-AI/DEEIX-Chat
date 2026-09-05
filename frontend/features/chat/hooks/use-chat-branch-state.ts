@@ -245,6 +245,7 @@ export function useChatBranchState({
             moderationEventID: (eventID: string) => submitT("moderationEventId", { id: eventID }),
             moderationCategories: (categories: string[]) =>
               submitT("moderationCategories", { categories: categories.join(", ") }),
+            moderationBilled: submitT("moderationBlockedBilled"),
             resolveErrorMessage: (errorCode: string, fallback: string, details?: UpstreamDebugInfo) =>
               resolveErrorMessage(new ApiError(fallback, 502, details, errorCode), fallback),
           },

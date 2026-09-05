@@ -7,7 +7,9 @@ import (
 
 	appcompact "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/compact"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"go.uber.org/zap"
 )
 
@@ -342,7 +344,7 @@ func conversationImageTokenReserveByMessage(messages []model.Message) map[int]in
 		refs := parseAttachmentSnapshotRefs(message.Attachments)
 		for attachmentIndex := len(refs) - 1; attachmentIndex >= 0 && remaining > 0; attachmentIndex-- {
 			ref := refs[attachmentIndex]
-			mimeType := firstNonEmptyString(ref.DetectedMIME, ref.MimeType)
+			mimeType := textutil.FirstNonEmpty(ref.DetectedMIME, ref.MimeType)
 			if normalizeAttachmentKind(ref.Kind, mimeType) != "image" {
 				continue
 			}
@@ -354,9 +356,9 @@ func conversationImageTokenReserveByMessage(messages []model.Message) map[int]in
 }
 
 func estimateDomainMessageTokens(message model.Message, includeReasoningContent bool) int64 {
-	tokens := estimateTokens(message.Content)
+	tokens := tokenestimate.Estimate(message.Content)
 	if includeReasoningContent && message.Role == "assistant" {
-		tokens += estimateTokens(message.ReasoningContent)
+		tokens += tokenestimate.Estimate(message.ReasoningContent)
 	}
 	return tokens
 }
@@ -373,7 +375,7 @@ func buildRAGQuery(contextMessages []model.Message, currentContent string, histo
 		if item.Role != "user" {
 			continue
 		}
-		snippet := compactSnippet(item.Content, 240)
+		snippet := textutil.CompactSnippet(item.Content, 240)
 		if snippet == "" {
 			continue
 		}

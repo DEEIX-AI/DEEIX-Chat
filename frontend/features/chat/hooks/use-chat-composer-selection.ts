@@ -284,13 +284,10 @@ export function useChatComposerSelection({
   }, [conversationKey, createdConversationID, storageKey]);
 
   useIsomorphicLayoutEffect(() => {
-    if (resetTokenRef.current === resetToken) {
+    if (resetTokenRef.current === resetToken || hasConversation) {
       return;
     }
     resetTokenRef.current = resetToken;
-    if (hasConversation) {
-      return;
-    }
 
     const nextSelection = emptySelection();
     cacheRef.current.delete(conversationKey);

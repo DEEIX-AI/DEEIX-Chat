@@ -105,10 +105,10 @@ export function AdminSidebar({
                 prefetch={false}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex h-8 shrink-0 scroll-mx-3 items-center justify-between gap-2 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors xl:h-9 xl:w-full xl:px-3.5",
+                  "relative flex h-8 shrink-0 scroll-mx-3 items-center justify-between gap-2 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-0 xl:h-9 xl:w-full xl:px-3.5",
                   active
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground",
                 )}
               >
                 <span className="truncate">{sectionLabel(item.id, item.label)}</span>

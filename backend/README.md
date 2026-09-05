@@ -24,7 +24,9 @@ DEEIX Chat 后端是 Go API 服务，负责认证、用户、对话、模型渠�
 - 启动链路为 `cmd -> internal/cli -> internal/app`。
 - Handler 只负责 HTTP 入参、鉴权上下文、响应转换，不写业务逻辑。
 - Application 层承载用例编排，不直接依赖 Gorm、Redis、Docker 等基础设施实现。
-- Repository 接口位于 `internal/repository`，具体实现位于 `internal/infra/persistence`。
+- Repository 接口位于 `internal/repository`，具体实现位于 `internal/infra/persistence`。接口是消费方契约，只声明对应用例实际调用的方法；同一个实现可以同时满足多个接口，不把实现的方法集抄成接口。
+- 第三方集成的数据契约与错误值位于 `internal/ports/<域>`，接口由 `application` 消费方声明，`internal/infra/<域>` 以相同签名实现；出站端口不放进 `repository`。
+- 依赖全部在 `internal/app` 创建并注入；Application 构造函数不对 nil 依赖兜底创建子服务，同层 service 依赖默认使用具体类型。
 - 共享基础设施位于 `internal/infra`，通用响应、请求元数据等位于 `internal/shared`。
 - HTTP DTO 和 Swagger annotation 是传输契约唯一事实源；Handler 在 HTTP 边界把 DTO 转换为 Application Input，不向领域层或基础设施层泄漏 Gin DTO。
 - JSON、校验标签和指针类型必须准确表达必填、可选、可空以及显式 `0`/`false`；不要让前端修补错误的 Swagger 语义。
@@ -409,10 +411,10 @@ docker build -t deeix-chat-rapidocr ../docker/rapidocr
 ```bash
 make run
 make fmt
+make lint
 make test
 make swagger
 go build ./cmd/server
-go vet ./...
 go mod tidy
 ```
 
@@ -436,7 +438,12 @@ make swagger
 ```bash
 go build ./cmd/server
 go test ./...
-go vet ./...
+make lint
 cd ..
 pnpm api:check
 ```
+
+`make lint` 依次检查 `gofmt`、生产代码中的 `any` 类型写法、应用层裸 `context.Background()`、
+`go vet`、`staticcheck` 与 `deadcode`。静态检查工具版本由 `backend/go.mod` 锁定；现有例外和历史诊断分别记录在
+`.lint-baseline/context-background.txt` 与 `.lint-baseline/staticcheck.txt`，新增项会失败，已移除项也会
+提示同步下调对应基线，确保基线只能逐步下降。`deadcode` 当前采用零基线。

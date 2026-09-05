@@ -439,6 +439,8 @@ type Config struct {
 	ModelOptionPolicyMode        string
 	ModelOptionAllowedPaths      string
 	ModelOptionDeniedPaths       string
+	// 知识库配置
+	KnowledgeBaseEnabled bool
 	// 存储配置
 	UserStorageQuotaBytes int64
 	MaxUploadFileBytes    int64
@@ -677,6 +679,7 @@ func Load() Config {
 		ModelOptionPolicyMode:             "allowlist",
 		ModelOptionAllowedPaths:           DefaultModelOptionAllowedPathsJSON(),
 		ModelOptionDeniedPaths:            DefaultModelOptionDeniedPathsJSON(),
+		KnowledgeBaseEnabled:              true,
 		UserStorageQuotaBytes:             104857600,
 		MaxUploadFileBytes:                20971520,
 		MaxMessageFiles:                   10,
@@ -970,6 +973,11 @@ func normalizeEnv(value string) string {
 	}
 }
 
+// IsProduction 判断配置是否使用生产环境语义。
+func (c Config) IsProduction() bool {
+	return normalizeEnv(c.Env) == "prod"
+}
+
 func normalizeDatabaseDriver(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "", "postgres", "postgresql", "pg":
@@ -1180,7 +1188,7 @@ func (c Config) StrictOutboundPolicy() sharedsecurity.OutboundPolicy {
 }
 
 func (c Config) ssrfProtectionEnforced() bool {
-	return normalizeEnv(c.Env) == "prod" && c.SSRFProtectionEnabled
+	return c.IsProduction() && c.SSRFProtectionEnabled
 }
 
 func splitCommaSeparated(raw string) []string {

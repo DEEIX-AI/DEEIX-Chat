@@ -13,6 +13,9 @@ import (
 	"net/textproto"
 	"strings"
 	"time"
+
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/filetype"
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 // openAIImageGenerationsAdapter 负责 OpenAI Images API 的图片生成端点。
@@ -20,27 +23,27 @@ type openAIImageGenerationsAdapter struct {
 	client *Client
 }
 
-func (a *openAIImageGenerationsAdapter) Name() string { return AdapterOpenAIImageGenerations }
+func (a *openAIImageGenerationsAdapter) Name() string { return portllm.AdapterOpenAIImageGenerations }
 
 // Generate 调用 OpenAI 图片生成接口，返回结构化图片结果。
-func (a *openAIImageGenerationsAdapter) Generate(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
-	route.Endpoint = EndpointImageGenerations
+func (a *openAIImageGenerationsAdapter) Generate(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput) (*portllm.GenerateOutput, error) {
+	route.Endpoint = portllm.EndpointImageGenerations
 	return a.client.generateOpenAIImageGenerations(ctx, route, input)
 }
 
 // GenerateStream 调用 OpenAI 图片生成流式接口，事件只输出图片增量，不进入聊天 token delta 链路。
 func (a *openAIImageGenerationsAdapter) GenerateStream(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-	onEvent func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
-	route.Endpoint = EndpointImageGenerations
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+	onEvent func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
+	route.Endpoint = portllm.EndpointImageGenerations
 	return a.client.generateOpenAIImageGenerationsStream(ctx, route, input, onEvent)
 }
 
 // ListModels 复用 OpenAI 兼容 models 目录，供渠道校验和展示使用。
-func (a *openAIImageGenerationsAdapter) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
+func (a *openAIImageGenerationsAdapter) ListModels(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
 	return a.client.listModelsOpenAICompatible(ctx, route)
 }
 
@@ -49,33 +52,33 @@ type openAIImageEditsAdapter struct {
 	client *Client
 }
 
-func (a *openAIImageEditsAdapter) Name() string { return AdapterOpenAIImageEdits }
+func (a *openAIImageEditsAdapter) Name() string { return portllm.AdapterOpenAIImageEdits }
 
 // Generate 调用 OpenAI 图片编辑接口，返回结构化图片结果。
-func (a *openAIImageEditsAdapter) Generate(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
-	route.Endpoint = EndpointImageEdits
+func (a *openAIImageEditsAdapter) Generate(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput) (*portllm.GenerateOutput, error) {
+	route.Endpoint = portllm.EndpointImageEdits
 	return a.client.generateOpenAIImageEdits(ctx, route, input)
 }
 
 // GenerateStream 调用 OpenAI 图片编辑流式接口，事件只输出图片增量，不进入聊天 token delta 链路。
 func (a *openAIImageEditsAdapter) GenerateStream(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-	onEvent func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
-	route.Endpoint = EndpointImageEdits
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+	onEvent func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
+	route.Endpoint = portllm.EndpointImageEdits
 	return a.client.generateOpenAIImageEditsStream(ctx, route, input, onEvent)
 }
 
 // ListModels 复用 OpenAI 兼容 models 目录，供渠道校验和展示使用。
-func (a *openAIImageEditsAdapter) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
+func (a *openAIImageEditsAdapter) ListModels(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
 	return a.client.listModelsOpenAICompatible(ctx, route)
 }
 
 // generateOpenAIImageGenerations 构造并执行 OpenAI 图片生成请求。
-func (c *Client) generateOpenAIImageGenerations(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
-	requestURL := buildOpenAIRequestURL(route.BaseURL, EndpointImageGenerations)
+func (c *Client) generateOpenAIImageGenerations(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput) (*portllm.GenerateOutput, error) {
+	requestURL := buildOpenAIRequestURL(route.BaseURL, portllm.EndpointImageGenerations)
 	if requestURL == "" {
 		return nil, fmt.Errorf("invalid base url")
 	}
@@ -123,14 +126,14 @@ func (c *Client) generateOpenAIImageGenerations(ctx context.Context, route Route
 // generateOpenAIImageGenerationsStream 构造并执行 OpenAI 图片生成流式请求。
 func (c *Client) generateOpenAIImageGenerationsStream(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-	onEvent func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
-	if !SupportsImageGenerationStream(route.Protocol, route.UpstreamModel) {
-		return nil, fmt.Errorf("%w: %s", ErrUnsupportedStream, AdapterOpenAIImageGenerations)
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+	onEvent func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
+	if !portllm.SupportsImageGenerationStream(route.Protocol, route.UpstreamModel) {
+		return nil, fmt.Errorf("%w: %s", portllm.ErrUnsupportedStream, portllm.AdapterOpenAIImageGenerations)
 	}
-	requestURL := buildOpenAIRequestURL(route.BaseURL, EndpointImageGenerations)
+	requestURL := buildOpenAIRequestURL(route.BaseURL, portllm.EndpointImageGenerations)
 	if requestURL == "" {
 		return nil, fmt.Errorf("invalid base url")
 	}
@@ -190,19 +193,19 @@ func (c *Client) generateOpenAIImageGenerationsStream(
 		if parseErr != nil {
 			return nil, parseErr
 		}
-		if output.Usage != (Usage{}) && onEvent != nil {
-			if err := onEvent(GenerateStreamEvent{Usage: output.Usage}); err != nil {
+		if output.Usage != (portllm.Usage{}) && onEvent != nil {
+			if err := onEvent(portllm.GenerateStreamEvent{Usage: output.Usage}); err != nil {
 				return nil, err
 			}
 		}
 		return output, nil
 	}
 
-	result := &GenerateOutput{
+	result := &portllm.GenerateOutput{
 		ResponseID:      "",
-		Usage:           Usage{},
-		ToolCalls:       make([]ToolCall, 0),
-		ServerToolCalls: make([]ToolCall, 0),
+		Usage:           portllm.Usage{},
+		ToolCalls:       make([]portllm.ToolCall, 0),
+		ServerToolCalls: make([]portllm.ToolCall, 0),
 	}
 	idleTimeout := resolveStreamIdleTimeout(route.StreamIdleTimeoutMS)
 	idleReader := newIdleTimeoutReader(resp.Body, idleTimeout)
@@ -218,8 +221,8 @@ func isEventStreamContentType(contentType string) bool {
 }
 
 // generateOpenAIImageEdits 构造并执行 OpenAI 图片编辑请求。
-func (c *Client) generateOpenAIImageEdits(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
-	requestURL := buildOpenAIRequestURL(route.BaseURL, EndpointImageEdits)
+func (c *Client) generateOpenAIImageEdits(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput) (*portllm.GenerateOutput, error) {
+	requestURL := buildOpenAIRequestURL(route.BaseURL, portllm.EndpointImageEdits)
 	if requestURL == "" {
 		return nil, fmt.Errorf("invalid base url")
 	}
@@ -263,14 +266,14 @@ func (c *Client) generateOpenAIImageEdits(ctx context.Context, route RouteConfig
 // generateOpenAIImageEditsStream 构造并执行 OpenAI 图片编辑流式请求。
 func (c *Client) generateOpenAIImageEditsStream(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-	onEvent func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
-	if !SupportsImageGenerationStream(route.Protocol, route.UpstreamModel) {
-		return nil, fmt.Errorf("%w: %s", ErrUnsupportedStream, AdapterOpenAIImageEdits)
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+	onEvent func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
+	if !portllm.SupportsImageGenerationStream(route.Protocol, route.UpstreamModel) {
+		return nil, fmt.Errorf("%w: %s", portllm.ErrUnsupportedStream, portllm.AdapterOpenAIImageEdits)
 	}
-	requestURL := buildOpenAIRequestURL(route.BaseURL, EndpointImageEdits)
+	requestURL := buildOpenAIRequestURL(route.BaseURL, portllm.EndpointImageEdits)
 	if requestURL == "" {
 		return nil, fmt.Errorf("invalid base url")
 	}
@@ -326,19 +329,19 @@ func (c *Client) generateOpenAIImageEditsStream(
 		if parseErr != nil {
 			return nil, parseErr
 		}
-		if output.Usage != (Usage{}) && onEvent != nil {
-			if err := onEvent(GenerateStreamEvent{Usage: output.Usage}); err != nil {
+		if output.Usage != (portllm.Usage{}) && onEvent != nil {
+			if err := onEvent(portllm.GenerateStreamEvent{Usage: output.Usage}); err != nil {
 				return nil, err
 			}
 		}
 		return output, nil
 	}
 
-	result := &GenerateOutput{
+	result := &portllm.GenerateOutput{
 		ResponseID:      "",
-		Usage:           Usage{},
-		ToolCalls:       make([]ToolCall, 0),
-		ServerToolCalls: make([]ToolCall, 0),
+		Usage:           portllm.Usage{},
+		ToolCalls:       make([]portllm.ToolCall, 0),
+		ServerToolCalls: make([]portllm.ToolCall, 0),
 	}
 	idleTimeout := resolveStreamIdleTimeout(route.StreamIdleTimeoutMS)
 	idleReader := newIdleTimeoutReader(resp.Body, idleTimeout)
@@ -350,12 +353,12 @@ func (c *Client) generateOpenAIImageEditsStream(
 }
 
 // buildOpenAIImageGenerationRequestBody 只允许图片端点支持的请求字段进入上游。
-func buildOpenAIImageGenerationRequestBody(model string, input GenerateInput) (map[string]interface{}, error) {
+func buildOpenAIImageGenerationRequestBody(model string, input portllm.GenerateInput) (map[string]any, error) {
 	prompt := buildOpenAIImageGenerationPrompt(input.Messages)
 	if strings.TrimSpace(prompt) == "" {
 		return nil, fmt.Errorf("image generation prompt required")
 	}
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model":  strings.TrimSpace(model),
 		"prompt": prompt,
 	}
@@ -364,13 +367,13 @@ func buildOpenAIImageGenerationRequestBody(model string, input GenerateInput) (m
 }
 
 // buildOpenAIImageGenerationStreamRequestBody 只在流式 adapter 内写入 stream / partial_images。
-func buildOpenAIImageGenerationStreamRequestBody(model string, input GenerateInput) (map[string]interface{}, error) {
+func buildOpenAIImageGenerationStreamRequestBody(model string, input portllm.GenerateInput) (map[string]any, error) {
 	payload, err := buildOpenAIImageGenerationRequestBody(model, input)
 	if err != nil {
 		return nil, err
 	}
-	if !SupportsImageGenerationStream(AdapterOpenAIImageGenerations, model) {
-		return nil, fmt.Errorf("%w: %s", ErrUnsupportedStream, AdapterOpenAIImageGenerations)
+	if !portllm.SupportsImageGenerationStream(portllm.AdapterOpenAIImageGenerations, model) {
+		return nil, fmt.Errorf("%w: %s", portllm.ErrUnsupportedStream, portllm.AdapterOpenAIImageGenerations)
 	}
 	payload["stream"] = true
 	applyOpenAIImageGenerationStreamParams(payload, input.Options)
@@ -378,7 +381,7 @@ func buildOpenAIImageGenerationStreamRequestBody(model string, input GenerateInp
 }
 
 // buildOpenAIImageEditMultipartRequest 构造 OpenAI Images Edits 官方 multipart 请求体。
-func buildOpenAIImageEditMultipartRequest(model string, input GenerateInput, stream bool) ([]byte, string, []byte, error) {
+func buildOpenAIImageEditMultipartRequest(model string, input portllm.GenerateInput, stream bool) ([]byte, string, []byte, error) {
 	prompt := buildOpenAIImageGenerationPrompt(input.Messages)
 	if strings.TrimSpace(prompt) == "" {
 		return nil, "", nil, fmt.Errorf("image edit prompt required")
@@ -387,8 +390,8 @@ func buildOpenAIImageEditMultipartRequest(model string, input GenerateInput, str
 	if len(images) == 0 {
 		return nil, "", nil, fmt.Errorf("image edit input image required")
 	}
-	if stream && !SupportsImageGenerationStream(AdapterOpenAIImageEdits, model) {
-		return nil, "", nil, fmt.Errorf("%w: %s", ErrUnsupportedStream, AdapterOpenAIImageEdits)
+	if stream && !portllm.SupportsImageGenerationStream(portllm.AdapterOpenAIImageEdits, model) {
+		return nil, "", nil, fmt.Errorf("%w: %s", portllm.ErrUnsupportedStream, portllm.AdapterOpenAIImageEdits)
 	}
 
 	formFields := map[string]string{
@@ -414,7 +417,7 @@ func buildOpenAIImageEditMultipartRequest(model string, input GenerateInput, str
 	for index, image := range images {
 		fileName := image.FileName
 		if strings.TrimSpace(fileName) == "" {
-			fileName = fmt.Sprintf("image-%02d%s", index+1, openAIImageFileExtension(image.MimeType))
+			fileName = fmt.Sprintf("image-%02d%s", index+1, filetype.ImageExtension(image.MimeType))
 		}
 		if err := writeOpenAIMultipartFile(writer, "image[]", fileName, image.MimeType, image.Data); err != nil {
 			return nil, "", nil, err
@@ -424,7 +427,7 @@ func buildOpenAIImageEditMultipartRequest(model string, input GenerateInput, str
 		mask := *input.ImageEditMask
 		fileName := mask.FileName
 		if strings.TrimSpace(fileName) == "" {
-			fileName = "mask" + openAIImageFileExtension(mask.MimeType)
+			fileName = "mask" + filetype.ImageExtension(mask.MimeType)
 		}
 		if err := writeOpenAIMultipartFile(writer, "mask", fileName, mask.MimeType, mask.Data); err != nil {
 			return nil, "", nil, err
@@ -437,7 +440,7 @@ func buildOpenAIImageEditMultipartRequest(model string, input GenerateInput, str
 	return body.Bytes(), writer.FormDataContentType(), debugBody, nil
 }
 
-func applyOpenAIImageEditParams(fields map[string]string, model string, options map[string]interface{}) {
+func applyOpenAIImageEditParams(fields map[string]string, model string, options map[string]any) {
 	if openAIImageGenerationModelSupportsResponseFormat(model) {
 		fields["response_format"] = defaultImageResponseFormat(options)
 	}
@@ -461,7 +464,7 @@ func applyOpenAIImageEditParams(fields map[string]string, model string, options 
 	}
 }
 
-func applyOpenAIImageEditStreamParams(fields map[string]string, options map[string]interface{}) {
+func applyOpenAIImageEditStreamParams(fields map[string]string, options map[string]any) {
 	value, ok := modelParamIntValue(options, "partial_images")
 	if !ok {
 		return
@@ -491,7 +494,7 @@ func writeOpenAIMultipartFile(writer *multipart.Writer, fieldName string, fileNa
 }
 
 func buildOpenAIImageEditDebugBody(fields map[string]string, imageCount int, hasMask bool) []byte {
-	payload := make(map[string]interface{})
+	payload := make(map[string]any)
 	for key, value := range fields {
 		payload[key] = value
 	}
@@ -509,7 +512,7 @@ func escapeMultipartQuote(value string) string {
 }
 
 // applyOpenAIImageGenerationParams 从 options 中提取官方 Images API 参数。
-func applyOpenAIImageGenerationParams(payload map[string]interface{}, model string, options map[string]interface{}) {
+func applyOpenAIImageGenerationParams(payload map[string]any, model string, options map[string]any) {
 	if openAIImageGenerationModelSupportsResponseFormat(model) {
 		payload["response_format"] = defaultImageResponseFormat(options)
 	}
@@ -538,7 +541,7 @@ func applyOpenAIImageGenerationParams(payload map[string]interface{}, model stri
 	}
 }
 
-func defaultImageResponseFormat(options map[string]interface{}) string {
+func defaultImageResponseFormat(options map[string]any) string {
 	if value := modelParamString(options, "response_format"); value != "" {
 		return value
 	}
@@ -546,7 +549,7 @@ func defaultImageResponseFormat(options map[string]interface{}) string {
 }
 
 // applyOpenAIImageGenerationStreamParams 只处理流式图片端点支持的增量参数。
-func applyOpenAIImageGenerationStreamParams(payload map[string]interface{}, options map[string]interface{}) {
+func applyOpenAIImageGenerationStreamParams(payload map[string]any, options map[string]any) {
 	value, ok := modelParamIntValue(options, "partial_images")
 	if !ok {
 		return
@@ -579,7 +582,7 @@ func openAIImageGenerationModelSupportsStyle(model string) bool {
 }
 
 // buildOpenAIImageGenerationPrompt 使用最后一条用户文本作为图片提示词。
-func buildOpenAIImageGenerationPrompt(messages []Message) string {
+func buildOpenAIImageGenerationPrompt(messages []portllm.Message) string {
 	for index := len(messages) - 1; index >= 0; index-- {
 		msg := messages[index]
 		if normalizeRole(msg.Role) != "user" {
@@ -598,14 +601,14 @@ func buildOpenAIImageGenerationPrompt(messages []Message) string {
 }
 
 // messagePromptText 抽取消息中的可读文本，文件文本只作为提示词补充。
-func messagePromptText(msg Message) string {
+func messagePromptText(msg portllm.Message) string {
 	if len(msg.Parts) == 0 {
 		return msg.Content
 	}
 	parts := make([]string, 0, len(msg.Parts))
 	for _, part := range msg.Parts {
 		switch part.Kind {
-		case ContentPartText, ContentPartFile:
+		case portllm.ContentPartText, portllm.ContentPartFile:
 			if text := strings.TrimSpace(part.Text); text != "" {
 				parts = append(parts, text)
 			}
@@ -616,21 +619,21 @@ func messagePromptText(msg Message) string {
 
 // parseOpenAIImageOutput 解析 OpenAI 图片响应。
 // 图片字节只放入 GeneratedImages，避免把 data URL 写入普通文本链路。
-func parseOpenAIImageOutput(body []byte, outputFormat string) (*GenerateOutput, error) {
-	parsed := make(map[string]interface{})
+func parseOpenAIImageOutput(body []byte, outputFormat string) (*portllm.GenerateOutput, error) {
+	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
 	}
-	result := &GenerateOutput{
-		ToolCalls:       make([]ToolCall, 0),
-		ServerToolCalls: make([]ToolCall, 0),
+	result := &portllm.GenerateOutput{
+		ToolCalls:       make([]portllm.ToolCall, 0),
+		ServerToolCalls: make([]portllm.ToolCall, 0),
 		RawJSON:         string(body),
 	}
 	applyOpenAIImageCompletedPayload(parsed, outputFormat, result)
 	return result, nil
 }
 
-func applyOpenAIImageCompletedPayload(parsed map[string]interface{}, outputFormat string, result *GenerateOutput) {
+func applyOpenAIImageCompletedPayload(parsed map[string]any, outputFormat string, result *portllm.GenerateOutput) {
 	if result == nil {
 		return
 	}
@@ -640,10 +643,10 @@ func applyOpenAIImageCompletedPayload(parsed map[string]interface{}, outputForma
 	if result.ResponseID == "" {
 		result.ResponseID = strings.TrimSpace(getStringFromPath(parsed, "response", "id"))
 	}
-	if usage := parseOpenAICompatibleUsageForAdapter(AdapterOpenAIImageGenerations, parsed); usage != (Usage{}) {
+	if usage := parseOpenAICompatibleUsageForAdapter(portllm.AdapterOpenAIImageGenerations, parsed); usage != (portllm.Usage{}) {
 		result.Usage = usage
 	}
-	data, _ := parsed["data"].([]interface{})
+	data, _ := parsed["data"].([]any)
 	citations := make([]string, 0, len(data))
 	for _, item := range data {
 		if image, ok := parseOpenAIImagePayload(asMap(item), outputFormat); ok {
@@ -670,19 +673,19 @@ func applyOpenAIImageCompletedPayload(parsed map[string]interface{}, outputForma
 	result.Citations = appendUniqueStrings(result.Citations, citations...)
 }
 
-func parseOpenAIImagePayload(payload map[string]interface{}, outputFormat string) (GeneratedImage, bool) {
+func parseOpenAIImagePayload(payload map[string]any, outputFormat string) (portllm.GeneratedImage, bool) {
 	if len(payload) == 0 {
-		return GeneratedImage{}, false
+		return portllm.GeneratedImage{}, false
 	}
 	if url := strings.TrimSpace(getString(payload["url"])); url != "" {
-		return GeneratedImage{
+		return portllm.GeneratedImage{
 			URL:           url,
 			MIMEType:      openAIImageMIMEType(outputFormat),
 			RevisedPrompt: strings.TrimSpace(getString(payload["revised_prompt"])),
 		}, true
 	}
 	if b64 := strings.TrimSpace(getString(payload["b64_json"])); b64 != "" {
-		return GeneratedImage{
+		return portllm.GeneratedImage{
 			B64JSON:       b64,
 			MIMEType:      openAIImageMIMEType(outputFormat),
 			RevisedPrompt: strings.TrimSpace(getString(payload["revised_prompt"])),
@@ -691,21 +694,21 @@ func parseOpenAIImagePayload(payload map[string]interface{}, outputFormat string
 	if nested := asMap(payload["image"]); len(nested) > 0 {
 		image, ok := parseOpenAIImagePayload(nested, outputFormat)
 		if !ok {
-			return GeneratedImage{}, false
+			return portllm.GeneratedImage{}, false
 		}
 		if image.RevisedPrompt == "" {
 			image.RevisedPrompt = strings.TrimSpace(getString(payload["revised_prompt"]))
 		}
 		return image, true
 	}
-	return GeneratedImage{}, false
+	return portllm.GeneratedImage{}, false
 }
 
 func consumeOpenAIImageStream(
 	reader io.Reader,
 	outputFormat string,
-	result *GenerateOutput,
-	onEvent func(GenerateStreamEvent) error,
+	result *portllm.GenerateOutput,
+	onEvent func(portllm.GenerateStreamEvent) error,
 ) error {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 0, 256*1024), 64*1024*1024)
@@ -735,7 +738,7 @@ func consumeOpenAIImageStream(
 			result.RawJSON += payloadText
 		}
 
-		parsed := make(map[string]interface{})
+		parsed := make(map[string]any)
 		if err := json.Unmarshal([]byte(payloadText), &parsed); err != nil {
 			return err
 		}
@@ -753,16 +756,16 @@ func consumeOpenAIImageStream(
 		if responseID := strings.TrimSpace(getString(parsed["id"])); responseID != "" && result != nil && result.ResponseID == "" {
 			result.ResponseID = responseID
 		}
-		usage := parseOpenAICompatibleUsageForAdapter(AdapterOpenAIImageGenerations, parsed)
-		if usage == (Usage{}) {
-			usage = parseOpenAICompatibleUsageForAdapter(AdapterOpenAIImageGenerations, asMap(parsed["response"]))
+		usage := parseOpenAICompatibleUsageForAdapter(portllm.AdapterOpenAIImageGenerations, parsed)
+		if usage == (portllm.Usage{}) {
+			usage = parseOpenAICompatibleUsageForAdapter(portllm.AdapterOpenAIImageGenerations, asMap(parsed["response"]))
 		}
-		if usage != (Usage{}) {
+		if usage != (portllm.Usage{}) {
 			if result != nil {
 				result.Usage = usage
 			}
 			if onEvent != nil {
-				if err := onEvent(GenerateStreamEvent{Usage: usage}); err != nil {
+				if err := onEvent(portllm.GenerateStreamEvent{Usage: usage}); err != nil {
 					return err
 				}
 			}
@@ -810,7 +813,7 @@ func consumeOpenAIImageStream(
 		return err
 	}
 	if len(rawLines) > 0 && result != nil && len(result.GeneratedImages) == 0 {
-		parsed := make(map[string]interface{})
+		parsed := make(map[string]any)
 		payloadText := strings.TrimSpace(strings.Join(rawLines, "\n"))
 		if payloadText == "" {
 			return nil
@@ -826,8 +829,8 @@ func consumeOpenAIImageStream(
 		}
 		result.RawJSON += payloadText
 		applyOpenAIImageCompletedPayload(parsed, outputFormat, result)
-		if result.Usage != (Usage{}) && onEvent != nil {
-			if err := onEvent(GenerateStreamEvent{Usage: result.Usage}); err != nil {
+		if result.Usage != (portllm.Usage{}) && onEvent != nil {
+			if err := onEvent(portllm.GenerateStreamEvent{Usage: result.Usage}); err != nil {
 				return err
 			}
 		}
@@ -836,9 +839,9 @@ func consumeOpenAIImageStream(
 }
 
 func emitOpenAIImagePartial(
-	parsed map[string]interface{},
+	parsed map[string]any,
 	outputFormat string,
-	onEvent func(GenerateStreamEvent) error,
+	onEvent func(portllm.GenerateStreamEvent) error,
 ) error {
 	if onEvent == nil {
 		return nil
@@ -851,7 +854,7 @@ func emitOpenAIImagePartial(
 		getInt64FromPath(parsed, "partial_image_index"),
 		getInt64FromPath(parsed, "index"),
 	)
-	return onEvent(GenerateStreamEvent{
+	return onEvent(portllm.GenerateStreamEvent{
 		GeneratedImage:        &image,
 		GeneratedImageIndex:   index,
 		GeneratedImagePartial: true,
@@ -868,18 +871,5 @@ func openAIImageMIMEType(outputFormat string) string {
 		return "image/webp"
 	default:
 		return "image/png"
-	}
-}
-
-func openAIImageFileExtension(mimeType string) string {
-	switch strings.ToLower(strings.TrimSpace(mimeType)) {
-	case "image/jpeg", "image/jpg":
-		return ".jpg"
-	case "image/webp":
-		return ".webp"
-	case "image/gif":
-		return ".gif"
-	default:
-		return ".png"
 	}
 }

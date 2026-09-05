@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { ScrollArea as ScrollAreaPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 import { Spinner, SpinnerLabel } from "@/components/ui/spinner"
@@ -38,29 +39,44 @@ function Table({
       data-slot="table-container"
       className={cn("min-w-0 overflow-hidden rounded-lg border border-border/60 bg-background", shellClassName)}
     >
-      <div
-        ref={resolvedViewportRef}
-        className={cn("data-table-viewport w-full overflow-x-auto", viewportClassName)}
-        style={{
-          ...viewportStyle,
-          ...heightStyle,
-        }}
-      >
-        <div ref={contentRef} className="min-w-full align-middle">
-          <table
-            data-slot="table"
-            className={cn(
-              "w-full min-w-max table-auto border-collapse text-[12px] leading-5",
-              "[&_[data-slot=input]]:h-6 [&_[data-slot=input]]:px-2 [&_[data-slot=input]]:text-xs [&_[data-slot=input]]:placeholder:text-xs",
-              "[&_[data-slot=select-trigger]]:h-6 [&_[data-slot=select-trigger]]:px-2 [&_[data-slot=select-trigger]]:text-xs",
-              "[&_[data-slot=input-group]]:h-6 [&_[data-slot=input-group-control]]:h-6 [&_[data-slot=input-group-control]]:px-2 [&_[data-slot=input-group-control]]:text-xs [&_[data-slot=input-group-control]]:placeholder:text-xs",
-              "[&_[role=combobox]]:h-6 [&_[role=combobox]]:text-xs",
-              className
-            )}
-            {...props}
-          />
-        </div>
-      </div>
+      <ScrollAreaPrimitive.Root type="hover" scrollHideDelay={500} className="relative">
+        <ScrollAreaPrimitive.Viewport
+          ref={resolvedViewportRef}
+          className={cn("data-table-viewport w-full", viewportClassName)}
+          style={{
+            ...viewportStyle,
+            ...heightStyle,
+          }}
+        >
+          <div ref={contentRef} className="min-w-full align-middle">
+            <table
+              data-slot="table"
+              className={cn(
+                "w-full min-w-max table-auto border-collapse text-[12px] leading-5",
+                "[&_[data-slot=input]]:h-6 [&_[data-slot=input]]:px-2 [&_[data-slot=input]]:text-xs [&_[data-slot=input]]:placeholder:text-xs",
+                "[&_[data-slot=select-trigger]]:h-6 [&_[data-slot=select-trigger]]:px-2 [&_[data-slot=select-trigger]]:text-xs",
+                "[&_[data-slot=input-group]]:h-6 [&_[data-slot=input-group-control]]:h-6 [&_[data-slot=input-group-control]]:px-2 [&_[data-slot=input-group-control]]:text-xs [&_[data-slot=input-group-control]]:placeholder:text-xs",
+                "[&_[role=combobox]]:h-6 [&_[role=combobox]]:text-xs",
+                className
+              )}
+              {...props}
+            />
+          </div>
+        </ScrollAreaPrimitive.Viewport>
+        <ScrollAreaPrimitive.Scrollbar
+          orientation="vertical"
+          className="z-30 flex w-2 touch-none p-0.5 select-none"
+        >
+          <ScrollAreaPrimitive.Thumb className="relative flex-1 rounded-full bg-border/80" />
+        </ScrollAreaPrimitive.Scrollbar>
+        <ScrollAreaPrimitive.Scrollbar
+          orientation="horizontal"
+          className="z-30 flex h-2 touch-none flex-col p-0.5 select-none"
+        >
+          <ScrollAreaPrimitive.Thumb className="relative flex-1 rounded-full bg-border/80" />
+        </ScrollAreaPrimitive.Scrollbar>
+        <ScrollAreaPrimitive.Corner className="bg-transparent" />
+      </ScrollAreaPrimitive.Root>
     </div>
   )
 }

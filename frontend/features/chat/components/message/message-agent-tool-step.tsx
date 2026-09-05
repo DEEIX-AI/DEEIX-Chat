@@ -5,6 +5,7 @@ import * as React from "react";
 import { ArrowUpRight, Check, Copy, Wrench } from "lucide-react";
 
 import { AgentTraceStep } from "@/features/chat/components/message/message-agent-trace-step";
+import { MessageToolResultDialog } from "@/features/chat/components/message/message-tool-result-dialog";
 import { useCopyAction } from "@/shared/components/copy-action";
 import { useAutoExpandDisclosure } from "@/shared/hooks/use-auto-expand-disclosure";
 import { useChatElapsedDurationMS } from "@/features/chat/hooks/use-chat-elapsed-duration";
@@ -13,9 +14,9 @@ import type { ProcessTraceLabels } from "@/features/chat/hooks/use-chat-trace-la
 import { cn } from "@/lib/utils";
 import { formatDurationMS } from "@/features/chat/model/duration";
 import type { TraceDisplayEvent } from "@/features/chat/model/message-process-trace";
+import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import {
   collectToolImageSources,
-  collectToolNarrativeText,
   collectToolSearchSources,
   collectToolStrings,
   countToolPayloadItems,
@@ -23,7 +24,6 @@ import {
   formatToolPayload,
   isToolPayloadRecord,
   parseToolPayload,
-  readToolPayloadBoolean,
   readToolPayloadNumber,
   readToolPayloadString,
   resolveToolResultCategory,
@@ -35,6 +35,7 @@ type ToolTraceCall = {
   tool_call_id?: string;
   id?: string;
   call_id?: string;
+  detail_run_id?: string;
   name?: string;
   type?: string;
   status?: string;
@@ -49,9 +50,6 @@ type ToolTraceCall = {
   output_detail?: string;
   output_presentation?: unknown;
   input_size?: number;
-  input_truncated?: boolean;
-  output_size?: number;
-  output_truncated?: boolean;
 };
 
 function parseToolTraceCalls(payloadJson: string | undefined): ToolTraceCall[] {
@@ -67,6 +65,7 @@ function parseToolTraceCalls(payloadJson: string | undefined): ToolTraceCall[] {
           tool_call_id: readToolPayloadString(value.tool_call_id) || undefined,
           id: readToolPayloadString(value.id) || undefined,
           call_id: readToolPayloadString(value.call_id) || undefined,
+          detail_run_id: readToolPayloadString(value.detail_run_id) || undefined,
           name: readToolPayloadString(value.name) || undefined,
           type: readToolPayloadString(value.type) || undefined,
           status: readToolPayloadString(value.status) || undefined,
@@ -81,9 +80,6 @@ function parseToolTraceCalls(payloadJson: string | undefined): ToolTraceCall[] {
           output_detail: readToolPayloadString(value.output_detail) || undefined,
           output_presentation: value.output_presentation,
           input_size: readToolPayloadNumber(value.input_size) ?? undefined,
-          input_truncated: readToolPayloadBoolean(value.input_truncated) ?? undefined,
-          output_size: readToolPayloadNumber(value.output_size) ?? undefined,
-          output_truncated: readToolPayloadBoolean(value.output_truncated) ?? undefined,
         },
       ];
     });
@@ -237,30 +233,16 @@ function ToolSearchSources({ sources, labels }: { sources: ToolSearchSource[]; l
   );
 }
 
-function normalizeReadableToolText(value: string): string {
-  // The normalized value is rendered as a React text node, never as HTML.
-  // Replace markup with separators instead of deleting it so adjacent input
-  // fragments cannot be joined into a new tag (for example, `<scr` + `ipt>`).
-  return value
-    .replace(/<br\s*\/?\s*>/gi, "\n")
-    .replace(/<\/?(?:p|div|section|article|li|ul|ol|h[1-6])\b[^>]*>/gi, "\n")
-    .replace(/<img\b[^>]*(?:>|$)/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/(^|\s)#{1,6}\s+/g, "$1")
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
 function ToolReadableText({ children }: { children: string }) {
-  const text = normalizeReadableToolText(children);
-  if (!text) return null;
+  const markdown = children.trim();
+  if (!markdown) return null;
   return (
-    <div className="max-h-[6.25rem] overflow-auto whitespace-pre-wrap break-words text-[12px] leading-5 text-muted-foreground/82">
-      {text}
+    <div className="max-h-40 overflow-auto pr-1 text-[12px] leading-5 text-muted-foreground/82">
+      <StreamdownRender
+        content={markdown}
+        variant="thinking"
+        className="[&_ol]:my-0.5 [&_ul]:my-0.5 [&_li]:pl-0 [&_li]:leading-5"
+      />
     </div>
   );
 }
@@ -350,16 +332,8 @@ function toolSearchSources(call: ToolTraceCall): ToolSearchSource[] {
 }
 
 function toolSearchNarrative(call: ToolTraceCall): string {
-  const presentation = call.output_presentation;
-  if (isToolPayloadRecord(presentation)) {
-    const text = readToolPayloadString(presentation.text);
-    if (text && collectToolSearchSources(text).length === 0) return text;
-  }
-  for (const payload of toolOutputPayloads(call)) {
-    const text = collectToolNarrativeText(payload);
-    if (text && collectToolSearchSources(text).length === 0) return text;
-  }
-  return "";
+  const text = toolDisplayText(call);
+  return text && collectToolSearchSources(text).length === 0 ? text : "";
 }
 
 function toolOutputText(call: ToolTraceCall, keys: string[]): string {
@@ -375,28 +349,13 @@ function hasToolArguments(call: ToolTraceCall): boolean {
   return isToolPayloadRecord(input) && Object.keys(input).length > 0;
 }
 
-function rawToolOutputText(call: ToolTraceCall, output: unknown): string {
-  return collectToolNarrativeText(output)
-    || formatToolPayload(call.output_detail)
-    || formatToolPayload(call.output)
-    || formatToolPayload(call.output_text)
-    || formatToolPayload(call.output_preview);
-}
-
-function toolOutputPreviewText(call: ToolTraceCall): string {
-  const preview = parseToolPayload(call.output_preview);
-  return collectToolNarrativeText(preview) || readToolPayloadString(preview);
-}
-
-function readableGenericToolOutput(call: ToolTraceCall, output: unknown): string {
+function toolDisplayText(call: ToolTraceCall): string {
   const presentation = call.output_presentation;
   if (isToolPayloadRecord(presentation)) {
     const text = readToolPayloadString(presentation.text);
     if (text) return text;
   }
-  return toolOutputPreviewText(call)
-    || collectToolNarrativeText(output)
-    || rawToolOutputText(call, output);
+  return readToolPayloadString(parseToolPayload(call.output_preview));
 }
 
 function toolSearchSummary(output: unknown, sources: ToolSearchSource[], labels: ProcessTraceLabels): string {
@@ -742,15 +701,11 @@ function ToolResultCard({
     const narrative = toolSearchNarrative(call);
     const summary = toolSearchSummary(output, sources, labels);
     meta = summary;
-    const fallback = sources.length === 0 && !narrative
-      ? toolOutputPreviewText(call) || rawToolOutputText(call, output)
-      : "";
-    if (sources.length > 0 || narrative || fallback) {
+    if (sources.length > 0 || narrative) {
       content = (
         <>
           {narrative ? <ToolReadableText>{narrative}</ToolReadableText> : null}
           {sources.length > 0 ? <ToolSearchSources sources={sources} labels={labels} /> : null}
-          {fallback ? <ToolPre>{fallback}</ToolPre> : null}
         </>
       );
     }
@@ -765,7 +720,7 @@ function ToolResultCard({
         </>
       );
     } else {
-      const text = rawToolOutputText(call, output);
+      const text = toolDisplayText(call);
       content = text ? <ToolPre>{text}</ToolPre> : null;
     }
   } else if (category === "image_generation") {
@@ -773,7 +728,7 @@ function ToolResultCard({
     if (urls.length > 0) {
       content = <ToolImageGrid urls={urls} labels={labels} />;
     } else {
-      const text = rawToolOutputText(call, output);
+      const text = toolDisplayText(call);
       content = text ? <ToolPre>{text}</ToolPre> : null;
     }
   } else if (category === "shell") {
@@ -791,11 +746,11 @@ function ToolResultCard({
         </>
       );
     } else {
-      const text = rawToolOutputText(call, output);
+      const text = toolDisplayText(call);
       content = text ? <ToolPre>{text}</ToolPre> : null;
     }
   } else {
-    const text = readableGenericToolOutput(call, output);
+    const text = toolDisplayText(call);
     if (text) {
       content = <ToolReadableText>{text}</ToolReadableText>;
     }
@@ -818,16 +773,36 @@ function ToolResultCard({
   );
 }
 
-function ToolCallDetailCard({ step, labels }: { step: ToolChainStep; labels: ProcessTraceLabels }) {
+function ToolCallDetailCard({
+  step,
+  labels,
+  runID,
+  allowFullResult,
+}: {
+  step: ToolChainStep;
+  labels: ProcessTraceLabels;
+  runID?: string;
+  allowFullResult: boolean;
+}) {
   const call = step.toolCall;
   const hasArguments = Boolean(call && hasToolArguments(call));
   const toolName = step.toolName?.trim() || step.label;
+  const toolCallID = call ? toolTraceCallID(call) : "";
+  const detailRunID = call?.detail_run_id?.trim() || runID?.trim() || "";
+  const canViewFullResult = Boolean(allowFullResult && detailRunID && toolCallID);
   return (
     <div className="w-full max-w-[48rem]">
-      <div className="flex min-h-6 min-w-0 items-center px-0.5">
-        <span className="truncate text-[12px] leading-5 text-muted-foreground/78" title={toolName}>
+      <div className="flex min-h-6 min-w-0 items-center gap-2 px-0.5">
+        <span className="min-w-0 flex-1 truncate text-[12px] leading-5 text-muted-foreground/78" title={toolName}>
           {labels.tool.detail.nameLabel} · {toolName}
         </span>
+        {canViewFullResult ? (
+          <MessageToolResultDialog
+            runID={detailRunID}
+            toolCallID={toolCallID}
+            toolName={toolName}
+          />
+        ) : null}
       </div>
       <div className="min-w-0 px-0.5">
         {call ? (
@@ -852,10 +827,14 @@ export function AgentToolStepRow({
   step,
   labels,
   autoExpand,
+  runID,
+  allowFullResult = false,
 }: {
   step: ToolChainStep;
   labels: ProcessTraceLabels;
   autoExpand: boolean;
+  runID?: string;
+  allowFullResult?: boolean;
 }) {
   const active = isToolChainStepActive(step);
   const { open, onOpenChange } = useAutoExpandDisclosure({ active, autoExpand });
@@ -878,7 +857,12 @@ export function AgentToolStepRow({
         loading={active}
         onOpenChange={onOpenChange}
       >
-        <ToolCallDetailCard step={step} labels={labels} />
+        <ToolCallDetailCard
+          step={step}
+          labels={labels}
+          runID={runID}
+          allowFullResult={allowFullResult}
+        />
       </AgentTraceStep>
     </li>
   );

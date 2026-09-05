@@ -2,6 +2,7 @@ package channel
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"go.uber.org/zap"
 )
 
@@ -33,6 +36,7 @@ func (s *Service) ListRemoteModels(ctx context.Context, upstreamID uint) (*Upstr
 	if err != nil {
 		return nil, err
 	}
+	items = normalizeRemoteModelItems(items)
 
 	remoteNames := make([]string, 0, len(items))
 	for _, item := range items {
@@ -41,6 +45,10 @@ func (s *Service) ListRemoteModels(ctx context.Context, upstreamID uint) (*Upstr
 		}
 	}
 	rows, err := s.repo.ListUpstreamModelsByNames(ctx, upstreamID, remoteNames)
+	if err != nil {
+		return nil, err
+	}
+	managedModels, err := s.repo.ListManagedUpstreamModels(ctx, upstreamID)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +94,16 @@ func (s *Service) ListRemoteModels(ctx context.Context, upstreamID uint) (*Upstr
 		})
 	}
 
-	return &UpstreamRemoteModelsData{Total: len(views), Items: views}, nil
+	syncPlan, err := buildUpstreamModelSyncPlan(upstreamItem, items, managedModels, existingByName)
+	if err != nil {
+		return nil, err
+	}
+	return &UpstreamRemoteModelsData{
+		Total:      len(views),
+		Items:      views,
+		SnapshotID: remoteModelsSnapshotID(items),
+		SyncPlan:   syncPlan,
+	}, nil
 }
 
 type repositoryUpstreamModelSnapshot struct {
@@ -108,8 +125,8 @@ func appendUniqueString(items []string, value string) []string {
 	return append(items, value)
 }
 
-// SyncUpstreamModels 拉取上游 models 并写入上游真实模型清单。
-func (s *Service) SyncUpstreamModels(ctx context.Context, upstreamID uint) (*SyncUpstreamModelsData, error) {
+// SyncUpstreamModels 拉取上游完整模型快照，并与本地远端管理目录进行原子软对账。
+func (s *Service) SyncUpstreamModels(ctx context.Context, upstreamID uint, input SyncUpstreamModelsInput) (*SyncUpstreamModelsData, error) {
 	upstreamItem, err := s.repo.GetUpstreamByID(ctx, upstreamID)
 	if err != nil {
 		if errors.Is(err, ErrUpstreamNotFound) {
@@ -122,51 +139,260 @@ func (s *Service) SyncUpstreamModels(ctx context.Context, upstreamID uint) (*Syn
 	if err != nil {
 		return nil, err
 	}
+	items = normalizeRemoteModelItems(items)
+	if expected := strings.TrimSpace(input.ExpectedSnapshot); expected != "" && expected != remoteModelsSnapshotID(items) {
+		return nil, ErrRemoteModelsSnapshotChanged
+	}
+	return s.reconcileRemoteModelSnapshot(ctx, upstreamItem, items, input.AllowEmpty)
+}
 
-	slices.SortFunc(items, func(a, b llm.ModelItem) int {
-		return strings.Compare(a.ID, b.ID)
-	})
+// reconcileRemoteModelSnapshot 在一个事务内完成目录读取、分类与批量写入；
+// 上游网络请求已在事务外完成，避免长事务占用数据库连接。
+func (s *Service) reconcileRemoteModelSnapshot(
+	ctx context.Context,
+	upstreamItem *domainchannel.Upstream,
+	items []llm.ModelItem,
+	allowEmpty bool,
+) (*SyncUpstreamModelsData, error) {
+	items = normalizeRemoteModelItems(items)
+	if len(items) == 0 && !allowEmpty {
+		return nil, ErrEmptyRemoteModels
+	}
 
 	result := &SyncUpstreamModelsData{
+		SnapshotID:    remoteModelsSnapshotID(items),
 		TotalUpstream: len(items),
 		SyncedModels:  make([]UpstreamSyncModelView, 0, len(items)),
 	}
-	seen := make(map[string]struct{}, len(items))
+	remoteNames := make([]string, 0, len(items))
+	for _, item := range items {
+		remoteNames = append(remoteNames, item.ID)
+	}
+
+	err := s.repo.WithinTransaction(ctx, func(txRepo repository.ChannelRepository) error {
+		existingRows, syncErr := txRepo.ListUpstreamModelsByNames(ctx, upstreamItem.ID, remoteNames)
+		if syncErr != nil {
+			return syncErr
+		}
+		managedModels, syncErr := txRepo.ListManagedUpstreamModels(ctx, upstreamItem.ID)
+		if syncErr != nil {
+			return syncErr
+		}
+
+		existingByName := make(map[string]repositoryUpstreamModelSnapshot, len(existingRows))
+		for _, row := range existingRows {
+			name := strings.TrimSpace(row.UpstreamModelName)
+			if name == "" {
+				continue
+			}
+			existingByName[name] = repositoryUpstreamModelSnapshot{
+				BindingCode: row.BindingCode,
+				Status:      row.Status,
+			}
+		}
+		managedByName := make(map[string]domainchannel.UpstreamModel, len(managedModels))
+		for _, model := range managedModels {
+			name := strings.TrimSpace(model.UpstreamModelName)
+			if name != "" {
+				managedByName[name] = model
+			}
+		}
+
+		remoteNameSet := make(map[string]struct{}, len(items))
+		changes := repository.ApplyUpstreamModelCatalogChangesInput{
+			Create: make([]domainchannel.UpstreamModel, 0),
+			Update: make([]domainchannel.UpstreamModel, 0),
+		}
+		now := time.Now()
+		for _, item := range items {
+			name := item.ID
+			remoteNameSet[name] = struct{}{}
+			kindsJSON := inferKindsJSON(name)
+			protocol, resolveErr := resolveRouteProtocol("", upstreamItem.Compatible, upstreamItem.ProtocolDefaultsJSON, kindsJSON)
+			if resolveErr != nil {
+				return resolveErr
+			}
+
+			if existing, managed := managedByName[name]; managed {
+				desired := syncedUpstreamModel(upstreamItem, item, existing.BindingCode, &now, protocol, kindsJSON)
+				desired.ID = existing.ID
+				desired.CreatedAt = existing.CreatedAt
+				desired.UpdatedAt = existing.UpdatedAt
+				reactivated := !strings.EqualFold(strings.TrimSpace(existing.Status), "active")
+				updated := !reactivated && upstreamModelMetadataChanged(existing, desired)
+				switch {
+				case reactivated:
+					result.ReactivatedModels++
+				case updated:
+					result.UpdatedUpstreamModels++
+				default:
+					result.UnchangedUpstreamModels++
+				}
+				changes.Update = append(changes.Update, *desired)
+				result.SyncedModels = append(result.SyncedModels, UpstreamSyncModelView{
+					UpstreamModelName: desired.UpstreamModelName,
+					BindingCode:       desired.BindingCode,
+					SuggestedProtocol: desired.SuggestedProtocol,
+					KindsJSON:         desired.KindsJSON,
+					Status:            desired.Status,
+					Updated:           updated,
+					Reactivated:       reactivated,
+				})
+				continue
+			}
+
+			if existing, protected := existingByName[name]; protected {
+				result.ProtectedUpstreamModels++
+				result.SyncedModels = append(result.SyncedModels, UpstreamSyncModelView{
+					UpstreamModelName: name,
+					BindingCode:       existing.BindingCode,
+					SuggestedProtocol: protocol,
+					KindsJSON:         kindsJSON,
+					Status:            existing.Status,
+					Protected:         true,
+				})
+				continue
+			}
+
+			created := syncedUpstreamModel(upstreamItem, item, generateBindingCode(), &now, protocol, kindsJSON)
+			changes.Create = append(changes.Create, *created)
+			result.CreatedUpstreamModels++
+			result.SyncedModels = append(result.SyncedModels, UpstreamSyncModelView{
+				UpstreamModelName: created.UpstreamModelName,
+				BindingCode:       created.BindingCode,
+				SuggestedProtocol: created.SuggestedProtocol,
+				KindsJSON:         created.KindsJSON,
+				Status:            created.Status,
+				Created:           true,
+			})
+		}
+
+		for _, model := range managedModels {
+			if !strings.EqualFold(strings.TrimSpace(model.Status), "active") {
+				continue
+			}
+			if _, present := remoteNameSet[strings.TrimSpace(model.UpstreamModelName)]; !present {
+				changes.InactivateIDs = append(changes.InactivateIDs, model.ID)
+			}
+		}
+
+		inactivated, syncErr := txRepo.ApplyUpstreamModelCatalogChanges(ctx, upstreamItem.ID, changes)
+		if syncErr != nil {
+			if errors.Is(syncErr, repository.ErrDuplicate) {
+				return ErrRemoteModelsSnapshotChanged
+			}
+			return syncErr
+		}
+		result.InactivatedModels = inactivated
+		result.ExistingUpstreamModels = result.TotalUpstream - result.CreatedUpstreamModels
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	s.InvalidateModelCatalog()
+	return result, nil
+}
+
+func normalizeRemoteModelItems(items []llm.ModelItem) []llm.ModelItem {
+	unique := make(map[string]llm.ModelItem, len(items))
 	for _, item := range items {
 		name := strings.TrimSpace(item.ID)
 		if name == "" {
 			continue
 		}
-		if _, exists := seen[name]; exists {
+		if _, exists := unique[name]; exists {
 			continue
 		}
-		seen[name] = struct{}{}
+		item.ID = name
+		item.OwnedBy = strings.TrimSpace(item.OwnedBy)
+		unique[name] = item
+	}
+	result := make([]llm.ModelItem, 0, len(unique))
+	for _, item := range unique {
+		result = append(result, item)
+	}
+	slices.SortFunc(result, func(a, b llm.ModelItem) int {
+		return strings.Compare(a.ID, b.ID)
+	})
+	return result
+}
 
-		view, syncErr := s.syncSingleUpstreamModel(ctx, upstreamItem, item)
-		if syncErr != nil {
-			result.SkippedUpstreamModels++
+func remoteModelsSnapshotID(items []llm.ModelItem) string {
+	payload, _ := json.Marshal(items)
+	sum := sha256.Sum256(payload)
+	return fmt.Sprintf("%x", sum)
+}
+
+func buildUpstreamModelSyncPlan(
+	upstream *domainchannel.Upstream,
+	remoteItems []llm.ModelItem,
+	managedModels []domainchannel.UpstreamModel,
+	existingByName map[string]repositoryUpstreamModelSnapshot,
+) (UpstreamModelSyncPlanView, error) {
+	plan := UpstreamModelSyncPlanView{
+		AddedModels:       []string{},
+		UpdatedModels:     []string{},
+		ReactivatedModels: []string{},
+		InactivatedModels: []string{},
+		UnchangedModels:   []string{},
+		ProtectedModels:   []string{},
+	}
+	managedByName := make(map[string]domainchannel.UpstreamModel, len(managedModels))
+	for _, item := range managedModels {
+		name := strings.TrimSpace(item.UpstreamModelName)
+		if name != "" {
+			managedByName[name] = item
+		}
+	}
+	remoteNames := make(map[string]struct{}, len(remoteItems))
+	for _, item := range remoteItems {
+		name := strings.TrimSpace(item.ID)
+		remoteNames[name] = struct{}{}
+		existing, managed := managedByName[name]
+		if !managed {
+			if _, protected := existingByName[name]; protected {
+				plan.ProtectedModels = append(plan.ProtectedModels, name)
+			} else {
+				plan.AddedModels = append(plan.AddedModels, name)
+			}
 			continue
 		}
-		if view.Created {
-			result.CreatedUpstreamModels++
+		if !strings.EqualFold(strings.TrimSpace(existing.Status), "active") {
+			plan.ReactivatedModels = append(plan.ReactivatedModels, name)
+			continue
+		}
+		kindsJSON := inferKindsJSON(name)
+		protocol, err := resolveRouteProtocol("", upstream.Compatible, upstream.ProtocolDefaultsJSON, kindsJSON)
+		if err != nil {
+			return UpstreamModelSyncPlanView{}, err
+		}
+		desired := syncedUpstreamModel(upstream, item, existing.BindingCode, nil, protocol, kindsJSON)
+		if upstreamModelMetadataChanged(existing, desired) {
+			plan.UpdatedModels = append(plan.UpdatedModels, name)
 		} else {
-			result.ExistingUpstreamModels++
+			plan.UnchangedModels = append(plan.UnchangedModels, name)
 		}
-		result.SyncedModels = append(result.SyncedModels, view)
 	}
+	for _, item := range managedModels {
+		name := strings.TrimSpace(item.UpstreamModelName)
+		if !strings.EqualFold(strings.TrimSpace(item.Status), "active") {
+			continue
+		}
+		if _, present := remoteNames[name]; !present {
+			plan.InactivatedModels = append(plan.InactivatedModels, name)
+		}
+	}
+	return plan, nil
+}
 
-	activeNames := make([]string, 0, len(seen))
-	for name := range seen {
-		activeNames = append(activeNames, name)
-	}
-	inactivated, err := s.repo.MarkMissingSyncedUpstreamModelsInactive(ctx, upstreamID, activeNames)
-	if err != nil {
-		return nil, err
-	}
-	result.InactivatedModels = inactivated
-
-	s.InvalidateModelCatalog()
-	return result, nil
+func upstreamModelMetadataChanged(existing domainchannel.UpstreamModel, desired *domainchannel.UpstreamModel) bool {
+	return strings.TrimSpace(existing.Vendor) != strings.TrimSpace(desired.Vendor) ||
+		strings.TrimSpace(existing.Icon) != strings.TrimSpace(desired.Icon) ||
+		strings.TrimSpace(existing.SuggestedProtocol) != strings.TrimSpace(desired.SuggestedProtocol) ||
+		strings.TrimSpace(existing.KindsJSON) != strings.TrimSpace(desired.KindsJSON) ||
+		strings.TrimSpace(existing.RawJSON) != strings.TrimSpace(desired.RawJSON)
 }
 
 // ImportUpstreamModels 批量把上游真实模型绑定到平台模型。
@@ -196,7 +422,7 @@ func (s *Service) ImportUpstreamModels(ctx context.Context, upstreamID uint, inp
 				UpstreamModelName: strings.TrimSpace(item.UpstreamModelName),
 				PlatformModelName: strings.TrimSpace(item.PlatformModelName),
 				Status:            ImportUpstreamModelStatusFailed,
-				Error:             importErr.Error(),
+				Error:             apperr.MessageOr(importErr, "upstream model import failed"),
 			})
 			continue
 		}
@@ -327,57 +553,38 @@ func (s *Service) fetchRemoteModels(ctx context.Context, up *domainchannel.Upstr
 			zap.String("base_url", up.BaseURL),
 			zap.Error(err),
 		)
-		return nil, fmt.Errorf("%w: %v", ErrRemoteModelsUnavailable, err)
+		return nil, fmt.Errorf("%w: %w", ErrRemoteModelsUnavailable, err)
 	}
 	return items, nil
 }
 
-func (s *Service) syncSingleUpstreamModel(ctx context.Context, up *domainchannel.Upstream, item llm.ModelItem) (UpstreamSyncModelView, error) {
-	upstreamModelName := strings.TrimSpace(item.ID)
-	kindsJSON := inferKindsJSON(upstreamModelName)
-	protocol, err := resolveRouteProtocol("", up.Compatible, up.ProtocolDefaultsJSON, kindsJSON)
-	if err != nil {
-		return UpstreamSyncModelView{}, err
-	}
-	created := false
-	bindingCode := generateBindingCode()
-	if existing, err := s.repo.GetUpstreamModelByUpstreamName(ctx, up.ID, upstreamModelName); err == nil {
-		bindingCode = existing.BindingCode
-	} else if errors.Is(err, ErrUpstreamModelNotFound) {
-		created = true
-	} else {
-		return UpstreamSyncModelView{}, err
-	}
-	now := time.Now()
+func syncedUpstreamModel(
+	upstream *domainchannel.Upstream,
+	item llm.ModelItem,
+	bindingCode string,
+	lastSyncedAt *time.Time,
+	protocol string,
+	kindsJSON string,
+) *domainchannel.UpstreamModel {
+	name := strings.TrimSpace(item.ID)
 	rawJSON, _ := json.Marshal(map[string]string{
-		"id":       item.ID,
-		"owned_by": item.OwnedBy,
+		"id":       name,
+		"owned_by": strings.TrimSpace(item.OwnedBy),
 	})
-	vendor := normalizeUpstreamModelVendor(item.OwnedBy, upstreamModelName, up.Name, up.BaseURL)
-	upstreamModel := &domainchannel.UpstreamModel{
-		UpstreamID:        up.ID,
+	vendor := normalizeModelVendor(item.OwnedBy, name, upstream.Name, upstream.BaseURL)
+	return &domainchannel.UpstreamModel{
+		UpstreamID:        upstream.ID,
 		BindingCode:       bindingCode,
-		UpstreamModelName: upstreamModelName,
+		UpstreamModelName: name,
 		Vendor:            vendor,
-		Icon:              normalizeModelIcon("", vendor, upstreamModelName),
+		Icon:              normalizeModelIcon("", vendor, name),
 		SuggestedProtocol: protocol,
 		KindsJSON:         kindsJSON,
 		Status:            "active",
 		Source:            "sync",
-		LastSyncedAt:      &now,
+		LastSyncedAt:      lastSyncedAt,
 		RawJSON:           string(rawJSON),
 	}
-	if err := s.repo.UpsertUpstreamModel(ctx, upstreamModel); err != nil {
-		return UpstreamSyncModelView{}, err
-	}
-	return UpstreamSyncModelView{
-		UpstreamModelName: upstreamModel.UpstreamModelName,
-		BindingCode:       upstreamModel.BindingCode,
-		SuggestedProtocol: upstreamModel.SuggestedProtocol,
-		KindsJSON:         upstreamModel.KindsJSON,
-		Status:            upstreamModel.Status,
-		Created:           created,
-	}, nil
 }
 
 func (s *Service) importSingleUpstreamModel(ctx context.Context, upstreamItem *domainchannel.Upstream, input ImportUpstreamModelItemInput) (ImportUpstreamModelResultView, error) {
@@ -423,7 +630,8 @@ func (s *Service) importSingleUpstreamModel(ctx context.Context, upstreamItem *d
 	status := input.Status
 	priority := input.Priority
 	weight := 1
-	source := "import"
+	routeSource := "import"
+	catalogSource := "sync"
 	view, err := s.UpsertUpstreamModel(ctx, upstreamItem.ID, UpsertUpstreamModelInput{
 		PlatformModelName: platformModelName,
 		UpstreamModelName: upstreamModelName,
@@ -432,7 +640,8 @@ func (s *Service) importSingleUpstreamModel(ctx context.Context, upstreamItem *d
 		Status:            &status,
 		Priority:          &priority,
 		Weight:            &weight,
-		Source:            &source,
+		Source:            &routeSource,
+		CatalogSource:     &catalogSource,
 	})
 	if err != nil {
 		return ImportUpstreamModelResultView{}, err

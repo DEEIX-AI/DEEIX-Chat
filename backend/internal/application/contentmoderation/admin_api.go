@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"strings"
 	"time"
 
@@ -195,7 +196,7 @@ func (s *Service) OpenEventImage(
 	if err != nil {
 		return nil, "", err
 	}
-	return plain, firstNonEmpty(meta.MimeType, "image/png"), nil
+	return plain, textutil.FirstNonEmpty(meta.MimeType, "image/png"), nil
 }
 
 // CategoryCatalog returns category lists for the admin UI.

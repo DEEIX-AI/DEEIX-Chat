@@ -9,18 +9,18 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-func TestInvalidRequestBodyMessage(t *testing.T) {
+func TestInvalidRequestBodyMessageAndDetails(t *testing.T) {
 	t.Run("empty body", func(t *testing.T) {
-		got := InvalidRequestBodyMessage(io.EOF)
+		got, _ := invalidRequestBodyMessageAndDetails(io.EOF)
 		if got != "request body is required" {
 			t.Fatalf("unexpected message: %s", got)
 		}
 	})
 
 	t.Run("json syntax", func(t *testing.T) {
-		var payload map[string]interface{}
+		var payload map[string]any
 		err := json.Unmarshal([]byte(`{"name":`), &payload)
-		got := InvalidRequestBodyMessage(err)
+		got, _ := invalidRequestBodyMessageAndDetails(err)
 		if !strings.Contains(got, "invalid JSON body") {
 			t.Fatalf("unexpected message: %s", got)
 		}
@@ -31,7 +31,7 @@ func TestInvalidRequestBodyMessage(t *testing.T) {
 			Amount int `json:"amount"`
 		}
 		err := json.Unmarshal([]byte(`{"amount":"bad"}`), &payload)
-		got := InvalidRequestBodyMessage(err)
+		got, _ := invalidRequestBodyMessageAndDetails(err)
 		if got != "amount has invalid type" {
 			t.Fatalf("unexpected message: %s", got)
 		}
@@ -43,7 +43,7 @@ func TestInvalidRequestBodyMessage(t *testing.T) {
 			BaseURL string   `json:"baseURL" validate:"required,url"`
 		}
 		err := validator.New().Struct(payload)
-		got := InvalidRequestBodyMessage(err)
+		got, _ := invalidRequestBodyMessageAndDetails(err)
 		if !strings.Contains(got, "apiKeys is required") || !strings.Contains(got, "baseURL is required") {
 			t.Fatalf("unexpected message: %s", got)
 		}

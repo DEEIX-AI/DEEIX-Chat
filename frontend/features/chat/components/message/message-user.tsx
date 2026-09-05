@@ -146,19 +146,24 @@ export function ChatMessageUser({
     }
   }, [editingValue, item, onEditUserMessage]);
   const {
-    activeIndex: mentionActiveIndex,
+    activeRowKey: mentionActiveRowKey,
+    activeTab: mentionActiveTab,
     handleBlur: handleMentionBlur,
     handleChange: handleMentionChange,
     handleFocus: handleMentionFocus,
     handleKeyDown: handleMentionKeyDown,
+    handleListScroll: handleMentionListScroll,
     handleSelectionChange: handleMentionSelectionChange,
     menuID: mentionMenuID,
     menuLayout: mentionMenuLayout,
     menuRef: mentionMenuRef,
     menuReady: mentionMenuReady,
     open: showMentionMenu,
-    sections: mentionSections,
+    rows: mentionRows,
     select: selectMentionItem,
+    selectTab: selectMentionTab,
+    showTabBar: showMentionTabBar,
+    tabs: mentionTabs,
   } = useChatMentionMenu({
     attachments: EDIT_MESSAGE_EMPTY_ATTACHMENTS,
     availableTools: EDIT_MESSAGE_EMPTY_TOOLS,
@@ -182,16 +187,6 @@ export function ChatMessageUser({
     placementPreference: "bottom",
     onSelectedToolsChange: () => undefined,
   });
-  const mentionSectionOffsets = React.useMemo(() => {
-    const offsets = new Map<ChatMentionMenuKind, number>();
-    let offset = 0;
-    for (const section of mentionSections) {
-      offsets.set(section.kind, offset);
-      offset += section.items.length;
-    }
-    return offsets;
-  }, [mentionSections]);
-
   if (!readOnly && isEditing) {
     const nextContent = editingValue.trim();
     const unchanged = nextContent === item.content.trim();
@@ -201,16 +196,20 @@ export function ChatMessageUser({
         <div className="w-full max-w-[640px] rounded-lg bg-muted/60 p-3 text-foreground">
           <div ref={editInputGroupRef}>
             <ChatMentionMenuPortal
-              activeIndex={mentionActiveIndex}
+              activeRowKey={mentionActiveRowKey}
+              activeTab={mentionActiveTab}
               menuID={mentionMenuID}
               menuLayout={mentionMenuLayout}
               menuRef={mentionMenuRef}
               menuReady={mentionMenuReady}
               open={showMentionMenu}
-              sectionOffsets={mentionSectionOffsets}
-              sections={mentionSections}
+              rows={mentionRows}
+              showTabBar={showMentionTabBar}
+              tabs={mentionTabs}
               t={tComposer}
+              onListScroll={handleMentionListScroll}
               onSelect={selectMentionItem}
+              onSelectTab={selectMentionTab}
             />
             <Textarea
               ref={editTextareaRef}

@@ -181,12 +181,10 @@ export function SkillsPromptPage() {
   const stableViewTarget = useDialogSnapshot(viewTarget);
 
   const emptyState = (
-    <div className="flex h-full min-h-0 w-full items-center justify-center">
-      <CenteredEmptyState
-        title={items.length === 0 ? t("empty") : t("noResults")}
-        description={items.length === 0 ? t("emptyDescription") : t("noResultsDescription")}
-      />
-    </div>
+    <CenteredEmptyState
+      title={items.length === 0 ? t("empty") : t("noResults")}
+      description={items.length === 0 ? t("emptyDescription") : t("noResultsDescription")}
+    />
   );
   const listContent = (
     <div className="h-full min-h-0 w-full flex-1 overflow-y-auto pr-2" data-sidebar-scroll-root="true">

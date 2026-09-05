@@ -13,6 +13,8 @@ import (
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -32,7 +34,7 @@ func (s *Service) embedMessagePair(ctx context.Context, conversationID uint, use
 			Role:           "user",
 			ChunkIndex:     0,
 			Content:        userMsg.Content,
-			TokenCount:     int(estimateTokens(userMsg.Content)),
+			TokenCount:     int(tokenestimate.Estimate(userMsg.Content)),
 		})
 		texts = append(texts, userMsg.Content)
 	}
@@ -44,7 +46,7 @@ func (s *Service) embedMessagePair(ctx context.Context, conversationID uint, use
 			Role:           "assistant",
 			ChunkIndex:     0,
 			Content:        assistantMsg.Content,
-			TokenCount:     int(estimateTokens(assistantMsg.Content)),
+			TokenCount:     int(tokenestimate.Estimate(assistantMsg.Content)),
 		})
 		texts = append(texts, assistantMsg.Content)
 	}
@@ -71,20 +73,16 @@ func (s *Service) embedMessagePair(ctx context.Context, conversationID uint, use
 	}
 }
 
-func reasoningPayload(delta *llm.ReasoningDelta) map[string]interface{} {
+func reasoningPayload(delta *llm.ReasoningDelta) *tracePayload {
 	if delta == nil {
 		return nil
 	}
-	payload := map[string]interface{}{
-		"event_type": delta.EventType,
-		"item_id":    delta.ItemID,
-		"status":     delta.Status,
-	}
+	payload := &tracePayload{Reasoning: &traceReasoning{EventType: delta.EventType, ItemID: delta.ItemID, Status: delta.Status}}
 	if strings.TrimSpace(delta.Signature) != "" {
-		payload["signature"] = strings.TrimSpace(delta.Signature)
+		payload.Reasoning.Signature = strings.TrimSpace(delta.Signature)
 	}
 	if strings.TrimSpace(delta.EncryptedContent) != "" {
-		payload["encrypted_content"] = strings.TrimSpace(delta.EncryptedContent)
+		payload.Reasoning.EncryptedContent = strings.TrimSpace(delta.EncryptedContent)
 	}
 	return payload
 }
@@ -181,7 +179,23 @@ func (s *Service) callCompactLLM(ctx context.Context, platformModelName string, 
 	}
 	text := strings.TrimSpace(out.Text)
 	if hasBillingContext {
-		if err = s.recordBasicServiceUsage(ctx, authorization, billingCtx.UserID, billingCtx.ConversationID, "compact", "上下文压缩", route.PlatformModelName, route.BindingCode, route.Protocol, route.UpstreamName, route.UpstreamModel, "5m", out.Usage, generateInput.Messages, text, time.Since(startedAt).Milliseconds()); err != nil {
+		if err = s.recordBasicServiceUsage(ctx, basicServiceUsageInput{
+			Authorization:     authorization,
+			UserID:            billingCtx.UserID,
+			ConversationID:    billingCtx.ConversationID,
+			ServiceCode:       "compact",
+			ServiceName:       "上下文压缩",
+			PlatformModelName: route.PlatformModelName,
+			RoutedBindingCode: route.BindingCode,
+			ProviderProtocol:  route.Protocol,
+			UpstreamName:      route.UpstreamName,
+			UpstreamModelName: route.UpstreamModel,
+			CacheTimeout:      "5m",
+			Usage:             out.Usage,
+			FallbackMessages:  generateInput.Messages,
+			FallbackOutput:    text,
+			LatencyMS:         time.Since(startedAt).Milliseconds(),
+		}); err != nil {
 			return "", fmt.Errorf("compact usage settlement: %w", err)
 		}
 	}
@@ -212,67 +226,70 @@ func (s *Service) releaseBasicServiceUsageAuthorization(ctx context.Context, aut
 	return s.billingSvc.ReleaseUsageAuthorization(ctx, authorization)
 }
 
-func (s *Service) recordBasicServiceUsage(
-	ctx context.Context,
-	authorization *domainbilling.UsageAuthorization,
-	userID uint,
-	conversationID uint,
-	serviceCode string,
-	serviceName string,
-	platformModelName string,
-	routedBindingCode string,
-	providerProtocol string,
-	upstreamName string,
-	upstreamModelName string,
-	cacheTimeout string,
-	usage llm.Usage,
-	fallbackMessages []llm.Message,
-	fallbackOutput string,
-	latencyMS int64,
-) error {
-	if s.billingSvc == nil || userID == 0 || conversationID == 0 || strings.TrimSpace(platformModelName) == "" {
+type basicServiceUsageInput struct {
+	Authorization     *domainbilling.UsageAuthorization
+	UserID            uint
+	ConversationID    uint
+	ServiceCode       string
+	ServiceName       string
+	PlatformModelName string
+	RoutedBindingCode string
+	ProviderProtocol  string
+	UpstreamName      string
+	UpstreamModelName string
+	CacheTimeout      string
+	Usage             llm.Usage
+	FallbackMessages  []llm.Message
+	FallbackOutput    string
+	LatencyMS         int64
+}
+
+func (s *Service) recordBasicServiceUsage(ctx context.Context, input basicServiceUsageInput) error {
+	if s.billingSvc == nil || input.UserID == 0 || input.ConversationID == 0 || strings.TrimSpace(input.PlatformModelName) == "" {
 		return nil
 	}
-	billingCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	billingCtx, cancel := background.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	inputTokens := usage.InputTokens
-	if inputTokens <= 0 {
-		inputTokens = estimatePromptTokens(fallbackMessages)
+	// 基础服务常与主对话共享系统前缀，提示词全部命中缓存时非缓存输入为 0 是合法观测值，
+	// 只有上游完全没上报输入侧用量才用预估补齐。
+	inputTokens := input.Usage.InputTokens
+	if !input.Usage.HasObservedInput() {
+		inputTokens = estimatePromptTokens(input.FallbackMessages)
 	}
-	outputTokens := usage.OutputTokens
+	outputTokens := input.Usage.OutputTokens
 	if outputTokens <= 0 {
-		outputTokens = estimateTokens(fallbackOutput)
+		outputTokens = tokenestimate.Estimate(input.FallbackOutput)
 	}
 	item := appbilling.ServiceUsageInput{
-		ServiceCode:        strings.TrimSpace(serviceCode),
-		ServiceName:        strings.TrimSpace(serviceName),
-		PlatformModelName:  strings.TrimSpace(platformModelName),
-		UpstreamModelName:  strings.TrimSpace(upstreamModelName),
-		ProviderProtocol:   strings.TrimSpace(providerProtocol),
-		CacheTimeout:       cacheTimeout,
-		UsageSpeed:         strings.TrimSpace(usage.Speed),
-		UsageServiceTier:   strings.TrimSpace(usage.ServiceTier),
+		ServiceCode:        strings.TrimSpace(input.ServiceCode),
+		ServiceName:        strings.TrimSpace(input.ServiceName),
+		PlatformModelName:  strings.TrimSpace(input.PlatformModelName),
+		UpstreamModelName:  strings.TrimSpace(input.UpstreamModelName),
+		ProviderProtocol:   strings.TrimSpace(input.ProviderProtocol),
+		CacheTimeout:       input.CacheTimeout,
+		UsageSpeed:         strings.TrimSpace(input.Usage.Speed),
+		UsageServiceTier:   strings.TrimSpace(input.Usage.ServiceTier),
 		InputTokens:        inputTokens,
-		CacheReadTokens:    usage.CacheReadTokens,
-		CacheWriteTokens:   usage.CacheWriteTokens,
-		CacheWrite5mTokens: usage.CacheWrite5mTokens,
-		CacheWrite1hTokens: usage.CacheWrite1hTokens,
+		CacheReadTokens:    input.Usage.CacheReadTokens,
+		CacheWriteTokens:   input.Usage.CacheWriteTokens,
+		CacheWrite5mTokens: input.Usage.CacheWrite5mTokens,
+		CacheWrite1hTokens: input.Usage.CacheWrite1hTokens,
 		OutputTokens:       outputTokens,
-		ReasoningTokens:    usage.ReasoningTokens,
+		ReasoningTokens:    input.Usage.ReasoningTokens,
 		CallCount:          1,
 	}
 	pricingInput := appbilling.UsagePricingInput{
-		Authorization:      authorization,
-		UserID:             userID,
-		ConversationID:     conversationID,
+		Authorization:      input.Authorization,
+		UserID:             input.UserID,
+		ConversationID:     input.ConversationID,
 		PlatformModelName:  item.PlatformModelName,
-		RoutedBindingCode:  strings.TrimSpace(routedBindingCode),
+		RoutedBindingCode:  strings.TrimSpace(input.RoutedBindingCode),
 		ProviderProtocol:   item.ProviderProtocol,
-		UpstreamName:       strings.TrimSpace(upstreamName),
-		UpstreamModelName:  strings.TrimSpace(upstreamModelName),
+		UpstreamName:       strings.TrimSpace(input.UpstreamName),
+		UpstreamModelName:  strings.TrimSpace(input.UpstreamModelName),
 		CacheTimeout:       item.CacheTimeout,
-		UsageSpeed:         strings.TrimSpace(usage.Speed),
-		UsageServiceTier:   strings.TrimSpace(usage.ServiceTier),
+		UsageSpeed:         strings.TrimSpace(input.Usage.Speed),
+		UsageServiceTier:   strings.TrimSpace(input.Usage.ServiceTier),
 		ServiceOnly:        true,
 		InputTokens:        item.InputTokens,
 		CacheReadTokens:    item.CacheReadTokens,
@@ -282,9 +299,9 @@ func (s *Service) recordBasicServiceUsage(
 		OutputTokens:       item.OutputTokens,
 		ReasoningTokens:    item.ReasoningTokens,
 		CallCount:          item.CallCount,
-		LatencyMS:          latencyMS,
+		LatencyMS:          input.LatencyMS,
 		ServiceItems:       []appbilling.ServiceUsageInput{item},
-		RawUsageJSON:       usage.RawUsageJSON,
+		RawUsageJSON:       input.Usage.RawUsageJSON,
 	}
 	var ledger *domainbilling.UsageLedger
 	err := retryUsageBillingOperation(billingCtx, func() error {
@@ -293,11 +310,11 @@ func (s *Service) recordBasicServiceUsage(
 		return buildErr
 	})
 	if err != nil {
-		err = s.markUsageAuthorizationForReconciliation(billingCtx, authorization, "basic_build_usage_failed", err)
+		err = s.markUsageAuthorizationForReconciliation(billingCtx, input.Authorization, "basic_build_usage_failed", err)
 		if s.logger != nil {
 			s.logger.Warn("basic_service_usage_build_failed",
-				zap.Uint("user_id", userID),
-				zap.Uint("conversation_id", conversationID),
+				zap.Uint("user_id", input.UserID),
+				zap.Uint("conversation_id", input.ConversationID),
 				zap.String("service", item.ServiceCode),
 				zap.String("model", item.PlatformModelName),
 				zap.Error(err),
@@ -305,12 +322,12 @@ func (s *Service) recordBasicServiceUsage(
 		}
 		return err
 	}
-	if err := s.recordUsageWithRetry(billingCtx, ledger, authorization); err != nil {
-		err = s.markUsageAuthorizationForReconciliation(billingCtx, authorization, "basic_settle_usage_failed", err)
+	if err := s.recordUsageWithRetry(billingCtx, ledger, input.Authorization); err != nil {
+		err = s.markUsageAuthorizationForReconciliation(billingCtx, input.Authorization, "basic_settle_usage_failed", err)
 		if s.logger != nil {
 			s.logger.Warn("basic_service_usage_record_failed",
-				zap.Uint("user_id", userID),
-				zap.Uint("conversation_id", conversationID),
+				zap.Uint("user_id", input.UserID),
+				zap.Uint("conversation_id", input.ConversationID),
 				zap.String("service", item.ServiceCode),
 				zap.String("model", item.PlatformModelName),
 				zap.Error(err),

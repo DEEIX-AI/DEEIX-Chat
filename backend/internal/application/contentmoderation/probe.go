@@ -3,8 +3,12 @@ package contentmoderation
 import (
 	"context"
 	"encoding/base64"
+	"errors"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 // ProbeResult is the super-admin probe response for one modality.
@@ -47,12 +51,13 @@ func (s *Service) Probe(ctx context.Context, actorRole string) (*ProbeResponse, 
 		resp, err := s.provider.ModerateText(ctx, providerConfig, "hello", nil, ModalityText)
 		out.Text.Latency = time.Since(started).Milliseconds()
 		if err != nil {
-			out.Text.Error = err.Error()
+			s.logWarn("content_moderation_probe_failed", zap.String("modality", ModalityText), zap.Error(err))
+			out.Text.Error = probeErrorMessage(err)
 		} else if resp == nil || len(resp.Results) == 0 || resp.Results[0].Categories == nil {
-			out.Text.Error = ErrModerationInvalidResp.Error()
+			out.Text.Error = probeErrorMessage(ErrModerationInvalidResp)
 		} else {
 			out.Text.Valid = true
-			out.Text.Model = firstNonEmpty(resp.Model, cfg.Model)
+			out.Text.Model = textutil.FirstNonEmpty(resp.Model, cfg.Model)
 		}
 	}
 
@@ -62,24 +67,23 @@ func (s *Service) Probe(ctx context.Context, actorRole string) (*ProbeResponse, 
 		resp, err := s.provider.ModerateImages(ctx, providerConfig, []ProviderImage{{Data: probePNG, MimeType: "image/png"}}, nil, ModalityImage)
 		out.Image.Latency = time.Since(started).Milliseconds()
 		if err != nil {
-			out.Image.Error = err.Error()
+			s.logWarn("content_moderation_probe_failed", zap.String("modality", ModalityImage), zap.Error(err))
+			out.Image.Error = probeErrorMessage(err)
 		} else if resp == nil || len(resp.Results) == 0 || resp.Results[0].Categories == nil {
-			out.Image.Error = ErrModerationInvalidResp.Error()
+			out.Image.Error = probeErrorMessage(ErrModerationInvalidResp)
 		} else {
 			// Official Omni responses include category_applied_input_types; require image proof.
 			applied := resp.Results[0].CategoryAppliedInputTypes
 			foundImage := false
-			if applied != nil {
-				for _, types := range applied {
-					for _, t := range types {
-						if strings.EqualFold(strings.TrimSpace(t), "image") {
-							foundImage = true
-							break
-						}
-					}
-					if foundImage {
+			for _, types := range applied {
+				for _, t := range types {
+					if strings.EqualFold(strings.TrimSpace(t), "image") {
+						foundImage = true
 						break
 					}
+				}
+				if foundImage {
+					break
 				}
 			}
 			if !foundImage {
@@ -87,9 +91,26 @@ func (s *Service) Probe(ctx context.Context, actorRole string) (*ProbeResponse, 
 				out.Image.Error = "moderation response missing image category_applied_input_types"
 			} else {
 				out.Image.Valid = true
-				out.Image.Model = firstNonEmpty(resp.Model, cfg.Model)
+				out.Image.Model = textutil.FirstNonEmpty(resp.Model, cfg.Model)
 			}
 		}
 	}
 	return out, nil
+}
+
+func probeErrorMessage(err error) string {
+	switch {
+	case errors.Is(err, ErrModerationTimeout):
+		return ErrModerationTimeout.Error()
+	case errors.Is(err, ErrModerationRateLimited):
+		return ErrModerationRateLimited.Error()
+	case errors.Is(err, ErrModerationInvalidResp):
+		return ErrModerationInvalidResp.Error()
+	case errors.Is(err, ErrModerationNetwork):
+		return ErrModerationNetwork.Error()
+	case errors.Is(err, ErrModerationService):
+		return ErrModerationService.Error()
+	default:
+		return ErrProbeFailed.Error()
+	}
 }

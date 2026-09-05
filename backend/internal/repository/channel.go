@@ -463,7 +463,8 @@ type ChannelRepository interface {
 	GetUpstreamModelByID(ctx context.Context, sourceID uint, upstreamID uint) (*domainchannel.UpstreamModel, error)
 	GetUpstreamModelByUpstreamName(ctx context.Context, upstreamID uint, upstreamModelName string) (*domainchannel.UpstreamModel, error)
 	DeleteUpstreamModel(ctx context.Context, sourceID uint, upstreamID uint) error
-	MarkMissingSyncedUpstreamModelsInactive(ctx context.Context, upstreamID uint, activeNames []string) (int64, error)
+	ListManagedUpstreamModels(ctx context.Context, upstreamID uint) ([]domainchannel.UpstreamModel, error)
+	ApplyUpstreamModelCatalogChanges(ctx context.Context, upstreamID uint, input ApplyUpstreamModelCatalogChangesInput) (int64, error)
 	ListUpstreamModels(ctx context.Context, upstreamID uint, input ListChannelUpstreamModelsInput) ([]ChannelUpstreamModelListRow, int64, error)
 	ListUpstreamModelsByNames(ctx context.Context, upstreamID uint, upstreamModelNames []string) ([]ChannelUpstreamModelListRow, error)
 	GetUpstreamModelRouteByID(ctx context.Context, upstreamID uint, routeID uint) (*ChannelUpstreamModelListRow, error)
@@ -490,4 +491,11 @@ type ChannelRepository interface {
 	GetRateLimitDefaults(ctx context.Context) (domainchannel.RateLimitDefaults, error)
 	DeleteUpstreamCascade(ctx context.Context, upstreamID uint) error
 	DeleteModelCascade(ctx context.Context, modelID uint) error
+}
+
+// ApplyUpstreamModelCatalogChangesInput 描述一次远端目录对账需要持久化的批量变更。
+type ApplyUpstreamModelCatalogChangesInput struct {
+	Create        []domainchannel.UpstreamModel
+	Update        []domainchannel.UpstreamModel
+	InactivateIDs []uint
 }

@@ -36,6 +36,7 @@ export function useChatMCPTools({
   const [availableTools, setAvailableTools] = React.useState<MCPToolDTO[]>([]);
   const [toolsLoading, setToolsLoading] = React.useState(true);
   const [defaultToolIDs, setDefaultToolIDs] = React.useState<number[]>([]);
+  const [defaultToolsReady, setDefaultToolsReady] = React.useState(false);
 
   React.useEffect(() => {
     if (toolsLoading) {
@@ -103,7 +104,8 @@ export function useChatMCPTools({
   }, [mcpMaxSelectedTools, setSelectedToolIDs]);
 
   React.useEffect(() => {
-    if (!userSettingsLoaded) {
+    if (!userSettingsLoaded || toolsLoading) {
+      setDefaultToolsReady(false);
       return;
     }
     setDefaultToolIDs(normalizeImageAttachmentProcessorSelection(
@@ -114,7 +116,8 @@ export function useChatMCPTools({
       ),
       availableTools,
     ));
-  }, [availableTools, mcpMaxSelectedTools, userSettings, userSettingsLoaded]);
+    setDefaultToolsReady(true);
+  }, [availableTools, mcpMaxSelectedTools, toolsLoading, userSettings, userSettingsLoaded]);
 
   const onDefaultToolIDsChange = React.useCallback(async (nextToolIDs: number[]) => {
     const nextDefaults = filterAvailableMCPToolIDs(nextToolIDs, availableTools, mcpMaxSelectedTools);
@@ -147,6 +150,7 @@ export function useChatMCPTools({
     availableTools,
     toolsLoading,
     defaultToolIDs,
+    defaultToolsReady,
     onDefaultToolIDsChange,
   };
 }

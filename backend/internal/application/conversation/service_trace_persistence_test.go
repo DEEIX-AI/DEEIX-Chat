@@ -14,15 +14,18 @@ import (
 type orderedTraceRepository struct {
 	repository.ConversationRepository
 
-	mu           sync.Mutex
-	traceRows    []model.MessageTrace
-	eventRows    []model.MessageTraceEventRow
-	firstStarted chan struct{}
-	releaseFirst chan struct{}
-	startOnce    sync.Once
+	mu               sync.Mutex
+	traceRows        []model.MessageTrace
+	eventRows        []model.MessageTraceEventRow
+	traceContextTags []string
+	firstStarted     chan struct{}
+	releaseFirst     chan struct{}
+	startOnce        sync.Once
 }
 
-func (r *orderedTraceRepository) UpsertConversationMessageTrace(_ context.Context, item *model.MessageTrace) error {
+type tracePersistenceContextKey struct{}
+
+func (r *orderedTraceRepository) UpsertConversationMessageTrace(ctx context.Context, item *model.MessageTrace) error {
 	r.startOnce.Do(func() {
 		close(r.firstStarted)
 		<-r.releaseFirst
@@ -30,6 +33,8 @@ func (r *orderedTraceRepository) UpsertConversationMessageTrace(_ context.Contex
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.traceRows = append(r.traceRows, *item)
+	contextTag, _ := ctx.Value(tracePersistenceContextKey{}).(string)
+	r.traceContextTags = append(r.traceContextTags, contextTag)
 	return nil
 }
 
@@ -51,12 +56,12 @@ func TestTerminalTracePersistencePreservesReconciliationOrder(t *testing.T) {
 			ProcessTraceVisibleToUser:      true,
 			ProcessTraceStoreUpstreamThink: true,
 		},
-		ctx:       context.Background(),
+		ctx:       context.WithValue(context.Background(), tracePersistenceContextKey{}, "queued"),
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_ordered_trace"},
 		service:   &Service{repo: repo},
 	}
 
-	payload := map[string]interface{}{"item_id": "reasoning_1", "status": "in_progress"}
+	payload := &tracePayload{Reasoning: &traceReasoning{ItemID: "reasoning_1", Status: "in_progress"}}
 	recorder.appendUpstreamReasoning(messageTraceThinkKindContent, "stream snapshot", payload)
 	recorder.completeUpstreamThink()
 
@@ -69,8 +74,9 @@ func TestTerminalTracePersistencePreservesReconciliationOrder(t *testing.T) {
 	recorder.reconcileStructuredThink(
 		"final snapshot",
 		"",
-		map[string]interface{}{"item_id": "reasoning_1", "status": "completed"},
+		&tracePayload{Reasoning: &traceReasoning{ItemID: "reasoning_1", Status: "completed"}},
 	)
+	recorder.ctx = context.WithValue(context.Background(), tracePersistenceContextKey{}, "replacement")
 	close(repo.releaseFirst)
 
 	waitCtx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -93,5 +99,8 @@ func TestTerminalTracePersistencePreservesReconciliationOrder(t *testing.T) {
 	}
 	if got := repo.eventRows[1].ContentMarkdown; got != "final snapshot" {
 		t.Fatalf("last persisted event = %q, want final snapshot", got)
+	}
+	if len(repo.traceContextTags) != 2 || repo.traceContextTags[0] != "queued" || repo.traceContextTags[1] != "queued" {
+		t.Fatalf("terminal trace jobs did not retain their enqueue context: %#v", repo.traceContextTags)
 	}
 }

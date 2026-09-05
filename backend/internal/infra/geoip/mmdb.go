@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"io"
 	"net"
 	"net/http"
@@ -322,7 +323,7 @@ func (r mmdbRecord) auditContext() requestmeta.SessionAuditContext {
 	return requestmeta.SessionAuditContext{
 		GeoSource:    "geoip_mmdb",
 		GeoAccuracy:  "ip",
-		CountryCode:  firstNonEmpty(r.Country.ISOCode, r.RegisteredCountry.ISOCode),
+		CountryCode:  textutil.FirstNonEmpty(r.Country.ISOCode, r.RegisteredCountry.ISOCode),
 		RegionName:   firstSubdivisionName(r.Subdivisions),
 		CityName:     localizedName(r.City.Names),
 		TimezoneName: r.Location.TimeZone,
@@ -338,7 +339,7 @@ func firstSubdivisionName(subdivisions []struct {
 	if len(subdivisions) == 0 {
 		return ""
 	}
-	return firstNonEmpty(localizedName(subdivisions[0].Names), subdivisions[0].ISOCode)
+	return textutil.FirstNonEmpty(localizedName(subdivisions[0].Names), subdivisions[0].ISOCode)
 }
 
 func localizedName(names map[string]string) string {
@@ -349,15 +350,6 @@ func localizedName(names map[string]string) string {
 	}
 	for _, name := range names {
 		if trimmed := strings.TrimSpace(name); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
 			return trimmed
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"go.uber.org/zap"
 )
 
@@ -15,13 +16,13 @@ type openAIResponsesBackgroundRecoveryState struct {
 	ObservedUsage llm.Usage
 }
 
-func (s *Service) recoverOpenAIResponsesBackgroundUsage(route llm.RouteConfig, state openAIResponsesBackgroundRecoveryState) (llm.Usage, bool) {
+func (s *Service) recoverOpenAIResponsesBackgroundUsage(parent context.Context, route llm.RouteConfig, state openAIResponsesBackgroundRecoveryState) (llm.Usage, bool) {
 	responseID := strings.TrimSpace(state.ResponseID)
 	if s == nil || s.llmClient == nil || !state.Enabled || responseID == "" {
 		return llm.Usage{}, false
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	ctx, cancel := background.WithTimeout(parent, 8*time.Second)
 	defer cancel()
 
 	var cancelErr error

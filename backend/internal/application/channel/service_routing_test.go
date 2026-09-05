@@ -26,6 +26,21 @@ type routeResolutionRepositoryStub struct {
 	breakerLoads    int
 }
 
+func TestLocalAPIKeyCounterIsScopedToService(t *testing.T) {
+	first := &Service{}
+	second := &Service{}
+
+	if index := first.nextLocalAPIKeyIndex(7); index != 0 {
+		t.Fatalf("first index = %d, want 0", index)
+	}
+	if index := first.nextLocalAPIKeyIndex(7); index != 1 {
+		t.Fatalf("second index = %d, want 1", index)
+	}
+	if index := second.nextLocalAPIKeyIndex(7); index != 0 {
+		t.Fatalf("independent service index = %d, want 0", index)
+	}
+}
+
 func (r *routeResolutionRepositoryStub) GetActiveModelByName(context.Context, string) (*domainchannel.PlatformModel, error) {
 	model := r.model
 	return &model, nil
@@ -73,7 +88,9 @@ func TestLoadBreakerDefaultsUsesShortLivedCache(t *testing.T) {
 	repo := &routeResolutionRepositoryStub{breakerDefaults: domainchannel.BreakerDefaults{Enabled: true}}
 	service := &Service{repo: repo}
 
-	if !service.loadBreakerDefaults(t.Context()).Enabled || !service.loadBreakerDefaults(t.Context()).Enabled {
+	first := service.loadBreakerDefaults(t.Context())
+	second := service.loadBreakerDefaults(t.Context())
+	if !first.Enabled || !second.Enabled {
 		t.Fatal("expected enabled breaker defaults")
 	}
 	if repo.breakerLoads != 1 {
@@ -137,7 +154,7 @@ func TestResolveRouteExcludesPreviouslyAttemptedRoutes(t *testing.T) {
 			},
 		},
 	}
-	service := NewService(
+	service := newTestService(
 		config.Config{DataEncryptionKey: encryptionKey},
 		repo,
 		nil,
@@ -179,7 +196,7 @@ func TestResolveRouteIgnoresCircuitStateWhenBreakerDisabled(t *testing.T) {
 	if err := cache.OpenUpstreamCircuit(t.Context(), 201); err != nil {
 		t.Fatalf("OpenUpstreamCircuit() error = %v", err)
 	}
-	service := NewService(config.Config{DataEncryptionKey: encryptionKey}, repo, nil, cache, nil)
+	service := newTestService(config.Config{DataEncryptionKey: encryptionKey}, repo, nil, cache, nil)
 
 	route, err := service.ResolveRoute(t.Context(), ResolveRouteInput{PlatformModelName: "test-model", TaskType: TaskTypeChat})
 	if err != nil {
@@ -209,7 +226,7 @@ func TestResolveRouteHonorsCircuitStateWhenBreakerEnabled(t *testing.T) {
 	if err := cache.OpenUpstreamCircuit(t.Context(), 201); err != nil {
 		t.Fatalf("OpenUpstreamCircuit() error = %v", err)
 	}
-	service := NewService(config.Config{DataEncryptionKey: encryptionKey}, repo, nil, cache, nil)
+	service := newTestService(config.Config{DataEncryptionKey: encryptionKey}, repo, nil, cache, nil)
 
 	if _, err := service.ResolveRoute(t.Context(), ResolveRouteInput{PlatformModelName: "test-model", TaskType: TaskTypeChat}); !errors.Is(err, ErrAllRoutesUnavailable) {
 		t.Fatalf("ResolveRoute() error = %v, want ErrAllRoutesUnavailable", err)
@@ -238,7 +255,7 @@ func TestRateLimitBackoffOnlySkipsFailedRouteAndReportsCooldown(t *testing.T) {
 		},
 	}
 	cache := memory.NewChannelCache(memory.New())
-	service := NewService(config.Config{DataEncryptionKey: encryptionKey}, repo, nil, cache, nil)
+	service := newTestService(config.Config{DataEncryptionKey: encryptionKey}, repo, nil, cache, nil)
 
 	first, err := service.ResolveRoute(t.Context(), ResolveRouteInput{PlatformModelName: "test-model", TaskType: TaskTypeChat})
 	if err != nil || first.RouteID != 1 {

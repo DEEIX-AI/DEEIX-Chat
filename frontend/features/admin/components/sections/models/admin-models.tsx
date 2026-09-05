@@ -590,11 +590,13 @@ export function AdminModelsPage() {
         <ModelsTable
           items={models.filteredItems}
           loading={models.loading}
+          batchApplying={models.batchApplying}
           circuitBreakerEnabled={circuitBreaker.enabled}
           selectedModelIDs={models.selectedModelIDs}
           onSelectedModelIDsChange={models.setSelectedModelIDs}
           onEdit={models.setEditTarget}
           onViewSources={models.setSourcesModel}
+          pendingModelIDs={models.pendingModelIDs}
           onToggleStatus={(item, status) => void models.handleToggleStatus(item, status)}
           onToggleAccessScope={(item, scope) => void models.handleToggleAccessScope(item, scope)}
           onDelete={models.setDeleteTarget}

@@ -3,17 +3,25 @@ package conversation
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	models "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/toolresult"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-const forkDisplayTraceCreateBatchSize = 200
+const forkEventCreateBatchSize = 200
+
+type forkToolOutputKey struct {
+	runID      string
+	toolCallID string
+}
 
 // CreateForkedConversation 在一个事务内创建 fork 会话、重建消息父链，并复制仍有效的附件引用与历史展示轨迹。
 func (r *Repo) CreateForkedConversation(ctx context.Context, input repository.CreateForkedConversationInput) error {
@@ -96,7 +104,7 @@ func (r *Repo) CreateForkedConversation(ctx context.Context, input repository.Cr
 		return cloneForkedDisplayTraces(tx, target.UserID, input.SourceConversationID, createdConversation.ID, targetMessageIDs)
 	})
 	if err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 
 	*input.Conversation = toConversationDomain(createdConversation)
@@ -122,7 +130,7 @@ func cloneForkedDisplayTraces(
 			sourceConversationID,
 			userID,
 			sourceMessageIDs,
-			[]string{chatRunEventScopeTraceBlock, chatRunEventScopeTraceEvent},
+			[]string{chatRunEventScopeTraceBlock, chatRunEventScopeTraceEvent, chatRunEventScopeToolCall},
 		).
 		Order("message_id ASC, seq ASC, id ASC").
 		Find(&sourceEvents).Error; err != nil {
@@ -132,11 +140,23 @@ func cloneForkedDisplayTraces(
 		return nil
 	}
 
+	toolOutputs := make(map[forkToolOutputKey]string)
+	for _, source := range sourceEvents {
+		if source.EventScope == chatRunEventScopeToolCall && strings.TrimSpace(source.ToolCallID) != "" {
+			toolOutputs[forkToolOutputKey{runID: source.RunID, toolCallID: source.ToolCallID}] = source.OutputJSON
+		}
+	}
+
 	targetEvents := make([]models.ChatRunEvent, 0, len(sourceEvents))
 	for _, source := range sourceEvents {
 		targetMessageID, exists := targetMessageIDs[source.MessageID]
 		if !exists {
 			return repository.ErrInvalidInput
+		}
+		targetRunID := forkedEventRunID(targetMessageID, source.RunID)
+		payloadJSON := source.PayloadJSON
+		if source.EventScope != chatRunEventScopeToolCall {
+			payloadJSON = enrichForkedToolTracePayload(source.PayloadJSON, source.RunID, targetRunID, toolOutputs)
 		}
 		targetEvents = append(targetEvents, models.ChatRunEvent{
 			BaseModel: models.BaseModel{
@@ -146,7 +166,7 @@ func cloneForkedDisplayTraces(
 			MessageID:       targetMessageID,
 			ConversationID:  targetConversationID,
 			UserID:          userID,
-			RunID:           forkedDisplayTraceRunID(targetMessageID, source.RunID),
+			RunID:           targetRunID,
 			EventScope:      source.EventScope,
 			EventID:         source.EventID,
 			EventType:       source.EventType,
@@ -158,10 +178,12 @@ func cloneForkedDisplayTraces(
 			Title:           source.Title,
 			Summary:         source.Summary,
 			ContentMarkdown: source.ContentMarkdown,
-			PayloadJSON:     source.PayloadJSON,
+			PayloadJSON:     payloadJSON,
 			Seq:             source.Seq,
 			ToolCallID:      source.ToolCallID,
 			ToolName:        source.ToolName,
+			MCPServerID:     source.MCPServerID,
+			MCPServerName:   source.MCPServerName,
 			LatencyMS:       source.LatencyMS,
 			InputJSON:       source.InputJSON,
 			OutputJSON:      source.OutputJSON,
@@ -170,10 +192,70 @@ func cloneForkedDisplayTraces(
 			EndedAt:         source.EndedAt,
 		})
 	}
-	return tx.CreateInBatches(&targetEvents, forkDisplayTraceCreateBatchSize).Error
+	return tx.CreateInBatches(&targetEvents, forkEventCreateBatchSize).Error
 }
 
-func forkedDisplayTraceRunID(targetMessageID uint, sourceRunID string) string {
+func enrichForkedToolTracePayload(
+	payloadJSON string,
+	sourceRunID string,
+	targetRunID string,
+	toolOutputs map[forkToolOutputKey]string,
+) string {
+	var payload map[string]any
+	if json.Unmarshal([]byte(payloadJSON), &payload) != nil {
+		return payloadJSON
+	}
+	calls, ok := payload["tool_calls"].([]any)
+	if !ok {
+		return payloadJSON
+	}
+	changed := false
+	for _, item := range calls {
+		call, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		toolCallID := forkToolCallID(call)
+		output, hasDetail := toolOutputs[forkToolOutputKey{runID: sourceRunID, toolCallID: toolCallID}]
+		if hasDetail {
+			if detailRunID := strings.TrimSpace(targetRunID); detailRunID != "" && call["detail_run_id"] != detailRunID {
+				call["detail_run_id"] = detailRunID
+				changed = true
+			}
+		} else if _, exists := call["detail_run_id"]; exists {
+			delete(call, "detail_run_id")
+			changed = true
+		}
+		if call["output_presentation"] != nil {
+			continue
+		}
+		presentation := toolresult.BuildPresentation(output)
+		if presentation == nil {
+			continue
+		}
+		call["output_presentation"] = presentation
+		changed = true
+	}
+	if !changed {
+		return payloadJSON
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return payloadJSON
+	}
+	return string(encoded)
+}
+
+func forkToolCallID(call map[string]any) string {
+	for _, key := range []string{"tool_call_id", "id", "call_id"} {
+		if value, ok := call[key].(string); ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func forkedEventRunID(targetMessageID uint, sourceRunID string) string {
 	sourceRunHash := sha256.Sum256([]byte(sourceRunID))
 	return fmt.Sprintf("fork_trace_%d_%x", targetMessageID, sourceRunHash[:8])
 }

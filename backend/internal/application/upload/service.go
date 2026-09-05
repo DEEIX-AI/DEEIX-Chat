@@ -1,7 +1,6 @@
 package upload
 
 import (
-	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -21,23 +20,18 @@ import (
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/conv"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/filetype"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
 var errLocalFileTooLarge = errors.New("local file too large")
 
-// FileCapability 描述上传服务可见的文档能力边界。
-type FileCapability struct {
-	RAGAvailable         bool
-	EffectiveDocMaxBytes int64
-}
-
 // Hooks 封装上传后续编排动作。
 type Hooks struct {
-	ResolveCapability      func(ctx context.Context) FileCapability
 	InitializeUploadedFile func(ctx context.Context, file *domainconversation.FileObject) error
 }
 
@@ -50,7 +44,6 @@ type ErrorSet struct {
 	StorageQuotaExceeded error
 	FileTooLarge         error
 	MIMEBlocked          error
-	EmbeddingUnavailable error
 	DangerousMIMEType    error
 }
 
@@ -114,6 +107,26 @@ type ListFilesResult struct {
 	Quota domainconversation.StorageQuota
 }
 
+// ListFilesInput 定义用户文件列表的分页、筛选与排序条件。
+type ListFilesInput struct {
+	UserID      uint
+	Page        int
+	PageSize    int
+	SearchQuery string
+	FilterKind  string
+	SortBy      string
+}
+
+type saveUploadedFileInput struct {
+	Store          objectstore.Store
+	Reader         io.Reader
+	UserPublicID   string
+	FileID         string
+	FileName       string
+	MaxUploadBytes int64
+	DeclaredMIME   string
+}
+
 // FileContentResult 定义文件内容读取结果。
 type FileContentResult struct {
 	File        domainconversation.FileObject
@@ -121,11 +134,6 @@ type FileContentResult struct {
 	ContentType string
 	SizeBytes   int64
 	ModTime     time.Time
-}
-
-// NewService 创建上传服务。
-func NewService(cfg config.Config, repo repository.UploadRepository, logger *zap.Logger, hooks Hooks, errors ErrorSet, extractorVersion string) *Service {
-	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, logger, hooks, errors, extractorVersion)
 }
 
 // NewServiceWithRuntime 创建使用运行时配置容器的上传服务。
@@ -137,7 +145,6 @@ func NewServiceWithRuntime(cfg *config.Runtime, repo repository.UploadRepository
 		hooks:            hooks,
 		errors:           errors,
 		extractorVersion: strings.TrimSpace(extractorVersion),
-		storeProvider:    appstorage.NewRuntimeProvider(cfg, nil),
 		uploadGates:      make(map[string]*uploadContentGate),
 	}
 }
@@ -150,40 +157,37 @@ func (s *Service) SetObjectStoreProvider(provider appstorage.Provider) {
 }
 
 func (s *Service) openObjectStore(ctx context.Context) (objectstore.Store, error) {
-	if s.storeProvider == nil {
-		s.storeProvider = appstorage.NewRuntimeProvider(s.cfg, nil)
+	if s == nil || s.storeProvider == nil {
+		return nil, appstorage.ErrProviderNotConfigured
 	}
 	return s.storeProvider.Open(ctx)
 }
 
 const (
-	defaultPageSize            = 20
-	maxPageSize                = 1000
 	embeddingTimeoutStaleAfter = 6 * time.Minute
 )
 
 // ListFiles 分页查询用户文件。
-func (s *Service) ListFiles(
-	ctx context.Context,
-	userID uint,
-	page int,
-	pageSize int,
-	searchQuery string,
-	filterKind string,
-	sortBy string,
-) (*ListFilesResult, error) {
-	offset, limit := normalizePage(page, pageSize)
+func (s *Service) ListFiles(ctx context.Context, input ListFilesInput) (*ListFilesResult, error) {
+	offset, limit := pagination.Offset(input.Page, input.PageSize)
 	_, _ = s.repo.MarkTimedOutFileEmbeddingsFailed(
 		ctx,
-		userID,
+		input.UserID,
 		time.Now().Add(-embeddingTimeoutStaleAfter),
 		"向量化超时，请检查向量化服务配置后重试",
 	)
-	items, total, err := s.repo.ListFileObjectsByUserWithFilter(ctx, userID, offset, limit, searchQuery, filterKind, sortBy)
+	items, total, err := s.repo.ListFileObjectsByUserWithFilter(ctx, repository.ListFileObjectsInput{
+		UserID:      input.UserID,
+		Offset:      offset,
+		Limit:       limit,
+		SearchQuery: input.SearchQuery,
+		FilterKind:  input.FilterKind,
+		SortBy:      input.SortBy,
+	})
 	if err != nil {
 		return nil, err
 	}
-	quota, err := s.repo.GetOrInitUserStorageQuota(ctx, userID, s.cfg.Snapshot().UserStorageQuotaBytes)
+	quota, err := s.repo.GetOrInitUserStorageQuota(ctx, input.UserID, s.cfg.Snapshot().UserStorageQuotaBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -192,23 +196,6 @@ func (s *Service) ListFiles(
 		Total: total,
 		Quota: *quota,
 	}, nil
-}
-
-func normalizePage(page int, pageSize int) (int, int) {
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = defaultPageSize
-	}
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	offset := (page - 1) * pageSize
-	if offset < 0 {
-		offset = 0
-	}
-	return offset, pageSize
 }
 
 // UploadFile 上传文件并扣减用户配额。
@@ -261,16 +248,15 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (*Uploa
 	if err != nil {
 		return nil, err
 	}
-	relativePath, detectedMIME, shaValue, sizeBytes, err := saveUploadedFile(
-		ctx,
-		store,
-		input.Reader,
-		storageOwner,
-		fileID,
-		normalizedName,
-		maxUploadBytes,
-		normalizedMIME,
-	)
+	relativePath, detectedMIME, shaValue, sizeBytes, err := saveUploadedFile(ctx, saveUploadedFileInput{
+		Store:          store,
+		Reader:         input.Reader,
+		UserPublicID:   storageOwner,
+		FileID:         fileID,
+		FileName:       normalizedName,
+		MaxUploadBytes: maxUploadBytes,
+		DeclaredMIME:   normalizedMIME,
+	})
 	if err != nil {
 		if errors.Is(err, errLocalFileTooLarge) {
 			return nil, s.errFileTooLarge()
@@ -351,7 +337,7 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (*Uploa
 			return nil, err
 		}
 		removeUploadedObject(relativePath)
-		if errors.Is(err, s.errors.StorageQuotaExceeded) {
+		if errors.Is(err, repository.ErrStorageQuotaExceeded) || errors.Is(err, s.errors.StorageQuotaExceeded) {
 			return nil, s.errStorageQuotaExceeded()
 		}
 		return nil, err
@@ -538,6 +524,9 @@ func (s *Service) deleteFile(ctx context.Context, userID uint, fileID string, op
 		if errors.Is(err, repository.ErrConflict) {
 			return nil, false, s.errFileInUse()
 		}
+		if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrFileNotFound) {
+			return nil, false, s.errFileNotFound()
+		}
 		return nil, false, err
 	}
 	if shouldRemovePhysical {
@@ -572,16 +561,24 @@ func (s *Service) RenameFile(ctx context.Context, userID uint, fileID string, fi
 	if normalizedName == "" {
 		return nil, s.errInvalidFileName()
 	}
-	return s.repo.RenameFileObjectByID(ctx, userID, normalizedFileID, normalizedName)
+	item, err := s.repo.RenameFileObjectByID(ctx, userID, normalizedFileID, normalizedName)
+	if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrFileNotFound) {
+		return nil, s.errFileNotFound()
+	}
+	return item, err
 }
 
-// UpdateFileRagOptOut 更新用户文件的 RAG 检索开关。
-func (s *Service) UpdateFileRagOptOut(ctx context.Context, userID uint, fileID string, ragOptOut bool) (*domainconversation.FileObject, error) {
+// UpdateFileRAGOptOut 更新用户文件的 RAG 检索开关。
+func (s *Service) UpdateFileRAGOptOut(ctx context.Context, userID uint, fileID string, ragOptOut bool) (*domainconversation.FileObject, error) {
 	normalizedFileID := strings.TrimSpace(fileID)
 	if normalizedFileID == "" {
 		return nil, s.errInvalidFileReference()
 	}
-	return s.repo.UpdateFileObjectRagOptOut(ctx, userID, normalizedFileID, ragOptOut)
+	item, err := s.repo.UpdateFileObjectRAGOptOut(ctx, userID, normalizedFileID, ragOptOut)
+	if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrFileNotFound) {
+		return nil, s.errFileNotFound()
+	}
+	return item, err
 }
 
 // ValidateImageFile 确认文件属于当前用户且可作为图片头像使用。
@@ -593,6 +590,9 @@ func (s *Service) ValidateImageFile(ctx context.Context, userID uint, fileID str
 
 	item, err := s.repo.GetActiveFileObjectByID(ctx, userID, normalizedFileID)
 	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrFileNotFound) {
+			return s.errFileNotFound()
+		}
 		return err
 	}
 	if item.FileCategory == fileCategoryImage {
@@ -614,6 +614,9 @@ func (s *Service) OpenFileContent(ctx context.Context, userID uint, fileID strin
 
 	item, err := s.repo.GetActiveFileObjectByID(ctx, userID, normalizedFileID)
 	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrFileNotFound) {
+			return nil, s.errFileNotFound()
+		}
 		return nil, err
 	}
 
@@ -689,13 +692,6 @@ func (s *Service) snapshot() config.Config {
 	return s.cfg.Snapshot()
 }
 
-func (s *Service) resolveCapability(ctx context.Context) FileCapability {
-	if s == nil || s.hooks.ResolveCapability == nil {
-		return FileCapability{}
-	}
-	return s.hooks.ResolveCapability(ctx)
-}
-
 func (s *Service) initializeUploadedFile(ctx context.Context, file *domainconversation.FileObject) error {
 	if s == nil || s.hooks.InitializeUploadedFile == nil {
 		return nil
@@ -736,10 +732,6 @@ func (s *Service) errFileTooLarge() error {
 
 func (s *Service) errMIMEBlocked() error {
 	return pickError(s.errors.MIMEBlocked, "mime blocked")
-}
-
-func (s *Service) errEmbeddingUnavailable() error {
-	return pickError(s.errors.EmbeddingUnavailable, "embedding unavailable")
 }
 
 func (s *Service) errDangerousMIMEType() error {
@@ -809,7 +801,7 @@ func normalizeDetectedMIME(detected string, fileName string) string {
 	case "webm":
 		return "video/webm"
 	}
-	if ext != "" && isTextMIMEForEmbed("", "sample."+ext) {
+	if ext != "" && filetype.IsText("", "sample."+ext) {
 		return "text/plain"
 	}
 	if value == "application/zip" {
@@ -884,7 +876,7 @@ func inferFileCategory(mimeType string, fileName string) string {
 		return fileCategoryPresentation
 	case strings.Contains(mimeType, "spreadsheetml") || strings.Contains(mimeType, "ms-excel") || mimeType == "text/csv" || ext == "xlsx" || ext == "xls" || ext == "csv":
 		return fileCategoryExcel
-	case isTextMIMEForEmbed(mimeType, fileName):
+	case filetype.IsText(mimeType, fileName):
 		return fileCategoryText
 	default:
 		return fileCategoryUnknown
@@ -927,15 +919,6 @@ func fileCategoryRequiresProcessing(category string) bool {
 	}
 }
 
-func supportsRAG(category string) bool {
-	switch category {
-	case fileCategoryPDF, fileCategoryWord, fileCategoryPresentation, fileCategoryExcel, fileCategoryText, fileCategoryImage:
-		return true
-	default:
-		return false
-	}
-}
-
 func isDangerousMIME(mimeType string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(mimeType))
 	if normalized == "" {
@@ -948,87 +931,40 @@ func isDangerousMIME(mimeType string) bool {
 	return blocked
 }
 
-func isTextMIMEForEmbed(mimeType, fileName string) bool {
-	m := strings.ToLower(strings.TrimSpace(mimeType))
-	if strings.HasPrefix(m, "text/") {
-		return true
-	}
-	switch m {
-	case "application/json", "application/xml", "application/javascript", "application/typescript",
-		"application/yaml", "application/x-yaml", "application/toml":
-		return true
-	}
-	if idx := strings.LastIndex(fileName, "."); idx >= 0 {
-		ext := strings.ToLower(fileName[idx+1:])
-		switch ext {
-		case "txt", "md", "markdown", "csv", "json", "xml", "html", "htm",
-			"css", "js", "ts", "jsx", "tsx", "py", "go", "rs", "java",
-			"c", "cpp", "h", "hpp", "cs", "rb", "php", "swift", "kt",
-			"sh", "bash", "zsh", "yaml", "yml", "toml", "ini", "conf", "sql":
-			return true
-		}
-	}
-	return false
-}
-
-func saveUploadedFile(
-	ctx context.Context,
-	store objectstore.Store,
-	reader io.Reader,
-	userPublicID string,
-	fileID string,
-	fileName string,
-	maxUploadBytes int64,
-	declaredMIME string,
-) (string, string, string, int64, error) {
-	normalizedUserID := strings.TrimSpace(userPublicID)
+func saveUploadedFile(ctx context.Context, input saveUploadedFileInput) (string, string, string, int64, error) {
+	normalizedUserID := strings.TrimSpace(input.UserPublicID)
 	if normalizedUserID == "" {
 		normalizedUserID = "unknown_user"
 	}
-	if maxUploadBytes <= 0 {
-		maxUploadBytes = 20 * 1024 * 1024
+	if input.MaxUploadBytes <= 0 {
+		input.MaxUploadBytes = 20 * 1024 * 1024
 	}
 
-	tmpFile, err := os.CreateTemp("", fileID+"_*.upload")
+	staged, err := stageUploadedFile(input.Reader, input.FileID, input.FileName, input.MaxUploadBytes, input.DeclaredMIME)
 	if err != nil {
 		return "", "", "", 0, err
 	}
-	tmpName := tmpFile.Name()
-	defer func() {
-		_ = tmpFile.Close()
-		_ = os.Remove(tmpName)
-	}()
-
-	bufferedReader := bufio.NewReader(reader)
-	header, _ := bufferedReader.Peek(512)
-	detectedMIME := detectContentMIME(header, declaredMIME, fileName)
-
-	hasher := sha256.New()
-	written, err := io.Copy(io.MultiWriter(tmpFile, hasher), io.LimitReader(bufferedReader, maxUploadBytes+1))
-	if err != nil {
-		return "", "", "", 0, err
-	}
-	if written > maxUploadBytes {
-		return "", "", "", 0, errLocalFileTooLarge
-	}
+	defer os.Remove(staged.absolutePath) //nolint:errcheck
 
 	now := time.Now()
 	relativePath := filepath.Join(
 		normalizedUserID,
 		now.Format("2006"),
 		now.Format("01"),
-		fileID+"_"+sanitizeFileName(fileName),
+		input.FileID+"_"+sanitizeFileName(input.FileName),
 	)
 	relativePath = filepath.ToSlash(relativePath)
-	if _, err = tmpFile.Seek(0, io.SeekStart); err != nil {
+	tmpFile, err := os.Open(staged.absolutePath)
+	if err != nil {
 		return "", "", "", 0, err
 	}
-	if _, err = store.Put(ctx, relativePath, tmpFile, objectstore.PutOptions{
-		SizeBytes:   written,
-		ContentType: detectedMIME,
+	defer tmpFile.Close() //nolint:errcheck
+	if _, err = input.Store.Put(ctx, relativePath, tmpFile, objectstore.PutOptions{
+		SizeBytes:   staged.sizeBytes,
+		ContentType: staged.detectedMIME,
 	}); err != nil {
 		return "", "", "", 0, err
 	}
 
-	return relativePath, detectedMIME, hex.EncodeToString(hasher.Sum(nil)), written, nil
+	return relativePath, staged.detectedMIME, staged.sha256, staged.sizeBytes, nil
 }

@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"math"
 	"net/url"
 	"strconv"
@@ -47,16 +48,14 @@ func (s *Service) buildTwoFactorChallenge(ctx context.Context, item *user.User) 
 	if err != nil {
 		return nil, err
 	}
-	challengeToken, err := token.GenerateWithClaims(
-		s.cfg.Snapshot().JWTSecret,
-		item.ID,
-		item.Username,
-		item.Role,
-		"",
-		"",
-		twoFactorChallengeTokenType,
-		twoFactorChallengeTTL,
-	)
+	challengeToken, err := token.GenerateWithClaims(token.GenerateClaimsInput{
+		Secret:    s.cfg.Snapshot().JWTSecret,
+		UserID:    item.ID,
+		Username:  item.Username,
+		Role:      item.Role,
+		TokenType: twoFactorChallengeTokenType,
+		TTL:       twoFactorChallengeTTL,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -86,6 +85,7 @@ func (s *Service) shouldRequireTwoFactor(ctx context.Context, item *user.User) (
 	return twoFactor.TOTPEnabled && strings.TrimSpace(twoFactor.TOTPSecretEncrypted) != "", nil
 }
 
+// VerifyLoginTwoFactor completes a login challenge using a second factor.
 func (s *Service) VerifyLoginTwoFactor(
 	ctx context.Context,
 	challengeToken string,
@@ -101,14 +101,14 @@ func (s *Service) VerifyLoginTwoFactor(
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			reason = "expired_challenge"
 		}
-		s.RecordAuthEvent(ctx, 0, requestID, "two_factor_verify", "failure", reason, normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{RequestID: requestID, EventType: "two_factor_verify", Result: "failure", Reason: reason, ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, ErrTwoFactorChallengeExpired
 		}
 		return nil, ErrInvalidCredentials
 	}
 	if claims.TokenType != twoFactorChallengeTokenType || claims.UserID == 0 {
-		s.RecordAuthEvent(ctx, 0, requestID, "two_factor_verify", "failure", "invalid_challenge", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{RequestID: requestID, EventType: "two_factor_verify", Result: "failure", Reason: "invalid_challenge", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		return nil, ErrInvalidCredentials
 	}
 	item, err := s.repo.GetByID(ctx, claims.UserID)
@@ -127,7 +127,7 @@ func (s *Service) VerifyLoginTwoFactor(
 		return nil, err
 	}
 	if method == SecurityVerificationMethodNone || !containsSecurityVerificationMethod(methods, method) {
-		s.RecordAuthEvent(ctx, item.ID, requestID, "two_factor_verify", "failure", "unavailable_method", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{UserID: item.ID, RequestID: requestID, EventType: "two_factor_verify", Result: "failure", Reason: "unavailable_method", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		if err = s.markTwoFactorLoginFailure(ctx, item); err != nil {
 			return nil, err
 		}
@@ -145,7 +145,7 @@ func (s *Service) VerifyLoginTwoFactor(
 		}
 	}
 	if err != nil {
-		s.RecordAuthEvent(ctx, item.ID, requestID, "two_factor_verify", "failure", "invalid_code", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{UserID: item.ID, RequestID: requestID, EventType: "two_factor_verify", Result: "failure", Reason: "invalid_code", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		if lockErr := s.markTwoFactorLoginFailure(ctx, item); lockErr != nil {
 			return nil, lockErr
 		}
@@ -160,14 +160,17 @@ func (s *Service) VerifyLoginTwoFactor(
 	}
 	s.RecordAuthEvent(
 		ctx,
-		item.ID,
-		requestID,
-		"two_factor_verify",
-		"success",
-		"",
-		normalizedAuditCtx.ClientIP,
-		normalizedAuditCtx.UserAgent,
-		marshalAuthEventDetail(map[string]interface{}{"session_id": result.SessionID}),
+		repository.AuthEventInput{
+			UserID:    item.ID,
+			RequestID: requestID,
+			EventType: "two_factor_verify",
+			Result:    "success",
+			ClientIP:  normalizedAuditCtx.ClientIP,
+			UserAgent: normalizedAuditCtx.UserAgent,
+			DetailJSON: marshalAuthEventDetail(map[string]any{
+				"session_id": result.SessionID,
+			}),
+		},
 	)
 	return result, nil
 }
@@ -192,6 +195,7 @@ func (s *Service) markTwoFactorLoginFailure(ctx context.Context, item *user.User
 	return ErrAccountLocked
 }
 
+// RequestLoginEmailVerification sends an email code for a pending login challenge.
 func (s *Service) RequestLoginEmailVerification(
 	ctx context.Context,
 	challengeToken string,
@@ -201,7 +205,7 @@ func (s *Service) RequestLoginEmailVerification(
 	normalizedAuditCtx := s.resolveSessionAuditContext(ctx, auditCtx)
 	claims, err := token.Parse(s.cfg.Snapshot().JWTSecret, strings.TrimSpace(challengeToken))
 	if err != nil || claims.TokenType != twoFactorChallengeTokenType || claims.UserID == 0 {
-		s.RecordAuthEvent(ctx, 0, requestID, "login_email_code", "failure", "invalid_challenge", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{RequestID: requestID, EventType: "login_email_code", Result: "failure", Reason: "invalid_challenge", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, ErrTwoFactorChallengeExpired
 		}
@@ -219,15 +223,23 @@ func (s *Service) RequestLoginEmailVerification(
 		return nil, err
 	}
 	if !containsSecurityVerificationMethod(methods, SecurityVerificationMethodEmail) {
-		return nil, fmt.Errorf("verification method is unavailable")
+		return nil, ErrSecurityVerificationMethodUnavailable
 	}
 	normalizedEmail, err := normalizeRegistrationEmail(item.Email)
 	if err != nil {
-		return nil, fmt.Errorf("user email is invalid")
+		return nil, ErrSecurityVerificationEmailInvalid
 	}
-	return s.requestEmailVerificationCode(ctx, item.ID, user.ContactVerificationPurposeLogin, normalizedEmail, "login_email_code", requestID, auditCtx)
+	return s.requestEmailVerificationCode(ctx, requestEmailVerificationCodeInput{
+		UserID:       item.ID,
+		Purpose:      user.ContactVerificationPurposeLogin,
+		Target:       normalizedEmail,
+		EventType:    "login_email_code",
+		RequestID:    requestID,
+		AuditContext: auditCtx,
+	})
 }
 
+// GetCurrentTwoFactorStatus returns the current user's two-factor status.
 func (s *Service) GetCurrentTwoFactorStatus(ctx context.Context, userID uint) (*TwoFactorStatusResult, error) {
 	twoFactor, err := s.repo.GetUserTwoFactorByUserID(ctx, userID)
 	if err != nil {
@@ -245,6 +257,7 @@ func (s *Service) GetCurrentTwoFactorStatus(ctx context.Context, userID uint) (*
 	}, nil
 }
 
+// ResetUserTwoFactorByAdmin disables two-factor authentication for an administrator-managed user.
 func (s *Service) ResetUserTwoFactorByAdmin(ctx context.Context, userID uint) error {
 	if err := s.repo.DeleteUserTwoFactor(ctx, userID); err != nil && !errors.Is(err, repository.ErrNotFound) {
 		return err
@@ -252,6 +265,7 @@ func (s *Service) ResetUserTwoFactorByAdmin(ctx context.Context, userID uint) er
 	return nil
 }
 
+// StartCurrentTwoFactorSetup starts a new two-factor setup challenge.
 func (s *Service) StartCurrentTwoFactorSetup(ctx context.Context, userID uint) (*TwoFactorSetupStartResult, error) {
 	item, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -262,7 +276,7 @@ func (s *Service) StartCurrentTwoFactorSetup(ctx context.Context, userID uint) (
 		return nil, err
 	}
 	if current != nil && current.TOTPEnabled {
-		return nil, fmt.Errorf("two factor authentication is already enabled")
+		return nil, ErrTwoFactorAlreadyEnabled
 	}
 	if current != nil && strings.TrimSpace(current.TOTPSecretEncrypted) != "" &&
 		current.TOTPSetupExpiresAt != nil && time.Now().Before(*current.TOTPSetupExpiresAt) {
@@ -272,7 +286,7 @@ func (s *Service) StartCurrentTwoFactorSetup(ctx context.Context, userID uint) (
 		}
 		return &TwoFactorSetupStartResult{
 			Secret:     secret,
-			OTPAuthURL: buildOTPAuthURL("DEEIX Chat", firstNonEmpty(item.Email, item.Username), secret),
+			OTPAuthURL: buildOTPAuthURL("DEEIX Chat", textutil.FirstNonEmpty(item.Email, item.Username), secret),
 			ExpiresAt:  *current.TOTPSetupExpiresAt,
 		}, nil
 	}
@@ -296,11 +310,12 @@ func (s *Service) StartCurrentTwoFactorSetup(ctx context.Context, userID uint) (
 	}
 	return &TwoFactorSetupStartResult{
 		Secret:     secret,
-		OTPAuthURL: buildOTPAuthURL("DEEIX Chat", firstNonEmpty(item.Email, item.Username), secret),
+		OTPAuthURL: buildOTPAuthURL("DEEIX Chat", textutil.FirstNonEmpty(item.Email, item.Username), secret),
 		ExpiresAt:  expiresAt,
 	}, nil
 }
 
+// ConfirmCurrentTwoFactorSetup verifies a setup code and enables two-factor authentication.
 func (s *Service) ConfirmCurrentTwoFactorSetup(ctx context.Context, userID uint, code string) (*TwoFactorSetupConfirmResult, error) {
 	twoFactor, err := s.repo.GetUserTwoFactorByUserID(ctx, userID)
 	if err != nil {
@@ -369,6 +384,7 @@ func (s *Service) ConfirmCurrentTwoFactorSetup(ctx context.Context, userID uint,
 	return &TwoFactorSetupConfirmResult{RecoveryCodes: recoveryCodes, Status: *status}, nil
 }
 
+// CancelCurrentTwoFactorSetup cancels the pending two-factor setup challenge.
 func (s *Service) CancelCurrentTwoFactorSetup(ctx context.Context, userID uint) error {
 	twoFactor, err := s.repo.GetUserTwoFactorByUserID(ctx, userID)
 	if err != nil {
@@ -383,6 +399,7 @@ func (s *Service) CancelCurrentTwoFactorSetup(ctx context.Context, userID uint) 
 	return s.repo.DeleteUserTwoFactor(ctx, userID)
 }
 
+// DisableCurrentTwoFactor disables two-factor authentication after code verification.
 func (s *Service) DisableCurrentTwoFactor(ctx context.Context, userID uint, code string) error {
 	if err := s.verifyCurrentTwoFactorCode(ctx, userID, code); err != nil {
 		return err
@@ -393,6 +410,7 @@ func (s *Service) DisableCurrentTwoFactor(ctx context.Context, userID uint, code
 	return nil
 }
 
+// RegenerateCurrentTwoFactorRecoveryCodes replaces the current user's recovery codes.
 func (s *Service) RegenerateCurrentTwoFactorRecoveryCodes(ctx context.Context, userID uint, code string) (*TwoFactorSetupConfirmResult, error) {
 	if err := s.verifyCurrentTwoFactorCode(ctx, userID, code); err != nil {
 		return nil, err

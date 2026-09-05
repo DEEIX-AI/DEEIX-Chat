@@ -18,12 +18,12 @@ type postBillingCompactionTask struct {
 	MessageID      uint
 	RunID          string
 	PreserveTurns  int
-	OnEvent        func(eventType string, payload map[string]interface{}) error
+	OnEvent        func(eventType string, payload map[string]any) error
 	TraceRecorder  *messageTraceRecorder
 }
 
 // runPostBillingCompaction 在独立超时内执行后置压缩任务。
-func (s *Service) runPostBillingCompaction(task *postBillingCompactionTask, message *model.Message) {
+func (s *Service) runPostBillingCompaction(ctx context.Context, task *postBillingCompactionTask, message *model.Message) {
 	if task == nil {
 		return
 	}
@@ -64,7 +64,7 @@ func (s *Service) runPostBillingCompaction(task *postBillingCompactionTask, mess
 				if len(preview) > 80 {
 					preview = preview[:80]
 				}
-				emitEvent(task.OnEvent, "compact_done", map[string]interface{}{
+				emitEvent(task.OnEvent, "compact_done", map[string]any{
 					"method":          snapshot.Strategy,
 					"freed_tokens":    snapshot.SourceTokens - snapshot.SummaryTokens,
 					"kept_turns":      task.PreserveTurns,
@@ -77,13 +77,13 @@ func (s *Service) runPostBillingCompaction(task *postBillingCompactionTask, mess
 		s.completePostBillingCompactionTrace(task, message)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := background.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	run(ctx)
 }
 
 // runPostBillingTasks 按配置串行或异步执行压缩，并在其后安排会话元数据。
-func (s *Service) runPostBillingTasks(input SendMessageBillingInput) {
+func (s *Service) runPostBillingTasks(ctx context.Context, input SendMessageBillingInput) {
 	if input.Result == nil {
 		return
 	}
@@ -94,13 +94,13 @@ func (s *Service) runPostBillingTasks(input SendMessageBillingInput) {
 		result := *input.Result
 		input.Result = &result
 		background.Go(s.logger, "post_billing_compaction", func() {
-			s.runPostBillingCompaction(task, &result.AssistantMessage)
-			s.scheduleConversationMetadataAfterBilling(input)
+			s.runPostBillingCompaction(ctx, task, &result.AssistantMessage)
+			s.scheduleConversationMetadataAfterBilling(ctx, input)
 		})
 		return
 	}
-	s.runPostBillingCompaction(task, &input.Result.AssistantMessage)
-	s.scheduleConversationMetadataAfterBilling(input)
+	s.runPostBillingCompaction(ctx, task, &input.Result.AssistantMessage)
+	s.scheduleConversationMetadataAfterBilling(ctx, input)
 }
 
 // discardPostBillingCompaction 在主账单失败时终止尚未开始的压缩 trace。

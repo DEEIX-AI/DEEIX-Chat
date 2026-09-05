@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	auditapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	authapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/auth"
@@ -22,6 +21,7 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/systemevent"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
@@ -31,20 +31,7 @@ type userService interface {
 	ListUserIdentitiesByUserIDs(ctx context.Context, userIDs []uint) (map[uint][]domainuser.UserIdentity, error)
 	ListLatestSessionActivityByUserIDs(ctx context.Context, userIDs []uint) (map[uint]time.Time, error)
 	CountSuperAdmins(ctx context.Context) (int64, error)
-	CreateUser(
-		ctx context.Context,
-		username string,
-		password string,
-		avatarURL string,
-		displayName string,
-		email string,
-		phone string,
-		timezone string,
-		locale string,
-		billingMode string,
-		subscriptionTier string,
-		subscriptionExpiresAt *time.Time,
-	) (*domainuser.User, error)
+	CreateUser(ctx context.Context, input userapp.CreateUserInput) (*domainuser.User, error)
 	GetByID(ctx context.Context, userID uint) (*domainuser.User, error)
 	RevokeAllSessions(ctx context.Context, userID uint, reason string) error
 	UpdateUserStatus(ctx context.Context, userID uint, status string) error
@@ -52,39 +39,12 @@ type userService interface {
 	ResetLoginFailure(ctx context.Context, userID uint) error
 	ResetPasswordByAdmin(ctx context.Context, userID uint, newPassword string, mustResetPassword bool) error
 	DeleteAccountHard(ctx context.Context, userID uint) error
-	RecordAuthEvent(
-		ctx context.Context,
-		userID uint,
-		requestID string,
-		eventType string,
-		result string,
-		reason string,
-		clientIP string,
-		userAgent string,
-		detailJSON string,
-	) error
-	ListAuthEvents(
-		ctx context.Context,
-		userID uint,
-		eventType string,
-		result string,
-		page int,
-		pageSize int,
-	) ([]domainuser.AuthEvent, int64, error)
+	RecordAuthEvent(ctx context.Context, input repository.AuthEventInput) error
+	ListAuthEvents(ctx context.Context, input userapp.AuthEventListInput) ([]domainuser.AuthEvent, int64, error)
 }
 
 type auditService interface {
-	Write(
-		ctx context.Context,
-		requestID string,
-		actorUserID uint,
-		action string,
-		resource string,
-		resourceID string,
-		ip string,
-		userAgent string,
-		detail interface{},
-	)
+	Write(ctx context.Context, input auditapp.WriteInput)
 	List(ctx context.Context, page int, pageSize int, filter auditapp.ListFilter) ([]domainaudit.Log, int64, error)
 }
 
@@ -165,6 +125,63 @@ type UserLabel struct {
 	Username    string
 	DisplayName string
 	Label       string
+}
+
+// CreateUserInput 描述管理员创建普通用户时允许提交的账号与订阅信息。
+// 计费模式由后台配置决定，不由请求方传入。
+type CreateUserInput struct {
+	Username              string
+	Password              string
+	AvatarURL             string
+	DisplayName           string
+	Email                 string
+	Phone                 string
+	Timezone              string
+	Locale                string
+	SubscriptionTier      string
+	SubscriptionExpiresAt *time.Time
+}
+
+// CreateUserAuditInput 描述管理员创建用户审计日志所需的上下文。
+type CreateUserAuditInput struct {
+	RequestID     string
+	ActorUserID   uint
+	CreatedUserID uint
+	Username      string
+	IP            string
+	UserAgent     string
+}
+
+// UpdateUserStatusInput 描述管理员修改用户状态时的目标与审计信息。
+type UpdateUserStatusInput struct {
+	RequestID    string
+	ActorUserID  uint
+	TargetUserID uint
+	Status       string
+	Reason       string
+	IP           string
+	UserAgent    string
+}
+
+// PatchUserByAdminInput 描述管理员局部更新用户时的目标与审计信息。
+type PatchUserByAdminInput struct {
+	RequestID    string
+	ActorUserID  uint
+	TargetUserID uint
+	Patch        PatchUserInput
+	IP           string
+	UserAgent    string
+}
+
+// ResetUserPasswordInput 描述管理员重置用户密码时的目标与审计信息。
+type ResetUserPasswordInput struct {
+	RequestID         string
+	ActorUserID       uint
+	TargetUserID      uint
+	NewPassword       string
+	MustResetPassword bool
+	IP                string
+	UserAgent         string
 }
 
 // NewService 创建服务。
@@ -507,19 +524,7 @@ func (s *Service) applyTwoFactorView(ctx context.Context, view userview.UserView
 }
 
 // CreateUser 创建普通用户。
-func (s *Service) CreateUser(
-	ctx context.Context,
-	username string,
-	password string,
-	avatarURL string,
-	displayName string,
-	email string,
-	phone string,
-	timezone string,
-	locale string,
-	subscriptionTier string,
-	subscriptionExpiresAt *time.Time,
-) (*domainuser.User, error) {
+func (s *Service) CreateUser(ctx context.Context, input CreateUserInput) (*domainuser.User, error) {
 	billingMode := "self"
 	if s.subscriptionResolver != nil {
 		mode, err := s.subscriptionResolver.GetBillingMode(ctx)
@@ -530,17 +535,19 @@ func (s *Service) CreateUser(
 	}
 	return s.userService.CreateUser(
 		ctx,
-		username,
-		password,
-		avatarURL,
-		displayName,
-		email,
-		phone,
-		timezone,
-		locale,
-		billingMode,
-		subscriptionTier,
-		subscriptionExpiresAt,
+		userapp.CreateUserInput{
+			Username:              input.Username,
+			Password:              input.Password,
+			AvatarURL:             input.AvatarURL,
+			DisplayName:           input.DisplayName,
+			Email:                 input.Email,
+			Phone:                 input.Phone,
+			Timezone:              input.Timezone,
+			Locale:                input.Locale,
+			BillingMode:           billingMode,
+			SubscriptionTier:      input.SubscriptionTier,
+			SubscriptionExpiresAt: input.SubscriptionExpiresAt,
+		},
 	)
 }
 
@@ -578,26 +585,17 @@ func (s *Service) ResolveUserLabels(ctx context.Context, userIDs []uint) map[uin
 }
 
 // WriteAdminCreateUserAudit 记录管理员创建用户审计日志。
-func (s *Service) WriteAdminCreateUserAudit(
-	ctx context.Context,
-	requestID string,
-	actorUserID uint,
-	createdUserID uint,
-	username string,
-	ip string,
-	userAgent string,
-) {
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_create_user",
-		"user",
-		strconv.FormatUint(uint64(createdUserID), 10),
-		ip,
-		userAgent,
-		map[string]string{"username": username},
-	)
+func (s *Service) WriteAdminCreateUserAudit(ctx context.Context, input CreateUserAuditInput) {
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   input.RequestID,
+		ActorUserID: input.ActorUserID,
+		Action:      "admin_create_user",
+		Resource:    "user",
+		ResourceID:  strconv.FormatUint(uint64(input.CreatedUserID), 10),
+		IP:          input.IP,
+		UserAgent:   input.UserAgent,
+		Detail:      map[string]string{"username": input.Username},
+	})
 }
 
 // RevokeUserSessionsByAdmin 吊销指定用户全部会话。
@@ -625,42 +623,32 @@ func (s *Service) RevokeUserSessionsByAdmin(
 		return err
 	}
 
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_revoke_user_sessions",
-		"user",
-		strconv.FormatUint(uint64(targetUserID), 10),
-		ip,
-		userAgent,
-		map[string]string{"target_user_id": strconv.FormatUint(uint64(targetUserID), 10)},
-	)
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   requestID,
+		ActorUserID: actorUserID,
+		Action:      "admin_revoke_user_sessions",
+		Resource:    "user",
+		ResourceID:  strconv.FormatUint(uint64(targetUserID), 10),
+		IP:          ip,
+		UserAgent:   userAgent,
+		Detail:      map[string]string{"target_user_id": strconv.FormatUint(uint64(targetUserID), 10)},
+	})
 
 	return nil
 }
 
 // UpdateUserStatusByAdmin 修改普通用户状态。
-func (s *Service) UpdateUserStatusByAdmin(
-	ctx context.Context,
-	requestID string,
-	actorUserID uint,
-	targetUserID uint,
-	status string,
-	reason string,
-	ip string,
-	userAgent string,
-) (*domainuser.User, error) {
-	nextStatus := strings.TrimSpace(status)
+func (s *Service) UpdateUserStatusByAdmin(ctx context.Context, input UpdateUserStatusInput) (*domainuser.User, error) {
+	nextStatus := strings.TrimSpace(input.Status)
 	if !isManageableStatus(nextStatus) {
 		return nil, ErrInvalidUserStatus
 	}
 
-	targetUser, err := s.userService.GetByID(ctx, targetUserID)
+	targetUser, err := s.userService.GetByID(ctx, input.TargetUserID)
 	if err != nil {
 		return nil, err
 	}
-	actorUser, err := s.getActorUser(ctx, actorUserID)
+	actorUser, err := s.getActorUser(ctx, input.ActorUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -671,40 +659,39 @@ func (s *Service) UpdateUserStatusByAdmin(
 		return nil, ErrSuperAdminStatusChangeNotAllowed
 	}
 
-	if err = s.userService.UpdateUserStatus(ctx, targetUserID, nextStatus); err != nil {
+	if err = s.userService.UpdateUserStatus(ctx, input.TargetUserID, nextStatus); err != nil {
 		return nil, err
 	}
 
 	if nextStatus == domainuser.StatusActive {
-		if err = s.userService.ResetLoginFailure(ctx, targetUserID); err != nil {
+		if err = s.userService.ResetLoginFailure(ctx, input.TargetUserID); err != nil {
 			return nil, err
 		}
 	} else {
-		if err = s.userService.RevokeAllSessions(ctx, targetUserID, "admin_set_status_"+nextStatus); err != nil {
+		if err = s.userService.RevokeAllSessions(ctx, input.TargetUserID, "admin_set_status_"+nextStatus); err != nil {
 			return nil, err
 		}
 	}
 
-	updatedUser, err := s.userService.GetByID(ctx, targetUserID)
+	updatedUser, err := s.userService.GetByID(ctx, input.TargetUserID)
 	if err != nil {
 		return nil, err
 	}
 
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_update_user_status",
-		"user",
-		strconv.FormatUint(uint64(targetUserID), 10),
-		ip,
-		userAgent,
-		map[string]string{
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   input.RequestID,
+		ActorUserID: input.ActorUserID,
+		Action:      "admin_update_user_status",
+		Resource:    "user",
+		ResourceID:  strconv.FormatUint(uint64(input.TargetUserID), 10),
+		IP:          input.IP,
+		UserAgent:   input.UserAgent,
+		Detail: map[string]string{
 			"from_status": targetUser.Status,
 			"to_status":   nextStatus,
-			"reason":      strings.TrimSpace(reason),
+			"reason":      strings.TrimSpace(input.Reason),
 		},
-	)
+	})
 
 	return updatedUser, nil
 }
@@ -746,20 +733,12 @@ func ensureActorCanManageTarget(actorUser *domainuser.User, targetUser *domainus
 }
 
 // PatchUserByAdmin 统一维护头像、角色、状态和时区等可编辑字段。
-func (s *Service) PatchUserByAdmin(
-	ctx context.Context,
-	requestID string,
-	actorUserID uint,
-	targetUserID uint,
-	req PatchUserInput,
-	ip string,
-	userAgent string,
-) (*domainuser.User, error) {
-	targetUser, err := s.userService.GetByID(ctx, targetUserID)
+func (s *Service) PatchUserByAdmin(ctx context.Context, input PatchUserByAdminInput) (*domainuser.User, error) {
+	targetUser, err := s.userService.GetByID(ctx, input.TargetUserID)
 	if err != nil {
 		return nil, err
 	}
-	actorUser, err := s.getActorUser(ctx, actorUserID)
+	actorUser, err := s.getActorUser(ctx, input.ActorUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -771,6 +750,7 @@ func (s *Service) PatchUserByAdmin(
 	auditDetail := make(map[string]string)
 	roleChanged := false
 
+	req := input.Patch
 	if req.AvatarURL != nil {
 		nextAvatarURL := strings.TrimSpace(*req.AvatarURL)
 		if nextAvatarURL != targetUser.AvatarURL {
@@ -840,7 +820,7 @@ func (s *Service) PatchUserByAdmin(
 			return nil, ErrInvalidUserRole
 		}
 		if nextRole != targetUser.Role {
-			if actorUserID == targetUserID {
+			if input.ActorUserID == input.TargetUserID {
 				return nil, ErrSelfRoleChangeNotAllowed
 			}
 			if nextRole == domainuser.RoleSuperAdmin && actorUser.Role != domainuser.RoleSuperAdmin {
@@ -914,7 +894,7 @@ func (s *Service) PatchUserByAdmin(
 		}
 
 		now := time.Now()
-		currentSubscription, snapshotErr := s.subscriptionResolver.GetCurrentSubscriptionSnapshot(ctx, targetUserID, now)
+		currentSubscription, snapshotErr := s.subscriptionResolver.GetCurrentSubscriptionSnapshot(ctx, input.TargetUserID, now)
 		if snapshotErr != nil {
 			return nil, snapshotErr
 		}
@@ -952,7 +932,7 @@ func (s *Service) PatchUserByAdmin(
 		}
 
 		if fromTier != nextTier || fromExpiresAt != toExpiresAt {
-			updatedSubscription, updateErr := s.subscriptionResolver.SetUserSubscriptionByPlanCode(ctx, targetUserID, nextTier, nextExpiresAt)
+			updatedSubscription, updateErr := s.subscriptionResolver.SetUserSubscriptionByPlanCode(ctx, input.TargetUserID, nextTier, nextExpiresAt)
 			if updateErr != nil {
 				return nil, updateErr
 			}
@@ -974,22 +954,22 @@ func (s *Service) PatchUserByAdmin(
 			return nil, ErrInvalidUserStatus
 		}
 		if nextStatus != targetUser.Status {
-			if actorUserID == targetUserID {
+			if input.ActorUserID == input.TargetUserID {
 				return nil, ErrSelfStatusChangeNotAllowed
 			}
 			if targetUser.Role == domainuser.RoleSuperAdmin {
 				return nil, ErrSuperAdminStatusChangeNotAllowed
 			}
 
-			if err = s.userService.UpdateUserStatus(ctx, targetUserID, nextStatus); err != nil {
+			if err = s.userService.UpdateUserStatus(ctx, input.TargetUserID, nextStatus); err != nil {
 				return nil, err
 			}
 			if nextStatus == domainuser.StatusActive {
-				if err = s.userService.ResetLoginFailure(ctx, targetUserID); err != nil {
+				if err = s.userService.ResetLoginFailure(ctx, input.TargetUserID); err != nil {
 					return nil, err
 				}
 			} else {
-				if err = s.userService.RevokeAllSessions(ctx, targetUserID, "admin_set_status_"+nextStatus); err != nil {
+				if err = s.userService.RevokeAllSessions(ctx, input.TargetUserID, "admin_set_status_"+nextStatus); err != nil {
 					return nil, err
 				}
 			}
@@ -1001,7 +981,7 @@ func (s *Service) PatchUserByAdmin(
 	}
 
 	if !updateInput.IsZero() {
-		targetUser, err = s.userService.UpdateFields(ctx, targetUserID, updateInput)
+		targetUser, err = s.userService.UpdateFields(ctx, input.TargetUserID, updateInput)
 		if err != nil {
 			if errors.Is(err, repository.ErrLastSuperAdminRoleChange) {
 				return nil, ErrLastSuperAdminRoleChangeNotAllowed
@@ -1009,7 +989,7 @@ func (s *Service) PatchUserByAdmin(
 			return nil, err
 		}
 		if roleChanged {
-			if err = s.userService.RevokeAllSessions(ctx, targetUserID, "admin_set_role_"+targetUser.Role); err != nil {
+			if err = s.userService.RevokeAllSessions(ctx, input.TargetUserID, "admin_set_role_"+targetUser.Role); err != nil {
 				return nil, err
 			}
 			auditDetail["sessions_revoked"] = "true"
@@ -1023,19 +1003,18 @@ func (s *Service) PatchUserByAdmin(
 	if reason := strings.TrimSpace(req.Reason); reason != "" {
 		auditDetail["reason"] = reason
 	}
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_patch_user",
-		"user",
-		strconv.FormatUint(uint64(targetUserID), 10),
-		ip,
-		userAgent,
-		auditDetail,
-	)
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   input.RequestID,
+		ActorUserID: input.ActorUserID,
+		Action:      "admin_patch_user",
+		Resource:    "user",
+		ResourceID:  strconv.FormatUint(uint64(input.TargetUserID), 10),
+		IP:          input.IP,
+		UserAgent:   input.UserAgent,
+		Detail:      auditDetail,
+	})
 
-	return s.userService.GetByID(ctx, targetUserID)
+	return s.userService.GetByID(ctx, input.TargetUserID)
 }
 
 func normalizeAdminLocale(raw string) (string, error) {
@@ -1051,7 +1030,7 @@ func normalizeAdminLocale(raw string) (string, error) {
 	}
 
 	languagePart := strings.ToLower(parts[0])
-	if len(languagePart) < 2 || len(languagePart) > 3 || !isASCIIAlpha(languagePart) {
+	if len(languagePart) < 2 || len(languagePart) > 3 || !textutil.IsASCIIAlpha(languagePart) {
 		return "", ErrInvalidUserLocale
 	}
 
@@ -1060,38 +1039,20 @@ func normalizeAdminLocale(raw string) (string, error) {
 	}
 
 	regionPart := strings.ToUpper(parts[1])
-	if len(regionPart) != 2 || !isASCIIAlpha(regionPart) {
+	if len(regionPart) != 2 || !textutil.IsASCIIAlpha(regionPart) {
 		return "", ErrInvalidUserLocale
 	}
 
 	return languagePart + "-" + regionPart, nil
 }
 
-func isASCIIAlpha(value string) bool {
-	for _, r := range value {
-		if !unicode.IsLetter(r) || r > unicode.MaxASCII {
-			return false
-		}
-	}
-	return true
-}
-
 // ResetUserPasswordByAdmin 重置用户密码并吊销全部会话。
-func (s *Service) ResetUserPasswordByAdmin(
-	ctx context.Context,
-	requestID string,
-	actorUserID uint,
-	targetUserID uint,
-	newPassword string,
-	mustResetPassword bool,
-	ip string,
-	userAgent string,
-) error {
-	targetUser, err := s.userService.GetByID(ctx, targetUserID)
+func (s *Service) ResetUserPasswordByAdmin(ctx context.Context, input ResetUserPasswordInput) error {
+	targetUser, err := s.userService.GetByID(ctx, input.TargetUserID)
 	if err != nil {
 		return err
 	}
-	actorUser, err := s.getActorUser(ctx, actorUserID)
+	actorUser, err := s.getActorUser(ctx, input.ActorUserID)
 	if err != nil {
 		return err
 	}
@@ -1102,46 +1063,47 @@ func (s *Service) ResetUserPasswordByAdmin(
 		return ErrSuperAdminPasswordResetNotAllowed
 	}
 
-	if err = s.userService.ResetPasswordByAdmin(ctx, targetUserID, newPassword, mustResetPassword); err != nil {
+	if err = s.userService.ResetPasswordByAdmin(ctx, input.TargetUserID, input.NewPassword, input.MustResetPassword); err != nil {
 		return err
 	}
-	if err = s.userService.RevokeAllSessions(ctx, targetUserID, "admin_reset_password"); err != nil {
+	if err = s.userService.RevokeAllSessions(ctx, input.TargetUserID, "admin_reset_password"); err != nil {
 		return err
 	}
 
 	detailJSON := ""
 	if payload, marshalErr := json.Marshal(map[string]string{
-		"actor_user_id":       strconv.FormatUint(uint64(actorUserID), 10),
-		"must_reset_password": strconv.FormatBool(mustResetPassword),
+		"actor_user_id":       strconv.FormatUint(uint64(input.ActorUserID), 10),
+		"must_reset_password": strconv.FormatBool(input.MustResetPassword),
 	}); marshalErr == nil {
 		detailJSON = string(payload)
 	}
 
 	_ = s.userService.RecordAuthEvent(
 		ctx,
-		targetUserID,
-		requestID,
-		"password_reset",
-		"success",
-		"admin_reset_password",
-		ip,
-		userAgent,
-		detailJSON,
-	)
-
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_reset_user_password",
-		"user",
-		strconv.FormatUint(uint64(targetUserID), 10),
-		ip,
-		userAgent,
-		map[string]string{
-			"must_reset_password": strconv.FormatBool(mustResetPassword),
+		repository.AuthEventInput{
+			UserID:     input.TargetUserID,
+			RequestID:  input.RequestID,
+			EventType:  "password_reset",
+			Result:     "success",
+			Reason:     "admin_reset_password",
+			ClientIP:   input.IP,
+			UserAgent:  input.UserAgent,
+			DetailJSON: detailJSON,
 		},
 	)
+
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   input.RequestID,
+		ActorUserID: input.ActorUserID,
+		Action:      "admin_reset_user_password",
+		Resource:    "user",
+		ResourceID:  strconv.FormatUint(uint64(input.TargetUserID), 10),
+		IP:          input.IP,
+		UserAgent:   input.UserAgent,
+		Detail: map[string]string{
+			"must_reset_password": strconv.FormatBool(input.MustResetPassword),
+		},
+	})
 
 	return nil
 }
@@ -1177,17 +1139,16 @@ func (s *Service) ResetUserTwoFactorByAdmin(
 	if err = s.userService.RevokeAllSessions(ctx, targetUserID, "admin_reset_2fa"); err != nil {
 		return err
 	}
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_reset_user_2fa",
-		"user",
-		strconv.FormatUint(uint64(targetUserID), 10),
-		ip,
-		userAgent,
-		map[string]string{"target_user_id": strconv.FormatUint(uint64(targetUserID), 10)},
-	)
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   requestID,
+		ActorUserID: actorUserID,
+		Action:      "admin_reset_user_2fa",
+		Resource:    "user",
+		ResourceID:  strconv.FormatUint(uint64(targetUserID), 10),
+		IP:          ip,
+		UserAgent:   userAgent,
+		Detail:      map[string]string{"target_user_id": strconv.FormatUint(uint64(targetUserID), 10)},
+	})
 	return nil
 }
 
@@ -1222,38 +1183,30 @@ func (s *Service) DeleteUserByAdmin(
 		return err
 	}
 
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_delete_user",
-		"user",
-		strconv.FormatUint(uint64(targetUserID), 10),
-		ip,
-		userAgent,
-		map[string]string{
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   requestID,
+		ActorUserID: actorUserID,
+		Action:      "admin_delete_user",
+		Resource:    "user",
+		ResourceID:  strconv.FormatUint(uint64(targetUserID), 10),
+		IP:          ip,
+		UserAgent:   userAgent,
+		Detail: map[string]string{
 			"target_user_id": strconv.FormatUint(uint64(targetUserID), 10),
 			"username":       targetUser.Username,
 			"public_id":      targetUser.PublicID,
 		},
-	)
+	})
 
 	return nil
 }
 
 // ListUserAuthEventsByAdmin 查询用户认证事件列表。
-func (s *Service) ListUserAuthEventsByAdmin(
-	ctx context.Context,
-	userID uint,
-	eventType string,
-	result string,
-	page int,
-	pageSize int,
-) ([]domainuser.AuthEvent, int64, error) {
-	return s.userService.ListAuthEvents(ctx, userID, eventType, result, page, pageSize)
+func (s *Service) ListUserAuthEventsByAdmin(ctx context.Context, input userapp.AuthEventListInput) ([]domainuser.AuthEvent, int64, error) {
+	return s.userService.ListAuthEvents(ctx, input)
 }
 
 // WriteAuditLog 写通用审计日志。
-func (s *Service) WriteAuditLog(ctx context.Context, requestID string, actorUserID uint, action string, resource string, resourceID string, ip string, userAgent string, detail interface{}) {
-	s.auditService.Write(ctx, requestID, actorUserID, action, resource, resourceID, ip, userAgent, detail)
+func (s *Service) WriteAuditLog(ctx context.Context, input auditapp.WriteInput) {
+	s.auditService.Write(ctx, input)
 }

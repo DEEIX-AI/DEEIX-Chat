@@ -42,30 +42,6 @@ func NormalizeAdapter(raw string) string {
 	return value
 }
 
-// IsKnownAdapter 返回协议是否为已知值（含未实现的）。
-func IsKnownAdapter(raw string) bool {
-	switch NormalizeAdapter(raw) {
-	case AdapterOpenAIResponses,
-		AdapterOpenRouterChat,
-		AdapterOpenRouterResponses,
-		AdapterOpenAIChatCompletions,
-		AdapterOpenAIImageGenerations,
-		AdapterOpenAIImageEdits,
-		AdapterAnthropicMessages,
-		AdapterGoogleGenerateContent,
-		AdapterGoogleImageGeneration,
-		AdapterGeminiInteractions,
-		AdapterXAIResponses,
-		AdapterXAIImage,
-		AdapterXAIImageEdits,
-		AdapterXAIVideo,
-		AdapterXAIVideoExtensions:
-		return true
-	default:
-		return false
-	}
-}
-
 // IsImplementedAdapter 返回协议是否已有可用的传输层实现。
 func IsImplementedAdapter(raw string) bool {
 	switch NormalizeAdapter(raw) {

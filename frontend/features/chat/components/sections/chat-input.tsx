@@ -44,10 +44,7 @@ import { ChatMCP } from "@/features/chat/components/sections/chat-mcp";
 import { ChatModelConfig } from "@/features/chat/components/sections/chat-model-config";
 import { ChatModelPicker } from "@/features/chat/components/sections/chat-model-picker";
 import { ChatMentionMenuPortal } from "@/features/chat/components/shared/chat-mention-menu";
-import {
-  type ChatMentionMenuKind,
-  useChatMentionMenu,
-} from "@/features/chat/hooks/use-chat-mention-menu";
+import { useChatMentionMenu } from "@/features/chat/hooks/use-chat-mention-menu";
 import {
   type SpeechInputErrorCode,
   useChatSpeechInput,
@@ -72,9 +69,10 @@ import type { MCPToolDTO } from "@/shared/api/mcp.types";
 import type { SkillSummaryDTO } from "@/shared/api/skills.types";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import { useScrollFadeFallbackRef } from "@/shared/hooks/use-scroll-fade-fallback-ref";
 import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
 import { formatBytes, resolveFileExtension, resolveFileIcon } from "@/shared/lib/file-display";
-import { resolveFileProcessingBadge } from "@/shared/lib/file-processing";
+import { isFileProcessing, resolveFileProcessingBadge } from "@/shared/lib/file-processing";
 import type { ModelOptionPolicy } from "@/shared/lib/model-option-policy";
 import { isSendShortcutEvent } from "@/shared/lib/platform-shortcuts";
 
@@ -129,6 +127,7 @@ type ChatInputProps = {
   modelDisabled?: boolean;
   dropActive?: boolean;
   temporaryMode?: boolean;
+  autoFocusKey: string;
   onDraftChange: (value: string) => void;
   onModelChange: (platformModelName: string) => void;
   onModelCatalogRefresh?: () => void | Promise<void>;
@@ -285,6 +284,7 @@ function ChatInputComponent({
   modelDisabled = false,
   dropActive = false,
   temporaryMode = false,
+  autoFocusKey,
   onDraftChange,
   onModelChange,
   onModelCatalogRefresh,
@@ -340,7 +340,9 @@ function ChatInputComponent({
   const inputGroupRef = React.useRef<HTMLDivElement | null>(null);
   const inputGroupMeasureRef = React.useRef<HTMLDivElement | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const lastAutoFocusKeyRef = React.useRef("");
   const markdownPreviewRef = React.useRef<HTMLDivElement | null>(null);
+  const attachmentScrollFadeRef = useScrollFadeFallbackRef<HTMLDivElement>();
   const composingRef = React.useRef(false);
   const [inputGroupHeight, setInputGroupHeight] = React.useState<number | null>(null);
   const hasDraftText = draft.trim().length > 0;
@@ -386,6 +388,30 @@ function ChatInputComponent({
       setMarkdownPreview(false);
     }
   }, [hasDraftText]);
+
+  React.useEffect(() => {
+    if (loading || lastAutoFocusKeyRef.current === autoFocusKey) {
+      return;
+    }
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+    lastAutoFocusKeyRef.current = autoFocusKey;
+    if (window.matchMedia("(pointer: coarse)").matches) {
+      return;
+    }
+    textarea.focus({ preventScroll: true });
+    const caretPosition = textarea.value.length;
+    textarea.setSelectionRange(caretPosition, caretPosition);
+    const frameID = window.requestAnimationFrame(() => {
+      if (document.activeElement === textarea) {
+        const nextCaretPosition = textarea.value.length;
+        textarea.setSelectionRange(nextCaretPosition, nextCaretPosition);
+      }
+    });
+    return () => window.cancelAnimationFrame(frameID);
+  }, [autoFocusKey, loading]);
 
   React.useLayoutEffect(() => {
     const node = inputGroupMeasureRef.current;
@@ -453,19 +479,24 @@ function ChatInputComponent({
   const hasComposerAttachments = attachments.length > 0 || uploadingAttachments.length > 0;
   const showSelectedSkills = selectedSkills.length > 0 && !isMediaMode;
   const {
-    activeIndex: mentionActiveIndex,
+    activeRowKey: mentionActiveRowKey,
+    activeTab: mentionActiveTab,
     handleBlur: handleMentionBlur,
     handleChange: handleMentionChange,
     handleFocus: handleMentionFocus,
     handleKeyDown: handleMentionKeyDown,
+    handleListScroll: handleMentionListScroll,
     handleSelectionChange: handleMentionSelectionChange,
     menuID: mentionMenuID,
     menuLayout: mentionMenuLayout,
     menuRef: mentionMenuRef,
     menuReady: mentionMenuReady,
     open: showMentionMenu,
-    sections: mentionSections,
+    rows: mentionRows,
     select: selectMentionItem,
+    selectTab: selectMentionTab,
+    showTabBar: showMentionTabBar,
+    tabs: mentionTabs,
   } = useChatMentionMenu({
     attachments,
     availableTools,
@@ -501,15 +532,6 @@ function ChatInputComponent({
       });
     },
   });
-  const mentionSectionOffsets = React.useMemo(() => {
-    const offsets = new Map<ChatMentionMenuKind, number>();
-    let offset = 0;
-    for (const section of mentionSections) {
-      offsets.set(section.kind, offset);
-      offset += section.items.length;
-    }
-    return offsets;
-  }, [mentionSections]);
   const onSelectUploadTool = React.useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -677,7 +699,7 @@ function ChatInputComponent({
             key="markdown-preview"
             role="region"
             aria-label={tComposer("markdownPreview")}
-            className="absolute inset-x-0 z-[60] max-h-[40dvh] min-h-16 overflow-y-auto rounded-xl border-[0.5px] border-border/70 bg-pure/85 px-5 py-4 text-[15px] text-foreground shadow-xs backdrop-blur-xl scroll-fade-12"
+            className="absolute inset-x-0 z-[60] max-h-[40dvh] min-h-16 overflow-y-auto rounded-xl border-[0.5px] border-border/70 bg-pure/85 px-5 py-4 text-[15px] text-foreground shadow-xs backdrop-blur-xl"
             style={{ bottom: inputGroupHeight + 8 }}
             initial={{ opacity: 0, scale: 0.99, y: 4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -740,34 +762,40 @@ function ChatInputComponent({
                   </button>
                 </div>
               ) : null}
-              <AttachmentGroup className="max-h-[196px] w-full flex-col gap-2 overflow-y-auto scroll-fade-12 px-1.5 pb-1 pt-1 [-ms-overflow-style:none] [scrollbar-width:none] max-sm:scroll-fade-none sm:max-h-none sm:flex-row sm:scroll-fade-x sm:overflow-x-auto sm:overflow-y-visible sm:pr-1.5 [&::-webkit-scrollbar]:hidden">
+              <AttachmentGroup
+                ref={attachmentScrollFadeRef}
+                className="max-h-[196px] w-full flex-col gap-2 overflow-y-auto scroll-fade-12 px-1.5 pb-1 pt-1 [-ms-overflow-style:none] [scrollbar-width:none] max-sm:scroll-fade-none sm:max-h-none sm:flex-row sm:scroll-fade-x sm:overflow-x-auto sm:overflow-y-visible sm:pr-1.5 [&::-webkit-scrollbar]:hidden"
+              >
                 {attachments.map((item) => {
                   const badge = resolveFileProcessingBadge(item, (key, values) => tFileStatus(key, values));
                   const FileIcon = resolveFileIcon(item);
                   const failed = badge.tone === "danger" || badge.tone === "warning";
-                  const processing = !failed && badge.tone !== "success";
+                  const backgroundProcessing = !failed && isFileProcessing(item);
                   const meta = formatAttachmentMeta(item.fileName, item.sizeBytes);
                   return (
                     <Attachment
                       key={item.fileID}
-                      state={failed ? "error" : processing ? "processing" : "done"}
+                      state={failed ? "error" : "done"}
+                      aria-busy={backgroundProcessing}
                       size="sm"
                       className="h-12 w-full border-0 bg-muted/35 px-2 text-left hover:bg-muted/50 dark:bg-white/[0.06] dark:hover:bg-white/[0.09] sm:w-[228px] sm:px-2.5"
                     >
                       <AttachmentMedia className="size-6 bg-transparent text-muted-foreground">
-                        {processing ? (
-                          <LoaderCircle className="size-5 animate-spin" strokeWidth={1.8} />
-                        ) : (
-                          <FileIcon className="size-5" strokeWidth={1.6} />
-                        )}
+                        <FileIcon className="size-5" strokeWidth={1.6} />
                       </AttachmentMedia>
                       <AttachmentContent className="flex min-w-0 flex-1 flex-col justify-center px-0 py-0">
                         <AttachmentTitle className="text-[12px] leading-4 text-foreground/90" title={item.fileName}>
                           {item.fileName}
                         </AttachmentTitle>
                         <AttachmentDescription className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] leading-none">
-                          <span className="min-w-0 shrink truncate" title={failed ? badge.detail : undefined}>
-                            {failed ? `${badge.label} · ${meta}` : meta}
+                          {backgroundProcessing ? (
+                            <LoaderCircle className="size-3 shrink-0 animate-spin" strokeWidth={1.8} />
+                          ) : null}
+                          <span
+                            className="min-w-0 shrink truncate"
+                            title={failed || backgroundProcessing ? badge.detail : undefined}
+                          >
+                            {failed || backgroundProcessing ? `${badge.label} · ${meta}` : meta}
                           </span>
                           {item.ragOptOut && item.fileCategory !== "image" ? (
                             <span
@@ -812,7 +840,7 @@ function ChatInputComponent({
                         {item.fileName}
                       </AttachmentTitle>
                       <AttachmentDescription className="mt-1 text-[11px] leading-none">
-                        Uploading · {formatBytes(item.sizeBytes)}
+                        {tComposer("uploading")} · {formatBytes(item.sizeBytes)}
                       </AttachmentDescription>
                     </AttachmentContent>
                   </Attachment>
@@ -823,28 +851,45 @@ function ChatInputComponent({
                   file={stablePreviewAttachment}
                   open={previewAttachment !== null}
                   onOpenChange={closePreviewDialog}
+                  loadContent={stablePreviewAttachment.localFile
+                    ? async (_file, signal) => {
+                        if (signal.aborted) {
+                          throw new DOMException("The operation was aborted", "AbortError");
+                        }
+                        return {
+                          blob: stablePreviewAttachment.localFile as File,
+                          contentType: stablePreviewAttachment.localFile?.type || "application/octet-stream",
+                          disposition: null,
+                          contentLength: stablePreviewAttachment.localFile?.size ?? null,
+                        };
+                      }
+                    : undefined}
                 />
               ) : null}
             </div>
           ) : null}
 
           <ChatMentionMenuPortal
-            activeIndex={mentionActiveIndex}
+            activeRowKey={mentionActiveRowKey}
+            activeTab={mentionActiveTab}
             menuID={mentionMenuID}
             menuLayout={mentionMenuLayout}
             menuRef={mentionMenuRef}
             menuReady={mentionMenuReady}
             open={showMentionMenu}
-            sectionOffsets={mentionSectionOffsets}
-            sections={mentionSections}
+            rows={mentionRows}
+            showTabBar={showMentionTabBar}
+            tabs={mentionTabs}
             t={tComposer}
+            onListScroll={handleMentionListScroll}
             onSelect={selectMentionItem}
+            onSelectTab={selectMentionTab}
           />
 
           <InputGroupTextarea
             ref={textareaRef}
             value={draft}
-            disabled={loading || uploading}
+            disabled={loading}
             readOnly={speechInput.active}
             placeholder={dropActive ? tChat("attachments.dropTitle") : speechInput.placeholder}
             rows={1}
@@ -882,7 +927,7 @@ function ChatInputComponent({
                 });
               }
 
-              if (!temporaryMode && files.length > 0) {
+              if (files.length > 0) {
                 if (!event.clipboardData.getData("text/plain")) {
                   event.preventDefault();
                 }
@@ -916,8 +961,7 @@ function ChatInputComponent({
 
           <InputGroupAddon align="block-end" className="items-center justify-between pt-2">
             <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-              {!temporaryMode ? (
-                <DropdownMenu
+              <DropdownMenu
                   modal={false}
                   open={toolsMenuOpen}
                   onOpenChange={(open) => {
@@ -977,8 +1021,7 @@ function ChatInputComponent({
                       {tComposer("screenshot")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
-                </DropdownMenu>
-              ) : null}
+              </DropdownMenu>
 
               {!modelOptionPolicyDisabled ? (
                 <ChatModelConfig
@@ -1004,6 +1047,7 @@ function ChatInputComponent({
                   selectedToolIDs={selectedToolIDs}
                   defaultToolIDs={defaultToolIDs}
                   maxSelectedTools={maxSelectedTools}
+                  placementPreference={isConversationMode ? "top" : "bottom"}
                   disabled={loading || uploading || toolsLoading}
                   onSelectedToolsChange={onSelectedToolsChange}
                   onDefaultToolsChange={onDefaultToolsChange}
@@ -1013,6 +1057,7 @@ function ChatInputComponent({
               {!isMediaMode ? (
                 <ChatKnowledgeBases
                   selectedIDs={selectedKnowledgeBaseIDs}
+                  placementPreference={isConversationMode ? "top" : "bottom"}
                   disabled={loading || uploading}
                   available={ragAvailable}
                   unavailableReason={ragAvailabilityReason}

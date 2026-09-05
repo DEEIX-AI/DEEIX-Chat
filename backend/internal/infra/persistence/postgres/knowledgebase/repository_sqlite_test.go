@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -43,7 +44,11 @@ func TestRepositoryVisibilityResolutionAndDeletion(t *testing.T) {
 		{FileID: "builtin-available", UserID: 0, FileName: "platform-guide.md", Status: "active"},
 		{FileID: "mine-file", UserID: 11, FileName: "notes.md", Status: "active", ProcessingReady: true, EmbedStatus: "ready", ChunkCount: 2},
 		{FileID: "other-file", UserID: 22, FileName: "private.md", Status: "active", ProcessingReady: true, EmbedStatus: "ready", ChunkCount: 2},
-		{FileID: "mine-pending", UserID: 11, FileName: "pending.md", Status: "active", ProcessingReady: true, EmbedStatus: "processing"},
+		{
+			FileID: "mine-pending", UserID: 11, FileName: "pending.md", MimeType: "text/markdown",
+			FileCategory: "text", StoragePath: "uploads/pending.md", Status: "active",
+			ProcessingReady: true, ExtractStatus: "ready", EmbedStatus: "processing", EmbedSignature: "model@1536",
+		},
 		{FileID: "mine-available", UserID: 11, FileName: "available.md", Status: "active"},
 	}
 	if err = db.Create(&files).Error; err != nil {
@@ -63,6 +68,33 @@ func TestRepositoryVisibilityResolutionAndDeletion(t *testing.T) {
 	}
 
 	repo := NewRepo(db)
+	processingStatuses, err := repo.GetKnowledgeBaseFileProcessingStatuses(
+		context.Background(), items[2].ID, []string{"mine-pending"},
+	)
+	if err != nil || len(processingStatuses) != 1 {
+		t.Fatalf("GetKnowledgeBaseFileProcessingStatuses() = %#v, %v", processingStatuses, err)
+	}
+	processingStatus := processingStatuses[0]
+	if processingStatus.FileName != "pending.md" || processingStatus.MimeType != "text/markdown" ||
+		processingStatus.FileCategory != "text" || processingStatus.StoragePath != "uploads/pending.md" ||
+		processingStatus.Status != "active" || !processingStatus.ProcessingReady || processingStatus.ExtractStatus != "ready" ||
+		processingStatus.EmbedStatus != "processing" || processingStatus.EmbedSignature != "model@1536" {
+		t.Fatalf("incomplete knowledge base processing projection: %#v", processingStatus)
+	}
+	listedFiles, listedTotal, err := repo.ListKnowledgeBaseFiles(context.Background(), items[2].ID, 0, 100)
+	if err != nil || listedTotal != 2 {
+		t.Fatalf("ListKnowledgeBaseFiles() = %#v, total=%d, err=%v", listedFiles, listedTotal, err)
+	}
+	var listedPending *domainconversation.FileObject
+	for i := range listedFiles {
+		if listedFiles[i].FileID == "mine-pending" {
+			listedPending = &listedFiles[i]
+			break
+		}
+	}
+	if listedPending == nil || listedPending.StoragePath != "uploads/pending.md" || listedPending.EmbedSignature != "model@1536" {
+		t.Fatalf("incomplete knowledge base list projection: %#v", listedPending)
+	}
 	createdDisabled, err := repo.CreateKnowledgeBase(context.Background(), &domainknowledgebase.KnowledgeBase{
 		PublicID: "created-disabled", Scope: domainknowledgebase.ScopeBuiltin, Name: "Created disabled", Enabled: false,
 	})

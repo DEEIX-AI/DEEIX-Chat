@@ -9,11 +9,16 @@ import (
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 )
 
-const defaultXAIVideoDurationSeconds int64 = 6
+const (
+	defaultXAIVideoDurationSeconds   int64 = 6
+	mediaCancellationFinalizeTimeout       = 5 * time.Second
+)
 
 type canceledMediaGenerationInput struct {
 	Context             context.Context
@@ -22,7 +27,7 @@ type canceledMediaGenerationInput struct {
 	AssistantMessage    *model.Message
 	ReuseUserMessage    bool
 	Route               channel.ResolvedRoute
-	EffectiveOptions    map[string]interface{}
+	EffectiveOptions    map[string]any
 	GenerateInput       llm.GenerateInput
 	StartedAt           time.Time
 	DurationSeconds     int64
@@ -35,7 +40,7 @@ type failedMediaBillingResultInput struct {
 	UserMessage      *model.Message
 	AssistantMessage *model.Message
 	Route            channel.ResolvedRoute
-	EffectiveOptions map[string]interface{}
+	EffectiveOptions map[string]any
 	Usage            llm.Usage
 	StartedAt        time.Time
 	DurationSeconds  int64
@@ -72,7 +77,7 @@ func buildFailedMediaBillingResult(input failedMediaBillingResultInput) *SendMes
 		assistantMessage.Status = "canceled"
 	}
 	assistantMessage.ErrorCode = classifyRunErrorCode(input.Failure)
-	assistantMessage.ErrorMessage = truncateError(messageErrorSummary(input.Failure), 255)
+	assistantMessage.ErrorMessage = textutil.TruncateTrimmed(messageErrorSummary(input.Failure), 255)
 
 	return &SendMessageResult{
 		UserMessage:        userMessage,
@@ -100,14 +105,15 @@ func (s *Service) completeCanceledMediaGeneration(input canceledMediaGenerationI
 	if input.Context == nil || input.UserMessage == nil || input.AssistantMessage == nil {
 		return nil, ErrMessageGenerationCanceled
 	}
-	persistCtx := context.WithoutCancel(input.Context)
+	persistCtx, cancel := background.WithTimeout(input.Context, mediaCancellationFinalizeTimeout)
+	defer cancel()
 	latencyMS := time.Since(input.StartedAt).Milliseconds()
 	if latencyMS < 0 {
 		latencyMS = 0
 	}
 	inputTokens := estimateGenerateInputTokens(input.GenerateInput)
 	errorCode := classifyRunErrorCode(ErrMessageGenerationCanceled)
-	errorMessage := truncateError(ErrMessageGenerationCanceled.Error(), 255)
+	errorMessage := textutil.TruncateTrimmed(ErrMessageGenerationCanceled.Error(), 255)
 
 	if input.ReuseUserMessage {
 		if err := s.repo.CompleteAssistantMessageWithGeneratedAttachments(
@@ -195,7 +201,7 @@ func applyMediaRunUsage(run *model.Run, result *SendMessageResult) {
 	run.ReasoningTokens = result.AssistantMessage.ReasoningTokens
 }
 
-func mediaDurationSecondsFromOptions(options map[string]interface{}) int64 {
+func mediaDurationSecondsFromOptions(options map[string]any) int64 {
 	paths := [][]string{
 		{"durationSeconds"},
 		{"duration_seconds"},
@@ -219,12 +225,12 @@ func mediaDurationSecondsFromOptions(options map[string]interface{}) int64 {
 
 // withDefaultMediaVideoDuration 仅向明确支持 duration 参数的视频协议补齐产品缺省值。
 // 其他协议仍以其返回的真实媒体时长为准，避免发送未声明的厂商参数。
-func withDefaultMediaVideoDuration(options map[string]interface{}, protocol string) map[string]interface{} {
+func withDefaultMediaVideoDuration(options map[string]any, protocol string) map[string]any {
 	adapter := llm.NormalizeAdapter(protocol)
 	if mediaDurationSecondsFromOptions(options) > 0 || (adapter != llm.AdapterXAIVideo && adapter != llm.AdapterXAIVideoExtensions) {
 		return options
 	}
-	next := make(map[string]interface{}, len(options)+1)
+	next := make(map[string]any, len(options)+1)
 	for key, value := range options {
 		next[key] = value
 	}
@@ -246,7 +252,7 @@ func resolveGeneratedVideoDurations(videos []llm.GeneratedVideo, fallbackSeconds
 	return durations, total
 }
 
-func mediaDurationSecondsFromValue(value interface{}) int64 {
+func mediaDurationSecondsFromValue(value any) int64 {
 	switch v := value.(type) {
 	case int:
 		return positiveSeconds(int64(v))

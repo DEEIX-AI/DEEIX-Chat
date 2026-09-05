@@ -84,8 +84,8 @@ type userSettingTestRepository interface {
 	repository.UserSettingsRepository
 }
 
-func newUserSettingTestServices(repo userSettingTestRepository, runtimeCfg *config.Runtime) (*Service, *appusersettings.Service, repository.ConversationCacheRepository) {
-	cache := memorycache.NewConversationCache(memorycache.New())
+func newUserSettingTestServices(repo userSettingTestRepository, runtimeCfg *config.Runtime) (*Service, *appusersettings.Service, repository.UserSettingCacheRepository) {
+	cache := memorycache.New()
 	conversationService := &Service{cfg: runtimeCfg, repo: repo, cache: cache}
 	settingsService := appusersettings.NewService(repo)
 	settingsService.SetCacheRefresher(conversationService.RefreshUserSettingCache)
@@ -208,7 +208,7 @@ func TestConversationSettingsRefreshIsSharedAcrossServiceInstances(t *testing.T)
 			userID: {"chat.file_mode": "auto"},
 		},
 	}
-	sharedCache := memorycache.NewConversationCache(memorycache.New())
+	sharedCache := memorycache.New()
 	firstConversationService := &Service{repo: repo, cache: sharedCache}
 	secondConversationService := &Service{repo: repo, cache: sharedCache}
 	settingsService := appusersettings.NewService(repo)

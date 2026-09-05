@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 const defaultXAIVideoPollInterval = time.Second
@@ -21,28 +23,28 @@ type xAIVideoAdapter struct {
 	client *Client
 }
 
-func (a *xAIVideoAdapter) Name() string { return AdapterXAIVideo }
+func (a *xAIVideoAdapter) Name() string { return portllm.AdapterXAIVideo }
 
-func (a *xAIVideoAdapter) Generate(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
-	route.Protocol = AdapterXAIVideo
+func (a *xAIVideoAdapter) Generate(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput) (*portllm.GenerateOutput, error) {
+	route.Protocol = portllm.AdapterXAIVideo
 	if input.VideoExtensionSource != nil {
 		return nil, fmt.Errorf("xai video generation protocol does not accept an extension source")
 	}
-	route.Endpoint = EndpointVideoGenerations
+	route.Endpoint = portllm.EndpointVideoGenerations
 	return a.client.generateXAIVideo(ctx, route, input)
 }
 
 func (a *xAIVideoAdapter) GenerateStream(
 	context.Context,
-	RouteConfig,
-	GenerateInput,
-	func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
-	return nil, fmt.Errorf("%w: %s", ErrUnsupportedStream, AdapterXAIVideo)
+	portllm.RouteConfig,
+	portllm.GenerateInput,
+	func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
+	return nil, fmt.Errorf("%w: %s", portllm.ErrUnsupportedStream, portllm.AdapterXAIVideo)
 }
 
-func (a *xAIVideoAdapter) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
-	route.Protocol = AdapterXAIVideo
+func (a *xAIVideoAdapter) ListModels(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
+	route.Protocol = portllm.AdapterXAIVideo
 	return a.client.listModelsOpenAICompatible(ctx, route)
 }
 
@@ -51,33 +53,33 @@ type xAIVideoExtensionsAdapter struct {
 	client *Client
 }
 
-func (a *xAIVideoExtensionsAdapter) Name() string { return AdapterXAIVideoExtensions }
+func (a *xAIVideoExtensionsAdapter) Name() string { return portllm.AdapterXAIVideoExtensions }
 
-func (a *xAIVideoExtensionsAdapter) Generate(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
+func (a *xAIVideoExtensionsAdapter) Generate(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput) (*portllm.GenerateOutput, error) {
 	if input.VideoExtensionSource == nil {
 		return nil, fmt.Errorf("xai video extension protocol requires an MP4 source")
 	}
-	route.Protocol = AdapterXAIVideoExtensions
-	route.Endpoint = EndpointVideoExtensions
+	route.Protocol = portllm.AdapterXAIVideoExtensions
+	route.Endpoint = portllm.EndpointVideoExtensions
 	return a.client.generateXAIVideo(ctx, route, input)
 }
 
 func (a *xAIVideoExtensionsAdapter) GenerateStream(
 	context.Context,
-	RouteConfig,
-	GenerateInput,
-	func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
-	return nil, fmt.Errorf("%w: %s", ErrUnsupportedStream, AdapterXAIVideoExtensions)
+	portllm.RouteConfig,
+	portllm.GenerateInput,
+	func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
+	return nil, fmt.Errorf("%w: %s", portllm.ErrUnsupportedStream, portllm.AdapterXAIVideoExtensions)
 }
 
-func (a *xAIVideoExtensionsAdapter) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
-	route.Protocol = AdapterXAIVideoExtensions
+func (a *xAIVideoExtensionsAdapter) ListModels(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
+	route.Protocol = portllm.AdapterXAIVideoExtensions
 	return a.client.listModelsOpenAICompatible(ctx, route)
 }
 
 // generateXAIVideo 提交视频任务，并在同一请求超时范围内轮询官方结果端点。
-func (c *Client) generateXAIVideo(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
+func (c *Client) generateXAIVideo(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput) (*portllm.GenerateOutput, error) {
 	requestBody, debugBody, err := buildXAIVideoSubmissionBody(route.UpstreamModel, input)
 	if err != nil {
 		return nil, err
@@ -122,31 +124,31 @@ func (c *Client) generateXAIVideo(ctx context.Context, route RouteConfig, input 
 	return c.pollXAIVideoResult(requestCtx, route, requestID, generatedMediaDurationSeconds(requestBody["duration"]))
 }
 
-func buildXAIVideoSubmissionBody(model string, input GenerateInput) (map[string]interface{}, []byte, error) {
+func buildXAIVideoSubmissionBody(model string, input portllm.GenerateInput) (map[string]any, []byte, error) {
 	if input.VideoExtensionSource != nil {
 		return buildXAIVideoExtensionRequestBody(model, input)
 	}
 	return buildXAIVideoRequestBody(model, input)
 }
 
-func buildXAIVideoExtensionRequestBody(model string, input GenerateInput) (map[string]interface{}, []byte, error) {
+func buildXAIVideoExtensionRequestBody(model string, input portllm.GenerateInput) (map[string]any, []byte, error) {
 	prompt := strings.TrimSpace(buildOpenAIImageGenerationPrompt(input.Messages))
 	source := input.VideoExtensionSource
 	if prompt == "" {
 		return nil, nil, fmt.Errorf("video extension prompt required")
 	}
-	if source == nil || source.Kind != ContentPartVideo || strings.ToLower(strings.TrimSpace(source.MimeType)) != "video/mp4" || len(source.Data) == 0 {
+	if source == nil || source.Kind != portllm.ContentPartVideo || strings.ToLower(strings.TrimSpace(source.MimeType)) != "video/mp4" || len(source.Data) == 0 {
 		return nil, nil, fmt.Errorf("video extension source must be a non-empty MP4 video")
 	}
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model":  strings.TrimSpace(model),
 		"prompt": prompt,
-		"video": map[string]interface{}{
+		"video": map[string]any{
 			"url": "data:video/mp4;base64," + base64.StdEncoding.EncodeToString(source.Data),
 		},
 	}
 	applyXAIVideoExtensionParams(payload, input.Options)
-	debugPayload := map[string]interface{}{
+	debugPayload := map[string]any{
 		"model":        payload["model"],
 		"prompt":       payload["prompt"],
 		"video_source": "data:video/mp4;base64,[REDACTED]",
@@ -158,7 +160,7 @@ func buildXAIVideoExtensionRequestBody(model string, input GenerateInput) (map[s
 	return payload, debugBody, nil
 }
 
-func newXAIMediaRequest(ctx context.Context, method string, requestURL string, payload []byte, route RouteConfig) (*http.Request, error) {
+func newXAIMediaRequest(ctx context.Context, method string, requestURL string, payload []byte, route portllm.RouteConfig) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, requestURL, bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
@@ -173,7 +175,7 @@ func newXAIMediaRequest(ctx context.Context, method string, requestURL string, p
 	return req, nil
 }
 
-func buildXAIVideoRequestBody(model string, input GenerateInput) (map[string]interface{}, []byte, error) {
+func buildXAIVideoRequestBody(model string, input portllm.GenerateInput) (map[string]any, []byte, error) {
 	prompt := buildOpenAIImageGenerationPrompt(input.Messages)
 	images := collectImageInputParts(input.Messages)
 	if strings.TrimSpace(prompt) == "" && len(images) == 0 {
@@ -183,7 +185,7 @@ func buildXAIVideoRequestBody(model string, input GenerateInput) (map[string]int
 		return nil, nil, fmt.Errorf("too many video generation input images")
 	}
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model": strings.TrimSpace(model),
 	}
 	if strings.TrimSpace(prompt) != "" {
@@ -194,7 +196,7 @@ func buildXAIVideoRequestBody(model string, input GenerateInput) (map[string]int
 	}
 	applyXAIVideoParams(payload, input.Options)
 
-	debugPayload := make(map[string]interface{}, len(payload))
+	debugPayload := make(map[string]any, len(payload))
 	for key, value := range payload {
 		if key != "image" {
 			debugPayload[key] = value
@@ -205,21 +207,21 @@ func buildXAIVideoRequestBody(model string, input GenerateInput) (map[string]int
 	return payload, debugBody, nil
 }
 
-func xAIVideoImagePayload(image ContentPart) map[string]interface{} {
+func xAIVideoImagePayload(image portllm.ContentPart) map[string]any {
 	mimeType := strings.ToLower(strings.TrimSpace(image.MimeType))
 	switch mimeType {
 	case "image/png", "image/webp", "image/jpeg":
 	default:
 		mimeType = "image/jpeg"
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"url": "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(image.Data),
 	}
 }
 
-func applyXAIVideoParams(payload map[string]interface{}, options map[string]interface{}) {
+func applyXAIVideoParams(payload map[string]any, options map[string]any) {
 	normalized := maps.Clone(options)
-	SanitizeXAIVideoOptions(normalized)
+	portllm.SanitizeXAIVideoOptions(normalized)
 	for _, key := range []string{"aspect_ratio", "duration", "resolution"} {
 		if value, ok := normalized[key]; ok {
 			payload[key] = value
@@ -227,16 +229,16 @@ func applyXAIVideoParams(payload map[string]interface{}, options map[string]inte
 	}
 }
 
-func applyXAIVideoExtensionParams(payload map[string]interface{}, options map[string]interface{}) {
+func applyXAIVideoExtensionParams(payload map[string]any, options map[string]any) {
 	normalized := maps.Clone(options)
-	SanitizeXAIVideoExtensionOptions(normalized)
+	portllm.SanitizeXAIVideoExtensionOptions(normalized)
 	if duration, ok := normalized["duration"]; ok {
 		payload["duration"] = duration
 	}
 }
 
 func parseXAIVideoRequestID(body []byte) (string, error) {
-	parsed := make(map[string]interface{})
+	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return "", err
 	}
@@ -247,20 +249,20 @@ func parseXAIVideoRequestID(body []byte) (string, error) {
 	return requestID, nil
 }
 
-func (c *Client) pollXAIVideoResult(ctx context.Context, route RouteConfig, requestID string, requestedDurationSeconds int64) (*GenerateOutput, error) {
+func (c *Client) pollXAIVideoResult(ctx context.Context, route portllm.RouteConfig, requestID string, requestedDurationSeconds int64) (*portllm.GenerateOutput, error) {
 	requestURL := buildXAIVideoResultURL(route.BaseURL, requestID)
 	if requestURL == "" {
-		return nil, MarkRequestAccepted(fmt.Errorf("invalid xAI video result url"))
+		return nil, portllm.MarkRequestAccepted(fmt.Errorf("invalid xAI video result url"))
 	}
 
 	for {
 		req, err := newXAIMediaRequest(ctx, http.MethodGet, requestURL, nil, route)
 		if err != nil {
-			return nil, MarkRequestAccepted(err)
+			return nil, portllm.MarkRequestAccepted(err)
 		}
 		resp, err := c.doRouteRequest(route, req)
 		if err != nil {
-			return nil, MarkRequestAccepted(err)
+			return nil, portllm.MarkRequestAccepted(err)
 		}
 		body, readErr := readUpstreamBody(resp.Body)
 		_ = resp.Body.Close()
@@ -269,7 +271,7 @@ func (c *Client) pollXAIVideoResult(ctx context.Context, route RouteConfig, requ
 			return nil, acceptedXAIVideoResponseError(readErr, debug)
 		}
 		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-			return nil, MarkRequestAccepted(parseUpstreamError(resp.StatusCode, body, debug))
+			return nil, portllm.MarkRequestAccepted(parseUpstreamError(resp.StatusCode, body, debug))
 		}
 
 		output, pending, err := parseXAIVideoResult(body, requestID, requestedDurationSeconds)
@@ -281,7 +283,7 @@ func (c *Client) pollXAIVideoResult(ctx context.Context, route RouteConfig, requ
 			return output, nil
 		}
 		if err := waitXAIVideoPoll(ctx, xAIVideoPollDelay(resp.Header.Get("Retry-After"))); err != nil {
-			return nil, MarkRequestAccepted(err)
+			return nil, portllm.MarkRequestAccepted(err)
 		}
 	}
 }
@@ -294,8 +296,8 @@ func buildXAIVideoResultURL(baseURL string, requestID string) string {
 	return buildVersionedEndpointURL(baseURL, "v1", "/videos/"+url.PathEscape(id))
 }
 
-func parseXAIVideoResult(body []byte, requestID string, requestedDurationSeconds int64) (*GenerateOutput, bool, error) {
-	parsed := make(map[string]interface{})
+func parseXAIVideoResult(body []byte, requestID string, requestedDurationSeconds int64) (*portllm.GenerateOutput, bool, error) {
+	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, false, err
 	}
@@ -339,11 +341,11 @@ func parseXAIVideoResult(body []byte, requestID string, requestedDurationSeconds
 		parsed["duration"],
 		requestedDurationSeconds,
 	)
-	result := &GenerateOutput{
+	result := &portllm.GenerateOutput{
 		ResponseID:      strings.TrimSpace(requestID),
-		ToolCalls:       make([]ToolCall, 0),
-		ServerToolCalls: make([]ToolCall, 0),
-		GeneratedVideos: []GeneratedVideo{{
+		ToolCalls:       make([]portllm.ToolCall, 0),
+		ServerToolCalls: make([]portllm.ToolCall, 0),
+		GeneratedVideos: []portllm.GeneratedVideo{{
 			URL:             videoURL,
 			MIMEType:        "video/mp4",
 			FileName:        strings.TrimSpace(getString(fileOutput["filename"])),
@@ -355,7 +357,7 @@ func parseXAIVideoResult(body []byte, requestID string, requestedDurationSeconds
 	return result, false, nil
 }
 
-func acceptedXAIVideoResponseError(err error, debug *UpstreamDebugSnapshot) error {
+func acceptedXAIVideoResponseError(err error, debug *portllm.UpstreamDebugSnapshot) error {
 	if err == nil {
 		return nil
 	}
@@ -363,7 +365,7 @@ func acceptedXAIVideoResponseError(err error, debug *UpstreamDebugSnapshot) erro
 	if debug != nil {
 		body = debug.Response.Body
 	}
-	return MarkRequestAccepted(&UpstreamError{
+	return portllm.MarkRequestAccepted(&portllm.UpstreamError{
 		StatusCode: http.StatusBadGateway,
 		Message:    strings.TrimSpace(err.Error()),
 		Body:       body,

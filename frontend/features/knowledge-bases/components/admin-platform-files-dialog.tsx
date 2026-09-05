@@ -23,12 +23,12 @@ import {
   DialogContent,
   DialogDescription,
   DialogFooter,
+  DialogHeightTransition,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { DialogHeightTransition } from "@/features/knowledge-bases/components/knowledge-base-dialogs";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import {
   deleteAdminKnowledgeBaseFile,
@@ -475,7 +475,7 @@ export function AdminPlatformFilesDialog({
                     </div>
                   </>
                 ) : (
-                  <div className="flex min-h-36 items-center justify-center text-xs text-muted-foreground">
+                  <div className="flex min-h-36 items-center justify-center px-3 py-6 text-center text-xs text-muted-foreground">
                     {t("localFilesEmpty")}
                   </div>
                 )}

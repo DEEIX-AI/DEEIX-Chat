@@ -155,14 +155,14 @@ func (s *Service) startInMemoryCacheCleanupWorker(ctx context.Context) {
 }
 
 func (s *Service) cleanupExpiredInMemoryCaches(now time.Time) {
-	s.snapshotCache.Range(func(key, value interface{}) bool {
+	s.snapshotCache.Range(func(key, value any) bool {
 		entry, ok := value.(*cachedSnapshot)
 		if !ok || !now.Before(entry.expiresAt) {
 			s.snapshotCache.Delete(key)
 		}
 		return true
 	})
-	s.userMemCache.Range(func(key, value interface{}) bool {
+	s.userMemCache.Range(func(key, value any) bool {
 		entry, ok := value.(*cachedUserMemories)
 		if !ok || !now.Before(entry.expiresAt) {
 			s.userMemCache.Delete(key)

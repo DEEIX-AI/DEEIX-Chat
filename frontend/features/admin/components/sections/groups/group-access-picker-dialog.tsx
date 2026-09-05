@@ -419,7 +419,7 @@ function GroupAccessTable({
         )}
         viewportClassName={cn(
           tableViewportClassName,
-          "overflow-y-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-20",
+          "[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-20",
         )}
       >
         <TableHeader>

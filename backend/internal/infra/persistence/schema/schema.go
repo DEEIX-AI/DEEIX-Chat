@@ -10,8 +10,8 @@ import (
 )
 
 // Models returns all persistent Gorm models used by the application.
-func Models() []interface{} {
-	return []interface{}{
+func Models() []any {
+	return []any{
 		&model.User{},
 		&model.UserContactVerification{},
 		&model.UserCredential{},
@@ -218,10 +218,14 @@ func CleanupRemovedColumns(db *gorm.DB) error {
 	if err := dropColumns(db, &model.Skill{}, []string{"content", "sections_json"}); err != nil {
 		return err
 	}
+	// discount_percent 从未进入任何计价路径，随字段移除一并清理。
+	if err := dropColumns(db, &model.BillingPlan{}, []string{"discount_percent"}); err != nil {
+		return err
+	}
 	return nil
 }
 
-func dropColumns(db *gorm.DB, table interface{}, columns []string) error {
+func dropColumns(db *gorm.DB, table any, columns []string) error {
 	if !db.Migrator().HasTable(table) {
 		return nil
 	}
@@ -374,7 +378,6 @@ func SeedBillingCatalog(db *gorm.DB) error {
 			Description:         "默认免费套餐",
 			FeatureJSON:         `{"priority":"shared"}`,
 			PeriodCreditNanousd: 1000000000,
-			DiscountPercent:     0,
 			SortOrder:           10,
 			IsActive:            true,
 			PermissionGroupID:   copyUintPointer(defaultGroupID),
@@ -385,7 +388,6 @@ func SeedBillingCatalog(db *gorm.DB) error {
 			Description:         "轻度使用套餐",
 			FeatureJSON:         `{"priority":"standard"}`,
 			PeriodCreditNanousd: 30000000000,
-			DiscountPercent:     0,
 			SortOrder:           20,
 			IsActive:            true,
 			PermissionGroupID:   copyUintPointer(defaultGroupID),
@@ -396,7 +398,6 @@ func SeedBillingCatalog(db *gorm.DB) error {
 			Description:         "中度使用套餐",
 			FeatureJSON:         `{"priority":"advanced"}`,
 			PeriodCreditNanousd: 75000000000,
-			DiscountPercent:     0,
 			SortOrder:           30,
 			IsActive:            true,
 			PermissionGroupID:   copyUintPointer(defaultGroupID),
@@ -407,7 +408,6 @@ func SeedBillingCatalog(db *gorm.DB) error {
 			Description:         "重度使用套餐",
 			FeatureJSON:         `{"priority":"premium"}`,
 			PeriodCreditNanousd: 300000000000,
-			DiscountPercent:     0,
 			SortOrder:           40,
 			IsActive:            true,
 			PermissionGroupID:   copyUintPointer(defaultGroupID),

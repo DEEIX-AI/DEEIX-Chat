@@ -15,7 +15,7 @@ func CORS(allowOrigin string) gin.HandlerFunc {
 		origin := strings.TrimRight(strings.TrimSpace(c.GetHeader("Origin")), "/")
 		allowedOrigin := matchAllowedOrigin(origin, allowedOrigins)
 		if origin != "" && allowedOrigin == "" {
-			response.ErrorWithCode(c, http.StatusForbidden, "cors.origin_forbidden", "origin is not allowed")
+			response.ErrorWithCode(c, http.StatusForbidden, "cors.origin_forbidden")
 			c.Abort()
 			return
 		}

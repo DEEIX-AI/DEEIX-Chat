@@ -18,7 +18,7 @@ import (
 	"unicode/utf8"
 
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	cmport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/contentmoderation"
 )
 
 const (
@@ -29,8 +29,6 @@ const (
 	maxRetryAfter         = 30 * time.Second
 	maxResponseBytes      = 4 << 20
 )
-
-var _ repository.ContentModerationProvider = (*Client)(nil)
 
 type moderationInput struct {
 	Type     string              `json:"type"`
@@ -43,8 +41,8 @@ type moderationImageURL struct {
 }
 
 type moderationRequest struct {
-	Model string      `json:"model"`
-	Input interface{} `json:"input"`
+	Model string `json:"model"`
+	Input any    `json:"input"`
 }
 
 type moderationCategoryResult struct {
@@ -99,7 +97,7 @@ func (c *Client) ModerateText(
 	for _, chunk := range chunks {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
-			return nil, repository.ErrContentModerationTimeout
+			return nil, cmport.ErrTimeout
 		}
 		requestCtx, cancel := context.WithTimeout(ctx, remaining)
 		response, err := c.moderate(requestCtx, config, buildTextInput(chunk))
@@ -135,7 +133,7 @@ func (c *Client) ModerateImages(
 	for _, batch := range batchImageDataURLs(dataURLs) {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
-			return nil, repository.ErrContentModerationTimeout
+			return nil, cmport.ErrTimeout
 		}
 		requestCtx, cancel := context.WithTimeout(ctx, remaining)
 		response, err := c.moderate(requestCtx, config, buildImageInputs(batch))
@@ -151,7 +149,7 @@ func (c *Client) ModerateImages(
 	return merged, nil
 }
 
-func (c *Client) moderate(ctx context.Context, config domaincm.ProviderConfig, input interface{}) (*domaincm.ProviderResponse, error) {
+func (c *Client) moderate(ctx context.Context, config domaincm.ProviderConfig, input any) (*domaincm.ProviderResponse, error) {
 	endpoint, err := normalizeBaseURL(config.BaseURL)
 	if err != nil {
 		return nil, err
@@ -181,7 +179,7 @@ func (c *Client) moderate(ctx context.Context, config domaincm.ProviderConfig, i
 
 		response, err := c.Do(request, config.BaseURL)
 		if err != nil {
-			lastErr = fmt.Errorf("%w: %v", repository.ErrContentModerationNetwork, err)
+			lastErr = fmt.Errorf("%w: %w", cmport.ErrNetwork, err)
 			if attempt == 0 && shouldRetryNetwork(err) {
 				continue
 			}
@@ -190,7 +188,7 @@ func (c *Client) moderate(ctx context.Context, config domaincm.ProviderConfig, i
 		payload, readErr := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes))
 		_ = response.Body.Close()
 		if readErr != nil {
-			lastErr = fmt.Errorf("%w: read response", repository.ErrContentModerationNetwork)
+			lastErr = fmt.Errorf("%w: read response", cmport.ErrNetwork)
 			if attempt == 0 && shouldRetryNetwork(readErr) {
 				continue
 			}
@@ -213,14 +211,14 @@ func (c *Client) moderate(ctx context.Context, config domaincm.ProviderConfig, i
 
 		var document moderationResponse
 		if err := json.Unmarshal(payload, &document); err != nil {
-			return nil, fmt.Errorf("%w: malformed JSON", repository.ErrContentModerationInvalidResp)
+			return nil, fmt.Errorf("%w: malformed JSON", cmport.ErrInvalidResponse)
 		}
 		if len(document.Results) == 0 {
-			return nil, fmt.Errorf("%w: empty results", repository.ErrContentModerationInvalidResp)
+			return nil, fmt.Errorf("%w: empty results", cmport.ErrInvalidResponse)
 		}
 		for _, result := range document.Results {
 			if result.Categories == nil {
-				return nil, fmt.Errorf("%w: missing categories", repository.ErrContentModerationInvalidResp)
+				return nil, fmt.Errorf("%w: missing categories", cmport.ErrInvalidResponse)
 			}
 		}
 		return document.toDomainResponse(), nil
@@ -228,23 +226,23 @@ func (c *Client) moderate(ctx context.Context, config domaincm.ProviderConfig, i
 	if lastErr != nil {
 		return nil, lastErr
 	}
-	return nil, repository.ErrContentModerationService
+	return nil, cmport.ErrService
 }
 
 func normalizeBaseURL(raw string) (string, error) {
 	value := strings.TrimSpace(raw)
 	if value == "" {
-		return "", repository.ErrContentModerationInvalidBaseURL
+		return "", cmport.ErrInvalidBaseURL
 	}
 	if !strings.Contains(value, "://") {
 		value = "https://" + value
 	}
 	parsed, err := url.Parse(value)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil {
-		return "", repository.ErrContentModerationInvalidBaseURL
+		return "", cmport.ErrInvalidBaseURL
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return "", repository.ErrContentModerationInvalidBaseURL
+		return "", cmport.ErrInvalidBaseURL
 	}
 	path := strings.TrimRight(parsed.Path, "/")
 	switch lower := strings.ToLower(path); {
@@ -375,16 +373,16 @@ func mapHTTPStatus(status int) error {
 	// Never include provider response bodies: compatible services may echo
 	// moderated content or credentials and this error can be persisted.
 	if status == http.StatusTooManyRequests {
-		return fmt.Errorf("%w: status %d", repository.ErrContentModerationRateLimited, status)
+		return fmt.Errorf("%w: status %d", cmport.ErrRateLimited, status)
 	}
-	return fmt.Errorf("%w: status %d", repository.ErrContentModerationService, status)
+	return fmt.Errorf("%w: status %d", cmport.ErrService, status)
 }
 
 func mapContextError(err error) error {
 	if errors.Is(err, context.DeadlineExceeded) {
-		return repository.ErrContentModerationTimeout
+		return cmport.ErrTimeout
 	}
-	return fmt.Errorf("%w: %v", repository.ErrContentModerationNetwork, err)
+	return fmt.Errorf("%w: %w", cmport.ErrNetwork, err)
 }
 
 func shouldRetryNetwork(err error) bool {

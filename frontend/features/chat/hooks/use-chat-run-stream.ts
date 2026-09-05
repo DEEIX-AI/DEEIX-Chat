@@ -217,6 +217,7 @@ export function useChatRunStream({
                 t("moderationBlockedDescription"),
                 event.eventID ? t("moderationEventId", { id: event.eventID }) : "",
                 categories.length > 0 ? t("moderationCategories", { categories: categories.join(", ") }) : "",
+                event.billedReason ? t("moderationBlockedBilled") : "",
               ]
                 .filter(Boolean)
                 .join("\n"),

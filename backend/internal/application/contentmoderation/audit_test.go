@@ -3,6 +3,8 @@ package contentmoderation
 import (
 	"context"
 	"testing"
+
+	appaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 )
 
 type reviewAuditCall struct {
@@ -19,21 +21,14 @@ type reviewAuditWriter struct {
 
 func (writer *reviewAuditWriter) Write(
 	_ context.Context,
-	requestID string,
-	actorUserID uint,
-	action string,
-	resource string,
-	resourceID string,
-	_ string,
-	_ string,
-	_ interface{},
+	input appaudit.WriteInput,
 ) {
 	writer.call = reviewAuditCall{
-		requestID:   requestID,
-		actorUserID: actorUserID,
-		action:      action,
-		resource:    resource,
-		resourceID:  resourceID,
+		requestID:   input.RequestID,
+		actorUserID: input.ActorUserID,
+		action:      input.Action,
+		resource:    input.Resource,
+		resourceID:  input.ResourceID,
 	}
 }
 
@@ -43,9 +38,9 @@ func TestRecordReviewAuditIdentifiesActorAndEvent(t *testing.T) {
 	service.SetAuditWriter(writer)
 	service.RecordReviewAudit(context.Background(), ReviewAuditInput{
 		ActorUserID: 42,
-		RequestID:   " req_1 ",
-		Action:      " content_moderation.event.view ",
-		EventID:     " cme_1 ",
+		RequestID:   "req_1",
+		Action:      "content_moderation.event.view",
+		EventID:     "cme_1",
 	})
 	if writer.call.actorUserID != 42 || writer.call.requestID != "req_1" ||
 		writer.call.action != "content_moderation.event.view" ||

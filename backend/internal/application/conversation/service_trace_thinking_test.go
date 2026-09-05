@@ -2,55 +2,6 @@ package conversation
 
 import "testing"
 
-func TestSplitThinkingContentOnlyAcceptsLeadingClosedBlock(t *testing.T) {
-	tests := []struct {
-		name        string
-		input       string
-		wantVisible string
-		wantThink   string
-	}{
-		{
-			name:        "leading think block",
-			input:       "<think>hidden</think>visible",
-			wantVisible: "visible",
-			wantThink:   "hidden",
-		},
-		{
-			name:        "leading thinking block with attributes",
-			input:       "\n<thinking data-source=\"model\">hidden</thinking>\nvisible",
-			wantVisible: "visible",
-			wantThink:   "hidden",
-		},
-		{
-			name:        "middle think remains visible",
-			input:       "visible <think>not hidden</think> tail",
-			wantVisible: "visible <think>not hidden</think> tail",
-			wantThink:   "",
-		},
-		{
-			name:        "unclosed think remains visible",
-			input:       "<think>not closed",
-			wantVisible: "<think>not closed",
-			wantThink:   "",
-		},
-		{
-			name:        "plain thinking word remains visible",
-			input:       "stream JSON uses isThinking to describe state",
-			wantVisible: "stream JSON uses isThinking to describe state",
-			wantThink:   "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			visible, think := splitThinkingContent(tt.input)
-			if visible != tt.wantVisible || think != tt.wantThink {
-				t.Fatalf("unexpected split: visible=%q think=%q", visible, think)
-			}
-		})
-	}
-}
-
 func TestSplitAssistantOutputThinkingContentRemovesProtocolUnsafeThinking(t *testing.T) {
 	tests := []struct {
 		name        string

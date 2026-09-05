@@ -1,6 +1,9 @@
 package user
 
-import "strings"
+import (
+	"net/url"
+	"strings"
+)
 
 const fileAvatarPrefix = "file:"
 
@@ -47,4 +50,18 @@ func IsValidFileAvatarID(fileID string) bool {
 		return false
 	}
 	return true
+}
+
+// IsValidAvatarURL 判断头像引用是否属于受支持的内部引用或 HTTP(S) 地址。
+func IsValidAvatarURL(raw string) bool {
+	if raw == "" || strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "generated:github:") {
+		return true
+	}
+	if strings.HasPrefix(raw, fileAvatarPrefix) {
+		_, ok := ParseFileAvatarURL(raw)
+		return ok
+	}
+
+	parsed, err := url.Parse(raw)
+	return err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != ""
 }

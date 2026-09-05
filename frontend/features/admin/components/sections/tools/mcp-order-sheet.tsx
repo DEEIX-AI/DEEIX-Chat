@@ -199,12 +199,12 @@ export function MCPOrderSheet({
 
         <div className="min-h-0 flex-1 overflow-hidden px-6 pb-4">
           {loading ? (
-            <div className="flex h-full min-h-[22rem] items-center justify-center text-xs text-muted-foreground">
+            <div className="flex h-full min-h-[22rem] items-center justify-center px-3 py-6 text-center text-xs text-muted-foreground">
               <Spinner className="mr-2 size-4" />
               {t("loading")}
             </div>
           ) : groups.length === 0 ? (
-            <div className="flex h-full min-h-[22rem] items-center justify-center text-xs text-muted-foreground">
+            <div className="flex h-full min-h-[22rem] items-center justify-center px-3 py-6 text-center text-xs text-muted-foreground">
               {t("empty")}
             </div>
           ) : (
@@ -330,7 +330,7 @@ export function MCPOrderSheet({
                         </div>
                       </AdminSortableList>
                     ) : (
-                      <div className="flex h-full min-h-[12rem] items-center justify-center text-xs text-muted-foreground">
+                      <div className="flex h-full min-h-[12rem] items-center justify-center px-3 py-6 text-center text-xs text-muted-foreground">
                         {t("emptyTools")}
                       </div>
                     )

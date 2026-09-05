@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"io"
 	"strings"
 	"time"
@@ -12,8 +13,8 @@ import (
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/toolresult"
 )
 
 const (
@@ -75,11 +76,11 @@ func (s *Service) processImageAttachments(
 	cfg := s.cfg.Snapshot()
 	storeProvider := s.storeProvider
 	if storeProvider == nil {
-		storeProvider = appstorage.NewRuntimeProvider(config.NewRuntime(cfg), nil)
+		return result, fmt.Errorf("%w: open object storage: %w", ErrImageAttachmentProcessingFailed, appstorage.ErrProviderNotConfigured)
 	}
 	store, err := storeProvider.Open(ctx)
 	if err != nil {
-		return result, fmt.Errorf("%w: open object storage: %v", ErrImageAttachmentProcessingFailed, err)
+		return result, fmt.Errorf("%w: open object storage: %w", ErrImageAttachmentProcessingFailed, err)
 	}
 
 	totalImageBytes := 0
@@ -98,13 +99,13 @@ func (s *Service) processImageAttachments(
 		if processor.encoding == domainmcp.AttachmentEncodingDataURL {
 			encodedImage = "data:" + prepared.mimeType + ";base64," + encodedImage
 		}
-		arguments := map[string]interface{}{processor.argument: encodedImage}
+		arguments := map[string]any{processor.argument: encodedImage}
 		if processor.promptArgument != "" {
 			arguments[processor.promptArgument] = strings.TrimSpace(input.UserPrompt)
 		}
 		argumentsJSON, marshalErr := json.Marshal(arguments)
 		if marshalErr != nil {
-			return result, fmt.Errorf("%w: encode processor arguments: %v", ErrImageAttachmentProcessingFailed, marshalErr)
+			return result, fmt.Errorf("%w: encode processor arguments: %w", ErrImageAttachmentProcessingFailed, marshalErr)
 		}
 		normalizedArguments, validationErr := normalizeToolArguments(string(argumentsJSON), input.Runtime.schemas[processor.modelName])
 		row := domainconversation.ToolCall{
@@ -122,7 +123,7 @@ func (s *Service) processImageAttachments(
 			row.Status = "error"
 			row.ErrorJSON = validationErr.Error()
 			s.persistImageAttachmentToolRow(ctx, &row, &result)
-			return result, fmt.Errorf("%w: %v", ErrImageAttachmentProcessingFailed, validationErr)
+			return result, fmt.Errorf("%w: %w", ErrImageAttachmentProcessingFailed, validationErr)
 		}
 
 		binding, ok := input.Runtime.mcpBindings[processor.modelName]
@@ -146,11 +147,11 @@ func (s *Service) processImageAttachments(
 		row.LatencyMS = max(time.Since(startedAt).Milliseconds(), 0)
 		if executeErr != nil {
 			row.Status = "error"
-			row.ErrorJSON = sanitizeOpaqueToolOutput(executeErr.Error())
+			row.ErrorJSON = toolresult.SanitizeOpaque(executeErr.Error())
 			s.persistImageAttachmentToolRow(ctx, &row, &result)
-			return result, fmt.Errorf("%w: %v", ErrImageAttachmentProcessingFailed, executeErr)
+			return result, fmt.Errorf("%w: %w", ErrImageAttachmentProcessingFailed, executeErr)
 		}
-		row.OutputJSON = sanitizeOpaqueToolOutput(output)
+		row.OutputJSON = toolresult.SanitizeOpaque(output)
 		if row.OutputJSON == "" {
 			row.OutputJSON = "{}"
 		}
@@ -174,7 +175,7 @@ func (s *Service) processImageAttachments(
 		analysis = contextArtifactExcerpt(analysis, analysisCharLimit)
 		result.Analyses = append(result.Analyses, imageAttachmentAnalysis{
 			FileID:   strings.TrimSpace(attachment.FileID),
-			FileName: firstNonEmptyString(attachment.FileName, attachment.FileID),
+			FileName: textutil.FirstNonEmpty(attachment.FileName, attachment.FileID),
 			ToolName: processor.displayName,
 			Content:  analysis,
 		})
@@ -188,16 +189,7 @@ func (s *Service) processImageAttachments(
 		input.TraceRecorder.appendProcessSection(
 			fmt.Sprintf("已通过 %s 处理 %d 张图片", processor.displayName, len(result.Analyses)),
 			formatTraceStep("图片附件", fmt.Sprintf("图片已交由 %s 分析，主模型仅接收分析结果。", processor.displayName)),
-			map[string]interface{}{
-				"tool_id":    processor.toolID,
-				"tool_name":  processor.toolName,
-				"file_names": fileNames,
-				processTracePayloadStage: map[string]interface{}{
-					"kind":       "mcp_attachment_processor",
-					"status":     messageTraceStatusCompleted,
-					"file_count": len(result.Analyses),
-				},
-			},
+			&tracePayload{ToolID: processor.toolID, ToolName: processor.toolName, FileNames: fileNames, Stages: []traceStage{{Kind: "mcp_attachment_processor", Status: messageTraceStatusCompleted, FileCount: len(result.Analyses)}}},
 			messageTraceStatusCompleted,
 		)
 	}
@@ -221,15 +213,15 @@ func prepareImageAttachmentForProcessor(
 	}
 	reader, _, err := store.Open(ctx, storagePath)
 	if err != nil {
-		return preparedImageAttachment{}, fmt.Errorf("%w: open image %s: %v", ErrFileNotFound, attachment.FileID, err)
+		return preparedImageAttachment{}, fmt.Errorf("%w: open image %s: %w", ErrFileNotFound, attachment.FileID, err)
 	}
 	data, readErr := io.ReadAll(io.LimitReader(reader, maxConversationImageSourceBytes+1))
 	closeErr := reader.Close()
 	if readErr != nil {
-		return preparedImageAttachment{}, fmt.Errorf("%w: read image %s: %v", ErrFileNotFound, attachment.FileID, readErr)
+		return preparedImageAttachment{}, fmt.Errorf("%w: read image %s: %w", ErrFileNotFound, attachment.FileID, readErr)
 	}
 	if closeErr != nil {
-		return preparedImageAttachment{}, fmt.Errorf("%w: close image %s: %v", ErrFileNotFound, attachment.FileID, closeErr)
+		return preparedImageAttachment{}, fmt.Errorf("%w: close image %s: %w", ErrFileNotFound, attachment.FileID, closeErr)
 	}
 	if len(data) == 0 {
 		return preparedImageAttachment{}, fmt.Errorf("%w: image %s is empty", ErrInvalidFileReference, attachment.FileID)
@@ -240,7 +232,7 @@ func prepareImageAttachmentForProcessor(
 	if maxDimension <= 0 {
 		maxDimension = 1024
 	}
-	mimeType := resolveImageMimeType(firstNonEmptyString(attachment.DetectedMIME, attachment.MimeType))
+	mimeType := resolveImageMimeType(textutil.FirstNonEmpty(attachment.DetectedMIME, attachment.MimeType))
 	resized, actualMIME := resizeImageIfNeeded(data, mimeType, maxDimension)
 	return preparedImageAttachment{data: resized, mimeType: actualMIME}, nil
 }
@@ -248,7 +240,7 @@ func prepareImageAttachmentForProcessor(
 func currentImageAttachments(attachments []AttachmentInput) []AttachmentInput {
 	result := make([]AttachmentInput, 0)
 	for _, attachment := range attachments {
-		mimeType := firstNonEmptyString(attachment.DetectedMIME, attachment.MimeType)
+		mimeType := textutil.FirstNonEmpty(attachment.DetectedMIME, attachment.MimeType)
 		if attachment.Current && normalizeAttachmentKind(attachment.Kind, mimeType) == "image" {
 			result = append(result, attachment)
 		}
@@ -257,7 +249,7 @@ func currentImageAttachments(attachments []AttachmentInput) []AttachmentInput {
 }
 
 func imageAttachmentAuditInput(attachment AttachmentInput, mimeType string, encoding string, byteSize int) string {
-	payload, _ := json.Marshal(map[string]interface{}{
+	payload, _ := json.Marshal(map[string]any{
 		"file_id":   strings.TrimSpace(attachment.FileID),
 		"file_name": strings.TrimSpace(attachment.FileName),
 		"mime_type": strings.TrimSpace(mimeType),
@@ -292,7 +284,7 @@ func imageAttachmentAnalysisText(raw string) string {
 			Type string `json:"type"`
 			Text string `json:"text"`
 		} `json:"content"`
-		StructuredContent interface{} `json:"structuredContent"`
+		StructuredContent any `json:"structuredContent"`
 	}
 	if err := json.Unmarshal([]byte(value), &payload); err == nil {
 		parts := make([]string, 0, len(payload.Content))
@@ -318,7 +310,7 @@ func withoutCurrentImageAttachments(plan conversationFileContextPlan) conversati
 	filter := func(items []AttachmentInput) []AttachmentInput {
 		result := make([]AttachmentInput, 0, len(items))
 		for _, item := range items {
-			mimeType := firstNonEmptyString(item.DetectedMIME, item.MimeType)
+			mimeType := textutil.FirstNonEmpty(item.DetectedMIME, item.MimeType)
 			if item.Current && normalizeAttachmentKind(item.Kind, mimeType) == "image" {
 				continue
 			}

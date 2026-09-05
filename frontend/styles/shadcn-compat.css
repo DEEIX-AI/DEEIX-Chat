@@ -1,0 +1,28 @@
+/* Compatibility for https://github.com/shadcn-ui/ui/issues/11291.
+   Re-evaluate after an upstream fix such as shadcn-ui/ui#11298 ships. Native scroll
+   containers still need the metric hook unless they migrate to Base UI ScrollArea or
+   every supported browser implements scroll-driven animations. */
+@supports not (animation-timeline: scroll()) {
+  [class*="scroll-fade"] {
+    --scroll-area-overflow-x-start: 0px;
+    --scroll-area-overflow-x-end: 0px;
+    --scroll-area-overflow-y-start: 0px;
+    --scroll-area-overflow-y-end: 0px;
+    --scroll-fade-t: min(
+      var(--_scroll-fade-size-t, 0px),
+      var(--scroll-area-overflow-y-start)
+    );
+    --scroll-fade-b: min(
+      var(--_scroll-fade-size-b, 0px),
+      var(--scroll-area-overflow-y-end)
+    );
+    --scroll-fade-s: min(
+      var(--_scroll-fade-size-s, 0px),
+      var(--scroll-area-overflow-x-start)
+    );
+    --scroll-fade-e: min(
+      var(--_scroll-fade-size-e, 0px),
+      var(--scroll-area-overflow-x-end)
+    );
+  }
+}

@@ -6,20 +6,20 @@ import { toast } from "sonner";
 
 import type {
   KnowledgeBaseDraft,
-  KnowledgeBaseMode,
   KnowledgeBaseMobileView,
+  KnowledgeBaseMode,
   KnowledgeBasePreviewTarget,
   KnowledgeBaseSortKey,
 } from "@/features/knowledge-bases/types/knowledge-bases";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import { uploadFile } from "@/shared/api/file";
+import { submitFileEmbeddings, uploadFile } from "@/shared/api/file";
 import {
   addAdminKnowledgeBaseFiles,
   addMyKnowledgeBaseFiles,
   createAdminKnowledgeBase,
   createMyKnowledgeBase,
-  deleteAdminKnowledgeBaseFile,
   deleteAdminKnowledgeBase,
+  deleteAdminKnowledgeBaseFile,
   deleteMyKnowledgeBase,
   fetchKnowledgeBaseFileContent,
   getKnowledgeBase,
@@ -32,6 +32,7 @@ import {
   listVisibleKnowledgeBases,
   removeAdminKnowledgeBaseFile,
   removeMyKnowledgeBaseFile,
+  submitAdminPlatformFileEmbeddings,
   updateAdminKnowledgeBase,
   updateMyKnowledgeBase,
   uploadAdminKnowledgeBaseFile,
@@ -50,11 +51,11 @@ import {
 } from "@/shared/events/knowledge-base-events";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import {
-  useFileStatusPolling,
   type FileStatusPollingResult,
+  useFileStatusPolling,
 } from "@/shared/hooks/use-file-processing-status-polling";
 import { runSettledBulkItems, runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
-import { isFileProcessing } from "@/shared/lib/file-processing";
+import { canManuallyVectorizeFile, isFileProcessing } from "@/shared/lib/file-processing";
 
 const FILE_ACTION_LIMIT = 100;
 const FILE_PAGE_SIZE = 100;
@@ -78,6 +79,8 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   const [files, setFiles] = React.useState<KnowledgeBaseFileDTO[]>([]);
   const [filesTotal, setFilesTotal] = React.useState(0);
   const [filesPage, setFilesPage] = React.useState(1);
+  const [selectedDetailFileIDs, setSelectedDetailFileIDs] = React.useState<string[]>([]);
+  const [vectorizingFileIDs, setVectorizingFileIDs] = React.useState<string[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [itemsTotal, setItemsTotal] = React.useState(0);
   const [itemsPage, setItemsPage] = React.useState(1);
@@ -160,6 +163,17 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
     const selectableIDs = new Set(selectableItems.map((item) => item.publicID));
     setSelectedKnowledgeBaseIDs((current) => current.filter((id) => selectableIDs.has(id)));
   }, [selectableItems]);
+
+  React.useEffect(() => {
+    setSelectedDetailFileIDs([]);
+  }, [selectedID]);
+
+  React.useEffect(() => {
+    const vectorizableIDs = new Set(
+      files.filter(canManuallyVectorizeFile).map((file) => file.fileID),
+    );
+    setSelectedDetailFileIDs((current) => current.filter((fileID) => vectorizableIDs.has(fileID)));
+  }, [files]);
 
   const listFilePage = React.useCallback((
     accessToken: string,
@@ -488,9 +502,13 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
         file.processingStatus === status.processingStatus &&
         file.processing === status.processing &&
         file.processingReady === status.processingReady &&
+        file.extractStatus === status.extractStatus &&
         file.embedStatus === status.embedStatus &&
+        file.embedError === status.embedError &&
         file.chunkCount === status.chunkCount &&
         file.ragOptOut === status.ragOptOut &&
+        file.canVectorize === status.canVectorize &&
+        file.vectorizationReason === status.vectorizationReason &&
         file.updatedAt === status.updatedAt
       ) {
         nextFiles.push(file);
@@ -792,6 +810,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       if (selectedIDRef.current === knowledgeBaseID) {
         setFiles((current) => current.filter((file) => file.fileID !== fileID));
         setFilesTotal((current) => Math.max(0, current - 1));
+        setSelectedDetailFileIDs((current) => current.filter((id) => id !== fileID));
       }
       await loadItems(undefined, true);
       dispatchKnowledgeBaseInvalidated(knowledgeBaseID);
@@ -802,6 +821,72 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       setRemovingFileID("");
     }
   }, [loadItems, mode, removingFileID, selected, t]);
+
+  const submitVectorization = React.useCallback(async (fileIDs: string[], clearSelection: boolean) => {
+    if (!selected || vectorizingFileIDs.length > 0 || (mode === "user" && selected.scope !== "user")) return;
+    const normalizedFileIDs = Array.from(new Set(fileIDs.map((fileID) => fileID.trim()).filter(Boolean)));
+    if (normalizedFileIDs.length === 0) return;
+    if (normalizedFileIDs.length > FILE_ACTION_LIMIT) {
+      toast.error(t("tooManyFiles", { max: FILE_ACTION_LIMIT }));
+      return;
+    }
+
+    const knowledgeBaseID = selected.publicID;
+    setVectorizingFileIDs(normalizedFileIDs);
+    try {
+      const token = await requireAccessToken();
+      const result = mode === "admin"
+        ? await submitAdminPlatformFileEmbeddings(token, normalizedFileIDs)
+        : await submitFileEmbeddings(token, normalizedFileIDs);
+      const submittedFileIDs = new Set(result.submittedFileIDs);
+      const failedCount = result.skipped.filter(({ reason }) => ["queue_busy", "submit_failed"].includes(reason)).length;
+      if (submittedFileIDs.size > 0 && selectedIDRef.current === knowledgeBaseID) {
+        const nextFiles = filesRef.current.map((file) => submittedFileIDs.has(file.fileID)
+          ? {
+            ...file,
+            processing: true,
+            embedStatus: "queued",
+            embedError: "",
+            canVectorize: false,
+            vectorizationReason: "processing",
+          }
+          : file);
+        filesRef.current = nextFiles;
+        setFiles(nextFiles);
+      }
+      if (clearSelection && selectedIDRef.current === knowledgeBaseID) {
+        setSelectedDetailFileIDs((current) => current.filter((fileID) => !submittedFileIDs.has(fileID)));
+      }
+      if (failedCount > 0) {
+        toast.warning(t("vectorizePartial", { submitted: result.submittedFileIDs.length, failed: failedCount }));
+      } else if (result.submittedFileIDs.length === 0) {
+        toast.info(t("vectorizeNoChanges"));
+      } else {
+        toast.success(t("vectorizeSubmitted", { count: result.submittedFileIDs.length }), {
+          description: result.skipped.length > 0
+            ? t("vectorizeSkipped", { count: result.skipped.length })
+            : undefined,
+        });
+      }
+    } catch (error) {
+      toast.error(t("vectorizeFailed"), { description: resolveErrorMessage(error) });
+    } finally {
+      setVectorizingFileIDs([]);
+    }
+  }, [mode, resolveErrorMessage, selected, t, vectorizingFileIDs.length]);
+
+  const toggleDetailFileSelection = React.useCallback((fileID: string, checked: boolean) => {
+    setSelectedDetailFileIDs((current) => {
+      const next = new Set(current);
+      if (checked) {
+        if (next.size >= FILE_ACTION_LIMIT) return current;
+        next.add(fileID);
+      } else {
+        next.delete(fileID);
+      }
+      return Array.from(next);
+    });
+  }, []);
 
   const loadMoreFiles = React.useCallback(async () => {
     if (!selected || filesLoadingMore || files.length >= filesTotal) return;
@@ -1000,10 +1085,19 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
     },
     detail: {
       selected, files, filesTotal, filesLoading, filesLoadingMore, removingFileID, toggling,
+      selectedFileIDs: selectedDetailFileIDs,
+      vectorizingFileIDs,
       back: () => setMobileView("list"),
       addFiles: () => setAddFilesOpen(true),
       loadMoreFiles,
       removeFile,
+      toggleFileSelection: toggleDetailFileSelection,
+      selectVectorizableFiles: () => setSelectedDetailFileIDs(
+        files.filter(canManuallyVectorizeFile).slice(0, FILE_ACTION_LIMIT).map((file) => file.fileID),
+      ),
+      clearFileSelection: () => setSelectedDetailFileIDs([]),
+      vectorizeFile: (fileID: string) => submitVectorization([fileID], false),
+      vectorizeSelectedFiles: () => submitVectorization(selectedDetailFileIDs, true),
       toggleBuiltinEnabled,
       previewFile: (file: KnowledgeBaseFileDTO) => {
         if (!selected) return;

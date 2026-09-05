@@ -496,12 +496,32 @@
     },
     "usageBilling": {
       "title": "Usage billing",
-      "balance": "Account balance {value}",
+      "balanceLabel": "Account balance",
+      "totalSpentLabel": "Total spent",
       "topUp": "Top up"
     },
     "selfMode": {
       "title": "Billing mode",
       "value": "Self-use mode"
+    },
+    "activity": {
+      "title": "Activity over the past year",
+      "tokens": "Tokens",
+      "requests": "Requests",
+      "peakDayTokens": "Highest daily tokens",
+      "currentStreak": "Current streak",
+      "longestStreak": "Longest streak",
+      "totalActiveDays": "Active days",
+      "dayCount": "{count, plural, one {# day} other {# days}}",
+      "totalRequests": "Made {count} model requests in the past year",
+      "less": "Less",
+      "more": "More",
+      "empty": "No activity in the past year",
+      "loadFailed": "Failed to load activity",
+      "tooltip": {
+        "requests": "Requests",
+        "tokens": "Tokens"
+      }
     },
     "usageTrend": {
       "dailyTitle": "Daily usage trend",
@@ -513,7 +533,8 @@
       "otherModels": "Other",
       "empty": "No usage data.",
       "metrics": {
-        "totalCost": "Total cost",
+        "periodCost": "Period cost",
+        "yearCost": "12-month cost",
         "totalTokens": "Total tokens",
         "totalCalls": "Total calls",
         "averageLatency": "Average latency"

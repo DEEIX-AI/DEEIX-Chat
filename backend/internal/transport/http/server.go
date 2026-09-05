@@ -71,7 +71,7 @@ type Modules struct {
 	UserSettings      *usersettingshttp.Module
 	StartupLog        func(*zap.Logger)
 	// Shutdown 是进程关停排空信号；排空期间就绪探针返回 503，引导负载均衡摘除流量。
-	Shutdown 		  *lifecycle.Shutdown
+	Shutdown *lifecycle.Shutdown
 }
 
 // NewEngine 创建并注册 API 路由。
@@ -86,20 +86,22 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	if err := engine.SetTrustedProxies(snapshot.TrustedProxyList()); err != nil {
 		return nil, fmt.Errorf("set trusted proxies: %w", err)
 	}
-	if err := middleware.ConfigureTrustedProxyHeaders(snapshot.TrustedProxyList()); err != nil {
+	trustedProxyHeaders, err := middleware.TrustedProxyHeaders(snapshot.TrustedProxyList())
+	if err != nil {
 		return nil, fmt.Errorf("configure trusted proxy headers: %w", err)
 	}
-	engine.Use(gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
+	engine.Use(gin.CustomRecovery(func(c *gin.Context, recovered any) {
 		if log != nil {
 			log.Error("http_panic_recovered", zap.Any("error", recovered), zap.ByteString("stack", debug.Stack()))
 		}
-		response.ErrorWithCode(c, http.StatusInternalServerError, response.CodeInternal, "internal server error")
+		response.ErrorWithCode(c, http.StatusInternalServerError, response.CodeInternal)
 		c.Abort()
 	}))
 	engine.Use(otelgin.Middleware(snapshot.AppName, otelgin.WithFilter(func(req *http.Request) bool {
 		return req.URL.Path != "/healthz"
 	})))
 	engine.Use(middleware.RequestID())
+	engine.Use(trustedProxyHeaders)
 	engine.Use(middleware.AccessLog(log))
 	engine.Use(middleware.SecurityHeaders())
 	engine.Use(middleware.CORS(snapshot.CORSAllowOrigin))
@@ -263,7 +265,7 @@ func registerFrontendStatic(engine *gin.Engine, distDir string, log *zap.Logger)
 	engine.NoRoute(func(c *gin.Context) {
 		requestPath := cleanFrontendPath(c.Request.URL.Path)
 		if isBackendOnlyPath(requestPath) {
-			response.ErrorWithCode(c, http.StatusNotFound, response.CodeResourceNotFound, "not found")
+			response.ErrorWithCode(c, http.StatusNotFound, response.CodeResourceNotFound)
 			return
 		}
 
@@ -286,7 +288,7 @@ func registerFrontendStatic(engine *gin.Engine, distDir string, log *zap.Logger)
 			return
 		}
 
-		response.ErrorWithCode(c, http.StatusNotFound, response.CodeResourceNotFound, "not found")
+		response.ErrorWithCode(c, http.StatusNotFound, response.CodeResourceNotFound)
 	})
 }
 

@@ -1,13 +1,6 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-
-import { ContentHeader } from "@/features/files/components/sections/content/content-header";
-import { ContentPreview } from "@/features/files/components/sections/content/content-preview";
-import { SidebarHeader } from "@/features/files/components/sections/sidebar/sidebar-header";
-import { SidebarList } from "@/features/files/components/sections/sidebar/sidebar-list";
-import { StorageQuotaPanel } from "@/features/files/components/sections/storage/storage-quota-panel";
-import { useFilesPage } from "@/features/files/hooks/use-files-page";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,9 +11,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ContentHeader } from "@/features/files/components/sections/content/content-header";
+import { ContentPreview } from "@/features/files/components/sections/content/content-preview";
+import { SidebarHeader } from "@/features/files/components/sections/sidebar/sidebar-header";
+import { SidebarList } from "@/features/files/components/sections/sidebar/sidebar-list";
+import { StorageQuotaPanel } from "@/features/files/components/sections/storage/storage-quota-panel";
+import { useFilesPage } from "@/features/files/hooks/use-files-page";
+import { cn } from "@/lib/utils";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
-import { cn } from "@/lib/utils";
+import { canManuallyVectorizeFile } from "@/shared/lib/file-processing";
 
 export function AppFiles() {
   const tCommon = useTranslations("common.actions");
@@ -42,6 +42,8 @@ export function AppFiles() {
     selectedFileIDs,
     bulkDeleteOpen,
     bulkDeleting,
+    vectorizing,
+    vectorizingFileIDs,
     hasMore,
     query,
     sortKey,
@@ -79,11 +81,17 @@ export function AppFiles() {
     onBulkDeleteRequest,
     onClearBulkDelete,
     onConfirmBulkDelete,
+    onVectorizeFile,
+    onVectorizeSelected,
     onBackToList,
     onToggleRagOptOut,
   } = useFilesPage();
   const stableDeleteTarget = useDialogSnapshot(deleteTarget);
   const selectedCount = selectedFileIDs.length;
+  const selectedFileIDSet = new Set(selectedFileIDs);
+  const vectorizableSelectedCount = files.filter(
+    (file) => selectedFileIDSet.has(file.fileID) && canManuallyVectorizeFile(file),
+  ).length;
   const sidebarCollapsed = !isMobileViewport && isSidebarCollapsed;
   const selectAllDisabled = loading || files.length === 0 || bulkDeleting;
   const contentDeleting = Boolean(selectedFile && deletingFileID === selectedFile.fileID);
@@ -112,8 +120,10 @@ export function AppFiles() {
               sortKey={sortKey}
               uploading={uploading}
               selectedCount={selectedCount}
+              vectorizableSelectedCount={vectorizableSelectedCount}
               selectAllDisabled={selectAllDisabled}
               bulkDeleteDisabled={bulkDeleting}
+              vectorizing={vectorizing}
               collapsed={sidebarCollapsed}
               showCollapseButton={!isMobileViewport}
               onToggleCollapsed={onToggleSidebarCollapsed}
@@ -124,18 +134,21 @@ export function AppFiles() {
               onSelectLoaded={onSelectLoadedFiles}
               onClearSelection={onClearFileSelection}
               onBulkDeleteRequest={onBulkDeleteRequest}
+              onVectorizeSelected={onVectorizeSelected}
               onUpload={onOpenUploadPicker}
             />
 
             {!sidebarCollapsed ? (
               <SidebarList
                 items={files}
+                emptyState={query.trim() || filterKeys.length > 0 ? "filtered" : "all"}
                 selectedFileID={selectedFileID}
                 selectedFileIDs={selectedFileIDs}
                 loading={loading}
                 loadingMore={loadingMore}
                 hasMore={hasMore}
                 syncing={syncing}
+                vectorizingFileIDs={vectorizingFileIDs}
                 renamingFileID={renamingFileID}
                 renameValue={renameValue}
                 onSelect={onSelectFile}
@@ -145,6 +158,7 @@ export function AppFiles() {
                 onRenameValueChange={onRenameValueChange}
                 onRenameCommit={onRenameCommit}
                 onRenameCancel={onRenameCancel}
+                onVectorize={(fileID) => void onVectorizeFile(fileID)}
                 onDeleteRequest={onDeleteRequest}
               />
             ) : null}
@@ -160,11 +174,13 @@ export function AppFiles() {
             file={selectedFile}
             preview={preview}
             deleting={contentDeleting}
+            vectorizing={selectedFile ? vectorizingFileIDs.includes(selectedFile.fileID) : false}
             onBack={mobileView === "detail" ? onBackToList : undefined}
             onOpen={openPreview}
             onDownload={downloadPreview}
             onDeleteRequest={onDeleteRequest}
             onToggleRagOptOut={onToggleRagOptOut}
+            onVectorize={onVectorizeFile}
           />
           <ContentPreview
             file={selectedFile}

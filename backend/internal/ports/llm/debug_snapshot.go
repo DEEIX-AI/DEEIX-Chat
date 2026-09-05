@@ -37,7 +37,7 @@ func SanitizeUpstreamDebugPayload(raw []byte) SanitizedUpstreamDebugBody {
 		return result
 	}
 
-	var payload interface{}
+	var payload any
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
 	if err := decoder.Decode(&payload); err == nil {
@@ -70,10 +70,10 @@ func SanitizeUpstreamDebugPayload(raw []byte) SanitizedUpstreamDebugBody {
 	return result
 }
 
-func sanitizeUpstreamDebugValue(value interface{}, parentKey string, parent map[string]interface{}, redactedParts *int) interface{} {
+func sanitizeUpstreamDebugValue(value any, parentKey string, parent map[string]any, redactedParts *int) any {
 	switch current := value.(type) {
-	case map[string]interface{}:
-		result := make(map[string]interface{}, len(current))
+	case map[string]any:
+		result := make(map[string]any, len(current))
 		for key, child := range current {
 			if text, ok := child.(string); ok && shouldRedactDebugString(key, parentKey, current, text) {
 				result[key] = upstreamDebugBinaryPlaceholder(key, text)
@@ -83,8 +83,8 @@ func sanitizeUpstreamDebugValue(value interface{}, parentKey string, parent map[
 			result[key] = sanitizeUpstreamDebugValue(child, key, current, redactedParts)
 		}
 		return result
-	case []interface{}:
-		result := make([]interface{}, len(current))
+	case []any:
+		result := make([]any, len(current))
 		for index, child := range current {
 			result[index] = sanitizeUpstreamDebugValue(child, parentKey, parent, redactedParts)
 		}
@@ -106,14 +106,14 @@ func sanitizeNestedDebugJSONString(value string, redactedParts *int) (string, bo
 	if len(trimmed) < 2 || (trimmed[0] != '{' && trimmed[0] != '[') {
 		return value, false
 	}
-	var payload interface{}
+	var payload any
 	decoder := json.NewDecoder(strings.NewReader(trimmed))
 	decoder.UseNumber()
 	if err := decoder.Decode(&payload); err != nil {
 		return value, false
 	}
 	switch payload.(type) {
-	case map[string]interface{}, []interface{}:
+	case map[string]any, []any:
 	default:
 		return value, false
 	}
@@ -129,7 +129,7 @@ func sanitizeNestedDebugJSONString(value string, redactedParts *int) (string, bo
 	return string(encoded), true
 }
 
-func shouldRedactDebugString(key string, parentKey string, parent map[string]interface{}, value string) bool {
+func shouldRedactDebugString(key string, parentKey string, parent map[string]any, value string) bool {
 	if isDebugDataURL(value) {
 		return true
 	}
@@ -156,7 +156,7 @@ func normalizeDebugFieldName(value string) string {
 	return strings.ToLower(replacer.Replace(strings.TrimSpace(value)))
 }
 
-func debugMapDeclaresBase64(value map[string]interface{}) bool {
+func debugMapDeclaresBase64(value map[string]any) bool {
 	for _, key := range []string{"type", "encoding", "format"} {
 		if text, ok := value[key].(string); ok && strings.EqualFold(strings.TrimSpace(text), "base64") {
 			return true
@@ -209,8 +209,8 @@ func upstreamDebugBinaryPlaceholder(key string, value string) string {
 }
 
 func upstreamDebugBodySummary(originalBytes int, redactedParts int, reason string) string {
-	payload := map[string]interface{}{
-		"_debug": map[string]interface{}{
+	payload := map[string]any{
+		"_debug": map[string]any{
 			"bodyOmitted":   true,
 			"originalBytes": originalBytes,
 			"reason":        reason,
@@ -236,7 +236,7 @@ func sanitizeUpstreamDebugSSE(raw string) (string, int, bool) {
 		if body == "" || body == "[DONE]" {
 			continue
 		}
-		var payload interface{}
+		var payload any
 		decoder := json.NewDecoder(strings.NewReader(body))
 		decoder.UseNumber()
 		if err := decoder.Decode(&payload); err != nil {

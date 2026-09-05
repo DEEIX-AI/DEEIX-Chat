@@ -1,18 +1,19 @@
 import type {
   AddKnowledgeBaseFilesRequest as ContractAddKnowledgeBaseFilesRequest,
+  PatchKnowledgeBaseRequest as ContractPatchKnowledgeBaseRequest,
+  PatchMyKnowledgeBaseRequest as ContractPatchMyKnowledgeBaseRequest,
+  WriteKnowledgeBaseRequest as ContractWriteKnowledgeBaseRequest,
+  WriteMyKnowledgeBaseRequest as ContractWriteMyKnowledgeBaseRequest,
   KnowledgeBaseDataResponse,
   KnowledgeBaseDeleteDataResponse,
   KnowledgeBaseFileDataResponse,
+  KnowledgeBaseFileEmbeddingSubmissionResponse,
   KnowledgeBaseFileMutationDataResponse,
   KnowledgeBaseFilePageResponseDoc,
   KnowledgeBaseFileProcessingSnapshotResponse,
   KnowledgeBaseFileProcessingStatusResponse,
   KnowledgeBasePageResponseDoc,
   KnowledgeBaseResponse,
-  PatchMyKnowledgeBaseRequest as ContractPatchMyKnowledgeBaseRequest,
-  PatchKnowledgeBaseRequest as ContractPatchKnowledgeBaseRequest,
-  WriteMyKnowledgeBaseRequest as ContractWriteMyKnowledgeBaseRequest,
-  WriteKnowledgeBaseRequest as ContractWriteKnowledgeBaseRequest,
 } from "@deeix/api-contract";
 
 export type KnowledgeBaseScope = "builtin" | "user";
@@ -27,6 +28,7 @@ export type KnowledgeBasePage = Omit<KnowledgeBasePageResponseDoc["data"], "resu
 
 export type KnowledgeBaseFileDTO = KnowledgeBaseFilePageResponseDoc["data"]["results"][number];
 export type KnowledgeBaseFileProcessingStatusDTO = KnowledgeBaseFileProcessingStatusResponse;
+export type KnowledgeBaseFileEmbeddingSubmissionDTO = KnowledgeBaseFileEmbeddingSubmissionResponse;
 export type KnowledgeBaseFileProcessingSnapshotDTO = Omit<KnowledgeBaseFileProcessingSnapshotResponse, "knowledgeBase"> & {
   knowledgeBase: KnowledgeBaseDTO;
 };

@@ -22,6 +22,7 @@ import {
   filterConversationSearchResults,
   NAVIGATION_SEARCH_PAGE_SIZE,
 } from "@/features/layouts/model/navigation-search";
+import { useFeaturePolicy } from "@/shared/hooks/use-feature-policy";
 
 export function NavMain({
   onCreateConversation,
@@ -29,6 +30,7 @@ export function NavMain({
   onCreateConversation: () => void;
 }) {
   const t = useTranslations("common.navigation");
+  const { knowledgeBaseEnabled } = useFeaturePolicy();
   const isMobile = useSidebarIsMobile();
   const { setOpenMobile } = useSidebarActions();
   const state = useSidebarVisualState();
@@ -74,7 +76,9 @@ export function NavMain({
         </SidebarMenu>
 
         <SidebarMenu className="mt-4 gap-0.5">
-          {NAVIGATION_ITEMS.filter((item) => item.group === "secondary").map((item) => (
+          {NAVIGATION_ITEMS.filter(
+            (item) => item.group === "secondary" && (knowledgeBaseEnabled || item.id !== "knowledgeBases"),
+          ).map((item) => (
             <NavMainItem
               key={item.id}
               item={item}

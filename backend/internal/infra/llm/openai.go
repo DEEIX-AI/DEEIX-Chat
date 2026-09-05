@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 const (
@@ -22,7 +24,7 @@ const (
 
 // generateOpenAICompatible 调用 OpenAI 兼容接口并解析响应（非流式）。
 // 超时策略：ReadTimeoutMS 控制整体超时（含 LLM 推理等待）。
-func (c *Client) generateOpenAICompatible(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
+func (c *Client) generateOpenAICompatible(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput) (*portllm.GenerateOutput, error) {
 	endpoint := normalizeEndpoint(route.Endpoint)
 	requestURL := buildOpenAIRequestURL(route.BaseURL, endpoint)
 	if requestURL == "" {
@@ -61,7 +63,7 @@ func (c *Client) generateOpenAICompatible(ctx context.Context, route RouteConfig
 	body, err := readUpstreamBody(resp.Body)
 	if err != nil {
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			return nil, MarkRequestAccepted(err)
+			return nil, portllm.MarkRequestAccepted(err)
 		}
 		return nil, err
 	}
@@ -73,7 +75,7 @@ func (c *Client) generateOpenAICompatible(ctx context.Context, route RouteConfig
 	debug := upstreamDebugSnapshot(req, payload, resp, body)
 	output, err := parseOpenAIGenerateOutput(endpoint, route.Protocol, body, deepSeekTextEncodedToolCallsEnabled(route))
 	if err != nil {
-		return nil, MarkRequestAccepted(attachUpstreamDebug(err, debug))
+		return nil, portllm.MarkRequestAccepted(attachUpstreamDebug(err, debug))
 	}
 	output.Debug = debug
 	return output, nil
@@ -85,10 +87,10 @@ func (c *Client) generateOpenAICompatible(ctx context.Context, route RouteConfig
 //   - StreamIdleTimeoutMS 控制流传输中两个 chunk 之间的最大间隔（防假死）
 func (c *Client) generateStreamOpenAICompatible(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-	onEvent func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+	onEvent func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
 	endpoint := normalizeEndpoint(route.Endpoint)
 	requestURL := buildOpenAIRequestURL(route.BaseURL, endpoint)
 	if requestURL == "" {
@@ -142,12 +144,12 @@ func (c *Client) generateStreamOpenAICompatible(
 		return nil, parseUpstreamError(resp.StatusCode, body, upstreamDebugSnapshot(req, payload, resp, body))
 	}
 
-	result := &GenerateOutput{
+	result := &portllm.GenerateOutput{
 		ResponseID:      "",
 		Text:            "",
-		Usage:           Usage{},
-		ToolCalls:       make([]ToolCall, 0),
-		ServerToolCalls: make([]ToolCall, 0),
+		Usage:           portllm.Usage{},
+		ToolCalls:       make([]portllm.ToolCall, 0),
+		ServerToolCalls: make([]portllm.ToolCall, 0),
 		RawJSON:         "",
 	}
 
@@ -155,13 +157,13 @@ func (c *Client) generateStreamOpenAICompatible(
 	idleReader := newIdleTimeoutReader(resp.Body, idleTimeout)
 	streamBody := newUpstreamBodyRecorder(idleReader)
 	if err = consumeOpenAIGenerateStream(endpoint, route.Protocol, streamBody, result, onEvent, deepSeekTextEncodedToolCallsEnabled(route)); err != nil {
-		return nil, MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err))))
+		return nil, portllm.MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err))))
 	}
 	return result, nil
 }
 
 // listModelsOpenAICompatible 调用上游 models 目录接口。
-func (c *Client) listModelsOpenAICompatible(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
+func (c *Client) listModelsOpenAICompatible(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
 	requestURL := buildOpenAIModelsURL(route.BaseURL)
 	if requestURL == "" {
 		return nil, fmt.Errorf("invalid base url")
@@ -199,16 +201,16 @@ func (c *Client) listModelsOpenAICompatible(ctx context.Context, route RouteConf
 }
 
 // RetrieveOpenAIResponse 获取官方 OpenAI Responses 后台任务结果。
-func (c *Client) RetrieveOpenAIResponse(ctx context.Context, route RouteConfig, responseID string) (*GenerateOutput, error) {
+func (c *Client) RetrieveOpenAIResponse(ctx context.Context, route portllm.RouteConfig, responseID string) (*portllm.GenerateOutput, error) {
 	return c.fetchOpenAIResponse(ctx, route, http.MethodGet, responseID, "")
 }
 
 // CancelOpenAIResponse 取消官方 OpenAI Responses 后台任务，并解析上游返回的 response。
-func (c *Client) CancelOpenAIResponse(ctx context.Context, route RouteConfig, responseID string) (*GenerateOutput, error) {
+func (c *Client) CancelOpenAIResponse(ctx context.Context, route portllm.RouteConfig, responseID string) (*portllm.GenerateOutput, error) {
 	return c.fetchOpenAIResponse(ctx, route, http.MethodPost, responseID, "cancel")
 }
 
-func (c *Client) fetchOpenAIResponse(ctx context.Context, route RouteConfig, method string, responseID string, action string) (*GenerateOutput, error) {
+func (c *Client) fetchOpenAIResponse(ctx context.Context, route portllm.RouteConfig, method string, responseID string, action string) (*portllm.GenerateOutput, error) {
 	requestURL := buildOpenAIResponseResourceURL(route.BaseURL, responseID, action)
 	if requestURL == "" {
 		return nil, fmt.Errorf("invalid response url")
@@ -241,7 +243,7 @@ func (c *Client) fetchOpenAIResponse(ctx context.Context, route RouteConfig, met
 	}
 
 	debug := upstreamDebugSnapshot(req, nil, resp, body)
-	output, err := parseOpenAIGenerateOutput(EndpointResponses, AdapterOpenAIResponses, body, false)
+	output, err := parseOpenAIGenerateOutput(portllm.EndpointResponses, portllm.AdapterOpenAIResponses, body, false)
 	if err != nil {
 		return nil, attachUpstreamDebug(err, debug)
 	}
@@ -249,10 +251,10 @@ func (c *Client) fetchOpenAIResponse(ctx context.Context, route RouteConfig, met
 	return output, nil
 }
 
-func buildOpenAIRequestBody(protocol string, model string, endpoint string, input GenerateInput, stream bool) (map[string]interface{}, error) {
+func buildOpenAIRequestBody(protocol string, model string, endpoint string, input portllm.GenerateInput, stream bool) (map[string]any, error) {
 	endpoint = normalizeEndpoint(endpoint)
 	messages := normalizeMessages(input.Messages)
-	adapter := NormalizeAdapter(protocol)
+	adapter := portllm.NormalizeAdapter(protocol)
 	providerTools, toolDefinitions, toolsEnabled, err := toolDeclarationsForInput(input)
 	if err != nil {
 		return nil, err
@@ -263,18 +265,28 @@ func buildOpenAIRequestBody(protocol string, model string, endpoint string, inpu
 	}
 
 	switch endpoint {
-	case EndpointChatCompletions:
+	case portllm.EndpointChatCompletions:
 		return buildChatCompletionsRequestBody(adapter, model, input, messages, providerTools, toolDefinitions, providerStreamOptions, stream), nil
 	default:
-		return buildResponsesRequestBody(adapter, model, input, messages, providerTools, toolDefinitions, toolsEnabled, providerStreamOptions, stream), nil
+		return buildResponsesRequestBody(responsesRequestInput{
+			Adapter:               adapter,
+			Model:                 model,
+			Generate:              input,
+			Messages:              messages,
+			ProviderTools:         providerTools,
+			ToolDefinitions:       toolDefinitions,
+			ToolsEnabled:          toolsEnabled,
+			ProviderStreamOptions: providerStreamOptions,
+			Stream:                stream,
+		}), nil
 	}
 }
 
-func buildOpenAITools(tools []ToolDefinition, chatCompletions bool) []map[string]interface{} {
+func buildOpenAITools(tools []portllm.ToolDefinition, chatCompletions bool) []map[string]any {
 	if len(tools) == 0 {
 		return nil
 	}
-	items := make([]map[string]interface{}, 0, len(tools))
+	items := make([]map[string]any, 0, len(tools))
 	for _, tool := range tools {
 		name := strings.TrimSpace(tool.Name)
 		if name == "" {
@@ -282,9 +294,9 @@ func buildOpenAITools(tools []ToolDefinition, chatCompletions bool) []map[string
 		}
 		schema := decodeToolSchema(tool.InputSchema)
 		if chatCompletions {
-			items = append(items, map[string]interface{}{
+			items = append(items, map[string]any{
 				"type": "function",
-				"function": map[string]interface{}{
+				"function": map[string]any{
 					"name":        name,
 					"description": strings.TrimSpace(tool.Description),
 					"parameters":  schema,
@@ -292,7 +304,7 @@ func buildOpenAITools(tools []ToolDefinition, chatCompletions bool) []map[string
 			})
 			continue
 		}
-		items = append(items, map[string]interface{}{
+		items = append(items, map[string]any{
 			"type":        "function",
 			"name":        name,
 			"description": strings.TrimSpace(tool.Description),
@@ -302,7 +314,7 @@ func buildOpenAITools(tools []ToolDefinition, chatCompletions bool) []map[string
 	return items
 }
 
-func applyOpenAICompatibleSamplingParams(payload map[string]interface{}, params map[string]interface{}, chatCompletions bool) {
+func applyOpenAICompatibleSamplingParams(payload map[string]any, params map[string]any, chatCompletions bool) {
 	if value, ok := modelParamFloat(params, "temperature"); ok {
 		payload["temperature"] = value
 	}
@@ -336,10 +348,10 @@ func applyOpenAICompatibleSamplingParams(payload map[string]interface{}, params 
 	}
 }
 
-func setOpenAIResponseTextParam(payload map[string]interface{}, key string, value interface{}) {
-	text, _ := payload["text"].(map[string]interface{})
+func setOpenAIResponseTextParam(payload map[string]any, key string, value any) {
+	text, _ := payload["text"].(map[string]any)
 	if text == nil {
-		text = map[string]interface{}{}
+		text = map[string]any{}
 		payload["text"] = text
 	}
 	text[key] = value
@@ -347,15 +359,15 @@ func setOpenAIResponseTextParam(payload map[string]interface{}, key string, valu
 
 func buildOpenAIRequestURL(baseURL string, endpoint string) string {
 	switch endpoint {
-	case EndpointChatCompletions:
+	case portllm.EndpointChatCompletions:
 		return buildVersionedEndpointURL(baseURL, "v1", "/chat/completions")
-	case EndpointImageGenerations:
+	case portllm.EndpointImageGenerations:
 		return buildVersionedEndpointURL(baseURL, "v1", "/images/generations")
-	case EndpointImageEdits:
+	case portllm.EndpointImageEdits:
 		return buildVersionedEndpointURL(baseURL, "v1", "/images/edits")
-	case EndpointVideoGenerations:
+	case portllm.EndpointVideoGenerations:
 		return buildVersionedEndpointURL(baseURL, "v1", "/videos/generations")
-	case EndpointVideoExtensions:
+	case portllm.EndpointVideoExtensions:
 		return buildVersionedEndpointURL(baseURL, "v1", "/videos/extensions")
 	default:
 		return buildVersionedEndpointURL(baseURL, "v1", "/responses")
@@ -378,7 +390,7 @@ func buildOpenAIResponseResourceURL(baseURL string, responseID string, action st
 	return buildVersionedEndpointURL(baseURL, "v1", path)
 }
 
-func setOpenRouterAttributionHeaders(req *http.Request, route RouteConfig) {
+func setOpenRouterAttributionHeaders(req *http.Request, route portllm.RouteConfig) {
 	if req == nil || !isOpenRouterBaseURL(route.BaseURL) {
 		return
 	}
@@ -412,7 +424,7 @@ func hasAdditionalHeader(headersJSON string, names ...string) bool {
 	if value == "" {
 		return false
 	}
-	parsed := make(map[string]interface{})
+	parsed := make(map[string]any)
 	if err := json.Unmarshal([]byte(value), &parsed); err != nil {
 		return false
 	}
@@ -440,8 +452,8 @@ func consumeOpenAIGenerateStream(
 	endpoint string,
 	adapter string,
 	reader io.Reader,
-	result *GenerateOutput,
-	onEvent func(GenerateStreamEvent) error,
+	result *portllm.GenerateOutput,
+	onEvent func(portllm.GenerateStreamEvent) error,
 	allowTextEncodedToolCalls bool,
 ) error {
 	scanner := bufio.NewScanner(reader)
@@ -464,7 +476,7 @@ func consumeOpenAIGenerateStream(
 			return nil
 		}
 		if strings.TrimSpace(payloadText) == "[DONE]" {
-			if normalizeEndpoint(endpoint) == EndpointChatCompletions && allowTextEncodedToolCalls {
+			if normalizeEndpoint(endpoint) == portllm.EndpointChatCompletions && allowTextEncodedToolCalls {
 				if err := flushChatVisibleBuffer(result, &chatVisibleBuffer, onEvent, true); err != nil {
 					return err
 				}
@@ -472,7 +484,7 @@ func consumeOpenAIGenerateStream(
 			return errStreamDone
 		}
 
-		parsed := make(map[string]interface{})
+		parsed := make(map[string]any)
 		if err := json.Unmarshal([]byte(payloadText), &parsed); err != nil {
 			return err
 		}
@@ -481,7 +493,7 @@ func consumeOpenAIGenerateStream(
 		}
 
 		switch normalizeEndpoint(endpoint) {
-		case EndpointChatCompletions:
+		case portllm.EndpointChatCompletions:
 			return applyChatStreamEvent(adapter, parsed, result, &chatVisibleBuffer, onEvent, allowTextEncodedToolCalls)
 		default:
 			return applyResponsesStreamEvent(adapter, currentEvent, parsed, payloadText, result, onEvent)
@@ -516,7 +528,7 @@ func consumeOpenAIGenerateStream(
 	if err := dispatch(); err != nil && !errors.Is(err, errStreamDone) {
 		return err
 	}
-	if normalizeEndpoint(endpoint) == EndpointChatCompletions && allowTextEncodedToolCalls {
+	if normalizeEndpoint(endpoint) == portllm.EndpointChatCompletions && allowTextEncodedToolCalls {
 		if err := flushChatVisibleBuffer(result, &chatVisibleBuffer, onEvent, true); err != nil {
 			return err
 		}
@@ -524,36 +536,32 @@ func consumeOpenAIGenerateStream(
 	return nil
 }
 
-func parseOpenAIGenerateOutput(endpoint string, adapter string, body []byte, allowTextEncodedToolCalls bool) (*GenerateOutput, error) {
-	parsed := make(map[string]interface{})
+func parseOpenAIGenerateOutput(endpoint string, adapter string, body []byte, allowTextEncodedToolCalls bool) (*portllm.GenerateOutput, error) {
+	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
 	}
 
 	result := buildGenerateOutputFromParsedForAdapter(endpoint, adapter, parsed, allowTextEncodedToolCalls)
-	if normalizeEndpoint(endpoint) == EndpointChatCompletions && allowTextEncodedToolCalls && maybeDSMLToolCallsPrefix(result.Text) {
+	if normalizeEndpoint(endpoint) == portllm.EndpointChatCompletions && allowTextEncodedToolCalls && maybeDSMLToolCallsPrefix(result.Text) {
 		return nil, errDeepSeekDSMLToolCallsIncomplete
 	}
 	result.RawJSON = string(body)
 	return result, nil
 }
 
-func buildGenerateOutputFromParsed(endpoint string, parsed map[string]interface{}) *GenerateOutput {
-	return buildGenerateOutputFromParsedForAdapter(endpoint, AdapterOpenAIResponses, parsed, false)
-}
-
-func buildGenerateOutputFromParsedForAdapter(endpoint string, adapter string, parsed map[string]interface{}, allowTextEncodedToolCalls bool) *GenerateOutput {
-	result := &GenerateOutput{
+func buildGenerateOutputFromParsedForAdapter(endpoint string, adapter string, parsed map[string]any, allowTextEncodedToolCalls bool) *portllm.GenerateOutput {
+	result := &portllm.GenerateOutput{
 		ResponseID:      strings.TrimSpace(getString(parsed["id"])),
 		Text:            "",
-		Usage:           Usage{},
-		ToolCalls:       make([]ToolCall, 0),
-		ServerToolCalls: make([]ToolCall, 0),
+		Usage:           portllm.Usage{},
+		ToolCalls:       make([]portllm.ToolCall, 0),
+		ServerToolCalls: make([]portllm.ToolCall, 0),
 		RawJSON:         "",
 	}
 
 	switch normalizeEndpoint(endpoint) {
-	case EndpointChatCompletions:
+	case portllm.EndpointChatCompletions:
 		parseChatCompletionsOutput(adapter, parsed, result, allowTextEncodedToolCalls)
 	default:
 		parseResponsesOutput(adapter, parsed, result)
@@ -568,7 +576,7 @@ func buildGenerateOutputFromParsedForAdapter(endpoint string, adapter string, pa
 	return result
 }
 
-func parseOpenAIModelList(body []byte) ([]ModelItem, error) {
+func parseOpenAIModelList(body []byte) ([]portllm.ModelItem, error) {
 	parsed := struct {
 		Data []struct {
 			ID      string `json:"id"`
@@ -579,13 +587,13 @@ func parseOpenAIModelList(body []byte) ([]ModelItem, error) {
 		return nil, err
 	}
 
-	results := make([]ModelItem, 0, len(parsed.Data))
+	results := make([]portllm.ModelItem, 0, len(parsed.Data))
 	for _, item := range parsed.Data {
 		modelID := strings.TrimSpace(item.ID)
 		if modelID == "" {
 			continue
 		}
-		results = append(results, ModelItem{
+		results = append(results, portllm.ModelItem{
 			ID:      modelID,
 			OwnedBy: strings.TrimSpace(item.OwnedBy),
 		})
@@ -593,7 +601,7 @@ func parseOpenAIModelList(body []byte) ([]ModelItem, error) {
 	return results, nil
 }
 
-func mergeGenerateOutput(dst *GenerateOutput, src *GenerateOutput) {
+func mergeGenerateOutput(dst *portllm.GenerateOutput, src *portllm.GenerateOutput) {
 	if dst == nil || src == nil {
 		return
 	}
@@ -603,7 +611,7 @@ func mergeGenerateOutput(dst *GenerateOutput, src *GenerateOutput) {
 	if dst.Text == "" {
 		dst.Text = src.Text
 	}
-	if src.Usage != (Usage{}) {
+	if src.Usage != (portllm.Usage{}) {
 		usage := src.Usage
 		if usage.ServiceTier == "" {
 			usage.ServiceTier = dst.Usage.ServiceTier

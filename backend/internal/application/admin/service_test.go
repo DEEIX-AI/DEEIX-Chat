@@ -177,12 +177,14 @@ func TestPatchUserByAdminAllowsAdditionalSuperAdmin(t *testing.T) {
 	nextRole := domainuser.RoleSuperAdmin
 	updated, err := service.PatchUserByAdmin(
 		context.Background(),
-		"req_1",
-		1,
-		2,
-		PatchUserInput{Role: &nextRole},
-		"127.0.0.1",
-		"test",
+		PatchUserByAdminInput{
+			RequestID:    "req_1",
+			ActorUserID:  1,
+			TargetUserID: 2,
+			Patch:        PatchUserInput{Role: &nextRole},
+			IP:           "127.0.0.1",
+			UserAgent:    "test",
+		},
 	)
 	if err != nil {
 		t.Fatalf("expected second superadmin promotion to succeed, got %v", err)
@@ -204,12 +206,14 @@ func TestPatchUserByAdminKeepsLastSuperAdminProtected(t *testing.T) {
 	nextRole := domainuser.RoleUser
 	_, err := service.PatchUserByAdmin(
 		context.Background(),
-		"req_1",
-		2,
-		1,
-		PatchUserInput{Role: &nextRole},
-		"127.0.0.1",
-		"test",
+		PatchUserByAdminInput{
+			RequestID:    "req_1",
+			ActorUserID:  2,
+			TargetUserID: 1,
+			Patch:        PatchUserInput{Role: &nextRole},
+			IP:           "127.0.0.1",
+			UserAgent:    "test",
+		},
 	)
 	if !errors.Is(err, ErrLastSuperAdminRoleChangeNotAllowed) {
 		t.Fatalf("expected last superadmin protection, got %v", err)
@@ -226,12 +230,14 @@ func TestPatchUserByAdminAllowsAdminRole(t *testing.T) {
 	nextRole := domainuser.RoleAdmin
 	updated, err := service.PatchUserByAdmin(
 		context.Background(),
-		"req_1",
-		1,
-		2,
-		PatchUserInput{Role: &nextRole},
-		"127.0.0.1",
-		"test",
+		PatchUserByAdminInput{
+			RequestID:    "req_1",
+			ActorUserID:  1,
+			TargetUserID: 2,
+			Patch:        PatchUserInput{Role: &nextRole},
+			IP:           "127.0.0.1",
+			UserAgent:    "test",
+		},
 	)
 	if err != nil {
 		t.Fatalf("expected admin role promotion to succeed, got %v", err)
@@ -251,12 +257,14 @@ func TestPatchUserByAdminRequiresAdminActor(t *testing.T) {
 	nextRole := domainuser.RoleAdmin
 	_, err := service.PatchUserByAdmin(
 		context.Background(),
-		"req_1",
-		1,
-		2,
-		PatchUserInput{Role: &nextRole},
-		"127.0.0.1",
-		"test",
+		PatchUserByAdminInput{
+			RequestID:    "req_1",
+			ActorUserID:  1,
+			TargetUserID: 2,
+			Patch:        PatchUserInput{Role: &nextRole},
+			IP:           "127.0.0.1",
+			UserAgent:    "test",
+		},
 	)
 	if !errors.Is(err, ErrAdminPermissionRequired) {
 		t.Fatalf("expected admin permission protection, got %v", err)
@@ -273,12 +281,14 @@ func TestPatchUserByAdminCannotPromoteSuperAdmin(t *testing.T) {
 	nextRole := domainuser.RoleSuperAdmin
 	_, err := service.PatchUserByAdmin(
 		context.Background(),
-		"req_1",
-		1,
-		2,
-		PatchUserInput{Role: &nextRole},
-		"127.0.0.1",
-		"test",
+		PatchUserByAdminInput{
+			RequestID:    "req_1",
+			ActorUserID:  1,
+			TargetUserID: 2,
+			Patch:        PatchUserInput{Role: &nextRole},
+			IP:           "127.0.0.1",
+			UserAgent:    "test",
+		},
 	)
 	if !errors.Is(err, ErrSuperAdminManagementNotAllowed) {
 		t.Fatalf("expected admin superadmin promotion protection, got %v", err)
@@ -295,12 +305,14 @@ func TestPatchUserByAdminCannotManageSuperAdmin(t *testing.T) {
 	displayName := "Root"
 	_, err := service.PatchUserByAdmin(
 		context.Background(),
-		"req_1",
-		1,
-		2,
-		PatchUserInput{DisplayName: &displayName},
-		"127.0.0.1",
-		"test",
+		PatchUserByAdminInput{
+			RequestID:    "req_1",
+			ActorUserID:  1,
+			TargetUserID: 2,
+			Patch:        PatchUserInput{DisplayName: &displayName},
+			IP:           "127.0.0.1",
+			UserAgent:    "test",
+		},
 	)
 	if !errors.Is(err, ErrSuperAdminManagementNotAllowed) {
 		t.Fatalf("expected admin superadmin management protection, got %v", err)
@@ -318,12 +330,14 @@ func TestPatchUserByAdminMapsRepositoryLastSuperAdminGuard(t *testing.T) {
 	nextRole := domainuser.RoleUser
 	_, err := service.PatchUserByAdmin(
 		context.Background(),
-		"req_1",
-		2,
-		1,
-		PatchUserInput{Role: &nextRole},
-		"127.0.0.1",
-		"test",
+		PatchUserByAdminInput{
+			RequestID:    "req_1",
+			ActorUserID:  2,
+			TargetUserID: 1,
+			Patch:        PatchUserInput{Role: &nextRole},
+			IP:           "127.0.0.1",
+			UserAgent:    "test",
+		},
 	)
 	if !errors.Is(err, ErrLastSuperAdminRoleChangeNotAllowed) {
 		t.Fatalf("expected repository guard to map to admin error, got %v", err)
@@ -492,20 +506,7 @@ func (s *adminUserServiceFake) CountSuperAdmins(context.Context) (int64, error) 
 	return count, nil
 }
 
-func (s *adminUserServiceFake) CreateUser(
-	context.Context,
-	string,
-	string,
-	string,
-	string,
-	string,
-	string,
-	string,
-	string,
-	string,
-	string,
-	*time.Time,
-) (*domainuser.User, error) {
+func (s *adminUserServiceFake) CreateUser(context.Context, userapp.CreateUserInput) (*domainuser.User, error) {
 	return nil, nil
 }
 
@@ -564,11 +565,11 @@ func (s *adminUserServiceFake) DeleteAccountHard(context.Context, uint) error {
 	return nil
 }
 
-func (s *adminUserServiceFake) RecordAuthEvent(context.Context, uint, string, string, string, string, string, string, string) error {
+func (s *adminUserServiceFake) RecordAuthEvent(context.Context, repository.AuthEventInput) error {
 	return nil
 }
 
-func (s *adminUserServiceFake) ListAuthEvents(context.Context, uint, string, string, int, int) ([]domainuser.AuthEvent, int64, error) {
+func (s *adminUserServiceFake) ListAuthEvents(context.Context, userapp.AuthEventListInput) ([]domainuser.AuthEvent, int64, error) {
 	return nil, 0, nil
 }
 
@@ -590,18 +591,7 @@ func (s *adminUserServiceFake) ImportUsersWithCredentialsAndBalances(context.Con
 
 type auditServiceFake struct{}
 
-func (auditServiceFake) Write(
-	context.Context,
-	string,
-	uint,
-	string,
-	string,
-	string,
-	string,
-	string,
-	interface{},
-) {
-}
+func (auditServiceFake) Write(context.Context, auditapp.WriteInput) {}
 
 func (auditServiceFake) List(context.Context, int, int, auditapp.ListFilter) ([]domainaudit.Log, int64, error) {
 	return nil, 0, nil
@@ -658,11 +648,10 @@ func (s subscriptionResolverFake) SetUserSubscriptionByPlanCode(context.Context,
 }
 
 type permissionGroupRepoFake struct {
-	groups    map[uint]domainchannel.PermissionGroup
-	modelIDs  []uint
-	groupIDs  []uint
-	userIDs   []uint
-	deletedID uint
+	groups   map[uint]domainchannel.PermissionGroup
+	modelIDs []uint
+	groupIDs []uint
+	userIDs  []uint
 }
 
 func (f permissionGroupRepoFake) ListPermissionGroups(context.Context) ([]domainchannel.PermissionGroup, error) {

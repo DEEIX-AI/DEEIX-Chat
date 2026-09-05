@@ -1,10 +1,10 @@
 package announcement
 
-import "errors"
+import "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 
 var (
 	// ErrInvalidAnnouncement 表示公告配置非法。
-	ErrInvalidAnnouncement = errors.New("invalid announcement")
+	ErrInvalidAnnouncement = apperr.New("request.invalid_announcement", "invalid announcement")
 	// ErrAnnouncementNotFound 表示公告不存在。
-	ErrAnnouncementNotFound = errors.New("announcement not found")
+	ErrAnnouncementNotFound = apperr.New("announcement.not_found", "announcement not found")
 )

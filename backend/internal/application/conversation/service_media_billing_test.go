@@ -96,7 +96,7 @@ func TestBuildFailedMediaBillingResultKeepsCanceledStatus(t *testing.T) {
 	if result == nil || result.AssistantMessage.Status != "canceled" {
 		t.Fatalf("canceled media billing result = %+v", result)
 	}
-	if result.AssistantMessage.ErrorCode != "generation_canceled" {
+	if result.AssistantMessage.ErrorCode != "conversation_run.canceled" {
 		t.Fatalf("unexpected canceled error code: %+v", result.AssistantMessage)
 	}
 }

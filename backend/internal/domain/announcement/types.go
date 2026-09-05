@@ -1,6 +1,9 @@
 package announcement
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	// StatusActive 表示公告启用。
@@ -47,4 +50,34 @@ type UserState struct {
 	ClosedAt              *time.Time
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
+}
+
+// NormalizeStatus 将公告状态规范化为持久化使用的领域值。
+func NormalizeStatus(value string) string {
+	switch strings.TrimSpace(value) {
+	case "", StatusActive:
+		return StatusActive
+	case StatusInactive:
+		return StatusInactive
+	default:
+		return ""
+	}
+}
+
+// NormalizeType 将公告类型规范化为持久化使用的领域值。
+func NormalizeType(value string) string {
+	switch strings.TrimSpace(value) {
+	case "", TypeGeneral:
+		return TypeGeneral
+	case TypeCritical:
+		return TypeCritical
+	case TypeWarning:
+		return TypeWarning
+	case TypeInfo:
+		return TypeInfo
+	case TypeNormal:
+		return TypeNormal
+	default:
+		return ""
+	}
 }

@@ -63,6 +63,15 @@ type UserListFilter struct {
 	IdentityProvider   string
 }
 
+// AuthEventListInput 描述认证事件查询的筛选与分页条件。
+type AuthEventListInput struct {
+	UserID    uint
+	EventType string
+	Result    string
+	Offset    int
+	Limit     int
+}
+
 // UpdateSessionActivityInput 定义会话活动元数据更新字段。
 type UpdateSessionActivityInput struct {
 	LastSeenAt       *time.Time
@@ -203,10 +212,11 @@ func (input UpdateUserFieldsInput) IsZero() bool {
 		input.OnboardingCompletedAt == nil
 }
 
-// UserRepository 定义用户域依赖的持久化能力。
+// UserRepository 定义用户资料与管理员用户管理流程依赖的持久化能力。
+// 会话、身份提供方、二次验证与联系方式验证等认证流程能力由 AuthRepository 声明，
+// 两者由同一个持久化实现满足，但各自只包含对应用例真正调用的方法。
 type UserRepository interface {
 	GetByUsername(ctx context.Context, username string) (*domainuser.User, error)
-	GetByEmail(ctx context.Context, email string) (*domainuser.User, error)
 	GetByID(ctx context.Context, userID uint) (*domainuser.User, error)
 	GetByPublicID(ctx context.Context, publicID string) (*domainuser.User, error)
 	ListUsersByLowerEmails(ctx context.Context, emails []string) (map[string]domainuser.User, error)
@@ -216,79 +226,16 @@ type UserRepository interface {
 	CountSuperAdmins(ctx context.Context) (int64, error)
 	GetActivePlanByCode(ctx context.Context, code string) (*domainbilling.Plan, error)
 	GetActiveDefaultPriceByPlanID(ctx context.Context, planID uint) (*domainbilling.Price, error)
-	CreateWithCredential(
-		ctx context.Context,
-		user *domainuser.User,
-		credential domainuser.Credential,
-		subscriptionPlanID uint,
-		subscriptionPriceID uint,
-		subscriptionEndAt *time.Time,
-		autoRenew bool,
-	) error
-	CreateWithCredentialAndIdentity(
-		ctx context.Context,
-		user *domainuser.User,
-		credential domainuser.Credential,
-		identity *domainuser.UserIdentity,
-		subscriptionPlanID uint,
-		subscriptionPriceID uint,
-		subscriptionEndAt *time.Time,
-		autoRenew bool,
-	) error
+	CreateWithCredential(ctx context.Context, input CreateWithCredentialInput) error
 	ImportUsersWithCredentialsAndBalances(ctx context.Context, records []UserImportRecord) ([]domainuser.User, error)
-	GetCredentialByUserID(ctx context.Context, userID uint) (*domainuser.Credential, error)
-	GetUserTwoFactorByUserID(ctx context.Context, userID uint) (*domainuser.UserTwoFactor, error)
-	UpsertUserTwoFactor(ctx context.Context, item *domainuser.UserTwoFactor) (*domainuser.UserTwoFactor, error)
-	UpdateUserTwoFactor(ctx context.Context, userID uint, input UpdateUserTwoFactorInput) (*domainuser.UserTwoFactor, error)
-	DeleteUserTwoFactor(ctx context.Context, userID uint) error
-	MarkLoginFailure(ctx context.Context, userID uint, lockThreshold int, lockUntil time.Time) (*domainuser.Credential, error)
 	ResetLoginFailure(ctx context.Context, userID uint) error
 	UpdateUserStatus(ctx context.Context, userID uint, status string) error
-	UpdatePassword(ctx context.Context, userID uint, passwordHash string, passwordOrigin string, mustResetPassword bool) error
 	ResetPasswordByAdmin(ctx context.Context, userID uint, passwordHash string, mustResetPassword bool) error
-	MarkBootstrapSuperAdminPasswordResetRequired(ctx context.Context, username string) error
-	UpdateLastLogin(ctx context.Context, userID uint) error
 	ListLatestSessionActivityByUserIDs(ctx context.Context, userIDs []uint) (map[uint]time.Time, error)
 	DeleteAccountHard(ctx context.Context, userID uint) error
-	ListDistinctFileStoragePathsByUserID(ctx context.Context, userID uint) ([]string, error)
-	RecordAuthEvent(
-		ctx context.Context,
-		userID uint,
-		requestID string,
-		eventType string,
-		result string,
-		reason string,
-		clientIP string,
-		userAgent string,
-		detailJSON string,
-	) error
-	CreateSession(ctx context.Context, item *domainuser.Session) error
-	GetSessionByUserAndSessionID(ctx context.Context, userID uint, sessionID string) (*domainuser.Session, error)
-	RotateSessionTokens(ctx context.Context, input RotateSessionTokensInput) error
-	TouchSessionActivity(ctx context.Context, userID uint, sessionID string, input UpdateSessionActivityInput) error
-	RevokeSession(ctx context.Context, userID uint, sessionID string, reason string) error
+	RecordAuthEvent(ctx context.Context, input AuthEventInput) error
 	RevokeAllSessions(ctx context.Context, userID uint, reason string) error
-	ListActiveSessionsByUserID(ctx context.Context, userID uint, now time.Time) ([]domainuser.Session, error)
-	HasActiveSuperAdminIdentity(ctx context.Context) (bool, error)
-	ListAuthEvents(ctx context.Context, userID uint, eventType string, result string, offset int, limit int) ([]domainuser.AuthEvent, int64, error)
+	ListAuthEvents(ctx context.Context, input AuthEventListInput) ([]domainuser.AuthEvent, int64, error)
 	ListIdentityProviders(ctx context.Context, includeDisabled bool) ([]domainuser.IdentityProvider, error)
-	GetIdentityProviderByPublicID(ctx context.Context, publicID string) (*domainuser.IdentityProvider, error)
-	GetIdentityProviderBySlug(ctx context.Context, slug string) (*domainuser.IdentityProvider, error)
-	CreateIdentityProvider(ctx context.Context, provider *domainuser.IdentityProvider) (*domainuser.IdentityProvider, error)
-	UpdateIdentityProvider(ctx context.Context, publicID string, input UpdateIdentityProviderInput) (*domainuser.IdentityProvider, error)
-	UpdateIdentityProviderSortOrders(ctx context.Context, publicIDs []string) error
-	DeleteIdentityProvider(ctx context.Context, publicID string, force bool) error
-	ListUserIdentitiesByUserID(ctx context.Context, userID uint) ([]domainuser.UserIdentity, error)
 	ListUserIdentitiesByUserIDs(ctx context.Context, userIDs []uint) (map[uint][]domainuser.UserIdentity, error)
-	GetUserIdentityByProviderSubject(ctx context.Context, providerID uint, subject string) (*domainuser.UserIdentity, error)
-	CreateUserIdentity(ctx context.Context, identity *domainuser.UserIdentity) (*domainuser.UserIdentity, error)
-	UpdateUserIdentityLogin(ctx context.Context, identityID uint, profileJSON string, providerDisplayName string, email string, emailVerified bool) error
-	DeleteUserIdentity(ctx context.Context, userID uint, identityID uint) error
-	CancelPendingContactVerifications(ctx context.Context, channel string, purpose string, target string) error
-	CancelPendingContactVerificationsForUser(ctx context.Context, userID uint, channel string, purpose string, target string) error
-	CreateContactVerification(ctx context.Context, item *domainuser.ContactVerification) (*domainuser.ContactVerification, error)
-	GetPendingContactVerification(ctx context.Context, channel string, purpose string, target string, now time.Time) (*domainuser.ContactVerification, error)
-	GetPendingContactVerificationForUser(ctx context.Context, userID uint, channel string, purpose string, target string, now time.Time) (*domainuser.ContactVerification, error)
-	IncrementContactVerificationAttempt(ctx context.Context, verificationID uint) error
-	MarkContactVerificationVerified(ctx context.Context, verificationID uint, now time.Time) error
 }

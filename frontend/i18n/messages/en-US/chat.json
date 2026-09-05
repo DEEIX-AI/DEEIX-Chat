@@ -2,6 +2,7 @@
   "newChat": "New chat",
   "untitledConversation": "New chat",
   "modelListLoadFailed": "Could not load models.",
+  "projectDefaultModelUnavailable": "The project default model \"{model}\" is currently unavailable. Global model defaults will be used instead.",
   "placeholder": "Message DEEIX Chat",
   "projectMode": "Project mode",
   "projectModeTooltip": "In this mode, new chats are created in the current project. Project instructions apply only to chat model requests; image generation, image editing, and other non-chat capabilities do not use them.",
@@ -277,6 +278,7 @@
     "dropTitle": "Drop files to attach",
     "duplicateReused": "Duplicate file detected and reused",
     "partialUploadFailed": "Some files failed to upload",
+    "temporaryVideoUnsupported": "Temporary chats currently support image and document attachments, but not video attachments.",
     "retryFailedFiles": "Please retry the failed files.",
     "retryLater": "Please try again later.",
     "screenshotUnsupported": "This browser does not support screenshots",
@@ -336,7 +338,8 @@
     "moderationBlocked": "Content blocked",
     "moderationBlockedDescription": "This response was withdrawn after a safety check.",
     "moderationEventId": "Event ID: {id}",
-    "moderationCategories": "Categories: {categories}"
+    "moderationCategories": "Categories: {categories}",
+    "moderationBlockedBilled": "Upstream usage incurred before the block is billed as usual."
   },
   "data": {
     "signInRequired": "Sign in before loading conversation messages.",
@@ -448,6 +451,7 @@
     "closeHint": "Close hint",
     "previewAttachment": "Preview attachment {name}",
     "removeAttachment": "Remove attachment {name}",
+    "uploading": "Uploading",
     "uploadingAttachment": "Uploading {name}",
     "ragDisabledTitle": "This file has RAG disabled and will be injected as full context. It may use more tokens.",
     "ragOff": "RAG off",
@@ -521,6 +525,28 @@
         "model": "Models",
         "skill": "Skills",
         "prompt": "Prompts"
+      },
+      "tabs": {
+        "all": "All",
+        "file": "Files",
+        "tool": "MCP",
+        "model": "Models",
+        "skill": "Skills",
+        "prompt": "Prompts"
+      },
+      "recent": "Recent",
+      "groups": {
+        "builtin": "Built-in",
+        "mine": "Mine"
+      },
+      "viewAll": "View all {count}",
+      "empty": {
+        "all": "No matching results",
+        "file": "No matching files",
+        "tool": "No matching tools",
+        "model": "No matching models",
+        "skill": "No matching skills",
+        "prompt": "No matching prompts"
       }
     },
     "mediaMode": {
@@ -656,7 +682,14 @@
         "generatedImageAlt": "Generated image {index}",
         "sourceCount": "{count} sources",
         "groundingSupportCount": "{count} grounding supports",
-        "exitCode": "Exit code {code}"
+        "exitCode": "Exit code {code}",
+        "viewFullResult": "View full result",
+        "fullResultTitle": "Full tool result",
+        "loadingFullResult": "Loading full result",
+        "fullResultLoadFailed": "Could not load the full result. Try again later.",
+        "fullResultOmitted": "This result is {size}, above the safe viewing limit, so it was not loaded.",
+        "fullResultEmpty": "This tool call returned no content.",
+        "close": "Close"
       }
     },
     "think": {

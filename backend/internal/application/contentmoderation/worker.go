@@ -3,6 +3,7 @@ package contentmoderation
 import (
 	"context"
 	"errors"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"strings"
 	"time"
 
@@ -139,9 +140,16 @@ func (s *Service) enqueue(task *moderationTask) error {
 	if s.queuedCount >= limit {
 		s.workerMu.Unlock()
 		if task.Coord != nil {
-			bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			s.recordFailedOpen(bg, task.Coord.meta, task.Direction, task.Modality, domaincm.ErrorCodeQueueFull, ErrQueueFull.Error(), 0)
-			s.bumpDailyStat(bg, task.Direction, task.Modality, domaincm.ResultFailedOpen, "", 1, contentItemCount(task), 0, 1, 0)
+			bg, cancel := context.WithTimeout(task.Coord.ctx, 5*time.Second)
+			s.recordFailedOpen(bg, task.Coord.meta, task.Direction, task.Modality, domaincm.ErrorCodeQueueFull, 0)
+			s.bumpDailyStat(bg, repository.DailyStatIncrement{
+				Direction:    task.Direction,
+				Modality:     task.Modality,
+				Result:       domaincm.ResultFailedOpen,
+				CheckCount:   1,
+				ContentItems: contentItemCount(task),
+				FailureCount: 1,
+			})
 			cancel()
 		}
 		return ErrQueueFull
@@ -155,9 +163,16 @@ func (s *Service) enqueue(task *moderationTask) error {
 	default:
 		s.workerMu.Unlock()
 		if task.Coord != nil {
-			bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			s.recordFailedOpen(bg, task.Coord.meta, task.Direction, task.Modality, domaincm.ErrorCodeQueueFull, ErrQueueFull.Error(), 0)
-			s.bumpDailyStat(bg, task.Direction, task.Modality, domaincm.ResultFailedOpen, "", 1, contentItemCount(task), 0, 1, 0)
+			bg, cancel := context.WithTimeout(task.Coord.ctx, 5*time.Second)
+			s.recordFailedOpen(bg, task.Coord.meta, task.Direction, task.Modality, domaincm.ErrorCodeQueueFull, 0)
+			s.bumpDailyStat(bg, repository.DailyStatIncrement{
+				Direction:    task.Direction,
+				Modality:     task.Modality,
+				Result:       domaincm.ResultFailedOpen,
+				CheckCount:   1,
+				ContentItems: contentItemCount(task),
+				FailureCount: 1,
+			})
 			cancel()
 		}
 		return ErrQueueFull
@@ -171,10 +186,13 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
-	// Parent may be cancelled; moderation work and persistence use a detached budget.
-	workParent := context.WithoutCancel(parent)
-	ctx, cancel := context.WithTimeout(workParent, timeout)
-	defer cancel()
+	runCtx, cancelRun := context.WithCancel(task.Coord.ctx)
+	stopWorkerCancellation := context.AfterFunc(parent, cancelRun)
+	defer func() {
+		stopWorkerCancellation()
+		cancelRun()
+	}()
+	providerCtx, cancelProvider := context.WithTimeout(runCtx, timeout)
 
 	selected := task.Selected
 	if len(selected) == 0 {
@@ -198,22 +216,38 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 				}
 				images = append(images, ProviderImage{Data: image.Data, MimeType: image.MimeType})
 			}
-			resp, err = s.provider.ModerateImages(ctx, providerConfig, images, selected, task.Modality)
+			resp, err = s.provider.ModerateImages(providerCtx, providerConfig, images, selected, task.Modality)
 		default:
-			resp, err = s.provider.ModerateText(ctx, providerConfig, task.Text, selected, task.Modality)
+			resp, err = s.provider.ModerateText(providerCtx, providerConfig, task.Text, selected, task.Modality)
 		}
 	}
+	cancelProvider()
 	latency := time.Since(started).Milliseconds()
 	// Start a fresh persistence budget only after the upstream request finishes.
 	// Slow moderation requests must not consume the time reserved for recording
 	// their result and statistics.
-	persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(parent), 10*time.Second)
+	persistCtx, persistCancel := context.WithTimeout(runCtx, 10*time.Second)
 	defer persistCancel()
 
 	if err != nil {
 		code := classifyErrorCode(err)
-		s.recordFailedOpen(persistCtx, task.Coord.meta, task.Direction, task.Modality, code, err.Error(), latency)
-		s.bumpDailyStat(persistCtx, task.Direction, task.Modality, domaincm.ResultFailedOpen, "", 1, contentItemCount(task), 0, 1, latency)
+		s.logWarn("content_moderation_provider_failed",
+			zap.String("run_id", task.Coord.meta.RunID),
+			zap.String("direction", task.Direction),
+			zap.String("modality", task.Modality),
+			zap.String("error_code", code),
+			zap.Error(err),
+		)
+		s.recordFailedOpen(persistCtx, task.Coord.meta, task.Direction, task.Modality, code, latency)
+		s.bumpDailyStat(persistCtx, repository.DailyStatIncrement{
+			Direction:    task.Direction,
+			Modality:     task.Modality,
+			Result:       domaincm.ResultFailedOpen,
+			CheckCount:   1,
+			ContentItems: contentItemCount(task),
+			FailureCount: 1,
+			LatencyMS:    latency,
+		})
 		task.Coord.onTaskResult(task, taskResult{
 			Err:       err,
 			ErrorCode: code,
@@ -227,7 +261,14 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 		if _, recordErr := s.recordPass(persistCtx, task, latency, resp); recordErr != nil {
 			s.logWarn("content_moderation_record_pass_failed", zap.Error(recordErr))
 		}
-		s.bumpDailyStat(persistCtx, task.Direction, task.Modality, domaincm.ResultPassed, "", 1, contentItemCount(task), 0, 0, latency)
+		s.bumpDailyStat(persistCtx, repository.DailyStatIncrement{
+			Direction:    task.Direction,
+			Modality:     task.Modality,
+			Result:       domaincm.ResultPassed,
+			CheckCount:   1,
+			ContentItems: contentItemCount(task),
+			LatencyMS:    latency,
+		})
 		task.Coord.onTaskResult(task, taskResult{LatencyMS: latency})
 		return
 	}
@@ -236,9 +277,23 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 	if recordErr != nil {
 		s.logWarn("content_moderation_record_hit_failed", zap.Error(recordErr))
 	}
-	s.bumpDailyStat(persistCtx, task.Direction, task.Modality, domaincm.ResultHit, "", 1, contentItemCount(task), 1, 0, latency)
+	s.bumpDailyStat(persistCtx, repository.DailyStatIncrement{
+		Direction:    task.Direction,
+		Modality:     task.Modality,
+		Result:       domaincm.ResultHit,
+		CheckCount:   1,
+		ContentItems: contentItemCount(task),
+		HitCount:     1,
+		LatencyMS:    latency,
+	})
 	for _, cat := range eval.Categories {
-		s.bumpDailyStat(persistCtx, task.Direction, task.Modality, domaincm.ResultHit, cat, 0, 0, 1, 0, 0)
+		s.bumpDailyStat(persistCtx, repository.DailyStatIncrement{
+			Direction: task.Direction,
+			Modality:  task.Modality,
+			Result:    domaincm.ResultHit,
+			Category:  cat,
+			HitCount:  1,
+		})
 	}
 	lateBlock := task.Coord.onTaskResult(task, taskResult{
 		Hit:        true,
@@ -248,7 +303,7 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 		LatencyMS:  latency,
 	})
 	if lateBlock != nil {
-		s.handleLateBlock(task.Coord.meta, *lateBlock)
+		s.handleLateBlock(runCtx, task.Coord.meta, *lateBlock)
 	}
 }
 
@@ -290,7 +345,7 @@ func classifyErrorCode(err error) string {
 func (s *Service) recordFailedOpen(
 	ctx context.Context,
 	meta RunMeta,
-	direction, modality, errorCode, errorMessage string,
+	direction, modality, errorCode string,
 	latencyMS int64,
 ) {
 	if s.repo == nil {
@@ -311,7 +366,7 @@ func (s *Service) recordFailedOpen(
 		CategoryScoresJSON:  "{}",
 		LatencyMS:           latencyMS,
 		ErrorCode:           errorCode,
-		ErrorMessage:        truncate(errorMessage, 255),
+		ErrorMessage:        truncate(moderationFailureMessage(errorCode), 255),
 		ContentLocationJSON: "{}",
 		ContentSummary:      "",
 		ImageMetaJSON:       "[]",
@@ -331,6 +386,29 @@ func (s *Service) recordFailedOpen(
 		zap.String("modality", modality),
 		zap.String("error_code", errorCode),
 	)
+}
+
+func moderationFailureMessage(errorCode string) string {
+	switch strings.TrimSpace(errorCode) {
+	case domaincm.ErrorCodeTimeout:
+		return ErrModerationTimeout.Error()
+	case domaincm.ErrorCodeRateLimited:
+		return ErrModerationRateLimited.Error()
+	case domaincm.ErrorCodeQueueFull:
+		return ErrQueueFull.Error()
+	case domaincm.ErrorCodeInvalidResp:
+		return ErrModerationInvalidResp.Error()
+	case domaincm.ErrorCodeNetworkError:
+		return ErrModerationNetwork.Error()
+	case domaincm.ErrorCodeWorkerLost:
+		return ErrWorkerLost.Error()
+	case domaincm.ErrorCodeConfigMissing:
+		return "content moderation configuration unavailable"
+	case domaincm.ErrorCodeServiceError:
+		return ErrModerationService.Error()
+	default:
+		return "content moderation check failed"
+	}
 }
 
 func (s *Service) recordPass(ctx context.Context, task *moderationTask, latencyMS int64, resp *Response) (string, error) {
@@ -460,7 +538,7 @@ func (s *Service) recordHit(ctx context.Context, task *moderationTask, eval HitE
 						imageMeta = append(imageMeta, domaincm.IsolatedImageMeta{
 							Index:        i,
 							SHA256:       sha,
-							MimeType:     firstNonEmpty(img.MimeType, "image/png"),
+							MimeType:     textutil.FirstNonEmpty(img.MimeType, "image/png"),
 							SizeBytes:    int64(len(data)),
 							StoragePath:  path,
 							SourceFileID: img.FileID,
@@ -511,27 +589,12 @@ func (s *Service) recordHit(ctx context.Context, task *moderationTask, eval HitE
 	return publicID, nil
 }
 
-func (s *Service) bumpDailyStat(
-	ctx context.Context,
-	direction, modality, result, category string,
-	checkCount, contentItems, hitCount, failureCount, latencyMS int64,
-) {
+func (s *Service) bumpDailyStat(ctx context.Context, input repository.DailyStatIncrement) {
 	if s.repo == nil {
 		return
 	}
-	day := time.Now().UTC().Truncate(24 * time.Hour)
-	if err := s.repo.IncrementDailyStat(ctx, repository.DailyStatIncrement{
-		StatDate:     day,
-		Direction:    direction,
-		Modality:     modality,
-		Result:       result,
-		Category:     category,
-		CheckCount:   checkCount,
-		ContentItems: contentItems,
-		HitCount:     hitCount,
-		FailureCount: failureCount,
-		LatencyMS:    latencyMS,
-	}); err != nil {
+	input.StatDate = time.Now().UTC().Truncate(24 * time.Hour)
+	if err := s.repo.IncrementDailyStat(ctx, input); err != nil {
 		s.logWarn("content_moderation_increment_daily_stat_failed", zap.Error(err))
 	}
 }
@@ -542,13 +605,4 @@ func truncate(value string, max int) string {
 		return value
 	}
 	return value[:max]
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			return strings.TrimSpace(v)
-		}
-	}
-	return ""
 }

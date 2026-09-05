@@ -84,6 +84,9 @@ function hasSVGDocumentRoot(code: string): boolean {
   return SVG_ROOT_RE.test(code.slice(cursor));
 }
 
+// 未标注语言的围栏在渲染层会被归一化为纯文本语言,这些语言下按内容嗅探 HTML/SVG 预览能力。
+const CONTENT_SNIFF_LANGUAGES = ["", "text", "txt", "plaintext", "plain", "markdown"];
+
 export function resolveArtifactPreviewKind(language: string, code: string): ArtifactPreviewKind | null {
   const normalized = normalizeLanguage(language);
   if (["html", "htm", "xhtml"].includes(normalized)) return "html";
@@ -91,11 +94,11 @@ export function resolveArtifactPreviewKind(language: string, code: string): Arti
   if (["js", "javascript", "mjs", "cjs"].includes(normalized)) return "javascript";
   if (["svg", "svg+xml", "image/svg+xml"].includes(normalized)) return "svg";
   if (
-    ["", "markdown", "xml", "text/xml", "application/xml"].includes(normalized) &&
+    [...CONTENT_SNIFF_LANGUAGES, "xml", "text/xml", "application/xml"].includes(normalized) &&
     hasSVGDocumentRoot(code)
   ) {
     return "svg";
   }
-  if ((!normalized || normalized === "markdown") && HTML_LIKE_RE.test(code)) return "html";
+  if (CONTENT_SNIFF_LANGUAGES.includes(normalized) && HTML_LIKE_RE.test(code)) return "html";
   return null;
 }

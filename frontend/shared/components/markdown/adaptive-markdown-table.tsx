@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { TableDownloadDropdown } from "streamdown";
 
 import { cn } from "@/lib/utils";
+import { useScrollFadeFallbackRef } from "@/shared/hooks/use-scroll-fade-fallback-ref";
 import {
   type ColumnAnalyzerOptions,
   type ColumnType,
@@ -45,6 +46,7 @@ export function AdaptiveMarkdownTable({ children, className, node: _node, ...pro
   const contentColumnCount = columnTypes.filter((type) => type === "content").length;
   const contentColumnBucket = contentColumnCount >= 3 ? "many" : String(contentColumnCount);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const scrollFadeRef = useScrollFadeFallbackRef(scrollRef);
   const hintID = React.useId();
   const [hasHorizontalOverflow, setHasHorizontalOverflow] = React.useState(false);
 
@@ -86,7 +88,7 @@ export function AdaptiveMarkdownTable({ children, className, node: _node, ...pro
       <div className="flex min-w-0 items-start gap-2">
         {/* Keyboard users need to focus the horizontal scroll region itself. */}
         <div
-          ref={scrollRef}
+          ref={scrollFadeRef}
           aria-describedby={hasHorizontalOverflow ? hintID : undefined}
           aria-label={t("scrollableTable")}
           className="markdown-table-scroll scroll-fade-x scroll-fade-12 min-w-0 flex-1"
@@ -109,7 +111,7 @@ export function AdaptiveMarkdownTable({ children, className, node: _node, ...pro
         </div>
         <div className="mt-3 shrink-0" data-streamdown="table-download-actions">
           <TableDownloadDropdown
-            className="inline-flex size-5 items-center justify-center rounded-none p-1 align-middle hover:bg-foreground/[0.04] focus-visible:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
+            className="inline-flex size-5 items-center justify-center rounded-none p-1 align-middle outline-none hover:bg-foreground/[0.04] focus-visible:bg-foreground/[0.04] focus-visible:ring-0"
             onError={() => toast.error(t("table.downloadFailed"))}
           />
         </div>

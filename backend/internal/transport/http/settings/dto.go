@@ -22,6 +22,22 @@ type PatchItem struct {
 	Clear     bool   `json:"clear,omitempty"`
 }
 
+type settingValidationDetailsResponse struct {
+	Field  string   `json:"field,omitempty"`
+	Fields []string `json:"fields,omitempty"`
+	Rule   string   `json:"rule"`
+	Param  string   `json:"param,omitempty"`
+}
+
+func toSettingValidationDetailsResponse(details appsettings.SettingValidationDetails) settingValidationDetailsResponse {
+	return settingValidationDetailsResponse{
+		Field:  details.Field,
+		Fields: append([]string(nil), details.Fields...),
+		Rule:   details.Rule,
+		Param:  details.Param,
+	}
+}
+
 // ── 响应 DTO ─────────────────────────────────────────────────────────────────
 
 // SettingResponse 单个配置项响应。
@@ -86,20 +102,20 @@ type ModelOptionPolicyResponse struct {
 
 // NativeToolDefinitionResponse 返回可由后台开启的官方原生工具定义。
 type NativeToolDefinitionResponse struct {
-	Protocol       string                 `json:"protocol"`
-	Provider       string                 `json:"provider"`
-	Type           string                 `json:"type"`
-	ToolKey        string                 `json:"toolKey"`
-	Label          string                 `json:"label"`
-	Description    string                 `json:"description"`
-	Payload        map[string]interface{} `json:"payload"`
-	DefaultEnabled bool                   `json:"defaultEnabled"`
-	Billable       bool                   `json:"billable"`
-	BillingUnit    string                 `json:"billingUnit"`
-	PriceNanousd   int64                  `json:"priceNanousd"`
-	PriceLabel     string                 `json:"priceLabel"`
-	RiskLevel      string                 `json:"riskLevel"`
-	UsageAliases   []string               `json:"usageAliases"`
+	Protocol       string         `json:"protocol"`
+	Provider       string         `json:"provider"`
+	Type           string         `json:"type"`
+	ToolKey        string         `json:"toolKey"`
+	Label          string         `json:"label"`
+	Description    string         `json:"description"`
+	Payload        map[string]any `json:"payload"`
+	DefaultEnabled bool           `json:"defaultEnabled"`
+	Billable       bool           `json:"billable"`
+	BillingUnit    string         `json:"billingUnit"`
+	PriceNanousd   int64          `json:"priceNanousd"`
+	PriceLabel     string         `json:"priceLabel"`
+	RiskLevel      string         `json:"riskLevel"`
+	UsageAliases   []string       `json:"usageAliases"`
 }
 
 // MCPPolicyResponse 返回聊天侧需要遵守的 MCP 工具运行策略。
@@ -110,6 +126,11 @@ type MCPPolicyResponse struct {
 // ChatContextPolicyResponse 返回聊天侧上下文能力策略。
 type ChatContextPolicyResponse struct {
 	ContextCompactEnabled bool `json:"contextCompactEnabled"`
+}
+
+// FeaturePolicyResponse 返回用户侧功能开关策略。
+type FeaturePolicyResponse struct {
+	KnowledgeBaseEnabled bool `json:"knowledgeBaseEnabled"`
 }
 
 // ── mapping 函数 ─────────────────────────────────────────────────────────────
@@ -131,7 +152,7 @@ func sanitizePatchItemsForAudit(items []PatchItem) []PatchItem {
 	results := make([]PatchItem, 0, len(items))
 	for _, item := range items {
 		next := item
-		if isSensitiveSettingKey(item.Key) {
+		if appsettings.IsSensitiveSetting(item.Namespace, item.Key) {
 			if strings.TrimSpace(item.Value) == "" {
 				next.Value = ""
 			} else {
@@ -141,15 +162,6 @@ func sanitizePatchItemsForAudit(items []PatchItem) []PatchItem {
 		results = append(results, next)
 	}
 	return results
-}
-
-func isSensitiveSettingKey(key string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(key))
-	return strings.Contains(normalized, "password") ||
-		strings.Contains(normalized, "secret") ||
-		strings.Contains(normalized, "auth_token") ||
-		strings.Contains(normalized, "api_key") ||
-		strings.HasSuffix(normalized, "_key")
 }
 
 func toSettingResponseList(items []appsettings.SettingItem) []SettingResponse {

@@ -16,9 +16,23 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestTranslateErrorAllowsNil(t *testing.T) {
-	if err := translateError(nil); err != nil {
-		t.Fatalf("translateError(nil) = %v, want nil", err)
+func TestReplaceActiveConversationShareReportsMissingSchemaColumn(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	if err := db.Migrator().DropColumn(&model.ConversationShare{}, "default_message_ids_json"); err != nil {
+		t.Fatalf("drop legacy share column: %v", err)
+	}
+
+	item := &domainconversation.ConversationShare{
+		ShareID:               "share_schema_test",
+		ConversationID:        1,
+		UserID:                1,
+		Status:                "active",
+		MessageIDsJSON:        "[]",
+		DefaultMessageIDsJSON: "[]",
+	}
+	err := NewRepo(db).ReplaceActiveConversationShare(context.Background(), item)
+	if !errors.Is(err, repository.ErrConversationShareSchemaOutdated) {
+		t.Fatalf("ReplaceActiveConversationShare() error = %v, want ErrConversationShareSchemaOutdated", err)
 	}
 }
 
@@ -30,6 +44,56 @@ func TestAttachmentDurationSecondsFromMetaJSON(t *testing.T) {
 		if got := attachmentDurationSecondsFromMetaJSON(raw); got != 0 {
 			t.Fatalf("expected invalid attachment duration for %q, got %d", raw, got)
 		}
+	}
+}
+
+func TestConversationRunClaimIsUniqueAndOwnershipCannotBeTransferred(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	run := domainconversation.Run{
+		RunID:          "run_immutable_owner",
+		UserID:         1,
+		ConversationID: 10,
+		Status:         "running",
+		StartedAt:      time.Now(),
+	}
+	if err := repo.CreateConversationRun(ctx, &run); err != nil {
+		t.Fatalf("claim run: %v", err)
+	}
+	duplicate := run
+	if err := repo.CreateConversationRun(ctx, &duplicate); !errors.Is(err, repository.ErrDuplicate) {
+		t.Fatalf("duplicate claim error=%v, want ErrDuplicate", err)
+	}
+
+	sameOwner := run
+	sameOwner.Status = "success"
+	if err := repo.UpdateConversationRun(ctx, &sameOwner); err != nil {
+		t.Fatalf("update run for same owner: %v", err)
+	}
+	if err := repo.UpdateConversationRun(ctx, &sameOwner); err != nil {
+		t.Fatalf("repeat identical update: %v", err)
+	}
+
+	differentOwner := sameOwner
+	differentOwner.UserID = 2
+	differentOwner.ConversationID = 20
+	differentOwner.Status = "error"
+	if err := repo.UpdateConversationRun(ctx, &differentOwner); !errors.Is(err, repository.ErrConflict) {
+		t.Fatalf("update run for different owner error=%v, want ErrConflict", err)
+	}
+	missing := sameOwner
+	missing.RunID = "run_missing"
+	if err := repo.UpdateConversationRun(ctx, &missing); !errors.Is(err, repository.ErrNotFound) {
+		t.Fatalf("update missing run error=%v, want ErrNotFound", err)
+	}
+
+	var stored model.ConversationRun
+	if err := db.Where("run_id = ?", run.RunID).Take(&stored).Error; err != nil {
+		t.Fatalf("load stored run: %v", err)
+	}
+	if stored.UserID != run.UserID || stored.ConversationID != run.ConversationID || stored.Status != sameOwner.Status {
+		t.Fatalf("run ownership changed: %#v", stored)
 	}
 }
 
@@ -220,6 +284,7 @@ func TestConversationProjectDefaultsRoundTripAndDelete(t *testing.T) {
 		UserID:                  1,
 		PublicID:                "project_defaults",
 		Name:                    "Project defaults",
+		DefaultModel:            "model-a",
 		MCPDefaultMode:          domainconversation.ConversationProjectMCPDefaultModeCustom,
 		DefaultMCPToolIDs:       []uint{7, 3},
 		DefaultSkillIDs:         []uint{11, 5},
@@ -239,7 +304,8 @@ func TestConversationProjectDefaultsRoundTripAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetConversationProjectByPublicID() error = %v", err)
 	}
-	if loaded.MCPDefaultMode != domainconversation.ConversationProjectMCPDefaultModeCustom ||
+	if loaded.DefaultModel != "model-a" ||
+		loaded.MCPDefaultMode != domainconversation.ConversationProjectMCPDefaultModeCustom ||
 		!reflect.DeepEqual(loaded.DefaultMCPToolIDs, []uint{7, 3}) ||
 		!reflect.DeepEqual(loaded.DefaultSkillIDs, []uint{11, 5}) ||
 		!reflect.DeepEqual(loaded.DefaultKnowledgeBaseIDs, []string{"kb_default_two", "kb_default_one"}) {
@@ -269,8 +335,10 @@ func TestConversationProjectDefaultsRoundTripAndDelete(t *testing.T) {
 	nextMCPToolIDs := []uint{}
 	nextSkillIDs := []uint{5}
 	nextKnowledgeBaseIDs := []string{"kb_default_one"}
+	nextDefaultModel := "model-b"
 	inheritMode := domainconversation.ConversationProjectMCPDefaultModeInherit
 	updated, err := repo.UpdateConversationProjectMetadataByPublicID(ctx, 1, project.PublicID, domainconversation.ConversationProjectPatch{
+		DefaultModel:            &nextDefaultModel,
 		MCPDefaultMode:          &inheritMode,
 		DefaultMCPToolIDs:       &nextMCPToolIDs,
 		DefaultSkillIDs:         &nextSkillIDs,
@@ -279,13 +347,13 @@ func TestConversationProjectDefaultsRoundTripAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateConversationProjectMetadataByPublicID() error = %v", err)
 	}
-	if updated.MCPDefaultMode != inheritMode || len(updated.DefaultMCPToolIDs) != 0 ||
+	if updated.DefaultModel != nextDefaultModel || updated.MCPDefaultMode != inheritMode || len(updated.DefaultMCPToolIDs) != 0 ||
 		!reflect.DeepEqual(updated.DefaultSkillIDs, nextSkillIDs) ||
 		!reflect.DeepEqual(updated.DefaultKnowledgeBaseIDs, nextKnowledgeBaseIDs) {
 		t.Fatalf("updated project defaults = %#v", updated)
 	}
 
-	if _, err = repo.DeleteConversationProjectByPublicID(ctx, 1, project.PublicID, false, false); err != nil {
+	if _, err = repo.DeleteConversationProjectByPublicID(ctx, 1, project.PublicID, repository.DeleteConversationProjectOptions{}); err != nil {
 		t.Fatalf("DeleteConversationProjectByPublicID() error = %v", err)
 	}
 	var associationCount int64
@@ -387,7 +455,7 @@ func TestConversationEventLogListAndDetailBoundPayloads(t *testing.T) {
 	repo := NewRepo(db)
 	ctx := context.Background()
 	now := time.Now()
-	largePayload := strings.Repeat("x", maxConversationEventDetailPayloadBytes+1)
+	largePayload := strings.Repeat("x", maxConversationEventDetailJSONBytes+1)
 	events := []model.ChatRunEvent{
 		{
 			ConversationID:  1,
@@ -472,12 +540,92 @@ func TestConversationEventLogListAndDetailBoundPayloads(t *testing.T) {
 	}
 }
 
+func TestConversationToolCallDetailReturnsRawResultUpToEightMegabytes(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	now := time.Now()
+	visibleOutput := strings.Repeat("x", maxConversationEventDetailJSONBytes+1)
+	omittedOutput := strings.Repeat("y", maxConversationToolCallDetailJSONBytes+1)
+	combinedOutput := strings.Repeat("o", maxConversationToolCallDetailJSONBytes/2)
+	combinedError := strings.Repeat("e", maxConversationToolCallDetailJSONBytes/2+1)
+	events := []model.ChatRunEvent{
+		{
+			UserID:     1,
+			RunID:      "run_visible_tool_result",
+			EventScope: chatRunEventScopeToolCall,
+			EventID:    "call_visible",
+			EventType:  "tool_call",
+			ToolCallID: "call_visible",
+			ToolName:   "visible_tool",
+			Status:     "completed",
+			OutputJSON: visibleOutput,
+			StartedAt:  now,
+		},
+		{
+			UserID:     1,
+			RunID:      "run_combined_tool_result",
+			EventScope: chatRunEventScopeToolCall,
+			EventID:    "call_combined",
+			EventType:  "tool_call",
+			ToolCallID: "call_combined",
+			ToolName:   "combined_tool",
+			Status:     "error",
+			OutputJSON: combinedOutput,
+			ErrorJSON:  combinedError,
+			StartedAt:  now,
+		},
+		{
+			UserID:     1,
+			RunID:      "run_omitted_tool_result",
+			EventScope: chatRunEventScopeToolCall,
+			EventID:    "call_omitted",
+			EventType:  "tool_call",
+			ToolCallID: "call_omitted",
+			ToolName:   "omitted_tool",
+			Status:     "completed",
+			OutputJSON: omittedOutput,
+			StartedAt:  now,
+		},
+	}
+	if err := db.Create(&events).Error; err != nil {
+		t.Fatalf("create tool-call events: %v", err)
+	}
+
+	visible, err := repo.GetConversationToolCallDetail(ctx, 1, events[0].RunID, events[0].ToolCallID)
+	if err != nil {
+		t.Fatalf("GetConversationToolCallDetail(visible) error = %v", err)
+	}
+	if visible.OutputJSON != visibleOutput || visible.OutputOmitted || visible.OutputSizeBytes != int64(len(visibleOutput)) {
+		t.Fatalf("visible tool result = %#v", visible)
+	}
+	if _, err := repo.GetConversationToolCallDetail(ctx, 2, events[0].RunID, events[0].ToolCallID); !errors.Is(err, repository.ErrNotFound) {
+		t.Fatalf("other user tool result error = %v, want not found", err)
+	}
+
+	omitted, err := repo.GetConversationToolCallDetail(ctx, 1, events[2].RunID, events[2].ToolCallID)
+	if err != nil {
+		t.Fatalf("GetConversationToolCallDetail(omitted) error = %v", err)
+	}
+	if omitted.OutputJSON != "" || !omitted.OutputOmitted || omitted.OutputSizeBytes != int64(len(omittedOutput)) {
+		t.Fatalf("omitted tool result = %#v", omitted)
+	}
+
+	combined, err := repo.GetConversationToolCallDetail(ctx, 1, events[1].RunID, events[1].ToolCallID)
+	if err != nil {
+		t.Fatalf("GetConversationToolCallDetail(combined) error = %v", err)
+	}
+	if combined.OutputJSON != "" || combined.ErrorJSON != "" || !combined.OutputOmitted || !combined.ErrorOmitted {
+		t.Fatalf("combined tool result exceeded the aggregate limit: %#v", combined)
+	}
+}
+
 func TestConversationMessageTraceReadsBoundPayloads(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
 	repo := NewRepo(db)
 	ctx := context.Background()
 	now := time.Now()
-	largePayload := strings.Repeat("x", maxConversationEventDetailPayloadBytes+1)
+	largePayload := strings.Repeat("x", maxConversationEventDetailJSONBytes+1)
 	items := []model.ChatRunEvent{
 		{
 			MessageID:       11,
@@ -1112,7 +1260,16 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			items, total, err := repo.ListConversationsByUser(ctx, 1, 0, 10, "active", "all", "all", "all", tt.query)
+			items, total, err := repo.ListConversationsByUser(ctx, repository.ConversationListInput{
+				UserID:        1,
+				Offset:        0,
+				Limit:         10,
+				StatusFilter:  "active",
+				StarredFilter: "all",
+				ShareFilter:   "all",
+				ProjectFilter: "all",
+				SearchQuery:   tt.query,
+			})
 			if err != nil {
 				t.Fatalf("ListConversationsByUser() error = %v", err)
 			}

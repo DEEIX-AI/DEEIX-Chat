@@ -354,7 +354,7 @@ export function ModelPresentationDialog({
                               <Spinner className="size-4" />
                             </div>
                           ) : filteredCatalogModels.length === 0 ? (
-                            <div className="flex min-h-28 items-center justify-center text-xs text-muted-foreground">
+                            <div className="flex min-h-28 items-center justify-center px-3 py-6 text-center text-xs text-muted-foreground">
                               {t("memberEmpty")}
                             </div>
                           ) : (
@@ -436,7 +436,7 @@ export function ModelPresentationDialog({
 
                   <TabsContent value={tab} className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
                     {items.length === 0 ? (
-                      <div className="flex min-h-40 items-center justify-center text-xs text-muted-foreground">
+                      <div className="flex min-h-40 items-center justify-center px-3 py-6 text-center text-xs text-muted-foreground">
                         {t("empty")}
                       </div>
                     ) : (

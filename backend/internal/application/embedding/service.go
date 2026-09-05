@@ -12,15 +12,110 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/filetype"
+	portembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/embeddingutil"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"go.uber.org/zap"
 )
 
-var ErrEmbeddingServiceNotConfigured = errors.New("embedding service not configured")
+var (
+	ErrEmbeddingServiceNotConfigured = apperr.NewMasked("embedding.service_not_configured", "embedding service is not configured", "embedding service not configured")
+	ErrEmbeddingServiceUnavailable   = errors.New("embedding service unavailable")
+	ErrEmbeddingQueueUnavailable     = errors.New("embedding queue unavailable")
+	ErrTooManyTargetedFiles          = errors.New("too many files for targeted embedding")
+	errNoExtractableText             = errors.New("no extractable text in file")
+	errEmptyChunks                   = errors.New("embedding produced no chunks")
+	errEmbeddingConfigurationChanged = errors.New("embedding configuration changed")
+)
 
-const embeddingWorkerConcurrency = 4
+const (
+	embeddingErrorLimit           = 255
+	embeddingFailureMessage       = "向量化失败，请稍后重试。"
+	embeddingUnavailableMessage   = "向量化服务暂时不可用，请稍后重试。"
+	embeddingNotConfiguredMessage = "向量化服务尚未配置。"
+	embeddingTimeoutMessage       = "向量化超时，请稍后重试。"
+	embeddingCanceledMessage      = "向量化已取消。"
+	embeddingNoTextMessage        = "无法读取文件提取文本。"
+	embeddingEmptyChunksMessage   = "文件没有可用于向量化的内容。"
+	embeddingConfigurationChanged = "向量化配置已变更，请重新提交任务。"
+)
+
+// ErrorSummary returns a bounded, user-visible description without exposing
+// provider responses, URLs, credentials, or internal storage details.
+func ErrorSummary(err error) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(err, context.Canceled) {
+		return embeddingCanceledMessage
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return embeddingTimeoutMessage
+	}
+	if errors.Is(err, ErrEmbeddingServiceNotConfigured) {
+		return embeddingNotConfiguredMessage
+	}
+	if errors.Is(err, ErrEmbeddingServiceUnavailable) {
+		return embeddingUnavailableMessage
+	}
+	if errors.Is(err, errNoExtractableText) {
+		return embeddingNoTextMessage
+	}
+	if errors.Is(err, errEmptyChunks) {
+		return embeddingEmptyChunksMessage
+	}
+	if errors.Is(err, errEmbeddingConfigurationChanged) {
+		return embeddingConfigurationChanged
+	}
+	return embeddingFailureMessage
+}
+
+const (
+	WorkerConcurrency = 4
+	MaxTargetedFiles  = 100
+)
+
+const (
+	SkipReasonNotFound     = "not_found"
+	SkipReasonNotReady     = "not_ready"
+	SkipReasonUnsupported  = "unsupported"
+	SkipReasonAlreadyReady = "already_ready"
+	SkipReasonProcessing   = "processing"
+	SkipReasonQueueBusy    = "queue_busy"
+	SkipReasonSubmitFailed = "submit_failed"
+	ReasonOutdatedIndex    = "outdated_index"
+)
+
+type TargetedFileSkip struct {
+	FileID string
+	Reason string
+}
+
+type TargetedSubmissionResult struct {
+	SubmittedFileIDs []string
+	Skipped          []TargetedFileSkip
+}
+
+type TargetedJob struct {
+	FileID             string
+	UserID             uint
+	EmbeddingSignature string
+	EmbeddingHost      string
+}
+
+type TargetedSubmissionPlan struct {
+	Jobs    []TargetedJob
+	Skipped []TargetedFileSkip
+}
+
+type FileVectorizationCapability struct {
+	CanVectorize bool
+	Reason       string
+}
 
 // Service 封装文件 embedding 执行与状态管理能力。
 type Service struct {
@@ -33,30 +128,26 @@ type Service struct {
 	reindexJobs chan string
 	reindexMu   sync.Mutex
 	reindexing  bool
+
+	vectorStoreMu        sync.Mutex
+	vectorStoreChecked   bool
+	vectorStoreAvailable bool
 }
 
 // EmbeddingClient 调用外部服务将文本批量转换为向量。
 type EmbeddingClient interface {
-	CallAPI(ctx context.Context, apiBase, apiKey, model string, texts []string, dimensions int, timeoutSeconds int) ([][]float32, error)
-}
-
-// NewService 创建 embedding 服务。
-func NewService(cfg config.Config, repo repository.EmbeddingRepository, extractSvc *extraction.Service, embedClient EmbeddingClient, logger *zap.Logger) *Service {
-	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, extractSvc, embedClient, logger)
+	CallAPI(ctx context.Context, input portembedding.Request) ([][]float32, error)
 }
 
 // NewServiceWithRuntime 创建使用运行时配置容器的 embedding 服务。
 func NewServiceWithRuntime(cfg *config.Runtime, repo repository.EmbeddingRepository, extractSvc *extraction.Service, embedClient EmbeddingClient, logger *zap.Logger) *Service {
-	if extractSvc == nil {
-		extractSvc = extraction.NewServiceWithRuntime(cfg)
-	}
 	return &Service{
 		cfg:         cfg,
 		repo:        repo,
 		extractSvc:  extractSvc,
 		embedClient: embedClient,
 		logger:      logger,
-		workSlots:   make(chan struct{}, embeddingWorkerConcurrency),
+		workSlots:   make(chan struct{}, WorkerConcurrency),
 		reindexJobs: make(chan string, 1),
 	}
 }
@@ -110,7 +201,7 @@ func (s *Service) indexingAvailable(ctx context.Context, cfg config.Config) (boo
 	if s.repo == nil {
 		return false, "vector_store_unavailable", nil
 	}
-	available, err := s.repo.VectorStoreAvailable(ctx)
+	available, err := s.cachedVectorStoreAvailable(ctx)
 	if err != nil {
 		if s.logger != nil {
 			s.logger.Warn("embedding vector store availability check failed", zap.Error(err))
@@ -121,6 +212,24 @@ func (s *Service) indexingAvailable(ctx context.Context, cfg config.Config) (boo
 		return false, "vector_store_unavailable", nil
 	}
 	return true, "available", nil
+}
+
+// cachedVectorStoreAvailable 缓存随进程启动确定的向量存储结构状态。
+// 配置项仍由 indexingAvailable 每次读取运行时快照，只有昂贵且在运行期间不应变化的
+// 扩展、字段和索引结构检查会被缓存；失败结果不会缓存，避免瞬时数据库错误污染后续请求。
+func (s *Service) cachedVectorStoreAvailable(ctx context.Context) (bool, error) {
+	s.vectorStoreMu.Lock()
+	defer s.vectorStoreMu.Unlock()
+	if s.vectorStoreChecked {
+		return s.vectorStoreAvailable, nil
+	}
+	available, err := s.repo.VectorStoreAvailable(ctx)
+	if err != nil {
+		return false, err
+	}
+	s.vectorStoreAvailable = available
+	s.vectorStoreChecked = true
+	return available, nil
 }
 
 // ShouldTrigger 判断当前文件是否应触发 embedding。
@@ -140,21 +249,16 @@ func canEmbedFile(cfg config.Config, fileObj domainconversation.FileObject) bool
 }
 
 // MaybeTrigger 在满足条件时异步触发 embedding。
-func (s *Service) MaybeTrigger(fileObj domainconversation.FileObject) {
+func (s *Service) MaybeTrigger(ctx context.Context, fileObj domainconversation.FileObject) {
 	if !s.ShouldTrigger(fileObj) {
 		return
 	}
-	if available, _, _ := s.indexingAvailable(context.Background(), s.snapshot()); !available {
-		return
-	}
-	s.Trigger(fileObj)
-}
-
-// Trigger 异步触发 embedding。
-func (s *Service) Trigger(fileObj domainconversation.FileObject) {
 	background.Go(s.logger, "embedding_process_file", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		ctx, cancel := background.WithTimeout(ctx, 5*time.Minute)
 		defer cancel()
+		if available, _, _ := s.indexingAvailable(ctx, s.snapshot()); !available {
+			return
+		}
 		if err := s.ProcessFile(ctx, fileObj); err != nil && s.logger != nil {
 			s.logger.Warn("embedding_failed",
 				zap.String("file_id", fileObj.FileID),
@@ -164,17 +268,203 @@ func (s *Service) Trigger(fileObj domainconversation.FileObject) {
 	})
 }
 
-// ProcessFile 执行 embedding 完整流程。
-func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.FileObject) error {
-	if s != nil && s.workSlots != nil {
-		select {
-		case s.workSlots <- struct{}{}:
-			defer func() { <-s.workSlots }()
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+// PlanFiles 校验当前用户指定文件并生成向量化任务计划。
+// 任务认领与投递由 processing 应用服务逐项完成，避免批量预认领后因中途失败遗留 processing 状态。
+func (s *Service) PlanFiles(ctx context.Context, userID uint, fileIDs []string) (TargetedSubmissionPlan, error) {
+	plan := TargetedSubmissionPlan{
+		Jobs:    []TargetedJob{},
+		Skipped: []TargetedFileSkip{},
+	}
+	normalizedIDs := normalizeTargetedFileIDs(fileIDs)
+	if len(normalizedIDs) > MaxTargetedFiles {
+		return plan, ErrTooManyTargetedFiles
+	}
+	if len(normalizedIDs) == 0 {
+		return plan, nil
 	}
 
+	cfg := s.snapshot()
+	available, reason, err := s.indexingAvailable(ctx, cfg)
+	if !available {
+		return plan, embeddingAvailabilityError(reason, err)
+	}
+
+	files, err := s.repo.GetActiveFileObjectsByIDs(ctx, userID, normalizedIDs)
+	if err != nil {
+		return plan, err
+	}
+	filesByID := make(map[string]domainconversation.FileObject, len(files))
+	for i := range files {
+		filesByID[files[i].FileID] = files[i]
+	}
+
+	embeddingSignature := configuredModelSignature(cfg)
+	embeddingHost := strings.TrimRight(strings.TrimSpace(cfg.EmbeddingHost), "/")
+	for _, fileID := range normalizedIDs {
+		fileObj, found := filesByID[fileID]
+		if !found {
+			plan.Skipped = append(plan.Skipped, TargetedFileSkip{FileID: fileID, Reason: SkipReasonNotFound})
+			continue
+		}
+		if reason := fileVectorizationSkipReason(cfg, fileObj, embeddingSignature); reason != "" {
+			plan.Skipped = append(plan.Skipped, TargetedFileSkip{FileID: fileID, Reason: reason})
+			continue
+		}
+
+		plan.Jobs = append(plan.Jobs, TargetedJob{
+			FileID:             fileID,
+			UserID:             userID,
+			EmbeddingSignature: embeddingSignature,
+			EmbeddingHost:      embeddingHost,
+		})
+	}
+	return plan, nil
+}
+
+// QueueTargetedJob 原子登记单个已规划任务，防止并发提交产生重复队列消息。
+// 真正的 processing 状态由 worker 领取消息后再设置。
+func (s *Service) QueueTargetedJob(ctx context.Context, job TargetedJob) (bool, error) {
+	if s == nil || s.repo == nil || strings.TrimSpace(job.FileID) == "" || strings.TrimSpace(job.EmbeddingSignature) == "" {
+		return false, nil
+	}
+	return s.repo.QueueFileEmbedding(ctx, job.UserID, job.FileID, job.EmbeddingSignature)
+}
+
+// ResolveFileVectorizationCapabilities 返回前端展示所需的后端事实状态。
+func (s *Service) ResolveFileVectorizationCapabilities(
+	ctx context.Context,
+	files []domainconversation.FileObject,
+) map[string]FileVectorizationCapability {
+	capabilities := make(map[string]FileVectorizationCapability, len(files))
+	cfg := s.snapshot()
+	signature := configuredModelSignature(cfg)
+	available, reason, _ := s.indexingAvailable(ctx, cfg)
+	if !available {
+		for i := range files {
+			capabilityReason := reason
+			if fileVectorIndexOutdated(files[i], signature) {
+				capabilityReason = ReasonOutdatedIndex
+			}
+			capabilities[files[i].FileID] = FileVectorizationCapability{Reason: capabilityReason}
+		}
+		return capabilities
+	}
+	for i := range files {
+		skipReason := fileVectorizationSkipReason(cfg, files[i], signature)
+		reason := skipReason
+		if reason == "" && fileVectorIndexOutdated(files[i], signature) {
+			reason = ReasonOutdatedIndex
+		}
+		capabilities[files[i].FileID] = FileVectorizationCapability{
+			CanVectorize: skipReason == "",
+			Reason:       reason,
+		}
+	}
+	return capabilities
+}
+
+// ProcessTargetedJob 执行从可恢复队列中领取的显式向量化任务。
+func (s *Service) ProcessTargetedJob(ctx context.Context, job TargetedJob) error {
+	if s == nil || s.repo == nil || strings.TrimSpace(job.FileID) == "" {
+		return nil
+	}
+	releaseSlot, err := s.acquireWorkSlot(ctx)
+	if err != nil {
+		return err
+	}
+	defer releaseSlot()
+
+	cfg := s.snapshot()
+	if configuredModelSignature(cfg) != strings.TrimSpace(job.EmbeddingSignature) ||
+		strings.TrimRight(strings.TrimSpace(cfg.EmbeddingHost), "/") != strings.TrimRight(strings.TrimSpace(job.EmbeddingHost), "/") {
+		_ = s.updateFileObjectEmbedStatus(ctx, job.UserID, job.FileID, job.EmbeddingSignature, "stale", errEmbeddingConfigurationChanged)
+		return nil
+	}
+	available, reason, err := s.indexingAvailable(ctx, cfg)
+	if !available {
+		switch reason {
+		case "embedding_disabled", "embedding_model_missing", "embedding_host_missing":
+			_ = s.updateFileObjectEmbedStatus(ctx, job.UserID, job.FileID, job.EmbeddingSignature, "stale", errEmbeddingConfigurationChanged)
+			return nil
+		default:
+			return embeddingAvailabilityError(reason, err)
+		}
+	}
+	fileObj, err := s.repo.GetActiveFileObjectByID(ctx, job.UserID, job.FileID)
+	if err != nil || fileObj == nil {
+		return err
+	}
+	if fileObj.EmbedSignature != job.EmbeddingSignature || strings.ToLower(strings.TrimSpace(fileObj.EmbedStatus)) != "processing" {
+		claimed, claimErr := s.repo.ClaimFileEmbedding(ctx, job.UserID, job.FileID, job.EmbeddingSignature)
+		if claimErr != nil || !claimed {
+			return claimErr
+		}
+	}
+	return s.processClaimedFile(ctx, *fileObj, cfg, job.EmbeddingSignature)
+}
+
+// FailTargetedJob 将投递失败的已领取任务释放为可重试状态。
+func (s *Service) FailTargetedJob(ctx context.Context, job TargetedJob, cause error) error {
+	return s.updateFileObjectEmbedStatus(ctx, job.UserID, job.FileID, job.EmbeddingSignature, "failed", cause)
+}
+
+// RequeueTargetedJob 将等待重试的任务恢复为排队状态，避免重试退避期间误显示为执行中或失败。
+func (s *Service) RequeueTargetedJob(ctx context.Context, job TargetedJob, cause error) error {
+	return s.updateFileObjectEmbedStatus(ctx, job.UserID, job.FileID, job.EmbeddingSignature, "queued", cause)
+}
+
+func fileVectorizationSkipReason(cfg config.Config, fileObj domainconversation.FileObject, embeddingSignature string) string {
+	if fileObj.EmbedSignature == embeddingSignature {
+		switch strings.ToLower(strings.TrimSpace(fileObj.EmbedStatus)) {
+		case "ready":
+			return SkipReasonAlreadyReady
+		case "queued", "processing":
+			return SkipReasonProcessing
+		}
+	}
+	if !fileObj.ProcessingReady {
+		return SkipReasonNotReady
+	}
+	if !canEmbedFile(cfg, fileObj) {
+		return SkipReasonUnsupported
+	}
+	return ""
+}
+
+func fileVectorIndexOutdated(fileObj domainconversation.FileObject, embeddingSignature string) bool {
+	status := strings.ToLower(strings.TrimSpace(fileObj.EmbedStatus))
+	return status == "stale" || (status == "ready" && strings.TrimSpace(embeddingSignature) != "" && fileObj.EmbedSignature != embeddingSignature)
+}
+
+func normalizeTargetedFileIDs(fileIDs []string) []string {
+	normalized := make([]string, 0, len(fileIDs))
+	seen := make(map[string]struct{}, len(fileIDs))
+	for _, value := range fileIDs {
+		fileID := strings.TrimSpace(value)
+		if fileID == "" {
+			continue
+		}
+		if _, exists := seen[fileID]; exists {
+			continue
+		}
+		seen[fileID] = struct{}{}
+		normalized = append(normalized, fileID)
+	}
+	return normalized
+}
+
+func embeddingAvailabilityError(reason string, cause error) error {
+	if cause != nil {
+		return fmt.Errorf("%w: %w", ErrEmbeddingServiceUnavailable, cause)
+	}
+	if reason == "embedding_disabled" || reason == "embedding_model_missing" || reason == "embedding_host_missing" {
+		return ErrEmbeddingServiceNotConfigured
+	}
+	return ErrEmbeddingServiceUnavailable
+}
+
+// ProcessFile 执行 embedding 完整流程。
+func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.FileObject) error {
 	cfg := s.snapshot()
 	embeddingSignature := configuredModelSignature(cfg)
 	if !cfg.EmbeddingEnabled || strings.TrimSpace(cfg.RAGModel) == "" || strings.TrimSpace(cfg.EmbeddingHost) == "" {
@@ -183,9 +473,14 @@ func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.Fi
 	if s.repo == nil {
 		return nil
 	}
-	if !supportsEmbeddingSource(fileObj, cfg) {
+	if !canEmbedFile(cfg, fileObj) {
 		return nil
 	}
+	releaseSlot, err := s.acquireWorkSlot(ctx)
+	if err != nil {
+		return err
+	}
+	defer releaseSlot()
 
 	claimed, err := s.repo.ClaimFileEmbedding(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature)
 	if err != nil {
@@ -194,26 +489,29 @@ func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.Fi
 	if !claimed {
 		return nil
 	}
+	return s.processClaimedFile(ctx, fileObj, cfg, embeddingSignature)
+}
 
+func (s *Service) processClaimedFile(ctx context.Context, fileObj domainconversation.FileObject, cfg config.Config, embeddingSignature string) error {
 	text, err := s.loadSourceText(ctx, fileObj)
 	if err != nil {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", "无法提取文本")
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", err)
 		return err
 	}
 	if strings.TrimSpace(text) == "" {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", "无法提取文本")
-		return fmt.Errorf("no extractable text in file %s", fileObj.FileID)
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", errNoExtractableText)
+		return fmt.Errorf("%w %s", errNoExtractableText, fileObj.FileID)
 	}
 
 	chunks := embeddingutil.ChunkText(text, cfg.EmbedChunkSizeTokens, cfg.EmbedChunkOverlapTokens)
 	if len(chunks) == 0 {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", "分片结果为空")
-		return nil
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", errEmptyChunks)
+		return errEmptyChunks
 	}
 
 	embeddings, err := s.embedTextsWithConfig(ctx, chunks, cfg)
 	if err != nil {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", truncateError(err.Error(), 255))
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", err)
 		return err
 	}
 
@@ -225,14 +523,14 @@ func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.Fi
 			UserID:             fileObj.UserID,
 			ChunkIndex:         i,
 			Content:            chunk,
-			TokenCount:         int(estimateTokens(chunk)),
+			TokenCount:         int(tokenestimate.Estimate(chunk)),
 			EmbeddingSignature: embeddingSignature,
 			CreatedAt:          now,
 		})
 	}
 	published, err := s.repo.ReplaceFileChunks(ctx, fileObj.ID, embeddingSignature, fileChunks, embeddings)
 	if err != nil {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", err.Error())
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", err)
 		return err
 	}
 	if !published {
@@ -245,6 +543,18 @@ func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.Fi
 		return nil
 	}
 	return s.completeFileEmbedding(ctx, fileObj, embeddingSignature, cfg.EmbeddingHost)
+}
+
+func (s *Service) acquireWorkSlot(ctx context.Context) (func(), error) {
+	if s == nil || s.workSlots == nil {
+		return func() {}, nil
+	}
+	select {
+	case s.workSlots <- struct{}{}:
+		return func() { <-s.workSlots }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 func (s *Service) completeFileEmbedding(ctx context.Context, fileObj domainconversation.FileObject, expectedSignature string, expectedHost string) error {
@@ -273,17 +583,17 @@ func (s *Service) embeddingConfigurationCurrent(expectedSignature string, expect
 		strings.TrimRight(strings.TrimSpace(cfg.EmbeddingHost), "/") == strings.TrimRight(strings.TrimSpace(expectedHost), "/")
 }
 
-func (s *Service) updateFileObjectEmbedStatus(ctx context.Context, userID uint, fileID string, embeddingSignature string, status string, embedErr string) error {
+func (s *Service) updateFileObjectEmbedStatus(ctx context.Context, userID uint, fileID string, embeddingSignature string, status string, embedErr error) error {
 	if s == nil || s.repo == nil {
 		return nil
 	}
 	writeCtx := ctx
 	if writeCtx == nil || writeCtx.Err() != nil {
 		var cancel context.CancelFunc
-		writeCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		writeCtx, cancel = background.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 	}
-	_, err := s.repo.UpdateFileObjectEmbedStatus(writeCtx, userID, fileID, embeddingSignature, status, embedErr)
+	_, err := s.repo.UpdateFileObjectEmbedStatus(writeCtx, userID, fileID, embeddingSignature, status, ErrorSummary(embedErr))
 	return err
 }
 
@@ -388,7 +698,14 @@ func (s *Service) embedTextsWithConfig(ctx context.Context, texts []string, cfg 
 		if end > len(texts) {
 			end = len(texts)
 		}
-		batchEmbeddings, batchErr := s.embedClient.CallAPI(ctx, apiBase, apiKey, model, texts[start:end], cfg.EmbeddingOutputDimensions, cfg.EmbeddingTimeoutSeconds)
+		batchEmbeddings, batchErr := s.embedClient.CallAPI(ctx, portembedding.Request{
+			APIBase:        apiBase,
+			APIKey:         apiKey,
+			Model:          model,
+			Texts:          texts[start:end],
+			Dimensions:     cfg.EmbeddingOutputDimensions,
+			TimeoutSeconds: cfg.EmbeddingTimeoutSeconds,
+		})
 		if batchErr != nil {
 			return nil, batchErr
 		}
@@ -466,8 +783,9 @@ func (s *Service) GetIndexStatus(ctx context.Context) (EmbeddingIndexStatus, err
 		return status, err
 	}
 	noneCount, _ := s.repo.CountFilesByEmbedStatus(ctx, "none")
+	queuedCount, _ := s.repo.CountFilesByEmbedStatus(ctx, "queued")
 	processingCount, _ := s.repo.CountFilesByEmbedStatus(ctx, "processing")
-	status.PendingCount = noneCount + processingCount
+	status.PendingCount = noneCount + queuedCount + processingCount
 	status.NeedsReindex = status.StaleCount > 0
 	return status, nil
 }
@@ -559,9 +877,9 @@ func (s *Service) runReindex(ctx context.Context, expectedSignature string) {
 		s.reindexMu.Unlock()
 	}()
 
-	jobs := make(chan domainconversation.FileObject, embeddingWorkerConcurrency)
+	jobs := make(chan domainconversation.FileObject, WorkerConcurrency)
 	var workers sync.WaitGroup
-	for range embeddingWorkerConcurrency {
+	for range WorkerConcurrency {
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
@@ -622,7 +940,7 @@ func supportsEmbeddingSource(fileObj domainconversation.FileObject, cfg config.C
 	}
 	mime := strings.ToLower(strings.TrimSpace(fileObj.MimeType))
 	name := strings.TrimSpace(fileObj.FileName)
-	return isTextMIMEForEmbed(mime, name) || isPDFMIME(mime, name) || isWordMIME(mime, name) || isPresentationMIME(mime, name) || isExcelMIME(mime, name)
+	return filetype.IsText(mime, name) || isPDFMIME(mime, name) || isWordMIME(mime, name) || isPresentationMIME(mime, name) || isExcelMIME(mime, name)
 }
 
 // l2Normalize 对向量做 L2 归一化（除以欧氏模长），返回单位向量。
@@ -643,41 +961,6 @@ func l2Normalize(vector []float32) []float32 {
 	return result
 }
 
-func truncateError(message string, limit int) string {
-	value := strings.TrimSpace(message)
-	if limit <= 0 || len([]rune(value)) <= limit {
-		return value
-	}
-	runes := []rune(value)
-	return string(runes[:limit])
-}
-
-func estimateTokens(content string) int64 {
-	if len(content) == 0 {
-		return 0
-	}
-	var cjk, other int64
-	for _, r := range content {
-		if isCJKRune(r) {
-			cjk++
-		} else {
-			other++
-		}
-	}
-	tokens := (cjk*2+2)/3 + (other+3)/4
-	if tokens == 0 {
-		return 1
-	}
-	return tokens
-}
-
-func isCJKRune(r rune) bool {
-	return (r >= 0x2E80 && r <= 0x9FFF) ||
-		(r >= 0xAC00 && r <= 0xD7AF) ||
-		(r >= 0xF900 && r <= 0xFAFF) ||
-		(r >= 0x20000 && r <= 0x2A6DF)
-}
-
 func isPDFMIME(mimeType, fileName string) bool {
 	m := strings.ToLower(strings.TrimSpace(mimeType))
 	if m == "application/pdf" {
@@ -685,29 +968,6 @@ func isPDFMIME(mimeType, fileName string) bool {
 	}
 	if idx := strings.LastIndex(fileName, "."); idx >= 0 {
 		return strings.ToLower(fileName[idx+1:]) == "pdf"
-	}
-	return false
-}
-
-func isTextMIMEForEmbed(mimeType, fileName string) bool {
-	m := strings.ToLower(strings.TrimSpace(mimeType))
-	if strings.HasPrefix(m, "text/") {
-		return true
-	}
-	switch m {
-	case "application/json", "application/xml", "application/javascript", "application/typescript",
-		"application/yaml", "application/x-yaml", "application/toml":
-		return true
-	}
-	if idx := strings.LastIndex(fileName, "."); idx >= 0 {
-		ext := strings.ToLower(fileName[idx+1:])
-		switch ext {
-		case "txt", "md", "markdown", "csv", "json", "xml", "html", "htm",
-			"css", "js", "ts", "jsx", "tsx", "py", "go", "rs", "java",
-			"c", "cpp", "h", "hpp", "cs", "rb", "php", "swift", "kt",
-			"sh", "bash", "zsh", "yaml", "yml", "toml", "ini", "conf", "sql":
-			return true
-		}
 	}
 	return false
 }

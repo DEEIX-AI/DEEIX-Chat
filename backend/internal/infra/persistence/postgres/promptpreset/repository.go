@@ -37,14 +37,14 @@ func (r *Repo) ListPromptPresets(ctx context.Context, filter repository.PromptPr
 	query = applyPromptPresetFilter(query, filter)
 
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	if err := query.
 		Order(promptPresetOrderClause(filter)).
 		Offset(offset).
 		Limit(limit).
 		Find(&items).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 
 	results := make([]domainpromptpreset.PromptPreset, 0, len(items))
@@ -61,7 +61,7 @@ func (r *Repo) GetPromptPreset(ctx context.Context, id uint) (*domainpromptprese
 	}
 	var record model.PromptPreset
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&record).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toDomain(record)
 	return &result, nil
@@ -92,12 +92,12 @@ func (r *Repo) CreatePromptPreset(ctx context.Context, item *domainpromptpreset.
 				Where("scope = ? AND owner_user_id = ?", record.Scope, record.OwnerUserID).
 				Select("COALESCE(MAX(sort_order), 0)").
 				Scan(&maxSortOrder).Error; err != nil {
-				return translateError(err)
+				return dberror.Translate(err)
 			}
 			record.SortOrder = maxSortOrder + 1
 		}
 		if err := tx.Create(&record).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		result = toDomain(record)
 		return nil
@@ -119,10 +119,10 @@ func (r *Repo) PatchPromptPreset(ctx context.Context, id uint, patch repository.
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ?", id).
 			First(&record).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 
-		updates := map[string]interface{}{}
+		updates := map[string]any{}
 		if patch.Title != nil {
 			updates["title"] = strings.TrimSpace(*patch.Title)
 		}
@@ -146,11 +146,11 @@ func (r *Repo) PatchPromptPreset(ctx context.Context, id uint, patch repository.
 		}
 		if len(updates) > 0 {
 			if err := tx.Model(&record).Updates(updates).Error; err != nil {
-				return translateError(err)
+				return dberror.Translate(err)
 			}
 		}
 		if err := tx.Where("id = ?", id).First(&record).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		result = toDomain(record)
 		return nil
@@ -168,7 +168,7 @@ func (r *Repo) DeletePromptPreset(ctx context.Context, id uint) error {
 	}
 	result := r.db.WithContext(ctx).Delete(&model.PromptPreset{}, id)
 	if result.Error != nil {
-		return translateError(result.Error)
+		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return repository.ErrNotFound
@@ -234,17 +234,4 @@ func toDomain(item model.PromptPreset) domainpromptpreset.PromptPreset {
 		CreatedAt:       item.CreatedAt,
 		UpdatedAt:       item.UpdatedAt,
 	}
-}
-
-func translateError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if dberror.IsRecordNotFound(err) {
-		return repository.ErrNotFound
-	}
-	if dberror.IsUniqueConstraint(err) {
-		return repository.ErrDuplicate
-	}
-	return err
 }

@@ -49,7 +49,7 @@ func TestPolicyJSONPreservesExistingFieldNames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var document map[string]interface{}
+	var document map[string]any
 	if err := json.Unmarshal(raw, &document); err != nil {
 		t.Fatal(err)
 	}

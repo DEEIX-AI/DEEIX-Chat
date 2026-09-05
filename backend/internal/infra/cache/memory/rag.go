@@ -7,6 +7,7 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 )
 
+// GetRAGCache returns cached retrieval chunks for a key when they have not expired.
 func (c *Cache) GetRAGCache(ctx context.Context, key string) ([]domainconversation.RAGChunk, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -18,6 +19,7 @@ func (c *Cache) GetRAGCache(ctx context.Context, key string) ([]domainconversati
 	return append([]domainconversation.RAGChunk(nil), item.chunks...), true
 }
 
+// SetRAGCache stores retrieval chunks for the requested duration.
 func (c *Cache) SetRAGCache(ctx context.Context, key string, chunks []domainconversation.RAGChunk, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

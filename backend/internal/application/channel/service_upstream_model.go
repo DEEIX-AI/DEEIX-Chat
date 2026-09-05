@@ -8,6 +8,8 @@ import (
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 )
 
 // ---------------------------------------------------------------------------
@@ -23,12 +25,22 @@ type ListUpstreamModelsInput struct {
 	Sort           string
 }
 
+type ensureUpstreamCatalogModelInput struct {
+	UpstreamID        uint
+	UpstreamModelName string
+	SuggestedProtocol string
+	KindsJSON         string
+	Vendor            string
+	Icon              string
+	Source            string
+}
+
 // ListUpstreamModels 分页查询上游真实模型及路由绑定。
 func (s *Service) ListUpstreamModels(ctx context.Context, upstreamID uint, page int, pageSize int, input ListUpstreamModelsInput) ([]UpstreamModelView, int64, error) {
 	if _, err := s.repo.GetUpstreamByID(ctx, upstreamID); err != nil {
 		return nil, 0, err
 	}
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	items, total, err := s.repo.ListUpstreamModels(ctx, upstreamID, repository.ListChannelUpstreamModelsInput{
 		Offset:         offset,
 		Limit:          limit,
@@ -101,23 +113,23 @@ func (s *Service) UpsertUpstreamModel(ctx context.Context, upstreamID uint, inpu
 			platformModel.KindsJSON = kindsJSON
 		}
 
-		upstreamModelVendor := normalizeUpstreamModelVendor("", upstreamModelName, upstream.Name, upstream.BaseURL)
+		upstreamModelVendor := normalizeModelVendor("", upstreamModelName, upstream.Name, upstream.BaseURL)
 		upstreamModelIcon := normalizeModelIcon("", upstreamModelVendor, upstreamModelName)
 		upstreamModelSource := "manual"
-		if input.Source != nil {
+		if input.CatalogSource != nil {
+			upstreamModelSource = normalizeSource(*input.CatalogSource)
+		} else if input.Source != nil {
 			upstreamModelSource = normalizeSource(*input.Source)
 		}
-		upstreamModel, txErr := ensureUpstreamCatalogModel(
-			ctx,
-			txRepo,
-			upstream.ID,
-			upstreamModelName,
-			protocols[0],
-			kindsJSON,
-			upstreamModelVendor,
-			upstreamModelIcon,
-			upstreamModelSource,
-		)
+		upstreamModel, txErr := ensureUpstreamCatalogModel(ctx, txRepo, ensureUpstreamCatalogModelInput{
+			UpstreamID:        upstream.ID,
+			UpstreamModelName: upstreamModelName,
+			SuggestedProtocol: protocols[0],
+			KindsJSON:         kindsJSON,
+			Vendor:            upstreamModelVendor,
+			Icon:              upstreamModelIcon,
+			Source:            upstreamModelSource,
+		})
 		if txErr != nil {
 			return txErr
 		}
@@ -163,7 +175,7 @@ func (s *Service) UpsertUpstreamModel(ctx context.Context, upstreamID uint, inpu
 	})
 	if err != nil {
 		switch {
-		case isDuplicateKeyError(err):
+		case errors.Is(err, repository.ErrDuplicate):
 			return nil, ErrUpstreamModelConflict
 		case errors.Is(err, repository.ErrConflict):
 			return nil, ErrUpstreamModelBindingChanged
@@ -285,7 +297,7 @@ func ensurePlatformModel(ctx context.Context, repo repository.ChannelRepository,
 		Description:       "",
 	}
 	if err := repo.CreateModel(ctx, item); err != nil {
-		if !isDuplicateKeyError(err) {
+		if !errors.Is(err, repository.ErrDuplicate) {
 			return nil, false, err
 		}
 		item, err = repo.GetModelByName(ctx, platformModelName)
@@ -297,38 +309,28 @@ func ensurePlatformModel(ctx context.Context, repo repository.ChannelRepository,
 	return item, true, nil
 }
 
-func ensureUpstreamCatalogModel(
-	ctx context.Context,
-	repo repository.ChannelRepository,
-	upstreamID uint,
-	upstreamModelName string,
-	suggestedProtocol string,
-	kindsJSON string,
-	vendor string,
-	icon string,
-	source string,
-) (*domainchannel.UpstreamModel, error) {
-	if existing, err := repo.GetUpstreamModelByUpstreamName(ctx, upstreamID, upstreamModelName); err == nil {
+func ensureUpstreamCatalogModel(ctx context.Context, repo repository.ChannelRepository, input ensureUpstreamCatalogModelInput) (*domainchannel.UpstreamModel, error) {
+	if existing, err := repo.GetUpstreamModelByUpstreamName(ctx, input.UpstreamID, input.UpstreamModelName); err == nil {
 		return existing, nil
 	} else if !errors.Is(err, ErrUpstreamModelNotFound) {
 		return nil, err
 	}
 
 	item := &domainchannel.UpstreamModel{
-		UpstreamID:        upstreamID,
+		UpstreamID:        input.UpstreamID,
 		BindingCode:       generateBindingCode(),
-		UpstreamModelName: upstreamModelName,
-		SuggestedProtocol: suggestedProtocol,
-		KindsJSON:         kindsJSON,
+		UpstreamModelName: input.UpstreamModelName,
+		SuggestedProtocol: input.SuggestedProtocol,
+		KindsJSON:         input.KindsJSON,
 		Status:            "active",
-		Source:            normalizeSource(source),
+		Source:            normalizeSource(input.Source),
 		RawJSON:           "{}",
 	}
-	item.Vendor = normalizeUpstreamModelVendor(vendor, upstreamModelName)
-	item.Icon = normalizeModelIcon(icon, item.Vendor, upstreamModelName)
+	item.Vendor = normalizeModelVendor(input.Vendor, input.UpstreamModelName)
+	item.Icon = normalizeModelIcon(input.Icon, item.Vendor, input.UpstreamModelName)
 	if err := repo.CreateUpstreamModel(ctx, item); err != nil {
-		if isDuplicateKeyError(err) {
-			return repo.GetUpstreamModelByUpstreamName(ctx, upstreamID, upstreamModelName)
+		if errors.Is(err, repository.ErrDuplicate) {
+			return repo.GetUpstreamModelByUpstreamName(ctx, input.UpstreamID, input.UpstreamModelName)
 		}
 		return nil, err
 	}
@@ -394,7 +396,7 @@ func (s *Service) BatchDeleteUpstreamModels(ctx context.Context, upstreamID uint
 			result.Results = append(result.Results, BatchDeleteResultView{ID: routeID, Status: BatchDeleteStatusNotFound})
 		default:
 			result.FailedCount += 1
-			result.Results = append(result.Results, BatchDeleteResultView{ID: routeID, Status: BatchDeleteStatusFailed, Error: err.Error()})
+			result.Results = append(result.Results, BatchDeleteResultView{ID: routeID, Status: BatchDeleteStatusFailed, Error: apperr.MessageOr(err, "batch delete failed")})
 		}
 	}
 

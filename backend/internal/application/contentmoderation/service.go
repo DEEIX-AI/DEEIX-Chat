@@ -24,13 +24,13 @@ const (
 )
 
 // EventEmitter publishes recovery-stream events for a run (optional).
-type EventEmitter func(runID string, eventType string, payload map[string]interface{})
+type EventEmitter func(ctx context.Context, runID string, eventType string, payload map[string]any)
 
 // CancelRun cancels in-flight upstream generation for a run.
-type CancelRun func(runID string)
+type CancelRun func(ctx context.Context, runID string)
 
 // OnBlocked is invoked after a run is marked blocked (e.g. sanitize recovery stream).
-type OnBlocked func(runID string, info BlockInfo)
+type OnBlocked func(ctx context.Context, runID string, info BlockInfo)
 
 // PreparedImage is a resized moderation-ready image.
 type PreparedImage struct {
@@ -44,7 +44,7 @@ type PreparedImage struct {
 // ImageLoader loads and prepares an image for moderation.
 type ImageLoader func(ctx context.Context, userID uint, fileID string) (PreparedImage, error)
 
-// OutputImageSource provides final generated image bytes for isolation.
+// OutputImageSource provides request-scoped image bytes and optional source metadata for moderation.
 type OutputImageSource struct {
 	FileID   string
 	Data     []byte
@@ -229,10 +229,7 @@ func (s *Service) resizeWorker(maxConcurrency, queueCapacity int) {
 	}
 }
 
-// BeginRun registers a per-run coordinator. Returns nil if moderation is fully disabled.
-// Callers must ensure a conversation_runs row exists (EnsureConversationRun) before or
-// immediately after BeginRun so UpdateRunModeration is not a silent no-op; SyncRunPending
-// re-applies pending after the row is ensured.
+// BeginRun registers a per-run coordinator. Persistent callers must claim the run before entry.
 func (s *Service) BeginRun(ctx context.Context, meta RunMeta) *RunCoordinator {
 	cfg, err := s.loadRuntimeConfig(ctx)
 	if err != nil {
@@ -240,7 +237,7 @@ func (s *Service) BeginRun(ctx context.Context, meta RunMeta) *RunCoordinator {
 		// Return a coordinator so the conversation run is durably settled as
 		// failed_open instead of becoming indistinguishable from an intentionally
 		// disabled policy.
-		coord := newRunCoordinator(s, meta, runtimeConfig{Timeout: defaultTimeoutSeconds * time.Second})
+		coord := newRunCoordinator(ctx, s, meta, runtimeConfig{Timeout: defaultTimeoutSeconds * time.Second})
 		coord.failedOpen = true
 		s.coordMu.Lock()
 		s.coordinators[meta.RunID] = coord
@@ -251,17 +248,23 @@ func (s *Service) BeginRun(ctx context.Context, meta RunMeta) *RunCoordinator {
 			domaincm.DirectionInput,
 			domaincm.ModalityText,
 			domaincm.ErrorCodeConfigMissing,
-			"content moderation configuration unavailable",
 			0,
 		)
-		s.bumpDailyStat(ctx, domaincm.DirectionInput, domaincm.ModalityText, domaincm.ResultFailedOpen, "", 1, 1, 0, 1, 0)
+		s.bumpDailyStat(ctx, repository.DailyStatIncrement{
+			Direction:    domaincm.DirectionInput,
+			Modality:     domaincm.ModalityText,
+			Result:       domaincm.ResultFailedOpen,
+			CheckCount:   1,
+			ContentItems: 1,
+			FailureCount: 1,
+		})
 		s.logWarn("content_moderation_config_load_failed", zap.String("run_id", meta.RunID), zap.Error(err))
 		return coord
 	}
 	if !cfg.Enabled || !cfg.Policy.Enabled() {
 		return nil
 	}
-	coord := newRunCoordinator(s, meta, cfg)
+	coord := newRunCoordinator(ctx, s, meta, cfg)
 	s.coordMu.Lock()
 	s.coordinators[meta.RunID] = coord
 	s.coordMu.Unlock()
@@ -271,16 +274,6 @@ func (s *Service) BeginRun(ctx context.Context, meta RunMeta) *RunCoordinator {
 		}
 	}
 	return coord
-}
-
-// SyncRunPending marks a run pending after its conversation_runs row has been ensured.
-func (s *Service) SyncRunPending(ctx context.Context, runID string) {
-	if s == nil || s.repo == nil {
-		return
-	}
-	if err := s.repo.UpdateRunModeration(ctx, strings.TrimSpace(runID), domaincm.ModerationStatePending, "", "[]"); err != nil {
-		s.logWarn("content_moderation_sync_pending_failed", zap.String("run_id", runID), zap.Error(err))
-	}
 }
 
 // GetCoordinator returns an active coordinator if present.
@@ -357,7 +350,7 @@ func (s *Service) RecoverRunIfStale(ctx context.Context, runID string) {
 	if s.recoverKnownHit(ctx, runID) {
 		return
 	}
-	s.recordFailedOpen(ctx, RunMeta{RunID: runID}, domaincm.DirectionOutput, domaincm.ModalityText, domaincm.ErrorCodeWorkerLost, ErrWorkerLost.Error(), 0)
+	s.recordFailedOpen(ctx, RunMeta{RunID: runID}, domaincm.DirectionOutput, domaincm.ModalityText, domaincm.ErrorCodeWorkerLost, 0)
 	if err := s.repo.UpdateRunModeration(ctx, runID, domaincm.ModerationStateFailedOpen, "", "[]"); err != nil {
 		s.logWarn("content_moderation_recover_run_mark_failed_open_failed", zap.String("run_id", runID), zap.Error(err))
 	}
@@ -399,7 +392,7 @@ func sha256Hex(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func mustJSON(v interface{}) string {
+func mustJSON(v any) string {
 	raw, err := json.Marshal(v)
 	if err != nil {
 		return "{}"

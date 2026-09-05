@@ -234,12 +234,12 @@ export function ModelOrderSheet({
 
         <div className="min-h-0 flex-1 overflow-hidden px-6 pb-4">
           {loading ? (
-            <div className="flex h-full min-h-[22rem] items-center justify-center text-xs text-muted-foreground">
+            <div className="flex h-full min-h-[22rem] items-center justify-center px-3 py-6 text-center text-xs text-muted-foreground">
               <Spinner className="mr-2 size-4" />
               {t("loading")}
             </div>
           ) : models.length === 0 ? (
-            <div className="flex h-full min-h-[22rem] items-center justify-center text-xs text-muted-foreground">
+            <div className="flex h-full min-h-[22rem] items-center justify-center px-3 py-6 text-center text-xs text-muted-foreground">
               {t("empty")}
             </div>
           ) : (

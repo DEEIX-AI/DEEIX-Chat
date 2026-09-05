@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 )
 
 func TestExportDefaultMessagePublicIDsUsesLatestVisibleBranch(t *testing.T) {
@@ -47,27 +48,15 @@ func TestCollectExportMessageRunIDsTrimsAndDeduplicates(t *testing.T) {
 		{RunID: "run_2"},
 	}
 
-	got := collectExportMessageRunIDs(messages)
+	got := model.CollectMessageRunIDs(messages)
 	want := []string{"run_1", "run_2"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected export run ids: got %#v want %#v", got, want)
 	}
 }
 
-func TestNormalizeMessagePageAllowsRestoreWindow(t *testing.T) {
-	_, generalLimit := normalizePage(1, 1000)
-	if generalLimit != maxPageSize {
-		t.Fatalf("expected normal page limit to stay capped at %d, got %d", maxPageSize, generalLimit)
-	}
-
-	_, messageLimit := normalizeMessagePage(1, 1000)
-	if messageLimit != 1000 {
-		t.Fatalf("expected message page limit to allow 1000, got %d", messageLimit)
-	}
-}
-
 func TestNormalizeRecentMessageLimitUsesMessageWindow(t *testing.T) {
-	if got := normalizeRecentMessageLimit(5000); got != maxMessagePageSize {
-		t.Fatalf("expected recent message limit capped at %d, got %d", maxMessagePageSize, got)
+	if got := normalizeRecentMessageLimit(5000); got != pagination.MaxPageSize {
+		t.Fatalf("expected recent message limit capped at %d, got %d", pagination.MaxPageSize, got)
 	}
 }

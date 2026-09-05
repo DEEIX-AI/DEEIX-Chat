@@ -19,7 +19,7 @@ func (s *Service) ResolveDefaultRoute(ctx context.Context, input ResolveRouteInp
 		if name == "" {
 			continue
 		}
-		if !defaultRouteModelMatchesTask(item.KindsJSON, input.TaskType) {
+		if !ModelSupportsTask(item.KindsJSON, input.TaskType) {
 			continue
 		}
 		route, routeErr := s.ResolveRoute(ctx, ResolveRouteInput{
@@ -37,8 +37,9 @@ func (s *Service) ResolveDefaultRoute(ctx context.Context, input ResolveRouteInp
 	return nil, ErrAllRoutesUnavailable
 }
 
-// defaultRouteModelMatchesTask 先按模型 kind 做轻量过滤，减少默认兜底时对不匹配模型的无意义路由解析。
-func defaultRouteModelMatchesTask(kindsJSON string, taskType string) bool {
+// ModelSupportsTask 判断模型声明的能力是否包含指定任务类型。
+// 这里只校验静态目录能力，不读取路由健康或熔断状态。
+func ModelSupportsTask(kindsJSON string, taskType string) bool {
 	kinds := parseKinds(kindsJSON)
 	if len(kinds) == 0 {
 		return true

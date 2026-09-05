@@ -12,8 +12,10 @@ import (
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	portembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/embeddingutil"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
 // Service 封装 RAG 检索能力。
@@ -26,7 +28,7 @@ type Service struct {
 
 // EmbeddingClient 调用外部服务将文本批量转换为向量。
 type EmbeddingClient interface {
-	CallAPI(ctx context.Context, apiBase, apiKey, model string, texts []string, dimensions int, timeoutSeconds int) ([][]float32, error)
+	CallAPI(ctx context.Context, input portembedding.Request) ([][]float32, error)
 }
 
 // RetrieveInput 定义 RAG 检索输入。
@@ -35,6 +37,16 @@ type RetrieveInput struct {
 	Query     string
 	FileObjs  []domainconversation.FileObject
 	Ephemeral bool
+}
+
+type hybridRetrieveInput struct {
+	UserID              uint
+	FileObjectIDs       []uint
+	Query               string
+	Embedding           []float32
+	EmbeddingSignature  string
+	TopK                int
+	MinVectorSimilarity float32
 }
 
 // RetrieveStatus 表示一次文件 RAG 检索的稳定结果状态。
@@ -65,11 +77,6 @@ const ragCacheVersion = "v3"
 const ragInitialPerFileLimit = 2
 
 const ragDiversityMinScoreRatio float32 = 0.75
-
-// NewService 创建服务。
-func NewService(cfg config.Config, repo repository.RAGRepository, cache repository.RAGCacheRepository, embedClient EmbeddingClient) *Service {
-	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, cache, embedClient)
-}
 
 // NewServiceWithRuntime 创建使用运行时配置容器的服务。
 func NewServiceWithRuntime(cfg *config.Runtime, repo repository.RAGRepository, cache repository.RAGCacheRepository, embedClient EmbeddingClient) *Service {
@@ -149,16 +156,15 @@ func (s *Service) RetrieveWithStatus(ctx context.Context, input RetrieveInput) (
 	var chunks []domainconversation.FileChunkSearchResult
 	var searchErr error
 	if cfg.RAGHybridEnabled {
-		chunks, searchErr = s.hybridRetrieve(
-			ctx,
-			input.UserID,
-			fileObjIDs,
-			input.Query,
-			embeddings[0],
-			embeddingSignature,
-			fetchK,
-			float32(minSimilarity),
-		)
+		chunks, searchErr = s.hybridRetrieve(ctx, hybridRetrieveInput{
+			UserID:              input.UserID,
+			FileObjectIDs:       fileObjIDs,
+			Query:               input.Query,
+			Embedding:           embeddings[0],
+			EmbeddingSignature:  embeddingSignature,
+			TopK:                fetchK,
+			MinVectorSimilarity: float32(minSimilarity),
+		})
 	} else {
 		chunks, searchErr = s.repo.SearchFileChunks(ctx, input.UserID, fileObjIDs, embeddings[0], embeddingSignature, fetchK)
 	}
@@ -389,7 +395,7 @@ func ragChunkTokenEstimate(candidate domainconversation.FileChunkSearchResult) i
 	if candidate.TokenCount > 0 {
 		return int64(candidate.TokenCount)
 	}
-	return estimateTokens(candidate.Content)
+	return tokenestimate.Estimate(candidate.Content)
 }
 
 func maxRAGChunkScore(chunks []domainconversation.RAGChunk) float32 {
@@ -444,7 +450,14 @@ func (s *Service) embedTexts(ctx context.Context, texts []string, cfg config.Con
 		if end > len(texts) {
 			end = len(texts)
 		}
-		batchEmbeddings, batchErr := s.embedClient.CallAPI(ctx, apiBase, apiKey, model, texts[start:end], cfg.EmbeddingOutputDimensions, cfg.EmbeddingTimeoutSeconds)
+		batchEmbeddings, batchErr := s.embedClient.CallAPI(ctx, portembedding.Request{
+			APIBase:        apiBase,
+			APIKey:         apiKey,
+			Model:          model,
+			Texts:          texts[start:end],
+			Dimensions:     cfg.EmbeddingOutputDimensions,
+			TimeoutSeconds: cfg.EmbeddingTimeoutSeconds,
+		})
 		if batchErr != nil {
 			return nil, batchErr
 		}
@@ -463,44 +476,9 @@ func resolveEmbeddingUpstream(cfg config.Config) (string, string, error) {
 	return strings.TrimRight(strings.TrimSpace(cfg.EmbeddingHost), "/"), strings.TrimSpace(cfg.EmbeddingKey), nil
 }
 
-func estimateTokens(content string) int64 {
-	if len(content) == 0 {
-		return 0
-	}
-	var cjk, other int64
-	for _, r := range content {
-		if isCJKRune(r) {
-			cjk++
-		} else {
-			other++
-		}
-	}
-	tokens := (cjk*2+2)/3 + (other+3)/4
-	if tokens == 0 {
-		return 1
-	}
-	return tokens
-}
-
-func isCJKRune(r rune) bool {
-	return (r >= 0x2E80 && r <= 0x9FFF) ||
-		(r >= 0xAC00 && r <= 0xD7AF) ||
-		(r >= 0xF900 && r <= 0xFAFF) ||
-		(r >= 0x20000 && r <= 0x2A6DF)
-}
-
 // hybridRetrieve 并行执行向量检索与 BM25 全文检索，使用 RRF（Reciprocal Rank Fusion）合并结果。
 // k=60 为 RRF 平滑系数，参考 Cormack et al. 2009 推荐值。
-func (s *Service) hybridRetrieve(
-	ctx context.Context,
-	userID uint,
-	fileObjIDs []uint,
-	query string,
-	embedding []float32,
-	embeddingSignature string,
-	topK int,
-	minVectorSimilarity float32,
-) ([]domainconversation.FileChunkSearchResult, error) {
+func (s *Service) hybridRetrieve(ctx context.Context, input hybridRetrieveInput) ([]domainconversation.FileChunkSearchResult, error) {
 	type result struct {
 		chunks []domainconversation.FileChunkSearchResult
 		err    error
@@ -509,11 +487,11 @@ func (s *Service) hybridRetrieve(
 	bm25Ch := make(chan result, 1)
 
 	go func() {
-		chunks, err := s.repo.SearchFileChunks(ctx, userID, fileObjIDs, embedding, embeddingSignature, topK)
+		chunks, err := s.repo.SearchFileChunks(ctx, input.UserID, input.FileObjectIDs, input.Embedding, input.EmbeddingSignature, input.TopK)
 		vecCh <- result{chunks, err}
 	}()
 	go func() {
-		chunks, err := s.repo.BM25SearchFileChunks(ctx, userID, fileObjIDs, query, topK)
+		chunks, err := s.repo.BM25SearchFileChunks(ctx, input.UserID, input.FileObjectIDs, input.Query, input.TopK)
 		bm25Ch <- result{chunks, err}
 	}()
 
@@ -531,7 +509,7 @@ func (s *Service) hybridRetrieve(
 	bestChunk := make(map[uint]domainconversation.FileChunkSearchResult)
 
 	for rank, c := range vecResult.chunks {
-		if c.Similarity < minVectorSimilarity {
+		if c.Similarity < input.MinVectorSimilarity {
 			continue
 		}
 		scores[c.ID] += 1.0 / float32(rrfK+rank+1)
@@ -562,8 +540,8 @@ func (s *Service) hybridRetrieve(
 		}
 		merged[j+1] = key
 	}
-	if len(merged) > topK {
-		merged = merged[:topK]
+	if len(merged) > input.TopK {
+		merged = merged[:input.TopK]
 	}
 	return merged, nil
 }

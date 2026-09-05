@@ -166,6 +166,12 @@ function ModerationEventDetailSheet({
   }, [eventID, onClose, open, replaceImages, revokeImages, t]);
 
   React.useEffect(() => {
+    if (open) return;
+    revokeImages(imagesRef.current);
+    imagesRef.current = [];
+  }, [open, revokeImages]);
+
+  React.useEffect(() => {
     return () => {
       requestRef.current += 1;
       revokeImages(imagesRef.current);

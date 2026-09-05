@@ -6,10 +6,18 @@ import { Download, FileX } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeightTransition,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { cn } from "@/lib/utils";
-import { formatBytes, resolveFileExtension, resolveFilePreviewKind } from "@/shared/lib/file-display";
+import { formatBytes, isReadableTextContent, resolveFileExtension, resolveFilePreviewKind } from "@/shared/lib/file-display";
 import { fetchFileContent, type FileContentResult } from "@/shared/api/file";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { PreviewLoading } from "@/shared/components/file-preview/preview-loading";
@@ -93,28 +101,6 @@ const PreviewText = dynamic<PreviewTextProps>(
 function resolveFileExt(name: string): string {
   const ext = resolveFileExtension(name);
   return ext ? ext.toUpperCase().slice(0, 6) : "FILE";
-}
-
-function isReadableTextContent(content: string): boolean {
-  const sample = content.slice(0, 4000);
-  if (sample.length === 0) {
-    return true;
-  }
-
-  let replacements = 0;
-  let controls = 0;
-  for (const char of sample) {
-    const code = char.charCodeAt(0);
-    if (char === "\uFFFD") {
-      replacements += 1;
-      continue;
-    }
-    if (code < 32 && code !== 9 && code !== 10 && code !== 13) {
-      controls += 1;
-    }
-  }
-
-  return replacements / sample.length < 0.08 && controls / sample.length < 0.02;
 }
 
 export type FileContentLoader = (
@@ -226,18 +212,26 @@ export function FilePreviewDialog({
   allowDownload?: boolean;
 }) {
   const t = useTranslations("files.previewDialog");
-  const activeFile = open ? file : null;
+  const commonT = useTranslations("common.actions");
+  const [dialogFile, setDialogFile] = React.useState<PreviewDialogFile | null>(file);
+  const activeFile = dialogFile;
   const { state, download } = useFilePreviewDialog(activeFile, loadContent);
   const [viewerLoading, setViewerLoading] = React.useState(false);
   const previewKind = state.status === "ready" ? state.kind : null;
   const showLoadingOverlay = Boolean(activeFile) && (state.status === "loading" || viewerLoading);
 
   React.useEffect(() => {
+    if (open && file) {
+      setDialogFile(file);
+    }
+  }, [file, open]);
+
+  React.useEffect(() => {
     setViewerLoading(false);
   }, [activeFile?.fileID, state.status, previewKind]);
 
   const previewBody = React.useMemo(() => {
-    if (!open || !file) {
+    if (!activeFile) {
       return null;
     }
 
@@ -260,12 +254,12 @@ export function FilePreviewDialog({
     if (kind === "image") {
       return (
         <div className="overflow-hidden rounded-md">
-          <PreviewMedia kind="image" source={objectURL} alt={file.fileName} contentType={contentType} />
+          <PreviewMedia kind="image" source={objectURL} alt={activeFile.fileName} contentType={contentType} />
         </div>
       );
     }
     if (kind === "audio" || kind === "video") {
-      return <PreviewMedia kind={kind} source={objectURL} alt={file.fileName} contentType={contentType} />;
+      return <PreviewMedia kind={kind} source={objectURL} alt={activeFile.fileName} contentType={contentType} />;
     }
     if (kind === "pdf") {
       return <PreviewPdf source={objectURL} showLoading={false} onLoadingChange={setViewerLoading} />;
@@ -307,38 +301,42 @@ export function FilePreviewDialog({
         )}
       </div>
     );
-  }, [allowDownload, download, file, open, state, t]);
+  }, [activeFile, allowDownload, download, state, t]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex max-h-[68dvh] w-[calc(100vw-1.5rem)] flex-col gap-0 overflow-hidden p-0 sm:max-h-[92vh] sm:max-w-2xl"
+        className="w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0 sm:max-w-[720px]"
+        onCloseAutoFocus={() => {
+          setDialogFile(null);
+          setViewerLoading(false);
+        }}
       >
-        <DialogHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/50 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">
-          <div className="min-w-0 flex-1">
-            <DialogTitle className="truncate text-sm font-medium leading-snug">
-              {file?.fileName ?? t("fallbackTitle")}
-            </DialogTitle>
-            <DialogDescription className="sr-only">{t("description")}</DialogDescription>
-            {file ? (
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                {resolveFileExt(file.fileName)} · {formatBytes(file.sizeBytes)}
-              </p>
+        <DialogHeightTransition contentClassName="max-h-[min(86svh,760px)]">
+          <DialogHeader className="flex-row items-start justify-between gap-3 px-5 pb-3 pt-5 sm:gap-4">
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="truncate">
+                {activeFile?.fileName ?? t("fallbackTitle")}
+              </DialogTitle>
+              <DialogDescription className="sr-only">{t("description")}</DialogDescription>
+              {activeFile ? (
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {resolveFileExt(activeFile.fileName)} · {formatBytes(activeFile.sizeBytes)}
+                </p>
+              ) : null}
+            </div>
+            {allowDownload && state.status === "ready" ? (
+              <Button type="button" variant="ghost" size="sm" onClick={download} className="shrink-0 gap-1.5">
+                <Download className="size-3.5" />
+                {t("download")}
+              </Button>
             ) : null}
-          </div>
-          {allowDownload && state.status === "ready" ? (
-            <Button size="sm" variant="ghost" onClick={download} className="shrink-0 gap-1.5 text-xs">
-              <Download className="size-3.5" />
-              {t("download")}
-            </Button>
-          ) : null}
-        </DialogHeader>
+          </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <div className="h-full max-h-[calc(68dvh-64px)] overflow-auto sm:max-h-[calc(92vh-72px)]">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-2">
             <div
               className={cn(
-                "relative px-3 py-3 sm:px-5 sm:py-5",
+                "relative",
                 showLoadingOverlay && "min-h-[180px] sm:min-h-[320px]",
               )}
             >
@@ -348,7 +346,13 @@ export function FilePreviewDialog({
               ) : null}
             </div>
           </div>
-        </div>
+
+          <DialogFooter className="shrink-0 px-5 py-3">
+            <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+              {commonT("close")}
+            </Button>
+          </DialogFooter>
+        </DialogHeightTransition>
       </DialogContent>
     </Dialog>
   );

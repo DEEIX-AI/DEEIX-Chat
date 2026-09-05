@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"encoding/json"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"strings"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
@@ -42,7 +43,7 @@ type modelOptionPolicyConfig struct {
 	ModelCapabilitiesJSON string
 }
 
-func filterModelOptions(options map[string]interface{}, protocol string, cfg modelOptionPolicyConfig) map[string]interface{} {
+func filterModelOptions(options map[string]any, protocol string, cfg modelOptionPolicyConfig) map[string]any {
 	mode := strings.TrimSpace(cfg.Mode)
 	if mode == "" {
 		mode = modelOptionPolicyAllowlist
@@ -65,13 +66,13 @@ func filterModelOptions(options map[string]interface{}, protocol string, cfg mod
 	delete(policyOptions, "tools")
 	denied := append([][]string{}, hardDeniedModelOptionPaths...)
 
-	var filtered map[string]interface{}
+	var filtered map[string]any
 	switch mode {
 	case modelOptionPolicyDenylist:
 		denied = append(denied, modelOptionPathsForProtocol(cfg.DeniedPathsJSON, protocolKey)...)
 		filtered = policyOptions
 	default:
-		filtered = make(map[string]interface{})
+		filtered = make(map[string]any)
 		for _, path := range modelOptionPathsForProtocol(cfg.AllowedPathsJSON, protocolKey) {
 			copyModelOptionPath(filtered, policyOptions, path)
 		}
@@ -83,7 +84,7 @@ func filterModelOptions(options map[string]interface{}, protocol string, cfg mod
 	sanitizeModelOptionValues(filtered, protocolKey)
 	if len(nativeTools) > 0 {
 		if filtered == nil {
-			filtered = make(map[string]interface{})
+			filtered = make(map[string]any)
 		}
 		filtered["tools"] = nativeTools
 	}
@@ -94,13 +95,13 @@ func filterModelOptions(options map[string]interface{}, protocol string, cfg mod
 }
 
 // modelCapabilityDefaultOptions 提取管理员在模型能力 JSON 中声明的默认请求参数。
-func modelCapabilityDefaultOptions(raw string) map[string]interface{} {
+func modelCapabilityDefaultOptions(raw string) map[string]any {
 	value := strings.TrimSpace(raw)
 	if value == "" {
 		return nil
 	}
 	var config struct {
-		DefaultOptions map[string]interface{} `json:"defaultOptions"`
+		DefaultOptions map[string]any `json:"defaultOptions"`
 	}
 	if err := json.Unmarshal([]byte(value), &config); err != nil {
 		return nil
@@ -129,10 +130,10 @@ func modelCapabilityLockedOptionPaths(raw string) [][]string {
 }
 
 // mergeModelOptionDefaults 以能力默认值为基础合并本次显式参数，并对锁定路径恢复默认值。
-func mergeModelOptionDefaults(defaults map[string]interface{}, options map[string]interface{}, lockedPaths [][]string) map[string]interface{} {
+func mergeModelOptionDefaults(defaults map[string]any, options map[string]any, lockedPaths [][]string) map[string]any {
 	merged := cloneModelOptionMap(defaults)
 	if merged == nil {
-		merged = make(map[string]interface{}, len(options))
+		merged = make(map[string]any, len(options))
 	}
 	mergeModelOptionMap(merged, options)
 	for _, path := range lockedPaths {
@@ -148,7 +149,7 @@ func mergeModelOptionDefaults(defaults map[string]interface{}, options map[strin
 
 // nativeProviderToolsFromOption 将用户 options.tools 收敛为当前协议允许的官方原生工具。
 // 普通参数白名单不处理 tools，避免用户通过自由 JSON 绕过官方工具控制。
-func nativeProviderToolsFromOption(protocolKey string, raw interface{}, capabilitiesJSON string) []map[string]interface{} {
+func nativeProviderToolsFromOption(protocolKey string, raw any, capabilitiesJSON string) []map[string]any {
 	rawTools := providerToolOptionPayloads(raw)
 	if len(rawTools) == 0 {
 		return nil
@@ -158,7 +159,7 @@ func nativeProviderToolsFromOption(protocolKey string, raw interface{}, capabili
 		return nil
 	}
 	seen := make(map[string]struct{}, len(rawTools))
-	tools := make([]map[string]interface{}, 0, len(rawTools))
+	tools := make([]map[string]any, 0, len(rawTools))
 	for _, rawTool := range rawTools {
 		tool, identity, ok := nativeProviderToolPayload(protocolKey, rawTool, allowedTools)
 		if !ok {
@@ -173,7 +174,7 @@ func nativeProviderToolsFromOption(protocolKey string, raw interface{}, capabili
 	return tools
 }
 
-func nativeProviderToolPayload(protocolKey string, rawTool map[string]interface{}, allowedTools []nativeToolCapability) (map[string]interface{}, string, bool) {
+func nativeProviderToolPayload(protocolKey string, rawTool map[string]any, allowedTools []nativeToolCapability) (map[string]any, string, bool) {
 	definition, tool, ok := nativetool.PayloadFromOption(protocolKey, rawTool)
 	if ok {
 		if capability, allowed := nativeToolCapabilityByDefinition(allowedTools, definition); allowed {
@@ -193,7 +194,7 @@ type nativeToolCapability struct {
 	Key      string
 	Protocol string
 	Type     string
-	Payload  map[string]interface{}
+	Payload  map[string]any
 }
 
 func (tool nativeToolCapability) Identity() string {
@@ -215,17 +216,17 @@ func nativeToolCapabilitiesFromConfig(raw string, protocolKey string) []nativeTo
 	}
 	var config struct {
 		NativeTools []struct {
-			Key            string                 `json:"key"`
-			ToolKey        string                 `json:"toolKey"`
-			Protocol       string                 `json:"protocol"`
-			Protocols      []string               `json:"protocols"`
-			Type           string                 `json:"type"`
-			Enabled        *bool                  `json:"enabled"`
-			Payload        map[string]interface{} `json:"payload"`
-			DefaultEnabled bool                   `json:"defaultEnabled"`
+			Key            string         `json:"key"`
+			ToolKey        string         `json:"toolKey"`
+			Protocol       string         `json:"protocol"`
+			Protocols      []string       `json:"protocols"`
+			Type           string         `json:"type"`
+			Enabled        *bool          `json:"enabled"`
+			Payload        map[string]any `json:"payload"`
+			DefaultEnabled bool           `json:"defaultEnabled"`
 		} `json:"nativeTools"`
-		NativeToolKeys []string               `json:"nativeToolKeys"`
-		DefaultOptions map[string]interface{} `json:"defaultOptions"`
+		NativeToolKeys []string       `json:"nativeToolKeys"`
+		DefaultOptions map[string]any `json:"defaultOptions"`
 	}
 	if err := json.Unmarshal([]byte(value), &config); err != nil {
 		return nil
@@ -283,8 +284,8 @@ func nativeToolCapabilitiesFromConfig(raw string, protocolKey string) []nativeTo
 				}
 				addCapability(nativeToolCapability{
 					Key:      key,
-					Protocol: firstNonEmpty(protocol, definition.Protocol, protocolKey),
-					Type:     firstNonEmpty(item.Type, definition.Type),
+					Protocol: textutil.FirstNonEmpty(protocol, definition.Protocol, protocolKey),
+					Type:     textutil.FirstNonEmpty(item.Type, definition.Type),
 					Payload:  nativetool.CanonicalPayload(definition, item.Payload),
 				})
 			}
@@ -293,7 +294,7 @@ func nativeToolCapabilitiesFromConfig(raw string, protocolKey string) []nativeTo
 		for _, protocol := range protocols {
 			addCapability(nativeToolCapability{
 				Key:      key,
-				Protocol: firstNonEmpty(protocol, protocolKey),
+				Protocol: textutil.FirstNonEmpty(protocol, protocolKey),
 				Type:     item.Type,
 				Payload:  cloneModelOptionMap(item.Payload),
 			})
@@ -408,7 +409,7 @@ func nativeToolCapabilityByDefinition(items []nativeToolCapability, definition n
 	return nativeToolCapability{}, false
 }
 
-func nativeToolCapabilityMatchesRawTool(capability nativeToolCapability, rawTool map[string]interface{}) bool {
+func nativeToolCapabilityMatchesRawTool(capability nativeToolCapability, rawTool map[string]any) bool {
 	rawType := strings.TrimSpace(modelOptionStringValue(rawTool["type"]))
 	if rawType != "" && capability.Type != "" {
 		return rawType == capability.Type
@@ -431,10 +432,10 @@ func nativeToolCapabilityMatchesRawTool(capability nativeToolCapability, rawTool
 	return false
 }
 
-func mergeNativeToolPayload(raw map[string]interface{}, base map[string]interface{}) map[string]interface{} {
+func mergeNativeToolPayload(raw map[string]any, base map[string]any) map[string]any {
 	payload := cloneModelOptionMap(raw)
 	if payload == nil {
-		payload = make(map[string]interface{})
+		payload = make(map[string]any)
 	}
 	for _, path := range hardDeniedModelOptionPaths {
 		deleteModelOptionPath(payload, path)
@@ -443,10 +444,10 @@ func mergeNativeToolPayload(raw map[string]interface{}, base map[string]interfac
 	return payload
 }
 
-func mergeModelOptionMap(dst map[string]interface{}, src map[string]interface{}) {
+func mergeModelOptionMap(dst map[string]any, src map[string]any) {
 	for key, value := range src {
-		srcMap, srcIsMap := value.(map[string]interface{})
-		dstMap, dstIsMap := dst[key].(map[string]interface{})
+		srcMap, srcIsMap := value.(map[string]any)
+		dstMap, dstIsMap := dst[key].(map[string]any)
 		if srcIsMap && dstIsMap && dstMap != nil {
 			mergeModelOptionMap(dstMap, srcMap)
 			continue
@@ -455,32 +456,22 @@ func mergeModelOptionMap(dst map[string]interface{}, src map[string]interface{})
 	}
 }
 
-func modelOptionStringValue(value interface{}) string {
+func modelOptionStringValue(value any) string {
 	if typed, ok := value.(string); ok {
 		return typed
 	}
 	return ""
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
 // providerToolOptionPayloads 从自由 JSON 中提取 tools 数组对象。
-func providerToolOptionPayloads(raw interface{}) []map[string]interface{} {
+func providerToolOptionPayloads(raw any) []map[string]any {
 	switch typed := raw.(type) {
-	case []map[string]interface{}:
-		return append([]map[string]interface{}(nil), typed...)
-	case []interface{}:
-		items := make([]map[string]interface{}, 0, len(typed))
+	case []map[string]any:
+		return append([]map[string]any(nil), typed...)
+	case []any:
+		items := make([]map[string]any, 0, len(typed))
 		for _, item := range typed {
-			if payload, ok := item.(map[string]interface{}); ok {
+			if payload, ok := item.(map[string]any); ok {
 				items = append(items, payload)
 			}
 		}
@@ -490,7 +481,7 @@ func providerToolOptionPayloads(raw interface{}) []map[string]interface{} {
 	}
 }
 
-func sanitizeModelOptionValues(options map[string]interface{}, protocolKey string) {
+func sanitizeModelOptionValues(options map[string]any, protocolKey string) {
 	if len(options) == 0 {
 		return
 	}
@@ -513,7 +504,7 @@ func sanitizeModelOptionValues(options map[string]interface{}, protocolKey strin
 	}
 }
 
-func sanitizeOpenAIServiceTier(options map[string]interface{}) {
+func sanitizeOpenAIServiceTier(options map[string]any) {
 	serviceTier, ok := options["service_tier"]
 	if !ok {
 		return
@@ -531,7 +522,7 @@ func sanitizeOpenAIServiceTier(options map[string]interface{}) {
 	}
 }
 
-func modelParamIntFromOption(value interface{}) (int, bool) {
+func modelParamIntFromOption(value any) (int, bool) {
 	switch typed := value.(type) {
 	case int:
 		return typed, true
@@ -617,7 +608,7 @@ func splitModelOptionPath(value string) []string {
 	return parts
 }
 
-func copyModelOptionPath(dst map[string]interface{}, src map[string]interface{}, path []string) {
+func copyModelOptionPath(dst map[string]any, src map[string]any, path []string) {
 	value, ok := copyModelOptionValueAtPath(src, path)
 	if !ok {
 		return
@@ -625,12 +616,12 @@ func copyModelOptionPath(dst map[string]interface{}, src map[string]interface{},
 	mergeModelOptionPathValue(dst, value)
 }
 
-func copyModelOptionValueAtPath(value interface{}, path []string) (interface{}, bool) {
+func copyModelOptionValueAtPath(value any, path []string) (any, bool) {
 	if len(path) == 0 {
 		return cloneModelOptionValue(value), true
 	}
 	switch typed := value.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		child, ok := typed[path[0]]
 		if !ok {
 			return nil, false
@@ -639,9 +630,9 @@ func copyModelOptionValueAtPath(value interface{}, path []string) (interface{}, 
 		if !ok {
 			return nil, false
 		}
-		return map[string]interface{}{path[0]: copied}, true
-	case []interface{}:
-		items := make([]interface{}, len(typed))
+		return map[string]any{path[0]: copied}, true
+	case []any:
+		items := make([]any, len(typed))
 		matched := false
 		for index, item := range typed {
 			copied, ok := copyModelOptionValueAtPath(item, path)
@@ -649,7 +640,7 @@ func copyModelOptionValueAtPath(value interface{}, path []string) (interface{}, 
 				items[index] = copied
 				matched = true
 			} else {
-				items[index] = map[string]interface{}{}
+				items[index] = map[string]any{}
 			}
 		}
 		if !matched {
@@ -661,24 +652,24 @@ func copyModelOptionValueAtPath(value interface{}, path []string) (interface{}, 
 	}
 }
 
-func mergeModelOptionPathValue(dst map[string]interface{}, value interface{}) {
-	payload, ok := value.(map[string]interface{})
+func mergeModelOptionPathValue(dst map[string]any, value any) {
+	payload, ok := value.(map[string]any)
 	if !ok {
 		return
 	}
 	mergeModelOptionPathMap(dst, payload)
 }
 
-func mergeModelOptionPathMap(dst map[string]interface{}, src map[string]interface{}) {
+func mergeModelOptionPathMap(dst map[string]any, src map[string]any) {
 	for key, value := range src {
-		if existingMap, ok := dst[key].(map[string]interface{}); ok {
-			if incomingMap, ok := value.(map[string]interface{}); ok {
+		if existingMap, ok := dst[key].(map[string]any); ok {
+			if incomingMap, ok := value.(map[string]any); ok {
 				mergeModelOptionPathMap(existingMap, incomingMap)
 				continue
 			}
 		}
-		if existingItems, ok := dst[key].([]interface{}); ok {
-			if incomingItems, ok := value.([]interface{}); ok {
+		if existingItems, ok := dst[key].([]any); ok {
+			if incomingItems, ok := value.([]any); ok {
 				dst[key] = mergeModelOptionPathArray(existingItems, incomingItems)
 				continue
 			}
@@ -687,8 +678,8 @@ func mergeModelOptionPathMap(dst map[string]interface{}, src map[string]interfac
 	}
 }
 
-func mergeModelOptionPathArray(existing []interface{}, incoming []interface{}) []interface{} {
-	result := make([]interface{}, len(existing))
+func mergeModelOptionPathArray(existing []any, incoming []any) []any {
+	result := make([]any, len(existing))
 	for index, item := range existing {
 		result[index] = cloneModelOptionValue(item)
 	}
@@ -697,8 +688,8 @@ func mergeModelOptionPathArray(existing []interface{}, incoming []interface{}) [
 			result = append(result, cloneModelOptionValue(item))
 			continue
 		}
-		existingMap, existingOK := result[index].(map[string]interface{})
-		incomingMap, incomingOK := item.(map[string]interface{})
+		existingMap, existingOK := result[index].(map[string]any)
+		incomingMap, incomingOK := item.(map[string]any)
 		if existingOK && incomingOK {
 			mergeModelOptionPathMap(existingMap, incomingMap)
 			continue
@@ -708,7 +699,7 @@ func mergeModelOptionPathArray(existing []interface{}, incoming []interface{}) [
 	return result
 }
 
-func readModelOptionPath(src map[string]interface{}, path []string) (interface{}, bool) {
+func readModelOptionPath(src map[string]any, path []string) (any, bool) {
 	if len(path) == 0 {
 		return nil, false
 	}
@@ -721,7 +712,7 @@ func readModelOptionPath(src map[string]interface{}, path []string) (interface{}
 		if index == len(path)-1 {
 			return value, true
 		}
-		next, ok := value.(map[string]interface{})
+		next, ok := value.(map[string]any)
 		if !ok {
 			return nil, false
 		}
@@ -730,23 +721,23 @@ func readModelOptionPath(src map[string]interface{}, path []string) (interface{}
 	return nil, false
 }
 
-func writeModelOptionPath(dst map[string]interface{}, path []string, value interface{}) {
+func writeModelOptionPath(dst map[string]any, path []string, value any) {
 	current := dst
 	for index, segment := range path {
 		if index == len(path)-1 {
 			current[segment] = value
 			return
 		}
-		next, ok := current[segment].(map[string]interface{})
+		next, ok := current[segment].(map[string]any)
 		if !ok {
-			next = make(map[string]interface{})
+			next = make(map[string]any)
 			current[segment] = next
 		}
 		current = next
 	}
 }
 
-func deleteModelOptionPath(dst map[string]interface{}, path []string) {
+func deleteModelOptionPath(dst map[string]any, path []string) {
 	if len(path) == 0 || len(dst) == 0 {
 		return
 	}
@@ -756,7 +747,7 @@ func deleteModelOptionPath(dst map[string]interface{}, path []string) {
 			delete(current, segment)
 			return
 		}
-		next, ok := current[segment].(map[string]interface{})
+		next, ok := current[segment].(map[string]any)
 		if !ok {
 			return
 		}
@@ -764,23 +755,23 @@ func deleteModelOptionPath(dst map[string]interface{}, path []string) {
 	}
 }
 
-func cloneModelOptionMap(src map[string]interface{}) map[string]interface{} {
+func cloneModelOptionMap(src map[string]any) map[string]any {
 	if src == nil {
 		return nil
 	}
-	dst := make(map[string]interface{}, len(src))
+	dst := make(map[string]any, len(src))
 	for key, value := range src {
 		dst[key] = cloneModelOptionValue(value)
 	}
 	return dst
 }
 
-func cloneModelOptionValue(value interface{}) interface{} {
+func cloneModelOptionValue(value any) any {
 	switch typed := value.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		return cloneModelOptionMap(typed)
-	case []interface{}:
-		items := make([]interface{}, len(typed))
+	case []any:
+		items := make([]any, len(typed))
 		for index, item := range typed {
 			items[index] = cloneModelOptionValue(item)
 		}
@@ -799,7 +790,7 @@ func cloneModelOptionValue(value interface{}) interface{} {
 //     首轮或非思考模型下发它没有收益，且能规避自建后端把未知顶层字段判为非法入参。
 func shouldApplyReasoningPassbackRequestOptions(
 	passbackEnabled bool,
-	required map[string]interface{},
+	required map[string]any,
 	messages []llm.Message,
 ) bool {
 	if !passbackEnabled || len(required) == 0 {
@@ -825,11 +816,11 @@ func promptCarriesAssistantReasoning(messages []llm.Message) bool {
 // 结果，还需回看 rawOptions 与模型能力 defaultOptions，因为白名单模式会把未放行的键丢掉，
 // 只看 options 会把管理员刻意设的 false 覆盖成 true。
 func withReasoningPassbackRequestOptions(
-	options map[string]interface{},
-	required map[string]interface{},
-	rawOptions map[string]interface{},
+	options map[string]any,
+	required map[string]any,
+	rawOptions map[string]any,
 	capabilitiesJSON string,
-) map[string]interface{} {
+) map[string]any {
 	if len(required) == 0 {
 		return options
 	}
@@ -845,7 +836,7 @@ func withReasoningPassbackRequestOptions(
 			continue
 		}
 		if options == nil {
-			options = make(map[string]interface{}, len(required))
+			options = make(map[string]any, len(required))
 		}
 		options[key] = value
 	}

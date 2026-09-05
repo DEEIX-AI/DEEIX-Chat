@@ -1,4 +1,5 @@
 import { pathParam, resolveApiBaseURL } from "@/shared/api/http-client";
+import { normalizeTrimmedString } from "@/shared/lib/string";
 
 type AvatarSeedSource = {
   publicID?: string | null;
@@ -8,15 +9,6 @@ type AvatarSeedSource = {
 
 const GENERATED_AVATAR_PREFIX = "generated:github:";
 const FILE_AVATAR_PREFIX = "file:";
-
-function normalizeString(value: unknown, fallback = "") {
-  if (typeof value !== "string") {
-    return fallback;
-  }
-
-  const normalizedValue = value.trim();
-  return normalizedValue || fallback;
-}
 
 function hashString(input: string) {
   let hash = 2166136261;
@@ -75,9 +67,9 @@ export function generateAvatarVariant() {
 
 export function resolveAvatarSeed(source?: AvatarSeedSource) {
   return (
-    normalizeString(source?.publicID) ||
-    normalizeString(source?.username) ||
-    normalizeString(source?.displayName) ||
+    normalizeTrimmedString(source?.publicID) ||
+    normalizeTrimmedString(source?.username) ||
+    normalizeTrimmedString(source?.displayName) ||
     "deeix-chat-user"
   );
 }
@@ -181,14 +173,14 @@ export function createGithubStyleAvatar(seed: string, variant: number) {
 }
 
 export function resolveAvatarImageSrc(avatarURL: unknown, source?: AvatarSeedSource) {
-  const normalizedAvatarURL = normalizeString(avatarURL);
+  const normalizedAvatarURL = normalizeTrimmedString(avatarURL);
   const generatedVariant = parseGeneratedGithubAvatarVariant(normalizedAvatarURL);
   if (generatedVariant !== null) {
     return createGithubStyleAvatar(resolveAvatarSeed(source), generatedVariant);
   }
 
   const fileID = parseFileAvatarID(normalizedAvatarURL);
-  const publicID = normalizeString(source?.publicID);
+  const publicID = normalizeTrimmedString(source?.publicID);
   if (fileID && publicID) {
     return `${resolveApiBaseURL()}/api/v1/users/${pathParam(publicID)}/avatar?file=${pathParam(fileID)}`;
   }

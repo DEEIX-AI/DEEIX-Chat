@@ -52,7 +52,7 @@ func TestMigrateExpandsLegacyVectorsWithoutLosingValues(t *testing.T) {
 	if err = Migrate(db); err != nil {
 		t.Fatalf("repeat vector migration: %v", err)
 	}
-	dimensions, err := vectorTableDimensions(db, FileChunkVectorTable)
+	dimensions, _, err := vectorTableSchema(db, FileChunkVectorTable)
 	if err != nil || dimensions != EmbeddingDimensions {
 		t.Fatalf("migrated dimensions = %d, err=%v; want %d", dimensions, err, EmbeddingDimensions)
 	}

@@ -39,7 +39,7 @@ Use the example configuration files for local development. Do not commit local s
 ## Commit Messages
 
 Use the `type: subject` format for every commit message subject.
-Use only English letters, numbers, spaces, periods, hyphens, and underscores in the subject.
+Use printable ASCII in the subject: English letters, numbers, spaces, and punctuation. Non-ASCII characters such as CJK text or emoji are rejected.
 
 Allowed types:
 
@@ -102,6 +102,9 @@ Core expectations:
 - map transport DTOs to application inputs at the HTTP boundary; do not pass Gin DTOs into domain or infrastructure packages
 - keep business orchestration in the application layer
 - keep infrastructure implementations behind repository or adapter boundaries
+- declare interfaces on the consumer side with only the methods that consumer actually calls; one implementation may satisfy several narrow interfaces, and an interface must not mirror an implementation's full method set
+- put third-party contract types and sentinel errors in `internal/ports/<domain>`, declare the interface in the consuming `application` package, and implement it in `internal/infra`; outbound ports do not belong in `internal/repository`
+- wire every collaborator in `internal/app`; constructors receive dependencies and must not create fallback sub-services for nil arguments
 - use structured errors and existing response helpers
 - add focused tests for shared behavior and security-sensitive changes
 

@@ -105,11 +105,6 @@ func ensureVectorTable(db *gorm.DB, spec vectorTableSpec) error {
 	return migrateVectorTableSchema(db, spec, dimensions, hasSignature)
 }
 
-func vectorTableDimensions(db *gorm.DB, table string) (int, error) {
-	dimensions, _, err := vectorTableSchema(db, table)
-	return dimensions, err
-}
-
 func vectorTableSchema(db *gorm.DB, table string) (int, bool, error) {
 	var createSQL string
 	result := db.Raw(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&createSQL)

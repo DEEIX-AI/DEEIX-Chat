@@ -1,58 +1,11 @@
 "use client";
 
-import * as React from "react";
 import { Save } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
-
-import {
-  SettingsFieldEditor,
-  type ServiceRuntimeActionName,
-  type SettingsFieldServiceRuntime,
-} from "../shared/settings-runtime-panel";
 import { Button } from "@/components/ui/button";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import {
-  SettingsFieldInset,
-  SettingsFieldItem,
-  SettingsFieldList,
-  SettingsPage,
-  SettingsSection,
-  SettingsSectionSeparator,
-} from "@/shared/components/settings-layout";
-import {
-  applySettingsDefaults,
-  denormalizeMBValue,
-  EMBEDDING_MODES,
-  EXTRACT_ENGINE_POLICIES,
-  flattenSettings,
-  INITIAL_SERVICE_STATES,
-  isEmbeddingServiceConfigured,
-  isServiceDirty,
-  isSettingsValueField,
-  mergeAllowedMIMETypes,
-  normalizeMinerUFileTypes,
-  OCR_ENGINES,
-  resolveMissingMinerUMIMETypes,
-  resolveActiveServices,
-  resolveFieldID,
-  resolveMinerUFileTypeFormats,
-  resolveMinerUSource,
-  resolveOCREngine,
-  resolveVisibleFieldBlocks,
-  resolveVisibleFields,
-  SERVICE_LABELS,
-  SERVICE_NAMES,
-  SETTINGS_GROUPS,
-  TIKA_SERVICE_SOURCES,
-  usesTika,
-  type ServiceName,
-  type ServiceRuntimeData,
-  type ServiceState,
-  type SettingsField,
-  type SettingsGroup,
-} from "@/features/admin/model/files-settings";
 import {
   type AdminEmbeddingIndexStatus,
   getAdminDoclingRuntime,
@@ -66,10 +19,54 @@ import {
   patchAdminSettings,
   triggerAdminEmbeddingReindex,
 } from "@/features/admin/api";
+import {
+  applySettingsDefaults,
+  denormalizeMBValue,
+  EMBEDDING_MODES,
+  EXTRACT_ENGINE_POLICIES,
+  flattenSettings,
+  INITIAL_SERVICE_STATES,
+  isEmbeddingServiceConfigured,
+  isServiceDirty,
+  isSettingsValueField,
+  mergeAllowedMIMETypes,
+  normalizeMinerUFileTypes,
+  OCR_ENGINES,
+  resolveFieldID,
+  resolveMinerUFileTypeFormats,
+  resolveMinerUSource,
+  resolveMissingMinerUMIMETypes,
+  resolveOCREngine,
+  resolveVisibleFieldBlocks,
+  resolveVisibleFields,
+  SERVICE_LABELS,
+  SETTINGS_GROUPS,
+  type ServiceName,
+  type ServiceRuntimeData,
+  type ServiceState,
+  type SettingsField,
+  type SettingsGroup,
+  TIKA_SERVICE_SOURCES,
+  usesTika,
+} from "@/features/admin/model/files-settings";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { cn } from "@/lib/utils";
 import type { PatchSettingItem } from "@/shared/api/settings.types";
+import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import {
+  SettingsFieldInset,
+  SettingsFieldItem,
+  SettingsFieldList,
+  SettingsPage,
+  SettingsSection,
+  SettingsSectionSeparator,
+} from "@/shared/components/settings-layout";
 import { configuredSettingsMap, settingHasValue } from "@/shared/lib/settings-meta";
+import {
+  type ServiceRuntimeActionName,
+  SettingsFieldEditor,
+  type SettingsFieldServiceRuntime,
+} from "../shared/settings-runtime-panel";
 
 const SERVICE_LOADERS: Record<ServiceName, (token: string) => Promise<ServiceRuntimeData>> = {
   tika: getAdminTikaRuntime,
@@ -206,7 +203,10 @@ export function AdminFilesSettingsPage() {
     setServiceStates((prev) => ({ ...prev, [name]: { ...prev[name], loading: true } }));
     try {
       const token = await resolveAccessToken();
-      if (!token) return;
+      if (!token) {
+        setServiceStates((prev) => ({ ...prev, [name]: { ...prev[name], loading: false } }));
+        return;
+      }
       const data = await SERVICE_LOADERS[name](token);
       setServiceStates((prev) => ({ ...prev, [name]: { ...prev[name], data, loading: false } }));
     } catch {
@@ -230,20 +230,6 @@ export function AdminFilesSettingsPage() {
     [loadServiceRuntime, t],
   );
 
-  const syncServiceRuntimes = React.useCallback(
-    (flattened: Record<string, string>) => {
-      const active = resolveActiveServices(flattened);
-      for (const name of SERVICE_NAMES) {
-        if (active.has(name)) {
-          void loadServiceRuntime(name);
-        } else {
-          setServiceStates((prev) => ({ ...prev, [name]: { ...prev[name], data: null } }));
-        }
-      }
-    },
-    [loadServiceRuntime],
-  );
-
   const loadSettings = React.useCallback(async () => {
     setLoading(true);
     try {
@@ -257,7 +243,7 @@ export function AdminFilesSettingsPage() {
       setConfiguredMap(configuredSettingsMap(grouped));
       setSettingsMap(flattened);
       setSavedMap(flattened);
-      syncServiceRuntimes(flattened);
+      setServiceStates(INITIAL_SERVICE_STATES);
       if (flattened["file.embedding_enabled"] === EMBEDDING_MODES.ON) {
         void loadEmbeddingStatus();
       } else {
@@ -268,7 +254,7 @@ export function AdminFilesSettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [clearEmbeddingStatus, loadEmbeddingStatus, syncServiceRuntimes, t]);
+  }, [clearEmbeddingStatus, loadEmbeddingStatus, t]);
 
   React.useEffect(() => {
     void loadSettings();
@@ -360,7 +346,7 @@ export function AdminFilesSettingsPage() {
           "file.allowed_mime_types": savedValue,
         }));
         setSavedMap(flattened);
-        syncServiceRuntimes(flattened);
+        setServiceStates(INITIAL_SERVICE_STATES);
         toast.success(t("toast.mimeTypesUpdated"));
       } catch (error) {
         toast.error(t("toast.saveFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
@@ -368,7 +354,7 @@ export function AdminFilesSettingsPage() {
         setSaving(false);
       }
     },
-    [syncServiceRuntimes, t],
+    [t],
   );
 
   const resolveServiceRuntime = React.useCallback(
@@ -595,7 +581,7 @@ export function AdminFilesSettingsPage() {
         setConfiguredMap(configuredSettingsMap(grouped));
         setSettingsMap(flattened);
         setSavedMap(flattened);
-        syncServiceRuntimes(flattened);
+        setServiceStates(INITIAL_SERVICE_STATES);
         if (embeddingModelWillChange) {
           toast.warning(t("toast.embeddingModelChanged"), {
             description: t("toast.embeddingModelChangedDescription"),
@@ -623,7 +609,7 @@ export function AdminFilesSettingsPage() {
         setSaving(false);
       }
     },
-    [clearEmbeddingStatus, configuredMap, dirtyFieldIDs, loadEmbeddingStatus, savedMap, settingsMap, syncServiceRuntimes, t],
+    [clearEmbeddingStatus, configuredMap, dirtyFieldIDs, loadEmbeddingStatus, savedMap, settingsMap, t],
   );
 
   const requestSaveGroup = React.useCallback((group: SettingsGroup) => {

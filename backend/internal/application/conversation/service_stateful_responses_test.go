@@ -212,8 +212,8 @@ func TestApplyOpenAIResponsesInstructionsPreservesExplicitCacheableSystemPrefix(
 			},
 			{Role: "user", Content: "dynamic question"},
 		},
-		Options: map[string]interface{}{
-			"prompt_cache_options": map[string]interface{}{"mode": "explicit", "ttl": "30m"},
+		Options: map[string]any{
+			"prompt_cache_options": map[string]any{"mode": "explicit", "ttl": "30m"},
 		},
 	}
 

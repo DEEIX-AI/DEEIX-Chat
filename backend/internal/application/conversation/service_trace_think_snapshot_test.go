@@ -102,7 +102,7 @@ func TestStreamingThinkInflightPersistenceWritesRoundIdentityAndStaysThrottled(t
 	}
 
 	// 同一节流窗口内的后续 flush 必须跳过 DB 落盘，但内存快照仍要更新。
-	recorder.flushUpstreamThinkLiveUpdate(recorder.upstreamThink, true, true)
+	recorder.flushUpstreamThinkLiveUpdate(recorder.upstreamThink, upstreamThinkLiveUpdateOptions{Force: true, PersistSnapshot: true})
 	if len(stub.traceRows) != 1 || len(stub.traceEventRows) != 1 {
 		t.Fatalf("in-flight persistence must stay throttled inside window, got %d / %d rows",
 			len(stub.traceRows), len(stub.traceEventRows))
@@ -115,7 +115,7 @@ func TestStreamingThinkInflightPersistenceWritesRoundIdentityAndStaysThrottled(t
 func TestStreamingToolUpdatesKeepLatestSnapshotAndThrottleSideEffects(t *testing.T) {
 	recorder, stub := newSnapshotRecorder(true)
 	emitted := 0
-	recorder.onEvent = func(eventType string, _ map[string]interface{}) error {
+	recorder.onEvent = func(eventType string, _ map[string]any) error {
 		if eventType == "process_update" {
 			emitted++
 		}
@@ -168,7 +168,7 @@ func TestThinkSnapshotUsesFreshStartedAtPerRound(t *testing.T) {
 	recorder.completeUpstreamThink()
 	recorder.appendUpstreamReasoning(messageTraceThinkKindContent, "第二轮思考", nil)
 	// 第二轮首段内容落在上一轮 completion 的 live flush 窗口内不会自动落快照，强制 flush 一次。
-	recorder.flushUpstreamThinkLiveUpdate(recorder.upstreamThink, true, true)
+	recorder.flushUpstreamThinkLiveUpdate(recorder.upstreamThink, upstreamThinkLiveUpdateOptions{Force: true, PersistSnapshot: true})
 
 	if recorder.upstreamThink.roundID == firstRound || recorder.upstreamThink.eventID == firstEventID {
 		t.Fatalf("expected a fresh round identity after completion, round=%q event=%q",

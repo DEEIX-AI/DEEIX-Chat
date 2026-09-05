@@ -12,7 +12,6 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
   useMessageScroller,
-  useMessageScrollerScrollable,
 } from "@/components/ui/message-scroller";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -45,78 +44,16 @@ import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
 import { useBranding } from "@/shared/config/branding-provider";
 import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
 
-function ScrollToLiveUser({
-  scrollKey,
-  viewportRef,
-}: {
-  scrollKey: string;
-  viewportRef: React.RefObject<HTMLDivElement | null>;
-}): null {
-  const handledScrollKeyRef = React.useRef("");
-  const followWhenOverflowingRef = React.useRef(false);
-  const { scrollToEnd, scrollToMessage } = useMessageScroller();
-  const scrollable = useMessageScrollerScrollable();
+function LiveMessageFollower({ activeKey }: { activeKey: string }): null {
+  const { scrollToEnd } = useMessageScroller();
 
   React.useLayoutEffect(() => {
-    if (!scrollKey) {
-      handledScrollKeyRef.current = "";
-      followWhenOverflowingRef.current = false;
+    if (!activeKey) {
       return;
     }
-    if (handledScrollKeyRef.current === scrollKey) {
-      return;
-    }
-
-    handledScrollKeyRef.current = scrollKey;
-    let secondFrameID: number | null = null;
-    const firstFrameID = window.requestAnimationFrame(() => {
-      secondFrameID = window.requestAnimationFrame(() => {
-        const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-        followWhenOverflowingRef.current = true;
-        scrollToMessage(scrollKey, {
-          align: "start",
-          behavior: reducedMotion ? "auto" : "smooth",
-        });
-      });
-    });
-    return () => {
-      window.cancelAnimationFrame(firstFrameID);
-      if (secondFrameID !== null) {
-        window.cancelAnimationFrame(secondFrameID);
-      }
-    };
-  }, [scrollKey, scrollToMessage]);
-
-  React.useLayoutEffect(() => {
-    if (!scrollKey || !scrollable.end || !followWhenOverflowingRef.current) {
-      return;
-    }
-    followWhenOverflowingRef.current = false;
-    scrollToEnd({ behavior: "auto" });
-  }, [scrollKey, scrollToEnd, scrollable.end]);
-
-  React.useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!scrollKey || !viewport) {
-      return;
-    }
-    const stopFollowing = () => {
-      followWhenOverflowingRef.current = false;
-    };
-    const stopFollowingFromKeyboard = (event: KeyboardEvent) => {
-      if (["ArrowDown", "ArrowUp", "End", "Home", "PageDown", "PageUp", " "].includes(event.key)) {
-        stopFollowing();
-      }
-    };
-    viewport.addEventListener("wheel", stopFollowing, { passive: true });
-    viewport.addEventListener("touchmove", stopFollowing, { passive: true });
-    viewport.addEventListener("keydown", stopFollowingFromKeyboard);
-    return () => {
-      viewport.removeEventListener("wheel", stopFollowing);
-      viewport.removeEventListener("touchmove", stopFollowing);
-      viewport.removeEventListener("keydown", stopFollowingFromKeyboard);
-    };
-  }, [scrollKey, viewportRef]);
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    scrollToEnd({ behavior: reducedMotion ? "auto" : "smooth" });
+  }, [activeKey, scrollToEnd]);
 
   return null;
 }
@@ -152,6 +89,7 @@ type ChatAreaProps = {
   canOperateConversation: boolean;
   messages: ChatAreaMessage[];
   messagesReadOnly?: boolean;
+  persistMessageFeedback?: boolean;
   busy: boolean;
   messageContentRef: React.RefObject<HTMLDivElement | null>;
   onScroll: (event: React.UIEvent<HTMLDivElement>) => void;
@@ -183,6 +121,7 @@ type ChatAreaProps = {
   markdownRender?: boolean;
   autoExpandThinking?: boolean;
   autoExpandToolCalls?: boolean;
+  allowFullToolResults?: boolean;
   showModelInfo?: boolean;
   showLatency?: boolean;
   showTokenUsage?: boolean;
@@ -342,6 +281,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   markdownRender,
   autoExpandThinking,
   autoExpandToolCalls,
+  allowFullToolResults,
   showModelInfo,
   showLatency,
   showTokenUsage,
@@ -376,6 +316,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   markdownRender: boolean;
   autoExpandThinking: boolean;
   autoExpandToolCalls: boolean;
+  allowFullToolResults: boolean;
   showModelInfo: boolean;
   showLatency: boolean;
   showTokenUsage: boolean;
@@ -475,6 +416,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         markdownRender={markdownRender}
         autoExpandThinking={autoExpandThinking}
         autoExpandToolCalls={autoExpandToolCalls}
+        allowFullToolResults={allowFullToolResults}
         showModelInfo={showModelInfo}
         showLatency={showLatency}
         showTokenUsage={showTokenUsage}
@@ -508,6 +450,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   previous.markdownRender === next.markdownRender &&
   previous.autoExpandThinking === next.autoExpandThinking &&
   previous.autoExpandToolCalls === next.autoExpandToolCalls &&
+  previous.allowFullToolResults === next.allowFullToolResults &&
   previous.showModelInfo === next.showModelInfo &&
   previous.showLatency === next.showLatency &&
   previous.showTokenUsage === next.showTokenUsage &&
@@ -535,6 +478,7 @@ export function ChatArea({
   canOperateConversation,
   messages,
   messagesReadOnly = false,
+  persistMessageFeedback = true,
   busy,
   messageContentRef,
   onScroll,
@@ -566,6 +510,7 @@ export function ChatArea({
   markdownRender = true,
   autoExpandThinking = true,
   autoExpandToolCalls = true,
+  allowFullToolResults = false,
   showModelInfo = true,
   showLatency = true,
   showTokenUsage = true,
@@ -579,7 +524,9 @@ export function ChatArea({
   screenshot,
 }: ChatAreaProps) {
   const t = useTranslations("chat");
-  const { getReaction, onReactAssistantMessage } = useChatMessageFeedback(messages);
+  const { getReaction, onReactAssistantMessage } = useChatMessageFeedback(messages, {
+    persist: persistMessageFeedback,
+  });
   const stableOnRetryUserMessage = useStableEvent(onRetryUserMessage);
   const stableOnRetryAssistantMessage = useStableEvent(onRetryAssistantMessage);
   const stableOnContinueAssistantMessage = useStableEvent(onContinueAssistantMessage ?? ((): undefined => undefined));
@@ -694,12 +641,9 @@ export function ChatArea({
       ) : null}
 
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        <MessageScrollerProvider>
+        <MessageScrollerProvider autoScroll={Boolean(liveUserScrollKey)}>
           <MessageScroller>
-            <ScrollToLiveUser
-              scrollKey={liveUserScrollKey}
-              viewportRef={messageViewportBoundaryRef}
-            />
+            <LiveMessageFollower activeKey={liveUserScrollKey} />
             <MessageScrollerViewport
               ref={messageViewportBoundaryRef}
               className="px-3 pb-8 pt-2 md:px-6"
@@ -752,6 +696,7 @@ export function ChatArea({
                       markdownRender={markdownRender}
                       autoExpandThinking={autoExpandThinking}
                       autoExpandToolCalls={autoExpandToolCalls}
+                      allowFullToolResults={allowFullToolResults}
                       showModelInfo={showModelInfo}
                       showLatency={showLatency}
                       showTokenUsage={showTokenUsage}

@@ -119,11 +119,18 @@ type UpsertUpstreamModelInput struct {
 	Status             *string
 	Priority           *int
 	Weight             *int
-	Source             *string
+	Source             *string // 路由配置来源。
+	CatalogSource      *string // 上游目录生命周期来源；为空时沿用 Source。
 	CbFailureThreshold *int
 	CbDurationMin      *int
 	CbWindowMin        *int
 	HeadersJSON        *string
+}
+
+// SyncUpstreamModelsInput 定义远端模型目录对账约束。
+type SyncUpstreamModelsInput struct {
+	ExpectedSnapshot string
+	AllowEmpty       bool
 }
 
 // UpdateModelUpstreamSourceInput 定义更新模型来源入参。

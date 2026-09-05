@@ -1,22 +1,14 @@
 import type { ProfileDraft } from "@/features/settings/types/settings";
 import type { UserDTO } from "@/shared/api/auth.types";
-
-function normalizeString(value: unknown, fallback = ""): string {
-  if (typeof value !== "string") {
-    return fallback;
-  }
-
-  const normalizedValue = value.trim();
-  return normalizedValue || fallback;
-}
+import { normalizeTrimmedString } from "@/shared/lib/string";
 
 export function createDraftFromUser(user?: UserDTO | null): ProfileDraft {
   return {
-    avatarUrl: normalizeString(user?.avatarURL),
-    displayName: normalizeString(user?.displayName),
-    timezone: normalizeString(user?.timezone, "Etc/UTC"),
-    locale: normalizeString(user?.locale, "en-US"),
-    profilePreferences: normalizeString(user?.profilePreferences),
+    avatarUrl: normalizeTrimmedString(user?.avatarURL),
+    displayName: normalizeTrimmedString(user?.displayName),
+    timezone: normalizeTrimmedString(user?.timezone, "Etc/UTC"),
+    locale: normalizeTrimmedString(user?.locale, "en-US"),
+    profilePreferences: normalizeTrimmedString(user?.profilePreferences),
   };
 }
 

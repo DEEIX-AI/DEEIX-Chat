@@ -44,15 +44,10 @@ export function useTableViewportHeight({
 
     const maxHeight = Number.parseFloat(getComputedStyle(viewportElement).maxHeight)
     const contentHeight = contentElement.scrollHeight
-    // Reserve non-overlay horizontal scrollbar space to avoid false vertical overflow.
-    const horizontalScrollbarHeight = viewportElement.scrollWidth > viewportElement.clientWidth
-      ? Math.max(0, viewportElement.offsetHeight - viewportElement.clientHeight)
-      : 0
-    const requiredHeight = contentHeight + horizontalScrollbarHeight
     const nextHeight = Math.ceil(
       Number.isFinite(maxHeight)
-        ? Math.min(requiredHeight, maxHeight)
-        : requiredHeight
+        ? Math.min(contentHeight, maxHeight)
+        : contentHeight
     )
 
     setHeight((currentHeight) => currentHeight === nextHeight ? currentHeight : nextHeight)

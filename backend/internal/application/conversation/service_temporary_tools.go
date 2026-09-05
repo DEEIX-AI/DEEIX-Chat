@@ -16,25 +16,37 @@ type temporaryGenerationResult struct {
 	FirstTokenLatency int64
 	// MCPToolUsage 聚合本次临时生成中成功的 MCP 调用；错误中断时也需带出已产生的上游费用。
 	MCPToolUsage []MCPToolUsageItem
+	// LLMCallCount 是成功返回的上游 LLM 调用数，供按次计费结算。
+	LLMCallCount int
 }
 
-func (s *Service) runTemporaryGeneration(
-	ctx context.Context,
-	input TemporaryChatInput,
-	route *channel.ResolvedRoute,
-	routeConfig llm.RouteConfig,
-	initialInput llm.GenerateInput,
-	toolRuntime selectedToolRuntime,
-	traceRecorder *messageTraceRecorder,
-	startedAt time.Time,
-	onDelta func(string) error,
-) (temporaryGenerationResult, error) {
+type temporaryGenerationInput struct {
+	Request       TemporaryChatInput
+	Route         *channel.ResolvedRoute
+	RouteConfig   llm.RouteConfig
+	InitialInput  llm.GenerateInput
+	ToolRuntime   selectedToolRuntime
+	TraceRecorder *messageTraceRecorder
+	StartedAt     time.Time
+	OnDelta       func(string) error
+}
+
+func (s *Service) runTemporaryGeneration(ctx context.Context, input temporaryGenerationInput) (temporaryGenerationResult, error) {
+	request := input.Request
+	route := input.Route
+	routeConfig := input.RouteConfig
+	initialInput := input.InitialInput
+	toolRuntime := input.ToolRuntime
+	traceRecorder := input.TraceRecorder
+	startedAt := input.StartedAt
+	onDelta := input.OnDelta
 	cfg := s.cfg.Snapshot()
 	totalUsage := llm.Usage{}
 	totalServerToolUsage := map[string]int64(nil)
 	var totalMCPToolUsage []MCPToolUsageItem
 	firstTokenLatency := int64(0)
 	llmCallCount := 0
+	completedLLMCallCount := 0
 
 	runGenerate := func(currentInput llm.GenerateInput, prepareInput bool) (*llm.GenerateOutput, error) {
 		if prepareInput {
@@ -55,7 +67,7 @@ func (s *Service) runTemporaryGeneration(
 		output, err := s.llmClient.GenerateStream(ctx, routeConfig, currentInput, func(event llm.GenerateStreamEvent) error {
 			if event.Usage != (llm.Usage{}) {
 				observedUsage = event.Usage
-				if emitErr := emitLLMUsageEvent(input.OnEvent, addLLMUsage(totalUsage, observedUsage)); emitErr != nil {
+				if emitErr := emitLLMUsageEvent(request.OnEvent, addLLMUsage(totalUsage, observedUsage)); emitErr != nil {
 					return emitErr
 				}
 			}
@@ -100,26 +112,37 @@ func (s *Service) runTemporaryGeneration(
 			return output, err
 		}
 		s.routeResolver.MarkRouteSuccess(ctx, route)
+		completedLLMCallCount++
 		return output, nil
 	}
 
 	output, err := runGenerate(initialInput, false)
-	if err != nil {
-		return temporaryGenerationResult{Output: output, Usage: totalUsage, FirstTokenLatency: firstTokenLatency}, err
-	}
 	buildResult := func() temporaryGenerationResult {
 		return temporaryGenerationResult{
 			Output:            output,
 			Usage:             totalUsage,
 			FirstTokenLatency: firstTokenLatency,
 			MCPToolUsage:      totalMCPToolUsage,
+			LLMCallCount:      completedLLMCallCount,
 		}
+	}
+	if err != nil {
+		return buildResult(), err
 	}
 
 	messages := cloneLLMMessages(initialInput.Messages)
 	remainingToolCalls := s.resolveMaxToolCallsPerRun()
 	maxLLMCalls := s.resolveMaxLLMCallsPerRun()
 	ledger := newToolExecutionLedger()
+	// 工具回灌的每次上游调用都独立计费：按已产生的用量加本次调用的预估成本校验预留，
+	// 余额不足时在发起调用前终止，已产生的用量由调用方结算。临时对话每次调用都发送完整上下文。
+	ensureFollowUpBudget := func(nextInput llm.GenerateInput) error {
+		return s.ensureUsageBudgetCoversEstimate(ctx, request.UsageAuthorization, route, initialInput.Options, followUpUsageBudgetEstimate(
+			totalUsage,
+			estimateGenerateInputTokens(nextInput),
+			initialInput.Options,
+		))
+	}
 	for len(output.ToolCalls) > 0 && llmCallCount < maxLLMCalls && remainingToolCalls > 0 {
 		pending := output.ToolCalls
 		if len(pending) > remainingToolCalls {
@@ -139,11 +162,11 @@ func (s *Service) runTemporaryGeneration(
 			cfg.ContextWindowFallbackTokens,
 		)
 		toolResult := s.executeAssistantToolCalls(ctx, executeAssistantToolCallsInput{
-			UserID:            input.UserID,
+			UserID:            request.UserID,
 			ConversationID:    0,
 			MessageID:         0,
-			RequestID:         input.RequestID,
-			RunID:             input.ClientRunID,
+			RequestID:         request.RequestID,
+			RunID:             request.ClientRunID,
 			ToolCalls:         pending,
 			ToolCallLimit:     remainingToolCalls,
 			TraceRecorder:     traceRecorder,
@@ -172,6 +195,9 @@ func (s *Service) runTemporaryGeneration(
 			followUp.Tools = nil
 			followUp.DisableTools = true
 		}
+		if err = ensureFollowUpBudget(followUp); err != nil {
+			return buildResult(), err
+		}
 		output, err = runGenerate(followUp, true)
 		if err != nil {
 			return buildResult(), err
@@ -183,6 +209,9 @@ func (s *Service) runTemporaryGeneration(
 		finalInput.Messages = buildFinalToolSynthesisMessages(messages, "The maximum number of tool calls for this run has been reached. Stop calling tools and produce the final answer based on the tool results already available.")
 		finalInput.Tools = nil
 		finalInput.DisableTools = true
+		if err = ensureFollowUpBudget(finalInput); err != nil {
+			return buildResult(), err
+		}
 		output, err = runGenerate(finalInput, true)
 		if err != nil {
 			return buildResult(), err

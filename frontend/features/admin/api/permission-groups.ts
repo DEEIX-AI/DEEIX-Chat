@@ -44,10 +44,10 @@ export type DeletePermissionGroupResult = Omit<DeletePermissionGroupResponse, "s
   summary: PermissionGroupDeleteSummaryResponse;
 };
 
-export async function listPermissionGroups(accessToken: string): Promise<PermissionGroup[]> {
+export async function listPermissionGroups(accessToken: string, signal?: AbortSignal): Promise<PermissionGroup[]> {
   const data = await authedRequest<PermissionGroupListData>(
     "/api/v1/admin/permission-groups",
-    { accessToken },
+    { accessToken, signal },
     true,
   );
   return data.results ?? [];

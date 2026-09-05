@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
 // SnapshotBoundaryIndex returns the covered boundary index when a snapshot can
@@ -148,7 +149,7 @@ func estimateMessageTokenTotal(messages []domainconversation.Message) int64 {
 			total += message.TokenUsage
 			continue
 		}
-		total += estimateTokens(message.Content) + 5
+		total += tokenestimate.Estimate(message.Content) + 5
 	}
 	return total
 }

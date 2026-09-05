@@ -22,14 +22,6 @@ func float32SliceToVec(v []float32) (string, error) {
 	return vectorutil.PostgresLiteral(v)
 }
 
-// translateError 将 gorm 底层错误统一映射为仓储语义错误。
-func translateError(err error) error {
-	if dberror.IsRecordNotFound(err) {
-		return repository.ErrNotFound
-	}
-	return err
-}
-
 // Repo 聚合记忆域数据访问。
 type Repo struct {
 	db *gorm.DB
@@ -59,7 +51,7 @@ func (r *Repo) UpsertUserMemory(ctx context.Context, item *domainmemory.UserMemo
 			existing.Scope = item.Scope
 			existing.UpdatedBy = item.UpdatedBy
 			if err := tx.Save(&existing).Error; err != nil {
-				return translateError(err)
+				return dberror.Translate(err)
 			}
 			return r.clearUserMemoryEmbedding(ctx, tx, existing.ID)
 		})
@@ -71,7 +63,7 @@ func (r *Repo) UpsertUserMemory(ctx context.Context, item *domainmemory.UserMemo
 			Model(&model.UserMemory{}).
 			Where("user_id = ?", item.UserID).
 			Count(&count).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		if count >= maxUserMemoriesPerUser {
 			return repository.ErrUserMemoryLimitExceeded
@@ -83,9 +75,9 @@ func (r *Repo) UpsertUserMemory(ctx context.Context, item *domainmemory.UserMemo
 			Scope:     item.Scope,
 			UpdatedBy: item.UpdatedBy,
 		}
-		return translateError(r.db.WithContext(ctx).Create(&record).Error)
+		return dberror.Translate(r.db.WithContext(ctx).Create(&record).Error)
 	}
-	return translateError(err)
+	return dberror.Translate(err)
 }
 
 func (r *Repo) clearUserMemoryEmbedding(ctx context.Context, tx *gorm.DB, memoryID uint) error {
@@ -97,14 +89,14 @@ func (r *Repo) clearUserMemoryEmbedding(ctx context.Context, tx *gorm.DB, memory
 			fmt.Sprintf(`DELETE FROM %s WHERE memory_id = ?`, sqlitevec.UserMemoryVectorTable),
 			memoryID,
 		).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
-		return translateError(tx.Model(&model.UserMemory{}).Where("id = ?", memoryID).Update("embedding_signature", "").Error)
+		return dberror.Translate(tx.Model(&model.UserMemory{}).Where("id = ?", memoryID).Update("embedding_signature", "").Error)
 	}
 	if !r.postgresUserMemoryEmbeddingColumnAvailable(ctx, tx) {
 		return nil
 	}
-	return translateError(tx.Exec(`UPDATE "user_memories" SET embedding = NULL, embedding_signature = '' WHERE id = ?`, memoryID).Error)
+	return dberror.Translate(tx.Exec(`UPDATE "user_memories" SET embedding = NULL, embedding_signature = '' WHERE id = ?`, memoryID).Error)
 }
 
 func (r *Repo) postgresUserMemoryEmbeddingColumnAvailable(ctx context.Context, tx *gorm.DB) bool {
@@ -135,10 +127,10 @@ func (r *Repo) DeleteUserMemory(ctx context.Context, userID uint, memoryKey stri
 				userID,
 				memoryKey,
 			).Error; err != nil {
-				return translateError(err)
+				return dberror.Translate(err)
 			}
 		}
-		return translateError(tx.
+		return dberror.Translate(tx.
 			Where("user_id = ? AND memory_key = ?", userID, memoryKey).
 			Delete(&model.UserMemory{}).Error)
 	})
@@ -151,7 +143,7 @@ func (r *Repo) ListUserMemories(ctx context.Context, userID uint) ([]domainmemor
 		Where("user_id = ?", userID).
 		Order("updated_at DESC").
 		Find(&items).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	results := make([]domainmemory.UserMemory, 0, len(items))
 	for _, item := range items {
@@ -222,7 +214,7 @@ func (r *Repo) SearchUserMemoriesByEmbedding(ctx context.Context, userID uint, q
 		}
 		return tx.Raw(query, userID, embeddingSignature, vec, candidateLimit, vec, topK).Scan(&rows).Error
 	}); err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	results := make([]domainmemory.UserMemory, 0, len(rows))
 	for _, row := range rows {
@@ -260,7 +252,7 @@ func (r *Repo) searchSQLiteUserMemoriesByEmbedding(ctx context.Context, userID u
 		ORDER BY vectors.distance ASC`, sqlitevec.UserMemoryVectorTable)
 	var rows []userMemorySearchRow
 	if err := r.db.WithContext(ctx).Raw(query, vector, topK, userID, embeddingSignature, embeddingSignature).Scan(&rows).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	results := make([]domainmemory.UserMemory, 0, len(rows))
 	for _, row := range rows {
@@ -292,7 +284,7 @@ func (r *Repo) UpsertUserMemoryEmbedding(ctx context.Context, userID uint, memor
 		return err
 	}
 	query := `UPDATE "user_memories" SET embedding = ?::vector, embedding_signature = ? WHERE user_id = ? AND memory_key = ?`
-	args := []interface{}{vec, embeddingSignature, userID, memoryKey}
+	args := []any{vec, embeddingSignature, userID, memoryKey}
 	if strings.TrimSpace(expectedValue) != "" {
 		query += ` AND value = ?`
 		args = append(args, strings.TrimSpace(expectedValue))
@@ -313,7 +305,7 @@ func (r *Repo) upsertSQLiteUserMemoryEmbedding(ctx context.Context, userID uint,
 		if dberror.IsRecordNotFound(err) {
 			return nil
 		}
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	vector, err := sqlitevec.SerializeFloat32(embedding)
 	if err != nil {
@@ -326,15 +318,15 @@ func (r *Repo) upsertSQLiteUserMemoryEmbedding(ctx context.Context, userID uint,
 		}
 		result := update.Update("embedding_signature", embeddingSignature)
 		if result.Error != nil {
-			return translateError(result.Error)
+			return dberror.Translate(result.Error)
 		}
 		if result.RowsAffected == 0 {
 			return nil
 		}
 		if err := tx.Exec(fmt.Sprintf(`DELETE FROM %s WHERE memory_id = ?`, sqlitevec.UserMemoryVectorTable), item.ID).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
-		return translateError(tx.Exec(
+		return dberror.Translate(tx.Exec(
 			fmt.Sprintf(`INSERT INTO %s (memory_id, user_id, embedding_signature, embedding) VALUES (?, ?, ?, ?)`, sqlitevec.UserMemoryVectorTable),
 			item.ID,
 			item.UserID,

@@ -1,32 +1,31 @@
 package llm
 
-import "testing"
+import (
+	"testing"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+)
 
 func TestBuildResponsesRequestBodyEnforcesEphemeralRequest(t *testing.T) {
-	payload := buildResponsesRequestBody(
-		AdapterOpenAIResponses,
-		"gpt-test",
-		GenerateInput{
-			Messages:            []Message{{Role: "user", Content: "hello"}},
+	payload := buildResponsesRequestBody(responsesRequestInput{
+		Adapter: portllm.AdapterOpenAIResponses,
+		Model:   "gpt-test",
+		Generate: portllm.GenerateInput{
+			Messages:            []portllm.Message{{Role: "user", Content: "hello"}},
 			PromptCacheKey:      "cache_should_not_be_sent",
 			PreviousResponseID:  "resp_should_not_be_sent",
 			ResponsesBackground: true,
 			Ephemeral:           true,
-			Options: map[string]interface{}{
+			Options: map[string]any{
 				"store":      true,
 				"background": true,
-				"prompt_cache_options": map[string]interface{}{
+				"prompt_cache_options": map[string]any{
 					"mode": "explicit",
 				},
 			},
 		},
-		nil,
-		nil,
-		nil,
-		false,
-		nil,
-		true,
-	)
+		Stream: true,
+	})
 
 	if store, ok := payload["store"].(bool); !ok || store {
 		t.Fatalf("store = %#v, want false", payload["store"])
@@ -46,12 +45,12 @@ func TestBuildResponsesRequestBodyEnforcesEphemeralRequest(t *testing.T) {
 }
 
 func TestBuildAnthropicRequestBodyDisablesEphemeralPromptCache(t *testing.T) {
-	cacheControl := &CacheControl{Type: "ephemeral", TTL: "1h"}
-	payload, err := buildAnthropicRequestBody("claude-test", GenerateInput{
-		Messages:  []Message{{Role: "system", Content: "system", CacheControl: cacheControl}, {Role: "user", Content: "hello"}},
+	cacheControl := &portllm.CacheControl{Type: "ephemeral", TTL: "1h"}
+	payload, err := buildAnthropicRequestBody("claude-test", portllm.GenerateInput{
+		Messages:  []portllm.Message{{Role: "system", Content: "system", CacheControl: cacheControl}, {Role: "user", Content: "hello"}},
 		Ephemeral: true,
-		Options: map[string]interface{}{
-			"cache_control": map[string]interface{}{"type": "ephemeral", "ttl": "1h"},
+		Options: map[string]any{
+			"cache_control": map[string]any{"type": "ephemeral", "ttl": "1h"},
 		},
 	}, true)
 	if err != nil {
@@ -60,7 +59,7 @@ func TestBuildAnthropicRequestBodyDisablesEphemeralPromptCache(t *testing.T) {
 	if _, ok := payload["cache_control"]; ok {
 		t.Fatalf("cache_control must be omitted for ephemeral requests: %#v", payload)
 	}
-	if system, ok := payload["system"].([]map[string]interface{}); ok {
+	if system, ok := payload["system"].([]map[string]any); ok {
 		for _, block := range system {
 			if _, exists := block["cache_control"]; exists {
 				t.Fatalf("system cache_control must be omitted for ephemeral requests: %#v", payload)

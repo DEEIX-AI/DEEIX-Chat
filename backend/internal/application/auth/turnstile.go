@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -13,13 +12,6 @@ import (
 
 const (
 	turnstileTokenMaxLength = 2048
-)
-
-var (
-	errTurnstileNotConfigured = errors.New("turnstile is not configured")
-	errTurnstileRequired      = errors.New("turnstile verification is required")
-	errTurnstileTokenTooLong  = errors.New("turnstile token is too long")
-	errTurnstileFailed        = errors.New("turnstile verification failed")
 )
 
 type turnstileSiteverifyResponse struct {
@@ -37,15 +29,15 @@ func (s *Service) verifyRegistrationTurnstile(ctx context.Context, cfg config.Co
 	}
 	secretKey := strings.TrimSpace(cfg.TurnstileSecretKey)
 	if secretKey == "" {
-		return errTurnstileNotConfigured
+		return ErrTurnstileNotConfigured
 	}
 
 	token := strings.TrimSpace(tokenValue)
 	if token == "" {
-		return errTurnstileRequired
+		return ErrTurnstileRequired
 	}
 	if len(token) > turnstileTokenMaxLength {
-		return errTurnstileTokenTooLong
+		return ErrTurnstileTokenTooLong
 	}
 
 	form := url.Values{}
@@ -68,16 +60,16 @@ func (s *Service) verifyRegistrationTurnstile(ctx context.Context, cfg config.Co
 	)
 	if err != nil {
 		s.warn("turnstile siteverify request failed: " + err.Error())
-		return errTurnstileFailed
+		return ErrTurnstileFailed
 	}
 	var result turnstileSiteverifyResponse
 	if err = json.Unmarshal(response.Body, &result); err != nil {
 		s.warn(fmt.Sprintf("turnstile siteverify decode failed: status=%d error=%v", response.StatusCode, err))
-		return errTurnstileFailed
+		return ErrTurnstileFailed
 	}
 	if !response.Successful() || !result.Success {
 		s.warn(fmt.Sprintf("turnstile siteverify rejected: status=%d error_codes=%s", response.StatusCode, strings.Join(result.ErrorCodes, ",")))
-		return errTurnstileFailed
+		return ErrTurnstileFailed
 	}
 	return nil
 }

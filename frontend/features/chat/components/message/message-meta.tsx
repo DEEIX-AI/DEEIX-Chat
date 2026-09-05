@@ -38,6 +38,7 @@ import {
   formatDurationMS,
 } from "@/features/chat/model/duration";
 import { useChatElapsedDurationMS } from "@/features/chat/hooks/use-chat-elapsed-duration";
+import { type BillingSnapshot, parseBillingSnapshot } from "@/features/chat/model/billing-snapshot";
 import { resolvePersistedPublicID } from "@/features/chat/model/message-submit";
 import type { ChatBillingCost, ChatMessageBranchNavigator } from "@/features/chat/types/messages";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
@@ -54,6 +55,9 @@ import {
   formatBillingDisplayPreciseAmountFromUSD,
   formatBillingDisplayUnitPriceFromUSD,
 } from "@/shared/lib/billing-display";
+
+const META_ACTION_BUTTON_CLASSNAME =
+  "text-muted-foreground [&_svg:not([class*='size-'])]:size-3.5";
 
 export type ChatMetaMessage = {
   publicID: string;
@@ -156,27 +160,41 @@ function BranchSwitcher({
 
   return (
     <div className="inline-flex items-center" data-screenshot-exclude="true">
-      <button
-        type="button"
-        className="inline-flex size-5 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:opacity-35"
-        aria-label={t("previousBranch")}
-        disabled={!item.branchNavigator.canPrevious}
-        onClick={() => onCycle(item.branchNavigator?.parentPublicID ?? null, "previous")}
-      >
-        <ChevronLeft size={14} strokeWidth={1.8} animateOnHover="default" />
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className={META_ACTION_BUTTON_CLASSNAME}
+            aria-label={t("previousBranch")}
+            disabled={!item.branchNavigator.canPrevious}
+            onClick={() => onCycle(item.branchNavigator?.parentPublicID ?? null, "previous")}
+          >
+            <ChevronLeft strokeWidth={1.8} animateOnHover="default" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">{t("previousBranch")}</TooltipContent>
+      </Tooltip>
       <span className="min-w-7 text-center tabular-nums text-xs font-medium tracking-[0.01em] text-muted-foreground">
         {item.branchNavigator.index}/{item.branchNavigator.total}
       </span>
-      <button
-        type="button"
-        className="inline-flex size-5 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:opacity-35"
-        aria-label={t("nextBranch")}
-        disabled={!item.branchNavigator.canNext}
-        onClick={() => onCycle(item.branchNavigator?.parentPublicID ?? null, "next")}
-      >
-        <ChevronRight size={14} strokeWidth={1.8} animateOnHover="default" />
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className={META_ACTION_BUTTON_CLASSNAME}
+            aria-label={t("nextBranch")}
+            disabled={!item.branchNavigator.canNext}
+            onClick={() => onCycle(item.branchNavigator?.parentPublicID ?? null, "next")}
+          >
+            <ChevronRight strokeWidth={1.8} animateOnHover="default" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">{t("nextBranch")}</TooltipContent>
+      </Tooltip>
     </div>
   );
 }
@@ -231,19 +249,18 @@ function MetaIconButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-sm"
           data-screenshot-exclude="true"
-          className={cn(
-            "inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40",
-            className,
-          )}
+          className={cn(META_ACTION_BUTTON_CLASSNAME, className)}
           aria-label={label}
           disabled={disabled}
           onClick={onClick}
         >
           {children}
-        </button>
+        </Button>
       </TooltipTrigger>
       <TooltipContent side="top">{label}</TooltipContent>
     </Tooltip>
@@ -282,7 +299,7 @@ function ForkMessageButton({
       disabled={disabled || inFlight}
       onClick={() => void handleFork()}
     >
-      <GitFork size={14} strokeWidth={1.8} animateOnHover="default" />
+      <GitFork strokeWidth={1.8} animateOnHover="default" />
     </MetaIconButton>
   );
 }
@@ -328,7 +345,7 @@ export function UserMessageMeta({
               disabled={messagePending}
               onClick={onRetry}
             >
-              <RotateCcw size={14} strokeWidth={1.8} animateOnHover="default" />
+              <RotateCcw strokeWidth={1.8} animateOnHover="default" />
             </MetaIconButton>
           ) : null}
           <MetaIconButton
@@ -336,7 +353,7 @@ export function UserMessageMeta({
             disabled={messagePending || !hasPersistedMessage}
             onClick={onEdit}
           >
-            <Brush size={14} strokeWidth={1.8} animateOnHover="default" />
+            <Brush strokeWidth={1.8} animateOnHover="default" />
           </MetaIconButton>
           <MetaIconButton
             label={t("copyMessage")}
@@ -344,9 +361,9 @@ export function UserMessageMeta({
             onClick={onCopy}
           >
             {copySucceeded ? (
-              <Check size={14} strokeWidth={1.8} animate="default" />
+              <Check strokeWidth={1.8} animate="default" />
             ) : (
-              <Copy size={14} strokeWidth={1.8} animateOnHover="default" />
+              <Copy strokeWidth={1.8} animateOnHover="default" />
             )}
           </MetaIconButton>
         </div>
@@ -480,55 +497,6 @@ function ModelBadge({ label }: { label: string }) {
       <TooltipContent>{normalized}</TooltipContent>
     </Tooltip>
   );
-}
-
-type BillingServiceItemSnapshot = {
-  service_code?: string;
-  service_name?: string;
-  pricing_mode?: string;
-  call_count?: number;
-  call_nanousd_per_call?: number;
-  billed_nanousd?: number;
-};
-
-type BillingSnapshot = {
-  pricing_mode?: "token" | "call" | "duration" | "tiered" | string;
-  service_items?: BillingServiceItemSnapshot[];
-  provider_protocol?: string;
-  cache_timeout?: string;
-  fast_mode?: boolean;
-  billing_speed?: string;
-  billing_service_tier?: string;
-  rate_multiplier?: number;
-  cache_write_5m_tokens?: number;
-  cache_write_1h_tokens?: number;
-  is_free_model?: boolean;
-  input_nanousd_per_m_tokens?: number;
-  cache_read_nanousd_per_m_tokens?: number;
-  cache_write_nanousd_per_m_tokens?: number;
-  output_nanousd_per_m_tokens?: number;
-  call_nanousd_per_call?: number;
-  duration_nanousd_per_second?: number;
-  input_billed_nanousd?: number;
-  cache_read_billed_nanousd?: number;
-  cache_write_billed_nanousd?: number;
-  output_billed_nanousd?: number;
-  call_billed_nanousd?: number;
-  duration_billed_nanousd?: number;
-  tiered_from_tokens?: number;
-  tiered_up_to_tokens?: number | null;
-};
-
-function parseBillingSnapshot(value: string): BillingSnapshot {
-  if (!value.trim()) {
-    return {};
-  }
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as BillingSnapshot) : {};
-  } catch {
-    return {};
-  }
 }
 
 function readBillingNumber(snapshot: BillingSnapshot, key: keyof BillingSnapshot): number {
@@ -814,7 +782,7 @@ function BillingCostBadge({ item, billingDisplay }: { item: ChatMetaMessage; bil
         <span
           tabIndex={0}
           aria-label={t("billingCost")}
-          className="ml-0.5 inline-flex cursor-default items-center gap-1 rounded bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] leading-3.5 text-muted-foreground/70 select-none whitespace-nowrap outline-none focus-visible:ring-[1px] focus-visible:ring-ring/40"
+          className="ml-0.5 inline-flex cursor-default items-center gap-1 rounded bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] leading-3.5 text-muted-foreground/70 select-none whitespace-nowrap outline-none focus-visible:bg-muted/50 focus-visible:ring-0"
         >
           {freeModel ? (
             <TicketSlash className="size-3" strokeWidth={1.4} />
@@ -925,15 +893,17 @@ function QuickMemoryPin({ disabled }: { disabled?: boolean }) {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               data-screenshot-exclude="true"
-              className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+              className={META_ACTION_BUTTON_CLASSNAME}
               aria-label={t("rememberPreference")}
               disabled={disabled}
             >
-              <Heart size={14} strokeWidth={1.8} animateOnHover="default" />
-            </button>
+              <Heart strokeWidth={1.8} animateOnHover="default" />
+            </Button>
           </PopoverTrigger>
         </TooltipTrigger>
         <TooltipContent side="top">{t("rememberPreference")}</TooltipContent>
@@ -1085,9 +1055,9 @@ export function AssistantMessageMeta({
                   onClick={onCopy}
                 >
                   {copySucceeded ? (
-                    <Check size={14} strokeWidth={1.8} animate="default" />
+                    <Check strokeWidth={1.8} animate="default" />
                   ) : (
-                    <Copy size={14} strokeWidth={1.8} animateOnHover="default" />
+                    <Copy strokeWidth={1.8} animateOnHover="default" />
                   )}
                 </MetaIconButton>
                 {canEdit ? (
@@ -1095,7 +1065,7 @@ export function AssistantMessageMeta({
                     label={t("editReply")}
                     onClick={onEdit}
                   >
-                    <Brush size={14} strokeWidth={1.8} animateOnHover="default" />
+                    <Brush strokeWidth={1.8} animateOnHover="default" />
                   </MetaIconButton>
                 ) : null}
                 <MetaIconButton
@@ -1104,7 +1074,7 @@ export function AssistantMessageMeta({
                   disabled={messagePending}
                   onClick={() => onReact(reaction === "up" ? null : "up")}
                 >
-                  <ThumbsUp size={14} strokeWidth={1.8} animateOnHover="default" />
+                  <ThumbsUp strokeWidth={1.8} animateOnHover="default" />
                 </MetaIconButton>
                 <MetaIconButton
                   label={t("dislikeReply")}
@@ -1112,14 +1082,14 @@ export function AssistantMessageMeta({
                   disabled={messagePending}
                   onClick={() => onReact(reaction === "down" ? null : "down")}
                 >
-                  <ThumbsDown size={14} strokeWidth={1.8} animateOnHover="default" />
+                  <ThumbsDown strokeWidth={1.8} animateOnHover="default" />
                 </MetaIconButton>
                 {canRetry ? (
                   <MetaIconButton
                     label={t("retryReply")}
                     onClick={onRetry}
                   >
-                    <RotateCcw size={14} strokeWidth={1.8} animateOnHover="default" />
+                    <RotateCcw strokeWidth={1.8} animateOnHover="default" />
                   </MetaIconButton>
                 ) : null}
                 {canContinue && onContinue ? (
@@ -1127,7 +1097,7 @@ export function AssistantMessageMeta({
                     label={t("continueReply")}
                     onClick={onContinue}
                   >
-                    <Forward className="size-3.5" strokeWidth={1.8} />
+                    <Forward strokeWidth={1.8} />
                   </MetaIconButton>
                 ) : null}
                 {canFork && onFork ? (

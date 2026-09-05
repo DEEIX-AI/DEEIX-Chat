@@ -1080,6 +1080,10 @@ definitions:
         items:
           $ref: '#/definitions/SubscriptionEntitlementResponse'
         type: array
+      totalSpentNanousd:
+        type: integer
+      totalSpentUSD:
+        type: number
     required:
     - account
     - mode
@@ -1093,6 +1097,8 @@ definitions:
     - periodUsedUSD
     - plan
     - subscriptionEntitlements
+    - totalSpentNanousd
+    - totalSpentUSD
     type: object
   BillingOverviewResponseDoc:
     properties:
@@ -1117,8 +1123,6 @@ definitions:
         type: string
       description:
         type: string
-      discountPercent:
-        type: integer
       featureJSON:
         type: string
       id:
@@ -1144,7 +1148,6 @@ definitions:
     required:
     - code
     - description
-    - discountPercent
     - featureJSON
     - id
     - isActive
@@ -2021,6 +2024,10 @@ definitions:
         x-omitempty: false
       errorJSON:
         type: string
+      errorOmitted:
+        type: boolean
+      errorSizeBytes:
+        type: integer
       eventID:
         type: string
       eventScope:
@@ -2031,12 +2038,20 @@ definitions:
         type: integer
       inputJSON:
         type: string
+      inputOmitted:
+        type: boolean
+      inputSizeBytes:
+        type: integer
       latencyMS:
         type: integer
       messageID:
         type: integer
       outputJSON:
         type: string
+      outputOmitted:
+        type: boolean
+      outputSizeBytes:
+        type: integer
       parentEventID:
         type: string
       payloadJSON:
@@ -2093,14 +2108,20 @@ definitions:
     - createdAt
     - endedAt
     - errorJSON
+    - errorOmitted
+    - errorSizeBytes
     - eventID
     - eventScope
     - eventType
     - id
     - inputJSON
+    - inputOmitted
+    - inputSizeBytes
     - latencyMS
     - messageID
     - outputJSON
+    - outputOmitted
+    - outputSizeBytes
     - parentEventID
     - payloadJSON
     - payloadOmitted
@@ -2264,6 +2285,8 @@ definitions:
         items:
           type: integer
         type: array
+      defaultModel:
+        type: string
       defaultSkillIDs:
         items:
           type: integer
@@ -2291,6 +2314,7 @@ definitions:
     - createdAt
     - defaultKnowledgeBaseIDs
     - defaultMCPToolIDs
+    - defaultModel
     - defaultSkillIDs
     - description
     - icon
@@ -2518,6 +2542,50 @@ definitions:
     - data
     - errorMsg
     type: object
+  ConversationToolCallDetailResponse:
+    properties:
+      errorJSON:
+        type: string
+      errorOmitted:
+        type: boolean
+      errorSizeBytes:
+        type: integer
+      outputJSON:
+        type: string
+      outputOmitted:
+        type: boolean
+      outputSizeBytes:
+        type: integer
+      runID:
+        type: string
+      status:
+        type: string
+      toolCallID:
+        type: string
+      toolName:
+        type: string
+    required:
+    - errorJSON
+    - errorOmitted
+    - errorSizeBytes
+    - outputJSON
+    - outputOmitted
+    - outputSizeBytes
+    - runID
+    - status
+    - toolCallID
+    - toolName
+    type: object
+  ConversationToolCallDetailResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ConversationToolCallDetailResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   ConversationUpdateResponseDoc:
     properties:
       data:
@@ -2612,6 +2680,9 @@ definitions:
           type: integer
         maxItems: 128
         type: array
+      defaultModel:
+        maxLength: 128
+        type: string
       defaultSkillIDs:
         items:
           type: integer
@@ -3139,6 +3210,40 @@ definitions:
     - data
     - errorMsg
     type: object
+  FileEmbeddingSkipResponse:
+    properties:
+      fileID:
+        type: string
+      reason:
+        type: string
+    required:
+    - fileID
+    - reason
+    type: object
+  FileEmbeddingSubmissionResponse:
+    properties:
+      skipped:
+        items:
+          $ref: '#/definitions/FileEmbeddingSkipResponse'
+        type: array
+      submittedFileIDs:
+        items:
+          type: string
+        type: array
+    required:
+    - skipped
+    - submittedFileIDs
+    type: object
+  FileEmbeddingSubmissionResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/FileEmbeddingSubmissionResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   FileListResponse:
     properties:
       quota:
@@ -3166,6 +3271,8 @@ definitions:
     type: object
   FileObjectResponse:
     properties:
+      canVectorize:
+        type: boolean
       chunkCount:
         type: integer
       createdAt:
@@ -3214,7 +3321,10 @@ definitions:
         type: string
       updatedAt:
         type: string
+      vectorizationReason:
+        type: string
     required:
+    - canVectorize
     - chunkCount
     - createdAt
     - detectedMIME
@@ -3237,9 +3347,12 @@ definitions:
     - sizeBytes
     - status
     - updatedAt
+    - vectorizationReason
     type: object
   FileProcessingStatusResponse:
     properties:
+      canVectorize:
+        type: boolean
       chunkCount:
         type: integer
       completedAt:
@@ -3284,7 +3397,10 @@ definitions:
         x-omitempty: false
       updatedAt:
         type: string
+      vectorizationReason:
+        type: string
     required:
+    - canVectorize
     - chunkCount
     - completedAt
     - detectedMIME
@@ -3305,6 +3421,7 @@ definitions:
     - ragReason
     - startedAt
     - updatedAt
+    - vectorizationReason
     type: object
   FileUpdateResponseDoc:
     properties:
@@ -3758,6 +3875,40 @@ definitions:
     required:
     - file
     type: object
+  KnowledgeBaseFileEmbeddingSkipResponse:
+    properties:
+      fileID:
+        type: string
+      reason:
+        type: string
+    required:
+    - fileID
+    - reason
+    type: object
+  KnowledgeBaseFileEmbeddingSubmissionResponse:
+    properties:
+      skipped:
+        items:
+          $ref: '#/definitions/KnowledgeBaseFileEmbeddingSkipResponse'
+        type: array
+      submittedFileIDs:
+        items:
+          type: string
+        type: array
+    required:
+    - skipped
+    - submittedFileIDs
+    type: object
+  KnowledgeBaseFileEmbeddingSubmissionResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/KnowledgeBaseFileEmbeddingSubmissionResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   KnowledgeBaseFileMutationDataResponse:
     properties:
       updated:
@@ -3809,11 +3960,17 @@ definitions:
     type: object
   KnowledgeBaseFileProcessingStatusResponse:
     properties:
+      canVectorize:
+        type: boolean
       chunkCount:
         type: integer
       detectedMIME:
         type: string
+      embedError:
+        type: string
       embedStatus:
+        type: string
+      extractStatus:
         type: string
       fileCategory:
         type: string
@@ -3829,10 +3986,15 @@ definitions:
         type: boolean
       updatedAt:
         type: string
+      vectorizationReason:
+        type: string
     required:
+    - canVectorize
     - chunkCount
     - detectedMIME
+    - embedError
     - embedStatus
+    - extractStatus
     - fileCategory
     - fileID
     - processing
@@ -3840,16 +4002,23 @@ definitions:
     - processingStatus
     - ragOptOut
     - updatedAt
+    - vectorizationReason
     type: object
   KnowledgeBaseFileResponse:
     properties:
+      canVectorize:
+        type: boolean
       chunkCount:
         type: integer
       createdAt:
         type: string
       detectedMIME:
         type: string
+      embedError:
+        type: string
       embedStatus:
+        type: string
+      extractStatus:
         type: string
       fileCategory:
         type: string
@@ -3871,11 +4040,16 @@ definitions:
         type: integer
       updatedAt:
         type: string
+      vectorizationReason:
+        type: string
     required:
+    - canVectorize
     - chunkCount
     - createdAt
     - detectedMIME
+    - embedError
     - embedStatus
+    - extractStatus
     - fileCategory
     - fileID
     - fileName
@@ -3886,6 +4060,7 @@ definitions:
     - ragOptOut
     - sizeBytes
     - updatedAt
+    - vectorizationReason
     type: object
   KnowledgeBaseFileResponseDoc:
     properties:
@@ -4128,7 +4303,7 @@ definitions:
         maxLength: 128
         type: string
       options:
-        additionalProperties: true
+        additionalProperties: {}
         type: object
       parentMessagePublicID:
         maxLength: 32
@@ -7021,7 +7196,7 @@ definitions:
         maxLength: 128
         type: string
       options:
-        additionalProperties: true
+        additionalProperties: {}
         type: object
       parentMessagePublicID:
         maxLength: 32
@@ -7459,6 +7634,28 @@ definitions:
     - usedBytes
     - userID
     type: object
+  SubmitFileEmbeddingsRequest:
+    properties:
+      fileIDs:
+        items:
+          type: string
+        maxItems: 100
+        minItems: 1
+        type: array
+    required:
+    - fileIDs
+    type: object
+  SubmitPlatformFileEmbeddingsRequest:
+    properties:
+      fileIDs:
+        items:
+          type: string
+        maxItems: 100
+        minItems: 1
+        type: array
+    required:
+    - fileIDs
+    type: object
   SubscribeRequest:
     properties:
       cycles:
@@ -7591,21 +7788,36 @@ definitions:
         type: integer
       inactivatedModels:
         type: integer
+      protectedUpstreamModels:
+        type: integer
+      reactivatedModels:
+        type: integer
       skippedUpstreamModels:
         type: integer
+      snapshotID:
+        type: string
       syncedModels:
         items:
           $ref: '#/definitions/UpstreamSyncModelResponse'
         type: array
       totalUpstream:
         type: integer
+      unchangedUpstreamModels:
+        type: integer
+      updatedUpstreamModels:
+        type: integer
     required:
     - createdUpstreamModels
     - existingUpstreamModels
     - inactivatedModels
+    - protectedUpstreamModels
+    - reactivatedModels
     - skippedUpstreamModels
+    - snapshotID
     - syncedModels
     - totalUpstream
+    - unchangedUpstreamModels
+    - updatedUpstreamModels
     type: object
   SyncUpstreamModelsResponseDoc:
     properties:
@@ -7713,7 +7925,7 @@ definitions:
         maxLength: 128
         type: string
       options:
-        additionalProperties: true
+        additionalProperties: {}
         type: object
       selectedToolIDs:
         items:
@@ -7850,10 +8062,6 @@ definitions:
       description:
         maxLength: 255
         type: string
-      discountPercent:
-        maximum: 100
-        minimum: 0
-        type: integer
       name:
         maxLength: 64
         minLength: 1
@@ -7868,7 +8076,6 @@ definitions:
     - amountUSD
     - billingInterval
     - description
-    - discountPercent
     - name
     - periodCreditUSD
     type: object
@@ -7898,6 +8105,9 @@ definitions:
           type: integer
         maxItems: 128
         type: array
+      defaultModel:
+        maxLength: 128
+        type: string
       defaultSkillIDs:
         items:
           type: integer
@@ -8628,6 +8838,40 @@ definitions:
     - upstreamModelVendor
     - weight
     type: object
+  UpstreamModelSyncPlanResponse:
+    properties:
+      addedModels:
+        items:
+          type: string
+        type: array
+      inactivatedModels:
+        items:
+          type: string
+        type: array
+      protectedModels:
+        items:
+          type: string
+        type: array
+      reactivatedModels:
+        items:
+          type: string
+        type: array
+      unchangedModels:
+        items:
+          type: string
+        type: array
+      updatedModels:
+        items:
+          type: string
+        type: array
+    required:
+    - addedModels
+    - inactivatedModels
+    - protectedModels
+    - reactivatedModels
+    - unchangedModels
+    - updatedModels
+    type: object
   UpstreamRemoteModelResponse:
     properties:
       alreadyBound:
@@ -8672,10 +8916,16 @@ definitions:
         items:
           $ref: '#/definitions/UpstreamRemoteModelResponse'
         type: array
+      snapshotID:
+        type: string
+      syncPlan:
+        $ref: '#/definitions/UpstreamModelSyncPlanResponse'
       total:
         type: integer
     required:
     - items
+    - snapshotID
+    - syncPlan
     - total
     type: object
   UpstreamRemoteModelsResponseDoc:
@@ -8771,18 +9021,27 @@ definitions:
         type: boolean
       kindsJSON:
         type: string
+      protected:
+        type: boolean
+      reactivated:
+        type: boolean
       status:
         type: string
       suggestedProtocol:
         type: string
+      updated:
+        type: boolean
       upstreamModelName:
         type: string
     required:
     - bindingCode
     - created
     - kindsJSON
+    - protected
+    - reactivated
     - status
     - suggestedProtocol
+    - updated
     - upstreamModelName
     type: object
   UsageDailyListResponseDoc:
@@ -9442,12 +9701,44 @@ definitions:
     - data
     - errorMsg
     type: object
+  UserDailyActivityItem:
+    properties:
+      date:
+        type: string
+      requestCount:
+        type: integer
+      tokenUsage:
+        type: integer
+    required:
+    - date
+    - requestCount
+    - tokenUsage
+    type: object
+  UserDailyActivityListResponseDoc:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/UserDailyActivityItem'
+        type: array
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   UserDataResponse:
     properties:
       user:
         $ref: '#/definitions/AdminUserResponse'
     required:
     - user
+    type: object
+  UserErrorDoc:
+    properties:
+      errorMsg:
+        type: string
+    required:
+    - errorMsg
     type: object
   UserListResponseDoc:
     properties:
@@ -9613,7 +9904,7 @@ info:
   contact: {}
   description: DEEIX Chat 后端 API 文档
   title: DEEIX Chat API
-  version: "0.4.0"
+  version: "0.4.1"
 paths:
   /admin/announcements:
     get:
@@ -11291,6 +11582,42 @@ paths:
       summary: 获取平台资料内容
       tags:
       - admin-knowledge-bases
+  /admin/knowledge-bases/files/embeddings:
+    post:
+      consumes:
+      - application/json
+      description: 为管理员选中的平台资料提交向量化任务，最多100个；重复提交会幂等跳过
+      parameters:
+      - description: 平台资料ID，最多100个
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/SubmitPlatformFileEmbeddingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/KnowledgeBaseFileEmbeddingSubmissionResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 批量提交平台资料向量化
+      tags:
+      - admin-knowledge-bases
   /admin/llm/icon-assets:
     get:
       description: 分页查询仍在图标库中的已上传图标，按上传时间倒序返回
@@ -12899,7 +13226,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: 调用上游 models 接口，仅返回可导入预览，不直接落库
+      description: 调用上游 models 接口，返回可导入模型与目录变更预览，不直接落库
       parameters:
       - description: 上游ID
         in: path
@@ -12938,13 +13265,21 @@ paths:
     post:
       consumes:
       - application/json
-      description: 调用上游 models 接口写入上游真实模型清单，不自动绑定平台模型
+      description: 调用上游 models 接口获取完整目录，原子更新远端管理模型可用状态，不删除平台模型或路由配置
       parameters:
       - description: 上游ID
         in: path
         name: id
         required: true
         type: integer
+      - description: 确认允许空模型目录对账
+        in: query
+        name: allow_empty
+        type: boolean
+      - description: 用户确认的远端目录快照标识
+        in: query
+        name: expected_snapshot
+        type: string
       produces:
       - application/json
       responses:
@@ -12958,6 +13293,10 @@ paths:
             $ref: '#/definitions/ChannelErrorDoc'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/ChannelErrorDoc'
         "500":
@@ -15911,7 +16250,7 @@ paths:
         in: query
         name: after
         type: integer
-      - description: 是否返回可替换当前正文的权威文本快照
+      - description: 是否返回正文与当前思考轮次的权威内容快照
         in: query
         name: snapshot
         type: boolean
@@ -15929,6 +16268,46 @@ paths:
       security:
       - BearerAuth: []
       summary: 恢复流式生成订阅
+      tags:
+      - chat
+  /conversation-runs/{run_id}/tool-calls/{tool_call_id}:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户指定会话运行内的持久化工具调用结果；超限字段仅返回原始大小与省略标记
+      parameters:
+      - description: 运行 ID
+        in: path
+        name: run_id
+        required: true
+        type: string
+      - description: 工具调用 ID
+        in: path
+        name: tool_call_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ConversationToolCallDetailResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询工具调用结果详情
       tags:
       - chat
   /conversation-runs/statuses:
@@ -17188,6 +17567,42 @@ paths:
       summary: 获取文件内容
       tags:
       - chat
+  /files/embeddings:
+    post:
+      consumes:
+      - application/json
+      description: 为当前用户已完成文本提取的文件提交向量化任务，最多100个；重复提交会幂等跳过
+      parameters:
+      - description: 文件ID，最多100个
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/SubmitFileEmbeddingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/FileEmbeddingSubmissionResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 批量提交指定文件向量化
+      tags:
+      - chat
   /files/processing/statuses:
     post:
       consumes:
@@ -18241,6 +18656,20 @@ paths:
       summary: 查询聊天上下文策略
       tags:
       - settings
+  /settings/feature-policy:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Envelope'
+      security:
+      - BearerAuth: []
+      summary: 查询用户侧功能开关策略
+      tags:
+      - settings
   /settings/login-page:
     get:
       produces:
@@ -18621,7 +19050,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: 由浏览器提交完整纯文本上下文；服务端不创建会话、消息、运行或断线续传记录
+      - multipart/form-data
+      description: 由浏览器提交完整上下文和可选请求级附件；服务端不创建会话、消息、运行、文件或断线续传记录
       parameters:
       - description: 临时对话参数
         in: body
@@ -18699,6 +19129,36 @@ paths:
       summary: 更新当前用户的配置
       tags:
       - user/settings
+  /user/stats/activity:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户按计费归属日聚合的模型请求数与 token 消耗，逐日补零
+      parameters:
+      - description: 统计天数(默认365，最大366)
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UserDailyActivityListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/UserErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/UserErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询每日活跃度
+      tags:
+      - user
 securityDefinitions:
   BearerAuth:
     in: header

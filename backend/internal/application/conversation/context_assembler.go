@@ -6,6 +6,7 @@ import (
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
 // ContextSlotKind 标识上下文槽位类型。
@@ -95,7 +96,7 @@ func (a *ContextAssembler) Add(slot ContextSlot) {
 		slot.Priority = slotPriority[slot.Kind]
 	}
 	if slot.TokenCount == 0 && slot.Content != "" {
-		slot.TokenCount = estimateTokens(slot.Content)
+		slot.TokenCount = tokenestimate.Estimate(slot.Content)
 	}
 	a.slots = append(a.slots, slot)
 }

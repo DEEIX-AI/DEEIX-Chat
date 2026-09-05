@@ -25,12 +25,12 @@ type messageRoutePromptInput struct {
 }
 
 func withMessageRouteReasoningPassbackOptions(
-	options map[string]interface{},
-	inputOptions map[string]interface{},
+	options map[string]any,
+	inputOptions map[string]any,
 	route *channel.ResolvedRoute,
 	reasoningContentPassback bool,
 	messages []llm.Message,
-) map[string]interface{} {
+) map[string]any {
 	if route == nil || !shouldApplyReasoningPassbackRequestOptions(
 		reasoningContentPassback,
 		route.ReasoningPassbackRequestOptions,
@@ -44,6 +44,20 @@ func withMessageRouteReasoningPassbackOptions(
 		inputOptions,
 		route.ModelCapabilitiesJSON,
 	)
+}
+
+// planRoutePrompt 按路由决定推理内容是否回传后构建提示词；路由故障转移时对新路由重新规划。
+// 返回值中的 bool 是该路由生效的推理回传开关。
+func (s *Service) planRoutePrompt(
+	ctx context.Context,
+	userID uint,
+	base messageRoutePromptInput,
+	route *channel.ResolvedRoute,
+) (PromptPlan, bool, error) {
+	passbackEnabled := s.reasoningContentPassbackEnabled(ctx, userID, route)
+	base.ReasoningContentPassback = passbackEnabled
+	plan, err := s.buildMessageRoutePrompt(ctx, route, base)
+	return plan, passbackEnabled, err
 }
 
 func (s *Service) buildMessageRoutePrompt(ctx context.Context, route *channel.ResolvedRoute, input messageRoutePromptInput) (PromptPlan, error) {

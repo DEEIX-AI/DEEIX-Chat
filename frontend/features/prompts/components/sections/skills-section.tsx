@@ -310,12 +310,10 @@ export const SkillsSection = React.forwardRef<SkillsSectionHandle, { query: stri
         ) : (
           <div className="h-full min-h-0 overflow-y-auto pr-2" data-sidebar-scroll-root="true">
             {filteredItems.length === 0 ? (
-              <div className="flex h-full min-h-0 w-full items-center justify-center">
-                <CenteredEmptyState
-                  title={items.length === 0 ? t("skillsEmpty") : t("skillsNoResults")}
-                  description={items.length === 0 ? t("skillsEmptyDescription") : t("noResultsDescription")}
-                />
-              </div>
+              <CenteredEmptyState
+                title={items.length === 0 ? t("skillsEmpty") : t("skillsNoResults")}
+                description={items.length === 0 ? t("skillsEmptyDescription") : t("noResultsDescription")}
+              />
             ) : (
               <div className="grid gap-4 md:ml-13 md:w-[calc(100%-3.25rem)] md:grid-cols-2">
                 {filteredItems.map((item) => (

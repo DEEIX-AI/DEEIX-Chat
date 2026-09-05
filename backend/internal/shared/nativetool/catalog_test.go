@@ -3,9 +3,9 @@ package nativetool
 import "testing"
 
 func TestPayloadFromOptionPreservesToolParametersAndFixesIdentity(t *testing.T) {
-	_, payload, ok := PayloadFromOption("openai_responses", map[string]interface{}{
+	_, payload, ok := PayloadFromOption("openai_responses", map[string]any{
 		"type": "shell",
-		"environment": map[string]interface{}{
+		"environment": map[string]any{
 			"type":        "host",
 			"max_runtime": "10m",
 		},
@@ -13,7 +13,7 @@ func TestPayloadFromOptionPreservesToolParametersAndFixesIdentity(t *testing.T) 
 	if !ok {
 		t.Fatal("expected shell native tool payload")
 	}
-	environment := payload["environment"].(map[string]interface{})
+	environment := payload["environment"].(map[string]any)
 	if environment["type"] != "container_auto" {
 		t.Fatalf("expected canonical shell environment, got %#v", payload)
 	}
@@ -21,14 +21,14 @@ func TestPayloadFromOptionPreservesToolParametersAndFixesIdentity(t *testing.T) 
 		t.Fatalf("expected shell parameters to pass, got %#v", payload)
 	}
 
-	_, payload, ok = PayloadFromOption("google_image_generation", map[string]interface{}{
-		"googleSearch":  map[string]interface{}{"dynamic_retrieval_config": map[string]interface{}{"mode": "MODE_DYNAMIC"}},
-		"google_search": map[string]interface{}{"time_range_filter": "week"},
+	_, payload, ok = PayloadFromOption("google_image_generation", map[string]any{
+		"googleSearch":  map[string]any{"dynamic_retrieval_config": map[string]any{"mode": "MODE_DYNAMIC"}},
+		"google_search": map[string]any{"time_range_filter": "week"},
 	})
 	if !ok {
 		t.Fatal("expected google_search native tool payload")
 	}
-	googleSearch := payload["google_search"].(map[string]interface{})
+	googleSearch := payload["google_search"].(map[string]any)
 	if googleSearch["time_range_filter"] != "week" {
 		t.Fatalf("expected canonical google_search payload, got %#v", payload)
 	}
@@ -39,14 +39,14 @@ func TestPayloadFromOptionPreservesToolParametersAndFixesIdentity(t *testing.T) 
 		t.Fatalf("expected googleSearch alias to be normalized away, got %#v", payload)
 	}
 
-	_, payload, ok = PayloadFromOption("gemini_generate_content", map[string]interface{}{
+	_, payload, ok = PayloadFromOption("gemini_generate_content", map[string]any{
 		"type":          "google_search",
 		"google_search": nil,
 	})
 	if !ok {
 		t.Fatal("expected google_search native tool payload from type")
 	}
-	if _, ok := payload["google_search"].(map[string]interface{}); !ok {
+	if _, ok := payload["google_search"].(map[string]any); !ok {
 		t.Fatalf("expected nil google_search to normalize to object, got %#v", payload)
 	}
 	if _, ok := payload["type"]; ok {
@@ -58,7 +58,7 @@ func TestPayloadFromOptionPreservesToolParametersAndFixesIdentity(t *testing.T) 
 		if !ok {
 			t.Fatalf("expected %s definition", item)
 		}
-		if _, ok := definition.Payload[item].(map[string]interface{}); !ok {
+		if _, ok := definition.Payload[item].(map[string]any); !ok {
 			t.Fatalf("expected %s definition payload to preserve empty object, got %#v", item, definition.Payload)
 		}
 	}
@@ -73,13 +73,13 @@ func TestPayloadFromOptionPreservesToolParametersAndFixesIdentity(t *testing.T) 
 	}
 
 	for _, item := range []string{"code_execution", "url_context"} {
-		_, payload, ok = PayloadFromOption("gemini_generate_content", map[string]interface{}{
-			item: map[string]interface{}{},
+		_, payload, ok = PayloadFromOption("gemini_generate_content", map[string]any{
+			item: map[string]any{},
 		})
 		if !ok {
 			t.Fatalf("expected %s native tool payload", item)
 		}
-		if _, ok := payload[item].(map[string]interface{}); !ok {
+		if _, ok := payload[item].(map[string]any); !ok {
 			t.Fatalf("expected canonical %s payload, got %#v", item, payload)
 		}
 		if _, ok := payload["type"]; ok {
@@ -89,11 +89,11 @@ func TestPayloadFromOptionPreservesToolParametersAndFixesIdentity(t *testing.T) 
 }
 
 func TestPayloadFromOptionRemovesSystemControlledToolFields(t *testing.T) {
-	_, payload, ok := PayloadFromOption("anthropic_messages", map[string]interface{}{
+	_, payload, ok := PayloadFromOption("anthropic_messages", map[string]any{
 		"type":     "advisor_20260301",
 		"name":     "override",
 		"model":    "attacker-model",
-		"headers":  map[string]interface{}{"Authorization": "Bearer token"},
+		"headers":  map[string]any{"Authorization": "Bearer token"},
 		"max_uses": 2,
 	})
 	if !ok {
@@ -118,7 +118,7 @@ func TestUsagePricingKeyMapsObservedToolUsage(t *testing.T) {
 	if !ok || key != "xai.collections_search" {
 		t.Fatalf("expected xAI collections search price key, got key=%q ok=%v", key, ok)
 	}
-	price, ok := UsagePriceByKey(key)
+	price, ok := UsagePriceByKeyWithOverrides(key, nil)
 	if !ok || price.NanousdPerCall != priceUSD00025Nanousd {
 		t.Fatalf("expected xAI collections search price, got %#v ok=%v", price, ok)
 	}
@@ -143,7 +143,7 @@ func TestUsagePricingKeyMapsObservedToolUsage(t *testing.T) {
 
 func TestPricingOverridesApplyToDisplayAndUsagePricing(t *testing.T) {
 	raw := `{"xai.web_search":{"priceNanousd":123000000,"unit":"call","priceLabel":"","billable":true}}`
-	items := PricingDefinitionsWithOverrides(raw)
+	items := PricingDefinitionsWithOverridesFromDefinitions(raw, Definitions())
 	var found PricingDefinition
 	for _, item := range items {
 		if item.ToolKey == "xai.web_search" {
@@ -247,7 +247,7 @@ func TestModelCapabilityNativeToolsExtendPricingAndUsageCatalog(t *testing.T) {
 
 func TestZeroDefaultPricingCanBeCustomizedPerCall(t *testing.T) {
 	raw := `{"openai.shell":{"priceNanousd":1000000,"unit":"search","priceLabel":"notMetered","billable":false}}`
-	items := PricingDefinitionsWithOverrides(raw)
+	items := PricingDefinitionsWithOverridesFromDefinitions(raw, Definitions())
 	var found PricingDefinition
 	for _, item := range items {
 		if item.ToolKey == "openai.shell" {
@@ -275,10 +275,10 @@ func TestPricingOverridesRejectUnknownKeys(t *testing.T) {
 }
 
 func TestPricingOverridesUseDefaults(t *testing.T) {
-	if !PricingOverridesUseDefaults(DefaultPricingJSON()) {
+	if !PricingOverridesUseDefaultsForDefinitions(DefaultPricingJSON(), Definitions()) {
 		t.Fatal("expected default pricing JSON to be treated as provider defaults")
 	}
-	if PricingOverridesUseDefaults(`{"google.google_search":{"priceNanousd":1000000,"unit":"call","priceLabel":"","billable":true}}`) {
+	if PricingOverridesUseDefaultsForDefinitions(`{"google.google_search":{"priceNanousd":1000000,"unit":"call","priceLabel":"","billable":true}}`, Definitions()) {
 		t.Fatal("expected customized Google search price to differ from defaults")
 	}
 }

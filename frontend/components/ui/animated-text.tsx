@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { useScrollFadeFallbackRef } from "@/shared/hooks/use-scroll-fade-fallback-ref";
 
 type AnimatedTextProps = {
   text: string;
@@ -24,6 +25,7 @@ function OverflowScrollingText({
   textClassName,
 }: Pick<AnimatedTextProps, "text" | "className" | "textClassName">) {
   const viewportRef = React.useRef<HTMLSpanElement | null>(null);
+  const scrollFadeRef = useScrollFadeFallbackRef(viewportRef);
   const [hovered, setHovered] = React.useState(false);
 
   React.useEffect(() => {
@@ -91,7 +93,7 @@ function OverflowScrollingText({
 
   return (
     <span
-      ref={viewportRef}
+      ref={scrollFadeRef}
       className={cn(
         "no-scrollbar scroll-fade-x scroll-fade-8 block min-w-0 overflow-x-hidden whitespace-nowrap",
         className,

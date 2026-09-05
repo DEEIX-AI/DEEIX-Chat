@@ -8,31 +8,6 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 )
 
-var sensitiveSettingKeys = map[string]struct{}{
-	"auth:smtp_password":                   {},
-	"auth:turnstile_secret_key":            {},
-	"billing:stripe_secret_key":            {},
-	"billing:stripe_webhook_secret":        {},
-	"billing:epay_key":                     {},
-	"extract:tika_auth_token":              {},
-	"extract:docling_auth_token":           {},
-	"extract:tesseract_ocr_auth_token":     {},
-	"extract:rapidocr_auth_token":          {},
-	"extract:paddle_ocr_auth_token":        {},
-	"extract:tencent_ocr_secret_key":       {},
-	"extract:aliyun_ocr_access_key_secret": {},
-	"extract:mineru_auth_token":            {},
-	"extract:mistral_ocr_auth_token":       {},
-	"extract:llm_ocr_auth_token":           {},
-	"file:embedding_key":                   {},
-	"content_moderation:api_key":           {},
-}
-
-func isSensitiveSetting(namespace string, key string) bool {
-	_, ok := sensitiveSettingKeys[settingKey(namespace, key)]
-	return ok
-}
-
 func settingKey(namespace string, key string) string {
 	return strings.TrimSpace(namespace) + ":" + strings.TrimSpace(key)
 }

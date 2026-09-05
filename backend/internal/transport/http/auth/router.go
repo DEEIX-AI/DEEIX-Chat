@@ -53,6 +53,7 @@ func (m *Module) RegisterProtectedRoutes(authRequired *gin.RouterGroup) {
 	authRequired.POST("/auth/logout-all", m.Handler.LogoutAll)
 }
 
+// RegisterAdminRoutes registers administrator-only identity-provider routes.
 func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup) {
 	adminGroup.GET("/auth/providers", m.Handler.ListIdentityProviders)
 	adminGroup.POST("/auth/providers", m.Handler.CreateIdentityProvider)

@@ -64,14 +64,14 @@ func normalizeToolArguments(raw string, schema json.RawMessage) (string, error) 
 	return string(encoded), nil
 }
 
-func decodeToolArgumentObject(raw string) (map[string]interface{}, error) {
+func decodeToolArgumentObject(raw string) (map[string]any, error) {
 	value := strings.TrimSpace(raw)
 	if value == "" {
-		return map[string]interface{}{}, nil
+		return map[string]any{}, nil
 	}
 	decoder := json.NewDecoder(strings.NewReader(value))
 	decoder.UseNumber()
-	var parsed interface{}
+	var parsed any
 	if err := decoder.Decode(&parsed); err != nil {
 		return nil, toolArgumentValidationError{issues: []toolArgumentIssue{{
 			message: "tool arguments must be a valid JSON object",
@@ -82,7 +82,7 @@ func decodeToolArgumentObject(raw string) (map[string]interface{}, error) {
 			message: "tool arguments must contain one JSON object",
 		}}}
 	}
-	object, ok := parsed.(map[string]interface{})
+	object, ok := parsed.(map[string]any)
 	if !ok {
 		return nil, toolArgumentValidationError{issues: []toolArgumentIssue{{
 			expected: "object",
@@ -92,14 +92,14 @@ func decodeToolArgumentObject(raw string) (map[string]interface{}, error) {
 	return object, nil
 }
 
-func decodeToolArgumentSchema(raw json.RawMessage) (map[string]interface{}, bool) {
+func decodeToolArgumentSchema(raw json.RawMessage) (map[string]any, bool) {
 	value := bytes.TrimSpace(raw)
 	if len(value) == 0 {
 		return nil, false
 	}
 	decoder := json.NewDecoder(bytes.NewReader(value))
 	decoder.UseNumber()
-	var schema map[string]interface{}
+	var schema map[string]any
 	if err := decoder.Decode(&schema); err != nil || len(schema) == 0 {
 		return nil, false
 	}
@@ -111,7 +111,7 @@ func decodeToolArgumentSchema(raw json.RawMessage) (map[string]interface{}, bool
 	return schema, true
 }
 
-func validateToolArgumentValue(value interface{}, schema map[string]interface{}, path string) []toolArgumentIssue {
+func validateToolArgumentValue(value any, schema map[string]any, path string) []toolArgumentIssue {
 	if len(schema) == 0 {
 		return nil
 	}
@@ -140,7 +140,7 @@ func validateToolArgumentValue(value interface{}, schema map[string]interface{},
 	return lastIssues
 }
 
-func validateToolArgumentTypedValue(value interface{}, schema map[string]interface{}, expectedType string, path string) (interface{}, []toolArgumentIssue) {
+func validateToolArgumentTypedValue(value any, schema map[string]any, expectedType string, path string) (any, []toolArgumentIssue) {
 	coerced, ok := coerceToolArgumentValue(value, expectedType)
 	if !ok {
 		return value, []toolArgumentIssue{{
@@ -152,7 +152,7 @@ func validateToolArgumentTypedValue(value interface{}, schema map[string]interfa
 
 	switch expectedType {
 	case "object":
-		object, ok := coerced.(map[string]interface{})
+		object, ok := coerced.(map[string]any)
 		if !ok {
 			return coerced, []toolArgumentIssue{{path: path, expected: "object", received: toolArgumentTypeName(value)}}
 		}
@@ -164,11 +164,11 @@ func validateToolArgumentTypedValue(value interface{}, schema map[string]interfa
 		}
 		return object, nil
 	case "array":
-		items, ok := coerced.([]interface{})
+		items, ok := coerced.([]any)
 		if !ok {
 			return coerced, []toolArgumentIssue{{path: path, expected: "array", received: toolArgumentTypeName(value)}}
 		}
-		itemSchema, _ := schema["items"].(map[string]interface{})
+		itemSchema, _ := schema["items"].(map[string]any)
 		for index, item := range items {
 			childPath := joinToolArgumentPath(path, strconv.Itoa(index), true)
 			if childIssues := validateToolArgumentValue(item, itemSchema, childPath); len(childIssues) > 0 {
@@ -190,7 +190,7 @@ func validateToolArgumentTypedValue(value interface{}, schema map[string]interfa
 	}
 }
 
-func validateToolArgumentObject(object map[string]interface{}, schema map[string]interface{}, path string) []toolArgumentIssue {
+func validateToolArgumentObject(object map[string]any, schema map[string]any, path string) []toolArgumentIssue {
 	required := toolArgumentRequiredFields(schema)
 	for _, name := range required {
 		if _, ok := object[name]; !ok {
@@ -200,9 +200,9 @@ func validateToolArgumentObject(object map[string]interface{}, schema map[string
 			}}
 		}
 	}
-	properties, _ := schema["properties"].(map[string]interface{})
+	properties, _ := schema["properties"].(map[string]any)
 	for name, rawPropertySchema := range properties {
-		propertySchema, ok := rawPropertySchema.(map[string]interface{})
+		propertySchema, ok := rawPropertySchema.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -221,7 +221,7 @@ func validateToolArgumentObject(object map[string]interface{}, schema map[string
 	return nil
 }
 
-func normalizeToolArgumentProperty(value interface{}, schema map[string]interface{}) (interface{}, bool) {
+func normalizeToolArgumentProperty(value any, schema map[string]any) (any, bool) {
 	for _, expectedType := range toolArgumentSchemaTypes(schema) {
 		if normalized, ok := coerceToolArgumentValue(value, expectedType); ok {
 			return normalized, true
@@ -230,13 +230,13 @@ func normalizeToolArgumentProperty(value interface{}, schema map[string]interfac
 	return value, false
 }
 
-func coerceToolArgumentValue(value interface{}, expectedType string) (interface{}, bool) {
+func coerceToolArgumentValue(value any, expectedType string) (any, bool) {
 	switch expectedType {
 	case "object":
-		_, ok := value.(map[string]interface{})
+		_, ok := value.(map[string]any)
 		return value, ok
 	case "array":
-		_, ok := value.([]interface{})
+		_, ok := value.([]any)
 		return value, ok
 	case "string":
 		_, ok := value.(string)
@@ -285,13 +285,13 @@ func coerceToolArgumentValue(value interface{}, expectedType string) (interface{
 	}
 }
 
-func toolArgumentSchemaTypes(schema map[string]interface{}) []string {
+func toolArgumentSchemaTypes(schema map[string]any) []string {
 	switch raw := schema["type"].(type) {
 	case string:
 		if value := strings.TrimSpace(raw); value != "" {
 			return []string{value}
 		}
-	case []interface{}:
+	case []any:
 		types := make([]string, 0, len(raw))
 		for _, item := range raw {
 			if value, ok := item.(string); ok && strings.TrimSpace(value) != "" {
@@ -303,8 +303,8 @@ func toolArgumentSchemaTypes(schema map[string]interface{}) []string {
 	return nil
 }
 
-func toolArgumentRequiredFields(schema map[string]interface{}) []string {
-	items, _ := schema["required"].([]interface{})
+func toolArgumentRequiredFields(schema map[string]any) []string {
+	items, _ := schema["required"].([]any)
 	result := make([]string, 0, len(items))
 	for _, item := range items {
 		name, ok := item.(string)
@@ -316,7 +316,7 @@ func toolArgumentRequiredFields(schema map[string]interface{}) []string {
 	return result
 }
 
-func toolArgumentMatchesEnum(value interface{}, enumValues []interface{}) bool {
+func toolArgumentMatchesEnum(value any, enumValues []any) bool {
 	normalizedValue := normalizeEnumComparableValue(value)
 	for _, item := range enumValues {
 		if reflect.DeepEqual(normalizedValue, normalizeEnumComparableValue(item)) {
@@ -326,8 +326,8 @@ func toolArgumentMatchesEnum(value interface{}, enumValues []interface{}) bool {
 	return false
 }
 
-func validateToolArgumentEnum(value interface{}, schema map[string]interface{}, path string) (toolArgumentIssue, bool) {
-	enumValues, ok := schema["enum"].([]interface{})
+func validateToolArgumentEnum(value any, schema map[string]any, path string) (toolArgumentIssue, bool) {
+	enumValues, ok := schema["enum"].([]any)
 	if !ok || len(enumValues) == 0 {
 		return toolArgumentIssue{}, true
 	}
@@ -341,19 +341,19 @@ func validateToolArgumentEnum(value interface{}, schema map[string]interface{}, 
 	}, false
 }
 
-func normalizeEnumComparableValue(value interface{}) interface{} {
+func normalizeEnumComparableValue(value any) any {
 	if number, ok := normalizeEnumComparableNumber(value); ok {
 		return number
 	}
 	switch typed := value.(type) {
-	case map[string]interface{}:
-		next := make(map[string]interface{}, len(typed))
+	case map[string]any:
+		next := make(map[string]any, len(typed))
 		for key, item := range typed {
 			next[key] = normalizeEnumComparableValue(item)
 		}
 		return next
-	case []interface{}:
-		next := make([]interface{}, len(typed))
+	case []any:
+		next := make([]any, len(typed))
 		for index, item := range typed {
 			next[index] = normalizeEnumComparableValue(item)
 		}
@@ -363,7 +363,7 @@ func normalizeEnumComparableValue(value interface{}) interface{} {
 	}
 }
 
-func normalizeEnumComparableNumber(value interface{}) (toolArgumentEnumNumber, bool) {
+func normalizeEnumComparableNumber(value any) (toolArgumentEnumNumber, bool) {
 	switch typed := value.(type) {
 	case json.Number:
 		return normalizeEnumComparableNumberString(typed.String())
@@ -389,13 +389,13 @@ func normalizeEnumComparableNumberString(raw string) (toolArgumentEnumNumber, bo
 	return toolArgumentEnumNumber{value: rational.RatString()}, true
 }
 
-func toolArgumentTypeName(value interface{}) string {
+func toolArgumentTypeName(value any) string {
 	switch value.(type) {
 	case nil:
 		return "null"
-	case map[string]interface{}:
+	case map[string]any:
 		return "object"
-	case []interface{}:
+	case []any:
 		return "array"
 	case string:
 		return "string"

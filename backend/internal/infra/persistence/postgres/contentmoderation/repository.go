@@ -27,20 +27,13 @@ func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}
 }
 
-func translateError(err error) error {
-	if dberror.IsRecordNotFound(err) {
-		return repository.ErrNotFound
-	}
-	return err
-}
-
 func (r *Repo) CreateEvent(ctx context.Context, event *domaincm.Event) error {
 	if event == nil {
 		return nil
 	}
 	row := toModelEvent(*event)
 	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	event.ID = row.ID
 	event.CreatedAt = row.CreatedAt
@@ -51,7 +44,7 @@ func (r *Repo) CreateEvent(ctx context.Context, event *domaincm.Event) error {
 func (r *Repo) GetEventByPublicID(ctx context.Context, publicID string) (*domaincm.Event, error) {
 	var row model.ContentModerationEvent
 	if err := r.db.WithContext(ctx).Where("public_id = ?", strings.TrimSpace(publicID)).First(&row).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	item := toDomainEvent(row)
 	return &item, nil
@@ -71,7 +64,7 @@ func (r *Repo) GetLatestHitEventByRunID(ctx context.Context, runID string) (*dom
 		if dberror.IsRecordNotFound(err) || err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	item := toDomainEvent(row)
 	return &item, nil
@@ -102,7 +95,7 @@ func (r *Repo) ListEvents(ctx context.Context, filter domaincm.EventListFilter) 
 					)
 			)`,
 		}
-		args := []interface{}{terms, terms, terms, terms, terms, terms, terms, terms, terms}
+		args := []any{terms, terms, terms, terms, terms, terms, terms, terms, terms}
 		normalized := strings.ToLower(v)
 		args = append(args, normalized, normalized, normalized)
 		if userID, err := strconv.ParseUint(v, 10, 64); err == nil && userID > 0 {
@@ -137,7 +130,7 @@ func (r *Repo) ListEvents(ctx context.Context, filter domaincm.EventListFilter) 
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	limit := filter.Limit
 	if limit <= 0 {
@@ -145,7 +138,7 @@ func (r *Repo) ListEvents(ctx context.Context, filter domaincm.EventListFilter) 
 	}
 	var rows []model.ContentModerationEvent
 	if err := q.Order("id desc").Offset(filter.Offset).Limit(limit).Find(&rows).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	items := make([]domaincm.Event, 0, len(rows))
 	for _, row := range rows {
@@ -169,13 +162,13 @@ func (r *Repo) ClearExpiredContentByPublicIDs(ctx context.Context, publicIDs []s
 	}
 	res := r.db.WithContext(ctx).Model(&model.ContentModerationEvent{}).
 		Where("public_id IN ?", publicIDs).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"encrypted_text":  "",
 			"image_count":     0,
 			"image_meta_json": "[]",
 			"content_summary": "",
 		})
-	return res.RowsAffected, translateError(res.Error)
+	return res.RowsAffected, dberror.Translate(res.Error)
 }
 
 func (r *Repo) ListExpiredContentEvents(ctx context.Context, before time.Time, limit int) ([]domaincm.Event, error) {
@@ -188,7 +181,7 @@ func (r *Repo) ListExpiredContentEvents(ctx context.Context, before time.Time, l
 		Where("content_expires_at <= ? AND (encrypted_text <> '' OR image_count > 0 OR (image_meta_json <> '' AND image_meta_json <> '[]'))", before).
 		Limit(limit).
 		Find(&rows).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	items := make([]domaincm.Event, 0, len(rows))
 	for _, row := range rows {
@@ -206,7 +199,7 @@ func (r *Repo) DeleteExpiredMetadata(ctx context.Context, before time.Time) (int
 			before,
 		).
 		Delete(&model.ContentModerationEvent{})
-	return res.RowsAffected, translateError(res.Error)
+	return res.RowsAffected, dberror.Translate(res.Error)
 }
 
 func (r *Repo) IncrementDailyStat(ctx context.Context, input repository.DailyStatIncrement) error {
@@ -227,7 +220,7 @@ func (r *Repo) IncrementDailyStat(ctx context.Context, input repository.DailySta
 	if input.LatencyMS > 0 {
 		row.LatencyCount = 1
 	}
-	return translateError(r.db.WithContext(ctx).Clauses(clause.OnConflict{
+	return dberror.Translate(r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{
 			{Name: "stat_date"},
 			{Name: "direction"},
@@ -235,7 +228,7 @@ func (r *Repo) IncrementDailyStat(ctx context.Context, input repository.DailySta
 			{Name: "result"},
 			{Name: "category"},
 		},
-		DoUpdates: clause.Assignments(map[string]interface{}{
+		DoUpdates: clause.Assignments(map[string]any{
 			"check_count":    gorm.Expr("check_count + ?", input.CheckCount),
 			"content_items":  gorm.Expr("content_items + ?", input.ContentItems),
 			"hit_count":      gorm.Expr("hit_count + ?", input.HitCount),
@@ -253,7 +246,7 @@ func (r *Repo) ListDailyStats(ctx context.Context, from, to time.Time) ([]domain
 		Where("stat_date >= ? AND stat_date <= ?", from.UTC().Truncate(24*time.Hour), to.UTC().Truncate(24*time.Hour)).
 		Order("stat_date asc, direction, modality, result, category").
 		Find(&rows).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	items := make([]domaincm.DailyStat, 0, len(rows))
 	for _, row := range rows {
@@ -267,7 +260,7 @@ func (r *Repo) DeleteDailyStatsBefore(ctx context.Context, before time.Time) (in
 		Unscoped().
 		Where("stat_date < ?", before.UTC().Truncate(24*time.Hour)).
 		Delete(&model.ContentModerationDailyStat{})
-	return res.RowsAffected, translateError(res.Error)
+	return res.RowsAffected, dberror.Translate(res.Error)
 }
 
 func (r *Repo) UpdateRunModeration(ctx context.Context, runID string, state string, eventPublicID string, categoriesJSON string) error {
@@ -275,7 +268,7 @@ func (r *Repo) UpdateRunModeration(ctx context.Context, runID string, state stri
 	if runID == "" {
 		return nil
 	}
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"moderation_state": strings.TrimSpace(state),
 	}
 	if eventPublicID != "" {
@@ -287,7 +280,7 @@ func (r *Repo) UpdateRunModeration(ctx context.Context, runID string, state stri
 	if state == domaincm.ModerationStateBlocked {
 		updates["status"] = domaincm.StatusBlocked
 	}
-	return translateError(r.db.WithContext(ctx).Model(&model.ConversationRun{}).
+	return dberror.Translate(r.db.WithContext(ctx).Model(&model.ConversationRun{}).
 		Where("run_id = ?", runID).
 		Updates(updates).Error)
 }
@@ -334,7 +327,7 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 			if len(fileIDs) > 0 {
 				if err := tx.Model(&model.FileObject{}).
 					Where("file_id IN ?", fileIDs).
-					Updates(map[string]interface{}{
+					Updates(map[string]any{
 						"status":  "moderation_blocked",
 						"user_id": 0,
 					}).Error; err != nil {
@@ -343,7 +336,7 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 			}
 		}
 
-		msgUpdates := map[string]interface{}{
+		msgUpdates := map[string]any{
 			"status":                     domaincm.StatusBlocked,
 			"moderation_event_id":        eventPublicID,
 			"moderation_categories_json": categoriesJSON,
@@ -359,7 +352,7 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 		}
 		if err := tx.Model(&model.Message{}).
 			Where("run_id = ? AND role = ?", runID, "assistant").
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"content":           "",
 				"reasoning_content": "",
 				"content_type":      "text",
@@ -371,7 +364,7 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 			Delete(&model.ChatRunEvent{}).Error; err != nil {
 			return err
 		}
-		runUpdates := map[string]interface{}{
+		runUpdates := map[string]any{
 			"moderation_state":           domaincm.ModerationStateBlocked,
 			"moderation_event_id":        eventPublicID,
 			"moderation_categories_json": categoriesJSON,
@@ -389,7 +382,7 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 		return nil
 	})
 	if err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return fileIDs, nil
 }
@@ -401,7 +394,7 @@ func (r *Repo) GetRunModerationState(ctx context.Context, runID string) (string,
 		Where("run_id = ?", strings.TrimSpace(runID)).
 		Limit(1).
 		Scan(&state).Error
-	return state, translateError(err)
+	return state, dberror.Translate(err)
 }
 
 func (r *Repo) ListStaleModeratingRuns(ctx context.Context, olderThan time.Time, limit int) ([]string, error) {
@@ -417,7 +410,7 @@ func (r *Repo) ListStaleModeratingRuns(ctx context.Context, olderThan time.Time,
 		}, olderThan).
 		Limit(limit).
 		Pluck("run_id", &runIDs).Error
-	return runIDs, translateError(err)
+	return runIDs, dberror.Translate(err)
 }
 
 func toModelEvent(item domaincm.Event) model.ContentModerationEvent {

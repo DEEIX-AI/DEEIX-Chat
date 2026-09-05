@@ -7,7 +7,18 @@
     "invalidPermissionGroupModels": "Permission group model configuration is invalid.",
     "invalidPermissionGroupUsers": "Permission group member configuration is invalid.",
     "defaultPermissionGroupUsersImplicit": "Default permission group members are managed automatically.",
-    "permissionGroupReferencedByPlan": "This permission group is referenced by a billing plan. Unbind it before deleting."
+    "permissionGroupReferencedByPlan": "This permission group is referenced by a billing plan. Unbind it before deleting.",
+    "permissionGroupRepoUnavailable": "The permission group service is temporarily unavailable."
+  },
+  "announcement": {
+    "invalidId": "Invalid announcement ID.",
+    "notFound": "Announcement not found."
+  },
+  "avatar": {
+    "notFound": "Avatar not found."
+  },
+  "beforeMessage": {
+    "invalidId": "Invalid message cursor ID."
   },
   "auth": {
     "adminRequired": "Administrator permission is required.",
@@ -73,6 +84,7 @@
     "turnstileRequired": "Complete the human verification first.",
     "unauthorized": "Your session has expired. Please sign in again.",
     "usernameChangeRequired": "Change the initial username.",
+    "verificationMethodUnavailable": "The selected verification method is unavailable.",
     "verificationCodeAttemptsExceeded": "Too many verification attempts. Request a new code.",
     "verificationCodeInvalid": "Verification code is invalid or expired.",
     "verificationCodeRecent": "A verification code was sent recently. Try again later."
@@ -88,6 +100,9 @@
     "invalidDailyUsageDateRange": "Invalid usage date range.",
     "invalidDailyUsageDays": "Invalid usage day count.",
     "invalidModelPricing": "Invalid model pricing.",
+    "invalidAccountBalance": "Invalid billing account balance.",
+    "invalidNativeToolPricing": "Invalid native tool pricing.",
+    "subscribeFailed": "Subscription failed. Please try again later.",
     "subscriptionEntitlementActive": "A paid subscription entitlement is still active, so Free cannot be selected.",
     "invalidRedemptionCode": "Invalid redemption code.",
     "redemptionCodeConflict": "This redemption code already exists.",
@@ -127,7 +142,16 @@
     "messageForkStateInvalid": "Wait for this message to finish generating before forking the conversation.",
     "messageForkTargetInvalid": "Only assistant messages can be forked into a new conversation.",
     "noTitleableContent": "This conversation has no content that can be used to generate a title.",
+    "projectLimitExceeded": "You have reached the conversation project limit.",
     "notFound": "Conversation not found."
+  },
+  "conversationEvent": {
+    "invalidId": "Invalid conversation event ID.",
+    "notFound": "Conversation event not found."
+  },
+  "conversationProject": {
+    "invalidId": "Invalid conversation project ID.",
+    "notFound": "Conversation project not found."
   },
   "conversationRun": {
     "canceled": "Generation was canceled.",
@@ -149,7 +173,9 @@
   },
   "embedding": {
     "serviceNotConfigured": "Enable and configure the embedding service first.",
-    "serviceUnavailable": "Embedding service is unavailable."
+    "serviceUnavailable": "Embedding service is unavailable.",
+    "submitFailed": "Failed to submit vectorization jobs. Please try again later.",
+    "tooManyFiles": "You can submit up to 100 files for vectorization at a time."
   },
   "file": {
     "embeddingUnavailable": "Embedding is unavailable for this file.",
@@ -169,20 +195,25 @@
   "identityProvider": {
     "deleteConflict": "Deleting this identity provider would remove the only login method for some users."
   },
+  "identity": {
+    "invalidId": "Invalid identity ID.",
+    "notFound": "Identity not found."
+  },
   "internal": {
     "error": "Internal server error. Please try again later."
   },
   "knowledgeBase": {
     "conflict": "A knowledge base with the same name already exists in this scope.",
-		"fileCleanupUnavailable": "Platform source cleanup is temporarily unavailable. Try again later.",
+    "disabled": "Knowledge base retrieval is disabled.",
+    "fileCleanupUnavailable": "Platform source cleanup is temporarily unavailable. Try again later.",
     "internal": "The knowledge base operation failed. Please try again later.",
     "invalid": "The knowledge base configuration is invalid.",
     "invalidReference": "The selected knowledge base is unavailable or you no longer have access.",
-		"notFound": "The knowledge base was not found.",
-		"notReady": "The selected knowledge base has no searchable files yet. Wait for indexing to finish.",
-		"ownerFileReference": "This account still owns files referenced by a built-in knowledge base. Remove them or have another administrator upload replacements first.",
-		"platformFileInUse": "This platform source is still referenced by another resource. Remove the reference before deleting.",
-		"unavailable": "Knowledge base retrieval is temporarily unavailable. Try again later, or ask an administrator to check the embedding service if the issue persists."
+    "notFound": "The knowledge base was not found.",
+    "notReady": "The selected knowledge base has no searchable files yet. Wait for indexing to finish.",
+    "ownerFileReference": "This account still owns files referenced by a built-in knowledge base. Remove them or have another administrator upload replacements first.",
+    "platformFileInUse": "This platform source is still referenced by another resource. Remove the reference before deleting.",
+    "unavailable": "Knowledge base retrieval is temporarily unavailable. Try again later, or ask an administrator to check the embedding service if the issue persists."
   },
   "toolRun": {
     "finalAnswerMissing": "The tool run reached its limit before the model produced a final answer. Retry or enable fewer tools for this message."
@@ -195,9 +226,9 @@
     "invalidApiKeysConfig": "Invalid API keys configuration.",
     "invalidCompatible": "Invalid compatibility mode.",
     "invalidHeadersConfig": "Invalid headers configuration.",
-		"invalidKinds": "Invalid model kinds.",
-		"invalidModelCapabilities": "The context window must be between 4,096 and 16,000,000 tokens, and the output token limit must be smaller than the context window.",
-		"invalidPlatformModelName": "Invalid platform model name.",
+    "invalidKinds": "Invalid model kinds.",
+    "invalidModelCapabilities": "The context window must be between 4,096 and 16,000,000 tokens, and the output token limit must be smaller than the context window.",
+    "invalidPlatformModelName": "Invalid platform model name.",
     "invalidRouteProtocolCombination": "This protocol combination is not available. A binding can use one protocol, or image generation and image editing protocols from the same provider.",
     "systemPromptTooLong": "System prompt must be at most 20000 characters.",
     "invalidProtocolDefaultsConfig": "Invalid protocol defaults configuration.",
@@ -207,6 +238,7 @@
     "modelIconFileInvalid": "Invalid icon file. Only PNG, JPEG, and WebP are supported.",
     "modelIconFileTooLarge": "The icon file cannot exceed 1 MiB.",
     "modelIconAssetNotFound": "The icon asset no longer exists. Upload it again.",
+    "modelIconAssetUnavailable": "The icon asset is temporarily unavailable.",
     "modelIconAssetInUse": "This icon is still in use. Remove its references first.",
     "modelVendorBuiltin": "Built-in vendors cannot be deleted.",
     "modelVendorInUse": "This vendor still has associated models. Move them first.",
@@ -214,12 +246,19 @@
     "platformModelNameExists": "Platform model name already exists.",
     "platformModelNameRequired": "Platform model name is required.",
     "protocolRequired": "Protocol is required.",
+    "remoteModelsEmptyConfirmationRequired": "The upstream returned an empty model catalog. Refresh and confirm before syncing it.",
+    "remoteModelsSnapshotChanged": "The upstream model catalog changed after the preview. The latest changes have been reloaded for confirmation.",
     "remoteModelsUnavailable": "Remote models are unavailable.",
+    "upstreamModelBindingChanged": "The upstream model binding changed. Reload and try again.",
+    "upstreamModelConflict": "This model already has a conflicting upstream source.",
+    "upstreamSourceUnavailable": "The upstream model source is unavailable.",
     "routeConflict": "This upstream model already has a binding for the same platform model and protocol. Remove the duplicate binding before saving.",
     "routesUnavailable": "All model routes are unavailable."
   },
   "mcp": {
     "clientUnavailable": "MCP client is unavailable.",
+    "imageProcessingFailed": "The MCP image processing tool failed.",
+    "invalidAttachmentConfiguration": "Invalid MCP tool attachment configuration.",
     "invalidServerBaseUrl": "Invalid MCP server base URL.",
     "invalidServerHeaders": "Invalid MCP server headers.",
     "invalidServerName": "Invalid MCP server name.",
@@ -228,6 +267,7 @@
     "invalidToolName": "Invalid MCP tool name.",
     "invalidToolSelection": "Invalid MCP tool selection.",
     "invalidToolStatus": "Invalid MCP tool status.",
+    "serverLimitExceeded": "The MCP server limit has been reached.",
     "server": {
       "invalidId": "Invalid MCP server ID."
     },
@@ -236,7 +276,8 @@
     }
   },
   "memory": {
-    "keyRequired": "Memory key is required."
+    "keyRequired": "Memory key is required.",
+    "limitExceeded": "The memory limit has been reached."
   },
   "media": {
     "imagePromptRequired": "Enter an image prompt.",
@@ -247,7 +288,10 @@
     "artifactUnavailable": "The generated result is temporarily unavailable. Try again, or contact an administrator if the issue persists.",
     "imageStreamUnsupported": "Tips: The upstream may not support streaming responses. Ask an administrator to disable \"Image streaming call\" in model capabilities (set image.stream=false), then try again.",
     "routeProtocolMismatch": "The current model route protocol does not match this image task. Check the model binding.",
-    "invalidTask": "Invalid image task parameters."
+    "invalidTask": "Invalid image task parameters.",
+    "videoInputInvalid": "Video generation input is invalid.",
+    "videoPromptRequired": "Enter a video prompt.",
+    "videoTooManyInputs": "Too many input images for video generation."
   },
   "message": {
     "feedbackTargetInvalid": "Invalid message feedback target.",
@@ -257,8 +301,14 @@
     "invalidContent": "Invalid message content.",
     "invalidFeedback": "Invalid message feedback.",
     "invalidId": "Invalid message ID.",
+    "multipleImageProcessors": "Select only one image attachment processor.",
     "notFound": "Message not found.",
-    "tooManyFiles": "Too many files in one message."
+    "tooManyFiles": "Too many files in one message.",
+    "tooManySelectedSkills": "Too many skills selected for this message.",
+    "tooManySelectedTools": "Too many tools selected for this message."
+  },
+  "messageGenerationRun": {
+    "alreadyExists": "This message generation has already been submitted."
   },
   "temporaryChat": {
     "contextTooLarge": "The temporary chat context is too large. Start a new temporary chat or shorten the conversation."
@@ -268,10 +318,13 @@
     "epayGatewayInvalid": "The EPay redirect gateway URL is invalid.",
     "epayTypeUnsupported": "This EPay payment type is not supported.",
     "invalidEvent": "Invalid payment event.",
+    "invalidOrder": "Invalid payment order.",
     "invalidSignature": "Invalid payment signature.",
     "invalidWebhookBody": "Invalid webhook body.",
     "notificationMismatch": "Payment notification does not match the order.",
     "orderNoRequired": "Order number is required.",
+    "orderNotFound": "Payment order not found.",
+    "orderStateInvalid": "Payment order state is invalid.",
     "providerUnavailable": "Payment provider is unavailable.",
     "returnUrlCrossOrigin": "Payment return URL must use the configured public web origin.",
     "returnUrlInvalid": "Invalid payment return URL.",
@@ -292,14 +345,87 @@
     "invalidBody": "Invalid request. Check the form and try again.",
     "invalidId": "Invalid ID.",
     "invalidQuery": "Invalid query parameter.",
-    "required": "A required field is missing."
+    "required": "A required field is missing.",
+    "invalidAnnouncement": "Invalid announcement request.",
+    "invalidAppearancePreferences": "Invalid appearance preferences.",
+    "invalidConversationLabels": "Invalid conversation labels.",
+    "invalidConversationProject": "Invalid conversation project request.",
+    "invalidConversationRunIds": "Invalid conversation run IDs.",
+    "invalidDailyActivityDays": "Invalid daily activity day count.",
+    "invalidFile": "Invalid file.",
+    "invalidImageIndex": "Invalid image index.",
+    "invalidImportCreditMultiplier": "Invalid import credit multiplier.",
+    "invalidImportDsn": "Invalid import data source.",
+    "invalidLocationPayload": "Invalid location data.",
+    "invalidLogCleanupBefore": "Invalid log cleanup cutoff.",
+    "invalidLogCleanupType": "Invalid log cleanup type.",
+    "invalidMcpToolPrice": "Invalid MCP tool price.",
+    "invalidModelAccessScope": "Invalid model access scope.",
+    "invalidModelDisplayGroup": "Invalid model display group.",
+    "invalidModelOrder": "Invalid model order.",
+    "invalidModelVendor": "Invalid model vendor.",
+    "invalidOverwriteCustomizedMetadata": "Invalid metadata overwrite option.",
+    "invalidPage": "Invalid page number.",
+    "invalidPagesize": "Invalid page size.",
+    "invalidPromptPreset": "Invalid prompt preset.",
+    "invalidRunIds": "Invalid run IDs.",
+    "invalidSkill": "Invalid skill.",
+    "invalidSkillUse": "Invalid skill configuration.",
+    "invalidTemporaryChatMessages": "Invalid temporary chat messages.",
+    "invalidTwoFactorChallenge": "Invalid two-factor challenge.",
+    "invalidUpstreamBaseUrl": "Invalid upstream base URL.",
+    "invalidUserid": "Invalid user ID."
   },
   "resource": {
     "conflict": "Resource conflict. Refresh and try again.",
     "notFound": "Resource not found."
   },
+  "model": {
+    "invalidId": "Invalid model ID.",
+    "notFound": "Model not found."
+  },
+  "modelDisplayGroup": {
+    "alreadyExists": "Model display group already exists.",
+    "invalidId": "Invalid model display group ID.",
+    "notFound": "Model display group not found."
+  },
+  "modelUpstreamSources": {
+    "notFound": "Model upstream sources not found."
+  },
+  "modelVendor": {
+    "alreadyExists": "Model vendor already exists.",
+    "invalidId": "Invalid model vendor ID.",
+    "notFound": "Model vendor not found."
+  },
+  "permissionGroup": {
+    "invalidId": "Invalid permission group ID."
+  },
+  "plan": {
+    "invalidId": "Invalid plan ID."
+  },
+  "promptPreset": {
+    "invalidId": "Invalid prompt preset ID.",
+    "notFound": "Prompt preset not found."
+  },
+  "promptPresetTrigger": {
+    "alreadyExists": "Prompt preset trigger already exists."
+  },
+  "redemptionCode": {
+    "invalidId": "Invalid redemption code ID.",
+    "notFound": "Redemption code not found."
+  },
   "route": {
+    "invalidId": "Invalid route ID.",
     "notFound": "Route not found."
+  },
+  "run": {
+    "invalidId": "Invalid run ID."
+  },
+  "share": {
+    "invalidId": "Invalid share ID."
+  },
+  "sharedFile": {
+    "notFound": "Shared file not found."
   },
   "runtime": {
     "doclingUnavailable": "Docling runtime is unavailable.",
@@ -307,6 +433,9 @@
     "rapidocrUnavailable": "RapidOCR runtime is unavailable.",
     "tesseractUnavailable": "Tesseract runtime is unavailable.",
     "tikaUnavailable": "Tika runtime is unavailable."
+  },
+  "logCleanup": {
+    "beforeInFuture": "The log cleanup cutoff cannot be in the future."
   },
   "service": {
     "unavailable": "Service is unavailable. Try again later."
@@ -323,9 +452,33 @@
     "serviceUnavailable": "Settings service is unavailable.",
     "smtpInvalid": "Invalid SMTP settings."
   },
+  "skill": {
+    "invalidId": "Invalid skill ID.",
+    "notFound": "Skill not found.",
+    "tooManyIds": "Too many skills were selected."
+  },
+  "skillTrigger": {
+    "alreadyExists": "Skill trigger already exists."
+  },
+  "toolCall": {
+    "invalidId": "Invalid tool call ID.",
+    "notFound": "Tool call not found."
+  },
   "upstream": {
+    "invalidId": "Invalid upstream ID.",
+    "notFound": "Upstream not found.",
     "rateLimited": "The upstream is rate limiting requests. Try again shortly.",
     "unavailable": "Upstream service is unavailable."
+  },
+  "upstreamModel": {
+    "notFound": "Upstream model not found."
+  },
+  "usageStatistics": {
+    "invalidBillingScope": "Invalid billing scope.",
+    "invalidDateRange": "Invalid usage statistics date range.",
+    "invalidRankBy": "Invalid usage ranking field.",
+    "invalidSection": "Invalid usage statistics section.",
+    "subjectConflict": "User and permission group filters cannot be used together."
   },
   "upstreamEmptyResponse": "The upstream returned an empty response. Try again later or ask an administrator to check the model route.",
   "upstreamRequestFailed": "The upstream request failed. Try again later or ask an administrator to check the model route.",
@@ -333,6 +486,7 @@
     "accountDeleteVerificationRequired": "Verify your identity before deleting the account.",
     "emptyPatch": "Change at least one user field.",
     "invalidAvatarUrl": "Invalid avatar URL.",
+    "invalidId": "Invalid user ID.",
     "invalidEmail": "Invalid user email.",
     "invalidLocale": "Invalid language.",
     "invalidLocation": "Invalid location.",
@@ -340,6 +494,7 @@
     "invalidRole": "Invalid user role.",
     "invalidStatus": "Invalid user status.",
     "invalidTimeZone": "Invalid time zone.",
+    "notFound": "User not found.",
     "invalidUsername": "Username must be 3-16 characters.",
     "invalidDisplayName": "Display name must be 3-16 characters.",
     "lastSuperadminRoleProtected": "Cannot change the role of the last super administrator.",
@@ -359,11 +514,11 @@
     "invalidValue": "Invalid user setting value.",
     "unknownKey": "Unknown user setting key."
   },
-  "content_moderation": {
+  "contentModeration": {
     "blocked": "This content was blocked by safety checks.",
-    "invalid_config": "Invalid content moderation configuration.",
-    "config_required": "A complete service configuration and at least one policy category are required when content moderation is enabled.",
-    "probe_failed": "Content moderation connection test failed.",
-    "event_not_found": "Content moderation event not found."
+    "invalidConfig": "Invalid content moderation configuration.",
+    "configRequired": "A complete service configuration and at least one policy category are required when content moderation is enabled.",
+    "probeFailed": "Content moderation connection test failed.",
+    "eventNotFound": "Content moderation event not found."
   }
 }

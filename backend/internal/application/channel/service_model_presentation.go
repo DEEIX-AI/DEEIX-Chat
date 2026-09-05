@@ -11,6 +11,7 @@ import (
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 )
 
 var (
@@ -20,7 +21,7 @@ var (
 
 // ListModelVendors 分页查询技术厂商目录。
 func (s *Service) ListModelVendors(ctx context.Context, page int, pageSize int, query string) ([]ModelVendorView, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	items, total, err := s.presentationRepo.ListModelVendors(ctx, repository.ListModelVendorsInput{
 		Offset: offset,
 		Limit:  limit,
@@ -140,7 +141,7 @@ func (s *Service) DeleteModelVendor(ctx context.Context, key string) error {
 
 // ListModelDisplayGroups 分页查询管理员创建的模型展示分组。
 func (s *Service) ListModelDisplayGroups(ctx context.Context, page int, pageSize int, query string) ([]ModelDisplayGroupView, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	items, total, err := s.presentationRepo.ListModelDisplayGroups(ctx, repository.ListModelDisplayGroupsInput{
 		Offset: offset,
 		Limit:  limit,

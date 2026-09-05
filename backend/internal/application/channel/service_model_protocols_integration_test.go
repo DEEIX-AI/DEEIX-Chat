@@ -48,7 +48,7 @@ func TestSetModelProtocolsKeepsSharedUpstreamCatalogMetadata(t *testing.T) {
 	}
 
 	repo := channelrepo.NewRepo(db)
-	service := appchannel.NewService(config.Config{}, repo, repo, nil, nil)
+	service := appchannel.NewServiceWithRuntime(config.NewRuntime(config.Config{}), repo, repo, nil, nil)
 	if _, err = service.SetModelProtocols(context.Background(), platformModels[0].ID, appchannel.SetModelProtocolsInput{
 		Protocols: []string{"openai_responses"},
 		KindsJSON: `["chat"]`,
@@ -113,7 +113,7 @@ func TestSetModelProtocolsPreservesRetainedRouteConfiguration(t *testing.T) {
 	}
 
 	repo := channelrepo.NewRepo(db)
-	service := appchannel.NewService(config.Config{}, repo, repo, nil, nil)
+	service := appchannel.NewServiceWithRuntime(config.NewRuntime(config.Config{}), repo, repo, nil, nil)
 	if _, err := service.SetModelProtocols(context.Background(), platformModel.ID, appchannel.SetModelProtocolsInput{
 		Protocols: []string{"openai_image_generations"},
 		KindsJSON: `["image_gen"]`,
@@ -191,7 +191,7 @@ func TestUpsertUpstreamModelPreservesRouteConfigurationAndSharedCatalog(t *testi
 	}
 
 	repo := channelrepo.NewRepo(db)
-	service := appchannel.NewService(config.Config{}, repo, repo, nil, nil)
+	service := appchannel.NewServiceWithRuntime(config.NewRuntime(config.Config{}), repo, repo, nil, nil)
 	if _, err := service.UpsertUpstreamModel(context.Background(), upstream.ID, appchannel.UpsertUpstreamModelInput{
 		RouteIDs:          []uint{routes[0].ID, routes[1].ID},
 		PlatformModelName: platformModels[0].Name,
@@ -275,7 +275,7 @@ func TestUpsertUpstreamModelAppliesOnlyExplicitRouteOverrides(t *testing.T) {
 
 	status := "inactive"
 	repo := channelrepo.NewRepo(db)
-	service := appchannel.NewService(config.Config{}, repo, repo, nil, nil)
+	service := appchannel.NewServiceWithRuntime(config.NewRuntime(config.Config{}), repo, repo, nil, nil)
 	if _, err := service.UpsertUpstreamModel(context.Background(), upstream.ID, appchannel.UpsertUpstreamModelInput{
 		RouteIDs:          []uint{routes[0].ID, routes[1].ID},
 		PlatformModelName: platformModel.Name,

@@ -91,6 +91,44 @@ const DialogContent = React.forwardRef<
   )
 })
 
+type DialogHeightTransitionProps = {
+  children: React.ReactNode
+  contentClassName?: string
+}
+
+function DialogHeightTransition({ children, contentClassName }: DialogHeightTransitionProps) {
+  const contentRef = React.useRef<HTMLDivElement>(null)
+  const [height, setHeight] = React.useState<number | null>(null)
+
+  const measure = React.useCallback(() => {
+    const nextHeight = contentRef.current?.offsetHeight
+    if (!nextHeight) return
+    setHeight((current) => current === nextHeight ? current : nextHeight)
+  }, [])
+
+  React.useLayoutEffect(() => {
+    measure()
+    if (typeof ResizeObserver === "undefined" || !contentRef.current) return
+    const observer = new ResizeObserver(measure)
+    observer.observe(contentRef.current)
+    return () => observer.disconnect()
+  }, [measure])
+
+  return (
+    <div
+      className="relative min-h-0 overflow-hidden transition-[height] duration-200 ease-out motion-reduce:transition-none"
+      style={height === null ? undefined : { height }}
+    >
+      <div
+        ref={contentRef}
+        className={cn("flex max-h-[min(82vh,560px)] min-h-0 flex-col overflow-hidden", contentClassName)}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -178,6 +216,7 @@ export {
   DialogContent,
   DialogDescription,
   DialogFooter,
+  DialogHeightTransition,
   DialogHeader,
   DialogOverlay,
   DialogPortal,

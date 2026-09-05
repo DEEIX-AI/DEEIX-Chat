@@ -6,16 +6,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"go.uber.org/zap"
 )
 
 type messageSendRunState struct {
-	service          *Service
-	conversation     *model.Conversation
-	run              *model.Run
+	service      *Service
+	conversation *model.Conversation
+	run          *model.Run
+	// route 是最近一次应用到 run 的上游路由；中断收尾与成功持久化都以它标注消息来源。
+	route            *channel.ResolvedRoute
 	startedAt        time.Time
 	userMessage      **model.Message
 	assistantMessage **model.Message
@@ -23,6 +29,31 @@ type messageSendRunState struct {
 	result           **SendMessageResult
 	traceContext     context.Context
 	reuseUserMessage bool
+}
+
+func (s *Service) claimConversationRun(ctx context.Context, run *model.Run) error {
+	if err := s.repo.CreateConversationRun(ctx, run); err != nil {
+		if errors.Is(err, repository.ErrDuplicate) {
+			return ErrDuplicateMessageGenerationRun
+		}
+		return err
+	}
+	return nil
+}
+
+// applyRoute 把解析出的上游路由写入 run 记录；路由故障转移后再次调用即覆盖。
+func (r *messageSendRunState) applyRoute(route *channel.ResolvedRoute) {
+	r.route = route
+	r.run.Endpoint = llm.DefaultEndpointForAdapter(route.Protocol)
+	r.run.ProviderProtocol = route.Protocol
+	r.run.UpstreamID = route.UpstreamID
+	r.run.UpstreamModelID = route.UpstreamModelID
+	r.run.UpstreamName = route.UpstreamName
+	r.run.PlatformModelName = route.PlatformModelName
+	r.run.RoutedBindingCode = route.BindingCode
+	r.run.ModelVendor = route.ModelVendor
+	r.run.ModelIcon = route.ModelIcon
+	r.run.UpstreamModelName = route.UpstreamModel
 }
 
 func newMessageSendRunState(
@@ -60,7 +91,7 @@ func newMessageSendRunState(
 			CacheWriteTokens:   0,
 			ReasoningTokens:    0,
 			ToolCallsCount:     0,
-			Status:             "error",
+			Status:             "running",
 			ErrorCode:          "",
 			ErrorMessage:       "",
 			StartedAt:          startedAt,
@@ -87,12 +118,8 @@ func (r *messageSendRunState) finalize(ctx context.Context, retErr error) {
 	if r == nil || r.service == nil || r.run == nil {
 		return
 	}
-	finalizeCtx := ctx
-	var finalizeCancel context.CancelFunc
-	if ctx.Err() != nil {
-		finalizeCtx, finalizeCancel = context.WithTimeout(context.Background(), 5*time.Second)
-		defer finalizeCancel()
-	}
+	finalizeCtx, finalizeCancel := background.WithTimeout(ctx, 5*time.Second)
+	defer finalizeCancel()
 
 	r.finalizeRun(retErr)
 	r.finalizeUserMessage(finalizeCtx, retErr)
@@ -101,7 +128,7 @@ func (r *messageSendRunState) finalize(ctx context.Context, retErr error) {
 		r.service.persistConversationFallbackTitle(finalizeCtx, *r.conversation, *userMessage)
 	}
 	r.finalizeAssistantMessage(finalizeCtx, retErr)
-	r.createRun(finalizeCtx)
+	r.persistRun(finalizeCtx)
 }
 
 func shouldPersistConversationFallbackTitleAfterSend(retErr error, userMessage *model.Message) bool {
@@ -125,15 +152,15 @@ func (r *messageSendRunState) finalizeRun(retErr error) {
 	case errors.Is(retErr, ErrMessageGenerationCanceled):
 		r.run.Status = "canceled"
 		r.run.ErrorCode = classifyRunErrorCode(retErr)
-		r.run.ErrorMessage = truncateError(retErr.Error(), 255)
+		r.run.ErrorMessage = textutil.TruncateTrimmed(messageErrorSummary(retErr), 255)
 	case r.currentAssistantMessage() != nil && r.currentAssistantMessage().Status == "interrupted":
 		r.run.Status = "interrupted"
 		r.run.ErrorCode = classifyRunErrorCode(retErr)
-		r.run.ErrorMessage = truncateError(retErr.Error(), 255)
+		r.run.ErrorMessage = textutil.TruncateTrimmed(messageErrorSummary(retErr), 255)
 	default:
 		r.run.Status = "error"
 		r.run.ErrorCode = classifyRunErrorCode(retErr)
-		r.run.ErrorMessage = truncateError(retErr.Error(), 255)
+		r.run.ErrorMessage = textutil.TruncateTrimmed(messageErrorSummary(retErr), 255)
 	}
 	// Preserve barrier pass/fail-open state written mid-flight (do not default to not_required).
 	if result := r.currentResult(); result != nil {
@@ -160,7 +187,7 @@ func (r *messageSendRunState) finalizeUserMessage(ctx context.Context, retErr er
 		if assistantMessage := r.currentAssistantMessage(); assistantMessage == nil || assistantMessage.Status != "interrupted" {
 			messageStatus = "error"
 			messageErrorCode = classifyRunErrorCode(retErr)
-			messageErrorMessage = truncateError(messageErrorSummary(retErr), 255)
+			messageErrorMessage = textutil.TruncateTrimmed(messageErrorSummary(retErr), 255)
 		}
 	}
 	if err := r.service.repo.UpdateMessageState(ctx, userMessage.ID, messageStatus, messageErrorCode, messageErrorMessage); err != nil {
@@ -199,7 +226,7 @@ func (r *messageSendRunState) finalizeAssistantMessage(ctx context.Context, retE
 		messageStatus = "interrupted"
 	}
 	messageErrorCode := classifyRunErrorCode(retErr)
-	messageErrorMessage := truncateError(messageErrorSummary(retErr), 255)
+	messageErrorMessage := textutil.TruncateTrimmed(messageErrorSummary(retErr), 255)
 	if err := r.service.repo.UpdateMessageState(ctx, assistantMessage.ID, messageStatus, messageErrorCode, messageErrorMessage); err != nil {
 		r.service.logger.Error("update_assistant_message_state_failed",
 			zap.String("trace_id", traceid.FromContext(r.traceContext)),
@@ -220,10 +247,9 @@ func (r *messageSendRunState) finalizeAssistantMessage(ctx context.Context, retE
 	}
 }
 
-func (r *messageSendRunState) createRun(ctx context.Context) {
-	// Upsert: mid-flight EnsureConversationRun may have already inserted the row.
-	if err := r.service.repo.UpsertConversationRun(ctx, r.run); err != nil {
-		r.service.logger.Error("upsert_conversation_run_failed",
+func (r *messageSendRunState) persistRun(ctx context.Context) {
+	if err := r.service.repo.UpdateConversationRun(ctx, r.run); err != nil {
+		r.service.logger.Error("update_conversation_run_failed",
 			zap.String("trace_id", traceid.FromContext(r.traceContext)),
 			zap.String("run_id", r.run.RunID),
 			zap.Error(err),

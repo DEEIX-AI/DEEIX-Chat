@@ -6,7 +6,11 @@ import (
 	"time"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type messageSendBranchPreparation struct {
@@ -86,10 +90,10 @@ func (s *Service) createMessagePair(
 		userStatus = "error"
 		assistantStatus = "error"
 		messageErrorCode = strings.TrimSpace(rejected.errorCode)
-		messageErrorMessage = truncateError(strings.TrimSpace(rejected.errorMessage), 255)
+		messageErrorMessage = textutil.TruncateTrimmed(strings.TrimSpace(rejected.errorMessage), 255)
 	}
 
-	userContentEstimatedInputTokens := estimateTokens(input.Content)
+	userContentEstimatedInputTokens := tokenestimate.Estimate(input.Content)
 	if rejected != nil {
 		userContentEstimatedInputTokens = 0
 	}
@@ -182,7 +186,7 @@ func (s *Service) persistRejectedMessageSend(
 	input SendMessageInput,
 	errorCode string,
 	errorMessage string,
-) error {
+) (retErr error) {
 	if err := s.ValidateSelectedToolIDs(input.SelectedToolIDs); err != nil {
 		return err
 	}
@@ -204,6 +208,51 @@ func (s *Service) persistRejectedMessageSend(
 	if runID == "" {
 		runID = "run_" + normalizePublicID(uuid.NewString())
 	}
+	requestedModelName := strings.TrimSpace(input.PlatformModelName)
+	if requestedModelName == "" {
+		requestedModelName = strings.TrimSpace(conversation.Model)
+	}
+	run := &model.Run{
+		RunID:              runID,
+		RequestID:          strings.TrimSpace(input.RequestID),
+		UserID:             input.UserID,
+		ConversationID:     input.ConversationID,
+		TaskType:           "chat",
+		Provider:           strings.TrimSpace(conversation.Provider),
+		RequestedModelName: requestedModelName,
+		Status:             "running",
+		StartedAt:          time.Now(),
+	}
+	if err = s.claimConversationRun(ctx, run); err != nil {
+		return err
+	}
+	defer func() {
+		finalizeCtx, cancel := background.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		endedAt := time.Now()
+		run.EndedAt = &endedAt
+		run.TotalLatencyMS = endedAt.Sub(run.StartedAt).Milliseconds()
+		run.Status = "error"
+		if retErr == nil {
+			run.ErrorCode = strings.TrimSpace(errorCode)
+			run.ErrorMessage = textutil.TruncateTrimmed(strings.TrimSpace(errorMessage), 255)
+		} else {
+			run.ErrorCode = classifyRunErrorCode(retErr)
+			run.ErrorMessage = textutil.TruncateTrimmed(messageErrorSummary(retErr), 255)
+		}
+		if updateErr := s.repo.UpdateConversationRun(finalizeCtx, run); updateErr != nil {
+			if s.logger != nil {
+				s.logger.Error("update_rejected_conversation_run_failed",
+					zap.String("run_id", run.RunID),
+					zap.Error(updateErr),
+				)
+			}
+			if retErr == nil {
+				retErr = updateErr
+			}
+		}
+	}()
 	pair, err := s.createMessagePair(
 		ctx,
 		input,

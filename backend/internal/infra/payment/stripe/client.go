@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"io"
 	"net/http"
 	"net/url"
@@ -89,7 +90,7 @@ func (c *Client) CreateCheckoutSession(ctx context.Context, input paymentport.St
 }
 
 func checkoutForm(input paymentport.StripeCheckoutInput) url.Values {
-	currency := strings.ToLower(firstNonEmpty(input.PayCurrency, input.BaseCurrency, "USD"))
+	currency := strings.ToLower(textutil.FirstNonEmpty(input.PayCurrency, input.BaseCurrency, "USD"))
 	form := url.Values{}
 	form.Set("mode", "payment")
 	form.Set("success_url", input.SuccessURL)
@@ -109,15 +110,6 @@ func checkoutForm(input paymentport.StripeCheckoutInput) url.Values {
 	form.Set("line_items[0][price_data][product_data][name]", input.ProductName)
 	form.Set("line_items[0][price_data][product_data][description]", input.ProductDescription)
 	return form
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func isHTTPURL(raw string) bool {

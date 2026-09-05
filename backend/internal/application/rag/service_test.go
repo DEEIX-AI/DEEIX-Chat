@@ -138,7 +138,15 @@ func TestHybridRetrieveKeepsVectorThresholdSeparateFromRRFScore(t *testing.T) {
 	}
 	service := &Service{repo: repo}
 
-	results, err := service.hybridRetrieve(t.Context(), 7, []uint{10}, "query", []float32{1}, "sig", 10, 0.45)
+	results, err := service.hybridRetrieve(t.Context(), hybridRetrieveInput{
+		UserID:              7,
+		FileObjectIDs:       []uint{10},
+		Query:               "query",
+		Embedding:           []float32{1},
+		EmbeddingSignature:  "sig",
+		TopK:                10,
+		MinVectorSimilarity: 0.45,
+	})
 	if err != nil {
 		t.Fatalf("hybridRetrieve() error = %v", err)
 	}

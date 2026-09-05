@@ -14,7 +14,7 @@ export function useChatConversationDefaults({
   defaultMCPToolIDs,
   defaultSkillIDs,
   defaultKnowledgeBaseIDs,
-  toolsLoading,
+  mcpDefaultsPending,
   setSelectedToolIDs,
   setSelectedSkills,
   setSelectedKnowledgeBaseIDs,
@@ -25,7 +25,7 @@ export function useChatConversationDefaults({
   defaultMCPToolIDs: number[];
   defaultSkillIDs: number[];
   defaultKnowledgeBaseIDs: string[];
-  toolsLoading: boolean;
+  mcpDefaultsPending: boolean;
   setSelectedToolIDs: React.Dispatch<React.SetStateAction<number[]>>;
   setSelectedSkills: React.Dispatch<React.SetStateAction<SkillSummaryDTO[]>>;
   setSelectedKnowledgeBaseIDs: React.Dispatch<React.SetStateAction<string[]>>;
@@ -38,7 +38,7 @@ export function useChatConversationDefaults({
   const manuallyChangedKnowledgeBaseKeyRef = React.useRef("");
 
   React.useEffect(() => {
-    if (conversationID || toolsLoading || defaultsPending) {
+    if (conversationID || mcpDefaultsPending || defaultsPending) {
       return;
     }
     if (
@@ -49,7 +49,7 @@ export function useChatConversationDefaults({
     }
     appliedMCPDefaultsKeyRef.current = contextKey;
     setSelectedToolIDs(defaultMCPToolIDs);
-  }, [conversationID, contextKey, defaultMCPToolIDs, defaultsPending, setSelectedToolIDs, toolsLoading]);
+  }, [conversationID, contextKey, defaultMCPToolIDs, defaultsPending, mcpDefaultsPending, setSelectedToolIDs]);
 
   React.useEffect(() => {
     if (conversationID || defaultsPending) {

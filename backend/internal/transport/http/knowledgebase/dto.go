@@ -3,6 +3,7 @@ package knowledgebase
 import (
 	"time"
 
+	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
 )
@@ -25,20 +26,24 @@ type KnowledgeBaseResponse struct {
 
 // KnowledgeBaseFileResponse 表示知识库文件摘要。
 type KnowledgeBaseFileResponse struct {
-	FileID           string    `json:"fileID"`
-	FileName         string    `json:"fileName"`
-	MimeType         string    `json:"mimeType"`
-	DetectedMIME     string    `json:"detectedMIME"`
-	FileCategory     string    `json:"fileCategory"`
-	SizeBytes        int64     `json:"sizeBytes"`
-	ProcessingStatus string    `json:"processingStatus"`
-	Processing       bool      `json:"processing"`
-	ProcessingReady  bool      `json:"processingReady"`
-	EmbedStatus      string    `json:"embedStatus"`
-	ChunkCount       int       `json:"chunkCount"`
-	RagOptOut        bool      `json:"ragOptOut"`
-	CreatedAt        time.Time `json:"createdAt"`
-	UpdatedAt        time.Time `json:"updatedAt"`
+	FileID              string    `json:"fileID"`
+	FileName            string    `json:"fileName"`
+	MimeType            string    `json:"mimeType"`
+	DetectedMIME        string    `json:"detectedMIME"`
+	FileCategory        string    `json:"fileCategory"`
+	SizeBytes           int64     `json:"sizeBytes"`
+	ProcessingStatus    string    `json:"processingStatus"`
+	Processing          bool      `json:"processing"`
+	ProcessingReady     bool      `json:"processingReady"`
+	ExtractStatus       string    `json:"extractStatus"`
+	EmbedStatus         string    `json:"embedStatus"`
+	EmbedError          string    `json:"embedError"`
+	ChunkCount          int       `json:"chunkCount"`
+	RAGOptOut           bool      `json:"ragOptOut"`
+	CanVectorize        bool      `json:"canVectorize"`
+	VectorizationReason string    `json:"vectorizationReason"`
+	CreatedAt           time.Time `json:"createdAt"`
+	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
 // WriteMyKnowledgeBaseRequest 表示创建个人知识库请求。
@@ -84,18 +89,39 @@ type GetKnowledgeBaseFileProcessingSnapshotRequest struct {
 	FileIDs []string `json:"fileIDs" binding:"max=100,dive,required,max=64"`
 }
 
+// SubmitPlatformFileEmbeddingsRequest 表示批量提交平台资料向量化请求。
+type SubmitPlatformFileEmbeddingsRequest struct {
+	FileIDs []string `json:"fileIDs" binding:"required,min=1,max=100,dive,required,max=64"`
+}
+
+// KnowledgeBaseFileEmbeddingSkipResponse 表示未提交向量化的平台资料及原因。
+type KnowledgeBaseFileEmbeddingSkipResponse struct {
+	FileID string `json:"fileID"`
+	Reason string `json:"reason"`
+}
+
+// KnowledgeBaseFileEmbeddingSubmissionResponse 表示平台资料向量化提交结果。
+type KnowledgeBaseFileEmbeddingSubmissionResponse struct {
+	SubmittedFileIDs []string                                 `json:"submittedFileIDs"`
+	Skipped          []KnowledgeBaseFileEmbeddingSkipResponse `json:"skipped"`
+}
+
 // KnowledgeBaseFileProcessingStatusResponse 表示知识库文件处理状态。
 type KnowledgeBaseFileProcessingStatusResponse struct {
-	FileID           string    `json:"fileID"`
-	DetectedMIME     string    `json:"detectedMIME"`
-	FileCategory     string    `json:"fileCategory"`
-	ProcessingStatus string    `json:"processingStatus"`
-	Processing       bool      `json:"processing"`
-	ProcessingReady  bool      `json:"processingReady"`
-	EmbedStatus      string    `json:"embedStatus"`
-	ChunkCount       int       `json:"chunkCount"`
-	RagOptOut        bool      `json:"ragOptOut"`
-	UpdatedAt        time.Time `json:"updatedAt"`
+	FileID              string    `json:"fileID"`
+	DetectedMIME        string    `json:"detectedMIME"`
+	FileCategory        string    `json:"fileCategory"`
+	ProcessingStatus    string    `json:"processingStatus"`
+	Processing          bool      `json:"processing"`
+	ProcessingReady     bool      `json:"processingReady"`
+	ExtractStatus       string    `json:"extractStatus"`
+	EmbedStatus         string    `json:"embedStatus"`
+	EmbedError          string    `json:"embedError"`
+	ChunkCount          int       `json:"chunkCount"`
+	RAGOptOut           bool      `json:"ragOptOut"`
+	CanVectorize        bool      `json:"canVectorize"`
+	VectorizationReason string    `json:"vectorizationReason"`
+	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
 // KnowledgeBaseFileProcessingSnapshotResponse 表示知识库及文件处理状态快照。
@@ -178,6 +204,12 @@ type PlatformFileDeleteResponseDoc struct {
 	Data     PlatformFileDeleteDataResponse `json:"data"`
 }
 
+// KnowledgeBaseFileEmbeddingSubmissionResponseDoc 用于 Swagger 展示平台资料向量化提交响应。
+type KnowledgeBaseFileEmbeddingSubmissionResponseDoc struct {
+	ErrorMsg string                                       `json:"errorMsg"`
+	Data     KnowledgeBaseFileEmbeddingSubmissionResponse `json:"data"`
+}
+
 // ErrorDoc 表示错误响应。
 type ErrorDoc struct {
 	ErrorMsg string `json:"errorMsg"`
@@ -200,33 +232,58 @@ func toKnowledgeBaseResponses(items []domainknowledgebase.KnowledgeBase) []Knowl
 	return results
 }
 
-func toKnowledgeBaseFileResponses(items []domainconversation.FileObject) []KnowledgeBaseFileResponse {
+func toKnowledgeBaseFileResponses(
+	items []domainconversation.FileObject,
+	capabilities map[string]appembedding.FileVectorizationCapability,
+) []KnowledgeBaseFileResponse {
 	results := make([]KnowledgeBaseFileResponse, 0, len(items))
 	for _, item := range items {
-		results = append(results, toKnowledgeBaseFileResponse(item))
+		results = append(results, toKnowledgeBaseFileResponse(item, capabilities[item.FileID]))
 	}
 	return results
 }
 
-func toKnowledgeBaseFileProcessingStatusResponses(items []domainconversation.FileObject) []KnowledgeBaseFileProcessingStatusResponse {
+func toKnowledgeBaseFileEmbeddingSubmissionResponse(result appembedding.TargetedSubmissionResult) KnowledgeBaseFileEmbeddingSubmissionResponse {
+	skipped := make([]KnowledgeBaseFileEmbeddingSkipResponse, 0, len(result.Skipped))
+	for _, item := range result.Skipped {
+		skipped = append(skipped, KnowledgeBaseFileEmbeddingSkipResponse{FileID: item.FileID, Reason: item.Reason})
+	}
+	return KnowledgeBaseFileEmbeddingSubmissionResponse{
+		SubmittedFileIDs: result.SubmittedFileIDs,
+		Skipped:          skipped,
+	}
+}
+
+func toKnowledgeBaseFileProcessingStatusResponses(
+	items []domainconversation.FileObject,
+	capabilities map[string]appembedding.FileVectorizationCapability,
+) []KnowledgeBaseFileProcessingStatusResponse {
 	results := make([]KnowledgeBaseFileProcessingStatusResponse, 0, len(items))
 	for _, item := range items {
 		results = append(results, KnowledgeBaseFileProcessingStatusResponse{
 			FileID: item.FileID, DetectedMIME: item.DetectedMIME, FileCategory: item.FileCategory,
 			ProcessingStatus: item.ProcessingStatus, Processing: domainconversation.IsFileProcessing(item), ProcessingReady: item.ProcessingReady,
-			EmbedStatus: item.EmbedStatus, ChunkCount: item.ChunkCount, RagOptOut: item.RagOptOut,
-			UpdatedAt: item.UpdatedAt,
+			ExtractStatus: item.ExtractStatus, EmbedStatus: item.EmbedStatus, EmbedError: item.EmbedError,
+			ChunkCount: item.ChunkCount, RAGOptOut: item.RAGOptOut,
+			CanVectorize:        capabilities[item.FileID].CanVectorize,
+			VectorizationReason: capabilities[item.FileID].Reason,
+			UpdatedAt:           item.UpdatedAt,
 		})
 	}
 	return results
 }
 
-func toKnowledgeBaseFileResponse(item domainconversation.FileObject) KnowledgeBaseFileResponse {
+func toKnowledgeBaseFileResponse(
+	item domainconversation.FileObject,
+	capability appembedding.FileVectorizationCapability,
+) KnowledgeBaseFileResponse {
 	return KnowledgeBaseFileResponse{
 		FileID: item.FileID, FileName: item.FileName, MimeType: item.MimeType, DetectedMIME: item.DetectedMIME,
 		FileCategory: item.FileCategory, SizeBytes: item.SizeBytes, ProcessingStatus: item.ProcessingStatus,
 		Processing: domainconversation.IsFileProcessing(item), ProcessingReady: item.ProcessingReady,
-		EmbedStatus: item.EmbedStatus, ChunkCount: item.ChunkCount, RagOptOut: item.RagOptOut,
+		ExtractStatus: item.ExtractStatus, EmbedStatus: item.EmbedStatus, EmbedError: item.EmbedError,
+		ChunkCount: item.ChunkCount, RAGOptOut: item.RAGOptOut,
+		CanVectorize: capability.CanVectorize, VectorizationReason: capability.Reason,
 		CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
 }

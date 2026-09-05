@@ -145,20 +145,12 @@ func (s *Service) createConversationShare(ctx context.Context, userID uint, conv
 				zap.Error(err),
 			)
 		}
-		return nil, normalizeConversationSharePersistenceError(err)
+		if errors.Is(err, repository.ErrConversationShareSchemaOutdated) {
+			return nil, ErrConversationShareSchemaOutdated
+		}
+		return nil, err
 	}
 	return toConversationShareResult(share), nil
-}
-
-func normalizeConversationSharePersistenceError(err error) error {
-	if err == nil {
-		return nil
-	}
-	message := strings.ToLower(strings.TrimSpace(err.Error()))
-	if strings.Contains(message, "default_message_ids_json") && strings.Contains(message, "does not exist") {
-		return ErrConversationShareSchemaOutdated
-	}
-	return err
 }
 
 // RevokeConversationShare 关闭单个会话的公开分享。
@@ -616,13 +608,22 @@ func (s *Service) cloneSharedMessageTrace(
 		return nil
 	}
 	startedAt := time.Now().UTC()
-	if err := s.cloneSharedTraceBlock(ctx, userID, conversationID, messageID, runID, messageTraceTypeProcess, 1, startedAt, trace.Process); err != nil {
+	if err := s.cloneSharedTraceBlock(ctx, cloneSharedTraceBlockInput{
+		UserID: userID, ConversationID: conversationID, MessageID: messageID, RunID: runID,
+		TraceType: messageTraceTypeProcess, Sequence: 1, StartedAt: startedAt, Block: trace.Process,
+	}); err != nil {
 		return err
 	}
-	if err := s.cloneSharedTraceBlock(ctx, userID, conversationID, messageID, runID, messageTraceTypeTools, 2, startedAt, trace.Tools); err != nil {
+	if err := s.cloneSharedTraceBlock(ctx, cloneSharedTraceBlockInput{
+		UserID: userID, ConversationID: conversationID, MessageID: messageID, RunID: runID,
+		TraceType: messageTraceTypeTools, Sequence: 2, StartedAt: startedAt, Block: trace.Tools,
+	}); err != nil {
 		return err
 	}
-	if err := s.cloneSharedTraceBlock(ctx, userID, conversationID, messageID, runID, messageTraceTypeUpstreamThink, 3, startedAt, trace.UpstreamThink); err != nil {
+	if err := s.cloneSharedTraceBlock(ctx, cloneSharedTraceBlockInput{
+		UserID: userID, ConversationID: conversationID, MessageID: messageID, RunID: runID,
+		TraceType: messageTraceTypeUpstreamThink, Sequence: 3, StartedAt: startedAt, Block: trace.UpstreamThink,
+	}); err != nil {
 		return err
 	}
 	for _, event := range trace.Events {
@@ -661,39 +662,40 @@ func (s *Service) cloneSharedMessageTrace(
 	return nil
 }
 
-func (s *Service) cloneSharedTraceBlock(
-	ctx context.Context,
-	userID uint,
-	conversationID uint,
-	messageID uint,
-	runID string,
-	traceType string,
-	seq int,
-	startedAt time.Time,
-	block *model.MessageTraceBlock,
-) error {
-	if block == nil {
+type cloneSharedTraceBlockInput struct {
+	UserID         uint
+	ConversationID uint
+	MessageID      uint
+	RunID          string
+	TraceType      string
+	Sequence       int
+	StartedAt      time.Time
+	Block          *model.MessageTraceBlock
+}
+
+func (s *Service) cloneSharedTraceBlock(ctx context.Context, input cloneSharedTraceBlockInput) error {
+	if input.Block == nil {
 		return nil
 	}
-	rowStartedAt := block.UpdatedAt
+	rowStartedAt := input.Block.UpdatedAt
 	if rowStartedAt.IsZero() {
-		rowStartedAt = startedAt
+		rowStartedAt = input.StartedAt
 	}
 	return s.repo.UpsertConversationMessageTrace(ctx, &model.MessageTrace{
-		MessageID:       messageID,
-		ConversationID:  conversationID,
-		UserID:          userID,
-		RunID:           runID,
-		TraceType:       traceType,
-		Status:          block.Status,
-		Stage:           block.Stage,
-		RoundID:         block.RoundID,
-		ParentEventID:   block.ParentEventID,
-		Title:           block.Title,
-		Summary:         block.Summary,
-		ContentMarkdown: block.ContentMarkdown,
-		PayloadJSON:     sanitizeSharedTracePayloadJSON(block.PayloadJSON),
-		Seq:             seq,
+		MessageID:       input.MessageID,
+		ConversationID:  input.ConversationID,
+		UserID:          input.UserID,
+		RunID:           input.RunID,
+		TraceType:       input.TraceType,
+		Status:          input.Block.Status,
+		Stage:           input.Block.Stage,
+		RoundID:         input.Block.RoundID,
+		ParentEventID:   input.Block.ParentEventID,
+		Title:           input.Block.Title,
+		Summary:         input.Block.Summary,
+		ContentMarkdown: input.Block.ContentMarkdown,
+		PayloadJSON:     sanitizeSharedTracePayloadJSON(input.Block.PayloadJSON),
+		Seq:             input.Sequence,
 		StartedAt:       rowStartedAt,
 	})
 }
@@ -794,7 +796,7 @@ func sanitizeSharedTracePayloadJSON(raw string) string {
 	if value == "" {
 		return ""
 	}
-	payload := map[string]interface{}{}
+	payload := map[string]any{}
 	if err := json.Unmarshal([]byte(value), &payload); err != nil {
 		return ""
 	}
@@ -809,18 +811,18 @@ func sanitizeSharedTracePayloadJSON(raw string) string {
 	return string(data)
 }
 
-func deleteSharedTraceInternalFields(payload map[string]interface{}, parentKey string) {
+func deleteSharedTraceInternalFields(payload map[string]any, parentKey string) {
 	for key, value := range payload {
 		if isSharedTraceInternalField(key, parentKey) {
 			delete(payload, key)
 			continue
 		}
 		switch child := value.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			deleteSharedTraceInternalFields(child, key)
-		case []interface{}:
+		case []any:
 			for _, item := range child {
-				if itemMap, ok := item.(map[string]interface{}); ok {
+				if itemMap, ok := item.(map[string]any); ok {
 					deleteSharedTraceInternalFields(itemMap, key)
 				}
 			}
@@ -829,8 +831,12 @@ func deleteSharedTraceInternalFields(payload map[string]interface{}, parentKey s
 }
 
 func isSharedTraceInternalField(key string, parentKey string) bool {
-	normalized := strings.ToLower(strings.NewReplacer("_", "", "-", "").Replace(strings.TrimSpace(key)))
-	parent := strings.ToLower(strings.TrimSpace(parentKey))
+	normalizer := strings.NewReplacer("_", "", "-", "")
+	normalized := strings.ToLower(normalizer.Replace(strings.TrimSpace(key)))
+	parent := strings.ToLower(normalizer.Replace(strings.TrimSpace(parentKey)))
+	if parent == "toolcalls" && (normalized == "id" || normalized == "callid" || normalized == "toolcallid" || normalized == "detailrunid") {
+		return true
+	}
 	if normalized == "upstreamname" || normalized == "upstreamdebug" ||
 		normalized == "authorization" || normalized == "proxyauthorization" ||
 		normalized == "cookie" || normalized == "setcookie" {
@@ -848,14 +854,14 @@ func isFileNotFoundError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return errors.Is(err, repository.ErrNotFound) || errors.Is(err, ErrFileNotFound)
+	return errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrFileNotFound) || errors.Is(err, ErrFileNotFound)
 }
 
 func isStorageQuotaExceededError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return errors.Is(err, ErrStorageQuotaExceeded)
+	return errors.Is(err, repository.ErrStorageQuotaExceeded) || errors.Is(err, ErrStorageQuotaExceeded)
 }
 
 func (s *Service) resolveShareMessageIDs(ctx context.Context, conversationID uint, defaultPublicIDs []string) ([]string, []string, error) {

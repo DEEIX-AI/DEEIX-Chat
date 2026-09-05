@@ -4,20 +4,22 @@ import (
 	"context"
 	"errors"
 	"strings"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 // generateChatCompletionsStreamWithAutoUsageFallback 只在首个可观察事件之前兼容不支持
 // stream_options.include_usage 的上游；一旦调用方收到事件，禁止重试以避免重复输出。
 func (c *Client) generateChatCompletionsStreamWithAutoUsageFallback(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-	onEvent func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+	onEvent func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
 	emitted := false
 	attemptEvent := onEvent
 	if onEvent != nil {
-		attemptEvent = func(event GenerateStreamEvent) error {
+		attemptEvent = func(event portllm.GenerateStreamEvent) error {
 			emitted = true
 			return onEvent(event)
 		}
@@ -31,11 +33,11 @@ func (c *Client) generateChatCompletionsStreamWithAutoUsageFallback(
 	return c.generateStreamOpenAICompatible(ctx, route, retryInput, onEvent)
 }
 
-func shouldRetryChatCompletionsWithoutAutoStreamUsage(options map[string]interface{}, err error) bool {
+func shouldRetryChatCompletionsWithoutAutoStreamUsage(options map[string]any, err error) bool {
 	if chatCompletionsStreamUsageExplicit(options) {
 		return false
 	}
-	var upstreamErr *UpstreamError
+	var upstreamErr *portllm.UpstreamError
 	if !errors.As(err, &upstreamErr) {
 		return false
 	}
@@ -46,8 +48,8 @@ func shouldRetryChatCompletionsWithoutAutoStreamUsage(options map[string]interfa
 	return strings.Contains(detail, "stream_options") || strings.Contains(detail, "include_usage")
 }
 
-func chatCompletionsStreamUsageExplicit(options map[string]interface{}) bool {
-	streamOptions, ok := options["stream_options"].(map[string]interface{})
+func chatCompletionsStreamUsageExplicit(options map[string]any) bool {
+	streamOptions, ok := options["stream_options"].(map[string]any)
 	if !ok {
 		return false
 	}
@@ -55,7 +57,7 @@ func chatCompletionsStreamUsageExplicit(options map[string]interface{}) bool {
 	return ok
 }
 
-func disableChatCompletionsAutoStreamUsage(options map[string]interface{}) map[string]interface{} {
+func disableChatCompletionsAutoStreamUsage(options map[string]any) map[string]any {
 	result := cloneMap(options)
 	streamOptions := cloneMap(asMap(result["stream_options"]))
 	streamOptions["include_usage"] = false

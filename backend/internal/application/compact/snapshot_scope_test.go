@@ -16,6 +16,10 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
+func newTestService(cfg config.Config, repo repository.CompactRepository, logger *zap.Logger) *Service {
+	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, logger)
+}
+
 func TestSnapshotBoundaryIndexRequiresCoverageAnchors(t *testing.T) {
 	messages := []domainconversation.Message{{ID: 1, PublicID: "m1", Role: "user"}}
 	snapshot := &domainconversation.ContextSnapshot{
@@ -159,7 +163,7 @@ func TestMaybeCompactConversationRollsForwardExistingSnapshot(t *testing.T) {
 			CoveragePathHash:      CoveragePathHash(messages[:2]),
 		},
 	}
-	svc := NewService(config.Config{
+	svc := newTestService(config.Config{
 		ContextCompactEnabled:           true,
 		ContextMaxTurns:                 1,
 		ContextCompactPreserve:          1,
@@ -209,7 +213,7 @@ func TestMaybeCompactConversationSerializesSameConversation(t *testing.T) {
 		{ID: 6, PublicID: "m6", ParentMessageID: uintPtr(5), Role: "assistant", Content: "latest reply"},
 	}
 	repo := &compactRepositoryStub{}
-	svc := NewService(config.Config{
+	svc := newTestService(config.Config{
 		ContextCompactEnabled:  true,
 		ContextMaxTurns:        1,
 		ContextCompactPreserve: 1,
@@ -277,7 +281,7 @@ func TestMaybeCompactConversationDoesNotRetriggerFromCoveredHistory(t *testing.T
 			CoveragePathHash:      CoveragePathHash(messages[:2]),
 		},
 	}
-	svc := NewService(config.Config{
+	svc := newTestService(config.Config{
 		ContextCompactEnabled:        true,
 		ContextMaxTurns:              1,
 		ContextCompactTriggerPercent: 10,
@@ -319,7 +323,7 @@ func TestMaybeCompactConversationRollsForwardFromPartialBoundaryWindow(t *testin
 			CoveragePathHash:      CoveragePathHash(fullPath[:2]),
 		},
 	}
-	svc := NewService(config.Config{
+	svc := newTestService(config.Config{
 		ContextCompactEnabled:           true,
 		ContextMaxTurns:                 1,
 		ContextCompactPreserve:          1,
@@ -365,7 +369,7 @@ func TestMaybeCompactConversationUsesPromptTokenEstimateForTokenTrigger(t *testi
 		{ID: 4, PublicID: "m4", ParentMessageID: uintPtr(3), Role: "assistant", Content: "latest assistant"},
 	}
 	repo := &compactRepositoryStub{}
-	svc := NewService(config.Config{
+	svc := newTestService(config.Config{
 		ContextCompactEnabled:           true,
 		ContextMaxTurns:                 0,
 		ContextCompactTriggerPercent:    10,
@@ -400,7 +404,7 @@ func TestMaybeCompactConversationReducesPreserveWindowNearTokenLimit(t *testing.
 		{ID: 4, PublicID: "m4", ParentMessageID: uintPtr(3), Role: "assistant", Content: "latest assistant"},
 	}
 	repo := &compactRepositoryStub{}
-	svc := NewService(config.Config{
+	svc := newTestService(config.Config{
 		ContextCompactEnabled:        true,
 		ContextCompactTriggerPercent: 10,
 		ContextCompactPreserve:       8,
@@ -432,7 +436,7 @@ func TestMaybeCompactConversationUsesConfiguredBudgetPercentage(t *testing.T) {
 		{ID: 4, PublicID: "m4", ParentMessageID: uintPtr(3), Role: "assistant", Content: "latest assistant"},
 	}
 	repo := &compactRepositoryStub{}
-	svc := NewService(config.Config{
+	svc := newTestService(config.Config{
 		ContextCompactEnabled:        true,
 		ContextCompactTriggerPercent: 80,
 		ContextCompactPreserve:       1,
@@ -462,7 +466,7 @@ func TestMaybeCompactConversationUsesConfiguredFallbackWindow(t *testing.T) {
 		{ID: 4, PublicID: "m4", ParentMessageID: uintPtr(3), Role: "assistant", Content: "latest assistant"},
 	}
 	repo := &compactRepositoryStub{}
-	svc := NewService(config.Config{
+	svc := newTestService(config.Config{
 		ContextCompactEnabled:        true,
 		ContextWindowFallbackTokens:  256_000,
 		ContextCompactTriggerPercent: 80,
@@ -493,7 +497,7 @@ func TestMaybeCompactConversationDoesNotUseLegacyFixedThresholdForLargeModel(t *
 		{ID: 4, PublicID: "m4", ParentMessageID: uintPtr(3), Role: "assistant", Content: "latest assistant"},
 	}
 	repo := &compactRepositoryStub{}
-	svc := NewService(config.Config{
+	svc := newTestService(config.Config{
 		ContextCompactEnabled:        true,
 		ContextCompactTriggerPercent: 80,
 		ContextCompactPreserve:       1,
@@ -517,7 +521,7 @@ func TestMaybeCompactConversationDoesNotUseLegacyFixedThresholdForLargeModel(t *
 }
 
 func TestContextBudgetExceededUsesSelectedModelCapabilities(t *testing.T) {
-	svc := NewService(config.Config{}, nil, nil)
+	svc := newTestService(config.Config{}, nil, nil)
 	messages := []domainconversation.Message{{Role: "user", Content: strings.Repeat("x", 40_000)}}
 	if svc.ContextBudgetExceeded(MaybeCompactConversationInput{
 		Messages:         messages,
@@ -536,7 +540,7 @@ func TestContextBudgetExceededUsesSelectedModelCapabilities(t *testing.T) {
 }
 
 func TestContextBudgetExceededTreatsPromptScopeEstimateAsAuthoritative(t *testing.T) {
-	svc := NewService(config.Config{}, nil, nil)
+	svc := newTestService(config.Config{}, nil, nil)
 	messages := []domainconversation.Message{{Role: "user", Content: strings.Repeat("covered", 40_000)}}
 	if svc.ContextBudgetExceeded(MaybeCompactConversationInput{
 		Messages:            messages,
@@ -550,7 +554,7 @@ func TestContextBudgetExceededTreatsPromptScopeEstimateAsAuthoritative(t *testin
 
 func TestMaybeCompactConversationForceUsesHardBudgetStrategy(t *testing.T) {
 	repo := &compactRepositoryStub{}
-	svc := NewService(config.Config{
+	svc := newTestService(config.Config{
 		ContextCompactEnabled:  true,
 		ContextCompactPreserve: 1,
 	}, repo, nil)
@@ -591,7 +595,7 @@ func TestMaybeCompactConversationLogsPersistenceFailure(t *testing.T) {
 	createErr := errors.New("persist snapshot")
 	repo := &compactRepositoryStub{createErr: createErr}
 	core, logs := observer.New(zap.ErrorLevel)
-	svc := NewService(config.Config{
+	svc := newTestService(config.Config{
 		ContextCompactEnabled:  true,
 		ContextMaxTurns:        1,
 		ContextCompactPreserve: 1,
@@ -621,7 +625,7 @@ func TestMaybeCompactConversationLogsPersistenceFailure(t *testing.T) {
 }
 
 func TestBuildCompactionSummaryLiteFallbackKeepsPreviousSummary(t *testing.T) {
-	svc := NewService(config.Config{CompactLLMEnabled: true}, nil, nil)
+	svc := newTestService(config.Config{CompactLLMEnabled: true}, nil, nil)
 	type summarizerCall struct {
 		messages []domainconversation.Message
 		prompt   string
@@ -639,19 +643,18 @@ func TestBuildCompactionSummaryLiteFallbackKeepsPreviousSummary(t *testing.T) {
 		return "merged summary", nil
 	})
 
-	summary := svc.buildCompactionSummary(
-		t.Context(),
-		[]domainconversation.Message{
+	summary := svc.buildCompactionSummary(t.Context(), compactionSummaryInput{
+		Messages: []domainconversation.Message{
 			{ID: 3, Role: "user", Content: "new user"},
 			{ID: 4, Role: "assistant", Content: "new assistant"},
 		},
-		"previous summary",
-		"turn_cap",
-		1,
-		2,
-		1,
-		"model",
-	)
+		PreviousSummary:   "previous summary",
+		Strategy:          "turn_cap",
+		FromTurn:          1,
+		ToTurn:            2,
+		PreserveTurns:     1,
+		PlatformModelName: "model",
+	})
 
 	if summary != "merged summary" {
 		t.Fatalf("expected lite LLM summary, got %q", summary)

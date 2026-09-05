@@ -24,7 +24,7 @@ type promptStateFingerprintInput struct {
 	ContextState      string
 	Messages          []llm.Message
 	Tools             []llm.ToolDefinition
-	Options           map[string]interface{}
+	Options           map[string]any
 }
 
 // buildPromptStateFingerprint 计算本地认为的上游会话状态指纹。
@@ -83,7 +83,7 @@ func buildPromptStateFingerprint(input promptStateFingerprintInput) string {
 
 // buildPromptContextStateSignature 显式记录稳定上下文来源版本，补足纯文本指纹无法表达的状态边界。
 func buildPromptContextStateSignature(stableAttachments []AttachmentInput, preferenceMemories []domainmemory.UserMemory) string {
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"files":    promptContextFileState(stableAttachments),
 		"memories": promptContextMemoryState(preferenceMemories),
 	}
@@ -95,7 +95,7 @@ func buildPromptContextStateSignature(stableAttachments []AttachmentInput, prefe
 	return hex.EncodeToString(sum[:])
 }
 
-func promptContextFileState(attachments []AttachmentInput) []map[string]interface{} {
+func promptContextFileState(attachments []AttachmentInput) []map[string]any {
 	if len(attachments) == 0 {
 		return nil
 	}
@@ -112,9 +112,9 @@ func promptContextFileState(attachments []AttachmentInput) []map[string]interfac
 	sort.SliceStable(items, func(i, j int) bool {
 		return stableAttachmentSortKey(items[i]) < stableAttachmentSortKey(items[j])
 	})
-	result := make([]map[string]interface{}, 0, len(items))
+	result := make([]map[string]any, 0, len(items))
 	for _, item := range items {
-		result = append(result, map[string]interface{}{
+		result = append(result, map[string]any{
 			"file_id":        strings.TrimSpace(item.FileID),
 			"sha256":         strings.TrimSpace(item.SHA256),
 			"extract_status": strings.TrimSpace(item.ExtractStatus),
@@ -127,7 +127,7 @@ func promptContextFileState(attachments []AttachmentInput) []map[string]interfac
 	return result
 }
 
-func promptContextMemoryState(memories []domainmemory.UserMemory) []map[string]interface{} {
+func promptContextMemoryState(memories []domainmemory.UserMemory) []map[string]any {
 	if len(memories) == 0 {
 		return nil
 	}
@@ -138,14 +138,14 @@ func promptContextMemoryState(memories []domainmemory.UserMemory) []map[string]i
 		right := strings.TrimSpace(items[j].Scope) + ":" + strings.TrimSpace(items[j].MemoryKey)
 		return left < right
 	})
-	result := make([]map[string]interface{}, 0, len(items))
+	result := make([]map[string]any, 0, len(items))
 	for _, item := range items {
 		key := strings.TrimSpace(item.MemoryKey)
 		value := strings.TrimSpace(item.Value)
 		if key == "" || value == "" {
 			continue
 		}
-		result = append(result, map[string]interface{}{
+		result = append(result, map[string]any{
 			"key":        key,
 			"scope":      strings.TrimSpace(item.Scope),
 			"value_hash": promptTextHash(value),
@@ -170,7 +170,7 @@ func promptTimeUnixNano(value time.Time) int64 {
 // buildPromptContextConfigSignature 提取会影响上下文规划和证据含义的稳定配置。
 // 这些配置变化时，即使历史文本暂时相同，也应让 previous_response_id 失效并重建上游状态。
 func buildPromptContextConfigSignature(cfg config.Config) string {
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"embedding_enabled":           cfg.EmbeddingEnabled,
 		"embedding_output_dimensions": cfg.EmbeddingOutputDimensions,
 		"embedding_normalize":         cfg.EmbeddingNormalize,

@@ -28,19 +28,16 @@ const (
 
 // translateError 将 gorm 底层错误统一映射为仓储语义错误。
 func translateError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if dberror.IsRecordNotFound(err) {
-		return repository.ErrNotFound
-	}
 	if dberror.IsUniqueConstraint(err) {
 		return translateUniqueConstraint(err)
 	}
-	return err
+	return dberror.Translate(err)
 }
 
 func translateUniqueConstraint(err error) error {
+	// The generic uniqueness check has already validated the SQLSTATE or driver
+	// code. This narrow fallback only maps known constraint names to the more
+	// specific repository contract; it does not classify arbitrary errors.
 	msg := strings.ToLower(err.Error())
 	switch {
 	case strings.Contains(msg, "idx_identity_users_username"):
@@ -51,8 +48,6 @@ func translateUniqueConstraint(err error) error {
 		return repository.ErrDuplicate
 	}
 }
-
-const defaultFreePlanCode = "free"
 
 // Repo 封装用户数据访问。
 type Repo struct {
@@ -176,7 +171,7 @@ func (r *Repo) UpdateUsernameOnce(ctx context.Context, userID uint, username str
 
 		return translateError(tx.Model(&model.User{}).
 			Where("id = ?", userID).
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"username":            username,
 				"username_changed_at": changedAt,
 			}).
@@ -209,7 +204,7 @@ func (r *Repo) updateUserFields(ctx context.Context, userID uint, input reposito
 func (r *Repo) updateUserFieldsInTransaction(
 	ctx context.Context,
 	userID uint,
-	updates map[string]interface{},
+	updates map[string]any,
 	withSuperAdminGuard bool,
 ) (*domainuser.User, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -267,8 +262,8 @@ func (r *Repo) updateUserFieldsInTransaction(
 	return r.GetByID(ctx, userID)
 }
 
-func userFieldUpdates(input repository.UpdateUserFieldsInput) map[string]interface{} {
-	updates := make(map[string]interface{})
+func userFieldUpdates(input repository.UpdateUserFieldsInput) map[string]any {
+	updates := make(map[string]any)
 	if input.AvatarURL != nil {
 		updates["avatar_url"] = *input.AvatarURL
 	}
@@ -422,46 +417,29 @@ func (r *Repo) GetActiveDefaultPriceByPlanID(ctx context.Context, planID uint) (
 }
 
 // CreateWithCredential 在同一事务中创建用户与凭据。
-func (r *Repo) CreateWithCredential(
-	ctx context.Context,
-	user *domainuser.User,
-	credential domainuser.Credential,
-	subscriptionPlanID uint,
-	subscriptionPriceID uint,
-	subscriptionEndAt *time.Time,
-	autoRenew bool,
-) error {
+func (r *Repo) CreateWithCredential(ctx context.Context, input repository.CreateWithCredentialInput) error {
 	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return r.createWithCredentialTx(tx, user, credential, subscriptionPlanID, subscriptionPriceID, subscriptionEndAt, autoRenew)
+		return r.createWithCredentialTx(tx, input)
 	}))
 }
 
 // CreateWithCredentialAndIdentity 在同一事务中创建用户、凭据与第三方身份。
-func (r *Repo) CreateWithCredentialAndIdentity(
-	ctx context.Context,
-	user *domainuser.User,
-	credential domainuser.Credential,
-	identity *domainuser.UserIdentity,
-	subscriptionPlanID uint,
-	subscriptionPriceID uint,
-	subscriptionEndAt *time.Time,
-	autoRenew bool,
-) error {
+func (r *Repo) CreateWithCredentialAndIdentity(ctx context.Context, input repository.CreateWithCredentialAndIdentityInput) error {
 	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := r.createWithCredentialTx(tx, user, credential, subscriptionPlanID, subscriptionPriceID, subscriptionEndAt, autoRenew); err != nil {
+		if err := r.createWithCredentialTx(tx, input.CreateWithCredentialInput); err != nil {
 			return err
 		}
-		if identity == nil {
+		if input.Identity == nil {
 			return nil
 		}
-		identity.UserID = user.ID
-		dbIdentity := toModelUserIdentity(identity)
+		input.Identity.UserID = input.User.ID
+		dbIdentity := toModelUserIdentity(input.Identity)
 		if err := tx.Create(dbIdentity).Error; err != nil {
 			return translateError(err)
 		}
-		identity.ID = dbIdentity.ID
-		identity.CreatedAt = dbIdentity.CreatedAt
-		identity.UpdatedAt = dbIdentity.UpdatedAt
+		input.Identity.ID = dbIdentity.ID
+		input.Identity.CreatedAt = dbIdentity.CreatedAt
+		input.Identity.UpdatedAt = dbIdentity.UpdatedAt
 		return nil
 	}))
 }
@@ -558,59 +536,51 @@ func (r *Repo) ImportUsersWithCredentialsAndBalances(ctx context.Context, record
 	return results, nil
 }
 
-func (r *Repo) createWithCredentialTx(
-	tx *gorm.DB,
-	user *domainuser.User,
-	credential domainuser.Credential,
-	subscriptionPlanID uint,
-	subscriptionPriceID uint,
-	subscriptionEndAt *time.Time,
-	autoRenew bool,
-) error {
-	dbUser := toModelUser(user)
+func (r *Repo) createWithCredentialTx(tx *gorm.DB, input repository.CreateWithCredentialInput) error {
+	dbUser := toModelUser(input.User)
 	if err := tx.Create(dbUser).Error; err != nil {
 		return translateError(err)
 	}
-	user.ID = dbUser.ID
-	user.CreatedAt = dbUser.CreatedAt
-	user.UpdatedAt = dbUser.UpdatedAt
-	passwordAlgo := credential.PasswordAlgo
+	input.User.ID = dbUser.ID
+	input.User.CreatedAt = dbUser.CreatedAt
+	input.User.UpdatedAt = dbUser.UpdatedAt
+	passwordAlgo := input.Credential.PasswordAlgo
 	if passwordAlgo == "" {
 		passwordAlgo = "bcrypt"
 	}
-	passwordOrigin := credential.PasswordOrigin
+	passwordOrigin := input.Credential.PasswordOrigin
 	if passwordOrigin == "" {
 		passwordOrigin = domainuser.PasswordOriginLocalRegister
 	}
 
 	dbCredential := &model.UserCredential{
 		UserID:            dbUser.ID,
-		PasswordHash:      credential.PasswordHash,
+		PasswordHash:      input.Credential.PasswordHash,
 		PasswordAlgo:      passwordAlgo,
-		PasswordEnabled:   credential.PasswordEnabled,
-		PasswordUpdatedAt: credential.PasswordUpdatedAt,
-		PasswordSetAt:     credential.PasswordSetAt,
+		PasswordEnabled:   input.Credential.PasswordEnabled,
+		PasswordUpdatedAt: input.Credential.PasswordUpdatedAt,
+		PasswordSetAt:     input.Credential.PasswordSetAt,
 		PasswordOrigin:    passwordOrigin,
-		MustResetPassword: credential.MustResetPassword,
-		FailedLoginCount:  credential.FailedLoginCount,
+		MustResetPassword: input.Credential.MustResetPassword,
+		FailedLoginCount:  input.Credential.FailedLoginCount,
 	}
 	if err := tx.Create(dbCredential).Error; err != nil {
 		return translateError(err)
 	}
 
-	if user.Role == domainuser.RoleUser && subscriptionPlanID > 0 && subscriptionPriceID > 0 {
+	if input.User.Role == domainuser.RoleUser && input.SubscriptionPlanID > 0 && input.SubscriptionPriceID > 0 {
 		now := time.Now()
 		subscription := &model.Subscription{
 			UserID:               dbUser.ID,
-			PlanID:               subscriptionPlanID,
-			PriceID:              subscriptionPriceID,
+			PlanID:               input.SubscriptionPlanID,
+			PriceID:              input.SubscriptionPriceID,
 			Status:               "active",
 			StartAt:              now,
 			CurrentPeriodStartAt: now,
-			CurrentPeriodEndAt:   subscriptionEndAt,
+			CurrentPeriodEndAt:   input.SubscriptionEndAt,
 			CancelAtPeriodEnd:    false,
 			CanceledAt:           nil,
-			AutoRenew:            autoRenew,
+			AutoRenew:            input.AutoRenew,
 		}
 		if err := tx.Create(subscription).Error; err != nil {
 			return translateError(err)
@@ -642,7 +612,7 @@ func (r *Repo) UpsertUserTwoFactor(ctx context.Context, item *domainuser.UserTwo
 	err := r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "user_id"}},
-			DoUpdates: clause.Assignments(map[string]interface{}{
+			DoUpdates: clause.Assignments(map[string]any{
 				"totp_enabled":              dbItem.TOTPEnabled,
 				"totp_secret_encrypted":     dbItem.TOTPSecretEncrypted,
 				"totp_setup_expires_at":     dbItem.TOTPSetupExpiresAt,
@@ -681,8 +651,8 @@ func (r *Repo) UpdateUserTwoFactor(ctx context.Context, userID uint, input repos
 	return r.GetUserTwoFactorByUserID(ctx, userID)
 }
 
-func userTwoFactorUpdates(input repository.UpdateUserTwoFactorInput) map[string]interface{} {
-	updates := make(map[string]interface{})
+func userTwoFactorUpdates(input repository.UpdateUserTwoFactorInput) map[string]any {
+	updates := make(map[string]any)
 	if input.TOTPEnabled != nil {
 		updates["totp_enabled"] = *input.TOTPEnabled
 	}
@@ -739,7 +709,7 @@ func (r *Repo) MarkLoginFailure(
 		}
 
 		nextFailedCount := credential.FailedLoginCount + 1
-		updates := map[string]interface{}{
+		updates := map[string]any{
 			"failed_login_count": nextFailedCount,
 		}
 		if lockThreshold > 0 && nextFailedCount >= lockThreshold {
@@ -770,7 +740,7 @@ func (r *Repo) ResetLoginFailure(ctx context.Context, userID uint) error {
 	return translateError(r.db.WithContext(ctx).
 		Model(&model.UserCredential{}).
 		Where("user_id = ?", userID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"failed_login_count": 0,
 			"locked_until":       nil,
 		}).
@@ -821,7 +791,7 @@ func (r *Repo) UpdatePassword(ctx context.Context, userID uint, passwordHash str
 	result := r.db.WithContext(ctx).
 		Model(&model.UserCredential{}).
 		Where("user_id = ?", userID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"password_hash":       passwordHash,
 			"password_algo":       "bcrypt",
 			"password_enabled":    true,
@@ -1125,26 +1095,16 @@ func (r *Repo) ListDistinctFileStoragePathsByUserID(ctx context.Context, userID 
 }
 
 // RecordAuthEvent 写入认证事件。
-func (r *Repo) RecordAuthEvent(
-	ctx context.Context,
-	userID uint,
-	requestID string,
-	eventType string,
-	result string,
-	reason string,
-	clientIP string,
-	userAgent string,
-	detailJSON string,
-) error {
+func (r *Repo) RecordAuthEvent(ctx context.Context, input repository.AuthEventInput) error {
 	item := &model.UserAuthEvent{
-		RequestID:  requestID,
-		UserID:     userID,
-		EventType:  eventType,
-		Result:     result,
-		Reason:     reason,
-		ClientIP:   clientIP,
-		UserAgent:  userAgent,
-		DetailJSON: detailJSON,
+		RequestID:  input.RequestID,
+		UserID:     input.UserID,
+		EventType:  input.EventType,
+		Result:     input.Result,
+		Reason:     input.Reason,
+		ClientIP:   input.ClientIP,
+		UserAgent:  input.UserAgent,
+		DetailJSON: input.DetailJSON,
 		OccurredAt: time.Now(),
 	}
 	return translateError(r.db.WithContext(ctx).Create(item).Error)
@@ -1187,7 +1147,7 @@ func (r *Repo) RotateSessionTokens(ctx context.Context, input repository.RotateS
 			return repository.ErrInvalidInput
 		}
 
-		updates := map[string]interface{}{
+		updates := map[string]any{
 			"previous_refresh_token_hash": item.RefreshTokenHash,
 			"refresh_token_hash":          input.NextRefreshHash,
 			"refresh_rotated_at":          input.Now,
@@ -1241,8 +1201,8 @@ func (r *Repo) TouchSessionActivity(ctx context.Context, userID uint, sessionID 
 		Error)
 }
 
-func sessionActivityUpdates(input repository.UpdateSessionActivityInput) map[string]interface{} {
-	updates := make(map[string]interface{})
+func sessionActivityUpdates(input repository.UpdateSessionActivityInput) map[string]any {
+	updates := make(map[string]any)
 	if input.LastSeenAt != nil {
 		updates["last_seen_at"] = *input.LastSeenAt
 	}
@@ -1309,7 +1269,7 @@ func (r *Repo) RevokeSession(ctx context.Context, userID uint, sessionID string,
 	return translateError(r.db.WithContext(ctx).
 		Model(&model.UserSession{}).
 		Where("user_id = ? AND session_id = ? AND revoked_at IS NULL", userID, sessionID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"revoked_at":    now,
 			"revoke_reason": reason,
 		}).
@@ -1322,7 +1282,7 @@ func (r *Repo) RevokeAllSessions(ctx context.Context, userID uint, reason string
 	return translateError(r.db.WithContext(ctx).
 		Model(&model.UserSession{}).
 		Where("user_id = ? AND revoked_at IS NULL", userID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"revoked_at":    now,
 			"revoke_reason": reason,
 		}).
@@ -1343,26 +1303,19 @@ func (r *Repo) ListActiveSessionsByUserID(ctx context.Context, userID uint, now 
 }
 
 // ListAuthEvents 查询用户认证事件。
-func (r *Repo) ListAuthEvents(
-	ctx context.Context,
-	userID uint,
-	eventType string,
-	result string,
-	offset int,
-	limit int,
-) ([]domainuser.AuthEvent, int64, error) {
+func (r *Repo) ListAuthEvents(ctx context.Context, input repository.AuthEventListInput) ([]domainuser.AuthEvent, int64, error) {
 	items := make([]model.UserAuthEvent, 0)
 	var total int64
 
 	query := r.db.WithContext(ctx).Model(&model.UserAuthEvent{})
-	if userID > 0 {
-		query = query.Where("user_id = ?", userID)
+	if input.UserID > 0 {
+		query = query.Where("user_id = ?", input.UserID)
 	}
-	if eventType != "" {
-		query = query.Where("event_type = ?", eventType)
+	if input.EventType != "" {
+		query = query.Where("event_type = ?", input.EventType)
 	}
-	if result != "" {
-		query = query.Where("result = ?", result)
+	if input.Result != "" {
+		query = query.Where("result = ?", input.Result)
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -1371,8 +1324,8 @@ func (r *Repo) ListAuthEvents(
 	if err := query.
 		Order("occurred_at DESC").
 		Order("id DESC").
-		Offset(offset).
-		Limit(limit).
+		Offset(input.Offset).
+		Limit(input.Limit).
 		Find(&items).Error; err != nil {
 		return nil, 0, translateError(err)
 	}
@@ -1481,8 +1434,8 @@ func (r *Repo) UpdateIdentityProvider(ctx context.Context, publicID string, inpu
 	return r.GetIdentityProviderByPublicID(ctx, publicID)
 }
 
-func identityProviderUpdates(input repository.UpdateIdentityProviderInput) map[string]interface{} {
-	updates := make(map[string]interface{})
+func identityProviderUpdates(input repository.UpdateIdentityProviderInput) map[string]any {
+	updates := make(map[string]any)
 	if input.Type != nil {
 		updates["type"] = *input.Type
 	}
@@ -1787,7 +1740,7 @@ func (r *Repo) UpdateUserIdentityLogin(ctx context.Context, identityID uint, pro
 	result := r.db.WithContext(ctx).
 		Model(&model.UserIdentity{}).
 		Where("id = ?", identityID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"profile_json":          profileJSON,
 			"provider_display_name": providerDisplayName,
 			"email":                 email,
@@ -1808,7 +1761,7 @@ func (r *Repo) CancelPendingContactVerifications(ctx context.Context, channel st
 	return translateError(r.db.WithContext(ctx).
 		Model(&model.UserContactVerification{}).
 		Where("channel = ? AND purpose = ? AND target = ? AND status = ?", channel, purpose, target, model.ContactVerificationStatusPending).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":      model.ContactVerificationStatusCanceled,
 			"consumed_at": now,
 		}).Error)
@@ -1819,7 +1772,7 @@ func (r *Repo) CancelPendingContactVerificationsForUser(ctx context.Context, use
 	return translateError(r.db.WithContext(ctx).
 		Model(&model.UserContactVerification{}).
 		Where("user_id = ? AND channel = ? AND purpose = ? AND target = ? AND status = ?", userID, channel, purpose, target, model.ContactVerificationStatusPending).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":      model.ContactVerificationStatusCanceled,
 			"consumed_at": now,
 		}).Error)
@@ -1875,7 +1828,7 @@ func (r *Repo) MarkContactVerificationVerified(ctx context.Context, verification
 	result := r.db.WithContext(ctx).
 		Model(&model.UserContactVerification{}).
 		Where("id = ? AND status = ?", verificationID, model.ContactVerificationStatusPending).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":      model.ContactVerificationStatusVerified,
 			"verified_at": now,
 			"consumed_at": now,
@@ -1937,7 +1890,6 @@ func toDomainPlan(item model.BillingPlan) *domainbilling.Plan {
 		Description:         item.Description,
 		FeatureJSON:         item.FeatureJSON,
 		PeriodCreditNanousd: item.PeriodCreditNanousd,
-		DiscountPercent:     item.DiscountPercent,
 		SortOrder:           item.SortOrder,
 		IsActive:            item.IsActive,
 		CreatedAt:           item.CreatedAt,

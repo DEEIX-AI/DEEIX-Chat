@@ -3,11 +3,13 @@ package audit
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	domainaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/audit"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"go.uber.org/zap"
 )
 
@@ -22,16 +24,33 @@ type ListFilter struct {
 	Sort        string
 }
 
+// WriteInput 描述一条待写入的审计日志。
+type WriteInput struct {
+	RequestID   string
+	ActorUserID uint
+	Action      string
+	Resource    string
+	ResourceID  string
+	IP          string
+	UserAgent   string
+	Detail      any
+}
+
+func normalizeWriteInput(input WriteInput) WriteInput {
+	input.RequestID = strings.TrimSpace(input.RequestID)
+	input.Action = strings.TrimSpace(input.Action)
+	input.Resource = strings.TrimSpace(input.Resource)
+	input.ResourceID = strings.TrimSpace(input.ResourceID)
+	input.IP = strings.TrimSpace(input.IP)
+	input.UserAgent = strings.TrimSpace(input.UserAgent)
+	return input
+}
+
 // Service 封装审计业务能力。
 type Service struct {
 	repo   repository.AuditRepository
 	logger *zap.Logger
 }
-
-const (
-	defaultPageSize = 20
-	maxPageSize     = 1000
-)
 
 // NewService 创建服务。
 func NewService(repo repository.AuditRepository, logger *zap.Logger) *Service {
@@ -39,20 +58,12 @@ func NewService(repo repository.AuditRepository, logger *zap.Logger) *Service {
 }
 
 // Write 写入审计日志（DB 持久化 + 结构化日志输出）。
-func (s *Service) Write(
-	ctx context.Context,
-	requestID string,
-	actorUserID uint,
-	action string,
-	resource string,
-	resourceID string,
-	ip string,
-	userAgent string,
-	detail interface{},
-) {
+func (s *Service) Write(ctx context.Context, input WriteInput) {
+	input = normalizeWriteInput(input)
+
 	detailJSON := "{}"
-	if detail != nil {
-		if raw, err := json.Marshal(detail); err == nil {
+	if input.Detail != nil {
+		if raw, err := json.Marshal(input.Detail); err == nil {
 			detailJSON = string(raw)
 		}
 	}
@@ -62,31 +73,31 @@ func (s *Service) Write(
 	// 结构化日志输出（供日志平台采集）
 	s.logger.Info("audit",
 		zap.String("trace_id", traceID),
-		zap.String("request_id", requestID),
-		zap.Uint("user_id", actorUserID),
-		zap.String("action", action),
-		zap.String("resource", resource),
-		zap.String("resource_id", resourceID),
-		zap.String("ip", ip),
-		zap.String("user_agent", userAgent),
+		zap.String("request_id", input.RequestID),
+		zap.Uint("user_id", input.ActorUserID),
+		zap.String("action", input.Action),
+		zap.String("resource", input.Resource),
+		zap.String("resource_id", input.ResourceID),
+		zap.String("ip", input.IP),
+		zap.String("user_agent", input.UserAgent),
 		zap.String("detail", detailJSON),
 	)
 
 	// DB 持久化
 	if err := s.repo.Create(ctx, &domainaudit.Log{
-		RequestID:   requestID,
-		ActorUserID: actorUserID,
-		Action:      action,
-		Resource:    resource,
-		ResourceID:  resourceID,
-		IP:          ip,
-		UserAgent:   userAgent,
+		RequestID:   input.RequestID,
+		ActorUserID: input.ActorUserID,
+		Action:      input.Action,
+		Resource:    input.Resource,
+		ResourceID:  input.ResourceID,
+		IP:          input.IP,
+		UserAgent:   input.UserAgent,
 		DetailJSON:  detailJSON,
 	}); err != nil {
 		s.logger.Error("audit_persist_failed",
 			zap.String("trace_id", traceID),
-			zap.String("request_id", requestID),
-			zap.String("action", action),
+			zap.String("request_id", input.RequestID),
+			zap.String("action", input.Action),
 			zap.Error(err),
 		)
 	}
@@ -94,7 +105,7 @@ func (s *Service) Write(
 
 // List 分页查询审计日志。
 func (s *Service) List(ctx context.Context, page int, pageSize int, filter ListFilter) ([]domainaudit.Log, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	return s.repo.List(ctx, offset, limit, repository.AuditLogListFilter{
 		Query:       filter.Query,
 		Resource:    filter.Resource,
@@ -104,21 +115,4 @@ func (s *Service) List(ctx context.Context, page int, pageSize int, filter ListF
 		CreatedTo:   filter.CreatedTo,
 		Sort:        filter.Sort,
 	})
-}
-
-func normalizePage(page int, pageSize int) (int, int) {
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = defaultPageSize
-	}
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	offset := (page - 1) * pageSize
-	if offset < 0 {
-		offset = 0
-	}
-	return offset, pageSize
 }

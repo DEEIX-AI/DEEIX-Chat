@@ -39,6 +39,7 @@ import { NavigationSearch } from "@/features/layouts/components/navigation/navig
 import { SidebarConversationItem } from "@/features/layouts/components/navigation/sidebar-conversation-item";
 import { SidebarConversationSkeleton } from "@/features/layouts/components/navigation/sidebar-conversation-skeleton";
 import { useLayoutActiveConversation } from "@/features/layouts/hooks/use-layout-active-conversation";
+import { useLayoutSearchPreview } from "@/features/layouts/hooks/use-layout-search-preview";
 import { useLayoutSidebarListFlip } from "@/features/layouts/hooks/use-layout-sidebar-list-flip";
 import { useLayoutSidebarNavigation } from "@/features/layouts/hooks/use-layout-sidebar-navigation";
 import { filterConversationSearchResults } from "@/features/layouts/model/navigation-search";
@@ -97,6 +98,7 @@ export function NavStarred() {
   const [renameValue, setRenameValue] = React.useState("");
   const [autoRenamingPublicID, setAutoRenamingPublicID] = React.useState<string | null>(null);
   const [starredOpen, setStarredOpen] = useStoredBoolean(STARRED_OPEN_STORAGE_KEY, true);
+  const searchPreview = useLayoutSearchPreview(showAllStarredDialog);
   const listContainerRef = React.useRef<HTMLDivElement | null>(null);
   const deleteFilesID = React.useId();
   const starredContentID = React.useId();
@@ -409,6 +411,13 @@ export function NavStarred() {
         loading={dialogLoading}
         loadingText={t("starredSearch.loading")}
         emptyText={t("starredSearch.empty")}
+        showPreviewPane
+        previewConversationID={searchPreview.preview.conversationID}
+        previewMessages={searchPreview.preview.messages}
+        previewLoading={searchPreview.preview.loading}
+        previewLoadFailed={searchPreview.preview.loadFailed}
+        onPreviewChange={searchPreview.selectPreview}
+        onPreviewRetry={searchPreview.retryPreview}
         onSelect={onSelectSearchResult}
       />
 

@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
-func mustDecodeObject(t *testing.T, raw string) map[string]interface{} {
+func mustDecodeObject(t *testing.T, raw string) map[string]any {
 	t.Helper()
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
 		t.Fatalf("decode usage fixture: %v", err)
 	}
@@ -17,11 +19,11 @@ func mustDecodeObject(t *testing.T, raw string) map[string]interface{} {
 
 func assertJSONEqual(t *testing.T, actual string, expected string) {
 	t.Helper()
-	var actualPayload interface{}
+	var actualPayload any
 	if err := json.Unmarshal([]byte(actual), &actualPayload); err != nil {
 		t.Fatalf("decode actual json: %v; raw=%s", err, actual)
 	}
-	var expectedPayload interface{}
+	var expectedPayload any
 	if err := json.Unmarshal([]byte(expected), &expectedPayload); err != nil {
 		t.Fatalf("decode expected json: %v; raw=%s", err, expected)
 	}
@@ -40,7 +42,7 @@ func TestParseChatCompletionsUsage(t *testing.T) {
 		}
 	}`)
 
-	usage := parseChatStreamUsage(AdapterOpenAIChatCompletions, payload)
+	usage := parseChatStreamUsage(portllm.AdapterOpenAIChatCompletions, payload)
 	if usage.InputTokens != 84 || usage.OutputTokens != 16 || usage.CacheReadTokens != 17 || usage.ReasoningTokens != 7 {
 		t.Fatalf("unexpected chat completions usage: %+v", usage)
 	}
@@ -59,8 +61,8 @@ func TestParseChatStreamUsageIgnoresServiceTierOnlyChunks(t *testing.T) {
 		"choices": [{"delta": {"content": "hello"}}]
 	}`)
 
-	usage := parseChatStreamUsage(AdapterOpenAIChatCompletions, payload)
-	if usage != (Usage{}) {
+	usage := parseChatStreamUsage(portllm.AdapterOpenAIChatCompletions, payload)
+	if usage != (portllm.Usage{}) {
 		t.Fatalf("expected no usage for service_tier-only stream chunk, got %+v", usage)
 	}
 }
@@ -76,8 +78,8 @@ func TestParseResponsesUsage(t *testing.T) {
 		}
 	}`)
 
-	result := &GenerateOutput{}
-	parseResponsesOutput(AdapterOpenAIResponses, payload, result)
+	result := &portllm.GenerateOutput{}
+	parseResponsesOutput(portllm.AdapterOpenAIResponses, payload, result)
 	if result.Usage.InputTokens != 84 || result.Usage.OutputTokens != 16 || result.Usage.CacheReadTokens != 17 || result.Usage.ReasoningTokens != 7 || result.Usage.ServiceTier != "flex" {
 		t.Fatalf("unexpected responses usage: %+v", result.Usage)
 	}
@@ -98,7 +100,7 @@ func TestParseXAIResponsesUsage(t *testing.T) {
 		}
 	}`)
 
-	usage := parseOpenAICompatibleUsageForAdapter(AdapterXAIResponses, payload)
+	usage := parseOpenAICompatibleUsageForAdapter(portllm.AdapterXAIResponses, payload)
 	if usage.InputTokens != 27 ||
 		usage.OutputTokens != 48 ||
 		usage.CacheReadTokens != 98 ||
@@ -129,7 +131,7 @@ func TestParseXAIChatCompletionsUsage(t *testing.T) {
 		}
 	}`)
 
-	usage := parseOpenAICompatibleUsageForAdapter(AdapterXAIResponses, payload)
+	usage := parseOpenAICompatibleUsageForAdapter(portllm.AdapterXAIResponses, payload)
 	if usage.InputTokens != 27 ||
 		usage.OutputTokens != 48 ||
 		usage.CacheReadTokens != 98 ||
@@ -153,8 +155,8 @@ func TestParseOpenAICompatibleUsageAliases(t *testing.T) {
 		}
 	}`)
 
-	usage := parseOpenAICompatibleUsage(payload)
-	if usage.InputTokens != 84 ||
+	usage := parseOpenAICompatibleUsageForAdapter(portllm.AdapterOpenAIResponses, payload)
+	if usage.InputTokens != 75 ||
 		usage.OutputTokens != 16 ||
 		usage.CacheReadTokens != 17 ||
 		usage.CacheWriteTokens != 9 ||
@@ -177,13 +179,53 @@ func TestParseOpenAICompatibleUsageCacheCreationAliases(t *testing.T) {
 		}
 	}`)
 
-	usage := parseOpenAICompatibleUsage(payload)
-	if usage.InputTokens != 84 ||
+	usage := parseOpenAICompatibleUsageForAdapter(portllm.AdapterOpenAIResponses, payload)
+	if usage.InputTokens != 75 ||
 		usage.OutputTokens != 16 ||
 		usage.CacheReadTokens != 17 ||
 		usage.CacheWriteTokens != 9 ||
 		usage.ReasoningTokens != 7 {
 		t.Fatalf("unexpected openai-compatible cache creation aliases: %+v", usage)
+	}
+}
+
+// new-api 把 Anthropic 用量转成 OpenAI 形状时，prompt_tokens = input + cache_read + cache_creation，
+// 并同时在 cache_write_tokens 与旧字段 cached_creation_tokens 中透传写入量。非缓存输入必须扣掉两类缓存，
+// 否则缓存写入会被按输入价与写入价各计一次。
+func TestParseOpenAICompatibleUsageExcludesCacheWriteFromNonCachedInput(t *testing.T) {
+	payload := mustDecodeObject(t, `{
+		"usage": {
+			"prompt_tokens": 3400,
+			"completion_tokens": 12,
+			"total_tokens": 3412,
+			"usage_semantic": "openai",
+			"usage_source": "anthropic",
+			"prompt_tokens_details": {
+				"cached_tokens": 0,
+				"cached_creation_tokens": 3355,
+				"cache_write_tokens": 3355
+			}
+		}
+	}`)
+
+	usage := parseOpenAICompatibleUsageForAdapter(portllm.AdapterOpenAIChatCompletions, payload)
+	if usage.InputTokens != 45 || usage.CacheReadTokens != 0 || usage.CacheWriteTokens != 3355 || usage.OutputTokens != 12 {
+		t.Fatalf("unexpected new-api cache write usage: %+v", usage)
+	}
+
+	legacyOnly := mustDecodeObject(t, `{
+		"usage": {
+			"prompt_tokens": 3400,
+			"completion_tokens": 12,
+			"prompt_tokens_details": {
+				"cached_tokens": 40,
+				"cached_creation_tokens": 3355
+			}
+		}
+	}`)
+	usage = parseOpenAICompatibleUsageForAdapter(portllm.AdapterOpenAIChatCompletions, legacyOnly)
+	if usage.InputTokens != 5 || usage.CacheReadTokens != 40 || usage.CacheWriteTokens != 3355 {
+		t.Fatalf("unexpected legacy cached_creation_tokens usage: %+v", usage)
 	}
 }
 
@@ -236,7 +278,7 @@ func TestParseAnthropicMessagesUsageFallsBackToLegacyCacheCreation(t *testing.T)
 }
 
 func TestApplyAnthropicStreamEventKeepsSplitRawUsage(t *testing.T) {
-	result := &GenerateOutput{}
+	result := &portllm.GenerateOutput{}
 	start := mustDecodeObject(t, `{
 		"type": "message_start",
 		"message": {

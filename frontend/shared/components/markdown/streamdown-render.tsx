@@ -48,6 +48,7 @@ import {
   normalizeContent,
   normalizeCurrencyDollars,
   normalizeEscapedHTMLAttributeQuotes,
+  normalizeHTMLBlockBlankLines,
   normalizeHTMLVisualMarkdownFences,
   normalizeLatexUnicodeSymbols,
   normalizeMathDelimiters,
@@ -286,6 +287,7 @@ const BASE_MARKDOWN_CLASSNAME = cn(
   "[&_[data-streamdown='mermaid-block-actions']]:gap-2 [&_[data-streamdown='mermaid-block-actions']]:border-0 [&_[data-streamdown='mermaid-block-actions']]:rounded-none [&_[data-streamdown='mermaid-block-actions']]:bg-transparent [&_[data-streamdown='mermaid-block-actions']]:p-0 [&_[data-streamdown='mermaid-block-actions']]:shadow-none [&_[data-streamdown='mermaid-block-actions']]:backdrop-blur-none",
   "[&_[data-streamdown='mermaid-block-actions']>button]:border-0 [&_[data-streamdown='mermaid-block-actions']>button]:bg-transparent [&_[data-streamdown='mermaid-block-actions']>button]:shadow-none [&_[data-streamdown='mermaid-block-actions']>button:hover]:bg-foreground/[0.04] [&_[data-streamdown='mermaid-block-actions']>button:hover]:text-foreground",
   "[&_[data-streamdown='mermaid-block-actions']>div>button]:border-0 [&_[data-streamdown='mermaid-block-actions']>div>button]:bg-transparent [&_[data-streamdown='mermaid-block-actions']>div>button]:shadow-none [&_[data-streamdown='mermaid-block-actions']>div>button:hover]:bg-foreground/[0.04] [&_[data-streamdown='mermaid-block-actions']>div>button:hover]:text-foreground",
+  "[&_[data-streamdown='mermaid-block-actions']_button:focus-visible]:outline-none [&_[data-streamdown='mermaid-block-actions']_button:focus-visible]:ring-0 [&_[data-streamdown='mermaid-block-actions']_button:focus-visible]:bg-foreground/[0.04] [&_[data-streamdown='mermaid-block-actions']_button:focus-visible]:text-foreground",
   "[&_[data-streamdown='mermaid-block-actions']_svg]:size-3",
   "[&_[data-streamdown='mermaid-block']_button>svg]:size-3",
   "[&_code:not(pre_code)]:rounded-md [&_code:not(pre_code)]:bg-foreground/[0.05] [&_code:not(pre_code)]:px-1.5 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:font-mono [&_code:not(pre_code)]:text-[0.85em] [&_code:not(pre_code)]:text-primary [&_code:not(pre_code)]:whitespace-pre-wrap [&_code:not(pre_code)]:break-words [&_code:not(pre_code)]:[overflow-wrap:anywhere]",
@@ -388,7 +390,11 @@ const THINKING_STREAMDOWN_COMPONENTS = {
   h6: ThinkingHeading,
 } as const;
 
-function normalizeStreamdownContent(content: unknown, preserveSourceLines = false): string {
+function normalizeStreamdownContent(
+  content: unknown,
+  preserveSourceLines = false,
+  streaming = false,
+): string {
   const escapedContent = normalizeCurrencyDollars(
     normalizeEscapedHTMLAttributeQuotes(normalizeContent(content)),
   );
@@ -399,7 +405,7 @@ function normalizeStreamdownContent(content: unknown, preserveSourceLines = fals
   );
   return preserveSourceLines
     ? normalizedContent
-    : normalizeHTMLVisualMarkdownFences(normalizedContent);
+    : normalizeHTMLBlockBlankLines(normalizeHTMLVisualMarkdownFences(normalizedContent), streaming);
 }
 
 function detectStreamdownFeatures(content: string): StreamdownFeatureFlags {
@@ -658,8 +664,8 @@ export const StreamdownRender = React.memo(function StreamdownRender({
   artifactActions,
 }: StreamdownRenderProps) {
   const normalizedContent = React.useMemo(
-    () => normalizeStreamdownContent(content, sourcePositions),
-    [content, sourcePositions],
+    () => normalizeStreamdownContent(content, sourcePositions, streaming),
+    [content, sourcePositions, streaming],
   );
   const plugins = useStreamdownPlugins(normalizedContent);
   const segments = React.useMemo(

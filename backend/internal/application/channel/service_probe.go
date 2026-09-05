@@ -3,7 +3,6 @@ package channel
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/url"
 	"strings"
@@ -265,7 +264,7 @@ func (s *Service) probeRoute(ctx context.Context, row repository.ChannelUpstream
 			{Role: "user", Content: "Reply with OK."},
 		},
 		DisableTools: true,
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"max_output_tokens":     1,
 			"max_completion_tokens": 1,
 			"max_tokens":            1,
@@ -418,7 +417,6 @@ func failedModelProbeResult(row repository.ChannelUpstreamRouteRow, code string,
 
 func (s *Service) failedModelProbeFromError(row repository.ChannelUpstreamRouteRow, route llm.RouteConfig, err error, latencyMS int64) *ModelProbeResult {
 	code, message, statusCode := classifyModelProbeError(err)
-	message = sanitizeSensitiveText(message, route.APIKey, route.BaseURL)
 	result := failedModelProbeResult(row, code, message)
 	result.LatencyMS = latencyMS
 	result.UpstreamStatusCode = statusCode
@@ -447,46 +445,29 @@ func classifyModelProbeError(err error) (string, string, int) {
 
 	var upstreamErr *llm.UpstreamError
 	if errors.As(err, &upstreamErr) {
-		summary := strings.TrimSpace(upstreamErr.Message)
-		if summary == "" {
-			summary = fmt.Sprintf("upstream_status_%d", upstreamErr.StatusCode)
-		}
 		if upstreamErr.StatusCode >= 200 && upstreamErr.StatusCode < 300 {
-			return "response_incompatible", "upstream response format is incompatible: " + summary, upstreamErr.StatusCode
+			return "response_incompatible", "upstream response format is incompatible", upstreamErr.StatusCode
 		}
 		switch upstreamErr.StatusCode {
 		case 401, 403:
-			return "auth_failed", "authentication failed: " + summary, upstreamErr.StatusCode
+			return "auth_failed", "upstream authentication failed", upstreamErr.StatusCode
 		case 404:
-			return "model_not_found", "model or endpoint not found: " + summary, upstreamErr.StatusCode
+			return "model_not_found", "upstream model or endpoint was not found", upstreamErr.StatusCode
 		case 408, 504:
-			return "timeout", "upstream request timed out: " + summary, upstreamErr.StatusCode
+			return "timeout", "upstream request timed out", upstreamErr.StatusCode
 		case 429:
-			return "rate_limited", "upstream rate limit reached: " + summary, upstreamErr.StatusCode
+			return "rate_limited", "upstream rate limit reached", upstreamErr.StatusCode
 		case 400, 422:
-			return "request_invalid", "upstream rejected the test request: " + summary, upstreamErr.StatusCode
+			return "request_invalid", "upstream rejected the test request", upstreamErr.StatusCode
 		default:
 			if upstreamErr.StatusCode >= 500 {
-				return "upstream_unavailable", "upstream service unavailable: " + summary, upstreamErr.StatusCode
+				return "upstream_unavailable", "upstream service is unavailable", upstreamErr.StatusCode
 			}
-			return "upstream_request_failed", "upstream request failed: " + summary, upstreamErr.StatusCode
+			return "upstream_request_failed", "upstream request failed", upstreamErr.StatusCode
 		}
 	}
 
-	message := strings.TrimSpace(err.Error())
-	lowerMessage := strings.ToLower(message)
-	switch {
-	case strings.Contains(lowerMessage, "timeout"):
-		return "timeout", "upstream request timed out", 0
-	case strings.Contains(lowerMessage, "unsupported"):
-		return "request_invalid", "request parameter is not supported by upstream", 0
-	case strings.Contains(lowerMessage, "invalid base url"):
-		return "config_invalid", "upstream base url is invalid", 0
-	case strings.Contains(lowerMessage, "parse") || strings.Contains(lowerMessage, "invalid response") || strings.Contains(lowerMessage, "missing"):
-		return "response_incompatible", "upstream response format is incompatible: " + message, 0
-	default:
-		return "network_error", "upstream request failed: " + message, 0
-	}
+	return "network_error", "upstream request failed", 0
 }
 
 func sanitizeModelProbeDebug(debug *llm.UpstreamDebugSnapshot, route llm.RouteConfig) *ModelProbeDebugView {

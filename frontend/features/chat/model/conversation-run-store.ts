@@ -115,7 +115,7 @@ export class ConversationRunStore {
       }
       if (
         existing?.conversationPublicID === conversationID &&
-        (existing.status === "local" || existing.status === "server")
+        existing.status === "server"
       ) {
         return;
       }
@@ -184,12 +184,10 @@ export class ConversationRunStore {
         }
         if (record.status === "local") {
           if (serverOwner) {
-            if (record.missingFromSnapshotSince !== undefined) {
-              this.records.set(runID, {
-                conversationPublicID: record.conversationPublicID,
-                status: "local",
-              });
-            }
+            this.records.set(runID, {
+              conversationPublicID: record.conversationPublicID,
+              status: "server",
+            });
             continue;
           }
           // 服务端从未登记该运行（提交失败、流挂死等）时，本地记录会持续缺席快照。

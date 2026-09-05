@@ -266,16 +266,16 @@ export function resolveConversationComposerKey(conversationID: string | null): s
   return conversationID?.trim() || NEW_CONVERSATION_COMPOSER_KEY;
 }
 
+// 新对话草稿与历史会话草稿同属一个 store（key 为 __new__），"新对话"按钮只切换会话 key，
+// 不删除已持久化的条目；切回新对话时由 hydration 从 storage 恢复，提交时由 setDraft("") 写空清除。
 export function useChatComposerState(
   conversationID: string | null,
   {
     preserveDrafts = true,
-    resetToken = 0,
     storageScope = "",
     transient = false,
   }: {
     preserveDrafts?: boolean;
-    resetToken?: number;
     storageScope?: string;
     transient?: boolean;
   } = {},
@@ -336,19 +336,6 @@ export function useChatComposerState(
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
-
-  React.useEffect(() => {
-    if (resetToken <= 0 || conversationID) {
-      return;
-    }
-    discardPendingPersistence(conversationKey);
-    if (!transient && storageKey) {
-      ComposerStorageOps.removeEntry(storageKey, conversationKey);
-    }
-    setHydratedConversationKey(conversationKey);
-    setHydratedStorageKey(storageKey);
-    setState(createEmptyComposerState(conversationKey));
-  }, [conversationID, conversationKey, discardPendingPersistence, resetToken, storageKey, transient]);
 
   useIsomorphicLayoutEffect(() => {
     const previousStorageKey = activeStorageKeyRef.current;

@@ -63,7 +63,7 @@ func (c *Client) ListTools(ctx context.Context, cfg CallConfig) ([]Tool, error) 
 	if err != nil {
 		return nil, err
 	}
-	result, err := c.rpc(ctx, cfg, session, "tools/list", map[string]interface{}{}, false)
+	result, err := c.rpc(ctx, cfg, session, "tools/list", map[string]any{}, false)
 	if err != nil {
 		return nil, err
 	}
@@ -90,10 +90,10 @@ func (c *Client) CallTool(ctx context.Context, cfg CallConfig, input CallInput) 
 	if err != nil {
 		return "", err
 	}
-	params := map[string]interface{}{
+	params := map[string]any{
 		"name":      toolName,
 		"arguments": args,
-		"_meta": map[string]interface{}{
+		"_meta": map[string]any{
 			"user_id":         input.UserID,
 			"conversation_id": input.ConversationID,
 			"request_id":      strings.TrimSpace(input.RequestID),
@@ -107,10 +107,10 @@ func (c *Client) CallTool(ctx context.Context, cfg CallConfig, input CallInput) 
 }
 
 func (c *Client) initialize(ctx context.Context, cfg CallConfig) (string, error) {
-	params := map[string]interface{}{
+	params := map[string]any{
 		"protocolVersion": protocolVersion,
-		"capabilities":    map[string]interface{}{},
-		"clientInfo": map[string]interface{}{
+		"capabilities":    map[string]any{},
+		"clientInfo": map[string]any{
 			"name":    "deeix-chat",
 			"version": "0.1.0",
 		},
@@ -126,7 +126,7 @@ func (c *Client) initialize(ctx context.Context, cfg CallConfig) (string, error)
 	return sessionID, nil
 }
 
-func (c *Client) rpc(ctx context.Context, cfg CallConfig, sessionID string, method string, params interface{}, notification bool) (json.RawMessage, error) {
+func (c *Client) rpc(ctx context.Context, cfg CallConfig, sessionID string, method string, params any, notification bool) (json.RawMessage, error) {
 	result, _, err := c.rpcWithSession(ctx, cfg, sessionID, method, params, notification)
 	return result, err
 }
@@ -136,14 +136,14 @@ func (c *Client) rpcWithSession(
 	cfg CallConfig,
 	sessionID string,
 	method string,
-	params interface{},
+	params any,
 	notification bool,
 ) (json.RawMessage, string, error) {
 	endpoint, err := buildEndpointURL(cfg)
 	if err != nil {
 		return nil, sessionID, err
 	}
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"jsonrpc": "2.0",
 		"method":  method,
 	}
@@ -190,12 +190,12 @@ func (c *Client) rpcWithSession(
 	if nextSessionID := strings.TrimSpace(resp.Header.Get("Mcp-Session-Id")); nextSessionID != "" {
 		sessionID = nextSessionID
 	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, sessionID, fmt.Errorf("mcp request failed: status=%d", resp.StatusCode)
+	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8*1024*1024))
 	if err != nil {
 		return nil, sessionID, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, sessionID, fmt.Errorf("mcp request failed: status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if notification {
 		return nil, sessionID, nil
@@ -285,7 +285,7 @@ func extractSSEDataPayload(payload string) string {
 
 type rpcResponse struct {
 	JSONRPC string          `json:"jsonrpc"`
-	ID      interface{}     `json:"id"`
+	ID      any             `json:"id"`
 	Result  json.RawMessage `json:"result"`
 	Error   *rpcError       `json:"error"`
 }
@@ -359,25 +359,25 @@ func (r toolCallResult) protocolErrorText() string {
 	return ""
 }
 
-func decodeArguments(raw string) (map[string]interface{}, error) {
+func decodeArguments(raw string) (map[string]any, error) {
 	value := strings.TrimSpace(raw)
 	if value == "" {
-		return map[string]interface{}{}, nil
+		return map[string]any{}, nil
 	}
-	var parsed interface{}
+	var parsed any
 	decoder := json.NewDecoder(strings.NewReader(value))
 	decoder.UseNumber()
 	if err := decoder.Decode(&parsed); err != nil {
 		return nil, fmt.Errorf("mcp tool arguments must be a valid JSON object")
 	}
-	object, ok := normalizeJSONNumber(parsed).(map[string]interface{})
+	object, ok := normalizeJSONNumber(parsed).(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("mcp tool arguments must be a JSON object")
 	}
 	return object, nil
 }
 
-func normalizeJSONNumber(value interface{}) interface{} {
+func normalizeJSONNumber(value any) any {
 	switch typed := value.(type) {
 	case json.Number:
 		if parsed, err := typed.Int64(); err == nil {
@@ -387,12 +387,12 @@ func normalizeJSONNumber(value interface{}) interface{} {
 			return parsed
 		}
 		return typed.String()
-	case map[string]interface{}:
+	case map[string]any:
 		for key, item := range typed {
 			typed[key] = normalizeJSONNumber(item)
 		}
 		return typed
-	case []interface{}:
+	case []any:
 		for index, item := range typed {
 			typed[index] = normalizeJSONNumber(item)
 		}

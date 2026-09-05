@@ -29,20 +29,20 @@ func NewHandler(service *appauth.Service) *Handler {
 	}
 }
 
-func (h *Handler) recordAudit(c *gin.Context, userID uint, action string, resource string, resourceID string, detail interface{}) {
+func (h *Handler) recordAudit(c *gin.Context, userID uint, action string, resource string, resourceID string, detail any) {
 	h.service.RecordAudit(c.Request.Context(), appauth.AuditInput{
-		UserID:     userID,
-		RequestID:  middleware.MustRequestID(c),
-		Action:     action,
-		Resource:   resource,
-		ResourceID: resourceID,
-		ClientIP:   c.ClientIP(),
-		UserAgent:  c.Request.UserAgent(),
-		Detail:     detail,
+		ActorUserID: userID,
+		RequestID:   middleware.MustRequestID(c),
+		Action:      action,
+		Resource:    resource,
+		ResourceID:  resourceID,
+		IP:          c.ClientIP(),
+		UserAgent:   c.Request.UserAgent(),
+		Detail:      detail,
 	})
 }
 
-func bindOptionalJSON(c *gin.Context, req interface{}) error {
+func bindOptionalJSON(c *gin.Context, req any) error {
 	if c.Request.Body == nil || c.Request.ContentLength == 0 {
 		return nil
 	}
@@ -107,7 +107,7 @@ func (h *Handler) shouldUseSecureCookie(c *gin.Context) bool {
 func (h *Handler) LoginOptions(c *gin.Context) {
 	result, err := h.service.GetLoginOptions(c.Request.Context())
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "get login options failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, toLoginOptionsResponse(result))
@@ -162,13 +162,15 @@ func (h *Handler) CompleteEmailRegistration(c *gin.Context) {
 	}
 	result, err := h.service.RegisterWithEmail(
 		c.Request.Context(),
-		req.Email,
-		req.Password,
-		req.Code,
-		req.TurnstileToken,
-		c.ClientIP(),
-		middleware.MustRequestID(c),
-		middleware.ResolveSessionAuditContext(c),
+		appauth.RegisterWithEmailInput{
+			Email:          req.Email,
+			Password:       req.Password,
+			Code:           req.Code,
+			TurnstileToken: req.TurnstileToken,
+			RemoteIP:       c.ClientIP(),
+			RequestID:      middleware.MustRequestID(c),
+			AuditContext:   middleware.ResolveSessionAuditContext(c),
+		},
 	)
 	if err != nil {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -203,10 +205,10 @@ func (h *Handler) StartPasswordReset(c *gin.Context) {
 	)
 	if err != nil {
 		if errors.Is(err, appauth.ErrPasswordResetFailed) {
-			response.Error(c, http.StatusBadRequest, "password reset failed")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "password reset failed")
+		response.ErrorFrom(c, http.StatusInternalServerError, errPasswordResetFailed)
 		return
 	}
 	response.Success(c, toPasswordResetStartResponse(result))
@@ -238,7 +240,7 @@ func (h *Handler) CompletePasswordReset(c *gin.Context) {
 		middleware.ResolveSessionAuditContext(c),
 	); err != nil {
 		if errors.Is(err, appauth.ErrPasswordResetFailed) {
-			response.Error(c, http.StatusBadRequest, "password reset failed")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
 		response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -250,7 +252,7 @@ func (h *Handler) CompletePasswordReset(c *gin.Context) {
 func (h *Handler) StartPasswordChangeVerification(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 	var req SecurityVerificationStartRequest
@@ -275,7 +277,7 @@ func (h *Handler) StartPasswordChangeVerification(c *gin.Context) {
 func (h *Handler) ChangePassword(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 	var req ChangePasswordRequest
@@ -285,17 +287,19 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 	}
 	err := h.service.ChangePassword(
 		c.Request.Context(),
-		userID,
-		req.CurrentPassword,
-		req.NewPassword,
-		req.VerificationMethod,
-		req.Code,
-		middleware.MustRequestID(c),
-		middleware.ResolveSessionAuditContext(c),
+		appauth.ChangePasswordInput{
+			UserID:             userID,
+			CurrentPassword:    req.CurrentPassword,
+			NewPassword:        req.NewPassword,
+			VerificationMethod: req.VerificationMethod,
+			Code:               req.Code,
+			RequestID:          middleware.MustRequestID(c),
+			AuditContext:       middleware.ResolveSessionAuditContext(c),
+		},
 	)
 	if err != nil {
 		if errors.Is(err, appauth.ErrInvalidCredentials) {
-			response.Error(c, http.StatusUnauthorized, "invalid current password")
+			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidCurrentPassword)
 			return
 		}
 		response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -308,7 +312,7 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 func (h *Handler) StartEmailBootstrap(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 	var req EmailVerificationStartRequest
@@ -327,7 +331,7 @@ func (h *Handler) StartEmailBootstrap(c *gin.Context) {
 func (h *Handler) CompleteEmailBootstrap(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 	var req EmailBootstrapCompleteRequest
@@ -342,7 +346,7 @@ func (h *Handler) CompleteEmailBootstrap(c *gin.Context) {
 	}
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "failed to resolve subscription")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, MeResponse{User: toUserResponse(view)})
@@ -351,7 +355,7 @@ func (h *Handler) CompleteEmailBootstrap(c *gin.Context) {
 func (h *Handler) StartCurrentEmailVerification(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 	result, err := h.service.RequestCurrentEmailVerification(c.Request.Context(), userID, middleware.MustRequestID(c), middleware.ResolveSessionAuditContext(c))
@@ -365,7 +369,7 @@ func (h *Handler) StartCurrentEmailVerification(c *gin.Context) {
 func (h *Handler) CompleteCurrentEmailVerification(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 	var req EmailVerificationCompleteRequest
@@ -380,7 +384,7 @@ func (h *Handler) CompleteCurrentEmailVerification(c *gin.Context) {
 	}
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "failed to resolve subscription")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, MeResponse{User: toUserResponse(view)})
@@ -389,7 +393,7 @@ func (h *Handler) CompleteCurrentEmailVerification(c *gin.Context) {
 func (h *Handler) StartCurrentEmailChange(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 	var req SecurityVerificationStartRequest
@@ -408,7 +412,7 @@ func (h *Handler) StartCurrentEmailChange(c *gin.Context) {
 func (h *Handler) StartNewEmailChange(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 	var req EmailVerificationStartRequest
@@ -427,7 +431,7 @@ func (h *Handler) StartNewEmailChange(c *gin.Context) {
 func (h *Handler) CompleteEmailChange(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 	var req EmailChangeCompleteRequest
@@ -435,10 +439,18 @@ func (h *Handler) CompleteEmailChange(c *gin.Context) {
 		response.InvalidRequestBody(c, err)
 		return
 	}
-	item, err := h.service.CompleteEmailChange(c.Request.Context(), userID, req.Email, req.CurrentVerificationMethod, req.CurrentCode, req.NewCode, middleware.MustRequestID(c), middleware.ResolveSessionAuditContext(c))
+	item, err := h.service.CompleteEmailChange(c.Request.Context(), appauth.CompleteEmailChangeInput{
+		UserID:                    userID,
+		NewEmail:                  req.Email,
+		CurrentVerificationMethod: req.CurrentVerificationMethod,
+		CurrentCode:               req.CurrentCode,
+		NewCode:                   req.NewCode,
+		RequestID:                 middleware.MustRequestID(c),
+		AuditContext:              middleware.ResolveSessionAuditContext(c),
+	})
 	if err != nil {
 		if errors.Is(err, appauth.ErrInvalidCredentials) {
-			response.Error(c, http.StatusUnauthorized, "invalid current password")
+			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidCurrentPassword)
 			return
 		}
 		response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -446,7 +458,7 @@ func (h *Handler) CompleteEmailChange(c *gin.Context) {
 	}
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "failed to resolve subscription")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, MeResponse{User: toUserResponse(view)})
@@ -455,12 +467,12 @@ func (h *Handler) CompleteEmailChange(c *gin.Context) {
 func (h *Handler) ListCurrentUserIdentities(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 	items, err := h.service.ListCurrentUserIdentities(c.Request.Context(), userID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "failed to load identities")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, UserIdentityListResponse{Results: toUserIdentityResponses(items)})
@@ -469,22 +481,22 @@ func (h *Handler) ListCurrentUserIdentities(c *gin.Context) {
 func (h *Handler) DeleteCurrentUserIdentity(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 	rawID := c.Param("identity_id")
 	parsedID, err := strconv.ParseUint(rawID, 10, strconv.IntSize)
 	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid identity id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidIdentityID)
 		return
 	}
 	if err = h.service.UnlinkCurrentUserIdentity(c.Request.Context(), userID, uint(parsedID)); err != nil {
 		if errors.Is(err, appauth.ErrIdentityNotFound) {
-			response.Error(c, http.StatusNotFound, "identity not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
 		if errors.Is(err, appauth.ErrLastLoginMethodNotAllowed) {
-			response.Error(c, http.StatusBadRequest, "cannot unlink the last available login method")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
 		response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -496,7 +508,7 @@ func (h *Handler) DeleteCurrentUserIdentity(c *gin.Context) {
 func (h *Handler) CompleteProviderBind(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 	var req CompleteProviderBindRequest
@@ -506,14 +518,16 @@ func (h *Handler) CompleteProviderBind(c *gin.Context) {
 	}
 	identity, err := h.service.CompleteProviderBind(
 		c.Request.Context(),
-		userID,
-		c.Param("slug"),
-		req.Code,
-		req.State,
-		req.RedirectURI,
-		req.CodeVerifier,
-		middleware.MustRequestID(c),
-		middleware.ResolveSessionAuditContext(c),
+		appauth.CompleteProviderBindInput{
+			UserID:       userID,
+			Slug:         c.Param("slug"),
+			Code:         req.Code,
+			State:        req.State,
+			RedirectURI:  req.RedirectURI,
+			CodeVerifier: req.CodeVerifier,
+			RequestID:    middleware.MustRequestID(c),
+			AuditContext: middleware.ResolveSessionAuditContext(c),
+		},
 	)
 	if err != nil {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -620,7 +634,6 @@ func (h *Handler) ExchangeProviderAuthBridgeGrant(c *gin.Context) {
 				c,
 				http.StatusConflict,
 				"auth.provider_email_conflict",
-				err.Error(),
 				gin.H{
 					"providerSlug": emailConflictErr.ProviderSlug,
 					"email":        emailConflictErr.Email,
@@ -644,14 +657,16 @@ func (h *Handler) CompleteProviderLogin(c *gin.Context) {
 	}
 	result, err := h.service.CompleteProviderLogin(
 		c.Request.Context(),
-		c.Param("slug"),
-		req.Code,
-		req.State,
-		req.RedirectURI,
-		req.CodeVerifier,
-		req.Intent,
-		middleware.MustRequestID(c),
-		middleware.ResolveSessionAuditContext(c),
+		appauth.CompleteProviderLoginInput{
+			Slug:         c.Param("slug"),
+			Code:         req.Code,
+			State:        req.State,
+			RedirectURI:  req.RedirectURI,
+			CodeVerifier: req.CodeVerifier,
+			Intent:       req.Intent,
+			RequestID:    middleware.MustRequestID(c),
+			AuditContext: middleware.ResolveSessionAuditContext(c),
+		},
 	)
 	if err != nil {
 		var emailConflictErr *appauth.ProviderEmailConflictError
@@ -660,7 +675,6 @@ func (h *Handler) CompleteProviderLogin(c *gin.Context) {
 				c,
 				http.StatusConflict,
 				"auth.provider_email_conflict",
-				err.Error(),
 				gin.H{
 					"providerSlug": emailConflictErr.ProviderSlug,
 					"email":        emailConflictErr.Email,
@@ -706,27 +720,27 @@ func (h *Handler) Login(c *gin.Context) {
 	)
 	if err != nil {
 		if errors.Is(err, appauth.ErrInvalidCredentials) {
-			response.Error(c, http.StatusUnauthorized, "invalid username or password")
+			response.ErrorFrom(c, http.StatusUnauthorized, err)
 			return
 		}
 		if errors.Is(err, appauth.ErrAccountLocked) {
-			response.Error(c, http.StatusUnauthorized, "invalid username or password")
+			response.ErrorFrom(c, http.StatusUnauthorized, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "login failed")
+		response.InternalError(c)
 		return
 	}
 
 	if !result.TwoFactorRequired {
 		h.service.RecordAudit(c.Request.Context(), appauth.AuditInput{
-			UserID:     result.User.ID,
-			RequestID:  middleware.MustRequestID(c),
-			Action:     "login",
-			Resource:   "user",
-			ResourceID: req.Username,
-			ClientIP:   auditCtx.ClientIP,
-			UserAgent:  auditCtx.UserAgent,
-			Detail:     map[string]string{"event": "user_login"},
+			ActorUserID: result.User.ID,
+			RequestID:   middleware.MustRequestID(c),
+			Action:      "login",
+			Resource:    "user",
+			ResourceID:  req.Username,
+			IP:          auditCtx.ClientIP,
+			UserAgent:   auditCtx.UserAgent,
+			Detail:      map[string]string{"event": "user_login"},
 		})
 	}
 
@@ -751,14 +765,14 @@ func (h *Handler) VerifyTwoFactorLogin(c *gin.Context) {
 	)
 	if err != nil {
 		if errors.Is(err, appauth.ErrTwoFactorChallengeExpired) {
-			response.Error(c, http.StatusUnauthorized, "two factor challenge expired")
+			response.ErrorFrom(c, http.StatusUnauthorized, err)
 			return
 		}
 		if errors.Is(err, appauth.ErrInvalidCredentials) {
-			response.Error(c, http.StatusUnauthorized, "invalid two factor code")
+			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidTwoFactorCode)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "two factor verify failed")
+		response.InternalError(c)
 		return
 	}
 	h.writeRefreshTokenCookie(c, result)
@@ -779,11 +793,11 @@ func (h *Handler) StartTwoFactorEmailVerification(c *gin.Context) {
 	)
 	if err != nil {
 		if errors.Is(err, appauth.ErrTwoFactorChallengeExpired) {
-			response.Error(c, http.StatusUnauthorized, "two factor challenge expired")
+			response.ErrorFrom(c, http.StatusUnauthorized, err)
 			return
 		}
 		if errors.Is(err, appauth.ErrInvalidCredentials) {
-			response.Error(c, http.StatusUnauthorized, "invalid two factor challenge")
+			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidTwoFactorChallenge)
 			return
 		}
 		response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -796,7 +810,7 @@ func (h *Handler) CurrentTwoFactorStatus(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	result, err := h.service.GetCurrentTwoFactorStatus(c.Request.Context(), userID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "get two factor status failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, toTwoFactorStatusResponse(result))
@@ -822,22 +836,22 @@ func (h *Handler) ConfirmCurrentTwoFactorSetup(c *gin.Context) {
 	result, err := h.service.ConfirmCurrentTwoFactorSetup(c.Request.Context(), userID, req.Code)
 	if err != nil {
 		if errors.Is(err, appauth.ErrInvalidCredentials) {
-			response.Error(c, http.StatusUnauthorized, "invalid two factor code")
+			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidTwoFactorCode)
 			return
 		}
 		if errors.Is(err, appauth.ErrTwoFactorSetupExpired) {
-			response.Error(c, http.StatusBadRequest, "two factor setup expired")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
 		if errors.Is(err, appauth.ErrTwoFactorSetupNotStarted) {
-			response.Error(c, http.StatusBadRequest, "two factor setup not started")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
 		if errors.Is(err, appauth.ErrTwoFactorSetupNotPersisted) {
-			response.Error(c, http.StatusInternalServerError, "two factor setup was not persisted")
+			response.InternalError(c)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "confirm two factor setup failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, TwoFactorRecoveryCodesResponse{
@@ -849,7 +863,7 @@ func (h *Handler) ConfirmCurrentTwoFactorSetup(c *gin.Context) {
 func (h *Handler) CancelCurrentTwoFactorSetup(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if err := h.service.CancelCurrentTwoFactorSetup(c.Request.Context(), userID); err != nil {
-		response.Error(c, http.StatusInternalServerError, "cancel two factor setup failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, TwoFactorSetupCancelResponse{Canceled: true})
@@ -864,10 +878,10 @@ func (h *Handler) DisableCurrentTwoFactor(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if err := h.service.DisableCurrentTwoFactor(c.Request.Context(), userID, req.Code); err != nil {
 		if errors.Is(err, appauth.ErrInvalidCredentials) {
-			response.Error(c, http.StatusUnauthorized, "invalid two factor code")
+			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidTwoFactorCode)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "disable two factor failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, TwoFactorDisableResponse{Disabled: true})
@@ -883,10 +897,10 @@ func (h *Handler) RegenerateCurrentTwoFactorRecoveryCodes(c *gin.Context) {
 	result, err := h.service.RegenerateCurrentTwoFactorRecoveryCodes(c.Request.Context(), userID, req.Code)
 	if err != nil {
 		if errors.Is(err, appauth.ErrInvalidCredentials) {
-			response.Error(c, http.StatusUnauthorized, "invalid two factor code")
+			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidTwoFactorCode)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "regenerate recovery codes failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, TwoFactorRecoveryCodesResponse{
@@ -907,7 +921,7 @@ func (h *Handler) RegenerateCurrentTwoFactorRecoveryCodes(c *gin.Context) {
 func (h *Handler) ListIdentityProviders(c *gin.Context) {
 	items, err := h.service.ListIdentityProviders(c.Request.Context())
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list identity providers failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, IdentityProviderListResponse{Results: toIdentityProviderResponses(items), Total: len(items)})
@@ -1019,13 +1033,12 @@ func (h *Handler) DeleteIdentityProvider(c *gin.Context) {
 				c,
 				http.StatusConflict,
 				"identity_provider.delete_conflict",
-				"deleting this identity provider would remove the only login method for some users",
 				gin.H{"dependentUsers": dependentErr.DependentUsers},
 			)
 			return
 		}
 		if errors.Is(err, appauth.ErrIdentityProviderDeleteConflict) {
-			response.Error(c, http.StatusConflict, "deleting this identity provider would remove the only login method for some users")
+			response.ErrorFrom(c, http.StatusConflict, err)
 			return
 		}
 		response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -1048,7 +1061,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 	refreshToken, err := c.Cookie(refreshTokenCookieName)
 	if err != nil || refreshToken == "" {
 		h.clearRefreshTokenCookie(c)
-		response.Error(c, http.StatusUnauthorized, "invalid refresh token")
+		response.ErrorFrom(c, http.StatusUnauthorized, errInvalidRefreshToken)
 		return
 	}
 
@@ -1062,10 +1075,10 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 	if err != nil {
 		h.clearRefreshTokenCookie(c)
 		if errors.Is(err, appauth.ErrInvalidRefreshToken) || errors.Is(err, appauth.ErrSessionRevoked) {
-			response.Error(c, http.StatusUnauthorized, "invalid refresh token")
+			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidRefreshToken)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "refresh token failed")
+		response.InternalError(c)
 		return
 	}
 
@@ -1088,18 +1101,18 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 func (h *Handler) Me(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 
 	item, err := h.service.GetProfile(c.Request.Context(), userID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "failed to load profile")
+		response.InternalError(c)
 		return
 	}
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "failed to resolve subscription")
+		response.InternalError(c)
 		return
 	}
 
@@ -1121,13 +1134,13 @@ func (h *Handler) CurrentSessions(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	sessionID := middleware.MustSessionID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 
 	results, err := h.service.ListCurrentActiveSessions(c.Request.Context(), userID, sessionID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "failed to load active sessions")
+		response.InternalError(c)
 		return
 	}
 
@@ -1155,7 +1168,7 @@ func (h *Handler) UpdateCurrentSessionLocation(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	sessionID := middleware.MustSessionID(c)
 	if userID == 0 || sessionID == "" {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 
@@ -1175,14 +1188,14 @@ func (h *Handler) UpdateCurrentSessionLocation(c *gin.Context) {
 	)
 	if err != nil {
 		if errors.Is(err, appauth.ErrInvalidLocation) || errors.Is(err, appauth.ErrInvalidTimeZone) {
-			response.Error(c, http.StatusBadRequest, "invalid location payload")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
 		if errors.Is(err, appauth.ErrSessionRevoked) {
-			response.Error(c, http.StatusUnauthorized, "session invalid")
+			response.ErrorFrom(c, http.StatusUnauthorized, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "failed to update current session location")
+		response.InternalError(c)
 		return
 	}
 
@@ -1205,7 +1218,7 @@ func (h *Handler) UpdateCurrentSessionLocation(c *gin.Context) {
 func (h *Handler) PatchMe(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 
@@ -1218,26 +1231,26 @@ func (h *Handler) PatchMe(c *gin.Context) {
 	item, err := h.service.UpdateProfile(c.Request.Context(), userID, toUpdateProfileInput(req))
 	if err != nil {
 		if errors.Is(err, appauth.ErrInvalidTimeZone) {
-			response.Error(c, http.StatusBadRequest, "invalid time zone")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
 		if errors.Is(err, appauth.ErrInvalidLocale) {
-			response.Error(c, http.StatusBadRequest, "invalid user locale")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
 		if errors.Is(err, appauth.ErrInvalidAvatarURL) {
-			response.Error(c, http.StatusBadRequest, "invalid avatar url")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
 		if errors.Is(err, user.ErrInvalidDisplayName) {
-			response.Error(c, http.StatusBadRequest, "invalid display name")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
 		if errors.Is(err, appauth.ErrInvalidAppearancePreferences) {
-			response.Error(c, http.StatusBadRequest, "invalid appearance preferences")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "failed to update profile")
+		response.InternalError(c)
 		return
 	}
 
@@ -1266,12 +1279,12 @@ func (h *Handler) PatchMe(c *gin.Context) {
 		"update_profile",
 		"user",
 		strconv.FormatUint(uint64(userID), 10),
-		map[string]interface{}{"fields": updatedFields},
+		map[string]any{"fields": updatedFields},
 	)
 
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "failed to resolve subscription")
+		response.InternalError(c)
 		return
 	}
 
@@ -1295,7 +1308,7 @@ func (h *Handler) PatchMe(c *gin.Context) {
 func (h *Handler) PatchUsername(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 
@@ -1309,15 +1322,15 @@ func (h *Handler) PatchUsername(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, appauth.ErrUsernameChangeRequired):
-			response.Error(c, http.StatusBadRequest, appauth.ErrUsernameChangeRequired.Error())
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 		case errors.Is(err, appauth.ErrInvalidUsername):
-			response.Error(c, http.StatusBadRequest, "invalid username")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 		case errors.Is(err, appauth.ErrUsernameTaken):
-			response.Error(c, http.StatusConflict, "username already exists")
+			response.ErrorFrom(c, http.StatusConflict, err)
 		case errors.Is(err, appauth.ErrUsernameChangeUsed):
-			response.Error(c, http.StatusConflict, "username change already used")
+			response.ErrorFrom(c, http.StatusConflict, err)
 		default:
-			response.Error(c, http.StatusInternalServerError, "failed to update username")
+			response.InternalError(c)
 		}
 		return
 	}
@@ -1328,12 +1341,12 @@ func (h *Handler) PatchUsername(c *gin.Context) {
 		"update_username",
 		"user",
 		strconv.FormatUint(uint64(userID), 10),
-		map[string]interface{}{"username": item.Username},
+		map[string]any{"username": item.Username},
 	)
 
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "failed to resolve subscription")
+		response.InternalError(c)
 		return
 	}
 
@@ -1355,7 +1368,7 @@ func (h *Handler) PatchUsername(c *gin.Context) {
 func (h *Handler) CompleteOnboarding(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 
@@ -1380,7 +1393,7 @@ func (h *Handler) CompleteOnboarding(c *gin.Context) {
 	}
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "failed to resolve subscription")
+		response.InternalError(c)
 		return
 	}
 	if passwordChanged {
@@ -1406,7 +1419,7 @@ func (h *Handler) CompleteOnboarding(c *gin.Context) {
 func (h *Handler) StartAccountDeleteVerification(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 	var req SecurityVerificationStartRequest
@@ -1423,7 +1436,7 @@ func (h *Handler) StartAccountDeleteVerification(c *gin.Context) {
 	)
 	if err != nil {
 		if errors.Is(err, appauth.ErrDeleteSuperAdminNotAllowed) {
-			response.Error(c, http.StatusForbidden, "superadmin account deletion not allowed")
+			response.ErrorFrom(c, http.StatusForbidden, err)
 			return
 		}
 		response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -1449,7 +1462,7 @@ func (h *Handler) StartAccountDeleteVerification(c *gin.Context) {
 func (h *Handler) DeleteMe(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 	var req DeleteAccountRequest
@@ -1467,7 +1480,7 @@ func (h *Handler) DeleteMe(c *gin.Context) {
 		middleware.ResolveSessionAuditContext(c),
 	); err != nil {
 		if errors.Is(err, appauth.ErrDeleteSuperAdminNotAllowed) {
-			response.Error(c, http.StatusForbidden, "superadmin account deletion not allowed")
+			response.ErrorFrom(c, http.StatusForbidden, err)
 			return
 		}
 		if errors.Is(err, appauth.ErrAccountDeleteVerificationRequired) {
@@ -1475,7 +1488,7 @@ func (h *Handler) DeleteMe(c *gin.Context) {
 			return
 		}
 		if errors.Is(err, domainknowledgebase.ErrBuiltinFileOwnerDeleteBlocked) {
-			response.ErrorWithCode(c, http.StatusConflict, "knowledge_base.owner_file_reference", "account owns files referenced by builtin knowledge bases")
+			response.ErrorWithCode(c, http.StatusConflict, "knowledge_base.owner_file_reference")
 			return
 		}
 		if errors.Is(err, appauth.ErrSecurityVerificationMethodUnavailable) ||
@@ -1484,7 +1497,7 @@ func (h *Handler) DeleteMe(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "failed to delete account")
+		response.InternalError(c)
 		return
 	}
 
@@ -1516,7 +1529,7 @@ func (h *Handler) Logout(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	sessionID := middleware.MustSessionID(c)
 	if userID == 0 || sessionID == "" {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 
@@ -1527,7 +1540,7 @@ func (h *Handler) Logout(c *gin.Context) {
 		middleware.MustRequestID(c),
 		middleware.ResolveSessionAuditContext(c),
 	); err != nil {
-		response.Error(c, http.StatusInternalServerError, "logout failed")
+		response.InternalError(c)
 		return
 	}
 
@@ -1549,7 +1562,7 @@ func (h *Handler) Logout(c *gin.Context) {
 func (h *Handler) LogoutAll(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 
@@ -1559,7 +1572,7 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 		middleware.MustRequestID(c),
 		middleware.ResolveSessionAuditContext(c),
 	); err != nil {
-		response.Error(c, http.StatusInternalServerError, "logout all failed")
+		response.InternalError(c)
 		return
 	}
 
@@ -1583,7 +1596,7 @@ func (h *Handler) LogoutSession(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	targetSessionID := c.Param("session_id")
 	if userID == 0 || targetSessionID == "" {
-		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		response.ErrorFrom(c, http.StatusUnauthorized, errUnauthorized)
 		return
 	}
 
@@ -1594,7 +1607,7 @@ func (h *Handler) LogoutSession(c *gin.Context) {
 		middleware.MustRequestID(c),
 		middleware.ResolveSessionAuditContext(c),
 	); err != nil {
-		response.Error(c, http.StatusInternalServerError, "logout failed")
+		response.InternalError(c)
 		return
 	}
 

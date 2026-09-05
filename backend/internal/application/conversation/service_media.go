@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
+	_ "image/gif" // 注册 GIF 解码器。
 	"image/jpeg"
 	"image/png"
 	"math"
 	"path/filepath"
 	"strings"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/filetype"
 	_ "golang.org/x/image/webp"
-	_ "image/gif" // 注册 GIF 解码器。
 )
 
 const maxMediaImageEditInputPixels = 64 * 1024 * 1024
@@ -133,5 +134,5 @@ func mediaImageEditInputFileName(fileName string, mimeType string) string {
 	if strings.TrimSpace(base) == "" {
 		base = "image-edit-input"
 	}
-	return base + imageFileExtension(mimeType)
+	return base + filetype.ImageExtension(mimeType)
 }

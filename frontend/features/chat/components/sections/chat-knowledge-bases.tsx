@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Check, Search } from "lucide-react";
+import { BookOpen, Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -14,23 +14,27 @@ import { cn } from "@/lib/utils";
 import { listVisibleKnowledgeBases } from "@/shared/api/knowledge-bases";
 import type { KnowledgeBaseDTO } from "@/shared/api/knowledge-bases.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useFeaturePolicy } from "@/shared/hooks/use-feature-policy";
 
 const MAX_SELECTED_KNOWLEDGE_BASES = 8;
 
 export function ChatKnowledgeBases({
   selectedIDs,
+  placementPreference,
   disabled,
   available,
   unavailableReason,
   onChange,
 }: {
   selectedIDs: string[];
+  placementPreference: "top" | "bottom";
   disabled: boolean;
   available: boolean | null;
   unavailableReason: string;
   onChange: (ids: string[]) => void;
 }) {
   const t = useTranslations("chat.composer");
+  const { knowledgeBaseEnabled } = useFeaturePolicy();
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [loadingMore, setLoadingMore] = React.useState(false);
@@ -157,6 +161,8 @@ export function ChatKnowledgeBases({
       break;
   }
 
+  if (!knowledgeBaseEnabled) return null;
+
   return (
     <Popover open={open} onOpenChange={(nextOpen) => {
       setOpen(nextOpen);
@@ -199,8 +205,31 @@ export function ChatKnowledgeBases({
         </TooltipContent>
       </Tooltip>
 
-      <PopoverContent side="bottom" align="start" sideOffset={8} className="w-[min(22rem,calc(100vw-2rem))] p-1.5">
-        <div className="flex items-center justify-between gap-3 px-2 pb-1.5 text-[11px] font-medium text-foreground/70">
+      <PopoverContent
+        side={placementPreference}
+        align="start"
+        sideOffset={8}
+        avoidCollisions={false}
+        collisionPadding={8}
+        data-knowledge-bases-popover-content
+        className="flex max-h-[var(--radix-popover-content-available-height)] w-[min(20rem,calc(100vw-1rem))] flex-col p-1.5"
+        onPointerDown={(event) => event.stopPropagation()}
+        onMouseDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+        onPointerDownOutside={(event) => {
+          const target = event.target as HTMLElement | null;
+          if (target?.closest("[data-knowledge-bases-popover-content]")) {
+            event.preventDefault();
+          }
+        }}
+        onFocusOutside={(event) => {
+          const target = event.target as HTMLElement | null;
+          if (target?.closest("[data-knowledge-bases-popover-content]")) {
+            event.preventDefault();
+          }
+        }}
+      >
+        <div className="flex h-7 shrink-0 items-center justify-between gap-3 px-2 text-[11px] font-medium text-foreground/70">
           <span>{t("knowledgeBases")}</span>
           {selectedIDs.length > 0 ? (
             <button
@@ -213,22 +242,22 @@ export function ChatKnowledgeBases({
           ) : null}
         </div>
         {available === false ? (
-          <p className="mb-1.5 rounded-md bg-muted/55 px-2 py-2 text-[11px] leading-4 text-muted-foreground">
+          <p className="mx-1 mb-1 shrink-0 rounded-md bg-muted/45 px-2.5 py-2 text-[11px] leading-4 text-muted-foreground dark:bg-muted/35">
             {unavailableDescription}
           </p>
         ) : null}
-        <div className="relative mx-1 mb-1.5">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" strokeWidth={1.7} />
+        <div className="mx-1 mb-1 shrink-0">
           <Input
             value={query}
             placeholder={t("searchKnowledgeBases")}
-            className="h-8 pl-8 text-xs"
+            className="h-7 border-0 bg-muted/45 px-2.5 text-xs shadow-none dark:bg-muted/35"
             onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => event.stopPropagation()}
           />
         </div>
-        <div className="max-h-64 space-y-0.5 overflow-y-auto">
+        <div className="min-h-0 max-h-72 space-y-0.5 overflow-y-auto px-0.5">
           {loading && items.length === 0 ? (
-            <div className="flex items-center justify-center py-8"><Spinner className="size-4" /></div>
+            <div className="flex items-center justify-center py-6"><Spinner className="size-4" /></div>
           ) : filteredItems.length > 0 ? filteredItems.map((item) => {
             const selected = selectedSet.has(item.publicID);
             const ready = item.readyFileCount > 0;
@@ -236,8 +265,10 @@ export function ChatKnowledgeBases({
               <button
                 key={item.publicID}
                 type="button"
-                className="flex min-h-10 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-45"
+                data-selected={selected}
+                className="flex h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-foreground/80 transition-colors hover:bg-accent hover:text-accent-foreground data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-45"
                 disabled={available === false || (!ready && !selected)}
+                aria-pressed={selected}
                 onClick={() => {
                   if (selected) {
                     onChange(selectedIDs.filter((id) => id !== item.publicID));
@@ -250,25 +281,28 @@ export function ChatKnowledgeBases({
                   onChange([...selectedIDs, item.publicID]);
                 }}
               >
-                <BookOpen className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.6} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-medium">{item.name}</span>
-                  <span className="block truncate text-[11px] text-muted-foreground">
-                    {ready
-                      ? t("knowledgeBaseReadyFiles", { count: item.readyFileCount })
-                      : t("knowledgeBaseNotReady")}
-                  </span>
+                <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                  {selected ? (
+                    <Check className="size-3.5 shrink-0 text-primary" strokeWidth={1.8} />
+                  ) : (
+                    <BookOpen className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
+                  )}
+                  <span className="truncate text-xs font-medium text-current" title={item.name}>{item.name}</span>
                 </span>
-                <Check className={cn("size-3.5 shrink-0", selected ? "opacity-100" : "opacity-0")} strokeWidth={1.8} />
+                <span className="shrink-0 text-[10px] leading-none tabular-nums text-muted-foreground">
+                  {ready
+                    ? t("knowledgeBaseReadyFiles", { count: item.readyFileCount })
+                    : t("knowledgeBaseNotReady")}
+                </span>
               </button>
             );
           }) : (
-            <p className="px-2 py-8 text-center text-xs text-muted-foreground">{t("knowledgeBaseEmpty")}</p>
+            <p className="px-2 py-6 text-center text-xs text-muted-foreground">{t("knowledgeBaseEmpty")}</p>
           )}
           {page * 50 < total ? (
             <button
               type="button"
-              className="flex h-8 w-full items-center justify-center rounded-md text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none"
+              className="flex h-7 w-full items-center justify-center rounded-md text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none"
               disabled={loadingMore}
               onClick={() => void loadCatalog(query.trim(), page + 1)}
             >

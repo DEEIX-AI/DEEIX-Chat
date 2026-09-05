@@ -103,7 +103,7 @@ export function KnowledgeBaseSidebar({
       )}
     >
       <div className={cn(
-        "flex min-h-0 min-w-0 flex-1 flex-col px-3 md:px-2",
+        "relative flex min-h-0 min-w-0 flex-1 flex-col px-3 md:px-2",
         collapsed && "md:px-0",
       )}>
         <KnowledgeBaseSidebarHeader
@@ -163,7 +163,7 @@ export function KnowledgeBaseSidebar({
           </div>
         ) : !collapsed ? (
           <CenteredEmptyState
-            className="min-w-0 flex-1"
+            className="pointer-events-none absolute inset-0 min-w-0"
             title={query.trim() ? t("searchEmpty") : t("empty")}
             description={query.trim() ? t("searchEmptyDescription") : t("emptyDescription")}
           />

@@ -28,22 +28,22 @@ func (h *Handler) GetContextArtifact(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	rawID, err := stringParam(c, "id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid context artifact id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidContextArtifactID)
 		return
 	}
 	parsedID, err := strconv.ParseUint(rawID, 10, strconv.IntSize)
 	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid context artifact id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidContextArtifactID)
 		return
 	}
 
 	item, err := h.service.GetContextArtifact(c.Request.Context(), userID, uint(parsedID))
 	if err != nil {
 		if errors.Is(err, appconversation.ErrContextArtifactNotFound) {
-			response.Error(c, http.StatusNotFound, "context artifact not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "load context artifact failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, toContextArtifactResponse(item))

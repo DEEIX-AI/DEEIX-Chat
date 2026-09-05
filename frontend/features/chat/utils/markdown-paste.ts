@@ -89,13 +89,33 @@ function resolveVSCodeCodePaste(clipboardData: DataTransfer): ClipboardMarkdownP
   }
 }
 
-function containsBlockHTML(html: string): boolean {
-  const document = new DOMParser().parseFromString(html, "text/html");
-  return Boolean(document.body.querySelector(HTML_BLOCK_SELECTOR));
+function containsBlockHTML(root: ParentNode): boolean {
+  return Boolean(root.querySelector(HTML_BLOCK_SELECTOR));
 }
 
 function normalizeText(value: string): string {
   return value.replace(/\r\n?/g, "\n").trim();
+}
+
+function normalizeTextFlow(value: string): string {
+  return normalizeText(value).replace(/\s+/g, " ");
+}
+
+function containsMarkdownFormatting(root: ParentNode): boolean {
+  return Boolean(
+    root.querySelector(
+      "a[href], b, blockquote, code, del, em, h1, h2, h3, h4, h5, h6, hr, i, img[src], ol, pre, s, strike, strong, table, ul",
+    ),
+  );
+}
+
+function losesSourceLineBreaks(markdown: string, plainText: string): boolean {
+  const markdownLines = normalizeText(markdown).split("\n");
+  const sourceLines = normalizeText(plainText).split("\n");
+  return (
+    markdownLines.length < sourceLines.length ||
+    markdownLines.filter((line) => line.trim()).length < sourceLines.filter((line) => line.trim()).length
+  );
 }
 
 function resolveRichTextMarkdownPaste(clipboardData: DataTransfer): ClipboardMarkdownPaste | null {
@@ -105,18 +125,32 @@ function resolveRichTextMarkdownPaste(clipboardData: DataTransfer): ClipboardMar
     return null;
   }
 
-  const markdown = turndownService.turndown(html).trim();
+  const body = new DOMParser().parseFromString(html, "text/html").body;
+  if (!containsMarkdownFormatting(body)) {
+    return null;
+  }
+
+  const markdown = turndownService.turndown(body).trim();
+  if (!markdown) {
+    return null;
+  }
+
   const normalizedMarkdown = normalizeText(markdown);
+  const normalizedPlainText = normalizeText(plainText);
+  const normalizedEscapedPlainText = normalizeText(turndownService.escape(plainText));
+  const normalizedMarkdownFlow = normalizeTextFlow(markdown);
   if (
-    !markdown ||
-    normalizedMarkdown === normalizeText(plainText) ||
-    normalizedMarkdown === normalizeText(turndownService.escape(plainText))
+    normalizedMarkdown === normalizedPlainText ||
+    normalizedMarkdown === normalizedEscapedPlainText ||
+    normalizedMarkdownFlow === normalizeTextFlow(plainText) ||
+    normalizedMarkdownFlow === normalizeTextFlow(normalizedEscapedPlainText) ||
+    losesSourceLineBreaks(markdown, plainText)
   ) {
     return null;
   }
 
   return {
-    block: containsBlockHTML(html),
+    block: containsBlockHTML(body),
     markdown,
   };
 }

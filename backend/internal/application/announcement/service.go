@@ -8,6 +8,7 @@ import (
 
 	domainannouncement "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/announcement"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 )
 
 const (
@@ -35,13 +36,13 @@ func (s *Service) ListActive(ctx context.Context, userID uint, now time.Time, in
 
 // ListAdmin 查询管理员公告列表。
 func (s *Service) ListAdmin(ctx context.Context, input ListInput) ([]domainannouncement.Announcement, int64, error) {
-	page, pageSize := normalizePage(input.Page, input.PageSize)
+	offset, limit := pagination.Offset(input.Page, input.PageSize)
 	return s.repo.ListAdminAnnouncements(ctx, repository.AnnouncementListFilter{
 		Query:  strings.TrimSpace(input.Query),
 		Status: strings.TrimSpace(input.Status),
 		Type:   strings.TrimSpace(input.Type),
 		Pinned: input.Pinned,
-	}, (page-1)*pageSize, pageSize)
+	}, offset, limit)
 }
 
 // Create 创建公告。
@@ -138,8 +139,8 @@ type PatchInput struct {
 func normalizeWriteInput(input WriteInput, requireContent bool) (*domainannouncement.Announcement, error) {
 	title := strings.TrimSpace(input.Title)
 	content := strings.TrimSpace(input.ContentMarkdown)
-	status := normalizeStatus(input.Status)
-	announcementType := normalizeType(input.Type)
+	status := domainannouncement.NormalizeStatus(input.Status)
+	announcementType := domainannouncement.NormalizeType(input.Type)
 	if title == "" || len(title) > maxAnnouncementTitleLength {
 		return nil, ErrInvalidAnnouncement
 	}
@@ -194,14 +195,14 @@ func normalizePatchInput(input PatchInput) (repository.AnnouncementPatch, error)
 		patch.ContentMarkdown = &content
 	}
 	if input.Status != nil {
-		status := normalizeStatus(*input.Status)
+		status := domainannouncement.NormalizeStatus(*input.Status)
 		if status == "" {
 			return repository.AnnouncementPatch{}, ErrInvalidAnnouncement
 		}
 		patch.Status = &status
 	}
 	if input.Type != nil {
-		announcementType := normalizeType(*input.Type)
+		announcementType := domainannouncement.NormalizeType(*input.Type)
 		if announcementType == "" {
 			return repository.AnnouncementPatch{}, ErrInvalidAnnouncement
 		}
@@ -219,53 +220,11 @@ func normalizePatchInput(input PatchInput) (repository.AnnouncementPatch, error)
 	return patch, nil
 }
 
-func normalizeStatus(status string) string {
-	switch strings.TrimSpace(status) {
-	case "", domainannouncement.StatusActive:
-		return domainannouncement.StatusActive
-	case domainannouncement.StatusInactive:
-		return domainannouncement.StatusInactive
-	default:
-		return ""
-	}
-}
-
-func normalizeType(announcementType string) string {
-	switch strings.TrimSpace(announcementType) {
-	case "", domainannouncement.TypeGeneral:
-		return domainannouncement.TypeGeneral
-	case domainannouncement.TypeCritical:
-		return domainannouncement.TypeCritical
-	case domainannouncement.TypeWarning:
-		return domainannouncement.TypeWarning
-	case domainannouncement.TypeInfo:
-		return domainannouncement.TypeInfo
-	case domainannouncement.TypeNormal:
-		return domainannouncement.TypeNormal
-	default:
-		return ""
-	}
-}
-
 func validWindow(startsAt *time.Time, expiresAt *time.Time) bool {
 	if startsAt == nil || expiresAt == nil {
 		return true
 	}
 	return expiresAt.After(*startsAt)
-}
-
-func normalizePage(page int, pageSize int) (int, int) {
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = 20
-	}
-	const maxPageSize = 1000
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	return page, pageSize
 }
 
 func mapRepositoryError(err error) error {

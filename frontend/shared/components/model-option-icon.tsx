@@ -1,7 +1,15 @@
 import { ModelIcon } from "@/shared/components/model-icon";
 
-export function ModelOptionIcon({ iconUrl, label }: { iconUrl?: string | null; label: string }) {
+export function ModelOptionIcon({
+  iconUrl,
+  label,
+  size = 16,
+}: {
+  iconUrl?: string | null;
+  label: string;
+  size?: number;
+}) {
   return (
-    <ModelIcon iconUrl={iconUrl} label={label} className="self-center" />
+    <ModelIcon iconUrl={iconUrl} label={label} size={size} className="self-center" />
   );
 }

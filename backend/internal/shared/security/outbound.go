@@ -275,7 +275,7 @@ func resolveSafeDialAddresses(ctx context.Context, network string, address strin
 	}
 	records, err := lookupIPAddr(ctx, host)
 	if err != nil {
-		return nil, fmt.Errorf("%w: resolve host: %v", ErrUnsafeOutboundURL, err)
+		return nil, fmt.Errorf("%w: resolve host: %w", ErrUnsafeOutboundURL, err)
 	}
 	if len(records) == 0 {
 		return nil, fmt.Errorf("%w: no resolved ip", ErrUnsafeOutboundURL)

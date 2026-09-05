@@ -2,12 +2,14 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	runtimeport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/runtime"
 )
 
 const (
@@ -22,6 +24,23 @@ const (
 	serviceNetwork         = "deeix-chat-network"
 	dockerDefaultTimeout   = 3 * time.Minute
 	dockerBuildTimeout     = 3 * time.Minute
+
+	tikaContainerStatusFailedMessage     = "无法读取 Tika 容器状态。"
+	rapidOCRContainerStatusFailedMessage = "无法读取 RapidOCR 容器状态。"
+	tikaStartTimeoutMessage              = "Tika 服务启动超时，请检查容器状态。"
+	rapidOCRStartTimeoutMessage          = "RapidOCR 服务启动超时，请检查容器状态。"
+	tikaProbeFailedMessage               = "无法连接 Tika 服务，请检查服务地址和认证配置。"
+	rapidOCRProbeFailedMessage           = "无法连接 RapidOCR 服务，请检查服务地址和认证配置。"
+	doclingProbeFailedMessage            = "无法连接 Docling 服务，请检查服务地址和认证配置。"
+	tesseractProbeFailedMessage          = "无法连接 Tesseract OCR 服务，请检查服务地址和认证配置。"
+	minerUProbeFailedMessage             = "无法连接 MinerU 服务，请检查服务地址和认证配置。"
+	tikaContainerStoppedMessage          = "Tika 容器当前未运行。"
+	rapidOCRContainerStoppedMessage      = "RapidOCR 容器当前未运行。"
+)
+
+var (
+	errTikaStartTimeout     = errors.New("tika_start_timeout")
+	errRapidOCRStartTimeout = errors.New("rapidocr_start_timeout")
 )
 
 // ServiceRuntimeView 表示受管服务运行状态。
@@ -101,14 +120,14 @@ func (s *Service) GetTikaStatus(ctx context.Context) ServiceRuntimeView {
 			view.Message = "请先填写 Tika 服务地址。"
 			return view
 		}
-		reachable, message := s.prober.ProbeTika(ctx, baseURL, snapshot.ExtractTikaAuthToken)
+		reachable, _ := s.prober.ProbeTika(ctx, baseURL, snapshot.ExtractTikaAuthToken)
 		view.Reachable = reachable
 		if reachable {
 			view.Status = "running"
 			view.Message = "已连接到外部 Tika 服务。"
 		} else {
 			view.Status = "unhealthy"
-			view.Message = message
+			view.Message = tikaProbeFailedMessage
 		}
 		return view
 	}
@@ -122,7 +141,7 @@ func (s *Service) GetTikaStatus(ctx context.Context) ServiceRuntimeView {
 	containerStatus, exists, err := s.inspectContainerStatus(ctx, tikaContainerName)
 	if err != nil {
 		view.Status = "failed"
-		view.Message = err.Error()
+		view.Message = tikaContainerStatusFailedMessage
 		return view
 	}
 	if !exists {
@@ -132,7 +151,7 @@ func (s *Service) GetTikaStatus(ctx context.Context) ServiceRuntimeView {
 	}
 
 	view.Status = containerStatus
-	reachable, message := s.prober.ProbeTika(ctx, baseURL, "")
+	reachable, _ := s.prober.ProbeTika(ctx, baseURL, "")
 	view.Reachable = reachable
 	if containerStatus == "running" {
 		if reachable {
@@ -140,16 +159,12 @@ func (s *Service) GetTikaStatus(ctx context.Context) ServiceRuntimeView {
 			view.Message = "Tika 容器运行正常。"
 		} else {
 			view.Status = "unhealthy"
-			view.Message = message
+			view.Message = tikaProbeFailedMessage
 		}
 		return view
 	}
 
-	if message != "" {
-		view.Message = message
-	} else {
-		view.Message = "Tika 容器当前未运行。"
-	}
+	view.Message = tikaContainerStoppedMessage
 	return view
 }
 
@@ -187,10 +202,10 @@ func (s *Service) StartTika(ctx context.Context) (ServiceRuntimeView, error) {
 		}
 	}
 
-	if err := s.waitForManagedReachable(ctx, 20*time.Second); err != nil {
+	if err := s.waitForManagedReachable(ctx, 20*time.Second, s.prober.ResolveManagedTikaBaseURL, s.prober.ProbeTika, errTikaStartTimeout); err != nil {
 		view := s.GetTikaStatus(ctx)
 		if strings.TrimSpace(view.Message) == "" {
-			view.Message = err.Error()
+			view.Message = tikaStartTimeoutMessage
 		}
 		return view, err
 	}
@@ -237,10 +252,10 @@ func (s *Service) RestartTika(ctx context.Context) (ServiceRuntimeView, error) {
 	if _, err = s.runDocker(ctx, "restart", tikaContainerName); err != nil {
 		return s.GetTikaStatus(ctx), err
 	}
-	if err := s.waitForManagedReachable(ctx, 20*time.Second); err != nil {
+	if err := s.waitForManagedReachable(ctx, 20*time.Second, s.prober.ResolveManagedTikaBaseURL, s.prober.ProbeTika, errTikaStartTimeout); err != nil {
 		view := s.GetTikaStatus(ctx)
 		if strings.TrimSpace(view.Message) == "" {
-			view.Message = err.Error()
+			view.Message = tikaStartTimeoutMessage
 		}
 		return view, err
 	}
@@ -285,14 +300,14 @@ func (s *Service) GetRapidOCRStatus(ctx context.Context) ServiceRuntimeView {
 			view.Message = "请先填写 RapidOCR 服务地址。"
 			return view
 		}
-		reachable, message := s.prober.ProbeRapidOCR(ctx, baseURL, snapshot.ExtractRapidOCRAuthToken)
+		reachable, _ := s.prober.ProbeRapidOCR(ctx, baseURL, snapshot.ExtractRapidOCRAuthToken)
 		view.Reachable = reachable
 		if reachable {
 			view.Status = "running"
 			view.Message = "已连接到外部 RapidOCR 服务。"
 		} else {
 			view.Status = "unhealthy"
-			view.Message = message
+			view.Message = rapidOCRProbeFailedMessage
 		}
 		return view
 	}
@@ -306,7 +321,7 @@ func (s *Service) GetRapidOCRStatus(ctx context.Context) ServiceRuntimeView {
 	containerStatus, exists, err := s.inspectContainerStatus(ctx, rapidOCRContainerName)
 	if err != nil {
 		view.Status = "failed"
-		view.Message = err.Error()
+		view.Message = rapidOCRContainerStatusFailedMessage
 		return view
 	}
 	if !exists {
@@ -316,7 +331,7 @@ func (s *Service) GetRapidOCRStatus(ctx context.Context) ServiceRuntimeView {
 	}
 
 	view.Status = containerStatus
-	reachable, message := s.prober.ProbeRapidOCR(ctx, baseURL, "")
+	reachable, _ := s.prober.ProbeRapidOCR(ctx, baseURL, "")
 	view.Reachable = reachable
 	if containerStatus == "running" {
 		if reachable {
@@ -324,16 +339,12 @@ func (s *Service) GetRapidOCRStatus(ctx context.Context) ServiceRuntimeView {
 			view.Message = "RapidOCR 容器运行正常。"
 		} else {
 			view.Status = "unhealthy"
-			view.Message = message
+			view.Message = rapidOCRProbeFailedMessage
 		}
 		return view
 	}
 
-	if message != "" {
-		view.Message = message
-	} else {
-		view.Message = "RapidOCR 容器当前未运行。"
-	}
+	view.Message = rapidOCRContainerStoppedMessage
 	return view
 }
 
@@ -357,14 +368,14 @@ func (s *Service) GetDoclingStatus(ctx context.Context) ServiceRuntimeView {
 		view.Message = "请先填写 Docling 服务地址。"
 		return view
 	}
-	reachable, message := s.prober.ProbeDocling(ctx, baseURL, snapshot.ExtractDoclingAuthToken)
+	reachable, _ := s.prober.ProbeDocling(ctx, baseURL, snapshot.ExtractDoclingAuthToken)
 	view.Reachable = reachable
 	if reachable {
 		view.Status = "running"
 		view.Message = "已连接到外部 Docling 服务。"
 	} else {
 		view.Status = "unhealthy"
-		view.Message = message
+		view.Message = doclingProbeFailedMessage
 	}
 	return view
 }
@@ -391,14 +402,14 @@ func (s *Service) GetTesseractStatus(ctx context.Context) ServiceRuntimeView {
 		return view
 	}
 
-	reachable, message := s.prober.ProbeOCR(ctx, baseURL, snapshot.ExtractTesseractOCRAuthToken)
+	reachable, _ := s.prober.ProbeOCR(ctx, baseURL, snapshot.ExtractTesseractOCRAuthToken)
 	view.Reachable = reachable
 	if reachable {
 		view.Status = "running"
 		view.Message = "已连接到外部 Tesseract OCR 服务。"
 	} else {
 		view.Status = "unhealthy"
-		view.Message = message
+		view.Message = tesseractProbeFailedMessage
 	}
 	return view
 }
@@ -423,14 +434,14 @@ func (s *Service) GetMinerUStatus(ctx context.Context) ServiceRuntimeView {
 		view.Message = "请先填写 MinerU 服务地址。"
 		return view
 	}
-	reachable, message := s.prober.ProbeMinerU(ctx, baseURL, snapshot.ExtractMinerUAuthToken)
+	reachable, _ := s.prober.ProbeMinerU(ctx, baseURL, snapshot.ExtractMinerUAuthToken)
 	view.Reachable = reachable
 	if reachable {
 		view.Status = "running"
 		view.Message = "已连接到外部 MinerU 服务。"
 	} else {
 		view.Status = "unhealthy"
-		view.Message = message
+		view.Message = minerUProbeFailedMessage
 	}
 	return view
 }
@@ -474,10 +485,10 @@ func (s *Service) StartRapidOCR(ctx context.Context) (ServiceRuntimeView, error)
 		}
 	}
 
-	if err := s.waitForManagedRapidOCRReachable(ctx, 20*time.Second); err != nil {
+	if err := s.waitForManagedReachable(ctx, 20*time.Second, s.prober.ResolveManagedRapidOCRBaseURL, s.prober.ProbeRapidOCR, errRapidOCRStartTimeout); err != nil {
 		view := s.GetRapidOCRStatus(ctx)
 		if strings.TrimSpace(view.Message) == "" {
-			view.Message = err.Error()
+			view.Message = rapidOCRStartTimeoutMessage
 		}
 		return view, err
 	}
@@ -522,10 +533,10 @@ func (s *Service) RestartRapidOCR(ctx context.Context) (ServiceRuntimeView, erro
 	if _, err = s.runDocker(ctx, "restart", rapidOCRContainerName); err != nil {
 		return s.GetRapidOCRStatus(ctx), err
 	}
-	if err := s.waitForManagedRapidOCRReachable(ctx, 20*time.Second); err != nil {
+	if err := s.waitForManagedReachable(ctx, 20*time.Second, s.prober.ResolveManagedRapidOCRBaseURL, s.prober.ProbeRapidOCR, errRapidOCRStartTimeout); err != nil {
 		view := s.GetRapidOCRStatus(ctx)
 		if strings.TrimSpace(view.Message) == "" {
-			view.Message = err.Error()
+			view.Message = rapidOCRStartTimeoutMessage
 		}
 		return view, err
 	}
@@ -557,8 +568,7 @@ func (s *Service) ensureDockerNetwork(ctx context.Context, name string) error {
 func (s *Service) inspectContainerStatus(ctx context.Context, name string) (string, bool, error) {
 	output, err := s.runDocker(ctx, "container", "inspect", "--format", "{{.State.Status}}", name)
 	if err != nil {
-		lower := strings.ToLower(err.Error())
-		if strings.Contains(lower, "no such object") || strings.Contains(lower, "error: no such object") || strings.Contains(lower, "no such container") {
+		if errors.Is(err, runtimeport.ErrContainerNotFound) {
 			return "", false, nil
 		}
 		return "", false, err
@@ -596,33 +606,21 @@ func (s *Service) runDockerWithTimeout(ctx context.Context, timeout time.Duratio
 	return s.dockerRunner.RunWithTimeout(ctx, timeout, args...)
 }
 
-func (s *Service) waitForManagedReachable(ctx context.Context, timeout time.Duration) error {
+func (s *Service) waitForManagedReachable(
+	ctx context.Context,
+	timeout time.Duration,
+	resolveBaseURL func(context.Context) string,
+	probe func(context.Context, string, string) (bool, string),
+	timeoutErr error,
+) error {
 	deadline := time.Now().Add(timeout)
 	for {
-		baseURL := s.prober.ResolveManagedTikaBaseURL(ctx)
-		if ok, _ := s.prober.ProbeTika(ctx, baseURL, ""); ok {
+		baseURL := resolveBaseURL(ctx)
+		if ok, _ := probe(ctx, baseURL, ""); ok {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("tika_start_timeout")
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(500 * time.Millisecond):
-		}
-	}
-}
-
-func (s *Service) waitForManagedRapidOCRReachable(ctx context.Context, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for {
-		baseURL := s.prober.ResolveManagedRapidOCRBaseURL(ctx)
-		if ok, _ := s.prober.ProbeRapidOCR(ctx, baseURL, ""); ok {
-			return nil
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("rapidocr_start_timeout")
+			return timeoutErr
 		}
 		select {
 		case <-ctx.Done():

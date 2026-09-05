@@ -11,7 +11,7 @@ import (
 	"time"
 
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	cmport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/contentmoderation"
 )
 
 func TestNormalizeBaseURL(t *testing.T) {
@@ -33,7 +33,7 @@ func TestNormalizeBaseURL(t *testing.T) {
 }
 
 func TestNormalizeBaseURLRejectsEmbeddedCredentials(t *testing.T) {
-	if _, err := normalizeBaseURL("https://user:secret@moderation.example/v1"); !errors.Is(err, repository.ErrContentModerationInvalidBaseURL) {
+	if _, err := normalizeBaseURL("https://user:secret@moderation.example/v1"); !errors.Is(err, cmport.ErrInvalidBaseURL) {
 		t.Fatalf("error = %v, want invalid base URL", err)
 	}
 }
@@ -80,7 +80,7 @@ func TestModerateTextUsesProviderWireContract(t *testing.T) {
 
 func TestHTTPErrorNeverIncludesProviderBody(t *testing.T) {
 	errorValue := mapHTTPStatus(http.StatusInternalServerError)
-	if !errors.Is(errorValue, repository.ErrContentModerationService) {
+	if !errors.Is(errorValue, cmport.ErrService) {
 		t.Fatalf("unexpected error classification: %v", errorValue)
 	}
 	if strings.Contains(errorValue.Error(), "sensitive echoed prompt") {

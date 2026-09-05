@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strings"
 
-	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"go.uber.org/zap"
@@ -36,59 +35,7 @@ func (s *Service) cloneOrTriggerEmbedding(ctx context.Context, source *model.Fil
 			)
 		}
 	}
-	s.embeddingSvc.MaybeTrigger(*target)
-}
-
-// ListFiles 分页查询用户文件。
-func (s *Service) ListFiles(
-	ctx context.Context,
-	userID uint,
-	page int,
-	pageSize int,
-	searchQuery string,
-	filterKind string,
-	sortBy string,
-) (*appupload.ListFilesResult, error) {
-	return s.uploadSvc.ListFiles(ctx, userID, page, pageSize, searchQuery, filterKind, sortBy)
-}
-
-// UploadFile 上传文件并扣减用户配额。
-func (s *Service) UploadFile(ctx context.Context, input appupload.UploadFileInput) (*appupload.UploadFileResult, error) {
-	return s.uploadSvc.UploadFile(ctx, input)
-}
-
-// DeleteFile 删除文件并回收配额。
-func (s *Service) DeleteFile(ctx context.Context, userID uint, fileID string) (*appupload.DeleteFileResult, error) {
-	return s.uploadSvc.DeleteFile(ctx, userID, fileID)
-}
-
-// DeleteFileIfUnreferenced 仅删除不再被知识库、活跃会话或账户资料引用的文件。
-func (s *Service) DeleteFileIfUnreferenced(ctx context.Context, userID uint, fileID string) (bool, error) {
-	if s.uploadSvc == nil {
-		return false, nil
-	}
-	_, deleted, err := s.uploadSvc.DeleteFileIfUnreferenced(ctx, userID, fileID)
-	return deleted, err
-}
-
-// RenameFile 重命名当前用户文件。
-func (s *Service) RenameFile(ctx context.Context, userID uint, fileID string, fileName string) (*model.FileObject, error) {
-	return s.uploadSvc.RenameFile(ctx, userID, fileID, fileName)
-}
-
-// UpdateFileRagOptOut 更新文件的 RAG 检索开关。
-func (s *Service) UpdateFileRagOptOut(ctx context.Context, userID uint, fileID string, ragOptOut bool) (*model.FileObject, error) {
-	return s.uploadSvc.UpdateFileRagOptOut(ctx, userID, fileID, ragOptOut)
-}
-
-// OpenFileContent 打开当前用户的文件内容。
-func (s *Service) OpenFileContent(ctx context.Context, userID uint, fileID string) (*appupload.FileContentResult, error) {
-	return s.uploadSvc.OpenFileContent(ctx, userID, fileID)
-}
-
-// ValidateImageFile 确认文件属于当前用户且可作为图片使用。
-func (s *Service) ValidateImageFile(ctx context.Context, userID uint, fileID string) error {
-	return s.uploadSvc.ValidateImageFile(ctx, userID, fileID)
+	s.embeddingSvc.MaybeTrigger(ctx, *target)
 }
 
 // GetFileExtract 读取当前用户文件的提取文本产物。
@@ -99,7 +46,7 @@ func (s *Service) GetFileExtract(ctx context.Context, userID uint, fileID string
 	}
 	fileObj, err := s.repo.GetActiveFileObjectByID(ctx, userID, normalizedFileID)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrFileNotFound) {
 			return nil, ErrFileNotFound
 		}
 		return nil, err

@@ -13,11 +13,11 @@ func RedactHeadersJSON(raw string) string {
 	if value == "" {
 		return value
 	}
-	payload := map[string]interface{}{}
+	payload := map[string]any{}
 	if err := json.Unmarshal([]byte(value), &payload); err != nil || payload == nil {
 		return "{}"
 	}
-	result := make(map[string]interface{}, len(payload))
+	result := make(map[string]any, len(payload))
 	for key, item := range payload {
 		if IsSensitiveHeaderName(key) {
 			result[key] = redactedHeaderValue

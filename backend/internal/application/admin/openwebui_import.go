@@ -7,10 +7,12 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"math"
 	"strings"
 	"time"
 
+	auditapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	userapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -188,7 +190,7 @@ func (s *Service) buildOpenWebUIImportCandidates(rows []repository.OpenWebUIUser
 			continue
 		}
 		seenSourceEmails[lowerEmail] = struct{}{}
-		sourceKey := firstNonEmptyString(row.PublicID, row.Username, lowerEmail)
+		sourceKey := textutil.FirstNonEmpty(row.PublicID, row.Username, lowerEmail)
 		if sourceKey == "" {
 			result.SkippedInvalidRow++
 			continue
@@ -311,15 +313,6 @@ func randomImportPassword() string {
 	return base64.RawURLEncoding.EncodeToString(buf[:])
 }
 
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
 func (s *Service) writeOpenWebUIImportAudit(
 	ctx context.Context,
 	requestID string,
@@ -331,16 +324,15 @@ func (s *Service) writeOpenWebUIImportAudit(
 	if result == nil {
 		return
 	}
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_import_openwebui_users",
-		"user",
-		openWebUIImportSource,
-		ip,
-		userAgent,
-		map[string]interface{}{
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   requestID,
+		ActorUserID: actorUserID,
+		Action:      "admin_import_openwebui_users",
+		Resource:    "user",
+		ResourceID:  openWebUIImportSource,
+		IP:          ip,
+		UserAgent:   userAgent,
+		Detail: map[string]any{
 			"source":                         result.Source,
 			"dedupe_field":                   result.DedupeField,
 			"scanned":                        result.Scanned,
@@ -350,5 +342,5 @@ func (s *Service) writeOpenWebUIImportAudit(
 			"skipped_invalid_email":          result.SkippedInvalidEmail,
 			"skipped_invalid_row":            result.SkippedInvalidRow,
 		},
-	)
+	})
 }

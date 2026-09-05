@@ -112,10 +112,9 @@ func (r *generationStreamRegistry) publishActiveEvent(
 	if err != nil {
 		return
 	}
-	_, _ = r.store.AppendGenerationStreamEvent(ctx, activeGenerationEventStreamID, repository.GenerationStreamAppend{
+	_, _ = r.store.AppendActiveGenerationEvent(ctx, repository.GenerationStreamAppend{
 		PayloadJSON: string(payload),
 	}, activeGenerationEventMaxEvents, activeGenerationEventRetention)
-	_ = r.store.ExpireGenerationStream(ctx, activeGenerationEventStreamID, activeGenerationEventRetention)
 }
 
 func (r *generationStreamRegistry) subscribeActive(
@@ -128,7 +127,10 @@ func (r *generationStreamRegistry) subscribeActive(
 	if err := r.ensureActiveEventReader(ctx); err != nil {
 		return nil, nil, nil, err
 	}
-	events, cancel := r.addActiveSubscriber(userID)
+	events, cancel, ok := r.addActiveSubscriber(userID)
+	if !ok {
+		return nil, nil, nil, context.Canceled
+	}
 	snapshot, err := r.listActive(ctx, userID)
 	if err != nil {
 		cancel()
@@ -139,13 +141,27 @@ func (r *generationStreamRegistry) subscribeActive(
 
 func (r *generationStreamRegistry) ensureActiveEventReader(ctx context.Context) error {
 	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return context.Canceled
+	}
 	if r.activeEventReaderStarted {
 		r.mu.Unlock()
 		return nil
 	}
+	r.activeEventReaderWG.Add(1)
+	lifecycleCtx := r.lifecycleCtx
 	r.mu.Unlock()
 
-	latest, err := r.store.ListGenerationStreamEvents(ctx, activeGenerationEventStreamID, 1)
+	initializationCtx, cancelInitialization := context.WithCancel(ctx)
+	stopLifecycleCancellation := context.AfterFunc(lifecycleCtx, cancelInitialization)
+	defer func() {
+		stopLifecycleCancellation()
+		cancelInitialization()
+		r.activeEventReaderWG.Done()
+	}()
+
+	latest, err := r.store.ListGenerationStreamEvents(initializationCtx, activeGenerationEventStreamID, 1)
 	if err != nil {
 		return err
 	}
@@ -155,20 +171,32 @@ func (r *generationStreamRegistry) ensureActiveEventReader(ctx context.Context) 
 	}
 
 	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return context.Canceled
+	}
 	if r.activeEventReaderStarted {
 		r.mu.Unlock()
 		return nil
 	}
 	r.activeEventReaderStarted = true
+	r.activeEventReaderWG.Add(1)
 	r.mu.Unlock()
-	go r.readActiveEventBus(cursor)
+	go func() {
+		defer r.activeEventReaderWG.Done()
+		r.readActiveEventBus(lifecycleCtx, cursor)
+	}()
 	return nil
 }
 
 func (r *generationStreamRegistry) addActiveSubscriber(
 	userID uint,
-) (<-chan ActiveMessageGenerationEvent, context.CancelFunc) {
+) (<-chan ActiveMessageGenerationEvent, context.CancelFunc, bool) {
 	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return nil, func() {}, false
+	}
 	r.activeSubscriberSeq++
 	subscriberID := r.activeSubscriberSeq
 	events := make(chan ActiveMessageGenerationEvent, activeGenerationEventBuffer)
@@ -193,22 +221,31 @@ func (r *generationStreamRegistry) addActiveSubscriber(
 			r.mu.Unlock()
 		})
 	}
-	return events, cancel
+	return events, cancel, true
 }
 
-func (r *generationStreamRegistry) readActiveEventBus(cursor string) {
+func (r *generationStreamRegistry) readActiveEventBus(ctx context.Context, cursor string) {
 	retryDelay := time.Second
 	for {
 		records, err := r.store.ReadGenerationStreamEvents(
-			context.Background(),
+			ctx,
 			activeGenerationEventStreamID,
 			cursor,
 			activeGenerationEventReadBlock,
 			activeGenerationEventBuffer,
 		)
+		if ctx.Err() != nil {
+			return
+		}
 		if err != nil {
 			r.closeActiveSubscribers()
-			time.Sleep(retryDelay)
+			timer := time.NewTimer(retryDelay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
 			if retryDelay < 30*time.Second {
 				retryDelay *= 2
 			}
@@ -223,12 +260,7 @@ func (r *generationStreamRegistry) readActiveEventBus(cursor string) {
 			if json.Unmarshal([]byte(record.PayloadJSON), &payload) != nil {
 				continue
 			}
-			event := ActiveMessageGenerationEvent{
-				Type:                 payload.Type,
-				RunID:                payload.RunID,
-				ConversationPublicID: payload.ConversationPublicID,
-				UserID:               payload.UserID,
-			}
+			event := ActiveMessageGenerationEvent(payload)
 			event.RunID = normalizeRunID(event.RunID)
 			event.ConversationPublicID = normalizePublicID(event.ConversationPublicID)
 			if event.UserID == 0 || event.RunID == "" || (event.Type != "started" && event.Type != "finished") {

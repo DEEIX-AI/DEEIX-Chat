@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Set stores a namespaced setting with the cache's default expiration.
 func (c *Cache) Set(ctx context.Context, namespace, key, value string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -14,6 +15,7 @@ func (c *Cache) Set(ctx context.Context, namespace, key, value string) error {
 	return nil
 }
 
+// Del removes a namespaced setting from the cache.
 func (c *Cache) Del(ctx context.Context, namespace, key string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

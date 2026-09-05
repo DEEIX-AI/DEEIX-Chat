@@ -67,6 +67,17 @@ func TestLoadNormalizesAPPEnvAliases(t *testing.T) {
 	}
 }
 
+func TestConfigIsProduction(t *testing.T) {
+	for _, env := range []string{"prod", "production", " Production "} {
+		if !(Config{Env: env}).IsProduction() {
+			t.Fatalf("Config.IsProduction() = false for %q", env)
+		}
+	}
+	if (Config{Env: "dev"}).IsProduction() {
+		t.Fatal("Config.IsProduction() = true for dev")
+	}
+}
+
 func TestLoadNormalizesLegacyPostgresDSNTimeZone(t *testing.T) {
 	cleanupConfigEnv(t)
 	chdir(t, t.TempDir())

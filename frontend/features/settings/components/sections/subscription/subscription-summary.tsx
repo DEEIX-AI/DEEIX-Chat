@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Banknote, Check, Ticket } from "lucide-react";
+import { Banknote, Check, Coins, Ticket, Wallet } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
@@ -96,6 +96,18 @@ function ActionRow({
   );
 }
 
+function AccountMetricTile({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+  return (
+    <div className="min-w-0 rounded-md bg-muted/35 px-3 py-3.5 md:px-4 md:py-4">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span className="text-foreground/55">{icon}</span>
+        <span>{label}</span>
+      </div>
+      <p className="mt-2 truncate text-base font-semibold tabular-nums text-foreground md:text-lg">{value}</p>
+    </div>
+  );
+}
+
 function ValueRow({
   title,
   value,
@@ -176,6 +188,7 @@ type SubscriptionSummaryProps = {
   redemptionLoading: boolean;
   topUpLoading: boolean;
   paymentDisabled: boolean;
+  topUpVisible: boolean;
   billingPlans: BillingPlanDTO[];
   billingOverview: BillingOverviewData["overview"] | null;
   currentPlan: BillingPlanDTO | null;
@@ -219,6 +232,7 @@ export function SubscriptionSummary({
   redemptionLoading,
   topUpLoading,
   paymentDisabled,
+  topUpVisible,
   billingPlans,
   billingOverview,
   currentPlan,
@@ -348,10 +362,12 @@ export function SubscriptionSummary({
             title={t("periodOverage.title")}
             value={t("periodOverage.balance", { value: formatAccountBalance(billingAccount?.balanceUSD ?? 0, billingDisplay) })}
             action={
-              <Button type="button" variant="outline" disabled={billingLoading || topUpLoading || paymentDisabled} onClick={onOpenTopUpDialog}>
-                <Banknote className="size-3.5" />
-                {t("usageBilling.topUp")}
-              </Button>
+              topUpVisible ? (
+                <Button type="button" variant="outline" disabled={billingLoading || topUpLoading} onClick={onOpenTopUpDialog}>
+                  <Banknote className="size-3.5" />
+                  {t("usageBilling.topUp")}
+                </Button>
+              ) : null
             }
           />
         </section>
@@ -359,22 +375,37 @@ export function SubscriptionSummary({
 
       {billingMode === "usage" ? (
         <section className="space-y-6 px-0.5 md:space-y-7 xl:space-y-8 xl:px-1">
-          <ActionRow
-            title={t("usageBilling.title")}
-            value={t("usageBilling.balance", { value: formatAccountBalance(billingAccount?.balanceUSD ?? 0, billingDisplay) })}
-            action={
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" disabled={billingLoading || redemptionLoading} onClick={onOpenRedemptionDialog}>
-                  <Ticket className="size-3.5" />
-                  {t("redemption.open")}
-                </Button>
-                <Button type="button" variant="outline" disabled={billingLoading || topUpLoading || paymentDisabled} onClick={onOpenTopUpDialog}>
-                  <Banknote className="size-3.5" />
-                  {t("usageBilling.topUp")}
-                </Button>
-              </div>
-            }
-          />
+          <div className="space-y-4 md:space-y-5">
+            <ActionRow
+              title={t("usageBilling.title")}
+              action={
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" disabled={billingLoading || redemptionLoading} onClick={onOpenRedemptionDialog}>
+                    <Ticket className="size-3.5" />
+                    {t("redemption.open")}
+                  </Button>
+                  {topUpVisible ? (
+                    <Button type="button" variant="outline" disabled={billingLoading || topUpLoading} onClick={onOpenTopUpDialog}>
+                      <Banknote className="size-3.5" />
+                      {t("usageBilling.topUp")}
+                    </Button>
+                  ) : null}
+                </div>
+              }
+            />
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <AccountMetricTile
+                label={t("usageBilling.balanceLabel")}
+                value={formatAccountBalance(billingAccount?.balanceUSD ?? 0, billingDisplay)}
+                icon={<Wallet className="size-4" />}
+              />
+              <AccountMetricTile
+                label={t("usageBilling.totalSpentLabel")}
+                value={formatAccountBalance(billingOverview?.totalSpentUSD ?? 0, billingDisplay)}
+                icon={<Coins className="size-4" />}
+              />
+            </div>
+          </div>
         </section>
       ) : null}
 

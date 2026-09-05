@@ -12,6 +12,8 @@ type FileProcessingView = {
   ragOptOut?: boolean;
   chunkCount?: number;
   ocrUsed?: boolean;
+  canVectorize?: boolean;
+  vectorizationReason?: string;
 };
 
 type FileProcessingBadge = {
@@ -23,7 +25,20 @@ type FileProcessingBadge = {
 type FileProcessingTranslator = (key: string, values?: Record<string, string | number>) => string;
 
 export function isFileProcessing(file: FileProcessingView): boolean {
-  return file.processing === true;
+  if (typeof file.processing === "boolean") {
+    return file.processing;
+  }
+  return ["queued", "processing"].includes(file.embedStatus ?? "")
+    || ["uploaded", "queued", "extracting", "embedding"].includes(file.processingStatus ?? "");
+}
+
+export function canManuallyVectorizeFile(file: FileProcessingView): boolean {
+  return file.canVectorize === true;
+}
+
+export function isVectorIndexOutdated(file: FileProcessingView): boolean {
+  return file.embedStatus === "stale"
+    || (file.canVectorize === true && file.vectorizationReason === "outdated_index");
 }
 
 function translateFileProcessing(
@@ -62,6 +77,34 @@ export function resolveFileProcessingBadge(
       label: translateFileProcessing(translate, "indexFailed", "Index failed"),
       tone: "warning",
       detail: file.embedError?.trim() || translateFileProcessing(translate, "indexFailedDetail", "The file is available for full-context chat, but smart retrieval indexing failed."),
+    };
+  }
+
+  if (file.embedStatus === "processing") {
+    return {
+      label: translateFileProcessing(translate, "embedding", "Vectorizing"),
+      tone: "info",
+      detail: translateFileProcessing(translate, "embeddingDetail", "Text extraction is complete. Semantic vector index is being generated."),
+    };
+  }
+
+  if (file.embedStatus === "queued") {
+    return {
+      label: translateFileProcessing(translate, "queued", "Queued"),
+      tone: "info",
+      detail: translateFileProcessing(translate, "embeddingQueuedDetail", "The vectorization job is queued and will start shortly."),
+    };
+  }
+
+  if (isVectorIndexOutdated(file)) {
+    return {
+      label: translateFileProcessing(translate, "indexOutdated", "Index update required"),
+      tone: "warning",
+      detail: translateFileProcessing(
+        translate,
+        "indexOutdatedDetail",
+        "This file uses an older vector space and must be vectorized again for the current retrieval configuration.",
+      ),
     };
   }
 
@@ -144,6 +187,18 @@ export function resolveFileRetrievalBadge(
     };
   }
 
+  if (isVectorIndexOutdated(file)) {
+    return {
+      label: translateFileProcessing(translate, "indexOutdated", "Index update required"),
+      tone: "warning",
+      detail: translateFileProcessing(
+        translate,
+        "indexOutdatedDetail",
+        "This file uses an older vector space and must be vectorized again for the current retrieval configuration.",
+      ),
+    };
+  }
+
   if (file.processingReady && file.embedStatus === "ready" && (file.chunkCount ?? 0) > 0) {
     return {
       label: translateFileProcessing(translate, "searchable", "Searchable"),
@@ -151,7 +206,7 @@ export function resolveFileRetrievalBadge(
     };
   }
 
-  if (file.embedStatus === "processing") {
+  if (["queued", "processing"].includes(file.embedStatus ?? "")) {
     return {
       label: translateFileProcessing(translate, "embedding", "Vectorizing"),
       tone: "info",
@@ -179,6 +234,8 @@ export function resolveEmbedStatusLabel(embedStatus: string | null | undefined, 
       return translateFileProcessing(translate, "embedReady", "Smart retrieval ready ✓");
     case "processing":
       return translateFileProcessing(translate, "embedProcessing", "Indexing…");
+    case "queued":
+      return translateFileProcessing(translate, "embedQueued", "Index queued");
     case "failed":
       return translateFileProcessing(translate, "embedFailed", "Index failed");
     case "none":

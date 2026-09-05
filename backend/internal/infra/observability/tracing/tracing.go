@@ -19,10 +19,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var (
-	tracer        = otel.Tracer("github.com/DEEIX-AI/DEEIX-Chat/backend")
-	shutdownFuncs []func(context.Context) error
-)
+const instrumentationName = "github.com/DEEIX-AI/DEEIX-Chat/backend"
+
+// ShutdownFunc 释放一次 tracing 初始化所创建的资源。
+type ShutdownFunc func(context.Context) error
 
 type Config struct {
 	ServiceName  string
@@ -34,17 +34,17 @@ type Config struct {
 	SamplingRate float64
 }
 
-// Init 初始化 OpenTelemetry Trace。未启用时保持 no-op provider，不影响服务启动。
-func Init(ctx context.Context, cfg Config) error {
+// Init 为当前单实例进程安装 OpenTelemetry provider，并返回由 App 持有的资源释放函数。
+func Init(ctx context.Context, cfg Config) (ShutdownFunc, error) {
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
 	))
 	if !enabled(cfg) {
-		return nil
+		return func(context.Context) error { return nil }, nil
 	}
 	if strings.TrimSpace(cfg.Endpoint) == "" {
-		return errors.New("otel exporter endpoint is required when tracing is enabled")
+		return nil, errors.New("otel exporter endpoint is required when tracing is enabled")
 	}
 	serviceName := cfg.ServiceName
 	if strings.TrimSpace(serviceName) == "" {
@@ -53,7 +53,7 @@ func Init(ctx context.Context, cfg Config) error {
 
 	exporter, err := newExporter(ctx, cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	res, err := resource.Merge(
 		resource.Default(),
@@ -67,7 +67,8 @@ func Init(ctx context.Context, cfg Config) error {
 		),
 	)
 	if err != nil {
-		return err
+		_ = exporter.Shutdown(ctx)
+		return nil, err
 	}
 
 	provider := sdktrace.NewTracerProvider(
@@ -76,20 +77,11 @@ func Init(ctx context.Context, cfg Config) error {
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(samplingRate(cfg.SamplingRate)))),
 	)
 	otel.SetTracerProvider(provider)
-	tracer = provider.Tracer("github.com/DEEIX-AI/DEEIX-Chat/backend")
-	shutdownFuncs = append(shutdownFuncs, provider.Shutdown)
-	return nil
-}
-
-func Shutdown(ctx context.Context) {
-	for _, fn := range shutdownFuncs {
-		_ = fn(ctx)
-	}
-	shutdownFuncs = nil
+	return provider.Shutdown, nil
 }
 
 func Start(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	return tracer.Start(ctx, name, opts...)
+	return otel.Tracer(instrumentationName).Start(ctx, name, opts...)
 }
 
 func RecordError(span trace.Span, err error) {

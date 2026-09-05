@@ -18,6 +18,15 @@ type Repo struct {
 	db *gorm.DB
 }
 
+type announcementUserStateInput struct {
+	UserID                uint
+	AnnouncementID        uint
+	AnnouncementUpdatedAt time.Time
+	Now                   time.Time
+	DismissedUntil        *time.Time
+	ClosedAt              *time.Time
+}
+
 // NewRepo 创建公告仓储。
 func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}
@@ -47,7 +56,7 @@ func (r *Repo) ListActiveAnnouncements(ctx context.Context, userID uint, now tim
 	if err := query.
 		Order("CASE WHEN states.closed_at IS NULL THEN 0 ELSE 1 END ASC, pinned DESC, priority DESC, updated_at DESC, id DESC").
 		Find(&items).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	results := make([]domainannouncement.Announcement, 0, len(items))
 	for _, item := range items {
@@ -83,14 +92,14 @@ func (r *Repo) ListAdminAnnouncements(ctx context.Context, filter repository.Ann
 		query = query.Where("LOWER(title) LIKE ? OR LOWER(content_markdown) LIKE ?", like, like)
 	}
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	if err := query.
 		Order("pinned DESC, priority DESC, updated_at DESC, id DESC").
 		Offset(offset).
 		Limit(limit).
 		Find(&items).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	results := make([]domainannouncement.Announcement, 0, len(items))
 	for _, item := range items {
@@ -107,8 +116,8 @@ func (r *Repo) CreateAnnouncement(ctx context.Context, item *domainannouncement.
 	record := model.Announcement{
 		Title:           strings.TrimSpace(item.Title),
 		ContentMarkdown: strings.TrimSpace(item.ContentMarkdown),
-		Status:          normalizeStatus(item.Status),
-		Type:            normalizeType(item.Type),
+		Status:          domainannouncement.NormalizeStatus(item.Status),
+		Type:            domainannouncement.NormalizeType(item.Type),
 		Pinned:          item.Pinned,
 		Priority:        item.Priority,
 		StartsAt:        item.StartsAt,
@@ -116,7 +125,7 @@ func (r *Repo) CreateAnnouncement(ctx context.Context, item *domainannouncement.
 		CreatedByUserID: item.CreatedByUserID,
 	}
 	if err := r.db.WithContext(ctx).Create(&record).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toDomain(record)
 	return &result, nil
@@ -133,9 +142,9 @@ func (r *Repo) PatchAnnouncement(ctx context.Context, id uint, patch repository.
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ?", id).
 			First(&record).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
-		updates := map[string]interface{}{}
+		updates := map[string]any{}
 		if patch.Title != nil {
 			updates["title"] = strings.TrimSpace(*patch.Title)
 		}
@@ -143,14 +152,14 @@ func (r *Repo) PatchAnnouncement(ctx context.Context, id uint, patch repository.
 			updates["content_markdown"] = strings.TrimSpace(*patch.ContentMarkdown)
 		}
 		if patch.Status != nil {
-			status := normalizeStatus(*patch.Status)
+			status := domainannouncement.NormalizeStatus(*patch.Status)
 			if status == "" {
 				return repository.ErrInvalidInput
 			}
 			updates["status"] = status
 		}
 		if patch.Type != nil {
-			announcementType := normalizeType(*patch.Type)
+			announcementType := domainannouncement.NormalizeType(*patch.Type)
 			if announcementType == "" {
 				return repository.ErrInvalidInput
 			}
@@ -184,11 +193,11 @@ func (r *Repo) PatchAnnouncement(ctx context.Context, id uint, patch repository.
 		}
 		if len(updates) > 0 {
 			if err := tx.Model(&record).Updates(updates).Error; err != nil {
-				return translateError(err)
+				return dberror.Translate(err)
 			}
 		}
 		if err := tx.Where("id = ?", id).First(&record).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		result = toDomain(record)
 		return nil
@@ -206,7 +215,7 @@ func (r *Repo) DeleteAnnouncement(ctx context.Context, id uint) error {
 	}
 	result := r.db.WithContext(ctx).Delete(&model.Announcement{}, id)
 	if result.Error != nil {
-		return translateError(result.Error)
+		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return repository.ErrNotFound
@@ -219,7 +228,13 @@ func (r *Repo) DismissAnnouncementToday(ctx context.Context, userID uint, announ
 	if userID == 0 || announcementID == 0 || announcementUpdatedAt.IsZero() || !dismissedUntil.After(now) {
 		return repository.ErrInvalidInput
 	}
-	return r.saveUserState(ctx, userID, announcementID, announcementUpdatedAt, now, &dismissedUntil, nil)
+	return r.saveUserState(ctx, announcementUserStateInput{
+		UserID:                userID,
+		AnnouncementID:        announcementID,
+		AnnouncementUpdatedAt: announcementUpdatedAt,
+		Now:                   now,
+		DismissedUntil:        &dismissedUntil,
+	})
 }
 
 // CloseAnnouncement 记录用户关闭指定公告版本。
@@ -227,34 +242,40 @@ func (r *Repo) CloseAnnouncement(ctx context.Context, userID uint, announcementI
 	if userID == 0 || announcementID == 0 || announcementUpdatedAt.IsZero() {
 		return repository.ErrInvalidInput
 	}
-	return r.saveUserState(ctx, userID, announcementID, announcementUpdatedAt, now, nil, &now)
+	return r.saveUserState(ctx, announcementUserStateInput{
+		UserID:                userID,
+		AnnouncementID:        announcementID,
+		AnnouncementUpdatedAt: announcementUpdatedAt,
+		Now:                   now,
+		ClosedAt:              &now,
+	})
 }
 
-func (r *Repo) saveUserState(ctx context.Context, userID uint, announcementID uint, announcementUpdatedAt time.Time, now time.Time, dismissedUntil *time.Time, closedAt *time.Time) error {
+func (r *Repo) saveUserState(ctx context.Context, input announcementUserStateInput) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var announcement model.Announcement
 		if err := tx.
-			Where("id = ?", announcementID).
-			Where("updated_at = ?", announcementUpdatedAt).
+			Where("id = ?", input.AnnouncementID).
+			Where("updated_at = ?", input.AnnouncementUpdatedAt).
 			Where("status = ?", domainannouncement.StatusActive).
-			Where("(starts_at IS NULL OR starts_at <= ?)", now).
-			Where("(expires_at IS NULL OR expires_at > ?)", now).
+			Where("(starts_at IS NULL OR starts_at <= ?)", input.Now).
+			Where("(expires_at IS NULL OR expires_at > ?)", input.Now).
 			First(&announcement).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 
 		state := model.AnnouncementUserState{
 			AnnouncementID:        announcement.ID,
-			UserID:                userID,
+			UserID:                input.UserID,
 			AnnouncementUpdatedAt: announcement.UpdatedAt,
-			DismissedUntil:        dismissedUntil,
-			ClosedAt:              closedAt,
+			DismissedUntil:        input.DismissedUntil,
+			ClosedAt:              input.ClosedAt,
 		}
 		assignments := []string{"updated_at", "deleted_at"}
-		if dismissedUntil != nil {
+		if input.DismissedUntil != nil {
 			assignments = append(assignments, "dismissed_until")
 		}
-		if closedAt != nil {
+		if input.ClosedAt != nil {
 			assignments = append(assignments, "closed_at")
 		}
 		if err := tx.Clauses(clause.OnConflict{
@@ -265,7 +286,7 @@ func (r *Repo) saveUserState(ctx context.Context, userID uint, announcementID ui
 			},
 			DoUpdates: clause.AssignmentColumns(assignments),
 		}).Create(&state).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		return nil
 	})
@@ -286,42 +307,4 @@ func toDomain(item model.Announcement) domainannouncement.Announcement {
 		CreatedAt:       item.CreatedAt,
 		UpdatedAt:       item.UpdatedAt,
 	}
-}
-
-func normalizeStatus(status string) string {
-	switch strings.TrimSpace(status) {
-	case "", domainannouncement.StatusActive:
-		return domainannouncement.StatusActive
-	case domainannouncement.StatusInactive:
-		return domainannouncement.StatusInactive
-	default:
-		return ""
-	}
-}
-
-func normalizeType(announcementType string) string {
-	switch strings.TrimSpace(announcementType) {
-	case "", domainannouncement.TypeGeneral:
-		return domainannouncement.TypeGeneral
-	case domainannouncement.TypeCritical:
-		return domainannouncement.TypeCritical
-	case domainannouncement.TypeWarning:
-		return domainannouncement.TypeWarning
-	case domainannouncement.TypeInfo:
-		return domainannouncement.TypeInfo
-	case domainannouncement.TypeNormal:
-		return domainannouncement.TypeNormal
-	default:
-		return ""
-	}
-}
-
-func translateError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if dberror.IsRecordNotFound(err) {
-		return repository.ErrNotFound
-	}
-	return err
 }

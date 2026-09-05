@@ -29,6 +29,7 @@ export type SidebarConversationsControllerValue = {
   projects: ConversationProjectDTO[];
   starredTotal: number;
   loadingInitial: boolean;
+  projectsLoading: boolean;
   loadingMore: boolean;
   hasMore: boolean;
   loadMoreFailed: boolean;

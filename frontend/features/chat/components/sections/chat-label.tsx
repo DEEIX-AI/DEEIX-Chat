@@ -131,14 +131,13 @@ export function ChatLabel({
         onOpenChange={setMenuOpen}
       >
         <DropdownMenuTrigger asChild>
-          <button
+          <Button
             id="chat-label-actions-trigger"
             type="button"
+            variant="ghost"
+            size="sm"
             aria-label={t("actions")}
-            className={cn(
-              "group inline-flex h-7 max-w-full items-center gap-0.5 rounded-lg text-left transition-colors",
-              "hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-            )}
+            className="group h-7 max-w-full gap-0.5 rounded-lg px-0 font-normal"
           >
             <span className="inline-flex min-w-0 items-center px-2">
               <AnimatedText
@@ -150,7 +149,7 @@ export function ChatLabel({
             <span className="inline-flex h-7 items-center px-1 text-muted-foreground transition-colors group-hover:text-foreground">
               <ChevronDown className="size-4 stroke-[1.8]" />
             </span>
-          </button>
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
           side="bottom"

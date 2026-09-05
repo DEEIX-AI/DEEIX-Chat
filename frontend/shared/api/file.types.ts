@@ -1,5 +1,6 @@
 import type {
   DeleteFileResponse,
+  FileEmbeddingSubmissionResponse,
   FileListResponse,
   FileObjectResponse,
   FileProcessingStatusResponse,
@@ -10,6 +11,7 @@ import type {
 export type FileObjectDTO = FileObjectResponse;
 
 export type FileProcessingStatusDTO = FileProcessingStatusResponse;
+export type FileEmbeddingSubmissionDTO = FileEmbeddingSubmissionResponse;
 
 export type FileExtractDTO = {
   fileID: string;

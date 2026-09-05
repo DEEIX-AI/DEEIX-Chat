@@ -9,6 +9,7 @@ import (
 	"time"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
@@ -24,7 +25,7 @@ func (r *Repo) ListPermissionGroups(ctx context.Context) ([]domainchannel.Permis
 	if err := r.db.WithContext(ctx).
 		Order("is_default DESC, id ASC").
 		Find(&rows).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	modelStats, err := r.listPermissionGroupModelStats(ctx)
 	if err != nil {
@@ -67,7 +68,7 @@ func (r *Repo) GetPermissionGroup(ctx context.Context, id uint) (*domainchannel.
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, repository.ErrNotFound
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toPermissionGroupDomain(item)
 	return &result, nil
@@ -83,7 +84,7 @@ func (r *Repo) PermissionGroupExists(ctx context.Context, id uint) (bool, error)
 		Model(&model.PermissionGroup{}).
 		Where("id = ?", id).
 		Count(&count).Error; err != nil {
-		return false, translateError(err)
+		return false, dberror.Translate(err)
 	}
 	return count > 0, nil
 }
@@ -103,7 +104,7 @@ func (r *Repo) CreatePermissionGroup(ctx context.Context, item *domainchannel.Pe
 		return repository.ErrInvalidInput
 	}
 	if err := r.db.WithContext(ctx).Create(&entity).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	*item = toPermissionGroupDomain(entity)
 	return nil
@@ -114,13 +115,13 @@ func (r *Repo) UpdatePermissionGroup(ctx context.Context, id uint, name string, 
 	result := r.db.WithContext(ctx).
 		Model(&model.PermissionGroup{}).
 		Where("id = ?", id).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"name":                    strings.TrimSpace(name),
 			"description":             strings.TrimSpace(description),
 			"rate_multiplier_percent": normalizeRateMultiplierPercent(rateMultiplierPercent),
 		})
 	if result.Error != nil {
-		return nil, translateError(result.Error)
+		return nil, dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return nil, repository.ErrNotFound
@@ -130,7 +131,7 @@ func (r *Repo) UpdatePermissionGroup(ctx context.Context, id uint, name string, 
 
 // DeletePermissionGroup 硬删除权限组及其模型/用户关联。
 func (r *Repo) DeletePermissionGroup(ctx context.Context, id uint) error {
-	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var item model.PermissionGroup
 		if err := tx.Where("id = ?", id).First(&item).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -158,19 +159,19 @@ func (r *Repo) GetPermissionGroupDeleteSummary(ctx context.Context, id uint) (do
 		Model(&model.PermissionGroupModelAccess{}).
 		Where("group_id = ?", id).
 		Count(&summary.ManualModelCount).Error; err != nil {
-		return summary, translateError(err)
+		return summary, dberror.Translate(err)
 	}
 	if err := r.db.WithContext(ctx).
 		Model(&model.PermissionGroupModelRule{}).
 		Where("group_id = ?", id).
 		Count(&summary.RuleCount).Error; err != nil {
-		return summary, translateError(err)
+		return summary, dberror.Translate(err)
 	}
 	if err := r.db.WithContext(ctx).
 		Model(&model.PermissionGroupUserAccess{}).
 		Where("group_id = ?", id).
 		Count(&summary.ManualUserCount).Error; err != nil {
-		return summary, translateError(err)
+		return summary, dberror.Translate(err)
 	}
 	return summary, nil
 }
@@ -187,7 +188,7 @@ func (r *Repo) ListGroupModelIDs(ctx context.Context, groupID uint) ([]uint, err
 		Where("group_id = ?", groupID).
 		Order("platform_model_id ASC").
 		Pluck("platform_model_id", &ids).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return ids, nil
 }
@@ -200,7 +201,7 @@ func (r *Repo) ListGroupModelRules(ctx context.Context, groupID uint) ([]domainc
 		Where("group_id = ?", groupID).
 		Order("rule_type ASC, value ASC").
 		Find(&rows).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	results := make([]domainchannel.PermissionGroupModelRule, 0, len(rows))
 	for _, row := range rows {
@@ -211,7 +212,7 @@ func (r *Repo) ListGroupModelRules(ctx context.Context, groupID uint) ([]domainc
 
 // SetGroupModelAccess 全量替换权限组授权的平台模型集合与动态规则。
 func (r *Repo) SetGroupModelAccess(ctx context.Context, groupID uint, modelIDs []uint, rules []domainchannel.PermissionGroupModelRule) error {
-	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("group_id = ?", groupID).Delete(&model.PermissionGroupModelAccess{}).Error; err != nil {
 			return err
 		}
@@ -242,7 +243,7 @@ func (r *Repo) ListModelManualGroupIDs(ctx context.Context, platformModelID uint
 		Where("platform_model_id = ?", platformModelID).
 		Order("group_id ASC").
 		Pluck("group_id", &ids).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return ids, nil
 }
@@ -254,7 +255,7 @@ func (r *Repo) ListModelRuleGroupIDs(ctx context.Context, platformModelID uint) 
 
 // SetModelManualGroups 全量替换某平台模型的手动权限组，不影响动态规则。
 func (r *Repo) SetModelManualGroups(ctx context.Context, platformModelID uint, groupIDs []uint) error {
-	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("platform_model_id = ?", platformModelID).Delete(&model.PermissionGroupModelAccess{}).Error; err != nil {
 			return err
 		}
@@ -278,14 +279,14 @@ func (r *Repo) ListGroupUserIDs(ctx context.Context, groupID uint) ([]uint, erro
 		Where("group_id = ?", groupID).
 		Order("user_id ASC").
 		Pluck("user_id", &ids).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return ids, nil
 }
 
 // SetGroupUsers 全量替换权限组内的用户集合。
 func (r *Repo) SetGroupUsers(ctx context.Context, groupID uint, userIDs []uint) error {
-	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("group_id = ?", groupID).Delete(&model.PermissionGroupUserAccess{}).Error; err != nil {
 			return err
 		}
@@ -302,7 +303,7 @@ func (r *Repo) countPermissionGroupUsers(ctx context.Context) (int64, error) {
 	if err := r.db.WithContext(ctx).
 		Model(&model.User{}).
 		Count(&count).Error; err != nil {
-		return 0, translateError(err)
+		return 0, dberror.Translate(err)
 	}
 	return count, nil
 }
@@ -318,7 +319,7 @@ func (r *Repo) listManualPermissionGroupUserIDs(ctx context.Context) (map[uint]m
 		Model(&model.PermissionGroupUserAccess{}).
 		Select("group_id, user_id").
 		Find(&rows).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return groupUserIDsByGroup(rows), nil
 }
@@ -337,7 +338,7 @@ func (r *Repo) listSubscriptionPermissionGroupUserIDs(ctx context.Context, now t
 			AND (subscription.current_period_end_at IS NULL OR subscription.current_period_end_at > ?)
 		`, true, "active", now, now).
 		Scan(&rows).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return groupUserIDsByGroup(rows), nil
 }
@@ -397,7 +398,7 @@ func (r *Repo) ListUserGroupIDs(ctx context.Context, userID uint) ([]uint, error
 		Where("user_id = ?", userID).
 		Order("group_id ASC").
 		Pluck("group_id", &ids).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return ids, nil
 }
@@ -438,7 +439,7 @@ func (r *Repo) ListModelGroupIDs(ctx context.Context, platformModelID uint) ([]u
 		Where("platform_model_id = ?", platformModelID).
 		Order("group_id ASC").
 		Pluck("group_id", &ids).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	ruleIDs, err := r.listModelRuleGroupIDs(ctx, platformModelID)
 	if err != nil {
@@ -451,7 +452,7 @@ func (r *Repo) ListModelGroupIDs(ctx context.Context, platformModelID uint) ([]u
 func (r *Repo) ListModelsWithGroupAccess(ctx context.Context) (map[uint][]uint, error) {
 	var rows []model.PermissionGroupModelAccess
 	if err := r.db.WithContext(ctx).Find(&rows).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := make(map[uint][]uint)
 	for _, row := range rows {
@@ -459,7 +460,7 @@ func (r *Repo) ListModelsWithGroupAccess(ctx context.Context) (map[uint][]uint, 
 	}
 	ruleRows := make([]model.PermissionGroupModelRule, 0)
 	if err := r.db.WithContext(ctx).Find(&ruleRows).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	if len(ruleRows) == 0 {
 		return sortModelGroupMap(result), nil
@@ -488,7 +489,7 @@ type permissionGroupModelStats struct {
 func (r *Repo) listPermissionGroupModelStats(ctx context.Context) (permissionGroupModelStats, error) {
 	manualRows := make([]model.PermissionGroupModelAccess, 0)
 	if err := r.db.WithContext(ctx).Find(&manualRows).Error; err != nil {
-		return permissionGroupModelStats{}, translateError(err)
+		return permissionGroupModelStats{}, dberror.Translate(err)
 	}
 	manualSets := make(map[uint]map[uint]struct{})
 	for _, row := range manualRows {
@@ -498,7 +499,7 @@ func (r *Repo) listPermissionGroupModelStats(ctx context.Context) (permissionGro
 	ruleSets := make(map[uint]map[uint]struct{})
 	ruleRows := make([]model.PermissionGroupModelRule, 0)
 	if err := r.db.WithContext(ctx).Find(&ruleRows).Error; err != nil {
-		return permissionGroupModelStats{}, translateError(err)
+		return permissionGroupModelStats{}, dberror.Translate(err)
 	}
 	if len(ruleRows) > 0 {
 		contexts, err := r.listModelAccessRuleContexts(ctx)
@@ -535,7 +536,7 @@ func (r *Repo) listPermissionGroupModelStats(ctx context.Context) (permissionGro
 func (r *Repo) listModelRuleGroupIDs(ctx context.Context, platformModelID uint) ([]uint, error) {
 	rules := make([]model.PermissionGroupModelRule, 0)
 	if err := r.db.WithContext(ctx).Find(&rules).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	if len(rules) == 0 {
 		return []uint{}, nil
@@ -571,7 +572,7 @@ func (r *Repo) listModelAccessRuleContexts(ctx context.Context) (map[uint]modelA
 		Model(&model.LLMPlatformModel{}).
 		Select("id, vendor").
 		Find(&modelRows).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	contexts := make(map[uint]modelAccessRuleContext, len(modelRows))
 	for _, row := range modelRows {
@@ -597,7 +598,7 @@ func (r *Repo) getModelAccessRuleContext(ctx context.Context, platformModelID ui
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return modelAccessRuleContext{}, repository.ErrNotFound
 		}
-		return modelAccessRuleContext{}, translateError(err)
+		return modelAccessRuleContext{}, dberror.Translate(err)
 	}
 	contexts := map[uint]modelAccessRuleContext{
 		item.ID: {
@@ -634,7 +635,7 @@ func (r *Repo) populateModelAccessRouteContext(ctx context.Context, contexts map
 		Joins("JOIN llm_upstreams u ON u.id = um.upstream_id").
 		Where("r.platform_model_id IN ? AND r.status = ? AND um.status = ? AND u.status = ?", modelIDs, "active", "active", "active").
 		Scan(&rows).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	for _, row := range rows {
 		ctxItem, ok := contexts[row.PlatformModelID]
@@ -711,7 +712,7 @@ func (r *Repo) ListDefaultGroupIDs(ctx context.Context) ([]uint, error) {
 		Where("is_default = ?", true).
 		Order("id ASC").
 		Pluck("id", &ids).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return ids, nil
 }
@@ -754,7 +755,7 @@ func normalizeRateMultiplierPercent(value int) int {
 func (r *Repo) GetUserModelGroupRateMultiplierPercent(ctx context.Context, userID uint, platformModelID uint, extraGroupIDs []uint) (int, error) {
 	userGroupIDs, err := r.listEffectiveUserGroupIDs(ctx, userID, extraGroupIDs)
 	if err != nil {
-		return 100, translateError(err)
+		return 100, dberror.Translate(err)
 	}
 	if len(userGroupIDs) == 0 {
 		return 100, nil
@@ -766,13 +767,12 @@ func (r *Repo) GetUserModelGroupRateMultiplierPercent(ctx context.Context, userI
 	if platformModelID > 0 {
 		modelGroupIDs, err := r.ListModelGroupIDs(ctx, platformModelID)
 		if err != nil {
-			return 100, translateError(err)
+			return 100, dberror.Translate(err)
 		}
 		if len(modelGroupIDs) == 0 {
 			return 100, nil
-		} else {
-			groupIDs = intersectGroupIDLists(userGroupIDs, modelGroupIDs)
 		}
+		groupIDs = intersectGroupIDLists(userGroupIDs, modelGroupIDs)
 	}
 	return r.minGroupRateMultiplierPercent(ctx, groupIDs)
 }
@@ -787,7 +787,7 @@ func (r *Repo) minGroupRateMultiplierPercent(ctx context.Context, groupIDs []uin
 		Where("id IN ?", groupIDs).
 		Select("COALESCE(MIN(rate_multiplier_percent), 100)").
 		Scan(&minPercent).Error; err != nil {
-		return 100, translateError(err)
+		return 100, dberror.Translate(err)
 	}
 	return normalizeRateMultiplierPercent(minPercent), nil
 }

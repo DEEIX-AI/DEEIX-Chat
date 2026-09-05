@@ -48,6 +48,85 @@ func buildSessionAuditSnapshot(auditCtx requestmeta.SessionAuditContext) session
 	return snapshot
 }
 
+// buildSessionAuditSnapshotForSession 合并请求元数据与会话最近一次有效元数据。
+// 同一 IP 下的空字段不得覆盖已有值，不同 IP 之间不得沿用地理信息。
+func buildSessionAuditSnapshotForSession(
+	session *domainuser.Session,
+	auditCtx requestmeta.SessionAuditContext,
+) sessionAuditSnapshot {
+	snapshot := buildSessionAuditSnapshot(auditCtx)
+	if session == nil {
+		return snapshot
+	}
+
+	currentIP := strings.TrimSpace(session.ClientIP)
+	if snapshot.ClientIP == "" {
+		snapshot.ClientIP = currentIP
+	}
+	if snapshot.UserAgent == "" {
+		snapshot.UserAgent = strings.TrimSpace(session.UserAgent)
+	}
+	if snapshot.DeviceName == "" {
+		snapshot.DeviceName = strings.TrimSpace(session.DeviceName)
+	}
+	if snapshot.BrowserName == "" {
+		snapshot.BrowserName = strings.TrimSpace(session.BrowserName)
+	}
+	if snapshot.OSName == "" {
+		snapshot.OSName = strings.TrimSpace(session.OSName)
+	}
+	if snapshot.DeviceType == "" || snapshot.DeviceType == "unknown" {
+		snapshot.DeviceType = strings.TrimSpace(session.DeviceType)
+	}
+	if snapshot.ClientIP != currentIP {
+		return snapshot
+	}
+
+	if snapshot.GeoSource == "" {
+		snapshot.GeoSource = strings.TrimSpace(session.GeoSource)
+	}
+	if snapshot.GeoAccuracy == "" {
+		snapshot.GeoAccuracy = strings.TrimSpace(session.GeoAccuracy)
+	}
+	if snapshot.CountryCode == "" {
+		snapshot.CountryCode = strings.TrimSpace(session.CountryCode)
+	}
+	if snapshot.RegionName == "" {
+		snapshot.RegionName = strings.TrimSpace(session.RegionName)
+	}
+	if snapshot.CityName == "" {
+		snapshot.CityName = strings.TrimSpace(session.CityName)
+	}
+	if snapshot.TimezoneName == "" {
+		snapshot.TimezoneName = strings.TrimSpace(session.TimezoneName)
+	}
+	if snapshot.IPLatitude == nil {
+		snapshot.IPLatitude = session.IPLatitude
+	}
+	if snapshot.IPLongitude == nil {
+		snapshot.IPLongitude = session.IPLongitude
+	}
+	return snapshot
+}
+
+func sessionClientIPChanged(session *domainuser.Session, auditCtx requestmeta.SessionAuditContext) bool {
+	if session == nil {
+		return false
+	}
+	incomingIP := strings.TrimSpace(auditCtx.ClientIP)
+	return incomingIP != "" && incomingIP != strings.TrimSpace(session.ClientIP)
+}
+
+func sessionAuditContextHasGeo(auditCtx requestmeta.SessionAuditContext) bool {
+	normalized := auditCtx.Normalize()
+	return normalized.CountryCode != "" ||
+		normalized.RegionName != "" ||
+		normalized.CityName != "" ||
+		normalized.TimezoneName != "" ||
+		normalized.IPLatitude != nil ||
+		normalized.IPLongitude != nil
+}
+
 func resolveBrowserName(userAgent string) string {
 	switch ua := strings.TrimSpace(userAgent); {
 	case ua == "":
@@ -190,7 +269,7 @@ func resolveSessionDeviceLabel(session *domainuser.Session) string {
 }
 
 func marshalSessionAuthEventDetail(sessionID string, snapshot sessionAuditSnapshot) string {
-	return marshalAuthEventDetail(map[string]interface{}{
+	return marshalAuthEventDetail(map[string]any{
 		"session_id":   strings.TrimSpace(sessionID),
 		"device_name":  snapshot.DeviceName,
 		"browser_name": snapshot.BrowserName,

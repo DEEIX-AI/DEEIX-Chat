@@ -13,20 +13,24 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required,min=6,max=128"`
 }
 
+// TwoFactorVerifyRequest verifies a pending two-factor login challenge.
 type TwoFactorVerifyRequest struct {
 	ChallengeToken     string `json:"challengeToken" binding:"required,min=20,max=4096"`
 	VerificationMethod string `json:"verificationMethod,omitempty" binding:"omitempty,oneof=two_factor email"`
 	Code               string `json:"code" binding:"required,min=6,max=32"`
 }
 
+// TwoFactorEmailStartRequest requests an email code for a login challenge.
 type TwoFactorEmailStartRequest struct {
 	ChallengeToken string `json:"challengeToken" binding:"required,min=20,max=4096"`
 }
 
+// TwoFactorCodeRequest contains a one-time verification code.
 type TwoFactorCodeRequest struct {
 	Code string `json:"code" binding:"required,min=6,max=32"`
 }
 
+// TwoFactorStatusResponse describes the current two-factor status.
 type TwoFactorStatusResponse struct {
 	Available     bool       `json:"available"`
 	TOTPEnabled   bool       `json:"totpEnabled"`
@@ -35,35 +39,42 @@ type TwoFactorStatusResponse struct {
 	EnabledAt     *time.Time `json:"enabledAt" extensions:"x-nullable,!x-omitempty"`
 }
 
+// TwoFactorSetupStartResponse contains a new two-factor setup secret.
 type TwoFactorSetupStartResponse struct {
 	Secret     string    `json:"secret"`
 	OTPAuthURL string    `json:"otpauthURL"`
 	ExpiresAt  time.Time `json:"expiresAt"`
 }
 
+// TwoFactorRecoveryCodesResponse contains regenerated recovery codes and status.
 type TwoFactorRecoveryCodesResponse struct {
 	RecoveryCodes []string                `json:"recoveryCodes"`
 	Status        TwoFactorStatusResponse `json:"status"`
 }
 
+// TwoFactorDisableResponse confirms that two-factor authentication was disabled.
 type TwoFactorDisableResponse struct {
 	Disabled bool `json:"disabled"`
 }
 
+// TwoFactorSetupCancelResponse confirms that setup was canceled.
 type TwoFactorSetupCancelResponse struct {
 	Canceled bool `json:"canceled"`
 }
 
+// EmailRegistrationStartRequest starts email-based registration.
 type EmailRegistrationStartRequest struct {
 	Email          string `json:"email" binding:"required,max=128,email"`
 	TurnstileToken string `json:"turnstileToken,omitempty" binding:"omitempty,max=2048"`
 }
 
+// EmailRegistrationStartResponse reports the email registration code expiry.
 type EmailRegistrationStartResponse struct {
 	Sent      bool      `json:"sent"`
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
+// PasswordChangeVerificationStartResponse reports password-change verification options.
 type PasswordChangeVerificationStartResponse struct {
 	Sent               bool      `json:"sent"`
 	ExpiresAt          time.Time `json:"expiresAt"`
@@ -71,6 +82,7 @@ type PasswordChangeVerificationStartResponse struct {
 	AvailableMethods   []string  `json:"availableMethods"`
 }
 
+// EmailRegistrationCompleteRequest completes email registration.
 type EmailRegistrationCompleteRequest struct {
 	Email          string `json:"email" binding:"required,max=128,email"`
 	Password       string `json:"password" binding:"required,min=8,max=128"`
@@ -78,25 +90,30 @@ type EmailRegistrationCompleteRequest struct {
 	TurnstileToken string `json:"turnstileToken,omitempty" binding:"omitempty,max=2048"`
 }
 
+// PasswordResetStartRequest starts password recovery for an email address.
 type PasswordResetStartRequest struct {
 	Email string `json:"email" binding:"required,max=128,email"`
 }
 
+// PasswordResetCompleteRequest completes password recovery.
 type PasswordResetCompleteRequest struct {
 	Email       string `json:"email" binding:"required,max=128,email"`
 	Code        string `json:"code" binding:"required,len=6"`
 	NewPassword string `json:"newPassword" binding:"required,min=8,max=128"`
 }
 
+// PasswordResetStartResponse reports the password reset code expiry.
 type PasswordResetStartResponse struct {
 	Sent      bool      `json:"sent"`
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
+// PasswordResetCompleteResponse confirms that the password was changed.
 type PasswordResetCompleteResponse struct {
 	Changed bool `json:"changed"`
 }
 
+// ChangePasswordRequest contains the credentials and verification code for a password change.
 type ChangePasswordRequest struct {
 	CurrentPassword    string `json:"currentPassword,omitempty" binding:"omitempty,max=128"`
 	NewPassword        string `json:"newPassword" binding:"required,min=8,max=128"`
@@ -104,27 +121,33 @@ type ChangePasswordRequest struct {
 	Code               string `json:"code,omitempty" binding:"omitempty,min=6,max=32"`
 }
 
+// ChangePasswordResponse confirms that the password was changed.
 type ChangePasswordResponse struct {
 	Changed bool `json:"changed"`
 }
 
+// CompleteOnboardingRequest contains optional first-login password setup.
 type CompleteOnboardingRequest struct {
 	NewPassword string `json:"newPassword,omitempty" binding:"omitempty,min=8,max=128"`
 }
 
+// EmailVerificationStartRequest starts verification for an email address.
 type EmailVerificationStartRequest struct {
 	Email string `json:"email" binding:"required,max=128,email"`
 }
 
+// SecurityVerificationStartRequest selects a security verification method.
 type SecurityVerificationStartRequest struct {
 	VerificationMethod string `json:"verificationMethod,omitempty" binding:"omitempty,oneof=none two_factor email"`
 }
 
+// DeleteAccountRequest contains the verification required to delete an account.
 type DeleteAccountRequest struct {
 	VerificationMethod string `json:"verificationMethod" binding:"required,oneof=two_factor email"`
 	Code               string `json:"code" binding:"required,min=6,max=32"`
 }
 
+// EmailVerificationStartResponse reports email verification options and expiry.
 type EmailVerificationStartResponse struct {
 	Sent               bool      `json:"sent"`
 	ExpiresAt          time.Time `json:"expiresAt"`
@@ -132,15 +155,18 @@ type EmailVerificationStartResponse struct {
 	AvailableMethods   []string  `json:"availableMethods"`
 }
 
+// EmailBootstrapCompleteRequest completes initial email setup.
 type EmailBootstrapCompleteRequest struct {
 	Email string `json:"email" binding:"required,max=128,email"`
 	Code  string `json:"code,omitempty" binding:"omitempty,len=6"`
 }
 
+// EmailVerificationCompleteRequest completes email verification.
 type EmailVerificationCompleteRequest struct {
 	Code string `json:"code" binding:"required,len=6"`
 }
 
+// EmailChangeCompleteRequest completes an email address change.
 type EmailChangeCompleteRequest struct {
 	Email                     string `json:"email" binding:"required,max=128,email"`
 	CurrentVerificationMethod string `json:"currentVerificationMethod,omitempty" binding:"omitempty,oneof=none two_factor email"`
@@ -148,6 +174,7 @@ type EmailChangeCompleteRequest struct {
 	NewCode                   string `json:"newCode,omitempty" binding:"omitempty,len=6"`
 }
 
+// IdentityProviderResponse is the public representation of an identity provider.
 type IdentityProviderResponse struct {
 	PublicID            string    `json:"publicID"`
 	Type                string    `json:"type" enums:"oidc,oauth2"`
@@ -174,19 +201,23 @@ type IdentityProviderResponse struct {
 	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
+// IdentityProviderListResponse contains configured identity providers.
 type IdentityProviderListResponse struct {
 	Results []IdentityProviderResponse `json:"results"`
 	Total   int                        `json:"total"`
 }
 
+// IdentityProviderReorderResponse confirms provider ordering was updated.
 type IdentityProviderReorderResponse struct {
 	Updated bool `json:"updated"`
 }
 
+// IdentityProviderDeleteResponse confirms provider deletion.
 type IdentityProviderDeleteResponse struct {
 	Deleted bool `json:"deleted"`
 }
 
+// UserIdentityResponse describes an identity linked to a user.
 type UserIdentityResponse struct {
 	ID                  uint       `json:"id"`
 	ProviderID          uint       `json:"providerID"`
@@ -201,14 +232,17 @@ type UserIdentityResponse struct {
 	LastLoginAt         *time.Time `json:"lastLoginAt" extensions:"x-nullable,!x-omitempty"`
 }
 
+// UserIdentityListResponse contains identities linked to the current user.
 type UserIdentityListResponse struct {
 	Results []UserIdentityResponse `json:"results"`
 }
 
+// DeleteUserIdentityResponse confirms an identity was unlinked.
 type DeleteUserIdentityResponse struct {
 	Deleted bool `json:"deleted"`
 }
 
+// LoginOptionsResponse describes the authentication methods available to the client.
 type LoginOptionsResponse struct {
 	UsernameEnabled              bool                       `json:"usernameEnabled"`
 	EmailEnabled                 bool                       `json:"emailEnabled"`
@@ -221,12 +255,14 @@ type LoginOptionsResponse struct {
 	Providers                    []IdentityProviderResponse `json:"providers"`
 }
 
+// ProviderAuthBridgeResponse describes native provider handoff capabilities.
 type ProviderAuthBridgeResponse struct {
 	Enabled         bool   `json:"enabled"`
 	ProtocolVersion int    `json:"protocolVersion"`
 	CallbackBaseURL string `json:"callbackBaseURL"`
 }
 
+// UpsertIdentityProviderRequest contains administrator-managed provider settings.
 type UpsertIdentityProviderRequest struct {
 	Type                string `json:"type" binding:"required,oneof=oidc oauth2"`
 	Name                string `json:"name" binding:"required,max=80"`
@@ -251,10 +287,12 @@ type UpsertIdentityProviderRequest struct {
 	AvatarField         string `json:"avatarField,omitempty" binding:"omitempty,max=64"`
 }
 
+// ReorderIdentityProvidersRequest contains the desired provider order.
 type ReorderIdentityProvidersRequest struct {
 	ProviderIDs []string `json:"providerIDs" binding:"required,dive,required,max=64"`
 }
 
+// CompleteProviderLoginRequest completes a provider login callback.
 type CompleteProviderLoginRequest struct {
 	Code         string `json:"code" binding:"required"`
 	State        string `json:"state" binding:"required,max=4096"`
@@ -263,6 +301,7 @@ type CompleteProviderLoginRequest struct {
 	Intent       string `json:"intent,omitempty" binding:"omitempty,oneof=login register bind"`
 }
 
+// ProviderAuthBridgeStartRequest starts an OAuth handoff for a client.
 type ProviderAuthBridgeStartRequest struct {
 	ClientID      string `json:"clientID" binding:"required,max=128"`
 	RedirectURI   string `json:"redirectURI" binding:"required,max=2048"`
@@ -272,17 +311,20 @@ type ProviderAuthBridgeStartRequest struct {
 	Next          string `json:"next,omitempty" binding:"omitempty,max=2048"`
 }
 
+// ProviderAuthBridgeStartResponse contains the provider authorization URL.
 type ProviderAuthBridgeStartResponse struct {
 	AuthorizationURL string    `json:"authorizationURL"`
 	ExpiresAt        time.Time `json:"expiresAt"`
 }
 
+// ProviderAuthBridgeExchangeRequest exchanges a provider handoff grant.
 type ProviderAuthBridgeExchangeRequest struct {
 	ClientID     string `json:"clientID" binding:"required,max=128"`
 	Grant        string `json:"grant" binding:"required,min=43,max=128"`
 	CodeVerifier string `json:"codeVerifier" binding:"required,min=43,max=128"`
 }
 
+// CompleteProviderBindRequest completes linking a provider identity.
 type CompleteProviderBindRequest struct {
 	Code         string `json:"code" binding:"required"`
 	State        string `json:"state" binding:"required,max=4096"`
@@ -290,6 +332,7 @@ type CompleteProviderBindRequest struct {
 	CodeVerifier string `json:"codeVerifier" binding:"required,min=43,max=128"`
 }
 
+// UserIdentityResponseData contains identity details returned by provider flows.
 type UserIdentityResponseData struct {
 	Identity UserIdentityResponse `json:"identity"`
 }
@@ -304,6 +347,7 @@ type PatchMeRequest struct {
 	AppearancePreferences *string `json:"appearancePreferences,omitempty" binding:"omitempty,max=2048"`
 }
 
+// PatchUsernameRequest contains the requested username.
 type PatchUsernameRequest struct {
 	Username string `json:"username" binding:"required,min=3,max=16"`
 }
@@ -444,6 +488,7 @@ type LoginOptionsResponseDoc struct {
 	Data     LoginOptionsResponse `json:"data"`
 }
 
+// ProviderAuthBridgeStartResponseDoc documents the provider handoff start schema.
 type ProviderAuthBridgeStartResponseDoc struct {
 	ErrorMsg string                          `json:"errorMsg"`
 	Data     ProviderAuthBridgeStartResponse `json:"data"`
@@ -479,11 +524,13 @@ type EmailRegistrationStartResponseDoc struct {
 	Data     EmailRegistrationStartResponse `json:"data"`
 }
 
+// PasswordResetStartResponseDoc documents the password reset start schema.
 type PasswordResetStartResponseDoc struct {
 	ErrorMsg string                     `json:"errorMsg"`
 	Data     PasswordResetStartResponse `json:"data"`
 }
 
+// PasswordResetCompleteResponseDoc documents the password reset completion schema.
 type PasswordResetCompleteResponseDoc struct {
 	ErrorMsg string                        `json:"errorMsg"`
 	Data     PasswordResetCompleteResponse `json:"data"`
@@ -501,16 +548,19 @@ type PatchMeResponseDoc struct {
 	Data     MeResponse `json:"data"`
 }
 
+// PasswordChangeVerificationStartResponseDoc documents password-change verification.
 type PasswordChangeVerificationStartResponseDoc struct {
 	ErrorMsg string                                  `json:"errorMsg"`
 	Data     PasswordChangeVerificationStartResponse `json:"data"`
 }
 
+// ChangePasswordResponseDoc documents the password change response.
 type ChangePasswordResponseDoc struct {
 	ErrorMsg string                 `json:"errorMsg"`
 	Data     ChangePasswordResponse `json:"data"`
 }
 
+// EmailVerificationStartResponseDoc documents email verification start.
 type EmailVerificationStartResponseDoc struct {
 	ErrorMsg string                         `json:"errorMsg"`
 	Data     EmailVerificationStartResponse `json:"data"`
@@ -548,11 +598,11 @@ type UpdateCurrentSessionLocationResponseDoc struct {
 
 // ErrorDoc 错误响应（Swagger 用）。
 type ErrorDoc struct {
-	ErrorMsg  string      `json:"errorMsg"`
-	ErrorCode string      `json:"errorCode,omitempty"`
-	Details   interface{} `json:"details,omitempty"`
-	RequestID string      `json:"requestId,omitempty"`
-	Data      interface{} `json:"data"`
+	ErrorMsg  string `json:"errorMsg"`
+	ErrorCode string `json:"errorCode,omitempty"`
+	Details   any    `json:"details,omitempty"`
+	RequestID string `json:"requestId,omitempty"`
+	Data      any    `json:"data"`
 }
 
 // toUserResponse 将 userview.UserView 映射为响应 DTO。
@@ -781,11 +831,6 @@ func toUpsertIdentityProviderInput(req UpsertIdentityProviderRequest, actorRole 
 		NameField:           req.NameField,
 		AvatarField:         req.AvatarField,
 	}
-}
-
-// toMeResponse 将 MeResult 映射为响应 DTO。
-func toMeResponse(d *appauth.MeResult) MeResponse {
-	return MeResponse{User: toUserResponse(d.User)}
 }
 
 // toActiveSessionResponse 将 ActiveSessionResult 映射为响应 DTO。

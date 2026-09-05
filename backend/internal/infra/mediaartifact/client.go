@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"io"
 	"net/http"
 	"net/url"
@@ -82,7 +83,7 @@ func newMediaArtifactHTTPClient(policy security.OutboundPolicy, strictPolicy sec
 // DownloadImage 从不可信的提供商返回 URL 下载生成图片。
 func (c *Client) DownloadImage(ctx context.Context, sourceURL string, trustedProviderEndpoint string, maxBytes int64) ([]byte, string, error) {
 	if _, _, ok := geminiGeneratedFileURLs(sourceURL); ok {
-		return nil, "", fmt.Errorf("Gemini Files generated image URI is not supported")
+		return nil, "", errors.New("gemini files generated image URI is not supported")
 	}
 	result, err := c.download(ctx, downloadRequest{
 		url:                sourceURL,
@@ -104,7 +105,7 @@ func (c *Client) DownloadVideo(ctx context.Context, sourceURL string, trustedPro
 	metadataURL, geminiDownloadURL, geminiFile := geminiGeneratedFileURLs(downloadURL)
 	if geminiFile {
 		if strings.TrimSpace(apiKey) == "" {
-			return nil, "", fmt.Errorf("Gemini Files generated video URI requires an API key")
+			return nil, "", errors.New("gemini files generated video URI requires an API key")
 		}
 		var err error
 		resolvedMIME, err = c.waitGeminiFileReady(ctx, metadataURL, trustedProviderEndpoint, apiKey)
@@ -289,11 +290,11 @@ func (c *Client) fetchGeminiFileState(ctx context.Context, metadataURL string, t
 	if err = json.Unmarshal(body, &payload); err != nil {
 		return "", "", err
 	}
-	state := firstNonEmpty(payload.State)
-	mimeType := firstNonEmpty(payload.MIMEType, payload.MIMETypeAlt)
+	state := textutil.FirstNonEmpty(payload.State)
+	mimeType := textutil.FirstNonEmpty(payload.MIMEType, payload.MIMETypeAlt)
 	if payload.File != nil {
-		state = firstNonEmpty(state, payload.File.State)
-		mimeType = firstNonEmpty(mimeType, payload.File.MIMEType, payload.File.MIMETypeAlt)
+		state = textutil.FirstNonEmpty(state, payload.File.State)
+		mimeType = textutil.FirstNonEmpty(mimeType, payload.File.MIMEType, payload.File.MIMETypeAlt)
 	}
 	return state, mimeType, nil
 }
@@ -430,15 +431,6 @@ func sameHTTPOrigin(left *url.URL, right *url.URL) bool {
 	leftOrigin, leftErr := security.HTTPOrigin(left.String())
 	rightOrigin, rightErr := security.HTTPOrigin(right.String())
 	return leftErr == nil && rightErr == nil && leftOrigin == rightOrigin
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if normalized := strings.TrimSpace(value); normalized != "" {
-			return normalized
-		}
-	}
-	return ""
 }
 
 // CloseIdleConnections 释放可复用传输层持有的空闲连接。

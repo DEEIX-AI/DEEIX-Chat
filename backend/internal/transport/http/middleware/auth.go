@@ -29,31 +29,31 @@ func AuthMiddleware(jwtSecret string, validator SessionValidator) gin.HandlerFun
 	return func(c *gin.Context) {
 		authorization := c.GetHeader("Authorization")
 		if authorization == "" {
-			response.Error(c, http.StatusUnauthorized, "missing Authorization header")
+			response.ErrorFrom(c, http.StatusUnauthorized, errAuthorizationHeaderRequired)
 			c.Abort()
 			return
 		}
 
 		if !strings.HasPrefix(authorization, "Bearer ") {
-			response.Error(c, http.StatusUnauthorized, "invalid Authorization header")
+			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidAuthorizationHeader)
 			c.Abort()
 			return
 		}
 		tokenText := strings.TrimSpace(strings.TrimPrefix(authorization, "Bearer "))
 		if tokenText == "" {
-			response.Error(c, http.StatusUnauthorized, "invalid Authorization header")
+			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidAuthorizationHeader)
 			c.Abort()
 			return
 		}
 
 		claims, err := token.Parse(jwtSecret, tokenText)
 		if err != nil {
-			response.Error(c, http.StatusUnauthorized, "invalid token")
+			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidToken)
 			c.Abort()
 			return
 		}
 		if claims.TokenType != "" && claims.TokenType != "access" {
-			response.Error(c, http.StatusUnauthorized, "invalid token type")
+			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidTokenType)
 			c.Abort()
 			return
 		}
@@ -64,7 +64,7 @@ func AuthMiddleware(jwtSecret string, validator SessionValidator) gin.HandlerFun
 				issuedAt = claims.IssuedAt.Time
 			}
 			if err = validator.ValidateAccessSession(c.Request.Context(), claims.UserID, claims.SessionID, issuedAt, auditCtx); err != nil {
-				response.Error(c, http.StatusUnauthorized, "session invalid")
+				response.ErrorFrom(c, http.StatusUnauthorized, errSessionInvalid)
 				c.Abort()
 				return
 			}
@@ -83,14 +83,14 @@ func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, ok := c.Get(ContextKeyUserRole)
 		if !ok {
-			response.Error(c, http.StatusForbidden, "forbidden")
+			response.ErrorFrom(c, http.StatusForbidden, errForbidden)
 			c.Abort()
 			return
 		}
 
 		roleStr, roleOK := role.(string)
 		if !roleOK || !domainuser.IsAdminRole(roleStr) {
-			response.Error(c, http.StatusForbidden, "admin permission required")
+			response.ErrorFrom(c, http.StatusForbidden, errAdminPermissionRequired)
 			c.Abort()
 			return
 		}

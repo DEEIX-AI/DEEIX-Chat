@@ -15,11 +15,14 @@ import (
 	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	extractinfra "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/pdfrender"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	llminfra "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/outboundhttp"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -60,7 +63,7 @@ type Client struct {
 	prompt         string
 	timeoutSeconds int
 	httpClient     *http.Client
-	llmClient      *llm.Client
+	llmClient      *llminfra.Client
 	pdfRenderer    *pdfrender.Renderer
 	mistral        bool
 }
@@ -92,7 +95,7 @@ func NewLLM(cfg ClientConfig) *Client {
 		model:          strings.TrimSpace(cfg.Model),
 		prompt:         strings.TrimSpace(cfg.Prompt),
 		timeoutSeconds: cfg.TimeoutSeconds,
-		llmClient:      llm.NewClient(cfg.OutboundPolicy),
+		llmClient:      llminfra.NewClient(cfg.OutboundPolicy),
 		pdfRenderer:    pdfrender.New(),
 	}
 }
@@ -202,7 +205,7 @@ func probeOCREndpoint(ctx context.Context, baseURL string, authToken string, htt
 	if err != nil {
 		return false, "服务地址格式不正确。"
 	}
-	applyAuthHeaders(req, authToken)
+	extractinfra.ApplyAuthHeaders(req, authToken)
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return false, err.Error()
@@ -226,19 +229,6 @@ func resolveOCRHealthURL(baseURL string) string {
 		return strings.TrimSuffix(baseURL, "/ocr") + rapidOCRHealthEndpoint
 	}
 	return baseURL + rapidOCRHealthEndpoint
-}
-
-func applyAuthHeaders(req *http.Request, authToken string) {
-	if req == nil {
-		return
-	}
-	token := strings.TrimSpace(authToken)
-	if token == "" {
-		return
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-API-Key", token)
-	req.Header.Set("token", token)
 }
 
 // ExtractText 对文档或图片做 OCR，返回识别文本。
@@ -275,7 +265,7 @@ func (c *Client) extractTextWithLLM(ctx context.Context, req Request) (Response,
 			return Response{}, err
 		}
 		if text == "" {
-			return Response{}, fmt.Errorf(errOCREmptyContent)
+			return Response{}, errors.New(errOCREmptyContent)
 		}
 		return Response{Text: text}, nil
 	}
@@ -323,7 +313,7 @@ func (c *Client) extractTextWithLLM(ctx context.Context, req Request) (Response,
 		if len(pageErrors) > 0 {
 			return Response{}, fmt.Errorf("ocr_failed: %s", strings.Join(pageErrors, "; "))
 		}
-		return Response{}, fmt.Errorf(errOCREmptyContent)
+		return Response{}, errors.New(errOCREmptyContent)
 	}
 
 	parts := make([]string, 0, len(pageTexts))
@@ -353,27 +343,27 @@ func (c *Client) extractImageTextWithLLM(ctx context.Context, imageData []byte, 
 		instruction = "Perform OCR strictly. Return only the recognized body text. Preserve the original language of the image text. Do not explain, summarize, or add Markdown."
 	}
 
-	parts := make([]llm.ContentPart, 0, 2)
-	parts = append(parts, llm.ContentPart{
-		Kind: llm.ContentPartText,
+	parts := make([]portllm.ContentPart, 0, 2)
+	parts = append(parts, portllm.ContentPart{
+		Kind: portllm.ContentPartText,
 		Text: instruction,
 	})
-	parts = append(parts, llm.ContentPart{
-		Kind:     llm.ContentPartImage,
+	parts = append(parts, portllm.ContentPart{
+		Kind:     portllm.ContentPartImage,
 		MimeType: mimeType,
 		Data:     imageData,
 	})
 
-	output, err := c.llmClient.Generate(ctx, llm.RouteConfig{
-		Protocol:         llm.AdapterOpenAIChatCompletions,
+	output, err := c.llmClient.Generate(ctx, portllm.RouteConfig{
+		Protocol:         portllm.AdapterOpenAIChatCompletions,
 		BaseURL:          c.baseURL,
 		APIKey:           c.authToken,
 		ReadTimeoutMS:    max(c.timeoutSeconds, 60) * 1000,
 		ConnectTimeoutMS: 10000,
-		Endpoint:         llm.EndpointChatCompletions,
+		Endpoint:         portllm.EndpointChatCompletions,
 		UpstreamModel:    c.model,
-	}, llm.GenerateInput{
-		Messages: []llm.Message{
+	}, portllm.GenerateInput{
+		Messages: []portllm.Message{
 			{Role: "system", Content: prompt},
 			{Role: "user", Parts: parts},
 		},
@@ -419,23 +409,23 @@ func (c *Client) extractTextRemote(ctx context.Context, req Request) (Response, 
 	}
 	httpReq.Header.Set("Content-Type", contentType)
 	httpReq.Header.Set("Accept", "application/json, text/plain")
-	applyAuthHeaders(httpReq, c.authToken)
+	extractinfra.ApplyAuthHeaders(httpReq, c.authToken)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		_ = bodyReader.Close()
-		if writeErr := awaitMultipartWriteError(writeErrCh); writeErr != nil {
+		if writeErr := extractinfra.AwaitMultipartWriteError(writeErrCh); writeErr != nil {
 			return Response{}, writeErr
 		}
 		return Response{}, err
 	}
 	defer resp.Body.Close()
-	if writeErr := awaitMultipartWriteError(writeErrCh); writeErr != nil {
+	if writeErr := extractinfra.AwaitMultipartWriteError(writeErrCh); writeErr != nil {
 		return Response{}, writeErr
 	}
 
 	if resp.StatusCode == http.StatusNoContent {
-		return Response{}, fmt.Errorf(errOCREmptyContent)
+		return Response{}, errors.New(errOCREmptyContent)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
@@ -493,7 +483,7 @@ func parseRemoteOCRResponse(body io.Reader, contentType string) (Response, error
 				text = strings.Join(pageParts, "\n\n")
 			}
 			if text == "" {
-				return Response{}, fmt.Errorf(errOCREmptyContent)
+				return Response{}, errors.New(errOCREmptyContent)
 			}
 			return Response{
 				Text:          text,
@@ -509,7 +499,7 @@ func parseRemoteOCRResponse(body io.Reader, contentType string) (Response, error
 	textBody := strings.TrimSpace(string(bodyBytes))
 	text := normalizeOCRText(textBody)
 	if text == "" {
-		return Response{}, fmt.Errorf(errOCREmptyContent)
+		return Response{}, errors.New(errOCREmptyContent)
 	}
 	return Response{Text: text}, nil
 }
@@ -577,33 +567,12 @@ func buildMultipartOCRBody(file *os.File, fileName string, mimeType string, page
 	return bodyReader, writer.FormDataContentType(), errCh
 }
 
-func awaitMultipartWriteError(errCh <-chan error) error {
-	if errCh == nil {
-		return nil
-	}
-	for err := range errCh {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func resolveHTTPTimeout(raw int, fallback time.Duration) time.Duration {
 	timeout := time.Duration(raw) * time.Second
 	if timeout <= 0 {
 		return fallback
 	}
 	return timeout
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 func firstPositive(values ...int) int {
@@ -653,7 +622,7 @@ func mapLLMOCRError(err error) error {
 	if err == nil {
 		return nil
 	}
-	var upstreamErr *llm.UpstreamError
+	var upstreamErr *portllm.UpstreamError
 	if errors.As(err, &upstreamErr) {
 		switch upstreamErr.StatusCode {
 		case http.StatusUnauthorized:
@@ -763,7 +732,7 @@ func (v *traditionalOCRPagesValue) UnmarshalJSON(data []byte) error {
 }
 
 func (p traditionalOCRPayload) ExtractedText() string {
-	return firstNonEmpty(
+	return textutil.FirstNonBlank(
 		p.Text,
 		p.FullText,
 		p.Content,
@@ -869,7 +838,7 @@ func joinTraditionalOCRPages(groups ...[]traditionalOCRPage) string {
 	parts := make([]string, 0)
 	for _, group := range groups {
 		for _, page := range group {
-			value := normalizeOCRText(firstNonEmpty(page.Text, page.Content, page.Markdown))
+			value := normalizeOCRText(textutil.FirstNonBlank(page.Text, page.Content, page.Markdown))
 			if value == "" {
 				continue
 			}
@@ -882,7 +851,7 @@ func joinTraditionalOCRPages(groups ...[]traditionalOCRPage) string {
 func convertTraditionalOCRPages(pages []traditionalOCRPage) []PageText {
 	result := make([]PageText, 0, len(pages))
 	for idx, page := range pages {
-		text := normalizeOCRText(firstNonEmpty(page.Text, page.Content, page.Markdown))
+		text := normalizeOCRText(textutil.FirstNonBlank(page.Text, page.Content, page.Markdown))
 		if text == "" {
 			continue
 		}

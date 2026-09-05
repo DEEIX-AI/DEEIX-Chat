@@ -6,6 +6,7 @@ import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { listAdminUsers } from "@/features/admin/api";
 import type { AdminUserDTO } from "@/features/admin/api/admin.types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
+import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 
 const USERS_PAGE_SIZE_DEFAULT = 25;
 
@@ -32,17 +33,10 @@ export function useAdminAccounts(): UseAdminAccountsState {
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSizeState] = React.useState(USERS_PAGE_SIZE_DEFAULT);
   const [query, setQueryState] = React.useState("");
-  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const debouncedQuery = useDebouncedValue(query.trim());
   const [loading, setLoading] = React.useState(true);
   const [, startTableTransition] = React.useTransition();
   const requestSeqRef = React.useRef(0);
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedQuery(query.trim());
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [query]);
 
   const loadUsers = React.useCallback(
     async () => {

@@ -272,13 +272,17 @@
     }
   },
   "redemptions": {
-    "searchPlaceholder": "Search user ID, redemption ref no., code hint, or note",
+    "searchPlaceholder": "Search redemption ref no., code hint, or note",
     "empty": "No redemption records",
     "filters": {
       "all": "All",
       "rewardType": "Reward type",
-      "code": "Code",
-      "clearCode": "Clear code filter"
+      "codeID": "Code ID",
+      "codeIDPlaceholder": "Enter code ID",
+      "userID": "User ID",
+      "userIDPlaceholder": "Enter user ID",
+      "clearCodeID": "Clear code ID",
+      "clearUserID": "Clear user ID"
     },
     "rewards": {
       "balance": "Balance",
@@ -433,8 +437,15 @@
     "rewardDurationDays": "{count} days",
     "rawUsageJsonTitle": "Raw Usage JSON",
     "jsonTitle": "Detail JSON",
+    "jsonFields": {
+      "payload": "Event payload",
+      "input": "Tool input",
+      "output": "Tool output",
+      "error": "Tool error"
+    },
     "loading": "Loading details",
-    "payloadOmitted": "This historical payload is {size}, above the safe viewing limit, so its content was omitted. Delete the associated run traces to remove this abnormal historical data.",
+    "jsonEmpty": "This event has no JSON details to display",
+    "jsonOmitted": "{label} is {size}, above the safe viewing limit, so it was not loaded.",
     "copied": "{label} copied",
     "copyFailed": "Copy failed"
   },

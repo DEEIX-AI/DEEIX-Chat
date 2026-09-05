@@ -343,15 +343,18 @@ export function AnnouncementDialogHost() {
           </div>
         </DialogHeader>
         <div className="grid h-[27rem] max-h-[calc(100svh-11rem)] min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden md:grid-cols-[13rem_minmax(0,1fr)] md:grid-rows-1">
-          <div className="flex min-h-0 min-w-0 flex-col border-b border-border/60 md:border-b-0 md:border-r">
-            <Tabs value={sortMode} onValueChange={handleSortModeChange} className="min-w-0 shrink-0 px-2 pt-2 pb-1">
+          <div className="relative flex min-h-0 min-w-0 flex-col border-b border-border/60 md:border-b-0 md:border-r">
+            <Tabs value={sortMode} onValueChange={handleSortModeChange} className="relative z-10 min-w-0 shrink-0 px-2 pt-2 pb-1">
               <TabsList className="grid h-7 w-full grid-cols-3">
                 <TabsTrigger value="default" className="px-1.5">{t("sort.default")}</TabsTrigger>
                 <TabsTrigger value="type" className="px-1.5">{t("sort.type")}</TabsTrigger>
                 <TabsTrigger value="time" className="px-1.5">{t("sort.time")}</TabsTrigger>
               </TabsList>
             </Tabs>
-            <div className="flex min-w-0 gap-2 overflow-x-auto px-2 py-2 md:block md:min-h-0 md:flex-1 md:space-y-0.5 md:overflow-y-auto">
+            <div className={cn(
+              "flex min-w-0 gap-2 overflow-x-auto px-2 py-2 md:block md:min-h-0 md:flex-1 md:space-y-0.5",
+              renderQueue.length > 0 ? "md:overflow-y-auto" : "md:overflow-visible",
+            )}>
               {renderQueue.length > 0 ? renderQueue.map((item, index) => (
                 <button
                   key={`${item.id}:${item.updatedAt}`}
@@ -376,7 +379,7 @@ export function AnnouncementDialogHost() {
                   </span>
                 </button>
               )) : (
-                <div className="flex h-full min-h-24 items-center justify-center px-3 py-6 text-center text-xs text-muted-foreground">
+                <div className="pointer-events-none flex h-full min-h-24 items-center justify-center px-3 py-6 text-center text-xs text-muted-foreground md:absolute md:inset-0 md:h-auto md:min-h-0">
                   {renderManualLoading ? t("loading") : t("empty")}
                 </div>
               )}
@@ -401,7 +404,7 @@ export function AnnouncementDialogHost() {
                 />
               </>
             ) : (
-              <div className="flex min-h-full items-center justify-center text-center text-sm text-muted-foreground">
+              <div className="flex min-h-full items-center justify-center px-3 py-6 text-center text-xs text-muted-foreground">
                 {renderManualLoading ? t("loading") : t("empty")}
               </div>
             )}

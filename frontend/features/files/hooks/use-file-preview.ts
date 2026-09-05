@@ -9,39 +9,7 @@ import { fetchFileContent } from "@/shared/api/file";
 import type { FileObjectDTO } from "@/shared/api/file.types";
 
 import type { FilePreviewKind } from "@/features/files/types/files";
-import { isFileReady, isImageFile, resolveFileExtension, resolveFilePreviewKind } from "@/shared/lib/file-display";
-
-function isReadableTextContent(content: string): boolean {
-  if (!content) {
-    return true;
-  }
-
-  const sample = content.slice(0, 4000);
-  if (!sample) {
-    return true;
-  }
-
-  let replacementCount = 0;
-  let controlCount = 0;
-
-  for (const char of sample) {
-    const code = char.charCodeAt(0);
-    if (char === "\uFFFD") {
-      replacementCount += 1;
-      continue;
-    }
-
-    const isAllowedWhitespace = code === 9 || code === 10 || code === 13;
-    const isControl = code < 32 && !isAllowedWhitespace;
-    if (isControl || code === 127) {
-      controlCount += 1;
-    }
-  }
-
-  const replacementRatio = replacementCount / sample.length;
-  const controlRatio = controlCount / sample.length;
-  return replacementRatio < 0.08 && controlRatio < 0.02;
-}
+import { isFileReady, isImageFile, isReadableTextContent, resolveFileExtension, resolveFilePreviewKind } from "@/shared/lib/file-display";
 
 async function tryReadTextPreview(blob: Blob): Promise<{ textContent: string | null }> {
   const textContent = await blob.text();

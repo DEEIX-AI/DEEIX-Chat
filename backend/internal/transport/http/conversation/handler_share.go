@@ -29,16 +29,16 @@ func (h *Handler) GetConversationShare(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	publicID, err := stringParam(c, "id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid conversation id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidConversationID)
 		return
 	}
 	result, err := h.service.GetConversationShare(c.Request.Context(), userID, publicID)
 	if err != nil {
 		if errors.Is(err, appconversation.ErrConversationNotFound) {
-			response.Error(c, http.StatusNotFound, "conversation not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "get conversation share failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, toConversationShareResponse(result))
@@ -62,7 +62,7 @@ func (h *Handler) CreateConversationShare(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	publicID, err := stringParam(c, "id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid conversation id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidConversationID)
 		return
 	}
 	var req CreateConversationShareRequest
@@ -74,7 +74,7 @@ func (h *Handler) CreateConversationShare(c *gin.Context) {
 	}
 	result, err := h.service.CreateConversationShare(c.Request.Context(), userID, publicID, req.DefaultMessagePublicIDs)
 	if err != nil {
-		writeConversationShareError(c, err, "create conversation share failed")
+		writeConversationShareError(c, err)
 		return
 	}
 	h.recordAudit(c, "create_conversation_share",
@@ -103,7 +103,7 @@ func (h *Handler) RegenerateConversationShare(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	publicID, err := stringParam(c, "id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid conversation id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidConversationID)
 		return
 	}
 	var req CreateConversationShareRequest
@@ -115,7 +115,7 @@ func (h *Handler) RegenerateConversationShare(c *gin.Context) {
 	}
 	result, err := h.service.RegenerateConversationShare(c.Request.Context(), userID, publicID, req.DefaultMessagePublicIDs)
 	if err != nil {
-		writeConversationShareError(c, err, "regenerate conversation share failed")
+		writeConversationShareError(c, err)
 		return
 	}
 	h.recordAudit(c, "regenerate_conversation_share",
@@ -143,12 +143,12 @@ func (h *Handler) RevokeConversationShare(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	publicID, err := stringParam(c, "id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid conversation id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidConversationID)
 		return
 	}
 	result, err := h.service.RevokeConversationShare(c.Request.Context(), userID, publicID)
 	if err != nil {
-		writeConversationShareError(c, err, "revoke conversation share failed")
+		writeConversationShareError(c, err)
 		return
 	}
 	h.recordAudit(c, "revoke_conversation_share",
@@ -180,7 +180,7 @@ func (h *Handler) RevokeConversationShares(c *gin.Context) {
 		return
 	}
 	if err := h.service.RevokeConversationShares(c.Request.Context(), userID, req.ConversationPublicIDs); err != nil {
-		writeConversationShareError(c, err, "revoke conversation shares failed")
+		writeConversationShareError(c, err)
 		return
 	}
 	h.recordAudit(c, "revoke_conversation_shares",
@@ -206,16 +206,16 @@ func (h *Handler) RevokeConversationShares(c *gin.Context) {
 func (h *Handler) GetPublicSharedConversation(c *gin.Context) {
 	shareID, err := stringParam(c, "share_id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid share id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidShareID)
 		return
 	}
 	result, err := h.service.GetPublicSharedConversation(c.Request.Context(), shareID)
 	if err != nil {
 		if errors.Is(err, appconversation.ErrConversationShareNotFound) {
-			response.Error(c, http.StatusNotFound, "conversation share not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "get shared conversation failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, toPublicSharedConversationResponse(result))
@@ -239,20 +239,20 @@ func (h *Handler) CloneSharedConversation(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	shareID, err := stringParam(c, "share_id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid share id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidShareID)
 		return
 	}
 	result, err := h.service.CloneSharedConversation(c.Request.Context(), userID, shareID)
 	if err != nil {
 		switch {
 		case errors.Is(err, appconversation.ErrConversationShareNotFound):
-			response.Error(c, http.StatusNotFound, "conversation share not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 		case errors.Is(err, appconversation.ErrFileNotFound):
-			response.Error(c, http.StatusNotFound, "shared file not found")
+			response.ErrorFrom(c, http.StatusNotFound, errSharedFileNotFound)
 		case errors.Is(err, appconversation.ErrStorageQuotaExceeded):
-			response.Error(c, http.StatusBadRequest, "storage quota exceeded")
+			response.ErrorFrom(c, http.StatusBadRequest, errStorageQuotaExceeded)
 		default:
-			response.Error(c, http.StatusInternalServerError, "clone shared conversation failed")
+			response.InternalError(c)
 		}
 		return
 	}
@@ -279,7 +279,7 @@ func (h *Handler) CloneSharedConversation(c *gin.Context) {
 func (h *Handler) GetPublicSharedFileContent(c *gin.Context) {
 	shareID, err := stringParam(c, "share_id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid share id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidShareID)
 		return
 	}
 	fileID := c.Param("file_id")
@@ -287,33 +287,33 @@ func (h *Handler) GetPublicSharedFileContent(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, appconversation.ErrConversationShareNotFound):
-			response.Error(c, http.StatusNotFound, "conversation share not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		case errors.Is(err, appconversation.ErrInvalidFileReference):
-			response.Error(c, http.StatusBadRequest, "invalid file id")
+			response.ErrorFrom(c, http.StatusBadRequest, errInvalidFileID)
 			return
 		case errors.Is(err, appconversation.ErrFileNotFound):
-			response.Error(c, http.StatusNotFound, "file not found")
+			response.ErrorFrom(c, http.StatusNotFound, appconversation.ErrFileNotFound)
 			return
 		default:
-			response.Error(c, http.StatusInternalServerError, "open shared file failed")
+			response.InternalError(c)
 			return
 		}
 	}
 	_ = filecontent.Write(c, result, true)
 }
 
-func writeConversationShareError(c *gin.Context, err error, fallback string) {
+func writeConversationShareError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, appconversation.ErrConversationNotFound):
-		response.Error(c, http.StatusNotFound, "conversation not found")
+		response.ErrorFrom(c, http.StatusNotFound, err)
 	case errors.Is(err, appconversation.ErrConversationShareNotFound):
-		response.Error(c, http.StatusNotFound, "conversation share not found")
+		response.ErrorFrom(c, http.StatusNotFound, err)
 	case errors.Is(err, appconversation.ErrInvalidConversationShare):
-		response.Error(c, http.StatusBadRequest, "invalid conversation share")
+		response.ErrorFrom(c, http.StatusBadRequest, err)
 	case errors.Is(err, appconversation.ErrConversationShareSchemaOutdated):
-		response.Error(c, http.StatusInternalServerError, "conversation share schema is outdated, rebuild database")
+		response.ErrorFrom(c, http.StatusInternalServerError, err)
 	default:
-		response.Error(c, http.StatusInternalServerError, fallback)
+		response.InternalError(c)
 	}
 }

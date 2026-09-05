@@ -165,6 +165,31 @@ export function formatFileStatus(status: string): string {
   return status;
 }
 
+export function isReadableTextContent(content: string): boolean {
+  const sample = content.slice(0, 4000);
+  if (!sample) {
+    return true;
+  }
+
+  let replacementCount = 0;
+  let controlCount = 0;
+
+  for (const char of sample) {
+    const code = char.charCodeAt(0);
+    if (char === "\uFFFD") {
+      replacementCount += 1;
+      continue;
+    }
+
+    const isAllowedWhitespace = code === 9 || code === 10 || code === 13;
+    if ((code < 32 && !isAllowedWhitespace) || code === 127) {
+      controlCount += 1;
+    }
+  }
+
+  return replacementCount / sample.length < 0.08 && controlCount / sample.length < 0.02;
+}
+
 export function isFileReady(status: string): boolean {
   return ["active", "ready", "available", "success"].includes(status.trim().toLowerCase());
 }

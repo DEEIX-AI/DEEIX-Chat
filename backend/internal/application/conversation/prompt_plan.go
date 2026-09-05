@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"fmt"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"strings"
 
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
@@ -10,6 +11,7 @@ import (
 	domainskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/skill"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
 // PromptBlockKind 标识 PromptPlan 中每一类上下文块。
@@ -262,7 +264,7 @@ func stableAttachmentSourceRefs(attachments []AttachmentInput, currentArtifacts 
 		}
 		sourceID := stableAttachmentSourceID(att)
 		if artifact, ok := fallbackArtifacts[fallbackFileSourceID(att)]; ok {
-			refs = appendPromptSourceRefWithArtifactID(refs, string(domainconversation.ContextArtifactFileRAGFallback), sourceID, firstNonEmptyString(att.FileName, artifact.SourceTitle), artifact.ID)
+			refs = appendPromptSourceRefWithArtifactID(refs, string(domainconversation.ContextArtifactFileRAGFallback), sourceID, textutil.FirstNonEmpty(att.FileName, artifact.SourceTitle), artifact.ID)
 			continue
 		}
 		refs = appendPromptSourceRef(refs, "file_full", sourceID, att.FileName)
@@ -404,7 +406,7 @@ func estimateContextArtifactsTokens(artifacts []domainconversation.ContextArtifa
 			total += artifact.TokenEstimate
 			continue
 		}
-		total += estimateTokens(artifact.Content)
+		total += tokenestimate.Estimate(artifact.Content)
 	}
 	return total
 }

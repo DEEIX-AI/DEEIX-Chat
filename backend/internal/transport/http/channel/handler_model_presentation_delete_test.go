@@ -21,7 +21,7 @@ func TestDeleteModelVendorReturnsReferencedModelDetails(t *testing.T) {
 		ReferenceCount: 2,
 		Models:         []repository.ModelVendorReference{{ID: 7, PlatformModelName: "acme-chat"}},
 	}}
-	service := appchannel.NewService(config.Config{}, nil, presentationRepo, nil, nil)
+	service := appchannel.NewServiceWithRuntime(config.NewRuntime(config.Config{}), nil, presentationRepo, nil, nil)
 	handler := NewHandler(service)
 	router := gin.New()
 	router.DELETE("/api/v1/admin/llm/model-vendors/:key", handler.DeleteModelVendor)

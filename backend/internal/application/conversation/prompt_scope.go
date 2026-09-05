@@ -7,6 +7,7 @@ import (
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
 func stringsEqualFold(a, b string) bool {
@@ -69,7 +70,7 @@ func estimatePromptScopeTokens(
 		total += imageTokenReserve[index]
 	}
 	if scope.Snapshot != nil {
-		total += estimateTokens(scope.Snapshot.SummaryText)
+		total += tokenestimate.Estimate(scope.Snapshot.SummaryText)
 	}
 	return total
 }

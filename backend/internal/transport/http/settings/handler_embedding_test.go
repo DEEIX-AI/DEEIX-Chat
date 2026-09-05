@@ -103,8 +103,16 @@ func (testEmbeddingRepo) GetActiveFileObjectByID(context.Context, uint, string) 
 	return nil, nil
 }
 
+func (testEmbeddingRepo) GetActiveFileObjectsByIDs(context.Context, uint, []string) ([]domainconversation.FileObject, error) {
+	return nil, nil
+}
+
 func (testEmbeddingRepo) GetFileObjectProcessingByObjectID(context.Context, uint) (*domainconversation.FileObjectProcessing, error) {
 	return nil, nil
+}
+
+func (testEmbeddingRepo) QueueFileEmbedding(context.Context, uint, string, string) (bool, error) {
+	return true, nil
 }
 
 func (testEmbeddingRepo) ClaimFileEmbedding(context.Context, uint, string, string) (bool, error) {

@@ -1,5 +1,5 @@
 // Package embedding 封装 OpenAI 兼容 embedding API 的 HTTP 客户端能力。
-// application 层不直接依赖本包，而是通过 repository.EmbeddingClient 接口调用。
+// application 层不直接依赖本包，而是通过 ports/embedding 契约调用。
 package embedding
 
 import (
@@ -14,6 +14,7 @@ import (
 
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/outboundhttp"
+	portembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -61,41 +62,35 @@ func newEmbeddingHTTPClient(policy security.OutboundPolicy, redirectPolicy secur
 	return outboundhttp.ManagedClient{Client: client, CloseIdleConnections: transport.CloseIdleConnections}, nil
 }
 
-// CallAPI 向指定 apiBase 发起 embedding 请求，返回各文本对应的向量列表。
-// timeoutSeconds ≤ 0 时默认 60 秒。
-func (c *Client) CallAPI(
-	ctx context.Context,
-	apiBase, apiKey, model string,
-	texts []string,
-	dimensions int,
-	timeoutSeconds int,
-) ([][]float32, error) {
-	if len(texts) == 0 {
+// CallAPI 向指定服务发起 embedding 请求，返回各文本对应的向量列表。
+// Request.TimeoutSeconds ≤ 0 时默认 60 秒。
+func (c *Client) CallAPI(ctx context.Context, input portembedding.Request) ([][]float32, error) {
+	if len(input.Texts) == 0 {
 		return nil, nil
 	}
 
-	body, err := json.Marshal(requestPayload{Model: model, Input: texts, Dimensions: dimensions})
+	body, err := json.Marshal(requestPayload{Model: input.Model, Input: input.Texts, Dimensions: input.Dimensions})
 	if err != nil {
 		return nil, fmt.Errorf("embedding: marshal request: %w", err)
 	}
 
-	if timeoutSeconds <= 0 {
-		timeoutSeconds = 60
+	if input.TimeoutSeconds <= 0 {
+		input.TimeoutSeconds = 60
 	}
-	requestCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+	requestCtx, cancel := context.WithTimeout(ctx, time.Duration(input.TimeoutSeconds)*time.Second)
 	defer cancel()
 
-	url := strings.TrimRight(apiBase, "/") + "/embeddings"
+	url := strings.TrimRight(input.APIBase, "/") + "/embeddings"
 	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("embedding: build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if strings.TrimSpace(apiKey) != "" {
-		req.Header.Set("Authorization", "Bearer "+apiKey)
+	if strings.TrimSpace(input.APIKey) != "" {
+		req.Header.Set("Authorization", "Bearer "+input.APIKey)
 	}
 
-	resp, err := c.httpClients.Do(req, apiBase, "")
+	resp, err := c.httpClients.Do(req, input.APIBase, "")
 	if err != nil {
 		return nil, fmt.Errorf("embedding: http: %w", err)
 	}
@@ -111,8 +106,8 @@ func (c *Client) CallAPI(
 		return nil, fmt.Errorf("embedding: decode response: %w", err)
 	}
 
-	result := make([][]float32, len(texts))
-	seen := make([]bool, len(texts))
+	result := make([][]float32, len(input.Texts))
+	seen := make([]bool, len(input.Texts))
 	for _, item := range payload.Data {
 		if item.Index < 0 || item.Index >= len(result) {
 			return nil, fmt.Errorf("embedding: response index %d out of range", item.Index)
@@ -123,8 +118,8 @@ func (c *Client) CallAPI(
 		if len(item.Embedding) == 0 {
 			return nil, fmt.Errorf("embedding: response vector %d is empty", item.Index)
 		}
-		if dimensions > 0 && len(item.Embedding) != dimensions {
-			return nil, fmt.Errorf("embedding: response vector %d has %d dimensions, expected %d", item.Index, len(item.Embedding), dimensions)
+		if input.Dimensions > 0 && len(item.Embedding) != input.Dimensions {
+			return nil, fmt.Errorf("embedding: response vector %d has %d dimensions, expected %d", item.Index, len(item.Embedding), input.Dimensions)
 		}
 		result[item.Index] = item.Embedding
 		seen[item.Index] = true

@@ -1,14 +1,22 @@
 "use client";
 
-import * as React from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
 
 import { Separator } from "@/components/ui/separator";
+import {
+  billingDisplayAmountToMinorUnits,
+  formatAccountBalance,
+  isFreePlan,
+  planRank,
+  resolveDefaultPrice,
+  resolvePlanActionKind,
+} from "@/features/settings/model/subscription-format";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import { useAuthSession } from "@/shared/auth/auth-session-context";
+import type { UserDTO } from "@/shared/api/auth.types";
 import {
   createBillingCheckout,
   getBillingConfig,
@@ -24,35 +32,37 @@ import type {
   BillingConfigData,
   BillingMode,
   BillingOverviewData,
+  BillingPlanDTO,
+  BillingPlanPriceDTO,
   BillingUsageDailyDTO,
   BillingUsageLedgerDTO,
   BillingUsageMonthlyDTO,
 } from "@/shared/api/billing.types";
-import type { BillingPlanDTO, BillingPlanPriceDTO } from "@/shared/api/billing.types";
-import type { UserDTO } from "@/shared/api/auth.types";
+import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { SettingsPage, SettingsSectionHeader } from "@/shared/components/settings-layout";
 import {
-  formatAccountBalance,
-  isFreePlan,
-  planRank,
-  resolveDefaultPrice,
-  resolvePlanActionKind,
-  billingDisplayAmountToMinorUnits,
-} from "@/features/settings/model/subscription-format";
-import {
-  normalizeBillingDisplayCurrency,
   type BillingDisplayOptions,
+  normalizeBillingDisplayCurrency,
 } from "@/shared/lib/billing-display";
+import { ActivityHeatmapSkeleton } from "./activity-heatmap-skeleton";
 import { RedemptionDialog, TopUpDialog } from "./subscription-billing-dialogs";
 import { SubscriptionSummary } from "./subscription-summary";
-import { SubscriptionUsageLog } from "./subscription-usage-log";
 import type { UsageTrendView } from "./subscription-trend";
+import { SubscriptionUsageLog } from "./subscription-usage-log";
 
 const SubscriptionTrend = dynamic(
   () => import("./subscription-trend").then((module) => module.SubscriptionTrend),
   {
     ssr: false,
     loading: () => <SubscriptionTrendSkeleton />,
+  },
+);
+
+const SubscriptionActivityHeatmap = dynamic(
+  () => import("./activity-heatmap").then((module) => module.SubscriptionActivityHeatmap),
+  {
+    ssr: false,
+    loading: () => <ActivityHeatmapSkeleton />,
   },
 );
 
@@ -338,6 +348,8 @@ export function SettingsSubscription() {
     [billingOverview?.subscriptionEntitlements],
   );
   const paymentDisabled = paymentProviders.length === 0;
+  // 配置未加载时先不渲染充值入口,避免"置灰→消失"的闪现;确认无渠道后保持隐藏。
+  const topUpVisible = billingConfig !== null && paymentProviders.length > 0;
   const currentPlan = React.useMemo(() => {
     if (billingOverview?.plan) return billingOverview.plan;
     return billingPlans.find((plan) => viewer?.subscriptionPlanID === plan.id || viewer?.subscriptionTier === plan.code) ?? null;
@@ -410,6 +422,7 @@ export function SettingsSubscription() {
         redemptionLoading={redemptionLoading}
         topUpLoading={topUpLoading}
         paymentDisabled={paymentDisabled}
+        topUpVisible={topUpVisible}
         billingPlans={billingPlans}
         billingOverview={billingOverview}
         currentPlan={currentPlan}
@@ -448,6 +461,8 @@ export function SettingsSubscription() {
       />
 
       <section className="space-y-6 px-0.5 md:space-y-7 xl:space-y-8 xl:px-1">
+        <Separator />
+        <SubscriptionActivityHeatmap accessToken={accessToken} />
         <Separator />
         <SubscriptionTrend
           dailyUsage={dailyUsage}

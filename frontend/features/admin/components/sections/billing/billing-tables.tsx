@@ -43,13 +43,12 @@ export function PeriodBillingTable({
           <TableHead>{t("plans.tableDescription")}</TableHead>
           <TableHead>{t("plans.tablePrice")}</TableHead>
           <TableHead>{t("plans.tableCredit")}</TableHead>
-          <TableHead>{t("plans.tableDiscount")}</TableHead>
           <TableHead stickyEnd className="w-[56px]" />
         </TableRow>
       </TableHeader>
       <TableBody>
-        {initialLoading ? <TableLoadingRow colSpan={6} /> : null}
-        {!loading && plans.length === 0 ? <TableEmptyRow colSpan={6}>{t("plans.empty")}</TableEmptyRow> : null}
+        {initialLoading ? <TableLoadingRow colSpan={5} /> : null}
+        {!loading && plans.length === 0 ? <TableEmptyRow colSpan={5}>{t("plans.empty")}</TableEmptyRow> : null}
         {showPlans
           ? plans.map((plan) => {
               const defaultPrice = plan.prices.find((item) => item.isDefault) || plan.prices[0];
@@ -78,7 +77,6 @@ export function PeriodBillingTable({
                       <span className="ml-1 text-xs text-muted-foreground">{t("plans.perPeriod")}</span>
                     </span>
                   </TableCell>
-                  <TableCell className="py-1.5">{plan.discountPercent}%</TableCell>
                   <TableCell stickyEnd className="w-[56px] py-1.5 text-right">
                     <div className="flex h-7 items-center justify-end">
                       <Button

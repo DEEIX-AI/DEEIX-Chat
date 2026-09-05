@@ -609,6 +609,7 @@ export function NavProjects() {
       await updateProject(draft.publicID, {
         name,
         systemPrompt: draft.systemPrompt.trim(),
+        defaultModel: draft.defaultModel.trim(),
         mcpDefaultMode: draft.mcpDefaultMode,
         defaultMCPToolIDs: draft.mcpDefaultMode === "custom" ? draft.defaultMCPToolIDs : [],
         defaultSkillIDs: draft.defaultSkillIDs,
@@ -618,6 +619,7 @@ export function NavProjects() {
       await createProject({
         name,
         systemPrompt: draft.systemPrompt.trim(),
+        defaultModel: draft.defaultModel.trim(),
         mcpDefaultMode: draft.mcpDefaultMode,
         defaultMCPToolIDs: draft.mcpDefaultMode === "custom" ? draft.defaultMCPToolIDs : [],
         defaultSkillIDs: draft.defaultSkillIDs,
@@ -702,6 +704,7 @@ export function NavProjects() {
               onCreate={() => setDraft({
                 name: "",
                 systemPrompt: "",
+                defaultModel: "",
                 mcpDefaultMode: "inherit",
                 defaultMCPToolIDs: [],
                 defaultSkillIDs: [],
@@ -828,6 +831,7 @@ export function NavProjects() {
                                               publicID: project.publicID,
                                               name: project.name,
                                               systemPrompt: project.systemPrompt ?? "",
+                                              defaultModel: project.defaultModel ?? "",
                                               mcpDefaultMode: project.mcpDefaultMode ?? "inherit",
                                               defaultMCPToolIDs: project.defaultMCPToolIDs ?? [],
                                               defaultSkillIDs: project.defaultSkillIDs ?? [],

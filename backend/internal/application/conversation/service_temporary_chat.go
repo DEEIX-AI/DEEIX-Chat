@@ -2,11 +2,14 @@ package conversation
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
+	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	appcm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
+	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/google/uuid"
@@ -14,7 +17,7 @@ import (
 
 const temporaryChatMaxContentChars = 1_000_000
 
-// TemporaryChatMessage 是浏览器内临时对话的一条纯文本消息。
+// TemporaryChatMessage 是浏览器内临时对话的一条消息。
 type TemporaryChatMessage struct {
 	Role    string
 	Content string
@@ -22,18 +25,22 @@ type TemporaryChatMessage struct {
 
 // TemporaryChatInput 描述不创建会话、消息和运行记录的临时推理请求。
 type TemporaryChatInput struct {
-	UserID                  uint
-	RequestID               string
-	SessionID               string
-	ClientRunID             string
-	Model                   string
-	Options                 map[string]interface{}
-	SelectedToolIDs         []uint
-	SkillIDs                []uint
-	KnowledgeBaseIDs        []string
-	HTMLVisualPromptEnabled bool
-	Messages                []TemporaryChatMessage
-	OnEvent                 func(eventType string, payload map[string]interface{}) error
+	UserID                   uint
+	RequestID                string
+	SessionID                string
+	ClientRunID              string
+	Model                    string
+	Options                  map[string]any
+	SelectedToolIDs          []uint
+	SkillIDs                 []uint
+	KnowledgeBaseIDs         []string
+	HTMLVisualPromptEnabled  bool
+	Messages                 []TemporaryChatMessage
+	Attachments              []TemporaryChatAttachment
+	ReleaseAttachmentSources func()
+	// UsageAuthorization 是请求级计费授权；提示词形状确定后据此把预算预留抬高到预估成本。
+	UsageAuthorization *domainbilling.UsageAuthorization
+	OnEvent            func(eventType string, payload map[string]any) error
 }
 
 // StreamTemporaryChat 直接以请求上下文调用上游。调用方断开连接时生成随即取消，
@@ -82,6 +89,14 @@ func (s *Service) StreamTemporaryChat(
 	for _, item := range input.Messages {
 		messages = append(messages, llm.Message{Role: item.Role, Content: item.Content})
 	}
+	attachmentContext, err := s.prepareTemporaryAttachmentContext(ctx, input, messages)
+	if input.ReleaseAttachmentSources != nil {
+		input.ReleaseAttachmentSources()
+	}
+	if err != nil {
+		return nil, err
+	}
+	messages = attachmentContext.messages
 	systemPrompt := resolveMessageSystemPromptInjection(cfg, route, "", input.HTMLVisualPromptEnabled)
 	if systemPrompt.Content != "" {
 		if systemPrompt.InlineToUser {
@@ -97,8 +112,8 @@ func (s *Service) StreamTemporaryChat(
 	if err != nil {
 		return nil, err
 	}
-	// Attachment processors require persisted file objects and are therefore not
-	// exposed in a text-only temporary request.
+	// Attachment processors depend on persisted file IDs. Request-scoped temporary
+	// attachments are injected directly into the model context instead.
 	toolRuntime = toolRuntime.withoutAttachmentProcessor()
 	skillPrompts, err := s.resolveSkillPrompts(ctx, SendMessageInput{
 		UserID:   input.UserID,
@@ -115,11 +130,12 @@ func (s *Service) StreamTemporaryChat(
 		return nil, err
 	}
 	promptPlan := buildPromptPlan(ctx, promptPlanInput{
-		BaseMessages:   messages,
-		DynamicContext: knowledgeContext,
-		SkillPrompts:   skillPrompts,
-		ToolRuntime:    toolRuntime,
-		Config:         cfg,
+		BaseMessages:      messages,
+		StableAttachments: attachmentContext.stableAttachments,
+		DynamicContext:    knowledgeContext,
+		SkillPrompts:      skillPrompts,
+		ToolRuntime:       toolRuntime,
+		Config:            cfg,
 	})
 	messages = stripTemporaryMessageCacheControls(promptPlan.Messages)
 	fullMessages := cloneLLMMessages(messages)
@@ -140,20 +156,18 @@ func (s *Service) StreamTemporaryChat(
 		})
 		if moderationCoord != nil {
 			if input.OnEvent != nil {
-				moderationCoord.SetLiveEmitter(func(eventType string, payload map[string]interface{}) {
-					_ = input.OnEvent(eventType, payload)
-				})
+				moderationCoord.SetLiveEmitter(moderationLiveEmitter(input.OnEvent, input.UsageAuthorization))
 			}
 			moderationCoord.EnqueueInputText(lastUser.Content)
+			moderationCoord.EnqueueInputImageSources(attachmentContext.moderationImages)
 		}
 	}
 	generateInput := llm.GenerateInput{
-		RequestID:    strings.TrimSpace(input.RequestID),
-		Messages:     messages,
-		Tools:        toolRuntime.definitions,
-		DisableTools: len(toolRuntime.definitions) == 0,
-		Options:      filteredOptions,
-		Ephemeral:    true,
+		RequestID: strings.TrimSpace(input.RequestID),
+		Messages:  messages,
+		Tools:     toolRuntime.definitions,
+		Options:   filteredOptions,
+		Ephemeral: true,
 	}
 	var budgetFit promptBudgetFit
 	generateInput, budgetFit = fitGenerateInputToModelBudget(
@@ -173,18 +187,27 @@ func (s *Service) StreamTemporaryChat(
 		SentMessages: generateInput.Messages,
 		FullMessages: fullMessages,
 	}))
+	if err := s.ensureUsageBudgetCoversEstimate(ctx, input.UsageAuthorization, route, filteredOptions, usageBudgetEstimate{
+		InputTokens:  estimateGenerateInputTokens(generateInput),
+		OutputTokens: messageRequestMaxOutputTokens(filteredOptions),
+	}); err != nil {
+		if moderationCoord != nil {
+			moderationCoord.WaitInputOnly(ctx)
+		}
+		traceRecorder.fail(err)
+		return nil, err
+	}
 
-	generation, generateErr := s.runTemporaryGeneration(
-		ctx,
-		input,
-		route,
-		routeConfig,
-		generateInput,
-		toolRuntime,
-		traceRecorder,
-		startedAt,
-		onDelta,
-	)
+	generation, generateErr := s.runTemporaryGeneration(ctx, temporaryGenerationInput{
+		Request:       input,
+		Route:         route,
+		RouteConfig:   routeConfig,
+		InitialInput:  generateInput,
+		ToolRuntime:   toolRuntime,
+		TraceRecorder: traceRecorder,
+		StartedAt:     startedAt,
+		OnDelta:       onDelta,
+	})
 	output := generation.Output
 	if generateErr != nil {
 		if output == nil || output.Text == "" && generation.Usage == (llm.Usage{}) {
@@ -192,7 +215,7 @@ func (s *Service) StreamTemporaryChat(
 				moderationCoord.WaitInputOnly(ctx)
 			}
 			traceRecorder.fail(generateErr)
-			return nil, wrapUpstreamRequestError(generateErr)
+			return nil, wrapTemporaryGenerationError(generateErr)
 		}
 	}
 	if output == nil {
@@ -211,16 +234,19 @@ func (s *Service) StreamTemporaryChat(
 		return nil, ErrUpstreamEmptyResponse
 	}
 	usage := generation.Usage
+	// 非缓存输入为 0 是全部命中缓存时的合法观测值，只有上游完全没上报输入侧用量才用预估补齐。
+	inputObserved := usage.HasObservedInput()
+	outputObserved := usage.OutputTokens > 0
 	inputTokens := usage.InputTokens
-	if inputTokens <= 0 {
+	if !inputObserved {
 		inputTokens = estimateGenerateInputTokens(generateInput)
 	}
 	outputTokens := resolveObservedOrEstimatedOutputTokens(usage.OutputTokens, assistantText)
 	usageSource := "observed"
 	switch {
-	case usage.InputTokens <= 0 && usage.OutputTokens <= 0:
+	case !inputObserved && !outputObserved:
 		usageSource = "estimated"
-	case usage.InputTokens <= 0 || usage.OutputTokens <= 0:
+	case !inputObserved || !outputObserved:
 		usageSource = "mixed"
 	}
 	firstTokenLatencyMS := generation.FirstTokenLatency
@@ -275,6 +301,7 @@ func (s *Service) StreamTemporaryChat(
 		CacheWrite1hTokens:  usage.CacheWrite1hTokens,
 		ServerSideToolUsage: output.ServerSideToolUsage,
 		MCPToolUsage:        generation.MCPToolUsage,
+		LLMCallCount:        generation.LLMCallCount,
 		LatencyMS:           time.Since(startedAt).Milliseconds(),
 		StartedAt:           startedAt,
 	}
@@ -282,9 +309,18 @@ func (s *Service) StreamTemporaryChat(
 		applyBarrierOutcome(result, moderationCoord.AfterGeneration(ctx, assistantText, nil))
 	}
 	if generateErr != nil {
-		return result, wrapUpstreamRequestError(generateErr)
+		return result, wrapTemporaryGenerationError(generateErr)
 	}
 	return result, nil
+}
+
+// wrapTemporaryGenerationError 把上游失败包装为统一的上游错误；工具循环中的预算校验失败
+// 不是上游故障，原样返回以保持余额不足的错误语义。
+func wrapTemporaryGenerationError(err error) error {
+	if errors.Is(err, appbilling.ErrUsageBalanceInsufficient) {
+		return err
+	}
+	return wrapUpstreamRequestError(err)
 }
 
 // enforceTemporaryGenerateInput is the final privacy boundary before every
@@ -297,7 +333,7 @@ func enforceTemporaryGenerateInput(input llm.GenerateInput) llm.GenerateInput {
 	return input
 }
 
-func stripTemporaryChatProviderStateOptions(options map[string]interface{}) map[string]interface{} {
+func stripTemporaryChatProviderStateOptions(options map[string]any) map[string]any {
 	if len(options) == 0 {
 		return nil
 	}
@@ -345,6 +381,9 @@ func ValidateTemporaryChatInput(input TemporaryChatInput) error {
 	if len(input.Messages) == 0 || len(input.Messages) > 100 {
 		return ErrInvalidMessageContent
 	}
+	if len(input.Attachments) > TemporaryChatMaxAttachments {
+		return ErrTooManyMessageFiles
+	}
 	if len(input.KnowledgeBaseIDs) > 8 {
 		return ErrInvalidMessageContent
 	}
@@ -359,12 +398,22 @@ func ValidateTemporaryChatInput(input TemporaryChatInput) error {
 		}
 		seenKnowledgeBases[normalized] = struct{}{}
 	}
+	attachmentCounts := make(map[int]int)
+	for _, attachment := range input.Attachments {
+		if attachment.MessageIndex < 0 || attachment.MessageIndex >= len(input.Messages) || attachment.Reader == nil {
+			return ErrInvalidFileReference
+		}
+		attachmentCounts[attachment.MessageIndex]++
+	}
 	totalChars := 0
 	previousRole := ""
-	for _, item := range input.Messages {
+	for index, item := range input.Messages {
 		role := strings.TrimSpace(item.Role)
 		content := strings.TrimSpace(item.Content)
-		if (role != "user" && role != "assistant") || content == "" || role == previousRole {
+		if (role != "user" && role != "assistant") || role == previousRole {
+			return ErrInvalidMessageContent
+		}
+		if content == "" && (role != "user" || attachmentCounts[index] == 0) {
 			return ErrInvalidMessageContent
 		}
 		totalChars += len([]rune(item.Content))

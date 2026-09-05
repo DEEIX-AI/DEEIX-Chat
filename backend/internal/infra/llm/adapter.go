@@ -2,19 +2,13 @@ package llm
 
 import (
 	"context"
-	"fmt"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 type transportAdapter interface {
 	Name() string
-	Generate(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error)
-	GenerateStream(ctx context.Context, route RouteConfig, input GenerateInput, onEvent func(GenerateStreamEvent) error) (*GenerateOutput, error)
-	ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error)
-}
-
-func validateAdapter(raw string) error {
-	if !IsKnownAdapter(raw) {
-		return fmt.Errorf("%w: %s", ErrUnsupportedAdapter, raw)
-	}
-	return nil
+	Generate(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput) (*portllm.GenerateOutput, error)
+	GenerateStream(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput, onEvent func(portllm.GenerateStreamEvent) error) (*portllm.GenerateOutput, error)
+	ListModels(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error)
 }

@@ -11,6 +11,7 @@ type fixedWindowCounter struct {
 	expiresAt time.Time
 }
 
+// AllowSlidingWindow applies a sliding-window request limit to a key.
 func (c *Cache) AllowSlidingWindow(ctx context.Context, key string, limit int, window time.Duration, ttl time.Duration) (bool, error) {
 	if c == nil || strings.TrimSpace(key) == "" || limit <= 0 {
 		return true, nil
@@ -37,6 +38,7 @@ func (c *Cache) AllowSlidingWindow(ctx context.Context, key string, limit int, w
 	return allowed, nil
 }
 
+// AllowFixedWindow applies a fixed-window request limit across one or more keys.
 func (c *Cache) AllowFixedWindow(ctx context.Context, keys []string, limit int, ttl time.Duration) (bool, error) {
 	if c == nil || len(keys) == 0 || limit <= 0 {
 		return true, nil

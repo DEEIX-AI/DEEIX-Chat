@@ -24,13 +24,13 @@ func (s *Service) cleanupLoop(ctx context.Context) {
 		case <-s.stopCh:
 			return
 		case <-cleanupTicker.C:
-			bg, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			bg, cancel := context.WithTimeout(ctx, 5*time.Minute)
 			s.runCleanup(bg)
 			s.recoverPendingBlocks(bg)
 			s.recoverStaleRuns(bg)
 			cancel()
 		case <-recoveryTicker.C:
-			bg, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			bg, cancel := context.WithTimeout(ctx, 45*time.Second)
 			s.recoverPendingBlocks(bg)
 			s.recoverStaleRuns(bg)
 			s.retryBlockedGeneratedFileDeletes(bg, 200)
@@ -148,7 +148,7 @@ func (s *Service) recoverStaleRuns(ctx context.Context) {
 		if s.recoverKnownHit(ctx, runID) {
 			continue
 		}
-		s.recordFailedOpen(ctx, RunMeta{RunID: runID}, domaincm.DirectionOutput, domaincm.ModalityText, domaincm.ErrorCodeWorkerLost, ErrWorkerLost.Error(), 0)
+		s.recordFailedOpen(ctx, RunMeta{RunID: runID}, domaincm.DirectionOutput, domaincm.ModalityText, domaincm.ErrorCodeWorkerLost, 0)
 		if err := s.repo.UpdateRunModeration(ctx, runID, domaincm.ModerationStateFailedOpen, "", "[]"); err != nil {
 			s.logWarn("content_moderation_recover_mark_failed_open_failed", zap.String("run_id", runID), zap.Error(err))
 		}
@@ -176,9 +176,9 @@ func (s *Service) recoverKnownHit(ctx context.Context, runID string) bool {
 		return true
 	}
 	s.removePendingBlock(runID)
-	s.deleteBlockedOutputFiles(fileIDs)
+	s.deleteBlockedOutputFiles(ctx, fileIDs)
 	if !alreadyNotified {
-		s.notifyBlockedRecovery(runID, info)
+		s.notifyBlockedRecovery(ctx, runID, info)
 	}
 	return true
 }
@@ -197,15 +197,15 @@ func (s *Service) recoverPendingBlocks(ctx context.Context) {
 			continue
 		}
 		s.removePendingBlock(item.meta.RunID)
-		s.deleteBlockedOutputFiles(fileIDs)
+		s.deleteBlockedOutputFiles(ctx, fileIDs)
 	}
 }
 
-func (s *Service) handleLateBlock(meta RunMeta, info BlockInfo) {
+func (s *Service) handleLateBlock(parent context.Context, meta RunMeta, info BlockInfo) {
 	if s == nil || s.repo == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	fileIDs, err := s.repo.ApplyRunBlock(
 		ctx,
 		meta.RunID,
@@ -221,18 +221,18 @@ func (s *Service) handleLateBlock(meta RunMeta, info BlockInfo) {
 		s.logWarn("content_moderation_late_block_apply_failed", zap.String("run_id", meta.RunID), zap.Error(err))
 	} else {
 		s.removePendingBlock(meta.RunID)
-		s.deleteBlockedOutputFiles(fileIDs)
+		s.deleteBlockedOutputFiles(ctx, fileIDs)
 	}
 	cancel()
-	s.notifyBlockedRecovery(meta.RunID, info)
+	s.notifyBlockedRecovery(parent, meta.RunID, info)
 }
 
-func (s *Service) notifyBlockedRecovery(runID string, info BlockInfo) {
+func (s *Service) notifyBlockedRecovery(ctx context.Context, runID string, info BlockInfo) {
 	if s.onBlocked != nil {
-		s.onBlocked(runID, info)
+		s.onBlocked(ctx, runID, info)
 	}
 	if s.emitEvent != nil {
-		s.emitEvent(runID, "moderation_blocked", map[string]interface{}{
+		s.emitEvent(ctx, runID, "moderation_blocked", map[string]any{
 			"type":       "moderation_blocked",
 			"eventID":    info.EventID,
 			"direction":  info.Direction,
@@ -241,11 +241,11 @@ func (s *Service) notifyBlockedRecovery(runID string, info BlockInfo) {
 	}
 }
 
-func (s *Service) deleteBlockedOutputFiles(fileIDs []string) {
+func (s *Service) deleteBlockedOutputFiles(parent context.Context, fileIDs []string) {
 	if s == nil || s.fileAccess == nil || len(fileIDs) == 0 {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	for _, fileID := range fileIDs {
 		if err := s.fileAccess.DeleteGeneratedFileArtifacts(ctx, fileID); err != nil {

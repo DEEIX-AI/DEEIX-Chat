@@ -201,7 +201,7 @@ func ValidateModelCapsOverrides(capabilitiesJSON string) error {
 	return nil
 }
 
-func firstPresentInt(payload map[string]interface{}, keys ...string) (int, bool) {
+func firstPresentInt(payload map[string]any, keys ...string) (int, bool) {
 	for _, key := range keys {
 		value, exists := payload[key]
 		if !exists {
@@ -216,12 +216,12 @@ func firstPresentInt(payload map[string]interface{}, keys ...string) (int, bool)
 	return 0, false
 }
 
-func parseCapabilities(raw string) (map[string]interface{}, bool) {
+func parseCapabilities(raw string) (map[string]any, bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil, false
 	}
-	payload := map[string]interface{}{}
+	payload := map[string]any{}
 	decoder := json.NewDecoder(strings.NewReader(raw))
 	decoder.UseNumber()
 	if err := decoder.Decode(&payload); err != nil {
@@ -230,7 +230,7 @@ func parseCapabilities(raw string) (map[string]interface{}, bool) {
 	return payload, true
 }
 
-func firstPositiveInt(payload map[string]interface{}, keys ...string) (int, bool) {
+func firstPositiveInt(payload map[string]any, keys ...string) (int, bool) {
 	for _, key := range keys {
 		if value, ok := positiveInt(payload[key]); ok {
 			return value, true
@@ -239,7 +239,7 @@ func firstPositiveInt(payload map[string]interface{}, keys ...string) (int, bool
 	return 0, false
 }
 
-func positiveInt(value interface{}) (int, bool) {
+func positiveInt(value any) (int, bool) {
 	switch v := value.(type) {
 	case float64:
 		if v > 0 && v <= float64(^uint(0)>>1) {

@@ -21,7 +21,7 @@ type Definition struct {
 	Key              string
 	Label            string
 	Description      string
-	Payload          map[string]interface{}
+	Payload          map[string]any
 	DefaultEnabled   bool
 	Billable         bool
 	BillingUnit      string
@@ -60,16 +60,6 @@ type UsagePrice struct {
 	NanousdPerCall int64
 }
 
-var protocolOrder = []string{
-	"openai_chat_completions",
-	"openai_responses",
-	"anthropic_messages",
-	"xai_responses",
-	"gemini_generate_content",
-	"gemini_interactions",
-	"google_image_generation",
-}
-
 var definitions = []Definition{
 	{
 		Protocol:       "openai_chat_completions",
@@ -78,7 +68,7 @@ var definitions = []Definition{
 		Key:            "openai.web_search",
 		Label:          "Web Search",
 		Description:    "OpenAI hosted web search.",
-		Payload:        map[string]interface{}{"type": "web_search"},
+		Payload:        map[string]any{"type": "web_search"},
 		DefaultEnabled: true,
 		Billable:       true,
 		BillingUnit:    "call",
@@ -92,7 +82,7 @@ var definitions = []Definition{
 		Key:            "openai.web_search_preview",
 		Label:          "Web Search Preview",
 		Description:    "OpenAI hosted web search preview tool.",
-		Payload:        map[string]interface{}{"type": "web_search_preview"},
+		Payload:        map[string]any{"type": "web_search_preview"},
 		DefaultEnabled: true,
 		Billable:       true,
 		BillingUnit:    "call",
@@ -106,7 +96,7 @@ var definitions = []Definition{
 		Key:            "openai.web_search",
 		Label:          "Web Search",
 		Description:    "OpenAI hosted web search.",
-		Payload:        map[string]interface{}{"type": "web_search"},
+		Payload:        map[string]any{"type": "web_search"},
 		DefaultEnabled: true,
 		Billable:       true,
 		BillingUnit:    "call",
@@ -120,7 +110,7 @@ var definitions = []Definition{
 		Key:            "openai.web_search_preview",
 		Label:          "Web Search Preview",
 		Description:    "OpenAI hosted web search preview tool.",
-		Payload:        map[string]interface{}{"type": "web_search_preview"},
+		Payload:        map[string]any{"type": "web_search_preview"},
 		DefaultEnabled: true,
 		Billable:       true,
 		BillingUnit:    "call",
@@ -134,7 +124,7 @@ var definitions = []Definition{
 		Key:            "openai.shell",
 		Label:          "Shell",
 		Description:    "OpenAI hosted shell tool with an automatic container.",
-		Payload:        map[string]interface{}{"type": "shell", "environment": map[string]interface{}{"type": "container_auto"}},
+		Payload:        map[string]any{"type": "shell", "environment": map[string]any{"type": "container_auto"}},
 		DefaultEnabled: true,
 		PriceLabel:     "notMetered",
 		RiskLevel:      "high",
@@ -147,7 +137,7 @@ var definitions = []Definition{
 		Key:            "openai.image_generation",
 		Label:          "Image Generation",
 		Description:    "OpenAI hosted image generation tool.",
-		Payload:        map[string]interface{}{"type": "image_generation"},
+		Payload:        map[string]any{"type": "image_generation"},
 		DefaultEnabled: true,
 		PriceLabel:     "notMetered",
 		UsageAliases:   []string{"image_generation"},
@@ -159,7 +149,7 @@ var definitions = []Definition{
 		Key:            "openai.code_interpreter",
 		Label:          "Code Interpreter",
 		Description:    "OpenAI hosted code interpreter with an automatic container.",
-		Payload:        map[string]interface{}{"type": "code_interpreter", "container": map[string]interface{}{"type": "auto"}},
+		Payload:        map[string]any{"type": "code_interpreter", "container": map[string]any{"type": "auto"}},
 		DefaultEnabled: true,
 		PriceLabel:     "notMetered",
 		RiskLevel:      "high",
@@ -172,7 +162,7 @@ var definitions = []Definition{
 		Key:            "anthropic.web_search_20250305",
 		Label:          "Web Search",
 		Description:    "Anthropic hosted web search tool.",
-		Payload:        map[string]interface{}{"type": "web_search_20250305", "name": "web_search"},
+		Payload:        map[string]any{"type": "web_search_20250305", "name": "web_search"},
 		DefaultEnabled: true,
 		Billable:       true,
 		BillingUnit:    "search",
@@ -186,7 +176,7 @@ var definitions = []Definition{
 		Key:            "anthropic.web_search_20260209",
 		Label:          "Web Search",
 		Description:    "Anthropic hosted web search tool.",
-		Payload:        map[string]interface{}{"type": "web_search_20260209", "name": "web_search", "allowed_callers": []string{"direct"}},
+		Payload:        map[string]any{"type": "web_search_20260209", "name": "web_search", "allowed_callers": []string{"direct"}},
 		DefaultEnabled: true,
 		Billable:       true,
 		BillingUnit:    "search",
@@ -200,7 +190,7 @@ var definitions = []Definition{
 		Key:            "anthropic.web_fetch_20250910",
 		Label:          "Web Fetch",
 		Description:    "Anthropic hosted web fetch tool.",
-		Payload:        map[string]interface{}{"type": "web_fetch_20250910", "name": "web_fetch"},
+		Payload:        map[string]any{"type": "web_fetch_20250910", "name": "web_fetch"},
 		DefaultEnabled: true,
 		PriceLabel:     "included",
 		UsageAliases:   []string{"web_fetch"},
@@ -212,7 +202,7 @@ var definitions = []Definition{
 		Key:            "anthropic.web_fetch_20260209",
 		Label:          "Web Fetch",
 		Description:    "Anthropic hosted web fetch tool.",
-		Payload:        map[string]interface{}{"type": "web_fetch_20260209", "name": "web_fetch", "allowed_callers": []string{"direct"}},
+		Payload:        map[string]any{"type": "web_fetch_20260209", "name": "web_fetch", "allowed_callers": []string{"direct"}},
 		DefaultEnabled: true,
 		PriceLabel:     "included",
 		UsageAliases:   []string{"web_fetch"},
@@ -224,7 +214,7 @@ var definitions = []Definition{
 		Key:            "anthropic.code_execution_20250825",
 		Label:          "Code Execution",
 		Description:    "Anthropic hosted code execution tool.",
-		Payload:        map[string]interface{}{"type": "code_execution_20250825", "name": "code_execution"},
+		Payload:        map[string]any{"type": "code_execution_20250825", "name": "code_execution"},
 		DefaultEnabled: true,
 		PriceLabel:     "notMetered",
 		RiskLevel:      "high",
@@ -237,7 +227,7 @@ var definitions = []Definition{
 		Key:            "anthropic.code_execution_20260120",
 		Label:          "Code Execution",
 		Description:    "Anthropic hosted code execution tool.",
-		Payload:        map[string]interface{}{"type": "code_execution_20260120", "name": "code_execution"},
+		Payload:        map[string]any{"type": "code_execution_20260120", "name": "code_execution"},
 		DefaultEnabled: true,
 		PriceLabel:     "notMetered",
 		RiskLevel:      "high",
@@ -250,7 +240,7 @@ var definitions = []Definition{
 		Key:            "anthropic.advisor_20260301",
 		Label:          "Advisor",
 		Description:    "Anthropic hosted advisor tool.",
-		Payload:        map[string]interface{}{"type": "advisor_20260301", "name": "advisor"},
+		Payload:        map[string]any{"type": "advisor_20260301", "name": "advisor"},
 		DefaultEnabled: true,
 		PriceLabel:     "notMetered",
 		UsageAliases:   []string{"advisor"},
@@ -262,7 +252,7 @@ var definitions = []Definition{
 		Key:            "anthropic.tool_search_tool_regex_20251119",
 		Label:          "Tool Search Regex",
 		Description:    "Anthropic hosted regex tool search.",
-		Payload:        map[string]interface{}{"type": "tool_search_tool_regex_20251119", "name": "tool_search_tool_regex"},
+		Payload:        map[string]any{"type": "tool_search_tool_regex_20251119", "name": "tool_search_tool_regex"},
 		DefaultEnabled: true,
 		PriceLabel:     "included",
 		UsageAliases:   []string{"tool_search_tool_regex"},
@@ -274,7 +264,7 @@ var definitions = []Definition{
 		Key:            "anthropic.tool_search_tool_bm25_20251119",
 		Label:          "Tool Search BM25",
 		Description:    "Anthropic hosted BM25 tool search.",
-		Payload:        map[string]interface{}{"type": "tool_search_tool_bm25_20251119", "name": "tool_search_tool_bm25"},
+		Payload:        map[string]any{"type": "tool_search_tool_bm25_20251119", "name": "tool_search_tool_bm25"},
 		DefaultEnabled: true,
 		PriceLabel:     "included",
 		UsageAliases:   []string{"tool_search_tool_bm25"},
@@ -286,7 +276,7 @@ var definitions = []Definition{
 		Key:            "xai.web_search",
 		Label:          "Web Search",
 		Description:    "xAI hosted web search.",
-		Payload:        map[string]interface{}{"type": "web_search"},
+		Payload:        map[string]any{"type": "web_search"},
 		DefaultEnabled: true,
 		Billable:       true,
 		BillingUnit:    "call",
@@ -300,7 +290,7 @@ var definitions = []Definition{
 		Key:            "xai.x_search",
 		Label:          "X Search",
 		Description:    "xAI hosted X search.",
-		Payload:        map[string]interface{}{"type": "x_search"},
+		Payload:        map[string]any{"type": "x_search"},
 		DefaultEnabled: true,
 		Billable:       true,
 		BillingUnit:    "call",
@@ -314,7 +304,7 @@ var definitions = []Definition{
 		Key:            "xai.code_interpreter",
 		Label:          "Code Interpreter",
 		Description:    "xAI hosted code interpreter.",
-		Payload:        map[string]interface{}{"type": "code_interpreter"},
+		Payload:        map[string]any{"type": "code_interpreter"},
 		DefaultEnabled: true,
 		Billable:       true,
 		BillingUnit:    "call",
@@ -329,7 +319,7 @@ var definitions = []Definition{
 		Key:              "google.google_search",
 		Label:            "Google Search",
 		Description:      "Google hosted search grounding tool.",
-		Payload:          map[string]interface{}{"google_search": map[string]interface{}{}},
+		Payload:          map[string]any{"google_search": map[string]any{}},
 		DefaultEnabled:   true,
 		PriceLabel:       "notMetered",
 		UsageAliases:     []string{"google_search"},
@@ -342,7 +332,7 @@ var definitions = []Definition{
 		Key:              "google.google_search",
 		Label:            "Google Search",
 		Description:      "Google hosted search grounding tool.",
-		Payload:          map[string]interface{}{"google_search": map[string]interface{}{}},
+		Payload:          map[string]any{"google_search": map[string]any{}},
 		DefaultEnabled:   true,
 		PriceLabel:       "notMetered",
 		UsageAliases:     []string{"google_search"},
@@ -355,7 +345,7 @@ var definitions = []Definition{
 		Key:              "google.code_execution",
 		Label:            "Code Execution",
 		Description:      "Google hosted code execution tool.",
-		Payload:          map[string]interface{}{"code_execution": map[string]interface{}{}},
+		Payload:          map[string]any{"code_execution": map[string]any{}},
 		DefaultEnabled:   true,
 		PriceLabel:       "notMetered",
 		RiskLevel:        "high",
@@ -369,7 +359,7 @@ var definitions = []Definition{
 		Key:              "google.url_context",
 		Label:            "URL Context",
 		Description:      "Google hosted URL context tool.",
-		Payload:          map[string]interface{}{"url_context": map[string]interface{}{}},
+		Payload:          map[string]any{"url_context": map[string]any{}},
 		DefaultEnabled:   true,
 		PriceLabel:       "notMetered",
 		UsageAliases:     []string{"url_context"},
@@ -382,7 +372,7 @@ var definitions = []Definition{
 		Key:            "google.google_search",
 		Label:          "Google Search",
 		Description:    "Google hosted search grounding tool.",
-		Payload:        map[string]interface{}{"type": "google_search"},
+		Payload:        map[string]any{"type": "google_search"},
 		DefaultEnabled: true,
 		PriceLabel:     "notMetered",
 		UsageAliases:   []string{"google_search"},
@@ -394,7 +384,7 @@ var definitions = []Definition{
 		Key:            "google.code_execution",
 		Label:          "Code Execution",
 		Description:    "Google hosted code execution tool.",
-		Payload:        map[string]interface{}{"type": "code_execution"},
+		Payload:        map[string]any{"type": "code_execution"},
 		DefaultEnabled: true,
 		PriceLabel:     "notMetered",
 		RiskLevel:      "high",
@@ -407,7 +397,7 @@ var definitions = []Definition{
 		Key:            "google.url_context",
 		Label:          "URL Context",
 		Description:    "Google hosted URL context tool.",
-		Payload:        map[string]interface{}{"type": "url_context"},
+		Payload:        map[string]any{"type": "url_context"},
 		DefaultEnabled: true,
 		PriceLabel:     "notMetered",
 		UsageAliases:   []string{"url_context"},
@@ -448,40 +438,12 @@ func Definitions() []Definition {
 	return result
 }
 
-// DefinitionsByProtocol 返回指定协议下的官方原生工具定义。
-func DefinitionsByProtocol(protocol string) []Definition {
-	protocol = strings.TrimSpace(protocol)
-	result := make([]Definition, 0)
-	for _, definition := range definitions {
-		if definition.Protocol == protocol {
-			result = append(result, cloneDefinition(definition))
-		}
-	}
-	return result
-}
-
-// Protocols 返回有原生工具定义的协议主键。
-func Protocols() []string {
-	return append([]string(nil), protocolOrder...)
-}
-
 // Find 返回指定协议和类型的官方原生工具定义。
 func Find(protocol string, toolType string) (Definition, bool) {
 	protocol = strings.TrimSpace(protocol)
 	toolType = strings.TrimSpace(toolType)
 	for _, definition := range definitions {
 		if definition.Protocol == protocol && definition.Type == toolType {
-			return cloneDefinition(definition), true
-		}
-	}
-	return Definition{}, false
-}
-
-// FindByKey 返回指定官方原生工具 key 的第一个目录定义。
-func FindByKey(key string) (Definition, bool) {
-	key = strings.TrimSpace(key)
-	for _, definition := range definitions {
-		if definition.Key == key {
 			return cloneDefinition(definition), true
 		}
 	}
@@ -506,7 +468,7 @@ var nativeToolDeniedPayloadKeys = map[string]struct{}{
 }
 
 // PayloadFromOption 识别用户 options.tools 项中的官方原生工具，并返回可发送给上游的规范化 payload。
-func PayloadFromOption(protocol string, raw map[string]interface{}) (Definition, map[string]interface{}, bool) {
+func PayloadFromOption(protocol string, raw map[string]any) (Definition, map[string]any, bool) {
 	toolType := strings.TrimSpace(stringValue(raw["type"]))
 	if toolType == "" {
 		toolType = inferToolTypeFromRawKeys(protocol, raw)
@@ -521,28 +483,12 @@ func PayloadFromOption(protocol string, raw map[string]interface{}) (Definition,
 	return definition, buildPayload(definition, raw), true
 }
 
-// PayloadFromKey 识别指定官方原生工具 key，并返回可发送给上游的规范化 payload。
-func PayloadFromKey(key string, raw map[string]interface{}) (Definition, map[string]interface{}, bool) {
-	key = strings.TrimSpace(key)
-	for _, definition := range definitions {
-		if definition.Key != key {
-			continue
-		}
-		matched, payload, ok := PayloadFromOption(definition.Protocol, raw)
-		if !ok {
-			continue
-		}
-		return matched, payload, true
-	}
-	return Definition{}, nil, false
-}
-
 // CanonicalPayload 按官方原生工具定义生成可发送给上游的规范 payload。
-func CanonicalPayload(definition Definition, raw map[string]interface{}) map[string]interface{} {
+func CanonicalPayload(definition Definition, raw map[string]any) map[string]any {
 	return buildPayload(definition, raw)
 }
 
-func buildPayload(definition Definition, raw map[string]interface{}) map[string]interface{} {
+func buildPayload(definition Definition, raw map[string]any) map[string]any {
 	payload := cloneMap(raw)
 	for key := range nativeToolDeniedPayloadKeys {
 		delete(payload, key)
@@ -559,10 +505,10 @@ func buildPayload(definition Definition, raw map[string]interface{}) map[string]
 	return payload
 }
 
-func mergePayload(dst map[string]interface{}, src map[string]interface{}) {
+func mergePayload(dst map[string]any, src map[string]any) {
 	for key, value := range src {
-		srcMap, srcIsMap := value.(map[string]interface{})
-		dstMap, dstIsMap := dst[key].(map[string]interface{})
+		srcMap, srcIsMap := value.(map[string]any)
+		dstMap, dstIsMap := dst[key].(map[string]any)
 		if srcIsMap && dstIsMap {
 			mergePayload(dstMap, srcMap)
 			continue
@@ -606,11 +552,6 @@ func PricingDefinitionsFromDefinitions(items []Definition) []PricingDefinition {
 		})
 	}
 	return result
-}
-
-// PricingDefinitionsWithOverrides 返回应用管理员覆盖后的原生工具计费展示目录。
-func PricingDefinitionsWithOverrides(raw string) []PricingDefinition {
-	return PricingDefinitionsWithOverridesFromDefinitions(raw, Definitions())
 }
 
 // PricingDefinitionsWithOverridesFromDefinitions 返回指定目录应用管理员覆盖后的原生工具计费展示目录。
@@ -689,7 +630,7 @@ func normalizeDefinition(definition Definition) (Definition, bool) {
 		definition.Description = definition.Type
 	}
 	if definition.Payload == nil {
-		definition.Payload = map[string]interface{}{"type": definition.Type}
+		definition.Payload = map[string]any{"type": definition.Type}
 	}
 	if definition.BillingUnit == "" {
 		definition.BillingUnit = "call"
@@ -706,23 +647,23 @@ func DefinitionsFromCapabilitiesJSON(raw string) []Definition {
 	}
 	var payload struct {
 		NativeTools []struct {
-			Key            string                 `json:"key"`
-			ToolKey        string                 `json:"toolKey"`
-			Protocol       string                 `json:"protocol"`
-			Protocols      []string               `json:"protocols"`
-			Provider       string                 `json:"provider"`
-			Type           string                 `json:"type"`
-			Label          string                 `json:"label"`
-			Description    string                 `json:"description"`
-			Payload        map[string]interface{} `json:"payload"`
-			DefaultEnabled bool                   `json:"defaultEnabled"`
-			Billable       bool                   `json:"billable"`
-			BillingUnit    string                 `json:"billingUnit"`
-			PriceNanousd   int64                  `json:"priceNanousd"`
-			PriceLabel     string                 `json:"priceLabel"`
-			RiskLevel      string                 `json:"riskLevel"`
-			UsageAliases   []string               `json:"usageAliases"`
-			Enabled        *bool                  `json:"enabled"`
+			Key            string         `json:"key"`
+			ToolKey        string         `json:"toolKey"`
+			Protocol       string         `json:"protocol"`
+			Protocols      []string       `json:"protocols"`
+			Provider       string         `json:"provider"`
+			Type           string         `json:"type"`
+			Label          string         `json:"label"`
+			Description    string         `json:"description"`
+			Payload        map[string]any `json:"payload"`
+			DefaultEnabled bool           `json:"defaultEnabled"`
+			Billable       bool           `json:"billable"`
+			BillingUnit    string         `json:"billingUnit"`
+			PriceNanousd   int64          `json:"priceNanousd"`
+			PriceLabel     string         `json:"priceLabel"`
+			RiskLevel      string         `json:"riskLevel"`
+			UsageAliases   []string       `json:"usageAliases"`
+			Enabled        *bool          `json:"enabled"`
 		} `json:"nativeTools"`
 	}
 	if err := json.Unmarshal([]byte(value), &payload); err != nil {
@@ -828,11 +769,6 @@ func PricingOverridesFromDefinitions(items []PricingDefinition) map[string]Prici
 	return result
 }
 
-// PricingOverridesJSON 将覆盖配置规范化为稳定 JSON。
-func PricingOverridesJSON(overrides map[string]PricingOverride) (string, error) {
-	return PricingOverridesJSONForDefinitions(overrides, Definitions())
-}
-
 // PricingOverridesJSONForDefinitions 将指定目录下的覆盖配置规范化为稳定 JSON。
 func PricingOverridesJSONForDefinitions(overrides map[string]PricingOverride, definitions []Definition) (string, error) {
 	normalized, err := normalizePricingOverrides(overrides, definitions)
@@ -862,11 +798,6 @@ func ParsePricingOverridesJSONForDefinitions(raw string, definitions []Definitio
 		return nil, fmt.Errorf("native tool pricing must be a JSON object: %w", err)
 	}
 	return normalizePricingOverrides(parsed, definitions)
-}
-
-// PricingOverridesUseDefaults 判断配置是否等同于内置默认价格。
-func PricingOverridesUseDefaults(raw string) bool {
-	return PricingOverridesUseDefaultsForDefinitions(raw, Definitions())
 }
 
 // PricingOverridesUseDefaultsForDefinitions 判断配置是否等同于指定目录默认价格。
@@ -947,12 +878,6 @@ func UsagePricingKey(protocol string, toolName string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-// UsagePriceByKey 返回可计费原生工具项的按次价格。
-func UsagePriceByKey(key string) (UsagePrice, bool) {
-	price, ok := usagePricesByKey[strings.TrimSpace(key)]
-	return price, ok
 }
 
 // UsagePriceByKeyWithOverrides 返回应用管理员覆盖后的可计费原生工具按次价格。
@@ -1098,7 +1023,7 @@ func pricingOverrideEqual(left PricingOverride, right PricingOverride) bool {
 		left.Billable == right.Billable
 }
 
-func inferToolTypeFromRawKeys(protocol string, raw map[string]interface{}) string {
+func inferToolTypeFromRawKeys(protocol string, raw map[string]any) string {
 	for _, definition := range definitions {
 		if definition.Protocol != protocol {
 			continue
@@ -1119,25 +1044,25 @@ func cloneDefinition(definition Definition) Definition {
 	return definition
 }
 
-func cloneMap(src map[string]interface{}) map[string]interface{} {
+func cloneMap(src map[string]any) map[string]any {
 	if src == nil {
 		return nil
 	}
-	dst := make(map[string]interface{}, len(src))
+	dst := make(map[string]any, len(src))
 	for key, value := range src {
 		dst[key] = cloneValue(value)
 	}
 	return dst
 }
 
-func cloneValue(value interface{}) interface{} {
+func cloneValue(value any) any {
 	switch typed := value.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		return cloneMap(typed)
 	case []string:
 		return append([]string(nil), typed...)
-	case []interface{}:
-		items := make([]interface{}, len(typed))
+	case []any:
+		items := make([]any, len(typed))
 		for index, item := range typed {
 			items[index] = cloneValue(item)
 		}
@@ -1147,7 +1072,7 @@ func cloneValue(value interface{}) interface{} {
 	}
 }
 
-func stringValue(value interface{}) string {
+func stringValue(value any) string {
 	if typed, ok := value.(string); ok {
 		return typed
 	}

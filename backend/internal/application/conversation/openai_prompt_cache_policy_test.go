@@ -88,9 +88,9 @@ func TestConfigureOpenAIPromptCacheForRoute(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			original := map[string]interface{}{
+			original := map[string]any{
 				"temperature": 0.2,
-				"prompt_cache_options": map[string]interface{}{
+				"prompt_cache_options": map[string]any{
 					"mode": "user-controlled",
 				},
 				"prompt_cache_retention": "user-controlled",
@@ -99,7 +99,7 @@ func TestConfigureOpenAIPromptCacheForRoute(t *testing.T) {
 			if key != test.wantKey {
 				t.Fatalf("expected key %q, got %q", test.wantKey, key)
 			}
-			cacheOptions, _ := options["prompt_cache_options"].(map[string]interface{})
+			cacheOptions, _ := options["prompt_cache_options"].(map[string]any)
 			if mode, _ := cacheOptions["mode"].(string); mode != test.wantMode {
 				t.Fatalf("expected prompt cache mode %q, got %#v", test.wantMode, options)
 			}
@@ -136,7 +136,7 @@ func TestConfigureOpenAIPromptCacheForRouteDropsFieldsAfterFailoverToUnsupported
 			BaseURL:               "https://relay.example.com/v1",
 			ModelCapabilitiesJSON: capabilitiesJSON,
 		}
-		key, options := configureOpenAIPromptCacheForRoute(supportedRoute, "session-1", map[string]interface{}{
+		key, options := configureOpenAIPromptCacheForRoute(supportedRoute, "session-1", map[string]any{
 			"temperature": 0.2,
 		})
 		if key != "session-1" {
@@ -160,9 +160,9 @@ func TestConfigureOpenAIPromptCacheForRouteDropsFieldsAfterFailoverToUnsupported
 }
 
 func TestConfigureOpenAIPromptCacheDoesNotDependOnModelOptionAllowlist(t *testing.T) {
-	filtered := filterModelOptions(map[string]interface{}{
+	filtered := filterModelOptions(map[string]any{
 		"temperature":            0.2,
-		"prompt_cache_options":   map[string]interface{}{"mode": "user-controlled"},
+		"prompt_cache_options":   map[string]any{"mode": "user-controlled"},
 		"prompt_cache_retention": "user-controlled",
 	}, llm.AdapterOpenAIResponses, modelOptionPolicyConfig{
 		Mode:             modelOptionPolicyAllowlist,
@@ -175,7 +175,7 @@ func TestConfigureOpenAIPromptCacheDoesNotDependOnModelOptionAllowlist(t *testin
 	}
 
 	key, options := configureOpenAIPromptCacheForRoute(route, "session-1", filtered)
-	cacheOptions, _ := options["prompt_cache_options"].(map[string]interface{})
+	cacheOptions, _ := options["prompt_cache_options"].(map[string]any)
 	if key != "session-1" || cacheOptions["mode"] != "explicit" || cacheOptions["ttl"] != "30m" {
 		t.Fatalf("expected server cache policy to bypass the legacy user allowlist, key=%q options=%#v", key, options)
 	}
@@ -373,7 +373,7 @@ func TestApplyOpenAIPromptCacheMessagePolicyLeavesImplicitMessagesUntouched(t *t
 		{Role: "system", Content: "stable policy", CacheControl: marker},
 		{Role: "user", Content: "current question"},
 	}
-	key, options := configureOpenAIPromptCacheForRoute(route, "session-implicit", map[string]interface{}{"temperature": 0.2})
+	key, options := configureOpenAIPromptCacheForRoute(route, "session-implicit", map[string]any{"temperature": 0.2})
 
 	result := applyOpenAIPromptCacheMessagePolicy(route, options, messages)
 	if key != "session-implicit" {
@@ -437,9 +437,9 @@ func TestApplyOpenAIPromptCacheMessagePolicyDoesNotMutateCallerMessages(t *testi
 	}
 }
 
-func explicitOpenAIPromptCacheOptions() map[string]interface{} {
-	return map[string]interface{}{
-		openAIPromptCacheOptionKey: map[string]interface{}{"mode": "explicit"},
+func explicitOpenAIPromptCacheOptions() map[string]any {
+	return map[string]any{
+		openAIPromptCacheOptionKey: map[string]any{"mode": "explicit"},
 	}
 }
 

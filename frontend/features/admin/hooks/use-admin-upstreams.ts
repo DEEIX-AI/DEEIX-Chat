@@ -11,6 +11,7 @@ import type { AdminBatchDeleteData, AdminLLMStatus, AdminLLMUpstreamView } from 
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { replaceByID } from "@/shared/lib/optimistic-list";
 import { runSettledBulkItems } from "@/shared/lib/bulk-action";
+import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 
 export const UPSTREAM_SORT_OPTIONS = [
   { labelKey: "sort.idDesc", value: "id_desc" },
@@ -106,6 +107,7 @@ function normalizeUpstreamListAvailability(item: AdminLLMUpstreamView): AdminLLM
 
 export function useAdminUpstreams(): UseAdminUpstreamsState {
   const t = useTranslations("adminUpstreams.toast");
+  const commonT = useTranslations("common");
   const resolveErrorMessage = useLocalizedErrorMessage();
   const [items, setItems] = React.useState<AdminLLMUpstreamView[]>([]);
   const [total, setTotal] = React.useState(0);
@@ -116,7 +118,7 @@ export function useAdminUpstreams(): UseAdminUpstreamsState {
   const [batchStatus, setBatchStatus] = React.useState<AdminLLMStatus | "">("");
 
   const [query, setQuery] = React.useState("");
-  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const debouncedQuery = useDebouncedValue(query.trim());
   const [statusFilter, setStatusFilter] = React.useState("");
   const [compatibleFilter, setCompatibleFilter] = React.useState("");
   const [sortValue, setSortValue] = React.useState<UpstreamSortValue>("id_desc");
@@ -133,19 +135,19 @@ export function useAdminUpstreams(): UseAdminUpstreamsState {
   const [modelsOpen, setModelsOpen] = React.useState(false);
   const requestSeqRef = React.useRef(0);
 
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedQuery(query.trim());
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [query]);
-
   const load = React.useCallback(async () => {
     const requestSeq = requestSeqRef.current + 1;
     requestSeqRef.current = requestSeq;
     setLoading(true);
     try {
       const token = await resolveAccessToken();
+      if (!token) {
+        if (requestSeq !== requestSeqRef.current) {
+          return;
+        }
+        toast.error(commonT("sessionExpired"));
+        return;
+      }
       const result = await listAdminLLMUpstreams(token, {
         page,
         pageSize,
@@ -163,13 +165,16 @@ export function useAdminUpstreams(): UseAdminUpstreamsState {
         setSelected(new Set());
       });
     } catch (error) {
+      if (requestSeq !== requestSeqRef.current) {
+        return;
+      }
       toast.error(t("upstreamsLoadFailed"), { description: resolveErrorMessage(error) });
     } finally {
       if (requestSeq === requestSeqRef.current) {
         setLoading(false);
       }
     }
-  }, [compatibleFilter, debouncedQuery, page, pageSize, resolveErrorMessage, sortValue, startTableTransition, statusFilter, t]);
+  }, [commonT, compatibleFilter, debouncedQuery, page, pageSize, resolveErrorMessage, sortValue, startTableTransition, statusFilter, t]);
 
   React.useEffect(() => {
     void load();

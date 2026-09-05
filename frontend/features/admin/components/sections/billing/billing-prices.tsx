@@ -769,7 +769,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
                 </div>
                 <Table
                   shellClassName="min-h-0"
-                  viewportClassName="max-h-[min(42vh,360px)] overflow-y-auto"
+                  viewportClassName="max-h-[min(42vh,360px)]"
                 >
                   <TableHeader className="sticky top-0 z-20">
                     <TableRow>

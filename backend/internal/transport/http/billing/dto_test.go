@@ -10,7 +10,6 @@ import (
 
 func TestRequiredZeroValueBillingFields(t *testing.T) {
 	zeroFloat := 0.0
-	zeroInt := 0
 	falseValue := false
 	emptyString := ""
 
@@ -30,7 +29,6 @@ func TestRequiredZeroValueBillingFields(t *testing.T) {
 				Name:            "Free",
 				Description:     &emptyString,
 				PeriodCreditUSD: &zeroFloat,
-				DiscountPercent: &zeroInt,
 				AmountUSD:       &zeroFloat,
 				BillingInterval: "month",
 			},

@@ -34,7 +34,14 @@ func TestResolveProviderUserLoginAutoRegistersWhenProviderRegistrationEnabled(t 
 		DefaultRole:         domainuser.RoleUser,
 	}
 
-	userItem, err := service.resolveProviderUser(context.Background(), provider, "sub-1", "new@example.com", "New User", "", true, `{"sub":"sub-1"}`, providerIntentLogin)
+	userItem, err := service.resolveProviderUser(context.Background(), resolveProviderUserInput{
+		Provider:      provider,
+		Subject:       "sub-1",
+		Email:         "new@example.com",
+		DisplayName:   "New User",
+		EmailVerified: true,
+		ProfileJSON:   `{"sub":"sub-1"}`,
+	})
 	if err != nil {
 		t.Fatalf("expected login to auto-register, got %v", err)
 	}
@@ -276,7 +283,14 @@ func TestResolveProviderUserAutoRegistrationAddsUsernameSuffixOnCollision(t *tes
 		DefaultRole:         domainuser.RoleUser,
 	}
 
-	userItem, err := service.resolveProviderUser(context.Background(), provider, "sub-1", "new@example.com", "New User", "", true, `{"sub":"sub-1"}`, providerIntentLogin)
+	userItem, err := service.resolveProviderUser(context.Background(), resolveProviderUserInput{
+		Provider:      provider,
+		Subject:       "sub-1",
+		Email:         "new@example.com",
+		DisplayName:   "New User",
+		EmailVerified: true,
+		ProfileJSON:   `{"sub":"sub-1"}`,
+	})
 	if err != nil {
 		t.Fatalf("expected login to retry with suffixed username, got %v", err)
 	}
@@ -301,7 +315,14 @@ func TestResolveProviderUserLoginRequiresRegistrationEnabledForNewAccount(t *tes
 		DefaultRole:         domainuser.RoleUser,
 	}
 
-	_, err := service.resolveProviderUser(context.Background(), provider, "sub-1", "new@example.com", "New User", "", true, `{"sub":"sub-1"}`, providerIntentLogin)
+	_, err := service.resolveProviderUser(context.Background(), resolveProviderUserInput{
+		Provider:      provider,
+		Subject:       "sub-1",
+		Email:         "new@example.com",
+		DisplayName:   "New User",
+		EmailVerified: true,
+		ProfileJSON:   `{"sub":"sub-1"}`,
+	})
 	if err == nil || err.Error() != "provider account is not registered" {
 		t.Fatalf("expected not registered error, got %v", err)
 	}
@@ -328,7 +349,14 @@ func TestResolveProviderUserAutoLinksVerifiedProviderEmailBeforeProvisioning(t *
 		DefaultRole:         domainuser.RoleUser,
 	}
 
-	userItem, err := service.resolveProviderUser(context.Background(), provider, "sub-1", existing.Email, "Verified User", "", true, `{"sub":"sub-1"}`, providerIntentLogin)
+	userItem, err := service.resolveProviderUser(context.Background(), resolveProviderUserInput{
+		Provider:      provider,
+		Subject:       "sub-1",
+		Email:         existing.Email,
+		DisplayName:   "Verified User",
+		EmailVerified: true,
+		ProfileJSON:   `{"sub":"sub-1"}`,
+	})
 	if err != nil {
 		t.Fatalf("expected verified email to auto-link, got %v", err)
 	}
@@ -361,7 +389,14 @@ func TestResolveProviderUserNormalizesProviderEmailBeforeAutoLink(t *testing.T) 
 		DefaultRole:         domainuser.RoleUser,
 	}
 
-	userItem, err := service.resolveProviderUser(context.Background(), provider, "sub-1", "Verified@Example.com", "Verified User", "", true, `{"sub":"sub-1"}`, providerIntentLogin)
+	userItem, err := service.resolveProviderUser(context.Background(), resolveProviderUserInput{
+		Provider:      provider,
+		Subject:       "sub-1",
+		Email:         "Verified@Example.com",
+		DisplayName:   "Verified User",
+		EmailVerified: true,
+		ProfileJSON:   `{"sub":"sub-1"}`,
+	})
 	if err != nil {
 		t.Fatalf("expected normalized provider email to auto-link, got %v", err)
 	}
@@ -375,7 +410,7 @@ func TestResolveProviderUserNormalizesProviderEmailBeforeAutoLink(t *testing.T) 
 
 func TestResolveProviderEmailVerifiedUsesConfiguredField(t *testing.T) {
 	provider := domainuser.IdentityProvider{EmailVerifiedField: "verified"}
-	profile := map[string]interface{}{
+	profile := map[string]any{
 		"email":    "verified@example.com",
 		"verified": true,
 	}
@@ -387,7 +422,7 @@ func TestResolveProviderEmailVerifiedUsesConfiguredField(t *testing.T) {
 
 func TestResolveProviderEmailVerifiedUsesDiscordVerifiedField(t *testing.T) {
 	provider := domainuser.IdentityProvider{Slug: "discord", EmailVerifiedField: "email_verified"}
-	profile := map[string]interface{}{
+	profile := map[string]any{
 		"email":    "verified@example.com",
 		"verified": true,
 	}
@@ -399,7 +434,7 @@ func TestResolveProviderEmailVerifiedUsesDiscordVerifiedField(t *testing.T) {
 
 func TestResolveProviderEmailVerifiedDoesNotUseGenericVerifiedField(t *testing.T) {
 	provider := domainuser.IdentityProvider{Slug: "x", EmailVerifiedField: "email_verified"}
-	profile := map[string]interface{}{
+	profile := map[string]any{
 		"email":    "verified@example.com",
 		"verified": true,
 	}
@@ -476,7 +511,16 @@ func TestCompleteProviderBindAllowsSameAccountWithoutProviderEmailVerification(t
 		t.Fatalf("sign provider state: %v", err)
 	}
 
-	identity, err := service.CompleteProviderBind(context.Background(), 42, "acme", "code", state, redirectURI, codeVerifier, "request-id", requestmeta.SessionAuditContext{})
+	identity, err := service.CompleteProviderBind(context.Background(), CompleteProviderBindInput{
+		UserID:       42,
+		Slug:         "acme",
+		Code:         "code",
+		State:        state,
+		RedirectURI:  redirectURI,
+		CodeVerifier: codeVerifier,
+		RequestID:    "request-id",
+		AuditContext: requestmeta.SessionAuditContext{},
+	})
 	if err != nil {
 		t.Fatalf("expected manual bind to succeed without provider email verification claim, got %v", err)
 	}
@@ -567,7 +611,16 @@ func TestCompleteProviderLoginAutoLinksGitHubVerifiedPrimaryEmail(t *testing.T) 
 		t.Fatalf("sign provider state: %v", err)
 	}
 
-	result, err := service.CompleteProviderLogin(context.Background(), "github", "code", state, redirectURI, codeVerifier, providerIntentLogin, "request-id", requestmeta.SessionAuditContext{})
+	result, err := service.CompleteProviderLogin(context.Background(), CompleteProviderLoginInput{
+		Slug:         "github",
+		Code:         "code",
+		State:        state,
+		RedirectURI:  redirectURI,
+		CodeVerifier: codeVerifier,
+		Intent:       providerIntentLogin,
+		RequestID:    "request-id",
+		AuditContext: requestmeta.SessionAuditContext{},
+	})
 	if err != nil {
 		t.Fatalf("expected github login to auto-link existing email, got %v", err)
 	}
@@ -646,7 +699,16 @@ func TestCompleteProviderLoginReturnsErrorWhenGitHubEmailsUnavailable(t *testing
 		t.Fatalf("sign provider state: %v", err)
 	}
 
-	_, err = service.CompleteProviderLogin(context.Background(), "github", "code", state, redirectURI, codeVerifier, providerIntentLogin, "request-id", requestmeta.SessionAuditContext{})
+	_, err = service.CompleteProviderLogin(context.Background(), CompleteProviderLoginInput{
+		Slug:         "github",
+		Code:         "code",
+		State:        state,
+		RedirectURI:  redirectURI,
+		CodeVerifier: codeVerifier,
+		Intent:       providerIntentLogin,
+		RequestID:    "request-id",
+		AuditContext: requestmeta.SessionAuditContext{},
+	})
 	if err == nil || !strings.Contains(err.Error(), "github provider emails failed") {
 		t.Fatalf("expected github email lookup error, got %v", err)
 	}
@@ -673,7 +735,14 @@ func TestResolveProviderUserReturnsStructuredEmailConflict(t *testing.T) {
 		DefaultRole:         domainuser.RoleUser,
 	}
 
-	_, err := service.resolveProviderUser(context.Background(), provider, "sub-1", existing.Email, "Consumer User", "", false, `{"sub":"sub-1"}`, providerIntentLogin)
+	_, err := service.resolveProviderUser(context.Background(), resolveProviderUserInput{
+		Provider:      provider,
+		Subject:       "sub-1",
+		Email:         existing.Email,
+		DisplayName:   "Consumer User",
+		EmailVerified: false,
+		ProfileJSON:   `{"sub":"sub-1"}`,
+	})
 	var conflictErr *ProviderEmailConflictError
 	if !errors.As(err, &conflictErr) {
 		t.Fatalf("expected structured email conflict, got %v", err)
@@ -706,7 +775,14 @@ func TestResolveProviderUserRejectsInactiveBoundUserWithoutUpdatingIdentity(t *t
 		DefaultRole:         domainuser.RoleUser,
 	}
 
-	_, err := service.resolveProviderUser(context.Background(), provider, "sub-1", "bound@example.com", "Bound User", "", true, `{"sub":"sub-1"}`, providerIntentLogin)
+	_, err := service.resolveProviderUser(context.Background(), resolveProviderUserInput{
+		Provider:      provider,
+		Subject:       "sub-1",
+		Email:         "bound@example.com",
+		DisplayName:   "Bound User",
+		EmailVerified: true,
+		ProfileJSON:   `{"sub":"sub-1"}`,
+	})
 	if err == nil || err.Error() != ErrInvalidCredentials.Error() {
 		t.Fatalf("expected inactive account rejection, got %v", err)
 	}
@@ -735,7 +811,14 @@ func TestResolveProviderUserRejectsInactiveAutoLinkUserWithoutBinding(t *testing
 		DefaultRole:         domainuser.RoleUser,
 	}
 
-	_, err := service.resolveProviderUser(context.Background(), provider, "sub-1", existing.Email, "Suspended User", "", true, `{"sub":"sub-1"}`, providerIntentLogin)
+	_, err := service.resolveProviderUser(context.Background(), resolveProviderUserInput{
+		Provider:      provider,
+		Subject:       "sub-1",
+		Email:         existing.Email,
+		DisplayName:   "Suspended User",
+		EmailVerified: true,
+		ProfileJSON:   `{"sub":"sub-1"}`,
+	})
 	if err == nil || err.Error() != ErrInvalidCredentials.Error() {
 		t.Fatalf("expected inactive account rejection, got %v", err)
 	}
@@ -757,7 +840,14 @@ func TestResolveProviderUserReturnsIdentityCreateErrorWithoutCleanupCompensation
 		DefaultRole:         domainuser.RoleUser,
 	}
 
-	_, err := service.resolveProviderUser(context.Background(), provider, "sub-1", "new@example.com", "New User", "", true, `{"sub":"sub-1"}`, providerIntentLogin)
+	_, err := service.resolveProviderUser(context.Background(), resolveProviderUserInput{
+		Provider:      provider,
+		Subject:       "sub-1",
+		Email:         "new@example.com",
+		DisplayName:   "New User",
+		EmailVerified: true,
+		ProfileJSON:   `{"sub":"sub-1"}`,
+	})
 	if err == nil || err.Error() != "duplicate identity" {
 		t.Fatalf("expected identity creation error, got %v", err)
 	}
@@ -894,34 +984,17 @@ func (r *providerLoginRepo) GetByEmail(ctx context.Context, email string) (*doma
 	return userItem, nil
 }
 
-func (r *providerLoginRepo) CreateWithCredential(
-	ctx context.Context,
-	item *domainuser.User,
-	credential domainuser.Credential,
-	subscriptionPlanID uint,
-	subscriptionPriceID uint,
-	subscriptionEndAt *time.Time,
-	autoRenew bool,
-) error {
+func (r *providerLoginRepo) CreateWithCredential(_ context.Context, input repository.CreateWithCredentialInput) error {
 	r.createUserCount++
 	if r.nextUserID == 0 {
 		r.nextUserID = 100
 	}
-	item.ID = r.nextUserID
+	input.User.ID = r.nextUserID
 	r.nextUserID++
 	return nil
 }
 
-func (r *providerLoginRepo) CreateWithCredentialAndIdentity(
-	ctx context.Context,
-	item *domainuser.User,
-	credential domainuser.Credential,
-	identity *domainuser.UserIdentity,
-	subscriptionPlanID uint,
-	subscriptionPriceID uint,
-	subscriptionEndAt *time.Time,
-	autoRenew bool,
-) error {
+func (r *providerLoginRepo) CreateWithCredentialAndIdentity(_ context.Context, input repository.CreateWithCredentialAndIdentityInput) error {
 	if r.createIdentityErr != nil {
 		return r.createIdentityErr
 	}
@@ -933,16 +1006,16 @@ func (r *providerLoginRepo) CreateWithCredentialAndIdentity(
 	if r.nextUserID == 0 {
 		r.nextUserID = 100
 	}
-	item.ID = r.nextUserID
+	input.User.ID = r.nextUserID
 	r.nextUserID++
-	if identity != nil {
+	if input.Identity != nil {
 		if r.nextIdentityID == 0 {
 			r.nextIdentityID = 200
 		}
-		identity.ID = r.nextIdentityID
-		identity.UserID = item.ID
+		input.Identity.ID = r.nextIdentityID
+		input.Identity.UserID = input.User.ID
 		r.nextIdentityID++
-		r.identities = append(r.identities, *identity)
+		r.identities = append(r.identities, *input.Identity)
 	}
 	return nil
 }
@@ -1027,7 +1100,7 @@ func (r *providerLoginRepo) UpdateUserIdentityLogin(ctx context.Context, identit
 	return nil
 }
 
-func (r *providerLoginRepo) RecordAuthEvent(ctx context.Context, userID uint, requestID string, eventType string, result string, reason string, clientIP string, userAgent string, detailJSON string) error {
+func (r *providerLoginRepo) RecordAuthEvent(ctx context.Context, input repository.AuthEventInput) error {
 	return nil
 }
 

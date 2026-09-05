@@ -48,7 +48,9 @@ func TestResolveTextTaskRouteCandidatesFollowUsesCurrentThenDefault(t *testing.T
 		defaultRoute: &channel.ResolvedRoute{PlatformModelName: "gpt-5-mini", BindingCode: "default", Protocol: "openai_responses", UpstreamModel: "gpt-5-mini"},
 	}}
 
-	routes, err := service.resolveTextTaskRouteCandidates(context.Background(), textTaskFollowModel, "grok-4.3", 1, 2, "")
+	routes, err := service.resolveTextTaskRouteCandidates(context.Background(), textTaskRouteInput{
+		ConfiguredModel: textTaskFollowModel, ConversationModel: "grok-4.3", UserID: 1, ConversationID: 2,
+	})
 	if err != nil {
 		t.Fatalf("resolve candidates: %v", err)
 	}
@@ -68,7 +70,9 @@ func TestResolveTextTaskRouteCandidatesSpecifiedModelDoesNotAddDefault(t *testin
 		defaultRoute: &channel.ResolvedRoute{PlatformModelName: "fallback", BindingCode: "default", Protocol: "openai_responses", UpstreamModel: "fallback"},
 	}}
 
-	routes, err := service.resolveTextTaskRouteCandidates(context.Background(), "gpt-5-mini", "grok-4.3", 1, 2, "")
+	routes, err := service.resolveTextTaskRouteCandidates(context.Background(), textTaskRouteInput{
+		ConfiguredModel: "gpt-5-mini", ConversationModel: "grok-4.3", UserID: 1, ConversationID: 2,
+	})
 	if err != nil {
 		t.Fatalf("resolve candidates: %v", err)
 	}
@@ -86,7 +90,9 @@ func TestResolveTextTaskRouteCandidatesFollowFallsBackWhenCurrentRouteFails(t *t
 		defaultRoute: &channel.ResolvedRoute{PlatformModelName: "gpt-5-mini", BindingCode: "default", Protocol: "openai_responses", UpstreamModel: "gpt-5-mini"},
 	}}
 
-	routes, err := service.resolveTextTaskRouteCandidates(context.Background(), textTaskFollowModel, "grok-4.3", 1, 2, "")
+	routes, err := service.resolveTextTaskRouteCandidates(context.Background(), textTaskRouteInput{
+		ConfiguredModel: textTaskFollowModel, ConversationModel: "grok-4.3", UserID: 1, ConversationID: 2,
+	})
 	if err != nil {
 		t.Fatalf("resolve candidates: %v", err)
 	}
@@ -118,7 +124,7 @@ func TestBuildTextTaskGenerateInputAppliesDefaultsAndInstructions(t *testing.T) 
 	if len(input.Messages) != 1 || input.Messages[0].Role != "user" {
 		t.Fatalf("expected system message to be removed from input, got %#v", input.Messages)
 	}
-	reasoning := input.Options["reasoning"].(map[string]interface{})
+	reasoning := input.Options["reasoning"].(map[string]any)
 	if reasoning["effort"] != "medium" {
 		t.Fatalf("expected default reasoning effort, got %#v", input.Options)
 	}

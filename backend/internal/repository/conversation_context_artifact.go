@@ -11,7 +11,6 @@ import (
 type ContextArtifactRepository interface {
 	CreateContextArtifacts(ctx context.Context, items []domainconversation.ContextArtifact) error
 	GetContextArtifactByIDForUser(ctx context.Context, userID uint, artifactID uint) (*domainconversation.ContextArtifact, error)
-	ListContextArtifactsByMessage(ctx context.Context, conversationID uint, messageID uint) ([]domainconversation.ContextArtifact, error)
 	ListRecentContextArtifacts(ctx context.Context, filter ContextArtifactListFilter) ([]domainconversation.ContextArtifact, error)
 	DeleteExpiredContextArtifacts(ctx context.Context, before time.Time, limit int) (int64, error)
 }

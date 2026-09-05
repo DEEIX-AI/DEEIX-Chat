@@ -21,7 +21,7 @@ func (r *Repo) GetFileObjectByFileIDAnyStatus(ctx context.Context, fileID string
 		if dberror.IsRecordNotFound(err) || err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	item := toFileObjectDomain(file)
 	return &item, nil
@@ -39,7 +39,7 @@ func (r *Repo) ListModerationBlockedFileIDsForCleanup(ctx context.Context, limit
 		Order("id ASC").
 		Limit(limit).
 		Pluck("file_id", &fileIDs).Error
-	return fileIDs, translateError(err)
+	return fileIDs, dberror.Translate(err)
 }
 
 // RevokeGeneratedFileForModeration marks a generated file inaccessible and unlinks user ownership.
@@ -50,14 +50,14 @@ func (r *Repo) RevokeGeneratedFileForModeration(ctx context.Context, fileID stri
 	}
 	err := r.db.WithContext(ctx).Model(&models.FileObject{}).
 		Where("file_id = ? AND status = ?", fileID, "active").
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":  "moderation_blocked",
 			"user_id": 0,
 		}).Error
 	if dberror.IsRecordNotFound(err) {
 		return nil
 	}
-	return translateError(err)
+	return dberror.Translate(err)
 }
 
 // DeleteGeneratedFileArtifactsForModeration marks attachments deleted and returns storage path
@@ -76,21 +76,21 @@ func (r *Repo) DeleteGeneratedFileArtifactsForModeration(ctx context.Context, fi
 		if dberror.IsRecordNotFound(err) || err == gorm.ErrRecordNotFound {
 			return nil
 		}
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	// Soft-delete attachments that still reference this file.
 	if err := r.db.WithContext(ctx).Model(&models.Attachment{}).
 		Where("file_id = ? AND status <> ?", fileID, "deleted").
 		Update("status", "deleted").Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	// Keep status blocked; leave storage_path intact for retryable physical cleanup.
 	if err := r.db.WithContext(ctx).Model(&models.FileObject{}).
 		Where("id = ?", file.ID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status": "moderation_blocked",
 		}).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	return nil
 }
@@ -101,7 +101,7 @@ func (r *Repo) ClearGeneratedFileStoragePath(ctx context.Context, fileID string)
 	if fileID == "" {
 		return nil
 	}
-	return translateError(r.db.WithContext(ctx).Model(&models.FileObject{}).
+	return dberror.Translate(r.db.WithContext(ctx).Model(&models.FileObject{}).
 		Where("file_id = ?", fileID).
 		Update("storage_path", "").Error)
 }

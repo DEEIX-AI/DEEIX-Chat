@@ -1,4 +1,4 @@
-.PHONY: build run test fmt swagger tidy sync-version check-version
+.PHONY: build run test lint fmt swagger tidy sync-version check-version
 
 VERSION ?= $(shell cat ../VERSION 2>/dev/null || echo dev)
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -20,6 +20,9 @@ run:
 
 test:
 	go test ./...
+
+lint:
+	bash ./scripts/check-go-quality.sh
 
 fmt:
 	gofmt -w $(shell find . -name '*.go' -type f)

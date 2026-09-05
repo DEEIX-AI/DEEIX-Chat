@@ -304,11 +304,13 @@ type InlineSourceCircuitTarget = {
 type ModelsTableProps = {
   items: AdminLLMModelDTO[];
   loading: boolean;
+  batchApplying: boolean;
   circuitBreakerEnabled: boolean;
   selectedModelIDs: Set<number>;
   onSelectedModelIDsChange: React.Dispatch<React.SetStateAction<Set<number>>>;
   onEdit: (item: AdminLLMModelDTO) => void;
   onViewSources: (item: AdminLLMModelDTO) => void;
+  pendingModelIDs: ReadonlySet<number>;
   onToggleStatus: (item: AdminLLMModelDTO, status: AdminLLMStatus) => void;
   onToggleAccessScope: (item: AdminLLMModelDTO, scope: AdminLLMModelAccessScope) => void;
   onDelete: (item: AdminLLMModelDTO) => void;
@@ -331,6 +333,7 @@ type ModelTableRowProps = {
   onToggleRow: (item: AdminLLMModelDTO) => void;
   onEdit: (item: AdminLLMModelDTO) => void;
   onViewSources: (item: AdminLLMModelDTO) => void;
+  updatePending: boolean;
   onToggleStatus: (item: AdminLLMModelDTO, status: AdminLLMStatus) => void;
   onToggleAccessScope: (item: AdminLLMModelDTO, scope: AdminLLMModelAccessScope) => void;
   onDelete: (item: AdminLLMModelDTO) => void;
@@ -362,6 +365,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
   onToggleRow,
   onEdit,
   onViewSources,
+  updatePending,
   onToggleStatus,
   onToggleAccessScope,
   onDelete,
@@ -401,6 +405,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
           <div className="flex h-7 items-center justify-center">
             <Checkbox
               checked={selected}
+              disabled={updatePending}
               onClick={(event) => event.stopPropagation()}
               onCheckedChange={(checked) => onSelectModel(item.id, checked === true)}
               aria-label={t("table.selectModel", { name: item.platformModelName })}
@@ -453,6 +458,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
             <Switch
               size="sm"
               checked={item.status === "active"}
+              disabled={updatePending}
               onCheckedChange={(checked) => onToggleStatus(item, checked ? "active" : "inactive")}
               aria-label={t("table.modelStatusAria", { name: item.platformModelName })}
             />
@@ -463,6 +469,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
           <div className="flex h-7 items-center">
             <Select
               value={item.accessScope === "internal" ? "internal" : "public"}
+              disabled={updatePending}
               onValueChange={(value) => onToggleAccessScope(item, value as AdminLLMModelAccessScope)}
             >
               <SelectTrigger
@@ -519,18 +526,19 @@ const ModelTableRow = React.memo(function ModelTableRow({
                 ) : null}
                 <DropdownMenuSeparator />
                 {item.status === "active" ? (
-                  <DropdownMenuItem onSelect={() => onToggleStatus(item, "inactive")}>
+                  <DropdownMenuItem disabled={updatePending} onSelect={() => onToggleStatus(item, "inactive")}>
                     <CircleOff className="size-3.5 stroke-1" />
                     {t("table.disableModel")}
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem onSelect={() => onToggleStatus(item, "active")}>
+                  <DropdownMenuItem disabled={updatePending} onSelect={() => onToggleStatus(item, "active")}>
                     <RotateCcw className="size-3.5 stroke-1" />
                     {t("table.enableModel")}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                  disabled={updatePending}
                   onSelect={() => onDelete(item)}
                   className="text-destructive focus:text-destructive"
                 >
@@ -741,11 +749,13 @@ const ModelTableRow = React.memo(function ModelTableRow({
 export function ModelsTable({
   items,
   loading,
+  batchApplying,
   circuitBreakerEnabled,
   selectedModelIDs,
   onSelectedModelIDsChange,
   onEdit,
   onViewSources,
+  pendingModelIDs,
   onToggleStatus,
   onToggleAccessScope,
   onDelete,
@@ -1181,6 +1191,7 @@ export function ModelsTable({
                 onToggleRow={handleToggleRow}
                 onEdit={onEdit}
                 onViewSources={onViewSources}
+                updatePending={batchApplying || pendingModelIDs.has(item.id)}
                 onToggleStatus={onToggleStatus}
                 onToggleAccessScope={onToggleAccessScope}
                 onDelete={onDelete}

@@ -26,7 +26,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test): [A-Za-z0-9 ._-]+$'
+          # LC_ALL=C makes [[:print:]] match printable ASCII only, keeping subjects English.
+          export LC_ALL=C
+          pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test): [[:print:]]+$'
 
           range="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
 
@@ -48,6 +50,6 @@ jobs:
           if [[ "$invalid" -ne 0 ]]; then
             echo "Commit message subjects must use: type: subject"
             echo "Allowed types: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test"
-            echo "Allowed subject characters: English letters, numbers, spaces, periods, hyphens, and underscores"
+            echo "Allowed subject characters: printable ASCII (English letters, numbers, and punctuation)"
             exit 1
           fi

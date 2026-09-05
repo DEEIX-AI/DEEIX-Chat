@@ -32,29 +32,129 @@ const (
 	fileProcessingStreamName = "file_processing_v1"
 	fileProcessingDLQName    = "file_processing_v1_dlq"
 	fileProcessingGroupName  = "file_processing_workers"
+	fileEmbeddingStreamName  = "file_embedding_v1"
+	fileEmbeddingDLQName     = "file_embedding_v1_dlq"
+	fileEmbeddingGroupName   = "file_embedding_workers"
 	fileProcessingMinIdle    = 45 * time.Second
 	fileProcessingDLQMaxLen  = 10_000
 
 	generationStreamKeyPrefix = "conversation:generation:"
 	generationStreamIndexTTL  = 2 * time.Hour
+	activeGenerationEventID   = "active_events_v1"
 )
 
-// appendGenerationStreamEventScript keeps the event sequence, bounded replay
-// window, and cumulative visible-text checkpoint consistent in one Redis
-// round trip. Key TTLs are initialized only when a value is first created;
-// FinishMessageGeneration shortens them to the post-run retention window.
+type fileQueueConfig struct {
+	stream string
+	dlq    string
+	group  string
+	queue  repository.FileProcessingQueue
+}
+
+var claimGenerationStreamScript = redis.NewScript(`
+local current_execution = redis.call("GET", KEYS[1])
+if current_execution then
+	if current_execution == ARGV[1]
+		and redis.call("GET", KEYS[2]) == ARGV[2]
+		and redis.call("GET", KEYS[3]) == ARGV[3] then
+		redis.call("PEXPIRE", KEYS[1], ARGV[4])
+		redis.call("PEXPIRE", KEYS[2], ARGV[5])
+		redis.call("PEXPIRE", KEYS[3], ARGV[5])
+		redis.call("ZADD", KEYS[5], ARGV[6], ARGV[7])
+		redis.call("PEXPIRE", KEYS[5], ARGV[8])
+		return 1
+	end
+	return 0
+end
+local current_owner = redis.call("GET", KEYS[2])
+if current_owner then
+	return 0
+end
+local current_conversation = redis.call("GET", KEYS[3])
+if current_conversation then
+	return 0
+end
+redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[4])
+redis.call("SET", KEYS[2], ARGV[2], "PX", ARGV[5])
+redis.call("SET", KEYS[3], ARGV[3], "PX", ARGV[5])
+redis.call("DEL", KEYS[4], KEYS[6], KEYS[7], KEYS[8], KEYS[9], KEYS[10])
+redis.call("ZADD", KEYS[5], ARGV[6], ARGV[7])
+redis.call("PEXPIRE", KEYS[5], ARGV[8])
+return 1
+`)
+
+// appendGenerationStreamEventScript 原子维护执行权隔离、事件序号、有界回放和恢复快照。
 var appendGenerationStreamEventScript = redis.NewScript(`
-local events_missing = redis.call("EXISTS", KEYS[2]) == 0
+if redis.call("GET", KEYS[1]) ~= ARGV[10] then
+	return {"0"}
+end
+local events_missing = redis.call("EXISTS", KEYS[3]) == 0
 local has_text_delta = ARGV[4] ~= ""
 local text_missing = false
 if has_text_delta then
-	text_missing = redis.call("EXISTS", KEYS[3]) == 0
+	text_missing = redis.call("EXISTS", KEYS[4]) == 0
 end
-local seq = redis.call("INCR", KEYS[1])
+local has_think_update = ARGV[5] == "1"
+local think_content_missing = false
+local think_meta_missing = false
+if has_think_update then
+	think_content_missing = redis.call("EXISTS", KEYS[6]) == 0
+	think_meta_missing = redis.call("EXISTS", KEYS[7]) == 0
+end
+local seq = redis.call("INCR", KEYS[2])
 if has_text_delta then
-	redis.call("APPEND", KEYS[3], ARGV[4])
-	redis.call("SET", KEYS[4], tostring(seq), "KEEPTTL")
+	redis.call("APPEND", KEYS[4], ARGV[4])
+	redis.call("SET", KEYS[5], tostring(seq), "KEEPTTL")
 end
+if has_think_update then
+	local previous_round = redis.call("HGET", KEYS[7], "round") or ""
+	local next_round = ARGV[8]
+	if next_round == "" then
+		next_round = previous_round
+	end
+	if next_round ~= "" and previous_round ~= "" and next_round ~= previous_round then
+		redis.call("DEL", KEYS[6])
+		think_content_missing = true
+	end
+	if ARGV[6] == "1" then
+		redis.call("SET", KEYS[6], ARGV[7], "KEEPTTL")
+	else
+		redis.call("APPEND", KEYS[6], ARGV[7])
+	end
+	redis.call("HSET", KEYS[7],
+		"seq", tostring(seq),
+		"round", next_round,
+		"metadata", ARGV[9]
+	)
+end
+local id = redis.call(
+	"XADD",
+	KEYS[3],
+	"MAXLEN", "~", ARGV[2],
+	"*",
+	"seq", tostring(seq),
+	"payload", ARGV[1]
+)
+
+	redis.call("PEXPIRE", KEYS[2], ARGV[3])
+if events_missing then
+	redis.call("PEXPIRE", KEYS[3], ARGV[3])
+end
+if has_text_delta and text_missing then
+	redis.call("PEXPIRE", KEYS[4], ARGV[3])
+	redis.call("PEXPIRE", KEYS[5], ARGV[3])
+end
+if has_think_update and think_content_missing then
+	redis.call("PEXPIRE", KEYS[6], ARGV[3])
+end
+if has_think_update and think_meta_missing then
+	redis.call("PEXPIRE", KEYS[7], ARGV[3])
+end
+
+return {"1", id, tostring(seq)}
+`)
+
+var appendActiveGenerationEventScript = redis.NewScript(`
+local seq = redis.call("INCR", KEYS[1])
 local id = redis.call(
 	"XADD",
 	KEYS[2],
@@ -63,19 +163,22 @@ local id = redis.call(
 	"seq", tostring(seq),
 	"payload", ARGV[1]
 )
-
-if seq == 1 then
-	redis.call("PEXPIRE", KEYS[1], ARGV[3])
-end
-if events_missing then
-	redis.call("PEXPIRE", KEYS[2], ARGV[3])
-end
-if has_text_delta and text_missing then
-	redis.call("PEXPIRE", KEYS[3], ARGV[3])
-	redis.call("PEXPIRE", KEYS[4], ARGV[3])
-end
-
+redis.call("PEXPIRE", KEYS[1], ARGV[3])
+redis.call("PEXPIRE", KEYS[2], ARGV[3])
 return {id, tostring(seq)}
+`)
+
+var getGenerationStreamUpstreamThinkSnapshotScript = redis.NewScript(`
+if redis.call("EXISTS", KEYS[1]) == 0 or redis.call("EXISTS", KEYS[2]) == 0 then
+	return {"0"}
+end
+return {
+	"1",
+	redis.call("GET", KEYS[1]) or "",
+	redis.call("HGET", KEYS[2], "seq") or "",
+	redis.call("HGET", KEYS[2], "round") or "",
+	redis.call("HGET", KEYS[2], "metadata") or ""
+}
 `)
 
 var renewFileProcessingLeaseScript = redis.NewScript(`
@@ -107,7 +210,10 @@ redis.call(
 	"user_id", ARGV[4],
 	"file_id", ARGV[5],
 	"retry", ARGV[6],
-	"last_error", ARGV[7]
+	"last_error", ARGV[7],
+	"kind", ARGV[8],
+	"embedding_signature", ARGV[9],
+	"embedding_host", ARGV[10]
 )
 redis.call("XACK", KEYS[1], ARGV[1], ARGV[3])
 redis.call("XDEL", KEYS[1], ARGV[3])
@@ -120,32 +226,74 @@ if #pending == 0 or pending[1][2] ~= ARGV[2] then
 	return 0
 end
 redis.call(
-	"XADD", KEYS[2], "MAXLEN", ARGV[8], "*",
+	"XADD", KEYS[2], "MAXLEN", ARGV[11], "*",
 	"user_id", ARGV[4],
 	"file_id", ARGV[5],
 	"retry", ARGV[6],
-	"last_error", ARGV[7]
+	"last_error", ARGV[7],
+	"kind", ARGV[8],
+	"embedding_signature", ARGV[9],
+	"embedding_host", ARGV[10]
 )
 redis.call("XACK", KEYS[1], ARGV[1], ARGV[3])
 redis.call("XDEL", KEYS[1], ARGV[3])
 return 1
 `)
 
-var touchGenerationStreamActiveScript = redis.NewScript(`
-if redis.call("GET", KEYS[1]) ~= ARGV[1] then
+var renewGenerationStreamLeaseScript = redis.NewScript(`
+if redis.call("GET", KEYS[1]) ~= ARGV[1]
+	or redis.call("GET", KEYS[2]) ~= ARGV[2]
+	or redis.call("GET", KEYS[3]) ~= ARGV[3] then
 	return 0
 end
-redis.call("SET", KEYS[2], "1", "PX", ARGV[2])
-redis.call("ZADD", KEYS[3], ARGV[3], ARGV[4])
+redis.call("PEXPIRE", KEYS[1], ARGV[4])
+redis.call("PEXPIRE", KEYS[2], ARGV[5])
 redis.call("PEXPIRE", KEYS[3], ARGV[5])
+redis.call("ZADD", KEYS[4], ARGV[6], ARGV[7])
+redis.call("PEXPIRE", KEYS[4], ARGV[8])
 return 1
 `)
 
-var clearGenerationStreamActiveScript = redis.NewScript(`
-if redis.call("GET", KEYS[1]) == ARGV[1] then
-	redis.call("DEL", KEYS[2])
+var requestGenerationStreamCancelScript = redis.NewScript(`
+if redis.call("GET", KEYS[1]) ~= ARGV[1] or redis.call("EXISTS", KEYS[2]) == 0 then
+	return 0
 end
-redis.call("ZREM", KEYS[3], ARGV[2])
+redis.call("SET", KEYS[3], "1", "PX", ARGV[2])
+return 1
+`)
+
+var completeGenerationStreamScript = redis.NewScript(`
+if redis.call("GET", KEYS[2]) ~= ARGV[2] or redis.call("GET", KEYS[4]) ~= ARGV[4] then
+	return 0
+end
+local current_execution = redis.call("GET", KEYS[1])
+if current_execution and current_execution ~= ARGV[1] then
+	return 0
+end
+redis.call("DEL", KEYS[1])
+redis.call("ZREM", KEYS[3], ARGV[3])
+	for index = 2, 11 do
+	if index ~= 3 then
+		redis.call("PEXPIRE", KEYS[index], ARGV[5])
+	end
+end
+return 1
+`)
+
+var abandonGenerationStreamScript = redis.NewScript(`
+if redis.call("GET", KEYS[1]) ~= ARGV[1] or redis.call("GET", KEYS[2]) ~= ARGV[2] then
+	return 0
+end
+redis.call("ZREM", KEYS[3], ARGV[3])
+redis.call("DEL", KEYS[1], KEYS[2], KEYS[4], KEYS[5], KEYS[6], KEYS[7], KEYS[8], KEYS[9], KEYS[10], KEYS[11])
+return 1
+`)
+
+var resetGenerationStreamEventsScript = redis.NewScript(`
+if redis.call("GET", KEYS[1]) ~= ARGV[1] then
+	return 0
+end
+redis.call("DEL", KEYS[2], KEYS[3], KEYS[4], KEYS[5], KEYS[6])
 return 1
 `)
 
@@ -168,11 +316,13 @@ func (c *conversationCache) InitFileProcessingStream(ctx context.Context) error 
 	if c.client == nil {
 		return nil
 	}
-	err := c.client.XGroupCreateMkStream(ctx, fileProcessingStreamName, fileProcessingGroupName, "0").Err()
-	if err != nil && strings.Contains(err.Error(), "BUSYGROUP") {
-		return nil
+	for _, queue := range []fileQueueConfig{processingQueueConfig(), embeddingQueueConfig()} {
+		err := c.client.XGroupCreateMkStream(ctx, queue.stream, queue.group, "0").Err()
+		if err != nil && !strings.Contains(err.Error(), "BUSYGROUP") {
+			return err
+		}
 	}
-	return err
+	return nil
 }
 
 // EnqueueFileProcessing 将文件处理任务推入 Stream 队列。
@@ -180,7 +330,7 @@ func (c *conversationCache) EnqueueFileProcessing(ctx context.Context, userID ui
 	if c.client == nil {
 		return nil
 	}
-	values := map[string]interface{}{
+	values := map[string]any{
 		"user_id": userID,
 		"file_id": fileID,
 		"retry":   retry,
@@ -195,14 +345,57 @@ func (c *conversationCache) EnqueueFileProcessing(ctx context.Context, userID ui
 	return err
 }
 
+// EnqueueFileEmbedding 将显式向量化任务推入独立的可恢复 Stream。
+func (c *conversationCache) EnqueueFileEmbedding(
+	ctx context.Context,
+	userID uint,
+	fileID string,
+	embeddingSignature string,
+	embeddingHost string,
+) error {
+	fileID = strings.TrimSpace(fileID)
+	embeddingSignature = strings.TrimSpace(embeddingSignature)
+	embeddingHost = strings.TrimRight(strings.TrimSpace(embeddingHost), "/")
+	if fileID == "" || embeddingSignature == "" || embeddingHost == "" {
+		return repository.ErrInvalidInput
+	}
+	if c.client == nil {
+		return nil
+	}
+	_, err := c.client.XAdd(ctx, &redis.XAddArgs{
+		Stream: fileEmbeddingStreamName,
+		Values: map[string]any{
+			"user_id":             userID,
+			"file_id":             fileID,
+			"retry":               0,
+			"kind":                repository.FileProcessingKindEmbedding,
+			"embedding_signature": embeddingSignature,
+			"embedding_host":      embeddingHost,
+		},
+	}).Result()
+	return err
+}
+
 // ClaimTimedOutFileProcessingMessages 认领超时未确认的 pending 任务，避免 worker 重启后任务永久卡住。
 func (c *conversationCache) ClaimTimedOutFileProcessingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
+	return c.claimTimedOutFileMessages(ctx, consumerName, processingQueueConfig())
+}
+
+func (c *conversationCache) ClaimTimedOutFileEmbeddingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
+	return c.claimTimedOutFileMessages(ctx, consumerName, embeddingQueueConfig())
+}
+
+func (c *conversationCache) claimTimedOutFileMessages(
+	ctx context.Context,
+	consumerName string,
+	queue fileQueueConfig,
+) ([]repository.FileProcessingMessage, error) {
 	if c.client == nil {
 		return nil, nil
 	}
 	pending, err := c.client.XPendingExt(ctx, &redis.XPendingExtArgs{
-		Stream: fileProcessingStreamName,
-		Group:  fileProcessingGroupName,
+		Stream: queue.stream,
+		Group:  queue.group,
 		Idle:   fileProcessingMinIdle,
 		Start:  "-",
 		End:    "+",
@@ -228,8 +421,8 @@ func (c *conversationCache) ClaimTimedOutFileProcessingMessages(ctx context.Cont
 		return nil, nil
 	}
 	claimed, err := c.client.XClaim(ctx, &redis.XClaimArgs{
-		Stream:   fileProcessingStreamName,
-		Group:    fileProcessingGroupName,
+		Stream:   queue.stream,
+		Group:    queue.group,
 		Consumer: consumerName,
 		MinIdle:  fileProcessingMinIdle,
 		Messages: messageIDs,
@@ -240,18 +433,30 @@ func (c *conversationCache) ClaimTimedOutFileProcessingMessages(ctx context.Cont
 		}
 		return nil, err
 	}
-	return c.decodeFileProcessingMessages(ctx, consumerName, claimed, true)
+	return c.decodeFileProcessingMessages(ctx, consumerName, claimed, true, queue)
 }
 
 // ReadFileProcessingMessages 阻塞读取未处理消息（最多 1 条，5s 超时）。
 func (c *conversationCache) ReadFileProcessingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
+	return c.readFileMessages(ctx, consumerName, processingQueueConfig())
+}
+
+func (c *conversationCache) ReadFileEmbeddingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
+	return c.readFileMessages(ctx, consumerName, embeddingQueueConfig())
+}
+
+func (c *conversationCache) readFileMessages(
+	ctx context.Context,
+	consumerName string,
+	queue fileQueueConfig,
+) ([]repository.FileProcessingMessage, error) {
 	if c.client == nil {
 		return nil, nil
 	}
 	streams, err := c.client.XReadGroup(ctx, &redis.XReadGroupArgs{
-		Group:    fileProcessingGroupName,
+		Group:    queue.group,
 		Consumer: consumerName,
-		Streams:  []string{fileProcessingStreamName, ">"},
+		Streams:  []string{queue.stream, ">"},
 		Count:    1,
 		Block:    5 * time.Second,
 	}).Result()
@@ -263,7 +468,7 @@ func (c *conversationCache) ReadFileProcessingMessages(ctx context.Context, cons
 	}
 	messages := make([]repository.FileProcessingMessage, 0)
 	for _, stream := range streams {
-		parsed, parseErr := c.decodeFileProcessingMessages(ctx, consumerName, stream.Messages, false)
+		parsed, parseErr := c.decodeFileProcessingMessages(ctx, consumerName, stream.Messages, false, queue)
 		if parseErr != nil {
 			return nil, parseErr
 		}
@@ -277,12 +482,13 @@ func (c *conversationCache) decodeFileProcessingMessages(
 	consumerName string,
 	messages []redis.XMessage,
 	reclaimed bool,
+	queue fileQueueConfig,
 ) ([]repository.FileProcessingMessage, error) {
 	parsedMessages := make([]repository.FileProcessingMessage, 0, len(messages))
 	for _, msg := range messages {
 		parsed, err := parseFileProcessingMessage(msg)
 		if err != nil {
-			quarantined, quarantineErr := c.deadLetterInvalidFileProcessingMessage(ctx, consumerName, msg, err)
+			quarantined, quarantineErr := c.deadLetterInvalidFileProcessingMessage(ctx, consumerName, msg, err, queue)
 			if quarantineErr != nil {
 				return nil, fmt.Errorf("dead-letter invalid file processing message %q: %w", msg.ID, quarantineErr)
 			}
@@ -292,14 +498,19 @@ func (c *conversationCache) decodeFileProcessingMessages(
 			continue
 		}
 		parsed.Reclaimed = reclaimed
+		parsed.Queue = queue.queue
 		parsedMessages = append(parsedMessages, parsed)
 	}
 	return parsedMessages, nil
 }
 
 func parseFileProcessingMessage(msg redis.XMessage) (repository.FileProcessingMessage, error) {
+	kind := strings.TrimSpace(getOptionalStringVal(msg.Values, "kind"))
+	if kind != "" && kind != repository.FileProcessingKindEmbedding {
+		return repository.FileProcessingMessage{}, fmt.Errorf("invalid processing kind %q", kind)
+	}
 	userID, err := strconv.ParseUint(strings.TrimSpace(getStringVal(msg.Values["user_id"])), 10, strconv.IntSize)
-	if err != nil || userID == 0 {
+	if err != nil || (userID == 0 && kind != repository.FileProcessingKindEmbedding) {
 		if err == nil {
 			err = errors.New("must be greater than zero")
 		}
@@ -316,15 +527,23 @@ func parseFileProcessingMessage(msg redis.XMessage) (repository.FileProcessingMe
 
 	lastError := ""
 	if rawLastError, ok := msg.Values["last_error"]; ok {
-		lastError = getStringVal(rawLastError)
+		lastError = truncateStr(getStringVal(rawLastError), 255)
+	}
+	embeddingSignature := strings.TrimSpace(getOptionalStringVal(msg.Values, "embedding_signature"))
+	embeddingHost := strings.TrimRight(strings.TrimSpace(getOptionalStringVal(msg.Values, "embedding_host")), "/")
+	if kind == repository.FileProcessingKindEmbedding && (embeddingSignature == "" || embeddingHost == "") {
+		return repository.FileProcessingMessage{}, errors.New("invalid embedding queue metadata")
 	}
 
 	return repository.FileProcessingMessage{
-		ID:        msg.ID,
-		UserID:    uint(userID),
-		FileID:    strings.TrimSpace(getStringVal(msg.Values["file_id"])),
-		Retry:     retry,
-		LastError: lastError,
+		ID:                 msg.ID,
+		UserID:             uint(userID),
+		FileID:             strings.TrimSpace(getStringVal(msg.Values["file_id"])),
+		Retry:              retry,
+		LastError:          lastError,
+		Kind:               kind,
+		EmbeddingSignature: embeddingSignature,
+		EmbeddingHost:      embeddingHost,
 	}, nil
 }
 
@@ -333,55 +552,56 @@ func (c *conversationCache) deadLetterInvalidFileProcessingMessage(
 	consumerName string,
 	message redis.XMessage,
 	parseErr error,
+	queue fileQueueConfig,
 ) (bool, error) {
-	lastError := "invalid queue message: " + parseErr.Error()
-	if rawLastError, ok := message.Values["last_error"]; ok {
-		if previousError := strings.TrimSpace(getStringVal(rawLastError)); previousError != "" {
-			lastError += "; previous error: " + previousError
-		}
-	}
+	lastError := "invalid queue message"
 
 	return fileProcessingScriptResult(deadLetterFileProcessingMessageScript.Run(
 		ctx,
 		c.client,
-		[]string{fileProcessingStreamName, fileProcessingDLQName},
-		fileProcessingGroupName,
+		[]string{queue.stream, queue.dlq},
+		queue.group,
 		consumerName,
 		message.ID,
 		getStringVal(message.Values["user_id"]),
 		getStringVal(message.Values["file_id"]),
 		getStringVal(message.Values["retry"]),
 		truncateStr(lastError, 255),
+		getOptionalStringVal(message.Values, "kind"),
+		getOptionalStringVal(message.Values, "embedding_signature"),
+		getOptionalStringVal(message.Values, "embedding_host"),
 		fileProcessingDLQMaxLen,
 	).Result())
 }
 
 // RenewFileProcessingMessageLease 刷新执行中消息的空闲时间，避免长任务被其他 worker 重复认领。
-func (c *conversationCache) RenewFileProcessingMessageLease(ctx context.Context, consumerName, messageID string) (bool, error) {
-	if c.client == nil || strings.TrimSpace(consumerName) == "" || strings.TrimSpace(messageID) == "" {
+func (c *conversationCache) RenewFileProcessingMessageLease(ctx context.Context, consumerName string, message repository.FileProcessingMessage) (bool, error) {
+	if c.client == nil || strings.TrimSpace(consumerName) == "" || strings.TrimSpace(message.ID) == "" {
 		return true, nil
 	}
+	queue := redisQueueForMessage(message)
 	return fileProcessingScriptResult(renewFileProcessingLeaseScript.Run(
 		ctx,
 		c.client,
-		[]string{fileProcessingStreamName},
-		fileProcessingGroupName,
+		[]string{queue.stream},
+		queue.group,
 		consumerName,
-		messageID,
+		message.ID,
 	).Result())
 }
 
-func (c *conversationCache) SettleFileProcessingMessage(ctx context.Context, consumerName, messageID string) (bool, error) {
+func (c *conversationCache) SettleFileProcessingMessage(ctx context.Context, consumerName string, message repository.FileProcessingMessage) (bool, error) {
 	if c.client == nil {
 		return true, nil
 	}
+	queue := redisQueueForMessage(message)
 	return fileProcessingScriptResult(settleFileProcessingMessageScript.Run(
 		ctx,
 		c.client,
-		[]string{fileProcessingStreamName},
-		fileProcessingGroupName,
+		[]string{queue.stream},
+		queue.group,
 		consumerName,
-		messageID,
+		message.ID,
 	).Result())
 }
 
@@ -395,17 +615,21 @@ func (c *conversationCache) RequeueFileProcessingMessage(
 	if c.client == nil {
 		return true, nil
 	}
+	queue := redisQueueForMessage(message)
 	return fileProcessingScriptResult(requeueFileProcessingMessageScript.Run(
 		ctx,
 		c.client,
-		[]string{fileProcessingStreamName},
-		fileProcessingGroupName,
+		[]string{queue.stream},
+		queue.group,
 		consumerName,
 		message.ID,
 		message.UserID,
 		message.FileID,
 		retry,
 		truncateStr(lastError, 255),
+		message.Kind,
+		message.EmbeddingSignature,
+		message.EmbeddingHost,
 	).Result())
 }
 
@@ -418,22 +642,52 @@ func (c *conversationCache) DeadLetterFileProcessingMessage(
 	if c.client == nil {
 		return true, nil
 	}
+	queue := redisQueueForMessage(message)
 	return fileProcessingScriptResult(deadLetterFileProcessingMessageScript.Run(
 		ctx,
 		c.client,
-		[]string{fileProcessingStreamName, fileProcessingDLQName},
-		fileProcessingGroupName,
+		[]string{queue.stream, queue.dlq},
+		queue.group,
 		consumerName,
 		message.ID,
 		message.UserID,
 		message.FileID,
 		message.Retry,
 		truncateStr(lastError, 255),
+		message.Kind,
+		message.EmbeddingSignature,
+		message.EmbeddingHost,
 		fileProcessingDLQMaxLen,
 	).Result())
 }
 
-func fileProcessingScriptResult(result interface{}, err error) (bool, error) {
+func processingQueueConfig() fileQueueConfig {
+	return fileQueueConfig{
+		stream: fileProcessingStreamName,
+		dlq:    fileProcessingDLQName,
+		group:  fileProcessingGroupName,
+		queue:  repository.FileProcessingQueueDefault,
+	}
+}
+
+func embeddingQueueConfig() fileQueueConfig {
+	return fileQueueConfig{
+		stream: fileEmbeddingStreamName,
+		dlq:    fileEmbeddingDLQName,
+		group:  fileEmbeddingGroupName,
+		queue:  repository.FileProcessingQueueEmbedding,
+	}
+}
+
+func redisQueueForMessage(message repository.FileProcessingMessage) fileQueueConfig {
+	if message.Queue == repository.FileProcessingQueueEmbedding ||
+		(message.Queue == "" && message.Kind == repository.FileProcessingKindEmbedding) {
+		return embeddingQueueConfig()
+	}
+	return processingQueueConfig()
+}
+
+func fileProcessingScriptResult(result any, err error) (bool, error) {
 	if errors.Is(err, redis.Nil) {
 		return false, nil
 	}
@@ -500,22 +754,53 @@ func (c *conversationCache) SetRAGCache(ctx context.Context, key string, chunks 
 // 生成流恢复
 // ---------------------------------------------------------------------------
 
-// RegisterGenerationStream records the run owner and conversation without mixing
-// ephemeral execution state into persisted conversation records.
-func (c *conversationCache) RegisterGenerationStream(ctx context.Context, runID string, userID uint, conversationPublicID string, ttl time.Duration) error {
+// ClaimGenerationStream 原子声明一次运行的唯一写入执行权。
+func (c *conversationCache) ClaimGenerationStream(
+	ctx context.Context,
+	lease repository.GenerationStreamLease,
+	leaseTTL time.Duration,
+	ownershipTTL time.Duration,
+) (bool, error) {
 	if c.client == nil {
-		return nil
+		return true, nil
 	}
-	runID = strings.TrimSpace(runID)
-	if runID == "" {
-		return nil
+	lease.RunID = strings.TrimSpace(lease.RunID)
+	lease.ExecutionID = strings.TrimSpace(lease.ExecutionID)
+	lease.ConversationPublicID = strings.TrimSpace(lease.ConversationPublicID)
+	if lease.RunID == "" || lease.ExecutionID == "" || lease.UserID == 0 || lease.ConversationPublicID == "" {
+		return false, nil
 	}
-	pipe := c.client.Pipeline()
-	pipe.Set(ctx, generationStreamOwnerKey(runID), strconv.FormatUint(uint64(userID), 10), ttl)
-	pipe.Set(ctx, generationStreamConversationKey(runID), strings.TrimSpace(conversationPublicID), ttl)
-	pipe.Del(ctx, generationStreamCancelKey(runID))
-	_, err := pipe.Exec(ctx)
-	return err
+	if leaseTTL <= 0 {
+		leaseTTL = time.Minute
+	}
+	if ownershipTTL < leaseTTL {
+		ownershipTTL = leaseTTL
+	}
+	claimed, err := claimGenerationStreamScript.Run(ctx, c.client, []string{
+		generationStreamActiveKey(lease.RunID),
+		generationStreamOwnerKey(lease.RunID),
+		generationStreamConversationKey(lease.RunID),
+		generationStreamCancelKey(lease.RunID),
+		generationStreamActiveIndexKey(lease.UserID),
+		generationStreamEventsKey(lease.RunID),
+		generationStreamTextKey(lease.RunID),
+		generationStreamTextSeqKey(lease.RunID),
+		generationStreamUpstreamThinkContentKey(lease.RunID),
+		generationStreamUpstreamThinkMetaKey(lease.RunID),
+	},
+		lease.ExecutionID,
+		strconv.FormatUint(uint64(lease.UserID), 10),
+		lease.ConversationPublicID,
+		leaseTTL.Milliseconds(),
+		ownershipTTL.Milliseconds(),
+		time.Now().Add(leaseTTL).UnixMilli(),
+		lease.RunID,
+		generationStreamIndexTTL.Milliseconds(),
+	).Int()
+	if err != nil {
+		return false, err
+	}
+	return claimed == 1, nil
 }
 
 // GetGenerationStreamOwner 返回 run 归属用户。
@@ -537,44 +822,105 @@ func (c *conversationCache) GetGenerationStreamOwner(ctx context.Context, runID 
 	return uint(value), true, nil
 }
 
-// TouchGenerationStreamActive 刷新 run 的活跃租约。
-func (c *conversationCache) TouchGenerationStreamActive(ctx context.Context, runID string, userID uint, ttl time.Duration) error {
-	if c.client == nil || ttl <= 0 {
-		return nil
+// RenewGenerationStreamLease 仅为当前执行续租。
+func (c *conversationCache) RenewGenerationStreamLease(
+	ctx context.Context,
+	lease repository.GenerationStreamLease,
+	leaseTTL time.Duration,
+	ownershipTTL time.Duration,
+) (bool, error) {
+	if c.client == nil {
+		return true, nil
 	}
-	runID = strings.TrimSpace(runID)
-	if runID == "" {
-		return nil
+	lease.RunID = strings.TrimSpace(lease.RunID)
+	lease.ExecutionID = strings.TrimSpace(lease.ExecutionID)
+	lease.ConversationPublicID = strings.TrimSpace(lease.ConversationPublicID)
+	if lease.RunID == "" || lease.ExecutionID == "" || lease.UserID == 0 || lease.ConversationPublicID == "" || leaseTTL <= 0 {
+		return false, nil
 	}
-	if userID == 0 {
-		return nil
+	if ownershipTTL < leaseTTL {
+		ownershipTTL = leaseTTL
 	}
-	owner := strconv.FormatUint(uint64(userID), 10)
-	return touchGenerationStreamActiveScript.Run(ctx, c.client, []string{
-		generationStreamOwnerKey(runID),
-		generationStreamActiveKey(runID),
-		generationStreamActiveIndexKey(userID),
-	}, owner, ttl.Milliseconds(), time.Now().Add(ttl).UnixMilli(), runID, generationStreamIndexTTL.Milliseconds()).Err()
+	owner := strconv.FormatUint(uint64(lease.UserID), 10)
+	renewed, err := renewGenerationStreamLeaseScript.Run(ctx, c.client, []string{
+		generationStreamActiveKey(lease.RunID),
+		generationStreamOwnerKey(lease.RunID),
+		generationStreamConversationKey(lease.RunID),
+		generationStreamActiveIndexKey(lease.UserID),
+	},
+		lease.ExecutionID,
+		owner,
+		lease.ConversationPublicID,
+		leaseTTL.Milliseconds(),
+		ownershipTTL.Milliseconds(),
+		time.Now().Add(leaseTTL).UnixMilli(),
+		lease.RunID,
+		generationStreamIndexTTL.Milliseconds(),
+	).Int()
+	if err != nil {
+		return false, err
+	}
+	return renewed == 1, nil
 }
 
-// ClearGenerationStreamActive 清理 run 的活跃租约。
-func (c *conversationCache) ClearGenerationStreamActive(ctx context.Context, runID string, userID uint) error {
+// CompleteGenerationStream 释放执行租约并保留可恢复数据。
+func (c *conversationCache) CompleteGenerationStream(ctx context.Context, lease repository.GenerationStreamLease, retention time.Duration) (bool, error) {
 	if c.client == nil {
-		return nil
+		return true, nil
 	}
-	runID = strings.TrimSpace(runID)
-	if runID == "" {
-		return nil
+	lease.RunID = strings.TrimSpace(lease.RunID)
+	lease.ExecutionID = strings.TrimSpace(lease.ExecutionID)
+	if lease.RunID == "" || lease.ExecutionID == "" || lease.UserID == 0 || retention <= 0 {
+		return false, nil
 	}
-	if userID == 0 {
-		return nil
+	owner := strconv.FormatUint(uint64(lease.UserID), 10)
+	completed, err := completeGenerationStreamScript.Run(ctx, c.client, []string{
+		generationStreamActiveKey(lease.RunID),
+		generationStreamOwnerKey(lease.RunID),
+		generationStreamActiveIndexKey(lease.UserID),
+		generationStreamConversationKey(lease.RunID),
+		generationStreamCancelKey(lease.RunID),
+		generationStreamEventsKey(lease.RunID),
+		generationStreamSeqKey(lease.RunID),
+		generationStreamTextKey(lease.RunID),
+		generationStreamTextSeqKey(lease.RunID),
+		generationStreamUpstreamThinkContentKey(lease.RunID),
+		generationStreamUpstreamThinkMetaKey(lease.RunID),
+	}, lease.ExecutionID, owner, lease.RunID, lease.ConversationPublicID, retention.Milliseconds()).Int()
+	if err != nil {
+		return false, err
 	}
-	owner := strconv.FormatUint(uint64(userID), 10)
-	return clearGenerationStreamActiveScript.Run(ctx, c.client, []string{
-		generationStreamOwnerKey(runID),
-		generationStreamActiveKey(runID),
-		generationStreamActiveIndexKey(userID),
-	}, owner, runID).Err()
+	return completed == 1, nil
+}
+
+// AbandonGenerationStream 移除未能在本节点完成注册的执行权声明。
+func (c *conversationCache) AbandonGenerationStream(ctx context.Context, lease repository.GenerationStreamLease) (bool, error) {
+	if c.client == nil {
+		return true, nil
+	}
+	lease.RunID = strings.TrimSpace(lease.RunID)
+	lease.ExecutionID = strings.TrimSpace(lease.ExecutionID)
+	if lease.RunID == "" || lease.ExecutionID == "" || lease.UserID == 0 {
+		return false, nil
+	}
+	owner := strconv.FormatUint(uint64(lease.UserID), 10)
+	abandoned, err := abandonGenerationStreamScript.Run(ctx, c.client, []string{
+		generationStreamActiveKey(lease.RunID),
+		generationStreamOwnerKey(lease.RunID),
+		generationStreamActiveIndexKey(lease.UserID),
+		generationStreamConversationKey(lease.RunID),
+		generationStreamCancelKey(lease.RunID),
+		generationStreamEventsKey(lease.RunID),
+		generationStreamSeqKey(lease.RunID),
+		generationStreamTextKey(lease.RunID),
+		generationStreamTextSeqKey(lease.RunID),
+		generationStreamUpstreamThinkContentKey(lease.RunID),
+		generationStreamUpstreamThinkMetaKey(lease.RunID),
+	}, lease.ExecutionID, owner, lease.RunID).Int()
+	if err != nil {
+		return false, err
+	}
+	return abandoned == 1, nil
 }
 
 // IsGenerationStreamActive 查询 run 是否仍有活跃生成租约。
@@ -615,22 +961,28 @@ func (c *conversationCache) ListActiveGenerationStreams(ctx context.Context, use
 	if len(runIDs) == 0 {
 		return []repository.ActiveGenerationStream{}, nil
 	}
-	keys := make([]string, 0, len(runIDs)*2)
+	keys := make([]string, 0, len(runIDs)*3)
 	for _, runID := range runIDs {
-		keys = append(keys, generationStreamOwnerKey(runID), generationStreamConversationKey(runID))
+		keys = append(
+			keys,
+			generationStreamActiveKey(runID),
+			generationStreamOwnerKey(runID),
+			generationStreamConversationKey(runID),
+		)
 	}
 	metadata, err := c.client.MGet(ctx, keys...).Result()
 	if err != nil {
 		return nil, err
 	}
 	items := make([]repository.ActiveGenerationStream, 0, len(runIDs))
-	staleRunIDs := make([]interface{}, 0)
+	staleRunIDs := make([]any, 0)
 	wantedOwner := strconv.FormatUint(uint64(userID), 10)
 	for index, runID := range runIDs {
-		owner, _ := metadata[index*2].(string)
-		conversationPublicID, _ := metadata[index*2+1].(string)
+		activeExecution, _ := metadata[index*3].(string)
+		owner, _ := metadata[index*3+1].(string)
+		conversationPublicID, _ := metadata[index*3+2].(string)
 		conversationPublicID = strings.TrimSpace(conversationPublicID)
-		if strings.TrimSpace(owner) != wantedOwner || conversationPublicID == "" {
+		if strings.TrimSpace(activeExecution) == "" || strings.TrimSpace(owner) != wantedOwner || conversationPublicID == "" {
 			staleRunIDs = append(staleRunIDs, runID)
 			continue
 		}
@@ -645,12 +997,24 @@ func (c *conversationCache) ListActiveGenerationStreams(ctx context.Context, use
 	return items, nil
 }
 
-// RequestGenerationStreamCancel 标记 run 已被用户显式取消。
-func (c *conversationCache) RequestGenerationStreamCancel(ctx context.Context, runID string, ttl time.Duration) error {
+// RequestGenerationStreamCancel 将用户所属的活动运行标记为已取消。
+func (c *conversationCache) RequestGenerationStreamCancel(ctx context.Context, runID string, userID uint, ttl time.Duration) (bool, error) {
 	if c.client == nil {
-		return nil
+		return true, nil
 	}
-	return c.client.Set(ctx, generationStreamCancelKey(runID), "1", ttl).Err()
+	runID = strings.TrimSpace(runID)
+	if runID == "" || userID == 0 || ttl <= 0 {
+		return false, nil
+	}
+	requested, err := requestGenerationStreamCancelScript.Run(ctx, c.client, []string{
+		generationStreamOwnerKey(runID),
+		generationStreamActiveKey(runID),
+		generationStreamCancelKey(runID),
+	}, strconv.FormatUint(uint64(userID), 10), ttl.Milliseconds()).Int()
+	if err != nil {
+		return false, err
+	}
+	return requested == 1, nil
 }
 
 // IsGenerationStreamCanceled 查询 run 是否已被显式取消。
@@ -665,8 +1029,95 @@ func (c *conversationCache) IsGenerationStreamCanceled(ctx context.Context, runI
 	return count > 0, nil
 }
 
-// AppendGenerationStreamEvent 原子追加生成事件，并同步维护可见文本快照。
-func (c *conversationCache) AppendGenerationStreamEvent(ctx context.Context, runID string, input repository.GenerationStreamAppend, maxEvents int64, ttl time.Duration) (repository.GenerationStreamMessage, error) {
+// AppendGenerationStreamEvent 为当前执行原子追加事件。
+func (c *conversationCache) AppendGenerationStreamEvent(
+	ctx context.Context,
+	lease repository.GenerationStreamLease,
+	input repository.GenerationStreamAppend,
+	maxEvents int64,
+	ttl time.Duration,
+) (repository.GenerationStreamMessage, bool, error) {
+	if c.client == nil {
+		return repository.GenerationStreamMessage{}, true, nil
+	}
+	lease.RunID = strings.TrimSpace(lease.RunID)
+	lease.ExecutionID = strings.TrimSpace(lease.ExecutionID)
+	if lease.RunID == "" || lease.ExecutionID == "" {
+		return repository.GenerationStreamMessage{}, false, nil
+	}
+	if maxEvents <= 0 {
+		maxEvents = 1024
+	}
+	if ttl <= 0 {
+		ttl = time.Minute
+	}
+	hasUpstreamThink := "0"
+	upstreamThinkReplace := "0"
+	upstreamThinkContent := ""
+	upstreamThinkRoundID := ""
+	upstreamThinkMetadata := ""
+	if input.UpstreamThink != nil {
+		hasUpstreamThink = "1"
+		if input.UpstreamThink.Replace {
+			upstreamThinkReplace = "1"
+			upstreamThinkContent = input.UpstreamThink.ContentMarkdown
+		} else {
+			upstreamThinkContent = input.UpstreamThink.Delta
+		}
+		upstreamThinkRoundID = input.UpstreamThink.RoundID
+		upstreamThinkMetadata = input.UpstreamThink.MetadataJSON
+	}
+	result, err := appendGenerationStreamEventScript.Run(
+		ctx,
+		c.client,
+		[]string{
+			generationStreamActiveKey(lease.RunID),
+			generationStreamSeqKey(lease.RunID),
+			generationStreamEventsKey(lease.RunID),
+			generationStreamTextKey(lease.RunID),
+			generationStreamTextSeqKey(lease.RunID),
+			generationStreamUpstreamThinkContentKey(lease.RunID),
+			generationStreamUpstreamThinkMetaKey(lease.RunID),
+		},
+		input.PayloadJSON,
+		maxEvents,
+		ttl.Milliseconds(),
+		input.TextDelta,
+		hasUpstreamThink,
+		upstreamThinkReplace,
+		upstreamThinkContent,
+		upstreamThinkRoundID,
+		upstreamThinkMetadata,
+		lease.ExecutionID,
+	).Result()
+	if err != nil {
+		return repository.GenerationStreamMessage{}, false, err
+	}
+	values, ok := result.([]any)
+	if !ok || len(values) == 0 {
+		return repository.GenerationStreamMessage{}, false, errors.New("invalid generation stream append result")
+	}
+	if getStringVal(values[0]) != "1" {
+		return repository.GenerationStreamMessage{}, false, nil
+	}
+	if len(values) != 3 {
+		return repository.GenerationStreamMessage{}, false, errors.New("invalid generation stream append result")
+	}
+	id := strings.TrimSpace(getStringVal(values[1]))
+	seq := getInt64Val(values[2])
+	if id == "" || seq <= 0 {
+		return repository.GenerationStreamMessage{}, false, errors.New("invalid generation stream append metadata")
+	}
+	return repository.GenerationStreamMessage{ID: id, Seq: seq, PayloadJSON: input.PayloadJSON}, true, nil
+}
+
+// AppendActiveGenerationEvent 追加一条跨进程共享的活动状态事件。
+func (c *conversationCache) AppendActiveGenerationEvent(
+	ctx context.Context,
+	input repository.GenerationStreamAppend,
+	maxEvents int64,
+	ttl time.Duration,
+) (repository.GenerationStreamMessage, error) {
 	if c.client == nil {
 		return repository.GenerationStreamMessage{}, nil
 	}
@@ -676,33 +1127,65 @@ func (c *conversationCache) AppendGenerationStreamEvent(ctx context.Context, run
 	if ttl <= 0 {
 		ttl = time.Minute
 	}
-	result, err := appendGenerationStreamEventScript.Run(
+	result, err := appendActiveGenerationEventScript.Run(
 		ctx,
 		c.client,
 		[]string{
-			generationStreamSeqKey(runID),
-			generationStreamEventsKey(runID),
-			generationStreamTextKey(runID),
-			generationStreamTextSeqKey(runID),
+			generationStreamSeqKey(activeGenerationEventID),
+			generationStreamEventsKey(activeGenerationEventID),
 		},
 		input.PayloadJSON,
 		maxEvents,
 		ttl.Milliseconds(),
-		input.TextDelta,
 	).Result()
 	if err != nil {
 		return repository.GenerationStreamMessage{}, err
 	}
-	values, ok := result.([]interface{})
+	values, ok := result.([]any)
 	if !ok || len(values) != 2 {
-		return repository.GenerationStreamMessage{}, errors.New("invalid generation stream append result")
+		return repository.GenerationStreamMessage{}, errors.New("invalid active generation event append result")
 	}
 	id := strings.TrimSpace(getStringVal(values[0]))
 	seq := getInt64Val(values[1])
 	if id == "" || seq <= 0 {
-		return repository.GenerationStreamMessage{}, errors.New("invalid generation stream append metadata")
+		return repository.GenerationStreamMessage{}, errors.New("invalid active generation event append metadata")
 	}
 	return repository.GenerationStreamMessage{ID: id, Seq: seq, PayloadJSON: input.PayloadJSON}, nil
+}
+
+// GetGenerationStreamUpstreamThinkSnapshot 原子读取当前思考轮次的完整恢复快照。
+func (c *conversationCache) GetGenerationStreamUpstreamThinkSnapshot(ctx context.Context, runID string) (repository.GenerationStreamUpstreamThinkSnapshot, bool, error) {
+	if c.client == nil {
+		return repository.GenerationStreamUpstreamThinkSnapshot{}, false, nil
+	}
+	result, err := getGenerationStreamUpstreamThinkSnapshotScript.Run(
+		ctx,
+		c.client,
+		[]string{
+			generationStreamUpstreamThinkContentKey(runID),
+			generationStreamUpstreamThinkMetaKey(runID),
+		},
+	).Result()
+	if err != nil {
+		return repository.GenerationStreamUpstreamThinkSnapshot{}, false, err
+	}
+	values, ok := result.([]any)
+	if !ok || len(values) == 0 || getStringVal(values[0]) != "1" {
+		return repository.GenerationStreamUpstreamThinkSnapshot{}, false, nil
+	}
+	if len(values) != 5 {
+		return repository.GenerationStreamUpstreamThinkSnapshot{}, false, nil
+	}
+	seq := getInt64Val(values[2])
+	if seq <= 0 {
+		return repository.GenerationStreamUpstreamThinkSnapshot{}, false, nil
+	}
+	return repository.GenerationStreamUpstreamThinkSnapshot{
+		Seq:             seq,
+		RoundID:         getStringVal(values[3]),
+		ContentMarkdown: getStringVal(values[1]),
+		MetadataJSON:    getStringVal(values[4]),
+	}, true, nil
 }
 
 // GetGenerationStreamTextSnapshot 原子读取完整可见文本及其最后事件序号。
@@ -784,39 +1267,29 @@ func (c *conversationCache) ReadGenerationStreamEvents(ctx context.Context, runI
 	return results, nil
 }
 
-// ResetGenerationStreamEvents 清空恢复流事件，阻止撤回内容在重连时被回放。
-func (c *conversationCache) ResetGenerationStreamEvents(ctx context.Context, runID string) error {
+// ResetGenerationStreamEvents 仅清空当前执行保留的输出事件。
+func (c *conversationCache) ResetGenerationStreamEvents(ctx context.Context, lease repository.GenerationStreamLease) (bool, error) {
 	if c.client == nil {
-		return nil
+		return true, nil
 	}
-	runID = strings.TrimSpace(runID)
-	if runID == "" {
-		return nil
+	lease.RunID = strings.TrimSpace(lease.RunID)
+	lease.ExecutionID = strings.TrimSpace(lease.ExecutionID)
+	if lease.RunID == "" || lease.ExecutionID == "" {
+		return false, nil
 	}
 	// Keep seq key so subsequent appends stay monotonic for reconnect cursors.
-	return c.client.Del(
-		ctx,
-		generationStreamEventsKey(runID),
-		generationStreamTextKey(runID),
-		generationStreamTextSeqKey(runID),
-	).Err()
-}
-
-// ExpireGenerationStream 设置生成流相关键的过期时间。
-func (c *conversationCache) ExpireGenerationStream(ctx context.Context, runID string, ttl time.Duration) error {
-	if c.client == nil || ttl <= 0 {
-		return nil
+	reset, err := resetGenerationStreamEventsScript.Run(ctx, c.client, []string{
+		generationStreamActiveKey(lease.RunID),
+		generationStreamEventsKey(lease.RunID),
+		generationStreamTextKey(lease.RunID),
+		generationStreamTextSeqKey(lease.RunID),
+		generationStreamUpstreamThinkContentKey(lease.RunID),
+		generationStreamUpstreamThinkMetaKey(lease.RunID),
+	}, lease.ExecutionID).Int()
+	if err != nil {
+		return false, err
 	}
-	pipe := c.client.Pipeline()
-	pipe.Expire(ctx, generationStreamEventsKey(runID), ttl)
-	pipe.Expire(ctx, generationStreamSeqKey(runID), ttl)
-	pipe.Expire(ctx, generationStreamTextKey(runID), ttl)
-	pipe.Expire(ctx, generationStreamTextSeqKey(runID), ttl)
-	pipe.Expire(ctx, generationStreamOwnerKey(runID), ttl)
-	pipe.Expire(ctx, generationStreamConversationKey(runID), ttl)
-	pipe.Expire(ctx, generationStreamCancelKey(runID), ttl)
-	_, err := pipe.Exec(ctx)
-	return err
+	return reset == 1, nil
 }
 
 func parseGenerationStreamMessages(items []redis.XMessage) []repository.GenerationStreamMessage {
@@ -855,6 +1328,14 @@ func generationStreamTextSeqKey(runID string) string {
 	return generationStreamKeyPrefix + strings.TrimSpace(runID) + ":text_seq"
 }
 
+func generationStreamUpstreamThinkContentKey(runID string) string {
+	return generationStreamKeyPrefix + strings.TrimSpace(runID) + ":upstream_think"
+}
+
+func generationStreamUpstreamThinkMetaKey(runID string) string {
+	return generationStreamKeyPrefix + strings.TrimSpace(runID) + ":upstream_think_meta"
+}
+
 func generationStreamOwnerKey(runID string) string {
 	return generationStreamKeyPrefix + strings.TrimSpace(runID) + ":owner"
 }
@@ -883,7 +1364,7 @@ func truncateStr(s string, maxLen int) string {
 	return string([]rune(v)[:maxLen])
 }
 
-func getStringVal(raw interface{}) string {
+func getStringVal(raw any) string {
 	switch v := raw.(type) {
 	case string:
 		return v
@@ -894,7 +1375,15 @@ func getStringVal(raw interface{}) string {
 	}
 }
 
-func getInt64Val(raw interface{}) int64 {
+func getOptionalStringVal(values map[string]any, key string) string {
+	raw, ok := values[key]
+	if !ok || raw == nil {
+		return ""
+	}
+	return getStringVal(raw)
+}
+
+func getInt64Val(raw any) int64 {
 	switch v := raw.(type) {
 	case int64:
 		return v

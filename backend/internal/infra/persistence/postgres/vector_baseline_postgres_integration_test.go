@@ -115,10 +115,15 @@ func TestEnsurePostgresVectorColumnPreservesLegacyVectors(t *testing.T) {
 		t.Fatalf("create legacy vector index: %v", err)
 	}
 
-	if err = ensurePostgresVectorColumn(database, "file_chunks", "embedding", "idx_file_chunks_embedding"); err != nil {
+	migrateVectorColumn := func() error {
+		return withPostgresVectorMigrationLock(database, func(connection *gorm.DB) error {
+			return ensurePostgresVectorColumnLocked(connection, "file_chunks", "embedding", "idx_file_chunks_embedding")
+		})
+	}
+	if err = migrateVectorColumn(); err != nil {
 		t.Fatalf("migrate legacy vector column: %v", err)
 	}
-	if err = ensurePostgresVectorColumn(database, "file_chunks", "embedding", "idx_file_chunks_embedding"); err != nil {
+	if err = migrateVectorColumn(); err != nil {
 		t.Fatalf("repeat legacy vector migration: %v", err)
 	}
 

@@ -1,11 +1,8 @@
 "use client";
 
-import * as React from "react";
-import { ArrowDownUp, Check, Funnel, PanelLeftClose, PanelLeftOpen, Plus, Search, SquareDashed, SquareDashedMousePointer, Trash2 } from "lucide-react";
+import { ArrowDownUp, Check, DatabaseZap, Funnel, PanelLeftClose, PanelLeftOpen, Plus, Search, SquareDashed, SquareDashedMousePointer, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-
-import type { FileFilterValue, FileSortKey } from "@/features/files/types/files";
-import { FILE_FILTER_OPTIONS, FILE_SORT_OPTIONS } from "@/features/files/model/files-page-options";
+import * as React from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { FILE_FILTER_OPTIONS, FILE_SORT_OPTIONS } from "@/features/files/model/files-page-options";
+import type { FileFilterValue, FileSortKey } from "@/features/files/types/files";
 import { cn } from "@/lib/utils";
 
 type SidebarHeaderProps = {
@@ -27,8 +26,10 @@ type SidebarHeaderProps = {
   sortKey: FileSortKey;
   uploading: boolean;
   selectedCount: number;
+  vectorizableSelectedCount: number;
   selectAllDisabled: boolean;
   bulkDeleteDisabled: boolean;
+  vectorizing: boolean;
   onToggleCollapsed: () => void;
   onToggleSearch: () => void;
   onQueryChange: (value: string) => void;
@@ -37,6 +38,7 @@ type SidebarHeaderProps = {
   onSelectLoaded: () => void;
   onClearSelection: () => void;
   onBulkDeleteRequest: () => void;
+  onVectorizeSelected: () => void;
   onUpload: () => void;
 };
 
@@ -49,8 +51,10 @@ export function SidebarHeader({
   sortKey,
   uploading,
   selectedCount,
+  vectorizableSelectedCount,
   selectAllDisabled,
   bulkDeleteDisabled,
+  vectorizing,
   showCollapseButton = true,
   onToggleCollapsed,
   onToggleSearch,
@@ -60,6 +64,7 @@ export function SidebarHeader({
   onSelectLoaded,
   onClearSelection,
   onBulkDeleteRequest,
+  onVectorizeSelected,
   onUpload,
 }: SidebarHeaderProps) {
   const tCommon = useTranslations("common.actions");
@@ -116,6 +121,7 @@ export function SidebarHeader({
       {searchOpen ? (
         <div className="px-1 pt-2">
           <Input
+            autoFocus
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder={t("searchPlaceholder")}
@@ -124,126 +130,143 @@ export function SidebarHeader({
         </div>
       ) : null}
 
-      <div className="flex min-w-0 items-center gap-0.5 overflow-hidden px-0 py-1.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 shrink-0 gap-0.5 px-1 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground"
-          onClick={selectedCount > 0 ? onClearSelection : onSelectLoaded}
-          disabled={selectedCount > 0 ? bulkDeleteDisabled : selectAllDisabled}
-        >
-          {selectedCount > 0 ? <SquareDashed className="size-3 stroke-1" /> : <SquareDashedMousePointer className="size-3 stroke-1" />}
-          {selectedCount > 0 ? tCommon("cancel") : t("actions.selectAll")}
-        </Button>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "h-7 gap-0.5 px-1 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground",
-                hasActiveFilters && "bg-muted text-foreground",
-              )}
-            >
-              <Funnel className="size-3 stroke-1" />
-              {t("actions.filter")}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-40 p-1.5">
-            <div className="space-y-1">
-              <DropdownMenuItem
-                className={cn(
-                  "h-6 gap-2 px-2 py-0 text-[10px]",
-                  !hasActiveFilters ? "bg-muted/55 text-foreground" : "text-foreground/70 hover:bg-muted hover:text-foreground",
-                )}
-                onSelect={(event) => {
-                  event.preventDefault();
-                  onFilterToggle("all");
-                }}
-              >
-                <AllFilterIcon className="size-3 stroke-1 text-muted-foreground" />
-                <span className="flex-1 truncate">{t("filters.all")}</span>
-                {!hasActiveFilters ? <Check className="size-3 stroke-1 text-muted-foreground" /> : null}
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator className="mx-0 my-1" />
-
-              {FILE_FILTER_OPTIONS.filter((item) => item.value !== "all").map((item) => {
-                const value = item.value as FileFilterValue;
-                const active = activeFilterSet.has(value);
-                return (
-                  <DropdownMenuItem
-                    key={value}
-                    className={cn(
-                      "h-6 gap-2 px-2 py-0 text-[10px]",
-                      active ? "bg-muted/55 text-foreground" : "text-foreground/70 hover:bg-muted hover:text-foreground",
-                    )}
-                    onSelect={(event) => {
-                      event.preventDefault();
-                      onFilterToggle(value);
-                    }}
-                  >
-                    <item.icon className="size-3 stroke-1 text-muted-foreground" />
-                    <span className="flex-1 truncate">{t(`filters.${item.value}`)}</span>
-                    {active ? <Check className="size-3 stroke-1 text-muted-foreground" /> : null}
-                  </DropdownMenuItem>
-                );
-              })}
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-0.5 px-1 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
-            >
-              <ArrowDownUp className="size-3 stroke-1" />
-              {t("actions.sort")}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-36 p-1.5">
-            <div className="space-y-1">
-              {FILE_SORT_OPTIONS.map((item) => {
-                const active = item.value === sortKey;
-                return (
-                  <DropdownMenuItem
-                    key={item.value}
-                    className={cn(
-                      "h-6 gap-2 px-2 py-0 text-[10px]",
-                      active ? "bg-muted/55 text-foreground" : "text-foreground/70 hover:bg-muted hover:text-foreground",
-                    )}
-                    onSelect={() => onSortChange(item.value)}
-                  >
-                    <ArrowDownUp className="size-3 stroke-1 text-muted-foreground" />
-                    <span className="flex-1 truncate">{t(item.value === "last_used" ? "sort.lastUsed" : `sort.${item.value}`)}</span>
-                    {active ? <Check className="size-3 stroke-1 text-muted-foreground" /> : null}
-                  </DropdownMenuItem>
-                );
-              })}
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {selectedCount > 0 ? (
+      <div className="min-w-0 overflow-x-auto overscroll-x-contain py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex min-w-max items-center gap-0.5">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             className="h-7 shrink-0 gap-0.5 px-1 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground"
-            onClick={onBulkDeleteRequest}
-            disabled={bulkDeleteDisabled}
+            onClick={selectedCount > 0 ? onClearSelection : onSelectLoaded}
+            disabled={selectedCount > 0 ? bulkDeleteDisabled : selectAllDisabled}
           >
-            <Trash2 className="size-3 stroke-1" />
-            {t("actions.delete")}
+            {selectedCount > 0 ? <SquareDashed className="size-3 stroke-1" /> : <SquareDashedMousePointer className="size-3 stroke-1" />}
+            {selectedCount > 0 ? tCommon("cancel") : t("actions.selectAll")}
           </Button>
-        ) : null}
+
+          {selectedCount === 0 ? (
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "h-7 shrink-0 gap-0.5 px-1 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground",
+                      hasActiveFilters && "bg-muted text-foreground",
+                    )}
+                  >
+                    <Funnel className="size-3 stroke-1" />
+                    {t("actions.filter")}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-40 p-1.5">
+                  <div className="space-y-1">
+                    <DropdownMenuItem
+                      className={cn(
+                        "h-6 gap-2 px-2 py-0 text-[10px]",
+                        !hasActiveFilters ? "bg-muted/55 text-foreground" : "text-foreground/70 hover:bg-muted hover:text-foreground",
+                      )}
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        onFilterToggle("all");
+                      }}
+                    >
+                      <AllFilterIcon className="size-3 stroke-1 text-muted-foreground" />
+                      <span className="flex-1 truncate">{t("filters.all")}</span>
+                      {!hasActiveFilters ? <Check className="size-3 stroke-1 text-muted-foreground" /> : null}
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator className="mx-0 my-1" />
+
+                    {FILE_FILTER_OPTIONS.filter((item) => item.value !== "all").map((item) => {
+                      const value = item.value as FileFilterValue;
+                      const active = activeFilterSet.has(value);
+                      return (
+                        <DropdownMenuItem
+                          key={value}
+                          className={cn(
+                            "h-6 gap-2 px-2 py-0 text-[10px]",
+                            active ? "bg-muted/55 text-foreground" : "text-foreground/70 hover:bg-muted hover:text-foreground",
+                          )}
+                          onSelect={(event) => {
+                            event.preventDefault();
+                            onFilterToggle(value);
+                          }}
+                        >
+                          <item.icon className="size-3 stroke-1 text-muted-foreground" />
+                          <span className="flex-1 truncate">{t(`filters.${item.value}`)}</span>
+                          {active ? <Check className="size-3 stroke-1 text-muted-foreground" /> : null}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 shrink-0 gap-0.5 px-1 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
+                  >
+                    <ArrowDownUp className="size-3 stroke-1" />
+                    {t("actions.sort")}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-36 p-1.5">
+                  <div className="space-y-1">
+                    {FILE_SORT_OPTIONS.map((item) => {
+                      const active = item.value === sortKey;
+                      return (
+                        <DropdownMenuItem
+                          key={item.value}
+                          className={cn(
+                            "h-6 gap-2 px-2 py-0 text-[10px]",
+                            active ? "bg-muted/55 text-foreground" : "text-foreground/70 hover:bg-muted hover:text-foreground",
+                          )}
+                          onSelect={() => onSortChange(item.value)}
+                        >
+                          <ArrowDownUp className="size-3 stroke-1 text-muted-foreground" />
+                          <span className="flex-1 truncate">{t(item.value === "last_used" ? "sort.lastUsed" : `sort.${item.value}`)}</span>
+                          {active ? <Check className="size-3 stroke-1 text-muted-foreground" /> : null}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 shrink-0 gap-0.5 px-1 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground"
+                onClick={onVectorizeSelected}
+                disabled={vectorizing || vectorizableSelectedCount === 0}
+              >
+                <DatabaseZap className="size-3 stroke-1" />
+                {t("actions.vectorize")}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 shrink-0 gap-0.5 px-1 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground"
+                onClick={onBulkDeleteRequest}
+                disabled={bulkDeleteDisabled}
+              >
+                <Trash2 className="size-3 stroke-1" />
+                {t("actions.delete")}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

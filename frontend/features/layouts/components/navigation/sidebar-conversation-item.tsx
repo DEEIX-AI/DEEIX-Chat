@@ -192,7 +192,7 @@ export function SidebarConversationItem({
         "group relative flex h-8 items-center rounded-md text-sm transition-colors",
         active
           ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground",
         rowClassName,
       )}
       data-animated-text-scroll-trigger
@@ -201,7 +201,7 @@ export function SidebarConversationItem({
         href={item.url}
         prefetch={false}
         className={cn(
-          "flex h-full min-w-0 flex-1 items-center pl-2",
+          "flex h-full min-w-0 flex-1 items-center pl-2 outline-none focus-visible:ring-0",
           running || isMenuOpen
             ? "pr-9"
             : "pr-2 group-hover/conversation-row:pr-9",

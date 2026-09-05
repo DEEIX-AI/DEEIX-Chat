@@ -6,6 +6,7 @@ import (
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
 func TestCanceledGenerationWithObservedUsageIsRetainedForBilling(t *testing.T) {
@@ -79,22 +80,37 @@ func TestCanceledGenerationAfterUpstreamCallUsesEstimatedInputFallback(t *testin
 	}
 }
 
+// interruptedInputFromAccumulator 按发送链路的实际接线构造中断落库入参：输入与输出侧的预估
+// 都来自用量累加器，而不是在落库阶段用整条消息的全文重新估算。
+func interruptedInputFromAccumulator(accumulator *messageUsageAccumulator, visibleText string, reasoningText string) persistInterruptedMessageGenerationInput {
+	estimatedOutputTokens, estimatedReasoningTokens := accumulator.interruptedOutputTokens()
+	return persistInterruptedMessageGenerationInput{
+		UserMessage:              &model.Message{},
+		AssistantMessage:         &model.Message{},
+		AssistantText:            visibleText,
+		AssistantReasoningText:   reasoningText,
+		EstimatedInputTokens:     accumulator.interruptedInputTokens(),
+		EstimatedOutputTokens:    estimatedOutputTokens,
+		EstimatedReasoningTokens: estimatedReasoningTokens,
+		UpstreamCallStarted:      true,
+		Usage:                    accumulator.usage(),
+		Error:                    ErrMessageGenerationCanceled,
+		StartedAt:                time.Now(),
+	}
+}
+
 func TestCanceledGenerationEstimatesVisibleReasoningUsage(t *testing.T) {
 	reasoningText := "正在分析用户请求，并检查终止时已经显示的思考内容。"
-	input := persistInterruptedMessageGenerationInput{
-		UserMessage:            &model.Message{},
-		AssistantMessage:       &model.Message{},
-		AssistantReasoningText: reasoningText,
-		EstimatedInputTokens:   12,
-		Error:                  ErrMessageGenerationCanceled,
-		StartedAt:              time.Now(),
-	}
+	accumulator := &messageUsageAccumulator{}
+	accumulator.beginCall(12)
+	accumulator.recordCallReasoningText(reasoningText)
+	input := interruptedInputFromAccumulator(accumulator, "", reasoningText)
 	if !shouldPersistInterruptedMessageGeneration(input) {
 		t.Fatal("reasoning-only visible output must be retained for moderation")
 	}
 
 	metrics := resolveInterruptedMessageGenerationMetrics(input)
-	if metrics.OutputTokens != 0 || metrics.ReasoningTokens != estimateTokens(reasoningText) {
+	if metrics.InputTokens != 12 || metrics.OutputTokens != 0 || metrics.ReasoningTokens != tokenestimate.Estimate(reasoningText) {
 		t.Fatalf("expected visible reasoning to be estimated separately, got %#v", metrics)
 	}
 	if source := interruptedUsageSource(input, metrics); source != interruptedUsageSourceEstimated {
@@ -103,23 +119,51 @@ func TestCanceledGenerationEstimatesVisibleReasoningUsage(t *testing.T) {
 }
 
 func TestCanceledGenerationDoesNotDoubleCountCombinedObservedOutput(t *testing.T) {
-	input := persistInterruptedMessageGenerationInput{
-		UserMessage:            &model.Message{},
-		AssistantMessage:       &model.Message{},
-		AssistantText:          "可见回复",
-		AssistantReasoningText: "可见思考内容",
-		Usage:                  llm.Usage{OutputTokens: 2},
-		Error:                  ErrMessageGenerationCanceled,
-		StartedAt:              time.Now(),
-	}
+	visibleText := "可见回复"
+	reasoningText := "可见思考内容"
+	accumulator := &messageUsageAccumulator{}
+	accumulator.beginCall(8)
+	accumulator.recordCallVisibleText(visibleText)
+	accumulator.recordCallReasoningText(reasoningText)
+	accumulator.addObservedUsage(llm.Usage{OutputTokens: 2})
+	input := interruptedInputFromAccumulator(accumulator, visibleText, reasoningText)
 
 	metrics := resolveInterruptedMessageGenerationMetrics(input)
 	wantOutput := resolveObservedOrHigherEstimatedTokens(
 		input.Usage.OutputTokens,
-		estimateTokens(input.AssistantText)+estimateTokens(input.AssistantReasoningText),
+		tokenestimate.Estimate(visibleText)+tokenestimate.Estimate(reasoningText),
 	)
 	if metrics.OutputTokens != wantOutput || metrics.ReasoningTokens != 0 {
 		t.Fatalf("expected combined output without duplicated reasoning, got %#v", metrics)
+	}
+	if source := interruptedUsageSource(input, metrics); source != interruptedUsageSourceMixed {
+		t.Fatalf("usage source = %q, want mixed", source)
+	}
+}
+
+// 工具循环中断时，已完成调用上报过的输出不能再被整条消息的全文预估覆盖一遍：
+// 只有被中断的当前调用尾段才走文本预估。
+func TestCanceledToolLoopOnlyEstimatesInterruptedCallTail(t *testing.T) {
+	firstText := "第一轮调用完整回复，上游已上报用量。"
+	tailText := "第二轮调用在中断前已经流出的可见文本。"
+	accumulator := &messageUsageAccumulator{}
+	accumulator.beginCall(40)
+	accumulator.recordCallVisibleText(firstText)
+	accumulator.addObservedUsage(llm.Usage{InputTokens: 40, OutputTokens: 6})
+	accumulator.finishCall(true, true)
+	accumulator.beginCall(55)
+	accumulator.recordCallVisibleText(tailText)
+	input := interruptedInputFromAccumulator(accumulator, firstText+tailText, "")
+
+	metrics := resolveInterruptedMessageGenerationMetrics(input)
+	if metrics.InputTokens != 40+55 {
+		t.Fatalf("expected observed first call plus estimated second call input, got %#v", metrics)
+	}
+	if want := int64(6) + tokenestimate.Estimate(tailText); metrics.OutputTokens != want || metrics.ReasoningTokens != 0 {
+		t.Fatalf("expected reported first call output plus tail estimate (%d), got %#v", want, metrics)
+	}
+	if source := interruptedUsageSource(input, metrics); source != interruptedUsageSourceMixed {
+		t.Fatalf("usage source = %q, want mixed", source)
 	}
 }
 

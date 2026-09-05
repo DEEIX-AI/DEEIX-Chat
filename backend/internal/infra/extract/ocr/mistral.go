@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -253,7 +254,7 @@ func parseMistralOCRResponse(body io.Reader) (Response, error) {
 		return pages[i].PageNumber < pages[j].PageNumber
 	})
 	if len(pages) == 0 {
-		return Response{}, fmt.Errorf(errOCREmptyContent)
+		return Response{}, errors.New(errOCREmptyContent)
 	}
 	parts := make([]string, 0, len(pages))
 	for _, page := range pages {

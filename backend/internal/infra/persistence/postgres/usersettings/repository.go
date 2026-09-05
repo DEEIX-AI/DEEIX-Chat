@@ -6,18 +6,9 @@ import (
 	domainusersettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/usersettings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
-
-// translateError 将 gorm 底层错误统一映射为仓储语义错误。
-func translateError(err error) error {
-	if dberror.IsRecordNotFound(err) {
-		return repository.ErrNotFound
-	}
-	return err
-}
 
 // Repo 封装 user_settings 数据访问。
 type Repo struct {
@@ -33,7 +24,7 @@ func NewRepo(db *gorm.DB) *Repo {
 func (r *Repo) ListByUserID(ctx context.Context, userID uint) ([]domainusersettings.UserSetting, error) {
 	var items []model.UserSetting
 	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Order("key").Find(&items).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return toDomainUserSettings(items), nil
 }
@@ -46,7 +37,7 @@ func (r *Repo) GetByKey(ctx context.Context, userID uint, key string) (*model.Us
 		if dberror.IsRecordNotFound(err) {
 			return nil, nil
 		}
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return &item, nil
 }
@@ -57,7 +48,7 @@ func (r *Repo) Upsert(ctx context.Context, items []domainusersettings.UserSettin
 		return nil
 	}
 	dbItems := toModelUserSettings(items)
-	return translateError(r.db.WithContext(ctx).
+	return dberror.Translate(r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "user_id"}, {Name: "key"}},
 			DoUpdates: clause.AssignmentColumns([]string{"value", "updated_at"}),
@@ -67,7 +58,7 @@ func (r *Repo) Upsert(ctx context.Context, items []domainusersettings.UserSettin
 
 // Delete 删除指定用户的配置项。
 func (r *Repo) Delete(ctx context.Context, userID uint, key string) error {
-	return translateError(r.db.WithContext(ctx).Where("user_id = ? AND key = ?", userID, key).Delete(&model.UserSetting{}).Error)
+	return dberror.Translate(r.db.WithContext(ctx).Where("user_id = ? AND key = ?", userID, key).Delete(&model.UserSetting{}).Error)
 }
 
 func toDomainUserSettings(items []model.UserSetting) []domainusersettings.UserSetting {

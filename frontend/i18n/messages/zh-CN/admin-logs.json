@@ -272,13 +272,17 @@
     }
   },
   "redemptions": {
-    "searchPlaceholder": "搜索用户 ID、兑换流水号、兑换码摘要、备注",
+    "searchPlaceholder": "搜索兑换流水号、兑换码摘要或备注",
     "empty": "暂无兑换记录",
     "filters": {
       "all": "全部",
       "rewardType": "奖励类型",
-      "code": "兑换码",
-      "clearCode": "清除兑换码筛选"
+      "codeID": "兑换码 ID",
+      "codeIDPlaceholder": "输入兑换码 ID",
+      "userID": "用户 ID",
+      "userIDPlaceholder": "输入用户 ID",
+      "clearCodeID": "清除兑换码 ID",
+      "clearUserID": "清除用户 ID"
     },
     "rewards": {
       "balance": "余额",
@@ -433,8 +437,15 @@
     "rewardDurationDays": "{count} 天",
     "rawUsageJsonTitle": "原始 Usage JSON",
     "jsonTitle": "详情 JSON",
+    "jsonFields": {
+      "payload": "事件负载",
+      "input": "工具输入",
+      "output": "工具输出",
+      "error": "工具错误"
+    },
     "loading": "正在加载详情",
-    "payloadOmitted": "该历史负载大小为 {size}，超过安全查看上限，内容已省略。可删除对应运行轨迹以移除这条异常历史数据。",
+    "jsonEmpty": "此事件没有可显示的 JSON 详情",
+    "jsonOmitted": "{label}大小为 {size}，超过安全查看上限，内容未加载。",
     "copied": "{label}已复制",
     "copyFailed": "复制失败"
   },
@@ -450,7 +461,7 @@
     "detailImageAlt": "审核图片 {index}",
     "imageLoadFailed": "部分隔离图片加载失败",
     "filters": {
-      "all": "所有"
+      "all": "全部"
     },
     "results": {
       "passed": "通过",

@@ -637,19 +637,27 @@ export function SubscriptionUsageLog({
       />
 
       <Table
-        className="table-fixed"
+        className="min-w-[760px] table-fixed"
         viewportRef={virtualRows.viewportRef}
         viewportClassName={virtualRows.viewportClassName}
         viewportStyle={virtualRows.viewportStyle}
       >
+        <colgroup>
+          <col style={{ width: 168 }} />
+          <col style={{ width: 160 }} />
+          <col style={{ width: 112 }} />
+          <col style={{ width: 112 }} />
+          <col style={{ width: 128 }} />
+          <col style={{ width: 80 }} />
+        </colgroup>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[10.5rem]">{t("columns.time")}</TableHead>
-            <TableHead className="w-[10rem]">{t("columns.model")}</TableHead>
-            <TableHead className="w-[7rem]">{t("columns.baseBilling")}</TableHead>
-            <TableHead className="w-[7rem]">{t("columns.serviceBilling")}</TableHead>
-            <TableHead className="w-[8rem]">{t("columns.balanceAfter")}</TableHead>
-            <TableHead className="w-[5rem] text-right">{t("columns.latency")}</TableHead>
+            <TableHead>{t("columns.time")}</TableHead>
+            <TableHead>{t("columns.model")}</TableHead>
+            <TableHead>{t("columns.baseBilling")}</TableHead>
+            <TableHead>{t("columns.serviceBilling")}</TableHead>
+            <TableHead>{t("columns.balanceAfter")}</TableHead>
+            <TableHead className="text-right">{t("columns.latency")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -660,7 +668,7 @@ export function SubscriptionUsageLog({
             ? virtualRows.rows.map(({ item: row }) => (
                 <TableRow key={row.item.id}>
                   <TableCell className="text-xs text-muted-foreground">{formatUsageLogTime(row.item.createdAt || row.item.usageDate, locale)}</TableCell>
-                  <TableCell className="w-[10rem] max-w-[10rem] text-xs font-medium">
+                  <TableCell className="text-xs font-medium">
                     <div className="truncate" title={modelDisplayLabel(row.item)}>
                       {modelDisplayLabel(row.item)}
                     </div>

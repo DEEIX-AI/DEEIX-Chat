@@ -36,7 +36,7 @@ RUN --mount=type=cache,id=next-cache,target=/src/frontend/.next/cache \
     pnpm build
 
 
-FROM golang:1.26.5-bookworm AS backend-builder
+FROM golang:1.26.8-bookworm AS backend-builder
 
 WORKDIR /src/backend
 

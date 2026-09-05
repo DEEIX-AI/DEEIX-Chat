@@ -6,18 +6,9 @@ import (
 	domainsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/settings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
-
-// translateError 将 gorm 底层错误统一映射为仓储语义错误。
-func translateError(err error) error {
-	if dberror.IsRecordNotFound(err) {
-		return repository.ErrNotFound
-	}
-	return err
-}
 
 // Repo 封装 system_settings 数据访问。
 type Repo struct {
@@ -33,7 +24,7 @@ func NewRepo(db *gorm.DB) *Repo {
 func (r *Repo) ListAll(ctx context.Context) ([]domainsettings.SystemSetting, error) {
 	var items []model.SystemSetting
 	if err := r.db.WithContext(ctx).Order("namespace, key").Find(&items).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return toDomainSystemSettings(items), nil
 }
@@ -42,7 +33,7 @@ func (r *Repo) ListAll(ctx context.Context) ([]domainsettings.SystemSetting, err
 func (r *Repo) ListByNamespace(ctx context.Context, namespace string) ([]domainsettings.SystemSetting, error) {
 	var items []model.SystemSetting
 	if err := r.db.WithContext(ctx).Where("namespace = ?", namespace).Order("key").Find(&items).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return toDomainSystemSettings(items), nil
 }
@@ -53,7 +44,7 @@ func (r *Repo) Upsert(ctx context.Context, items []domainsettings.SystemSetting)
 		return nil
 	}
 	dbItems := toModelSystemSettings(items)
-	return translateError(r.db.WithContext(ctx).
+	return dberror.Translate(r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "namespace"}, {Name: "key"}},
 			DoUpdates: clause.AssignmentColumns([]string{"value", "updated_at"}),
@@ -67,7 +58,7 @@ func (r *Repo) UpsertWithDescription(ctx context.Context, items []domainsettings
 		return nil
 	}
 	dbItems := toModelSystemSettings(items)
-	return translateError(r.db.WithContext(ctx).
+	return dberror.Translate(r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "namespace"}, {Name: "key"}},
 			DoNothing: true,
@@ -77,7 +68,7 @@ func (r *Repo) UpsertWithDescription(ctx context.Context, items []domainsettings
 
 // Delete 删除指定配置项。
 func (r *Repo) Delete(ctx context.Context, namespace, key string) error {
-	return translateError(r.db.WithContext(ctx).
+	return dberror.Translate(r.db.WithContext(ctx).
 		Where("namespace = ? AND key = ?", namespace, key).
 		Delete(&model.SystemSetting{}).Error)
 }

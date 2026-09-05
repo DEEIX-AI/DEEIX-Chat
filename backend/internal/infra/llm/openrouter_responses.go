@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 // openRouterResponsesAdapter 实现 OpenRouter Responses API Beta。
@@ -14,44 +16,44 @@ type openRouterResponsesAdapter struct {
 	client *Client
 }
 
-func (a *openRouterResponsesAdapter) Name() string { return AdapterOpenRouterResponses }
+func (a *openRouterResponsesAdapter) Name() string { return portllm.AdapterOpenRouterResponses }
 
 // Generate 调用 OpenRouter Responses 非流式接口。
-func (a *openRouterResponsesAdapter) Generate(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
+func (a *openRouterResponsesAdapter) Generate(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput) (*portllm.GenerateOutput, error) {
 	route = normalizeOpenRouterResponsesRoute(route)
 	return a.client.generateOpenAICompatible(ctx, route, input)
 }
 
 // GenerateStream 调用 OpenRouter Responses 流式接口。
-func (a *openRouterResponsesAdapter) GenerateStream(ctx context.Context, route RouteConfig, input GenerateInput, onEvent func(GenerateStreamEvent) error) (*GenerateOutput, error) {
+func (a *openRouterResponsesAdapter) GenerateStream(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput, onEvent func(portllm.GenerateStreamEvent) error) (*portllm.GenerateOutput, error) {
 	route = normalizeOpenRouterResponsesRoute(route)
 	return a.client.generateStreamOpenAICompatible(ctx, route, input, onEvent)
 }
 
 // ListModels 按 OpenRouter OpenAI-compatible 模型列表协议查询模型。
-func (a *openRouterResponsesAdapter) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
+func (a *openRouterResponsesAdapter) ListModels(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
 	route = normalizeOpenRouterResponsesRoute(route)
 	return a.client.listModelsOpenAICompatible(ctx, route)
 }
 
 // normalizeOpenRouterResponsesRoute 固定 OpenRouter Responses 的协议和端点。
-func normalizeOpenRouterResponsesRoute(route RouteConfig) RouteConfig {
-	route.Protocol = AdapterOpenRouterResponses
-	route.Endpoint = EndpointResponses
+func normalizeOpenRouterResponsesRoute(route portllm.RouteConfig) portllm.RouteConfig {
+	route.Protocol = portllm.AdapterOpenRouterResponses
+	route.Endpoint = portllm.EndpointResponses
 	return route
 }
 
 // buildOpenRouterResponsesRequestBody 构造 OpenRouter Responses Beta 请求体。
 func buildOpenRouterResponsesRequestBody(
 	model string,
-	input GenerateInput,
-	messages []Message,
-	providerTools []map[string]interface{},
-	toolDefinitions []ToolDefinition,
-	providerStreamOptions map[string]interface{},
+	input portllm.GenerateInput,
+	messages []portllm.Message,
+	providerTools []map[string]any,
+	toolDefinitions []portllm.ToolDefinition,
+	providerStreamOptions map[string]any,
 	stream bool,
-) map[string]interface{} {
-	payload := map[string]interface{}{
+) map[string]any {
+	payload := map[string]any{
 		"model":  strings.TrimSpace(model),
 		"input":  buildOpenRouterResponsesAPIInput(messages),
 		"stream": stream,
@@ -66,7 +68,7 @@ func buildOpenRouterResponsesRequestBody(
 	if streamOptions := responsesStreamOptions(providerStreamOptions); stream && len(streamOptions) > 0 {
 		payload["stream_options"] = streamOptions
 	}
-	applyProviderOptions(payload, input.Options, responsesProtectedProviderOptionKeys(AdapterOpenRouterResponses, false)...)
+	applyProviderOptions(payload, input.Options, responsesProtectedProviderOptionKeys(portllm.AdapterOpenRouterResponses, false)...)
 	if include := responseIncludeValues(input.Options); len(include) > 0 {
 		appendResponseInclude(payload, include...)
 	}
@@ -74,8 +76,8 @@ func buildOpenRouterResponsesRequestBody(
 }
 
 // buildOpenRouterResponsesAPIInput 将内部消息转换为 OpenRouter Responses input items。
-func buildOpenRouterResponsesAPIInput(messages []Message) []map[string]interface{} {
-	items := make([]map[string]interface{}, 0, len(messages))
+func buildOpenRouterResponsesAPIInput(messages []portllm.Message) []map[string]any {
+	items := make([]map[string]any, 0, len(messages))
 	for _, msg := range messages {
 		if len(msg.ToolCalls) > 0 {
 			for _, item := range msg.ToolCalls {
@@ -85,7 +87,7 @@ func buildOpenRouterResponsesAPIInput(messages []Message) []map[string]interface
 					args = "{}"
 				}
 				callID := strings.TrimSpace(item.ToolCallID)
-				items = append(items, map[string]interface{}{
+				items = append(items, map[string]any{
 					"type":      "function_call",
 					"id":        openRouterResponsesItemID("fc", index, callID),
 					"call_id":   callID,
@@ -99,7 +101,7 @@ func buildOpenRouterResponsesAPIInput(messages []Message) []map[string]interface
 			for _, item := range msg.ToolResults {
 				index := len(items)
 				callID := strings.TrimSpace(item.ToolCallID)
-				items = append(items, map[string]interface{}{
+				items = append(items, map[string]any{
 					"type":    "function_call_output",
 					"id":      openRouterResponsesItemID("fc_output", index, callID),
 					"call_id": callID,
@@ -110,7 +112,7 @@ func buildOpenRouterResponsesAPIInput(messages []Message) []map[string]interface
 		}
 		index := len(items)
 		role := normalizeRole(msg.Role)
-		item := map[string]interface{}{
+		item := map[string]any{
 			"type":    "message",
 			"role":    role,
 			"content": buildResponsesAPIContent(msg, nil),

@@ -9,6 +9,7 @@ import {
   useMessageScrollerVisibility,
 } from "@/components/ui/message-scroller";
 import { cn } from "@/lib/utils";
+import { useScrollFadeFallbackRef } from "@/shared/hooks/use-scroll-fade-fallback-ref";
 
 type ResponseOutlineHeading = {
   label: string;
@@ -146,6 +147,7 @@ function ChatResponseOutlineRailComponent({
   const railContentRef = React.useRef<HTMLDivElement | null>(null);
   const railItemRefs = React.useRef(new Map<number, HTMLButtonElement>());
   const menuViewportRef = React.useRef<HTMLDivElement | null>(null);
+  const menuScrollFadeRef = useScrollFadeFallbackRef(menuViewportRef);
   const menuItemRefs = React.useRef(new Map<number, HTMLButtonElement>());
   const visibleMessageIDsRef = React.useRef(visibleMessageIds);
 
@@ -540,7 +542,7 @@ function ChatResponseOutlineRailComponent({
           {t("responseOutline")}
         </div>
         <div
-          ref={menuViewportRef}
+          ref={menuScrollFadeRef}
           className="scroll-fade-y scroll-fade-8 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           onMouseLeave={(event) => {
             if (!event.currentTarget.contains(document.activeElement)) {

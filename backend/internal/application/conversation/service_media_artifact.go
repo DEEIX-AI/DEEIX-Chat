@@ -8,7 +8,9 @@ import (
 	"time"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 	"go.uber.org/zap"
 )
@@ -18,7 +20,7 @@ const MessageErrorCodeMediaArtifactUnavailable = "media.artifact_unavailable"
 const generatedMediaArtifactFinalizeTimeout = 5 * time.Second
 
 // generatedMediaArtifactError 将安全的用户语义与仅供内部诊断的原始原因隔离。
-// 不实现 Unwrap，避免底层技术错误意外参与边界层错误分类或被序列化给客户端。
+// 错误链只暴露安全的应用层哨兵，底层技术原因仅保留在 cause 中供结构化诊断。
 type generatedMediaArtifactError struct {
 	mediaType string
 	stage     string
@@ -29,8 +31,8 @@ func (e *generatedMediaArtifactError) Error() string {
 	return ErrGeneratedMediaArtifactUnavailable.Error()
 }
 
-func (e *generatedMediaArtifactError) Is(target error) bool {
-	return target == ErrGeneratedMediaArtifactUnavailable
+func (e *generatedMediaArtifactError) Unwrap() error {
+	return ErrGeneratedMediaArtifactUnavailable
 }
 
 // newGeneratedMediaArtifactError 收敛媒体制品技术错误，同时保留结构化诊断所需的内部原因。
@@ -65,7 +67,7 @@ func (s *Service) finalizeGeneratedMediaArtifactFailure(
 	if s.isCanceledMediaGeneration(ctx, runID, err) {
 		status = "canceled"
 		var cancel context.CancelFunc
-		persistCtx, cancel = context.WithTimeout(context.WithoutCancel(ctx), generatedMediaArtifactFinalizeTimeout)
+		persistCtx, cancel = background.WithTimeout(ctx, generatedMediaArtifactFinalizeTimeout)
 		defer cancel()
 		finalErr = ErrMessageGenerationCanceled
 	} else if errors.Is(err, ErrGeneratedMediaArtifactUnavailable) {
@@ -77,7 +79,7 @@ func (s *Service) finalizeGeneratedMediaArtifactFailure(
 			assistantMessageID,
 			status,
 			classifyRunErrorCode(finalErr),
-			truncateError(messageErrorSummary(finalErr), 255),
+			textutil.TruncateTrimmed(messageErrorSummary(finalErr), 255),
 		)
 	}
 	return finalErr

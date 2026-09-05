@@ -2,12 +2,20 @@ package objectstorage
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
 )
+
+func TestRuntimeProviderRequiresFactory(t *testing.T) {
+	provider := NewRuntimeProvider(config.NewRuntime(config.Config{}), nil)
+	if _, err := provider.Open(t.Context()); !errors.Is(err, ErrProviderNotConfigured) {
+		t.Fatalf("Open() error = %v, want ErrProviderNotConfigured", err)
+	}
+}
 
 func TestRuntimeProviderCachesStoreUntilStorageConfigChanges(t *testing.T) {
 	runtime := config.NewRuntime(config.Config{StorageBackend: objectstore.BackendLocal, StorageRootDir: t.TempDir()})

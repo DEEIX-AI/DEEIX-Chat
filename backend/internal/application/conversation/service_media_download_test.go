@@ -155,7 +155,7 @@ func TestLogGeneratedMediaArtifactFailureIncludesOperationalContext(t *testing.T
 		t.Fatalf("expected one diagnostic log entry, got %d", len(entries))
 	}
 	fields := entries[0].ContextMap()
-	want := map[string]interface{}{
+	want := map[string]any{
 		"request_id":          "request-456",
 		"run_id":              "run-123",
 		"error_code":          MessageErrorCodeMediaArtifactUnavailable,
@@ -203,7 +203,7 @@ func TestFinalizeGeneratedMediaArtifactFailurePreservesCancellation(t *testing.T
 	if !errors.Is(err, ErrMessageGenerationCanceled) {
 		t.Fatalf("expected canceled media run, got %v", err)
 	}
-	if repo.contextError != nil || repo.status != "canceled" || repo.errorCode != "generation_canceled" {
+	if repo.contextError != nil || repo.status != "canceled" || repo.errorCode != "conversation_run.canceled" {
 		t.Fatalf("unexpected persisted cancellation: status=%q code=%q contextErr=%v", repo.status, repo.errorCode, repo.contextError)
 	}
 }

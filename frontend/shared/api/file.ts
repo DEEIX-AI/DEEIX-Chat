@@ -2,6 +2,7 @@ import { authedFetch, authedRequest } from "@/shared/api/authed-client";
 import type {
   ChatFilePolicyDTO,
   DeleteFileResult,
+  FileEmbeddingSubmissionDTO,
   FileExtractDTO,
   FileListResult,
   FileObjectDTO,
@@ -261,6 +262,23 @@ export async function getFileProcessingStatuses(
     ));
   }
   return (await Promise.all(requests)).flat();
+}
+
+export async function submitFileEmbeddings(
+  accessToken: string,
+  fileIDs: string[],
+  signal?: AbortSignal,
+): Promise<FileEmbeddingSubmissionDTO> {
+  return authedRequest<FileEmbeddingSubmissionDTO>(
+    "/api/v1/files/embeddings",
+    {
+      method: "POST",
+      accessToken,
+      body: { fileIDs },
+      signal,
+    },
+    true,
+  );
 }
 
 export async function getChatFilePolicy(accessToken: string, signal?: AbortSignal): Promise<ChatFilePolicyDTO> {

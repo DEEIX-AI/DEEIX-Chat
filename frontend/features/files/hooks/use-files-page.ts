@@ -1,21 +1,19 @@
 "use client";
 
-import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
-
-import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { useFileExtract } from "@/features/files/hooks/use-file-extract";
 import { useFileInvalidation } from "@/features/files/hooks/use-file-invalidation";
 import { useFilePreview } from "@/features/files/hooks/use-file-preview";
 import type { FileFilterValue, FileSortKey } from "@/features/files/types/files";
-import { resolveFileFilter } from "@/shared/lib/file-display";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import {
   deleteFile,
   listFiles,
   renameFile,
+  submitFileEmbeddings,
   updateFileRagOptOut,
   uploadFile,
 } from "@/shared/api/file";
@@ -25,15 +23,19 @@ import type {
   UploadFileResult,
   UserStorageQuotaDTO,
 } from "@/shared/api/file.types";
+import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
-  useFileProcessingStatusPolling,
   type FileStatusPollingResult,
+  useFileProcessingStatusPolling,
 } from "@/shared/hooks/use-file-processing-status-polling";
+import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { runBulkActionInChunks, runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
-import { isFileProcessing } from "@/shared/lib/file-processing";
+import { resolveFileFilter } from "@/shared/lib/file-display";
+import { canManuallyVectorizeFile, isFileProcessing } from "@/shared/lib/file-processing";
 import { patchByID, replaceByID, upsertByID } from "@/shared/lib/optimistic-list";
 
 const FILES_PAGE_SIZE = 100;
+const FILE_SEARCH_DEBOUNCE_MS = 250;
 
 type FilesMobileView = "list" | "detail";
 type FileContentTab = "preview" | "extract";
@@ -63,6 +65,8 @@ type UseFilesPageResult = {
   selectedFileIDs: string[];
   bulkDeleteOpen: boolean;
   bulkDeleting: boolean;
+  vectorizing: boolean;
+  vectorizingFileIDs: string[];
   hasMore: boolean;
   query: string;
   sortKey: FileSortKey;
@@ -100,6 +104,8 @@ type UseFilesPageResult = {
   onBulkDeleteRequest: () => void;
   onClearBulkDelete: () => void;
   onConfirmBulkDelete: () => Promise<void>;
+  onVectorizeFile: (fileID: string) => Promise<void>;
+  onVectorizeSelected: () => Promise<void>;
   onBackToList: () => void;
   onToggleRagOptOut: (fileID: string, current: boolean) => Promise<void>;
 };
@@ -136,10 +142,11 @@ export function useFilesPage(): UseFilesPageResult {
   const [selectedFileIDs, setSelectedFileIDs] = React.useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = React.useState(false);
   const [bulkDeleting, setBulkDeleting] = React.useState(false);
+  const [vectorizingFileIDs, setVectorizingFileIDs] = React.useState<string[]>([]);
   const [nextPage, setNextPage] = React.useState(2);
   const [hasMore, setHasMore] = React.useState(false);
   const [query, setQuery] = React.useState("");
-  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const debouncedQuery = useDebouncedValue(query.trim(), FILE_SEARCH_DEBOUNCE_MS);
   const [sortKey, setSortKey] = React.useState<FileSortKey>("created");
   const [filterKeys, setFilterKeys] = React.useState<FileFilterValue[]>([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
@@ -176,13 +183,6 @@ export function useFilesPage(): UseFilesPageResult {
   React.useEffect(() => {
     totalRef.current = total;
   }, [total]);
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedQuery(query.trim());
-    }, 220);
-    return () => window.clearTimeout(timer);
-  }, [query]);
 
   React.useEffect(() => {
     setContentTab(requestedContentTab);
@@ -374,6 +374,8 @@ export function useFilesPage(): UseFilesPageResult {
         item.embedStatus === status.embedStatus &&
         item.embedError === status.embedError &&
         item.chunkCount === status.chunkCount &&
+        item.canVectorize === status.canVectorize &&
+        item.vectorizationReason === status.vectorizationReason &&
         item.updatedAt === status.updatedAt
       )) {
         nextFiles.push(item);
@@ -392,6 +394,8 @@ export function useFilesPage(): UseFilesPageResult {
         embedStatus: status.embedStatus,
         embedError: status.embedError,
         chunkCount: status.chunkCount,
+        canVectorize: status.canVectorize,
+        vectorizationReason: status.vectorizationReason,
         updatedAt: status.updatedAt,
       });
     }
@@ -425,6 +429,7 @@ export function useFilesPage(): UseFilesPageResult {
     () => files.find((item) => item.fileID === selectedFileID) ?? null,
     [files, selectedFileID],
   );
+  const vectorizing = vectorizingFileIDs.length > 0;
 
   const { preview, open, download } = useFilePreview({
     file: selectedFile,
@@ -675,6 +680,77 @@ export function useFilesPage(): UseFilesPageResult {
     toast.success(t("toasts.bulkDeleteSucceeded", { count: successCount }));
   }, [ensureAccessToken, loadFiles, selectedFileID, selectedFileIDs, t]);
 
+  const submitVectorization = React.useCallback(async (fileIDs: string[], clearSelection: boolean) => {
+    if (vectorizing) {
+      return;
+    }
+    const normalizedFileIDs = Array.from(new Set(fileIDs.map((fileID) => fileID.trim()).filter(Boolean)));
+    if (normalizedFileIDs.length === 0) {
+      return;
+    }
+    if (normalizedFileIDs.length > 100) {
+      toast.error(t("toasts.vectorizeLimit"));
+      return;
+    }
+
+    setVectorizingFileIDs(normalizedFileIDs);
+    try {
+      const token = await ensureAccessToken();
+      if (!token) {
+        toast.error(t("toasts.sessionExpired"), { description: t("toasts.operateAfterLogin") });
+        return;
+      }
+      const result = await submitFileEmbeddings(token, normalizedFileIDs);
+      const submittedFileIDSet = new Set(result.submittedFileIDs);
+      const failedCount = result.skipped.filter(({ reason }) => ["queue_busy", "submit_failed"].includes(reason)).length;
+      if (submittedFileIDSet.size > 0) {
+        const nextFiles = filesRef.current.map((item) => submittedFileIDSet.has(item.fileID)
+          ? {
+            ...item,
+            embedStatus: "queued",
+            embedError: "",
+            canVectorize: false,
+            vectorizationReason: "processing",
+          }
+          : item);
+        filesRef.current = nextFiles;
+        setFiles(nextFiles);
+      }
+      if (clearSelection) {
+        setSelectedFileIDs((current) => current.filter((fileID) => !submittedFileIDSet.has(fileID)));
+      }
+      if (failedCount > 0) {
+        toast.warning(t("toasts.vectorizePartial", { submitted: result.submittedFileIDs.length, failed: failedCount }));
+      } else if (result.submittedFileIDs.length === 0) {
+        toast.info(t("toasts.vectorizeNoChanges"));
+      } else {
+        toast.success(t("toasts.vectorizeSubmitted", { count: result.submittedFileIDs.length }), {
+          description: result.skipped.length > 0
+            ? t("toasts.vectorizeSkipped", { count: result.skipped.length })
+            : undefined,
+        });
+      }
+    } catch (error) {
+      toast.error(t("toasts.vectorizeFailed"), {
+        description: resolveErrorMessage(error, t("toasts.vectorizeFailed")),
+      });
+    } finally {
+      setVectorizingFileIDs([]);
+    }
+  }, [ensureAccessToken, resolveErrorMessage, t, vectorizing]);
+
+  const onVectorizeFile = React.useCallback(async (fileID: string) => {
+    await submitVectorization([fileID], false);
+  }, [submitVectorization]);
+
+  const onVectorizeSelected = React.useCallback(async () => {
+    const selectedFileIDSet = new Set(selectedFileIDs);
+    const fileIDs = filesRef.current
+      .filter((file) => selectedFileIDSet.has(file.fileID) && canManuallyVectorizeFile(file))
+      .map((file) => file.fileID);
+    await submitVectorization(fileIDs, true);
+  }, [selectedFileIDs, submitVectorization]);
+
   const onRenameCommit = React.useCallback(
     async (fileID: string, currentFileName: string) => {
       const nextFileName = renameValue.trim();
@@ -855,6 +931,8 @@ export function useFilesPage(): UseFilesPageResult {
     selectedFileIDs,
     bulkDeleteOpen,
     bulkDeleting,
+    vectorizing,
+    vectorizingFileIDs,
     hasMore,
     query,
     sortKey,
@@ -892,6 +970,8 @@ export function useFilesPage(): UseFilesPageResult {
     onBulkDeleteRequest,
     onClearBulkDelete,
     onConfirmBulkDelete,
+    onVectorizeFile,
+    onVectorizeSelected,
     onBackToList,
     onToggleRagOptOut,
   };

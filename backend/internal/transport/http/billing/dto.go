@@ -109,7 +109,6 @@ type UpdateBillingPlanRequest struct {
 	Name              string   `json:"name" binding:"required,min=1,max=64"`
 	Description       *string  `json:"description" binding:"required,max=255"`
 	PeriodCreditUSD   *float64 `json:"periodCreditUSD" binding:"required,gte=0"`
-	DiscountPercent   *int     `json:"discountPercent" binding:"required,gte=0,lte=100"`
 	Currency          string   `json:"currency,omitempty" binding:"omitempty,max=16"`
 	AmountUSD         *float64 `json:"amountUSD" binding:"required,gte=0"`
 	BillingInterval   string   `json:"billingInterval" binding:"required,oneof=month year lifetime"`
@@ -180,7 +179,6 @@ type BillingPlanResponse struct {
 	FeatureJSON         string                 `json:"featureJSON"`
 	PeriodCreditUSD     float64                `json:"periodCreditUSD"`
 	PeriodCreditNanousd int64                  `json:"periodCreditNanousd"`
-	DiscountPercent     int                    `json:"discountPercent"`
 	SortOrder           int                    `json:"sortOrder"`
 	IsActive            bool                   `json:"isActive"`
 	PermissionGroupID   *uint                  `json:"permissionGroupID" extensions:"x-nullable,!x-omitempty"`
@@ -360,6 +358,8 @@ type BillingOverviewResponse struct {
 	PeriodRemainingUSD       float64                           `json:"periodRemainingUSD"`
 	PeriodRemainingNanousd   int64                             `json:"periodRemainingNanousd"`
 	Account                  *BillingAccountResponse           `json:"account" extensions:"x-nullable,!x-omitempty"`
+	TotalSpentUSD            float64                           `json:"totalSpentUSD"`
+	TotalSpentNanousd        int64                             `json:"totalSpentNanousd"`
 	SubscriptionEntitlements []SubscriptionEntitlementResponse `json:"subscriptionEntitlements"`
 }
 
@@ -683,11 +683,11 @@ type RedemptionApplyResponseDoc struct {
 
 // ErrorDoc 错误响应。
 type ErrorDoc struct {
-	ErrorMsg  string      `json:"errorMsg"`
-	ErrorCode string      `json:"errorCode,omitempty"`
-	Details   interface{} `json:"details,omitempty"`
-	RequestID string      `json:"requestId,omitempty"`
-	Data      interface{} `json:"data"`
+	ErrorMsg  string `json:"errorMsg"`
+	ErrorCode string `json:"errorCode,omitempty"`
+	Details   any    `json:"details,omitempty"`
+	RequestID string `json:"requestId,omitempty"`
+	Data      any    `json:"data"`
 }
 
 // ── mapping 函数 ─────────────────────────────────────────────────────────────
@@ -715,7 +715,6 @@ func toPlanListResponse(views []appbilling.BillingPlanView) []BillingPlanRespons
 			FeatureJSON:         v.FeatureJSON,
 			PeriodCreditUSD:     nanousdToUSD(v.PeriodCreditNanousd),
 			PeriodCreditNanousd: v.PeriodCreditNanousd,
-			DiscountPercent:     v.DiscountPercent,
 			SortOrder:           v.SortOrder,
 			IsActive:            v.IsActive,
 			PermissionGroupID:   v.PermissionGroupID,
@@ -867,6 +866,8 @@ func toBillingOverviewResponse(item *appbilling.BillingOverview) BillingOverview
 		PeriodRemainingUSD:       nanousdToUSD(item.PeriodRemainingNanousd),
 		PeriodRemainingNanousd:   item.PeriodRemainingNanousd,
 		Account:                  toBillingAccountViewResponse(item.Account),
+		TotalSpentUSD:            nanousdToUSD(item.TotalSpentNanousd),
+		TotalSpentNanousd:        item.TotalSpentNanousd,
 		SubscriptionEntitlements: toSubscriptionEntitlementResponses(item.SubscriptionEntitlements),
 	}
 }
@@ -992,7 +993,7 @@ func usagePricingSnapshotIdentity(value string) usagePricingSnapshotIdentityResu
 	if strings.TrimSpace(value) == "" {
 		return usagePricingSnapshotIdentityResult{}
 	}
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal([]byte(value), &payload); err != nil {
 		return usagePricingSnapshotIdentityResult{}
 	}
@@ -1002,7 +1003,7 @@ func usagePricingSnapshotIdentity(value string) usagePricingSnapshotIdentityResu
 	}
 }
 
-func stringSnapshotField(payload map[string]interface{}, key string) string {
+func stringSnapshotField(payload map[string]any, key string) string {
 	value, ok := payload[key]
 	if !ok {
 		return ""
@@ -1018,7 +1019,7 @@ func sanitizeUsagePricingSnapshotJSON(value string) string {
 	if strings.TrimSpace(value) == "" {
 		return "{}"
 	}
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal([]byte(value), &payload); err != nil {
 		return "{}"
 	}
@@ -1030,18 +1031,18 @@ func sanitizeUsagePricingSnapshotJSON(value string) string {
 	return string(result)
 }
 
-func deleteUpstreamNameSnapshotFields(payload map[string]interface{}, parentKey string) {
+func deleteUpstreamNameSnapshotFields(payload map[string]any, parentKey string) {
 	for key, value := range payload {
 		if isUpstreamNameSnapshotField(key, parentKey) {
 			delete(payload, key)
 			continue
 		}
 		switch child := value.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			deleteUpstreamNameSnapshotFields(child, key)
-		case []interface{}:
+		case []any:
 			for _, item := range child {
-				if itemMap, ok := item.(map[string]interface{}); ok {
+				if itemMap, ok := item.(map[string]any); ok {
 					deleteUpstreamNameSnapshotFields(itemMap, key)
 				}
 			}
@@ -1167,7 +1168,6 @@ func planUpdateInputFromRequest(req UpdateBillingPlanRequest) appbilling.PlanUpd
 		Name:                req.Name,
 		Description:         *req.Description,
 		PeriodCreditNanousd: usdToNanousd(*req.PeriodCreditUSD),
-		DiscountPercent:     *req.DiscountPercent,
 		Currency:            req.Currency,
 		AmountCents:         usdToCents(*req.AmountUSD),
 		BillingInterval:     req.BillingInterval,

@@ -2,6 +2,7 @@ package pdfrender
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -50,7 +51,7 @@ func New() *Renderer {
 
 func (r *Renderer) RenderPageJPEG(ctx context.Context, req Request) ([]byte, error) {
 	if r == nil || r.backend == nil {
-		return nil, fmt.Errorf(errRendererUnavailable)
+		return nil, errors.New(errRendererUnavailable)
 	}
 	sourcePath := strings.TrimSpace(req.SourcePath)
 	if sourcePath == "" {

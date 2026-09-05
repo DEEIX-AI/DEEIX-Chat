@@ -8,14 +8,12 @@ import (
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
 const (
-	defaultPageSize                     = 20
-	maxPageSize                         = 1000
-	maxMessagePageSize                  = 1000
 	conversationPreviewMessageLimit     = 10
 	conversationPreviewAncestorMaxDepth = 100
 	conversationExportVersion           = 1
@@ -39,6 +37,18 @@ type ConversationSearchResult struct {
 	Conversation model.Conversation
 }
 
+// ListConversationsInput 描述用户会话列表的分页与筛选条件。
+type ListConversationsInput struct {
+	UserID        uint
+	Page          int
+	PageSize      int
+	StatusFilter  string
+	StarredFilter string
+	ShareFilter   string
+	ProjectFilter string
+	SearchQuery   string
+}
+
 // CreateConversation 创建用户新会话。
 func (s *Service) CreateConversation(ctx context.Context, userID uint, title string, modelName string, projectPublicID string) (*model.Conversation, error) {
 	normalizedTitle := strings.TrimSpace(title)
@@ -59,6 +69,18 @@ func (s *Service) CreateConversation(ctx context.Context, userID uint, title str
 		}
 		project = resolvedProject
 		projectID = &project.ID
+		if normalizedModel == "" {
+			projectDefaultModel := strings.TrimSpace(project.DefaultModel)
+			if projectDefaultModel != "" {
+				available, availabilityErr := s.isAvailableConversationProjectDefaultModel(ctx, userID, projectDefaultModel)
+				if availabilityErr != nil {
+					return nil, availabilityErr
+				}
+				if available {
+					normalizedModel = projectDefaultModel
+				}
+			}
+		}
 	}
 
 	item := &model.Conversation{
@@ -88,19 +110,18 @@ func (s *Service) CreateConversation(ctx context.Context, userID uint, title str
 }
 
 // ListConversations 分页查询会话。
-func (s *Service) ListConversations(
-	ctx context.Context,
-	userID uint,
-	page int,
-	pageSize int,
-	statusFilter string,
-	starredFilter string,
-	shareFilter string,
-	projectFilter string,
-	searchQuery string,
-) ([]model.Conversation, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
-	return s.repo.ListConversationsByUser(ctx, userID, offset, limit, statusFilter, starredFilter, shareFilter, normalizeConversationProjectFilter(projectFilter), searchQuery)
+func (s *Service) ListConversations(ctx context.Context, input ListConversationsInput) ([]model.Conversation, int64, error) {
+	offset, limit := pagination.Offset(input.Page, input.PageSize)
+	return s.repo.ListConversationsByUser(ctx, repository.ConversationListInput{
+		UserID:        input.UserID,
+		Offset:        offset,
+		Limit:         limit,
+		StatusFilter:  input.StatusFilter,
+		StarredFilter: input.StarredFilter,
+		ShareFilter:   input.ShareFilter,
+		ProjectFilter: normalizeConversationProjectFilter(input.ProjectFilter),
+		SearchQuery:   input.SearchQuery,
+	})
 }
 
 // SearchConversations 分页搜索当前用户的会话，并通过前瞻记录判断是否还有下一页。
@@ -111,7 +132,7 @@ func (s *Service) SearchConversations(
 	pageSize int,
 	searchQuery string,
 ) ([]ConversationSearchResult, bool, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	items, err := s.repo.ListConversationsForSearch(
 		ctx,
 		userID,
@@ -142,7 +163,7 @@ func (s *Service) ListMessages(ctx context.Context, userID uint, conversationID 
 		return nil, 0, ErrConversationNotFound
 	}
 
-	offset, limit := normalizeMessagePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	items, total, err := s.repo.ListMessages(ctx, conversationID, offset, limit)
 	if err != nil {
 		return nil, 0, err
@@ -165,7 +186,7 @@ func (s *Service) ListMessagesBeforeID(ctx context.Context, userID uint, convers
 		return nil, 0, ErrConversationNotFound
 	}
 
-	_, limit := normalizeMessagePage(1, pageSize)
+	_, limit := pagination.Normalize(1, pageSize)
 	items, total, err := s.repo.ListMessagesBeforeID(ctx, conversationID, beforeID, limit)
 	if err != nil {
 		return nil, 0, err
@@ -197,7 +218,7 @@ func (s *Service) ExportConversation(ctx context.Context, userID uint, publicID 
 		return nil, err
 	}
 
-	runs, err := s.repo.ListConversationRunsByRunIDs(ctx, userID, conversation.ID, collectExportMessageRunIDs(items))
+	runs, err := s.repo.ListConversationRunsByRunIDs(ctx, userID, conversation.ID, model.CollectMessageRunIDs(items))
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +262,7 @@ func (s *Service) ExportConversationData(ctx context.Context, conversation *mode
 	}
 
 	var runs []model.Run
-	runIDs := collectExportMessageRunIDs(items)
+	runIDs := model.CollectMessageRunIDs(items)
 	if len(runIDs) > 0 && conversation.UserID > 0 {
 		var runsErr error
 		runs, runsErr = s.repo.ListConversationRunsByRunIDs(ctx, conversation.UserID, conversation.ID, runIDs)
@@ -268,23 +289,6 @@ func (s *Service) ExportConversationData(ctx context.Context, conversation *mode
 
 func exportDefaultMessagePublicIDs(items []model.Message) []string {
 	return publicIDsFromMessages(buildLatestVisibleMessages(items))
-}
-
-func collectExportMessageRunIDs(items []model.Message) []string {
-	seen := make(map[string]struct{}, len(items))
-	runIDs := make([]string, 0, len(items))
-	for _, item := range items {
-		runID := strings.TrimSpace(item.RunID)
-		if runID == "" {
-			continue
-		}
-		if _, ok := seen[runID]; ok {
-			continue
-		}
-		seen[runID] = struct{}{}
-		runIDs = append(runIDs, runID)
-	}
-	return runIDs
 }
 
 // ListRecentMessages 查询会话最近消息窗口，供对话页恢复最新上下文。
@@ -513,7 +517,7 @@ func (s *Service) ListConversationRuns(
 		return nil, 0, ErrConversationNotFound
 	}
 
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	return s.repo.ListConversationRuns(ctx, userID, conversationID, offset, limit)
 }
 
@@ -541,7 +545,7 @@ type EventLogListFilter struct {
 
 // ListConversationEventLogs 分页查询管理员对话事件。
 func (s *Service) ListConversationEventLogs(ctx context.Context, page int, pageSize int, filter EventLogListFilter) ([]model.EventLog, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	return s.repo.ListConversationEventLogs(ctx, repository.ConversationEventLogListFilter{
 		Query:          filter.Query,
 		EventScope:     filter.EventScope,
@@ -564,6 +568,28 @@ func (s *Service) GetConversationEventLog(ctx context.Context, eventID uint) (*m
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrConversationEventNotFound
+		}
+		return nil, err
+	}
+	return item, nil
+}
+
+// GetConversationToolCallDetail 查询当前用户指定运行内的工具调用结果详情。
+func (s *Service) GetConversationToolCallDetail(
+	ctx context.Context,
+	userID uint,
+	runID string,
+	toolCallID string,
+) (*model.ToolCallDetail, error) {
+	runID = strings.TrimSpace(runID)
+	toolCallID = strings.TrimSpace(toolCallID)
+	if userID == 0 || runID == "" || toolCallID == "" {
+		return nil, ErrToolCallNotFound
+	}
+	item, err := s.repo.GetConversationToolCallDetail(ctx, userID, runID, toolCallID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrToolCallNotFound
 		}
 		return nil, err
 	}
@@ -611,32 +637,7 @@ func (s *Service) ListConversationRunStatusesByRunIDs(
 	return s.repo.ListConversationRunStatusesByRunIDs(ctx, userID, normalized)
 }
 
-func normalizePage(page int, pageSize int) (int, int) {
-	return normalizePageWithMax(page, pageSize, maxPageSize)
-}
-
-func normalizeMessagePage(page int, pageSize int) (int, int) {
-	return normalizePageWithMax(page, pageSize, maxMessagePageSize)
-}
-
 func normalizeRecentMessageLimit(limit int) int {
-	_, normalizedLimit := normalizeMessagePage(1, limit)
+	_, normalizedLimit := pagination.Normalize(1, limit)
 	return normalizedLimit
-}
-
-func normalizePageWithMax(page int, pageSize int, maxAllowedPageSize int) (int, int) {
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = defaultPageSize
-	}
-	if maxAllowedPageSize > 0 && pageSize > maxAllowedPageSize {
-		pageSize = maxAllowedPageSize
-	}
-	offset := (page - 1) * pageSize
-	if offset < 0 {
-		offset = 0
-	}
-	return offset, pageSize
 }

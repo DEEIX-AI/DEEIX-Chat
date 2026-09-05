@@ -5,8 +5,10 @@ import (
 	"errors"
 	"strings"
 
+	appaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	domainpromptpreset "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/promptpreset"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 )
 
 const (
@@ -22,7 +24,7 @@ type Service struct {
 }
 
 type auditWriter interface {
-	Write(ctx context.Context, requestID string, actorUserID uint, action string, resource string, resourceID string, ip string, userAgent string, detail interface{})
+	Write(ctx context.Context, input appaudit.WriteInput)
 }
 
 // NewService 创建预制提示词服务。
@@ -43,7 +45,7 @@ type AuditInput struct {
 	ResourceID string
 	ClientIP   string
 	UserAgent  string
-	Detail     interface{}
+	Detail     any
 }
 
 // RecordAudit 记录预制提示词审计日志。
@@ -51,17 +53,16 @@ func (s *Service) RecordAudit(ctx context.Context, input AuditInput) {
 	if s.auditWriter == nil {
 		return
 	}
-	s.auditWriter.Write(
-		ctx,
-		strings.TrimSpace(input.RequestID),
-		input.UserID,
-		strings.TrimSpace(input.Action),
-		"prompt_presets",
-		strings.TrimSpace(input.ResourceID),
-		strings.TrimSpace(input.ClientIP),
-		strings.TrimSpace(input.UserAgent),
-		input.Detail,
-	)
+	s.auditWriter.Write(ctx, appaudit.WriteInput{
+		RequestID:   input.RequestID,
+		ActorUserID: input.UserID,
+		Action:      input.Action,
+		Resource:    "prompt_presets",
+		ResourceID:  input.ResourceID,
+		IP:          input.ClientIP,
+		UserAgent:   input.UserAgent,
+		Detail:      input.Detail,
+	})
 }
 
 // ListVisible 查询当前用户可在 slash 选择器中使用的提示词。
@@ -69,11 +70,11 @@ func (s *Service) ListVisible(ctx context.Context, userID uint, input ListInput)
 	if userID == 0 {
 		return nil, 0, repository.ErrInvalidInput
 	}
-	page, pageSize := normalizePage(input.Page, input.PageSize)
+	offset, limit := pagination.Offset(input.Page, input.PageSize)
 	return s.repo.ListPromptPresets(ctx, repository.PromptPresetListFilter{
 		Query:         strings.TrimSpace(input.Query),
 		VisibleUserID: &userID,
-	}, (page-1)*pageSize, pageSize)
+	}, offset, limit)
 }
 
 // ListMine 查询当前用户自定义提示词。
@@ -81,23 +82,23 @@ func (s *Service) ListMine(ctx context.Context, userID uint, input ListInput) ([
 	if userID == 0 {
 		return nil, 0, repository.ErrInvalidInput
 	}
-	page, pageSize := normalizePage(input.Page, input.PageSize)
+	offset, limit := pagination.Offset(input.Page, input.PageSize)
 	return s.repo.ListPromptPresets(ctx, repository.PromptPresetListFilter{
 		Query:       strings.TrimSpace(input.Query),
 		Scope:       domainpromptpreset.ScopeUser,
 		OwnerUserID: &userID,
 		Enabled:     input.Enabled,
-	}, (page-1)*pageSize, pageSize)
+	}, offset, limit)
 }
 
 // ListAdminBuiltin 查询管理员内置提示词列表。
 func (s *Service) ListAdminBuiltin(ctx context.Context, input ListInput) ([]domainpromptpreset.PromptPreset, int64, error) {
-	page, pageSize := normalizePage(input.Page, input.PageSize)
+	offset, limit := pagination.Offset(input.Page, input.PageSize)
 	return s.repo.ListPromptPresets(ctx, repository.PromptPresetListFilter{
 		Query:   strings.TrimSpace(input.Query),
 		Scope:   domainpromptpreset.ScopeBuiltin,
 		Enabled: input.Enabled,
-	}, (page-1)*pageSize, pageSize)
+	}, offset, limit)
 }
 
 // CreateUser 创建用户自定义提示词。
@@ -327,20 +328,6 @@ func normalizeTrigger(value string) string {
 
 func runeCount(value string) int {
 	return len([]rune(value))
-}
-
-func normalizePage(page int, pageSize int) (int, int) {
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = 20
-	}
-	const maxPageSize = 1000
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	return page, pageSize
 }
 
 func mapRepositoryError(err error) error {

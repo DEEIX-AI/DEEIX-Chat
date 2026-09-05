@@ -6,6 +6,7 @@ import (
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	models "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
@@ -42,7 +43,7 @@ func (r *Repo) CreateConversationProject(ctx context.Context, item *domainconver
 		}
 		return replaceConversationProjectKnowledgeBases(tx, entity.ID, entity.UserID, knowledgeBaseIDs)
 	}); err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	*item = toConversationProjectDomain(entity)
 	item.DefaultMCPToolIDs = mcpToolIDs
@@ -68,7 +69,7 @@ func (r *Repo) ListConversationProjects(ctx context.Context, userID uint, status
 		Order("sort_order ASC").
 		Order("id DESC").
 		Find(&items).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	results := toConversationProjectDomains(items)
 	if err := r.hydrateConversationProjectDefaults(ctx, results); err != nil {
@@ -83,7 +84,7 @@ func (r *Repo) GetConversationProjectByPublicID(ctx context.Context, userID uint
 	if err := r.db.WithContext(ctx).
 		Where("user_id = ? AND public_id = ?", userID, strings.TrimSpace(publicID)).
 		First(&item).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toConversationProjectDomain(item)
 	projects := []domainconversation.ConversationProject{result}
@@ -101,7 +102,7 @@ func (r *Repo) UpdateConversationProjectMetadataByPublicID(
 	publicID string,
 	patch domainconversation.ConversationProjectPatch,
 ) (*domainconversation.ConversationProject, error) {
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	if patch.Name != nil {
 		updates["name"] = *patch.Name
 	}
@@ -110,6 +111,9 @@ func (r *Repo) UpdateConversationProjectMetadataByPublicID(
 	}
 	if patch.SystemPrompt != nil {
 		updates["system_prompt"] = *patch.SystemPrompt
+	}
+	if patch.DefaultModel != nil {
+		updates["default_model"] = *patch.DefaultModel
 	}
 	if patch.MCPDefaultMode != nil {
 		updates["mcp_default_mode"] = *patch.MCPDefaultMode
@@ -153,7 +157,7 @@ func (r *Repo) UpdateConversationProjectMetadataByPublicID(
 		}
 		return nil
 	}); err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return r.GetConversationProjectByPublicID(ctx, userID, publicID)
 }
@@ -163,32 +167,31 @@ func (r *Repo) DeleteConversationProjectByPublicID(
 	ctx context.Context,
 	userID uint,
 	publicID string,
-	deleteConversations bool,
-	deleteFiles bool,
+	options repository.DeleteConversationProjectOptions,
 ) ([]string, error) {
 	normalizedPublicID := strings.TrimSpace(publicID)
 	cleanupFileIDs := make([]string, 0)
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var project models.ConversationProject
 		if err := tx.Where("user_id = ? AND public_id = ?", userID, normalizedPublicID).First(&project).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		// 项目删除与会话归属处理必须保持原子性，避免项目删除后留下不可见的项目引用。
-		if deleteConversations {
+		if options.DeleteConversations {
 			conversationIDs := make([]uint, 0)
-			if deleteFiles {
+			if options.DeleteFiles {
 				if err := tx.Model(&models.Conversation{}).
 					Where("user_id = ? AND project_id = ?", userID, project.ID).
 					Pluck("id", &conversationIDs).Error; err != nil {
-					return translateError(err)
+					return dberror.Translate(err)
 				}
 			}
 			if err := tx.
 				Where("user_id = ? AND project_id = ?", userID, project.ID).
 				Delete(&models.Conversation{}).Error; err != nil {
-				return translateError(err)
+				return dberror.Translate(err)
 			}
-			if deleteFiles {
+			if options.DeleteFiles {
 				fileIDs, err := listConversationFileCleanupCandidates(tx, userID, conversationIDs)
 				if err != nil {
 					return err
@@ -199,25 +202,25 @@ func (r *Repo) DeleteConversationProjectByPublicID(
 			if err := tx.Model(&models.Conversation{}).
 				Where("user_id = ? AND project_id = ?", userID, project.ID).
 				Update("project_id", nil).Error; err != nil {
-				return translateError(err)
+				return dberror.Translate(err)
 			}
 		}
 		if err := tx.Where("project_id = ?", project.ID).Delete(&models.ConversationProjectMCPTool{}).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		if err := tx.Where("project_id = ?", project.ID).Delete(&models.ConversationProjectSkill{}).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		if err := tx.Where("project_id = ?", project.ID).Delete(&models.ConversationProjectKnowledgeBase{}).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		if err := tx.Delete(&project).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return cleanupFileIDs, nil
 }
@@ -227,13 +230,13 @@ func (r *Repo) ReorderConversationProjects(ctx context.Context, userID uint, pub
 	if len(publicIDs) == 0 {
 		return nil
 	}
-	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for index, publicID := range publicIDs {
 			result := tx.Model(&models.ConversationProject{}).
 				Where("user_id = ? AND public_id = ?", userID, strings.TrimSpace(publicID)).
 				Update("sort_order", index+1)
 			if result.Error != nil {
-				return translateError(result.Error)
+				return dberror.Translate(result.Error)
 			}
 			if result.RowsAffected == 0 {
 				return repository.ErrNotFound
@@ -255,7 +258,7 @@ func (r *Repo) UpdateConversationProjectAssignmentByPublicID(
 		Where("user_id = ? AND public_id = ?", userID, strings.TrimSpace(conversationPublicID)).
 		Update("project_id", projectID)
 	if result.Error != nil {
-		return nil, translateError(result.Error)
+		return nil, dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return nil, repository.ErrNotFound
@@ -278,7 +281,7 @@ func (r *Repo) BatchUpdateConversationProjectByPublicIDs(
 		Where("user_id = ? AND public_id IN ?", userID, conversationPublicIDs).
 		Update("project_id", projectID)
 	if result.Error != nil {
-		return 0, translateError(result.Error)
+		return 0, dberror.Translate(result.Error)
 	}
 	return result.RowsAffected, nil
 }
@@ -295,6 +298,7 @@ func toConversationProjectDomain(item models.ConversationProject) domainconversa
 		Name:           item.Name,
 		Description:    item.Description,
 		SystemPrompt:   item.SystemPrompt,
+		DefaultModel:   item.DefaultModel,
 		MCPDefaultMode: mcpDefaultMode,
 		Color:          item.Color,
 		Icon:           item.Icon,
@@ -323,6 +327,7 @@ func toConversationProjectModel(item *domainconversation.ConversationProject) mo
 		Name:           item.Name,
 		Description:    item.Description,
 		SystemPrompt:   item.SystemPrompt,
+		DefaultModel:   item.DefaultModel,
 		MCPDefaultMode: item.MCPDefaultMode,
 		Color:          item.Color,
 		Icon:           item.Icon,
@@ -346,14 +351,14 @@ func (r *Repo) hydrateConversationProjectDefaults(ctx context.Context, items []d
 		Where("project_id IN ?", projectIDs).
 		Order("project_id ASC, sort_order ASC, tool_id ASC").
 		Find(&mcpRows).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	skillRows := make([]models.ConversationProjectSkill, 0)
 	if err := r.db.WithContext(ctx).
 		Where("project_id IN ?", projectIDs).
 		Order("project_id ASC, sort_order ASC, skill_id ASC").
 		Find(&skillRows).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	knowledgeBaseRows := make([]struct {
 		ProjectID uint
@@ -369,7 +374,7 @@ func (r *Repo) hydrateConversationProjectDefaults(ctx context.Context, items []d
 			domainknowledgebase.ScopeBuiltin, domainknowledgebase.ScopeUser).
 		Order("project_bases.project_id ASC, project_bases.sort_order ASC, project_bases.knowledge_base_id ASC").
 		Scan(&knowledgeBaseRows).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 
 	mcpIDsByProject := make(map[uint][]uint, len(items))

@@ -2,16 +2,32 @@ package embedding
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	infraembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
+	"go.uber.org/zap"
 )
+
+func newTestService(cfg config.Config, repo repository.EmbeddingRepository, extractSvc *extraction.Service, embedClient EmbeddingClient, logger *zap.Logger) *Service {
+	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, extractSvc, embedClient, logger)
+}
+
+func TestNewServiceWithRuntimeDoesNotSynthesizeExtractionDependency(t *testing.T) {
+	service := NewServiceWithRuntime(config.NewRuntime(config.Config{}), nil, nil, nil, nil)
+	if service.extractSvc != nil {
+		t.Fatal("expected nil extraction dependency to remain explicit")
+	}
+}
 
 func TestL2NormalizeSupportsMaximumConfiguredDimensions(t *testing.T) {
 	input := make([]float32, 4096)
@@ -27,7 +43,7 @@ func TestL2NormalizeSupportsMaximumConfiguredDimensions(t *testing.T) {
 }
 
 func TestShouldTriggerIncludesOCRImages(t *testing.T) {
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		RAGEnabled:             true,
 		EmbeddingEnabled:       true,
 		EmbedTriggerOnUpload:   true,
@@ -50,7 +66,7 @@ func TestShouldTriggerIncludesOCRImages(t *testing.T) {
 }
 
 func TestShouldTriggerSkipsImagesWhenOCRDisabled(t *testing.T) {
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		RAGEnabled:             true,
 		EmbeddingEnabled:       true,
 		EmbedTriggerOnUpload:   true,
@@ -73,7 +89,7 @@ func TestShouldTriggerSkipsImagesWhenOCRDisabled(t *testing.T) {
 }
 
 func TestShouldTriggerSkipsVideos(t *testing.T) {
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		RAGEnabled:           true,
 		EmbeddingEnabled:     true,
 		EmbedTriggerOnUpload: true,
@@ -95,7 +111,7 @@ func TestShouldTriggerSkipsVideos(t *testing.T) {
 }
 
 func TestShouldTriggerDoesNotRequireRAGEnabled(t *testing.T) {
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		RAGEnabled:           false,
 		EmbeddingEnabled:     true,
 		EmbedTriggerOnUpload: true,
@@ -116,7 +132,7 @@ func TestShouldTriggerDoesNotRequireRAGEnabled(t *testing.T) {
 }
 
 func TestShouldTriggerIncludesPresentations(t *testing.T) {
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		EmbeddingEnabled:     true,
 		EmbedTriggerOnUpload: true,
 		RAGModel:             "text-embedding-test",
@@ -150,7 +166,7 @@ func TestShouldTriggerIncludesPresentations(t *testing.T) {
 
 func TestIndexingAvailableDoesNotRequireRAGEnabled(t *testing.T) {
 	repo := &reindexRepo{vectorAvailable: true}
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		RAGEnabled:       false,
 		EmbeddingEnabled: true,
 		RAGModel:         "text-embedding-test",
@@ -163,9 +179,28 @@ func TestIndexingAvailableDoesNotRequireRAGEnabled(t *testing.T) {
 	}
 }
 
+func TestIndexingAvailableCachesVectorStoreStructureCheck(t *testing.T) {
+	repo := &reindexRepo{vectorAvailable: true}
+	service := newTestService(config.Config{
+		EmbeddingEnabled: true,
+		RAGModel:         "text-embedding-test",
+		EmbeddingHost:    "http://127.0.0.1:8081",
+	}, repo, nil, infraembedding.New(security.OutboundPolicy{}), nil)
+
+	for range 2 {
+		available, reason := service.IndexingAvailable(context.Background())
+		if !available {
+			t.Fatalf("expected indexing to be available, got %s", reason)
+		}
+	}
+	if repo.vectorAvailableCalls != 1 {
+		t.Fatalf("VectorStoreAvailable() calls = %d, want 1", repo.vectorAvailableCalls)
+	}
+}
+
 func TestReindexStaleFilesDoesNotRequireRAGEnabled(t *testing.T) {
 	repo := &reindexRepo{vectorAvailable: true}
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		RAGEnabled:       false,
 		EmbeddingEnabled: true,
 		RAGModel:         "text-embedding-test",
@@ -199,12 +234,125 @@ func TestCanEmbedFileDoesNotRequireAutoTrigger(t *testing.T) {
 		Status:      "active",
 	}
 
-	service := NewService(cfg, nil, nil, nil, nil)
+	service := newTestService(cfg, nil, nil, nil, nil)
 	if service.ShouldTrigger(fileObj) {
 		t.Fatal("auto-trigger should honor EmbedTriggerOnUpload=false")
 	}
 	if !canEmbedFile(cfg, fileObj) {
 		t.Fatal("manual reindex eligibility should not depend on EmbedTriggerOnUpload")
+	}
+}
+
+func TestPlanFilesReturnsEligibleFilesWithoutAutoTrigger(t *testing.T) {
+	cfg := config.Config{
+		EmbeddingEnabled:          true,
+		EmbedTriggerOnUpload:      false,
+		RAGModel:                  "text-embedding-test",
+		EmbeddingHost:             "http://127.0.0.1:8081",
+		EmbeddingOutputDimensions: 1536,
+	}
+	signature := configuredModelSignature(cfg)
+	repo := &reindexRepo{
+		vectorAvailable: true,
+		files: []domainconversation.FileObject{
+			{ID: 1, UserID: 7, FileID: "eligible", FileName: "ready.txt", MimeType: "text/plain", StoragePath: "uploads/ready.txt", Status: "active", ProcessingReady: true, ExtractStatus: "none"},
+			{ID: 2, UserID: 7, FileID: "complete", FileName: "complete.txt", MimeType: "text/plain", StoragePath: "uploads/complete.txt", Status: "active", ProcessingReady: true, ExtractStatus: "ready", EmbedStatus: "ready", EmbedSignature: signature},
+			{ID: 3, UserID: 7, FileID: "video", FileName: "clip.mp4", MimeType: "video/mp4", FileCategory: "video", StoragePath: "uploads/clip.mp4", Status: "active", ProcessingReady: true, ExtractStatus: "ready"},
+			{ID: 4, UserID: 7, FileID: "extracting", FileName: "pending.txt", MimeType: "text/plain", StoragePath: "uploads/pending.txt", Status: "active", ProcessingReady: false, ExtractStatus: "processing"},
+			{ID: 5, UserID: 7, FileID: "queued", FileName: "queued.txt", MimeType: "text/plain", StoragePath: "uploads/queued.txt", Status: "active", ProcessingReady: true, ExtractStatus: "ready", EmbedStatus: "queued", EmbedSignature: signature},
+		},
+	}
+	service := newTestService(cfg, repo, nil, infraembedding.New(security.OutboundPolicy{}), nil)
+
+	plan, err := service.PlanFiles(context.Background(), 7, []string{"eligible", "complete", "video", "extracting", "queued", "missing", "eligible"})
+	if err != nil {
+		t.Fatalf("prepare files: %v", err)
+	}
+	if len(plan.Jobs) != 1 || plan.Jobs[0].FileID != "eligible" {
+		t.Fatalf("prepared jobs = %#v, want eligible", plan.Jobs)
+	}
+	wantSkipped := map[string]string{
+		"complete":   SkipReasonAlreadyReady,
+		"video":      SkipReasonUnsupported,
+		"extracting": SkipReasonNotReady,
+		"queued":     SkipReasonProcessing,
+		"missing":    SkipReasonNotFound,
+	}
+	if len(plan.Skipped) != len(wantSkipped) {
+		t.Fatalf("skipped = %#v", plan.Skipped)
+	}
+	for _, item := range plan.Skipped {
+		if wantSkipped[item.FileID] != item.Reason {
+			t.Fatalf("skip %s = %s, want %s", item.FileID, item.Reason, wantSkipped[item.FileID])
+		}
+	}
+	if len(repo.claimedFileIDs) != 0 {
+		t.Fatalf("planning must not claim files, got %#v", repo.claimedFileIDs)
+	}
+	claimed, err := service.QueueTargetedJob(context.Background(), plan.Jobs[0])
+	if err != nil || !claimed {
+		t.Fatalf("claim planned job: claimed=%v err=%v", claimed, err)
+	}
+	if len(repo.claimedFileIDs) != 1 || repo.claimedFileIDs[0] != "eligible" {
+		t.Fatalf("claimed files = %#v, want [eligible]", repo.claimedFileIDs)
+	}
+}
+
+func TestResolveFileVectorizationCapabilitiesDistinguishesOutdatedIndex(t *testing.T) {
+	cfg := config.Config{
+		EmbeddingEnabled:          true,
+		RAGModel:                  "text-embedding-test",
+		EmbeddingHost:             "http://127.0.0.1:8081",
+		EmbeddingOutputDimensions: 1536,
+	}
+	signature := configuredModelSignature(cfg)
+	service := newTestService(
+		cfg,
+		&reindexRepo{vectorAvailable: true},
+		nil,
+		infraembedding.New(security.OutboundPolicy{}),
+		nil,
+	)
+
+	capabilities := service.ResolveFileVectorizationCapabilities(context.Background(), []domainconversation.FileObject{
+		{FileID: "current", FileName: "current.txt", MimeType: "text/plain", StoragePath: "uploads/current.txt", Status: "active", ProcessingReady: true, EmbedStatus: "ready", EmbedSignature: signature},
+		{FileID: "outdated", FileName: "outdated.txt", MimeType: "text/plain", StoragePath: "uploads/outdated.txt", Status: "active", ProcessingReady: true, EmbedStatus: "ready", EmbedSignature: "legacy-signature"},
+	})
+
+	if current := capabilities["current"]; current.CanVectorize || current.Reason != SkipReasonAlreadyReady {
+		t.Fatalf("current capability = %#v, want already ready", current)
+	}
+	if outdated := capabilities["outdated"]; !outdated.CanVectorize || outdated.Reason != ReasonOutdatedIndex {
+		t.Fatalf("outdated capability = %#v, want update available", outdated)
+	}
+}
+
+func TestPlanFilesDistinguishesConfigurationFromRuntimeAvailability(t *testing.T) {
+	configured := config.Config{
+		EmbeddingEnabled:          true,
+		RAGModel:                  "text-embedding-test",
+		EmbeddingHost:             "http://127.0.0.1:8081",
+		EmbeddingOutputDimensions: 1536,
+	}
+	service := newTestService(configured, &reindexRepo{vectorAvailable: false}, nil, infraembedding.New(security.OutboundPolicy{}), nil)
+	if _, err := service.PlanFiles(context.Background(), 7, []string{"file_1"}); !errors.Is(err, ErrEmbeddingServiceUnavailable) {
+		t.Fatalf("runtime error = %v, want ErrEmbeddingServiceUnavailable", err)
+	}
+
+	disabled := newTestService(config.Config{}, &reindexRepo{}, nil, infraembedding.New(security.OutboundPolicy{}), nil)
+	if _, err := disabled.PlanFiles(context.Background(), 7, []string{"file_1"}); !errors.Is(err, ErrEmbeddingServiceNotConfigured) {
+		t.Fatalf("configuration error = %v, want ErrEmbeddingServiceNotConfigured", err)
+	}
+}
+
+func TestPlanFilesRejectsMoreThanBatchLimit(t *testing.T) {
+	service := newTestService(config.Config{}, &reindexRepo{}, nil, nil, nil)
+	fileIDs := make([]string, MaxTargetedFiles+1)
+	for i := range fileIDs {
+		fileIDs[i] = fmt.Sprintf("file_%d", i)
+	}
+	if _, err := service.PlanFiles(context.Background(), 1, fileIDs); !errors.Is(err, ErrTooManyTargetedFiles) {
+		t.Fatalf("error = %v, want ErrTooManyTargetedFiles", err)
 	}
 }
 
@@ -223,7 +371,7 @@ func TestReindexStaleFilesSkipsUnsupportedCandidates(t *testing.T) {
 			},
 		},
 	}
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		EmbeddingEnabled: true,
 		RAGModel:         "text-embedding-test",
 		EmbeddingHost:    "http://127.0.0.1:8081",
@@ -252,7 +400,7 @@ func TestReindexStaleFilesAdvancesCursorForUnsupportedCandidates(t *testing.T) {
 		})
 	}
 	repo := &reindexRepo{vectorAvailable: true, files: files}
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		EmbeddingEnabled: true,
 		RAGModel:         "text-embedding-test",
 		EmbeddingHost:    "http://127.0.0.1:8081",
@@ -287,7 +435,7 @@ func TestReindexStaleFilesDeduplicatesRunningBatch(t *testing.T) {
 		backgroundStarted: make(chan struct{}),
 		releaseBackground: make(chan struct{}),
 	}
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		EmbeddingEnabled:          true,
 		RAGModel:                  "text-embedding-test",
 		EmbeddingHost:             "http://127.0.0.1:8081",
@@ -326,7 +474,7 @@ func TestReindexStaleFilesDeduplicatesRunningBatch(t *testing.T) {
 
 func TestProcessFileDoesNotRequireRAGEnabled(t *testing.T) {
 	repo := &reindexRepo{vectorAvailable: true}
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		RAGEnabled:       false,
 		EmbeddingEnabled: true,
 		RAGModel:         "text-embedding-test",
@@ -350,7 +498,7 @@ func TestProcessFileDoesNotRequireRAGEnabled(t *testing.T) {
 
 func TestProcessFileIncludesOCRImages(t *testing.T) {
 	repo := &reindexRepo{vectorAvailable: true}
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		RAGEnabled:             true,
 		EmbeddingEnabled:       true,
 		RAGModel:               "text-embedding-test",
@@ -376,7 +524,7 @@ func TestProcessFileIncludesOCRImages(t *testing.T) {
 
 func TestProcessFileSkipsVideos(t *testing.T) {
 	repo := &reindexRepo{vectorAvailable: true}
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		RAGEnabled:       true,
 		EmbeddingEnabled: true,
 		RAGModel:         "text-embedding-test",
@@ -437,7 +585,7 @@ func TestConfiguredModelSignaturePreservesLegacyCompatibility(t *testing.T) {
 
 func TestReconcileIndexUsesConfiguredVectorSpaceSignature(t *testing.T) {
 	repo := &reindexRepo{}
-	service := NewService(config.Config{
+	service := newTestService(config.Config{
 		RAGModel:                  "embedding-model",
 		EmbeddingOutputDimensions: 4096,
 		EmbeddingModelSignature:   "current-vector-space",
@@ -500,14 +648,16 @@ func TestCompleteFileEmbeddingKeepsChangedEndpointStale(t *testing.T) {
 }
 
 type reindexRepo struct {
-	vectorAvailable   bool
-	files             []domainconversation.FileObject
-	afterIDs          []uint
-	listCalls         int
-	updateStatusCalls int
-	statusHistory     []string
-	markedSignature   string
-	onStatus          func(status string)
+	vectorAvailable      bool
+	vectorAvailableCalls int
+	files                []domainconversation.FileObject
+	afterIDs             []uint
+	listCalls            int
+	updateStatusCalls    int
+	statusHistory        []string
+	markedSignature      string
+	claimedFileIDs       []string
+	onStatus             func(status string)
 }
 
 type blockingReindexRepo struct {
@@ -538,6 +688,7 @@ func (r *blockingReindexRepo) ListFilesForReindex(ctx context.Context, limit int
 }
 
 func (r *reindexRepo) VectorStoreAvailable(context.Context) (bool, error) {
+	r.vectorAvailableCalls++
 	return r.vectorAvailable, nil
 }
 
@@ -545,11 +696,34 @@ func (r *reindexRepo) GetActiveFileObjectByID(context.Context, uint, string) (*d
 	return nil, nil
 }
 
+func (r *reindexRepo) GetActiveFileObjectsByIDs(_ context.Context, userID uint, fileIDs []string) ([]domainconversation.FileObject, error) {
+	wanted := make(map[string]struct{}, len(fileIDs))
+	for _, fileID := range fileIDs {
+		wanted[fileID] = struct{}{}
+	}
+	results := make([]domainconversation.FileObject, 0, len(fileIDs))
+	for _, file := range r.files {
+		if file.UserID != userID {
+			continue
+		}
+		if _, ok := wanted[file.FileID]; ok {
+			results = append(results, file)
+		}
+	}
+	return results, nil
+}
+
 func (r *reindexRepo) GetFileObjectProcessingByObjectID(context.Context, uint) (*domainconversation.FileObjectProcessing, error) {
 	return nil, nil
 }
 
-func (r *reindexRepo) ClaimFileEmbedding(context.Context, uint, string, string) (bool, error) {
+func (r *reindexRepo) QueueFileEmbedding(_ context.Context, _ uint, fileID string, _ string) (bool, error) {
+	r.claimedFileIDs = append(r.claimedFileIDs, fileID)
+	return true, nil
+}
+
+func (r *reindexRepo) ClaimFileEmbedding(_ context.Context, _ uint, fileID string, _ string) (bool, error) {
+	r.claimedFileIDs = append(r.claimedFileIDs, fileID)
 	return true, nil
 }
 

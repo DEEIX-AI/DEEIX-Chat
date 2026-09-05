@@ -20,8 +20,8 @@ type Repo struct {
 
 const knowledgeBaseFileSelectColumns = `
 	fo.id, fo.file_id, fo.user_id, fo.purpose, fo.file_name, fo.mime_type, fo.detected_mime,
-	fo.file_category, fo.size_bytes, fo.sha256, fo.status, fo.processing_status,
-	fo.processing_ready, fo.extract_status, fo.embed_status, fo.rag_opt_out,
+	fo.file_category, fo.size_bytes, fo.sha256, fo.storage_path, fo.status, fo.processing_status,
+	fo.processing_ready, fo.extract_status, fo.embed_status, fo.embed_signature, fo.embed_error, fo.rag_opt_out,
 	fo.chunk_count, fo.page_count, fo.created_at, fo.updated_at`
 
 // NewRepo 创建知识库仓储。
@@ -43,7 +43,7 @@ func (r *Repo) ListKnowledgeBases(ctx context.Context, filter repository.Knowled
 	query := applyListFilter(r.db.WithContext(ctx).Model(&model.KnowledgeBase{}), filter)
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	if strings.TrimSpace(filter.Sort) == "files" {
 		query = query.
@@ -53,7 +53,7 @@ func (r *Repo) ListKnowledgeBases(ctx context.Context, filter repository.Knowled
 			Group("knowledge_bases.id")
 	}
 	if err := query.Order(listOrder(filter)).Offset(offset).Limit(limit).Find(&items).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	results := toDomains(items)
 	if err := r.hydrateCounts(ctx, results); err != nil {
@@ -79,7 +79,7 @@ func (r *Repo) GetKnowledgeBaseByPublicID(ctx context.Context, publicID string) 
 func (r *Repo) GetKnowledgeBaseAccessByPublicID(ctx context.Context, publicID string) (*domainknowledgebase.KnowledgeBase, error) {
 	var item model.KnowledgeBase
 	if err := r.db.WithContext(ctx).Where("public_id = ?", strings.TrimSpace(publicID)).First(&item).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toDomain(item)
 	return &result, nil
@@ -116,7 +116,7 @@ func (r *Repo) CreateKnowledgeBase(ctx context.Context, item *domainknowledgebas
 		}
 		return nil
 	}); err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toDomain(record)
 	return &result, nil
@@ -133,7 +133,7 @@ func (r *Repo) PatchKnowledgeBase(ctx context.Context, id uint, patch repository
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&item).Error; err != nil {
 			return err
 		}
-		updates := make(map[string]interface{})
+		updates := make(map[string]any)
 		if patch.Name != nil {
 			updates["name"] = strings.TrimSpace(*patch.Name)
 		}
@@ -160,7 +160,7 @@ func (r *Repo) PatchKnowledgeBase(ctx context.Context, id uint, patch repository
 		result = toDomain(item)
 		return nil
 	}); err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	items := []domainknowledgebase.KnowledgeBase{result}
 	if err := r.hydrateCounts(ctx, items); err != nil {
@@ -204,7 +204,7 @@ func (r *Repo) DeleteKnowledgeBase(ctx context.Context, id uint) ([]repository.K
 		return nil
 	})
 	if err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return candidates, nil
 }
@@ -225,11 +225,11 @@ func (r *Repo) ListKnowledgeBaseFiles(ctx context.Context, knowledgeBaseID uint,
 		Where("kbf.knowledge_base_id = ?", knowledgeBaseID)
 	var total int64
 	if err := base.Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	items := make([]model.FileObject, 0)
 	if err := base.Select(knowledgeBaseFileSelectColumns).Order("kbf.sort_order ASC, kbf.created_at ASC").Offset(offset).Limit(limit).Scan(&items).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	return toFileDomains(items), total, nil
 }
@@ -247,12 +247,13 @@ func (r *Repo) listKnowledgeBaseFileProcessingStatuses(ctx context.Context, know
 	if len(fileIDs) > 0 {
 		if err := r.db.WithContext(ctx).Table("knowledge_base_files AS kbf").
 			Select(`
-				fo.file_id, fo.detected_mime, fo.file_category, fo.processing_status,
-				fo.processing_ready, fo.extract_status, fo.embed_status, fo.rag_opt_out, fo.chunk_count, fo.updated_at`).
+				fo.file_id, fo.file_name, fo.mime_type, fo.detected_mime, fo.file_category, fo.storage_path, fo.status,
+				fo.processing_status, fo.processing_ready, fo.extract_status, fo.embed_status, fo.embed_signature,
+				fo.embed_error, fo.rag_opt_out, fo.chunk_count, fo.updated_at`).
 			Joins("JOIN file_objects AS fo ON fo.id = kbf.file_object_id AND fo.status = ? AND fo.deleted_at IS NULL", "active").
 			Where("kbf.knowledge_base_id = ? AND fo.file_id IN ?", knowledgeBaseID, fileIDs).
 			Scan(&items).Error; err != nil {
-			return nil, translateError(err)
+			return nil, dberror.Translate(err)
 		}
 	}
 	return toFileDomains(items), nil
@@ -335,7 +336,7 @@ func (r *Repo) listKnowledgeBaseSourceFiles(
 
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	items := make([]model.FileObject, 0)
 	if err := query.Select(knowledgeBaseFileSelectColumns).
@@ -343,7 +344,7 @@ func (r *Repo) listKnowledgeBaseSourceFiles(
 		Offset(offset).
 		Limit(limit).
 		Scan(&items).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	return toFileDomains(items), total, nil
 }
@@ -363,7 +364,7 @@ func (r *Repo) GetKnowledgeBaseFile(ctx context.Context, knowledgeBaseID uint, f
 		Limit(1).
 		Scan(&item)
 	if result.Error != nil {
-		return nil, translateError(result.Error)
+		return nil, dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return nil, repository.ErrNotFound
@@ -377,7 +378,7 @@ func (r *Repo) AddKnowledgeBaseFiles(ctx context.Context, knowledgeBaseID uint, 
 	if knowledgeBaseID == 0 || actorUserID == 0 || len(fileIDs) == 0 {
 		return repository.ErrInvalidInput
 	}
-	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var base model.KnowledgeBase
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", knowledgeBaseID).First(&base).Error; err != nil {
 			return err
@@ -433,7 +434,7 @@ func (r *Repo) AddKnowledgeBaseFiles(ctx context.Context, knowledgeBaseID uint, 
 
 // RemoveKnowledgeBaseFile 将文件移出知识库，不删除文件对象。
 func (r *Repo) RemoveKnowledgeBaseFile(ctx context.Context, knowledgeBaseID uint, fileID string) error {
-	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		result := tx.Where(
 			"knowledge_base_id = ? AND file_object_id IN (?)",
 			knowledgeBaseID,
@@ -460,7 +461,7 @@ func (r *Repo) ResolveVisibleKnowledgeBaseFiles(ctx context.Context, userID uint
 		Where("public_id IN ? AND enabled = ?", publicIDs, true).
 		Where("scope = ? OR (scope = ? AND owner_user_id = ?)", domainknowledgebase.ScopeBuiltin, domainknowledgebase.ScopeUser, userID).
 		Find(&bases).Error; err != nil {
-		return nil, nil, translateError(err)
+		return nil, nil, dberror.Translate(err)
 	}
 	if len(bases) != len(publicIDs) {
 		return nil, nil, repository.ErrNotFound
@@ -479,7 +480,7 @@ func (r *Repo) ResolveVisibleKnowledgeBaseFiles(ctx context.Context, userID uint
 		Where("kbf.knowledge_base_id IN ? AND fo.status = ? AND fo.deleted_at IS NULL", baseIDs, "active").
 		Where("fo.processing_ready = ? AND fo.embed_status = ? AND fo.rag_opt_out = ? AND fo.chunk_count > 0", true, "ready", false).
 		Find(&files).Error; err != nil {
-		return nil, nil, translateError(err)
+		return nil, nil, dberror.Translate(err)
 	}
 	return domainBases, toFileDomains(files), nil
 }
@@ -531,7 +532,7 @@ func (r *Repo) loadKnowledgeBaseCounts(ctx context.Context, ids []uint) (map[uin
 		Joins("JOIN file_objects AS fo ON fo.id = kbf.file_object_id AND fo.status = ? AND fo.deleted_at IS NULL", "active").
 		Where("kbf.knowledge_base_id IN ?", ids).
 		Group("kbf.knowledge_base_id").Scan(&rows).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	counts := make(map[uint]knowledgeBaseCountRow, len(rows))
 	for _, row := range rows {
@@ -622,20 +623,8 @@ func toFileDomain(item model.FileObject) domainconversation.FileObject {
 		SizeBytes: item.SizeBytes, SHA256: item.SHA256, StoragePath: item.StoragePath, Status: item.Status,
 		ProcessingStatus: item.ProcessingStatus, ProcessingReady: item.ProcessingReady,
 		ProcessingErrorCode: item.ProcessingErrorCode, ProcessingErrorMessage: item.ProcessingErrorMessage,
-		ExtractStatus: item.ExtractStatus, EmbedStatus: item.EmbedStatus, RagOptOut: item.RagOptOut,
+		ExtractStatus: item.ExtractStatus, EmbedStatus: item.EmbedStatus, EmbedSignature: item.EmbedSignature,
+		EmbedError: item.EmbedError, RAGOptOut: item.RAGOptOut,
 		ChunkCount: item.ChunkCount, PageCount: item.PageCount, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
-}
-
-func translateError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if dberror.IsRecordNotFound(err) {
-		return repository.ErrNotFound
-	}
-	if dberror.IsUniqueConstraint(err) {
-		return repository.ErrDuplicate
-	}
-	return err
 }

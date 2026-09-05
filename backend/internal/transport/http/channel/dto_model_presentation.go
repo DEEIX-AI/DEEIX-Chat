@@ -48,7 +48,7 @@ type ModelVendorDeleteConflictDoc struct {
 	ErrorCode string                           `json:"errorCode"`
 	Details   ModelVendorDeleteConflictDetails `json:"details"`
 	RequestID string                           `json:"requestId,omitempty"`
-	Data      interface{}                      `json:"data"`
+	Data      any                              `json:"data"`
 }
 
 // ModelDisplayGroupDataResponse 模型展示分组数据响应。
@@ -108,7 +108,7 @@ type ModelIconAssetDeleteConflictDoc struct {
 	ErrorCode string                              `json:"errorCode"`
 	Details   ModelIconAssetDeleteConflictDetails `json:"details"`
 	RequestID string                              `json:"requestId,omitempty"`
-	Data      interface{}                         `json:"data"`
+	Data      any                                 `json:"data"`
 }
 
 // ModelVendorListResponseDoc 技术厂商分页响应文档。

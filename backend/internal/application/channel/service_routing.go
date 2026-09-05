@@ -15,8 +15,11 @@ import (
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"go.uber.org/zap"
 )
+
+const routeBookkeepingTimeout = 5 * time.Second
 
 // ---------------------------------------------------------------------------
 // 路由解析：权重随机负载均衡 + 上游/模型两级熔断
@@ -193,7 +196,8 @@ func (s *Service) MarkRouteSuccess(ctx context.Context, route *ResolvedRoute) {
 	if route == nil || route.UpstreamID == 0 || s.cache == nil {
 		return
 	}
-	metaCtx := bookkeepingContext(ctx)
+	metaCtx, cancel := background.WithTimeout(ctx, routeBookkeepingTimeout)
+	defer cancel()
 	if err := s.cache.ClearRateLimitBackoff(metaCtx, route.UpstreamID, route.RouteID); err != nil {
 		s.warn("clear_route_rate_limit_backoff_failed",
 			zap.Uint("upstream_id", route.UpstreamID),
@@ -225,8 +229,9 @@ func (s *Service) MarkRouteFailure(ctx context.Context, route *ResolvedRoute, ca
 		return
 	}
 
-	metaCtx := bookkeepingContext(ctx)
-	lastErrMsg := truncateMessage(strings.TrimSpace(errorMessage(cause)), 255)
+	metaCtx, cancel := background.WithTimeout(ctx, routeBookkeepingTimeout)
+	defer cancel()
+	lastErrMsg := routeFailureSummary(cause)
 	s.cache.RecordFailureMetadata(metaCtx, route.UpstreamID, lastErrMsg)
 
 	switch s.classifyRouteFailure(metaCtx, cause) {
@@ -249,14 +254,6 @@ func (s *Service) MarkRouteFailure(ctx context.Context, route *ResolvedRoute, ca
 // ---------------------------------------------------------------------------
 // 熔断辅助
 // ---------------------------------------------------------------------------
-
-// bookkeepingContext 返回一个不受请求取消影响的 context，用于后台计量写入。
-func bookkeepingContext(ctx context.Context) context.Context {
-	if ctx == nil {
-		return context.Background()
-	}
-	return context.WithoutCancel(ctx)
-}
 
 func (s *Service) recordCircuitFailure(ctx context.Context, route *ResolvedRoute, defaults domainchannel.BreakerDefaults) {
 	modelCircuitKey := routeModelCircuitKey(route)
@@ -536,11 +533,11 @@ func (s *Service) nextAPIKeyIndex(ctx context.Context, upstreamID uint) uint64 {
 			return uint64(idx)
 		}
 	}
-	return nextLocalAPIKeyIndex(upstreamID)
+	return s.nextLocalAPIKeyIndex(upstreamID)
 }
 
-func nextLocalAPIKeyIndex(upstreamID uint) uint64 {
-	counter, _ := localAPIKeyCounters.LoadOrStore(upstreamID, &atomic.Uint64{})
+func (s *Service) nextLocalAPIKeyIndex(upstreamID uint) uint64 {
+	counter, _ := s.localAPIKeyCounters.LoadOrStore(upstreamID, &atomic.Uint64{})
 	return counter.(*atomic.Uint64).Add(1) - 1
 }
 
@@ -590,20 +587,8 @@ func isCircuitFailure(cause error) bool {
 	if errors.Is(cause, context.DeadlineExceeded) {
 		return true
 	}
-	message := strings.ToLower(errorMessage(cause))
-	switch {
-	case strings.Contains(message, "timeout"),
-		strings.Contains(message, "deadline exceeded"),
-		strings.Contains(message, "connection refused"),
-		strings.Contains(message, "connection reset"),
-		strings.Contains(message, "broken pipe"),
-		strings.Contains(message, "dial tcp"),
-		strings.Contains(message, "no such host"),
-		strings.Contains(message, "eof"):
-		return true
-	default:
-		return false
-	}
+	var networkErr net.Error
+	return errors.As(cause, &networkErr)
 }
 
 // ShouldFailoverRoute reports whether a request can be retried on a different
@@ -750,9 +735,19 @@ func (s *Service) loadRateLimitDefaults(ctx context.Context) domainchannel.RateL
 	return cfg
 }
 
-func errorMessage(err error) string {
+func routeFailureSummary(err error) string {
 	if err == nil {
 		return ""
 	}
-	return err.Error()
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "upstream request timed out"
+	}
+	var upstreamErr *llm.UpstreamError
+	if errors.As(err, &upstreamErr) {
+		if upstreamErr.StatusCode > 0 {
+			return "upstream request failed with status " + strconv.Itoa(upstreamErr.StatusCode)
+		}
+		return "upstream request failed"
+	}
+	return "upstream request failed"
 }

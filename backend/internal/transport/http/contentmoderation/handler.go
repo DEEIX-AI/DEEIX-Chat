@@ -49,7 +49,7 @@ func parseOptionalRFC3339(c *gin.Context, key string) (*time.Time, bool) {
 	}
 	parsed, err := time.Parse(time.RFC3339, raw)
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid "+key)
+		response.InvalidQueryParam(c, key)
 		return nil, false
 	}
 	return &parsed, true
@@ -61,7 +61,7 @@ func parsePagination(c *gin.Context) (page int, pageSize int, ok bool) {
 	if raw := strings.TrimSpace(c.Query("page")); raw != "" {
 		parsed, err := strconv.Atoi(raw)
 		if err != nil || parsed < 1 {
-			response.Error(c, http.StatusBadRequest, "invalid page")
+			response.ErrorFrom(c, http.StatusBadRequest, errInvalidPage)
 			return 0, 0, false
 		}
 		page = parsed
@@ -69,7 +69,7 @@ func parsePagination(c *gin.Context) (page int, pageSize int, ok bool) {
 	if raw := strings.TrimSpace(c.Query("pageSize")); raw != "" {
 		parsed, err := strconv.Atoi(raw)
 		if err != nil || parsed < 1 || parsed > 100 {
-			response.Error(c, http.StatusBadRequest, "invalid pageSize")
+			response.ErrorFrom(c, http.StatusBadRequest, errInvalidPagesize)
 			return 0, 0, false
 		}
 		pageSize = parsed
@@ -112,7 +112,7 @@ func (h *Handler) GetConfig(c *gin.Context) {
 func (h *Handler) UpdateConfig(c *gin.Context) {
 	var req ContentModerationUpdateConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid request body")
+		response.InvalidRequestBody(c, err)
 		return
 	}
 	cfg, err := h.service.UpdateConfig(c.Request.Context(), middleware.MustUserRole(c), req.toApplicationInput())
@@ -181,7 +181,7 @@ func parseOptionalUserID(c *gin.Context) (uint, bool) {
 	// Limit bit size to the platform's uint width to avoid truncation on 32-bit.
 	parsed, err := strconv.ParseUint(raw, 10, strconv.IntSize)
 	if err != nil || parsed == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid userId")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidUserid)
 		return 0, false
 	}
 
@@ -306,7 +306,7 @@ func (h *Handler) GetEvent(c *gin.Context) {
 func (h *Handler) GetEventImage(c *gin.Context) {
 	index, err := strconv.Atoi(c.Param("index"))
 	if err != nil || index < 0 {
-		response.Error(c, http.StatusBadRequest, "invalid image index")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidImageIndex)
 		return
 	}
 	data, mimeType, err := h.service.OpenEventImage(
@@ -335,13 +335,13 @@ func (h *Handler) GetEventImage(c *gin.Context) {
 func writeError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, appcm.ErrSuperAdminRequired):
-		response.Error(c, http.StatusForbidden, "superadmin permission required")
+		response.ErrorFrom(c, http.StatusForbidden, appcm.ErrSuperAdminRequired)
 	case errors.Is(err, appcm.ErrAdminRequired):
-		response.Error(c, http.StatusForbidden, "admin permission required")
+		response.ErrorFrom(c, http.StatusForbidden, appcm.ErrAdminRequired)
 	case errors.Is(err, appcm.ErrEventNotFound):
-		response.Error(c, http.StatusNotFound, "content moderation event not found")
+		response.ErrorFrom(c, http.StatusNotFound, appcm.ErrEventNotFound)
 	case errors.Is(err, appcm.ErrServiceConfigRequired):
-		response.ErrorWithCode(c, http.StatusBadRequest, "content_moderation.config_required", err.Error())
+		response.ErrorWithCode(c, http.StatusBadRequest, "content_moderation.config_required")
 	case errors.Is(err, appcm.ErrInvalidBaseURL),
 		errors.Is(err, appcm.ErrInvalidModel),
 		errors.Is(err, appcm.ErrInvalidTimeout),
@@ -350,12 +350,12 @@ func writeError(c *gin.Context, err error) {
 		errors.Is(err, appcm.ErrInvalidCategories),
 		errors.Is(err, appcm.ErrImageTextOnlyCategory),
 		errors.Is(err, appcm.ErrInvalidConfig):
-		response.ErrorWithCode(c, http.StatusBadRequest, "content_moderation.invalid_config", err.Error())
+		response.ErrorWithCode(c, http.StatusBadRequest, "content_moderation.invalid_config")
 	case errors.Is(err, appcm.ErrProbeFailed):
-		response.ErrorWithCode(c, http.StatusBadRequest, "content_moderation.probe_failed", err.Error())
+		response.ErrorWithCode(c, http.StatusBadRequest, "content_moderation.probe_failed")
 	case errors.Is(err, appcm.ErrInvalidEventFilter):
-		response.ErrorWithCode(c, http.StatusBadRequest, response.CodeRequestInvalidQuery, err.Error())
+		response.ErrorWithCode(c, http.StatusBadRequest, response.CodeRequestInvalidQuery)
 	default:
-		response.Error(c, http.StatusInternalServerError, "internal server error")
+		response.InternalError(c)
 	}
 }

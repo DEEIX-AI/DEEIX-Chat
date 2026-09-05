@@ -15,13 +15,13 @@ func TestValidateUpstreamBaseURLAllowsAdministratorConfiguredPrivateOrigin(t *te
 	}
 }
 
-func TestDeleteAPIKeysByIDsRemovesSelectedKeys(t *testing.T) {
+func TestUpdateAPIKeysByIDsRemovesSelectedKeys(t *testing.T) {
 	raw := `{"strategy":"round_robin","keys":[{"key":"sk-first","status":"active"},{"key":"sk-second","status":"inactive","note":"old"},{"key":"sk-third","status":"active"}]}`
 	secret := "test-secret"
 
-	got, err := deleteAPIKeysByIDs(raw, []string{apiKeyID(secret, 1, "sk-second")}, secret)
+	got, err := updateAPIKeysByIDs(raw, []string{apiKeyID(secret, 1, "sk-second")}, nil, secret)
 	if err != nil {
-		t.Fatalf("deleteAPIKeysByIDs returned error: %v", err)
+		t.Fatalf("updateAPIKeysByIDs returned error: %v", err)
 	}
 
 	var payload apiKeysPayload
@@ -39,39 +39,39 @@ func TestDeleteAPIKeysByIDsRemovesSelectedKeys(t *testing.T) {
 	}
 }
 
-func TestDeleteAPIKeysByIDsRejectsRemovingAllKeys(t *testing.T) {
+func TestUpdateAPIKeysByIDsRejectsRemovingAllKeys(t *testing.T) {
 	raw := `{"strategy":"round_robin","keys":[{"key":"sk-first","status":"active"}]}`
 	secret := "test-secret"
 
-	if _, err := deleteAPIKeysByIDs(raw, []string{apiKeyID(secret, 0, "sk-first")}, secret); err == nil {
+	if _, err := updateAPIKeysByIDs(raw, []string{apiKeyID(secret, 0, "sk-first")}, nil, secret); err == nil {
 		t.Fatal("expected error when deleting every key")
 	}
 }
 
-func TestDeleteAPIKeysByIDsRejectsRemovingAllActiveKeys(t *testing.T) {
+func TestUpdateAPIKeysByIDsRejectsRemovingAllActiveKeys(t *testing.T) {
 	raw := `{"strategy":"round_robin","keys":[{"key":"sk-first","status":"active"},{"key":"sk-second","status":"inactive"}]}`
 	secret := "test-secret"
 
-	if _, err := deleteAPIKeysByIDs(raw, []string{apiKeyID(secret, 0, "sk-first")}, secret); err == nil {
+	if _, err := updateAPIKeysByIDs(raw, []string{apiKeyID(secret, 0, "sk-first")}, nil, secret); err == nil {
 		t.Fatal("expected error when deleting every active key")
 	}
 }
 
-func TestDeleteAPIKeysByIDsRejectsInvalidID(t *testing.T) {
+func TestUpdateAPIKeysByIDsRejectsInvalidID(t *testing.T) {
 	raw := `{"strategy":"round_robin","keys":[{"key":"sk-first","status":"active"}]}`
 
-	if _, err := deleteAPIKeysByIDs(raw, []string{"missing-key-id"}, "test-secret"); err == nil {
+	if _, err := updateAPIKeysByIDs(raw, []string{"missing-key-id"}, nil, "test-secret"); err == nil {
 		t.Fatal("expected error for invalid key id")
 	}
 }
 
-func TestDeleteAPIKeysByIDsHandlesDuplicateKeys(t *testing.T) {
+func TestUpdateAPIKeysByIDsHandlesDuplicateKeys(t *testing.T) {
 	raw := `{"strategy":"round_robin","keys":[{"key":"sk-same","status":"active"},{"key":"sk-same","status":"active"},{"key":"sk-third","status":"active"}]}`
 	secret := "test-secret"
 
-	got, err := deleteAPIKeysByIDs(raw, []string{apiKeyID(secret, 1, "sk-same")}, secret)
+	got, err := updateAPIKeysByIDs(raw, []string{apiKeyID(secret, 1, "sk-same")}, nil, secret)
 	if err != nil {
-		t.Fatalf("deleteAPIKeysByIDs returned error: %v", err)
+		t.Fatalf("updateAPIKeysByIDs returned error: %v", err)
 	}
 
 	var payload apiKeysPayload

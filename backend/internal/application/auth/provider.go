@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"net/url"
 	"regexp"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// LoginOptions describes the authentication methods enabled for the login UI.
 type LoginOptions struct {
 	UsernameEnabled              bool
 	EmailEnabled                 bool
@@ -37,12 +39,14 @@ type LoginOptions struct {
 	Providers                    []IdentityProviderView
 }
 
+// ProviderAuthBridgeOptions describes native OAuth handoff availability.
 type ProviderAuthBridgeOptions struct {
 	Enabled         bool
 	ProtocolVersion int
 	CallbackBaseURL string
 }
 
+// IdentityProviderView is the safe, user-facing view of an identity provider.
 type IdentityProviderView struct {
 	PublicID            string
 	Type                string
@@ -69,6 +73,7 @@ type IdentityProviderView struct {
 	UpdatedAt           time.Time
 }
 
+// UserIdentityView describes an identity linked to a user account.
 type UserIdentityView struct {
 	ID                  uint
 	ProviderID          uint
@@ -83,6 +88,7 @@ type UserIdentityView struct {
 	LastLoginAt         *time.Time
 }
 
+// UpsertIdentityProviderInput contains administrator-managed provider settings.
 type UpsertIdentityProviderInput struct {
 	ActorRole           string
 	Type                string
@@ -106,6 +112,51 @@ type UpsertIdentityProviderInput struct {
 	EmailVerifiedField  string
 	NameField           string
 	AvatarField         string
+}
+
+// CompleteProviderLoginInput 描述第三方登录回调的校验与审计上下文。
+type CompleteProviderLoginInput struct {
+	Slug         string
+	Code         string
+	State        string
+	RedirectURI  string
+	CodeVerifier string
+	Intent       string
+	RequestID    string
+	AuditContext requestmeta.SessionAuditContext
+}
+
+// CompleteProviderBindInput 描述将第三方身份绑定到当前用户所需的回调参数。
+type CompleteProviderBindInput struct {
+	UserID       uint
+	Slug         string
+	Code         string
+	State        string
+	RedirectURI  string
+	CodeVerifier string
+	RequestID    string
+	AuditContext requestmeta.SessionAuditContext
+}
+
+type resolveProviderUserInput struct {
+	Provider      domainuser.IdentityProvider
+	Subject       string
+	Email         string
+	DisplayName   string
+	AvatarURL     string
+	EmailVerified bool
+	ProfileJSON   string
+}
+
+type providerIdentityInput struct {
+	UserID              uint
+	Provider            domainuser.IdentityProvider
+	Subject             string
+	ProviderDisplayName string
+	Email               string
+	EmailVerified       bool
+	ProfileJSON         string
+	LinkedAt            time.Time
 }
 
 type oauthTokenResponse struct {
@@ -136,6 +187,7 @@ type providerOAuthState struct {
 	ExpiresAt     int64  `json:"expiresAt"`
 }
 
+// GetLoginOptions returns the authentication methods and providers available to the client.
 func (s *Service) GetLoginOptions(ctx context.Context) (*LoginOptions, error) {
 	cfg := s.cfg.Snapshot()
 	providerViews := []IdentityProviderView{}
@@ -159,6 +211,7 @@ func (s *Service) GetLoginOptions(ctx context.Context) (*LoginOptions, error) {
 	}, nil
 }
 
+// ListIdentityProviders returns configured identity providers for administration.
 func (s *Service) ListIdentityProviders(ctx context.Context) ([]IdentityProviderView, error) {
 	providers, err := s.repo.ListIdentityProviders(ctx, true)
 	if err != nil {
@@ -167,6 +220,7 @@ func (s *Service) ListIdentityProviders(ctx context.Context) ([]IdentityProvider
 	return toProviderViews(providers, true), nil
 }
 
+// CreateIdentityProvider validates and persists a new identity provider.
 func (s *Service) CreateIdentityProvider(ctx context.Context, input UpsertIdentityProviderInput) (*IdentityProviderView, error) {
 	provider, err := s.normalizeProviderInput(input, nil)
 	if err != nil {
@@ -181,6 +235,7 @@ func (s *Service) CreateIdentityProvider(ctx context.Context, input UpsertIdenti
 	return &view, nil
 }
 
+// UpdateIdentityProvider validates and persists changes to an identity provider.
 func (s *Service) UpdateIdentityProvider(ctx context.Context, publicID string, input UpsertIdentityProviderInput) (*IdentityProviderView, error) {
 	current, err := s.repo.GetIdentityProviderByPublicID(ctx, publicID)
 	if err != nil {
@@ -199,6 +254,7 @@ func (s *Service) UpdateIdentityProvider(ctx context.Context, publicID string, i
 	return &view, nil
 }
 
+// DeleteIdentityProvider removes an identity provider when its dependencies allow it.
 func (s *Service) DeleteIdentityProvider(ctx context.Context, publicID string, force bool) error {
 	if err := s.repo.DeleteIdentityProvider(ctx, publicID, force); err != nil {
 		var dependentErr *repository.IdentityProviderDeleteConflictError
@@ -213,10 +269,12 @@ func (s *Service) DeleteIdentityProvider(ctx context.Context, publicID string, f
 	return nil
 }
 
+// HasActiveSuperAdminIdentity reports whether a superadmin identity provider is active.
 func (s *Service) HasActiveSuperAdminIdentity(ctx context.Context) (bool, error) {
 	return s.repo.HasActiveSuperAdminIdentity(ctx)
 }
 
+// ListCurrentUserIdentities returns the identities linked to a user account.
 func (s *Service) ListCurrentUserIdentities(ctx context.Context, userID uint) ([]UserIdentityView, error) {
 	identities, err := s.repo.ListUserIdentitiesByUserID(ctx, userID)
 	if err != nil {
@@ -250,6 +308,7 @@ func (s *Service) ListCurrentUserIdentities(ctx context.Context, userID uint) ([
 	return results, nil
 }
 
+// UnlinkCurrentUserIdentity removes a linked identity after login-safety checks.
 func (s *Service) UnlinkCurrentUserIdentity(ctx context.Context, userID uint, identityID uint) error {
 	if err := s.ensureIdentityUnlinkAllowed(ctx, userID, identityID); err != nil {
 		return err
@@ -289,16 +348,17 @@ func (s *Service) ensureIdentityUnlinkAllowed(ctx context.Context, userID uint, 
 	return nil
 }
 
+// ReorderIdentityProviders persists the administrator-selected provider order.
 func (s *Service) ReorderIdentityProviders(ctx context.Context, publicIDs []string) error {
 	normalizedIDs := make([]string, 0, len(publicIDs))
 	seen := make(map[string]struct{}, len(publicIDs))
 	for _, publicID := range publicIDs {
 		normalizedID := conv.NormalizePublicID(publicID)
 		if normalizedID == "" {
-			return fmt.Errorf("provider id is required")
+			return ErrProviderIDRequired
 		}
 		if _, ok := seen[normalizedID]; ok {
-			return fmt.Errorf("provider ids must be unique")
+			return ErrProviderOrderInvalid
 		}
 		seen[normalizedID] = struct{}{}
 		normalizedIDs = append(normalizedIDs, normalizedID)
@@ -306,55 +366,46 @@ func (s *Service) ReorderIdentityProviders(ctx context.Context, publicIDs []stri
 	return s.repo.UpdateIdentityProviderSortOrders(ctx, normalizedIDs)
 }
 
-func (s *Service) CompleteProviderLogin(
-	ctx context.Context,
-	slug string,
-	code string,
-	state string,
-	redirectURI string,
-	codeVerifier string,
-	intent string,
-	requestID string,
-	auditCtx requestmeta.SessionAuditContext,
-) (*LoginResult, error) {
+// CompleteProviderLogin exchanges a provider callback for an application session.
+func (s *Service) CompleteProviderLogin(ctx context.Context, input CompleteProviderLoginInput) (*LoginResult, error) {
 	if !s.cfg.Snapshot().ThirdPartyLoginEnabled {
-		return nil, fmt.Errorf("third-party login is disabled")
+		return nil, ErrThirdPartyLoginDisabled
 	}
-	provider, err := s.repo.GetIdentityProviderBySlug(ctx, slug)
+	provider, err := s.repo.GetIdentityProviderBySlug(ctx, input.Slug)
 	if err != nil {
 		return nil, err
 	}
-	trimmedCode := strings.TrimSpace(code)
+	trimmedCode := strings.TrimSpace(input.Code)
 	if trimmedCode == "" {
-		return nil, fmt.Errorf("authorization code is required")
+		return nil, ErrAuthorizationCodeRequired
 	}
-	verifiedState, err := s.verifyProviderState(slug, redirectURI, state)
+	verifiedState, err := s.verifyProviderState(input.Slug, input.RedirectURI, input.State)
 	if err != nil {
 		return nil, err
 	}
-	if verifiedState.Intent != normalizeProviderIntent(intent) {
-		return nil, fmt.Errorf("oauth intent mismatch")
+	if verifiedState.Intent != normalizeProviderIntent(input.Intent) {
+		return nil, ErrOAuthIntentMismatch
 	}
 	if verifiedState.Intent == providerIntentLogin && !provider.LoginEnabled {
-		return nil, fmt.Errorf("provider login is disabled")
+		return nil, ErrProviderLoginDisabled
 	}
 	if verifiedState.Intent == providerIntentBind {
-		return nil, fmt.Errorf("provider bind must use account binding endpoint")
+		return nil, ErrProviderBindEndpointRequired
 	}
 	if verifiedState.Intent == providerIntentRegister {
 		if !provider.LoginEnabled || !provider.RegistrationEnabled {
-			return nil, fmt.Errorf("provider registration is disabled")
+			return nil, ErrProviderRegistrationDisabled
 		}
 	}
-	if err = validateProviderCodeVerifier(codeVerifier, verifiedState.CodeChallenge); err != nil {
+	if err = validateProviderCodeVerifier(input.CodeVerifier, verifiedState.CodeChallenge); err != nil {
 		return nil, err
 	}
 
-	userItem, subject, err := s.resolveProviderLoginCode(ctx, *provider, trimmedCode, redirectURI, strings.TrimSpace(codeVerifier), verifiedState.Intent)
+	userItem, subject, err := s.resolveProviderLoginCode(ctx, *provider, trimmedCode, input.RedirectURI, strings.TrimSpace(input.CodeVerifier))
 	if err != nil {
 		return nil, err
 	}
-	return s.completeProviderLoginForUser(ctx, userItem, provider.Slug, subject, requestID, auditCtx)
+	return s.completeProviderLoginForUser(ctx, userItem, provider.Slug, subject, input.RequestID, input.AuditContext)
 }
 
 func (s *Service) resolveProviderLoginCode(
@@ -363,7 +414,6 @@ func (s *Service) resolveProviderLoginCode(
 	code string,
 	redirectURI string,
 	codeVerifier string,
-	intent string,
 ) (*domainuser.User, string, error) {
 	tokenResponse, err := s.exchangeProviderCode(ctx, provider, code, redirectURI, codeVerifier)
 	if err != nil {
@@ -376,16 +426,24 @@ func (s *Service) resolveProviderLoginCode(
 	profileJSON, _ := json.Marshal(profile)
 	subject := claimString(profile, provider.SubjectField)
 	if subject == "" {
-		return nil, "", fmt.Errorf("provider subject is missing")
+		return nil, "", ErrProviderSubjectMissing
 	}
 	email, err := normalizeProviderEmail(claimString(profile, provider.EmailField))
 	if err != nil {
 		return nil, "", err
 	}
-	displayName := firstNonEmpty(claimString(profile, provider.NameField), email, subject)
+	displayName := textutil.FirstNonEmpty(claimString(profile, provider.NameField), email, subject)
 	avatarURL := claimString(profile, provider.AvatarField)
 	emailVerified := resolveProviderEmailVerified(profile, provider)
-	userItem, err := s.resolveProviderUser(ctx, provider, subject, email, displayName, avatarURL, emailVerified, string(profileJSON), intent)
+	userItem, err := s.resolveProviderUser(ctx, resolveProviderUserInput{
+		Provider:      provider,
+		Subject:       subject,
+		Email:         email,
+		DisplayName:   displayName,
+		AvatarURL:     avatarURL,
+		EmailVerified: emailVerified,
+		ProfileJSON:   string(profileJSON),
+	})
 	if err != nil {
 		return nil, "", err
 	}
@@ -415,17 +473,19 @@ func (s *Service) completeProviderLoginForUser(
 		}
 		s.RecordAuthEvent(
 			ctx,
-			result.User.ID,
-			requestID,
-			"provider_login",
-			"challenge",
-			"two_factor_required",
-			normalizedAuditCtx.ClientIP,
-			normalizedAuditCtx.UserAgent,
-			marshalAuthEventDetail(map[string]interface{}{
-				"provider": providerSlug,
-				"subject":  subject,
-			}),
+			repository.AuthEventInput{
+				UserID:    result.User.ID,
+				RequestID: requestID,
+				EventType: "provider_login",
+				Result:    "challenge",
+				Reason:    "two_factor_required",
+				ClientIP:  normalizedAuditCtx.ClientIP,
+				UserAgent: normalizedAuditCtx.UserAgent,
+				DetailJSON: marshalAuthEventDetail(map[string]any{
+					"provider": providerSlug,
+					"subject":  subject,
+				}),
+			},
 		)
 		return result, nil
 	}
@@ -435,62 +495,54 @@ func (s *Service) completeProviderLoginForUser(
 	}
 	s.RecordAuthEvent(
 		ctx,
-		result.User.ID,
-		requestID,
-		"provider_login",
-		"success",
-		"",
-		normalizedAuditCtx.ClientIP,
-		normalizedAuditCtx.UserAgent,
-		marshalAuthEventDetail(map[string]interface{}{
-			"provider":   providerSlug,
-			"subject":    subject,
-			"session_id": result.SessionID,
-		}),
+		repository.AuthEventInput{
+			UserID:    result.User.ID,
+			RequestID: requestID,
+			EventType: "provider_login",
+			Result:    "success",
+			ClientIP:  normalizedAuditCtx.ClientIP,
+			UserAgent: normalizedAuditCtx.UserAgent,
+			DetailJSON: marshalAuthEventDetail(map[string]any{
+				"provider":   providerSlug,
+				"subject":    subject,
+				"session_id": result.SessionID,
+			}),
+		},
 	)
 	return result, nil
 }
 
-func (s *Service) CompleteProviderBind(
-	ctx context.Context,
-	userID uint,
-	slug string,
-	code string,
-	state string,
-	redirectURI string,
-	codeVerifier string,
-	requestID string,
-	auditCtx requestmeta.SessionAuditContext,
-) (*UserIdentityView, error) {
-	if userID == 0 {
-		return nil, fmt.Errorf("unauthorized")
+// CompleteProviderBind links a provider identity to the authenticated user.
+func (s *Service) CompleteProviderBind(ctx context.Context, input CompleteProviderBindInput) (*UserIdentityView, error) {
+	if input.UserID == 0 {
+		return nil, ErrUnauthorized
 	}
 	if !s.cfg.Snapshot().ThirdPartyLoginEnabled {
-		return nil, fmt.Errorf("third-party login is disabled")
+		return nil, ErrThirdPartyLoginDisabled
 	}
-	provider, err := s.repo.GetIdentityProviderBySlug(ctx, slug)
+	provider, err := s.repo.GetIdentityProviderBySlug(ctx, input.Slug)
 	if err != nil {
 		return nil, err
 	}
 	if !provider.LoginEnabled {
-		return nil, fmt.Errorf("provider login is disabled")
+		return nil, ErrProviderLoginDisabled
 	}
-	trimmedCode := strings.TrimSpace(code)
+	trimmedCode := strings.TrimSpace(input.Code)
 	if trimmedCode == "" {
-		return nil, fmt.Errorf("authorization code is required")
+		return nil, ErrAuthorizationCodeRequired
 	}
-	verifiedState, err := s.verifyProviderState(slug, redirectURI, state)
+	verifiedState, err := s.verifyProviderState(input.Slug, input.RedirectURI, input.State)
 	if err != nil {
 		return nil, err
 	}
 	if verifiedState.Intent != providerIntentBind {
-		return nil, fmt.Errorf("oauth intent mismatch")
+		return nil, ErrOAuthIntentMismatch
 	}
-	if err = validateProviderCodeVerifier(codeVerifier, verifiedState.CodeChallenge); err != nil {
+	if err = validateProviderCodeVerifier(input.CodeVerifier, verifiedState.CodeChallenge); err != nil {
 		return nil, err
 	}
 
-	tokenResponse, err := s.exchangeProviderCode(ctx, *provider, trimmedCode, redirectURI, strings.TrimSpace(codeVerifier))
+	tokenResponse, err := s.exchangeProviderCode(ctx, *provider, trimmedCode, input.RedirectURI, strings.TrimSpace(input.CodeVerifier))
 	if err != nil {
 		return nil, err
 	}
@@ -501,20 +553,20 @@ func (s *Service) CompleteProviderBind(
 	profileJSON, _ := json.Marshal(profile)
 	subject := claimString(profile, provider.SubjectField)
 	if subject == "" {
-		return nil, fmt.Errorf("provider subject is missing")
+		return nil, ErrProviderSubjectMissing
 	}
 	normalizedEmail, err := normalizeProviderEmail(claimString(profile, provider.EmailField))
 	if err != nil {
 		return nil, err
 	}
-	providerDisplayName := firstNonEmpty(claimString(profile, provider.NameField), normalizedEmail, subject)
+	providerDisplayName := textutil.FirstNonEmpty(claimString(profile, provider.NameField), normalizedEmail, subject)
 	emailVerified := resolveProviderEmailVerified(profile, *provider)
 	now := time.Now()
 
 	existingIdentity, err := s.repo.GetUserIdentityByProviderSubject(ctx, provider.ID, subject)
 	if err == nil {
-		if existingIdentity.UserID != userID {
-			return nil, fmt.Errorf("provider identity is already bound to another account")
+		if existingIdentity.UserID != input.UserID {
+			return nil, ErrProviderIdentityConflict
 		}
 		if err = s.repo.UpdateUserIdentityLogin(ctx, existingIdentity.ID, string(profileJSON), providerDisplayName, normalizedEmail, emailVerified); err != nil {
 			return nil, err
@@ -538,42 +590,52 @@ func (s *Service) CompleteProviderBind(
 	}
 	if normalizedEmail != "" {
 		existingUser, findErr := s.repo.GetByEmail(ctx, normalizedEmail)
-		if findErr == nil && existingUser.ID != userID {
-			return nil, fmt.Errorf("provider email belongs to another account; sign in to that account or change its email before binding")
+		if findErr == nil && existingUser.ID != input.UserID {
+			return nil, fmt.Errorf("provider email belongs to another account; sign in to that account or change its email before binding: %w", ErrProviderEmailConflict)
 		}
 		if findErr != nil && !errors.Is(findErr, repository.ErrNotFound) {
 			return nil, findErr
 		}
 	}
-	currentIdentities, err := s.repo.ListUserIdentitiesByUserID(ctx, userID)
+	currentIdentities, err := s.repo.ListUserIdentitiesByUserID(ctx, input.UserID)
 	if err != nil {
 		return nil, err
 	}
 	for _, identity := range currentIdentities {
 		if identity.ProviderID == provider.ID {
-			return nil, fmt.Errorf("provider is already bound")
+			return nil, ErrProviderAlreadyBound
 		}
 	}
 
-	created, err := s.createProviderIdentity(ctx, userID, *provider, subject, providerDisplayName, normalizedEmail, emailVerified, string(profileJSON), now)
+	created, err := s.createProviderIdentity(ctx, providerIdentityInput{
+		UserID:              input.UserID,
+		Provider:            *provider,
+		Subject:             subject,
+		ProviderDisplayName: providerDisplayName,
+		Email:               normalizedEmail,
+		EmailVerified:       emailVerified,
+		ProfileJSON:         string(profileJSON),
+		LinkedAt:            now,
+	})
 	if err != nil {
 		return nil, err
 	}
-	normalizedAuditCtx := s.resolveSessionAuditContext(ctx, auditCtx)
+	normalizedAuditCtx := s.resolveSessionAuditContext(ctx, input.AuditContext)
 	s.RecordAuthEvent(
 		ctx,
-		userID,
-		requestID,
-		"provider_bind",
-		"success",
-		"",
-		normalizedAuditCtx.ClientIP,
-		normalizedAuditCtx.UserAgent,
-		marshalAuthEventDetail(map[string]interface{}{
-			"provider": provider.Slug,
-			"subject":  subject,
-			"email":    normalizedEmail,
-		}),
+		repository.AuthEventInput{
+			UserID:    input.UserID,
+			RequestID: input.RequestID,
+			EventType: "provider_bind",
+			Result:    "success",
+			ClientIP:  normalizedAuditCtx.ClientIP,
+			UserAgent: normalizedAuditCtx.UserAgent,
+			DetailJSON: marshalAuthEventDetail(map[string]any{
+				"provider": provider.Slug,
+				"subject":  subject,
+				"email":    normalizedEmail,
+			}),
+		},
 	)
 	return &UserIdentityView{
 		ID:                  created.ID,
@@ -593,18 +655,18 @@ func (s *Service) CompleteProviderBind(
 func (s *Service) normalizeProviderInput(input UpsertIdentityProviderInput, current *domainuser.IdentityProvider) (*domainuser.IdentityProvider, error) {
 	providerType := strings.ToLower(strings.TrimSpace(input.Type))
 	if providerType != domainuser.IdentityProviderTypeOIDC && providerType != domainuser.IdentityProviderTypeOAuth2 {
-		return nil, fmt.Errorf("provider type must be oidc or oauth2")
+		return nil, ErrProviderTypeInvalid
 	}
 	name := strings.TrimSpace(input.Name)
 	if name == "" {
-		return nil, fmt.Errorf("provider name is required")
+		return nil, ErrProviderNameRequired
 	}
 	slug := normalizeProviderSlug(input.Slug)
 	if slug == "" {
 		slug = normalizeProviderSlug(name)
 	}
 	if slug == "" {
-		return nil, fmt.Errorf("provider slug is required")
+		return nil, ErrProviderSlugRequired
 	}
 	scopes := strings.TrimSpace(input.Scopes)
 	if scopes == "" && providerType == domainuser.IdentityProviderTypeOIDC {
@@ -618,14 +680,14 @@ func (s *Service) normalizeProviderInput(input UpsertIdentityProviderInput, curr
 		defaultRole = domainuser.RoleUser
 	}
 	if defaultRole != domainuser.RoleUser && defaultRole != domainuser.RoleAdmin && defaultRole != domainuser.RoleSuperAdmin {
-		return nil, fmt.Errorf("default role must be user, admin or superadmin")
+		return nil, ErrProviderDefaultRoleInvalid
 	}
 	if defaultRole == domainuser.RoleSuperAdmin && input.ActorRole != domainuser.RoleSuperAdmin {
 		return nil, ErrIdentityProviderSuperAdminDefaultRoleNotAllowed
 	}
 	logoURL := strings.TrimSpace(input.LogoURL)
 	if logoURL != "" && !isValidProviderLogoURL(logoURL) {
-		return nil, fmt.Errorf("logo url must be a valid http(s) or absolute path")
+		return nil, ErrProviderLogoURLInvalid
 	}
 	provider := &domainuser.IdentityProvider{
 		Type:                providerType,
@@ -644,15 +706,15 @@ func (s *Service) normalizeProviderInput(input UpsertIdentityProviderInput, curr
 		Scopes:              scopes,
 		PKCEEnabled:         true,
 		DefaultRole:         defaultRole,
-		SubjectField:        firstNonEmpty(strings.TrimSpace(input.SubjectField), "sub"),
-		EmailField:          firstNonEmpty(strings.TrimSpace(input.EmailField), "email"),
-		EmailVerifiedField:  firstNonEmpty(strings.TrimSpace(input.EmailVerifiedField), "email_verified"),
-		NameField:           firstNonEmpty(strings.TrimSpace(input.NameField), "name"),
-		AvatarField:         firstNonEmpty(strings.TrimSpace(input.AvatarField), "picture"),
+		SubjectField:        textutil.FirstNonEmpty(strings.TrimSpace(input.SubjectField), "sub"),
+		EmailField:          textutil.FirstNonEmpty(strings.TrimSpace(input.EmailField), "email"),
+		EmailVerifiedField:  textutil.FirstNonEmpty(strings.TrimSpace(input.EmailVerifiedField), "email_verified"),
+		NameField:           textutil.FirstNonEmpty(strings.TrimSpace(input.NameField), "name"),
+		AvatarField:         textutil.FirstNonEmpty(strings.TrimSpace(input.AvatarField), "picture"),
 		SortOrder:           100,
 	}
 	if provider.RegistrationEnabled && !provider.LoginEnabled {
-		return nil, fmt.Errorf("provider registration requires provider login to be enabled")
+		return nil, ErrProviderRegistrationRequiresLogin
 	}
 	if current != nil {
 		provider.PublicID = current.PublicID
@@ -666,20 +728,20 @@ func (s *Service) normalizeProviderInput(input UpsertIdentityProviderInput, curr
 		provider.ClientSecret = encrypted
 	}
 	if provider.ClientID == "" {
-		return nil, fmt.Errorf("client id is required")
+		return nil, ErrProviderClientIDRequired
 	}
 	if provider.ClientSecret == "" {
-		return nil, fmt.Errorf("client secret is required")
+		return nil, ErrProviderClientSecretRequired
 	}
 	if err := validateIdentityProviderEndpoints(*provider); err != nil {
 		return nil, err
 	}
 	if providerType == domainuser.IdentityProviderTypeOIDC {
 		if provider.IssuerURL == "" && provider.DiscoveryURL == "" {
-			return nil, fmt.Errorf("OIDC issuer url or discovery url is required")
+			return nil, ErrProviderOIDCIssuerRequired
 		}
 	} else if provider.AuthURL == "" || provider.TokenURL == "" || provider.UserInfoURL == "" {
-		return nil, fmt.Errorf("OAuth2 auth url, token url and userinfo url are required")
+		return nil, ErrProviderOAuthURLsRequired
 	}
 	return provider, nil
 }
@@ -701,7 +763,7 @@ func validateIdentityProviderEndpoints(provider domainuser.IdentityProvider) err
 			continue
 		}
 		if err := security.ValidateTrustedOutboundHTTPURL(endpoint.value); err != nil {
-			return fmt.Errorf("provider %s must be a valid http(s) endpoint without credentials; metadata and link-local targets are not allowed", endpoint.name)
+			return fmt.Errorf("provider %s must be a valid http(s) endpoint without credentials; metadata and link-local targets are not allowed: %w", endpoint.name, ErrProviderEndpointInvalid)
 		}
 	}
 	return nil
@@ -817,15 +879,6 @@ func normalizeProviderIntent(value string) string {
 	}
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
-}
-
 func boolValue(value *bool, fallback bool) bool {
 	if value == nil {
 		return fallback
@@ -835,7 +888,7 @@ func boolValue(value *bool, fallback bool) bool {
 
 func buildProviderAuthURL(provider domainuser.IdentityProvider, authURL string, redirectURI string, state string, codeChallenge string) (string, error) {
 	if authURL == "" {
-		return "", fmt.Errorf("provider auth url is not configured")
+		return "", ErrProviderAuthURLNotConfigured
 	}
 	parsed, err := url.Parse(authURL)
 	if err != nil {
@@ -855,9 +908,10 @@ func buildProviderAuthURL(provider domainuser.IdentityProvider, authURL string, 
 	return parsed.String(), nil
 }
 
+// BuildProviderAuthURL builds a validated provider authorization URL for the web flow.
 func (s *Service) BuildProviderAuthURL(ctx context.Context, slug string, redirectURI string, nextPath string, codeChallenge string, intent string) (string, error) {
 	if !s.cfg.Snapshot().ThirdPartyLoginEnabled {
-		return "", fmt.Errorf("third-party login is disabled")
+		return "", ErrThirdPartyLoginDisabled
 	}
 	if err := s.validateProviderRedirectURI(slug, redirectURI); err != nil {
 		return "", err
@@ -871,14 +925,14 @@ func (s *Service) BuildProviderAuthURL(ctx context.Context, slug string, redirec
 	}
 	normalizedIntent := normalizeProviderIntent(intent)
 	if normalizedIntent == providerIntentLogin && !provider.LoginEnabled {
-		return "", fmt.Errorf("provider login is disabled")
+		return "", ErrProviderLoginDisabled
 	}
 	if normalizedIntent == providerIntentBind && !provider.LoginEnabled {
-		return "", fmt.Errorf("provider login is disabled")
+		return "", ErrProviderLoginDisabled
 	}
 	if normalizedIntent == providerIntentRegister {
 		if !provider.LoginEnabled || !provider.RegistrationEnabled {
-			return "", fmt.Errorf("provider registration is disabled")
+			return "", ErrProviderRegistrationDisabled
 		}
 	}
 	authURL, _, _, err := s.resolveProviderEndpoints(ctx, *provider)
@@ -929,19 +983,19 @@ func (s *Service) exchangeProviderCode(ctx context.Context, provider domainuser.
 		return nil, err
 	}
 	if !response.Successful() {
-		return nil, fmt.Errorf("provider token exchange failed: %s", response.Status)
+		return nil, fmt.Errorf("provider token exchange failed: %s: %w", response.Status, ErrProviderUpstreamFailed)
 	}
 	var tokenResponse oauthTokenResponse
 	if tokenResponse, err = parseOAuthTokenResponse(response.Body); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("provider token response decode failed: %w", ErrProviderUpstreamFailed)
 	}
 	if strings.TrimSpace(tokenResponse.AccessToken) == "" {
-		return nil, fmt.Errorf("provider token response missing access token")
+		return nil, fmt.Errorf("provider token response missing access token: %w", ErrProviderUpstreamFailed)
 	}
 	return &tokenResponse, nil
 }
 
-func (s *Service) fetchProviderUserInfo(ctx context.Context, provider domainuser.IdentityProvider, accessToken string) (map[string]interface{}, error) {
+func (s *Service) fetchProviderUserInfo(ctx context.Context, provider domainuser.IdentityProvider, accessToken string) (map[string]any, error) {
 	_, _, userInfoURL, err := s.resolveProviderEndpoints(ctx, provider)
 	if err != nil {
 		return nil, err
@@ -960,11 +1014,11 @@ func (s *Service) fetchProviderUserInfo(ctx context.Context, provider domainuser
 		return nil, err
 	}
 	if !response.Successful() {
-		return nil, fmt.Errorf("provider userinfo failed: %s", response.Status)
+		return nil, fmt.Errorf("provider userinfo failed: %s: %w", response.Status, ErrProviderUpstreamFailed)
 	}
-	var profile map[string]interface{}
+	var profile map[string]any
 	if err = json.Unmarshal(response.Body, &profile); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("provider userinfo response decode failed: %w", ErrProviderUpstreamFailed)
 	}
 	if githubEmailsURL, ok := githubEmailsEndpoint(provider, userInfoURL); ok {
 		if err = s.enrichGitHubVerifiedEmail(ctx, accessToken, profile, githubEmailsURL, trustedEndpoints); err != nil {
@@ -977,7 +1031,7 @@ func (s *Service) fetchProviderUserInfo(ctx context.Context, provider domainuser
 func (s *Service) enrichGitHubVerifiedEmail(
 	ctx context.Context,
 	accessToken string,
-	profile map[string]interface{},
+	profile map[string]any,
 	emailsURL string,
 	trustedEndpoints []string,
 ) error {
@@ -1001,11 +1055,11 @@ func (s *Service) enrichGitHubVerifiedEmail(
 		return err
 	}
 	if !response.Successful() {
-		return fmt.Errorf("github provider emails failed: %s", response.Status)
+		return fmt.Errorf("github provider emails failed: %s: %w", response.Status, ErrProviderUpstreamFailed)
 	}
 	var emails []githubEmailAddress
 	if err = json.Unmarshal(response.Body, &emails); err != nil {
-		return err
+		return fmt.Errorf("github provider emails response decode failed: %w", ErrProviderUpstreamFailed)
 	}
 	verifiedEmail := selectGitHubVerifiedEmail(existingEmail, emails)
 	if verifiedEmail == "" {
@@ -1101,15 +1155,15 @@ func (s *Service) resolveProviderEndpoints(ctx context.Context, provider domainu
 		return "", "", "", err
 	}
 	if !response.Successful() {
-		return "", "", "", fmt.Errorf("provider discovery failed: %s", response.Status)
+		return "", "", "", fmt.Errorf("provider discovery failed: %s: %w", response.Status, ErrProviderUpstreamFailed)
 	}
 	metadata, err := parseOIDCDiscoveryDocument(response.Body)
 	if err != nil {
 		return "", "", "", err
 	}
-	resolvedAuthURL := firstNonEmpty(authURL, metadata.AuthorizationEndpoint)
-	resolvedTokenURL := firstNonEmpty(tokenURL, metadata.TokenEndpoint)
-	resolvedUserInfoURL := firstNonEmpty(userInfoURL, metadata.UserInfoEndpoint)
+	resolvedAuthURL := textutil.FirstNonEmpty(authURL, metadata.AuthorizationEndpoint)
+	resolvedTokenURL := textutil.FirstNonEmpty(tokenURL, metadata.TokenEndpoint)
+	resolvedUserInfoURL := textutil.FirstNonEmpty(userInfoURL, metadata.UserInfoEndpoint)
 	if err = validateIdentityProviderEndpoints(domainuser.IdentityProvider{
 		AuthURL:     resolvedAuthURL,
 		TokenURL:    resolvedTokenURL,
@@ -1121,7 +1175,7 @@ func (s *Service) resolveProviderEndpoints(ctx context.Context, provider domainu
 }
 
 func parseOAuthTokenResponse(raw []byte) (oauthTokenResponse, error) {
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return oauthTokenResponse{}, err
 	}
@@ -1133,7 +1187,7 @@ func parseOAuthTokenResponse(raw []byte) (oauthTokenResponse, error) {
 }
 
 func parseOIDCDiscoveryDocument(raw []byte) (oidcDiscoveryDocument, error) {
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return oidcDiscoveryDocument{}, err
 	}
@@ -1155,11 +1209,11 @@ func providerTrustedEndpoints(provider domainuser.IdentityProvider) []string {
 	}
 }
 
-func (s *Service) resolveProviderUser(ctx context.Context, provider domainuser.IdentityProvider, subject string, email string, displayName string, avatarURL string, emailVerified bool, profileJSON string, intent string) (*domainuser.User, error) {
-	identity, err := s.repo.GetUserIdentityByProviderSubject(ctx, provider.ID, subject)
+func (s *Service) resolveProviderUser(ctx context.Context, input resolveProviderUserInput) (*domainuser.User, error) {
+	identity, err := s.repo.GetUserIdentityByProviderSubject(ctx, input.Provider.ID, input.Subject)
 	if err == nil {
-		if !provider.LoginEnabled {
-			return nil, fmt.Errorf("provider login is disabled")
+		if !input.Provider.LoginEnabled {
+			return nil, ErrProviderLoginDisabled
 		}
 		userItem, getErr := s.repo.GetByID(ctx, identity.UserID)
 		if getErr != nil {
@@ -1168,7 +1222,7 @@ func (s *Service) resolveProviderUser(ctx context.Context, provider domainuser.I
 		if err = ensureProviderLoginUserActive(userItem); err != nil {
 			return nil, err
 		}
-		if updateErr := s.repo.UpdateUserIdentityLogin(ctx, identity.ID, profileJSON, displayName, strings.TrimSpace(email), emailVerified); updateErr != nil {
+		if updateErr := s.repo.UpdateUserIdentityLogin(ctx, identity.ID, input.ProfileJSON, input.DisplayName, strings.TrimSpace(input.Email), input.EmailVerified); updateErr != nil {
 			return nil, updateErr
 		}
 		return userItem, nil
@@ -1179,17 +1233,26 @@ func (s *Service) resolveProviderUser(ctx context.Context, provider domainuser.I
 
 	cfg := s.cfg.Snapshot()
 	now := time.Now()
-	normalizedEmail, err := normalizeProviderEmail(email)
+	normalizedEmail, err := normalizeProviderEmail(input.Email)
 	if err != nil {
 		return nil, err
 	}
-	if cfg.AutoLinkVerifiedEmail && emailVerified && normalizedEmail != "" {
+	if cfg.AutoLinkVerifiedEmail && input.EmailVerified && normalizedEmail != "" {
 		existingUser, findErr := s.repo.GetByEmail(ctx, normalizedEmail)
 		if findErr == nil {
 			if err = ensureProviderLoginUserActive(existingUser); err != nil {
 				return nil, err
 			}
-			if _, createErr := s.createProviderIdentity(ctx, existingUser.ID, provider, subject, displayName, normalizedEmail, emailVerified, profileJSON, now); createErr != nil {
+			if _, createErr := s.createProviderIdentity(ctx, providerIdentityInput{
+				UserID:              existingUser.ID,
+				Provider:            input.Provider,
+				Subject:             input.Subject,
+				ProviderDisplayName: input.DisplayName,
+				Email:               normalizedEmail,
+				EmailVerified:       input.EmailVerified,
+				ProfileJSON:         input.ProfileJSON,
+				LinkedAt:            now,
+			}); createErr != nil {
 				return nil, createErr
 			}
 			return existingUser, nil
@@ -1200,7 +1263,7 @@ func (s *Service) resolveProviderUser(ctx context.Context, provider domainuser.I
 	} else if normalizedEmail != "" {
 		if _, findErr := s.repo.GetByEmail(ctx, normalizedEmail); findErr == nil {
 			return nil, &ProviderEmailConflictError{
-				ProviderSlug: provider.Slug,
+				ProviderSlug: input.Provider.Slug,
 				Email:        normalizedEmail,
 				Action:       ProviderEmailConflictActionSignInThenBind,
 			}
@@ -1208,24 +1271,24 @@ func (s *Service) resolveProviderUser(ctx context.Context, provider domainuser.I
 			return nil, findErr
 		}
 	}
-	if !provider.RegistrationEnabled {
-		return nil, fmt.Errorf("provider account is not registered")
+	if !input.Provider.RegistrationEnabled {
+		return nil, ErrProviderAccountNotRegistered
 	}
 
 	emailVerifiedAt := (*time.Time)(nil)
 	emailSource := domainuser.EmailSourceProviderUnverified
-	if emailVerified && normalizedEmail != "" {
+	if input.EmailVerified && normalizedEmail != "" {
 		emailVerifiedAt = &now
 		emailSource = domainuser.EmailSourceProviderVerified
 	}
 	userItem := &domainuser.User{
 		PublicID:        conv.NormalizePublicID(uuid.NewString()),
-		Username:        providerUsername(provider.Slug, subject),
-		DisplayName:     userapp.NormalizeGeneratedDisplayName(firstNonEmpty(displayName, provider.Name+" 用户")),
-		AvatarURL:       strings.TrimSpace(avatarURL),
+		Username:        providerUsername(input.Provider.Slug, input.Subject),
+		DisplayName:     userapp.NormalizeGeneratedDisplayName(textutil.FirstNonEmpty(input.DisplayName, input.Provider.Name+" 用户")),
+		AvatarURL:       strings.TrimSpace(input.AvatarURL),
 		Email:           normalizedEmail,
 		EmailSource:     emailSource,
-		Role:            firstNonEmpty(provider.DefaultRole, domainuser.RoleUser),
+		Role:            textutil.FirstNonEmpty(input.Provider.DefaultRole, domainuser.RoleUser),
 		Status:          domainuser.StatusActive,
 		Timezone:        "Etc/UTC",
 		Locale:          "en-US",
@@ -1235,14 +1298,29 @@ func (s *Service) resolveProviderUser(ctx context.Context, provider domainuser.I
 	if err != nil {
 		return nil, err
 	}
-	providerIdentity := s.newProviderIdentity(userItem.ID, provider, subject, displayName, normalizedEmail, emailVerified, profileJSON, now)
-	if err = s.createWithCredentialAndIdentityUsingAvailableUsername(ctx, userItem, domainuser.Credential{
-		PasswordHash:      string(passwordHash),
-		PasswordAlgo:      "bcrypt",
-		PasswordEnabled:   false,
-		PasswordUpdatedAt: &now,
-		PasswordOrigin:    domainuser.PasswordOriginSSOPlaceholder,
-	}, providerIdentity, 0, 0, nil, false); err != nil {
+	providerIdentity := s.newProviderIdentity(providerIdentityInput{
+		UserID:              userItem.ID,
+		Provider:            input.Provider,
+		Subject:             input.Subject,
+		ProviderDisplayName: input.DisplayName,
+		Email:               normalizedEmail,
+		EmailVerified:       input.EmailVerified,
+		ProfileJSON:         input.ProfileJSON,
+		LinkedAt:            now,
+	})
+	if err = s.createWithCredentialAndIdentityUsingAvailableUsername(ctx, repository.CreateWithCredentialAndIdentityInput{
+		CreateWithCredentialInput: repository.CreateWithCredentialInput{
+			User: userItem,
+			Credential: domainuser.Credential{
+				PasswordHash:      string(passwordHash),
+				PasswordAlgo:      "bcrypt",
+				PasswordEnabled:   false,
+				PasswordUpdatedAt: &now,
+				PasswordOrigin:    domainuser.PasswordOriginSSOPlaceholder,
+			},
+		},
+		Identity: providerIdentity,
+	}); err != nil {
 		return nil, err
 	}
 	return userItem, nil
@@ -1261,40 +1339,31 @@ func ensureProviderLoginUserActive(item *domainuser.User) error {
 	return nil
 }
 
-func (s *Service) createProviderIdentity(ctx context.Context, userID uint, provider domainuser.IdentityProvider, subject string, providerDisplayName string, email string, emailVerified bool, profileJSON string, now time.Time) (*domainuser.UserIdentity, error) {
-	return s.repo.CreateUserIdentity(ctx, s.newProviderIdentity(userID, provider, subject, providerDisplayName, email, emailVerified, profileJSON, now))
+func (s *Service) createProviderIdentity(ctx context.Context, input providerIdentityInput) (*domainuser.UserIdentity, error) {
+	return s.repo.CreateUserIdentity(ctx, s.newProviderIdentity(input))
 }
 
-func (s *Service) newProviderIdentity(userID uint, provider domainuser.IdentityProvider, subject string, providerDisplayName string, email string, emailVerified bool, profileJSON string, now time.Time) *domainuser.UserIdentity {
+func (s *Service) newProviderIdentity(input providerIdentityInput) *domainuser.UserIdentity {
 	return &domainuser.UserIdentity{
-		UserID:              userID,
-		ProviderID:          provider.ID,
-		ProviderType:        provider.Type,
-		ProviderSubject:     strings.TrimSpace(subject),
-		ProviderDisplayName: strings.TrimSpace(providerDisplayName),
-		Email:               strings.TrimSpace(email),
-		EmailVerified:       emailVerified,
-		ProfileJSON:         profileJSON,
-		LinkedAt:            now,
-		LastLoginAt:         &now,
+		UserID:              input.UserID,
+		ProviderID:          input.Provider.ID,
+		ProviderType:        input.Provider.Type,
+		ProviderSubject:     strings.TrimSpace(input.Subject),
+		ProviderDisplayName: strings.TrimSpace(input.ProviderDisplayName),
+		Email:               strings.TrimSpace(input.Email),
+		EmailVerified:       input.EmailVerified,
+		ProfileJSON:         input.ProfileJSON,
+		LinkedAt:            input.LinkedAt,
+		LastLoginAt:         &input.LinkedAt,
 	}
 }
 
-func (s *Service) createWithCredentialAndIdentityUsingAvailableUsername(
-	ctx context.Context,
-	userItem *domainuser.User,
-	credential domainuser.Credential,
-	identity *domainuser.UserIdentity,
-	subscriptionPlanID uint,
-	subscriptionPriceID uint,
-	subscriptionEndAt *time.Time,
-	autoRenew bool,
-) error {
-	baseUsername := userItem.Username
+func (s *Service) createWithCredentialAndIdentityUsingAvailableUsername(ctx context.Context, input repository.CreateWithCredentialAndIdentityInput) error {
+	baseUsername := input.User.Username
 	for attempt := 0; attempt < 20; attempt++ {
-		userItem.ID = 0
-		userItem.Username = generatedUsernameWithSuffix(baseUsername, attempt)
-		err := s.repo.CreateWithCredentialAndIdentity(ctx, userItem, credential, identity, subscriptionPlanID, subscriptionPriceID, subscriptionEndAt, autoRenew)
+		input.User.ID = 0
+		input.User.Username = generatedUsernameWithSuffix(baseUsername, attempt)
+		err := s.repo.CreateWithCredentialAndIdentity(ctx, input)
 		if errors.Is(err, repository.ErrDuplicateUsername) {
 			continue
 		}
@@ -1316,25 +1385,25 @@ func (s *Service) signProviderState(state providerOAuthState) (string, error) {
 func (s *Service) verifyProviderState(slug string, redirectURI string, rawState string) (*providerOAuthState, error) {
 	parts := strings.Split(strings.TrimSpace(rawState), ".")
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return nil, fmt.Errorf("invalid oauth state")
+		return nil, ErrOAuthStateInvalid
 	}
 	expected := providerStateSignature(s.cfg.Snapshot().JWTSecret, parts[0])
 	if !hmac.Equal([]byte(expected), []byte(parts[1])) {
-		return nil, fmt.Errorf("invalid oauth state")
+		return nil, ErrOAuthStateInvalid
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
-		return nil, fmt.Errorf("invalid oauth state")
+		return nil, ErrOAuthStateInvalid
 	}
 	var state providerOAuthState
 	if err = json.Unmarshal(payload, &state); err != nil {
-		return nil, fmt.Errorf("invalid oauth state")
+		return nil, ErrOAuthStateInvalid
 	}
 	if state.Provider != slug || state.RedirectURI != redirectURI {
-		return nil, fmt.Errorf("oauth state mismatch")
+		return nil, ErrOAuthStateMismatch
 	}
 	if time.Now().Unix() > state.ExpiresAt {
-		return nil, fmt.Errorf("oauth state expired")
+		return nil, ErrOAuthStateExpired
 	}
 	if err = s.validateProviderRedirectURI(slug, redirectURI); err != nil {
 		return nil, err
@@ -1357,7 +1426,7 @@ var providerPKCEPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{43,128}$`)
 
 func validateProviderCodeChallenge(codeChallenge string) error {
 	if !providerPKCEPattern.MatchString(strings.TrimSpace(codeChallenge)) {
-		return fmt.Errorf("valid pkce code challenge is required")
+		return ErrPKCEChallengeRequired
 	}
 	return nil
 }
@@ -1365,10 +1434,10 @@ func validateProviderCodeChallenge(codeChallenge string) error {
 func validateProviderCodeVerifier(codeVerifier string, expectedChallenge string) error {
 	trimmedVerifier := strings.TrimSpace(codeVerifier)
 	if !providerPKCEPattern.MatchString(trimmedVerifier) {
-		return fmt.Errorf("valid pkce code verifier is required")
+		return ErrPKCEVerifierRequired
 	}
 	if !hmac.Equal([]byte(providerCodeChallenge(trimmedVerifier)), []byte(strings.TrimSpace(expectedChallenge))) {
-		return fmt.Errorf("pkce code verifier mismatch")
+		return ErrPKCEMismatch
 	}
 	return nil
 }
@@ -1376,15 +1445,15 @@ func validateProviderCodeVerifier(codeVerifier string, expectedChallenge string)
 func (s *Service) validateProviderRedirectURI(slug string, redirectURI string) error {
 	parsed, err := url.Parse(strings.TrimSpace(redirectURI))
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		return fmt.Errorf("invalid redirect uri")
+		return ErrInvalidRedirectURI
 	}
 	if parsed.Path != "/auth/callback" || parsed.Query().Get("provider") != slug {
-		return fmt.Errorf("invalid redirect uri")
+		return ErrInvalidRedirectURI
 	}
 	if s.isAllowedProviderRedirectOrigin(parsed) {
 		return nil
 	}
-	return fmt.Errorf("redirect uri origin is not allowed")
+	return ErrRedirectURIOriginNotAllowed
 }
 
 func (s *Service) isAllowedProviderRedirectOrigin(parsed *url.URL) bool {
@@ -1432,7 +1501,7 @@ func providerUsername(slug string, subject string) string {
 	return prefix + "-" + suffix
 }
 
-func claimString(profile map[string]interface{}, field string) string {
+func claimString(profile map[string]any, field string) string {
 	value, ok := claimValue(profile, field)
 	if !ok {
 		return ""
@@ -1447,12 +1516,12 @@ func normalizeProviderEmail(raw string) (string, error) {
 	}
 	normalized, err := normalizeRegistrationEmail(trimmed)
 	if err != nil {
-		return "", fmt.Errorf("provider email is invalid")
+		return "", ErrProviderEmailInvalid
 	}
 	return normalized, nil
 }
 
-func resolveProviderEmailVerified(profile map[string]interface{}, provider domainuser.IdentityProvider) bool {
+func resolveProviderEmailVerified(profile map[string]any, provider domainuser.IdentityProvider) bool {
 	fields := make([]string, 0, 3)
 	if strings.TrimSpace(provider.EmailVerifiedField) != "" {
 		fields = append(fields, provider.EmailVerifiedField)
@@ -1498,7 +1567,7 @@ func uniqueClaimFields(fields []string) []string {
 	return results
 }
 
-func claimBool(profile map[string]interface{}, fields ...string) bool {
+func claimBool(profile map[string]any, fields ...string) bool {
 	for _, field := range fields {
 		value, ok := claimValue(profile, field)
 		if !ok {
@@ -1515,14 +1584,14 @@ func claimBool(profile map[string]interface{}, fields ...string) bool {
 	return false
 }
 
-func claimValue(profile map[string]interface{}, field string) (interface{}, bool) {
+func claimValue(profile map[string]any, field string) (any, bool) {
 	normalizedField := strings.TrimSpace(field)
 	if normalizedField == "" {
 		return nil, false
 	}
-	current := interface{}(profile)
+	current := any(profile)
 	for _, part := range strings.Split(normalizedField, ".") {
-		object, ok := current.(map[string]interface{})
+		object, ok := current.(map[string]any)
 		if !ok {
 			return nil, false
 		}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"strconv"
 	"strings"
 
@@ -74,76 +74,6 @@ func defaultMCPToolGuidancePrompt() string {
 	builder.WriteString("- If tools fail or lack enough data, state the gap in the final answer.\n")
 	builder.WriteString("- Do not expose raw tool JSON, internal fields, or tool logs unless the user asks.\n")
 	return strings.TrimSpace(builder.String())
-}
-
-func summarizeToolInputSchema(raw json.RawMessage) string {
-	if len(raw) == 0 {
-		return ""
-	}
-	var schema map[string]interface{}
-	if err := json.Unmarshal(raw, &schema); err != nil {
-		return ""
-	}
-	properties, _ := schema["properties"].(map[string]interface{})
-	if len(properties) == 0 {
-		return "无需参数"
-	}
-	required := map[string]struct{}{}
-	if items, ok := schema["required"].([]interface{}); ok {
-		for _, item := range items {
-			if name, ok := item.(string); ok && strings.TrimSpace(name) != "" {
-				required[strings.TrimSpace(name)] = struct{}{}
-			}
-		}
-	}
-	names := make([]string, 0, len(properties))
-	for name := range properties {
-		if strings.TrimSpace(name) != "" {
-			names = append(names, name)
-		}
-	}
-	sort.Strings(names)
-	parts := make([]string, 0, len(names))
-	for _, name := range names {
-		prop, _ := properties[name].(map[string]interface{})
-		fieldType := schemaFieldType(prop)
-		label := name
-		if fieldType != "" {
-			label = fmt.Sprintf("%s:%s", name, fieldType)
-		}
-		if _, ok := required[name]; ok {
-			label += " 必填"
-		}
-		parts = append(parts, label)
-	}
-	if len(parts) > 6 {
-		parts = append(parts[:6], fmt.Sprintf("等 %d 个字段", len(parts)))
-	}
-	return "参数 " + strings.Join(parts, "，")
-}
-
-func schemaFieldType(prop map[string]interface{}) string {
-	if len(prop) == 0 {
-		return ""
-	}
-	if value, ok := prop["type"].(string); ok && strings.TrimSpace(value) != "" {
-		return strings.TrimSpace(value)
-	}
-	if items, ok := prop["type"].([]interface{}); ok && len(items) > 0 {
-		types := make([]string, 0, len(items))
-		for _, item := range items {
-			if value, ok := item.(string); ok && strings.TrimSpace(value) != "" {
-				types = append(types, strings.TrimSpace(value))
-			}
-		}
-		if len(types) > 0 {
-			return strings.Join(types, "|")
-		}
-	}
-	if _, ok := prop["enum"].([]interface{}); ok {
-		return "enum"
-	}
-	return ""
 }
 
 func (s *Service) resolveSelectedToolRuntime(ctx context.Context, toolIDs []uint) (selectedToolRuntime, error) {
@@ -235,7 +165,7 @@ func (s *Service) resolveSelectedToolRuntime(ctx context.Context, toolIDs []uint
 				toolID:         tool.ID,
 				modelName:      modelName,
 				toolName:       tool.Name,
-				displayName:    firstNonEmptyString(tool.DisplayName, tool.Name),
+				displayName:    textutil.FirstNonEmpty(tool.DisplayName, tool.Name),
 				argument:       strings.TrimSpace(tool.AttachmentArgument),
 				encoding:       strings.TrimSpace(tool.AttachmentEncoding),
 				promptArgument: strings.TrimSpace(tool.AttachmentPromptArgument),

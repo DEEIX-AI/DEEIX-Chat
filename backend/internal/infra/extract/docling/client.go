@@ -3,6 +3,7 @@ package docling
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -12,7 +13,9 @@ import (
 	"strings"
 	"time"
 
+	extractinfra "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
 )
 
@@ -75,7 +78,7 @@ func probeEndpoint(ctx context.Context, baseURL string, authToken string, httpCl
 	if err != nil {
 		return false, "服务地址格式不正确。"
 	}
-	applyAuthHeaders(req, authToken)
+	extractinfra.ApplyAuthHeaders(req, authToken)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -123,23 +126,23 @@ func (c *Client) ExtractText(ctx context.Context, req Request) (string, error) {
 	}
 	httpReq.Header.Set("Content-Type", contentType)
 	httpReq.Header.Set("Accept", "application/json, text/plain")
-	applyAuthHeaders(httpReq, c.authToken)
+	extractinfra.ApplyAuthHeaders(httpReq, c.authToken)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		_ = bodyReader.Close()
-		if writeErr := awaitMultipartWriteError(writeErrCh); writeErr != nil {
+		if writeErr := extractinfra.AwaitMultipartWriteError(writeErrCh); writeErr != nil {
 			return "", writeErr
 		}
 		return "", err
 	}
 	defer resp.Body.Close()
-	if writeErr := awaitMultipartWriteError(writeErrCh); writeErr != nil {
+	if writeErr := extractinfra.AwaitMultipartWriteError(writeErrCh); writeErr != nil {
 		return "", writeErr
 	}
 
 	if resp.StatusCode == http.StatusNoContent {
-		return "", fmt.Errorf(errDoclingEmptyContent)
+		return "", errors.New(errDoclingEmptyContent)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
@@ -167,7 +170,7 @@ func (c *Client) ExtractText(ctx context.Context, req Request) (string, error) {
 		return "", err
 	}
 	if text == "" {
-		return "", fmt.Errorf(errDoclingEmptyContent)
+		return "", errors.New(errDoclingEmptyContent)
 	}
 	return text, nil
 }
@@ -222,9 +225,9 @@ func parseResponse(body io.Reader, contentType string) (string, error) {
 		var parsed payload
 		decoder := json.NewDecoder(body)
 		if err := decoder.Decode(&parsed); err == nil {
-			text := normalizeText(parsed.ExtractedText())
+			text := extractinfra.NormalizeText(parsed.ExtractedText())
 			if text == "" {
-				return "", fmt.Errorf(errDoclingEmptyContent)
+				return "", errors.New(errDoclingEmptyContent)
 			}
 			return text, nil
 		}
@@ -234,24 +237,11 @@ func parseResponse(body io.Reader, contentType string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	text := normalizeText(string(bodyBytes))
+	text := extractinfra.NormalizeText(string(bodyBytes))
 	if text == "" {
-		return "", fmt.Errorf(errDoclingEmptyContent)
+		return "", errors.New(errDoclingEmptyContent)
 	}
 	return text, nil
-}
-
-func normalizeText(raw string) string {
-	lines := strings.Split(raw, "\n")
-	result := make([]string, 0, len(lines))
-	for _, line := range lines {
-		value := strings.TrimSpace(line)
-		if value == "" {
-			continue
-		}
-		result = append(result, value)
-	}
-	return strings.Join(result, "\n")
 }
 
 func resolveHealthURL(baseURL string) string {
@@ -261,46 +251,12 @@ func resolveHealthURL(baseURL string) string {
 	return baseURL + healthEndpoint
 }
 
-func awaitMultipartWriteError(errCh <-chan error) error {
-	if errCh == nil {
-		return nil
-	}
-	for err := range errCh {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func applyAuthHeaders(req *http.Request, authToken string) {
-	if req == nil {
-		return
-	}
-	token := strings.TrimSpace(authToken)
-	if token == "" {
-		return
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-API-Key", token)
-	req.Header.Set("token", token)
-}
-
 func resolveHTTPTimeout(raw int, fallback time.Duration) time.Duration {
 	timeout := time.Duration(raw) * time.Second
 	if timeout <= 0 {
 		return fallback
 	}
 	return timeout
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 type payload struct {
@@ -320,7 +276,7 @@ type payloadNode struct {
 }
 
 func (p payload) ExtractedText() string {
-	return firstNonEmpty(
+	return textutil.FirstNonBlank(
 		p.Text,
 		p.FullText,
 		p.Content,

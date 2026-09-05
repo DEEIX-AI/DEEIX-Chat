@@ -218,6 +218,59 @@ func TestMarkEmbeddedFilesStaleKeepsCurrentSignatureReady(t *testing.T) {
 	}
 }
 
+func TestFileEmbeddingQueueStateAndProcessingProjection(t *testing.T) {
+	db := openConversationSQLiteVectorTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	file := model.FileObject{
+		FileID:          "file_queue_state",
+		UserID:          7,
+		FileName:        "manual.md",
+		MimeType:        "text/markdown",
+		FileCategory:    "text",
+		StoragePath:     "uploads/manual.md",
+		Status:          "active",
+		ProcessingReady: true,
+		ExtractStatus:   "ready",
+		EmbedStatus:     "none",
+	}
+	if err := db.Create(&file).Error; err != nil {
+		t.Fatalf("create file: %v", err)
+	}
+
+	queued, err := repo.QueueFileEmbedding(ctx, 7, file.FileID, "model@1536")
+	if err != nil || !queued {
+		t.Fatalf("queue embedding: queued=%v err=%v", queued, err)
+	}
+	if duplicate, duplicateErr := repo.QueueFileEmbedding(ctx, 7, file.FileID, "model@1536"); duplicateErr != nil || duplicate {
+		t.Fatalf("duplicate queue must be rejected: queued=%v err=%v", duplicate, duplicateErr)
+	}
+
+	statuses, err := repo.GetActiveFileProcessingStatusesByIDs(ctx, 7, []string{file.FileID})
+	if err != nil || len(statuses) != 1 {
+		t.Fatalf("load processing projection: statuses=%#v err=%v", statuses, err)
+	}
+	status := statuses[0]
+	if status.FileName != file.FileName || status.MimeType != file.MimeType ||
+		status.FileCategory != file.FileCategory || status.StoragePath != file.StoragePath ||
+		status.Status != "active" || !status.ProcessingReady || status.ExtractStatus != "ready" ||
+		status.EmbedStatus != "queued" || status.EmbedSignature != "model@1536" {
+		t.Fatalf("incomplete processing projection: %#v", status)
+	}
+
+	claimed, err := repo.ClaimFileEmbedding(ctx, 7, file.FileID, "model@1536")
+	if err != nil || !claimed {
+		t.Fatalf("claim queued embedding: claimed=%v err=%v", claimed, err)
+	}
+	var stored model.FileObject
+	if err = db.Where("id = ?", file.ID).Take(&stored).Error; err != nil {
+		t.Fatalf("load claimed file: %v", err)
+	}
+	if stored.EmbedStatus != "processing" || stored.EmbedSignature != "model@1536" {
+		t.Fatalf("unexpected claimed state: %#v", stored)
+	}
+}
+
 func TestFileEmbeddingGenerationRejectsSupersededPublisher(t *testing.T) {
 	db := openConversationSQLiteVectorTestDB(t)
 	repo := NewRepo(db)

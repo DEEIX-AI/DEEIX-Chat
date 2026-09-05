@@ -90,7 +90,7 @@ func TestBuildPromptContextArtifactsRecordsRAGFallbackAndRecall(t *testing.T) {
 		if item.ContentHash == "" || item.TokenEstimate <= 0 || item.MetadataJSON == "" {
 			t.Fatalf("artifact missing trace fields: %#v", item)
 		}
-		var metadata map[string]interface{}
+		var metadata map[string]any
 		if err := json.Unmarshal([]byte(item.MetadataJSON), &metadata); err != nil {
 			t.Fatalf("invalid metadata json: %v", err)
 		}

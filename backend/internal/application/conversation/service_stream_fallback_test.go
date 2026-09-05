@@ -79,7 +79,7 @@ func TestMessageErrorSummaryIncludesUpstreamBody(t *testing.T) {
 			},
 		},
 	})
-	summary := MessageErrorSummary(err)
+	summary := messageErrorSummary(err)
 	if summary != "模型请求失败（HTTP 400）\n错误：Param Incorrect" {
 		t.Fatalf("unexpected summary: %q", summary)
 	}
@@ -125,7 +125,7 @@ func TestMessageErrorSummaryHidesRawSSEForSuccessfulHTTPStatus(t *testing.T) {
 		},
 	})
 
-	summary := MessageErrorSummary(err)
+	summary := messageErrorSummary(err)
 	if strings.Contains(summary, "data:") || strings.Contains(summary, "chat.completion.chunk") {
 		t.Fatalf("summary leaked raw SSE body: %q", summary)
 	}
@@ -137,13 +137,21 @@ func TestMessageErrorSummaryHidesRawSSEForSuccessfulHTTPStatus(t *testing.T) {
 	}
 }
 
-func TestMessageGenerationCanceledDetectsWrappedSuccessfulUpstreamError(t *testing.T) {
-	err := &llm.UpstreamError{
+func TestMessageGenerationCanceledUsesWrappedCause(t *testing.T) {
+	err := llm.MarkRequestAccepted(&llm.UpstreamError{
+		StatusCode: 200,
+		Message:    "stream callback failed",
+		Cause:      errors.Join(errors.New("emit event"), ErrMessageGenerationCanceled),
+	})
+	if !isMessageGenerationCanceledError(err) {
+		t.Fatal("expected wrapped cancellation cause to be recognized")
+	}
+	lookalike := llm.MarkRequestAccepted(&llm.UpstreamError{
 		StatusCode: 200,
 		Message:    ErrMessageGenerationCanceled.Error(),
-	}
-	if !isMessageGenerationCanceledError(err) {
-		t.Fatalf("expected wrapped HTTP 200 cancellation to be recognized")
+	})
+	if isMessageGenerationCanceledError(lookalike) {
+		t.Fatal("upstream message text must not be classified as a local cancellation")
 	}
 }
 
@@ -165,7 +173,7 @@ func TestMessageErrorSummarySuggestsDisablingImageStreamForParseFailure(t *testi
 		},
 	})
 
-	summary := MessageErrorSummary(err)
+	summary := messageErrorSummary(err)
 	if !strings.Contains(summary, "Tips：当前上游可能不支持流式响应") || !strings.Contains(summary, "image.stream=false") {
 		t.Fatalf("expected image stream configuration hint, got %q", summary)
 	}
@@ -191,7 +199,7 @@ func TestMessageErrorSummarySuggestsDisablingGeminiImageStreamForParseFailure(t 
 		},
 	})
 
-	summary := MessageErrorSummary(err)
+	summary := messageErrorSummary(err)
 	if !strings.Contains(summary, "Tips：当前上游可能不支持流式响应") || !strings.Contains(summary, "image.stream=false") {
 		t.Fatalf("expected gemini image stream configuration hint, got %q", summary)
 	}
@@ -217,7 +225,7 @@ func TestMessageErrorSummaryDoesNotSuggestImageStreamForChatStreamParseFailure(t
 		},
 	})
 
-	summary := MessageErrorSummary(err)
+	summary := messageErrorSummary(err)
 	if strings.Contains(summary, "图像流式调用") || strings.Contains(summary, "image.stream=false") {
 		t.Fatalf("expected no image stream configuration hint, got %q", summary)
 	}

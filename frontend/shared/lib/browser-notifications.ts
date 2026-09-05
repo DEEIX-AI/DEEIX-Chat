@@ -1,6 +1,7 @@
 "use client";
 
 import { getBrandingSnapshot } from "@/shared/config/branding";
+import { normalizeTrimmedString } from "@/shared/lib/string";
 
 const RESPONSE_COMPLETION_NOTIFICATIONS_STORAGE_KEY = "deeix-chat:response-completion-notifications";
 const NOTIFICATION_BODY_MAX_LENGTH = 140;
@@ -10,15 +11,6 @@ type ResponseCompletionNotificationInput = {
   conversationPublicID?: string | null;
   conversationTitle?: string | null;
 };
-
-function normalizeString(value: unknown, fallback = "") {
-  if (typeof value !== "string") {
-    return fallback;
-  }
-
-  const normalizedValue = value.trim();
-  return normalizedValue || fallback;
-}
 
 function normalizeNotificationBody(value: string) {
   const compactValue = value.replace(/\s+/g, " ").trim();
@@ -94,11 +86,11 @@ export function notifyResponseCompletion(input: ResponseCompletionNotificationIn
     return false;
   }
 
-  const conversationTitle = normalizeString(input.conversationTitle);
+  const conversationTitle = normalizeTrimmedString(input.conversationTitle);
   const branding = getBrandingSnapshot();
   const notification = new Notification(conversationTitle || branding.title, {
-    body: normalizeNotificationBody(normalizeString(input.content)),
-    tag: normalizeString(input.conversationPublicID, `response-completion:${Date.now()}`),
+    body: normalizeNotificationBody(normalizeTrimmedString(input.content)),
+    tag: normalizeTrimmedString(input.conversationPublicID, `response-completion:${Date.now()}`),
     icon: branding.pwaIcon192URL,
   });
 

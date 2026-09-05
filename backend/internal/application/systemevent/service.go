@@ -9,6 +9,7 @@ import (
 	domainsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/systemevent"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 )
 
 // ListFilter 描述系统事件筛选条件。
@@ -32,18 +33,13 @@ type WriteInput struct {
 	Resource   string
 	ResourceID string
 	Message    string
-	Detail     interface{}
+	Detail     any
 }
 
 // Service 封装系统事件能力。
 type Service struct {
 	repo repository.SystemEventRepository
 }
-
-const (
-	defaultPageSize = 20
-	maxPageSize     = 1000
-)
 
 // NewService 创建系统事件服务。
 func NewService(repo repository.SystemEventRepository) *Service {
@@ -81,7 +77,7 @@ func (s *Service) Write(ctx context.Context, input WriteInput) {
 
 // List 分页查询系统事件。
 func (s *Service) List(ctx context.Context, page int, pageSize int, filter ListFilter) ([]domainsystemevent.Event, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	return s.repo.List(ctx, offset, limit, repository.SystemEventListFilter{
 		Query:       filter.Query,
 		Level:       filter.Level,
@@ -102,21 +98,4 @@ func normalizeLevel(value string) string {
 	default:
 		return "info"
 	}
-}
-
-func normalizePage(page int, pageSize int) (int, int) {
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = defaultPageSize
-	}
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	offset := (page - 1) * pageSize
-	if offset < 0 {
-		offset = 0
-	}
-	return offset, pageSize
 }

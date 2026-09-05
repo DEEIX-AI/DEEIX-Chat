@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { CenteredEmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Spinner } from "@/components/ui/spinner";
 import { ContentMeta } from "@/features/files/components/sections/content/content-meta";
 import { PreviewDocument } from "@/shared/components/file-preview/preview-document";
 import { PreviewDocx } from "@/shared/components/file-preview/preview-docx";
@@ -46,7 +47,11 @@ export function ContentPreview({ file, deferEmptyState, preview, extract, conten
 
   if (!file) {
     if (deferEmptyState) {
-      return <div className="min-h-0 flex-1" />;
+      return (
+        <div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground">
+          <Spinner className="size-4" />
+        </div>
+      );
     }
 
     return (

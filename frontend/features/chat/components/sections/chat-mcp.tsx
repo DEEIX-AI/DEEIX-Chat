@@ -33,6 +33,7 @@ type ChatMCPProps = {
   selectedToolIDs: number[];
   defaultToolIDs: number[];
   maxSelectedTools: number;
+  placementPreference: "top" | "bottom";
   disabled: boolean;
   onSelectedToolsChange: (toolIDs: number[]) => void;
   onDefaultToolsChange: (toolIDs: number[]) => void | Promise<void>;
@@ -55,7 +56,7 @@ function MCPToolRowAction({
       aria-label={label}
       title={label}
       className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-md text-foreground/45 outline-none transition-[background-color,color] duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground",
+        "flex size-7 shrink-0 items-center justify-center rounded-md text-foreground/35 outline-none transition-[background-color,color] duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground",
         className,
       )}
     >
@@ -151,6 +152,7 @@ export function ChatMCP({
   selectedToolIDs,
   defaultToolIDs,
   maxSelectedTools,
+  placementPreference,
   disabled,
   onSelectedToolsChange,
   onDefaultToolsChange,
@@ -315,11 +317,13 @@ export function ChatMCP({
         </TooltipContent>
       </Tooltip>
       <PopoverContent
-        side="bottom"
+        side={placementPreference}
         align="start"
         sideOffset={8}
+        avoidCollisions={false}
+        collisionPadding={8}
         data-mcp-tools-popover-content
-        className="w-[22rem] p-1.5"
+        className="flex max-h-[var(--radix-popover-content-available-height)] w-[min(20rem,calc(100vw-1rem))] flex-col p-1.5"
         onPointerDown={(event) => event.stopPropagation()}
         onMouseDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
@@ -336,7 +340,7 @@ export function ChatMCP({
           }
         }}
       >
-        <div className="flex items-center justify-between gap-3 px-2 pb-1.5 text-[11px] font-medium text-foreground/70">
+        <div className="flex h-7 shrink-0 items-center justify-between gap-3 px-2 text-[11px] font-medium text-foreground/70">
           <span>{tComposer("mcpTools")}</span>
           {selectedToolCount > 0 ? (
             <button
@@ -348,18 +352,16 @@ export function ChatMCP({
             </button>
           ) : null}
         </div>
-        <div
-          className="px-1 py-1"
-        >
+        <div className="mx-1 mb-1 shrink-0">
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             onKeyDown={(event) => event.stopPropagation()}
-            className="border-border/60 bg-transparent dark:bg-transparent"
+            className="h-7 border-0 bg-muted/45 px-2.5 text-xs shadow-none dark:bg-muted/35"
             placeholder={tComposer("searchToolsPlaceholder")}
           />
         </div>
-        <div className="max-h-72 overflow-y-auto px-0.5 pt-1">
+        <div className="min-h-0 max-h-72 overflow-y-auto px-0.5">
           {filteredToolGroups.map((group) => {
             const groupState = toolSelectionState(group.tools);
             const expanded = hasSearch || expandedServerKeys.has(group.key);
@@ -370,15 +372,14 @@ export function ChatMCP({
             const allDefault = group.tools.length > 0 && defaultCount === group.tools.length;
             const hasDefault = defaultCount > 0;
             return (
-              <div key={group.key} className="mb-1">
+              <div key={group.key} className="mb-0.5 last:mb-0">
                 <div
                   data-interactive={groupInteractive}
-                  data-selected={groupState.selectedCount > 0}
-                  className="group/server flex h-8 items-center gap-2 rounded-md px-2 text-[11px] font-medium text-foreground/65 transition-colors data-[interactive=true]:bg-accent data-[interactive=true]:text-accent-foreground"
+                  className="group/server flex h-7 items-center gap-1.5 rounded-md px-1.5 text-foreground/80 transition-colors data-[interactive=true]:bg-accent data-[interactive=true]:text-accent-foreground"
                 >
                   <Checkbox
                     checked={groupState.allSelected ? true : groupState.partiallySelected ? "indeterminate" : false}
-                    className="shrink-0"
+                    className="size-3 rounded-[3px] [&_svg]:size-2.5"
                     aria-label={tComposer("mcpToggleServerTools", { server: group.serverName })}
                     onCheckedChange={(nextChecked) => toggleToolGroup(group.tools, nextChecked === true)}
                   />
@@ -391,62 +392,64 @@ export function ChatMCP({
                     onFocus={() => setFocusedRowKey(groupRowKey)}
                     onBlur={() => setFocusedRowKey((current) => (current === groupRowKey ? null : current))}
                   >
-                    <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                      <span className="min-w-0 truncate text-xs font-semibold text-current">{group.serverName}</span>
-                      <span className="shrink-0 text-[10px] leading-none text-foreground/45 transition-colors group-data-[interactive=true]/server:text-accent-foreground/75">
-                        |
-                      </span>
-                      <span className="shrink-0 text-[10px] leading-none text-foreground/45 transition-colors group-data-[interactive=true]/server:text-accent-foreground/75">
-                        {tComposer("mcpServerToolCount", { selected: groupState.selectedCount, total: group.tools.length })}
-                      </span>
+                    <span className="flex min-w-0 flex-1 items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-current">{group.serverName}</span>
                       {overLimit ? (
                         <span className="min-w-0 truncate text-[10px] leading-none text-amber-600 dark:text-amber-400">
                           {tComposer("mcpServerLimitHint", { limit: selectionLimit })}
                         </span>
                       ) : null}
+                      <span
+                        title={tComposer("mcpServerToolCount", { selected: groupState.selectedCount, total: group.tools.length })}
+                        className="shrink-0 text-[10px] leading-none tabular-nums text-muted-foreground transition-colors group-data-[interactive=true]/server:text-accent-foreground/75"
+                      >
+                        {groupState.selectedCount}/{group.tools.length}
+                      </span>
                     </span>
                   </button>
-                  <Tooltip disableHoverableContent>
-                    <TooltipTrigger asChild>
-                      <MCPToolRowAction
-                        label={allDefault
-                          ? tComposer("mcpUnsetDefaultServerTools", { server: group.serverName })
-                          : tComposer("mcpSetDefaultServerTools", { server: group.serverName })}
-                        className={cn("-mr-2", hasDefault && "text-amber-500 hover:text-amber-500 focus-visible:text-amber-500")}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          toggleDefaultToolGroup(group.tools);
-                        }}
+                  <div className="-mr-0.5 flex shrink-0 items-center gap-0">
+                    <Tooltip disableHoverableContent>
+                      <TooltipTrigger asChild>
+                        <MCPToolRowAction
+                          label={allDefault
+                            ? tComposer("mcpUnsetDefaultServerTools", { server: group.serverName })
+                            : tComposer("mcpSetDefaultServerTools", { server: group.serverName })}
+                          className={cn(hasDefault && "text-amber-500 hover:text-amber-500 focus-visible:text-amber-500")}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleDefaultToolGroup(group.tools);
+                          }}
+                        >
+                          <Star
+                            className="size-3.5"
+                            strokeWidth={1.8}
+                            fill={allDefault ? "currentColor" : "none"}
+                          />
+                        </MCPToolRowAction>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="right"
+                        align="center"
+                        sideOffset={6}
+                        className="text-xs data-[state=closed]:[animation-duration:60ms] data-[state=open]:[animation-duration:90ms]"
                       >
-                        <Star
-                          className="size-3.5"
-                          strokeWidth={1.8}
-                          fill={allDefault ? "currentColor" : "none"}
-                        />
-                      </MCPToolRowAction>
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="right"
-                      align="center"
-                      sideOffset={6}
-                      className="text-xs data-[state=closed]:[animation-duration:60ms] data-[state=open]:[animation-duration:90ms]"
+                        {allDefault
+                          ? tComposer("mcpDefaultServerToolsEnabled")
+                          : tComposer("mcpDefaultServerToolsDisabled")}
+                      </TooltipContent>
+                    </Tooltip>
+                    <button
+                      type="button"
+                      className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground/35 outline-none transition-[background-color,color] duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
+                      aria-label={expanded ? tComposer("mcpCollapseServerTools", { server: group.serverName }) : tComposer("mcpExpandServerTools", { server: group.serverName })}
+                      onClick={() => toggleServerExpanded(group.key)}
                     >
-                      {allDefault
-                        ? tComposer("mcpDefaultServerToolsEnabled")
-                        : tComposer("mcpDefaultServerToolsDisabled")}
-                    </TooltipContent>
-                  </Tooltip>
-                  <button
-                    type="button"
-                    className="-mr-2 flex size-8 shrink-0 items-center justify-center rounded-md text-foreground/45 outline-none transition-[background-color,color] duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
-                    aria-label={expanded ? tComposer("mcpCollapseServerTools", { server: group.serverName }) : tComposer("mcpExpandServerTools", { server: group.serverName })}
-                    onClick={() => toggleServerExpanded(group.key)}
-                  >
-                    <ChevronDown
-                      className={cn("size-3.5 shrink-0 transition-transform duration-200", expanded && "rotate-180")}
-                      strokeWidth={1.7}
-                    />
-                  </button>
+                      <ChevronDown
+                        className={cn("size-3.5 shrink-0 transition-transform duration-200", expanded && "rotate-180")}
+                        strokeWidth={1.7}
+                      />
+                    </button>
+                  </div>
                 </div>
                 <AnimatePresence initial={false}>
                   {expanded ? (
@@ -458,7 +461,7 @@ export function ChatMCP({
                       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                       className="overflow-hidden"
                     >
-                      <div className="mt-1 space-y-1 border-l border-border/60 ml-2 pl-3">
+                      <div className="ml-2.5 mt-0.5 space-y-0.5 border-l border-border/50 pl-2">
                         {group.visibleTools.map((tool) => {
                           const checked = selectedToolIDSet.has(tool.id);
                           const isDefault = defaultToolIDSet.has(tool.id);
@@ -470,12 +473,11 @@ export function ChatMCP({
                             <div
                               key={tool.id}
                               data-interactive={toolInteractive}
-                              data-selected={checked}
-                              className="group/tool flex h-8 items-center gap-2 rounded-md px-2 text-[11px] font-medium text-foreground/65 transition-colors data-[interactive=true]:bg-accent data-[interactive=true]:text-accent-foreground"
+                              className="group/tool flex h-7 items-center gap-1.5 rounded-md px-1.5 text-[11px] font-medium text-foreground/70 transition-colors data-[interactive=true]:bg-accent data-[interactive=true]:text-accent-foreground"
                             >
                               <Checkbox
                                 checked={checked}
-                                className="shrink-0"
+                                className="size-3 rounded-[3px] [&_svg]:size-2.5"
                                 aria-label={tComposer("mcpToggleTool", { tool: label })}
                                 onCheckedChange={(nextChecked) => toggleTool(tool.id, nextChecked === true)}
                               />
@@ -505,7 +507,7 @@ export function ChatMCP({
                                   </Tooltip>
                                 ) : null}
                               </button>
-                              <div className="-mr-2 flex shrink-0 items-center gap-0">
+                              <div className="-mr-0.5 flex shrink-0 items-center gap-0">
                                 {tool.priceNanousd > 0 ? (
                                   <Tooltip disableHoverableContent>
                                     <TooltipTrigger asChild>

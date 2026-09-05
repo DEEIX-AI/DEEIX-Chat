@@ -18,6 +18,7 @@ import (
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	_ "golang.org/x/image/webp"
@@ -223,7 +224,7 @@ func (s *Service) ListModelIconAssets(ctx context.Context, page int, pageSize in
 	if s.iconAssetRepo == nil {
 		return nil, 0, ErrModelIconAssetUnavailable
 	}
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	items, total, err := s.iconAssetRepo.ListModelIconAssets(ctx, offset, limit)
 	if err != nil {
 		return nil, 0, err

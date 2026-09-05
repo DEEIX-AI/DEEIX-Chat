@@ -29,3 +29,16 @@ func TestParseFileAvatarURLRejectsInvalidReference(t *testing.T) {
 		}
 	}
 }
+
+func TestIsValidAvatarURL(t *testing.T) {
+	for _, value := range []string{"", "/avatars/default.png", "generated:github:user", "file:file_test_123", "https://example.com/avatar.png"} {
+		if !IsValidAvatarURL(value) {
+			t.Fatalf("IsValidAvatarURL(%q) = false, want true", value)
+		}
+	}
+	for _, value := range []string{"file:invalid", "javascript:alert(1)", "https:///avatar.png"} {
+		if IsValidAvatarURL(value) {
+			t.Fatalf("IsValidAvatarURL(%q) = true, want false", value)
+		}
+	}
+}

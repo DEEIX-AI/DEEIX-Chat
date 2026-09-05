@@ -19,7 +19,6 @@ type BillingPlan struct {
 	Description         string `gorm:"size:255;not null;default:'';comment:套餐说明"`
 	FeatureJSON         string `gorm:"type:text;not null;default:'';comment:能力配置JSON"`
 	PeriodCreditNanousd int64  `gorm:"not null;default:0;comment:周期用量额度(纳美元)"`
-	DiscountPercent     int    `gorm:"not null;default:0;comment:默认折扣百分比"`
 	SortOrder           int    `gorm:"not null;default:0;comment:排序权重"`
 	IsActive            bool   `gorm:"not null;default:false;index:idx_billing_plans_active;comment:是否启用"`
 	PermissionGroupID   *uint  `gorm:"index:idx_billing_plans_perm_group;comment:绑定的权限组ID"`
@@ -226,7 +225,8 @@ func (ModelPricing) TableName() string {
 // UsageLedger 记录每日消费与Token使用量，保留计费快照用于审计追溯。
 type UsageLedger struct {
 	BaseModel
-	UserID              uint      `gorm:"not null;index:idx_billing_usage_ledgers_user_id;index:idx_billing_usage_ledgers_user_date,priority:1;index:idx_billing_usage_ledgers_user_billing_at,priority:1;comment:用户ID"`
+	UserID              uint      `gorm:"not null;index:idx_billing_usage_ledgers_user_id;index:idx_billing_usage_ledgers_user_date,priority:1;index:idx_billing_usage_ledgers_user_billing_at,priority:1;uniqueIndex:idx_billing_usage_ledgers_user_ref_no,priority:1;comment:用户ID"`
+	RefNo               string    `gorm:"size:128;not null;default:'';uniqueIndex:idx_billing_usage_ledgers_user_ref_no,priority:2,where:ref_no <> '';comment:运行级幂等编号(与计费授权编号一致)"`
 	ConversationID      uint      `gorm:"not null;index:idx_billing_usage_ledgers_conversation_id;comment:会话ID"`
 	ProviderProtocol    string    `gorm:"size:64;not null;default:'';index:idx_billing_usage_ledgers_provider_protocol;comment:协议适配器快照"`
 	UpstreamName        string    `gorm:"size:128;not null;default:'';comment:上游名称"`

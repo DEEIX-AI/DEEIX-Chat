@@ -40,14 +40,6 @@ func InvalidRequestBody(c *gin.Context, err error) {
 	})
 }
 
-// InvalidRequestBodyMessage converts binding and JSON errors into a user-facing
-// request validation message. It is intentionally scoped to request bodies; deeper
-// business validation should still be mapped by the owning handler/service.
-func InvalidRequestBodyMessage(err error) string {
-	msg, _ := invalidRequestBodyMessageAndDetails(err)
-	return msg
-}
-
 func invalidRequestBodyMessageAndDetails(err error) (string, RequestBodyErrorDetails) {
 	if err == nil {
 		return "invalid request body", RequestBodyErrorDetails{Reason: "invalid"}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	models "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
@@ -25,7 +26,7 @@ func lockModelPresentationReferences(tx *gorm.DB, vendor string, displayGroupID 
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return repository.ErrModelVendorNotFound
 			}
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 	}
 	if displayGroupID != nil && *displayGroupID > 0 {
@@ -35,7 +36,7 @@ func lockModelPresentationReferences(tx *gorm.DB, vendor string, displayGroupID 
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return repository.ErrModelDisplayGroupNotFound
 			}
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 	}
 	return nil
@@ -48,7 +49,7 @@ func (r *Repo) CreateModelIconAsset(ctx context.Context, item *domainchannel.Mod
 	}
 	entity := toModelIconAssetModel(item)
 	if err := r.db.WithContext(ctx).Create(&entity).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	*item = toModelIconAssetDomain(entity)
 	return nil
@@ -58,7 +59,7 @@ func (r *Repo) CreateModelIconAsset(ctx context.Context, item *domainchannel.Mod
 func (r *Repo) GetModelIconAssetByPublicID(ctx context.Context, publicID string) (*domainchannel.ModelIconAsset, error) {
 	var item models.LLMModelIconAsset
 	if err := r.db.WithContext(ctx).Where("public_id = ?", strings.TrimSpace(publicID)).First(&item).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toModelIconAssetDomain(item)
 	return &result, nil
@@ -68,7 +69,7 @@ func (r *Repo) GetModelIconAssetByPublicID(ctx context.Context, publicID string)
 func (r *Repo) GetModelIconAssetBySHA256(ctx context.Context, sha256 string) (*domainchannel.ModelIconAsset, error) {
 	var item models.LLMModelIconAsset
 	if err := r.db.WithContext(ctx).Where("sha256 = ?", strings.TrimSpace(sha256)).First(&item).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toModelIconAssetDomain(item)
 	return &result, nil
@@ -83,11 +84,11 @@ func (r *Repo) ListModelIconAssets(ctx context.Context, offset int, limit int) (
 		Where("ready_at IS NOT NULL AND deleting_at IS NULL AND delete_requested_at IS NULL")
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	entities := make([]models.LLMModelIconAsset, 0)
 	if err := query.Order("created_at DESC, id DESC").Offset(offset).Limit(limit).Find(&entities).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	items := make([]domainchannel.ModelIconAsset, 0, len(entities))
 	for _, entity := range entities {
@@ -107,7 +108,7 @@ func (r *Repo) RefreshModelIconAssetUploadLease(ctx context.Context, publicID st
 			"delete_requested_at": nil,
 		})
 	if result.Error != nil {
-		return translateError(result.Error)
+		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return repository.ErrNotFound
@@ -122,7 +123,7 @@ func (r *Repo) MarkModelIconAssetReady(ctx context.Context, publicID string, rea
 		Where("public_id = ? AND deleting_at IS NULL", strings.TrimSpace(publicID)).
 		Update("ready_at", gorm.Expr("COALESCE(ready_at, ?)", readyAt))
 	if result.Error != nil {
-		return translateError(result.Error)
+		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return repository.ErrNotFound
@@ -141,7 +142,7 @@ func (r *Repo) ReserveModelIconAssetReference(ctx context.Context, publicID stri
 			"delete_requested_at": nil,
 		})
 	if result.Error != nil {
-		return translateError(result.Error)
+		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return repository.ErrNotFound
@@ -160,7 +161,7 @@ func (r *Repo) ListExpiredModelIconAssets(ctx context.Context, expiredBefore tim
 		Order("CASE WHEN deleting_at IS NOT NULL THEN 0 ELSE 1 END, lease_expires_at ASC, id ASC").
 		Limit(limit).
 		Find(&entities).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	items := make([]domainchannel.ModelIconAsset, 0, len(entities))
 	for _, entity := range entities {
@@ -188,7 +189,7 @@ func (r *Repo) HasModelIconAssetReference(ctx context.Context, ref string) (bool
 			Where(check.column+" = ?", strings.TrimSpace(ref)).
 			Limit(1).
 			Scan(&result).Error; err != nil {
-			return false, translateError(err)
+			return false, dberror.Translate(err)
 		}
 		if result.Found == 1 {
 			return true, nil
@@ -214,7 +215,7 @@ func (r *Repo) GetModelIconAssetReferenceSummary(ctx context.Context, ref string
 	for _, check := range checks {
 		var count int64
 		if err := r.db.WithContext(ctx).Model(check.model).Where(check.column+" = ?", normalizedRef).Count(&count).Error; err != nil {
-			return repository.ModelIconAssetReferenceSummary{}, translateError(err)
+			return repository.ModelIconAssetReferenceSummary{}, dberror.Translate(err)
 		}
 		check.set(&summary, count)
 	}
@@ -234,7 +235,7 @@ func (r *Repo) MarkModelIconAssetUnreferenced(
 		Where("id = ? AND lease_expires_at <= ? AND unreferenced_at IS NULL AND deleting_at IS NULL", assetID, expiredBefore).
 		Updates(map[string]any{"unreferenced_at": unreferencedAt, "lease_expires_at": leaseExpiresAt})
 	if result.Error != nil {
-		return false, translateError(result.Error)
+		return false, dberror.Translate(result.Error)
 	}
 	return result.RowsAffected > 0, nil
 }
@@ -250,7 +251,7 @@ func (r *Repo) RequestModelIconAssetDeletion(ctx context.Context, assetID uint, 
 			"lease_expires_at":    leaseExpiresAt,
 		})
 	if result.Error != nil {
-		return translateError(result.Error)
+		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return repository.ErrNotFound
@@ -265,7 +266,7 @@ func (r *Repo) ClaimModelIconAssetDeletion(ctx context.Context, assetID uint, ex
 		Where("id = ? AND lease_expires_at <= ? AND unreferenced_at IS NOT NULL AND deleting_at IS NULL", assetID, expiredBefore).
 		Update("deleting_at", deletingAt)
 	if result.Error != nil {
-		return false, translateError(result.Error)
+		return false, dberror.Translate(result.Error)
 	}
 	return result.RowsAffected > 0, nil
 }
@@ -276,7 +277,7 @@ func (r *Repo) DeleteClaimedModelIconAsset(ctx context.Context, assetID uint) er
 		Where("id = ? AND deleting_at IS NOT NULL", assetID).
 		Delete(&models.LLMModelIconAsset{})
 	if result.Error != nil {
-		return translateError(result.Error)
+		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return repository.ErrNotFound
@@ -296,11 +297,11 @@ func (r *Repo) CreateModelVendor(ctx context.Context, item *domainchannel.ModelV
 			if err := tx.Model(&models.LLMModelVendor{}).
 				Select("COALESCE(MAX(sort_order), 0)").
 				Scan(&maxSortOrder).Error; err != nil {
-				return translateError(err)
+				return dberror.Translate(err)
 			}
 			entity.SortOrder = maxSortOrder + 100
 		}
-		return translateError(tx.Create(&entity).Error)
+		return dberror.Translate(tx.Create(&entity).Error)
 	}); err != nil {
 		return err
 	}
@@ -310,7 +311,7 @@ func (r *Repo) CreateModelVendor(ctx context.Context, item *domainchannel.ModelV
 
 // UpdateModelVendor 更新技术厂商的展示名称与图标，稳定 key 不参与修改。
 func (r *Repo) UpdateModelVendor(ctx context.Context, key string, input repository.UpdateModelVendorInput) error {
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	if input.Name != nil {
 		updates["name"] = *input.Name
 	}
@@ -325,7 +326,7 @@ func (r *Repo) UpdateModelVendor(ctx context.Context, key string, input reposito
 		Where("key = ?", key).
 		Updates(updates)
 	if result.Error != nil {
-		return translateError(result.Error)
+		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return repository.ErrNotFound
@@ -343,7 +344,7 @@ func (r *Repo) DeleteModelVendor(ctx context.Context, key string) error {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return repository.ErrModelVendorNotFound
 			}
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		if item.BuiltIn {
 			return &repository.ModelVendorDeleteBlockedError{Reason: repository.ModelVendorDeleteReasonBuiltIn}
@@ -351,7 +352,7 @@ func (r *Repo) DeleteModelVendor(ctx context.Context, key string) error {
 
 		var referenceCount int64
 		if err := tx.Model(&models.LLMPlatformModel{}).Where("vendor = ?", normalizedKey).Count(&referenceCount).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		if referenceCount > 0 {
 			var referencedModels []struct {
@@ -364,7 +365,7 @@ func (r *Repo) DeleteModelVendor(ctx context.Context, key string) error {
 				Order("id ASC").
 				Limit(modelVendorDeleteReferencePreviewLimit).
 				Scan(&referencedModels).Error; err != nil {
-				return translateError(err)
+				return dberror.Translate(err)
 			}
 			modelsPreview := make([]repository.ModelVendorReference, 0, len(referencedModels))
 			for _, referencedModel := range referencedModels {
@@ -378,7 +379,7 @@ func (r *Repo) DeleteModelVendor(ctx context.Context, key string) error {
 				Models:         modelsPreview,
 			}
 		}
-		return translateError(tx.Delete(&item).Error)
+		return dberror.Translate(tx.Delete(&item).Error)
 	})
 }
 
@@ -386,7 +387,7 @@ func (r *Repo) DeleteModelVendor(ctx context.Context, key string) error {
 func (r *Repo) GetModelVendorByKey(ctx context.Context, key string) (*domainchannel.ModelVendor, error) {
 	var item models.LLMModelVendor
 	if err := r.db.WithContext(ctx).Where("key = ?", key).First(&item).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toModelVendorDomain(item)
 	return &result, nil
@@ -401,11 +402,11 @@ func (r *Repo) ListModelVendors(ctx context.Context, input repository.ListModelV
 	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	entities := make([]models.LLMModelVendor, 0)
 	if err := query.Order("sort_order ASC, id ASC").Offset(input.Offset).Limit(input.Limit).Find(&entities).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	items := make([]domainchannel.ModelVendor, 0, len(entities))
 	for _, entity := range entities {
@@ -426,12 +427,12 @@ func (r *Repo) CreateModelDisplayGroup(ctx context.Context, item *domainchannel.
 			if err := tx.Model(&models.LLMModelDisplayGroup{}).
 				Select("COALESCE(MAX(sort_order), 0)").
 				Scan(&maxSortOrder).Error; err != nil {
-				return translateError(err)
+				return dberror.Translate(err)
 			}
 			entity.SortOrder = maxSortOrder + 100
 		}
 		if err := tx.Create(&entity).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		return replaceModelDisplayGroupMembers(tx, entity.ID, modelIDs)
 	}); err != nil {
@@ -443,7 +444,7 @@ func (r *Repo) CreateModelDisplayGroup(ctx context.Context, item *domainchannel.
 
 // UpdateModelDisplayGroup 更新自定义模型展示分组。
 func (r *Repo) UpdateModelDisplayGroup(ctx context.Context, groupID uint, input repository.UpdateModelDisplayGroupInput) error {
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	if input.Name != nil {
 		updates["name"] = *input.Name
 	}
@@ -453,13 +454,13 @@ func (r *Repo) UpdateModelDisplayGroup(ctx context.Context, groupID uint, input 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var item models.LLMModelDisplayGroup
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").Where("id = ?", groupID).First(&item).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		if len(updates) > 0 {
 			if err := tx.Model(&models.LLMModelDisplayGroup{}).
 				Where("id = ?", groupID).
 				Updates(updates).Error; err != nil {
-				return translateError(err)
+				return dberror.Translate(err)
 			}
 		}
 		if input.ModelIDs != nil {
@@ -474,7 +475,7 @@ func replaceModelDisplayGroupMembers(tx *gorm.DB, groupID uint, modelIDs []uint)
 	if len(modelIDs) > 0 {
 		var count int64
 		if err := tx.Model(&models.LLMPlatformModel{}).Where("id IN ?", modelIDs).Count(&count).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		if count != int64(len(modelIDs)) {
 			return repository.ErrInvalidInput
@@ -486,12 +487,12 @@ func replaceModelDisplayGroupMembers(tx *gorm.DB, groupID uint, modelIDs []uint)
 		clearQuery = clearQuery.Where("id NOT IN ?", modelIDs)
 	}
 	if err := clearQuery.Update("display_group_id", nil).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	if len(modelIDs) == 0 {
 		return nil
 	}
-	return translateError(tx.Model(&models.LLMPlatformModel{}).
+	return dberror.Translate(tx.Model(&models.LLMPlatformModel{}).
 		Where("id IN ?", modelIDs).
 		Update("display_group_id", groupID).Error)
 }
@@ -505,23 +506,23 @@ func (r *Repo) SetModelsDisplayGroup(ctx context.Context, modelIDs []uint, group
 		if groupID > 0 {
 			var group models.LLMModelDisplayGroup
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").Where("id = ?", groupID).First(&group).Error; err != nil {
-				return translateError(err)
+				return dberror.Translate(err)
 			}
 		}
 
 		var count int64
 		if err := tx.Model(&models.LLMPlatformModel{}).Where("id IN ?", modelIDs).Count(&count).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		if count != int64(len(modelIDs)) {
 			return repository.ErrInvalidInput
 		}
 
-		var value interface{}
+		var value any
 		if groupID > 0 {
 			value = groupID
 		}
-		return translateError(tx.Model(&models.LLMPlatformModel{}).
+		return dberror.Translate(tx.Model(&models.LLMPlatformModel{}).
 			Where("id IN ?", modelIDs).
 			Update("display_group_id", value).Error)
 	})
@@ -531,7 +532,7 @@ func (r *Repo) SetModelsDisplayGroup(ctx context.Context, modelIDs []uint, group
 func (r *Repo) GetModelDisplayGroupByID(ctx context.Context, groupID uint) (*domainchannel.ModelDisplayGroup, error) {
 	var item models.LLMModelDisplayGroup
 	if err := r.db.WithContext(ctx).Where("id = ?", groupID).First(&item).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toModelDisplayGroupDomain(item)
 	return &result, nil
@@ -545,11 +546,11 @@ func (r *Repo) ListModelDisplayGroups(ctx context.Context, input repository.List
 	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	entities := make([]models.LLMModelDisplayGroup, 0)
 	if err := query.Order("sort_order ASC, id ASC").Offset(input.Offset).Limit(input.Limit).Find(&entities).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	items := make([]domainchannel.ModelDisplayGroup, 0, len(entities))
 	for _, entity := range entities {
@@ -566,14 +567,14 @@ func (r *Repo) DeleteModelDisplayGroup(ctx context.Context, groupID uint) error 
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return repository.ErrNotFound
 			}
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		if err := tx.Model(&models.LLMPlatformModel{}).
 			Where("display_group_id = ?", groupID).
 			Update("display_group_id", nil).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
-		return translateError(tx.Delete(&models.LLMModelDisplayGroup{}, groupID).Error)
+		return dberror.Translate(tx.Delete(&models.LLMModelDisplayGroup{}, groupID).Error)
 	})
 }
 

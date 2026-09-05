@@ -77,8 +77,23 @@ func TestClassifyModelProbeErrorTreatsSuccessfulHTTPParseFailureAsIncompatibleRe
 	if statusCode != 200 {
 		t.Fatalf("expected status 200, got %d", statusCode)
 	}
-	if !strings.Contains(message, "invalid response") {
-		t.Fatalf("expected upstream parse message to be retained, got %q", message)
+	if message != "upstream response format is incompatible" {
+		t.Fatalf("message = %q, want stable public text", message)
+	}
+}
+
+func TestFailedModelProbeDoesNotExposeUpstreamMessage(t *testing.T) {
+	const secret = "provider response contains customer token"
+	row := repository.ChannelUpstreamRouteRow{Protocol: "openai_chat_completions", PlatformModelName: "demo"}
+	result := (&Service{}).failedModelProbeFromError(row, llm.RouteConfig{APIKey: "secret"}, &llm.UpstreamError{
+		StatusCode: 502,
+		Message:    secret,
+	}, 12)
+	if strings.Contains(result.ErrorMessage, secret) {
+		t.Fatalf("upstream message leaked into probe result: %q", result.ErrorMessage)
+	}
+	if result.ErrorMessage != "upstream service is unavailable" {
+		t.Fatalf("error message = %q, want stable public text", result.ErrorMessage)
 	}
 }
 

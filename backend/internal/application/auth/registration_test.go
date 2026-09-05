@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -44,6 +45,46 @@ func TestBuildVerificationEmailMessageEncodesChineseSubject(t *testing.T) {
 	}
 	if !strings.Contains(message, `src="https://deeix.example/logo.svg"`) {
 		t.Fatalf("expected html logo, got:\n%s", message)
+	}
+}
+
+func TestBuildVerificationEmailMessageEscapesDynamicHTMLContent(t *testing.T) {
+	template := verificationEmailTemplate{
+		Subject:      "验证码",
+		Title:        `<script>alert("title")</script>`,
+		SecurityNote: `<img src=x onerror=alert("note")>`,
+	}
+	message := buildVerificationEmailMessage(
+		"DEEIX Chat <no-reply@example.com>",
+		"user@example.com",
+		"123456",
+		template,
+		`https://deeix.example/logo.svg?a="quoted"`,
+	)
+	htmlBody := buildVerificationHTML("123456", template, `https://deeix.example/logo.svg?a="quoted"`)
+
+	if strings.Contains(htmlBody, `<script>alert("title")</script>`) || strings.Contains(htmlBody, `<img src=x onerror=alert("note")>`) {
+		t.Fatalf("expected dynamic HTML content to be escaped, got:\n%s", htmlBody)
+	}
+	if !strings.Contains(message, `&lt;script&gt;alert(&#34;title&#34;)&lt;/script&gt;`) {
+		t.Fatalf("expected escaped title in HTML body, got:\n%s", message)
+	}
+	if !strings.Contains(message, `&lt;img src=x onerror=alert(&#34;note&#34;)&gt;`) {
+		t.Fatalf("expected escaped security note in HTML body, got:\n%s", message)
+	}
+	if !strings.Contains(message, `a=&#34;quoted&#34;`) {
+		t.Fatalf("expected escaped logo URL attribute, got:\n%s", message)
+	}
+}
+
+func TestNormalizeRegistrationEmailRejectsHeaderInjection(t *testing.T) {
+	for _, raw := range []string{
+		"attacker@example.com\r\nBcc: victim@example.com",
+		"attacker@example.com\nCc: victim@example.com",
+	} {
+		if _, err := normalizeRegistrationEmail(raw); err == nil {
+			t.Fatalf("expected header injection payload %q to be rejected", raw)
+		}
 	}
 }
 
@@ -268,7 +309,12 @@ func TestRegisterWithEmailRequiresTurnstileWhenEmailVerificationDisabled(t *test
 		TurnstileSecretKey:           "secret-key",
 	}, nil, nil)
 
-	_, err := service.RegisterWithEmail(context.Background(), "user@example.com", "securepass1", "", "", "127.0.0.1", "", requestmeta.SessionAuditContext{})
+	_, err := service.RegisterWithEmail(context.Background(), RegisterWithEmailInput{
+		Email:        "user@example.com",
+		Password:     "securepass1",
+		RemoteIP:     "127.0.0.1",
+		AuditContext: requestmeta.SessionAuditContext{},
+	})
 	if err == nil || err.Error() != "turnstile verification is required" {
 		t.Fatalf("expected turnstile required error, got %v", err)
 	}
@@ -284,57 +330,62 @@ func TestRegisterWithEmailDoesNotRequireTurnstileWhenEmailVerificationEnabled(t 
 		TurnstileSecretKey:           "secret-key",
 	}, &emailRegistrationRepo{}, nil)
 
-	_, err := service.RegisterWithEmail(context.Background(), "user@example.com", "securepass1", "", "", "127.0.0.1", "", requestmeta.SessionAuditContext{})
+	_, err := service.RegisterWithEmail(context.Background(), RegisterWithEmailInput{
+		Email:        "user@example.com",
+		Password:     "securepass1",
+		RemoteIP:     "127.0.0.1",
+		AuditContext: requestmeta.SessionAuditContext{},
+	})
 	if err == nil || err.Error() != "verification code is invalid or expired" {
 		t.Fatalf("expected verification code error instead of turnstile error, got %v", err)
 	}
 }
 
-func TestResolveSecurityVerificationMethod(t *testing.T) {
+func TestResolveSecurityVerificationMethods(t *testing.T) {
 	now := time.Now()
 	cases := []struct {
 		name              string
 		emailVerification bool
 		user              *domainuser.User
 		twoFactor         *domainuser.UserTwoFactor
-		want              SecurityVerificationMethod
+		want              []SecurityVerificationMethod
 	}{
 		{
 			name:              "enabled two factor wins",
 			emailVerification: true,
 			user:              &domainuser.User{ID: 1, Email: "user@example.com", EmailVerifiedAt: &now},
 			twoFactor:         &domainuser.UserTwoFactor{UserID: 1, TOTPEnabled: true, TOTPSecretEncrypted: "secret"},
-			want:              SecurityVerificationMethodTwoFactor,
+			want:              []SecurityVerificationMethod{SecurityVerificationMethodTwoFactor, SecurityVerificationMethodEmail},
 		},
 		{
 			name:              "verified email when no two factor",
 			emailVerification: true,
 			user:              &domainuser.User{ID: 1, Email: "user@example.com", EmailVerifiedAt: &now},
-			want:              SecurityVerificationMethodEmail,
+			want:              []SecurityVerificationMethod{SecurityVerificationMethodEmail},
 		},
 		{
 			name:              "unverified email is not a verification method",
 			emailVerification: true,
 			user:              &domainuser.User{ID: 1, Email: "user@example.com"},
-			want:              SecurityVerificationMethodNone,
+			want:              []SecurityVerificationMethod{SecurityVerificationMethodNone},
 		},
 		{
 			name:              "email verification disabled",
 			emailVerification: false,
 			user:              &domainuser.User{ID: 1, Email: "user@example.com", EmailVerifiedAt: &now},
-			want:              SecurityVerificationMethodNone,
+			want:              []SecurityVerificationMethod{SecurityVerificationMethodNone},
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			service := newTestService(config.Config{EmailVerificationEnabled: tc.emailVerification}, &securityVerificationRepo{user: tc.user, twoFactor: tc.twoFactor}, nil)
-			got, err := service.resolveSecurityVerificationMethod(context.Background(), tc.user)
+			got, err := service.resolveSecurityVerificationMethods(context.Background(), tc.user)
 			if err != nil {
-				t.Fatalf("resolveSecurityVerificationMethod() error = %v", err)
+				t.Fatalf("resolveSecurityVerificationMethods() error = %v", err)
 			}
-			if got != tc.want {
-				t.Fatalf("resolveSecurityVerificationMethod() = %q, want %q", got, tc.want)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("resolveSecurityVerificationMethods() = %q, want %q", got, tc.want)
 			}
 		})
 	}
@@ -360,7 +411,11 @@ func TestCompleteEmailChangeDoesNotVerifyEmailWhenEmailVerificationDisabled(t *t
 	}
 	service := newTestService(config.Config{EmailVerificationEnabled: false}, repo, nil)
 
-	updated, err := service.CompleteEmailChange(context.Background(), 1, "new@example.com", "", "", "", "", requestmeta.SessionAuditContext{})
+	updated, err := service.CompleteEmailChange(context.Background(), CompleteEmailChangeInput{
+		UserID:       1,
+		NewEmail:     "new@example.com",
+		AuditContext: requestmeta.SessionAuditContext{},
+	})
 	if err != nil {
 		t.Fatalf("CompleteEmailChange() error = %v", err)
 	}
@@ -430,7 +485,7 @@ func (r *emailRegistrationRepo) GetByEmail(ctx context.Context, email string) (*
 	return nil, repository.ErrNotFound
 }
 
-func (r *emailRegistrationRepo) RecordAuthEvent(ctx context.Context, userID uint, requestID string, eventType string, result string, reason string, clientIP string, userAgent string, detailJSON string) error {
+func (r *emailRegistrationRepo) RecordAuthEvent(ctx context.Context, input repository.AuthEventInput) error {
 	return nil
 }
 
@@ -537,6 +592,6 @@ func (r *securityVerificationRepo) MarkContactVerificationVerified(ctx context.C
 	return repository.ErrNotFound
 }
 
-func (r *securityVerificationRepo) RecordAuthEvent(ctx context.Context, userID uint, requestID string, eventType string, result string, reason string, clientIP string, userAgent string, detailJSON string) error {
+func (r *securityVerificationRepo) RecordAuthEvent(ctx context.Context, input repository.AuthEventInput) error {
 	return nil
 }

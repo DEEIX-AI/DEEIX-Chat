@@ -15,19 +15,6 @@ func MustUserID(c *gin.Context) uint {
 	return userID
 }
 
-// MustUsername 获取登录用户名。
-func MustUsername(c *gin.Context) string {
-	value, ok := c.Get(ContextKeyUsername)
-	if !ok {
-		return ""
-	}
-	username, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return username
-}
-
 // MustUserRole 获取登录用户角色。
 func MustUserRole(c *gin.Context) string {
 	value, ok := c.Get(ContextKeyUserRole)

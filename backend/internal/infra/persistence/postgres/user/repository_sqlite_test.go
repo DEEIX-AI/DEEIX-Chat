@@ -216,7 +216,7 @@ func TestDeleteAccountHardRemovesUserScopedAssociations(t *testing.T) {
 	if count != 0 {
 		t.Fatalf("permission group user access count = %d, want 0", count)
 	}
-	for label, item := range map[string]interface{}{
+	for label, item := range map[string]any{
 		"conversation projects":               &model.ConversationProject{},
 		"project MCP associations":            &model.ConversationProjectMCPTool{},
 		"project Skill associations":          &model.ConversationProjectSkill{},

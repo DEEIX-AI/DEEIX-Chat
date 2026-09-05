@@ -26,6 +26,7 @@ import type {
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import type { ModelSelectOption } from "@/shared/components/model-select";
 import { resolveModelOptionIconUrl } from "@/shared/lib/model-option-display";
+import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 
 export const ADMIN_LOGS_PAGE_SIZE = 25;
 
@@ -314,6 +315,8 @@ type UseAdminRedemptionsState = {
   setRewardTypeFilter: (value: string) => void;
   codeIDFilter: number;
   setCodeIDFilter: (value: number) => void;
+  userIDFilter: number;
+  setUserIDFilter: (value: number) => void;
   createdFromFilter: string;
   setCreatedFromFilter: (value: string) => void;
   createdToFilter: string;
@@ -403,20 +406,13 @@ export function useAdminLogs(): UseAdminLogsState {
   const [pageSize, setPageSize] = React.useState(ADMIN_LOGS_PAGE_SIZE);
   const [loading, setLoading] = React.useState(true);
   const [query, setQueryState] = React.useState("");
-  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const debouncedQuery = useDebouncedValue(query.trim());
   const [resourceFilter, setResourceFilterState] = React.useState("");
   const [actionFilter, setActionFilterState] = React.useState("");
   const [createdFromFilter, setCreatedFromFilterState] = React.useState("");
   const [createdToFilter, setCreatedToFilterState] = React.useState("");
   const [sortValue, setSortValueState] = React.useState<AuditLogSortValue>("id_desc");
   const requestSeqRef = React.useRef(0);
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedQuery(query.trim());
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [query]);
 
   const loadAuditLogs = React.useCallback(async (nextPage = 1, nextPageSize = pageSize) => {
     const requestSeq = requestSeqRef.current + 1;
@@ -425,6 +421,9 @@ export function useAdminLogs(): UseAdminLogsState {
     try {
       const token = await resolveAccessToken();
       if (!token) {
+        if (requestSeq !== requestSeqRef.current) {
+          return;
+        }
         toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
         return;
       }
@@ -449,6 +448,9 @@ export function useAdminLogs(): UseAdminLogsState {
       setPage(nextPage);
       setPageSize(nextPageSize);
     } catch (error) {
+      if (requestSeq !== requestSeqRef.current) {
+        return;
+      }
       toast.error(t("toast.auditLoadFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       if (requestSeq === requestSeqRef.current) {
@@ -550,17 +552,10 @@ export function useAdminSecurityLogs(): UseAdminSecurityLogsState {
   const [pageSize, setPageSize] = React.useState(ADMIN_LOGS_PAGE_SIZE);
   const [loading, setLoading] = React.useState(true);
   const [query, setQueryState] = React.useState("");
-  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const debouncedQuery = useDebouncedValue(query.trim());
   const [resultFilter, setResultFilterState] = React.useState("");
   const [sortValue, setSortValueState] = React.useState<SecurityLogSortValue>("occurred_desc");
   const requestSeqRef = React.useRef(0);
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedQuery(query.trim());
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [query]);
 
   const loadSecurityLogs = React.useCallback(async (nextPage = 1, nextPageSize = pageSize) => {
     const requestSeq = requestSeqRef.current + 1;
@@ -569,6 +564,9 @@ export function useAdminSecurityLogs(): UseAdminSecurityLogsState {
     try {
       const token = await resolveAccessToken();
       if (!token) {
+        if (requestSeq !== requestSeqRef.current) {
+          return;
+        }
         toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
         return;
       }
@@ -589,6 +587,9 @@ export function useAdminSecurityLogs(): UseAdminSecurityLogsState {
       setPage(nextPage);
       setPageSize(nextPageSize);
     } catch (error) {
+      if (requestSeq !== requestSeqRef.current) {
+        return;
+      }
       toast.error(t("toast.authLoadFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       if (requestSeq === requestSeqRef.current) {
@@ -661,7 +662,7 @@ export function useAdminSystemEvents(): UseAdminSystemEventsState {
   const [pageSize, setPageSize] = React.useState(ADMIN_LOGS_PAGE_SIZE);
   const [loading, setLoading] = React.useState(true);
   const [query, setQueryState] = React.useState("");
-  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const debouncedQuery = useDebouncedValue(query.trim());
   const [levelFilter, setLevelFilterState] = React.useState("");
   const [sourceFilter, setSourceFilterState] = React.useState("");
   const [eventFilter, setEventFilterState] = React.useState("");
@@ -670,11 +671,6 @@ export function useAdminSystemEvents(): UseAdminSystemEventsState {
   const [sortValue, setSortValueState] = React.useState<SystemEventSortValue>("created_desc");
   const requestSeqRef = React.useRef(0);
 
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [query]);
-
   const loadSystemEvents = React.useCallback(async (nextPage = 1, nextPageSize = pageSize) => {
     const requestSeq = requestSeqRef.current + 1;
     requestSeqRef.current = requestSeq;
@@ -682,6 +678,9 @@ export function useAdminSystemEvents(): UseAdminSystemEventsState {
     try {
       const token = await resolveAccessToken();
       if (!token) {
+        if (requestSeq !== requestSeqRef.current) {
+          return;
+        }
         toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
         return;
       }
@@ -704,6 +703,9 @@ export function useAdminSystemEvents(): UseAdminSystemEventsState {
       setPage(nextPage);
       setPageSize(nextPageSize);
     } catch (error) {
+      if (requestSeq !== requestSeqRef.current) {
+        return;
+      }
       toast.error(t("toast.systemLoadFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       if (requestSeq === requestSeqRef.current) {
@@ -790,7 +792,7 @@ export function useAdminUsageLogs(): UseAdminUsageLogsState {
   const [pageSize, setPageSize] = React.useState(ADMIN_LOGS_PAGE_SIZE);
   const [loading, setLoading] = React.useState(true);
   const [query, setQueryState] = React.useState("");
-  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const debouncedQuery = useDebouncedValue(query.trim());
   const [platformModelFilter, setPlatformModelFilterState] = React.useState("");
   const [billingModeFilter, setBillingModeFilterState] = React.useState("");
   const [platformModelOptions, setPlatformModelOptions] = React.useState<ModelSelectOption[]>([]);
@@ -799,11 +801,6 @@ export function useAdminUsageLogs(): UseAdminUsageLogsState {
   const [sortValue, setSortValueState] = React.useState<UsageLogSortValue>("created_desc");
   const requestSeqRef = React.useRef(0);
 
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [query]);
-
   const loadUsageLogs = React.useCallback(async (nextPage = 1, nextPageSize = pageSize) => {
     const requestSeq = requestSeqRef.current + 1;
     requestSeqRef.current = requestSeq;
@@ -811,6 +808,9 @@ export function useAdminUsageLogs(): UseAdminUsageLogsState {
     try {
       const token = await resolveAccessToken();
       if (!token) {
+        if (requestSeq !== requestSeqRef.current) {
+          return;
+        }
         toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
         return;
       }
@@ -831,6 +831,9 @@ export function useAdminUsageLogs(): UseAdminUsageLogsState {
       setPage(nextPage);
       setPageSize(nextPageSize);
     } catch (error) {
+      if (requestSeq !== requestSeqRef.current) {
+        return;
+      }
       toast.error(t("toast.usageLoadFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       if (requestSeq === requestSeqRef.current) {
@@ -940,7 +943,7 @@ export function useAdminPaymentOrders(): UseAdminPaymentOrdersState {
   const [pageSize, setPageSize] = React.useState(ADMIN_LOGS_PAGE_SIZE);
   const [loading, setLoading] = React.useState(true);
   const [query, setQueryState] = React.useState("");
-  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const debouncedQuery = useDebouncedValue(query.trim());
   const [orderTypeFilter, setOrderTypeFilterState] = React.useState("");
   const [providerFilter, setProviderFilterState] = React.useState("");
   const [statusFilter, setStatusFilterState] = React.useState("");
@@ -949,11 +952,6 @@ export function useAdminPaymentOrders(): UseAdminPaymentOrdersState {
   const [sortValue, setSortValueState] = React.useState<PaymentOrderSortValue>("created_desc");
   const requestSeqRef = React.useRef(0);
 
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [query]);
-
   const loadPaymentOrders = React.useCallback(async (nextPage = 1, nextPageSize = pageSize) => {
     const requestSeq = requestSeqRef.current + 1;
     requestSeqRef.current = requestSeq;
@@ -961,6 +959,9 @@ export function useAdminPaymentOrders(): UseAdminPaymentOrdersState {
     try {
       const token = await resolveAccessToken();
       if (!token) {
+        if (requestSeq !== requestSeqRef.current) {
+          return;
+        }
         toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
         return;
       }
@@ -982,6 +983,9 @@ export function useAdminPaymentOrders(): UseAdminPaymentOrdersState {
       setPage(nextPage);
       setPageSize(nextPageSize);
     } catch (error) {
+      if (requestSeq !== requestSeqRef.current) {
+        return;
+      }
       toast.error(t("toast.ordersLoadFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       if (requestSeq === requestSeqRef.current) {
@@ -1056,20 +1060,16 @@ export function useAdminRedemptions(initialCodeID?: number): UseAdminRedemptions
   const [pageSize, setPageSize] = React.useState(ADMIN_LOGS_PAGE_SIZE);
   const [loading, setLoading] = React.useState(true);
   const [query, setQueryState] = React.useState("");
-  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const debouncedQuery = useDebouncedValue(query.trim());
   const [rewardTypeFilter, setRewardTypeFilterState] = React.useState("");
   const [codeIDFilter, setCodeIDFilterState] = React.useState(
     initialCodeID && initialCodeID > 0 ? initialCodeID : 0,
   );
+  const [userIDFilter, setUserIDFilterState] = React.useState(0);
   const [createdFromFilter, setCreatedFromFilterState] = React.useState("");
   const [createdToFilter, setCreatedToFilterState] = React.useState("");
   const [sortValue, setSortValueState] = React.useState<RedemptionSortValue>("created_desc");
   const requestSeqRef = React.useRef(0);
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [query]);
 
   const loadRedemptions = React.useCallback(async (nextPage = 1, nextPageSize = pageSize) => {
     const requestSeq = requestSeqRef.current + 1;
@@ -1078,14 +1078,17 @@ export function useAdminRedemptions(initialCodeID?: number): UseAdminRedemptions
     try {
       const token = await resolveAccessToken();
       if (!token) {
+        if (requestSeq !== requestSeqRef.current) {
+          return;
+        }
         toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
         return;
       }
       const data = await listAdminRedemptions(token, {
         page: nextPage,
         pageSize: nextPageSize,
-        query: /^\d+$/.test(debouncedQuery) ? undefined : debouncedQuery,
-        userID: parsePositiveInt(debouncedQuery),
+        query: debouncedQuery,
+        userID: userIDFilter > 0 ? userIDFilter : undefined,
         codeID: codeIDFilter > 0 ? codeIDFilter : undefined,
         rewardType: rewardTypeFilter,
         createdFrom: toRFC3339DateRangeBound(createdFromFilter, "start"),
@@ -1098,13 +1101,16 @@ export function useAdminRedemptions(initialCodeID?: number): UseAdminRedemptions
       setPage(nextPage);
       setPageSize(nextPageSize);
     } catch (error) {
+      if (requestSeq !== requestSeqRef.current) {
+        return;
+      }
       toast.error(t("toast.redemptionsLoadFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       if (requestSeq === requestSeqRef.current) {
         setLoading(false);
       }
     }
-  }, [codeIDFilter, createdFromFilter, createdToFilter, debouncedQuery, pageSize, rewardTypeFilter, sortValue, t]);
+  }, [codeIDFilter, createdFromFilter, createdToFilter, debouncedQuery, pageSize, rewardTypeFilter, sortValue, t, userIDFilter]);
 
   React.useEffect(() => {
     void loadRedemptions(1);
@@ -1120,6 +1126,10 @@ export function useAdminRedemptions(initialCodeID?: number): UseAdminRedemptions
   }, []);
   const setCodeIDFilter = React.useCallback((value: number) => {
     setCodeIDFilterState(value > 0 ? value : 0);
+    setPage(1);
+  }, []);
+  const setUserIDFilter = React.useCallback((value: number) => {
+    setUserIDFilterState(value > 0 ? value : 0);
     setPage(1);
   }, []);
   const setCreatedFromFilter = React.useCallback((value: string) => {
@@ -1148,6 +1158,8 @@ export function useAdminRedemptions(initialCodeID?: number): UseAdminRedemptions
     setRewardTypeFilter,
     codeIDFilter,
     setCodeIDFilter,
+    userIDFilter,
+    setUserIDFilter,
     createdFromFilter,
     setCreatedFromFilter,
     createdToFilter,
@@ -1166,7 +1178,7 @@ export function useAdminConversationEvents(): UseAdminConversationEventsState {
   const [pageSize, setPageSize] = React.useState(ADMIN_LOGS_PAGE_SIZE);
   const [loading, setLoading] = React.useState(true);
   const [query, setQueryState] = React.useState("");
-  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const debouncedQuery = useDebouncedValue(query.trim());
   const [eventScopeFilter, setEventScopeFilterState] = React.useState("");
   const [eventTypeFilter, setEventTypeFilterState] = React.useState("");
   const [statusFilter, setStatusFilterState] = React.useState("");
@@ -1175,11 +1187,6 @@ export function useAdminConversationEvents(): UseAdminConversationEventsState {
   const [sortValue, setSortValueState] = React.useState<ConversationEventSortValue>("created_desc");
   const requestSeqRef = React.useRef(0);
 
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [query]);
-
   const loadConversationEvents = React.useCallback(async (nextPage = 1, nextPageSize = pageSize) => {
     const requestSeq = requestSeqRef.current + 1;
     requestSeqRef.current = requestSeq;
@@ -1187,6 +1194,9 @@ export function useAdminConversationEvents(): UseAdminConversationEventsState {
     try {
       const token = await resolveAccessToken();
       if (!token) {
+        if (requestSeq !== requestSeqRef.current) {
+          return;
+        }
         toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
         return;
       }
@@ -1208,6 +1218,9 @@ export function useAdminConversationEvents(): UseAdminConversationEventsState {
       setPage(nextPage);
       setPageSize(nextPageSize);
     } catch (error) {
+      if (requestSeq !== requestSeqRef.current) {
+        return;
+      }
       toast.error(t("toast.conversationEventsLoadFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
       if (requestSeq === requestSeqRef.current) {

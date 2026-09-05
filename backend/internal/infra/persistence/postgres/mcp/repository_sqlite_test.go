@@ -309,7 +309,7 @@ func TestReplaceServerToolsPreservesLegacyMetadataAfterConfirmation(t *testing.T
 	}
 	if err = db.Model(&model.MCPTool{}).
 		Where("server_id = ? AND name = ?", server.ID, "tool_a").
-		UpdateColumns(map[string]interface{}{
+		UpdateColumns(map[string]any{
 			"display_name": "Existing title",
 			"description":  "Existing description",
 		}).Error; err != nil {

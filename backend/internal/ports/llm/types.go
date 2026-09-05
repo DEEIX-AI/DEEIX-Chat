@@ -93,7 +93,7 @@ type GenerateInput struct {
 	DisableTools bool
 	// Options 承载本次调用的自由 JSON 参数。系统字段（model/messages/input/stream）
 	// 由 adapter 固定构造；Options 只表达采样、推理、工具、缓存和厂商原生扩展。
-	Options map[string]interface{}
+	Options map[string]any
 	// PreviousResponseID 供 OpenAI Responses API 实现有状态会话。
 	// 非空时：仅在 input 中发送本轮新消息，服务端从存储状态续接历史。
 	// 空串时：退回全量发送模式，适用于所有 adapter。
@@ -118,7 +118,7 @@ type ToolDefinition struct {
 	InputSchema json.RawMessage
 }
 
-// Usage 记录上游返回 token 使用量。
+// Usage 记录上游返回 token 使用量。InputTokens 是扣除缓存读取后的非缓存输入。
 type Usage struct {
 	InputTokens        int64
 	OutputTokens       int64
@@ -132,6 +132,18 @@ type Usage struct {
 	RawUsageJSON       string
 }
 
+// HasObservedInput 表示上游是否上报了输入侧用量。提示词全部命中缓存时非缓存输入
+// 合法为 0，因此判断"是否观测到输入"必须连同缓存读写一起看，不能只看 InputTokens。
+func (u Usage) HasObservedInput() bool {
+	return u.InputTokens > 0 || u.CacheReadTokens > 0 || u.CacheWriteTokens > 0
+}
+
+// HasObservedOutput 表示上游是否上报了输出侧用量。部分上游把思考 token 与可见输出分开上报，
+// 因此任一侧大于 0 都算已观测；两者同时为 0 才需要按已产出文本预估。
+func (u Usage) HasObservedOutput() bool {
+	return u.OutputTokens > 0 || u.ReasoningTokens > 0
+}
+
 // MergeRawUsageJSON 合并两段上游原始 usage JSON，去重并保持数组语义。
 func MergeRawUsageJSON(left string, right string) string {
 	left = strings.TrimSpace(left)
@@ -142,7 +154,7 @@ func MergeRawUsageJSON(left string, right string) string {
 	if right == "" || right == left {
 		return left
 	}
-	items := make([]interface{}, 0, 2)
+	items := make([]any, 0, 2)
 	items = appendRawUsageJSON(items, left)
 	items = appendRawUsageJSON(items, right)
 	if len(items) == 0 {
@@ -162,19 +174,19 @@ func MergeRawUsageJSON(left string, right string) string {
 	return string(raw)
 }
 
-func appendRawUsageJSON(items []interface{}, raw string) []interface{} {
+func appendRawUsageJSON(items []any, raw string) []any {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return items
 	}
-	var decoded interface{}
+	var decoded any
 	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
 		return items
 	}
 	switch value := decoded.(type) {
-	case []interface{}:
+	case []any:
 		return append(items, value...)
-	case map[string]interface{}:
+	case map[string]any:
 		return append(items, value)
 	default:
 		return items
@@ -280,6 +292,7 @@ type UpstreamError struct {
 	Message    string
 	Body       string
 	Debug      *UpstreamDebugSnapshot
+	Cause      error
 }
 
 func (e *UpstreamError) Error() string {
@@ -287,6 +300,13 @@ func (e *UpstreamError) Error() string {
 		return fmt.Sprintf("upstream request failed: status=%d", e.StatusCode)
 	}
 	return fmt.Sprintf("upstream request failed: status=%d message=%s", e.StatusCode, e.Message)
+}
+
+func (e *UpstreamError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
 }
 
 // AcceptedRequestError 表示上游已接受请求，或请求已写出但结果未知。

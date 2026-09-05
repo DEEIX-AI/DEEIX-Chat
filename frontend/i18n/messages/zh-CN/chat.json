@@ -2,6 +2,7 @@
   "newChat": "新对话",
   "untitledConversation": "新对话",
   "modelListLoadFailed": "模型列表加载失败",
+  "projectDefaultModelUnavailable": "项目默认模型「{model}」当前不可用，将按全局默认规则选择模型。",
   "placeholder": "发送消息给 DEEIX Chat",
   "projectMode": "项目模式",
   "projectModeTooltip": "在此模式下，新会话会创建到当前项目。项目提示词仅对聊天模型请求生效；图像生成、图像编辑等非聊天能力不会应用。",
@@ -277,6 +278,7 @@
     "dropTitle": "松开以添加附件",
     "duplicateReused": "检测到文件重复，已复用",
     "partialUploadFailed": "部分文件上传失败",
+    "temporaryVideoUnsupported": "临时对话当前支持图片和文档附件，不支持视频附件",
     "retryFailedFiles": "请重试失败的文件。",
     "retryLater": "请稍后重试。",
     "screenshotUnsupported": "当前浏览器不支持屏幕截图",
@@ -336,7 +338,8 @@
     "moderationBlocked": "内容已拦截",
     "moderationBlockedDescription": "安全检查后已撤回本轮回答。",
     "moderationEventId": "事件编号：{id}",
-    "moderationCategories": "命中分类：{categories}"
+    "moderationCategories": "命中分类：{categories}",
+    "moderationBlockedBilled": "拦截前上游已产生的用量照常计费。"
   },
   "data": {
     "signInRequired": "未登录，无法加载会话消息",
@@ -448,6 +451,7 @@
     "closeHint": "关闭提示",
     "previewAttachment": "预览附件 {name}",
     "removeAttachment": "移除附件 {name}",
+    "uploading": "上传中",
     "uploadingAttachment": "上传中 {name}",
     "ragDisabledTitle": "该文件已关闭 RAG，将以全文注入（消耗更多 Token）",
     "ragOff": "RAG 关",
@@ -521,6 +525,28 @@
         "model": "模型",
         "skill": "Skills",
         "prompt": "Prompts"
+      },
+      "tabs": {
+        "all": "全部",
+        "file": "文件",
+        "tool": "MCP",
+        "model": "模型",
+        "skill": "Skills",
+        "prompt": "Prompts"
+      },
+      "recent": "最近使用",
+      "groups": {
+        "builtin": "内置",
+        "mine": "我的"
+      },
+      "viewAll": "查看全部 {count} 项",
+      "empty": {
+        "all": "没有匹配的内容",
+        "file": "没有匹配的文件",
+        "tool": "没有匹配的工具",
+        "model": "没有匹配的模型",
+        "skill": "没有匹配的技能",
+        "prompt": "没有匹配的提示词"
       }
     },
     "mediaMode": {
@@ -656,7 +682,14 @@
         "generatedImageAlt": "生成图片 {index}",
         "sourceCount": "{count} 个来源",
         "groundingSupportCount": "{count} 条引用依据",
-        "exitCode": "退出码 {code}"
+        "exitCode": "退出码 {code}",
+        "viewFullResult": "查看完整结果",
+        "fullResultTitle": "工具调用完整结果",
+        "loadingFullResult": "正在加载完整结果",
+        "fullResultLoadFailed": "无法加载完整结果，请稍后重试。",
+        "fullResultOmitted": "该结果大小为 {size}，超过安全查看上限，未加载到页面。",
+        "fullResultEmpty": "该工具调用没有返回内容。",
+        "close": "关闭"
       }
     },
     "think": {

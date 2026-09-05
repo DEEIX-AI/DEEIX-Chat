@@ -8,6 +8,7 @@ import (
 	"time"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
@@ -37,7 +38,7 @@ func TestUpstreamUsageSnapshotReturnsEmptyObjectWhenRawUsageIsMissing(t *testing
 	snapshot, ok := upstreamUsageSnapshot(UsagePricingInput{
 		InputTokens:  10,
 		OutputTokens: 20,
-	}).(map[string]interface{})
+	}).(map[string]any)
 	if !ok || len(snapshot) != 0 {
 		t.Fatalf("expected empty upstream usage snapshot, got %#v", snapshot)
 	}
@@ -110,7 +111,7 @@ func TestBuildUsageLedgerBillsDurationOnlyWhenExplicitlyBillable(t *testing.T) {
 	if video.DurationSeconds != 6 || video.BilledNanousd != 18 {
 		t.Fatalf("unexpected video duration billing: %#v", video)
 	}
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(video.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal video pricing snapshot: %v", err)
 	}
@@ -228,6 +229,9 @@ type billingRepositoryStub struct {
 	replacedSubscription       *domainbilling.Subscription
 	reservationRequest         *domainbilling.UsageBalanceReservationRequest
 	reservationErr             error
+	raisedReservationRefNo     string
+	raisedReservationNanousd   int64
+	raiseReservationErr        error
 	periodUsageSettled         bool
 	usageSettled               bool
 	usageAdded                 bool
@@ -308,9 +312,6 @@ func (r *billingRepositoryStub) UpdatePlanWithDefaultPrice(_ context.Context, pl
 	r.updatedPrice = price
 	return nil
 }
-func (r *billingRepositoryStub) ListCurrentSubscriptionsByUserIDs(context.Context, []uint, time.Time) ([]domainbilling.Subscription, error) {
-	panic("not used")
-}
 func (r *billingRepositoryStub) ListSubscriptionEntitlementsByUserIDs(_ context.Context, userIDs []uint, now time.Time) ([]domainbilling.Subscription, error) {
 	allowed := make(map[uint]struct{}, len(userIDs))
 	for _, id := range userIDs {
@@ -372,6 +373,11 @@ func (r *billingRepositoryStub) ReserveUsageBalance(_ context.Context, input dom
 		RefNo:  input.RefNo,
 		Mode:   input.Mode,
 	}, nil
+}
+func (r *billingRepositoryStub) RaiseUsageBalanceReservation(_ context.Context, _ uint, refNo string, requiredNanousd int64) error {
+	r.raisedReservationRefNo = refNo
+	r.raisedReservationNanousd = requiredNanousd
+	return r.raiseReservationErr
 }
 func (r *billingRepositoryStub) RenewUsageBalanceReservation(context.Context, uint, string) error {
 	panic("not used")
@@ -442,6 +448,9 @@ func (r *billingRepositoryStub) ListDailyUsageByUser(context.Context, uint, time
 func (r *billingRepositoryStub) SumBillableNanousd(context.Context, uint, time.Time, time.Time) (int64, error) {
 	return 0, nil
 }
+func (r *billingRepositoryStub) SumTotalBilledNanousd(context.Context, uint) (int64, error) {
+	return 0, nil
+}
 
 func TestRecordUsageWithAuthorizationUsesBillingAtForPeriod(t *testing.T) {
 	billingAt := time.Date(2026, 6, 30, 23, 59, 58, 0, time.UTC)
@@ -507,6 +516,9 @@ func TestUsageAuthorizationKeepsSelfModeAfterAdminModeChange(t *testing.T) {
 	if authorization == nil || authorization.Mode != "self" || authorization.Reservation != nil {
 		t.Fatalf("authorization = %+v, want self mode without reservation", authorization)
 	}
+	if authorization.RefNo != "run_self_snapshot" {
+		t.Fatalf("authorization ref no = %q, want the run id even without a reservation", authorization.RefNo)
+	}
 
 	repo.mode = "usage"
 	ledger, err := service.BuildUsageLedger(context.Background(), UsagePricingInput{
@@ -522,6 +534,10 @@ func TestUsageAuthorizationKeepsSelfModeAfterAdminModeChange(t *testing.T) {
 	}
 	if ledger.BilledNanousd != 0 {
 		t.Fatalf("ledger billed nanousd = %d, want 0 from self-mode snapshot", ledger.BilledNanousd)
+	}
+	// 无预留的账本靠运行级幂等键识别重试，必须从授权带到账本。
+	if ledger.RefNo != "run_self_snapshot" {
+		t.Fatalf("ledger ref no = %q, want authorization ref no", ledger.RefNo)
 	}
 	if err = service.RecordUsageWithAuthorization(context.Background(), ledger, authorization); err != nil {
 		t.Fatalf("RecordUsageWithAuthorization() error = %v", err)
@@ -613,6 +629,7 @@ func TestBuildUsageLedgerSnapshotsModelIdentity(t *testing.T) {
 		InputTokens:       1_000_000,
 		OutputTokens:      1_000_000,
 		UsageSource:       "estimated",
+		BilledReason:      BilledReasonModerationBlockedUpstreamUsage,
 		RawUsageJSON:      `{"input_tokens":1000000,"output_tokens":1000000,"vendor_extra":"kept"}`,
 		ServerSideToolUsage: map[string]int64{
 			"web_search": 2,
@@ -633,7 +650,7 @@ func TestBuildUsageLedgerSnapshotsModelIdentity(t *testing.T) {
 		t.Fatalf("expected platform model pricing key, got %q", repo.requestedPlatformModelName)
 	}
 
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal pricing snapshot: %v", err)
 	}
@@ -649,17 +666,20 @@ func TestBuildUsageLedgerSnapshotsModelIdentity(t *testing.T) {
 	if snapshot["usage_source"] != "estimated" {
 		t.Fatalf("expected usage source snapshot, got %#v", snapshot["usage_source"])
 	}
+	if snapshot["billed_reason"] != BilledReasonModerationBlockedUpstreamUsage {
+		t.Fatalf("expected billed reason snapshot, got %#v", snapshot["billed_reason"])
+	}
 	if snapshot["routed_binding_code"] != "upm_gpt55_20260514" || snapshot["upstream_model_name"] != "gpt-5.5-upstream" {
 		t.Fatalf("expected routed binding/upstream snapshot, got routed=%#v upstream_model=%#v", snapshot["routed_binding_code"], snapshot["upstream_model_name"])
 	}
-	upstreamUsage, ok := snapshot["upstream_usage"].(map[string]interface{})
+	upstreamUsage, ok := snapshot["upstream_usage"].(map[string]any)
 	if !ok || upstreamUsage["vendor_extra"] != "kept" || upstreamUsage["input_tokens"] != float64(1_000_000) {
 		t.Fatalf("expected raw upstream usage snapshot, got %#v", snapshot["upstream_usage"])
 	}
 	if _, ok := snapshot["billing_multiplier"]; ok {
 		t.Fatalf("did not expect billing multiplier snapshot, got %#v", snapshot["billing_multiplier"])
 	}
-	serverSideToolUsage, ok := snapshot["server_side_tool_usage"].(map[string]interface{})
+	serverSideToolUsage, ok := snapshot["server_side_tool_usage"].(map[string]any)
 	if !ok || serverSideToolUsage["web_search"] != float64(2) {
 		t.Fatalf("expected server-side tool usage snapshot, got %#v", snapshot["server_side_tool_usage"])
 	}
@@ -672,11 +692,11 @@ func TestBuildUsageLedgerSnapshotsModelIdentity(t *testing.T) {
 	if ledger.BilledNanousd != 3_003_000_000 {
 		t.Fatalf("expected product-price billing total, got %d", ledger.BilledNanousd)
 	}
-	serviceItems, ok := snapshot["service_items"].([]interface{})
+	serviceItems, ok := snapshot["service_items"].([]any)
 	if !ok || len(serviceItems) != 1 {
 		t.Fatalf("expected one service item snapshot, got %#v", snapshot["service_items"])
 	}
-	serviceItem, ok := serviceItems[0].(map[string]interface{})
+	serviceItem, ok := serviceItems[0].(map[string]any)
 	if !ok {
 		t.Fatalf("expected service item map, got %#v", serviceItems[0])
 	}
@@ -721,14 +741,14 @@ func TestBuildUsageLedgerBillsNativeToolDefaultsWhenEnabled(t *testing.T) {
 		t.Fatalf("expected native tool billing total, got %d", ledger.BilledNanousd)
 	}
 
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal pricing snapshot: %v", err)
 	}
 	if snapshot["native_tool_billing_enabled"] != true || snapshot["native_tool_billed_nanousd"] != float64(35_000_000) {
 		t.Fatalf("expected native tool billing snapshot, got %#v", snapshot)
 	}
-	serviceItems, ok := snapshot["service_items"].([]interface{})
+	serviceItems, ok := snapshot["service_items"].([]any)
 	if !ok || len(serviceItems) != 6 {
 		t.Fatalf("expected six native tool service items, got %#v", snapshot["service_items"])
 	}
@@ -762,7 +782,7 @@ func TestBuildUsageLedgerUsesNativeToolPricingOverrides(t *testing.T) {
 		t.Fatalf("expected native tool override billing total, got %d", ledger.BilledNanousd)
 	}
 
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal pricing snapshot: %v", err)
 	}
@@ -784,7 +804,7 @@ func TestBuildUsageLedgerBillsOpenAIWebSearchPreviewByModelFamily(t *testing.T) 
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			modelName := firstNonEmpty(tc.platformModelName, tc.upstreamModelName)
+			modelName := textutil.FirstNonEmpty(tc.platformModelName, tc.upstreamModelName)
 			repo := &billingRepositoryStub{
 				mode:                     "usage",
 				nativeToolBillingEnabled: true,
@@ -855,7 +875,7 @@ func TestBuildUsageLedgerAppliesAnthropicFastModeAndCacheRates(t *testing.T) {
 		t.Fatalf("unexpected ledger metadata: %+v", ledger)
 	}
 
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal pricing snapshot: %v", err)
 	}
@@ -917,15 +937,18 @@ func TestBuildUsageLedgerAppliesAnthropicFastModeAndCacheRatesToServiceItems(t *
 		t.Fatalf("billed nanousd = %d, want %d", ledger.BilledNanousd, want)
 	}
 
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal pricing snapshot: %v", err)
 	}
-	serviceItems, ok := snapshot["service_items"].([]interface{})
+	if snapshot["service_only"] != true {
+		t.Fatalf("expected service-only marker, got %#v", snapshot["service_only"])
+	}
+	serviceItems, ok := snapshot["service_items"].([]any)
 	if !ok || len(serviceItems) != 1 {
 		t.Fatalf("expected one service item snapshot, got %#v", snapshot["service_items"])
 	}
-	item, ok := serviceItems[0].(map[string]interface{})
+	item, ok := serviceItems[0].(map[string]any)
 	if !ok {
 		t.Fatalf("expected service item map, got %#v", serviceItems[0])
 	}
@@ -982,7 +1005,7 @@ func TestBuildUsageLedgerAppliesOpenAIServiceTierRates(t *testing.T) {
 		t.Fatalf("service tier = %q, want priority", ledger.ServiceTier)
 	}
 
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal pricing snapshot: %v", err)
 	}
@@ -1024,7 +1047,7 @@ func TestBuildUsageLedgerUsesActualOpenAIServiceTierOverRequested(t *testing.T) 
 		t.Fatalf("billed nanousd = %d, want 3000000", ledger.BilledNanousd)
 	}
 
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal pricing snapshot: %v", err)
 	}
@@ -1062,7 +1085,7 @@ func TestBuildUsageLedgerAppliesOpenAIFlexRate(t *testing.T) {
 		t.Fatalf("billed nanousd = %d, want 1500000", ledger.BilledNanousd)
 	}
 
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal pricing snapshot: %v", err)
 	}
@@ -1102,7 +1125,7 @@ func TestBuildUsageLedgerDefaultsOpenAIServiceTierWhenUpstreamDoesNotReturnIt(t 
 		t.Fatalf("service tier = %q, want default", ledger.ServiceTier)
 	}
 
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal pricing snapshot: %v", err)
 	}
@@ -1140,7 +1163,7 @@ func TestBuildUsageLedgerIgnoresUnsupportedOpenAIServiceTier(t *testing.T) {
 		t.Fatalf("unexpected ledger tier billing: %+v", ledger)
 	}
 
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal pricing snapshot: %v", err)
 	}

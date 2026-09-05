@@ -39,6 +39,8 @@ var (
 	ErrFileNotFound = errors.New("file not found")
 	// ErrStorageQuotaExceeded 用户存储配额超限。
 	ErrStorageQuotaExceeded = errors.New("storage quota exceeded")
+	// ErrConversationShareSchemaOutdated 会话分享存储结构未更新。
+	ErrConversationShareSchemaOutdated = errors.New("conversation share schema outdated")
 
 	// 上游与模型仓储语义错误。
 	ErrUpstreamNotFound           = errors.New("upstream not found")

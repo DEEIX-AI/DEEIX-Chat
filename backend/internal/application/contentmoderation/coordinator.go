@@ -8,6 +8,9 @@ import (
 	"time"
 
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"go.uber.org/zap"
 )
 
@@ -44,11 +47,12 @@ type BarrierResult struct {
 }
 
 // LiveEmitter delivers events to the active HTTP stream (in addition to recovery storage).
-type LiveEmitter func(eventType string, payload map[string]interface{})
+type LiveEmitter func(eventType string, payload map[string]any)
 
 // RunCoordinator tracks moderation tasks for a single chat/media run.
 type RunCoordinator struct {
 	service  *Service
+	ctx      context.Context
 	meta     RunMeta
 	cfg      runtimeConfig
 	liveEmit LiveEmitter
@@ -67,9 +71,10 @@ type RunCoordinator struct {
 	outputEnqueued bool
 }
 
-func newRunCoordinator(service *Service, meta RunMeta, cfg runtimeConfig) *RunCoordinator {
+func newRunCoordinator(ctx context.Context, service *Service, meta RunMeta, cfg runtimeConfig) *RunCoordinator {
 	return &RunCoordinator{
 		service: service,
+		ctx:     background.Detach(ctx),
 		meta:    meta,
 		cfg:     cfg,
 		allDone: make(chan struct{}),
@@ -154,12 +159,57 @@ func (c *RunCoordinator) EnqueueInputImages(ctx context.Context, fileIDs []strin
 	if len(raw) == 0 {
 		return
 	}
+	c.enqueueInputImageSources(raw, keptFiles, selected)
+}
+
+// EnqueueInputImageSources queues request-scoped image bytes without requiring
+// persisted file records. Ephemeral chat uses this path so its images follow the
+// same moderation policy while remaining outside the user file library.
+func (c *RunCoordinator) EnqueueInputImageSources(images []OutputImageSource) {
+	if c == nil {
+		return
+	}
+	selected := c.cfg.Policy.CategoriesFor(domaincm.DirectionInput, domaincm.ModalityImage)
+	if len(selected) == 0 || len(images) == 0 {
+		return
+	}
+	seenSHA := make(map[string]struct{})
+	raw := make([]OutputImageSource, 0, len(images))
+	fileIDs := make([]string, 0, len(images))
+	for _, image := range images {
+		if len(image.Data) == 0 {
+			c.recordSurfaceFailure(domaincm.DirectionInput, domaincm.ModalityImage, image.FileID, ErrModerationInvalidResp)
+			continue
+		}
+		sha := strings.TrimSpace(image.SHA256)
+		if sha != "" {
+			if _, exists := seenSHA[sha]; exists {
+				continue
+			}
+			seenSHA[sha] = struct{}{}
+		}
+		fileID := strings.TrimSpace(image.FileID)
+		raw = append(raw, OutputImageSource{
+			FileID:   fileID,
+			Data:     append([]byte(nil), image.Data...),
+			MimeType: strings.TrimSpace(image.MimeType),
+			SHA256:   sha,
+		})
+		fileIDs = append(fileIDs, fileID)
+	}
+	if len(raw) == 0 {
+		return
+	}
+	c.enqueueInputImageSources(raw, fileIDs, selected)
+}
+
+func (c *RunCoordinator) enqueueInputImageSources(raw []OutputImageSource, fileIDs []string, selected []string) {
 	c.startTask(&moderationTask{
 		Coord:     c,
 		Direction: domaincm.DirectionInput,
 		Modality:  domaincm.ModalityImage,
 		RawImages: raw,
-		FileIDs:   keptFiles,
+		FileIDs:   fileIDs,
 		Selected:  selected,
 		Location:  domaincm.ContentLocation{Field: "user_attachments"},
 		// Input hits must isolate but not revoke user library files.
@@ -177,7 +227,7 @@ func (c *RunCoordinator) AfterGeneration(ctx context.Context, outputText string,
 			c.service.logWarn("content_moderation_mark_moderating_failed", zap.String("run_id", c.meta.RunID), zap.Error(err))
 		}
 	}
-	c.emit("moderation_checking", map[string]interface{}{
+	c.emit("moderation_checking", map[string]any{
 		"type": "moderation_checking",
 	})
 
@@ -254,7 +304,7 @@ func (c *RunCoordinator) updateRunState(state, eventID, categoriesJSON string) {
 	if c == nil || c.meta.Ephemeral || c.service == nil || c.service.repo == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := background.WithTimeout(c.ctx, 5*time.Second)
 	defer cancel()
 	if err := c.service.repo.UpdateRunModeration(ctx, c.meta.RunID, state, eventID, categoriesJSON); err != nil {
 		c.service.logWarn("content_moderation_update_run_state_failed", zap.String("run_id", c.meta.RunID), zap.String("state", state), zap.Error(err))
@@ -279,17 +329,26 @@ func (c *RunCoordinator) recordSurfaceFailure(direction, modality, fileID string
 	c.failedOpen = true
 	c.mu.Unlock()
 
-	message := errString(surfaceErr)
-	if strings.TrimSpace(message) == "" {
-		message = "content unavailable for moderation"
+	if surfaceErr != nil {
+		c.service.logWarn("content_moderation_surface_unavailable",
+			zap.String("run_id", c.meta.RunID),
+			zap.String("direction", direction),
+			zap.String("modality", modality),
+			zap.String("file_id", strings.TrimSpace(fileID)),
+			zap.Error(surfaceErr),
+		)
 	}
-	if fileID = strings.TrimSpace(fileID); fileID != "" {
-		message += " (file_id=" + fileID + ")"
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := background.WithTimeout(c.ctx, 5*time.Second)
 	defer cancel()
-	c.service.recordFailedOpen(ctx, c.meta, direction, modality, domaincm.ErrorCodeServiceError, message, 0)
-	c.service.bumpDailyStat(ctx, direction, modality, domaincm.ResultFailedOpen, "", 1, 1, 0, 1, 0)
+	c.service.recordFailedOpen(ctx, c.meta, direction, modality, domaincm.ErrorCodeServiceError, 0)
+	c.service.bumpDailyStat(ctx, repository.DailyStatIncrement{
+		Direction:    direction,
+		Modality:     modality,
+		Result:       domaincm.ResultFailedOpen,
+		CheckCount:   1,
+		ContentItems: 1,
+		FailureCount: 1,
+	})
 }
 
 func (c *RunCoordinator) enqueueOutputText(text string) {
@@ -327,7 +386,7 @@ func (c *RunCoordinator) enqueueOutputImages(images []OutputImageSource) {
 			continue
 		}
 		seen[sha] = struct{}{}
-		img.MimeType = firstNonEmpty(img.MimeType, "image/png")
+		img.MimeType = textutil.FirstNonEmpty(img.MimeType, "image/png")
 		raw = append(raw, img)
 	}
 	if len(raw) == 0 {
@@ -414,7 +473,7 @@ func (c *RunCoordinator) onTaskResult(task *moderationTask, result taskResult) *
 	if cancelInput {
 		c.cancelOnce.Do(func() {
 			if c.service.cancelRun != nil {
-				c.service.cancelRun(c.meta.RunID)
+				c.service.cancelRun(c.ctx, c.meta.RunID)
 			}
 		})
 	}
@@ -481,7 +540,7 @@ func (c *RunCoordinator) applyBlock(info BlockInfo) (bool, error) {
 		return c.notifyBlocked(info), nil
 	}
 	// Client disconnect cancels the request context; persistence must survive that.
-	persistCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	persistCtx, cancel := background.WithTimeout(c.ctx, 15*time.Second)
 	defer cancel()
 	includeUser := info.Direction == domaincm.DirectionInput
 	categoriesJSON := mustJSON(info.Categories)
@@ -496,15 +555,15 @@ func (c *RunCoordinator) applyBlock(info BlockInfo) (bool, error) {
 		return false, err
 	}
 	c.service.removePendingBlock(c.meta.RunID)
-	c.service.deleteBlockedOutputFiles(fileIDs)
+	c.service.deleteBlockedOutputFiles(c.ctx, fileIDs)
 	return c.notifyBlocked(info), nil
 }
 
 func (c *RunCoordinator) notifyBlocked(info BlockInfo) bool {
 	if c.service.onBlocked != nil {
-		c.service.onBlocked(c.meta.RunID, info)
+		c.service.onBlocked(c.ctx, c.meta.RunID, info)
 	}
-	c.emit("moderation_blocked", map[string]interface{}{
+	c.emit("moderation_blocked", map[string]any{
 		"type":       "moderation_blocked",
 		"eventID":    info.EventID,
 		"direction":  info.Direction,
@@ -513,9 +572,9 @@ func (c *RunCoordinator) notifyBlocked(info BlockInfo) bool {
 	return true
 }
 
-func (c *RunCoordinator) emit(eventType string, payload map[string]interface{}) {
+func (c *RunCoordinator) emit(eventType string, payload map[string]any) {
 	if payload == nil {
-		payload = map[string]interface{}{"type": eventType}
+		payload = map[string]any{"type": eventType}
 	} else if _, ok := payload["type"]; !ok {
 		payload["type"] = eventType
 	}
@@ -526,7 +585,7 @@ func (c *RunCoordinator) emit(eventType string, payload map[string]interface{}) 
 		return
 	}
 	if c.service != nil && c.service.emitEvent != nil {
-		c.service.emitEvent(c.meta.RunID, eventType, payload)
+		c.service.emitEvent(c.ctx, c.meta.RunID, eventType, payload)
 	}
 }
 
@@ -547,11 +606,4 @@ func (c *RunCoordinator) IsBlocked() (bool, BlockInfo) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.blocked, c.blockInfo
-}
-
-func errString(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
 }

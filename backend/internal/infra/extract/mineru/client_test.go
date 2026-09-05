@@ -3,6 +3,8 @@ package mineru
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -61,6 +63,60 @@ func TestBatchResultResponseParsesExtractResultStateAndZipURL(t *testing.T) {
 	}
 }
 
+func TestCreateBatchClassifiesEndpointMismatchErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+		body       string
+		assert     func(*testing.T, error)
+	}{
+		{
+			name:       "not found status",
+			statusCode: http.StatusNotFound,
+			body:       "missing endpoint",
+			assert: func(t *testing.T, err error) {
+				var statusErr *httpError
+				if !errors.As(err, &statusErr) || statusErr.statusCode != http.StatusNotFound {
+					t.Fatalf("expected typed 404 error, got %T %v", err, err)
+				}
+			},
+		},
+		{
+			name:       "invalid success response",
+			statusCode: http.StatusOK,
+			body:       "not json",
+			assert: func(t *testing.T, err error) {
+				if !errors.Is(err, errMinerUInvalidResponse) {
+					t.Fatalf("expected invalid response sentinel, got %T %v", err, err)
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := &Client{
+				baseURL: "https://mineru.example/api/v4",
+				httpClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: test.statusCode,
+						Header:     make(http.Header),
+						Body:       io.NopCloser(strings.NewReader(test.body)),
+					}, nil
+				})},
+			}
+			_, _, err := client.createBatch(context.Background(), Request{FileName: "document.pdf"})
+			if err == nil {
+				t.Fatal("expected create batch error")
+			}
+			test.assert(t, err)
+			if !shouldFallback(err) {
+				t.Fatal("endpoint mismatch should fall back to the alternate API")
+			}
+		})
+	}
+}
+
 func TestPollBatchUsesExtractResultState(t *testing.T) {
 	var calls int
 	client := &Client{
@@ -99,6 +155,42 @@ func TestPollBatchUsesExtractResultState(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("expected one poll call, got %d", calls)
+	}
+}
+
+func TestShouldFallbackUsesTypedHTTPStatus(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "not found", err: &httpError{statusCode: http.StatusNotFound}, want: true},
+		{name: "wrapped not found", err: fmt.Errorf("create batch: %w", &httpError{statusCode: http.StatusNotFound}), want: true},
+		{name: "other status", err: &httpError{statusCode: http.StatusBadGateway}, want: false},
+		{name: "message only", err: errors.New("mineru_http_404"), want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := shouldFallback(test.err); got != test.want {
+				t.Fatalf("shouldFallback() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestShouldFallbackUsesInvalidResponseSentinel(t *testing.T) {
+	if !shouldFallback(fmt.Errorf("poll batch: %w", errMinerUInvalidResponse)) {
+		t.Fatal("wrapped invalid response should fall back to the alternate API")
+	}
+}
+
+func TestHTTPErrorPreservesLegacyDiagnostic(t *testing.T) {
+	if got := (&httpError{statusCode: http.StatusNotFound}).Error(); got != "mineru_http_404" {
+		t.Fatalf("httpError without detail = %q", got)
+	}
+	if got := (&httpError{statusCode: http.StatusBadGateway, detail: "provider detail"}).Error(); got != "mineru_http_502: provider detail" {
+		t.Fatalf("httpError with detail = %q", got)
 	}
 }
 

@@ -76,13 +76,15 @@ export function AdminDateRangeFilter({
             variant="outline"
             className={cn(
               ADMIN_DATE_PICKER_TRIGGER_CLASSNAME,
-              "px-2.5 h-7",
+              "h-7 px-2",
               triggerClassName,
               !selectedRange?.from && "text-muted-foreground",
             )}
             disabled={disabled}
           >
-            <CalendarIcon className="size-3 opacity-70" />
+            <span aria-hidden="true" className="flex size-3 shrink-0 items-center justify-center">
+              <CalendarIcon className="size-3 opacity-70" />
+            </span>
             <span className="min-w-0 truncate text-[11px]">{triggerLabel}</span>
           </Button>
         </PopoverTrigger>

@@ -38,7 +38,7 @@ func TestGetModelIconAssetValidatesObjectBeforeConditionalResponse(t *testing.T)
 		t.Fatalf("seed icon object: %v", err)
 	}
 	provider := &countingModelIconStoreProvider{store: store}
-	service := appchannel.NewService(config.Config{}, nil, nil, nil, nil)
+	service := appchannel.NewServiceWithRuntime(config.NewRuntime(config.Config{}), nil, nil, nil, nil)
 	service.SetModelIconAssetRepository(handlerModelIconAssetRepo{item: item})
 	service.SetObjectStoreProvider(provider)
 	handler := NewHandler(service)
@@ -88,7 +88,7 @@ func TestGetModelIconAssetDoesNotReturnNotModifiedWhenObjectIsMissing(t *testing
 		ReadyAt: &readyAt, LeaseExpiresAt: time.Now().Add(time.Hour),
 	}
 	provider := &countingModelIconStoreProvider{store: objectstore.NewLocal(t.TempDir())}
-	service := appchannel.NewService(config.Config{}, nil, nil, nil, nil)
+	service := appchannel.NewServiceWithRuntime(config.NewRuntime(config.Config{}), nil, nil, nil, nil)
 	service.SetModelIconAssetRepository(handlerModelIconAssetRepo{item: item})
 	service.SetObjectStoreProvider(provider)
 	handler := NewHandler(service)
@@ -110,7 +110,7 @@ func TestGetModelIconAssetDoesNotReturnNotModifiedWhenObjectIsMissing(t *testing
 
 func TestUploadModelIconAssetRejectsOversizedMultipartBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	service := appchannel.NewService(config.Config{}, nil, nil, nil, nil)
+	service := appchannel.NewServiceWithRuntime(config.NewRuntime(config.Config{}), nil, nil, nil, nil)
 	handler := NewHandler(service)
 	router := gin.New()
 	router.POST("/api/v1/admin/llm/icon-assets", handler.UploadModelIconAsset)
@@ -144,7 +144,7 @@ func TestListAndDeleteModelIconAssetsUseAdminContract(t *testing.T) {
 		ID: 3, PublicID: "ico_00000000000000000000000000000003", ContentType: "image/png",
 		SizeBytes: 128, Width: 24, Height: 24, ReadyAt: &readyAt, CreatedAt: readyAt,
 	}
-	service := appchannel.NewService(config.Config{}, nil, nil, nil, nil)
+	service := appchannel.NewServiceWithRuntime(config.NewRuntime(config.Config{}), nil, nil, nil, nil)
 	service.SetModelIconAssetRepository(handlerModelIconAssetRepo{item: item})
 	handler := NewHandler(service)
 	router := gin.New()
@@ -180,7 +180,7 @@ func TestDeleteModelIconAssetReturnsReferenceSummary(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	readyAt := time.Now()
 	item := domainchannel.ModelIconAsset{ID: 4, PublicID: "ico_00000000000000000000000000000004", ReadyAt: &readyAt}
-	service := appchannel.NewService(config.Config{}, nil, nil, nil, nil)
+	service := appchannel.NewServiceWithRuntime(config.NewRuntime(config.Config{}), nil, nil, nil, nil)
 	service.SetModelIconAssetRepository(handlerModelIconAssetRepo{
 		item:       item,
 		references: repository.ModelIconAssetReferenceSummary{Models: 2, Vendors: 1},

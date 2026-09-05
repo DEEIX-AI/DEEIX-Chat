@@ -119,7 +119,7 @@ func (h *healthChecker) CheckHealth(ctx context.Context) ([]platformhttp.HealthC
 	if h.db != nil {
 		sqlDB, err := h.db.DB()
 		if err != nil {
-			checks = append(checks, platformhttp.HealthCheck{Name: "db", Status: "error: " + err.Error()})
+			checks = append(checks, platformhttp.HealthCheck{Name: "db", Status: "error"})
 			healthy = false
 		} else {
 			dbCtx, cancel := context.WithTimeout(ctx, 2*time.Second)

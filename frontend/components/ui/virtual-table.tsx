@@ -61,7 +61,7 @@ export function useVirtualTableRows<T>(
     paddingTop,
     paddingBottom,
     rows,
-    viewportClassName: "max-h-[var(--virtual-table-max-height)] overflow-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-20",
+    viewportClassName: "max-h-[var(--virtual-table-max-height)] [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-20",
     viewportRef,
     viewportStyle: {
       "--virtual-table-max-height": `${maxHeight}px`,

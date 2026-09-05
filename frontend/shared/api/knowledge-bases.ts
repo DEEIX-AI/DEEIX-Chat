@@ -1,23 +1,24 @@
 import { authedFetch, authedRequest } from "@/shared/api/authed-client";
 import type { PagePayload } from "@/shared/api/common.types";
-import { readFileContentResponse, type FileContentResult } from "@/shared/api/file";
+import { type FileContentResult, readFileContentResponse } from "@/shared/api/file";
 import { pathParam } from "@/shared/api/http-client";
 import type {
   AddKnowledgeBaseFilesRequest,
-  KnowledgeBaseDTO,
   KnowledgeBaseData,
   KnowledgeBaseDeleteData,
+  KnowledgeBaseDTO,
   KnowledgeBaseFileData,
   KnowledgeBaseFileDTO,
+  KnowledgeBaseFileEmbeddingSubmissionDTO,
   KnowledgeBaseFileMutationData,
   KnowledgeBaseFilePage,
   KnowledgeBaseFileProcessingSnapshotDTO,
   KnowledgeBaseFileProcessingStatusDTO,
   KnowledgeBasePage,
-  PatchMyKnowledgeBaseRequest,
   PatchKnowledgeBaseRequest,
-  WriteMyKnowledgeBaseRequest,
+  PatchMyKnowledgeBaseRequest,
   WriteKnowledgeBaseRequest,
+  WriteMyKnowledgeBaseRequest,
 } from "@/shared/api/knowledge-bases.types";
 
 type KnowledgeBaseListOptions = {
@@ -261,6 +262,23 @@ export async function deleteAdminKnowledgeBaseFile(accessToken: string, fileID: 
   await authedRequest<{ deleted: boolean }>(
     `/api/v1/admin/knowledge-bases/files/${pathParam(fileID)}`,
     { method: "DELETE", accessToken },
+    true,
+  );
+}
+
+export async function submitAdminPlatformFileEmbeddings(
+  accessToken: string,
+  fileIDs: string[],
+  signal?: AbortSignal,
+): Promise<KnowledgeBaseFileEmbeddingSubmissionDTO> {
+  return authedRequest<KnowledgeBaseFileEmbeddingSubmissionDTO>(
+    "/api/v1/admin/knowledge-bases/files/embeddings",
+    {
+      method: "POST",
+      accessToken,
+      body: { fileIDs },
+      signal,
+    },
     true,
   );
 }

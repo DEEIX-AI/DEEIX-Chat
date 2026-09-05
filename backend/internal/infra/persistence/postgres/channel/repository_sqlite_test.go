@@ -150,6 +150,108 @@ func TestWithinTransactionSQLiteRollsBackAllChannelWrites(t *testing.T) {
 	}
 }
 
+func TestApplyUpstreamModelCatalogChangesPreservesManualCatalogAndRoutes(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	ctx := context.Background()
+	upstream := model.LLMUpstream{Name: "catalog-reconcile", Status: "active"}
+	if err := db.Create(&upstream).Error; err != nil {
+		t.Fatalf("create upstream: %v", err)
+	}
+	items := []model.LLMUpstreamModel{
+		{UpstreamID: upstream.ID, BindingCode: "present", UpstreamModelName: "present", Status: "active", Source: "sync"},
+		{UpstreamID: upstream.ID, BindingCode: "missing-sync", UpstreamModelName: "missing-sync", Status: "active", Source: "sync"},
+		{UpstreamID: upstream.ID, BindingCode: "missing-import", UpstreamModelName: "missing-import", Status: "active", Source: "import"},
+		{UpstreamID: upstream.ID, BindingCode: "missing-manual", UpstreamModelName: "missing-manual", Status: "active", Source: "manual"},
+	}
+	if err := db.Create(&items).Error; err != nil {
+		t.Fatalf("create upstream models: %v", err)
+	}
+	platformModel := model.LLMPlatformModel{Name: "catalog-route", Vendor: "openai", Status: "active"}
+	if err := db.Create(&platformModel).Error; err != nil {
+		t.Fatalf("create platform model: %v", err)
+	}
+	route := model.LLMPlatformModelRoute{
+		PlatformModelID: platformModel.ID,
+		UpstreamModelID: items[1].ID,
+		Protocol:        "openai_responses",
+		Status:          "active",
+	}
+	if err := db.Create(&route).Error; err != nil {
+		t.Fatalf("create platform route: %v", err)
+	}
+
+	count, err := NewRepo(db).ApplyUpstreamModelCatalogChanges(ctx, upstream.ID, repository.ApplyUpstreamModelCatalogChangesInput{
+		Create: []domainchannel.UpstreamModel{{
+			UpstreamID: upstream.ID, BindingCode: "created", UpstreamModelName: "created", Status: "active", Source: "sync", RawJSON: "{}",
+		}},
+		Update: []domainchannel.UpstreamModel{{
+			ID: items[0].ID, UpstreamID: upstream.ID, BindingCode: items[0].BindingCode, UpstreamModelName: items[0].UpstreamModelName,
+			Vendor: "updated-vendor", Status: "active", Source: "sync", RawJSON: "{}", CreatedAt: items[0].CreatedAt,
+		}},
+		InactivateIDs: []uint{items[1].ID, items[2].ID},
+	})
+	if err != nil {
+		t.Fatalf("apply catalog changes: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("expected two managed models to be deactivated, got %d", count)
+	}
+	var stored []model.LLMUpstreamModel
+	if err := db.Where("upstream_id = ?", upstream.ID).Order("upstream_model_name ASC").Find(&stored).Error; err != nil {
+		t.Fatalf("load upstream models: %v", err)
+	}
+	statuses := make(map[string]string, len(stored))
+	for _, item := range stored {
+		statuses[item.UpstreamModelName] = item.Status
+	}
+	if statuses["missing-import"] != "inactive" || statuses["missing-sync"] != "inactive" {
+		t.Fatalf("expected missing managed models inactive, got %v", statuses)
+	}
+	if statuses["missing-manual"] != "active" || statuses["present"] != "active" {
+		t.Fatalf("expected manual and present models active, got %v", statuses)
+	}
+	if statuses["created"] != "active" {
+		t.Fatalf("expected batch-created model active, got %v", statuses)
+	}
+	var updated model.LLMUpstreamModel
+	if err := db.First(&updated, items[0].ID).Error; err != nil || updated.Vendor != "updated-vendor" {
+		t.Fatalf("expected managed model metadata update, got %+v, err=%v", updated, err)
+	}
+	var storedRoute model.LLMPlatformModelRoute
+	if err := db.First(&storedRoute, route.ID).Error; err != nil {
+		t.Fatalf("load preserved route: %v", err)
+	}
+	if storedRoute.Status != "active" {
+		t.Fatalf("expected route configuration to remain active, got %q", storedRoute.Status)
+	}
+}
+
+func TestListManagedUpstreamModelsExcludesManualCatalog(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	ctx := t.Context()
+	upstream := model.LLMUpstream{Name: "managed-list", Status: "active"}
+	if err := db.Create(&upstream).Error; err != nil {
+		t.Fatalf("create upstream: %v", err)
+	}
+	for _, item := range []model.LLMUpstreamModel{
+		{UpstreamID: upstream.ID, BindingCode: "sync", UpstreamModelName: "sync-model", Status: "active", Source: "sync"},
+		{UpstreamID: upstream.ID, BindingCode: "legacy", UpstreamModelName: "legacy-model", Status: "inactive", Source: "import"},
+		{UpstreamID: upstream.ID, BindingCode: "manual", UpstreamModelName: "manual-model", Status: "active", Source: "manual"},
+	} {
+		if err := db.Create(&item).Error; err != nil {
+			t.Fatalf("create upstream model: %v", err)
+		}
+	}
+
+	items, err := NewRepo(db).ListManagedUpstreamModels(ctx, upstream.ID)
+	if err != nil {
+		t.Fatalf("list managed upstream models: %v", err)
+	}
+	if len(items) != 2 || items[0].UpstreamModelName != "legacy-model" || items[1].UpstreamModelName != "sync-model" {
+		t.Fatalf("unexpected managed models: %+v", items)
+	}
+}
+
 func TestCreateUpstreamModelSQLiteDoesNotOverwriteExistingCatalogEntry(t *testing.T) {
 	db := openChannelSQLiteTestDB(t)
 	ctx := context.Background()

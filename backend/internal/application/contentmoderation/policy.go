@@ -23,23 +23,11 @@ type policyJSON struct {
 }
 
 func newPolicyJSON(policy Policy) policyJSON {
-	return policyJSON{
-		InputTextCategories:   policy.InputTextCategories,
-		OutputTextCategories:  policy.OutputTextCategories,
-		InputImageCategories:  policy.InputImageCategories,
-		OutputImageCategories: policy.OutputImageCategories,
-		Version:               policy.Version,
-	}
+	return policyJSON(policy)
 }
 
 func (document policyJSON) toPolicy() Policy {
-	return Policy{
-		InputTextCategories:   document.InputTextCategories,
-		OutputTextCategories:  document.OutputTextCategories,
-		InputImageCategories:  document.InputImageCategories,
-		OutputImageCategories: document.OutputImageCategories,
-		Version:               document.Version,
-	}
+	return Policy(document)
 }
 
 // Enabled reports whether any surface has categories selected.

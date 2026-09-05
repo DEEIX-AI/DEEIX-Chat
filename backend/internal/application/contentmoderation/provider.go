@@ -1,13 +1,31 @@
 package contentmoderation
 
 import (
+	"context"
 	"strings"
 
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
-type Provider = repository.ContentModerationProvider
+// Provider 是审核服务依赖的出站审核端口，由 infra/contentmoderation 以相同签名实现。
+type Provider interface {
+	ValidateBaseURL(raw string) error
+	ModerateText(
+		ctx context.Context,
+		config domaincm.ProviderConfig,
+		text string,
+		selected []string,
+		modality string,
+	) (*domaincm.ProviderResponse, error)
+	ModerateImages(
+		ctx context.Context,
+		config domaincm.ProviderConfig,
+		images []domaincm.ProviderImage,
+		selected []string,
+		modality string,
+	) (*domaincm.ProviderResponse, error)
+}
+
 type ProviderConfig = domaincm.ProviderConfig
 type ProviderImage = domaincm.ProviderImage
 type CategoryResult = domaincm.CategoryResult

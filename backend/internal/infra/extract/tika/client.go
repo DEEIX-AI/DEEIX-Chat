@@ -2,6 +2,7 @@ package tika
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -170,21 +171,21 @@ func (c *Client) ExtractText(ctx context.Context, input Request) (string, error)
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNoContent {
-		return "", fmt.Errorf(errTikaEmptyContent)
+		return "", errors.New(errTikaEmptyContent)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		detail := strings.TrimSpace(string(body))
 		switch resp.StatusCode {
 		case http.StatusUnauthorized:
-			return "", fmt.Errorf(errTikaUnauthorized)
+			return "", errors.New(errTikaUnauthorized)
 		case http.StatusForbidden:
-			return "", fmt.Errorf(errTikaForbidden)
+			return "", errors.New(errTikaForbidden)
 		case http.StatusUnsupportedMediaType:
-			return "", fmt.Errorf(errTikaUnsupportedMimeType)
+			return "", errors.New(errTikaUnsupportedMimeType)
 		case http.StatusUnprocessableEntity:
 			if detail == "" {
-				return "", fmt.Errorf(errTikaUnprocessable)
+				return "", errors.New(errTikaUnprocessable)
 			}
 			return "", fmt.Errorf("%s: %s", errTikaUnprocessable, detail)
 		default:
@@ -201,7 +202,7 @@ func (c *Client) ExtractText(ctx context.Context, input Request) (string, error)
 	}
 	text := strings.TrimSpace(string(body))
 	if text == "" {
-		return "", fmt.Errorf(errTikaEmptyContent)
+		return "", errors.New(errTikaEmptyContent)
 	}
 	return text, nil
 }

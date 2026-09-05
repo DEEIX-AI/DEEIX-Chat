@@ -109,16 +109,7 @@ func recordSkillPromptTrace(traceRecorder *messageTraceRecorder, prompt *skillPr
 	traceRecorder.appendProcessSection(
 		fmt.Sprintf("已提供 %d 个 Skill 上下文", len(prompt.Skills)),
 		formatTraceStep("Skill", fmt.Sprintf("本轮已加载 Skill：%s。包含 SKILL.md 内容，相关时使用。", strings.Join(skillTitles, "、"))),
-		map[string]interface{}{
-			processTracePayloadStage: map[string]interface{}{
-				"kind":   "skill_context",
-				"status": messageTraceStatusStreaming,
-			},
-			"skill_count":    len(prompt.Skills),
-			"skill_ids":      skillPromptIDs(prompt.Skills),
-			"skill_titles":   skillTitles,
-			"skill_triggers": skillPromptTriggers(prompt.Skills),
-		},
+		&tracePayload{SkillCount: len(prompt.Skills), SkillIDs: skillPromptIDs(prompt.Skills), SkillTitles: skillTitles, SkillTriggers: skillPromptTriggers(prompt.Skills), Stages: []traceStage{{Kind: "skill_context", Status: messageTraceStatusStreaming}}},
 		messageTraceStatusStreaming,
 	)
 }

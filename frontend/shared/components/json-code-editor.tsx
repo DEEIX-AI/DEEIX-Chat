@@ -13,11 +13,14 @@ export type JsonCodeEditorProps = {
   value: string;
   placeholder?: string;
   disabled?: boolean;
+  readOnly?: boolean;
   autoFocus?: boolean;
   height?: number | string;
+  wordWrap?: "on" | "off";
   className?: string;
   actions?: React.ReactNode;
-  onChange: (value: string) => void;
+  showFormatAction?: boolean;
+  onChange?: (value: string) => void;
 };
 
 type MonacoModule = typeof Monaco;
@@ -122,10 +125,13 @@ export function JsonCodeEditor({
   value,
   placeholder,
   disabled = false,
+  readOnly = false,
   autoFocus = false,
   height = 220,
+  wordWrap = "on",
   className,
   actions,
+  showFormatAction = true,
   onChange,
 }: JsonCodeEditorProps) {
   const t = useTranslations("common.jsonEditor");
@@ -139,6 +145,8 @@ export function JsonCodeEditor({
   const editorValueRef = React.useRef(value);
   const mountValueRef = React.useRef(value);
   const mountDisabledRef = React.useRef(disabled);
+  const mountReadOnlyRef = React.useRef(readOnly);
+  const mountWordWrapRef = React.useRef(wordWrap);
   const mountThemeRef = React.useRef(resolvedTheme);
   const mountAutoFocusRef = React.useRef(autoFocus);
   const placeholderRef = React.useRef(preservePlaceholderIndentation(placeholder));
@@ -177,6 +185,14 @@ export function JsonCodeEditor({
   React.useEffect(() => {
     mountDisabledRef.current = disabled;
   }, [disabled]);
+
+  React.useEffect(() => {
+    mountReadOnlyRef.current = readOnly;
+  }, [readOnly]);
+
+  React.useEffect(() => {
+    mountWordWrapRef.current = wordWrap;
+  }, [wordWrap]);
 
   React.useEffect(() => {
     mountThemeRef.current = resolvedTheme;
@@ -226,7 +242,7 @@ export function JsonCodeEditor({
         value: mountValueRef.current,
         language: "json",
         placeholder: placeholderRef.current || undefined,
-        readOnly: mountDisabledRef.current,
+        readOnly: mountDisabledRef.current || mountReadOnlyRef.current,
         theme: mountThemeRef.current === "dark" ? "vs-dark" : "vs",
         automaticLayout: true,
         bracketPairColorization: { enabled: true },
@@ -253,7 +269,7 @@ export function JsonCodeEditor({
         },
         tabSize: 2,
         tabFocusMode: false,
-        wordWrap: "on",
+        wordWrap: mountWordWrapRef.current,
       });
 
       editorRef.current = editor;
@@ -263,7 +279,7 @@ export function JsonCodeEditor({
         editorValueRef.current = nextValue;
         if (suppressChangeRef.current) return;
         valueRef.current = nextValue;
-        onChangeRef.current(nextValue);
+        onChangeRef.current?.(nextValue);
       });
       blurSubscription = editor.onDidBlurEditorText(() => {
         syncEditorValue(valueRef.current);
@@ -307,8 +323,12 @@ export function JsonCodeEditor({
   }, [syncEditorValue, value]);
 
   React.useEffect(() => {
-    editorRef.current?.updateOptions({ readOnly: disabled });
-  }, [disabled]);
+    editorRef.current?.updateOptions({ readOnly: disabled || readOnly });
+  }, [disabled, readOnly]);
+
+  React.useEffect(() => {
+    editorRef.current?.updateOptions({ wordWrap });
+  }, [wordWrap]);
 
   React.useEffect(() => {
     const monaco = monacoRef.current;
@@ -361,16 +381,18 @@ export function JsonCodeEditor({
             <span className="text-[11px] text-destructive">{t("errors", { count: markerCount })}</span>
           ) : null}
           {actions}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-[11px]"
-            disabled={disabled || loading}
-            onClick={formatDocument}
-          >
-            {t("format")}
-          </Button>
+          {showFormatAction ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[11px]"
+              disabled={disabled || readOnly || loading}
+              onClick={formatDocument}
+            >
+              {t("format")}
+            </Button>
+          ) : null}
         </div>
       </div>
       <div ref={containerRef} className="h-[calc(100%-2rem)] w-full" />

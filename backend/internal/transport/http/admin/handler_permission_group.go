@@ -13,7 +13,7 @@ import (
 func (h *Handler) permissionGroupIDParam(c *gin.Context) (uint, bool) {
 	parsedID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid permission group id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidPermissionGroupID)
 		return 0, false
 	}
 	return uint(parsedID), true
@@ -22,7 +22,7 @@ func (h *Handler) permissionGroupIDParam(c *gin.Context) (uint, bool) {
 func (h *Handler) permissionGroupModelIDParam(c *gin.Context) (uint, bool) {
 	parsedID, err := strconv.ParseUint(c.Param("modelID"), 10, strconv.IntSize)
 	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid model id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidModelID)
 		return 0, false
 	}
 	return uint(parsedID), true
@@ -42,7 +42,7 @@ func (h *Handler) writePermissionGroupError(c *gin.Context, err error) {
 	case errors.Is(err, appadmin.ErrPermissionGroupNotFound):
 		response.ErrorFrom(c, http.StatusNotFound, err)
 	default:
-		response.Error(c, http.StatusInternalServerError, "permission group operation failed")
+		response.InternalError(c)
 	}
 }
 

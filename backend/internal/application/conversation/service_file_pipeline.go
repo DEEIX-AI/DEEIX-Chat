@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -12,8 +11,8 @@ import (
 	appprocessing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/processing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -101,18 +100,6 @@ func (s *Service) GetChatFilePolicy(ctx context.Context, userID uint) (*ChatFile
 	}, nil
 }
 
-func (s *Service) GetFileProcessingStatus(ctx context.Context, userID uint, fileID string) (*appprocessing.FileProcessingStatusDTO, error) {
-	result, err := s.processingSvc.GetFileProcessingStatus(ctx, userID, fileID)
-	if errors.Is(err, repository.ErrNotFound) {
-		return nil, ErrFileNotFound
-	}
-	return result, err
-}
-
-func (s *Service) GetFileProcessingStatuses(ctx context.Context, userID uint, fileIDs []string) ([]appprocessing.FileProcessingStatusDTO, error) {
-	return s.processingSvc.GetFileProcessingStatuses(ctx, userID, fileIDs)
-}
-
 func (s *Service) resolveAttachments(
 	ctx context.Context,
 	userID uint,
@@ -170,7 +157,7 @@ func (s *Service) resolveAttachments(
 				ProcessingErrorMessage: fileItem.ProcessingErrorMessage,
 				ExtractStatus:          fileItem.ExtractStatus,
 				EmbedStatus:            fileItem.EmbedStatus,
-				RagOptOut:              fileItem.RagOptOut,
+				RAGOptOut:              fileItem.RAGOptOut,
 				ChunkCount:             fileItem.ChunkCount,
 				FileUpdatedAt:          fileItem.UpdatedAt,
 			})
@@ -249,7 +236,7 @@ func (s *Service) resolveConversationFileContext(
 			ProcessingErrorMessage: fileItem.ProcessingErrorMessage,
 			ExtractStatus:          fileItem.ExtractStatus,
 			EmbedStatus:            fileItem.EmbedStatus,
-			RagOptOut:              fileItem.RagOptOut,
+			RAGOptOut:              fileItem.RAGOptOut,
 			ChunkCount:             fileItem.ChunkCount,
 			FileUpdatedAt:          fileItem.UpdatedAt,
 			Current:                isCurrent,
@@ -262,7 +249,7 @@ func (s *Service) hydrateAttachmentsForSend(
 	ctx context.Context,
 	userID uint,
 	attachments []AttachmentInput,
-	onEvent func(string, map[string]interface{}) error,
+	onEvent func(string, map[string]any) error,
 ) ([]AttachmentInput, error) {
 	if len(attachments) == 0 {
 		return attachments, nil
@@ -271,9 +258,7 @@ func (s *Service) hydrateAttachmentsForSend(
 	// 多文件并行等待：每个文件独立 WaitUntilReady，总耗时 = max(单个文件) 而非 sum。
 	// 本轮图片会作为 image part 直传；历史图片仅在 OCR 开启时等待提取文本。
 	items := make([]AttachmentInput, len(attachments))
-	for i, att := range attachments {
-		items[i] = att // 预置，图片/空 FileID 直接保留
-	}
+	copy(items, attachments)
 
 	// mu 保护 onEvent 的并发调用（onEvent 非 goroutine-safe）。
 	var mu sync.Mutex
@@ -298,7 +283,7 @@ func (s *Service) hydrateAttachmentsForSend(
 				latestFile = fileObj
 				mu.Lock()
 				defer mu.Unlock()
-				emitEvent(onEvent, "process_update", map[string]interface{}{
+				emitEvent(onEvent, "process_update", map[string]any{
 					"status": "streaming",
 				})
 			})
@@ -338,7 +323,7 @@ func (s *Service) hydrateAttachmentsForSend(
 	if err := g.Wait(); err != nil {
 		switch {
 		case errors.Is(err, appprocessing.ErrFileProcessingFailed):
-			return nil, fmt.Errorf("%w: %s", ErrFileProcessingNotReady, err.Error())
+			return nil, errors.Join(ErrFileProcessingNotReady, err)
 		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 			return nil, err
 		default:
@@ -359,7 +344,7 @@ func canUseAttachmentFullContext(att AttachmentInput, cfg config.Config) bool {
 	if cfg.FileFullContextMaxBytes > 0 && int64(len([]byte(text))) > cfg.FileFullContextMaxBytes {
 		return false
 	}
-	if cfg.FileFullContextMaxTokens > 0 && estimateTokens(text) > int64(cfg.FileFullContextMaxTokens) {
+	if cfg.FileFullContextMaxTokens > 0 && tokenestimate.Estimate(text) > int64(cfg.FileFullContextMaxTokens) {
 		return false
 	}
 	if att.FileCategory == fileCategoryPDF && cfg.FileFullContextPDFMaxPages > 0 && att.PageCount > cfg.FileFullContextPDFMaxPages {
@@ -368,8 +353,8 @@ func canUseAttachmentFullContext(att AttachmentInput, cfg config.Config) bool {
 	return true
 }
 
-func buildFileAttachmentSnapshot(att AttachmentInput) map[string]interface{} {
-	payload := map[string]interface{}{
+func buildFileAttachmentSnapshot(att AttachmentInput) map[string]any {
+	payload := map[string]any{
 		"file_id":                  att.FileID,
 		"kind":                     att.Kind,
 		"file_name":                att.FileName,
@@ -389,7 +374,7 @@ func buildFileAttachmentSnapshot(att AttachmentInput) map[string]interface{} {
 }
 
 func marshalAttachmentSnapshots(items []AttachmentInput) string {
-	payload := make([]map[string]interface{}, 0, len(items))
+	payload := make([]map[string]any, 0, len(items))
 	for _, item := range items {
 		payload = append(payload, buildFileAttachmentSnapshot(item))
 	}
@@ -398,25 +383,4 @@ func marshalAttachmentSnapshots(items []AttachmentInput) string {
 		return "[]"
 	}
 	return string(raw)
-}
-
-func classifyProcessingErrorCode(err error) string {
-	if err == nil {
-		return ""
-	}
-	msg := strings.ToLower(strings.TrimSpace(err.Error()))
-	switch {
-	case strings.Contains(msg, "ocr_disabled"):
-		return "ocr_disabled"
-	case strings.Contains(msg, "ocr_failed"):
-		return "ocr_failed"
-	case strings.Contains(msg, "deadline") || strings.Contains(msg, "timeout"):
-		return "extract_timeout"
-	default:
-		return "extract_failed"
-	}
-}
-
-func isProcessingNotFound(err error) bool {
-	return errors.Is(err, repository.ErrNotFound)
 }

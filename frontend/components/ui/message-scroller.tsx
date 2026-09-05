@@ -73,7 +73,7 @@ function MessageScrollerViewport({
     <MessageScrollerPrimitive.Viewport
       data-slot="message-scroller-viewport"
       className={cn(
-        "size-full min-h-0 min-w-0 scrollbar-none overflow-y-auto overscroll-contain contain-content [overflow-anchor:none]",
+        "size-full min-h-0 min-w-0 scrollbar-none overflow-y-auto overscroll-contain outline-none contain-content [overflow-anchor:none]",
         className,
       )}
       preserveScrollOnPrepend={preserveScrollOnPrepend}

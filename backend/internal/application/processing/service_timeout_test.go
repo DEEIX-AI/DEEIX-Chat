@@ -2,6 +2,7 @@ package processing
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +10,19 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 )
+
+func TestExtractTextForProcessingRequiresExtractionService(t *testing.T) {
+	service := NewServiceWithRuntime(Dependencies{
+		Config:           config.NewRuntime(config.Config{}),
+		ExtractorVersion: "pipeline-v1",
+	})
+	if service.extractSvc != nil {
+		t.Fatal("expected nil extraction dependency to remain explicit")
+	}
+	if _, err := service.extractTextForProcessing(t.Context(), domainconversation.FileObject{}); !errors.Is(err, errExtractionServiceNotConfigured) {
+		t.Fatalf("extractTextForProcessing() error = %v, want errExtractionServiceNotConfigured", err)
+	}
+}
 
 type processingStateRepositoryStub struct {
 	file             domainconversation.FileObject
@@ -175,7 +189,11 @@ func TestProcessFileFinalizesImageWhenOCRIsDisabled(t *testing.T) {
 					ProcessingStatus: testCase.status,
 				},
 			}
-			service := NewService(config.Config{}, repo, nil, nil, nil, nil, "pipeline-v1")
+			service := NewServiceWithRuntime(Dependencies{
+				Config:           config.NewRuntime(config.Config{}),
+				Repository:       repo,
+				ExtractorVersion: "pipeline-v1",
+			})
 
 			claimed, err := service.processFile(context.Background(), 7, "file_1", testCase.allowRecovery, "attempt_1")
 			if err != nil {

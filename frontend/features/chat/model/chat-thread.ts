@@ -1,3 +1,4 @@
+import { MODERATION_BLOCKED_BILLED_REASON, parseBillingSnapshot } from "@/features/chat/model/billing-snapshot";
 import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import type { MessageDTO, UpstreamDebugInfo } from "@/shared/api/conversation.types";
 
@@ -173,6 +174,8 @@ type MessageLabels = {
   moderationBlockedDescription?: string;
   moderationEventID?: (eventID: string) => string;
   moderationCategories?: (categories: string[]) => string;
+  /** 拦截后上游已产生用量照常结算的说明；账本快照带 `billed_reason` 时追加到拦截提示。 */
+  moderationBilled?: string;
   resolveErrorMessage?: (errorCode: string, fallback: string, details?: UpstreamDebugInfo) => string;
 };
 
@@ -251,6 +254,8 @@ export function mapServerMessage(
     if (moderationBlocked) {
       const eventID = item.moderation?.eventID?.trim() || "";
       const categories = item.moderation?.categories?.filter(Boolean) ?? [];
+      const billedAfterBlock =
+        parseBillingSnapshot(item.billingCost?.pricingSnapshotJSON).billed_reason === MODERATION_BLOCKED_BILLED_REASON;
       msg.inlineAlert = {
         title: labels.moderationBlocked || "Content blocked",
         message: [
@@ -261,6 +266,7 @@ export function mapServerMessage(
           categories.length > 0 && labels.moderationCategories
             ? labels.moderationCategories(categories)
             : "",
+          billedAfterBlock ? labels.moderationBilled || "" : "",
         ]
           .filter(Boolean)
           .join("\n"),

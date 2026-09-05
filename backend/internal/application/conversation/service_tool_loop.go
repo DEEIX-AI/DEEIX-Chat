@@ -277,11 +277,11 @@ func nonNegativeTokenDelta(current int64, previous int64) int64 {
 	return current - previous
 }
 
-func emitLLMUsageEvent(onEvent func(eventType string, payload map[string]interface{}) error, usage llm.Usage) error {
+func emitLLMUsageEvent(onEvent func(eventType string, payload map[string]any) error, usage llm.Usage) error {
 	if onEvent == nil || usage == (llm.Usage{}) {
 		return nil
 	}
-	return onEvent("usage", map[string]interface{}{
+	return onEvent("usage", map[string]any{
 		"input_tokens":       usage.InputTokens,
 		"output_tokens":      usage.OutputTokens,
 		"cache_read_tokens":  usage.CacheReadTokens,

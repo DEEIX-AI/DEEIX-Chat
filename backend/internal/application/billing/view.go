@@ -25,7 +25,6 @@ type BillingPlanView struct {
 	Description         string
 	FeatureJSON         string
 	PeriodCreditNanousd int64
-	DiscountPercent     int
 	SortOrder           int
 	IsActive            bool
 	PermissionGroupID   *uint
@@ -42,6 +41,7 @@ type BillingOverview struct {
 	PeriodUsedNanousd        int64
 	PeriodRemainingNanousd   int64
 	Account                  *BillingAccountView
+	TotalSpentNanousd        int64
 	SubscriptionEntitlements []SubscriptionEntitlementView
 }
 

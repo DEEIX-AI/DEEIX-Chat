@@ -22,8 +22,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 const (
@@ -38,26 +41,26 @@ type anthropicMessagesAdapter struct {
 	client *Client
 }
 
-func (a *anthropicMessagesAdapter) Name() string { return AdapterAnthropicMessages }
+func (a *anthropicMessagesAdapter) Name() string { return portllm.AdapterAnthropicMessages }
 
 func (a *anthropicMessagesAdapter) Generate(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-) (*GenerateOutput, error) {
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+) (*portllm.GenerateOutput, error) {
 	return a.client.generateAnthropic(ctx, route, input, false)
 }
 
 func (a *anthropicMessagesAdapter) GenerateStream(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-	onEvent func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+	onEvent func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
 	return a.client.generateAnthropicStream(ctx, route, input, onEvent)
 }
 
-func (a *anthropicMessagesAdapter) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
+func (a *anthropicMessagesAdapter) ListModels(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
 	return a.client.listModelsAnthropic(ctx, route)
 }
 
@@ -75,7 +78,7 @@ func buildAnthropicModelsURL(baseURL string) string {
 
 // buildAnthropicRequestBody 构造 Anthropic Messages API 请求体。
 // system role 消息会被提取为顶层 system 字段；其余 user/assistant 消息按顺序放入 messages。
-func buildAnthropicRequestBody(model string, input GenerateInput, stream bool) (map[string]interface{}, error) {
+func buildAnthropicRequestBody(model string, input portllm.GenerateInput, stream bool) (map[string]any, error) {
 	messages := normalizeMessages(input.Messages)
 	providerTools, toolDefinitions, toolsEnabled, err := toolDeclarationsForInput(input)
 	if err != nil {
@@ -83,9 +86,9 @@ func buildAnthropicRequestBody(model string, input GenerateInput, stream bool) (
 	}
 
 	var systemParts []string
-	var systemBlocks []map[string]interface{}
+	var systemBlocks []map[string]any
 	explicitCacheControl := false
-	anthropicMessages := make([]map[string]interface{}, 0, len(messages))
+	anthropicMessages := make([]map[string]any, 0, len(messages))
 	maxTokens := anthropicMaxTokensFromOptions(input.Options)
 
 	for _, msg := range messages {
@@ -93,7 +96,7 @@ func buildAnthropicRequestBody(model string, input GenerateInput, stream bool) (
 			// system role → 顶层 system 字段（拼接多条）
 			if text := extractMessageText(msg); text != "" {
 				systemParts = append(systemParts, text)
-				block := map[string]interface{}{"type": "text", "text": text}
+				block := map[string]any{"type": "text", "text": text}
 				if !input.Ephemeral {
 					if cacheControl := anthropicCacheControlFromHint(msg.CacheControl, input.Options); len(cacheControl) > 0 {
 						block["cache_control"] = cacheControl
@@ -104,13 +107,13 @@ func buildAnthropicRequestBody(model string, input GenerateInput, stream bool) (
 			}
 			continue
 		}
-		anthropicMessages = append(anthropicMessages, map[string]interface{}{
+		anthropicMessages = append(anthropicMessages, map[string]any{
 			"role":    normalizeAnthropicRole(msg.Role),
 			"content": buildAnthropicContent(msg),
 		})
 	}
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model":      strings.TrimSpace(model),
 		"max_tokens": maxTokens,
 		"messages":   anthropicMessages,
@@ -140,9 +143,9 @@ func buildAnthropicRequestBody(model string, input GenerateInput, stream bool) (
 	if speed := strings.TrimSpace(modelParamString(input.Options, "speed")); speed != "" {
 		payload["speed"] = speed
 	}
-	webSearchTools := []map[string]interface{}{}
+	webSearchTools := []map[string]any{}
 	if toolsEnabled && modelParamBool(input.Options, "web_search") {
-		webSearchTools = append(webSearchTools, map[string]interface{}{
+		webSearchTools = append(webSearchTools, map[string]any{
 			"type": "web_search_20250305",
 			"name": "web_search",
 		})
@@ -168,11 +171,11 @@ func buildAnthropicRequestBody(model string, input GenerateInput, stream bool) (
 	return payload, nil
 }
 
-func anthropicCacheControlFromHint(hint *CacheControl, options map[string]interface{}) map[string]interface{} {
+func anthropicCacheControlFromHint(hint *portllm.CacheControl, options map[string]any) map[string]any {
 	if hint == nil || !anthropicPromptCacheEnabled(options) {
 		return nil
 	}
-	cacheControl := map[string]interface{}{"type": "ephemeral"}
+	cacheControl := map[string]any{"type": "ephemeral"}
 	if value := strings.TrimSpace(hint.Type); value != "" {
 		cacheControl["type"] = value
 	}
@@ -186,7 +189,7 @@ func anthropicCacheControlFromHint(hint *CacheControl, options map[string]interf
 	return cacheControl
 }
 
-func anthropicMaxTokensFromOptions(options map[string]interface{}) int {
+func anthropicMaxTokensFromOptions(options map[string]any) int {
 	if requestedMaxTokens, ok := modelParamIntValue(options, "max_output_tokens"); ok && requestedMaxTokens >= 0 {
 		return requestedMaxTokens
 	}
@@ -196,7 +199,7 @@ func anthropicMaxTokensFromOptions(options map[string]interface{}) int {
 	return anthropicDefaultMaxTokens
 }
 
-func anthropicPromptCacheEnabled(options map[string]interface{}) bool {
+func anthropicPromptCacheEnabled(options map[string]any) bool {
 	if options == nil {
 		return true
 	}
@@ -214,7 +217,7 @@ func anthropicPromptCacheEnabled(options map[string]interface{}) bool {
 	return typed
 }
 
-func anthropicCacheControlFromOptions(options map[string]interface{}) map[string]interface{} {
+func anthropicCacheControlFromOptions(options map[string]any) map[string]any {
 	if !anthropicPromptCacheEnabled(options) {
 		return nil
 	}
@@ -227,14 +230,14 @@ func anthropicCacheControlFromOptions(options map[string]interface{}) map[string
 			return cacheControl
 		}
 	}
-	cacheControl := map[string]interface{}{"type": "ephemeral"}
+	cacheControl := map[string]any{"type": "ephemeral"}
 	if ttl := anthropicPromptCacheTTL(options); ttl != "" {
 		cacheControl["ttl"] = ttl
 	}
 	return cacheControl
 }
 
-func anthropicPromptCacheTTL(options map[string]interface{}) string {
+func anthropicPromptCacheTTL(options map[string]any) string {
 	switch strings.TrimSpace(strings.ToLower(modelParamString(options, "cache_timeout"))) {
 	case "5m":
 		return "5m"
@@ -245,11 +248,11 @@ func anthropicPromptCacheTTL(options map[string]interface{}) string {
 	}
 }
 
-func anthropicThinkingFromOptions(options map[string]interface{}, maxTokens int) map[string]interface{} {
+func anthropicThinkingFromOptions(options map[string]any, maxTokens int) map[string]any {
 	result := anthropicBaseThinkingFromOptions(options, maxTokens)
 	if enabled, ok := modelParamBoolValue(options, "enable_thinking"); ok {
 		if result == nil {
-			result = map[string]interface{}{}
+			result = map[string]any{}
 		}
 		if !enabled {
 			result["type"] = "disabled"
@@ -263,7 +266,7 @@ func anthropicThinkingFromOptions(options map[string]interface{}, maxTokens int)
 	}
 	if display := strings.TrimSpace(modelParamString(options, "thinking_display")); display != "" {
 		if result == nil {
-			result = map[string]interface{}{}
+			result = map[string]any{}
 		}
 		result["display"] = display
 	}
@@ -276,20 +279,20 @@ func anthropicThinkingFromOptions(options map[string]interface{}, maxTokens int)
 	return result
 }
 
-func anthropicBaseThinkingFromOptions(options map[string]interface{}, maxTokens int) map[string]interface{} {
+func anthropicBaseThinkingFromOptions(options map[string]any, maxTokens int) map[string]any {
 	if thinking := modelParamMap(options, "thinking"); len(thinking) > 0 {
-		result := make(map[string]interface{}, len(thinking))
+		result := make(map[string]any, len(thinking))
 		for key, value := range thinking {
 			result[key] = value
 		}
 		return result
 	}
 	if value := modelParamString(options, "thinking"); value != "" {
-		return map[string]interface{}{"type": value}
+		return map[string]any{"type": value}
 	}
 	if raw, ok := options["thinking"].(bool); ok {
 		if !raw {
-			return map[string]interface{}{"type": "disabled"}
+			return map[string]any{"type": "disabled"}
 		}
 		budgetTokens := modelParamInt(options, "budget_tokens")
 		if budgetTokens < 1024 {
@@ -298,10 +301,10 @@ func anthropicBaseThinkingFromOptions(options map[string]interface{}, maxTokens 
 				budgetTokens = min(maxTokens/4, maxTokens-1)
 			}
 		}
-		return map[string]interface{}{"type": "enabled", "budget_tokens": budgetTokens}
+		return map[string]any{"type": "enabled", "budget_tokens": budgetTokens}
 	}
 	if budgetTokens := modelParamInt(options, "budget_tokens"); budgetTokens >= 1024 {
-		return map[string]interface{}{
+		return map[string]any{
 			"type":          "enabled",
 			"budget_tokens": budgetTokens,
 		}
@@ -309,7 +312,7 @@ func anthropicBaseThinkingFromOptions(options map[string]interface{}, maxTokens 
 	return nil
 }
 
-func anthropicToolChoiceFromOptions(options map[string]interface{}) map[string]interface{} {
+func anthropicToolChoiceFromOptions(options map[string]any) map[string]any {
 	raw, ok := options["tool_choice"]
 	if !ok || raw == nil {
 		return nil
@@ -323,16 +326,16 @@ func anthropicToolChoiceFromOptions(options map[string]interface{}) map[string]i
 	}
 	switch value {
 	case "auto", "any", "none":
-		return map[string]interface{}{"type": value}
+		return map[string]any{"type": value}
 	default:
-		return map[string]interface{}{"type": "tool", "name": value}
+		return map[string]any{"type": "tool", "name": value}
 	}
 }
 
-func anthropicOutputConfigFromOptions(options map[string]interface{}) map[string]interface{} {
-	var result map[string]interface{}
+func anthropicOutputConfigFromOptions(options map[string]any) map[string]any {
+	var result map[string]any
 	if outputConfig := modelParamMap(options, "output_config"); len(outputConfig) > 0 {
-		result = make(map[string]interface{}, len(outputConfig))
+		result = make(map[string]any, len(outputConfig))
 		for key, value := range outputConfig {
 			result[key] = value
 		}
@@ -345,7 +348,7 @@ func anthropicOutputConfigFromOptions(options map[string]interface{}) map[string
 	}
 	if len(format) > 0 {
 		if result == nil {
-			result = map[string]interface{}{}
+			result = map[string]any{}
 		}
 		if _, exists := result["format"]; !exists {
 			result["format"] = format
@@ -353,7 +356,7 @@ func anthropicOutputConfigFromOptions(options map[string]interface{}) map[string
 	}
 	if effort := strings.TrimSpace(modelParamString(options, "effort")); effort != "" {
 		if result == nil {
-			result = map[string]interface{}{}
+			result = map[string]any{}
 		}
 		if strings.TrimSpace(getString(result["effort"])) == "" {
 			result["effort"] = effort
@@ -365,17 +368,17 @@ func anthropicOutputConfigFromOptions(options map[string]interface{}) map[string
 	return result
 }
 
-func buildAnthropicTools(tools []ToolDefinition) []map[string]interface{} {
+func buildAnthropicTools(tools []portllm.ToolDefinition) []map[string]any {
 	if len(tools) == 0 {
 		return nil
 	}
-	items := make([]map[string]interface{}, 0, len(tools))
+	items := make([]map[string]any, 0, len(tools))
 	for _, tool := range tools {
 		name := strings.TrimSpace(tool.Name)
 		if name == "" {
 			continue
 		}
-		items = append(items, map[string]interface{}{
+		items = append(items, map[string]any{
 			"name":         name,
 			"description":  strings.TrimSpace(tool.Description),
 			"input_schema": decodeToolSchema(tool.InputSchema),
@@ -384,7 +387,7 @@ func buildAnthropicTools(tools []ToolDefinition) []map[string]interface{} {
 	return items
 }
 
-func normalizeAnthropicNativeTools(payload map[string]interface{}) {
+func normalizeAnthropicNativeTools(payload map[string]any) {
 	if payload == nil {
 		return
 	}
@@ -457,7 +460,7 @@ type anthropicToolClassifier struct {
 	clientToolNames       map[string]struct{}
 }
 
-func newAnthropicToolClassifier(payload map[string]interface{}, clientTools []ToolDefinition) anthropicToolClassifier {
+func newAnthropicToolClassifier(payload map[string]any, clientTools []portllm.ToolDefinition) anthropicToolClassifier {
 	classifier := anthropicToolClassifier{}
 	for _, tool := range anthropicToolPayloads(payload["tools"]) {
 		toolType := strings.TrimSpace(getString(tool["type"]))
@@ -524,7 +527,7 @@ func isAnthropicServerToolResultBlockType(blockType string) bool {
 }
 
 func anthropicUnsupportedNativeToolError(toolName string, rawBody string) error {
-	return &UpstreamError{
+	return &portllm.UpstreamError{
 		StatusCode: http.StatusBadGateway,
 		Message:    anthropicUnsupportedNativeToolMessage(toolName),
 		Body:       rawBody,
@@ -551,13 +554,13 @@ func normalizeAnthropicRole(role string) string {
 }
 
 // extractMessageText 从纯文本消息中提取文字（用于 system 提升）。
-func extractMessageText(msg Message) string {
+func extractMessageText(msg portllm.Message) string {
 	if len(msg.Parts) == 0 {
 		return msg.Content
 	}
 	chunks := make([]string, 0, len(msg.Parts))
 	for _, p := range msg.Parts {
-		if p.Kind == ContentPartText || p.Kind == ContentPartFile {
+		if p.Kind == portllm.ContentPartText || p.Kind == portllm.ContentPartFile {
 			chunks = append(chunks, p.Text)
 		}
 	}
@@ -566,22 +569,22 @@ func extractMessageText(msg Message) string {
 
 // buildAnthropicContent 将 Message 转换为 Anthropic content 数组。
 // 纯文本消息可简化为字符串（Anthropic 支持简化形式）；多模态保持数组。
-func buildAnthropicContent(msg Message) interface{} {
+func buildAnthropicContent(msg portllm.Message) any {
 	if len(msg.Parts) == 0 && len(msg.ToolCalls) == 0 && len(msg.ToolResults) == 0 {
 		// 简化形式：纯文本直接用字符串
 		return msg.Content
 	}
 
-	blocks := make([]map[string]interface{}, 0, len(msg.Parts)+len(msg.ToolCalls)+len(msg.ToolResults)+1)
+	blocks := make([]map[string]any, 0, len(msg.Parts)+len(msg.ToolCalls)+len(msg.ToolResults)+1)
 	if text := strings.TrimSpace(msg.Content); text != "" {
-		blocks = append(blocks, map[string]interface{}{
+		blocks = append(blocks, map[string]any{
 			"type": "text",
 			"text": text,
 		})
 	}
 	for _, part := range msg.Parts {
 		switch part.Kind {
-		case ContentPartImage:
+		case portllm.ContentPartImage:
 			if len(part.Data) == 0 {
 				continue
 			}
@@ -589,9 +592,9 @@ func buildAnthropicContent(msg Message) interface{} {
 			if mime == "" {
 				mime = "image/jpeg"
 			}
-			blocks = append(blocks, map[string]interface{}{
+			blocks = append(blocks, map[string]any{
 				"type": "image",
-				"source": map[string]interface{}{
+				"source": map[string]any{
 					"type":       "base64",
 					"media_type": mime,
 					"data":       base64.StdEncoding.EncodeToString(part.Data),
@@ -602,7 +605,7 @@ func buildAnthropicContent(msg Message) interface{} {
 			if strings.TrimSpace(text) == "" {
 				continue
 			}
-			blocks = append(blocks, map[string]interface{}{
+			blocks = append(blocks, map[string]any{
 				"type": "text",
 				"text": text,
 			})
@@ -613,11 +616,11 @@ func buildAnthropicContent(msg Message) interface{} {
 		if args == "" {
 			args = "{}"
 		}
-		input := make(map[string]interface{})
+		input := make(map[string]any)
 		if err := json.Unmarshal([]byte(args), &input); err != nil {
-			input = map[string]interface{}{"arguments": args}
+			input = map[string]any{"arguments": args}
 		}
-		blocks = append(blocks, map[string]interface{}{
+		blocks = append(blocks, map[string]any{
 			"type":  "tool_use",
 			"id":    strings.TrimSpace(item.ToolCallID),
 			"name":  strings.TrimSpace(item.ToolName),
@@ -625,7 +628,7 @@ func buildAnthropicContent(msg Message) interface{} {
 		})
 	}
 	for _, item := range msg.ToolResults {
-		block := map[string]interface{}{
+		block := map[string]any{
 			"type":        "tool_result",
 			"tool_use_id": strings.TrimSpace(item.ToolCallID),
 			"content":     buildToolResultContent(item),
@@ -648,8 +651,8 @@ func (c *Client) newAnthropicRequest(
 	ctx context.Context,
 	method, url string,
 	body io.Reader,
-	route RouteConfig,
-	input *GenerateInput,
+	route portllm.RouteConfig,
+	input *portllm.GenerateInput,
 ) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
@@ -666,14 +669,14 @@ func (c *Client) newAnthropicRequest(
 
 // parseAnthropicError 从 Anthropic 错误响应中提取 error.message。
 // 格式：{"type":"error","error":{"type":"...","message":"..."}}
-func parseAnthropicError(statusCode int, body []byte, debug *UpstreamDebugSnapshot) error {
-	parsed := make(map[string]interface{})
+func parseAnthropicError(statusCode int, body []byte, debug *portllm.UpstreamDebugSnapshot) error {
+	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err == nil {
 		if msg := getStringFromPath(parsed, "error", "message"); msg != "" {
-			return &UpstreamError{StatusCode: statusCode, Message: msg, Body: string(body), Debug: debug}
+			return &portllm.UpstreamError{StatusCode: statusCode, Message: msg, Body: string(body), Debug: debug}
 		}
 	}
-	return &UpstreamError{
+	return &portllm.UpstreamError{
 		StatusCode: statusCode,
 		Message:    fmt.Sprintf("upstream_status_%d", statusCode),
 		Body:       string(body),
@@ -681,7 +684,7 @@ func parseAnthropicError(statusCode int, body []byte, debug *UpstreamDebugSnapsh
 	}
 }
 
-func applyAnthropicBetaHeaders(req *http.Request, payload map[string]interface{}, options map[string]interface{}) {
+func applyAnthropicBetaHeaders(req *http.Request, payload map[string]any, options map[string]any) {
 	if req == nil || len(payload) == 0 {
 		return
 	}
@@ -710,12 +713,12 @@ func applyAnthropicBetaHeaders(req *http.Request, payload map[string]interface{}
 	req.Header.Set("anthropic-beta", strings.Join(betas, ","))
 }
 
-func anthropicToolPayloads(raw interface{}) []map[string]interface{} {
+func anthropicToolPayloads(raw any) []map[string]any {
 	switch typed := raw.(type) {
-	case []map[string]interface{}:
-		return append([]map[string]interface{}(nil), typed...)
-	case []interface{}:
-		items := make([]map[string]interface{}, 0, len(typed))
+	case []map[string]any:
+		return append([]map[string]any(nil), typed...)
+	case []any:
+		items := make([]map[string]any, 0, len(typed))
 		for _, item := range typed {
 			if payload := asMap(item); len(payload) > 0 {
 				items = append(items, payload)
@@ -731,10 +734,10 @@ func anthropicToolPayloads(raw interface{}) []map[string]interface{} {
 
 func (c *Client) generateAnthropic(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
 	_ bool, // stream 参数保留，始终传 false
-) (*GenerateOutput, error) {
+) (*portllm.GenerateOutput, error) {
 	requestURL := buildAnthropicMessagesURL(route.BaseURL)
 	if requestURL == "" {
 		return nil, fmt.Errorf("invalid base url")
@@ -767,7 +770,7 @@ func (c *Client) generateAnthropic(
 	body, err := readUpstreamBody(resp.Body)
 	if err != nil {
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			return nil, MarkRequestAccepted(err)
+			return nil, portllm.MarkRequestAccepted(err)
 		}
 		return nil, err
 	}
@@ -778,7 +781,7 @@ func (c *Client) generateAnthropic(
 	debug := upstreamDebugSnapshot(req, payload, resp, body)
 	output, err := parseAnthropicResponse(body, newAnthropicToolClassifier(requestBody, input.Tools))
 	if err != nil {
-		return nil, MarkRequestAccepted(attachUpstreamDebug(err, debug))
+		return nil, portllm.MarkRequestAccepted(attachUpstreamDebug(err, debug))
 	}
 	output.Debug = debug
 	return output, nil
@@ -798,8 +801,8 @@ func (c *Client) generateAnthropic(
 //	    "cache_read_input_tokens": 0
 //	  }
 //	}
-func parseAnthropicResponse(body []byte, classifier anthropicToolClassifier) (*GenerateOutput, error) {
-	parsed := make(map[string]interface{})
+func parseAnthropicResponse(body []byte, classifier anthropicToolClassifier) (*portllm.GenerateOutput, error) {
+	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
 	}
@@ -808,7 +811,7 @@ func parseAnthropicResponse(body []byte, classifier anthropicToolClassifier) (*G
 		return nil, err
 	}
 
-	result := &GenerateOutput{
+	result := &portllm.GenerateOutput{
 		ResponseID:          strings.TrimSpace(getString(parsed["id"])),
 		Text:                extractAnthropicText(parsed),
 		Reasoning:           extractAnthropicReasoning(parsed),
@@ -822,7 +825,7 @@ func parseAnthropicResponse(body []byte, classifier anthropicToolClassifier) (*G
 }
 
 // extractAnthropicText 从 content 数组中提取所有 text block 的文字。
-func extractAnthropicText(parsed map[string]interface{}) string {
+func extractAnthropicText(parsed map[string]any) string {
 	chunks := make([]string, 0)
 	for _, raw := range asSlice(parsed["content"]) {
 		block := asMap(raw)
@@ -835,8 +838,8 @@ func extractAnthropicText(parsed map[string]interface{}) string {
 	return strings.Join(chunks, "")
 }
 
-func extractAnthropicReasoning(parsed map[string]interface{}) *ReasoningOutput {
-	result := &ReasoningOutput{}
+func extractAnthropicReasoning(parsed map[string]any) *portllm.ReasoningOutput {
+	result := &portllm.ReasoningOutput{}
 	for _, raw := range asSlice(parsed["content"]) {
 		block := asMap(raw)
 		blockType := strings.TrimSpace(getString(block["type"]))
@@ -855,7 +858,7 @@ func extractAnthropicReasoning(parsed map[string]interface{}) *ReasoningOutput {
 }
 
 // parseAnthropicUsage 解析 Anthropic usage 字段。
-func parseAnthropicUsage(parsed map[string]interface{}) Usage {
+func parseAnthropicUsage(parsed map[string]any) portllm.Usage {
 	cacheReadInputTokens := getInt64FromPath(parsed, "usage", "cache_read_input_tokens")
 	cacheCreation1hInputTokens := getInt64FromPath(parsed, "usage", "cache_creation", "ephemeral_1h_input_tokens")
 	cacheCreation5mInputTokens := getInt64FromPath(parsed, "usage", "cache_creation", "ephemeral_5m_input_tokens")
@@ -864,7 +867,7 @@ func parseAnthropicUsage(parsed map[string]interface{}) Usage {
 	if cacheCreationInputTokens <= 0 {
 		cacheCreationInputTokens = getInt64FromPath(parsed, "usage", "cache_creation_input_tokens")
 	}
-	return Usage{
+	return portllm.Usage{
 		InputTokens:        getInt64FromPath(parsed, "usage", "input_tokens"),
 		OutputTokens:       getInt64FromPath(parsed, "usage", "output_tokens"),
 		CacheReadTokens:    cacheReadInputTokens,
@@ -876,7 +879,7 @@ func parseAnthropicUsage(parsed map[string]interface{}) Usage {
 	}
 }
 
-func parseAnthropicServerSideToolUsage(parsed map[string]interface{}) map[string]int64 {
+func parseAnthropicServerSideToolUsage(parsed map[string]any) map[string]int64 {
 	usage := asMap(parsed["usage"])
 	if len(usage) == 0 {
 		return nil
@@ -913,8 +916,8 @@ func normalizeAnthropicServerSideToolUsageKey(key string) string {
 }
 
 // parseAnthropicToolUse 解析需要本地执行的 Anthropic tool_use content block。
-func parseAnthropicToolUse(parsed map[string]interface{}, classifier anthropicToolClassifier, rawBody string) ([]ToolCall, error) {
-	var result []ToolCall
+func parseAnthropicToolUse(parsed map[string]any, classifier anthropicToolClassifier, rawBody string) ([]portllm.ToolCall, error) {
+	var result []portllm.ToolCall
 	for _, raw := range asSlice(parsed["content"]) {
 		block := asMap(raw)
 		if getString(block["type"]) != "tool_use" {
@@ -928,7 +931,7 @@ func parseAnthropicToolUse(parsed map[string]interface{}, classifier anthropicTo
 		if arguments == "" {
 			arguments = "{}"
 		}
-		result = append(result, ToolCall{
+		result = append(result, portllm.ToolCall{
 			ToolCallID:    strings.TrimSpace(getString(block["id"])),
 			ToolType:      "function",
 			ToolName:      toolName,
@@ -937,14 +940,14 @@ func parseAnthropicToolUse(parsed map[string]interface{}, classifier anthropicTo
 		})
 	}
 	if result == nil {
-		return make([]ToolCall, 0), nil
+		return make([]portllm.ToolCall, 0), nil
 	}
 	return result, nil
 }
 
 // parseAnthropicServerToolUse 解析 Anthropic server-side tool trace。
-func parseAnthropicServerToolUse(parsed map[string]interface{}) []ToolCall {
-	items := make([]ToolCall, 0)
+func parseAnthropicServerToolUse(parsed map[string]any) []portllm.ToolCall {
+	items := make([]portllm.ToolCall, 0)
 	indexByID := map[string]int{}
 	for _, raw := range asSlice(parsed["content"]) {
 		block := asMap(raw)
@@ -955,7 +958,7 @@ func parseAnthropicServerToolUse(parsed map[string]interface{}) []ToolCall {
 			if arguments == "" {
 				arguments = "{}"
 			}
-			toolCall := ToolCall{
+			toolCall := portllm.ToolCall{
 				ToolCallID:    strings.TrimSpace(getString(block["id"])),
 				ToolType:      blockType,
 				ToolName:      strings.TrimSpace(getString(block["name"])),
@@ -984,7 +987,7 @@ func parseAnthropicServerToolUse(parsed map[string]interface{}) []ToolCall {
 		}
 	}
 	if items == nil {
-		return make([]ToolCall, 0)
+		return make([]portllm.ToolCall, 0)
 	}
 	return items
 }
@@ -993,10 +996,10 @@ func parseAnthropicServerToolUse(parsed map[string]interface{}) []ToolCall {
 
 func (c *Client) generateAnthropicStream(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-	onEvent func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+	onEvent func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
 	requestURL := buildAnthropicMessagesURL(route.BaseURL)
 	if requestURL == "" {
 		return nil, fmt.Errorf("invalid base url")
@@ -1036,15 +1039,15 @@ func (c *Client) generateAnthropicStream(
 		return nil, parseAnthropicError(resp.StatusCode, body, upstreamDebugSnapshot(req, payload, resp, body))
 	}
 
-	result := &GenerateOutput{
-		ToolCalls:       make([]ToolCall, 0),
-		ServerToolCalls: make([]ToolCall, 0),
+	result := &portllm.GenerateOutput{
+		ToolCalls:       make([]portllm.ToolCall, 0),
+		ServerToolCalls: make([]portllm.ToolCall, 0),
 	}
 
 	idleReader := newIdleTimeoutReader(resp.Body, resolveStreamIdleTimeout(route.StreamIdleTimeoutMS))
 	streamBody := newUpstreamBodyRecorder(idleReader)
 	if err = consumeAnthropicStream(streamBody, result, onEvent, newAnthropicToolClassifier(requestBody, input.Tools)); err != nil {
-		return nil, MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err))))
+		return nil, portllm.MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err))))
 	}
 	compactAnthropicStreamToolCalls(result)
 	return result, nil
@@ -1067,8 +1070,8 @@ func (c *Client) generateAnthropicStream(
 //	data: {"type":"message_stop"}
 func consumeAnthropicStream(
 	reader io.Reader,
-	result *GenerateOutput,
-	onEvent func(GenerateStreamEvent) error,
+	result *portllm.GenerateOutput,
+	onEvent func(portllm.GenerateStreamEvent) error,
 	classifier anthropicToolClassifier,
 ) error {
 	// 使用 Anthropic 自身的 SSE dispatch，保持事件语义独立于 OpenAI-family 解析。
@@ -1083,7 +1086,7 @@ func consumeAnthropicStream(
 		if strings.TrimSpace(ev.data) == "" {
 			return nil
 		}
-		parsed := make(map[string]interface{})
+		parsed := make(map[string]any)
 		if err := json.Unmarshal([]byte(ev.data), &parsed); err != nil {
 			return nil // 单个异常事件不应中断后续流式输出。
 		}
@@ -1139,10 +1142,10 @@ func isAnthropicStreamDone(err error) bool {
 
 // applyAnthropicStreamEvent 处理单个 Anthropic 流式事件 payload。
 func applyAnthropicStreamEvent(
-	parsed map[string]interface{},
+	parsed map[string]any,
 	rawBody string,
-	result *GenerateOutput,
-	onEvent func(GenerateStreamEvent) error,
+	result *portllm.GenerateOutput,
+	onEvent func(portllm.GenerateStreamEvent) error,
 	classifier anthropicToolClassifier,
 ) error {
 	eventType := strings.TrimSpace(getString(parsed["type"]))
@@ -1158,8 +1161,8 @@ func applyAnthropicStreamEvent(
 		if serverSideToolUsage := parseAnthropicServerSideToolUsage(msg); len(serverSideToolUsage) > 0 {
 			result.ServerSideToolUsage = serverSideToolUsage
 		}
-		if result.Usage != (Usage{}) && onEvent != nil {
-			return onEvent(GenerateStreamEvent{
+		if result.Usage != (portllm.Usage{}) && onEvent != nil {
+			return onEvent(portllm.GenerateStreamEvent{
 				Usage:      result.Usage,
 				ResponseID: result.ResponseID,
 			})
@@ -1173,7 +1176,7 @@ func applyAnthropicStreamEvent(
 			toolName := strings.TrimSpace(getString(block["name"]))
 			if classifier.isUnsupportedNativeClientToolUse(toolName) {
 				message := anthropicUnsupportedNativeToolMessage(toolName)
-				toolCall := upsertAnthropicStreamServerToolCall(result, index, ToolCall{
+				toolCall := upsertAnthropicStreamServerToolCall(result, index, portllm.ToolCall{
 					ToolCallID:    strings.TrimSpace(getString(block["id"])),
 					ToolType:      "native_tool_use",
 					ToolName:      toolName,
@@ -1182,7 +1185,7 @@ func applyAnthropicStreamEvent(
 					ErrorJSON:     message,
 				})
 				if onEvent != nil {
-					if err := onEvent(GenerateStreamEvent{
+					if err := onEvent(portllm.GenerateStreamEvent{
 						ServerToolCall: &toolCall,
 						ResponseID:     result.ResponseID,
 					}); err != nil {
@@ -1191,7 +1194,7 @@ func applyAnthropicStreamEvent(
 				}
 				return anthropicUnsupportedNativeToolError(toolName, rawBody)
 			}
-			_ = upsertAnthropicStreamToolCall(result, index, ToolCall{
+			_ = upsertAnthropicStreamToolCall(result, index, portllm.ToolCall{
 				ToolCallID:    strings.TrimSpace(getString(block["id"])),
 				ToolType:      "function",
 				ToolName:      toolName,
@@ -1199,7 +1202,7 @@ func applyAnthropicStreamEvent(
 				Status:        "requested",
 			})
 		case "server_tool_use":
-			toolCall := upsertAnthropicStreamServerToolCall(result, index, ToolCall{
+			toolCall := upsertAnthropicStreamServerToolCall(result, index, portllm.ToolCall{
 				ToolCallID:    strings.TrimSpace(getString(block["id"])),
 				ToolType:      strings.TrimSpace(getString(block["type"])),
 				ToolName:      strings.TrimSpace(getString(block["name"])),
@@ -1207,7 +1210,7 @@ func applyAnthropicStreamEvent(
 				Status:        "in_progress",
 			})
 			if onEvent != nil {
-				return onEvent(GenerateStreamEvent{
+				return onEvent(portllm.GenerateStreamEvent{
 					ServerToolCall: &toolCall,
 					ResponseID:     result.ResponseID,
 				})
@@ -1219,7 +1222,7 @@ func applyAnthropicStreamEvent(
 					return nil
 				}
 				if onEvent != nil {
-					return onEvent(GenerateStreamEvent{
+					return onEvent(portllm.GenerateStreamEvent{
 						ServerToolCall: &toolCall,
 						ResponseID:     result.ResponseID,
 					})
@@ -1237,7 +1240,7 @@ func applyAnthropicStreamEvent(
 			}
 			result.Text += text
 			if onEvent != nil {
-				return onEvent(GenerateStreamEvent{
+				return onEvent(portllm.GenerateStreamEvent{
 					Delta:      text,
 					ResponseID: result.ResponseID,
 				})
@@ -1251,7 +1254,7 @@ func applyAnthropicStreamEvent(
 			index := anthropicContentBlockIndex(parsed)
 			if toolCall, ok := appendAnthropicStreamServerToolInput(result, index, partial); ok {
 				if onEvent != nil {
-					return onEvent(GenerateStreamEvent{
+					return onEvent(portllm.GenerateStreamEvent{
 						ServerToolCall: &toolCall,
 						ResponseID:     result.ResponseID,
 					})
@@ -1260,7 +1263,7 @@ func applyAnthropicStreamEvent(
 			}
 			toolCall := appendAnthropicStreamToolInput(result, index, partial)
 			if onEvent != nil {
-				return onEvent(GenerateStreamEvent{
+				return onEvent(portllm.GenerateStreamEvent{
 					ServerToolCall: &toolCall,
 					ResponseID:     result.ResponseID,
 				})
@@ -1272,7 +1275,7 @@ func applyAnthropicStreamEvent(
 			if signature == "" {
 				return nil
 			}
-			mergeReasoningDeltaOutput(&result.Reasoning, &ReasoningDelta{
+			mergeReasoningDeltaOutput(&result.Reasoning, &portllm.ReasoningDelta{
 				EventType: "anthropic.content_block_delta",
 				ItemID:    fmt.Sprintf("%v", parsed["index"]),
 				Status:    deltaType,
@@ -1280,8 +1283,8 @@ func applyAnthropicStreamEvent(
 				Signature: signature,
 			})
 			if onEvent != nil {
-				return onEvent(GenerateStreamEvent{
-					Reasoning: &ReasoningDelta{
+				return onEvent(portllm.GenerateStreamEvent{
+					Reasoning: &portllm.ReasoningDelta{
 						EventType: "anthropic.content_block_delta",
 						ItemID:    fmt.Sprintf("%v", parsed["index"]),
 						Status:    deltaType,
@@ -1297,7 +1300,7 @@ func applyAnthropicStreamEvent(
 			if think == "" {
 				return nil
 			}
-			reasoning := &ReasoningDelta{
+			reasoning := &portllm.ReasoningDelta{
 				EventType: "anthropic.content_block_delta",
 				ItemID:    fmt.Sprintf("%v", parsed["index"]),
 				Status:    deltaType,
@@ -1306,7 +1309,7 @@ func applyAnthropicStreamEvent(
 			}
 			mergeReasoningDeltaOutput(&result.Reasoning, reasoning)
 			if onEvent != nil {
-				return onEvent(GenerateStreamEvent{
+				return onEvent(portllm.GenerateStreamEvent{
 					Reasoning:  reasoning,
 					ResponseID: result.ResponseID,
 				})
@@ -1325,9 +1328,9 @@ func applyAnthropicStreamEvent(
 		deltaUsage := asMap(parsed["usage"])
 		if out := toInt64(deltaUsage["output_tokens"]); out > 0 {
 			result.Usage.OutputTokens = out
-			result.Usage.RawUsageJSON = MergeRawUsageJSON(result.Usage.RawUsageJSON, rawUsageJSONFromPath(parsed, "usage"))
+			result.Usage.RawUsageJSON = portllm.MergeRawUsageJSON(result.Usage.RawUsageJSON, rawUsageJSONFromPath(parsed, "usage"))
 			if onEvent != nil {
-				return onEvent(GenerateStreamEvent{
+				return onEvent(portllm.GenerateStreamEvent{
 					Usage:      result.Usage,
 					ResponseID: result.ResponseID,
 				})
@@ -1343,7 +1346,7 @@ func applyAnthropicStreamEvent(
 		if msg == "" {
 			msg = "anthropic stream error"
 		}
-		return &UpstreamError{
+		return &portllm.UpstreamError{
 			StatusCode: http.StatusBadGateway,
 			Message:    msg,
 			Body:       rawBody,
@@ -1353,19 +1356,19 @@ func applyAnthropicStreamEvent(
 	return nil
 }
 
-func anthropicContentBlockIndex(parsed map[string]interface{}) int {
+func anthropicContentBlockIndex(parsed map[string]any) int {
 	return streamToolCallIndex(parsed["index"], 0)
 }
 
-func upsertAnthropicStreamToolCall(result *GenerateOutput, index int, item ToolCall) ToolCall {
+func upsertAnthropicStreamToolCall(result *portllm.GenerateOutput, index int, item portllm.ToolCall) portllm.ToolCall {
 	if result == nil {
 		return item
 	}
 	if result.ToolCalls == nil {
-		result.ToolCalls = make([]ToolCall, 0)
+		result.ToolCalls = make([]portllm.ToolCall, 0)
 	}
 	for len(result.ToolCalls) <= index {
-		result.ToolCalls = append(result.ToolCalls, ToolCall{Status: "requested"})
+		result.ToolCalls = append(result.ToolCalls, portllm.ToolCall{Status: "requested"})
 	}
 	current := result.ToolCalls[index]
 	if strings.TrimSpace(item.ToolCallID) != "" {
@@ -1387,21 +1390,21 @@ func upsertAnthropicStreamToolCall(result *GenerateOutput, index int, item ToolC
 	return current
 }
 
-func appendAnthropicStreamToolInput(result *GenerateOutput, index int, partial string) ToolCall {
+func appendAnthropicStreamToolInput(result *portllm.GenerateOutput, index int, partial string) portllm.ToolCall {
 	if result == nil || partial == "" {
-		return ToolCall{}
+		return portllm.ToolCall{}
 	}
-	upsertAnthropicStreamToolCall(result, index, ToolCall{ToolType: "function", Status: "requested"})
+	upsertAnthropicStreamToolCall(result, index, portllm.ToolCall{ToolType: "function", Status: "requested"})
 	result.ToolCalls[index].ArgumentsJSON += partial
 	return result.ToolCalls[index]
 }
 
-func markAnthropicStreamToolCallComplete(result *GenerateOutput, index int) (ToolCall, bool) {
+func markAnthropicStreamToolCallComplete(result *portllm.GenerateOutput, index int) (portllm.ToolCall, bool) {
 	if result == nil || index < 0 || index >= len(result.ToolCalls) {
-		return ToolCall{}, false
+		return portllm.ToolCall{}, false
 	}
 	if strings.TrimSpace(result.ToolCalls[index].ToolName) == "" && strings.TrimSpace(result.ToolCalls[index].ToolCallID) == "" {
-		return ToolCall{}, false
+		return portllm.ToolCall{}, false
 	}
 	if strings.TrimSpace(result.ToolCalls[index].ArgumentsJSON) == "" {
 		result.ToolCalls[index].ArgumentsJSON = "{}"
@@ -1412,15 +1415,15 @@ func markAnthropicStreamToolCallComplete(result *GenerateOutput, index int) (Too
 	return result.ToolCalls[index], true
 }
 
-func upsertAnthropicStreamServerToolCall(result *GenerateOutput, index int, item ToolCall) ToolCall {
+func upsertAnthropicStreamServerToolCall(result *portllm.GenerateOutput, index int, item portllm.ToolCall) portllm.ToolCall {
 	if result == nil {
 		return item
 	}
 	if result.ServerToolCalls == nil {
-		result.ServerToolCalls = make([]ToolCall, 0)
+		result.ServerToolCalls = make([]portllm.ToolCall, 0)
 	}
 	for len(result.ServerToolCalls) <= index {
-		result.ServerToolCalls = append(result.ServerToolCalls, ToolCall{Status: "in_progress"})
+		result.ServerToolCalls = append(result.ServerToolCalls, portllm.ToolCall{Status: "in_progress"})
 	}
 	current := result.ServerToolCalls[index]
 	if strings.TrimSpace(item.ToolCallID) != "" {
@@ -1442,13 +1445,13 @@ func upsertAnthropicStreamServerToolCall(result *GenerateOutput, index int, item
 	return current
 }
 
-func appendAnthropicStreamServerToolInput(result *GenerateOutput, index int, partial string) (ToolCall, bool) {
+func appendAnthropicStreamServerToolInput(result *portllm.GenerateOutput, index int, partial string) (portllm.ToolCall, bool) {
 	if result == nil || partial == "" || index < 0 || index >= len(result.ServerToolCalls) {
-		return ToolCall{}, false
+		return portllm.ToolCall{}, false
 	}
 	item := result.ServerToolCalls[index]
 	if strings.TrimSpace(item.ToolCallID) == "" && strings.TrimSpace(item.ToolName) == "" && strings.TrimSpace(item.ToolType) == "" {
-		return ToolCall{}, false
+		return portllm.ToolCall{}, false
 	}
 	item.ArgumentsJSON += partial
 	if strings.TrimSpace(item.Status) == "" {
@@ -1458,31 +1461,13 @@ func appendAnthropicStreamServerToolInput(result *GenerateOutput, index int, par
 	return item, true
 }
 
-func markAnthropicStreamServerToolCallComplete(result *GenerateOutput, index int) (ToolCall, bool) {
-	if result == nil || index < 0 || index >= len(result.ServerToolCalls) {
-		return ToolCall{}, false
-	}
-	item := result.ServerToolCalls[index]
-	if strings.TrimSpace(item.ToolCallID) == "" && strings.TrimSpace(item.ToolName) == "" && strings.TrimSpace(item.ToolType) == "" {
-		return ToolCall{}, false
-	}
-	if strings.TrimSpace(item.ArgumentsJSON) == "" {
-		item.ArgumentsJSON = "{}"
-	}
-	if strings.TrimSpace(item.Status) == "" || strings.TrimSpace(item.Status) == "in_progress" {
-		item.Status = "completed"
-	}
-	result.ServerToolCalls[index] = item
-	return item, true
-}
-
-func mergeAnthropicStreamServerToolResult(result *GenerateOutput, block map[string]interface{}) (ToolCall, bool) {
+func mergeAnthropicStreamServerToolResult(result *portllm.GenerateOutput, block map[string]any) (portllm.ToolCall, bool) {
 	if result == nil {
-		return ToolCall{}, false
+		return portllm.ToolCall{}, false
 	}
 	toolUseID := strings.TrimSpace(getString(block["tool_use_id"]))
 	if toolUseID == "" {
-		return ToolCall{}, false
+		return portllm.ToolCall{}, false
 	}
 	for index := range result.ServerToolCalls {
 		item := result.ServerToolCalls[index]
@@ -1497,17 +1482,17 @@ func mergeAnthropicStreamServerToolResult(result *GenerateOutput, block map[stri
 		result.ServerToolCalls[index] = item
 		return item, true
 	}
-	return ToolCall{}, false
+	return portllm.ToolCall{}, false
 }
 
-func anthropicServerToolResultOutputJSON(block map[string]interface{}) string {
+func anthropicServerToolResultOutputJSON(block map[string]any) string {
 	return normalizeJSONString(sanitizeAnthropicServerToolResultValue(block))
 }
 
-func sanitizeAnthropicServerToolResultValue(value interface{}) interface{} {
+func sanitizeAnthropicServerToolResultValue(value any) any {
 	switch typed := value.(type) {
-	case map[string]interface{}:
-		result := make(map[string]interface{}, len(typed))
+	case map[string]any:
+		result := make(map[string]any, len(typed))
 		for key, item := range typed {
 			if isAnthropicOpaqueToolResultKey(key) {
 				continue
@@ -1515,8 +1500,8 @@ func sanitizeAnthropicServerToolResultValue(value interface{}) interface{} {
 			result[key] = sanitizeAnthropicServerToolResultValue(item)
 		}
 		return result
-	case []interface{}:
-		items := make([]interface{}, 0, len(typed))
+	case []any:
+		items := make([]any, 0, len(typed))
 		for _, item := range typed {
 			items = append(items, sanitizeAnthropicServerToolResultValue(item))
 		}
@@ -1535,12 +1520,12 @@ func isAnthropicOpaqueToolResultKey(key string) bool {
 	}
 }
 
-func compactAnthropicStreamToolCalls(result *GenerateOutput) {
+func compactAnthropicStreamToolCalls(result *portllm.GenerateOutput) {
 	if result == nil || len(result.ToolCalls) == 0 {
 		compactAnthropicStreamServerToolCalls(result)
 		return
 	}
-	items := make([]ToolCall, 0, len(result.ToolCalls))
+	items := make([]portllm.ToolCall, 0, len(result.ToolCalls))
 	for _, item := range result.ToolCalls {
 		if strings.TrimSpace(item.ToolCallID) == "" && strings.TrimSpace(item.ToolName) == "" {
 			continue
@@ -1560,11 +1545,11 @@ func compactAnthropicStreamToolCalls(result *GenerateOutput) {
 	compactAnthropicStreamServerToolCalls(result)
 }
 
-func compactAnthropicStreamServerToolCalls(result *GenerateOutput) {
+func compactAnthropicStreamServerToolCalls(result *portllm.GenerateOutput) {
 	if result == nil || len(result.ServerToolCalls) == 0 {
 		return
 	}
-	items := make([]ToolCall, 0, len(result.ServerToolCalls))
+	items := make([]portllm.ToolCall, 0, len(result.ServerToolCalls))
 	for _, item := range result.ServerToolCalls {
 		if strings.TrimSpace(item.ToolCallID) == "" && strings.TrimSpace(item.ToolName) == "" && strings.TrimSpace(item.ToolType) == "" {
 			continue
@@ -1587,54 +1572,76 @@ func compactAnthropicStreamServerToolCalls(result *GenerateOutput) {
 // 响应格式：
 //
 //	{"data":[{"id":"claude-opus-4-5","display_name":"...","type":"model"},...]}
-func (c *Client) listModelsAnthropic(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
-	requestURL := buildAnthropicModelsURL(route.BaseURL)
-	if requestURL == "" {
+func (c *Client) listModelsAnthropic(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
+	baseRequestURL := buildAnthropicModelsURL(route.BaseURL)
+	if baseRequestURL == "" {
 		return nil, fmt.Errorf("invalid base url")
 	}
 
 	requestCtx, cancel := context.WithTimeout(ctx, resolveReadTimeout(route.ReadTimeoutMS))
 	defer cancel()
 
-	req, err := c.newAnthropicRequest(requestCtx, http.MethodGet, requestURL, nil, route, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := c.doRouteRequest(route, req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close() //nolint:errcheck
-
-	body, err := readUpstreamBody(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, parseAnthropicError(resp.StatusCode, body, upstreamDebugSnapshot(req, nil, resp, body))
-	}
-
-	parsed := struct {
-		Data []struct {
-			ID          string `json:"id"`
-			DisplayName string `json:"display_name"`
-		} `json:"data"`
-	}{}
-	if err = json.Unmarshal(body, &parsed); err != nil {
-		return nil, err
-	}
-
-	results := make([]ModelItem, 0, len(parsed.Data))
-	for _, item := range parsed.Data {
-		modelID := strings.TrimSpace(item.ID)
-		if modelID == "" {
-			continue
+	results := make([]portllm.ModelItem, 0)
+	afterID := ""
+	seenAfterIDs := make(map[string]struct{})
+	for {
+		pageURL, err := url.Parse(baseRequestURL)
+		if err != nil {
+			return nil, err
 		}
-		results = append(results, ModelItem{
-			ID:      modelID,
-			OwnedBy: "anthropic",
-		})
+		query := pageURL.Query()
+		query.Set("limit", "1000")
+		if afterID != "" {
+			query.Set("after_id", afterID)
+		}
+		pageURL.RawQuery = query.Encode()
+
+		req, err := c.newAnthropicRequest(requestCtx, http.MethodGet, pageURL.String(), nil, route, nil)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.doRouteRequest(route, req)
+		if err != nil {
+			return nil, err
+		}
+		body, readErr := readUpstreamBody(resp.Body)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil, parseAnthropicError(resp.StatusCode, body, upstreamDebugSnapshot(req, nil, resp, body))
+		}
+
+		parsed := struct {
+			Data []struct {
+				ID          string `json:"id"`
+				DisplayName string `json:"display_name"`
+			} `json:"data"`
+			HasMore bool   `json:"has_more"`
+			LastID  string `json:"last_id"`
+		}{}
+		if err = json.Unmarshal(body, &parsed); err != nil {
+			return nil, err
+		}
+		for _, item := range parsed.Data {
+			modelID := strings.TrimSpace(item.ID)
+			if modelID == "" {
+				continue
+			}
+			results = append(results, portllm.ModelItem{ID: modelID, OwnedBy: "anthropic"})
+		}
+		if !parsed.HasMore {
+			return results, nil
+		}
+		nextAfterID := strings.TrimSpace(parsed.LastID)
+		if nextAfterID == "" {
+			return nil, fmt.Errorf("invalid anthropic models pagination cursor")
+		}
+		if _, exists := seenAfterIDs[nextAfterID]; exists {
+			return nil, fmt.Errorf("repeated anthropic models pagination cursor")
+		}
+		seenAfterIDs[nextAfterID] = struct{}{}
+		afterID = nextAfterID
 	}
-	return results, nil
 }

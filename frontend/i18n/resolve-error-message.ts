@@ -27,6 +27,13 @@ type RedemptionCodeErrorDetails = {
   reason?: unknown;
 };
 
+type SettingsValidationDetails = {
+  field?: unknown;
+  fields?: unknown;
+  rule?: unknown;
+  param?: unknown;
+};
+
 const REQUEST_FIELD_LABELS: Record<AppLocale, Record<string, string>> = {
   "en-US": {
     apiKeys: "API keys",
@@ -305,94 +312,202 @@ function resolveSettingsFieldLabel(locale: AppLocale, key: string): string {
   return SETTINGS_FIELD_LABELS[locale][key] ?? key;
 }
 
-function resolveSettingsReason(locale: AppLocale, label: string, reason: string): string {
-  const normalized = reason.trim();
-  if (!normalized) return "";
-  if (locale === "zh-CN") {
-    const integerRange = normalized.match(/^must be an integer between (.+) and (.+)$/);
-    if (integerRange) return `${label}必须是 ${integerRange[1]} 到 ${integerRange[2]} 之间的整数。`;
-    const optionalZeroRange = normalized.match(/^must be empty, 0, or between (.+) and (.+)$/);
-    if (optionalZeroRange) return `${label}必须留空、填 0，或在 ${optionalZeroRange[1]} 到 ${optionalZeroRange[2]} 之间。`;
-    const range = normalized.match(/^must be between (.+) and (.+)$/);
-    if (range) return `${label}必须在 ${range[1]} 到 ${range[2]} 之间。`;
-    const optionalMin = normalized.match(/^must be empty or >= (.+)$/);
-    if (optionalMin) return `${label}必须留空，或大于等于 ${optionalMin[1]}。`;
-    const min = normalized.match(/^must be >= (.+)$/);
-    if (min) return `${label}必须大于等于 ${min[1]}。`;
-    const maxLength = normalized.match(/^length must be <= (.+)$/);
-    if (maxLength) return `${label}长度不能超过 ${maxLength[1]} 个字符。`;
-    const oneOf = normalized.match(/^must be one of: (.+)$/);
-    if (oneOf) return `${label}必须是以下值之一：${oneOf[1]}。`;
-    const only = normalized.match(/^must contain only: (.+)$/);
-    if (only) return `${label}只能包含：${only[1]}。`;
-    const invalidDomain = normalized.match(/^contains invalid domain: (.+)$/);
-    if (invalidDomain) return `${label}包含无效域名：${invalidDomain[1]}。`;
-    const invalidMime = normalized.match(/^contains invalid mime: (.+)$/);
-    if (invalidMime) return `${label}包含无效 MIME 类型：${invalidMime[1]}。`;
-    switch (normalized) {
-      case "cannot be empty":
-      case "is required":
-        return `${label}不能为空。`;
-      case "must be a local path":
-        return `${label}必须是站内路径，例如 /chat。`;
-      case "must be bool":
-        return `${label}必须是 true 或 false。`;
-      case "must start with http:// or https://":
-        return `${label}必须以 http:// 或 https:// 开头。`;
-      case "must be an HTTP(S) EPay site URL or an exact submit.php URL without credentials, query, or fragment":
-        return `${label}必须是 HTTP(S) 易支付站点地址或完整的 submit.php 地址，且不能包含账号信息、查询参数或片段。`;
-      case "must be a json array":
-        return `${label}必须是 JSON 数组。`;
-      case "must contain 1-10 payment types":
-        return `${label}必须包含 1 到 10 个支付方式。`;
-      case "items require name and type":
-        return `${label}每一项都必须包含 name 和 type。`;
-      case "item is too long":
-        return `${label}单项内容过长。`;
-      case "type contains invalid characters":
-        return `${label}的 type 包含无效字符。`;
-      case "type must be unique":
-        return `${label}的 type 不能重复。`;
-      default:
-        return `${label}：${normalized}`;
-    }
-  }
+function isSettingsValidationDetails(details: unknown): details is SettingsValidationDetails {
+  return Boolean(details && typeof details === "object" && "rule" in details);
+}
 
-  const optionalZeroRange = normalized.match(/^must be empty, 0, or between (.+) and (.+)$/);
-  if (optionalZeroRange) {
-    return `${label} must be empty, 0, or between ${optionalZeroRange[1]} and ${optionalZeroRange[2]}.`;
-  }
-  const optionalMin = normalized.match(/^must be empty or >= (.+)$/);
-  if (optionalMin) {
-    return `${label} must be empty or at least ${optionalMin[1]}.`;
-  }
-
-  return `${label}: ${normalized}.`;
+function splitRuleParam(param: string): string[] {
+  return param.split(",").map((value) => value.trim()).filter(Boolean);
 }
 
 function resolveSettingsValidationMessage(error: ApiError, locale: AppLocale): string | undefined {
-  if (!error.errorCode?.startsWith("settings.")) return undefined;
-  const raw = (error.rawMessage || error.message || "").trim();
-  if (!raw || /^invalid .+ settings?\.?$/i.test(raw) || /^invalid setting value\.?$/i.test(raw)) {
-    return undefined;
-  }
-  const detail = raw.replace(/^invalid setting:\s*/i, "").trim();
-  const dependencyMessages: Record<AppLocale, Record<string, string>> = {
-    "en-US": {
-      "auth:third_party_login_enabled must be enabled before disabling username and email login": "Enable third-party sign-in before disabling both username and email sign-in.",
-      "embedding service must be enabled and configured before enabling rag or semantic enhancement": "Enable and configure embedding before enabling RAG or semantic context.",
-    },
-    "zh-CN": {
-      "auth:third_party_login_enabled must be enabled before disabling username and email login": "关闭用户名和邮箱登录前，必须先启用第三方登录。",
-      "embedding service must be enabled and configured before enabling rag or semantic enhancement": "启用 RAG 或语义增强前，必须先启用并配置向量服务。",
-    },
-  };
-  const dependencyMessage = dependencyMessages[locale][detail.toLowerCase()];
-  if (dependencyMessage) return dependencyMessage;
+  if (!error.errorCode?.startsWith("settings.") || !isSettingsValidationDetails(error.details)) return undefined;
+  const rule = typeof error.details.rule === "string" ? error.details.rule.trim() : "";
+  if (!rule) return undefined;
+  const field = typeof error.details.field === "string" ? error.details.field.trim() : "";
+  const fields = Array.isArray(error.details.fields)
+    ? error.details.fields.filter((value): value is string => typeof value === "string" && value.trim().length > 0).map((value) => value.trim())
+    : [];
+  const param = typeof error.details.param === "string" ? error.details.param.trim() : "";
+  const label = field ? resolveSettingsFieldLabel(locale, field) : fields.map((value) => resolveSettingsFieldLabel(locale, value)).join(locale === "zh-CN" ? "、" : ", ");
+  const displayLabel = label || (locale === "zh-CN" ? "设置项" : "Setting");
+  const [first, second] = splitRuleParam(param);
 
-  const match = detail.match(/^([a-z]+:[a-z0-9_]+)\s+(.+)$/);
-  if (!match) return detail;
-  return resolveSettingsReason(locale, resolveSettingsFieldLabel(locale, match[1]), match[2]);
+  if (locale === "zh-CN") {
+    switch (rule) {
+      case "required":
+        return `${displayLabel}不能为空。`;
+      case "required_when":
+        return `${displayLabel}在 ${param} 时不能为空。`;
+      case "required_together":
+        return `${displayLabel}不能为空。`;
+      case "bool":
+        return `${displayLabel}必须是 true 或 false。`;
+      case "integer":
+        return `${displayLabel}必须是整数。`;
+      case "integer_range":
+        return `${displayLabel}必须在 ${first} 到 ${second} 之间。`;
+      case "optional_integer_range":
+        return `${displayLabel}必须留空、填 0，或在 ${first} 到 ${second} 之间。`;
+      case "integer_min":
+        return `${displayLabel}必须大于等于 ${param}。`;
+      case "optional_integer_min":
+        return `${displayLabel}必须留空，或大于等于 ${param}。`;
+      case "float_range":
+        return `${displayLabel}必须在 ${first} 到 ${second} 之间。`;
+      case "max_length":
+        return `${displayLabel}长度不能超过 ${param} 个字符。`;
+      case "enum":
+        return `${displayLabel}必须是以下值之一：${splitRuleParam(param).join("、")}。`;
+      case "payment_provider":
+        return `${displayLabel}只能包含：${splitRuleParam(param).join("、")}。`;
+      case "http_url":
+        return `${displayLabel}必须以 http:// 或 https:// 开头。`;
+      case "trusted_http_url":
+        return `${displayLabel}必须是受信任的 HTTP 地址。`;
+      case "local_path":
+        return `${displayLabel}必须是站内路径，例如 /chat。`;
+      case "json_object":
+        return `${displayLabel}必须是 JSON 对象。`;
+      case "json_array":
+        return `${displayLabel}必须是 JSON 数组。`;
+      case "payment_count":
+        return `${displayLabel}必须包含 ${first} 到 ${second} 个支付方式。`;
+      case "payment_fields":
+        return `${displayLabel}每一项都必须包含 ${param}。`;
+      case "payment_item_length":
+        return `${displayLabel}单项内容过长。`;
+      case "payment_type_chars":
+        return `${displayLabel}的 type 包含无效字符。`;
+      case "payment_type_unique":
+        return `${displayLabel}的 type 不能重复。`;
+      case "model_option_protocol":
+        return `${displayLabel}包含不支持的协议。`;
+      case "model_option_path":
+        return `${displayLabel}包含无效的参数路径。`;
+      case "native_tool_pricing":
+        return `${displayLabel}包含无效的原生工具计费配置。`;
+      case "mime":
+        return `${displayLabel}包含无效的 MIME 类型。`;
+      case "file_type":
+        return `${displayLabel}只能包含：${splitRuleParam(param).join("、")}。`;
+      case "domain":
+        return `${displayLabel}包含无效域名。`;
+      case "epay_url":
+        return `${displayLabel}必须是有效的 HTTP(S) 易支付地址。`;
+      case "dependency":
+        if (param === "username_or_email_login") {
+          return "关闭用户名和邮箱登录前，必须先启用第三方登录。";
+        }
+        if (param === "superadmin_identity") {
+          return "启用第三方登录前，必须先绑定管理员身份。";
+        }
+        if (param === "embedding_service_ready") {
+          return "启用向量化前，必须先配置并启用向量服务。";
+        }
+        if (param === "vector_store_available") {
+          return "启用向量化前，必须先配置可用的向量存储。";
+        }
+        return `${displayLabel}依赖条件未满足。`;
+      case "clear_not_allowed":
+        return `${displayLabel}不支持清空。`;
+      case "invalid_namespace":
+        return "设置命名空间无效。";
+      case "invalid_key":
+        return "设置项无效。";
+      case "invalid_value":
+        return "设置值无效。";
+      default:
+        return `${displayLabel}无效。`;
+    }
+  }
+
+  switch (rule) {
+    case "required":
+      return `${displayLabel} is required.`;
+    case "required_when":
+      return `${displayLabel} is required when ${param}.`;
+    case "required_together":
+      return `${displayLabel} is required.`;
+    case "bool":
+      return `${displayLabel} must be true or false.`;
+    case "integer":
+      return `${displayLabel} must be an integer.`;
+    case "integer_range":
+      return `${displayLabel} must be between ${first} and ${second}.`;
+    case "optional_integer_range":
+      return `${displayLabel} must be empty, 0, or between ${first} and ${second}.`;
+    case "integer_min":
+      return `${displayLabel} must be at least ${param}.`;
+    case "optional_integer_min":
+      return `${displayLabel} must be empty or at least ${param}.`;
+    case "float_range":
+      return `${displayLabel} must be between ${first} and ${second}.`;
+    case "max_length":
+      return `${displayLabel} length must be at most ${param} characters.`;
+    case "enum":
+      return `${displayLabel} must be one of: ${splitRuleParam(param).join(", ")}.`;
+    case "payment_provider":
+      return `${displayLabel} may contain only: ${splitRuleParam(param).join(", ")}.`;
+    case "http_url":
+      return `${displayLabel} must start with http:// or https://.`;
+    case "trusted_http_url":
+      return `${displayLabel} must be a trusted HTTP endpoint.`;
+    case "local_path":
+      return `${displayLabel} must be a local path, such as /chat.`;
+    case "json_object":
+      return `${displayLabel} must be a JSON object.`;
+    case "json_array":
+      return `${displayLabel} must be a JSON array.`;
+    case "payment_count":
+      return `${displayLabel} must contain ${first} to ${second} payment types.`;
+    case "payment_fields":
+      return `Each ${displayLabel} item must include ${param}.`;
+    case "payment_item_length":
+      return `${displayLabel} contains an item that is too long.`;
+    case "payment_type_chars":
+      return `${displayLabel} contains invalid type characters.`;
+    case "payment_type_unique":
+      return `${displayLabel} type values must be unique.`;
+    case "model_option_protocol":
+      return `${displayLabel} contains an unsupported protocol.`;
+    case "model_option_path":
+      return `${displayLabel} contains an invalid option path.`;
+    case "native_tool_pricing":
+      return `${displayLabel} contains invalid native tool pricing configuration.`;
+    case "mime":
+      return `${displayLabel} contains an invalid MIME type.`;
+    case "file_type":
+      return `${displayLabel} may contain only: ${splitRuleParam(param).join(", ")}.`;
+    case "domain":
+      return `${displayLabel} contains an invalid domain.`;
+    case "epay_url":
+      return `${displayLabel} must be a valid HTTP(S) EPay URL.`;
+    case "dependency":
+      if (param === "username_or_email_login") {
+        return "Enable third-party sign-in before disabling both username and email sign-in.";
+      }
+      if (param === "superadmin_identity") {
+        return "Bind a super administrator identity before enabling third-party sign-in.";
+      }
+      if (param === "embedding_service_ready") {
+        return "Configure and enable the embedding service before enabling vectorization.";
+      }
+      if (param === "vector_store_available") {
+        return "Configure an available vector store before enabling vectorization.";
+      }
+      return `${displayLabel} has an unmet dependency.`;
+    case "clear_not_allowed":
+      return `${displayLabel} cannot be cleared.`;
+    case "invalid_namespace":
+      return "Invalid setting namespace.";
+    case "invalid_key":
+      return "Invalid setting key.";
+    case "invalid_value":
+      return "Invalid setting value.";
+    default:
+      return `${displayLabel} is invalid.`;
+  }
 }
 
 function isRedemptionCodeErrorDetails(details: unknown): details is RedemptionCodeErrorDetails {

@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
+
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/outboundhttp"
 	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
@@ -39,10 +41,6 @@ type Client struct {
 	adapters    map[string]transportAdapter
 }
 
-func resolveConnectTimeout(ms int) time.Duration {
-	return time.Duration(normalizeConnectTimeoutMS(ms)) * time.Millisecond
-}
-
 func normalizeConnectTimeoutMS(ms int) int {
 	if ms <= 0 {
 		return defaultConnectTimeoutMS
@@ -64,7 +62,7 @@ func resolveStreamIdleTimeout(ms int) time.Duration {
 	return time.Duration(ms) * time.Millisecond
 }
 
-func modelParamString(params map[string]interface{}, key string) string {
+func modelParamString(params map[string]any, key string) string {
 	if params == nil {
 		return ""
 	}
@@ -78,7 +76,7 @@ func modelParamString(params map[string]interface{}, key string) string {
 	return ""
 }
 
-func modelParamInt(params map[string]interface{}, key string) int {
+func modelParamInt(params map[string]any, key string) int {
 	value, ok := modelParamIntValue(params, key)
 	if !ok {
 		return 0
@@ -86,7 +84,7 @@ func modelParamInt(params map[string]interface{}, key string) int {
 	return value
 }
 
-func modelParamIntValue(params map[string]interface{}, key string) (int, bool) {
+func modelParamIntValue(params map[string]any, key string) (int, bool) {
 	if params == nil {
 		return 0, false
 	}
@@ -106,7 +104,7 @@ func modelParamIntValue(params map[string]interface{}, key string) (int, bool) {
 	}
 }
 
-func modelParamFloat(params map[string]interface{}, key string) (float64, bool) {
+func modelParamFloat(params map[string]any, key string) (float64, bool) {
 	if params == nil {
 		return 0, false
 	}
@@ -126,12 +124,12 @@ func modelParamFloat(params map[string]interface{}, key string) (float64, bool) 
 	}
 }
 
-func modelParamBool(params map[string]interface{}, key string) bool {
+func modelParamBool(params map[string]any, key string) bool {
 	value, ok := modelParamBoolValue(params, key)
 	return ok && value
 }
 
-func modelParamBoolValue(params map[string]interface{}, key string) (bool, bool) {
+func modelParamBoolValue(params map[string]any, key string) (bool, bool) {
 	if params == nil {
 		return false, false
 	}
@@ -143,7 +141,7 @@ func modelParamBoolValue(params map[string]interface{}, key string) (bool, bool)
 	return typed, ok
 }
 
-func modelParamStringList(params map[string]interface{}, key string) []string {
+func modelParamStringList(params map[string]any, key string) []string {
 	if params == nil {
 		return nil
 	}
@@ -166,7 +164,7 @@ func modelParamStringList(params map[string]interface{}, key string) []string {
 			}
 		}
 		return items
-	case []interface{}:
+	case []any:
 		items := make([]string, 0, len(typed))
 		for _, item := range typed {
 			if text, ok := item.(string); ok {
@@ -181,7 +179,7 @@ func modelParamStringList(params map[string]interface{}, key string) []string {
 	}
 }
 
-func modelParamMap(params map[string]interface{}, key string) map[string]interface{} {
+func modelParamMap(params map[string]any, key string) map[string]any {
 	if params == nil {
 		return nil
 	}
@@ -192,7 +190,7 @@ func modelParamMap(params map[string]interface{}, key string) map[string]interfa
 	return asMap(value)
 }
 
-func applyProviderOptions(payload map[string]interface{}, options map[string]interface{}, protectedKeys ...string) {
+func applyProviderOptions(payload map[string]any, options map[string]any, protectedKeys ...string) {
 	if len(options) == 0 {
 		return
 	}
@@ -204,8 +202,8 @@ func applyProviderOptions(payload map[string]interface{}, options map[string]int
 		if _, ok := protected[key]; ok {
 			continue
 		}
-		if current, ok := payload[key].(map[string]interface{}); ok {
-			if incoming, ok := value.(map[string]interface{}); ok {
+		if current, ok := payload[key].(map[string]any); ok {
+			if incoming, ok := value.(map[string]any); ok {
 				for nestedKey, nestedValue := range incoming {
 					current[nestedKey] = nestedValue
 				}
@@ -219,7 +217,7 @@ func applyProviderOptions(payload map[string]interface{}, options map[string]int
 	}
 }
 
-func providerToolsFromOptions(options map[string]interface{}) ([]map[string]interface{}, error) {
+func providerToolsFromOptions(options map[string]any) ([]map[string]any, error) {
 	if len(options) == 0 {
 		return nil, nil
 	}
@@ -228,12 +226,12 @@ func providerToolsFromOptions(options map[string]interface{}) ([]map[string]inte
 		return nil, nil
 	}
 	switch typed := raw.(type) {
-	case []map[string]interface{}:
-		return append([]map[string]interface{}(nil), typed...), nil
-	case []interface{}:
-		items := make([]map[string]interface{}, 0, len(typed))
+	case []map[string]any:
+		return append([]map[string]any(nil), typed...), nil
+	case []any:
+		items := make([]map[string]any, 0, len(typed))
 		for index, item := range typed {
-			payload, ok := item.(map[string]interface{})
+			payload, ok := item.(map[string]any)
 			if !ok {
 				return nil, fmt.Errorf("model option tools[%d] must be an object", index)
 			}
@@ -245,7 +243,7 @@ func providerToolsFromOptions(options map[string]interface{}) ([]map[string]inte
 	}
 }
 
-func toolDeclarationsForInput(input GenerateInput) ([]map[string]interface{}, []ToolDefinition, bool, error) {
+func toolDeclarationsForInput(input portllm.GenerateInput) ([]map[string]any, []portllm.ToolDefinition, bool, error) {
 	if input.DisableTools {
 		return nil, nil, false, nil
 	}
@@ -256,7 +254,7 @@ func toolDeclarationsForInput(input GenerateInput) ([]map[string]interface{}, []
 	return providerTools, input.Tools, true, nil
 }
 
-func providerStreamOptionsFromOptions(options map[string]interface{}) (map[string]interface{}, error) {
+func providerStreamOptionsFromOptions(options map[string]any) (map[string]any, error) {
 	if len(options) == 0 {
 		return nil, nil
 	}
@@ -264,14 +262,14 @@ func providerStreamOptionsFromOptions(options map[string]interface{}) (map[strin
 	if !ok || raw == nil {
 		return nil, nil
 	}
-	payload, ok := raw.(map[string]interface{})
+	payload, ok := raw.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("model option stream_options must be an object")
 	}
 	return payload, nil
 }
 
-func appendToolDeclarations(payload map[string]interface{}, tools ...[]map[string]interface{}) {
+func appendToolDeclarations(payload map[string]any, tools ...[]map[string]any) {
 	total := 0
 	for _, group := range tools {
 		total += len(group)
@@ -279,8 +277,8 @@ func appendToolDeclarations(payload map[string]interface{}, tools ...[]map[strin
 	if total == 0 {
 		return
 	}
-	merged := make([]map[string]interface{}, 0, total)
-	if existing, ok := payload["tools"].([]map[string]interface{}); ok {
+	merged := make([]map[string]any, 0, total)
+	if existing, ok := payload["tools"].([]map[string]any); ok {
 		merged = append(merged, existing...)
 	}
 	for _, group := range tools {
@@ -291,7 +289,7 @@ func appendToolDeclarations(payload map[string]interface{}, tools ...[]map[strin
 	}
 }
 
-func appendResponseInclude(payload map[string]interface{}, values ...string) {
+func appendResponseInclude(payload map[string]any, values ...string) {
 	if payload == nil {
 		return
 	}
@@ -299,7 +297,7 @@ func appendResponseInclude(payload map[string]interface{}, values ...string) {
 	switch existing := payload["include"].(type) {
 	case []string:
 		current = append(current, existing...)
-	case []interface{}:
+	case []any:
 		for _, item := range existing {
 			if text, ok := item.(string); ok {
 				current = append(current, text)
@@ -309,20 +307,20 @@ func appendResponseInclude(payload map[string]interface{}, values ...string) {
 	payload["include"] = appendUniqueStrings(current, values...)
 }
 
-func responseIncludeValues(options map[string]interface{}, defaults ...string) []string {
+func responseIncludeValues(options map[string]any, defaults ...string) []string {
 	values := make([]string, 0, len(defaults))
 	values = append(values, defaults...)
 	values = append(values, modelParamStringList(options, "include")...)
 	return appendUniqueStrings(nil, values...)
 }
 
-func mergeObjectParam(payload map[string]interface{}, key string, values map[string]interface{}) {
+func mergeObjectParam(payload map[string]any, key string, values map[string]any) {
 	if payload == nil || len(values) == 0 {
 		return
 	}
-	current, _ := payload[key].(map[string]interface{})
+	current, _ := payload[key].(map[string]any)
 	if current == nil {
-		current = map[string]interface{}{}
+		current = map[string]any{}
 		payload[key] = current
 	}
 	for field, value := range values {
@@ -332,7 +330,7 @@ func mergeObjectParam(payload map[string]interface{}, key string, values map[str
 	}
 }
 
-func normalizedJSONResponseFormat(options map[string]interface{}) (interface{}, bool) {
+func normalizedJSONResponseFormat(options map[string]any) (any, bool) {
 	if len(options) == 0 {
 		return nil, false
 	}
@@ -360,8 +358,8 @@ func normalizedJSONResponseFormat(options map[string]interface{}) (interface{}, 
 	return format, true
 }
 
-func shouldSkipNormalizedProviderOption(key string, value interface{}) bool {
-	if _, ok := value.(map[string]interface{}); ok {
+func shouldSkipNormalizedProviderOption(key string, value any) bool {
+	if _, ok := value.(map[string]any); ok {
 		return false
 	}
 	switch key {
@@ -397,27 +395,29 @@ func shouldSkipNormalizedProviderOption(key string, value interface{}) bool {
 	}
 }
 
-func nonCachedInputTokens(totalInputTokens int64, cacheReadTokens int64) int64 {
+// nonCachedInputTokens 从提示词侧总量中扣除已按缓存价计费的 token（缓存读取与缓存写入），
+// 得到按普通输入价计费的非缓存输入。上游各字段是未对齐的前缀计数，差值可能为负，钳制为 0。
+func nonCachedInputTokens(totalInputTokens int64, cachedTokens int64) int64 {
 	if totalInputTokens <= 0 {
 		return 0
 	}
-	if cacheReadTokens <= 0 {
+	if cachedTokens <= 0 {
 		return totalInputTokens
 	}
-	remaining := totalInputTokens - cacheReadTokens
+	remaining := totalInputTokens - cachedTokens
 	if remaining < 0 {
 		return 0
 	}
 	return remaining
 }
 
-func rawUsageJSONFromPath(payload map[string]interface{}, keys ...string) string {
+func rawUsageJSONFromPath(payload map[string]any, keys ...string) string {
 	if len(payload) == 0 || len(keys) == 0 {
 		return ""
 	}
-	var current interface{} = payload
+	var current any = payload
 	for _, key := range keys {
-		currentMap, ok := current.(map[string]interface{})
+		currentMap, ok := current.(map[string]any)
 		if !ok {
 			return ""
 		}
@@ -427,11 +427,11 @@ func rawUsageJSONFromPath(payload map[string]interface{}, keys ...string) string
 		}
 	}
 	switch value := current.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		if len(value) == 0 {
 			return ""
 		}
-	case []interface{}:
+	case []any:
 		if len(value) == 0 {
 			return ""
 		}
@@ -446,7 +446,7 @@ func rawUsageJSONFromPath(payload map[string]interface{}, keys ...string) string
 }
 
 // generatedMediaDurationSeconds 将上游媒体时长统一向上取整为可计费秒数。
-func generatedMediaDurationSeconds(values ...interface{}) int64 {
+func generatedMediaDurationSeconds(values ...any) int64 {
 	for _, value := range values {
 		var seconds float64
 		switch typed := value.(type) {
@@ -498,7 +498,7 @@ func doGenerationRequest(do func(*http.Request) (*http.Response, error), req *ht
 	tracedRequest := req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 	resp, err := do(tracedRequest)
 	if err != nil && wroteRequest.Load() {
-		return resp, MarkRequestAccepted(err)
+		return resp, portllm.MarkRequestAccepted(err)
 	}
 	return resp, err
 }
@@ -512,33 +512,33 @@ func NewClient(outboundPolicy security.OutboundPolicy) *Client {
 		return newRouteHTTPClient(policy, outboundPolicy, trustedOrigin, variant)
 	})
 	client.adapters = map[string]transportAdapter{
-		AdapterOpenAIResponses:        &openAIResponsesAdapter{client: client},
-		AdapterOpenRouterChat:         &openRouterChatCompletionsAdapter{client: client},
-		AdapterOpenRouterResponses:    &openRouterResponsesAdapter{client: client},
-		AdapterOpenAIChatCompletions:  &openAIChatCompletionsAdapter{client: client},
-		AdapterOpenAIImageGenerations: &openAIImageGenerationsAdapter{client: client},
-		AdapterOpenAIImageEdits:       &openAIImageEditsAdapter{client: client},
-		AdapterXAIResponses:           &xAIResponsesAdapter{client: client},
-		AdapterXAIImage:               &xAIImageAdapter{client: client},
-		AdapterXAIImageEdits:          &xAIImageEditsAdapter{client: client},
-		AdapterXAIVideo:               &xAIVideoAdapter{client: client},
-		AdapterXAIVideoExtensions:     &xAIVideoExtensionsAdapter{client: client},
-		AdapterAnthropicMessages:      &anthropicMessagesAdapter{client: client},
-		AdapterGoogleGenerateContent:  &geminiGenerateContentAdapter{client: client},
-		AdapterGoogleImageGeneration:  &geminiImageGenerationAdapter{client: client},
-		AdapterGeminiInteractions:     &geminiInteractionsAdapter{client: client},
+		portllm.AdapterOpenAIResponses:        &openAIResponsesAdapter{client: client},
+		portllm.AdapterOpenRouterChat:         &openRouterChatCompletionsAdapter{client: client},
+		portllm.AdapterOpenRouterResponses:    &openRouterResponsesAdapter{client: client},
+		portllm.AdapterOpenAIChatCompletions:  &openAIChatCompletionsAdapter{client: client},
+		portllm.AdapterOpenAIImageGenerations: &openAIImageGenerationsAdapter{client: client},
+		portllm.AdapterOpenAIImageEdits:       &openAIImageEditsAdapter{client: client},
+		portllm.AdapterXAIResponses:           &xAIResponsesAdapter{client: client},
+		portllm.AdapterXAIImage:               &xAIImageAdapter{client: client},
+		portllm.AdapterXAIImageEdits:          &xAIImageEditsAdapter{client: client},
+		portllm.AdapterXAIVideo:               &xAIVideoAdapter{client: client},
+		portllm.AdapterXAIVideoExtensions:     &xAIVideoExtensionsAdapter{client: client},
+		portllm.AdapterAnthropicMessages:      &anthropicMessagesAdapter{client: client},
+		portllm.AdapterGoogleGenerateContent:  &geminiGenerateContentAdapter{client: client},
+		portllm.AdapterGoogleImageGeneration:  &geminiImageGenerationAdapter{client: client},
+		portllm.AdapterGeminiInteractions:     &geminiInteractionsAdapter{client: client},
 	}
 	return client
 }
 
-func (c *Client) adapterFor(route RouteConfig) (transportAdapter, error) {
-	adapterName := NormalizeAdapter(route.Protocol)
-	if !IsImplementedAdapter(adapterName) {
-		return nil, fmt.Errorf("%w: %s", ErrUnsupportedAdapter, adapterName)
+func (c *Client) adapterFor(route portllm.RouteConfig) (transportAdapter, error) {
+	adapterName := portllm.NormalizeAdapter(route.Protocol)
+	if !portllm.IsImplementedAdapter(adapterName) {
+		return nil, fmt.Errorf("%w: %s", portllm.ErrUnsupportedAdapter, adapterName)
 	}
 	adapter, ok := c.adapters[adapterName]
 	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrUnsupportedAdapter, adapterName)
+		return nil, fmt.Errorf("%w: %s", portllm.ErrUnsupportedAdapter, adapterName)
 	}
 	return adapter, nil
 }
@@ -564,7 +564,7 @@ func newRouteHTTPClient(policy security.OutboundPolicy, redirectPolicy security.
 	return outboundhttp.ManagedClient{Client: client, CloseIdleConnections: transport.CloseIdleConnections}, nil
 }
 
-func (c *Client) doRouteRequest(route RouteConfig, request *http.Request) (*http.Response, error) {
+func (c *Client) doRouteRequest(route portllm.RouteConfig, request *http.Request) (*http.Response, error) {
 	if request == nil || request.URL == nil {
 		return nil, fmt.Errorf("model provider request is nil")
 	}
@@ -572,7 +572,7 @@ func (c *Client) doRouteRequest(route RouteConfig, request *http.Request) (*http
 	return c.httpClients.Do(request, route.BaseURL, strconv.Itoa(connectTimeoutMS))
 }
 
-func (c *Client) doRouteGenerationRequest(route RouteConfig, request *http.Request) (*http.Response, error) {
+func (c *Client) doRouteGenerationRequest(route portllm.RouteConfig, request *http.Request) (*http.Response, error) {
 	if request == nil || request.URL == nil {
 		return nil, fmt.Errorf("model provider request is nil")
 	}
@@ -590,7 +590,7 @@ func (c *Client) CloseIdleConnections() {
 }
 
 // Generate 调用上游适配器并解析响应（非流式）。
-func (c *Client) Generate(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
+func (c *Client) Generate(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput) (*portllm.GenerateOutput, error) {
 	adapter, err := c.adapterFor(route)
 	if err != nil {
 		return nil, err
@@ -601,10 +601,10 @@ func (c *Client) Generate(ctx context.Context, route RouteConfig, input Generate
 // GenerateStream 调用上游适配器并实时回传增量文本。
 func (c *Client) GenerateStream(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-	onEvent func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+	onEvent func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
 	adapter, err := c.adapterFor(route)
 	if err != nil {
 		return nil, err
@@ -613,7 +613,7 @@ func (c *Client) GenerateStream(
 }
 
 // ListModels 调用上游 models 目录接口。
-func (c *Client) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
+func (c *Client) ListModels(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
 	adapter, err := c.adapterFor(route)
 	if err != nil {
 		return nil, err
@@ -627,20 +627,20 @@ func (c *Client) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem
 	}
 
 	fallbackRoute := route
-	fallbackRoute.Protocol = AdapterOpenAIChatCompletions
+	fallbackRoute.Protocol = portllm.AdapterOpenAIChatCompletions
 	fallbackItems, fallbackErr := c.listModelsOpenAICompatible(ctx, fallbackRoute)
 	if fallbackErr != nil {
-		return nil, fmt.Errorf("%w; openai-compatible models fallback failed: %v", err, fallbackErr)
+		return nil, fmt.Errorf("%w; openai-compatible models fallback failed: %w", err, fallbackErr)
 	}
 	return fallbackItems, nil
 }
 
-func shouldFallbackToOpenAICompatibleModels(route RouteConfig) bool {
+func shouldFallbackToOpenAICompatibleModels(route portllm.RouteConfig) bool {
 	if isOpenRouterBaseURL(route.BaseURL) {
 		return false
 	}
-	switch NormalizeAdapter(route.Protocol) {
-	case AdapterAnthropicMessages, AdapterGoogleGenerateContent, AdapterGoogleImageGeneration:
+	switch portllm.NormalizeAdapter(route.Protocol) {
+	case portllm.AdapterAnthropicMessages, portllm.AdapterGoogleGenerateContent, portllm.AdapterGoogleImageGeneration:
 		return true
 	default:
 		return false
@@ -652,8 +652,6 @@ type idleTimeoutReader struct {
 	reader  io.Reader
 	timeout time.Duration
 	timer   *time.Timer
-	done    chan struct{}
-	err     error
 }
 
 func newIdleTimeoutReader(reader io.Reader, timeout time.Duration) *idleTimeoutReader {
@@ -661,7 +659,6 @@ func newIdleTimeoutReader(reader io.Reader, timeout time.Duration) *idleTimeoutR
 		reader:  reader,
 		timeout: timeout,
 		timer:   time.NewTimer(timeout),
-		done:    make(chan struct{}),
 	}
 }
 
@@ -686,26 +683,26 @@ func (r *idleTimeoutReader) Read(p []byte) (int, error) {
 	}
 }
 
-func decodeToolSchema(raw json.RawMessage) map[string]interface{} {
+func decodeToolSchema(raw json.RawMessage) map[string]any {
 	if len(raw) == 0 || strings.TrimSpace(string(raw)) == "" {
-		return map[string]interface{}{"type": "object", "properties": map[string]interface{}{}}
+		return map[string]any{"type": "object", "properties": map[string]any{}}
 	}
-	payload := make(map[string]interface{})
+	payload := make(map[string]any)
 	if err := json.Unmarshal(raw, &payload); err != nil || len(payload) == 0 {
-		return map[string]interface{}{"type": "object", "properties": map[string]interface{}{}}
+		return map[string]any{"type": "object", "properties": map[string]any{}}
 	}
 	if strings.TrimSpace(getString(payload["type"])) == "" {
 		payload["type"] = "object"
 	}
 	if _, ok := payload["properties"]; !ok {
-		payload["properties"] = map[string]interface{}{}
+		payload["properties"] = map[string]any{}
 	}
 	return payload
 }
 
-func buildToolResultContent(item ToolResult) string {
+func buildToolResultContent(item portllm.ToolResult) string {
 	if strings.TrimSpace(item.Error) != "" {
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"ok":     false,
 			"status": strings.TrimSpace(item.Status),
 			"error":  strings.TrimSpace(item.Error),
@@ -723,14 +720,14 @@ func buildToolResultContent(item ToolResult) string {
 	return output
 }
 
-func normalizeMessages(messages []Message) []Message {
-	normalized := make([]Message, 0, len(messages))
+func normalizeMessages(messages []portllm.Message) []portllm.Message {
+	normalized := make([]portllm.Message, 0, len(messages))
 	for _, item := range messages {
 		// 跳过空消息（Parts 非空或 Content 非空才保留）
 		if len(item.Parts) == 0 && strings.TrimSpace(item.Content) == "" && len(item.ToolCalls) == 0 && len(item.ToolResults) == 0 {
 			continue
 		}
-		normalized = append(normalized, Message{
+		normalized = append(normalized, portllm.Message{
 			Role:             normalizeRole(item.Role),
 			Content:          item.Content,
 			Parts:            item.Parts,
@@ -741,7 +738,7 @@ func normalizeMessages(messages []Message) []Message {
 		})
 	}
 	if len(normalized) == 0 {
-		normalized = append(normalized, Message{Role: "user", Content: ""})
+		normalized = append(normalized, portllm.Message{Role: "user", Content: ""})
 	}
 	return normalized
 }
@@ -750,7 +747,7 @@ func setAdditionalHeaders(req *http.Request, headersJSON string) {
 	setAdditionalHeadersForInput(req, headersJSON, nil)
 }
 
-func setAdditionalHeadersForInput(req *http.Request, headersJSON string, input *GenerateInput) {
+func setAdditionalHeadersForInput(req *http.Request, headersJSON string, input *portllm.GenerateInput) {
 	if req == nil {
 		return
 	}
@@ -758,7 +755,7 @@ func setAdditionalHeadersForInput(req *http.Request, headersJSON string, input *
 	if value == "" {
 		return
 	}
-	parsed := make(map[string]interface{})
+	parsed := make(map[string]any)
 	if err := json.Unmarshal([]byte(value), &parsed); err != nil {
 		return
 	}
@@ -783,7 +780,7 @@ func setAdditionalHeadersForInput(req *http.Request, headersJSON string, input *
 	}
 }
 
-func expandAdditionalHeaderValue(value string, input *GenerateInput, upstreamRequestID string) (string, bool) {
+func expandAdditionalHeaderValue(value string, input *portllm.GenerateInput, upstreamRequestID string) (string, bool) {
 	replacements := []struct {
 		template string
 		value    string
@@ -852,9 +849,9 @@ func streamErrorBody(recorder *upstreamBodyRecorder, err error) []byte {
 	return upstreamErrorBody(err)
 }
 
-func parseUpstreamError(statusCode int, body []byte, debug *UpstreamDebugSnapshot) error {
+func parseUpstreamError(statusCode int, body []byte, debug *portllm.UpstreamDebugSnapshot) error {
 	message := fmt.Sprintf("upstream_status_%d", statusCode)
-	parsed := make(map[string]interface{})
+	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err == nil {
 		if m := getStringFromPath(parsed, "error", "message"); m != "" {
 			message = m
@@ -862,7 +859,7 @@ func parseUpstreamError(statusCode int, body []byte, debug *UpstreamDebugSnapsho
 			message = m
 		}
 	}
-	return &UpstreamError{
+	return &portllm.UpstreamError{
 		StatusCode: statusCode,
 		Message:    message,
 		Body:       string(body),
@@ -870,7 +867,7 @@ func parseUpstreamError(statusCode int, body []byte, debug *UpstreamDebugSnapsho
 	}
 }
 
-func upstreamDebugSnapshot(req *http.Request, requestBody []byte, resp *http.Response, responseBody []byte) *UpstreamDebugSnapshot {
+func upstreamDebugSnapshot(req *http.Request, requestBody []byte, resp *http.Response, responseBody []byte) *portllm.UpstreamDebugSnapshot {
 	if req == nil {
 		return nil
 	}
@@ -883,8 +880,8 @@ func upstreamDebugSnapshot(req *http.Request, requestBody []byte, resp *http.Res
 	}
 	requestDebugBody := portllm.SanitizeUpstreamDebugPayload(requestBody)
 	responseDebugBody := portllm.SanitizeUpstreamDebugPayload(responseBody)
-	return &UpstreamDebugSnapshot{
-		Request: UpstreamDebugRequest{
+	return &portllm.UpstreamDebugSnapshot{
+		Request: portllm.UpstreamDebugRequest{
 			Method:        req.Method,
 			Path:          path,
 			Headers:       redactHeaders(req.Header),
@@ -893,7 +890,7 @@ func upstreamDebugSnapshot(req *http.Request, requestBody []byte, resp *http.Res
 			BodyTruncated: requestDebugBody.Truncated,
 			RedactedParts: requestDebugBody.RedactedParts,
 		},
-		Response: UpstreamDebugResponse{
+		Response: portllm.UpstreamDebugResponse{
 			StatusCode:    responseStatusCode(resp),
 			Headers:       responseHeaders(resp),
 			Body:          responseDebugBody.Body,
@@ -947,11 +944,11 @@ func isSecretHeader(key string) bool {
 		strings.Contains(normalized, "key")
 }
 
-func attachUpstreamDebug(err error, debug *UpstreamDebugSnapshot) error {
+func attachUpstreamDebug(err error, debug *portllm.UpstreamDebugSnapshot) error {
 	if err == nil || debug == nil {
 		return err
 	}
-	var upstreamErr *UpstreamError
+	var upstreamErr *portllm.UpstreamError
 	if errors.As(err, &upstreamErr) {
 		if upstreamErr.Debug == nil {
 			upstreamErr.Debug = debug
@@ -969,15 +966,16 @@ func attachUpstreamDebug(err error, debug *UpstreamDebugSnapshot) error {
 	if message == "" {
 		message = fmt.Sprintf("upstream_status_%d", statusCode)
 	}
-	return &UpstreamError{
+	return &portllm.UpstreamError{
 		StatusCode: statusCode,
 		Message:    message,
 		Body:       debug.Response.Body,
 		Debug:      debug,
+		Cause:      err,
 	}
 }
 
-func responseStatusCodeFromDebug(debug *UpstreamDebugSnapshot) int {
+func responseStatusCodeFromDebug(debug *portllm.UpstreamDebugSnapshot) int {
 	if debug != nil && debug.Response.StatusCode >= 100 && debug.Response.StatusCode <= 599 {
 		return debug.Response.StatusCode
 	}
@@ -985,14 +983,14 @@ func responseStatusCodeFromDebug(debug *UpstreamDebugSnapshot) int {
 }
 
 func upstreamErrorBody(err error) []byte {
-	var upstreamErr *UpstreamError
+	var upstreamErr *portllm.UpstreamError
 	if errors.As(err, &upstreamErr) && strings.TrimSpace(upstreamErr.Body) != "" {
 		return []byte(upstreamErr.Body)
 	}
 	return nil
 }
 
-func parseStreamUpstreamError(parsed map[string]interface{}, rawBody string) error {
+func parseStreamUpstreamError(parsed map[string]any, rawBody string) error {
 	errorPayload := asMap(parsed["error"])
 	if len(errorPayload) == 0 {
 		errorPayload = asMap(asMap(parsed["response"])["error"])
@@ -1001,21 +999,21 @@ func parseStreamUpstreamError(parsed map[string]interface{}, rawBody string) err
 		return nil
 	}
 	statusCode := streamErrorStatusCode(parsed, errorPayload)
-	message := firstNonEmptyString(
+	message := textutil.FirstNonEmpty(
 		getString(errorPayload["message"]),
 		getString(errorPayload["msg"]),
 		getString(parsed["message"]),
 		http.StatusText(statusCode),
 	)
-	return &UpstreamError{
+	return &portllm.UpstreamError{
 		StatusCode: statusCode,
 		Message:    message,
 		Body:       rawBody,
 	}
 }
 
-func streamErrorStatusCode(parsed map[string]interface{}, errorPayload map[string]interface{}) int {
-	for _, raw := range []interface{}{
+func streamErrorStatusCode(parsed map[string]any, errorPayload map[string]any) int {
+	for _, raw := range []any{
 		errorPayload["status"],
 		errorPayload["status_code"],
 		errorPayload["code"],
@@ -1030,7 +1028,7 @@ func streamErrorStatusCode(parsed map[string]interface{}, errorPayload map[strin
 	return http.StatusBadGateway
 }
 
-func toHTTPStatusCode(raw interface{}) int {
+func toHTTPStatusCode(raw any) int {
 	statusCode := toInt64(raw)
 	if statusCode >= 100 && statusCode <= 599 {
 		return int(statusCode)
@@ -1046,16 +1044,7 @@ func toHTTPStatusCode(raw interface{}) int {
 	return parsed
 }
 
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
-}
-
-func appendUniqueToolCall(items *[]ToolCall, item ToolCall) {
+func appendUniqueToolCall(items *[]portllm.ToolCall, item portllm.ToolCall) {
 	if items == nil {
 		return
 	}
@@ -1068,7 +1057,7 @@ func appendUniqueToolCall(items *[]ToolCall, item ToolCall) {
 	*items = append(*items, item)
 }
 
-func shouldMergeToolCall(existing ToolCall, incoming ToolCall) bool {
+func shouldMergeToolCall(existing portllm.ToolCall, incoming portllm.ToolCall) bool {
 	existingID := strings.TrimSpace(existing.ToolCallID)
 	incomingID := strings.TrimSpace(incoming.ToolCallID)
 	if existingID != "" && incomingID != "" {
@@ -1083,7 +1072,7 @@ func shouldMergeToolCall(existing ToolCall, incoming ToolCall) bool {
 	return false
 }
 
-func sameToolCallKind(left ToolCall, right ToolCall) bool {
+func sameToolCallKind(left portllm.ToolCall, right portllm.ToolCall) bool {
 	leftName := strings.TrimSpace(left.ToolName)
 	rightName := strings.TrimSpace(right.ToolName)
 	if leftName != "" && rightName != "" && leftName == rightName {
@@ -1094,7 +1083,7 @@ func sameToolCallKind(left ToolCall, right ToolCall) bool {
 	return leftType != "" && rightType != "" && leftType == rightType
 }
 
-func mergeToolCall(existing ToolCall, incoming ToolCall) ToolCall {
+func mergeToolCall(existing portllm.ToolCall, incoming portllm.ToolCall) portllm.ToolCall {
 	merged := existing
 	if value := strings.TrimSpace(incoming.ToolCallID); value != "" {
 		merged.ToolCallID = value
@@ -1149,9 +1138,9 @@ func toolCallStatusRank(status string) int {
 	}
 }
 
-func updateToolCallInput(items *[]ToolCall, itemID string, input string, done bool) (ToolCall, bool) {
+func updateToolCallInput(items *[]portllm.ToolCall, itemID string, input string, done bool) (portllm.ToolCall, bool) {
 	if items == nil || strings.TrimSpace(itemID) == "" {
-		return ToolCall{}, false
+		return portllm.ToolCall{}, false
 	}
 	for index, item := range *items {
 		if strings.TrimSpace(item.ToolCallID) != itemID {
@@ -1173,7 +1162,7 @@ func updateToolCallInput(items *[]ToolCall, itemID string, input string, done bo
 		(*items)[index] = item
 		return item, true
 	}
-	return ToolCall{}, false
+	return portllm.ToolCall{}, false
 }
 
 func appendUniqueStrings(items []string, values ...string) []string {
@@ -1215,11 +1204,11 @@ func cloneInt64Map(value map[string]int64) map[string]int64 {
 	return cloned
 }
 
-func extractReasoningDeltaText(raw interface{}) string {
+func extractReasoningDeltaText(raw any) string {
 	switch value := raw.(type) {
 	case string:
 		return value
-	case []interface{}:
+	case []any:
 		parts := make([]string, 0, len(value))
 		for _, item := range value {
 			if text := extractReasoningDeltaText(item); text != "" {
@@ -1227,7 +1216,7 @@ func extractReasoningDeltaText(raw interface{}) string {
 			}
 		}
 		return strings.Join(parts, "")
-	case map[string]interface{}:
+	case map[string]any:
 		for _, key := range []string{"text", "delta", "thinking", "summary", "content"} {
 			if text := extractReasoningDeltaText(value[key]); text != "" {
 				return text
@@ -1237,11 +1226,11 @@ func extractReasoningDeltaText(raw interface{}) string {
 	return ""
 }
 
-func extractContentText(raw interface{}) string {
+func extractContentText(raw any) string {
 	switch value := raw.(type) {
 	case string:
 		return value
-	case []interface{}:
+	case []any:
 		chunks := make([]string, 0, len(value))
 		for _, item := range value {
 			if text := extractContentText(item); text != "" {
@@ -1249,7 +1238,7 @@ func extractContentText(raw interface{}) string {
 			}
 		}
 		return strings.Join(chunks, "")
-	case map[string]interface{}:
+	case map[string]any:
 		if text := getString(value["text"]); text != "" {
 			return text
 		}
@@ -1266,11 +1255,11 @@ func extractContentText(raw interface{}) string {
 	return ""
 }
 
-func getStringFromPath(payload map[string]interface{}, keys ...string) string {
+func getStringFromPath(payload map[string]any, keys ...string) string {
 	if len(keys) == 0 {
 		return ""
 	}
-	current := interface{}(payload)
+	current := any(payload)
 	for _, key := range keys {
 		node := asMap(current)
 		if len(node) == 0 {
@@ -1281,11 +1270,11 @@ func getStringFromPath(payload map[string]interface{}, keys ...string) string {
 	return strings.TrimSpace(getString(current))
 }
 
-func getInt64FromPath(payload map[string]interface{}, keys ...string) int64 {
+func getInt64FromPath(payload map[string]any, keys ...string) int64 {
 	if len(keys) == 0 {
 		return 0
 	}
-	current := interface{}(payload)
+	current := any(payload)
 	for _, key := range keys {
 		node := asMap(current)
 		if len(node) == 0 {
@@ -1296,32 +1285,32 @@ func getInt64FromPath(payload map[string]interface{}, keys ...string) int64 {
 	return toInt64(current)
 }
 
-func firstMapItem(items []interface{}) map[string]interface{} {
+func firstMapItem(items []any) map[string]any {
 	for _, item := range items {
 		payload := asMap(item)
 		if len(payload) > 0 {
 			return payload
 		}
 	}
-	return map[string]interface{}{}
+	return map[string]any{}
 }
 
 func normalizeEndpoint(raw string) string {
 	switch strings.TrimSpace(raw) {
-	case EndpointChatCompletions:
-		return EndpointChatCompletions
-	case EndpointImageGenerations:
-		return EndpointImageGenerations
-	case EndpointImageEdits:
-		return EndpointImageEdits
-	case EndpointVideoGenerations:
-		return EndpointVideoGenerations
-	case EndpointVideoExtensions:
-		return EndpointVideoExtensions
-	case EndpointInteractions:
-		return EndpointInteractions
+	case portllm.EndpointChatCompletions:
+		return portllm.EndpointChatCompletions
+	case portllm.EndpointImageGenerations:
+		return portllm.EndpointImageGenerations
+	case portllm.EndpointImageEdits:
+		return portllm.EndpointImageEdits
+	case portllm.EndpointVideoGenerations:
+		return portllm.EndpointVideoGenerations
+	case portllm.EndpointVideoExtensions:
+		return portllm.EndpointVideoExtensions
+	case portllm.EndpointInteractions:
+		return portllm.EndpointInteractions
 	default:
-		return EndpointResponses
+		return portllm.EndpointResponses
 	}
 }
 
@@ -1334,25 +1323,25 @@ func normalizeRole(raw string) string {
 	}
 }
 
-func asMap(raw interface{}) map[string]interface{} {
-	if payload, ok := raw.(map[string]interface{}); ok {
+func asMap(raw any) map[string]any {
+	if payload, ok := raw.(map[string]any); ok {
 		return payload
 	}
-	return map[string]interface{}{}
+	return map[string]any{}
 }
 
-func cloneMap(raw map[string]interface{}) map[string]interface{} {
+func cloneMap(raw map[string]any) map[string]any {
 	if len(raw) == 0 {
-		return map[string]interface{}{}
+		return map[string]any{}
 	}
-	payload := make(map[string]interface{}, len(raw))
+	payload := make(map[string]any, len(raw))
 	for key, value := range raw {
 		payload[key] = value
 	}
 	return payload
 }
 
-func mergeMapValueIfEmpty(payload map[string]interface{}, key string, value interface{}) {
+func mergeMapValueIfEmpty(payload map[string]any, key string, value any) {
 	if payload == nil || value == nil {
 		return
 	}
@@ -1365,14 +1354,14 @@ func mergeMapValueIfEmpty(payload map[string]interface{}, key string, value inte
 	payload[key] = value
 }
 
-func asSlice(raw interface{}) []interface{} {
-	if payload, ok := raw.([]interface{}); ok {
+func asSlice(raw any) []any {
+	if payload, ok := raw.([]any); ok {
 		return payload
 	}
-	return []interface{}{}
+	return []any{}
 }
 
-func getString(raw interface{}) string {
+func getString(raw any) string {
 	switch value := raw.(type) {
 	case string:
 		return value
@@ -1396,7 +1385,7 @@ func getString(raw interface{}) string {
 	}
 }
 
-func toInt64(raw interface{}) int64 {
+func toInt64(raw any) int64 {
 	switch value := raw.(type) {
 	case int:
 		return int64(value)
@@ -1436,7 +1425,7 @@ func toInt64(raw interface{}) int64 {
 	}
 }
 
-func streamToolCallIndex(raw interface{}, fallback int) int {
+func streamToolCallIndex(raw any, fallback int) int {
 	if fallback < 0 || fallback > maxStreamToolCallIndex {
 		fallback = 0
 	}
@@ -1447,7 +1436,7 @@ func streamToolCallIndex(raw interface{}, fallback int) int {
 	return index
 }
 
-func normalizeJSONString(raw interface{}) string {
+func normalizeJSONString(raw any) string {
 	if raw == nil {
 		return ""
 	}
@@ -1468,7 +1457,7 @@ func normalizeJSONString(raw interface{}) string {
 	return string(encoded)
 }
 
-func stringify(raw interface{}) string {
+func stringify(raw any) string {
 	if raw == nil {
 		return ""
 	}

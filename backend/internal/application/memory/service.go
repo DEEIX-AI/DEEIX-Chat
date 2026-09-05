@@ -5,8 +5,10 @@ import (
 	"strings"
 	"time"
 
+	appaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 )
 
 type embeddingProvider interface {
@@ -14,7 +16,7 @@ type embeddingProvider interface {
 }
 
 type auditWriter interface {
-	Write(ctx context.Context, requestID string, actorUserID uint, action string, resource string, resourceID string, ip string, userAgent string, detail interface{})
+	Write(ctx context.Context, input appaudit.WriteInput)
 }
 
 // Service 封装记忆业务能力。
@@ -50,17 +52,16 @@ func (s *Service) RecordAudit(ctx context.Context, input AuditInput) {
 	if s.auditWriter == nil {
 		return
 	}
-	s.auditWriter.Write(
-		ctx,
-		strings.TrimSpace(input.RequestID),
-		input.UserID,
-		strings.TrimSpace(input.Action),
-		"memory",
-		strings.TrimSpace(input.MemoryKey),
-		strings.TrimSpace(input.ClientIP),
-		strings.TrimSpace(input.UserAgent),
-		input.Detail,
-	)
+	s.auditWriter.Write(ctx, appaudit.WriteInput{
+		RequestID:   input.RequestID,
+		ActorUserID: input.UserID,
+		Action:      input.Action,
+		Resource:    "memory",
+		ResourceID:  input.MemoryKey,
+		IP:          input.ClientIP,
+		UserAgent:   input.UserAgent,
+		Detail:      input.Detail,
+	})
 }
 
 // AuditInput 描述记忆域一次审计写入。
@@ -71,7 +72,7 @@ type AuditInput struct {
 	MemoryKey string
 	ClientIP  string
 	UserAgent string
-	Detail    interface{}
+	Detail    any
 }
 
 // UpsertUserMemory 新增或更新用户长期记忆。
@@ -89,7 +90,7 @@ func (s *Service) UpsertUserMemory(ctx context.Context, userID uint, key string,
 	if s.cacheInvalidator != nil {
 		s.cacheInvalidator(userID)
 	}
-	s.embedUserMemoryAsync(userID, item.MemoryKey, item.Value)
+	s.embedUserMemoryAsync(ctx, userID, item.MemoryKey, item.Value)
 	return nil
 }
 
@@ -119,18 +120,18 @@ func (s *Service) UpsertUserMemoryEmbedding(ctx context.Context, userID uint, me
 	return s.repo.UpsertUserMemoryEmbedding(ctx, userID, memoryKey, expectedValue, embedding, embeddingSignature)
 }
 
-func (s *Service) embedUserMemoryAsync(userID uint, memoryKey string, value string) {
+func (s *Service) embedUserMemoryAsync(parent context.Context, userID uint, memoryKey string, value string) {
 	if s.embedding == nil || strings.TrimSpace(memoryKey) == "" || strings.TrimSpace(value) == "" {
 		return
 	}
-	go func() {
+	background.Go(nil, "embed_user_memory", func() {
 		// 记忆向量是检索增强，不属于写入主事务；失败时保留文本记忆并走关键词兜底。
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := background.WithTimeout(parent, 20*time.Second)
 		defer cancel()
 		embeddings, embeddingSignature, err := s.embedding.EmbedTextsWithSignature(ctx, []string{value})
 		if err != nil || len(embeddings) == 0 {
 			return
 		}
 		_ = s.repo.UpsertUserMemoryEmbedding(ctx, userID, memoryKey, strings.TrimSpace(value), embeddings[0], embeddingSignature)
-	}()
+	})
 }

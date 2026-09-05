@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	extractinfra "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
@@ -23,6 +25,23 @@ const (
 	errMinerUEmptyContent = "mineru_empty_content"
 	DefaultBaseURL        = "https://mineru.net/api/v4"
 )
+
+var errMinerUInvalidResponse = errors.New("mineru_invalid_response")
+
+type httpError struct {
+	statusCode int
+	detail     string
+}
+
+func (e *httpError) Error() string {
+	if e == nil {
+		return "mineru_http_error"
+	}
+	if detail := strings.TrimSpace(e.detail); detail != "" {
+		return fmt.Sprintf("mineru_http_%d: %s", e.statusCode, detail)
+	}
+	return fmt.Sprintf("mineru_http_%d", e.statusCode)
+}
 
 // 解析来源模式，契约定义在 ports/extract。
 const (
@@ -117,7 +136,7 @@ func probeEndpoint(ctx context.Context, baseURL string, authToken string, httpCl
 	if err != nil {
 		return false, "服务地址格式不正确。"
 	}
-	applyAuthHeaders(req, authToken)
+	extractinfra.ApplyAuthHeaders(req, authToken)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -149,7 +168,7 @@ func probeCloudEndpoint(ctx context.Context, baseURL string, authToken string, h
 	if err != nil {
 		return false, "服务地址格式不正确。"
 	}
-	applyAuthHeaders(req, authToken)
+	extractinfra.ApplyAuthHeaders(req, authToken)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -189,7 +208,7 @@ func probeSelfHostedEndpoint(ctx context.Context, baseURL string, authToken stri
 			cancel()
 			return false, "服务地址格式不正确。"
 		}
-		applyAuthHeaders(req, authToken)
+		extractinfra.ApplyAuthHeaders(req, authToken)
 
 		resp, err := httpClient.Do(req)
 		cancel()
@@ -227,14 +246,14 @@ func (c *Client) ExtractText(ctx context.Context, req Request) (string, error) {
 		if err == nil {
 			return text, nil
 		}
-		if !shouldFallbackToCloud(err) {
+		if !shouldFallback(err) {
 			return "", err
 		}
 	}
 
 	batchID, uploadURL, err := c.createBatch(ctx, req)
 	if err != nil {
-		if shouldFallbackToSelfHosted(err) {
+		if shouldFallback(err) {
 			return c.extractTextSelfHosted(ctx, req)
 		}
 		return "", err
@@ -268,18 +287,18 @@ func (c *Client) extractTextSelfHosted(ctx context.Context, req Request) (string
 	}
 	httpReq.Header.Set("Content-Type", contentType)
 	httpReq.Header.Set("Accept", "application/json")
-	applyAuthHeaders(httpReq, c.authToken)
+	extractinfra.ApplyAuthHeaders(httpReq, c.authToken)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		_ = bodyReader.Close()
-		if writeErr := awaitMultipartWriteError(writeErrCh); writeErr != nil {
+		if writeErr := extractinfra.AwaitMultipartWriteError(writeErrCh); writeErr != nil {
 			return "", writeErr
 		}
 		return "", fmt.Errorf("mineru_unavailable")
 	}
 	defer resp.Body.Close()
-	if writeErr := awaitMultipartWriteError(writeErrCh); writeErr != nil {
+	if writeErr := extractinfra.AwaitMultipartWriteError(writeErrCh); writeErr != nil {
 		return "", writeErr
 	}
 
@@ -291,21 +310,17 @@ func (c *Client) extractTextSelfHosted(ctx context.Context, req Request) (string
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		detail := strings.TrimSpace(string(body))
-		if detail == "" {
-			return "", fmt.Errorf("mineru_http_%d", resp.StatusCode)
-		}
-		return "", fmt.Errorf("mineru_http_%d: %s", resp.StatusCode, detail)
+		return "", &httpError{statusCode: resp.StatusCode, detail: string(body)}
 	}
 
 	var parsed selfHostedResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 20*1024*1024)).Decode(&parsed); err != nil {
-		return "", fmt.Errorf("mineru_invalid_response")
+		return "", errMinerUInvalidResponse
 	}
 
-	text := normalizeText(parsed.firstMarkdown())
+	text := extractinfra.NormalizeText(parsed.firstMarkdown())
 	if text == "" {
-		return "", fmt.Errorf(errMinerUEmptyContent)
+		return "", errors.New(errMinerUEmptyContent)
 	}
 	return text, nil
 }
@@ -340,7 +355,7 @@ func (c *Client) createBatch(ctx context.Context, req Request) (string, string, 
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
-	applyAuthHeaders(httpReq, c.authToken)
+	extractinfra.ApplyAuthHeaders(httpReq, c.authToken)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -356,19 +371,15 @@ func (c *Client) createBatch(ctx context.Context, req Request) (string, string, 
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		detail := strings.TrimSpace(string(body))
-		if detail == "" {
-			return "", "", fmt.Errorf("mineru_http_%d", resp.StatusCode)
-		}
-		return "", "", fmt.Errorf("mineru_http_%d: %s", resp.StatusCode, detail)
+		return "", "", &httpError{statusCode: resp.StatusCode, detail: string(body)}
 	}
 
 	var parsed batchCreateResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 2*1024*1024)).Decode(&parsed); err != nil {
-		return "", "", fmt.Errorf("mineru_invalid_response")
+		return "", "", errMinerUInvalidResponse
 	}
 	if strings.TrimSpace(parsed.Data.BatchID) == "" || len(parsed.Data.FileURLs) == 0 || strings.TrimSpace(parsed.Data.FileURLs[0]) == "" {
-		return "", "", fmt.Errorf("mineru_invalid_response")
+		return "", "", errMinerUInvalidResponse
 	}
 	return strings.TrimSpace(parsed.Data.BatchID), strings.TrimSpace(parsed.Data.FileURLs[0]), nil
 }
@@ -392,11 +403,7 @@ func (c *Client) uploadFile(ctx context.Context, uploadURL string, absolutePath 
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		detail := strings.TrimSpace(string(body))
-		if detail == "" {
-			return fmt.Errorf("mineru_http_%d", resp.StatusCode)
-		}
-		return fmt.Errorf("mineru_http_%d: %s", resp.StatusCode, detail)
+		return &httpError{statusCode: resp.StatusCode, detail: string(body)}
 	}
 	return nil
 }
@@ -412,7 +419,7 @@ func (c *Client) pollBatch(ctx context.Context, batchID string) (string, error) 
 			return "", err
 		}
 		httpReq.Header.Set("Accept", "application/json")
-		applyAuthHeaders(httpReq, c.authToken)
+		extractinfra.ApplyAuthHeaders(httpReq, c.authToken)
 
 		resp, err := c.httpClient.Do(httpReq)
 		if err != nil {
@@ -429,18 +436,14 @@ func (c *Client) pollBatch(ctx context.Context, batchID string) (string, error) 
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 			resp.Body.Close()
-			detail := strings.TrimSpace(string(body))
-			if detail == "" {
-				return "", fmt.Errorf("mineru_http_%d", resp.StatusCode)
-			}
-			return "", fmt.Errorf("mineru_http_%d: %s", resp.StatusCode, detail)
+			return "", &httpError{statusCode: resp.StatusCode, detail: string(body)}
 		}
 
 		var parsed batchResultResponse
 		err = json.NewDecoder(io.LimitReader(resp.Body, 4*1024*1024)).Decode(&parsed)
 		resp.Body.Close()
 		if err != nil {
-			return "", fmt.Errorf("mineru_invalid_response")
+			return "", errMinerUInvalidResponse
 		}
 
 		state := strings.ToLower(strings.TrimSpace(parsed.Data.State))
@@ -454,11 +457,11 @@ func (c *Client) pollBatch(ctx context.Context, batchID string) (string, error) 
 		switch state {
 		case "done", "success", "completed":
 			if len(parsed.Data.ExtractResult) == 0 {
-				return "", fmt.Errorf("mineru_invalid_response")
+				return "", errMinerUInvalidResponse
 			}
 			zipURL := strings.TrimSpace(item.FullZipURL)
 			if zipURL == "" {
-				return "", fmt.Errorf("mineru_invalid_response")
+				return "", errMinerUInvalidResponse
 			}
 			return zipURL, nil
 		case "failed", "error":
@@ -493,11 +496,7 @@ func (c *Client) downloadResult(ctx context.Context, zipURL string) (string, err
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		detail := strings.TrimSpace(string(body))
-		if detail == "" {
-			return "", fmt.Errorf("mineru_http_%d", resp.StatusCode)
-		}
-		return "", fmt.Errorf("mineru_http_%d: %s", resp.StatusCode, detail)
+		return "", &httpError{statusCode: resp.StatusCode, detail: string(body)}
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 100*1024*1024))
@@ -506,7 +505,7 @@ func (c *Client) downloadResult(ctx context.Context, zipURL string) (string, err
 	}
 	reader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
 	if err != nil {
-		return "", fmt.Errorf("mineru_invalid_response")
+		return "", errMinerUInvalidResponse
 	}
 
 	for _, file := range reader.File {
@@ -523,26 +522,13 @@ func (c *Client) downloadResult(ctx context.Context, zipURL string) (string, err
 		if readErr != nil {
 			continue
 		}
-		text := normalizeText(string(content))
+		text := extractinfra.NormalizeText(string(content))
 		if text != "" {
 			return text, nil
 		}
 	}
 
-	return "", fmt.Errorf(errMinerUEmptyContent)
-}
-
-func normalizeText(raw string) string {
-	lines := strings.Split(raw, "\n")
-	result := make([]string, 0, len(lines))
-	for _, line := range lines {
-		value := strings.TrimSpace(line)
-		if value == "" {
-			continue
-		}
-		result = append(result, value)
-	}
-	return strings.Join(result, "\n")
+	return "", errors.New(errMinerUEmptyContent)
 }
 
 func normalizeSource(raw string) string {
@@ -554,33 +540,15 @@ func normalizeSource(raw string) string {
 	}
 }
 
-func shouldFallbackToSelfHosted(err error) bool {
+func shouldFallback(err error) bool {
 	if err == nil {
 		return false
 	}
-	message := strings.ToLower(strings.TrimSpace(err.Error()))
-	return strings.Contains(message, "mineru_http_404") || strings.Contains(message, "mineru_invalid_response")
-}
-
-func shouldFallbackToCloud(err error) bool {
-	if err == nil {
-		return false
+	if errors.Is(err, errMinerUInvalidResponse) {
+		return true
 	}
-	message := strings.ToLower(strings.TrimSpace(err.Error()))
-	return strings.Contains(message, "mineru_http_404") || strings.Contains(message, "mineru_invalid_response")
-}
-
-func applyAuthHeaders(req *http.Request, authToken string) {
-	if req == nil {
-		return
-	}
-	token := strings.TrimSpace(authToken)
-	if token == "" {
-		return
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-API-Key", token)
-	req.Header.Set("token", token)
+	var httpErr *httpError
+	return errors.As(err, &httpErr) && httpErr != nil && httpErr.statusCode == http.StatusNotFound
 }
 
 func resolveHTTPTimeout(raw int, fallback time.Duration) time.Duration {
@@ -652,18 +620,6 @@ func buildSelfHostedMultipartBody(file *os.File, fileName string) (io.ReadCloser
 	}()
 
 	return bodyReader, writer.FormDataContentType(), errCh
-}
-
-func awaitMultipartWriteError(errCh <-chan error) error {
-	if errCh == nil {
-		return nil
-	}
-	for err := range errCh {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 type batchCreateResponse struct {

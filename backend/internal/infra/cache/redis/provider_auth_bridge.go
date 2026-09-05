@@ -53,7 +53,7 @@ func (s *providerAuthBridge) ConsumeProviderAuthGrant(ctx context.Context, key s
 	return &item, nil
 }
 
-func (s *providerAuthBridge) put(ctx context.Context, key string, item interface{}, ttl time.Duration) error {
+func (s *providerAuthBridge) put(ctx context.Context, key string, item any, ttl time.Duration) error {
 	if s == nil || s.client == nil || key == "" || ttl <= 0 {
 		return repository.ErrInvalidInput
 	}
@@ -64,7 +64,7 @@ func (s *providerAuthBridge) put(ctx context.Context, key string, item interface
 	return s.client.Set(ctx, key, payload, ttl).Err()
 }
 
-func (s *providerAuthBridge) consume(ctx context.Context, key string, destination interface{}) error {
+func (s *providerAuthBridge) consume(ctx context.Context, key string, destination any) error {
 	if s == nil || s.client == nil || key == "" {
 		return repository.ErrNotFound
 	}

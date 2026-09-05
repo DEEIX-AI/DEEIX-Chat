@@ -11,6 +11,7 @@ import (
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/settings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,20 @@ type Handler struct {
 	officialPricing *appbilling.OfficialPricingService
 	paymentCheckout *appbilling.PaymentCheckoutService
 	logger          *zap.Logger
+}
+
+func writeRedeemCodeError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, appbilling.ErrInvalidRedemptionCode),
+		errors.Is(err, appbilling.ErrRedemptionCodeUnavailable),
+		errors.Is(err, appbilling.ErrRedemptionCodeExhausted),
+		errors.Is(err, appbilling.ErrRedemptionUserLimitExceeded):
+		response.ErrorFrom(c, http.StatusBadRequest, err)
+	case errors.Is(err, appbilling.ErrRedemptionCodeHashUnavailable):
+		response.ErrorFrom(c, http.StatusInternalServerError, appbilling.ErrRedemptionCodeHashUnavailable)
+	default:
+		response.InternalError(c)
+	}
 }
 
 // NewHandler 创建处理器。
@@ -49,16 +64,16 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) recordAudit(c *gin.Context, userID uint, action string, resource string, resourceID string, detail interface{}) {
+func (h *Handler) recordAudit(c *gin.Context, userID uint, action string, resource string, resourceID string, detail any) {
 	h.service.RecordAudit(c.Request.Context(), appbilling.AuditInput{
-		UserID:     userID,
-		RequestID:  middleware.MustRequestID(c),
-		Action:     action,
-		Resource:   resource,
-		ResourceID: resourceID,
-		ClientIP:   c.ClientIP(),
-		UserAgent:  c.Request.UserAgent(),
-		Detail:     detail,
+		ActorUserID: userID,
+		RequestID:   middleware.MustRequestID(c),
+		Action:      action,
+		Resource:    resource,
+		ResourceID:  resourceID,
+		IP:          c.ClientIP(),
+		UserAgent:   c.Request.UserAgent(),
+		Detail:      detail,
 	})
 }
 
@@ -75,7 +90,7 @@ func (h *Handler) recordAudit(c *gin.Context, userID uint, action string, resour
 func (h *Handler) GetBillingConfig(c *gin.Context) {
 	config, err := h.loadBillingConfig(c.Request.Context())
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "get billing config failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, BillingConfigDataResponse{Config: config})
@@ -164,7 +179,7 @@ func (h *Handler) PatchBillingConfig(c *gin.Context) {
 	}
 	mode := strings.TrimSpace(req.Mode)
 	if h.settings == nil {
-		response.Error(c, http.StatusInternalServerError, "settings service unavailable")
+		response.ErrorFrom(c, http.StatusInternalServerError, errSettingsServiceUnavailable)
 		return
 	}
 	patches := []appsettings.PatchItem{
@@ -201,7 +216,11 @@ func (h *Handler) PatchBillingConfig(c *gin.Context) {
 	if req.NativeToolPricing != nil {
 		value, err := h.service.NormalizeNativeToolPricingJSON(c.Request.Context(), nativeToolPricingOverridesFromRequests(req.NativeToolPricing))
 		if err != nil {
-			response.ErrorFrom(c, http.StatusBadRequest, err)
+			if errors.Is(err, appbilling.ErrInvalidNativeToolPricing) {
+				response.ErrorFrom(c, http.StatusBadRequest, err)
+			} else {
+				response.InternalError(c)
+			}
 			return
 		}
 		patches = append(patches, appsettings.PatchItem{
@@ -211,7 +230,11 @@ func (h *Handler) PatchBillingConfig(c *gin.Context) {
 		})
 	}
 	if _, err := h.settings.BatchUpdate(c.Request.Context(), patches); err != nil {
-		response.ErrorFrom(c, http.StatusBadRequest, err)
+		if errors.Is(err, appsettings.ErrInvalidSetting) {
+			writeSettingsValidationError(c, err)
+		} else {
+			response.InternalError(c)
+		}
 		return
 	}
 
@@ -222,7 +245,7 @@ func (h *Handler) PatchBillingConfig(c *gin.Context) {
 		"update_billing_config",
 		"billing_config",
 		"mode",
-		map[string]interface{}{
+		map[string]any{
 			"mode":                        mode,
 			"prepaid_amount_usd":          req.PrepaidAmountUSD,
 			"usd_to_cny_rate":             req.USDToCNYRate,
@@ -234,10 +257,32 @@ func (h *Handler) PatchBillingConfig(c *gin.Context) {
 
 	config, err := h.loadBillingConfig(c.Request.Context())
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "get billing config failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, BillingConfigDataResponse{Config: config})
+}
+
+func writeSettingsValidationError(c *gin.Context, err error) {
+	var validationErr *appsettings.SettingValidationError
+	if errors.As(err, &validationErr) {
+		details := validationErr.Details()
+		response.ErrorWithDetails(c, http.StatusBadRequest, validationErr.Code(), settingValidationDetailsResponse{
+			Field:  details.Field,
+			Fields: append([]string(nil), details.Fields...),
+			Rule:   details.Rule,
+			Param:  details.Param,
+		})
+		return
+	}
+	response.ErrorFrom(c, http.StatusBadRequest, err)
+}
+
+type settingValidationDetailsResponse struct {
+	Field  string   `json:"field,omitempty"`
+	Fields []string `json:"fields,omitempty"`
+	Rule   string   `json:"rule"`
+	Param  string   `json:"param,omitempty"`
 }
 
 // ListPlans godoc
@@ -253,7 +298,7 @@ func (h *Handler) PatchBillingConfig(c *gin.Context) {
 func (h *Handler) ListPlans(c *gin.Context) {
 	items, err := h.service.ListPlans(c.Request.Context())
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list plans failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, toPlanListResponse(items))
@@ -272,7 +317,7 @@ func (h *Handler) ListPlans(c *gin.Context) {
 func (h *Handler) GetBillingAccount(c *gin.Context) {
 	account, err := h.service.GetBillingAccount(c.Request.Context(), middleware.MustUserID(c))
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "get billing account failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, BillingAccountDataResponse{Account: toBillingAccountResponse(account)})
@@ -294,7 +339,7 @@ func (h *Handler) GetBillingAccount(c *gin.Context) {
 func (h *Handler) UpdateBillingAccountBalance(c *gin.Context) {
 	targetUserID, err := strconv.ParseUint(c.Param("user_id"), 10, strconv.IntSize)
 	if err != nil || targetUserID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid user id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidUserID)
 		return
 	}
 	var req UpdateBillingAccountBalanceRequest
@@ -311,7 +356,13 @@ func (h *Handler) UpdateBillingAccountBalance(c *gin.Context) {
 		Description: req.Description,
 	})
 	if err != nil {
-		response.ErrorFrom(c, http.StatusBadRequest, err)
+		switch {
+		case errors.Is(err, appbilling.ErrInvalidBillingAccountBalance),
+			errors.Is(err, appbilling.ErrPaymentRequired):
+			response.ErrorFrom(c, http.StatusBadRequest, err)
+		default:
+			response.InternalError(c)
+		}
 		return
 	}
 	h.recordAudit(
@@ -320,7 +371,7 @@ func (h *Handler) UpdateBillingAccountBalance(c *gin.Context) {
 		"update_billing_balance",
 		"billing_account",
 		strconv.FormatUint(targetUserID, 10),
-		map[string]interface{}{
+		map[string]any{
 			"user_id":     targetUserID,
 			"balance_usd": balanceUSD,
 		},
@@ -345,7 +396,7 @@ func (h *Handler) UpdateBillingAccountBalance(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/billing/redemption-codes [get]
 func (h *Handler) ListRedemptionCodes(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListRedemptionCodes(c.Request.Context(), appbilling.RedemptionCodeListInput{
 		Mode:         c.Query("mode"),
 		Status:       c.Query("status"),
@@ -355,7 +406,7 @@ func (h *Handler) ListRedemptionCodes(c *gin.Context) {
 		PageSize:     pageSize,
 	})
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list redemption codes failed")
+		response.InternalError(c)
 		return
 	}
 	response.SuccessPage(c, total, toRedemptionCodeResponses(items))
@@ -402,7 +453,7 @@ func (h *Handler) CreateRedemptionCodes(c *gin.Context) {
 		"create_redemption_code",
 		"billing_redemption_code",
 		req.Mode,
-		map[string]interface{}{
+		map[string]any{
 			"mode":            req.Mode,
 			"quantity":        req.Quantity,
 			"credit_usd":      req.CreditUSD,
@@ -418,7 +469,7 @@ func (h *Handler) CreateRedemptionCodes(c *gin.Context) {
 func writeRedemptionCodeError(c *gin.Context, err error) {
 	var validationErr appbilling.RedemptionCodeValidationError
 	if errors.As(err, &validationErr) {
-		response.ErrorWithDetails(c, http.StatusBadRequest, "billing.invalid_redemption_code", err.Error(), RedemptionCodeValidationErrorResponse{
+		response.ErrorWithDetails(c, http.StatusBadRequest, "billing.invalid_redemption_code", RedemptionCodeValidationErrorResponse{
 			Field:  validationErr.Field,
 			Reason: validationErr.Reason,
 		})
@@ -436,11 +487,20 @@ func writeRedemptionCodeError(c *gin.Context, err error) {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 		return
 	}
-	if errors.Is(err, appbilling.ErrRedemptionCodeHashUnavailable) {
-		response.ErrorFrom(c, http.StatusInternalServerError, err)
+	if errors.Is(err, appbilling.ErrRedemptionCodeExhausted) ||
+		errors.Is(err, appbilling.ErrRedemptionUserLimitExceeded) {
+		response.ErrorFrom(c, http.StatusBadRequest, err)
 		return
 	}
-	response.Error(c, http.StatusInternalServerError, "redemption code operation failed")
+	if errors.Is(err, appbilling.ErrRedemptionCodeHashUnavailable) {
+		response.ErrorFrom(c, http.StatusInternalServerError, appbilling.ErrRedemptionCodeHashUnavailable)
+		return
+	}
+	if errors.Is(err, appbilling.ErrRedemptionCodePlaintextUnavailable) {
+		response.ErrorFrom(c, http.StatusBadRequest, appbilling.ErrRedemptionCodePlaintextUnavailable)
+		return
+	}
+	response.InternalError(c)
 }
 
 // RevealRedemptionCode godoc
@@ -459,16 +519,12 @@ func writeRedemptionCodeError(c *gin.Context, err error) {
 func (h *Handler) RevealRedemptionCode(c *gin.Context) {
 	codeID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil || codeID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid redemption code id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidRedemptionCodeID)
 		return
 	}
 	item, err := h.service.RevealRedemptionCode(c.Request.Context(), uint(codeID))
 	if err != nil {
-		if errors.Is(err, appbilling.ErrRedemptionCodeUnavailable) {
-			response.Error(c, http.StatusNotFound, "redemption code not found")
-			return
-		}
-		response.ErrorFrom(c, http.StatusBadRequest, err)
+		writeRedemptionCodeError(c, err)
 		return
 	}
 	actorUserID := middleware.MustUserID(c)
@@ -478,7 +534,7 @@ func (h *Handler) RevealRedemptionCode(c *gin.Context) {
 		"reveal_redemption_code",
 		"billing_redemption_code",
 		strconv.FormatUint(codeID, 10),
-		map[string]interface{}{"code_hint": item.CodeHint},
+		map[string]any{"code_hint": item.CodeHint},
 	)
 	c.Header("Cache-Control", "no-store")
 	response.Success(c, RedemptionCodeDataResponse{Code: toRedemptionCodeResponse(*item)})
@@ -500,7 +556,7 @@ func (h *Handler) RevealRedemptionCode(c *gin.Context) {
 func (h *Handler) PatchRedemptionCode(c *gin.Context) {
 	codeID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil || codeID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid redemption code id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidRedemptionCodeID)
 		return
 	}
 	var req PatchRedemptionCodeRequest
@@ -528,7 +584,7 @@ func (h *Handler) PatchRedemptionCode(c *gin.Context) {
 		"update_redemption_code",
 		"billing_redemption_code",
 		strconv.FormatUint(codeID, 10),
-		map[string]interface{}{
+		map[string]any{
 			"status":          req.Status,
 			"max_redemptions": req.MaxRedemptions.Value,
 			"per_user_limit":  req.PerUserLimit,
@@ -553,15 +609,11 @@ func (h *Handler) PatchRedemptionCode(c *gin.Context) {
 func (h *Handler) DeleteRedemptionCode(c *gin.Context) {
 	codeID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil || codeID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid redemption code id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidRedemptionCodeID)
 		return
 	}
 	if err := h.service.DeleteRedemptionCode(c.Request.Context(), uint(codeID)); err != nil {
-		if errors.Is(err, appbilling.ErrRedemptionCodeUnavailable) {
-			response.Error(c, http.StatusNotFound, "redemption code not found")
-			return
-		}
-		response.ErrorFrom(c, http.StatusBadRequest, err)
+		writeRedemptionCodeError(c, err)
 		return
 	}
 	actorUserID := middleware.MustUserID(c)
@@ -571,7 +623,7 @@ func (h *Handler) DeleteRedemptionCode(c *gin.Context) {
 		"delete_redemption_code",
 		"billing_redemption_code",
 		strconv.FormatUint(codeID, 10),
-		map[string]interface{}{"deleted": true},
+		map[string]any{"deleted": true},
 	)
 	response.Success(c, RedemptionCodeDeleteDataResponse{Deleted: true})
 }
@@ -601,7 +653,7 @@ func (h *Handler) BatchDeleteRedemptionCodes(c *gin.Context) {
 		"batch_delete_redemption_codes",
 		"billing_redemption_code",
 		"batch",
-		map[string]interface{}{
+		map[string]any{
 			"ids":           req.IDs,
 			"success_count": result.SuccessCount,
 			"not_found":     result.NotFoundCount,
@@ -632,12 +684,12 @@ func (h *Handler) RedeemCode(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	result, err := h.service.RedeemCode(c.Request.Context(), userID, req.Code)
 	if err != nil {
-		response.ErrorFrom(c, http.StatusBadRequest, err)
+		writeRedeemCodeError(c, err)
 		return
 	}
 	overview, err := h.service.GetBillingOverview(c.Request.Context(), userID, time.Now())
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "get billing overview failed")
+		response.InternalError(c)
 		return
 	}
 	var account *BillingAccountResponse
@@ -671,7 +723,7 @@ func (h *Handler) RedeemCode(c *gin.Context) {
 func (h *Handler) GetBillingOverview(c *gin.Context) {
 	overview, err := h.service.GetBillingOverview(c.Request.Context(), middleware.MustUserID(c), time.Now())
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "get billing overview failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, BillingOverviewDataResponse{Overview: toBillingOverviewResponse(overview)})
@@ -694,7 +746,7 @@ func (h *Handler) GetBillingOverview(c *gin.Context) {
 func (h *Handler) UpdatePlan(c *gin.Context) {
 	planID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil || planID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid plan id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidPlanID)
 		return
 	}
 
@@ -714,7 +766,7 @@ func (h *Handler) UpdatePlan(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "update billing plan failed")
+		response.InternalError(c)
 		return
 	}
 
@@ -725,11 +777,10 @@ func (h *Handler) UpdatePlan(c *gin.Context) {
 		"update_billing_plan",
 		"billing_plan",
 		strconv.FormatUint(planID, 10),
-		map[string]interface{}{
+		map[string]any{
 			"plan_id":           planID,
 			"name":              req.Name,
 			"period_credit_usd": *req.PeriodCreditUSD,
-			"discount_percent":  *req.DiscountPercent,
 			"amount_usd":        *req.AmountUSD,
 			"billing_interval":  req.BillingInterval,
 		},
@@ -762,11 +813,19 @@ func (h *Handler) Subscribe(c *gin.Context) {
 	cycles := optionalIntValue(req.Cycles)
 	item, err := h.service.Subscribe(c.Request.Context(), userID, req.PriceID, cycles)
 	if err != nil {
-		if errors.Is(err, appbilling.ErrPaymentRequired) {
-			response.Error(c, http.StatusBadRequest, "payment is required")
-			return
+		switch {
+		case errors.Is(err, appbilling.ErrPaymentRequired),
+			errors.Is(err, appbilling.ErrSubscriptionEntitlementActive),
+			errors.Is(err, appbilling.ErrInvalidBillingPlan),
+			errors.Is(err, appbilling.ErrInvalidSubscriptionTier),
+			errors.Is(err, appbilling.ErrSubscriptionExpiryRequired),
+			errors.Is(err, appbilling.ErrInvalidSubscriptionExpiry):
+			response.ErrorFrom(c, http.StatusBadRequest, err)
+		case errors.Is(err, appbilling.ErrBillingPlanNotFound):
+			response.ErrorFrom(c, http.StatusNotFound, err)
+		default:
+			response.InternalError(c)
 		}
-		response.Error(c, http.StatusInternalServerError, "subscribe failed")
 		return
 	}
 
@@ -776,7 +835,7 @@ func (h *Handler) Subscribe(c *gin.Context) {
 		"subscribe",
 		"billing",
 		strconv.FormatUint(uint64(item.ID), 10),
-		map[string]interface{}{
+		map[string]any{
 			"price_id": req.PriceID,
 			"cycles":   cycles,
 		},
@@ -804,7 +863,7 @@ func (h *Handler) Subscribe(c *gin.Context) {
 // @Router /billing/usage [get]
 func (h *Handler) ListUsage(c *gin.Context) {
 	userID := middleware.MustUserID(c)
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	filter := appbilling.UsageListFilter{
 		Query:  c.Query("query"),
 		Status: c.Query("status"),
@@ -813,7 +872,7 @@ func (h *Handler) ListUsage(c *gin.Context) {
 
 	items, total, err := h.service.ListUsage(c.Request.Context(), userID, page, pageSize, filter)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list usage failed")
+		response.InternalError(c)
 		return
 	}
 	usages := make([]UsageLedgerResponse, 0, len(items))
@@ -843,7 +902,7 @@ func (h *Handler) ListMonthlyUsage(c *gin.Context) {
 
 	items, err := h.service.ListMonthlyUsage(c.Request.Context(), userID, months)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list monthly usage failed")
+		response.InternalError(c)
 		return
 	}
 	results := make([]UsageMonthlyResponse, 0, len(items))
@@ -872,12 +931,12 @@ func (h *Handler) ListDailyUsage(c *gin.Context) {
 		startDate, startErr := time.Parse("2006-01-02", startDateText)
 		endDate, endErr := time.Parse("2006-01-02", endDateText)
 		if startErr != nil || endErr != nil {
-			response.Error(c, http.StatusBadRequest, "invalid daily usage date range")
+			response.ErrorFrom(c, http.StatusBadRequest, errInvalidDailyUsageDateRange)
 			return
 		}
 		items, err := h.service.ListDailyUsageRange(c.Request.Context(), userID, startDate, endDate)
 		if err != nil {
-			response.Error(c, http.StatusInternalServerError, "list daily usage failed")
+			response.InternalError(c)
 			return
 		}
 		results := make([]UsageDailyResponse, 0, len(items))
@@ -892,7 +951,7 @@ func (h *Handler) ListDailyUsage(c *gin.Context) {
 	if daysText == "" {
 		items, err := h.service.ListCurrentCycleDailyUsage(c.Request.Context(), userID, time.Now())
 		if err != nil {
-			response.Error(c, http.StatusInternalServerError, "list daily usage failed")
+			response.InternalError(c)
 			return
 		}
 		results := make([]UsageDailyResponse, 0, len(items))
@@ -905,12 +964,12 @@ func (h *Handler) ListDailyUsage(c *gin.Context) {
 
 	days, err := strconv.Atoi(daysText)
 	if err != nil || days <= 0 {
-		response.Error(c, http.StatusBadRequest, "invalid daily usage days")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidDailyUsageDays)
 		return
 	}
 	items, err := h.service.ListDailyUsage(c.Request.Context(), userID, days, time.Now())
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list daily usage failed")
+		response.InternalError(c)
 		return
 	}
 	results := make([]UsageDailyResponse, 0, len(items))
@@ -934,7 +993,7 @@ func (h *Handler) ListDailyUsage(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/billing/model-prices [get]
 func (h *Handler) ListModelPricing(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListModelPricing(
 		c.Request.Context(),
 		c.Query("q"),
@@ -942,7 +1001,7 @@ func (h *Handler) ListModelPricing(c *gin.Context) {
 		pageSize,
 	)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list model pricing failed")
+		response.InternalError(c)
 		return
 	}
 	results := make([]ModelPricingResponse, 0, len(items))
@@ -972,7 +1031,7 @@ func (h *Handler) UpsertModelPricing(c *gin.Context) {
 	}
 	platformModelName := strings.TrimSpace(req.PlatformModelName)
 	if platformModelName == "" {
-		response.Error(c, http.StatusBadRequest, "platform model name is required")
+		response.ErrorFrom(c, http.StatusBadRequest, errPlatformModelNameRequired)
 		return
 	}
 	req.PlatformModelName = platformModelName
@@ -980,10 +1039,10 @@ func (h *Handler) UpsertModelPricing(c *gin.Context) {
 	item, err := h.service.UpsertModelPricing(c.Request.Context(), modelPricingInputFromRequest(req))
 	if err != nil {
 		if errors.Is(err, appbilling.ErrInvalidModelPricing) {
-			response.Error(c, http.StatusBadRequest, "invalid model pricing")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "save model pricing failed")
+		response.InternalError(c)
 		return
 	}
 
@@ -994,7 +1053,7 @@ func (h *Handler) UpsertModelPricing(c *gin.Context) {
 		"upsert_model_pricing",
 		"billing_model_price",
 		platformModelName,
-		map[string]interface{}{
+		map[string]any{
 			"platform_model_name": platformModelName,
 			"currency":            req.Currency,
 		},
@@ -1003,26 +1062,4 @@ func (h *Handler) UpsertModelPricing(c *gin.Context) {
 	response.Success(c, ModelPricingDataResponse{
 		ModelPricing: toModelPricingResponse(*item),
 	})
-}
-
-func pageParams(c *gin.Context) (int, int) {
-	page := 1
-	pageSize := 20
-	const maxPageSize = 1000
-
-	if raw := c.Query("page"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			page = parsed
-		}
-	}
-	if raw := c.Query("page_size"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			if parsed > maxPageSize {
-				parsed = maxPageSize
-			}
-			pageSize = parsed
-		}
-	}
-
-	return page, pageSize
 }

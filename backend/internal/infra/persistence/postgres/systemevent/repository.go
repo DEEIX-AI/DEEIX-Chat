@@ -21,18 +21,11 @@ func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}
 }
 
-func translateError(err error) error {
-	if dberror.IsRecordNotFound(err) {
-		return repository.ErrNotFound
-	}
-	return err
-}
-
 // Create 创建系统事件。
 func (r *Repo) Create(ctx context.Context, item *domainsystemevent.Event) error {
 	row := toModelSystemEvent(item)
 	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	item.ID = row.ID
 	item.CreatedAt = row.CreatedAt
@@ -69,7 +62,7 @@ func (r *Repo) List(ctx context.Context, offset int, limit int, filter repositor
 		query = query.Where("created_at <= ?", *filter.CreatedTo)
 	}
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 
 	order := "created_at DESC, id DESC"
@@ -82,7 +75,7 @@ func (r *Repo) List(ctx context.Context, offset int, limit int, filter repositor
 		order = "id ASC"
 	}
 	if err := query.Order(order).Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
-		return nil, 0, translateError(err)
+		return nil, 0, dberror.Translate(err)
 	}
 	return toDomainSystemEvents(rows), total, nil
 }

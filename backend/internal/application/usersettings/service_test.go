@@ -1,6 +1,26 @@
 package usersettings
 
-import "testing"
+import (
+	"errors"
+	"testing"
+
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
+)
+
+func TestSettingValidationErrorKeepsStablePublicContract(t *testing.T) {
+	t.Parallel()
+
+	err := settingValidationError(ErrInvalidSettingValue, "invalid value for chat.content_width")
+	if !errors.Is(err, ErrInvalidSettingValue) {
+		t.Fatal("validation error must preserve sentinel identity")
+	}
+	if code := apperr.Code(err); code != ErrInvalidSettingValue.Code() {
+		t.Fatalf("code = %q, want %q", code, ErrInvalidSettingValue.Code())
+	}
+	if message := apperr.MessageOr(err, ""); message != ErrInvalidSettingValue.Message() {
+		t.Fatalf("message = %q, want %q", message, ErrInvalidSettingValue.Message())
+	}
+}
 
 func TestValidateDefaultMCPToolIDs(t *testing.T) {
 	t.Parallel()
