@@ -96,7 +96,7 @@ func (h *Handler) RevokeConversationACL(c *gin.Context) {
 		return
 	}
 	granteeRaw := c.Param("grantee_user_id")
-	granteeUserID, parseErr := strconv.ParseUint(granteeRaw, 10, 64)
+	granteeUserID, parseErr := strconv.ParseUint(granteeRaw, 10, strconv.IntSize)
 	if parseErr != nil || granteeUserID == 0 {
 		response.ErrorFrom(c, http.StatusBadRequest, appacl.ErrInvalidUsername)
 		return

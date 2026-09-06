@@ -91,7 +91,7 @@ func (h *Handler) GrantKnowledgeBaseACL(c *gin.Context) {
 // @Success 200 {object} map[string]any
 // @Router /knowledge-bases/mine/{id}/acl/{grantee_user_id} [delete]
 func (h *Handler) RevokeKnowledgeBaseACL(c *gin.Context) {
-	granteeUserID, err := strconv.ParseUint(c.Param("grantee_user_id"), 10, 64)
+	granteeUserID, err := strconv.ParseUint(c.Param("grantee_user_id"), 10, strconv.IntSize)
 	if err != nil || granteeUserID == 0 {
 		response.ErrorFrom(c, http.StatusBadRequest, appacl.ErrInvalidUsername)
 		return

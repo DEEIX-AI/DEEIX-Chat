@@ -493,17 +493,16 @@ func NewApp() (*App, error) {
 			if log == nil || bootstrapSuperAdmin == nil {
 				return
 			}
-			passwordFile, writeErr := writeBootstrapSuperAdminPasswordFile(cfg, bootstrapSuperAdmin.Username, bootstrapSuperAdmin.Password)
-			if writeErr != nil {
+			if _, writeErr := writeBootstrapSuperAdminPasswordFile(cfg, bootstrapSuperAdmin.Username, bootstrapSuperAdmin.Password); writeErr != nil {
 				log.Error("bootstrap superadmin password file write failed",
 					zap.String("username", bootstrapSuperAdmin.Username),
 					zap.Error(writeErr),
 				)
 				return
 			}
-			log.Info("bootstrap superadmin created; one-time password written to file",
+			log.Info("bootstrap superadmin created; one-time password written to secrets dir",
 				zap.String("username", bootstrapSuperAdmin.Username),
-				zap.String("password_file", passwordFile),
+				zap.String("password_file_name", "bootstrap-superadmin.password"),
 			)
 		},
 	}, hc, rateLimiter)
