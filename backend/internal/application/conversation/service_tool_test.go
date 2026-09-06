@@ -77,7 +77,7 @@ func TestExecuteAssistantToolCallsEphemeralSkipsToolCallPersistence(t *testing.T
 
 func TestResolveMaxLLMCallsPerRunRequiresFollowUpRound(t *testing.T) {
 	svc := &Service{cfg: config.NewRuntime(config.Config{MCPMaxLLMCallsPerRun: 1})}
-	if got := svc.resolveMaxLLMCallsPerRun(); got != 2 {
+	if got := svc.resolveMaxLLMCallsPerRunForMode(false); got != 2 {
 		t.Fatalf("expected minimum LLM calls per run to be 2, got %d", got)
 	}
 }

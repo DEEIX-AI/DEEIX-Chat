@@ -89,10 +89,6 @@ func (s *Service) ValidateSelectedToolIDs(toolIDs []uint) error {
 	return nil
 }
 
-func (s *Service) resolveMaxLLMCallsPerRun() int {
-	return s.resolveMaxLLMCallsPerRunForMode(false)
-}
-
 func (s *Service) resolveMaxLLMCallsPerRunForMode(programmingMode bool) int {
 	cfg := s.cfg.Snapshot()
 	maxCalls := cfg.MCPMaxLLMCallsPerRun
