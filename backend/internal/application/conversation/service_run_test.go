@@ -49,6 +49,38 @@ func (r *conversationRunClaimRepositoryStub) GetConversationByUser(_ context.Con
 	return &conversation, nil
 }
 
+func (r *conversationRunClaimRepositoryStub) GetConversationByID(_ context.Context, conversationID uint) (*model.Conversation, error) {
+	if r.conversation.ID != conversationID {
+		return nil, repository.ErrNotFound
+	}
+	conversation := r.conversation
+	return &conversation, nil
+}
+
+func (r *conversationRunClaimRepositoryStub) GetConversationByPublicIDOnly(_ context.Context, publicID string) (*model.Conversation, error) {
+	if r.conversation.PublicID != publicID {
+		return nil, repository.ErrNotFound
+	}
+	conversation := r.conversation
+	return &conversation, nil
+}
+
+func (r *conversationRunClaimRepositoryStub) GetConversationByID(_ context.Context, conversationID uint) (*model.Conversation, error) {
+	if r.conversation.ID != conversationID {
+		return nil, repository.ErrNotFound
+	}
+	conversation := r.conversation
+	return &conversation, nil
+}
+
+func (r *conversationRunClaimRepositoryStub) GetConversationByPublicIDOnly(_ context.Context, publicID string) (*model.Conversation, error) {
+	if r.conversation.PublicID != publicID {
+		return nil, repository.ErrNotFound
+	}
+	conversation := r.conversation
+	return &conversation, nil
+}
+
 func (r *conversationRunClaimRepositoryStub) ListLatestBranchPreviewMessages(context.Context, uint, int, int) ([]model.Message, error) {
 	return nil, nil
 }

@@ -13,7 +13,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SessionValidator 校验 access token 对应会话是否有效。
+// AccessSessionState 是 access token 会话校验后的运行时主体状态。
+type AccessSessionState struct {
+	Role                    string
+	InitialSecurityRequired bool
+}
+
+// SessionValidator 校验 access token 对应会话是否有效，并返回最新主体状态。
 type SessionValidator interface {
 	ValidateAccessSession(
 		ctx context.Context,
@@ -21,7 +27,7 @@ type SessionValidator interface {
 		sessionID string,
 		accessIssuedAt time.Time,
 		auditCtx requestmeta.SessionAuditContext,
-	) error
+	) (AccessSessionState, error)
 }
 
 // AuthMiddleware 校验 JWT 并写入用户上下文。
@@ -57,24 +63,80 @@ func AuthMiddleware(jwtSecret string, validator SessionValidator) gin.HandlerFun
 			c.Abort()
 			return
 		}
+		role := claims.Role
+		initialSecurityRequired := false
 		auditCtx := ResolveSessionAuditContext(c)
 		if validator != nil {
 			var issuedAt time.Time
 			if claims.IssuedAt != nil {
 				issuedAt = claims.IssuedAt.Time
 			}
-			if err = validator.ValidateAccessSession(c.Request.Context(), claims.UserID, claims.SessionID, issuedAt, auditCtx); err != nil {
+			state, validateErr := validator.ValidateAccessSession(c.Request.Context(), claims.UserID, claims.SessionID, issuedAt, auditCtx)
+			if validateErr != nil {
 				response.ErrorFrom(c, http.StatusUnauthorized, errSessionInvalid)
 				c.Abort()
 				return
 			}
+			if strings.TrimSpace(state.Role) != "" {
+				role = state.Role
+			}
+			initialSecurityRequired = state.InitialSecurityRequired
 		}
 
 		c.Set(ContextKeyUserID, claims.UserID)
 		c.Set(ContextKeyUsername, claims.Username)
-		c.Set(ContextKeyUserRole, claims.Role)
+		c.Set(ContextKeyUserRole, role)
 		c.Set(ContextKeySessionID, claims.SessionID)
+		c.Set(ContextKeyInitialSecurityRequired, initialSecurityRequired)
 		c.Next()
+	}
+}
+
+// InitialSecurityGate 在强制改密/初始引导完成前，仅放行安全完成所需接口。
+func InitialSecurityGate() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		required, _ := c.Get(ContextKeyInitialSecurityRequired)
+		if required != true {
+			c.Next()
+			return
+		}
+		if isInitialSecurityAllowedRoute(c) {
+			c.Next()
+			return
+		}
+		response.ErrorFrom(c, http.StatusForbidden, errInitialSecurityRequired)
+		c.Abort()
+	}
+}
+
+func isInitialSecurityAllowedRoute(c *gin.Context) bool {
+	route := normalizedRoutePath(c)
+	method := c.Request.Method
+	switch {
+	case method == http.MethodGet && route == "/me":
+		return true
+	case method == http.MethodPatch && (route == "/me" || route == "/me/username"):
+		return true
+	case method == http.MethodPost && route == "/me/onboarding/complete":
+		return true
+	case method == http.MethodPost && (route == "/auth/password/change/start" || route == "/auth/password/change/complete"):
+		return true
+	case method == http.MethodPost && strings.HasPrefix(route, "/me/email/"):
+		return true
+	case method == http.MethodGet && route == "/me/2fa":
+		return true
+	case method == http.MethodPost && strings.HasPrefix(route, "/me/2fa/"):
+		return true
+	case method == http.MethodDelete && route == "/me/2fa/setup":
+		return true
+	case method == http.MethodGet && route == "/auth/sessions":
+		return true
+	case method == http.MethodPut && route == "/auth/sessions/current/location":
+		return true
+	case method == http.MethodPost && (route == "/auth/logout" || route == "/auth/logout-all" || strings.HasPrefix(route, "/auth/sessions/")):
+		return true
+	default:
+		return false
 	}
 }
 

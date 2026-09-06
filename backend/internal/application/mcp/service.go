@@ -677,7 +677,31 @@ func parseHeadersJSON(raw string) (map[string]string, error) {
 		if headerKey == "" {
 			continue
 		}
+		if isForbiddenMCPRequestHeader(headerKey) {
+			return nil, fmt.Errorf("%w: forbidden header %q", ErrInvalidServerHeaders, headerKey)
+		}
 		result[headerKey] = strings.TrimSpace(item)
 	}
 	return result, nil
+}
+
+func isForbiddenMCPRequestHeader(name string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(name))
+	switch normalized {
+	case "host",
+		"content-length",
+		"transfer-encoding",
+		"connection",
+		"keep-alive",
+		"upgrade",
+		"te",
+		"trailer",
+		"proxy-connection",
+		"proxy-authorization",
+		"authorization",
+		"mcp-session-id":
+		return true
+	default:
+		return strings.HasPrefix(normalized, "proxy-")
+	}
 }

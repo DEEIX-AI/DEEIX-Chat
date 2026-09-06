@@ -18,6 +18,10 @@ export type ChatContextPolicy = {
 
 export type FeaturePolicy = {
   knowledgeBaseEnabled: boolean;
+  userApiKeysEnabled: boolean;
+  resourceSharingEnabled: boolean;
+  programmingModeEnabled: boolean;
+  programmingShellEnabled: boolean;
 };
 
 export async function getModelOptionPolicy(accessToken: string): Promise<ModelOptionPolicy> {

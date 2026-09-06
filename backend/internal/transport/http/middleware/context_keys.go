@@ -9,6 +9,8 @@ const (
 	ContextKeyUserRole = "ctx_user_role"
 	// ContextKeySessionID 当前登录会话ID。
 	ContextKeySessionID = "ctx_session_id"
+	// ContextKeyInitialSecurityRequired 当前用户是否仍需完成强制改密/初始安全引导。
+	ContextKeyInitialSecurityRequired = "ctx_initial_security_required"
 	// ContextKeyRequestID 请求追踪ID。
 	ContextKeyRequestID = "ctx_request_id"
 	// ContextKeyTraceID 分布式链路追踪 ID（对齐 OpenTelemetry TraceID 格式）。

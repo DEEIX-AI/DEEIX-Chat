@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -121,6 +122,33 @@ func TestRateLimitSkipsAdminUsers(t *testing.T) {
 	if len(limiter.sliding) != 0 {
 		t.Fatalf("expected no limiter call for admin, got %d", len(limiter.sliding))
 	}
+}
+
+func TestRateLimitFailsClosedOnLimiterError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	limiter := &errorRateLimiter{err: errors.New("redis unavailable")}
+	router := gin.New()
+	group := router.Group("/api/v1")
+	group.Use(testUserContext("user"))
+	group.Use(RateLimit(limiter, config.NewRuntime(config.Config{RateLimitEnabled: true, RateLimitRPM: 60})))
+	group.GET("/models", okHandler)
+
+	response := performRequest(router, http.MethodGet, "/api/v1/models")
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected limiter failure to fail closed, got %d", response.Code)
+	}
+}
+
+type errorRateLimiter struct {
+	err error
+}
+
+func (r *errorRateLimiter) AllowSlidingWindow(context.Context, string, int, time.Duration, time.Duration) (bool, error) {
+	return false, r.err
+}
+
+func (r *errorRateLimiter) AllowFixedWindow(context.Context, []string, int, time.Duration) (bool, error) {
+	return false, r.err
 }
 
 func TestRateLimitCanBeDisabled(t *testing.T) {

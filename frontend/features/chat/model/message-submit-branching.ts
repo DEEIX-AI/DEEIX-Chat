@@ -37,6 +37,7 @@ export type QueuedChatSubmission = BranchScope & {
   selectedSkills: SkillSummaryDTO[];
   selectedKnowledgeBaseIDs: string[];
   htmlVisualPromptEnabled: boolean;
+  programmingMode: boolean;
 };
 
 export function clearCancelSettlementTimer(active: ActiveStream) {

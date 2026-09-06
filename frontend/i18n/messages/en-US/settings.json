@@ -160,6 +160,24 @@
       "unknownLocation": "Unknown location",
       "unknownIP": "Unknown IP"
     },
+    "apiKeys": {
+      "title": "API keys",
+      "description": "Use these keys with this instance's OpenAI-compatible API (/v1/chat/completions). The secret is shown only once at creation.",
+      "nameLabel": "Name",
+      "namePlaceholder": "e.g. Cursor / scripts",
+      "create": "Create key",
+      "created": "API key created",
+      "createFailed": "Failed to create key",
+      "revoke": "Revoke",
+      "revoked": "Revoked",
+      "revokeFailed": "Failed to revoke key",
+      "loadFailed": "Failed to load keys",
+      "empty": "No API keys yet",
+      "plaintextHint": "Copy and store this secret now. You will not be able to view it again.",
+      "copied": "Copied",
+      "copyFailed": "Copy failed",
+      "statusRevoked": "revoked"
+    },
     "logoutAllDialog": {
       "title": "Sign out all active devices?",
       "description": "After confirmation, active sessions for this account in other browsers, desktop apps, or mobile devices will be invalidated. This device will return to the sign-in page too.",

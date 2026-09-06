@@ -14,6 +14,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	appcm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
+	domainacl "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/acl"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
@@ -65,9 +66,12 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		runID = "run_" + normalizePublicID(uuid.NewString())
 	}
 	startedAt := time.Now()
-	conversation, err := s.repo.GetConversationByUser(ctx, input.ConversationID, input.UserID)
+	conversation, err := s.repo.GetConversationByID(ctx, input.ConversationID)
 	if err != nil {
 		return nil, ErrConversationNotFound
+	}
+	if _, accessErr := s.resolveConversationAccess(ctx, input.UserID, conversation, domainacl.RoleEditor); accessErr != nil {
+		return nil, accessErr
 	}
 
 	normalizedBranchReason := normalizeBranchReason(input.BranchReason)

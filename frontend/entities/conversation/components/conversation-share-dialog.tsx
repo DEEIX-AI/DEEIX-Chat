@@ -18,6 +18,7 @@ import { SpinnerLabel } from "@/components/ui/spinner";
 import type { ConversationShareDTO } from "@/shared/api/conversation.types";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { useConversationShareDialog } from "@/entities/conversation/hooks/use-conversation-share-dialog";
+import { ConversationUserSharePanel } from "@/entities/conversation/components/conversation-user-share-panel";
 
 type ConversationShareDialogProps = {
   open: boolean;
@@ -103,6 +104,8 @@ export function ConversationShareDialog({
               </Button>
             </div>
           </div>
+
+          <ConversationUserSharePanel conversationPublicID={conversationPublicID} enabled={open} />
         </div>
 
         <DialogFooter>

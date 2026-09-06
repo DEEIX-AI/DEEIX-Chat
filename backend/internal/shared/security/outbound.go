@@ -160,7 +160,8 @@ func isDefaultHTTPPort(scheme string, port string) bool {
 	return (scheme == "http" && port == "80") || (scheme == "https" && port == "443")
 }
 
-// ValidateOutboundHTTPURL 校验外联 HTTP 地址；启用 SSRF 防护时仅允许策略授权的本机/内网目标，并始终阻断链路本地和元数据地址。
+// ValidateOutboundHTTPURL 校验外联 HTTP 地址。
+// 链路本地与云元数据目标始终拒绝；启用 SSRF 防护时进一步限制私网/回环，仅放行策略授权目标。
 func ValidateOutboundHTTPURL(raw string, policy OutboundPolicy) error {
 	value := strings.TrimSpace(raw)
 	parsed, err := url.Parse(value)
@@ -174,14 +175,20 @@ func ValidateOutboundHTTPURL(raw string, policy OutboundPolicy) error {
 	if scheme != "http" && scheme != "https" {
 		return fmt.Errorf("%w: unsupported scheme", ErrUnsafeOutboundURL)
 	}
+	host := normalizeURLHostname(parsed.Hostname())
+	if host == "" || strings.Contains(host, "%") || isNeverAllowedHostname(host) {
+		return fmt.Errorf("%w: unsafe host", ErrUnsafeOutboundURL)
+	}
+	if ip := net.ParseIP(host); ip != nil && isNeverAllowedIP(ip) {
+		return fmt.Errorf("%w: unsafe ip", ErrUnsafeOutboundURL)
+	}
 	if !policy.enforce {
 		return nil
 	}
-	host := normalizeURLHostname(parsed.Hostname())
-	if host == "" || strings.Contains(host, "%") || isNeverAllowedHostname(host) || (isUnsafeHostname(host) && !policy.allowsHost(host)) {
+	if isUnsafeHostname(host) && !policy.allowsHost(host) {
 		return fmt.Errorf("%w: unsafe host", ErrUnsafeOutboundURL)
 	}
-	if ip := net.ParseIP(host); ip != nil && (isNeverAllowedIP(ip) || (isPrivateOrLoopbackIP(ip) && !policy.allowsIP(ip))) {
+	if ip := net.ParseIP(host); ip != nil && isPrivateOrLoopbackIP(ip) && !policy.allowsIP(ip) {
 		return fmt.Errorf("%w: unsafe ip", ErrUnsafeOutboundURL)
 	}
 	return nil
@@ -228,6 +235,9 @@ type dialContextFunc func(context.Context, string, string) (net.Conn, error)
 func newOutboundDialContext(policy OutboundPolicy, lookupIPAddr lookupIPAddrFunc, dial dialContextFunc) func(context.Context, string, string) (net.Conn, error) {
 	return func(ctx context.Context, network string, address string) (net.Conn, error) {
 		if !policy.enforce {
+			if err := ensureDialTargetNotNeverAllowed(ctx, address, lookupIPAddr); err != nil {
+				return nil, err
+			}
 			return dial(ctx, network, address)
 		}
 		addresses, err := resolveSafeDialAddresses(ctx, network, address, policy, lookupIPAddr)
@@ -249,6 +259,40 @@ func newOutboundDialContext(policy OutboundPolicy, lookupIPAddr lookupIPAddrFunc
 		}
 		return nil, fmt.Errorf("%w: no dial address", ErrUnsafeOutboundURL)
 	}
+}
+
+// ensureDialTargetNotNeverAllowed 在未启用完整 SSRF 策略时仍阻断元数据与链路本地目标。
+func ensureDialTargetNotNeverAllowed(ctx context.Context, address string, lookupIPAddr lookupIPAddrFunc) error {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return fmt.Errorf("%w: invalid dial address", ErrUnsafeOutboundURL)
+	}
+	host = normalizeURLHostname(host)
+	if host == "" || strings.Contains(host, "%") || isNeverAllowedHostname(host) {
+		return fmt.Errorf("%w: unsafe host", ErrUnsafeOutboundURL)
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if isNeverAllowedIP(ip) {
+			return fmt.Errorf("%w: unsafe ip", ErrUnsafeOutboundURL)
+		}
+		return nil
+	}
+	records, err := lookupIPAddr(ctx, host)
+	if err != nil {
+		return fmt.Errorf("%w: resolve host: %w", ErrUnsafeOutboundURL, err)
+	}
+	if len(records) == 0 {
+		return fmt.Errorf("%w: no resolved ip", ErrUnsafeOutboundURL)
+	}
+	for _, record := range records {
+		if record.IP == nil {
+			continue
+		}
+		if isNeverAllowedIP(record.IP) {
+			return fmt.Errorf("%w: unsafe resolved ip", ErrUnsafeOutboundURL)
+		}
+	}
+	return nil
 }
 
 func resolveSafeDialAddresses(ctx context.Context, network string, address string, policy OutboundPolicy, lookupIPAddr lookupIPAddrFunc) ([]string, error) {

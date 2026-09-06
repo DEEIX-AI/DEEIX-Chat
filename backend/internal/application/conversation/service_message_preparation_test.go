@@ -35,6 +35,22 @@ func (r *rejectedMessageRepositoryStub) GetConversationByUser(_ context.Context,
 	return &item, nil
 }
 
+func (r *rejectedMessageRepositoryStub) GetConversationByID(_ context.Context, conversationID uint) (*model.Conversation, error) {
+	if r.conversation.ID != conversationID {
+		return nil, repository.ErrNotFound
+	}
+	item := r.conversation
+	return &item, nil
+}
+
+func (r *rejectedMessageRepositoryStub) GetConversationByPublicIDOnly(_ context.Context, publicID string) (*model.Conversation, error) {
+	if r.conversation.PublicID != publicID {
+		return nil, repository.ErrNotFound
+	}
+	item := r.conversation
+	return &item, nil
+}
+
 func (r *rejectedMessageRepositoryStub) ListLatestBranchPreviewMessages(context.Context, uint, int, int) ([]model.Message, error) {
 	return nil, nil
 }

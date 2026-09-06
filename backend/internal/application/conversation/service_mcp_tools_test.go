@@ -15,6 +15,9 @@ func TestInjectMCPToolGuidanceOnlyAddsPolicy(t *testing.T) {
 			Description: "搜索网页",
 			InputSchema: []byte(`{"type":"object","properties":{"query":{"type":"string"},"count":{"type":"number"}},"required":["query"]}`),
 		}},
+		mcpBindings: map[string]mcpToolCallBinding{
+			"bing_search": {ToolName: "bing_search", ServerName: "demo"},
+		},
 	}
 
 	result := injectMCPToolGuidance(messages, runtime, "")
@@ -38,6 +41,9 @@ func TestInjectMCPToolGuidanceUsesCustomPrompt(t *testing.T) {
 	messages := []llm.Message{{Role: "user", Content: "搜索 DEEIX Chat"}}
 	runtime := selectedToolRuntime{
 		definitions: []llm.ToolDefinition{{Name: "bing_search"}},
+		mcpBindings: map[string]mcpToolCallBinding{
+			"bing_search": {ToolName: "bing_search"},
+		},
 	}
 
 	result := injectMCPToolGuidance(messages, runtime, "Use MCP tools only after checking user intent.")

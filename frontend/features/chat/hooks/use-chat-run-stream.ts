@@ -74,6 +74,7 @@ export function useChatRunStream({
       selectedSkills,
       selectedKnowledgeBaseIDs,
       htmlVisualPromptEnabled,
+      programmingMode,
       parentMessagePublicID,
       sourceMessagePublicID,
       branchReason,
@@ -93,6 +94,7 @@ export function useChatRunStream({
       selectedSkills: SkillSummaryDTO[];
       selectedKnowledgeBaseIDs: string[];
       htmlVisualPromptEnabled: boolean;
+      programmingMode: boolean;
       parentMessagePublicID: string | null;
       sourceMessagePublicID: string | null;
       branchReason: "default" | "retry" | "edit";
@@ -249,6 +251,7 @@ export function useChatRunStream({
           skillIDs: selectedSkills.length > 0 ? selectedSkills.map((skill) => skill.id) : undefined,
           knowledgeBaseIDs: selectedKnowledgeBaseIDs,
           htmlVisualPrompt: htmlVisualPromptEnabled || undefined,
+          programmingMode: programmingMode || undefined,
         };
         completed = await streamConversationMessage(token, conversationID, chatPayload, streamOptions);
       } else if (submitTask === "video_generation") {

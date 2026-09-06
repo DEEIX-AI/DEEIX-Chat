@@ -434,7 +434,7 @@ func (s *knowledgeBaseRepositoryStub) RemoveKnowledgeBaseFile(context.Context, u
 	return nil
 }
 
-func (s *knowledgeBaseRepositoryStub) ResolveVisibleKnowledgeBaseFiles(context.Context, uint, []string) ([]domainknowledgebase.KnowledgeBase, []domainconversation.FileObject, error) {
+func (s *knowledgeBaseRepositoryStub) ResolveVisibleKnowledgeBaseFiles(context.Context, uint, []string, []string) ([]domainknowledgebase.KnowledgeBase, []domainconversation.FileObject, error) {
 	s.resolveCalls++
 	return nil, nil, nil
 }

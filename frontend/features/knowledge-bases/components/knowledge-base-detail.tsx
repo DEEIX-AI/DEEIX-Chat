@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import type { KnowledgeBaseDTO, KnowledgeBaseFileDTO } from "@/shared/api/knowledge-bases.types";
 import { formatBytes, resolveFileIcon } from "@/shared/lib/file-display";
 import { canManuallyVectorizeFile, isVectorIndexOutdated, resolveFileRetrievalBadge } from "@/shared/lib/file-processing";
+import { KnowledgeBaseUserSharePanel } from "@/features/knowledge-bases/components/knowledge-base-user-share-panel";
 
 type KnowledgeBaseDetailProps = {
   mode: KnowledgeBaseMode;
@@ -86,6 +87,11 @@ export function KnowledgeBaseDetail({
             onAddFiles={onAddFiles}
             onToggleEnabled={onToggleEnabled}
           />
+          {mode === "user" && selected.scope === "user" ? (
+            <div className="shrink-0 px-4 pb-2">
+              <KnowledgeBaseUserSharePanel knowledgeBasePublicID={selected.publicID} />
+            </div>
+          ) : null}
           {loading || files.length > 0 ? (
             <KnowledgeBaseFileList
               mode={mode}

@@ -357,6 +357,9 @@ func (s *Service) doLogin(
 				s.warn("lock_account_failed", zap.Uint("user_id", item.ID), zap.Error(lockErr))
 			}
 		}
+		if revokeErr := s.repo.RevokeAllSessions(ctx, item.ID, "login_lock"); revokeErr != nil {
+			s.warn("revoke_sessions_on_lock_failed", zap.Uint("user_id", item.ID), zap.Error(revokeErr))
+		}
 		return nil, ErrAccountLocked
 	}
 
@@ -369,6 +372,8 @@ func (s *Service) doLogin(
 		if updatedCredential.LockedUntil != nil && now.Before(*updatedCredential.LockedUntil) {
 			if lockErr := s.repo.UpdateUserStatus(ctx, item.ID, domainuser.StatusLocked); lockErr != nil {
 				s.warn("lock_account_failed", zap.Uint("user_id", item.ID), zap.Error(lockErr))
+			} else if revokeErr := s.repo.RevokeAllSessions(ctx, item.ID, "login_lock"); revokeErr != nil {
+				s.warn("revoke_sessions_on_lock_failed", zap.Uint("user_id", item.ID), zap.Error(revokeErr))
 			}
 			return nil, ErrAccountLocked
 		}
@@ -1292,31 +1297,52 @@ func (s *Service) LogoutAll(
 	return nil
 }
 
-// ValidateAccessSession 校验 access token 绑定会话有效性。
+// ValidateAccessSession 校验 access token 绑定会话与用户有效性，并返回最新角色与初始安全状态。
 func (s *Service) ValidateAccessSession(
 	ctx context.Context,
 	userID uint,
 	sessionID string,
 	accessIssuedAt time.Time,
 	auditCtx requestmeta.SessionAuditContext,
-) error {
+) (AccessSessionState, error) {
 	if userID == 0 || strings.TrimSpace(sessionID) == "" || accessIssuedAt.IsZero() {
-		return ErrSessionRevoked
+		return AccessSessionState{}, ErrSessionRevoked
 	}
 
 	session, err := s.repo.GetSessionByUserAndSessionID(ctx, userID, strings.TrimSpace(sessionID))
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			return ErrSessionRevoked
+			return AccessSessionState{}, ErrSessionRevoked
 		}
-		return err
+		return AccessSessionState{}, err
 	}
 	if session.RevokedAt != nil || time.Now().After(session.ExpiresAt) {
-		return ErrSessionRevoked
+		return AccessSessionState{}, ErrSessionRevoked
 	}
 	if accessIssuedAt.Add(accessTokenSessionClockSkew).Before(session.CreatedAt) {
-		return ErrSessionRevoked
+		return AccessSessionState{}, ErrSessionRevoked
 	}
+
+	userItem, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return AccessSessionState{}, ErrSessionRevoked
+		}
+		return AccessSessionState{}, err
+	}
+	if userItem.Status != domainuser.StatusActive {
+		return AccessSessionState{}, ErrSessionRevoked
+	}
+
+	credential, err := s.repo.GetCredentialByUserID(ctx, userID)
+	if err != nil && !errors.Is(err, repository.ErrNotFound) {
+		return AccessSessionState{}, err
+	}
+	mustResetPassword := false
+	if credential != nil {
+		mustResetPassword = credential.MustResetPassword || isBootstrapSuperAdminAdminCreatedPassword(*userItem, credential)
+	}
+	initialSecurityRequired := mustResetPassword || userItem.OnboardingCompletedAt == nil
 
 	now := time.Now()
 	normalizedAuditCtx := auditCtx.Normalize()
@@ -1324,11 +1350,14 @@ func (s *Service) ValidateAccessSession(
 	if shouldTouchSessionActivity(session, sessionSnapshot, now) {
 		includeGeo := sessionClientIPChanged(session, normalizedAuditCtx) || sessionAuditContextHasGeo(normalizedAuditCtx)
 		if err = s.repo.TouchSessionActivity(ctx, userID, strings.TrimSpace(sessionID), sessionActivityInputFromSnapshot(sessionSnapshot, now, includeGeo)); err != nil {
-			return err
+			return AccessSessionState{}, err
 		}
 	}
 
-	return nil
+	return AccessSessionState{
+		Role:                    userItem.Role,
+		InitialSecurityRequired: initialSecurityRequired,
+	}, nil
 }
 
 // ListCurrentActiveSessions 查询当前用户仍然有效的活跃会话。

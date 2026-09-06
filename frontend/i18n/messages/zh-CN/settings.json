@@ -160,6 +160,24 @@
       "unknownLocation": "未知地区",
       "unknownIP": "未知 IP"
     },
+    "apiKeys": {
+      "title": "API 密钥",
+      "description": "用于调用本实例 OpenAI 兼容接口（/v1/chat/completions）。明文仅在创建时显示一次。",
+      "nameLabel": "名称",
+      "namePlaceholder": "例如 Cursor / 脚本",
+      "create": "创建密钥",
+      "created": "API 密钥已创建",
+      "createFailed": "创建失败",
+      "revoke": "吊销",
+      "revoked": "已吊销",
+      "revokeFailed": "吊销失败",
+      "loadFailed": "加载失败",
+      "empty": "尚未创建 API 密钥",
+      "plaintextHint": "请立即复制并妥善保存，关闭后无法再次查看明文。",
+      "copied": "已复制",
+      "copyFailed": "复制失败",
+      "statusRevoked": "已吊销"
+    },
     "logoutAllDialog": {
       "title": "登出所有在线设备？",
       "description": "确认后，此账号在其他浏览器、桌面端或移动设备上的在线会话都会失效。当前设备也会回到登录页。",

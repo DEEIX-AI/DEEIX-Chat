@@ -93,11 +93,11 @@ func (c *Client) CallTool(ctx context.Context, cfg CallConfig, input CallInput) 
 	params := map[string]any{
 		"name":      toolName,
 		"arguments": args,
-		"_meta": map[string]any{
-			"user_id":         input.UserID,
-			"conversation_id": input.ConversationID,
-			"request_id":      strings.TrimSpace(input.RequestID),
-		},
+	}
+	if requestID := strings.TrimSpace(input.RequestID); requestID != "" {
+		params["_meta"] = map[string]any{
+			"request_id": requestID,
+		}
 	}
 	result, err := c.rpc(ctx, cfg, session, "tools/call", params, false)
 	if err != nil {
@@ -175,7 +175,7 @@ func (c *Client) rpcWithSession(
 	}
 	for key, value := range cfg.Headers {
 		headerKey := strings.TrimSpace(key)
-		if headerKey == "" {
+		if headerKey == "" || isForbiddenMCPHeader(headerKey) {
 			continue
 		}
 		req.Header.Set(headerKey, strings.TrimSpace(value))
@@ -399,5 +399,26 @@ func normalizeJSONNumber(value any) any {
 		return typed
 	default:
 		return value
+	}
+}
+
+func isForbiddenMCPHeader(name string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(name))
+	switch normalized {
+	case "host",
+		"content-length",
+		"transfer-encoding",
+		"connection",
+		"keep-alive",
+		"upgrade",
+		"te",
+		"trailer",
+		"proxy-connection",
+		"proxy-authorization",
+		"authorization",
+		"mcp-session-id":
+		return true
+	default:
+		return strings.HasPrefix(normalized, "proxy-")
 	}
 }

@@ -37,6 +37,7 @@ type ConversationResponse struct {
 	ShareID             string     `json:"shareID"`
 	SharedAt            *time.Time `json:"sharedAt" extensions:"x-nullable,!x-omitempty"`
 	LastShareAccessedAt *time.Time `json:"lastShareAccessedAt" extensions:"x-nullable,!x-omitempty"`
+	AccessRole          string     `json:"accessRole,omitempty"`
 	CreatedAt           time.Time  `json:"createdAt"`
 	UpdatedAt           time.Time  `json:"updatedAt"`
 }
@@ -123,6 +124,7 @@ func toConversationResponse(item *model.Conversation) ConversationResponse {
 		ShareID:             item.ShareID,
 		SharedAt:            item.SharedAt,
 		LastShareAccessedAt: item.LastShareAccessedAt,
+		AccessRole:          item.AccessRole,
 		CreatedAt:           item.CreatedAt,
 		UpdatedAt:           item.UpdatedAt,
 	}

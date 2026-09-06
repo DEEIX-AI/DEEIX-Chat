@@ -8,6 +8,7 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { AudioLines } from "@/components/animate-ui/icons/audio-lines";
+import { Binary } from "@/components/animate-ui/icons/binary";
 import { Blocks } from "@/components/animate-ui/icons/blocks";
 import { Crop } from "@/components/animate-ui/icons/crop";
 import { Link as LinkIcon } from "@/components/animate-ui/icons/link";
@@ -41,6 +42,7 @@ import { PlusIcon } from "@/components/ui/plus";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ChatKnowledgeBases } from "@/features/chat/components/sections/chat-knowledge-bases";
 import { ChatMCP } from "@/features/chat/components/sections/chat-mcp";
+import { ChatProgrammingMode } from "@/features/chat/components/sections/chat-programming-mode";
 import { ChatModelConfig } from "@/features/chat/components/sections/chat-model-config";
 import { ChatModelPicker } from "@/features/chat/components/sections/chat-model-picker";
 import { ChatMentionMenuPortal } from "@/features/chat/components/shared/chat-mention-menu";
@@ -117,6 +119,9 @@ type ChatInputProps = {
   defaultToolIDs: number[];
   queuedMessages: QueuedComposerMessage[];
   htmlVisualPromptEnabled: boolean;
+  programmingMode: boolean;
+  programmingModeAvailable?: boolean;
+  programmingShellEnabled?: boolean;
   maxSelectedTools: number;
   maxSelectedSkills: number;
   toolsLoading: boolean;
@@ -136,6 +141,7 @@ type ChatInputProps = {
   onSelectedKnowledgeBasesChange: (ids: string[]) => void;
   onDefaultToolsChange: (toolIDs: number[]) => void | Promise<void>;
   onHTMLVisualPromptChange: (enabled: boolean) => void;
+  onProgrammingModeChange?: (enabled: boolean) => void;
   onOptionsChange: React.Dispatch<React.SetStateAction<ConversationOptions>>;
   onOptionsReset: (defaults?: ConversationOptions) => void;
   onOptionsDefaultRestore: () => Promise<ConversationOptions | null>;
@@ -274,6 +280,9 @@ function ChatInputComponent({
   defaultToolIDs,
   queuedMessages,
   htmlVisualPromptEnabled,
+  programmingMode,
+  programmingModeAvailable = false,
+  programmingShellEnabled = false,
   maxSelectedTools,
   maxSelectedSkills,
   toolsLoading,
@@ -293,6 +302,7 @@ function ChatInputComponent({
   onSelectedKnowledgeBasesChange,
   onDefaultToolsChange,
   onHTMLVisualPromptChange,
+  onProgrammingModeChange = () => undefined,
   onOptionsChange,
   onOptionsReset,
   onOptionsDefaultRestore,
@@ -1065,6 +1075,15 @@ function ChatInputComponent({
                 />
               ) : null}
 
+              {programmingModeAvailable && !isMediaMode ? (
+                <ChatProgrammingMode
+                  enabled={programmingMode}
+                  shellEnabled={programmingShellEnabled}
+                  disabled={loading || uploading}
+                  onChange={onProgrammingModeChange}
+                />
+              ) : null}
+
               {showHTMLVisualPromptButton ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1222,6 +1241,23 @@ function ChatInputComponent({
           >
             <HatGlasses aria-hidden className="size-4 shrink-0" strokeWidth={1.7} />
             <span>{tChat("temporary.notice")}</span>
+          </motion.div>
+        ) : programmingMode ? (
+          <motion.div
+            key="programming-mode-notice"
+            role="status"
+            className="mx-auto flex w-fit max-w-[calc(100%-1rem)] items-center gap-2 overflow-hidden px-2 text-xs leading-5 text-muted-foreground"
+            initial={{ height: 0, marginTop: 0, opacity: 0 }}
+            animate={{ height: "auto", marginTop: 8, opacity: 1 }}
+            exit={{ height: 0, marginTop: 0, opacity: 0 }}
+            transition={TEMPORARY_NOTICE_TRANSITION}
+          >
+            <Binary aria-hidden size={16} strokeWidth={1.7} />
+            <span>
+              {programmingShellEnabled
+                ? tChat("programming.descriptionWithShell")
+                : tChat("programming.description")}
+            </span>
           </motion.div>
         ) : null}
       </AnimatePresence>

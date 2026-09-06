@@ -127,10 +127,13 @@ func TestValidateOutboundHTTPURLNeverAllowsMetadataTargets(t *testing.T) {
 	}
 }
 
-func TestValidateOutboundHTTPURLSkipsNetworkChecksWhenDisabled(t *testing.T) {
+func TestValidateOutboundHTTPURLSkipsPrivateChecksWhenDisabled(t *testing.T) {
 	policy := mustOutboundPolicy(t, false, nil, nil)
 	if err := ValidateOutboundHTTPURL("http://127.0.0.1:8080", policy); err != nil {
-		t.Fatalf("disabled policy should not enforce network checks: %v", err)
+		t.Fatalf("disabled policy should not enforce private network checks: %v", err)
+	}
+	if err := ValidateOutboundHTTPURL("http://169.254.169.254/latest/meta-data", policy); !errors.Is(err, ErrUnsafeOutboundURL) {
+		t.Fatalf("disabled policy must still block metadata targets, got %v", err)
 	}
 }
 
@@ -204,7 +207,7 @@ func TestOutboundDialerNeverAllowsMetadataResolution(t *testing.T) {
 	}
 }
 
-func TestOutboundDialerSkipsResolutionWhenPolicyIsNotEnforced(t *testing.T) {
+func TestOutboundDialerAllowsPrivateTargetsWhenPolicyIsNotEnforced(t *testing.T) {
 	resolveCalled := false
 	var dialAddress string
 	dialErr := errors.New("dial sentinel")
@@ -212,7 +215,7 @@ func TestOutboundDialerSkipsResolutionWhenPolicyIsNotEnforced(t *testing.T) {
 		mustOutboundPolicy(t, false, nil, nil),
 		func(context.Context, string) ([]net.IPAddr, error) {
 			resolveCalled = true
-			return nil, errors.New("resolve should not be called")
+			return []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, nil
 		},
 		func(_ context.Context, _ string, address string) (net.Conn, error) {
 			dialAddress = address
@@ -224,11 +227,31 @@ func TestOutboundDialerSkipsResolutionWhenPolicyIsNotEnforced(t *testing.T) {
 	if !errors.Is(err, dialErr) {
 		t.Fatalf("expected dial sentinel, got %v", err)
 	}
-	if resolveCalled {
-		t.Fatal("non-enforced policy should not resolve the target")
+	if !resolveCalled {
+		t.Fatal("non-enforced policy should still resolve hostnames to reject metadata answers")
 	}
 	if dialAddress != "localhost:8080" {
 		t.Fatalf("expected original address, got %q", dialAddress)
+	}
+}
+
+func TestOutboundDialerRejectsMetadataWhenPolicyIsNotEnforced(t *testing.T) {
+	dialCalled := false
+	dial := newOutboundDialContext(
+		mustOutboundPolicy(t, false, nil, nil),
+		lookupAddresses("169.254.169.254"),
+		func(context.Context, string, string) (net.Conn, error) {
+			dialCalled = true
+			return nil, errors.New("dial should not be called")
+		},
+	)
+
+	_, err := dial(context.Background(), "tcp", "169.254.169.254:80")
+	if !errors.Is(err, ErrUnsafeOutboundURL) {
+		t.Fatalf("expected metadata dial to be rejected, got %v", err)
+	}
+	if dialCalled {
+		t.Fatal("metadata target must be rejected before dialing")
 	}
 }
 

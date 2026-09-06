@@ -441,6 +441,10 @@ type Config struct {
 	ModelOptionDeniedPaths       string
 	// 知识库配置
 	KnowledgeBaseEnabled bool
+	// 用户网关 API Key / OpenAI 兼容接口
+	UserAPIKeysEnabled bool
+	// 会话/知识库用户级资源共享
+	ResourceSharingEnabled bool
 	// 存储配置
 	UserStorageQuotaBytes int64
 	MaxUploadFileBytes    int64
@@ -549,6 +553,15 @@ type Config struct {
 	MCPMaxLLMCallsPerRun          int
 	MCPMaxToolCallsPerRun         int
 	MCPToolPrompt                 string
+	// 编程模式：会话级沙箱工作区内的读写改与命令工具。
+	ProgrammingEnable              bool
+	ProgrammingShellEnable         bool
+	ProgrammingToolTimeoutSeconds  int
+	ProgrammingMaxFileBytes        int64
+	ProgrammingMaxLLMCallsPerRun   int
+	ProgrammingMaxToolCallsPerRun  int
+	ProgrammingMaxOutputChars      int
+	ProgrammingPrompt              string
 }
 
 // defaultYAMLPaths 固定读取仓库根目录的 config.yaml。
@@ -588,7 +601,7 @@ func Load() Config {
 		HTTPShutdownTimeoutSeconds:   envOrInt("HTTP_SHUTDOWN_TIMEOUT_SECONDS", yc.Server.ShutdownTimeoutSeconds, defaultHTTPShutdownTimeoutSeconds),
 		JWTSecret:                    envOr("JWT_SECRET", yc.Security.JWTSecret, defaultJWTSecret),
 		DataEncryptionKey:            envOr("DATA_ENCRYPTION_KEY", yc.Security.DataEncryptionKey, defaultDataEncryptionKey),
-		SSRFProtectionEnabled:        envOrBoolPtr("SSRF_PROTECTION_ENABLED", yc.Security.SSRFProtectionEnabled, false),
+		SSRFProtectionEnabled:        envOrBoolPtr("SSRF_PROTECTION_ENABLED", yc.Security.SSRFProtectionEnabled, true),
 		SSRFAllowedHosts:             envOr("SSRF_ALLOWED_HOSTS", yc.Security.SSRFAllowedHosts, ""),
 		SSRFAllowedCIDRs:             envOr("SSRF_ALLOWED_CIDRS", yc.Security.SSRFAllowedCIDRs, ""),
 		DatabaseDriver:               normalizeDatabaseDriver(envOr("DATABASE_DRIVER", yc.Database.Driver, "postgres")),
@@ -649,7 +662,7 @@ func Load() Config {
 		RefreshTokenTTLHours:              720,
 		LoginMaxFailures:                  5,
 		LoginLockMinutes:                  15,
-		RateLimitEnabled:                  false,
+		RateLimitEnabled:                  true,
 		RateLimitRPM:                      60,
 		PublicAuthRateLimitRPM:            30,
 		UsernameLoginEnabled:              true,
@@ -680,6 +693,8 @@ func Load() Config {
 		ModelOptionAllowedPaths:           DefaultModelOptionAllowedPathsJSON(),
 		ModelOptionDeniedPaths:            DefaultModelOptionDeniedPathsJSON(),
 		KnowledgeBaseEnabled:              true,
+		UserAPIKeysEnabled:                true,
+		ResourceSharingEnabled:            true,
 		UserStorageQuotaBytes:             104857600,
 		MaxUploadFileBytes:                20971520,
 		MaxMessageFiles:                   10,
@@ -777,6 +792,14 @@ func Load() Config {
 		MCPMaxLLMCallsPerRun:              5,
 		MCPMaxToolCallsPerRun:             8,
 		MCPToolPrompt:                     "",
+		ProgrammingEnable:                 true,
+		ProgrammingShellEnable:            false,
+		ProgrammingToolTimeoutSeconds:     30,
+		ProgrammingMaxFileBytes:           1_048_576,
+		ProgrammingMaxLLMCallsPerRun:      12,
+		ProgrammingMaxToolCallsPerRun:     32,
+		ProgrammingMaxOutputChars:         100_000,
+		ProgrammingPrompt:                 "",
 	}
 }
 
@@ -823,6 +846,12 @@ func (c Config) Validate() error {
 
 	if strings.TrimSpace(c.CORSAllowOrigin) == "" || strings.TrimSpace(c.CORSAllowOrigin) == "*" {
 		return errors.New("invalid production config: CORS_ALLOW_ORIGIN must be explicitly set (wildcard * is not allowed)")
+	}
+	if !c.SSRFProtectionEnabled {
+		return errors.New("invalid production config: SSRF_PROTECTION_ENABLED must be true")
+	}
+	if !c.RateLimitEnabled {
+		return errors.New("invalid production config: rate limiting must be enabled")
 	}
 	if err := validatePublicURL(c.PublicAPIBaseURL, "PUBLIC_API_BASE_URL"); err != nil {
 		return err

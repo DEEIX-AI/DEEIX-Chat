@@ -21,6 +21,8 @@ func Models() []any {
 		&model.UserIdentity{},
 		&model.UserTwoFactor{},
 		&model.TrustedDevice{},
+		&model.UserAPIKey{},
+		&model.ResourceACLEntry{},
 		&model.LLMUpstream{},
 		&model.LLMUpstreamModel{},
 		&model.LLMModelVendor{},

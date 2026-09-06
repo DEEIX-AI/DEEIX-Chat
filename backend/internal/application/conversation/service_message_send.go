@@ -10,6 +10,7 @@ import (
 	appcompact "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/compact"
 	appcm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
 	apprag "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/rag"
+	domainacl "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/acl"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
@@ -179,9 +180,12 @@ func (s *Service) sendMessageInternal(
 	}
 	var moderationCoord *appcm.RunCoordinator
 
-	conversation, err := s.repo.GetConversationByUser(ctx, input.ConversationID, input.UserID)
+	conversation, err := s.repo.GetConversationByID(ctx, input.ConversationID)
 	if err != nil {
 		return nil, ErrConversationNotFound
+	}
+	if _, accessErr := s.resolveConversationAccess(ctx, input.UserID, conversation, domainacl.RoleEditor); accessErr != nil {
+		return nil, accessErr
 	}
 
 	branchPreparation, err := s.prepareMessageSendBranch(ctx, &input)
@@ -221,7 +225,7 @@ func (s *Service) sendMessageInternal(
 		startedAt:    startedAt,
 		preferStream: preferStream,
 		onDelta:      onDelta,
-		maxLLMCalls:  s.resolveMaxLLMCallsPerRun(),
+		maxLLMCalls:  s.resolveMaxLLMCallsPerRunForMode(input.ProgrammingMode),
 		usage:        &messageUsageAccumulator{},
 	}
 	runState := newMessageSendRunState(s, input, conversation, startedAt, runID)
@@ -527,6 +531,8 @@ func (s *Service) sendMessageInternal(
 		retErr = err
 		return nil, err
 	}
+	toolRuntime = s.mergeProgrammingToolRuntime(toolRuntime, input.ProgrammingMode)
+	maxToolCallsPerRun := s.resolveMaxToolCallsPerRunForMode(input.ProgrammingMode)
 	imageAttachmentRoutingActive := toolRuntime.attachmentProcessor != nil
 	imageProcessing, err := s.processImageAttachments(ctx, imageAttachmentProcessingInput{
 		UserID:         input.UserID,
@@ -548,7 +554,7 @@ func (s *Service) sendMessageInternal(
 	}
 	if imageProcessing.Routed {
 		toolRuntime = toolRuntime.withoutAttachmentProcessor()
-		if len(toolCallRows) >= s.resolveMaxToolCallsPerRun() {
+		if len(toolCallRows) >= maxToolCallsPerRun {
 			toolRuntime = toolRuntime.withoutDefinitions()
 		}
 	}
@@ -822,7 +828,7 @@ func (s *Service) sendMessageInternal(
 		runner.usage.setObservedUsage(totalUsage)
 	}
 	totalServerSideToolUsage = addServerSideToolUsage(nil, upstreamOutput.ServerSideToolUsage)
-	remainingToolCalls := max(s.resolveMaxToolCallsPerRun()-len(imageProcessing.Rows), 0)
+	remainingToolCalls := max(s.resolveMaxToolCallsPerRunForMode(input.ProgrammingMode)-len(imageProcessing.Rows), 0)
 	llmCallCount := runner.llmRequestCount
 	toolLedger := newToolExecutionLedger()
 	toolHistoryTrimmedForRun := false
@@ -879,9 +885,11 @@ func (s *Service) sendMessageInternal(
 			TraceRecorder:     traceRecorder,
 			ToolNameMap:       toolRuntime.nameMap,
 			MCPBindings:       toolRuntime.mcpBindings,
+			BuiltinBindings:   toolRuntime.builtinBindings,
 			ToolSchemas:       toolRuntime.schemas,
 			Ledger:            toolLedger,
 			ResultTokenBudget: toolResultTokenBudget,
+			ProgrammingMode:   input.ProgrammingMode,
 		})
 		toolSpan.SetAttributes(
 			attribute.Int("conversation.tool.executed_count", len(toolResult.Rows)),

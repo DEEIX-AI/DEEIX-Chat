@@ -2,6 +2,7 @@
   "title": "工具",
   "sections": {
     "mcpTools": "MCP 工具",
+    "programmingMode": "编程模式",
     "servers": "MCP 服务",
     "tools": "MCP 工具"
   },
@@ -38,6 +39,38 @@
     "toolRetry": {
       "label": "MCP Tool 重试次数",
       "description": "MCP Tool Call 失败后的重试次数。默认 0。"
+    },
+    "programmingEnable": {
+      "label": "启用编程模式",
+      "description": "允许用户在对话中开启编程模式，在会话沙箱内读写改文件。"
+    },
+    "programmingShellEnable": {
+      "label": "允许执行命令",
+      "description": "开启后，编程模式可额外使用 run_command 在沙箱工作目录中执行 shell 命令。默认关闭。"
+    },
+    "programmingToolPrompt": {
+      "label": "编程模式提示词",
+      "description": "控制模型在编程模式下如何使用工具。留空使用内置默认提示词。"
+    },
+    "programmingMaxLLMCalls": {
+      "label": "编程模式最大 LLM 请求次数",
+      "description": "编程模式下单次运行允许的 LLM 请求总数。默认 12，最小 2。"
+    },
+    "programmingMaxToolCalls": {
+      "label": "编程模式最大工具调用次数",
+      "description": "编程模式下单次运行允许的工具调用总数。默认 32。"
+    },
+    "programmingToolTimeout": {
+      "label": "编程工具超时",
+      "description": "单次编程工具调用的最长等待时间，单位秒。默认 30。"
+    },
+    "programmingMaxFileBytes": {
+      "label": "单文件最大字节数",
+      "description": "编程模式读写单文件的最大字节数。默认 1048576（1MB）。"
+    },
+    "programmingMaxOutputChars": {
+      "label": "工具输出最大字符数",
+      "description": "单次编程工具返回内容的最大字符数。默认 100000。"
     }
   },
   "status": {

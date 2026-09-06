@@ -12,8 +12,10 @@ var (
 	errInvalidToken                = apperr.New("auth.invalid_token", "invalid token")
 	errInvalidTokenType            = apperr.New("auth.invalid_token", "invalid token type")
 	errSessionInvalid              = apperr.New("auth.session_invalid", "session invalid")
+	errInitialSecurityRequired     = apperr.New("auth.initial_security_required", "initial security setup is required")
 
 	errRateLimitExceeded        = apperr.New("rate_limit.exceeded", "rate limit exceeded")
 	errRefreshRateLimitExceeded = apperr.New("rate_limit.refresh_exceeded", "too many refresh attempts")
 	errAuthRateLimitExceeded    = apperr.New("rate_limit.authentication_exceeded", "too many authentication attempts")
+	errRateLimitUnavailable     = apperr.New("rate_limit.unavailable", "rate limiter unavailable")
 )

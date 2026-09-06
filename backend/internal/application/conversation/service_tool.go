@@ -50,7 +50,17 @@ func (s *Service) executeToolCall(ctx context.Context, input ExecuteToolInput) (
 }
 
 func (s *Service) resolveMaxToolCallsPerRun() int {
-	maxCalls := s.cfg.Snapshot().MCPMaxToolCallsPerRun
+	return s.resolveMaxToolCallsPerRunForMode(false)
+}
+
+func (s *Service) resolveMaxToolCallsPerRunForMode(programmingMode bool) int {
+	cfg := s.cfg.Snapshot()
+	maxCalls := cfg.MCPMaxToolCallsPerRun
+	if programmingMode && cfg.ProgrammingEnable {
+		if cfg.ProgrammingMaxToolCallsPerRun > maxCalls {
+			maxCalls = cfg.ProgrammingMaxToolCallsPerRun
+		}
+	}
 	if maxCalls <= 0 {
 		maxCalls = 8
 	}
@@ -80,7 +90,17 @@ func (s *Service) ValidateSelectedToolIDs(toolIDs []uint) error {
 }
 
 func (s *Service) resolveMaxLLMCallsPerRun() int {
-	maxCalls := s.cfg.Snapshot().MCPMaxLLMCallsPerRun
+	return s.resolveMaxLLMCallsPerRunForMode(false)
+}
+
+func (s *Service) resolveMaxLLMCallsPerRunForMode(programmingMode bool) int {
+	cfg := s.cfg.Snapshot()
+	maxCalls := cfg.MCPMaxLLMCallsPerRun
+	if programmingMode && cfg.ProgrammingEnable {
+		if cfg.ProgrammingMaxLLMCallsPerRun > maxCalls {
+			maxCalls = cfg.ProgrammingMaxLLMCallsPerRun
+		}
+	}
 	if maxCalls <= 0 {
 		maxCalls = 5
 	}

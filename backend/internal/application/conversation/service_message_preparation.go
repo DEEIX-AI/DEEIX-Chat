@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	domainacl "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/acl"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
@@ -191,9 +192,12 @@ func (s *Service) persistRejectedMessageSend(
 		return err
 	}
 
-	conversation, err := s.repo.GetConversationByUser(ctx, input.ConversationID, input.UserID)
+	conversation, err := s.repo.GetConversationByID(ctx, input.ConversationID)
 	if err != nil {
 		return ErrConversationNotFound
+	}
+	if _, accessErr := s.resolveConversationAccess(ctx, input.UserID, conversation, domainacl.RoleEditor); accessErr != nil {
+		return accessErr
 	}
 	preparation, err := s.prepareMessageSendBranch(ctx, &input)
 	if err != nil {

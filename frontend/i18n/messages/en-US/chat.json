@@ -29,6 +29,13 @@
     "failed": "Temporary message generation failed. Please try again.",
     "sessionExpired": "Your session has expired. Please sign in again."
   },
+  "programming": {
+    "title": "Programming mode",
+    "active": "Programming mode on",
+    "toggle": "Toggle programming mode",
+    "description": "When enabled, the model can read, write, edit, and search files in a per-chat sandbox.",
+    "descriptionWithShell": "When enabled, the model can read, write, edit, and search files, and run commands in a per-chat sandbox."
+  },
   "greeting": {
     "morning": "Good morning",
     "afternoon": "Good afternoon",

@@ -52,7 +52,7 @@ var settingSpecs = []settingSpec{
 		Validate: integerValue(), Apply: applyField(func(c *config.Config) *int { return &c.LoginMaxFailures }, toInt)},
 	{Namespace: "auth", Key: "login_lock_minutes", ValueType: "int", Default: "15", Description: "锁定时长(分钟)",
 		Validate: integerValue(), Apply: applyField(func(c *config.Config) *int { return &c.LoginLockMinutes }, toInt)},
-	{Namespace: "auth", Key: "rate_limit_enabled", ValueType: "bool", Default: "false", Description: "是否启用平台 HTTP 429 限流",
+	{Namespace: "auth", Key: "rate_limit_enabled", ValueType: "bool", Default: "true", Description: "是否启用平台 HTTP 429 限流",
 		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.RateLimitEnabled }, toBool)},
 	{Namespace: "auth", Key: "rate_limit_rpm", ValueType: "int", Default: "60", Description: "全局限流 RPM",
 		Validate: intRange(1, 100000), Apply: applyField(func(c *config.Config) *int { return &c.RateLimitRPM }, toInt)},
@@ -160,6 +160,14 @@ var settingSpecs = []settingSpec{
 	// 知识库配置
 	{Namespace: "knowledgebase", Key: "enabled", ValueType: "bool", Default: "true", Description: "是否启用知识库功能；关闭后隐藏用户侧入口并拒绝知识库请求",
 		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.KnowledgeBaseEnabled }, toBool)},
+
+	// 用户 API Key / OpenAI 兼容网关
+	{Namespace: "auth", Key: "user_api_keys_enabled", ValueType: "bool", Default: "true", Description: "是否启用用户 API Key 与 OpenAI 兼容网关",
+		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.UserAPIKeysEnabled }, toBool)},
+
+	// 资源共享（会话/知识库 ACL）
+	{Namespace: "collaboration", Key: "resource_sharing_enabled", ValueType: "bool", Default: "true", Description: "是否启用会话与知识库的用户级共享 ACL",
+		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.ResourceSharingEnabled }, toBool)},
 
 	// 存储配置
 	{Namespace: "storage", Key: "user_storage_quota_bytes", ValueType: "int", Default: "104857600", Description: "用户总存储配额（管理页面按 MB 输入，内部以字节保存），0表示不限制",
@@ -374,6 +382,24 @@ var settingSpecs = []settingSpec{
 		Validate: intRange(1, 64), Apply: applyField(func(c *config.Config) *int { return &c.MCPMaxToolCallsPerRun }, toInt)},
 	{Namespace: "mcp", Key: "mcp_tool_prompt", ValueType: "string", Default: "", Description: "MCP Tool 调用提示词；空串使用内置默认值",
 		Validate: maxLength(20000), Apply: applyField(func(c *config.Config) *string { return &c.MCPToolPrompt }, rawText)},
+
+	// 编程模式配置
+	{Namespace: "programming", Key: "programming_enable", ValueType: "bool", Default: "true", Description: "启用编程模式（会话沙箱内读写改文件）",
+		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.ProgrammingEnable }, toBool)},
+	{Namespace: "programming", Key: "programming_shell_enable", ValueType: "bool", Default: "false", Description: "允许编程模式下执行 shell 命令",
+		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.ProgrammingShellEnable }, toBool)},
+	{Namespace: "programming", Key: "programming_tool_timeout_seconds", ValueType: "int", Default: "30", Description: "编程工具单次调用超时(秒)",
+		Validate: intRange(1, 300), Apply: applyField(func(c *config.Config) *int { return &c.ProgrammingToolTimeoutSeconds }, toInt)},
+	{Namespace: "programming", Key: "programming_max_file_bytes", ValueType: "int", Default: "1048576", Description: "编程模式单文件读写最大字节数",
+		Validate: intRange(1024, 50*1024*1024), Apply: applyField(func(c *config.Config) *int64 { return &c.ProgrammingMaxFileBytes }, toInt64)},
+	{Namespace: "programming", Key: "programming_max_llm_calls_per_run", ValueType: "int", Default: "12", Description: "编程模式单次运行最大 LLM 请求次数",
+		Validate: intRange(2, 32), Apply: applyField(func(c *config.Config) *int { return &c.ProgrammingMaxLLMCallsPerRun }, toInt)},
+	{Namespace: "programming", Key: "programming_max_tool_calls_per_run", ValueType: "int", Default: "32", Description: "编程模式单次运行最大工具调用次数",
+		Validate: intRange(1, 64), Apply: applyField(func(c *config.Config) *int { return &c.ProgrammingMaxToolCallsPerRun }, toInt)},
+	{Namespace: "programming", Key: "programming_max_output_chars", ValueType: "int", Default: "100000", Description: "编程工具单次输出最大字符数",
+		Validate: intRange(1000, 2_000_000), Apply: applyField(func(c *config.Config) *int { return &c.ProgrammingMaxOutputChars }, toInt)},
+	{Namespace: "programming", Key: "programming_tool_prompt", ValueType: "string", Default: "", Description: "编程模式工具提示词；空串使用内置默认值",
+		Validate: maxLength(20000), Apply: applyField(func(c *config.Config) *string { return &c.ProgrammingPrompt }, rawText)},
 
 	// 熔断配置：由渠道模块在运行时按 namespace 读取，不进入 config.Config。
 	{Namespace: "circuit", Key: "channel_failure_threshold", ValueType: "int", Default: "3", Description: "熔断触发次数",

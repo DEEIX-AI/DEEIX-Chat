@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -10,9 +11,33 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/requestmeta"
 )
 
+func (r *validateAccessSessionRepo) GetByID(_ context.Context, userID uint) (*domainuser.User, error) {
+	if r.user != nil {
+		if r.user.ID != userID {
+			return nil, repository.ErrNotFound
+		}
+		return r.user, nil
+	}
+	return &domainuser.User{
+		ID:                    userID,
+		Role:                  domainuser.RoleUser,
+		Status:                domainuser.StatusActive,
+		OnboardingCompletedAt: ptrTime(time.Now()),
+	}, nil
+}
+
+func (r *validateAccessSessionRepo) GetCredentialByUserID(_ context.Context, userID uint) (*domainuser.Credential, error) {
+	if r.credential != nil {
+		return r.credential, nil
+	}
+	return &domainuser.Credential{UserID: userID, MustResetPassword: false}, nil
+}
+
 type validateAccessSessionRepo struct {
 	repository.AuthRepository
 	session     *domainuser.Session
+	user        *domainuser.User
+	credential  *domainuser.Credential
 	touchInputs []repository.UpdateSessionActivityInput
 }
 
@@ -134,6 +159,77 @@ func ptrTime(value time.Time) *time.Time {
 	return &value
 }
 
+func TestValidateAccessSessionRejectsInactiveUser(t *testing.T) {
+	now := time.Now()
+	createdAt := now.Add(-30 * time.Minute)
+	repo := &validateAccessSessionRepo{
+		session: &domainuser.Session{
+			SessionID: "session-id",
+			UserID:    1,
+			CreatedAt: createdAt,
+			ExpiresAt: now.Add(24 * time.Hour),
+		},
+		user: &domainuser.User{
+			ID:                    1,
+			Role:                  domainuser.RoleUser,
+			Status:                domainuser.StatusLocked,
+			OnboardingCompletedAt: ptrTime(now),
+		},
+	}
+	service := &Service{repo: repo}
+
+	_, err := service.ValidateAccessSession(
+		context.Background(),
+		1,
+		"session-id",
+		createdAt.Add(5*time.Minute),
+		requestmeta.SessionAuditContext{},
+	)
+	if !errors.Is(err, ErrSessionRevoked) {
+		t.Fatalf("expected locked user session to be rejected, got %v", err)
+	}
+}
+
+func TestValidateAccessSessionReportsInitialSecurityRequired(t *testing.T) {
+	now := time.Now()
+	createdAt := now.Add(-30 * time.Minute)
+	repo := &validateAccessSessionRepo{
+		session: &domainuser.Session{
+			SessionID: "session-id",
+			UserID:    1,
+			CreatedAt: createdAt,
+			ExpiresAt: now.Add(24 * time.Hour),
+		},
+		user: &domainuser.User{
+			ID:     1,
+			Role:   domainuser.RoleAdmin,
+			Status: domainuser.StatusActive,
+		},
+		credential: &domainuser.Credential{
+			UserID:            1,
+			MustResetPassword: true,
+		},
+	}
+	service := &Service{repo: repo}
+
+	state, err := service.ValidateAccessSession(
+		context.Background(),
+		1,
+		"session-id",
+		createdAt.Add(5*time.Minute),
+		requestmeta.SessionAuditContext{},
+	)
+	if err != nil {
+		t.Fatalf("expected session validation to succeed, got %v", err)
+	}
+	if state.Role != domainuser.RoleAdmin {
+		t.Fatalf("expected DB role, got %q", state.Role)
+	}
+	if !state.InitialSecurityRequired {
+		t.Fatal("expected initial security required when must reset password")
+	}
+}
+
 func TestValidateAccessSessionAllowsTokenIssuedBeforeLatestRefresh(t *testing.T) {
 	now := time.Now()
 	createdAt := now.Add(-30 * time.Minute)
@@ -152,7 +248,7 @@ func TestValidateAccessSessionAllowsTokenIssuedBeforeLatestRefresh(t *testing.T)
 		},
 	}
 
-	err := service.ValidateAccessSession(
+	_, err := service.ValidateAccessSession(
 		context.Background(),
 		1,
 		"session-id",
@@ -180,7 +276,7 @@ func TestValidateAccessSessionRejectsTokenBeforeSessionCreation(t *testing.T) {
 		},
 	}
 
-	err := service.ValidateAccessSession(
+	_, err := service.ValidateAccessSession(
 		context.Background(),
 		1,
 		"session-id",
@@ -201,7 +297,7 @@ func TestValidateAccessSessionDoesNotOverwriteStoredGeoForSameIP(t *testing.T) {
 	resolver := &validateAccessSessionGeoResolver{}
 	service := &Service{repo: repo, geoResolver: resolver}
 
-	err := service.ValidateAccessSession(
+	_, err := service.ValidateAccessSession(
 		context.Background(),
 		1,
 		"session-id",
@@ -231,7 +327,7 @@ func TestValidateAccessSessionUpdatesExplicitGeoForSameIP(t *testing.T) {
 	repo := &validateAccessSessionRepo{session: session}
 	service := &Service{repo: repo}
 
-	err := service.ValidateAccessSession(
+	_, err := service.ValidateAccessSession(
 		context.Background(),
 		1,
 		"session-id",
@@ -267,7 +363,7 @@ func TestValidateAccessSessionInvalidatesGeoWhenClientIPChanges(t *testing.T) {
 	resolver := &validateAccessSessionGeoResolver{}
 	service := &Service{repo: repo, geoResolver: resolver}
 
-	err := service.ValidateAccessSession(
+	_, err := service.ValidateAccessSession(
 		context.Background(),
 		1,
 		"session-id",

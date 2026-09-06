@@ -60,6 +60,7 @@ type TemporaryChatRuntimeInput = {
   selectedSkillIDs: number[];
   selectedKnowledgeBaseIDs: string[];
   htmlVisualPromptEnabled: boolean;
+  programmingMode: boolean;
   attachments: PendingAttachment[];
   onDraftChange: (value: string) => void;
   onAttachmentsConsumed: (items: PendingAttachment[]) => void;
@@ -169,6 +170,7 @@ export function useChatTemporaryRuntime({
   selectedSkillIDs,
   selectedKnowledgeBaseIDs,
   htmlVisualPromptEnabled,
+  programmingMode,
   attachments,
   onDraftChange,
   onAttachmentsConsumed,
@@ -406,6 +408,7 @@ export function useChatTemporaryRuntime({
           skillIDs: selectedSkillIDs.length > 0 ? selectedSkillIDs : undefined,
           knowledgeBaseIDs: selectedKnowledgeBaseIDs.length > 0 ? selectedKnowledgeBaseIDs : undefined,
           htmlVisualPrompt: htmlVisualPromptEnabled || undefined,
+          programmingMode: programmingMode || undefined,
           messages: preparedRequest.messages,
         },
         {
@@ -529,6 +532,7 @@ export function useChatTemporaryRuntime({
     active,
     finishSending,
     htmlVisualPromptEnabled,
+    programmingMode,
     model,
     onAttachmentsConsumed,
     onDraftChange,

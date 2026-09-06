@@ -37,6 +37,7 @@ export type ChatSubmissionPlan = {
   selectedSkills: SkillSummaryDTO[];
   selectedKnowledgeBaseIDs: string[];
   htmlVisualPromptEnabled: boolean;
+  programmingMode: boolean;
   sanitizedOptions: ConversationOptions;
   submitTask: ChatSubmitTask;
   branchReason: ChatSubmissionBranchReason;
@@ -78,6 +79,7 @@ export function planChatSubmission(input: {
   selectedSkills: SkillSummaryDTO[];
   selectedKnowledgeBaseIDs: string[];
   htmlVisualPromptEnabled: boolean;
+  programmingMode: boolean;
   visibleConversationScopeKey: string;
   visibleBranchScopePath: readonly string[];
   visibleMessages: ChatAreaMessage[];
@@ -92,6 +94,7 @@ export function planChatSubmission(input: {
   const selectedSkills = queuedSubmission?.selectedSkills ?? input.selectedSkills;
   const selectedKnowledgeBaseIDs = queuedSubmission?.selectedKnowledgeBaseIDs ?? input.selectedKnowledgeBaseIDs;
   const htmlVisualPromptEnabled = queuedSubmission?.htmlVisualPromptEnabled ?? input.htmlVisualPromptEnabled;
+  const programmingMode = queuedSubmission?.programmingMode ?? input.programmingMode;
   const targetConversationScopeKey = queuedSubmission?.conversationScopeKey ?? input.visibleConversationScopeKey;
   const resolvedParentPublicID = resolvePersistedPublicID(input.parentMessagePublicID);
   const targetBranchScopePath =
@@ -206,6 +209,7 @@ export function planChatSubmission(input: {
       selectedSkills,
       selectedKnowledgeBaseIDs,
       htmlVisualPromptEnabled,
+      programmingMode,
       sanitizedOptions,
       submitTask,
       branchReason,

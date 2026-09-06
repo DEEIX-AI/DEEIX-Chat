@@ -61,14 +61,15 @@ type ConversationMetadataPatch struct {
 
 // ConversationListInput 描述用户会话列表的分页与筛选条件。
 type ConversationListInput struct {
-	UserID        uint
-	Offset        int
-	Limit         int
-	StatusFilter  string
-	StarredFilter string
-	ShareFilter   string
-	ProjectFilter string
-	SearchQuery   string
+	UserID           uint
+	Offset           int
+	Limit            int
+	StatusFilter     string
+	StarredFilter    string
+	ShareFilter      string
+	ProjectFilter    string
+	SearchQuery      string
+	SharedPublicIDs  []string // ACL 共享给当前用户的会话公开 ID；与本人会话一并列出
 }
 
 // DeleteConversationProjectOptions controls which project-owned records are removed.
@@ -83,7 +84,9 @@ type ConversationMetadataRepository interface {
 	ListConversationsByUser(ctx context.Context, input ConversationListInput) ([]domainconversation.Conversation, int64, error)
 	ListConversationsForSearch(ctx context.Context, userID uint, offset int, limit int, searchQuery string) ([]domainconversation.Conversation, error)
 	GetConversationByUser(ctx context.Context, conversationID uint, userID uint) (*domainconversation.Conversation, error)
+	GetConversationByID(ctx context.Context, conversationID uint) (*domainconversation.Conversation, error)
 	GetConversationByPublicID(ctx context.Context, publicID string, userID uint) (*domainconversation.Conversation, error)
+	GetConversationByPublicIDOnly(ctx context.Context, publicID string) (*domainconversation.Conversation, error)
 	CreateConversationProject(ctx context.Context, item *domainconversation.ConversationProject) error
 	ListConversationProjects(ctx context.Context, userID uint, statusFilter string) ([]domainconversation.ConversationProject, error)
 	GetConversationProjectByPublicID(ctx context.Context, userID uint, publicID string) (*domainconversation.ConversationProject, error)

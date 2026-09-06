@@ -57,7 +57,12 @@ func RateLimit(limiter RateLimiter, runtime *config.Runtime) gin.HandlerFunc {
 		policy := authenticatedRateLimitPolicy(c, authenticatedRateLimitRPM(runtime))
 		key := fmt.Sprintf("ratelimit:user:%v:%s", userID, policy.Name)
 		allowed, err := limiter.AllowSlidingWindow(c.Request.Context(), key, policy.Limit, policy.Window, policy.TTL)
-		if err != nil || allowed {
+		if err != nil {
+			response.ErrorFrom(c, http.StatusServiceUnavailable, errRateLimitUnavailable)
+			c.Abort()
+			return
+		}
+		if allowed {
 			c.Next()
 			return
 		}
@@ -85,7 +90,12 @@ func PublicAuthRateLimit(limiter RateLimiter, runtime *config.Runtime) gin.Handl
 		}
 
 		allowed, err := limiter.AllowFixedWindow(c.Request.Context(), []string{key}, policy.Limit, policy.TTL)
-		if err != nil || allowed {
+		if err != nil {
+			response.ErrorFrom(c, http.StatusServiceUnavailable, errRateLimitUnavailable)
+			c.Abort()
+			return
+		}
+		if allowed {
 			c.Next()
 			return
 		}

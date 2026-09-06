@@ -125,7 +125,7 @@ func changedConfigFields(cfg config.Config) []string {
 }
 
 func TestSettingRegistryDerivedViews(t *testing.T) {
-	for _, namespace := range []string{"auth", "billing", "chat", "storage", "file", "extract", "mcp", "circuit", "knowledgebase"} {
+	for _, namespace := range []string{"auth", "billing", "chat", "storage", "file", "extract", "mcp", "circuit", "knowledgebase", "collaboration"} {
 		if !IsValidNamespace(namespace) {
 			t.Fatalf("expected namespace %q to be valid", namespace)
 		}

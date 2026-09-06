@@ -213,6 +213,7 @@ export type MessageFeedbackResult = Omit<MessageFeedbackResponse, "myFeedback"> 
 
 export type SendMessageRequest = Omit<ContractSendMessageRequest, "options"> & {
   options?: ConversationOptions;
+  programmingMode?: boolean;
 };
 
 export type MediaImageRequest = {
@@ -256,6 +257,7 @@ export type TemporaryChatHistoryMessage = Omit<ContractTemporaryChatHistoryMessa
 export type TemporaryChatMessageRequest = Omit<ContractTemporaryChatMessageRequest, "messages" | "options"> & {
   options?: ConversationOptions;
   messages: TemporaryChatHistoryMessage[];
+  programmingMode?: boolean;
 };
 
 export type StreamMessageEvent =

@@ -50,7 +50,7 @@ func parseAllowedOrigins(raw string) []string {
 		results = append(results, value)
 	}
 	if len(results) == 0 {
-		return []string{"*"}
+		return nil
 	}
 	return results
 }
@@ -60,9 +60,6 @@ func matchAllowedOrigin(origin string, allowed []string) string {
 		return ""
 	}
 	for _, item := range allowed {
-		if item == "*" {
-			return origin
-		}
 		if strings.EqualFold(origin, item) {
 			return item
 		}

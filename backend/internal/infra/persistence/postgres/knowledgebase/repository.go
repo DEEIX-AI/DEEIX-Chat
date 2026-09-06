@@ -452,15 +452,22 @@ func (r *Repo) RemoveKnowledgeBaseFile(ctx context.Context, knowledgeBaseID uint
 }
 
 // ResolveVisibleKnowledgeBaseFiles 解析当前用户可使用的知识库与文件。
-func (r *Repo) ResolveVisibleKnowledgeBaseFiles(ctx context.Context, userID uint, publicIDs []string) ([]domainknowledgebase.KnowledgeBase, []domainconversation.FileObject, error) {
+func (r *Repo) ResolveVisibleKnowledgeBaseFiles(ctx context.Context, userID uint, publicIDs []string, sharedPublicIDs []string) ([]domainknowledgebase.KnowledgeBase, []domainconversation.FileObject, error) {
 	if userID == 0 || len(publicIDs) == 0 {
 		return nil, nil, repository.ErrInvalidInput
 	}
 	bases := make([]model.KnowledgeBase, 0, len(publicIDs))
-	if err := r.db.WithContext(ctx).
-		Where("public_id IN ? AND enabled = ?", publicIDs, true).
-		Where("scope = ? OR (scope = ? AND owner_user_id = ?)", domainknowledgebase.ScopeBuiltin, domainknowledgebase.ScopeUser, userID).
-		Find(&bases).Error; err != nil {
+	query := r.db.WithContext(ctx).
+		Where("public_id IN ? AND enabled = ?", publicIDs, true)
+	if len(sharedPublicIDs) > 0 {
+		query = query.Where(
+			"scope = ? OR (scope = ? AND owner_user_id = ?) OR public_id IN ?",
+			domainknowledgebase.ScopeBuiltin, domainknowledgebase.ScopeUser, userID, sharedPublicIDs,
+		)
+	} else {
+		query = query.Where("scope = ? OR (scope = ? AND owner_user_id = ?)", domainknowledgebase.ScopeBuiltin, domainknowledgebase.ScopeUser, userID)
+	}
+	if err := query.Find(&bases).Error; err != nil {
 		return nil, nil, dberror.Translate(err)
 	}
 	if len(bases) != len(publicIDs) {
@@ -546,8 +553,17 @@ func applyListFilter(query *gorm.DB, filter repository.KnowledgeBaseListFilter) 
 		query = query.Where("public_id IN ?", filter.PublicIDs)
 	}
 	if filter.VisibleUserID != nil {
-		query = query.Where("(scope = ? AND enabled = ?) OR (scope = ? AND owner_user_id = ? AND enabled = ?)",
-			domainknowledgebase.ScopeBuiltin, true, domainknowledgebase.ScopeUser, *filter.VisibleUserID, true)
+		if len(filter.SharedPublicIDs) > 0 {
+			query = query.Where(
+				"(scope = ? AND enabled = ?) OR (scope = ? AND owner_user_id = ? AND enabled = ?) OR (public_id IN ? AND enabled = ?)",
+				domainknowledgebase.ScopeBuiltin, true,
+				domainknowledgebase.ScopeUser, *filter.VisibleUserID, true,
+				filter.SharedPublicIDs, true,
+			)
+		} else {
+			query = query.Where("(scope = ? AND enabled = ?) OR (scope = ? AND owner_user_id = ? AND enabled = ?)",
+				domainknowledgebase.ScopeBuiltin, true, domainknowledgebase.ScopeUser, *filter.VisibleUserID, true)
+		}
 	} else {
 		if scope := strings.TrimSpace(filter.Scope); scope != "" {
 			query = query.Where("scope = ?", scope)

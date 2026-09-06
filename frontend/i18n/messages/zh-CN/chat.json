@@ -29,6 +29,13 @@
     "failed": "临时消息生成失败，请重试",
     "sessionExpired": "登录状态已失效，请重新登录"
   },
+  "programming": {
+    "title": "编程模式",
+    "active": "编程模式已开启",
+    "toggle": "切换编程模式",
+    "description": "启用后可在会话沙箱中读写改文件、搜索与列举目录。",
+    "descriptionWithShell": "启用后可在会话沙箱中读写改文件，并执行命令。"
+  },
   "greeting": {
     "morning": "上午好",
     "afternoon": "下午好",

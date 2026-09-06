@@ -47,8 +47,10 @@ import { useChatRuntime } from "@/features/chat/hooks/use-chat-runtime";
 import { useChatScreenshot } from "@/features/chat/hooks/use-chat-screenshot";
 import { useChatViewerProfile } from "@/features/chat/hooks/use-chat-viewer-profile";
 import { useChatVisualPrompt } from "@/features/chat/hooks/use-chat-visual-prompt";
+import { useChatProgrammingMode } from "@/features/chat/hooks/use-chat-programming-mode";
 import { useChatConversationDefaults } from "@/features/chat/hooks/use-chat-conversation-defaults";
 import { useChatTemporaryRuntime } from "@/features/chat/hooks/use-chat-temporary-runtime";
+import { useFeaturePolicy } from "@/shared/hooks/use-feature-policy";
 import { filterAvailableMCPToolIDs } from "@/features/chat/model/chat-mcp-tool-defaults";
 import type { ChatAreaMessage, } from "@/features/chat/types/messages";
 import { useSettingsChatPreferences } from "@/features/settings";
@@ -405,6 +407,8 @@ export function AppChatArea() {
     applySelectedToolsChange(nextToolIDs);
   }, [applySelectedToolsChange, availableTools, t]);
   const htmlVisualPrompt = useChatVisualPrompt();
+  const programmingMode = useChatProgrammingMode();
+  const { programmingModeEnabled, programmingShellEnabled } = useFeaturePolicy();
 
   const {
     uploading,
@@ -462,6 +466,7 @@ export function AppChatArea() {
     selectedSkills,
     selectedKnowledgeBaseIDs,
     htmlVisualPromptEnabled: htmlVisualPrompt.enabled,
+    programmingMode: programmingModeEnabled && programmingMode.enabled,
     options: modelOptionPolicyDisabled ? EMPTY_CONVERSATION_OPTIONS : options,
     draft,
     attachments,
@@ -666,6 +671,7 @@ export function AppChatArea() {
     selectedSkillIDs: temporarySelectedSkillIDs,
     selectedKnowledgeBaseIDs,
     htmlVisualPromptEnabled: htmlVisualPrompt.enabled,
+    programmingMode: programmingModeEnabled && programmingMode.enabled,
     attachments,
     onDraftChange: setDraft,
     onAttachmentsConsumed: onTemporaryAttachmentsConsumed,
@@ -727,6 +733,9 @@ export function AppChatArea() {
     defaultToolIDs,
     queuedMessages: temporaryMode ? EMPTY_LIST : queuedMessages,
     htmlVisualPromptEnabled: htmlVisualPrompt.enabled,
+    programmingMode: programmingModeEnabled && programmingMode.enabled,
+    programmingModeAvailable: programmingModeEnabled,
+    programmingShellEnabled,
     maxSelectedTools: mcpMaxSelectedTools,
     toolsLoading,
     options: effectiveOptions,
@@ -745,6 +754,7 @@ export function AppChatArea() {
     onSelectedKnowledgeBasesChange,
     onDefaultToolsChange: onDefaultToolIDsChange,
     onHTMLVisualPromptChange: htmlVisualPrompt.setEnabled,
+    onProgrammingModeChange: programmingMode.setEnabled,
     onOptionsChange: setModelOptions,
     onOptionsReset: resetModelOptions,
     onOptionsDefaultRestore: restoreBackendDefaultModelOptions,

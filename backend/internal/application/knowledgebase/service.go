@@ -34,6 +34,7 @@ type Service struct {
 	fileUploader fileUploader
 	fileEmbedder fileEmbeddingSubmitter
 	logger       *zap.Logger
+	acl          resourceACL
 }
 
 type auditWriter interface {
@@ -184,8 +185,13 @@ func (s *Service) ListVisible(ctx context.Context, userID uint, input ListInput)
 	if len(input.IDs) > 0 && len(publicIDs) == 0 {
 		return []domainknowledgebase.KnowledgeBase{}, 0, nil
 	}
+	sharedIDs, err := s.sharedKnowledgeBasePublicIDs(ctx, userID)
+	if err != nil {
+		return nil, 0, err
+	}
 	return s.repo.ListKnowledgeBases(ctx, repository.KnowledgeBaseListFilter{
 		Query: strings.TrimSpace(input.Query), Sort: strings.TrimSpace(input.Sort), PublicIDs: publicIDs, VisibleUserID: &userID,
+		SharedPublicIDs: sharedIDs,
 	}, offset, limit)
 }
 
@@ -225,7 +231,7 @@ func (s *Service) GetVisible(ctx context.Context, userID uint, publicID string) 
 	if err != nil {
 		return nil, err
 	}
-	if !isVisibleToUser(item, userID) {
+	if !s.isVisibleToUser(ctx, item, userID) {
 		return nil, ErrKnowledgeBaseNotFound
 	}
 	return item, nil
@@ -279,7 +285,7 @@ func (s *Service) UpdateUser(ctx context.Context, userID uint, publicID string, 
 	if err != nil {
 		return nil, err
 	}
-	if item.Scope != domainknowledgebase.ScopeUser || item.OwnerUserID != userID {
+	if item.Scope != domainknowledgebase.ScopeUser || !s.canEditKnowledgeBase(ctx, item, userID) {
 		return nil, ErrKnowledgeBaseNotFound
 	}
 	return s.update(ctx, item.ID, userID, input)
@@ -390,7 +396,7 @@ func (s *Service) GetVisibleFileProcessingStatuses(ctx context.Context, userID u
 	if err != nil {
 		return nil, err
 	}
-	if !isVisibleToUser(item, userID) {
+	if !s.isVisibleToUser(ctx, item, userID) {
 		return nil, ErrKnowledgeBaseNotFound
 	}
 	return s.getFileProcessingStatuses(ctx, item.ID, fileIDs)
@@ -405,7 +411,7 @@ func (s *Service) GetVisibleFileProcessingSnapshot(ctx context.Context, userID u
 	if err != nil {
 		return nil, nil, err
 	}
-	if !isVisibleToUser(item, userID) {
+	if !s.isVisibleToUser(ctx, item, userID) {
 		return nil, nil, ErrKnowledgeBaseNotFound
 	}
 	return s.getFileProcessingSnapshot(ctx, item, fileIDs)
@@ -480,11 +486,11 @@ func (s *Service) ListAvailableUserFiles(ctx context.Context, userID uint, publi
 	if err != nil {
 		return nil, 0, err
 	}
-	if item.Scope != domainknowledgebase.ScopeUser || item.OwnerUserID != userID {
+	if item.Scope != domainknowledgebase.ScopeUser || !s.canEditKnowledgeBase(ctx, item, userID) {
 		return nil, 0, ErrKnowledgeBaseNotFound
 	}
 	offset, limit := pagination.Offset(input.Page, input.PageSize)
-	return s.repo.ListAvailableKnowledgeBaseFiles(ctx, item.ID, userID, strings.TrimSpace(input.Query), offset, limit)
+	return s.repo.ListAvailableKnowledgeBaseFiles(ctx, item.ID, item.OwnerUserID, strings.TrimSpace(input.Query), offset, limit)
 }
 
 // ListAvailableAdminFiles 查询尚未加入指定内置知识库的平台资料。
@@ -596,7 +602,7 @@ func (s *Service) AddUserFiles(ctx context.Context, userID uint, publicID string
 	if err != nil {
 		return err
 	}
-	if item.Scope != domainknowledgebase.ScopeUser || item.OwnerUserID != userID {
+	if item.Scope != domainknowledgebase.ScopeUser || !s.canEditKnowledgeBase(ctx, item, userID) {
 		return ErrKnowledgeBaseNotFound
 	}
 	return s.addFiles(ctx, item, userID, fileIDs)
@@ -626,7 +632,7 @@ func (s *Service) RemoveUserFile(ctx context.Context, userID uint, publicID stri
 	if err != nil {
 		return err
 	}
-	if item.Scope != domainknowledgebase.ScopeUser || item.OwnerUserID != userID {
+	if item.Scope != domainknowledgebase.ScopeUser || !s.canEditKnowledgeBase(ctx, item, userID) {
 		return ErrKnowledgeBaseNotFound
 	}
 	return mapFileRepositoryError(s.repo.RemoveKnowledgeBaseFile(ctx, item.ID, strings.TrimSpace(fileID)))
@@ -650,7 +656,11 @@ func (s *Service) ResolveFiles(ctx context.Context, userID uint, publicIDs []str
 	if userID == 0 || len(ids) == 0 || len(ids) != len(publicIDs) {
 		return nil, nil, domainknowledgebase.ErrReferenceUnavailable
 	}
-	bases, files, err := s.repo.ResolveVisibleKnowledgeBaseFiles(ctx, userID, ids)
+	sharedIDs, sharedErr := s.sharedKnowledgeBasePublicIDs(ctx, userID)
+	if sharedErr != nil {
+		return nil, nil, sharedErr
+	}
+	bases, files, err := s.repo.ResolveVisibleKnowledgeBaseFiles(ctx, userID, ids, sharedIDs)
 	if err != nil {
 		mapped := mapRepositoryError(err)
 		if errors.Is(mapped, ErrKnowledgeBaseNotFound) || errors.Is(mapped, ErrInvalidKnowledgeBase) {
@@ -681,10 +691,6 @@ func (s *Service) getForAccess(ctx context.Context, publicID string) (*domainkno
 		return nil, mapRepositoryError(err)
 	}
 	return item, nil
-}
-
-func isVisibleToUser(item *domainknowledgebase.KnowledgeBase, userID uint) bool {
-	return item != nil && item.Enabled && (item.Scope == domainknowledgebase.ScopeBuiltin || (item.Scope == domainknowledgebase.ScopeUser && item.OwnerUserID == userID))
 }
 
 func (s *Service) create(ctx context.Context, item *domainknowledgebase.KnowledgeBase) (*domainknowledgebase.KnowledgeBase, error) {

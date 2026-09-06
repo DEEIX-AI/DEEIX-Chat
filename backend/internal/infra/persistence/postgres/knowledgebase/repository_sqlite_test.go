@@ -141,7 +141,7 @@ func TestRepositoryVisibilityResolutionAndDeletion(t *testing.T) {
 	}
 
 	resolvedBases, resolvedFiles, err := repo.ResolveVisibleKnowledgeBaseFiles(
-		context.Background(), userID, []string{"builtin-enabled", "mine"},
+		context.Background(), userID, []string{"builtin-enabled", "mine"}, nil,
 	)
 	if err != nil {
 		t.Fatalf("ResolveVisibleKnowledgeBaseFiles() error = %v", err)
@@ -154,7 +154,7 @@ func TestRepositoryVisibilityResolutionAndDeletion(t *testing.T) {
 			t.Fatal("ResolveVisibleKnowledgeBaseFiles() returned a file that is not ready for retrieval")
 		}
 	}
-	if _, _, err = repo.ResolveVisibleKnowledgeBaseFiles(context.Background(), userID, []string{"other"}); !errors.Is(err, repository.ErrNotFound) {
+	if _, _, err = repo.ResolveVisibleKnowledgeBaseFiles(context.Background(), userID, []string{"other"}, nil); !errors.Is(err, repository.ErrNotFound) {
 		t.Fatalf("resolve other user's base error = %v, want ErrNotFound", err)
 	}
 	if err = repo.AddKnowledgeBaseFiles(context.Background(), items[2].ID, domainknowledgebase.ScopeUser, userID, userID, []string{"other-file"}); !errors.Is(err, repository.ErrNotFound) {

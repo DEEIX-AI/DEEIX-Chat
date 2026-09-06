@@ -18,6 +18,9 @@ func (m *Module) RegisterRoutes(authRequired *gin.RouterGroup) {
 	group.GET("/knowledge-bases/mine/:id/available-files", m.Handler.ListAvailableMineFiles)
 	group.POST("/knowledge-bases/mine/:id/files", m.Handler.AddMineFiles)
 	group.DELETE("/knowledge-bases/mine/:id/files/:file_id", m.Handler.RemoveMineFile)
+	group.GET("/knowledge-bases/mine/:id/acl", m.Handler.ListKnowledgeBaseACL)
+	group.PUT("/knowledge-bases/mine/:id/acl", m.Handler.GrantKnowledgeBaseACL)
+	group.DELETE("/knowledge-bases/mine/:id/acl/:grantee_user_id", m.Handler.RevokeKnowledgeBaseACL)
 }
 
 // RegisterAdminRoutes 注册知识库管理员路由。

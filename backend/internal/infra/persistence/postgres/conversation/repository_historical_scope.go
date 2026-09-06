@@ -11,14 +11,13 @@ const historicalMessageScopeCTE = `
 WITH RECURSIVE historical_message_scope(id, parent_message_id) AS (
     SELECT id, parent_message_id
     FROM chat_messages
-    WHERE id = ? AND conversation_id = ? AND user_id = ? AND deleted_at IS NULL
+    WHERE id = ? AND conversation_id = ? AND deleted_at IS NULL
     UNION
     SELECT messages.id, messages.parent_message_id
     FROM chat_messages AS messages
     INNER JOIN historical_message_scope AS scope ON messages.id = scope.parent_message_id
     WHERE scope.id <> ?
       AND messages.conversation_id = ?
-      AND messages.user_id = ?
       AND messages.deleted_at IS NULL
 ), valid_historical_message_scope(id) AS (
     SELECT scope.id
@@ -42,10 +41,8 @@ func historicalMessageScopeArgs(scope repository.HistoricalMessageScope) []any {
 	return []any{
 		scope.LeafMessageID,
 		scope.ConversationID,
-		scope.UserID,
 		scope.ExcludeThroughMessageID,
 		scope.ConversationID,
-		scope.UserID,
 		scope.LeafMessageID,
 		scope.ExcludeThroughMessageID,
 		scope.ExcludeThroughMessageID,

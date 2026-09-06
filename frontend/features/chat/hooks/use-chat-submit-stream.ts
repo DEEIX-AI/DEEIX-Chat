@@ -27,6 +27,7 @@ export function useChatSubmitStream({
   selectedSkills,
   selectedKnowledgeBaseIDs,
   htmlVisualPromptEnabled,
+  programmingMode,
   options,
   draft,
   attachments,
@@ -72,6 +73,7 @@ export function useChatSubmitStream({
   selectedSkills: SkillSummaryDTO[];
   selectedKnowledgeBaseIDs: string[];
   htmlVisualPromptEnabled: boolean;
+  programmingMode: boolean;
   options: ConversationOptions;
   draft: string;
   attachments: PendingAttachment[];
@@ -122,6 +124,7 @@ export function useChatSubmitStream({
     selectedSkills,
     selectedKnowledgeBaseIDs,
     htmlVisualPromptEnabled,
+    programmingMode,
     options,
     draft,
     attachments,

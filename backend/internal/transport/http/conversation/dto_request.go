@@ -120,6 +120,7 @@ type SendMessageRequest struct {
 	SkillIDs                []uint         `json:"skillIDs,omitempty" binding:"max=128"`
 	KnowledgeBaseIDs        []string       `json:"knowledgeBaseIDs,omitempty" binding:"max=8,dive,required,max=32"`
 	HTMLVisualPromptEnabled bool           `json:"htmlVisualPrompt,omitempty"`
+	ProgrammingMode         bool           `json:"programmingMode,omitempty"`
 	ParentMessagePublicID   string         `json:"parentMessagePublicID,omitempty" binding:"omitempty,max=32"`
 	SourceMessagePublicID   string         `json:"sourceMessagePublicID,omitempty" binding:"omitempty,max=32"`
 	BranchReason            string         `json:"branchReason,omitempty" binding:"omitempty,oneof=default retry edit"`
@@ -136,6 +137,7 @@ type TemporaryChatMessageRequest struct {
 	SkillIDs         []uint                        `json:"skillIDs,omitempty" binding:"max=128"`
 	KnowledgeBaseIDs []string                      `json:"knowledgeBaseIDs,omitempty" binding:"omitempty,max=8,dive,max=32"`
 	HTMLVisualPrompt bool                          `json:"htmlVisualPrompt,omitempty"`
+	ProgrammingMode  bool                          `json:"programmingMode,omitempty"`
 	Messages         []TemporaryChatHistoryMessage `json:"messages" binding:"required,min=1,max=100,dive"`
 }
 

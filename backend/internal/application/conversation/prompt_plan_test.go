@@ -72,6 +72,9 @@ func TestBuildPromptPlanLayersStableDynamicAndToolGuidance(t *testing.T) {
 				Description: "搜索网页",
 				InputSchema: []byte(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`),
 			}},
+			mcpBindings: map[string]mcpToolCallBinding{
+				"search_web": {ToolName: "search_web", ServerName: "demo"},
+			},
 		},
 		Config: config.Config{},
 	})

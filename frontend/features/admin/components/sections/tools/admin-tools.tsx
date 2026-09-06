@@ -58,6 +58,8 @@ import {
 } from "@/features/admin/components/sections/tools/mcp-tool-edit-dialog";
 import { toolSchemaArgumentMetadata } from "@/features/admin/components/sections/tools/mcp-tool-schema";
 import {
+  ALL_TOOL_SETTINGS_FIELDS,
+  PROGRAMMING_SETTINGS_FIELDS,
   TOOL_SETTINGS_FIELDS,
   applyToolSettingsDefaults,
   flattenToolSettings,
@@ -69,6 +71,7 @@ import { cn } from "@/lib/utils";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import { overrideFeaturePolicy } from "@/shared/hooks/use-feature-policy";
 import {
   SettingsFieldItem,
   SettingsFieldList,
@@ -196,6 +199,7 @@ export function AdminToolsPage() {
   const [toolForm, setToolForm] = React.useState<MCPToolEditFormState | null>(null);
   const [toolSaving, setToolSaving] = React.useState(false);
   const mcpEnabled = settingsMap["mcp.mcp_enable"] === "true";
+  const programmingEnabled = settingsMap["programming.programming_enable"] === "true";
   const mcpEnableField = React.useMemo(
     () => TOOL_SETTINGS_FIELDS.find((field) => field.key === "mcp_enable"),
     [],
@@ -206,6 +210,21 @@ export function AdminToolsPage() {
   );
   const mcpRuntimeFields = React.useMemo(
     () => TOOL_SETTINGS_FIELDS.filter((field) => field.key !== "mcp_enable" && field.key !== "mcp_tool_prompt"),
+    [],
+  );
+  const programmingEnableField = React.useMemo(
+    () => PROGRAMMING_SETTINGS_FIELDS.find((field) => field.key === "programming_enable"),
+    [],
+  );
+  const programmingToolPromptField = React.useMemo(
+    () => PROGRAMMING_SETTINGS_FIELDS.find((field) => field.key === "programming_tool_prompt"),
+    [],
+  );
+  const programmingRuntimeFields = React.useMemo(
+    () =>
+      PROGRAMMING_SETTINGS_FIELDS.filter(
+        (field) => field.key !== "programming_enable" && field.key !== "programming_tool_prompt",
+      ),
     [],
   );
 
@@ -404,7 +423,7 @@ export function AdminToolsPage() {
 
   const dirtyFieldIDs = React.useMemo(() => {
     const result = new Set<string>();
-    for (const field of TOOL_SETTINGS_FIELDS) {
+    for (const field of ALL_TOOL_SETTINGS_FIELDS) {
       const id = toolFieldID(field);
       if ((settingsMap[id] ?? "") !== (savedMap[id] ?? "")) {
         result.add(id);
@@ -412,8 +431,28 @@ export function AdminToolsPage() {
     }
     return result;
   }, [savedMap, settingsMap]);
-  const handleSaveMCPSettings = React.useCallback(async () => {
-    const items: PatchSettingItem[] = TOOL_SETTINGS_FIELDS
+  const mcpDirtyFieldIDs = React.useMemo(() => {
+    const result = new Set<string>();
+    for (const field of TOOL_SETTINGS_FIELDS) {
+      const id = toolFieldID(field);
+      if (dirtyFieldIDs.has(id)) {
+        result.add(id);
+      }
+    }
+    return result;
+  }, [dirtyFieldIDs]);
+  const programmingDirtyFieldIDs = React.useMemo(() => {
+    const result = new Set<string>();
+    for (const field of PROGRAMMING_SETTINGS_FIELDS) {
+      const id = toolFieldID(field);
+      if (dirtyFieldIDs.has(id)) {
+        result.add(id);
+      }
+    }
+    return result;
+  }, [dirtyFieldIDs]);
+  const handleSaveToolSettings = React.useCallback(async () => {
+    const items: PatchSettingItem[] = ALL_TOOL_SETTINGS_FIELDS
       .filter((field) => dirtyFieldIDs.has(toolFieldID(field)))
       .map((field) => ({
         namespace: field.namespace,
@@ -435,6 +474,10 @@ export function AdminToolsPage() {
       const flattened = flattenToolSettings(grouped);
       setSettingsMap(flattened);
       setSavedMap(flattened);
+      overrideFeaturePolicy({
+        programmingModeEnabled: flattened["programming.programming_enable"] === "true",
+        programmingShellEnabled: flattened["programming.programming_shell_enable"] === "true",
+      });
       toast.success(t("toast.settingsUpdated"));
     } catch (error) {
       toast.error(t("toast.saveFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
@@ -725,14 +768,69 @@ export function AdminToolsPage() {
 
   const mcpEnableFieldID = mcpEnableField ? toolFieldID(mcpEnableField) : "";
   const mcpToolPromptFieldID = mcpToolPromptField ? toolFieldID(mcpToolPromptField) : "";
+  const programmingEnableFieldID = programmingEnableField ? toolFieldID(programmingEnableField) : "";
+  const programmingToolPromptFieldID = programmingToolPromptField ? toolFieldID(programmingToolPromptField) : "";
 
   return (
     <SettingsPage>
       <SettingsSection
+        title={t("sections.programmingMode")}
+        actions={
+          programmingDirtyFieldIDs.size > 0 ? (
+            <Button type="button" size="sm" disabled={loading || saving} onClick={() => void handleSaveToolSettings()}>
+              <Save className="size-3.5 stroke-1" />
+              {tActions("save")}
+            </Button>
+          ) : null
+        }
+      >
+        <SettingsFieldList>
+          {programmingEnableField ? (
+            <SettingsFieldItem key={programmingEnableFieldID} index={0}>
+              <SettingsFieldEditor
+                field={toToolEditorField(programmingEnableField, (key) => t(`fields.${key}`))}
+                value={settingsMap[programmingEnableFieldID] ?? ""}
+                dirty={(settingsMap[programmingEnableFieldID] ?? "") !== (savedMap[programmingEnableFieldID] ?? "")}
+                disabled={loading || saving}
+                onChange={(value) => setSettingsMap((prev) => ({ ...prev, [programmingEnableFieldID]: value }))}
+              />
+            </SettingsFieldItem>
+          ) : null}
+          <CollapsibleMotionContent open={programmingEnabled} contentClassName="-mx-px px-px pb-px">
+            {programmingRuntimeFields.map((field, index) => {
+              const id = toolFieldID(field);
+              return (
+                <SettingsFieldItem key={id} index={index + 1}>
+                  <SettingsFieldEditor
+                    field={toToolEditorField(field, (key) => t(`fields.${key}`))}
+                    value={settingsMap[id] ?? ""}
+                    dirty={(settingsMap[id] ?? "") !== (savedMap[id] ?? "")}
+                    disabled={loading || saving}
+                    onChange={(value) => setSettingsMap((prev) => ({ ...prev, [id]: value }))}
+                  />
+                </SettingsFieldItem>
+              );
+            })}
+            {programmingToolPromptField ? (
+              <SettingsFieldItem key={programmingToolPromptFieldID} index={programmingRuntimeFields.length + 1}>
+                <SettingsFieldEditor
+                  field={toToolEditorField(programmingToolPromptField, (key) => t(`fields.${key}`))}
+                  value={settingsMap[programmingToolPromptFieldID] ?? ""}
+                  dirty={(settingsMap[programmingToolPromptFieldID] ?? "") !== (savedMap[programmingToolPromptFieldID] ?? "")}
+                  disabled={loading || saving}
+                  onChange={(value) => setSettingsMap((prev) => ({ ...prev, [programmingToolPromptFieldID]: value }))}
+                />
+              </SettingsFieldItem>
+            ) : null}
+          </CollapsibleMotionContent>
+        </SettingsFieldList>
+      </SettingsSection>
+
+      <SettingsSection
         title={t("sections.mcpTools")}
         actions={
-          dirtyFieldIDs.size > 0 ? (
-            <Button type="button" size="sm" disabled={loading || saving} onClick={() => void handleSaveMCPSettings()}>
+          mcpDirtyFieldIDs.size > 0 ? (
+            <Button type="button" size="sm" disabled={loading || saving} onClick={() => void handleSaveToolSettings()}>
               <Save className="size-3.5 stroke-1" />
               {tActions("save")}
             </Button>

@@ -146,6 +146,7 @@ type Service struct {
 	snapshotCache         sync.Map // conversationID (uint) → *cachedSnapshot
 	userMemCache          sync.Map // userID (uint) → *cachedUserMemories
 	imageContextCache     *preparedConversationImageCache
+	acl                   resourceACL
 }
 
 func (s *Service) llmAttribution() (string, string) {
@@ -201,6 +202,7 @@ type SendMessageInput struct {
 	SkillIDs                []uint
 	KnowledgeBaseIDs        []string
 	HTMLVisualPromptEnabled bool
+	ProgrammingMode         bool
 	ParentMessagePublicID   string
 	SourceMessagePublicID   string
 	BranchReason            string

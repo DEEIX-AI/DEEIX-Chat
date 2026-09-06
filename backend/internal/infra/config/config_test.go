@@ -379,13 +379,15 @@ func TestValidateAllowsOnlyDevAndProdEnvironment(t *testing.T) {
 
 func validConfigForEnv(env string) Config {
 	return Config{
-		Env:               env,
-		StorageBackend:    "local",
-		JWTSecret:         "test-jwt-secret-value",
-		DataEncryptionKey: "test-data-encryption-key-value-32",
-		CORSAllowOrigin:   "https://example.com",
-		PublicAPIBaseURL:  "https://api.example.com",
-		PublicWebBaseURL:  "https://example.com",
+		Env:                   env,
+		StorageBackend:        "local",
+		JWTSecret:             "test-jwt-secret-value",
+		DataEncryptionKey:     "test-data-encryption-key-value-32",
+		CORSAllowOrigin:       "https://example.com",
+		PublicAPIBaseURL:      "https://api.example.com",
+		PublicWebBaseURL:      "https://example.com",
+		SSRFProtectionEnabled: true,
+		RateLimitEnabled:      true,
 	}
 }
 

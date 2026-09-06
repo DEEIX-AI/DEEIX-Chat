@@ -2,6 +2,7 @@
   "title": "Tools",
   "sections": {
     "mcpTools": "MCP tools",
+    "programmingMode": "Programming mode",
     "servers": "MCP servers",
     "tools": "MCP tools"
   },
@@ -38,6 +39,38 @@
     "toolRetry": {
       "label": "MCP tool retries",
       "description": "Retry count after an MCP tool call fails. Default 0."
+    },
+    "programmingEnable": {
+      "label": "Enable programming mode",
+      "description": "Allow users to turn on programming mode and read, write, and edit files in a per-chat sandbox."
+    },
+    "programmingShellEnable": {
+      "label": "Allow shell commands",
+      "description": "When enabled, programming mode can also run shell commands in the sandbox working directory. Disabled by default."
+    },
+    "programmingToolPrompt": {
+      "label": "Programming mode prompt",
+      "description": "Controls how the model uses programming tools. Leave empty to use the built-in default prompt."
+    },
+    "programmingMaxLLMCalls": {
+      "label": "Programming max LLM requests",
+      "description": "Total LLM requests allowed in one programming-mode run. Default 12, minimum 2."
+    },
+    "programmingMaxToolCalls": {
+      "label": "Programming max tool calls",
+      "description": "Total tool calls allowed in one programming-mode run. Default 32."
+    },
+    "programmingToolTimeout": {
+      "label": "Programming tool timeout",
+      "description": "Maximum wait time for one programming tool call, in seconds. Default 30."
+    },
+    "programmingMaxFileBytes": {
+      "label": "Max file bytes",
+      "description": "Maximum bytes for a single file read or write in programming mode. Default 1048576 (1MB)."
+    },
+    "programmingMaxOutputChars": {
+      "label": "Max tool output chars",
+      "description": "Maximum characters returned by one programming tool call. Default 100000."
     }
   },
   "status": {

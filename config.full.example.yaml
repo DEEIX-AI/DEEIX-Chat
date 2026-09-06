@@ -29,8 +29,8 @@ security:
   # Required. data_encryption_key protects upstream API keys, SSO secrets, MCP tokens, and TOTP secrets.
   jwt_secret: "change-me-dev-jwt-secret"
   data_encryption_key: "change-me-dev-data-encryption-key-32-bytes-min"
-  # Optional. Enable in production to block outbound requests to private or metadata networks.
-  ssrf_protection_enabled: false
+  # Required in production. Blocks outbound requests to private and metadata networks.
+  ssrf_protection_enabled: true
   # Optional. Exact trusted integration hostnames, comma-separated (for example: new-api,host.docker.internal). Configure only for hostname targets; do not include schemes, ports, paths, IPs, or wildcards.
   ssrf_allowed_hosts: ""
   # Optional. Trusted integration IP ranges in CIDR notation, comma-separated (for example: 172.17.0.0/16). Configure only when an IP range must be trusted; this is independent from ssrf_allowed_hosts.

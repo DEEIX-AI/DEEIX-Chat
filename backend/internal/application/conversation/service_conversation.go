@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	domainacl "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/acl"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
@@ -109,19 +110,45 @@ func (s *Service) CreateConversation(ctx context.Context, userID uint, title str
 	return item, nil
 }
 
-// ListConversations 分页查询会话。
+// ListConversations 分页查询会话（含 ACL 共享给我的）。
 func (s *Service) ListConversations(ctx context.Context, input ListConversationsInput) ([]model.Conversation, int64, error) {
 	offset, limit := pagination.Offset(input.Page, input.PageSize)
-	return s.repo.ListConversationsByUser(ctx, repository.ConversationListInput{
-		UserID:        input.UserID,
-		Offset:        offset,
-		Limit:         limit,
-		StatusFilter:  input.StatusFilter,
-		StarredFilter: input.StarredFilter,
-		ShareFilter:   input.ShareFilter,
-		ProjectFilter: normalizeConversationProjectFilter(input.ProjectFilter),
-		SearchQuery:   input.SearchQuery,
+	var sharedIDs []string
+	includeShared := input.ShareFilter == "" || input.ShareFilter == "all" || input.ShareFilter == "shared_with_me"
+	if s.acl != nil && includeShared {
+		ids, err := s.acl.ListSharedResourcePublicIDs(ctx, domainacl.ResourceTypeConversation, input.UserID)
+		if err != nil {
+			return nil, 0, err
+		}
+		sharedIDs = ids
+	}
+	items, total, err := s.repo.ListConversationsByUser(ctx, repository.ConversationListInput{
+		UserID:          input.UserID,
+		Offset:          offset,
+		Limit:           limit,
+		StatusFilter:    input.StatusFilter,
+		StarredFilter:   input.StarredFilter,
+		ShareFilter:     input.ShareFilter,
+		ProjectFilter:   normalizeConversationProjectFilter(input.ProjectFilter),
+		SearchQuery:     input.SearchQuery,
+		SharedPublicIDs: sharedIDs,
 	})
+	if err != nil {
+		return nil, 0, err
+	}
+	for i := range items {
+		if items[i].UserID == input.UserID {
+			items[i].AccessRole = domainacl.RoleOwner
+			continue
+		}
+		if s.acl != nil {
+			_, role, roleErr := s.acl.CanAccess(ctx, input.UserID, items[i].UserID, domainacl.ResourceTypeConversation, items[i].PublicID, domainacl.RoleViewer)
+			if roleErr == nil {
+				items[i].AccessRole = role
+			}
+		}
+	}
+	return items, total, nil
 }
 
 // SearchConversations 分页搜索当前用户的会话，并通过前瞻记录判断是否还有下一页。
@@ -325,13 +352,9 @@ func (s *Service) ListConversationPreviewMessages(ctx context.Context, userID ui
 	)
 }
 
-// GetConversationByPublicID 查询用户会话元信息（公开 ID）。
+// GetConversationByPublicID 查询用户会话元信息（公开 ID）；所有者或 ACL 被授权者可读。
 func (s *Service) GetConversationByPublicID(ctx context.Context, userID uint, publicID string) (*model.Conversation, error) {
-	item, err := s.repo.GetConversationByPublicID(ctx, publicID, userID)
-	if err != nil {
-		return nil, ErrConversationNotFound
-	}
-	return item, nil
+	return s.GetConversationForAccess(ctx, userID, publicID, domainacl.RoleViewer)
 }
 
 // SetMessageFeedback 设置当前用户对消息的点赞/点踩反馈。
@@ -446,37 +469,52 @@ func (s *Service) RenameConversation(ctx context.Context, userID uint, publicID 
 	if normalizedTitle == "" {
 		return nil, ErrInvalidConversationTitle
 	}
-	item, err := s.repo.UpdateConversationTitleByPublicID(ctx, userID, publicID, normalizedTitle)
+	current, err := s.GetConversationForAccess(ctx, userID, publicID, domainacl.RoleEditor)
+	if err != nil {
+		return nil, err
+	}
+	item, err := s.repo.UpdateConversationTitleByPublicID(ctx, current.UserID, publicID, normalizedTitle)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrConversationNotFound
 		}
 		return nil, err
 	}
+	item.AccessRole = current.AccessRole
 	return item, nil
 }
 
 // SetConversationStar 设置会话星标状态。
 func (s *Service) SetConversationStar(ctx context.Context, userID uint, publicID string, starred bool) (*model.Conversation, error) {
-	item, err := s.repo.UpdateConversationStarByPublicID(ctx, userID, publicID, starred)
+	current, err := s.GetConversationForAccess(ctx, userID, publicID, domainacl.RoleEditor)
+	if err != nil {
+		return nil, err
+	}
+	item, err := s.repo.UpdateConversationStarByPublicID(ctx, current.UserID, publicID, starred)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrConversationNotFound
 		}
 		return nil, err
 	}
+	item.AccessRole = current.AccessRole
 	return item, nil
 }
 
 // SetConversationArchived 设置会话归档状态。
 func (s *Service) SetConversationArchived(ctx context.Context, userID uint, publicID string, archived bool) (*model.Conversation, error) {
-	item, err := s.repo.UpdateConversationArchiveByPublicID(ctx, userID, publicID, archived)
+	current, err := s.GetConversationForAccess(ctx, userID, publicID, domainacl.RoleEditor)
+	if err != nil {
+		return nil, err
+	}
+	item, err := s.repo.UpdateConversationArchiveByPublicID(ctx, current.UserID, publicID, archived)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrConversationNotFound
 		}
 		return nil, err
 	}
+	item.AccessRole = current.AccessRole
 	return item, nil
 }
 

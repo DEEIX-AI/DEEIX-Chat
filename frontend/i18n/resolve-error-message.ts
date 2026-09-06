@@ -143,6 +143,8 @@ const SETTINGS_FIELD_LABELS: Record<AppLocale, Record<string, string>> = {
     "file:full_context_max_tokens": "Full-text token limit",
     "file:full_context_pdf_max_pages": "Full-text page limit",
     "mcp:mcp_enable": "MCP",
+    "programming:programming_enable": "Programming mode",
+    "programming:programming_shell_enable": "Programming shell",
   },
   "zh-CN": {
     "auth:auto_link_verified_email": "同邮箱自动绑定",
@@ -191,6 +193,8 @@ const SETTINGS_FIELD_LABELS: Record<AppLocale, Record<string, string>> = {
     "file:full_context_max_tokens": "全文 Token 上限",
     "file:full_context_pdf_max_pages": "全文页数上限",
     "mcp:mcp_enable": "MCP",
+    "programming:programming_enable": "编程模式",
+    "programming:programming_shell_enable": "编程模式命令执行",
   },
 };
 

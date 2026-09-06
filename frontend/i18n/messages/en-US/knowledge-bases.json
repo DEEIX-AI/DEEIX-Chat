@@ -141,5 +141,20 @@
   "vectorizePartial": "Submitted {submitted} files; {failed} files could not be queued",
   "toggleFailed": "Failed to update knowledge base status",
   "enabledToast": "Built-in knowledge base enabled",
-  "disabledToast": "Built-in knowledge base disabled"
+  "disabledToast": "Built-in knowledge base disabled",
+  "userShare": {
+    "title": "Share with users",
+    "description": "Grant access by username. Viewers can use it in chat; editors can manage files.",
+    "usernamePlaceholder": "Username",
+    "roleViewer": "Viewer",
+    "roleEditor": "Editor",
+    "grant": "Grant",
+    "revoke": "Revoke",
+    "empty": "Not shared with any users yet",
+    "loadFailed": "Failed to load sharing list",
+    "granted": "Access granted",
+    "grantFailed": "Failed to grant access",
+    "revoked": "Access revoked",
+    "revokeFailed": "Failed to revoke access"
+  }
 }

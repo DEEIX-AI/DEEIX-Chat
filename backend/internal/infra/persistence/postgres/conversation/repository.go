@@ -73,6 +73,19 @@ func (r *Repo) ListConversationsByUser(ctx context.Context, input repository.Con
 	items := make([]models.Conversation, 0)
 	var total int64
 	query := r.db.WithContext(ctx).Model(&models.Conversation{}).Where("user_id = ?", input.UserID)
+	if len(input.SharedPublicIDs) > 0 {
+		query = r.db.WithContext(ctx).Model(&models.Conversation{}).Where(
+			"user_id = ? OR public_id IN ?",
+			input.UserID,
+			input.SharedPublicIDs,
+		)
+	}
+	if input.ShareFilter == "shared_with_me" {
+		if len(input.SharedPublicIDs) == 0 {
+			return []domainconversation.Conversation{}, 0, nil
+		}
+		query = r.db.WithContext(ctx).Model(&models.Conversation{}).Where("public_id IN ?", input.SharedPublicIDs)
+	}
 
 	switch input.StatusFilter {
 	case "archived":
@@ -102,6 +115,8 @@ func (r *Repo) ListConversationsByUser(ctx context.Context, input repository.Con
 		query = query.Where(activeShareExistsSQL, "active")
 	case "unshared":
 		query = query.Where("NOT "+activeShareExistsSQL, "active")
+	case "shared_with_me":
+		// 已在上方按 ACL public_id 过滤。
 	}
 
 	switch normalizedProjectFilter := strings.TrimSpace(input.ProjectFilter); normalizedProjectFilter {
@@ -367,11 +382,47 @@ func (r *Repo) GetConversationByUser(ctx context.Context, conversationID uint, u
 	return &result, nil
 }
 
+// GetConversationByID 按内部 ID 查询会话（不校验归属）。
+func (r *Repo) GetConversationByID(ctx context.Context, conversationID uint) (*domainconversation.Conversation, error) {
+	var item models.Conversation
+	if err := r.db.WithContext(ctx).
+		Where("id = ?", conversationID).
+		First(&item).Error; err != nil {
+		return nil, dberror.Translate(err)
+	}
+	result := toConversationDomain(item)
+	if err := r.hydrateConversationShareSummary(ctx, &result); err != nil {
+		return nil, err
+	}
+	if err := r.hydrateConversationProjectSummary(ctx, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // GetConversationByPublicID 查询归属用户的公开会话 ID。
 func (r *Repo) GetConversationByPublicID(ctx context.Context, publicID string, userID uint) (*domainconversation.Conversation, error) {
 	var item models.Conversation
 	if err := r.db.WithContext(ctx).
 		Where("public_id = ? AND user_id = ?", publicID, userID).
+		First(&item).Error; err != nil {
+		return nil, dberror.Translate(err)
+	}
+	result := toConversationDomain(item)
+	if err := r.hydrateConversationShareSummary(ctx, &result); err != nil {
+		return nil, err
+	}
+	if err := r.hydrateConversationProjectSummary(ctx, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetConversationByPublicIDOnly 按公开 ID 查询会话（不校验归属）。
+func (r *Repo) GetConversationByPublicIDOnly(ctx context.Context, publicID string) (*domainconversation.Conversation, error) {
+	var item models.Conversation
+	if err := r.db.WithContext(ctx).
+		Where("public_id = ?", publicID).
 		First(&item).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}

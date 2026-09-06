@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/admin"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/acl"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/announcement"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/auth"
@@ -32,8 +33,9 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/settings"
 	appskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/skill"
 	appsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/systemevent"
-	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
+	appupload 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/userapikey"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/usersettings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	moderationclient "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/contentmoderation"
@@ -54,6 +56,7 @@ import (
 	stripepayment "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/payment/stripe"
 	filecache "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/filecache"
 	announcementrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/announcement"
+	aclrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/acl"
 	auditrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/audit"
 	billingrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/billing"
 	channelrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/channel"
@@ -68,6 +71,7 @@ import (
 	skillrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/skill"
 	systemeventrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/systemevent"
 	userrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/user"
+	userapikeyrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/userapikey"
 	usersettingsrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/usersettings"
 	platformruntime "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/runtime"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/lifecycle"
@@ -82,10 +86,12 @@ import (
 	knowledgebasehttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/knowledgebase"
 	mcphttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/mcp"
 	memoryhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/memory"
+	openaigatewayhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/openaigateway"
 	promptpresethttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/promptpreset"
 	settingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/settings"
 	skillhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/skill"
 	userhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/user"
+	userapikeyhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/userapikey"
 	usersettingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/usersettings"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
@@ -446,11 +452,24 @@ func NewApp() (*App, error) {
 	knowledgeBaseHandler := knowledgebasehttp.NewHandler(knowledgeBaseService, runtimeCfg)
 	knowledgeBaseModule := knowledgebasehttp.NewModule(knowledgeBaseHandler)
 
+	userAPIKeyRepo := userapikeyrepo.NewRepo(db)
+	userAPIKeyService := userapikey.NewService(userAPIKeyRepo, userRepo, runtimeCfg)
+	userAPIKeyHandler := userapikeyhttp.NewHandler(userAPIKeyService)
+	userAPIKeyModule := userapikeyhttp.NewModule(userAPIKeyHandler)
+
+	aclRepo := aclrepo.NewRepo(db)
+	aclService := acl.NewService(aclRepo, userRepo, runtimeCfg)
+	conversationService.SetACLService(aclService)
+	knowledgeBaseService.SetACLService(aclService)
+
+	openaiGatewayHandler := openaigatewayhttp.NewHandler(conversationService, channelService, runtimeCfg)
+	openaiGatewayModule := openaigatewayhttp.NewModule(openaiGatewayHandler)
+
 	hc := newHealthChecker(db, cfg.CacheDriver, redisClient)
 	rateLimiter := buildRateLimiter(cfg, redisClient, memoryCache)
 	engine, err := platformhttp.NewEngine(runtimeCfg, log, platformhttp.Modules{
 		Auth:              authModule,
-		AuthService:       authService,
+		AuthService:       authhttp.SessionValidator{Service: authService},
 		Channel:           channelModule,
 		Conversation:      conversationModule,
 		MCP:               mcpModule,
@@ -465,14 +484,26 @@ func NewApp() (*App, error) {
 		Settings:          settingsModule,
 		UserSettings:      userSettingsModule,
 		User:              userModule,
+		UserAPIKey:        userAPIKeyModule,
+		OpenAIGateway:     openaiGatewayModule,
+		APIKeyAuth:        userAPIKeyService,
+		APIKeyUserLookup:  userRepo,
 		Shutdown:          shutdownSignal,
 		StartupLog: func(log *zap.Logger) {
 			if log == nil || bootstrapSuperAdmin == nil {
 				return
 			}
-			log.Info("bootstrap superadmin created",
+			passwordFile, writeErr := writeBootstrapSuperAdminPasswordFile(cfg, bootstrapSuperAdmin.Username, bootstrapSuperAdmin.Password)
+			if writeErr != nil {
+				log.Error("bootstrap superadmin password file write failed",
+					zap.String("username", bootstrapSuperAdmin.Username),
+					zap.Error(writeErr),
+				)
+				return
+			}
+			log.Info("bootstrap superadmin created; one-time password written to file",
 				zap.String("username", bootstrapSuperAdmin.Username),
-				zap.String("password", bootstrapSuperAdmin.Password),
+				zap.String("password_file", passwordFile),
 			)
 		},
 	}, hc, rateLimiter)

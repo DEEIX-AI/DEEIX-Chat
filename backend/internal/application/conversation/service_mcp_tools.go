@@ -19,8 +19,15 @@ type selectedToolRuntime struct {
 	definitions         []llm.ToolDefinition
 	nameMap             map[string]string
 	mcpBindings         map[string]mcpToolCallBinding
+	builtinBindings     map[string]builtinToolBinding
 	schemas             map[string]json.RawMessage
 	attachmentProcessor *selectedAttachmentProcessor
+}
+
+// builtinToolBinding 标记由平台内置执行器处理的工具（如编程模式）。
+type builtinToolBinding struct {
+	ToolName string
+	Kind     string
 }
 
 // mcpToolCallBinding 绑定模型侧工具名对应的 MCP 调用配置与计量元数据。
@@ -44,7 +51,7 @@ type selectedAttachmentProcessor struct {
 }
 
 func injectMCPToolGuidance(messages []llm.Message, runtime selectedToolRuntime, customPrompt string) []llm.Message {
-	if len(runtime.definitions) == 0 {
+	if len(runtime.mcpBindings) == 0 {
 		return messages
 	}
 
@@ -93,10 +100,11 @@ func (s *Service) resolveSelectedToolRuntime(ctx context.Context, toolIDs []uint
 
 	cfg := s.cfg.Snapshot()
 	result := selectedToolRuntime{
-		definitions: make([]llm.ToolDefinition, 0, len(tools)),
-		nameMap:     map[string]string{},
-		mcpBindings: map[string]mcpToolCallBinding{},
-		schemas:     map[string]json.RawMessage{},
+		definitions:     make([]llm.ToolDefinition, 0, len(tools)),
+		nameMap:         map[string]string{},
+		mcpBindings:     map[string]mcpToolCallBinding{},
+		builtinBindings: map[string]builtinToolBinding{},
+		schemas:         map[string]json.RawMessage{},
 	}
 	usedNames := map[string]int{}
 	serverCache := map[uint]*domainmcp.Server{}
@@ -208,6 +216,7 @@ func (r selectedToolRuntime) withoutDefinitions() selectedToolRuntime {
 	r.definitions = nil
 	r.nameMap = nil
 	r.mcpBindings = nil
+	r.builtinBindings = nil
 	r.schemas = nil
 	r.attachmentProcessor = nil
 	return r

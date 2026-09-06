@@ -34,5 +34,20 @@
     "creating": "Creating",
     "createLink": "Create",
     "snapshotMessages": "{title} - {count} snapshot messages"
+  },
+  "userShare": {
+    "title": "Share with users",
+    "description": "Grant access by username. Viewers can read; editors can continue the chat.",
+    "usernamePlaceholder": "Username",
+    "roleViewer": "Viewer",
+    "roleEditor": "Editor",
+    "grant": "Grant",
+    "revoke": "Revoke",
+    "empty": "Not shared with any users yet",
+    "loadFailed": "Failed to load sharing list",
+    "granted": "Access granted",
+    "grantFailed": "Failed to grant access",
+    "revoked": "Access revoked",
+    "revokeFailed": "Failed to revoke access"
   }
 }

@@ -5,7 +5,13 @@ import * as React from "react";
 import { type FeaturePolicy, getFeaturePolicy } from "@/shared/api/settings";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
-const DEFAULT_FEATURE_POLICY: FeaturePolicy = { knowledgeBaseEnabled: true };
+const DEFAULT_FEATURE_POLICY: FeaturePolicy = {
+  knowledgeBaseEnabled: true,
+  userApiKeysEnabled: true,
+  resourceSharingEnabled: true,
+  programmingModeEnabled: true,
+  programmingShellEnabled: false,
+};
 
 let cachedFeaturePolicy: FeaturePolicy | null = null;
 let inflightFeaturePolicy: Promise<void> | null = null;

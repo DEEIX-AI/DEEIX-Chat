@@ -20,15 +20,18 @@ type executeAssistantToolCallsInput struct {
 	MessageID         uint
 	RequestID         string
 	RunID             string
+	SessionID         string
 	ToolCalls         []llm.ToolCall
 	ToolCallLimit     int
 	TraceRecorder     *messageTraceRecorder
 	ToolNameMap       map[string]string
 	MCPBindings       map[string]mcpToolCallBinding
+	BuiltinBindings   map[string]builtinToolBinding
 	ToolSchemas       map[string]json.RawMessage
 	Ledger            *toolExecutionLedger
 	ResultTokenBudget int64
 	Ephemeral         bool
+	ProgrammingMode   bool
 }
 
 type executeAssistantToolCallsResult struct {
@@ -96,7 +99,8 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 		}
 
 		binding := resolveMCPBinding(modelToolName, input.MCPBindings)
-		if binding == nil {
+		builtin := resolveBuiltinBinding(modelToolName, input.BuiltinBindings)
+		if binding == nil && builtin == nil {
 			row.Status = "error"
 			row.ErrorJSON = toolNotEnabledForRunMessage(modelToolName)
 			slots[i] = toolExecutionSlot{
@@ -112,8 +116,12 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 			continue
 		}
 		// 服务器归属快照跟随每一行落库，错误行也保留归属，便于按服务器排查与统计。
-		row.MCPServerID = binding.ServerID
-		row.MCPServerName = binding.ServerName
+		if binding != nil {
+			row.MCPServerID = binding.ServerID
+			row.MCPServerName = binding.ServerName
+		} else if builtin != nil {
+			row.MCPServerName = programmingServerName
+		}
 
 		normalizedInput, validationErr := normalizeToolArguments(row.InputJSON, input.ToolSchemas[modelToolName])
 		if validationErr != nil {
@@ -145,14 +153,25 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 		}
 
 		toolStartedAt := time.Now()
-		outputJSON, executeErr := s.executeToolCall(ctx, ExecuteToolInput{
-			UserID:         input.UserID,
-			ConversationID: input.ConversationID,
-			RequestID:      strings.TrimSpace(input.RequestID),
-			ToolName:       row.ToolName,
-			ArgumentsJSON:  row.InputJSON,
-			MCPConfig:      &binding.Config,
-		})
+		var outputJSON string
+		var executeErr error
+		if builtin != nil && builtin.Kind == "programming" {
+			workspace, workspaceErr := s.resolveProgrammingWorkspace(input.UserID, input.ConversationID, input.SessionID)
+			if workspaceErr != nil {
+				executeErr = workspaceErr
+			} else {
+				outputJSON, executeErr = s.executeProgrammingTool(ctx, row.ToolName, row.InputJSON, workspace)
+			}
+		} else {
+			outputJSON, executeErr = s.executeToolCall(ctx, ExecuteToolInput{
+				UserID:         input.UserID,
+				ConversationID: input.ConversationID,
+				RequestID:      strings.TrimSpace(input.RequestID),
+				ToolName:       row.ToolName,
+				ArgumentsJSON:  row.InputJSON,
+				MCPConfig:      &binding.Config,
+			})
+		}
 		row.LatencyMS = time.Since(toolStartedAt).Milliseconds()
 		if row.LatencyMS < 0 {
 			row.LatencyMS = 0
@@ -166,14 +185,16 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 			if row.OutputJSON == "" {
 				row.OutputJSON = "{}"
 			}
-			// 计费单位是一次逻辑调用：内部重试不重复计量，失败调用不计费。
-			mcpToolUsage = mergeMCPToolUsage(mcpToolUsage, []MCPToolUsageItem{{
-				ServerID:     binding.ServerID,
-				ServerName:   binding.ServerName,
-				ToolName:     binding.ToolName,
-				CallCount:    1,
-				PriceNanousd: binding.PriceNanousd,
-			}})
+			// 计费单位是一次逻辑调用：内部重试不重复计量，失败调用不计费。内置编程工具不计费。
+			if binding != nil {
+				mcpToolUsage = mergeMCPToolUsage(mcpToolUsage, []MCPToolUsageItem{{
+					ServerID:     binding.ServerID,
+					ServerName:   binding.ServerName,
+					ToolName:     binding.ToolName,
+					CallCount:    1,
+					PriceNanousd: binding.PriceNanousd,
+				}})
+			}
 		}
 		persisted := false
 		if !input.Ephemeral {
@@ -554,6 +575,18 @@ func resolveExecutionToolName(toolName string, toolNameMap map[string]string) st
 }
 
 func resolveMCPBinding(toolName string, bindings map[string]mcpToolCallBinding) *mcpToolCallBinding {
+	value := strings.TrimSpace(toolName)
+	if value == "" || len(bindings) == 0 {
+		return nil
+	}
+	binding, ok := bindings[value]
+	if !ok {
+		return nil
+	}
+	return &binding
+}
+
+func resolveBuiltinBinding(toolName string, bindings map[string]builtinToolBinding) *builtinToolBinding {
 	value := strings.TrimSpace(toolName)
 	if value == "" || len(bindings) == 0 {
 		return nil

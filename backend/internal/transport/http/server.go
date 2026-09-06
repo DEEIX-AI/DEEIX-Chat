@@ -26,10 +26,12 @@ import (
 	mcphttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/mcp"
 	memoryhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/memory"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
+	openaigatewayhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/openaigateway"
 	promptpresethttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/promptpreset"
 	settingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/settings"
 	skillhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/skill"
 	userhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/user"
+	userapikeyhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/userapikey"
 	usersettingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/usersettings"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -69,6 +71,10 @@ type Modules struct {
 	Settings          *settingshttp.Module
 	User              *userhttp.Module
 	UserSettings      *usersettingshttp.Module
+	UserAPIKey        *userapikeyhttp.Module
+	OpenAIGateway     *openaigatewayhttp.Module
+	APIKeyAuth        middleware.APIKeyAuthenticator
+	APIKeyUserLookup  middleware.APIKeyUserLookup
 	StartupLog        func(*zap.Logger)
 	// Shutdown 是进程关停排空信号；排空期间就绪探针返回 503，引导负载均衡摘除流量。
 	Shutdown *lifecycle.Shutdown
@@ -146,7 +152,15 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 
 	authRequired := api.Group("")
 	authRequired.Use(middleware.AuthMiddleware(snapshot.JWTSecret, modules.AuthService))
+	authRequired.Use(middleware.InitialSecurityGate())
 	authRequired.Use(middleware.RateLimit(limiter, cfg))
+
+	if modules.OpenAIGateway != nil && modules.APIKeyAuth != nil {
+		openaiGroup := engine.Group("/v1")
+		openaiGroup.Use(middleware.APIKeyAuthMiddleware(modules.APIKeyAuth, modules.APIKeyUserLookup))
+		openaiGroup.Use(middleware.RateLimit(limiter, cfg))
+		modules.OpenAIGateway.RegisterRoutes(openaiGroup)
+	}
 
 	if modules.Auth != nil {
 		modules.Auth.RegisterProtectedRoutes(authRequired)
@@ -186,6 +200,9 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	}
 	if modules.User != nil {
 		modules.User.RegisterRoutes(authRequired)
+	}
+	if modules.UserAPIKey != nil {
+		modules.UserAPIKey.RegisterRoutes(authRequired)
 	}
 	if modules.Admin != nil || modules.Auth != nil || modules.Billing != nil || modules.Channel != nil || modules.MCP != nil || modules.Settings != nil || modules.Announcement != nil || modules.PromptPreset != nil || modules.Skill != nil || modules.KnowledgeBase != nil || modules.ContentModeration != nil {
 		adminGroup := authRequired.Group("/admin")

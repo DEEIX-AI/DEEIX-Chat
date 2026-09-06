@@ -34,5 +34,20 @@
     "creating": "创建中",
     "createLink": "创建链接",
     "snapshotMessages": "{title} - {count} 条快照消息"
+  },
+  "userShare": {
+    "title": "与用户共享",
+    "description": "按用户名授权。viewer 只读，editor 可继续对话。",
+    "usernamePlaceholder": "用户名",
+    "roleViewer": "只读",
+    "roleEditor": "可编辑",
+    "grant": "授权",
+    "revoke": "撤销",
+    "empty": "尚未授权给其他用户",
+    "loadFailed": "加载共享列表失败",
+    "granted": "已授权",
+    "grantFailed": "授权失败",
+    "revoked": "已撤销",
+    "revokeFailed": "撤销失败"
   }
 }

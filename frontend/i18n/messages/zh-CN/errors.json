@@ -74,6 +74,7 @@
     "providerTypeInvalid": "身份源类型无效。",
     "providerUpstreamFailed": "第三方身份源请求失败。",
     "sessionInvalid": "登录状态已失效，请重新登录。",
+    "initialSecurityRequired": "请先完成初始安全设置后再继续。",
     "superadminRequired": "需要超级管理员权限。",
     "twoFactorAlreadyEnabled": "两步验证已启用。",
     "twoFactorChallengeExpired": "二次验证已过期，请重新输入账号密码登录。",
@@ -337,7 +338,8 @@
   "rateLimit": {
     "authenticationExceeded": "认证尝试次数过多，请稍后再试。",
     "exceeded": "请求过于频繁，请稍后再试。",
-    "refreshExceeded": "刷新登录状态次数过多，请稍后再试。"
+    "refreshExceeded": "刷新登录状态次数过多，请稍后再试。",
+    "unavailable": "限流服务暂时不可用，请稍后再试。"
   },
   "request": {
     "invalid": "请求无效，请检查后重试。",

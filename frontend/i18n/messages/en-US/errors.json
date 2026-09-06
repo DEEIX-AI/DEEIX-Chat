@@ -74,6 +74,7 @@
     "providerTypeInvalid": "Provider type is invalid.",
     "providerUpstreamFailed": "Provider authentication failed.",
     "sessionInvalid": "Your session has expired. Please sign in again.",
+    "initialSecurityRequired": "Complete the initial security setup before continuing.",
     "superadminRequired": "Super administrator permission is required.",
     "twoFactorAlreadyEnabled": "Two-factor authentication is already enabled.",
     "twoFactorChallengeExpired": "Two-factor verification expired. Sign in again.",
@@ -337,7 +338,8 @@
   "rateLimit": {
     "authenticationExceeded": "Too many authentication attempts. Try again later.",
     "exceeded": "Too many requests. Try again later.",
-    "refreshExceeded": "Too many session refresh attempts. Try again later."
+    "refreshExceeded": "Too many session refresh attempts. Try again later.",
+    "unavailable": "Rate limiting is temporarily unavailable. Try again later."
   },
   "request": {
     "invalid": "Invalid request. Check the form and try again.",

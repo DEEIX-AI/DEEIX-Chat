@@ -9,13 +9,14 @@ import (
 
 // KnowledgeBaseListFilter 描述知识库列表筛选条件。
 type KnowledgeBaseListFilter struct {
-	Query         string
-	Sort          string
-	PublicIDs     []string
-	Scope         string
-	OwnerUserID   *uint
-	Enabled       *bool
-	VisibleUserID *uint
+	Query           string
+	Sort            string
+	PublicIDs       []string
+	Scope           string
+	OwnerUserID     *uint
+	Enabled         *bool
+	VisibleUserID   *uint
+	SharedPublicIDs []string
 }
 
 // KnowledgeBaseFileProcessingSnapshot 描述知识库文件处理状态及聚合计数快照。
@@ -59,5 +60,5 @@ type KnowledgeBaseRepository interface {
 	GetKnowledgeBaseFile(ctx context.Context, knowledgeBaseID uint, fileID string) (*domainconversation.FileObject, error)
 	AddKnowledgeBaseFiles(ctx context.Context, knowledgeBaseID uint, scope string, ownerUserID uint, actorUserID uint, fileIDs []string) error
 	RemoveKnowledgeBaseFile(ctx context.Context, knowledgeBaseID uint, fileID string) error
-	ResolveVisibleKnowledgeBaseFiles(ctx context.Context, userID uint, publicIDs []string) ([]domainknowledgebase.KnowledgeBase, []domainconversation.FileObject, error)
+	ResolveVisibleKnowledgeBaseFiles(ctx context.Context, userID uint, publicIDs []string, sharedPublicIDs []string) ([]domainknowledgebase.KnowledgeBase, []domainconversation.FileObject, error)
 }

@@ -35,6 +35,7 @@ type TemporaryChatInput struct {
 	SkillIDs                 []uint
 	KnowledgeBaseIDs         []string
 	HTMLVisualPromptEnabled  bool
+	ProgrammingMode          bool
 	Messages                 []TemporaryChatMessage
 	Attachments              []TemporaryChatAttachment
 	ReleaseAttachmentSources func()
@@ -112,6 +113,7 @@ func (s *Service) StreamTemporaryChat(
 	if err != nil {
 		return nil, err
 	}
+	toolRuntime = s.mergeProgrammingToolRuntime(toolRuntime, input.ProgrammingMode)
 	// Attachment processors depend on persisted file IDs. Request-scoped temporary
 	// attachments are injected directly into the model context instead.
 	toolRuntime = toolRuntime.withoutAttachmentProcessor()

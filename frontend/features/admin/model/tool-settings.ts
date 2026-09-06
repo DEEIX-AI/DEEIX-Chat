@@ -3,7 +3,7 @@ import type { SettingsGrouped } from "@/shared/api/settings.types";
 export type ToolSettingsFieldType = "int" | "bool" | "textarea";
 
 export type ToolSettingsField = {
-  namespace: "mcp";
+  namespace: "mcp" | "programming";
   key:
     | "mcp_enable"
     | "mcp_tool_timeout_seconds"
@@ -12,7 +12,15 @@ export type ToolSettingsField = {
     | "mcp_max_selected_tools_per_message"
     | "mcp_max_llm_calls_per_run"
     | "mcp_max_tool_calls_per_run"
-    | "mcp_tool_prompt";
+    | "mcp_tool_prompt"
+    | "programming_enable"
+    | "programming_shell_enable"
+    | "programming_tool_timeout_seconds"
+    | "programming_max_file_bytes"
+    | "programming_max_llm_calls_per_run"
+    | "programming_max_tool_calls_per_run"
+    | "programming_max_output_chars"
+    | "programming_tool_prompt";
   labelKey: string;
   descriptionKey: string;
   type: ToolSettingsFieldType;
@@ -86,6 +94,76 @@ export const TOOL_SETTINGS_FIELDS: ToolSettingsField[] = [
   },
 ];
 
+export const PROGRAMMING_SETTINGS_FIELDS: ToolSettingsField[] = [
+  {
+    namespace: "programming",
+    key: "programming_enable",
+    labelKey: "programmingEnable.label",
+    descriptionKey: "programmingEnable.description",
+    type: "bool",
+  },
+  {
+    namespace: "programming",
+    key: "programming_shell_enable",
+    labelKey: "programmingShellEnable.label",
+    descriptionKey: "programmingShellEnable.description",
+    type: "bool",
+  },
+  {
+    namespace: "programming",
+    key: "programming_tool_prompt",
+    labelKey: "programmingToolPrompt.label",
+    descriptionKey: "programmingToolPrompt.description",
+    type: "textarea",
+    placeholderKey: "defaultPromptPlaceholder",
+  },
+  {
+    namespace: "programming",
+    key: "programming_max_llm_calls_per_run",
+    labelKey: "programmingMaxLLMCalls.label",
+    descriptionKey: "programmingMaxLLMCalls.description",
+    type: "int",
+    placeholder: "12",
+  },
+  {
+    namespace: "programming",
+    key: "programming_max_tool_calls_per_run",
+    labelKey: "programmingMaxToolCalls.label",
+    descriptionKey: "programmingMaxToolCalls.description",
+    type: "int",
+    placeholder: "32",
+  },
+  {
+    namespace: "programming",
+    key: "programming_tool_timeout_seconds",
+    labelKey: "programmingToolTimeout.label",
+    descriptionKey: "programmingToolTimeout.description",
+    type: "int",
+    placeholder: "30",
+  },
+  {
+    namespace: "programming",
+    key: "programming_max_file_bytes",
+    labelKey: "programmingMaxFileBytes.label",
+    descriptionKey: "programmingMaxFileBytes.description",
+    type: "int",
+    placeholder: "1048576",
+  },
+  {
+    namespace: "programming",
+    key: "programming_max_output_chars",
+    labelKey: "programmingMaxOutputChars.label",
+    descriptionKey: "programmingMaxOutputChars.description",
+    type: "int",
+    placeholder: "100000",
+  },
+];
+
+export const ALL_TOOL_SETTINGS_FIELDS: ToolSettingsField[] = [
+  ...TOOL_SETTINGS_FIELDS,
+  ...PROGRAMMING_SETTINGS_FIELDS,
+];
+
 export function toolFieldID(field: ToolSettingsField): string {
   return `${field.namespace}.${field.key}`;
 }
@@ -94,6 +172,9 @@ export function flattenToolSettings(grouped: SettingsGrouped): Record<string, st
   const result: Record<string, string> = {};
   for (const item of grouped.mcp ?? []) {
     result[`mcp.${item.key}`] = item.value ?? "";
+  }
+  for (const item of grouped.programming ?? []) {
+    result[`programming.${item.key}`] = item.value ?? "";
   }
   return applyToolSettingsDefaults(result);
 }
@@ -109,6 +190,14 @@ export function applyToolSettingsDefaults(settings: Record<string, string>): Rec
     "mcp.mcp_max_concurrent_calls": settings["mcp.mcp_max_concurrent_calls"] || "8",
     "mcp.mcp_tool_timeout_seconds": settings["mcp.mcp_tool_timeout_seconds"] || "10",
     "mcp.mcp_tool_retry_count": settings["mcp.mcp_tool_retry_count"] || "0",
+    "programming.programming_enable": settings["programming.programming_enable"] || "true",
+    "programming.programming_shell_enable": settings["programming.programming_shell_enable"] || "false",
+    "programming.programming_tool_prompt": settings["programming.programming_tool_prompt"] ?? "",
+    "programming.programming_max_llm_calls_per_run": settings["programming.programming_max_llm_calls_per_run"] || "12",
+    "programming.programming_max_tool_calls_per_run": settings["programming.programming_max_tool_calls_per_run"] || "32",
+    "programming.programming_tool_timeout_seconds": settings["programming.programming_tool_timeout_seconds"] || "30",
+    "programming.programming_max_file_bytes": settings["programming.programming_max_file_bytes"] || "1048576",
+    "programming.programming_max_output_chars": settings["programming.programming_max_output_chars"] || "100000",
   };
 }
 

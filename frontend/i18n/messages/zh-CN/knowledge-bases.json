@@ -141,5 +141,20 @@
   "vectorizePartial": "已提交 {submitted} 个文件，另有 {failed} 个文件暂时无法加入队列",
   "toggleFailed": "知识库状态更新失败",
   "enabledToast": "内置知识库已启用",
-  "disabledToast": "内置知识库已停用"
+  "disabledToast": "内置知识库已停用",
+  "userShare": {
+    "title": "与用户共享",
+    "description": "按用户名授权。viewer 可检索使用，editor 可改文件。",
+    "usernamePlaceholder": "用户名",
+    "roleViewer": "只读",
+    "roleEditor": "可编辑",
+    "grant": "授权",
+    "revoke": "撤销",
+    "empty": "尚未授权给其他用户",
+    "loadFailed": "加载共享列表失败",
+    "granted": "已授权",
+    "grantFailed": "授权失败",
+    "revoked": "已撤销",
+    "revokeFailed": "撤销失败"
+  }
 }

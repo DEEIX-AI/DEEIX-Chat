@@ -80,6 +80,7 @@ export function useChatMessageSubmit({
   selectedSkills,
   selectedKnowledgeBaseIDs,
   htmlVisualPromptEnabled,
+  programmingMode,
   options,
   draft,
   attachments,
@@ -132,6 +133,7 @@ export function useChatMessageSubmit({
   selectedSkills: SkillSummaryDTO[];
   selectedKnowledgeBaseIDs: string[];
   htmlVisualPromptEnabled: boolean;
+  programmingMode: boolean;
   options: ConversationOptions;
   draft: string;
   attachments: PendingAttachment[];
@@ -310,6 +312,7 @@ export function useChatMessageSubmit({
         selectedSkills,
         selectedKnowledgeBaseIDs,
         htmlVisualPromptEnabled,
+        programmingMode,
         visibleConversationScopeKey: conversationScopeKeyRef.current,
         visibleBranchScopePath: visibleBranchScopePathRef.current,
         visibleMessages: visibleMessagesRef.current,
@@ -544,6 +547,7 @@ export function useChatMessageSubmit({
           selectedSkills: plan.selectedSkills,
           selectedKnowledgeBaseIDs: plan.selectedKnowledgeBaseIDs,
           htmlVisualPromptEnabled: plan.htmlVisualPromptEnabled,
+          programmingMode: plan.programmingMode,
           parentMessagePublicID: resolvedParentPublicID,
           sourceMessagePublicID: plan.resolvedSourcePublicID,
           branchReason: plan.branchReason,
@@ -768,6 +772,7 @@ export function useChatMessageSubmit({
       flushStreamTextNow,
       flushUpstreamThinkNow,
       htmlVisualPromptEnabled,
+      programmingMode,
       maxFilesPerMessage,
       modelOptions,
       onConversationCreated,
@@ -876,6 +881,7 @@ export function useChatMessageSubmit({
           selectedSkills: selectedSkills.slice(),
           selectedKnowledgeBaseIDs: selectedKnowledgeBaseIDs.slice(),
           htmlVisualPromptEnabled,
+          programmingMode,
         },
       ];
     });
@@ -892,6 +898,7 @@ export function useChatMessageSubmit({
     currentLeafMessage?.status,
     draft,
     htmlVisualPromptEnabled,
+    programmingMode,
     options,
     selectedPlatformModelName,
     selectedSkills,

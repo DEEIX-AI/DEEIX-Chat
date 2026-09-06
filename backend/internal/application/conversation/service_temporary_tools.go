@@ -131,8 +131,8 @@ func (s *Service) runTemporaryGeneration(ctx context.Context, input temporaryGen
 	}
 
 	messages := cloneLLMMessages(initialInput.Messages)
-	remainingToolCalls := s.resolveMaxToolCallsPerRun()
-	maxLLMCalls := s.resolveMaxLLMCallsPerRun()
+	remainingToolCalls := s.resolveMaxToolCallsPerRunForMode(request.ProgrammingMode)
+	maxLLMCalls := s.resolveMaxLLMCallsPerRunForMode(request.ProgrammingMode)
 	ledger := newToolExecutionLedger()
 	// 工具回灌的每次上游调用都独立计费：按已产生的用量加本次调用的预估成本校验预留，
 	// 余额不足时在发起调用前终止，已产生的用量由调用方结算。临时对话每次调用都发送完整上下文。
@@ -167,15 +167,18 @@ func (s *Service) runTemporaryGeneration(ctx context.Context, input temporaryGen
 			MessageID:         0,
 			RequestID:         request.RequestID,
 			RunID:             request.ClientRunID,
+			SessionID:         request.SessionID,
 			ToolCalls:         pending,
 			ToolCallLimit:     remainingToolCalls,
 			TraceRecorder:     traceRecorder,
 			ToolNameMap:       toolRuntime.nameMap,
 			MCPBindings:       toolRuntime.mcpBindings,
+			BuiltinBindings:   toolRuntime.builtinBindings,
 			ToolSchemas:       toolRuntime.schemas,
 			Ledger:            ledger,
 			ResultTokenBudget: resultBudget,
 			Ephemeral:         true,
+			ProgrammingMode:   request.ProgrammingMode,
 		})
 		totalMCPToolUsage = mergeMCPToolUsage(totalMCPToolUsage, toolResult.MCPToolUsage)
 		remainingToolCalls -= len(toolResult.Rows)
