@@ -36,8 +36,8 @@ type Conversation struct {
 	LastShareAccessedAt   *time.Time
 	// AccessRole 是当前访问者相对该会话的角色（owner/editor/viewer），非持久化字段。
 	AccessRole string
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 // ConversationProject 表示用户会话项目分组。

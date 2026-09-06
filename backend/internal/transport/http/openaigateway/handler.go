@@ -35,13 +35,13 @@ func NewHandler(conversation *appconversation.Service, channelService *channel.S
 }
 
 type chatCompletionsRequest struct {
-	Model       string                         `json:"model"`
-	Messages    []chatCompletionsMessage       `json:"messages"`
-	Stream      bool                           `json:"stream"`
-	Temperature *float64                       `json:"temperature"`
-	TopP        *float64                       `json:"top_p"`
-	MaxTokens   *int                           `json:"max_tokens"`
-	Options     map[string]any                 `json:"options"`
+	Model       string                   `json:"model"`
+	Messages    []chatCompletionsMessage `json:"messages"`
+	Stream      bool                     `json:"stream"`
+	Temperature *float64                 `json:"temperature"`
+	TopP        *float64                 `json:"top_p"`
+	MaxTokens   *int                     `json:"max_tokens"`
+	Options     map[string]any           `json:"options"`
 }
 
 type chatCompletionsMessage struct {

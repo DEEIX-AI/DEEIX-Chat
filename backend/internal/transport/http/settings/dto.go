@@ -130,10 +130,10 @@ type ChatContextPolicyResponse struct {
 
 // FeaturePolicyResponse 返回用户侧功能开关策略。
 type FeaturePolicyResponse struct {
-	KnowledgeBaseEnabled   bool `json:"knowledgeBaseEnabled"`
-	UserAPIKeysEnabled     bool `json:"userApiKeysEnabled"`
-	ResourceSharingEnabled bool `json:"resourceSharingEnabled"`
-	ProgrammingModeEnabled bool `json:"programmingModeEnabled"`
+	KnowledgeBaseEnabled    bool `json:"knowledgeBaseEnabled"`
+	UserAPIKeysEnabled      bool `json:"userApiKeysEnabled"`
+	ResourceSharingEnabled  bool `json:"resourceSharingEnabled"`
+	ProgrammingModeEnabled  bool `json:"programmingModeEnabled"`
 	ProgrammingShellEnabled bool `json:"programmingShellEnabled"`
 }
 

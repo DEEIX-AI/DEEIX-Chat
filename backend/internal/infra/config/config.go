@@ -554,14 +554,14 @@ type Config struct {
 	MCPMaxToolCallsPerRun         int
 	MCPToolPrompt                 string
 	// 编程模式：会话级沙箱工作区内的读写改与命令工具。
-	ProgrammingEnable              bool
-	ProgrammingShellEnable         bool
-	ProgrammingToolTimeoutSeconds  int
-	ProgrammingMaxFileBytes        int64
-	ProgrammingMaxLLMCallsPerRun   int
-	ProgrammingMaxToolCallsPerRun  int
-	ProgrammingMaxOutputChars      int
-	ProgrammingPrompt              string
+	ProgrammingEnable             bool
+	ProgrammingShellEnable        bool
+	ProgrammingToolTimeoutSeconds int
+	ProgrammingMaxFileBytes       int64
+	ProgrammingMaxLLMCallsPerRun  int
+	ProgrammingMaxToolCallsPerRun int
+	ProgrammingMaxOutputChars     int
+	ProgrammingPrompt             string
 }
 
 // defaultYAMLPaths 固定读取仓库根目录的 config.yaml。

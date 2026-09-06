@@ -61,15 +61,15 @@ type ConversationMetadataPatch struct {
 
 // ConversationListInput 描述用户会话列表的分页与筛选条件。
 type ConversationListInput struct {
-	UserID           uint
-	Offset           int
-	Limit            int
-	StatusFilter     string
-	StarredFilter    string
-	ShareFilter      string
-	ProjectFilter    string
-	SearchQuery      string
-	SharedPublicIDs  []string // ACL 共享给当前用户的会话公开 ID；与本人会话一并列出
+	UserID          uint
+	Offset          int
+	Limit           int
+	StatusFilter    string
+	StarredFilter   string
+	ShareFilter     string
+	ProjectFilter   string
+	SearchQuery     string
+	SharedPublicIDs []string // ACL 共享给当前用户的会话公开 ID；与本人会话一并列出
 }
 
 // DeleteConversationProjectOptions controls which project-owned records are removed.

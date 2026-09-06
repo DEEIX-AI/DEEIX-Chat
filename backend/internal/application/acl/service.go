@@ -14,14 +14,14 @@ import (
 )
 
 var (
-	ErrDisabled          = apperr.New("collaboration.resource_sharing_disabled", "resource sharing is disabled")
-	ErrInvalidResource   = apperr.New("acl.invalid_resource", "invalid resource")
-	ErrInvalidRole       = apperr.New("acl.invalid_role", "invalid role")
-	ErrInvalidUsername   = apperr.New("acl.invalid_username", "invalid username")
-	ErrUserNotFound      = apperr.New("acl.user_not_found", "user not found")
-	ErrCannotShareSelf   = apperr.New("acl.cannot_share_self", "cannot share with yourself")
-	ErrEntryNotFound     = apperr.New("acl.entry_not_found", "ACL entry not found")
-	ErrForbidden         = apperr.New("acl.forbidden", "forbidden")
+	ErrDisabled        = apperr.New("collaboration.resource_sharing_disabled", "resource sharing is disabled")
+	ErrInvalidResource = apperr.New("acl.invalid_resource", "invalid resource")
+	ErrInvalidRole     = apperr.New("acl.invalid_role", "invalid role")
+	ErrInvalidUsername = apperr.New("acl.invalid_username", "invalid username")
+	ErrUserNotFound    = apperr.New("acl.user_not_found", "user not found")
+	ErrCannotShareSelf = apperr.New("acl.cannot_share_self", "cannot share with yourself")
+	ErrEntryNotFound   = apperr.New("acl.entry_not_found", "ACL entry not found")
+	ErrForbidden       = apperr.New("acl.forbidden", "forbidden")
 )
 
 type runtimeConfig interface {

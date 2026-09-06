@@ -21,11 +21,11 @@ import (
 )
 
 var (
-	ErrDisabled       = apperr.New("auth.user_api_keys_disabled", "user API keys are disabled")
-	ErrInvalidKey     = apperr.New("auth.invalid_api_key", "invalid API key")
-	ErrKeyNotFound    = apperr.New("auth.api_key_not_found", "API key not found")
-	ErrInvalidName    = apperr.New("auth.invalid_api_key_name", "invalid API key name")
-	ErrUserInactive   = apperr.New("auth.user_inactive", "user is inactive")
+	ErrDisabled        = apperr.New("auth.user_api_keys_disabled", "user API keys are disabled")
+	ErrInvalidKey      = apperr.New("auth.invalid_api_key", "invalid API key")
+	ErrKeyNotFound     = apperr.New("auth.api_key_not_found", "API key not found")
+	ErrInvalidName     = apperr.New("auth.invalid_api_key_name", "invalid API key name")
+	ErrUserInactive    = apperr.New("auth.user_inactive", "user is inactive")
 	ErrKeyLimitReached = apperr.New("auth.api_key_limit_reached", "API key limit reached")
 )
 
@@ -45,9 +45,9 @@ type userLookup interface {
 
 // Service 封装用户 API Key 业务。
 type Service struct {
-	repo   repository.UserAPIKeyRepository
-	users  userLookup
-	cfg    runtimeConfig
+	repo  repository.UserAPIKeyRepository
+	users userLookup
+	cfg   runtimeConfig
 }
 
 // NewService 创建服务。

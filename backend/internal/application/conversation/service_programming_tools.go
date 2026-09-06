@@ -408,9 +408,9 @@ func (w programmingWorkspace) writeFile(_ context.Context, args programmingToolA
 		return "", err
 	}
 	return marshalProgrammingResult(map[string]any{
-		"path":    filepath.ToSlash(args.Path),
-		"bytes":   len(content),
-		"status":  "written",
+		"path":   filepath.ToSlash(args.Path),
+		"bytes":  len(content),
+		"status": "written",
 	})
 }
 
