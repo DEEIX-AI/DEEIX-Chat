@@ -545,6 +545,21 @@ export interface ChannelErrorDoc {
   requestId?: string;
 }
 
+export interface ChatCompletionsMessage {
+  content: number[];
+  role: string;
+}
+
+export interface ChatCompletionsRequest {
+  max_tokens: number;
+  messages: ChatCompletionsMessage[];
+  model: string;
+  options: Record<string, any>;
+  stream: boolean;
+  temperature: number;
+  top_p: number;
+}
+
 export interface CheckoutDataResponse {
   checkout: CheckoutResponse;
 }
@@ -788,6 +803,24 @@ export interface ContextArtifactResponseDoc {
   errorMsg: string;
 }
 
+export interface ConversationACLEntryResponse {
+  createdAt: string;
+  granteeUserID: number;
+  granteeUsername: string;
+  role: string;
+  updatedAt: string;
+}
+
+export interface ConversationACLEntryResponseDoc {
+  data: ConversationACLEntryResponse;
+  errorMsg: string;
+}
+
+export interface ConversationACLListResponseDoc {
+  data: ConversationACLEntryResponse[];
+  errorMsg: string;
+}
+
 export interface ConversationCreateResponseDoc {
   data: ConversationResponse;
   errorMsg: string;
@@ -955,6 +988,7 @@ export interface ConversationProjectResponseDoc {
 }
 
 export interface ConversationResponse {
+  accessRole?: string;
   contextPolicyJSON: string;
   createdAt: string;
   isStarred: boolean;
@@ -1275,6 +1309,27 @@ export interface CreateUpstreamResponseDoc {
   errorMsg: string;
 }
 
+export interface CreateUserAPIKeyRequest {
+  /** @maxLength 128 */
+  name: string;
+}
+
+export interface CreateUserAPIKeyResponse {
+  createdAt: string;
+  expiresAt?: string;
+  key: string;
+  keyPrefix: string;
+  lastUsedAt?: string;
+  name: string;
+  publicId: string;
+  revokedAt?: string;
+}
+
+export interface CreateUserAPIKeyResponseDoc {
+  data: CreateUserAPIKeyResponse;
+  errorMsg: string;
+}
+
 export interface CreateUserRequest {
   /** @maxLength 2048 */
   avatarURL?: string;
@@ -1534,6 +1589,18 @@ export interface GetKnowledgeBaseFileProcessingStatusesRequest {
    * @minItems 1
    */
   fileIDs: string[];
+}
+
+export interface GrantConversationACLRequest {
+  role: "viewer" | "editor";
+  /** @maxLength 64 */
+  username: string;
+}
+
+export interface GrantKnowledgeBaseACLRequest {
+  role: "viewer" | "editor";
+  /** @maxLength 64 */
+  username: string;
 }
 
 export interface GroupModelsResponse {
@@ -3104,6 +3171,11 @@ export interface RevokeConversationSharesResponseDoc {
   errorMsg: string;
 }
 
+export interface RevokeUserAPIKeyResponseDoc {
+  data: Record<string, any>;
+  errorMsg: string;
+}
+
 export interface RevokeUserSessionsResponse {
   revoked: boolean;
 }
@@ -3168,6 +3240,7 @@ export interface SendMessageRequest {
   options?: Record<string, any>;
   /** @maxLength 32 */
   parentMessagePublicID?: string;
+  programmingMode?: boolean;
   /** @maxItems 128 */
   selectedToolIDs?: number[];
   /** @maxItems 128 */
@@ -3509,6 +3582,7 @@ export interface TemporaryChatMessageRequest {
   /** @maxLength 128 */
   model: string;
   options?: Record<string, any>;
+  programmingMode?: boolean;
   /** @maxItems 128 */
   selectedToolIDs?: number[];
   /** @maxLength 64 */
@@ -4282,6 +4356,21 @@ export interface UsageStatisticsUserRankResponse {
   userID: number;
   userLabel: string;
   username: string;
+}
+
+export interface UserAPIKeyListResponseDoc {
+  data: UserAPIKeyResponse[];
+  errorMsg: string;
+}
+
+export interface UserAPIKeyResponse {
+  createdAt: string;
+  expiresAt?: string;
+  keyPrefix: string;
+  lastUsedAt?: string;
+  name: string;
+  publicId: string;
+  revokedAt?: string;
 }
 
 export interface UserAuthEventListResponseDoc {
@@ -8412,6 +8501,65 @@ export namespace Conversations {
   }
 
   /**
+   * No description
+   * @tags chat
+   * @name GetConversations
+   * @summary 列出会话 ACL
+   * @request GET:/conversations/{id}/acl
+   * @secure
+   */
+  export namespace GetConversations {
+    export type RequestParams = {
+      /** conversation public id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ConversationACLListResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags chat
+   * @name PutConversations
+   * @summary 授予会话 ACL
+   * @request PUT:/conversations/{id}/acl
+   * @secure
+   */
+  export namespace PutConversations {
+    export type RequestParams = {
+      /** conversation public id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = GrantConversationACLRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ConversationACLEntryResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags chat
+   * @name DeleteConversations
+   * @summary 撤销会话 ACL
+   * @request DELETE:/conversations/{id}/acl/{grantee_user_id}
+   * @secure
+   */
+  export namespace DeleteConversations {
+    export type RequestParams = {
+      /** grantee user id */
+      granteeUserId: number;
+      /** conversation public id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = Record<string, any>;
+  }
+
+  /**
    * @description 设置指定会话归档状态
    * @tags chat
    * @name ArchivePartialUpdate
@@ -9024,6 +9172,65 @@ export namespace KnowledgeBases {
   }
 
   /**
+   * No description
+   * @tags knowledge-bases
+   * @name MineAclList
+   * @summary 列出知识库 ACL
+   * @request GET:/knowledge-bases/mine/{id}/acl
+   * @secure
+   */
+  export namespace MineAclList {
+    export type RequestParams = {
+      /** knowledge base public id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = Record<string, any>;
+  }
+
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name MineAclUpdate
+   * @summary 授予知识库 ACL
+   * @request PUT:/knowledge-bases/mine/{id}/acl
+   * @secure
+   */
+  export namespace MineAclUpdate {
+    export type RequestParams = {
+      /** knowledge base public id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = GrantKnowledgeBaseACLRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = Record<string, any>;
+  }
+
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name MineAclDelete
+   * @summary 撤销知识库 ACL
+   * @request DELETE:/knowledge-bases/mine/{id}/acl/{grantee_user_id}
+   * @secure
+   */
+  export namespace MineAclDelete {
+    export type RequestParams = {
+      /** grantee user id */
+      granteeUserId: number;
+      /** knowledge base public id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = Record<string, any>;
+  }
+
+  /**
    * @description 分页返回当前用户尚未关联到指定个人知识库的有效文件
    * @tags knowledge-bases
    * @name MineAvailableFilesList
@@ -9277,6 +9484,57 @@ export namespace Me {
     export type RequestBody = PatchMeRequest;
     export type RequestHeaders = {};
     export type ResponseBody = PatchMeResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags user-api-keys
+   * @name ApiKeysList
+   * @summary 列出当前用户的 API Key
+   * @request GET:/me/api-keys
+   * @secure
+   */
+  export namespace ApiKeysList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = UserAPIKeyListResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags user-api-keys
+   * @name ApiKeysCreate
+   * @summary 创建 API Key（明文仅返回一次）
+   * @request POST:/me/api-keys
+   * @secure
+   */
+  export namespace ApiKeysCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = CreateUserAPIKeyRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = CreateUserAPIKeyResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags user-api-keys
+   * @name ApiKeysDelete
+   * @summary 吊销 API Key
+   * @request DELETE:/me/api-keys/{id}
+   * @secure
+   */
+  export namespace ApiKeysDelete {
+    export type RequestParams = {
+      /** API Key public ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = RevokeUserAPIKeyResponseDoc;
   }
 
   /**
@@ -9876,5 +10134,39 @@ export namespace User {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = UserDailyActivityListResponseDoc;
+  }
+}
+
+export namespace V1 {
+  /**
+   * No description
+   * @tags openai-gateway
+   * @name ChatCompletionsCreate
+   * @summary OpenAI-compatible chat completions
+   * @request POST:/v1/chat/completions
+   * @secure
+   */
+  export namespace ChatCompletionsCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = ChatCompletionsRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = Record<string, any>;
+  }
+
+  /**
+   * No description
+   * @tags openai-gateway
+   * @name ModelsList
+   * @summary OpenAI-compatible model list
+   * @request GET:/v1/models
+   * @secure
+   */
+  export namespace ModelsList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = Record<string, any>;
   }
 }

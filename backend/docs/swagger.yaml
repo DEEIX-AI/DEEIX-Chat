@@ -1910,6 +1910,47 @@ definitions:
     - data
     - errorMsg
     type: object
+  ConversationACLEntryResponse:
+    properties:
+      createdAt:
+        type: string
+      granteeUserID:
+        type: integer
+      granteeUsername:
+        type: string
+      role:
+        type: string
+      updatedAt:
+        type: string
+    required:
+    - createdAt
+    - granteeUserID
+    - granteeUsername
+    - role
+    - updatedAt
+    type: object
+  ConversationACLEntryResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ConversationACLEntryResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ConversationACLListResponseDoc:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/ConversationACLEntryResponse'
+        type: array
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   ConversationCreateResponseDoc:
     properties:
       data:
@@ -2338,6 +2379,8 @@ definitions:
     type: object
   ConversationResponse:
     properties:
+      accessRole:
+        type: string
       contextPolicyJSON:
         type: string
       createdAt:
@@ -2962,6 +3005,49 @@ definitions:
     - data
     - errorMsg
     type: object
+  CreateUserAPIKeyRequest:
+    properties:
+      name:
+        maxLength: 128
+        type: string
+    required:
+    - name
+    type: object
+  CreateUserAPIKeyResponse:
+    properties:
+      createdAt:
+        type: string
+      expiresAt:
+        type: string
+      key:
+        type: string
+      keyPrefix:
+        type: string
+      lastUsedAt:
+        type: string
+      name:
+        type: string
+      publicId:
+        type: string
+      revokedAt:
+        type: string
+    required:
+    - createdAt
+    - key
+    - keyPrefix
+    - name
+    - publicId
+    type: object
+  CreateUserAPIKeyResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/CreateUserAPIKeyResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   CreateUserRequest:
     properties:
       avatarURL:
@@ -3488,6 +3574,34 @@ definitions:
         type: array
     required:
     - fileIDs
+    type: object
+  GrantConversationACLRequest:
+    properties:
+      role:
+        enum:
+        - viewer
+        - editor
+        type: string
+      username:
+        maxLength: 64
+        type: string
+    required:
+    - role
+    - username
+    type: object
+  GrantKnowledgeBaseACLRequest:
+    properties:
+      role:
+        enum:
+        - viewer
+        - editor
+        type: string
+      username:
+        maxLength: 64
+        type: string
+    required:
+    - role
+    - username
     type: object
   GroupModelsResponse:
     properties:
@@ -7031,6 +7145,17 @@ definitions:
     - data
     - errorMsg
     type: object
+  RevokeUserAPIKeyResponseDoc:
+    properties:
+      data:
+        additionalProperties: {}
+        type: object
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   RevokeUserSessionsResponse:
     properties:
       revoked:
@@ -7201,6 +7326,8 @@ definitions:
       parentMessagePublicID:
         maxLength: 32
         type: string
+      programmingMode:
+        type: boolean
       selectedToolIDs:
         items:
           type: integer
@@ -7927,6 +8054,8 @@ definitions:
       options:
         additionalProperties: {}
         type: object
+      programmingMode:
+        type: boolean
       selectedToolIDs:
         items:
           type: integer
@@ -9681,6 +9810,40 @@ definitions:
     - userLabel
     - username
     type: object
+  UserAPIKeyListResponseDoc:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/UserAPIKeyResponse'
+        type: array
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  UserAPIKeyResponse:
+    properties:
+      createdAt:
+        type: string
+      expiresAt:
+        type: string
+      keyPrefix:
+        type: string
+      lastUsedAt:
+        type: string
+      name:
+        type: string
+      publicId:
+        type: string
+      revokedAt:
+        type: string
+    required:
+    - createdAt
+    - keyPrefix
+    - name
+    - publicId
+    type: object
   UserAuthEventListResponseDoc:
     properties:
       data:
@@ -9899,6 +10062,46 @@ definitions:
     - markdown
     - title
     - trigger
+    type: object
+  chatCompletionsMessage:
+    properties:
+      content:
+        items:
+          type: integer
+        type: array
+      role:
+        type: string
+    required:
+    - content
+    - role
+    type: object
+  chatCompletionsRequest:
+    properties:
+      max_tokens:
+        type: integer
+      messages:
+        items:
+          $ref: '#/definitions/chatCompletionsMessage'
+        type: array
+      model:
+        type: string
+      options:
+        additionalProperties: {}
+        type: object
+      stream:
+        type: boolean
+      temperature:
+        type: number
+      top_p:
+        type: number
+    required:
+    - max_tokens
+    - messages
+    - model
+    - options
+    - stream
+    - temperature
+    - top_p
     type: object
 info:
   contact: {}
@@ -16518,6 +16721,71 @@ paths:
       summary: 查询会话
       tags:
       - chat
+  /conversations/{id}/acl:
+    get:
+      parameters:
+      - description: conversation public id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ConversationACLListResponseDoc'
+      security:
+      - BearerAuth: []
+      summary: 列出会话 ACL
+      tags:
+      - chat
+    put:
+      parameters:
+      - description: conversation public id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: grant
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/GrantConversationACLRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ConversationACLEntryResponseDoc'
+      security:
+      - BearerAuth: []
+      summary: 授予会话 ACL
+      tags:
+      - chat
+  /conversations/{id}/acl/{grantee_user_id}:
+    delete:
+      parameters:
+      - description: conversation public id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: grantee user id
+        in: path
+        name: grantee_user_id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 撤销会话 ACL
+      tags:
+      - chat
   /conversations/{id}/archive:
     patch:
       consumes:
@@ -17936,6 +18204,73 @@ paths:
       summary: 更新个人知识库
       tags:
       - knowledge-bases
+  /knowledge-bases/mine/{id}/acl:
+    get:
+      parameters:
+      - description: knowledge base public id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 列出知识库 ACL
+      tags:
+      - knowledge-bases
+    put:
+      parameters:
+      - description: knowledge base public id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: grant
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/GrantKnowledgeBaseACLRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 授予知识库 ACL
+      tags:
+      - knowledge-bases
+  /knowledge-bases/mine/{id}/acl/{grantee_user_id}:
+    delete:
+      parameters:
+      - description: knowledge base public id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: grantee user id
+        in: path
+        name: grantee_user_id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 撤销知识库 ACL
+      tags:
+      - knowledge-bases
   /knowledge-bases/mine/{id}/available-files:
     get:
       description: 分页返回当前用户尚未关联到指定个人知识库的有效文件
@@ -18169,6 +18504,54 @@ paths:
       summary: 更新当前用户资料
       tags:
       - auth
+  /me/api-keys:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UserAPIKeyListResponseDoc'
+      security:
+      - BearerAuth: []
+      summary: 列出当前用户的 API Key
+      tags:
+      - user-api-keys
+    post:
+      parameters:
+      - description: 参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CreateUserAPIKeyRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/CreateUserAPIKeyResponseDoc'
+      security:
+      - BearerAuth: []
+      summary: 创建 API Key（明文仅返回一次）
+      tags:
+      - user-api-keys
+  /me/api-keys/{id}:
+    delete:
+      parameters:
+      - description: API Key public ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/RevokeUserAPIKeyResponseDoc'
+      security:
+      - BearerAuth: []
+      summary: 吊销 API Key
+      tags:
+      - user-api-keys
   /me/delete/start:
     post:
       consumes:
@@ -19159,6 +19542,43 @@ paths:
       summary: 查询每日活跃度
       tags:
       - user
+  /v1/chat/completions:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: OpenAI chat completions body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/chatCompletionsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: OpenAI-compatible chat completions
+      tags:
+      - openai-gateway
+  /v1/models:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: OpenAI-compatible model list
+      tags:
+      - openai-gateway
 securityDefinitions:
   BearerAuth:
     in: header

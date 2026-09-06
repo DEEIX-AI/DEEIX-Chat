@@ -10673,6 +10673,111 @@ const docTemplate = `{
                 }
             }
         },
+        "/conversations/{id}/acl": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "列出会话 ACL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "conversation public id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationACLListResponseDoc"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "授予会话 ACL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "conversation public id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "grant",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/GrantConversationACLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationACLEntryResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/conversations/{id}/acl/{grantee_user_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "撤销会话 ACL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "conversation public id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "grantee user id",
+                        "name": "grantee_user_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/conversations/{id}/archive": {
             "patch": {
                 "security": [
@@ -12410,6 +12515,113 @@ const docTemplate = `{
                 }
             }
         },
+        "/knowledge-bases/mine/{id}/acl": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "knowledge-bases"
+                ],
+                "summary": "列出知识库 ACL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "knowledge base public id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "knowledge-bases"
+                ],
+                "summary": "授予知识库 ACL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "knowledge base public id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "grant",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/GrantKnowledgeBaseACLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/knowledge-bases/mine/{id}/acl/{grantee_user_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "knowledge-bases"
+                ],
+                "summary": "撤销知识库 ACL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "knowledge base public id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "grantee user id",
+                        "name": "grantee_user_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/knowledge-bases/mine/{id}/available-files": {
             "get": {
                 "security": [
@@ -13026,6 +13238,87 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/api-keys": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "user-api-keys"
+                ],
+                "summary": "列出当前用户的 API Key",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/UserAPIKeyListResponseDoc"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "user-api-keys"
+                ],
+                "summary": "创建 API Key（明文仅返回一次）",
+                "parameters": [
+                    {
+                        "description": "参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateUserAPIKeyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/CreateUserAPIKeyResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/api-keys/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "user-api-keys"
+                ],
+                "summary": "吊销 API Key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "API Key public ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/RevokeUserAPIKeyResponseDoc"
                         }
                     }
                 }
@@ -14593,6 +14886,67 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/UserErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/chat/completions": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "openai-gateway"
+                ],
+                "summary": "OpenAI-compatible chat completions",
+                "parameters": [
+                    {
+                        "description": "OpenAI chat completions body",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/chatCompletionsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/models": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "openai-gateway"
+                ],
+                "summary": "OpenAI-compatible model list",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -17304,6 +17658,66 @@ const docTemplate = `{
                 }
             }
         },
+        "ConversationACLEntryResponse": {
+            "type": "object",
+            "required": [
+                "createdAt",
+                "granteeUserID",
+                "granteeUsername",
+                "role",
+                "updatedAt"
+            ],
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "granteeUserID": {
+                    "type": "integer"
+                },
+                "granteeUsername": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "ConversationACLEntryResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ConversationACLEntryResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ConversationACLListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ConversationACLEntryResponse"
+                    }
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "ConversationCreateResponseDoc": {
             "type": "object",
             "required": [
@@ -17934,6 +18348,9 @@ const docTemplate = `{
                 "userID"
             ],
             "properties": {
+                "accessRole": {
+                    "type": "string"
+                },
                 "contextPolicyJSON": {
                     "type": "string"
                 },
@@ -18779,6 +19196,69 @@ const docTemplate = `{
                 }
             }
         },
+        "CreateUserAPIKeyRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 128
+                }
+            }
+        },
+        "CreateUserAPIKeyResponse": {
+            "type": "object",
+            "required": [
+                "createdAt",
+                "key",
+                "keyPrefix",
+                "name",
+                "publicId"
+            ],
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "keyPrefix": {
+                    "type": "string"
+                },
+                "lastUsedAt": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "publicId": {
+                    "type": "string"
+                },
+                "revokedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "CreateUserAPIKeyResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/CreateUserAPIKeyResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "CreateUserRequest": {
             "type": "object",
             "required": [
@@ -19528,6 +20008,46 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "GrantConversationACLRequest": {
+            "type": "object",
+            "required": [
+                "role",
+                "username"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "viewer",
+                        "editor"
+                    ]
+                },
+                "username": {
+                    "type": "string",
+                    "maxLength": 64
+                }
+            }
+        },
+        "GrantKnowledgeBaseACLRequest": {
+            "type": "object",
+            "required": [
+                "role",
+                "username"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "viewer",
+                        "editor"
+                    ]
+                },
+                "username": {
+                    "type": "string",
+                    "maxLength": 64
                 }
             }
         },
@@ -24586,6 +25106,22 @@ const docTemplate = `{
                 }
             }
         },
+        "RevokeUserAPIKeyResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "RevokeUserSessionsResponse": {
             "type": "object",
             "required": [
@@ -24823,6 +25359,9 @@ const docTemplate = `{
                 "parentMessagePublicID": {
                     "type": "string",
                     "maxLength": 32
+                },
+                "programmingMode": {
+                    "type": "boolean"
                 },
                 "selectedToolIDs": {
                     "type": "array",
@@ -25867,6 +26406,9 @@ const docTemplate = `{
                 "options": {
                     "type": "object",
                     "additionalProperties": {}
+                },
+                "programmingMode": {
+                    "type": "boolean"
                 },
                 "selectedToolIDs": {
                     "type": "array",
@@ -28307,6 +28849,56 @@ const docTemplate = `{
                 }
             }
         },
+        "UserAPIKeyListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/UserAPIKeyResponse"
+                    }
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "UserAPIKeyResponse": {
+            "type": "object",
+            "required": [
+                "createdAt",
+                "keyPrefix",
+                "name",
+                "publicId"
+            ],
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "keyPrefix": {
+                    "type": "string"
+                },
+                "lastUsedAt": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "publicId": {
+                    "type": "string"
+                },
+                "revokedAt": {
+                    "type": "string"
+                }
+            }
+        },
         "UserAuthEventListResponseDoc": {
             "type": "object",
             "required": [
@@ -28625,6 +29217,63 @@ const docTemplate = `{
                 "trigger": {
                     "type": "string",
                     "maxLength": 64
+                }
+            }
+        },
+        "chatCompletionsMessage": {
+            "type": "object",
+            "required": [
+                "content",
+                "role"
+            ],
+            "properties": {
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
+        "chatCompletionsRequest": {
+            "type": "object",
+            "required": [
+                "max_tokens",
+                "messages",
+                "model",
+                "options",
+                "stream",
+                "temperature",
+                "top_p"
+            ],
+            "properties": {
+                "max_tokens": {
+                    "type": "integer"
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/chatCompletionsMessage"
+                    }
+                },
+                "model": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "stream": {
+                    "type": "boolean"
+                },
+                "temperature": {
+                    "type": "number"
+                },
+                "top_p": {
+                    "type": "number"
                 }
             }
         }
