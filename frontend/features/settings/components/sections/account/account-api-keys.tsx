@@ -99,8 +99,9 @@ export function AccountAPIKeysSection() {
   };
 
   return (
-    <SettingsSection title={t("title")} description={t("description")}>
+    <SettingsSection title={t("title")}>
       <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">{t("description")}</p>
         {created ? (
           <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
             <p className="text-xs text-muted-foreground">{t("plaintextHint")}</p>
