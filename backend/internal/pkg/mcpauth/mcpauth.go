@@ -31,7 +31,11 @@ type Payload struct {
 	UserID         uint   `json:"user_id"`
 	ConversationID uint   `json:"conversation_id,omitempty"`
 	RequestID      string `json:"request_id,omitempty"`
-	ExpiresAt      int64  `json:"exp"`
+	// Audience 绑定目标 MCP 服务地址，防止同一 token 被重放到其他服务端。
+	Audience string `json:"aud,omitempty"`
+	// JTI 是每次签发唯一的 token 标识，供服务端做重放防护与幂等。
+	JTI       string `json:"jti,omitempty"`
+	ExpiresAt int64  `json:"exp"`
 }
 
 // Sign 用 HMAC-SHA256 对 payload 签名并返回 token。

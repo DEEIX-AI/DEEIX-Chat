@@ -65,6 +65,26 @@ func TestSignVerifyRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSignVerifyRoundTripWithAudienceAndJTI(t *testing.T) {
+	payload := Payload{
+		UserID:    1,
+		Audience:  "http://127.0.0.1/mcp",
+		JTI:       "550e8400-e29b-41d4-a716-446655440000",
+		ExpiresAt: time.Now().Add(DefaultTTL).Unix(),
+	}
+	token, err := Sign("test-secret", payload)
+	if err != nil {
+		t.Fatalf("sign failed: %v", err)
+	}
+	got, err := verifyForTest("test-secret", token, time.Now())
+	if err != nil {
+		t.Fatalf("verify failed: %v", err)
+	}
+	if got.Audience != payload.Audience || got.JTI != payload.JTI {
+		t.Fatalf("unexpected claims: %#v", got)
+	}
+}
+
 func TestSignProducesFreshExpiry(t *testing.T) {
 	payload := Payload{UserID: 1, ExpiresAt: time.Now().Add(DefaultTTL).Unix()}
 	first, err := Sign("secret", payload)

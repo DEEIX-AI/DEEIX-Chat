@@ -97,8 +97,48 @@ func TestExecuteToolCallExpandsSignedUserContextHeader(t *testing.T) {
 	if payload.UserID != 42 || payload.ConversationID != 7 || payload.RequestID != "req_1" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
+	if payload.Audience != "http://127.0.0.1/mcp" {
+		t.Fatalf("expected audience bound to the MCP base URL, got %q", payload.Audience)
+	}
+	if payload.JTI == "" {
+		t.Fatalf("expected a unique token id, got empty jti")
+	}
 	if client.cfg.Headers["X-Static"] != "keep" {
 		t.Fatalf("static header lost: %#v", client.cfg.Headers)
+	}
+}
+
+func TestExecuteToolCallSignsFreshJTIPerCall(t *testing.T) {
+	client := &capturingMCPClient{output: "ok"}
+	svc := newToolService("test-secret", client)
+	input := ExecuteToolInput{
+		UserID:        42,
+		ToolName:      "demo.tool",
+		ArgumentsJSON: `{}`,
+		MCPConfig: &mcp.CallConfig{
+			BaseURL: "http://127.0.0.1/mcp",
+			Headers: map[string]string{mcpauth.HeaderName: mcpauth.TemplateSignedUserContext},
+		},
+	}
+	if _, err := svc.executeToolCall(context.Background(), input); err != nil {
+		t.Fatalf("first execute failed: %v", err)
+	}
+	first, err := verifyUserContextForTest("test-secret", client.cfg.Headers[mcpauth.HeaderName])
+	if err != nil {
+		t.Fatalf("first verify failed: %v", err)
+	}
+	if _, err := svc.executeToolCall(context.Background(), input); err != nil {
+		t.Fatalf("second execute failed: %v", err)
+	}
+	second, err := verifyUserContextForTest("test-secret", client.cfg.Headers[mcpauth.HeaderName])
+	if err != nil {
+		t.Fatalf("second verify failed: %v", err)
+	}
+	if first.JTI == "" || second.JTI == "" {
+		t.Fatalf("expected non-empty jti, got %q / %q", first.JTI, second.JTI)
+	}
+	if first.JTI == second.JTI {
+		t.Fatalf("expected fresh jti per call, got duplicate %q", first.JTI)
 	}
 }
 
