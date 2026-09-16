@@ -1,0 +1,69 @@
+/* Font-size scaling utility overrides.
+ *
+ * These selectors intentionally shadow Tailwind's generated arbitrary-value
+ * utilities (e.g. `text-[11px]`) so every enumerated size follows the user
+ * font-size setting via --ui-font-scale / --chat-font-scale (tokens defined
+ * in app/globals.css `:root[data-font-size]`).
+ *
+ * Constraints:
+ * - Must be imported with `layer(utilities)` AFTER `@import "tailwindcss"`;
+ *   the override wins by source order within the same cascade layer.
+ * - Only the sizes listed here scale. A new `text-[14px]` in JSX silently
+ *   ignores the user setting until it is added to this file.
+ */
+
+.text-\[8px\] {
+  font-size: calc(8px * var(--ui-font-scale));
+}
+
+.text-\[9px\] {
+  font-size: calc(9px * var(--ui-font-scale));
+}
+
+.text-\[10px\] {
+  font-size: calc(10px * var(--ui-font-scale));
+}
+
+.text-\[11px\] {
+  font-size: calc(11px * var(--ui-font-scale));
+}
+
+.text-\[12px\] {
+  font-size: calc(12px * var(--ui-font-scale));
+}
+
+.text-\[12\.5px\] {
+  font-size: calc(12.5px * var(--ui-font-scale));
+}
+
+.text-\[13px\] {
+  font-size: calc(13px * var(--ui-font-scale));
+}
+
+.text-\[15px\] {
+  font-size: calc(15px * var(--ui-font-scale));
+}
+
+.text-\[22px\] {
+  font-size: calc(22px * var(--ui-font-scale));
+}
+
+.text-\[32px\] {
+  font-size: calc(32px * var(--ui-font-scale));
+}
+
+.text-\[0\.8rem\] {
+  font-size: calc(0.8rem * var(--ui-font-scale));
+}
+
+.chat-font-content.text-\[15px\],
+.chat-font-content .text-\[15px\],
+textarea.text-\[15px\] {
+  font-size: calc(15px * var(--chat-font-scale));
+}
+
+@media (min-width: 48rem) {
+  .md\:text-\[32px\] {
+    font-size: calc(32px * var(--ui-font-scale));
+  }
+}

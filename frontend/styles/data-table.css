@@ -1,0 +1,78 @@
+/* Data table (admin/list views) component styles.
+ * Imported into app/globals.css inside `layer(components)`; class names
+ * are public contracts used by shared/components table primitives.
+ */
+
+.data-table-header {
+  --data-table-header-bg: var(--accent);
+  background-color: var(--data-table-header-bg);
+  box-shadow: 0 -1px 0 0 var(--data-table-header-bg);
+}
+
+.data-table-sticky-end-head {
+  background-color: var(--data-table-header-bg);
+}
+
+.data-table-viewport {
+  transition: height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+tbody .data-table-row {
+  --data-table-row-bg: var(--background);
+  --data-table-row-hover-bg: var(--accent);
+  background-color: var(--data-table-row-bg);
+}
+
+tbody .data-table-row[data-tone="muted"] {
+  --data-table-row-bg: color-mix(in oklch, var(--muted) 20%, var(--background));
+  --data-table-row-hover-bg: color-mix(in oklch, var(--muted) 30%, var(--background));
+}
+
+tbody .data-table-row[data-tone="muted"] > .data-table-sticky-end-cell {
+  background-color: color-mix(in oklch, var(--muted) 20%, var(--background));
+}
+
+tbody .data-table-row[data-tone="warning"] {
+  --data-table-row-bg: color-mix(in oklch, var(--amber-100) 45%, var(--background));
+  --data-table-row-hover-bg: color-mix(in oklch, var(--amber-100) 60%, var(--background));
+}
+
+tbody .data-table-row[data-tone="warning"] > .data-table-sticky-end-cell {
+  background-color: color-mix(in oklch, var(--amber-100) 45%, var(--background));
+}
+
+.dark tbody .data-table-row[data-tone="warning"] {
+  --data-table-row-bg: color-mix(in oklch, var(--amber-900) 18%, var(--background));
+  --data-table-row-hover-bg: color-mix(in oklch, var(--amber-900) 24%, var(--background));
+}
+
+.dark tbody .data-table-row[data-tone="warning"] > .data-table-sticky-end-cell {
+  background-color: color-mix(in oklch, var(--amber-900) 18%, var(--background));
+}
+
+tbody .data-table-row[data-selected="true"] {
+  --data-table-row-bg: var(--accent);
+  --data-table-row-hover-bg: var(--accent);
+}
+
+tbody .data-table-row[data-selected="true"] > .data-table-sticky-end-cell {
+  background-color: var(--accent);
+}
+
+tbody .data-table-row:not([data-interactive="false"]):hover {
+  --data-table-row-bg: var(--data-table-row-hover-bg);
+}
+
+tbody .data-table-row:not([data-interactive="false"]):hover > .data-table-sticky-end-cell {
+  background-color: var(--data-table-row-hover-bg);
+}
+
+tbody .data-table-sticky-end-cell {
+  background-color: var(--data-table-row-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .data-table-viewport {
+    transition: none;
+  }
+}

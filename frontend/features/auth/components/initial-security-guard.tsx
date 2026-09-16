@@ -43,7 +43,8 @@ import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { AppLogo } from "@/shared/components/app-logo";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { TimeZoneSelect } from "@/shared/components/time-zone-select";
-import { useTheme, type ThemePreset } from "@/shared/components/theme-provider";
+import { useTheme } from "@/shared/components/theme-provider";
+import type { ThemePreset } from "@/shared/model/theme";
 import { createQRCodeDataURL } from "@/shared/lib/qr-code";
 import { detectCurrentTimeZone } from "@/shared/lib/time-zone";
 import { cn } from "@/lib/utils";
@@ -450,10 +451,9 @@ export function InitialSecurityGuard() {
   const currentAppearancePreferences = React.useCallback(
     () => serializeAppearancePreferences({
       ...readLocalAppearancePreferences(),
-      theme,
       preset,
     }),
-    [preset, theme],
+    [preset],
   );
 
   const saveThemePresetStep = React.useCallback(async () => {

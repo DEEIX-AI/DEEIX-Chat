@@ -104,6 +104,46 @@ function toPendingTraceBlock(block: TraceBlockDTO | undefined) {
   };
 }
 
+type SnapshotThinkEvent = {
+  eventID: string;
+  eventType: string;
+  phase: string;
+  summary: string;
+  contentMarkdown: string;
+  endedAt?: string;
+};
+
+// 实时快照里的思考事件不带正文；用上一份快照或数据库加载的轨迹补全正文与结束时间，避免整体替换时丢失。
+export function mergeProcessTraceSnapshot<T extends { events?: SnapshotThinkEvent[] }>(
+  previous: T | undefined,
+  next: T | undefined,
+): T | undefined {
+  const previousEvents = previous?.events;
+  if (!next?.events?.length || !previousEvents?.length) {
+    return next;
+  }
+  const previousByEventID = new Map(previousEvents.map((event) => [event.eventID, event]));
+  let changed = false;
+  const events = next.events.map((event) => {
+    if (event.phase !== "upstream_think" && event.eventType !== "think") {
+      return event;
+    }
+    const known = previousByEventID.get(event.eventID);
+    if (!known) {
+      return event;
+    }
+    const contentMarkdown = known.contentMarkdown.length > event.contentMarkdown.length ? known.contentMarkdown : event.contentMarkdown;
+    const summary = event.summary || known.summary;
+    const endedAt = event.endedAt ?? known.endedAt;
+    if (contentMarkdown === event.contentMarkdown && summary === event.summary && endedAt === event.endedAt) {
+      return event;
+    }
+    changed = true;
+    return { ...event, contentMarkdown, summary, endedAt };
+  });
+  return changed ? { ...next, events } : next;
+}
+
 export function toPendingProcessTrace(trace: MessageProcessTraceDTO | undefined): ChatMessageProcessTrace | undefined {
   if (!trace?.enabled) {
     return undefined;

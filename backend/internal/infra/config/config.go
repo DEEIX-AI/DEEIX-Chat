@@ -82,25 +82,11 @@ func DefaultModelOptionAllowedPathsJSON() string {
     "thinking.type",
     "stream_options.include_usage"
   ],
-  "openrouter_chat_completions": [
-    "presence_penalty",
-    "frequency_penalty",
-    "reasoning_effort",
-    "reasoning.effort",
-    "reasoning.summary",
-    "verbosity",
-    "thinking.type",
-    "stream_options.include_usage"
-  ],
   "openai_responses": [
     "service_tier",
     "reasoning.effort",
     "reasoning.summary",
     "text.verbosity"
-  ],
-  "openrouter_responses": [
-    "reasoning.effort",
-    "reasoning.summary"
   ],
   "openai_image_generations": [
     "background",
@@ -185,6 +171,37 @@ func DefaultModelOptionAllowedPathsJSON() string {
   ],
   "xai_video_extensions": [
     "duration"
+  ],
+  "openrouter_chat_completions": [
+    "presence_penalty",
+    "frequency_penalty",
+    "reasoning_effort",
+    "reasoning.effort",
+    "reasoning.summary",
+    "verbosity",
+    "thinking.type",
+    "stream_options.include_usage"
+  ],
+  "openrouter_responses": [
+    "reasoning.effort",
+    "reasoning.summary"
+  ],
+  "openrouter_images": [
+    "aspect_ratio",
+    "background",
+    "n",
+    "output_compression",
+    "output_format",
+    "provider.allow_fallbacks",
+    "provider.ignore",
+    "provider.only",
+    "provider.order",
+    "provider.sort",
+    "quality",
+    "resolution",
+    "seed",
+    "size",
+    "user"
   ]
 }`
 }

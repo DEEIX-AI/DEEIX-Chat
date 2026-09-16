@@ -224,6 +224,10 @@ function ModelOptionPolicyGuideButton({ t }: { t: (key: string) => string }) {
       "top_p",
       "stop"
     ],
+    "openai_chat_completions": [
+      "service_tier",
+      "thinking.type"
+    ],
     "openai_responses": [
       "service_tier",
       "reasoning.effort",
@@ -253,6 +257,11 @@ function ModelOptionPolicyGuideButton({ t }: { t: (key: string) => string }) {
       "response_format",
       "size",
       "user"
+    ],
+    "anthropic_messages": [
+      "speed",
+      "thinking.type",
+      "thinking.budget_tokens"
     ],
     "google_image_generation": [
       "generationConfig.responseModalities",
@@ -292,10 +301,6 @@ function ModelOptionPolicyGuideButton({ t }: { t: (key: string) => string }) {
     "xai_video_extensions": [
       "duration"
     ],
-    "openai_chat_completions": [
-      "service_tier",
-      "thinking.type"
-    ],
     "openrouter_chat_completions": [
       "reasoning_effort",
       "reasoning.effort",
@@ -305,10 +310,13 @@ function ModelOptionPolicyGuideButton({ t }: { t: (key: string) => string }) {
       "reasoning.effort",
       "reasoning.summary"
     ],
-    "anthropic_messages": [
-      "speed",
-      "thinking.type",
-      "thinking.budget_tokens"
+    "openrouter_images": [
+      "aspect_ratio",
+      "n",
+      "quality",
+      "resolution",
+      "output_format",
+      "provider.only"
     ]
   }`}
                   </pre>

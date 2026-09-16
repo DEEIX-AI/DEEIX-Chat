@@ -35,6 +35,7 @@ const (
 
 	protocolOpenAIImageGenerations = llm.AdapterOpenAIImageGenerations
 	protocolOpenAIImageEdits       = llm.AdapterOpenAIImageEdits
+	protocolOpenRouterImages       = llm.AdapterOpenRouterImages
 	protocolOpenAIVideoGenerations = "openai_video_generations"
 	protocolGoogleImageGeneration  = llm.AdapterGoogleImageGeneration
 	protocolGeminiInteractions     = llm.AdapterGeminiInteractions
@@ -150,8 +151,8 @@ func systemFallbackProtocols(compatible string) map[string]string {
 		return map[string]string{
 			modelKindChat:      llm.AdapterOpenRouterResponses,
 			modelKindAudio:     llm.AdapterOpenRouterResponses,
-			modelKindImageGen:  protocolOpenAIImageGenerations,
-			modelKindImageEdit: protocolOpenAIImageEdits,
+			modelKindImageGen:  protocolOpenRouterImages,
+			modelKindImageEdit: protocolOpenRouterImages,
 			modelKindVideoGen:  protocolOpenAIVideoGenerations,
 		}
 	case compatibleCustom:
@@ -177,6 +178,7 @@ func isKnownProtocol(raw string) bool {
 		llm.AdapterXAIResponses,
 		protocolOpenAIImageGenerations,
 		protocolOpenAIImageEdits,
+		protocolOpenRouterImages,
 		protocolOpenAIVideoGenerations,
 		protocolGoogleImageGeneration,
 		protocolGeminiInteractions,
@@ -413,6 +415,7 @@ func isProtocolAllowedForKind(kind string, protocol string) bool {
 	case modelKindImageGen:
 		switch protocol {
 		case protocolOpenAIImageGenerations,
+			protocolOpenRouterImages,
 			protocolGoogleImageGeneration,
 			protocolGeminiInteractions,
 			protocolXAIImage:
@@ -423,6 +426,7 @@ func isProtocolAllowedForKind(kind string, protocol string) bool {
 	case modelKindImageEdit:
 		switch protocol {
 		case protocolOpenAIImageEdits,
+			protocolOpenRouterImages,
 			protocolGoogleImageGeneration,
 			protocolGeminiInteractions,
 			protocolXAIImageEdits:

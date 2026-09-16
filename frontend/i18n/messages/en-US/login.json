@@ -35,18 +35,19 @@
   "alreadyHaveAccount": "Already have an account?",
   "noAccount": "No account?",
   "toasts": {
+    "accountLocked": "Too many failed attempts. This account is locked for another {minutes} minute(s).",
+    "challengeExpired": "Two-factor verification expired. Sign in again.",
     "codeRequired": "Enter a verification code or recovery code.",
+    "codeSendFailed": "Failed to send verification code.",
     "loginFailed": "Sign-in failed. Check your account and password.",
     "loginRetry": "Sign-in failed. Please try again later.",
-    "challengeExpired": "Two-factor verification expired. Sign in again.",
-    "providerStartFailed": "Unable to start third-party sign-in. Refresh the page and try again.",
-    "codeSendFailed": "Failed to send verification code.",
-    "turnstileRequired": "Complete the human verification first.",
     "passwordInvalid": "Password must be at least 8 characters and not digits only.",
     "passwordResetCodeFailed": "Unable to send reset code.",
     "passwordResetFailed": "Password reset failed. Check your email, code, and new password.",
     "passwordResetSuccess": "Password reset. Sign in again.",
-    "registerFailed": "Registration failed. Please try again later."
+    "providerStartFailed": "Unable to start third-party sign-in. Refresh the page and try again.",
+    "registerFailed": "Registration failed. Please try again later.",
+    "turnstileRequired": "Complete the human verification first."
   },
   "oauthCallback": {
     "missingParams": "The third-party sign-in callback is missing required parameters.",

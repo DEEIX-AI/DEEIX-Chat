@@ -30,6 +30,7 @@ import type {
   ConversationShareResponse,
   ConversationToolCallDetailResponse,
   MessageBillingCostResponse,
+  MessageDeleteResponse,
   MessageFeedbackResponse,
   MessageProcessTraceResponse,
   MessagePromptTraceBlockResponse,
@@ -49,6 +50,8 @@ import type {
 import type { UserStorageQuotaDTO } from "@/shared/api/file.types";
 
 export type ConversationDTO = ConversationResponse;
+
+export type MessageDeleteDTO = MessageDeleteResponse;
 
 export type ConversationSearchResultDTO = ConversationSearchResultResponse;
 

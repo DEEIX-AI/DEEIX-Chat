@@ -125,7 +125,7 @@ func (s *Service) createMessagePair(
 		assistantMessage.ParentMessageID = &userMessage.ID
 		assistantMessage.SourceMessageID = preparation.branchState.SourceMessageID
 		if err := s.repo.CreateAssistantBranchMessage(ctx, assistantMessage); err != nil {
-			return nil, err
+			return nil, mapMessageWriteError(err)
 		}
 		assistantMessage.ParentPublicID = userMessage.PublicID
 		assistantMessage.SourcePublicID = preparation.branchState.SourcePublicID
@@ -171,7 +171,7 @@ func (s *Service) createMessagePair(
 	}
 
 	if err := s.repo.CreateMessagePairWithUserAttachments(ctx, userMessage, assistantMessage, attachmentRows); err != nil {
-		return nil, err
+		return nil, mapMessageWriteError(err)
 	}
 	userMessage.ParentPublicID = preparation.branchState.ParentPublicID
 	userMessage.SourcePublicID = preparation.branchState.SourcePublicID

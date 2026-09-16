@@ -12,6 +12,7 @@ const (
 	AdapterOpenAIResponses        = "openai_responses"            // POST /v1/responses
 	AdapterOpenRouterChat         = "openrouter_chat_completions" // POST /v1/chat/completions（OpenRouter）
 	AdapterOpenRouterResponses    = "openrouter_responses"        // POST /v1/responses（OpenRouter Responses Beta）
+	AdapterOpenRouterImages       = "openrouter_images"           // POST /v1/images（OpenRouter 统一图片端点，生成与参考图编辑）
 	AdapterOpenAIChatCompletions  = "openai_chat_completions"     // POST /v1/chat/completions
 	AdapterOpenAIImageGenerations = "openai_image_generations"    // POST /v1/images/generations
 	AdapterOpenAIImageEdits       = "openai_image_edits"          // POST /v1/images/edits
@@ -45,7 +46,7 @@ func NormalizeAdapter(raw string) string {
 // IsImplementedAdapter 返回协议是否已有可用的传输层实现。
 func IsImplementedAdapter(raw string) bool {
 	switch NormalizeAdapter(raw) {
-	case AdapterOpenAIResponses, AdapterOpenRouterChat, AdapterOpenRouterResponses, AdapterOpenAIChatCompletions, AdapterOpenAIImageGenerations, AdapterOpenAIImageEdits, AdapterXAIResponses,
+	case AdapterOpenAIResponses, AdapterOpenRouterChat, AdapterOpenRouterResponses, AdapterOpenRouterImages, AdapterOpenAIChatCompletions, AdapterOpenAIImageGenerations, AdapterOpenAIImageEdits, AdapterXAIResponses,
 		AdapterAnthropicMessages, AdapterGoogleGenerateContent, AdapterGoogleImageGeneration, AdapterGeminiInteractions, AdapterXAIImage, AdapterXAIImageEdits, AdapterXAIVideo, AdapterXAIVideoExtensions:
 		return true
 	default:
@@ -59,6 +60,7 @@ func SupportsStreamingAdapter(raw string) bool {
 	case AdapterOpenAIResponses,
 		AdapterOpenRouterChat,
 		AdapterOpenRouterResponses,
+		AdapterOpenRouterImages,
 		AdapterOpenAIChatCompletions,
 		AdapterOpenAIImageGenerations,
 		AdapterOpenAIImageEdits,
@@ -84,6 +86,10 @@ func SupportsImageGenerationStream(protocol string, model string) bool {
 		return true
 	case AdapterOpenAIImageEdits:
 		return openAIImageEditModelSupportsStream(model)
+	case AdapterOpenRouterImages:
+		// OpenRouter 统一图片端点对不支持原生流式的提供商会忽略 stream 并返回缓冲 JSON，
+		// 因此始终走流式入口即可同时覆盖两类提供商。
+		return true
 	default:
 		return false
 	}
@@ -101,7 +107,7 @@ func openAIImageEditModelSupportsStream(model string) bool {
 // IsImageGenerationAdapter 返回协议是否属于独立图片生成链路。
 func IsImageGenerationAdapter(raw string) bool {
 	switch NormalizeAdapter(raw) {
-	case AdapterOpenAIImageGenerations, AdapterGoogleImageGeneration, AdapterGeminiInteractions, AdapterXAIImage:
+	case AdapterOpenAIImageGenerations, AdapterGoogleImageGeneration, AdapterGeminiInteractions, AdapterXAIImage, AdapterOpenRouterImages:
 		return true
 	default:
 		return false
@@ -111,7 +117,7 @@ func IsImageGenerationAdapter(raw string) bool {
 // IsImageEditAdapter 返回协议是否属于独立图片编辑链路。
 func IsImageEditAdapter(raw string) bool {
 	switch NormalizeAdapter(raw) {
-	case AdapterOpenAIImageEdits, AdapterGoogleImageGeneration, AdapterGeminiInteractions, AdapterXAIImageEdits:
+	case AdapterOpenAIImageEdits, AdapterGoogleImageGeneration, AdapterGeminiInteractions, AdapterXAIImageEdits, AdapterOpenRouterImages:
 		return true
 	default:
 		return false
@@ -137,6 +143,8 @@ func DefaultEndpointForAdapter(adapter string) string {
 		return EndpointImageGenerations
 	case AdapterOpenAIImageEdits, AdapterXAIImageEdits:
 		return EndpointImageEdits
+	case AdapterOpenRouterImages:
+		return EndpointImages
 	case AdapterXAIVideo:
 		return EndpointVideoGenerations
 	case AdapterXAIVideoExtensions:

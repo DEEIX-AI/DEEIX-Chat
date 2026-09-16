@@ -107,36 +107,39 @@ const CODEX_COMPATIBLE_AFFINITY_HEADERS = [
 ] as const;
 
 const PROTOCOL_OPTIONS_BY_KIND: Record<(typeof PROTOCOL_DEFAULT_KINDS)[number], string[]> = {
+  // 展示顺序：厂商按 OpenAI → Anthropic → Google → xAI → OpenRouter，厂商内 Chat Completions → Responses → 生成 → 编辑。
   chat: [
-    "openai_responses",
-    "openrouter_chat_completions",
-    "openrouter_responses",
     "openai_chat_completions",
+    "openai_responses",
     "anthropic_messages",
     "google_generate_content",
     "gemini_interactions",
     "xai_responses",
-  ],
-  audio: [
-    "openai_responses",
     "openrouter_chat_completions",
     "openrouter_responses",
+  ],
+  audio: [
     "openai_chat_completions",
+    "openai_responses",
     "anthropic_messages",
     "google_generate_content",
     "xai_responses",
+    "openrouter_chat_completions",
+    "openrouter_responses",
   ],
   image_gen: [
     "openai_image_generations",
     "google_image_generation",
     "gemini_interactions",
     "xai_image",
+    "openrouter_images",
   ],
   image_edit: [
     "openai_image_edits",
     "google_image_generation",
     "gemini_interactions",
     "xai_image_edits",
+    "openrouter_images",
   ],
   video_gen: [
     "openai_video_generations",

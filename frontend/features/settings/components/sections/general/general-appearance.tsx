@@ -13,7 +13,7 @@ import type {
   ThemePreviewPalette,
 } from "@/features/settings/types/settings";
 import { cn } from "@/lib/utils";
-import type { ThemePreset } from "@/shared/components/theme-provider";
+import type { ThemePreset } from "@/shared/model/theme";
 import { SettingsSection } from "@/shared/components/settings-layout";
 
 const THEME_PREVIEW_PALETTES: Record<"light" | "dark", ThemePreviewPalette> = {

@@ -1,0 +1,60 @@
+/* Chat typography scope.
+ *
+ * `.chat-font-content` applies the user-selected chat font family/weight to
+ * message content while keeping code, KaTeX, and pre blocks on their own
+ * fonts. Imported into app/globals.css with `layer(utilities)`.
+ */
+
+@media (hover: none), (pointer: coarse), (any-hover: none), (any-pointer: coarse) {
+  .chat-message-meta[data-hover-actions="true"] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.chat-font-content {
+  font-family: var(--font-chat);
+  font-weight: var(--font-chat-weight);
+}
+
+.chat-font-content :where(
+  p,
+  span,
+  li,
+  blockquote,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  em,
+  strong,
+  a,
+  table,
+  thead,
+  tbody,
+  tfoot,
+  tr,
+  td,
+  th,
+  ul,
+  ol
+):not(pre *):not(code):not(code *):not(.katex):not(.katex *) {
+  font-family: var(--font-chat);
+  font-weight: var(--font-chat-weight);
+}
+
+.chat-font-content[data-chat-markdown-scope] :where(strong, strong *, b, b *):not(pre *):not(code):not(code *):not(.katex):not(.katex *) {
+  font-weight: var(--font-chat-strong-weight);
+}
+
+.chat-font-content .katex,
+.chat-font-content .katex * {
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+
+.chat-font-content .katex {
+  white-space: nowrap !important;
+}

@@ -391,8 +391,7 @@ func upstreamModelMetadataChanged(existing domainchannel.UpstreamModel, desired 
 	return strings.TrimSpace(existing.Vendor) != strings.TrimSpace(desired.Vendor) ||
 		strings.TrimSpace(existing.Icon) != strings.TrimSpace(desired.Icon) ||
 		strings.TrimSpace(existing.SuggestedProtocol) != strings.TrimSpace(desired.SuggestedProtocol) ||
-		strings.TrimSpace(existing.KindsJSON) != strings.TrimSpace(desired.KindsJSON) ||
-		strings.TrimSpace(existing.RawJSON) != strings.TrimSpace(desired.RawJSON)
+		strings.TrimSpace(existing.KindsJSON) != strings.TrimSpace(desired.KindsJSON)
 }
 
 // ImportUpstreamModels 批量把上游真实模型绑定到平台模型。

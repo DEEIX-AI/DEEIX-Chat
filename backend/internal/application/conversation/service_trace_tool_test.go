@@ -988,7 +988,7 @@ func TestFailedUpstreamThinkingFlushesBufferedContent(t *testing.T) {
 	}
 }
 
-func TestUpstreamThinkingLiveDeltaSkipsOversizedContent(t *testing.T) {
+func TestUpstreamThinkingLiveDeltaChunksOversizedContent(t *testing.T) {
 	var events []map[string]any
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
@@ -1008,14 +1008,22 @@ func TestUpstreamThinkingLiveDeltaSkipsOversizedContent(t *testing.T) {
 	largeDelta := strings.Repeat("x", upstreamThinkLiveReplaceBytes+1)
 	recorder.appendUpstreamReasoning(messageTraceThinkKindContent, largeDelta, nil)
 
-	if len(events) != 1 {
-		t.Fatalf("expected one lightweight status event, got %d", len(events))
+	if len(events) != 2 {
+		t.Fatalf("expected the oversized delta to be split into two live events, got %d", len(events))
 	}
-	if _, ok := events[0]["delta"]; ok {
-		t.Fatalf("oversized thinking delta must not be sent in live event: %#v", events[0])
+	var rebuilt strings.Builder
+	for idx, payload := range events {
+		delta, ok := payload["delta"].(string)
+		if !ok || delta == "" {
+			t.Fatalf("event %d must carry a delta chunk: %#v", idx, payload)
+		}
+		if len(delta) > upstreamThinkLiveReplaceBytes {
+			t.Fatalf("event %d delta exceeds the live event limit: %d bytes", idx, len(delta))
+		}
+		rebuilt.WriteString(delta)
 	}
-	if _, ok := events[0]["contentMarkdown"]; ok {
-		t.Fatalf("oversized thinking content must not be sent in live event: %#v", events[0])
+	if rebuilt.String() != largeDelta {
+		t.Fatal("live delta chunks must reassemble the full thinking text")
 	}
 	if recorder.upstreamThink == nil || recorder.upstreamThink.contentMarkdown != largeDelta {
 		t.Fatal("expected oversized thinking content to remain available for final trace")

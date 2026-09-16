@@ -91,7 +91,19 @@ func (c *Client) generateOpenAIImageGenerations(ctx context.Context, route portl
 	if err != nil {
 		return nil, err
 	}
+	return c.postOpenAIImageJSON(ctx, route, requestURL, payload, payload, modelParamString(input.Options, "output_format"))
+}
 
+// postOpenAIImageJSON 执行一次 OpenAI Images 形状的 JSON 请求并解析缓冲响应。
+// debugPayload 用于调试快照，调用方可传入剔除了图片字节的精简副本。
+func (c *Client) postOpenAIImageJSON(
+	ctx context.Context,
+	route portllm.RouteConfig,
+	requestURL string,
+	payload []byte,
+	debugPayload []byte,
+	outputFormat string,
+) (*portllm.GenerateOutput, error) {
 	requestCtx, cancel := context.WithTimeout(ctx, resolveReadTimeout(route.ReadTimeoutMS))
 	defer cancel()
 
@@ -117,10 +129,10 @@ func (c *Client) generateOpenAIImageGenerations(ctx context.Context, route portl
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, parseUpstreamError(resp.StatusCode, body, upstreamDebugSnapshot(req, payload, resp, body))
+		return nil, parseUpstreamError(resp.StatusCode, body, upstreamDebugSnapshot(req, debugPayload, resp, body))
 	}
 
-	return parseOpenAIImageOutput(body, modelParamString(input.Options, "output_format"))
+	return parseOpenAIImageOutput(body, outputFormat)
 }
 
 // generateOpenAIImageGenerationsStream 构造并执行 OpenAI 图片生成流式请求。
@@ -146,7 +158,20 @@ func (c *Client) generateOpenAIImageGenerationsStream(
 	if err != nil {
 		return nil, err
 	}
+	return c.postOpenAIImageJSONStream(ctx, route, requestURL, payload, payload, modelParamString(input.Options, "output_format"), onEvent)
+}
 
+// postOpenAIImageJSONStream 执行一次 OpenAI Images 形状的 SSE 请求；上游若忽略 stream 并返回
+// 缓冲 JSON，则退化为非流式解析并补发一次 usage 事件。
+func (c *Client) postOpenAIImageJSONStream(
+	ctx context.Context,
+	route portllm.RouteConfig,
+	requestURL string,
+	payload []byte,
+	debugPayload []byte,
+	outputFormat string,
+	onEvent func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
 	firstByteCtx, firstByteCancel := context.WithCancel(ctx)
 	defer firstByteCancel()
 
@@ -180,10 +205,9 @@ func (c *Client) generateOpenAIImageGenerationsStream(
 		if readErr != nil {
 			return nil, readErr
 		}
-		return nil, parseUpstreamError(resp.StatusCode, body, upstreamDebugSnapshot(req, payload, resp, body))
+		return nil, parseUpstreamError(resp.StatusCode, body, upstreamDebugSnapshot(req, debugPayload, resp, body))
 	}
 
-	outputFormat := modelParamString(input.Options, "output_format")
 	if !isEventStreamContentType(resp.Header.Get("Content-Type")) {
 		body, readErr := readUpstreamBody(resp.Body)
 		if readErr != nil {
@@ -211,7 +235,7 @@ func (c *Client) generateOpenAIImageGenerationsStream(
 	idleReader := newIdleTimeoutReader(resp.Body, idleTimeout)
 	streamBody := newUpstreamBodyRecorder(idleReader)
 	if err = consumeOpenAIImageStream(streamBody, outputFormat, result, onEvent); err != nil {
-		return nil, attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err)))
+		return nil, attachUpstreamDebug(err, upstreamDebugSnapshot(req, debugPayload, resp, streamErrorBody(streamBody, err)))
 	}
 	return result, nil
 }
@@ -677,17 +701,22 @@ func parseOpenAIImagePayload(payload map[string]any, outputFormat string) (portl
 	if len(payload) == 0 {
 		return portllm.GeneratedImage{}, false
 	}
+	// 上游显式声明的 media_type（OpenRouter）优先于按 output_format 推断；OpenAI 不返回该字段。
+	mimeType := openAIImageMIMEType(outputFormat)
+	if declared := declaredImageMediaType(payload); declared != "" {
+		mimeType = declared
+	}
 	if url := strings.TrimSpace(getString(payload["url"])); url != "" {
 		return portllm.GeneratedImage{
 			URL:           url,
-			MIMEType:      openAIImageMIMEType(outputFormat),
+			MIMEType:      mimeType,
 			RevisedPrompt: strings.TrimSpace(getString(payload["revised_prompt"])),
 		}, true
 	}
 	if b64 := strings.TrimSpace(getString(payload["b64_json"])); b64 != "" {
 		return portllm.GeneratedImage{
 			B64JSON:       b64,
-			MIMEType:      openAIImageMIMEType(outputFormat),
+			MIMEType:      mimeType,
 			RevisedPrompt: strings.TrimSpace(getString(payload["revised_prompt"])),
 		}, true
 	}
@@ -872,4 +901,15 @@ func openAIImageMIMEType(outputFormat string) string {
 	default:
 		return "image/png"
 	}
+}
+
+// declaredImageMediaType 读取上游在图片条目上显式声明的 MIME（media_type / mime_type），非 image/* 时视为未声明。
+func declaredImageMediaType(payload map[string]any) string {
+	for _, key := range []string{"media_type", "mime_type"} {
+		value := strings.ToLower(strings.TrimSpace(getString(payload[key])))
+		if strings.HasPrefix(value, "image/") {
+			return value
+		}
+	}
+	return ""
 }

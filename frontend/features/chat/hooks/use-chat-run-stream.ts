@@ -5,7 +5,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { ChatSubmitTask } from "@/features/chat/model/chat-task";
 import { buildMediaImagePreviewMarkdown } from "@/features/chat/model/media-image-preview";
-import { toPendingProcessTrace } from "@/features/chat/model/message-submit";
+import { mergeProcessTraceSnapshot, toPendingProcessTrace } from "@/features/chat/model/message-submit";
 import { settleCompletedExchange } from "@/features/chat/model/message-submit-exchange";
 import {
   resolveMediaStatusLabel,
@@ -159,7 +159,9 @@ export function useChatRunStream({
             ...current,
             assistantFileProc: false,
             assistantActivityLabel: undefined,
-            assistantProcessTrace: event.trace ? toPendingProcessTrace(event.trace) : current.assistantProcessTrace,
+            assistantProcessTrace: event.trace
+              ? mergeProcessTraceSnapshot(current.assistantProcessTrace, toPendingProcessTrace(event.trace))
+              : current.assistantProcessTrace,
           }));
         },
         onUpstreamThinkDelta: (event) => {

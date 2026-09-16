@@ -1,6 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { Activity, Cable, Check, ChevronDownIcon, CloudDownload, Plus, RefreshCw, Search, Tags, ToggleLeft, Trash2 } from "lucide-react";
+import { Activity, Cable, Check, ChevronDownIcon, CircleOff, CloudDownload, Plus, RefreshCw, Search, Tags, ToggleLeft, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   AlertDialog,
@@ -344,12 +344,19 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, upstreamInactiv
   const modelT = useTranslations("adminModels");
   const platformModelName = row.platformModelNameDraft.trim();
   const hasBindingDraft = platformModelName.length > 0;
-  const routeChecked = !upstreamInactive && row.routeStatus === "active";
+  const upstreamModelInactive = row.upstreamModelStatus === "inactive";
+  const unavailable = upstreamInactive || upstreamModelInactive;
+  const routeChecked = !unavailable && row.routeStatus === "active";
   const routeIDs = routeIDsForRow(row);
   const persistedRouteCount = routeIDs.length;
   const testRouteID = row.routeID || routeIDs[0] || 0;
-  const testDisabled = testRouteID <= 0 || row.isDirty;
-  const testTooltip = testDisabled ? modelT("probe.saveBeforeTest") : modelT("actions.test");
+  const testDisabled = unavailable || testRouteID <= 0 || row.isDirty;
+  const unavailableReason = upstreamModelInactive
+    ? t("modelsDialog.upstreamModelInactiveHint")
+    : upstreamInactive
+      ? t("modelsDialog.upstreamInactive")
+      : null;
+  const testTooltip = unavailableReason ?? (testDisabled ? modelT("probe.saveBeforeTest") : modelT("actions.test"));
 
   const handlePlatformModelChange = (value: string) => {
     onUpdate(row.draftKey, { platformModelNameDraft: value });
@@ -378,24 +385,44 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, upstreamInactiv
                 <Switch
                   size="sm"
                   checked={routeChecked}
-                  disabled={upstreamInactive}
+                  disabled={unavailable}
                   onCheckedChange={(checked) => onUpdate(row.draftKey, { routeStatus: checked ? "active" : "inactive" })}
                   aria-label={t("modelsDialog.routeStatusFor", { name: row.upstreamModelName })}
                 />
               </span>
             </TooltipTrigger>
-            {upstreamInactive ? (
-              <TooltipContent side="top" className="text-xs">
-                {t("modelsDialog.upstreamInactive")}
+            {unavailable ? (
+              <TooltipContent side="top" className="max-w-[280px] text-xs">
+                {unavailableReason}
               </TooltipContent>
             ) : null}
           </Tooltip>
         </div>
       </TableCell>
       <TableCell className="max-w-[220px] py-1.5 font-mono text-xs text-muted-foreground">
-        <span className="flex h-7 items-center truncate" title={row.upstreamModelName}>
-          {row.upstreamModelName}
-        </span>
+        <div className="flex h-7 min-w-0 items-center gap-1">
+          {upstreamModelInactive ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className="inline-flex shrink-0 items-center text-muted-foreground/70"
+                  aria-label={t("modelsDialog.upstreamModelInactive")}
+                >
+                  <CircleOff className="size-3 stroke-[1.5]" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[280px] text-xs">
+                {t("modelsDialog.upstreamModelInactiveHint")}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
+          <span
+            className={cn("min-w-0 truncate", upstreamModelInactive && "line-through opacity-60")}
+            title={row.upstreamModelName}
+          >
+            {row.upstreamModelName}
+          </span>
+        </div>
       </TableCell>
       <TableCell className="min-w-[220px] py-1.5">
         <Input
@@ -1336,7 +1363,7 @@ export function UpstreamModelsDialog({
 
   const handleTestRoute = React.useCallback(
     async (row: RowDraft, routeID: number) => {
-      if (!upstreamID || routeID <= 0) return;
+      if (!upstreamID || routeID <= 0 || row.upstreamModelStatus === "inactive" || stableUpstream?.status === "inactive") return;
       setProbeTargetName(`${row.platformModelNameDraft || row.platformModelName} / ${row.upstreamModelName}`);
       setProbeResults([]);
       setProbeOpen(true);
@@ -1356,7 +1383,7 @@ export function UpstreamModelsDialog({
         setProbeLoading(false);
       }
     },
-    [modelT, resolveErrorMessage, t, upstreamID],
+    [modelT, resolveErrorMessage, stableUpstream?.status, t, upstreamID],
   );
 
   const handleDeleteProbeRoute = React.useCallback(
@@ -1414,16 +1441,19 @@ export function UpstreamModelsDialog({
   const applyBulkPatch = React.useCallback((patch: RowDraftPatch) => {
     if (selected.size === 0) return;
     setRows((prev) =>
-      prev.map((row) =>
-        routeIDsForRow(row).length > 0 && selected.has(row.draftKey)
-          ? {
-              ...row,
-              ...patch,
-              isDirty: true,
-              routeStatusOverridden: row.routeStatusOverridden || patch.routeStatus !== undefined,
-            }
-          : row,
-      ),
+      prev.map((row) => {
+        if (routeIDsForRow(row).length === 0 || !selected.has(row.draftKey)) return row;
+        // 上游已下架的模型路由开关不可操作，批量修改路由状态时同样跳过，避免暗中改写被禁用的开关。
+        const { routeStatus: _routeStatus, ...rest } = patch;
+        const rowPatch: RowDraftPatch = row.upstreamModelStatus === "inactive" ? rest : patch;
+        if (Object.keys(rowPatch).length === 0) return row;
+        return {
+          ...row,
+          ...rowPatch,
+          isDirty: true,
+          routeStatusOverridden: row.routeStatusOverridden || rowPatch.routeStatus !== undefined,
+        };
+      }),
     );
   }, [selected]);
 

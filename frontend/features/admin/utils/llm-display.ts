@@ -26,9 +26,12 @@ type ProtocolOption = {
   kinds: readonly string[];
 };
 
+// 协议展示顺序：厂商按 OpenAI → Anthropic → Google → xAI → OpenRouter；
+// 同一厂商内按 Chat Completions → Responses → 图片生成 → 图片编辑 → 视频。
+// 此顺序通过 PROTOCOL_DISPLAY_ORDER 作用于所有协议排序展示。
 export const PROTOCOL_OPTIONS: ReadonlyArray<ProtocolOption> = [
-  { value: "openai_responses", label: "Responses (OpenAI)", kinds: ["chat"] },
   { value: "openai_chat_completions", label: "Chat Completions (OpenAI)", kinds: ["chat"] },
+  { value: "openai_responses", label: "Responses (OpenAI)", kinds: ["chat"] },
   { value: "openai_image_generations", label: "Images Generations (OpenAI)", kinds: ["image_gen"] },
   { value: "openai_image_edits", label: "Images Edits (OpenAI)", kinds: ["image_edit"] },
   { value: "openai_video_generations", label: "Video Generations (OpenAI)", kinds: ["video_gen"] },
@@ -43,6 +46,7 @@ export const PROTOCOL_OPTIONS: ReadonlyArray<ProtocolOption> = [
   { value: "xai_video_extensions", label: "Video Extensions (xAI)", kinds: ["video_extension"] },
   { value: "openrouter_chat_completions", label: "Chat Completions (OpenRouter)", kinds: ["chat"] },
   { value: "openrouter_responses", label: "Responses (OpenRouter)", kinds: ["chat"] },
+  { value: "openrouter_images", label: "Images (OpenRouter)", kinds: ["image_gen", "image_edit"] },
 ] as const;
 
 const PROTOCOL_LABELS: Record<string, string> = {

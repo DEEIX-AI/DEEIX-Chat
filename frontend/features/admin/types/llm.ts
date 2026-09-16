@@ -24,6 +24,7 @@ export const ADAPTER_LABELS: Record<string, string> = {
   openai_responses: resolveProtocolLabel("openai_responses"),
   openrouter_chat_completions: resolveProtocolLabel("openrouter_chat_completions"),
   openrouter_responses: resolveProtocolLabel("openrouter_responses"),
+  openrouter_images: resolveProtocolLabel("openrouter_images"),
   openai_chat_completions: resolveProtocolLabel("openai_chat_completions"),
   openai_image_generations: resolveProtocolLabel("openai_image_generations"),
   openai_image_edits: resolveProtocolLabel("openai_image_edits"),

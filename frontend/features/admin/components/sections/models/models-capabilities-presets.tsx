@@ -93,6 +93,69 @@ const XAI_IMAGE_OPTION_CONTROLS = [
   },
 ];
 
+// OpenRouter 统一图片端点的枚举取值来自其 Image API OpenAPI 定义（ImageGenerationRequest）。
+const OPENROUTER_IMAGE_ASPECT_RATIOS = [
+  "auto",
+  "1:1",
+  "16:9",
+  "9:16",
+  "4:3",
+  "3:4",
+  "3:2",
+  "2:3",
+  "4:5",
+  "5:4",
+  "1:2",
+  "2:1",
+  "1:4",
+  "4:1",
+  "1:8",
+  "8:1",
+  "9:19.5",
+  "19.5:9",
+  "9:20",
+  "20:9",
+  "9:21",
+  "21:9",
+];
+const OPENROUTER_IMAGE_RESOLUTIONS = ["512", "1K", "2K", "4K"];
+const OPENROUTER_IMAGE_QUALITIES = ["auto", "low", "medium", "high", "xhigh", "max"];
+// svg 为矢量输出，媒体落库链路不支持，后端也会丢弃，因此不在预设中提供。
+const OPENROUTER_IMAGE_OUTPUT_FORMATS = ["png", "jpeg", "webp"];
+
+const OPENROUTER_IMAGE_OPTION_CONTROLS = [
+  {
+    path: "aspect_ratio",
+    type: "select",
+    label: "Aspect Ratio",
+    options: OPENROUTER_IMAGE_ASPECT_RATIOS,
+  },
+  {
+    path: "resolution",
+    type: "select",
+    label: "Resolution",
+    options: OPENROUTER_IMAGE_RESOLUTIONS,
+  },
+  {
+    path: "quality",
+    type: "select",
+    label: "Quality",
+    options: OPENROUTER_IMAGE_QUALITIES,
+  },
+  {
+    path: "output_format",
+    type: "select",
+    label: "Output Format",
+    options: OPENROUTER_IMAGE_OUTPUT_FORMATS,
+  },
+  {
+    path: "n",
+    type: "number",
+    label: "Image Count",
+    description: "Upper bound on images to generate, from 1 to 10. Single-image providers reject n > 1.",
+  },
+];
+
 const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
   {
     id: "openai_chat_completions",
@@ -612,6 +675,20 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
           ],
         },
       },
+    },
+  },
+  {
+    id: "openrouter_images",
+    protocol: "openrouter_images",
+    payload: {
+      defaultOptions: {
+        aspect_ratio: "auto",
+        n: 1,
+        resolution: "1K",
+        quality: "auto",
+        output_format: "png",
+      },
+      optionControls: OPENROUTER_IMAGE_OPTION_CONTROLS,
     },
   },
 ];

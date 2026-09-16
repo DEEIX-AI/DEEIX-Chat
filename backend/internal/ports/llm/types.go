@@ -17,6 +17,8 @@ const (
 	EndpointImageGenerations = "image_generations"
 	// EndpointImageEdits 表示 OpenAI Images API 编辑端点。
 	EndpointImageEdits = "image_edits"
+	// EndpointImages 表示 OpenRouter 统一图片端点（生成与参考图编辑共用同一路径）。
+	EndpointImages = "images"
 	// EndpointVideoGenerations 表示异步视频生成端点。
 	EndpointVideoGenerations = "video_generations"
 	// EndpointVideoExtensions 表示 xAI 异步视频扩展端点。

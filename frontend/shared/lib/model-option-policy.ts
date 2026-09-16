@@ -1,9 +1,8 @@
+// 协议展示顺序统一按厂商：OpenAI → Anthropic → Google → xAI → OpenRouter。
 export const MODEL_OPTION_POLICY_PROTOCOLS = [
   "default",
   "openai_chat_completions",
-  "openrouter_chat_completions",
   "openai_responses",
-  "openrouter_responses",
   "openai_image_generations",
   "openai_image_edits",
   "anthropic_messages",
@@ -15,6 +14,9 @@ export const MODEL_OPTION_POLICY_PROTOCOLS = [
   "xai_image_edits",
   "xai_video",
   "xai_video_extensions",
+  "openrouter_chat_completions",
+  "openrouter_responses",
+  "openrouter_images",
 ] as const;
 
 export type ModelOptionPolicyProtocol = (typeof MODEL_OPTION_POLICY_PROTOCOLS)[number];
@@ -63,9 +65,7 @@ export type ModelNativeToolConfig = {
 export const MODEL_OPTION_POLICY_PROTOCOL_LABELS: Record<ModelOptionPolicyProtocol, string> = {
   default: "Default",
   openai_chat_completions: "OpenAI（Chat Completions）",
-  openrouter_chat_completions: "OpenRouter（Chat Completions）",
   openai_responses: "OpenAI（Responses）",
-  openrouter_responses: "OpenRouter（Responses）",
   openai_image_generations: "OpenAI（Images Generations）",
   openai_image_edits: "OpenAI（Images Edits）",
   anthropic_messages: "Anthropic（Messages）",
@@ -77,6 +77,9 @@ export const MODEL_OPTION_POLICY_PROTOCOL_LABELS: Record<ModelOptionPolicyProtoc
   xai_image_edits: "xAI（Images Edits）",
   xai_video: "xAI（Video Generations）",
   xai_video_extensions: "xAI（Video Extensions）",
+  openrouter_chat_completions: "OpenRouter（Chat Completions）",
+  openrouter_responses: "OpenRouter（Responses）",
+  openrouter_images: "OpenRouter（Images）",
 };
 
 export const HARD_DENIED_MODEL_OPTION_PATHS = [
@@ -133,6 +136,8 @@ export function resolveModelOptionPolicyProtocol(protocol: string): ModelOptionP
     case "openrouter":
     case "openrouter_responses":
       return "openrouter_responses";
+    case "openrouter_images":
+      return "openrouter_images";
     case "openai_chat_completions":
       return "openai_chat_completions";
     case "openai_image_generations":

@@ -164,6 +164,7 @@ function ModelMenuScrollContainer({
     <div className="relative">
       <div
         ref={viewportRef}
+        data-model-menu-viewport=""
         style={resolvedMaxHeight === undefined ? undefined : { maxHeight: resolvedMaxHeight }}
         className={cn(
           "overflow-y-auto overscroll-contain pr-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
@@ -547,11 +548,10 @@ export function ChatModelPicker({
 
   const updateDesktopSubmenuMetrics = React.useCallback(() => {
     if (!open || isMobile) {
-      setDesktopSubmenuSide("right");
-      setDesktopSubmenuTop(0);
-      setDesktopSubmenuWidth(DESKTOP_MODEL_MENU_WIDTH);
-      setDesktopGroupListMaxHeight(320);
-      setDesktopSubmenuListMaxHeight(320);
+      // Keep the last placement: Radix keeps the content mounted through the
+      // ~150ms close animation, and resetting side/top here would visibly
+      // snap a left-side submenu to the right while it fades out. Reopening
+      // recomputes every metric in the layout effect before paint.
       return;
     }
 
@@ -565,6 +565,7 @@ export function ChatModelPicker({
     const groupMenuRect = groupMenu.getBoundingClientRect();
     const submenu = desktopSubmenuRef.current;
     const submenuRect = submenu?.getBoundingClientRect();
+    const submenuScrollViewport = submenu?.querySelector<HTMLElement>("[data-model-menu-viewport]");
     const activeGroupButton = activeDesktopGroup
       ? desktopGroupItemRefs.current.get(activeDesktopGroup.key)
       : null;
@@ -600,8 +601,17 @@ export function ChatModelPicker({
     let nextSubmenuTop = 0;
     let nextSubmenuListMaxHeight = nextGroupListMaxHeight;
     if (hasDesktopModelSubmenu && activeGroupRect) {
-      const submenuHeight = submenuRect?.height ?? nextGroupListMaxHeight + DESKTOP_SUBMENU_VERTICAL_CHROME;
-      const submenuOuterHeight = Math.min(submenuHeight, viewportHeight);
+      // Derive the height from the unclamped scroll content instead of feeding
+      // the rendered (clamped) height back in. The assumed chrome misses the
+      // real border-included chrome by ~1px, so that feedback loop grows a
+      // bottom-anchored submenu by the error once per ResizeObserver pass,
+      // crawling it upward for seconds instead of placing it in one frame.
+      const submenuViewportRect = submenuScrollViewport?.getBoundingClientRect();
+      const submenuChrome = submenuRect && submenuViewportRect
+        ? Math.max(DESKTOP_SUBMENU_VERTICAL_CHROME, submenuRect.height - submenuViewportRect.height)
+        : DESKTOP_SUBMENU_VERTICAL_CHROME;
+      const submenuContentHeight = submenuScrollViewport?.scrollHeight ?? nextGroupListMaxHeight;
+      const submenuOuterHeight = Math.min(submenuContentHeight + submenuChrome, viewportHeight);
       const maxViewportTop = Math.max(viewportTop, viewportBottom - submenuOuterHeight);
       // Anchor in viewport coordinates, then convert to an offset within
       // menuRoot (which may sit above viewportTop for a frame before re-shift).
@@ -613,7 +623,7 @@ export function ChatModelPicker({
       const actualSubmenuViewportTop = menuRootRect.top + nextSubmenuTop;
       nextSubmenuListMaxHeight = resolveDesktopMenuListMaxHeight(
         Math.min(viewportHeight, viewportBottom - actualSubmenuViewportTop),
-        DESKTOP_SUBMENU_VERTICAL_CHROME,
+        submenuChrome,
       );
     }
 

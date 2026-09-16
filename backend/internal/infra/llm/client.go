@@ -515,6 +515,7 @@ func NewClient(outboundPolicy security.OutboundPolicy) *Client {
 		portllm.AdapterOpenAIResponses:        &openAIResponsesAdapter{client: client},
 		portllm.AdapterOpenRouterChat:         &openRouterChatCompletionsAdapter{client: client},
 		portllm.AdapterOpenRouterResponses:    &openRouterResponsesAdapter{client: client},
+		portllm.AdapterOpenRouterImages:       &openRouterImagesAdapter{client: client},
 		portllm.AdapterOpenAIChatCompletions:  &openAIChatCompletionsAdapter{client: client},
 		portllm.AdapterOpenAIImageGenerations: &openAIImageGenerationsAdapter{client: client},
 		portllm.AdapterOpenAIImageEdits:       &openAIImageEditsAdapter{client: client},
@@ -1303,6 +1304,8 @@ func normalizeEndpoint(raw string) string {
 		return portllm.EndpointImageGenerations
 	case portllm.EndpointImageEdits:
 		return portllm.EndpointImageEdits
+	case portllm.EndpointImages:
+		return portllm.EndpointImages
 	case portllm.EndpointVideoGenerations:
 		return portllm.EndpointVideoGenerations
 	case portllm.EndpointVideoExtensions:

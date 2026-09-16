@@ -240,8 +240,8 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		assistantMessage.ParentMessageID = &userMessage.ID
 		assistantMessage.SourceMessageID = branchState.SourceMessageID
 		if err = s.repo.CreateAssistantBranchMessage(ctx, assistantMessage); err != nil {
-			retErr = err
-			return nil, err
+			retErr = mapMessageWriteError(err)
+			return nil, retErr
 		}
 		assistantMessage.ParentPublicID = userMessage.PublicID
 		assistantMessage.SourcePublicID = branchState.SourcePublicID
@@ -264,8 +264,8 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		}
 		userAttachmentRows := mediaInputAttachmentRows(input.ConversationID, input.UserID, resolvedAttachments)
 		if err = s.repo.CreateMessagePairWithUserAttachments(ctx, userMessage, assistantMessage, userAttachmentRows); err != nil {
-			retErr = err
-			return nil, err
+			retErr = mapMessageWriteError(err)
+			return nil, retErr
 		}
 		userMessage.ParentPublicID = branchState.ParentPublicID
 		userMessage.SourcePublicID = branchState.SourcePublicID

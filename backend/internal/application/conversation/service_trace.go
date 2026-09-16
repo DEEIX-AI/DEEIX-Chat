@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
@@ -758,6 +759,7 @@ func (r *messageTraceRecorder) completeTools() {
 func (r *messageTraceRecorder) completeUpstreamThink() {
 	if r.completeDraft(r.upstreamThink) {
 		r.flushUpstreamThinkLiveUpdate(r.upstreamThink, upstreamThinkLiveUpdateOptions{Force: true})
+		r.emitUpstreamThinkUpdate()
 	}
 }
 
@@ -963,18 +965,11 @@ func (r *messageTraceRecorder) queueUpstreamThinkLiveUpdate(draft *messageTraceD
 	}
 	if deltaText != "" {
 		r.upstreamThinkBufferedByte += len(deltaText)
-		if len(deltaText) > upstreamThinkLiveReplaceBytes {
-			deltaText = ""
-		}
-	}
-	if deltaText != "" {
 		_, _ = r.upstreamThinkPendingText.WriteString(deltaText)
 	}
 	if replaceText != "" {
 		r.upstreamThinkBufferedByte += len(replaceText)
-		if len(replaceText) <= upstreamThinkLiveReplaceBytes {
-			r.upstreamThinkPendingReplace = replaceText
-		}
+		r.upstreamThinkPendingReplace = replaceText
 	}
 	if strings.TrimSpace(kind) != "" {
 		r.upstreamThinkPendingKind = strings.TrimSpace(kind)
@@ -1039,8 +1034,56 @@ func (r *messageTraceRecorder) flushUpstreamThinkLiveUpdate(draft *messageTraceD
 			r.upstreamThinkLastPersist = time.Now()
 		}
 	}
-	r.emitUpstreamThinkDelta(update)
+	r.emitUpstreamThinkLiveUpdate(update)
 	r.resetUpstreamThinkLiveBuffer()
+}
+
+// emitUpstreamThinkLiveUpdate 把超过单事件上限的正文切块下发：整段替换只保留在首块，
+// 其余块作为增量追加，保证实时事件体积有界的同时不丢失任何思考文本。
+func (r *messageTraceRecorder) emitUpstreamThinkLiveUpdate(update upstreamThinkLiveUpdate) {
+	if update.contentMarkdown != "" {
+		chunks := splitUpstreamThinkLiveText(update.contentMarkdown, upstreamThinkLiveReplaceBytes)
+		first := update
+		first.delta = ""
+		first.contentMarkdown = chunks[0]
+		r.emitUpstreamThinkDelta(first)
+		for _, chunk := range chunks[1:] {
+			r.emitUpstreamThinkDelta(upstreamThinkLiveUpdate{kind: update.kind, delta: chunk})
+		}
+		return
+	}
+	chunks := splitUpstreamThinkLiveText(update.delta, upstreamThinkLiveReplaceBytes)
+	first := update
+	first.delta = chunks[0]
+	r.emitUpstreamThinkDelta(first)
+	for _, chunk := range chunks[1:] {
+		r.emitUpstreamThinkDelta(upstreamThinkLiveUpdate{kind: update.kind, delta: chunk})
+	}
+}
+
+// splitUpstreamThinkLiveText 按字节上限在 UTF-8 字符边界切分文本；空文本返回单个空块。
+func splitUpstreamThinkLiveText(text string, limit int) []string {
+	if limit <= 0 || len(text) <= limit {
+		return []string{text}
+	}
+	chunks := make([]string, 0, len(text)/limit+1)
+	start := 0
+	for start < len(text) {
+		end := start + limit
+		if end >= len(text) {
+			chunks = append(chunks, text[start:])
+			break
+		}
+		for end > start && !utf8.RuneStart(text[end]) {
+			end--
+		}
+		if end == start {
+			end = start + limit
+		}
+		chunks = append(chunks, text[start:end])
+		start = end
+	}
+	return chunks
 }
 
 func (r *messageTraceRecorder) resetUpstreamThinkLiveBuffer() {
@@ -1197,6 +1240,25 @@ func (r *messageTraceRecorder) storeSnapshotEvent(draft *messageTraceDraft, payl
 	r.events = append(r.events, event)
 }
 
+// liveSnapshot 返回实时推送用的轨迹快照。模型思考正文已经由 upstream_think_delta 增量下发，
+// 这里只保留结构与摘要，避免快照随思考文本累积增长而触发流事件压缩。
+func (r *messageTraceRecorder) liveSnapshot() *model.MessageProcessTrace {
+	trace := r.snapshot()
+	if trace == nil {
+		return nil
+	}
+	if trace.UpstreamThink != nil {
+		trace.UpstreamThink.ContentMarkdown = ""
+	}
+	for idx := range trace.Events {
+		if trace.Events[idx].Phase == messageTraceTypeUpstreamThink {
+			trace.Events[idx].ContentMarkdown = ""
+			trace.Events[idx].PayloadJSON = ""
+		}
+	}
+	return trace
+}
+
 func (r *messageTraceRecorder) emitProcessUpdate() {
 	if !r.visible() || r.process == nil {
 		return
@@ -1204,7 +1266,7 @@ func (r *messageTraceRecorder) emitProcessUpdate() {
 	emitEvent(r.onEvent, "process_update", map[string]any{
 		"status": r.process.status,
 		"block":  traceDraftToBlock(r.process),
-		"trace":  r.snapshot(),
+		"trace":  r.liveSnapshot(),
 	})
 }
 
@@ -1215,7 +1277,23 @@ func (r *messageTraceRecorder) emitToolUpdate() {
 	emitEvent(r.onEvent, "process_update", map[string]any{
 		"status": r.tools.status,
 		"block":  traceDraftToBlock(r.tools),
-		"trace":  r.snapshot(),
+		"trace":  r.liveSnapshot(),
+	})
+}
+
+// emitUpstreamThinkUpdate 在思考轮次结束时推送结构快照，让客户端的事件列表立即拿到终态与结束时间。
+func (r *messageTraceRecorder) emitUpstreamThinkUpdate() {
+	if !r.visible() || r.upstreamThink == nil {
+		return
+	}
+	trace := r.liveSnapshot()
+	if trace == nil {
+		return
+	}
+	emitEvent(r.onEvent, "process_update", map[string]any{
+		"status": r.upstreamThink.status,
+		"block":  trace.UpstreamThink,
+		"trace":  trace,
 	})
 }
 

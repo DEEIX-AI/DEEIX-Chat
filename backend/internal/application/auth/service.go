@@ -345,24 +345,27 @@ func (s *Service) doLogin(
 		}
 	}
 
-	if item.Status == domainuser.StatusLocked {
-		return nil, ErrAccountLocked
-	}
-	if item.Status != domainuser.StatusActive {
-		return nil, ErrInvalidCredentials
-	}
-	if credential.LockedUntil != nil && now.Before(*credential.LockedUntil) {
+	// 锁定期间先复核密码：只有持正确密码的账户本人能看到"账户已锁定"，
+	// 其余请求继续返回通用凭据错误，避免通过响应差异探测账号是否存在。
+	lockedUntil := credential.LockedUntil
+	if item.Status == domainuser.StatusLocked || (lockedUntil != nil && now.Before(*lockedUntil)) {
 		if item.Status != domainuser.StatusLocked {
 			if lockErr := s.repo.UpdateUserStatus(ctx, item.ID, domainuser.StatusLocked); lockErr != nil {
 				s.warn("lock_account_failed", zap.Uint("user_id", item.ID), zap.Error(lockErr))
 			}
 		}
-		return nil, ErrAccountLocked
+		if bcrypt.CompareHashAndPassword([]byte(credential.PasswordHash), []byte(password)) == nil {
+			return nil, newAccountLockedError(lockedUntil, now)
+		}
+		return nil, ErrInvalidCredentials
+	}
+	if item.Status != domainuser.StatusActive {
+		return nil, ErrInvalidCredentials
 	}
 
 	if err = bcrypt.CompareHashAndPassword([]byte(credential.PasswordHash), []byte(password)); err != nil {
-		lockUntil := now.Add(s.loginLockDuration())
-		updatedCredential, markErr := s.repo.MarkLoginFailure(ctx, item.ID, s.loginLockThreshold(), lockUntil)
+		threshold, lockDuration := s.loginLockPolicy()
+		updatedCredential, markErr := s.repo.MarkLoginFailure(ctx, item.ID, threshold, now.Add(lockDuration))
 		if markErr != nil {
 			return nil, markErr
 		}
@@ -370,7 +373,6 @@ func (s *Service) doLogin(
 			if lockErr := s.repo.UpdateUserStatus(ctx, item.ID, domainuser.StatusLocked); lockErr != nil {
 				s.warn("lock_account_failed", zap.Uint("user_id", item.ID), zap.Error(lockErr))
 			}
-			return nil, ErrAccountLocked
 		}
 		return nil, ErrInvalidCredentials
 	}
@@ -835,11 +837,6 @@ func normalizeAppearancePreferences(raw string) (string, error) {
 	normalized := make(map[string]string, len(payload))
 	for key, value := range payload {
 		switch key {
-		case "theme":
-			if value != "light" && value != "dark" && value != "system" {
-				return "", ErrInvalidAppearancePreferences
-			}
-			normalized[key] = value
 		case "preset":
 			if value != "default" && value != "azure" && value != "cobalt" && value != "graphite" && value != "lagoon" && value != "ink" && value != "ochre" && value != "sepia" {
 				return "", ErrInvalidAppearancePreferences
@@ -1543,22 +1540,14 @@ type issuedTokens struct {
 	RefreshExpiresAt time.Time
 }
 
-// loginLockThreshold 返回触发账户锁定的连续失败次数阈值，默认 5。
-func (s *Service) loginLockThreshold() int {
+// loginLockPolicy 返回登录失败锁定策略：连续失败阈值与锁定时长。
+// 阈值或时长任一配置为 <=0 时视为关闭锁定，与其它数值型设置的约定一致。
+func (s *Service) loginLockPolicy() (int, time.Duration) {
 	cfg := s.cfg.Snapshot()
-	if cfg.LoginMaxFailures <= 0 {
-		return 5
+	if cfg.LoginMaxFailures <= 0 || cfg.LoginLockMinutes <= 0 {
+		return 0, 0
 	}
-	return cfg.LoginMaxFailures
-}
-
-// loginLockDuration 返回账户锁定时长，默认 15 分钟。
-func (s *Service) loginLockDuration() time.Duration {
-	cfg := s.cfg.Snapshot()
-	if cfg.LoginLockMinutes <= 0 {
-		return 15 * time.Minute
-	}
-	return time.Duration(cfg.LoginLockMinutes) * time.Minute
+	return cfg.LoginMaxFailures, time.Duration(cfg.LoginLockMinutes) * time.Minute
 }
 
 // marshalAuthEventDetail 将事件详情序列化为 JSON 字符串；序列化失败时返回空字符串。

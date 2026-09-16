@@ -42,6 +42,13 @@ var (
 	// ErrConversationShareSchemaOutdated 会话分享存储结构未更新。
 	ErrConversationShareSchemaOutdated = errors.New("conversation share schema outdated")
 
+	// ErrMessageDeleteStateInvalid 消息仍在生成中，不允许删除。
+	ErrMessageDeleteStateInvalid = errors.New("message delete state invalid")
+	// ErrMessageDeleteRootInvalid 会话第一条消息不允许删除，否则历史将以助手消息开头。
+	ErrMessageDeleteRootInvalid = errors.New("message delete root invalid")
+	// ErrMessageParentDeleted 父消息已被删除，无法再挂在其下创建新消息。
+	ErrMessageParentDeleted = errors.New("message parent deleted")
+
 	// 上游与模型仓储语义错误。
 	ErrUpstreamNotFound           = errors.New("upstream not found")
 	ErrModelNotFound              = errors.New("model not found")

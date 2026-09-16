@@ -51,6 +51,7 @@ export type AdminLLMAdapter =
   | "openai_responses"
   | "openrouter_chat_completions"
   | "openrouter_responses"
+  | "openrouter_images"
   | "openai_chat_completions"
   | "openai_image_generations"
   | "openai_image_edits"

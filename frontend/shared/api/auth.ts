@@ -33,8 +33,13 @@ import type {
 } from "@/shared/api/auth.types";
 
 export const AUTH_ERROR_CODES = {
+  accountLocked: "auth.account_locked",
   passwordReuseNotAllowed: "auth.password_reuse_not_allowed",
 } as const;
+
+export function isAccountLockedError(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.errorCode === AUTH_ERROR_CODES.accountLocked;
+}
 
 export function isPasswordReuseNotAllowedError(error: unknown): boolean {
   return error instanceof ApiError && error.errorCode === AUTH_ERROR_CODES.passwordReuseNotAllowed;
