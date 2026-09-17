@@ -146,7 +146,7 @@ flowchart TB
 │   ├── components/            # 基础 UI 与视觉组件
 │   └── public/                # 静态资源
 ├── packages/api-contract/     # 生成的 TypeScript API 契约
-├── docker/                    # 可选文档提取与 OCR 服务
+├── docker/                    # 可选服务和 VoceChat bundle
 ├── docs/                      # 项目指南和截图
 ├── config*.example.yaml       # 部署方案配置模板
 ├── docker-compose*.yml        # 部署方案
@@ -281,7 +281,7 @@ docker compose up -d
 
 ```bash
 cp config.full.example.yaml config.yaml
-docker compose -f docker-compose.full.yml up -d
+docker compose -f docker-compose.full.yml up -d --build
 ```
 
 `docker-compose.full.yml` 会在 compose `environment` 中设置 `POSTGRES_DSN`、`REDIS_ADDR`、`REDIS_USERNAME` 和 `REDIS_PASSWORD`，因此这些值会覆盖 `config.yaml` 里的数据库和 Redis 配置。
@@ -293,16 +293,18 @@ docker compose -f docker-compose.full.yml up -d
 仓库中的 Compose 文件固定使用已经通过 DEEIX 集成验证的 `privoce/vocechat-server:v0.5.32`。升级 VoceChat 前请先执行[站内消息](./INTERNAL_MESSAGING.md)中的兼容性检查，不要直接改成 `latest`。
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d --build
 ```
 
 同一 overlay 也可叠加在轻量安装上：
 
 ```bash
-docker compose -f docker-compose.sqlite.yml -f docker-compose.vocechat.yml up -d
+docker compose -f docker-compose.sqlite.yml -f docker-compose.vocechat.yml up -d --build
 ```
 
 overlay 会向 app 容器写入 `INTERNAL_MESSAGING_ENABLED`、`INTERNAL_MESSAGING_VOCECHAT_URL` 和 `INTERNAL_MESSAGING_SECRET_FILE`，不必把 third-party secret 写进 `config.yaml`。初始化、备份、密钥轮换和升级检查见[站内消息](./INTERNAL_MESSAGING.md)。
+
+VoceChat 两个服务共用一个本地 bundle 镜像，由 `docker/vocechat/Dockerfile` 构建。镜像内置已经通过集成验证的 VoceChat 服务、`config.toml` 和 `init.py`，运行中的容器不再挂载这些仓库文件。构建上下文只有 `docker/vocechat`，不会把整个源码树复制进镜像。首次启动全量安装或启用站内消息的方案时，应加上 `--build`；修改这两个内置文件后也需要重新构建。
 
 #### 配置、持久化和镜像
 

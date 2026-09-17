@@ -146,7 +146,7 @@ The backend keeps clear internal boundaries: `backend/cmd/server` is the executa
 │   ├── components/            # UI primitives and visual components
 │   └── public/                # static assets
 ├── packages/api-contract/     # generated TypeScript API contract
-├── docker/                    # optional extraction and OCR services
+├── docker/                    # optional services and the VoceChat bundle
 ├── docs/                      # project guides and screenshots
 ├── config*.example.yaml       # deployment profile templates
 ├── docker-compose*.yml        # deployment profiles
@@ -281,7 +281,7 @@ Use this when you want compose to start the app, PostgreSQL, Redis, and the inte
 
 ```bash
 cp config.full.example.yaml config.yaml
-docker compose -f docker-compose.full.yml up -d
+docker compose -f docker-compose.full.yml up -d --build
 ```
 
 `docker-compose.full.yml` sets `POSTGRES_DSN`, `REDIS_ADDR`, `REDIS_USERNAME`, and `REDIS_PASSWORD` in compose `environment`, so those values override the database and Redis values in `config.yaml`.
@@ -293,16 +293,18 @@ The full profile already contains VoceChat and does not need an overlay. For the
 The repository pins the integration-tested `privoce/vocechat-server:v0.5.32` tag in the Compose files. Do not change it to `latest` without running the upgrade checks in [Internal messaging](docs/INTERNAL_MESSAGING.md).
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d --build
 ```
 
 The same overlay works with the lightweight profile:
 
 ```bash
-docker compose -f docker-compose.sqlite.yml -f docker-compose.vocechat.yml up -d
+docker compose -f docker-compose.sqlite.yml -f docker-compose.vocechat.yml up -d --build
 ```
 
 The overlay writes `INTERNAL_MESSAGING_ENABLED`, `INTERNAL_MESSAGING_VOCECHAT_URL`, and `INTERNAL_MESSAGING_SECRET_FILE` into the app container. You do not need to put the third-party secret in `config.yaml`. Initialization, backup, secret rotation, and upgrade checks are in [Internal messaging](docs/INTERNAL_MESSAGING.md).
+
+The VoceChat services share one local bundle image, built from `docker/vocechat/Dockerfile`. The bundle contains the integration-tested VoceChat server, `config.toml`, and `init.py`, so these files are not mounted into running containers. The build context is only `docker/vocechat`; the full source tree is not copied into the image. The first start of a full or messaging-enabled profile should include `--build`; rebuild after changing either bundled file.
 
 #### Configuration, Persistence, and Image
 

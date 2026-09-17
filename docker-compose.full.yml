@@ -75,15 +75,18 @@ services:
       - deeix-chat
 
   vocechat:
-    # v0.5.32 is the version validated by the DEEIX VoceChat integration.
-    # It is intentionally kept on the Docker network and has no host port.
-    image: privoce/vocechat-server:v0.5.32
+    # The bundle contains the validated VoceChat server and DEEIX integration files.
+    image: deeix-chat-vocechat:v0.5.32
+    build:
+      context: ./docker/vocechat
+      dockerfile: Dockerfile
+      args:
+        VOCECHAT_BASE_IMAGE: privoce/vocechat-server:v0.5.32
     restart: unless-stopped
     expose:
       - "3000"
     volumes:
       - vocechat_data:/home/vocechat-server/data
-      - ./docker/vocechat/config.toml:/home/vocechat-server/config/config.toml:ro
     command:
       - --network.bind
       - 0.0.0.0:3000
@@ -97,7 +100,7 @@ services:
       - deeix-chat
 
   vocechat-init:
-    image: python:3.13.7-alpine3.22
+    image: deeix-chat-vocechat:v0.5.32
     restart: "no"
     depends_on:
       vocechat:
@@ -110,7 +113,6 @@ services:
       VOCECHAT_SECRET_PATH: "/run/secrets/vocechat/third-party-secret"
       VOCECHAT_CREDENTIAL_PATH: "/var/lib/deeix-vocechat-init/administrator.json"
     volumes:
-      - ./docker/vocechat/init.py:/opt/deeix/vocechat-init.py:ro
       - vocechat_secrets:/run/secrets/vocechat
       - vocechat_init_state:/var/lib/deeix-vocechat-init
     networks:
