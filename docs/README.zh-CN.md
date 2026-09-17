@@ -242,7 +242,7 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 
 ### Docker 部署
 
-以下 Docker 命令均从仓库根目录执行。Docker 部署先选择安装方案，再复制对应的配置文件。三套根目录 compose 文件都默认将应用暴露在 `http://localhost:8080`，并把仓库根目录的 `config.yaml` 挂载到容器内 `/app/config.yaml`。
+如果使用代码检出部署，以下 Docker 命令均从仓库根目录执行。也可以不拉取仓库，只把需要的 Compose 和配置文件放到任意目录；全量安装和站内消息使用已发布镜像，不需要源码树。三套根目录 compose 文件都默认将应用暴露在 `http://localhost:8080`，并把当前目录的 `config.yaml` 挂载到容器内 `/app/config.yaml`。
 
 | 方案 | 适合场景 | 配置文件 | Compose 文件 | 内置依赖 |
 | --- | --- | --- | --- | --- |
@@ -281,7 +281,7 @@ docker compose up -d
 
 ```bash
 cp config.full.example.yaml config.yaml
-docker compose -f docker-compose.full.yml up -d --build
+docker compose -f docker-compose.full.yml up -d
 ```
 
 `docker-compose.full.yml` 会在 compose `environment` 中设置 `POSTGRES_DSN`、`REDIS_ADDR`、`REDIS_USERNAME` 和 `REDIS_PASSWORD`，因此这些值会覆盖 `config.yaml` 里的数据库和 Redis 配置。
@@ -290,21 +290,31 @@ docker compose -f docker-compose.full.yml up -d --build
 
 全量安装已经包含 VoceChat，不需要再叠加 overlay。轻量安装或默认安装需要叠加 `docker-compose.vocechat.yml`；VoceChat 只监听 compose 网络，浏览器不会直接连接它。
 
-仓库中的 Compose 文件固定使用已经通过 DEEIX 集成验证的 `privoce/vocechat-server:v0.5.32`。升级 VoceChat 前请先执行[站内消息](./INTERNAL_MESSAGING.md)中的兼容性检查，不要直接改成 `latest`。
+Compose 文件固定使用发布版本 `ghcr.io/amaoworks/deeix-chat-vocechat:v0.4.1-3`。GitHub Actions 会从已经通过 DEEIX 集成验证的 VoceChat 基础镜像构建 amd64 和 arm64 镜像并发布。升级 VoceChat 前请先执行[站内消息](./INTERNAL_MESSAGING.md)中的兼容性检查，不要直接改成 `latest`。
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d
 ```
 
 同一 overlay 也可叠加在轻量安装上：
 
 ```bash
-docker compose -f docker-compose.sqlite.yml -f docker-compose.vocechat.yml up -d --build
+docker compose -f docker-compose.sqlite.yml -f docker-compose.vocechat.yml up -d
 ```
 
 overlay 会向 app 容器写入 `INTERNAL_MESSAGING_ENABLED`、`INTERNAL_MESSAGING_VOCECHAT_URL` 和 `INTERNAL_MESSAGING_SECRET_FILE`，不必把 third-party secret 写进 `config.yaml`。初始化、备份、密钥轮换和升级检查见[站内消息](./INTERNAL_MESSAGING.md)。
 
-VoceChat 两个服务共用一个本地 bundle 镜像，由 `docker/vocechat/Dockerfile` 构建。镜像内置已经通过集成验证的 VoceChat 服务、`config.toml` 和 `init.py`，运行中的容器不再挂载这些仓库文件。构建上下文只有 `docker/vocechat`，不会把整个源码树复制进镜像。首次启动全量安装或启用站内消息的方案时，应加上 `--build`；修改这两个内置文件后也需要重新构建。
+VoceChat 两个服务共用已发布的 bundle 镜像 `ghcr.io/amaoworks/deeix-chat-vocechat:v0.4.1-3`。GitHub Actions 使用 `docker/vocechat/Dockerfile` 和仅包含该目录的构建上下文，把已经通过集成验证的 VoceChat 服务、`config.toml` 和 `init.py` 放进镜像。运行中的容器不再挂载这些文件，部署主机也不需要仓库或本地 Dockerfile。
+
+不拉取仓库时，可以从 release 只下载全量 Compose 和配置模板：
+
+```bash
+mkdir deeix-chat && cd deeix-chat
+curl -fsSL https://raw.githubusercontent.com/amaoworks/DEEIX-Chat/v0.4.1-3/docker-compose.full.yml -o docker-compose.full.yml
+curl -fsSL https://raw.githubusercontent.com/amaoworks/DEEIX-Chat/v0.4.1-3/config.full.example.yaml -o config.full.example.yaml
+cp config.full.example.yaml config.yaml
+docker compose -f docker-compose.full.yml up -d
+```
 
 #### 配置、持久化和镜像
 

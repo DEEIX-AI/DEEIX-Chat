@@ -8,17 +8,17 @@ DEEIX 使用自己的 UI 与 API；VoceChat 仅在 Docker 内网保存消息并�
 
 ## Docker Compose 自动初始化
 
-全量 Compose 已经内置 VoceChat，首次启动时会构建一个包含 VoceChat 服务、`config.toml` 和 `init.py` 的 bundle 镜像。轻量安装和默认安装则需要叠加 `docker-compose.vocechat.yml`。构建使用已经通过 DEEIX 集成验证的 `privoce/vocechat-server:v0.5.32`，不要改成浮动的 `latest`：
+全量 Compose 已经内置 VoceChat，使用 GitHub Actions 发布的 `ghcr.io/amaoworks/deeix-chat-vocechat:v0.4.1-3` bundle 镜像。镜像包含 VoceChat 服务、`config.toml` 和 `init.py`，因此部署主机不需要拉取仓库或本地构建。轻量安装和默认安装则需要叠加 `docker-compose.vocechat.yml`。不要把发布版本改成浮动的 `latest`：
 
 ```bash
-docker compose -f docker-compose.full.yml up -d --build
+docker compose -f docker-compose.full.yml up -d
 ```
 
 轻量和默认方案使用 overlay，网络名都是 `deeix-chat-network`：
 
 ```bash
-docker compose -f docker-compose.sqlite.yml -f docker-compose.vocechat.yml up -d --build
-docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d --build
+docker compose -f docker-compose.sqlite.yml -f docker-compose.vocechat.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d
 ```
 
 后面的恢复、轮换命令按默认安装写了 `-f docker-compose.yml`。如果实际运行的是轻量方案，把第一份 compose 文件换成 `docker-compose.sqlite.yml`；如果使用全量方案，只保留 `-f docker-compose.full.yml`。
@@ -30,7 +30,7 @@ docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d --buil
 3. DEEIX app 只读挂载 secret 卷，通过 `INTERNAL_MESSAGING_SECRET_FILE` 读取密钥。
 4. 初始化成功后该容器退出，DEEIX app 才开始启动。后续启动会验证并复用已有密钥。
 
-运行时不需要挂载 `docker/vocechat/init.py` 或 `docker/vocechat/config.toml`；它们在 bundle 镜像构建阶段复制进去，构建上下文也只有 `docker/vocechat`。修改这两个文件后需要重新构建。Compose 仍保留两个服务，因为 VoceChat 服务需要持续运行，而 `vocechat-init` 只在初始化或恢复时运行一次。
+运行时不需要挂载 `docker/vocechat/init.py` 或 `docker/vocechat/config.toml`；GitHub Actions 在 bundle 镜像构建阶段复制进去，构建上下文也只有 `docker/vocechat`。Compose 仍保留两个服务，因为 VoceChat 服务需要持续运行，而 `vocechat-init` 只在初始化或恢复时运行一次。
 
 使用该 overlay 时不需要在 `config.yaml` 中填写 `secret`，也不需要手工创建 VoceChat 管理员。overlay 会自动设置：
 
