@@ -248,9 +248,9 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 | --- | --- | --- | --- | --- |
 | 轻量安装 | 本地试用、个人部署、小型单节点 | `config.sqlite.example.yaml` | `docker-compose.sqlite.yml` | 仅应用容器，SQLite + sqlite-vec + 内存缓存 |
 | 默认安装 | 已有外部 PostgreSQL 和 Redis | `config.example.yaml` | `docker-compose.yml` | 仅应用容器 |
-| 全量安装 | 单机同时部署应用、PostgreSQL 和 Redis | `config.full.example.yaml` | `docker-compose.full.yml` | 应用、PostgreSQL、Redis |
+| 全量安装 | 单机同时部署应用、PostgreSQL、Redis 和站内消息 | `config.full.example.yaml` | `docker-compose.full.yml` | 应用、PostgreSQL、Redis、VoceChat |
 
-可选：在上述任一方案上叠加 `docker-compose.vocechat.yml`，即可启用站内私聊。VoceChat 不映射宿主机端口。详见[站内消息](./INTERNAL_MESSAGING.md)。
+全量安装已经包含站内私聊。轻量安装和默认安装需要再叠加 `docker-compose.vocechat.yml` 才能启用。VoceChat 不映射宿主机端口。详见[站内消息](./INTERNAL_MESSAGING.md)。
 
 #### 1. 轻量安装：SQLite
 
@@ -277,7 +277,7 @@ docker compose up -d
 
 #### 3. 全量安装：PostgreSQL + Redis 容器
 
-适合希望 compose 同时启动应用、PostgreSQL 和 Redis 的部署方式。
+适合希望 compose 同时启动应用、PostgreSQL、Redis 和站内消息服务的部署方式。VoceChat 只在 Compose 内网运行。
 
 ```bash
 cp config.full.example.yaml config.yaml
@@ -286,22 +286,20 @@ docker compose -f docker-compose.full.yml up -d
 
 `docker-compose.full.yml` 会在 compose `environment` 中设置 `POSTGRES_DSN`、`REDIS_ADDR`、`REDIS_USERNAME` 和 `REDIS_PASSWORD`，因此这些值会覆盖 `config.yaml` 里的数据库和 Redis 配置。
 
-#### 4. 可选站内消息 overlay
+#### 4. 轻量安装和默认安装的可选站内消息 overlay
 
-在已选择的安装方案上叠加 `docker-compose.vocechat.yml`，即可启用站内私聊面板。VoceChat 只监听 compose 网络，浏览器不会直接连接它。
+全量安装已经包含 VoceChat，不需要再叠加 overlay。轻量安装或默认安装需要叠加 `docker-compose.vocechat.yml`；VoceChat 只监听 compose 网络，浏览器不会直接连接它。
 
-将 `VOCECHAT_IMAGE` 设为已经审查过的 tag 或 digest，不要使用 `latest`。
+仓库中的 Compose 文件固定使用已经通过 DEEIX 集成验证的 `privoce/vocechat-server:v0.5.32`。升级 VoceChat 前请先执行[站内消息](./INTERNAL_MESSAGING.md)中的兼容性检查，不要直接改成 `latest`。
 
 ```bash
-VOCECHAT_IMAGE='privoce/vocechat-server@sha256:dc3ad835c05e997852d0327aba958e11e46730ae89e249faa0b760931ac9eb87' \
-  docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d
 ```
 
-同一 overlay 也可叠在另外两套方案上，同样需要设置 `VOCECHAT_IMAGE`：
+同一 overlay 也可叠加在轻量安装上：
 
 ```bash
 docker compose -f docker-compose.sqlite.yml -f docker-compose.vocechat.yml up -d
-docker compose -f docker-compose.full.yml -f docker-compose.vocechat.yml up -d
 ```
 
 overlay 会向 app 容器写入 `INTERNAL_MESSAGING_ENABLED`、`INTERNAL_MESSAGING_VOCECHAT_URL` 和 `INTERNAL_MESSAGING_SECRET_FILE`，不必把 third-party secret 写进 `config.yaml`。初始化、备份、密钥轮换和升级检查见[站内消息](./INTERNAL_MESSAGING.md)。
@@ -318,9 +316,9 @@ overlay 会向 app 容器写入 `INTERNAL_MESSAGING_ENABLED`、`INTERNAL_MESSAGI
 | 上传文件和生成文件 | `/app/storage` |
 | PostgreSQL 数据 | `/var/lib/postgresql/data`，仅全量安装 |
 | Redis 数据 | `/data`，仅全量安装 |
-| VoceChat 消息 | `/home/vocechat-server/data`，仅站内消息 overlay |
-| VoceChat third-party secret | `/run/secrets/vocechat`，仅站内消息 overlay |
-| VoceChat 初始化凭据 | `/var/lib/deeix-vocechat-init`，仅站内消息 overlay |
+| VoceChat 消息 | `/home/vocechat-server/data`，全量安装或站内消息 overlay |
+| VoceChat third-party secret | `/run/secrets/vocechat`，全量安装或站内消息 overlay |
+| VoceChat 初始化凭据 | `/var/lib/deeix-vocechat-init`，全量安装或站内消息 overlay |
 
 默认应用镜像为 `ghcr.io/deeix-ai/deeix-chat:latest`。Compose 文件只引用镜像，不定义构建步骤。测试本地构建时先生成镜像，再通过 `DEEIX_CHAT_IMAGE` 选择它：
 
@@ -338,7 +336,7 @@ DEEIX_CHAT_IMAGE=deeix-chat:local docker compose up -d
 这些服务不是必须安装。只有在后台或 `config.yaml` 中启用对应文件处理能力时才需要启动。
 这些 compose 文件会接入 `deeix-chat-network`；请先启动任一根目录 compose 方案，或手动执行 `docker network create deeix-chat-network`。
 
-站内消息不是这类提取服务。启用方式是叠加上一节的 VoceChat overlay，而不是再写一份类似 Tika 的 sidecar compose。
+站内消息不是这类提取服务。全量安装已经包含它；轻量安装和默认安装使用上一节的 VoceChat overlay，不需要再写一份类似 Tika 的 sidecar compose。
 
 ```bash
 docker compose -f docker/tika/docker-compose.yml up -d

@@ -8,21 +8,20 @@ DEEIX 使用自己的 UI 与 API；VoceChat 仅在 Docker 内网保存消息并�
 
 ## Docker Compose 自动初始化
 
-将 `VOCECHAT_IMAGE` 设为已经审查过的 VoceChat tag 或 digest；不要使用浮动的 `latest`。然后把 overlay 叠在当前使用的根目录 compose 方案上：
+全量 Compose 已经内置 VoceChat，直接启动即可。轻量安装和默认安装则需要叠加 `docker-compose.vocechat.yml`。仓库固定使用已经通过 DEEIX 集成验证的 `privoce/vocechat-server:v0.5.32`，不要改成浮动的 `latest`：
 
 ```bash
-VOCECHAT_IMAGE='privoce/vocechat-server@sha256:dc3ad835c05e997852d0327aba958e11e46730ae89e249faa0b760931ac9eb87' \
-  docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d
+docker compose -f docker-compose.full.yml up -d
 ```
 
-同一 overlay 也可叠在轻量和全量方案上，网络名都是 `deeix-chat-network`，同样需要设置 `VOCECHAT_IMAGE`：
+轻量和默认方案使用 overlay，网络名都是 `deeix-chat-network`：
 
 ```bash
 docker compose -f docker-compose.sqlite.yml -f docker-compose.vocechat.yml up -d
-docker compose -f docker-compose.full.yml -f docker-compose.vocechat.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d
 ```
 
-后面的恢复、轮换命令按默认安装写了 `-f docker-compose.yml`。如果实际运行的是轻量或全量方案，把第一份 compose 文件换成正在使用的那份。
+后面的恢复、轮换命令按默认安装写了 `-f docker-compose.yml`。如果实际运行的是轻量方案，把第一份 compose 文件换成 `docker-compose.sqlite.yml`；如果使用全量方案，只保留 `-f docker-compose.full.yml`。
 
 `vocechat-init` 会在 VoceChat 健康后自动完成以下操作：
 

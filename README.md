@@ -248,9 +248,9 @@ Run the following Docker commands from the repository root. Choose one installat
 | --- | --- | --- | --- | --- |
 | Lightweight | Local evaluation, personal use, small single-node deployments | `config.sqlite.example.yaml` | `docker-compose.sqlite.yml` | App only, SQLite + sqlite-vec + in-memory cache |
 | Default | External PostgreSQL and Redis already exist | `config.example.yaml` | `docker-compose.yml` | App only |
-| Full | Single-machine stack with app, PostgreSQL, and Redis | `config.full.example.yaml` | `docker-compose.full.yml` | App, PostgreSQL, Redis |
+| Full | Single-machine stack with app, PostgreSQL, Redis, and internal messaging | `config.full.example.yaml` | `docker-compose.full.yml` | App, PostgreSQL, Redis, VoceChat |
 
-Optional: stack `docker-compose.vocechat.yml` on any profile above to enable in-app direct messaging. VoceChat has no host port. See [Internal messaging](docs/INTERNAL_MESSAGING.md).
+The full profile includes in-app direct messaging. On the lightweight or default profile, stack `docker-compose.vocechat.yml` to enable it. VoceChat has no host port. See [Internal messaging](docs/INTERNAL_MESSAGING.md).
 
 #### 1. Lightweight Installation: SQLite
 
@@ -277,7 +277,7 @@ The default `docker-compose.yml` starts only the application container. Keep com
 
 #### 3. Full Installation: PostgreSQL + Redis Containers
 
-Use this when you want compose to start the app, PostgreSQL, and Redis together.
+Use this when you want compose to start the app, PostgreSQL, Redis, and the internal messaging service together. VoceChat remains private to the Compose network.
 
 ```bash
 cp config.full.example.yaml config.yaml
@@ -286,22 +286,20 @@ docker compose -f docker-compose.full.yml up -d
 
 `docker-compose.full.yml` sets `POSTGRES_DSN`, `REDIS_ADDR`, `REDIS_USERNAME`, and `REDIS_PASSWORD` in compose `environment`, so those values override the database and Redis values in `config.yaml`.
 
-#### 4. Optional Internal Messaging Overlay
+#### 4. Optional Internal Messaging Overlay for Lightweight and Default Profiles
 
-Enable the in-app direct-message panel by stacking `docker-compose.vocechat.yml` on the profile you already chose. VoceChat listens only on the compose network; browsers never connect to it.
+The full profile already contains VoceChat and does not need an overlay. For the lightweight or default profile, stack `docker-compose.vocechat.yml`; VoceChat listens only on the compose network and browsers never connect to it.
 
-Set `VOCECHAT_IMAGE` to a reviewed tag or digest. Do not use `latest`.
+The repository pins the integration-tested `privoce/vocechat-server:v0.5.32` tag in the Compose files. Do not change it to `latest` without running the upgrade checks in [Internal messaging](docs/INTERNAL_MESSAGING.md).
 
 ```bash
-VOCECHAT_IMAGE='privoce/vocechat-server@sha256:dc3ad835c05e997852d0327aba958e11e46730ae89e249faa0b760931ac9eb87' \
-  docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d
 ```
 
-The same overlay works with the other profiles. `VOCECHAT_IMAGE` is still required:
+The same overlay works with the lightweight profile:
 
 ```bash
 docker compose -f docker-compose.sqlite.yml -f docker-compose.vocechat.yml up -d
-docker compose -f docker-compose.full.yml -f docker-compose.vocechat.yml up -d
 ```
 
 The overlay writes `INTERNAL_MESSAGING_ENABLED`, `INTERNAL_MESSAGING_VOCECHAT_URL`, and `INTERNAL_MESSAGING_SECRET_FILE` into the app container. You do not need to put the third-party secret in `config.yaml`. Initialization, backup, secret rotation, and upgrade checks are in [Internal messaging](docs/INTERNAL_MESSAGING.md).
@@ -318,9 +316,9 @@ The default compose files persist application data:
 | Uploaded and generated files | `/app/storage` |
 | PostgreSQL data | `/var/lib/postgresql/data`, full installation only |
 | Redis data | `/data`, full installation only |
-| VoceChat messages | `/home/vocechat-server/data`, messaging overlay only |
-| VoceChat third-party secret | `/run/secrets/vocechat`, messaging overlay only |
-| VoceChat init credentials | `/var/lib/deeix-vocechat-init`, messaging overlay only |
+| VoceChat messages | `/home/vocechat-server/data`, full profile or messaging overlay |
+| VoceChat third-party secret | `/run/secrets/vocechat`, full profile or messaging overlay |
+| VoceChat init credentials | `/var/lib/deeix-vocechat-init`, full profile or messaging overlay |
 
 The default application image is `ghcr.io/deeix-ai/deeix-chat:latest`. Compose files reference an image and do not define a build step. Build a local image first, then select it with `DEEIX_CHAT_IMAGE`:
 
@@ -338,7 +336,7 @@ Use the matching `-f docker-compose.sqlite.yml` or `-f docker-compose.full.yml` 
 These services are optional. Start only the ones you enable in the admin console or `config.yaml`.
 They attach to `deeix-chat-network`; start one root compose profile first, or create the network manually with `docker network create deeix-chat-network`.
 
-Internal messaging is not one of these extractors. Enable it with the VoceChat overlay in section 4 above, not with a Tika-style sidecar compose file.
+Internal messaging is not one of these extractors. It is included in the full profile; use the VoceChat overlay from section 4 only with the lightweight or default profile.
 
 ```bash
 docker compose -f docker/tika/docker-compose.yml up -d

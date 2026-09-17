@@ -9,6 +9,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      vocechat:
+        condition: service_healthy
+      vocechat-init:
+        condition: service_completed_successfully
     environment:
       # Full compose connects to bundled services on the compose network.
       # These environment variables override database and Redis values in config.yaml.
@@ -16,12 +20,16 @@ services:
       REDIS_ADDR: "redis:6379"
       REDIS_USERNAME: ""
       REDIS_PASSWORD: "deeix_chat_2026"
+      INTERNAL_MESSAGING_ENABLED: "true"
+      INTERNAL_MESSAGING_VOCECHAT_URL: "http://vocechat:3000"
+      INTERNAL_MESSAGING_SECRET_FILE: "/run/secrets/vocechat/third-party-secret"
     ports:
       # Optional. Localhost-only by default. Put a reverse proxy in front for public access.
       - "127.0.0.1:8080:8080"
     volumes:
       - app_storage:/app/storage
       - app_data:/app/data
+      - vocechat_secrets:/run/secrets/vocechat:ro
       # The image runs from /app and reads /app/config.yaml automatically.
       - ./config.yaml:/app/config.yaml:ro
     networks:
@@ -66,6 +74,48 @@ services:
     networks:
       - deeix-chat
 
+  vocechat:
+    # v0.5.32 is the version validated by the DEEIX VoceChat integration.
+    # It is intentionally kept on the Docker network and has no host port.
+    image: privoce/vocechat-server:v0.5.32
+    restart: unless-stopped
+    expose:
+      - "3000"
+    volumes:
+      - vocechat_data:/home/vocechat-server/data
+      - ./docker/vocechat/config.toml:/home/vocechat-server/config/config.toml:ro
+    command:
+      - --network.bind
+      - 0.0.0.0:3000
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks:
+      - deeix-chat
+
+  vocechat-init:
+    image: python:3.13.7-alpine3.22
+    restart: "no"
+    depends_on:
+      vocechat:
+        condition: service_healthy
+    entrypoint:
+      - python3
+      - /opt/deeix/vocechat-init.py
+    environment:
+      VOCECHAT_URL: "http://vocechat:3000"
+      VOCECHAT_SECRET_PATH: "/run/secrets/vocechat/third-party-secret"
+      VOCECHAT_CREDENTIAL_PATH: "/var/lib/deeix-vocechat-init/administrator.json"
+    volumes:
+      - ./docker/vocechat/init.py:/opt/deeix/vocechat-init.py:ro
+      - vocechat_secrets:/run/secrets/vocechat
+      - vocechat_init_state:/var/lib/deeix-vocechat-init
+    networks:
+      - deeix-chat
+
 volumes:
   app_storage:
     name: deeix-chat-app-storage
@@ -75,6 +125,12 @@ volumes:
     name: deeix-chat-postgres-data
   redis_data:
     name: deeix-chat-redis-data
+  vocechat_data:
+    name: deeix-chat-vocechat-data
+  vocechat_secrets:
+    name: deeix-chat-vocechat-secrets
+  vocechat_init_state:
+    name: deeix-chat-vocechat-init-state
 
 networks:
   deeix-chat:

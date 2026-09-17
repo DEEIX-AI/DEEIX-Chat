@@ -1,7 +1,7 @@
-# Optional overlay. Stack on any root profile:
+# Optional overlay. Stack on the default or SQLite root profile:
 #   docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d
 #   docker compose -f docker-compose.sqlite.yml -f docker-compose.vocechat.yml up -d
-#   docker compose -f docker-compose.full.yml -f docker-compose.vocechat.yml up -d
+# The full profile already includes this service and does not need the overlay.
 # VoceChat has no host port. Only the DEEIX backend can reach it on this network.
 services:
   app:
@@ -18,8 +18,8 @@ services:
       - vocechat_secrets:/run/secrets/vocechat:ro
 
   vocechat:
-    # Set VOCECHAT_IMAGE to a reviewed tag or, preferably, an image digest.
-    image: ${VOCECHAT_IMAGE:?set-a-reviewed-vocechat-image-tag-or-digest}
+    # v0.5.32 is the version validated by the DEEIX VoceChat integration.
+    image: privoce/vocechat-server:v0.5.32
     restart: unless-stopped
     expose:
       - "3000"
@@ -39,8 +39,7 @@ services:
       - deeix-chat
 
   vocechat-init:
-    # Override with a reviewed digest in production when required.
-    image: ${VOCECHAT_INIT_IMAGE:-python:3.13.7-alpine3.22}
+    image: python:3.13.7-alpine3.22
     restart: "no"
     depends_on:
       vocechat:
