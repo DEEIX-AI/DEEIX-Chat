@@ -4,7 +4,7 @@ services:
   app:
     # Keep the app on the same release as the optional VoceChat integration.
     # Override with DEEIX_CHAT_IMAGE when using a registry mirror or local build.
-    image: ${DEEIX_CHAT_IMAGE:-ghcr.io/amaoworks/deeix-chat:v0.4.1-3}
+    image: ${DEEIX_CHAT_IMAGE:-ghcr.io/amaoworks/deeix-chat:v0.4.1-4}
     container_name: deeix-chat-app
     ports:
       # Optional. Localhost-only by default. Put a reverse proxy in front for public access.
