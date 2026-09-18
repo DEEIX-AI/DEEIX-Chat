@@ -756,6 +756,81 @@ func TestBuildUpstreamModelSyncPlanSeparatesCatalogActions(t *testing.T) {
 	}
 }
 
+func TestBuildUpstreamModelSyncPlanIgnoresRawJSONOnlyChanges(t *testing.T) {
+	upstream := &domainchannel.Upstream{ID: 9, Name: "test", Compatible: "openai", BaseURL: "https://example.com"}
+	item := llm.ModelItem{ID: "same-model", OwnedBy: "openai"}
+	kindsJSON := inferKindsJSON(item.ID)
+	protocol, err := resolveRouteProtocol("", upstream.Compatible, upstream.ProtocolDefaultsJSON, kindsJSON)
+	if err != nil {
+		t.Fatalf("resolve protocol: %v", err)
+	}
+	existing := *syncedUpstreamModel(upstream, item, "same-code", nil, protocol, kindsJSON)
+	existing.ID = 1
+	existing.RawJSON = `{"id":"same-model","owned_by":"legacy-owner"}`
+
+	plan, err := buildUpstreamModelSyncPlan(
+		upstream,
+		[]llm.ModelItem{item},
+		[]domainchannel.UpstreamModel{existing},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("build sync plan: %v", err)
+	}
+	if !reflect.DeepEqual(plan.UpdatedModels, []string{}) || !reflect.DeepEqual(plan.UnchangedModels, []string{"same-model"}) {
+		t.Fatalf("expected raw JSON-only change to remain unchanged, got %+v", plan)
+	}
+}
+
+func TestReconcileRemoteModelSnapshotIgnoresRawJSONOnlyChanges(t *testing.T) {
+	upstream := &domainchannel.Upstream{ID: 9, Name: "test", Compatible: "openai", BaseURL: "https://example.com"}
+	legacyItem := llm.ModelItem{ID: "legacy-model", OwnedBy: "openai"}
+	legacyKinds := inferKindsJSON(legacyItem.ID)
+	legacyProtocol, err := resolveRouteProtocol("", upstream.Compatible, upstream.ProtocolDefaultsJSON, legacyKinds)
+	if err != nil {
+		t.Fatalf("resolve protocol: %v", err)
+	}
+	// 旧版本导入路径写入的目录项 raw_json 固定为 {}，升级后不应被视为需要更新。
+	legacy := *syncedUpstreamModel(upstream, legacyItem, "legacy-code", nil, legacyProtocol, legacyKinds)
+	legacy.ID = 1
+	legacy.RawJSON = `{}`
+
+	revendoredItem := llm.ModelItem{ID: "revendored-model", OwnedBy: "openai"}
+	revendoredKinds := inferKindsJSON(revendoredItem.ID)
+	revendoredProtocol, err := resolveRouteProtocol("", upstream.Compatible, upstream.ProtocolDefaultsJSON, revendoredKinds)
+	if err != nil {
+		t.Fatalf("resolve protocol: %v", err)
+	}
+	revendored := *syncedUpstreamModel(upstream, revendoredItem, "revendored-code", nil, revendoredProtocol, revendoredKinds)
+	revendored.ID = 2
+	revendored.Vendor = "stale-vendor"
+
+	repo := &modelUpdateRepo{upstreamModels: map[string]domainchannel.UpstreamModel{
+		legacy.UpstreamModelName:     legacy,
+		revendored.UpstreamModelName: revendored,
+	}}
+	service := newTestService(config.Config{}, repo, repo, nil, nil)
+
+	result, err := service.reconcileRemoteModelSnapshot(t.Context(), upstream, []llm.ModelItem{legacyItem, revendoredItem}, false)
+	if err != nil {
+		t.Fatalf("reconcile snapshot: %v", err)
+	}
+	if result.UnchangedUpstreamModels != 1 || result.UpdatedUpstreamModels != 1 {
+		t.Fatalf("expected raw JSON-only change to be unchanged and vendor change to be updated, got %+v", result)
+	}
+	views := make(map[string]UpstreamSyncModelView, len(result.SyncedModels))
+	for _, view := range result.SyncedModels {
+		views[view.UpstreamModelName] = view
+	}
+	if views[legacy.UpstreamModelName].Updated || !views[revendored.UpstreamModelName].Updated {
+		t.Fatalf("unexpected per-model update flags: %+v", result.SyncedModels)
+	}
+	// 即便不计入更新，raw_json 仍应静默刷新到最新快照。
+	if got := repo.upstreamModels[legacy.UpstreamModelName].RawJSON; got == `{}` {
+		t.Fatalf("expected raw JSON to be refreshed silently, got %q", got)
+	}
+}
+
 type modelUpdateRepo struct {
 	model                    domainchannel.PlatformModel
 	upstream                 domainchannel.Upstream

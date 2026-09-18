@@ -1410,6 +1410,32 @@ export interface EmailVerificationStartResponseDoc {
   errorMsg: string;
 }
 
+export interface EmbeddingIndexStatusResponse {
+  /** EmptyCount 是提取完成但无文本的文件数；这些文件不参与自动重建。 */
+  emptyCount: number;
+  failedCount: number;
+  modelSignature: string;
+  needsReindex: boolean;
+  pendingCount: number;
+  readyCount: number;
+  staleCount: number;
+}
+
+export interface EmbeddingIndexStatusResponseDoc {
+  data: EmbeddingIndexStatusResponse;
+  errorMsg: string;
+}
+
+export interface EmbeddingReindexResponse {
+  message: string;
+  submitted: number;
+}
+
+export interface EmbeddingReindexResponseDoc {
+  data: EmbeddingReindexResponse;
+  errorMsg: string;
+}
+
 export interface Envelope {
   data: any;
   details?: any;
@@ -1922,6 +1948,16 @@ export interface MessageBillingCostResponse {
   pricingSnapshotJSON: string;
 }
 
+export interface MessageDeleteResponse {
+  deleted: boolean;
+  reparentedMessageCount: number;
+}
+
+export interface MessageDeleteResponseDoc {
+  data: MessageDeleteResponse;
+  errorMsg: string;
+}
+
 export interface MessageFeedbackResponse {
   messageID: number;
   messagePublicID: string;
@@ -2190,6 +2226,7 @@ export interface ModelPricingResponse {
   cacheReadNanousdPerMTokens: number;
   cacheReadUSDPerMTokens: number;
   cacheWriteNanousdPerMTokens: number;
+  cacheWritePriceBasis?: "direct" | "anthropic_5m";
   cacheWriteUSDPerMTokens: number;
   callNanousdPerCall: number;
   callUSDPerCall: number;
@@ -2430,16 +2467,27 @@ export interface OpenRouterOfficialPricingItemResponse {
   pricing: OpenRouterOfficialPricingUnitPricingResponse;
 }
 
+export interface OpenRouterOfficialPricingOverrideResponse {
+  completion: string;
+  inputCacheRead: string;
+  inputCacheWrite: string;
+  minPromptTokens: number;
+  prompt: string;
+}
+
 export interface OpenRouterOfficialPricingResponseDoc {
   data: OpenRouterOfficialPricingDataResponse;
   errorMsg: string;
 }
 
 export interface OpenRouterOfficialPricingUnitPricingResponse {
+  cacheWritePriceBasis: "direct" | "anthropic_5m";
   completion: string;
   inputCacheRead: string;
   inputCacheWrite: string;
+  overrides?: OpenRouterOfficialPricingOverrideResponse[];
   prompt: string;
+  unsupportedFields?: string[];
 }
 
 export interface PasswordResetCompleteRequest {
@@ -2824,6 +2872,8 @@ export interface PublicModelListResponseDoc {
 }
 
 export interface PublicModelPricingResponse {
+  cacheWrite1hMultiplier: number;
+  cacheWrite5mMultiplier: number;
   cacheReadUSDPerMTokens: number;
   cacheWriteUSDPerMTokens: number;
   callUSDPerCall: number;
@@ -3842,6 +3892,7 @@ export interface UpsertMemoryResponse {
 export interface UpsertModelPricingRequest {
   /** @min 0 */
   cacheReadUSDPerMTokens: number;
+  cacheWritePriceBasis?: "direct" | "anthropic_5m";
   /** @min 0 */
   cacheWriteUSDPerMTokens: number;
   /** @min 0 */
@@ -4689,7 +4740,7 @@ export namespace Admin {
   }
 
   /**
-   * @description 从 storage 缓存读取 OpenRouter 模型标识、定价和上下文限制；缓存不存在、过期或 refresh=true 时由后端刷新。
+   * @description 从 storage 缓存读取 OpenRouter 模型标识、基础定价、输入 token 阶梯覆盖和上下文限制；无法映射到当前 token 计费模型的附加字段会在 unsupportedFields 中标记，快速配置会忽略这些字段并继续导入可识别的 token 价格。由原生工具计费负责的按次字段（例如 web_search）会被忽略。
    * @tags admin-billing
    * @name BillingOfficialPricingOpenrouterList
    * @summary 管理员获取 OpenRouter 官方模型目录
@@ -6951,7 +7002,7 @@ export namespace Admin {
   }
 
   /**
-   * No description
+   * @description include_empty=true 时同时重试提取无文本的 empty 文件，适用于更换 OCR 引擎后
    * @tags admin/settings
    * @name SettingsEmbeddingReindexCreate
    * @summary 触发向量重建（重索引所有 stale/failed 文件）
@@ -6960,10 +7011,13 @@ export namespace Admin {
    */
   export namespace SettingsEmbeddingReindexCreate {
     export type RequestParams = {};
-    export type RequestQuery = {};
+    export type RequestQuery = {
+      /** 是否包含 empty 终态文件 */
+      include_empty?: boolean;
+    };
     export type RequestBody = never;
     export type RequestHeaders = {};
-    export type ResponseBody = Envelope;
+    export type ResponseBody = EmbeddingReindexResponseDoc;
   }
 
   /**
@@ -6995,7 +7049,7 @@ export namespace Admin {
     export type RequestQuery = {};
     export type RequestBody = never;
     export type RequestHeaders = {};
-    export type ResponseBody = Envelope;
+    export type ResponseBody = EmbeddingIndexStatusResponseDoc;
   }
 
   /**
@@ -8567,6 +8621,27 @@ export namespace Conversations {
     export type RequestBody = SendMessageRequest;
     export type RequestHeaders = {};
     export type ResponseBody = string;
+  }
+
+  /**
+   * @description 删除会话中任意位置的一条消息；其子消息将重接到被删消息的父消息上，后续消息保留并向前衔接。会话第一条消息与生成中的消息不允许删除
+   * @tags chat
+   * @name MessagesDelete
+   * @summary 删除指定消息
+   * @request DELETE:/conversations/{id}/messages/{message_id}
+   * @secure
+   */
+  export namespace MessagesDelete {
+    export type RequestParams = {
+      /** 会话 public_id */
+      id: string;
+      /** 消息 public_id */
+      messageId: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = MessageDeleteResponseDoc;
   }
 
   /**

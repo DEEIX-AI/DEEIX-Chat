@@ -13,6 +13,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogHeightTransition,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -451,189 +452,191 @@ export function ProjectDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={dialogContentRef}
-        className="flex max-h-[min(86vh,760px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[720px]"
+        className="w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0 sm:max-w-[720px]"
       >
-        <DialogHeader className="shrink-0 px-4 py-4">
-          <DialogTitle>{stableDraft?.publicID ? t("editTitle") : t("createTitle")}</DialogTitle>
-          <DialogDescription>{stableDraft?.publicID ? t("editDescription") : t("createDescription")}</DialogDescription>
-        </DialogHeader>
+        <DialogHeightTransition contentClassName="max-h-[min(86vh,760px)]">
+          <DialogHeader className="shrink-0 px-4 py-4">
+            <DialogTitle>{stableDraft?.publicID ? t("editTitle") : t("createTitle")}</DialogTitle>
+            <DialogDescription>{stableDraft?.publicID ? t("editDescription") : t("createDescription")}</DialogDescription>
+          </DialogHeader>
 
-        <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
-            <div className="space-y-1">
-              <label htmlFor={nameInputID} className="text-xs text-muted-foreground">
-                {t("nameLabel")}
-              </label>
-              <Input
-                id={nameInputID}
-                autoFocus
-                value={stableDraft?.name ?? ""}
-                maxLength={80}
-                placeholder={t("namePlaceholder")}
-                onChange={(event) => {
-                  setDraft((current) => current ? { ...current, name: event.target.value } : current);
-                }}
-                disabled={submitting}
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <label htmlFor={systemPromptInputID} className="text-xs text-muted-foreground">
-                {t("systemPromptLabel")}
-              </label>
-              <Textarea
-                id={systemPromptInputID}
-                value={stableDraft?.systemPrompt ?? ""}
-                maxLength={12000}
-                placeholder={t("systemPromptPlaceholder")}
-                className="h-48 resize-none overflow-y-auto [field-sizing:fixed]"
-                onChange={(event) => {
-                  setDraft((current) => current ? { ...current, systemPrompt: event.target.value } : current);
-                }}
-                disabled={submitting}
-              />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
-              <div className="min-w-0 space-y-1">
-                <label htmlFor={defaultModelInputID} className="block text-xs text-muted-foreground">
-                  {t("defaultModelLabel")}
+          <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
+              <div className="space-y-1">
+                <label htmlFor={nameInputID} className="text-xs text-muted-foreground">
+                  {t("nameLabel")}
                 </label>
-                {modelCatalogLoading ? (
-                  <Button
-                    id={defaultModelInputID}
-                    type="button"
-                    variant="outline"
-                    className="h-8 w-full justify-start gap-2 px-3 font-normal shadow-none"
-                    disabled
-                  >
-                    <Spinner className="size-3.5" />
-                    {t("defaultModelLoading")}
-                  </Button>
-                ) : (
-                  <ModelSelect
-                    id={defaultModelInputID}
-                    value={stableDraft?.defaultModel.trim() || PROJECT_DEFAULT_MODEL_INHERIT_VALUE}
-                    fallbackValue={PROJECT_DEFAULT_MODEL_INHERIT_VALUE}
-                    options={modelOptions}
-                    valueAlign="start"
-                    itemAlign="start"
-                    contentClassName="min-w-[min(24rem,calc(100vw-3rem))]"
-                    triggerClassName="h-8 shadow-none"
-                    portalContainer={dialogContentRef}
-                    onChange={(value) => {
-                      const defaultModel = value === PROJECT_DEFAULT_MODEL_INHERIT_VALUE ? "" : value;
-                      setDraft((current) => current ? { ...current, defaultModel } : current);
-                    }}
-                    disabled={submitting}
-                  />
-                )}
+                <Input
+                  id={nameInputID}
+                  autoFocus
+                  value={stableDraft?.name ?? ""}
+                  maxLength={80}
+                  placeholder={t("namePlaceholder")}
+                  onChange={(event) => {
+                    setDraft((current) => current ? { ...current, name: event.target.value } : current);
+                  }}
+                  disabled={submitting}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor={systemPromptInputID} className="text-xs text-muted-foreground">
+                  {t("systemPromptLabel")}
+                </label>
+                <Textarea
+                  id={systemPromptInputID}
+                  value={stableDraft?.systemPrompt ?? ""}
+                  maxLength={12000}
+                  placeholder={t("systemPromptPlaceholder")}
+                  className="h-48 resize-none overflow-y-auto [field-sizing:fixed]"
+                  onChange={(event) => {
+                    setDraft((current) => current ? { ...current, systemPrompt: event.target.value } : current);
+                  }}
+                  disabled={submitting}
+                />
               </div>
 
-              <ProjectDefaultSelector
-                icon={Wrench}
-                label={t("mcpDefaultsLabel")}
-                emptyLabel={t("mcpDefaultsEmpty")}
-                searchPlaceholder={t("searchMCPTools")}
-                options={mcpTools.map((tool) => ({
-                  id: tool.id,
-                  label: tool.displayName || tool.name,
-                  detail: tool.serverName,
-                }))}
-                selectedIDs={inheritGlobalMCPDefaults ? [] : (stableDraft?.defaultMCPToolIDs ?? [])}
-                selectionLimit={selectionLimit}
-                loading={catalogLoading}
-                disabled={submitting}
-                exclusiveOption={{
-                  active: inheritGlobalMCPDefaults,
-                  icon: Globe2,
-                  label: t("inheritGlobalMCPDefaults"),
-                  detail: t("inheritGlobalMCPDefaultsDescription"),
-                  onChange: (active) => {
-                    setDraft((current) => current
-                      ? {
-                          ...current,
-                          mcpDefaultMode: active ? "inherit" : "custom",
-                          defaultMCPToolIDs: [],
-                        }
-                      : current);
-                  },
-                }}
-                onChange={(defaultMCPToolIDs) => {
-                  if (hasMultipleImageAttachmentProcessors(defaultMCPToolIDs, mcpTools)) {
-                    toast.error(t("imageProcessorLimitTitle"), {
-                      description: t("imageProcessorLimitDescription"),
-                    });
-                    return;
-                  }
-                  setDraft((current) => current
-                    ? { ...current, mcpDefaultMode: "custom", defaultMCPToolIDs }
-                    : current);
-                }}
-              />
+              <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+                <div className="min-w-0 space-y-1">
+                  <label htmlFor={defaultModelInputID} className="block text-xs text-muted-foreground">
+                    {t("defaultModelLabel")}
+                  </label>
+                  {modelCatalogLoading ? (
+                    <Button
+                      id={defaultModelInputID}
+                      type="button"
+                      variant="outline"
+                      className="h-8 w-full justify-start gap-2 px-3 font-normal shadow-none"
+                      disabled
+                    >
+                      <Spinner className="size-3.5" />
+                      {t("defaultModelLoading")}
+                    </Button>
+                  ) : (
+                    <ModelSelect
+                      id={defaultModelInputID}
+                      value={stableDraft?.defaultModel.trim() || PROJECT_DEFAULT_MODEL_INHERIT_VALUE}
+                      fallbackValue={PROJECT_DEFAULT_MODEL_INHERIT_VALUE}
+                      options={modelOptions}
+                      valueAlign="start"
+                      itemAlign="start"
+                      contentClassName="min-w-[min(24rem,calc(100vw-3rem))]"
+                      triggerClassName="h-8 shadow-none"
+                      portalContainer={dialogContentRef}
+                      onChange={(value) => {
+                        const defaultModel = value === PROJECT_DEFAULT_MODEL_INHERIT_VALUE ? "" : value;
+                        setDraft((current) => current ? { ...current, defaultModel } : current);
+                      }}
+                      disabled={submitting}
+                    />
+                  )}
+                </div>
 
-              {knowledgeBaseEnabled ? (
                 <ProjectDefaultSelector
-                  icon={BookOpen}
-                  label={t("selectKnowledgeBases")}
-                  emptyLabel={t("knowledgeBaseDefaultsEmpty")}
-                  searchPlaceholder={t("searchKnowledgeBases")}
-                  options={knowledgeBaseCatalog.items.map((item) => ({
-                    id: item.publicID,
-                    label: item.name,
-                    detail: `${item.scope === "builtin" ? t("builtinKnowledgeBase") : t("personalKnowledgeBase")} · ${t("knowledgeBaseFileCount", { count: item.readyFileCount })}`,
-                    disabled: item.readyFileCount === 0,
+                  icon={Wrench}
+                  label={t("mcpDefaultsLabel")}
+                  emptyLabel={t("mcpDefaultsEmpty")}
+                  searchPlaceholder={t("searchMCPTools")}
+                  options={mcpTools.map((tool) => ({
+                    id: tool.id,
+                    label: tool.displayName || tool.name,
+                    detail: tool.serverName,
                   }))}
-                  selectedIDs={stableDraft?.defaultKnowledgeBaseIDs ?? []}
-                  selectionLimit={8}
-                  loading={knowledgeBaseCatalog.loading && knowledgeBaseCatalog.items.length === 0}
-                  searching={knowledgeBaseCatalog.loading}
-                  loadingMore={knowledgeBaseCatalog.loadingMore}
-                  hasMore={knowledgeBaseCatalog.hasMore}
+                  selectedIDs={inheritGlobalMCPDefaults ? [] : (stableDraft?.defaultMCPToolIDs ?? [])}
+                  selectionLimit={selectionLimit}
+                  loading={catalogLoading}
                   disabled={submitting}
-                  onQueryChange={knowledgeBaseCatalog.setQuery}
-                  onLoadMore={knowledgeBaseCatalog.loadMore}
-                  onChange={(defaultKnowledgeBaseIDs) => {
-                    setDraft((current) => current ? { ...current, defaultKnowledgeBaseIDs } : current);
+                  exclusiveOption={{
+                    active: inheritGlobalMCPDefaults,
+                    icon: Globe2,
+                    label: t("inheritGlobalMCPDefaults"),
+                    detail: t("inheritGlobalMCPDefaultsDescription"),
+                    onChange: (active) => {
+                      setDraft((current) => current
+                        ? {
+                            ...current,
+                            mcpDefaultMode: active ? "inherit" : "custom",
+                            defaultMCPToolIDs: [],
+                          }
+                        : current);
+                    },
+                  }}
+                  onChange={(defaultMCPToolIDs) => {
+                    if (hasMultipleImageAttachmentProcessors(defaultMCPToolIDs, mcpTools)) {
+                      toast.error(t("imageProcessorLimitTitle"), {
+                        description: t("imageProcessorLimitDescription"),
+                      });
+                      return;
+                    }
+                    setDraft((current) => current
+                      ? { ...current, mcpDefaultMode: "custom", defaultMCPToolIDs }
+                      : current);
                   }}
                 />
-              ) : null}
 
-              <ProjectDefaultSelector
-                icon={Box}
-                label={t("selectSkills")}
-                emptyLabel={t("skillDefaultsEmpty")}
-                searchPlaceholder={t("searchSkills")}
-                options={skillCatalog.items.map((skill) => ({
-                  id: skill.id,
-                  label: skill.title,
-                  detail: skill.description.trim() || (skill.trigger ? `/${skill.trigger}` : ""),
-                }))}
-                selectedIDs={stableDraft?.defaultSkillIDs ?? []}
-                selectionLimit={selectionLimit}
-                loading={skillCatalog.loading && skillCatalog.items.length === 0}
-                searching={skillCatalog.loading}
-                loadingMore={skillCatalog.loadingMore}
-                hasMore={skillCatalog.hasMore}
-                disabled={submitting || catalogLoading}
-                onQueryChange={skillCatalog.setQuery}
-                onLoadMore={skillCatalog.loadMore}
-                onChange={(defaultSkillIDs) => {
-                  setDraft((current) => current ? { ...current, defaultSkillIDs } : current);
-                }}
-              />
+                {knowledgeBaseEnabled ? (
+                  <ProjectDefaultSelector
+                    icon={BookOpen}
+                    label={t("selectKnowledgeBases")}
+                    emptyLabel={t("knowledgeBaseDefaultsEmpty")}
+                    searchPlaceholder={t("searchKnowledgeBases")}
+                    options={knowledgeBaseCatalog.items.map((item) => ({
+                      id: item.publicID,
+                      label: item.name,
+                      detail: `${item.scope === "builtin" ? t("builtinKnowledgeBase") : t("personalKnowledgeBase")} · ${t("knowledgeBaseFileCount", { count: item.readyFileCount })}`,
+                      disabled: item.readyFileCount === 0,
+                    }))}
+                    selectedIDs={stableDraft?.defaultKnowledgeBaseIDs ?? []}
+                    selectionLimit={8}
+                    loading={knowledgeBaseCatalog.loading && knowledgeBaseCatalog.items.length === 0}
+                    searching={knowledgeBaseCatalog.loading}
+                    loadingMore={knowledgeBaseCatalog.loadingMore}
+                    hasMore={knowledgeBaseCatalog.hasMore}
+                    disabled={submitting}
+                    onQueryChange={knowledgeBaseCatalog.setQuery}
+                    onLoadMore={knowledgeBaseCatalog.loadMore}
+                    onChange={(defaultKnowledgeBaseIDs) => {
+                      setDraft((current) => current ? { ...current, defaultKnowledgeBaseIDs } : current);
+                    }}
+                  />
+                ) : null}
+
+                <ProjectDefaultSelector
+                  icon={Box}
+                  label={t("selectSkills")}
+                  emptyLabel={t("skillDefaultsEmpty")}
+                  searchPlaceholder={t("searchSkills")}
+                  options={skillCatalog.items.map((skill) => ({
+                    id: skill.id,
+                    label: skill.title,
+                    detail: skill.description.trim() || (skill.trigger ? `/${skill.trigger}` : ""),
+                  }))}
+                  selectedIDs={stableDraft?.defaultSkillIDs ?? []}
+                  selectionLimit={selectionLimit}
+                  loading={skillCatalog.loading && skillCatalog.items.length === 0}
+                  searching={skillCatalog.loading}
+                  loadingMore={skillCatalog.loadingMore}
+                  hasMore={skillCatalog.hasMore}
+                  disabled={submitting || catalogLoading}
+                  onQueryChange={skillCatalog.setQuery}
+                  onLoadMore={skillCatalog.loadMore}
+                  onChange={(defaultSkillIDs) => {
+                    setDraft((current) => current ? { ...current, defaultSkillIDs } : current);
+                  }}
+                />
+              </div>
             </div>
-          </div>
 
-          <DialogFooter className="shrink-0 px-4 py-3">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
-              {t("cancel")}
-            </Button>
-            <Button type="submit" disabled={!draft?.name.trim() || submitting}>
-              {t("save")}
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter className="shrink-0 px-4 py-3">
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
+                {t("cancel")}
+              </Button>
+              <Button type="submit" disabled={!draft?.name.trim() || submitting}>
+                {t("save")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogHeightTransition>
       </DialogContent>
     </Dialog>
   );

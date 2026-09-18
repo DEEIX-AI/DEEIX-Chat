@@ -35,18 +35,19 @@
   "alreadyHaveAccount": "已有账号？",
   "noAccount": "没有账号？",
   "toasts": {
+    "accountLocked": "登录失败次数过多，该账号将在 {minutes} 分钟后解锁。",
+    "challengeExpired": "二次验证已过期，请重新输入账号密码登录",
     "codeRequired": "请输入验证码或恢复码",
+    "codeSendFailed": "验证码发送失败",
     "loginFailed": "登录失败，请检查账号密码",
     "loginRetry": "登录失败，请稍后重试",
-    "challengeExpired": "二次验证已过期，请重新输入账号密码登录",
-    "providerStartFailed": "无法启动第三方登录，请刷新页面后重试",
-    "codeSendFailed": "验证码发送失败",
-    "turnstileRequired": "请先完成人机验证",
     "passwordInvalid": "密码至少 8 位，且不能为纯数字。",
     "passwordResetCodeFailed": "无法发送重置验证码",
     "passwordResetFailed": "密码重置失败，请检查邮箱、验证码和新密码",
     "passwordResetSuccess": "密码已重置，请重新登录",
-    "registerFailed": "注册失败，请稍后重试"
+    "providerStartFailed": "无法启动第三方登录，请刷新页面后重试",
+    "registerFailed": "注册失败，请稍后重试",
+    "turnstileRequired": "请先完成人机验证"
   },
   "oauthCallback": {
     "missingParams": "第三方登录返回缺少必要参数",

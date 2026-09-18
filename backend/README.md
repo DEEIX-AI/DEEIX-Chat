@@ -4,7 +4,7 @@ DEEIX Chat 后端是 Go API 服务，负责认证、用户、对话、模型渠�
 
 ## 技术栈
 
-- Go 1.26
+- Go 1.26.8
 - Gin
 - Gorm
 - PostgreSQL + pgvector 或 SQLite + sqlite-vec
@@ -14,14 +14,52 @@ DEEIX Chat 后端是 Go API 服务，负责认证、用户、对话、模型渠�
 - OpenTelemetry Trace（可选）
 - MCP Streamable HTTP JSON-RPC（可选）
 
+## 运行时与目录结构
+
+后端是一个 Go 单运行时服务：开发时提供 API，生产镜像中还可以托管 `frontend/out` 静态资源。启动链路和请求链路如下：
+
+```text
+backend/cmd/server/main.go
+  -> backend/internal/cli
+  -> backend/internal/app
+  -> backend/internal/transport/http
+  -> application use cases
+  -> repository / ports contracts
+  -> infra implementations
+```
+
+```text
+backend/
+├── cmd/server/             # 可执行入口
+├── internal/
+│   ├── cli/                # 进程启动
+│   ├── app/                # 依赖装配与生命周期
+│   ├── application/        # 用例编排和事务协调
+│   ├── domain/             # 领域模型和业务规则
+│   ├── ports/              # 外部集成的数据契约与错误
+│   ├── repository/         # 持久化接口
+│   ├── infra/              # 数据库、缓存、存储和外部服务适配器
+│   ├── transport/http/     # Handler、DTO、中间件和路由
+│   ├── shared/             # 响应、安全、生命周期等共享能力
+│   └── pkg/                # 通用内部工具包
+├── docs/                   # 生成的 Swagger 文件
+├── scripts/                # lint 和开发脚本
+├── tools/                  # 工具依赖
+└── Makefile                # 后端开发命令
+```
+
+`application` 不直接依赖 Gorm、Redis 或具体 provider。接口由消费方声明，具体实现位于 `infra`；依赖在 `internal/app` 统一创建和注入。
+
 ## 文档入口
 
+- [项目主 README](../README.md)
+- [前端 README](../frontend/README.md)
 - `docs/README.md`：后端文档索引
 - `docs/swagger.json` / `docs/swagger.yaml`：Swagger API 文档
 
 ## 核心约束
 
-- 启动链路为 `cmd -> internal/cli -> internal/app`。
+- 启动链路为 `cmd/server/main.go -> internal/cli -> internal/app`。
 - Handler 只负责 HTTP 入参、鉴权上下文、响应转换，不写业务逻辑。
 - Application 层承载用例编排，不直接依赖 Gorm、Redis、Docker 等基础设施实现。
 - Repository 接口位于 `internal/repository`，具体实现位于 `internal/infra/persistence`。接口是消费方契约，只声明对应用例实际调用的方法；同一个实现可以同时满足多个接口，不把实现的方法集抄成接口。
@@ -58,24 +96,48 @@ DEEIX Chat 后端是 Go API 服务，负责认证、用户、对话、模型渠�
 
 所有标准接口通过 `internal/shared/response` 返回，不新增重复 response 包。
 
+## HTTP 入口
+
+| 路径 | 作用 |
+| --- | --- |
+| `GET /healthz` | 进程存活检查，返回当前版本信息。 |
+| `GET /readyz` | 就绪检查，执行已注册的依赖检查；未就绪或排空时返回 `503`。 |
+| `GET /api/v1/version` | 公开构建信息，包含版本、提交、构建时间和 `buildID`。响应使用 `no-store`。 |
+| `/api/v1/*` | 业务 API；认证、管理员权限和限流由 HTTP middleware 处理。 |
+| `/swagger/index.html` | 开发环境 Swagger UI，仅在 `APP_ENV=dev` 或 `APP_ENV=development` 时注册。 |
+
+生产环境不会注册 Swagger 路由。完整请求契约见 [`backend/docs/swagger.yaml`](./docs/swagger.yaml)，在线调试需要先以开发环境启动服务。
+
 ## 配置
 
-默认读取仓库根目录下的 `config.yaml`，常用配置也支持环境变量覆盖。从 `backend/` 目录启动时会读取 `../config.yaml`。
-本地开发可先在仓库根目录复制示例配置；Docker 部署使用 Docker 示例配置：
+默认读取仓库根目录下的 `config.yaml`，常用配置也支持环境变量覆盖。从 `backend/` 目录启动时会读取 `../config.yaml`。也可以通过 `CONFIG_FILE` 指定配置文件路径。下面的配置复制命令从仓库根目录执行，并选择其中一个方案。
+
+默认开发配置（外部 PostgreSQL + Redis）：
 
 ```bash
 cp config.example.yaml config.yaml
-# Docker Compose full stack
+```
+
+完整 Compose 配置（应用、PostgreSQL、Redis）：
+
+```bash
 cp config.full.example.yaml config.yaml
-# SQLite + memory cache
+```
+
+SQLite + 进程内缓存配置：
+
+```bash
 cp config.sqlite.example.yaml config.yaml
 ```
 
 关键配置：
 
 - `APP_ENV`：运行环境，支持 `dev`/`development` 和 `prod`/`production`；未配置时默认 `prod`
+- `CONFIG_FILE`：可选的配置文件路径；容器内路径应指向挂载后的文件
 - `HTTP_PORT`：HTTP 端口
+- `FRONTEND_DIST_DIR`：静态前端目录；Docker 镜像默认使用 `/app/frontend/out`
 - `JWT_SECRET`：JWT 签名密钥
+- `MCP_USER_CONTEXT_SECRET`：MCP 用户上下文签名密钥；启用 `${DEEIX_SIGNED_USER_CONTEXT}` 时必须配置，并应与外部 MCP 网关共享
 - `POSTGRES_DSN`：PostgreSQL DSN
 - `REDIS_ADDR` / `REDIS_USERNAME` / `REDIS_PASSWORD` / `REDIS_DB` / `REDIS_TLS_ENABLED` / `REDIS_TLS_INSECURE_SKIP_VERIFY`：Redis 连接配置；`REDIS_TLS_INSECURE_SKIP_VERIFY` 会跳过证书校验，除非非标准 TLS 端点要求，否则保持关闭
 - `STORAGE_BACKEND`：`local` 或 `s3`
@@ -103,7 +165,7 @@ observability:
     sampling_rate: 1
 ```
 
-`config.yaml` 是静态基础设施配置入口，环境变量优先级高于 YAML。未显式配置 `enabled` 时，`endpoint` 非空会自动启用 Trace；显式配置 `enabled: true` 时，`endpoint` 必填。运行时业务设置由数据库 settings 覆盖，不把 OpenTelemetry collector、header/token 等部署层配置放入后台管理。
+`config.yaml` 是静态基础设施配置入口，环境变量优先级高于 YAML，整体优先级为 `环境变量 > config.yaml > 代码内置默认值`。未显式配置 `enabled` 时，`endpoint` 非空会自动启用 Trace；显式配置 `enabled: true` 时，`endpoint` 必填。运行时业务设置由数据库 settings 覆盖，不把 OpenTelemetry collector、header/token 等部署层配置放入后台管理。
 
 初始化超级管理员用户名为 `admin`。当数据库中没有超级管理员时，后端会生成随机密码并只在首次创建账号的启动日志中输出一次，日志关键字为 `bootstrap superadmin created`。首次登录会强制修改用户名和密码；后续账号变更不通过 `config.yaml`。
 
@@ -159,14 +221,27 @@ https://pay.example.com/epay/submit.php
 
 ## 本地启动
 
-先确保 PostgreSQL 和 Redis 可用。若本机已有依赖，可以只启动默认应用容器；若需要完整本地栈，使用 `docker-compose.full.yml`：
+除 `make` 和 `go` 命令外，下面的 Docker 命令均从仓库根目录执行。根据使用场景选择一种依赖方案。
+
+使用本机或外部 PostgreSQL、Redis：
 
 ```bash
-docker compose up -d
+cp config.example.yaml config.yaml
+# 按本机环境修改 database.postgres.dsn 和 database.redis.*
 ```
 
+使用完整本地依赖栈：
+
 ```bash
+cp config.full.example.yaml config.yaml
 docker compose -f docker-compose.full.yml up -d
+```
+
+使用 SQLite 和进程内缓存：
+
+```bash
+cp config.sqlite.example.yaml config.yaml
+docker compose -f docker-compose.sqlite.yml up -d
 ```
 
 启动后端：
@@ -176,7 +251,20 @@ cd backend
 make run
 ```
 
-Swagger UI：
+也可以从仓库根目录使用工作区脚本：
+
+```bash
+pnpm dev:api
+```
+
+健康检查：
+
+```text
+http://localhost:8080/healthz
+http://localhost:8080/readyz
+```
+
+开发环境 Swagger UI（需要 `APP_ENV=dev`）：
 
 ```text
 http://localhost:8080/swagger/index.html
@@ -355,9 +443,17 @@ MCP 能力由后台工具设置管理：
 - 单次 run 支持最大 LLM 调用轮数、最大工具调用次数、并发数、超时和失败重试配置。
 - 工具调用结果会进入消息处理轨迹，前端与“处理链路 / 思考链路”并列展示工具链路。
 
+管理员可在 MCP Server 的请求头中配置签名用户上下文头：把某个请求头的值填为占位符 `${DEEIX_SIGNED_USER_CONTEXT}`，每次用户工具调用时该头会被替换为 HMAC-SHA256 签名的 token（payload 含 `user_id`、`conversation_id`、`request_id` 与过期时间，签名密钥来自独立的 `MCP_USER_CONTEXT_SECRET`，默认有效期 5 分钟）。MCP 服务端或外部网关可用同一 MCP 密钥校验，按用户隔离单租户 MCP 工具。工具同步时会忽略该占位符，不会把占位符原文发送给 MCP。启用了占位符但未配置签名密钥时，工具调用会失败并不会发送请求。未配置占位符的服务端不会收到任何额外请求头。
+
 计费侧把一次用户触发的多轮 LLM + 工具调用视为一次 run 汇总统计。
 
-官方原生工具按上游返回的调用次数生成独立服务项；是否计费和每次调用价格由管理员在计费设置中统一配置，价格填 `0` 表示不单独计费。工具返回内容产生的模型 token 仍按模型定价计算。
+官方原生工具按上游返回的调用次数生成独立服务项；是否计费和每次调用价格由管理员在计费设置中统一配置，价格填 `0` 表示不单独计费。工具返回内容产生的模型 token 仍按模型定价计算。OpenRouter 官方模型价格导入会忽略这类工具按次费用（例如 `web_search`），避免与原生工具计费重复；模型输入、输出、缓存和 token 阶梯价格仍按模型定价导入。
+
+OpenRouter 快速配置只要求基础 `prompt`、`completion` 有效；无法映射的图片、音频、独立 1 小时缓存价格等附加字段会被忽略并提示，不阻断其余价格导入。`min_prompt_tokens` 的覆盖从超过阈值时生效；多个覆盖同时命中时，按原数组顺序逐字段覆盖，后出现的值优先。带时间条件的覆盖不会作为常驻 token 阶梯导入。
+
+导入的缓存写入价格保留官方公布值，包括显式的 `0`。`cacheWritePriceBasis=direct` 表示直接按配置价格计费；Claude 导入使用 `anthropic_5m`，表示价格已包含 5 分钟缓存写入费用，原生 Anthropic 的 1 小时价格按该配置值的 `8/5` 计算，兼容协议直接使用配置值。此规则不导入独立的 `input_cache_write_1h` 价格。未指定基准的已有配置沿用原有协议倍率。基准随价格保存、编辑及 JSON 导入导出一起保留。
+
+旧版官方价格目录缓存会触发刷新；上游不可用时仍返回基础价格，并标记旧缓存。旧缓存丢失覆盖顺序的阶梯、v3/v4 中经过换算而无法还原的 Claude 缓存写入价格会跳过并提示，刷新成功后恢复完整的可导入字段。
 
 ## 版本信息
 
@@ -380,33 +476,37 @@ Trace 不记录 prompt、文件内容、工具参数、API Key 或鉴权密钥�
 
 ## 可选文件处理服务
 
+以下 Docker 命令从仓库根目录执行：
+
 Apache Tika：
 
 ```bash
-docker compose -f ../docker/tika/docker-compose.yml up -d
+docker compose -f docker/tika/docker-compose.yml up -d
 ```
 
 Tesseract OCR：
 
 ```bash
-docker compose -f ../docker/tesseract/docker-compose.yml up -d --build
+docker compose -f docker/tesseract/docker-compose.yml up -d --build
 ```
 
 Docling：
 
 ```bash
-docker compose -f ../docker/docling/docker-compose.yml up -d --build
+docker compose -f docker/docling/docker-compose.yml up -d --build
 ```
 
 RapidOCR：
 
 ```bash
-docker build -t deeix-chat-rapidocr ../docker/rapidocr
+docker build -t deeix-chat-rapidocr docker/rapidocr
 ```
 
 这些服务默认使用 `deeix-chat-network`。可先执行 `docker network create deeix-chat-network`，或先启动一次根目录 compose 创建基础网络。
 
 ## 常用命令
+
+在 `backend/` 目录执行：
 
 ```bash
 make run
@@ -416,6 +516,13 @@ make test
 make swagger
 go build ./cmd/server
 go mod tidy
+```
+
+在仓库根目录执行工作区命令：
+
+```bash
+pnpm dev:api
+pnpm api:check
 ```
 
 接口或 DTO 变更后必须执行：
@@ -435,11 +542,17 @@ make swagger
 
 ## 提交前验证
 
+在 `backend/` 目录执行：
+
 ```bash
 go build ./cmd/server
 go test ./...
 make lint
-cd ..
+```
+
+回到仓库根目录后执行 API 契约漂移检查：
+
+```bash
 pnpm api:check
 ```
 

@@ -181,8 +181,8 @@ func (s *Service) markTwoFactorLoginFailure(ctx context.Context, item *user.User
 		return nil
 	}
 	now := time.Now()
-	lockUntil := now.Add(s.loginLockDuration())
-	updatedCredential, err := s.repo.MarkLoginFailure(ctx, item.ID, s.loginLockThreshold(), lockUntil)
+	threshold, lockDuration := s.loginLockPolicy()
+	updatedCredential, err := s.repo.MarkLoginFailure(ctx, item.ID, threshold, now.Add(lockDuration))
 	if err != nil {
 		return err
 	}
@@ -192,7 +192,8 @@ func (s *Service) markTwoFactorLoginFailure(ctx context.Context, item *user.User
 	if lockErr := s.repo.UpdateUserStatus(ctx, item.ID, user.StatusLocked); lockErr != nil {
 		s.warn("lock_account_failed", zap.Uint("user_id", item.ID), zap.Error(lockErr))
 	}
-	return ErrAccountLocked
+	// 二次验证发生在密码校验之后，调用方已知账户存在，可以直接返回锁定状态。
+	return newAccountLockedError(updatedCredential.LockedUntil, now)
 }
 
 // RequestLoginEmailVerification sends an email code for a pending login challenge.

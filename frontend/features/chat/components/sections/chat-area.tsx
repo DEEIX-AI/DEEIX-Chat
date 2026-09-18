@@ -99,6 +99,7 @@ type ChatAreaProps = {
   onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
   onEditUserMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
   onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
+  onDeleteMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   modelOptions: ChatModelOption[];
   selectedPlatformModelName: string;
   onModelChange: (platformModelName: string) => void;
@@ -268,6 +269,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onEditAssistantMessage,
   onEditUserMessage,
   onForkMessage,
+  onDeleteMessage,
   modelOptions,
   selectedPlatformModelName,
   onModelChange,
@@ -303,6 +305,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
   onEditUserMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
   onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
+  onDeleteMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   modelOptions: ChatModelOption[];
   selectedPlatformModelName: string;
   onModelChange: (platformModelName: string) => void;
@@ -378,6 +381,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
       <ChatMessageUser
         item={item}
         onRetryUserMessage={onRetryUserMessage}
+        onDeleteUserMessage={onDeleteMessage}
         onEditUserMessage={onEditUserMessage}
         modelOptions={modelOptions}
         selectedPlatformModelName={selectedPlatformModelName}
@@ -403,6 +407,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         onContinueAssistantMessage={onContinueAssistantMessage}
         onEditAssistantMessage={onEditAssistantMessage}
         onForkMessage={onForkMessage}
+        onDeleteMessage={onDeleteMessage}
         onCycleMessageBranch={onCycleMessageBranch}
         onReactAssistantMessage={onReactAssistantMessage}
         onCopy={() => void onCopy()}
@@ -488,6 +493,7 @@ export function ChatArea({
   onEditAssistantMessage,
   onEditUserMessage,
   onForkMessage,
+  onDeleteMessage,
   modelOptions,
   selectedPlatformModelName,
   onModelChange,
@@ -533,6 +539,7 @@ export function ChatArea({
   const stableOnEditAssistantMessage = useStableEvent(onEditAssistantMessage);
   const stableOnEditUserMessage = useStableEvent(onEditUserMessage);
   const stableOnForkMessage = useStableEvent(onForkMessage ?? ((): undefined => undefined));
+  const stableOnDeleteMessage = useStableEvent(onDeleteMessage ?? ((): undefined => undefined));
   const stableOnModelChange = useStableEvent(onModelChange);
   const stableOnModelCatalogRefresh = useStableEvent(onModelCatalogRefresh ?? ((): undefined => undefined));
   const stableOnEditImageAttachment = useStableEvent((attachment: MessageAttachment, sourceModelName?: string) => {
@@ -646,12 +653,12 @@ export function ChatArea({
             <LiveMessageFollower activeKey={liveUserScrollKey} />
             <MessageScrollerViewport
               ref={messageViewportBoundaryRef}
-              className="px-3 pb-8 pt-2 md:px-6"
+              className="px-3 pt-2 has-data-[screenshot-capturing=true]:pb-8 md:px-6"
               onScroll={onScroll}
             >
               <MessageScrollerContent
                 ref={messageContentRef}
-                className={cn("mx-auto w-full gap-0", contentWidthClassName)}
+                className={cn("mx-auto w-full gap-0 pb-8 data-[screenshot-capturing=true]:pb-0", contentWidthClassName)}
                 style={{ fontFamily: "var(--font-chat)", fontWeight: "var(--font-chat-weight)" }}
               >
                 <ChatScreenshotBrandMark placement="top" />
@@ -683,6 +690,7 @@ export function ChatArea({
                       onEditAssistantMessage={stableOnEditAssistantMessage}
                       onEditUserMessage={stableOnEditUserMessage}
                       onForkMessage={onForkMessage ? stableOnForkMessage : undefined}
+                      onDeleteMessage={onDeleteMessage ? stableOnDeleteMessage : undefined}
                       modelOptions={modelOptions}
                       selectedPlatformModelName={selectedPlatformModelName}
                       onModelChange={stableOnModelChange}

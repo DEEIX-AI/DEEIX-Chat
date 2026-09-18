@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogHeightTransition,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -140,17 +141,19 @@ export function RedemptionRecordsDialog({
   return (
     <Dialog open={Boolean(code)} onOpenChange={(open) => !open && onClose()}>
       {code ? (
-        <DialogContent className="flex max-h-[min(86vh,720px)] max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
-          <DialogHeader className="shrink-0 px-4 py-4">
-            <DialogTitle>{tLogs("tabs.redemptions")}</DialogTitle>
-            <DialogDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="font-mono text-foreground/80">{code.codeHint}</span>
-              {code.description ? <span className="truncate">· {code.description}</span> : null}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-            <RedemptionRecordsDialogBody key={code.id} code={code} />
-          </div>
+        <DialogContent className="max-w-2xl gap-0 overflow-hidden p-0 sm:max-w-2xl">
+          <DialogHeightTransition contentClassName="max-h-[min(86vh,720px)]">
+            <DialogHeader className="shrink-0 px-4 py-4">
+              <DialogTitle>{tLogs("tabs.redemptions")}</DialogTitle>
+              <DialogDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="font-mono text-foreground/80">{code.codeHint}</span>
+                {code.description ? <span className="truncate">· {code.description}</span> : null}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+              <RedemptionRecordsDialogBody key={code.id} code={code} />
+            </div>
+          </DialogHeightTransition>
         </DialogContent>
       ) : null}
     </Dialog>

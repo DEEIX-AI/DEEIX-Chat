@@ -659,6 +659,8 @@ type PublicModelPricingResponse struct {
 	InputUSDPerMTokens      float64                          `json:"inputUSDPerMTokens"`
 	CacheReadUSDPerMTokens  float64                          `json:"cacheReadUSDPerMTokens"`
 	CacheWriteUSDPerMTokens float64                          `json:"cacheWriteUSDPerMTokens"`
+	CacheWrite5mMultiplier  float64                          `json:"cacheWrite5mMultiplier"`
+	CacheWrite1hMultiplier  float64                          `json:"cacheWrite1hMultiplier"`
 	OutputUSDPerMTokens     float64                          `json:"outputUSDPerMTokens"`
 	CallUSDPerCall          float64                          `json:"callUSDPerCall"`
 	DurationUSDPerSecond    float64                          `json:"durationUSDPerSecond"`
@@ -866,6 +868,8 @@ func toPublicModelPricingResponse(v *appbilling.PublicModelPricing) *PublicModel
 		InputUSDPerMTokens:      v.InputUSDPerMTokens,
 		CacheReadUSDPerMTokens:  v.CacheReadUSDPerMTokens,
 		CacheWriteUSDPerMTokens: v.CacheWriteUSDPerMTokens,
+		CacheWrite5mMultiplier:  v.CacheWrite5mMultiplier,
+		CacheWrite1hMultiplier:  v.CacheWrite1hMultiplier,
 		OutputUSDPerMTokens:     v.OutputUSDPerMTokens,
 		CallUSDPerCall:          v.CallUSDPerCall,
 		DurationUSDPerSecond:    v.DurationUSDPerSecond,

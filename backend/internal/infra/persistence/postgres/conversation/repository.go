@@ -47,6 +47,11 @@ func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}
 }
 
+// translateError 将 gorm 底层错误统一映射为仓储语义错误。
+func translateError(err error) error {
+	return dberror.Translate(err)
+}
+
 func (r *Repo) sqliteDialect() bool {
 	return r != nil && r.db != nil && r.db.Dialector != nil && r.db.Dialector.Name() == "sqlite"
 }
@@ -902,6 +907,34 @@ func (r *Repo) CreateMessage(ctx context.Context, item *domainconversation.Messa
 	return nil
 }
 
+// lockConversationForMessageWrite 以会话行为写消息事务的首把锁。消息删除、fork 与
+// 发送路径统一先锁会话行再锁消息行，保证各方加锁顺序一致，不会互等形成死锁。
+func lockConversationForMessageWrite(tx *gorm.DB, conversationID uint) error {
+	var conversation models.Conversation
+	return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id").
+		Where("id = ?", conversationID).
+		First(&conversation).Error
+}
+
+// lockParentMessageForAppend 锁定即将挂载新消息的父消息并确认其未被删除。并发删除
+// 会把被删消息的子消息重接到祖父节点，若不持锁校验，新建消息会指向已删除的父节点
+// 成为孤儿，后续发送会把它当作叶子解析导致消息在界面上隐身。
+func lockParentMessageForAppend(tx *gorm.DB, parentMessageID uint) error {
+	var parent models.Message
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id").
+		Where("id = ?", parentMessageID).
+		First(&parent).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 模型带软删除作用域，查不到即父消息已被删除（或本就不存在）。
+			return repository.ErrMessageParentDeleted
+		}
+		return err
+	}
+	return nil
+}
+
 // CreateAssistantBranchMessage 原子创建 assistant 分支消息并递增会话消息数。
 func (r *Repo) CreateAssistantBranchMessage(ctx context.Context, assistantMessage *domainconversation.Message) error {
 	if assistantMessage == nil || assistantMessage.ParentMessageID == nil {
@@ -909,6 +942,12 @@ func (r *Repo) CreateAssistantBranchMessage(ctx context.Context, assistantMessag
 	}
 	attachmentSnapshot := assistantMessage.Attachments
 	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockConversationForMessageWrite(tx, assistantMessage.ConversationID); err != nil {
+			return err
+		}
+		if err := lockParentMessageForAppend(tx, *assistantMessage.ParentMessageID); err != nil {
+			return err
+		}
 		entity := toMessageModel(assistantMessage)
 		if err := tx.Create(&entity).Error; err != nil {
 			return err
@@ -942,6 +981,14 @@ func (r *Repo) CreateMessagePairWithUserAttachments(
 	userAttachmentSnapshot := userMessage.Attachments
 	assistantAttachmentSnapshot := assistantMessage.Attachments
 	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockConversationForMessageWrite(tx, userMessage.ConversationID); err != nil {
+			return err
+		}
+		if userMessage.ParentMessageID != nil {
+			if err := lockParentMessageForAppend(tx, *userMessage.ParentMessageID); err != nil {
+				return err
+			}
+		}
 		userEntity := toMessageModel(userMessage)
 		if err := tx.Create(&userEntity).Error; err != nil {
 			return err
@@ -4550,7 +4597,7 @@ func fileObjectProcessingStateUpdates(item *domainconversation.FileObjectProcess
 	if item == nil {
 		return map[string]any{}
 	}
-	return map[string]any{
+	updates := map[string]any{
 		"detected_mime":            item.DetectedMIME,
 		"file_category":            item.FileCategory,
 		"processing_status":        item.ProcessingStatus,
@@ -4574,6 +4621,13 @@ func fileObjectProcessingStateUpdates(item *domainconversation.FileObjectProcess
 		"extracted_at":             item.ExtractedAt,
 		"updated_at":               time.Now(),
 	}
+	// 无文本的文件不可能向量化，同一次写入就把 embed_status 收敛到终态，
+	// 避免它以 none 状态等待一次注定空跑的重建。
+	if item.ExtractStatus == domainconversation.FileSubprocessStatusEmpty {
+		updates["embed_status"] = domainconversation.FileSubprocessStatusEmpty
+		updates["embed_error"] = ""
+	}
+	return updates
 }
 
 // ── MessageEmbeddingRepository ─────────────────────────────────────────────
@@ -4934,13 +4988,18 @@ func (r *Repo) MarkTimedOutFileEmbeddingsFailed(ctx context.Context, userID uint
 }
 
 // ListFilesForReindex 分页返回需要重建向量的文件（embed_status 为 none、stale 或 failed）。
-func (r *Repo) ListFilesForReindex(ctx context.Context, limit int, afterID uint) ([]domainconversation.FileObject, error) {
+// includeEmpty 为 true 时同时纳入 empty 终态文件。
+func (r *Repo) ListFilesForReindex(ctx context.Context, limit int, afterID uint, includeEmpty bool) ([]domainconversation.FileObject, error) {
 	if limit <= 0 {
 		limit = 50
 	}
+	statuses := []string{"none", "stale", "failed"}
+	if includeEmpty {
+		statuses = append(statuses, domainconversation.FileSubprocessStatusEmpty)
+	}
 	var entities []models.FileObject
 	err := r.db.WithContext(ctx).
-		Where("id > ? AND embed_status IN ? AND status = ?", afterID, []string{"none", "stale", "failed"}, "active").
+		Where("id > ? AND embed_status IN ? AND status = ?", afterID, statuses, "active").
 		Order("id ASC").
 		Limit(limit).
 		Find(&entities).Error

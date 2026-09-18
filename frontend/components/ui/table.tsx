@@ -39,7 +39,7 @@ function Table({
       data-slot="table-container"
       className={cn("min-w-0 overflow-hidden rounded-lg border border-border/60 bg-background", shellClassName)}
     >
-      <ScrollAreaPrimitive.Root type="hover" scrollHideDelay={500} className="relative">
+      <ScrollAreaPrimitive.Root type="hover" scrollHideDelay={500} className="relative filter-[opacity(1)]">
         <ScrollAreaPrimitive.Viewport
           ref={resolvedViewportRef}
           className={cn("data-table-viewport w-full", viewportClassName)}

@@ -22,6 +22,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogHeightTransition,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -572,108 +573,110 @@ export function AdminAnnouncementsPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={(nextOpen) => !saving && setDialogOpen(nextOpen)}>
-        <DialogContent className="flex max-h-[min(90vh,820px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[720px]">
-          <DialogHeader className="shrink-0 px-4 py-4">
-            <DialogTitle>{form.id ? t("editTitle") : t("createTitle")}</DialogTitle>
-            <DialogDescription>{t("dialogDescription")}</DialogDescription>
-          </DialogHeader>
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[720px]">
+          <DialogHeightTransition contentClassName="max-h-[min(90vh,820px)]">
+            <DialogHeader className="shrink-0 px-4 py-4">
+              <DialogTitle>{form.id ? t("editTitle") : t("createTitle")}</DialogTitle>
+              <DialogDescription>{t("dialogDescription")}</DialogDescription>
+            </DialogHeader>
 
-          <form
-            className="flex min-h-0 flex-1 flex-col"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void save();
-            }}
-          >
-            <div className="grid min-h-0 flex-1 grid-cols-2 gap-5 overflow-y-auto px-4 py-2">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">{t("fields.title")}</p>
-                <Input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} disabled={saving} />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">{t("fields.timeRange")}</p>
-                <AdminDateRangeFilter
-                  fromValue={toDateRangeValue(form.startsAt)}
-                  toValue={toDateRangeValue(form.expiresAt)}
-                  disabled={saving}
-                  placeholder={t("fields.alwaysActive")}
-                  triggerClassName="h-8 px-3"
-                  onFromChange={(value) => setForm((current) => ({ ...current, startsAt: dateRangeBoundaryValue(value, "start") }))}
-                  onToChange={(value) => setForm((current) => ({ ...current, expiresAt: dateRangeBoundaryValue(value, "end") }))}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">{t("fields.type")}</p>
-                <Select value={form.type} onValueChange={(value) => setForm({ ...form, type: normalizeAnnouncementType(value) })} disabled={saving}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="general">{t("types.general")}</SelectItem>
-                    <SelectItem value="normal">{t("types.normal")}</SelectItem>
-                    <SelectItem value="info">{t("types.info")}</SelectItem>
-                    <SelectItem value="warning">{t("types.warning")}</SelectItem>
-                    <SelectItem value="critical">{t("types.critical")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">{t("fields.priority")}</p>
-                <Input type="number" value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} disabled={saving} />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">{t("fields.pinned")}</p>
-                <div className="flex h-8 items-center">
-                  <Switch
-                    size="sm"
-                    checked={form.pinned}
-                    onCheckedChange={(checked) => setForm({ ...form, pinned: checked })}
+            <form
+              className="flex min-h-0 flex-1 flex-col"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void save();
+              }}
+            >
+              <div className="grid min-h-0 flex-1 grid-cols-2 gap-5 overflow-y-auto px-4 py-2">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">{t("fields.title")}</p>
+                  <Input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} disabled={saving} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">{t("fields.timeRange")}</p>
+                  <AdminDateRangeFilter
+                    fromValue={toDateRangeValue(form.startsAt)}
+                    toValue={toDateRangeValue(form.expiresAt)}
                     disabled={saving}
-                    aria-label={t("fields.pinned")}
+                    placeholder={t("fields.alwaysActive")}
+                    triggerClassName="h-8 px-3"
+                    onFromChange={(value) => setForm((current) => ({ ...current, startsAt: dateRangeBoundaryValue(value, "start") }))}
+                    onToChange={(value) => setForm((current) => ({ ...current, expiresAt: dateRangeBoundaryValue(value, "end") }))}
                   />
                 </div>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">{t("fields.status")}</p>
-                <div className="flex h-8 items-center">
-                  <Switch
-                    size="sm"
-                    checked={form.status === "active"}
-                    onCheckedChange={(checked) => setForm({ ...form, status: checked ? "active" : "inactive" })}
+
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">{t("fields.type")}</p>
+                  <Select value={form.type} onValueChange={(value) => setForm({ ...form, type: normalizeAnnouncementType(value) })} disabled={saving}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="general">{t("types.general")}</SelectItem>
+                      <SelectItem value="normal">{t("types.normal")}</SelectItem>
+                      <SelectItem value="info">{t("types.info")}</SelectItem>
+                      <SelectItem value="warning">{t("types.warning")}</SelectItem>
+                      <SelectItem value="critical">{t("types.critical")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">{t("fields.priority")}</p>
+                  <Input type="number" value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} disabled={saving} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">{t("fields.pinned")}</p>
+                  <div className="flex h-8 items-center">
+                    <Switch
+                      size="sm"
+                      checked={form.pinned}
+                      onCheckedChange={(checked) => setForm({ ...form, pinned: checked })}
+                      disabled={saving}
+                      aria-label={t("fields.pinned")}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">{t("fields.status")}</p>
+                  <div className="flex h-8 items-center">
+                    <Switch
+                      size="sm"
+                      checked={form.status === "active"}
+                      onCheckedChange={(checked) => setForm({ ...form, status: checked ? "active" : "inactive" })}
+                      disabled={saving}
+                      aria-label={t("fields.status")}
+                    />
+                  </div>
+                </div>
+
+                <div className="col-span-2 space-y-1 md:col-span-1">
+                  <p className="text-xs text-muted-foreground">{t("fields.contentMarkdown")}</p>
+                  <Textarea
+                    value={form.contentMarkdown}
+                    onChange={(event) => setForm({ ...form, contentMarkdown: event.target.value })}
                     disabled={saving}
-                    aria-label={t("fields.status")}
+                    className="h-32 resize-none overflow-y-auto text-xs [field-sizing:fixed]"
                   />
                 </div>
-              </div>
 
-              <div className="col-span-2 space-y-1 md:col-span-1">
-                <p className="text-xs text-muted-foreground">{t("fields.contentMarkdown")}</p>
-                <Textarea
-                  value={form.contentMarkdown}
-                  onChange={(event) => setForm({ ...form, contentMarkdown: event.target.value })}
-                  disabled={saving}
-                  className="h-32 resize-none overflow-y-auto text-xs [field-sizing:fixed]"
-                />
-              </div>
-
-              <div className="col-span-2 space-y-1 md:col-span-1">
-                <p className="text-xs text-muted-foreground">{t("fields.preview")}</p>
-                <div className="h-32 overflow-y-auto rounded-md border border-border/60 bg-muted/20 px-3 py-2">
-                  <StreamdownRender content={form.contentMarkdown || t("previewEmpty")} className="text-sm" />
+                <div className="col-span-2 space-y-1 md:col-span-1">
+                  <p className="text-xs text-muted-foreground">{t("fields.preview")}</p>
+                  <div className="h-32 overflow-y-auto rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                    <StreamdownRender content={form.contentMarkdown || t("previewEmpty")} className="text-sm" />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <DialogFooter className="shrink-0 px-4 py-3">
-              <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
-                {common("actions.cancel")}
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? <SpinnerLabel>{common("actions.saving")}</SpinnerLabel> : common("actions.save")}
-              </Button>
-            </DialogFooter>
-          </form>
+              <DialogFooter className="shrink-0 px-4 py-3">
+                <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
+                  {common("actions.cancel")}
+                </Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? <SpinnerLabel>{common("actions.saving")}</SpinnerLabel> : common("actions.save")}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogHeightTransition>
         </DialogContent>
       </Dialog>
 

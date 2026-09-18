@@ -5,7 +5,7 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { mapServerMessage } from "@/features/chat/model/chat-thread";
-import { toPendingProcessTrace } from "@/features/chat/model/message-submit";
+import { mergeProcessTraceSnapshot, toPendingProcessTrace } from "@/features/chat/model/message-submit";
 import {
   clearLiveUpstreamThinkTrace,
   upsertLiveUpstreamThinkTrace,
@@ -426,7 +426,7 @@ export function useChatTemporaryRuntime({
               ...message,
               activityLabel: undefined,
               processTrace: event.trace
-                ? toPendingProcessTrace(event.trace)
+                ? mergeProcessTraceSnapshot(message.processTrace, toPendingProcessTrace(event.trace))
                 : message.processTrace,
             }));
           },

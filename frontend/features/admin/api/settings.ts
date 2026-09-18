@@ -1,3 +1,4 @@
+import type { EmbeddingIndexStatusResponse, EmbeddingReindexResponse } from "@deeix/api-contract";
 import { authedRequest, authedFetch } from "@/shared/api/authed-client";
 import { pathParam } from "@/shared/api/http-client";
 import type {
@@ -92,14 +93,7 @@ export async function getAdminEmbeddingRuntime(accessToken: string): Promise<Adm
   );
 }
 
-export interface AdminEmbeddingIndexStatus {
-  modelSignature: string;
-  readyCount: number;
-  staleCount: number;
-  pendingCount: number;
-  failedCount: number;
-  needsReindex: boolean;
-}
+export type AdminEmbeddingIndexStatus = EmbeddingIndexStatusResponse;
 
 export async function getAdminEmbeddingStatus(
   accessToken: string,
@@ -112,12 +106,14 @@ export async function getAdminEmbeddingStatus(
   );
 }
 
-export async function triggerAdminEmbeddingReindex(accessToken: string): Promise<{ submitted: number; message: string }> {
-  return authedRequest<{ submitted: number; message: string }>(
-    "/api/v1/admin/settings/embedding/reindex",
-    { method: "POST", accessToken },
-    true,
-  );
+export async function triggerAdminEmbeddingReindex(
+  accessToken: string,
+  options: { includeEmpty?: boolean } = {},
+): Promise<EmbeddingReindexResponse> {
+  const path = options.includeEmpty
+    ? "/api/v1/admin/settings/embedding/reindex?include_empty=true"
+    : "/api/v1/admin/settings/embedding/reindex";
+  return authedRequest<EmbeddingReindexResponse>(path, { method: "POST", accessToken }, true);
 }
 
 export type AdminConversationExportFile = {

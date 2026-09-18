@@ -89,7 +89,8 @@ type EmbeddingRepository interface {
 	// CountFilesByEmbedStatus 统计指定 embed_status 的文件数量。
 	CountFilesByEmbedStatus(ctx context.Context, status string) (int64, error)
 	// ListFilesForReindex 分页返回需要重建向量的文件（embed_status 为 none、stale 或 failed）。
-	ListFilesForReindex(ctx context.Context, limit int, afterID uint) ([]domainconversation.FileObject, error)
+	// includeEmpty 为 true 时同时纳入 empty 终态文件，用于管理员强制重试。
+	ListFilesForReindex(ctx context.Context, limit int, afterID uint, includeEmpty bool) ([]domainconversation.FileObject, error)
 }
 
 // RAGRepository 封装向量检索能力。

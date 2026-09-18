@@ -12,6 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogHeightTransition,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -89,6 +90,69 @@ const XAI_IMAGE_OPTION_CONTROLS = [
     type: "select",
     label: "Response Format",
     options: ["url", "b64_json"],
+  },
+];
+
+// OpenRouter 统一图片端点的枚举取值来自其 Image API OpenAPI 定义（ImageGenerationRequest）。
+const OPENROUTER_IMAGE_ASPECT_RATIOS = [
+  "auto",
+  "1:1",
+  "16:9",
+  "9:16",
+  "4:3",
+  "3:4",
+  "3:2",
+  "2:3",
+  "4:5",
+  "5:4",
+  "1:2",
+  "2:1",
+  "1:4",
+  "4:1",
+  "1:8",
+  "8:1",
+  "9:19.5",
+  "19.5:9",
+  "9:20",
+  "20:9",
+  "9:21",
+  "21:9",
+];
+const OPENROUTER_IMAGE_RESOLUTIONS = ["512", "1K", "2K", "4K"];
+const OPENROUTER_IMAGE_QUALITIES = ["auto", "low", "medium", "high", "xhigh", "max"];
+// svg 为矢量输出，媒体落库链路不支持，后端也会丢弃，因此不在预设中提供。
+const OPENROUTER_IMAGE_OUTPUT_FORMATS = ["png", "jpeg", "webp"];
+
+const OPENROUTER_IMAGE_OPTION_CONTROLS = [
+  {
+    path: "aspect_ratio",
+    type: "select",
+    label: "Aspect Ratio",
+    options: OPENROUTER_IMAGE_ASPECT_RATIOS,
+  },
+  {
+    path: "resolution",
+    type: "select",
+    label: "Resolution",
+    options: OPENROUTER_IMAGE_RESOLUTIONS,
+  },
+  {
+    path: "quality",
+    type: "select",
+    label: "Quality",
+    options: OPENROUTER_IMAGE_QUALITIES,
+  },
+  {
+    path: "output_format",
+    type: "select",
+    label: "Output Format",
+    options: OPENROUTER_IMAGE_OUTPUT_FORMATS,
+  },
+  {
+    path: "n",
+    type: "number",
+    label: "Image Count",
+    description: "Upper bound on images to generate, from 1 to 10. Single-image providers reject n > 1.",
   },
 ];
 
@@ -613,6 +677,20 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
       },
     },
   },
+  {
+    id: "openrouter_images",
+    protocol: "openrouter_images",
+    payload: {
+      defaultOptions: {
+        aspect_ratio: "auto",
+        n: 1,
+        resolution: "1K",
+        quality: "auto",
+        output_format: "png",
+      },
+      optionControls: OPENROUTER_IMAGE_OPTION_CONTROLS,
+    },
+  },
 ];
 const MODEL_CAPABILITY_PRESET_ORDER = new Map(MODEL_CAPABILITY_PRESETS.map((preset, index) => [preset.id, index]));
 
@@ -761,154 +839,156 @@ export function ModelCapabilitiesPresetDialog({
         onOpenChange(nextOpen);
       }}
     >
-      <DialogContent className="flex max-h-[min(82vh,520px)] min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-[520px]">
-        <DialogHeader className="shrink-0 px-4 pt-4 pb-2">
-          <DialogTitle>{t("sheet.capabilitiesPreset.title")}</DialogTitle>
-          <DialogDescription>{t("sheet.capabilitiesPreset.description")}</DialogDescription>
-        </DialogHeader>
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[520px]">
+        <DialogHeightTransition contentClassName="max-h-[min(82vh,520px)]">
+          <DialogHeader className="shrink-0 px-4 pt-4 pb-2">
+            <DialogTitle>{t("sheet.capabilitiesPreset.title")}</DialogTitle>
+            <DialogDescription>{t("sheet.capabilitiesPreset.description")}</DialogDescription>
+          </DialogHeader>
 
-        <div className="min-h-0 min-w-0 overflow-hidden px-4 py-1">
-          <Tabs
-            value={activeTab}
-            onValueChange={(nextValue) => setActiveTab(nextValue as "presets" | "models")}
-            className="min-h-0 min-w-0 overflow-hidden"
-          >
-            <TabsList className="grid h-8 w-full grid-cols-2">
-              <TabsTrigger value="presets" className="min-w-0">
-                <span className="min-w-0 truncate">{t("sheet.capabilitiesPreset.presetsTab")}</span>
-              </TabsTrigger>
-              <TabsTrigger value="models" className="min-w-0">
-                <span className="min-w-0 truncate">{t("sheet.capabilitiesPreset.modelsTab")}</span>
-              </TabsTrigger>
-            </TabsList>
+          <div className="min-h-0 min-w-0 overflow-hidden px-4 py-1">
+            <Tabs
+              value={activeTab}
+              onValueChange={(nextValue) => setActiveTab(nextValue as "presets" | "models")}
+              className="min-h-0 min-w-0 overflow-hidden"
+            >
+              <TabsList className="grid h-8 w-full grid-cols-2">
+                <TabsTrigger value="presets" className="min-w-0">
+                  <span className="min-w-0 truncate">{t("sheet.capabilitiesPreset.presetsTab")}</span>
+                </TabsTrigger>
+                <TabsTrigger value="models" className="min-w-0">
+                  <span className="min-w-0 truncate">{t("sheet.capabilitiesPreset.modelsTab")}</span>
+                </TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="presets" className="mt-2 min-h-0 space-y-2 overflow-hidden">
-              <div className="max-h-[min(44vh,260px)] overflow-y-auto rounded-md bg-muted/25 p-1">
-                <div className="space-y-0.5">
-                  {sortedPresets.map((preset) => {
-                    const matched = capabilityPresetMatched(preset, routeProtocolSet);
-                    const selected = selectedPreset?.id === preset.id;
-                    const summary = capabilityPresetSummary(preset);
-                    const protocolLabel = capabilityPresetProtocolLabel(preset.protocol);
-                    return (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => setSelectedPresetID(preset.id)}
-                        className={cn(
-                          "group flex min-h-9 w-full min-w-0 items-center gap-3 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-background/60",
-                          selected && "bg-background/80",
-                        )}
-                      >
-                        <span className="min-w-0 flex-1 truncate text-xs font-medium leading-5 text-foreground">
-                          {protocolLabel}
-                        </span>
-                        <span className="hidden min-w-0 shrink-0 truncate text-[11px] leading-5 text-muted-foreground sm:block">
-                          {t("sheet.capabilitiesPreset.presetSummary", {
-                            defaults: summary.defaults,
-                            controls: summary.controls,
-                            tools: summary.tools,
-                          })}
-                        </span>
-                        <span className="flex h-5 w-[76px] shrink-0 items-center justify-end">
-                          {selected ? (
-                            <Check className="size-4 text-foreground" strokeWidth={1.8} />
-                          ) : matched ? (
-                            <span className="sr-only">
-                              {protocolLabel}
-                            </span>
-                          ) : (
-                            <Badge variant="secondary" className="h-5 rounded-md px-1.5 text-[10px] font-normal text-muted-foreground shadow-none">
-                              {t("sheet.capabilitiesPreset.protocolNotMatched")}
-                            </Badge>
+              <TabsContent value="presets" className="mt-2 min-h-0 space-y-2 overflow-hidden">
+                <div className="max-h-[min(44vh,260px)] overflow-y-auto rounded-md bg-muted/25 p-1">
+                  <div className="space-y-0.5">
+                    {sortedPresets.map((preset) => {
+                      const matched = capabilityPresetMatched(preset, routeProtocolSet);
+                      const selected = selectedPreset?.id === preset.id;
+                      const summary = capabilityPresetSummary(preset);
+                      const protocolLabel = capabilityPresetProtocolLabel(preset.protocol);
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => setSelectedPresetID(preset.id)}
+                          className={cn(
+                            "group flex min-h-9 w-full min-w-0 items-center gap-3 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-background/60",
+                            selected && "bg-background/80",
                           )}
-                        </span>
-                        <span className="sr-only">
-                          {t("sheet.capabilitiesPreset.presetSummary", {
-                            defaults: summary.defaults,
-                            controls: summary.controls,
-                            tools: summary.tools,
-                          })}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="models" className="mt-2 min-h-0 space-y-2 overflow-hidden">
-              {reusableModels.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-md bg-muted/30 px-3 py-7 text-center">
-                  <Copy className="mb-2 size-5 text-muted-foreground" strokeWidth={1.5} />
-                  <p className="text-xs text-muted-foreground">{t("sheet.capabilitiesPreset.emptyModels")}</p>
-                </div>
-              ) : (
-                <>
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" strokeWidth={1.5} />
-                    <Input
-                      value={modelSearch}
-                      onChange={(event) => updateModelSearch(event.target.value)}
-                      placeholder={t("sheet.capabilitiesPreset.modelSearchPlaceholder")}
-                      className="h-8 border-transparent bg-muted/25 pr-2 pl-8 text-xs shadow-none focus-visible:border-border/50 focus-visible:ring-0"
-                    />
-                  </div>
-                  <div className="max-h-[min(44vh,260px)] overflow-y-auto rounded-md bg-muted/25 p-1">
-                    {filteredReusableModelItems.length === 0 ? (
-                      <div className="px-2.5 py-6 text-center text-xs text-muted-foreground">
-                        {t("sheet.capabilitiesPreset.emptySearchModels")}
-                      </div>
-                    ) : (
-                      <div className="space-y-0.5">
-                        {filteredReusableModelItems.map(({ model, protocolLabel }) => {
-                          const selected = selectedModel?.id === model.id;
-                          return (
-                            <button
-                              key={model.id}
-                              type="button"
-                              aria-pressed={selected}
-                              onClick={() => setSelectedModelID(String(model.id))}
-                              className={cn(
-                                "group flex min-h-9 w-full min-w-0 items-center gap-3 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-background/60",
-                                selected && "bg-background/80",
-                              )}
-                            >
-                              <span className="min-w-0 flex-1 truncate text-xs font-medium leading-5 text-foreground">
-                                {model.platformModelName}
-                              </span>
-                              <span className="hidden min-w-0 shrink truncate text-[11px] leading-5 text-muted-foreground sm:block">
-                                {protocolLabel || t("sheet.capabilitiesPreset.noProtocol")}
-                              </span>
-                              <Check className={cn("size-4 shrink-0 text-foreground transition-opacity", selected ? "opacity-100" : "opacity-0")} strokeWidth={1.8} />
+                        >
+                          <span className="min-w-0 flex-1 truncate text-xs font-medium leading-5 text-foreground">
+                            {protocolLabel}
+                          </span>
+                          <span className="hidden min-w-0 shrink-0 truncate text-[11px] leading-5 text-muted-foreground sm:block">
+                            {t("sheet.capabilitiesPreset.presetSummary", {
+                              defaults: summary.defaults,
+                              controls: summary.controls,
+                              tools: summary.tools,
+                            })}
+                          </span>
+                          <span className="flex h-5 w-[76px] shrink-0 items-center justify-end">
+                            {selected ? (
+                              <Check className="size-4 text-foreground" strokeWidth={1.8} />
+                            ) : matched ? (
                               <span className="sr-only">
-                                {protocolLabel || t("sheet.capabilitiesPreset.noProtocol")}
+                                {protocolLabel}
                               </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                            ) : (
+                              <Badge variant="secondary" className="h-5 rounded-md px-1.5 text-[10px] font-normal text-muted-foreground shadow-none">
+                                {t("sheet.capabilitiesPreset.protocolNotMatched")}
+                              </Badge>
+                            )}
+                          </span>
+                          <span className="sr-only">
+                            {t("sheet.capabilitiesPreset.presetSummary", {
+                              defaults: summary.defaults,
+                              controls: summary.controls,
+                              tools: summary.tools,
+                            })}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
-                </>
-              )}
-            </TabsContent>
-          </Tabs>
-        </div>
+                </div>
+              </TabsContent>
 
-        <DialogFooter className="shrink-0 px-4 py-3">
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-            {commonT("actions.cancel")}
-          </Button>
-          <Button
-            type="button"
-            onClick={activeTab === "models" ? applyModel : applyPreset}
-            disabled={activeTab === "models" ? !selectedModel : !selectedPreset}
-          >
-            {commonT("actions.confirm")}
-          </Button>
-        </DialogFooter>
+              <TabsContent value="models" className="mt-2 min-h-0 space-y-2 overflow-hidden">
+                {reusableModels.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center rounded-md bg-muted/30 px-3 py-7 text-center">
+                    <Copy className="mb-2 size-5 text-muted-foreground" strokeWidth={1.5} />
+                    <p className="text-xs text-muted-foreground">{t("sheet.capabilitiesPreset.emptyModels")}</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" strokeWidth={1.5} />
+                      <Input
+                        value={modelSearch}
+                        onChange={(event) => updateModelSearch(event.target.value)}
+                        placeholder={t("sheet.capabilitiesPreset.modelSearchPlaceholder")}
+                        className="h-8 border-transparent bg-muted/25 pr-2 pl-8 text-xs shadow-none focus-visible:border-border/50 focus-visible:ring-0"
+                      />
+                    </div>
+                    <div className="max-h-[min(44vh,260px)] overflow-y-auto rounded-md bg-muted/25 p-1">
+                      {filteredReusableModelItems.length === 0 ? (
+                        <div className="px-2.5 py-6 text-center text-xs text-muted-foreground">
+                          {t("sheet.capabilitiesPreset.emptySearchModels")}
+                        </div>
+                      ) : (
+                        <div className="space-y-0.5">
+                          {filteredReusableModelItems.map(({ model, protocolLabel }) => {
+                            const selected = selectedModel?.id === model.id;
+                            return (
+                              <button
+                                key={model.id}
+                                type="button"
+                                aria-pressed={selected}
+                                onClick={() => setSelectedModelID(String(model.id))}
+                                className={cn(
+                                  "group flex min-h-9 w-full min-w-0 items-center gap-3 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-background/60",
+                                  selected && "bg-background/80",
+                                )}
+                              >
+                                <span className="min-w-0 flex-1 truncate text-xs font-medium leading-5 text-foreground">
+                                  {model.platformModelName}
+                                </span>
+                                <span className="hidden min-w-0 shrink truncate text-[11px] leading-5 text-muted-foreground sm:block">
+                                  {protocolLabel || t("sheet.capabilitiesPreset.noProtocol")}
+                                </span>
+                                <Check className={cn("size-4 shrink-0 text-foreground transition-opacity", selected ? "opacity-100" : "opacity-0")} strokeWidth={1.8} />
+                                <span className="sr-only">
+                                  {protocolLabel || t("sheet.capabilitiesPreset.noProtocol")}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          <DialogFooter className="shrink-0 px-4 py-3">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              {commonT("actions.cancel")}
+            </Button>
+            <Button
+              type="button"
+              onClick={activeTab === "models" ? applyModel : applyPreset}
+              disabled={activeTab === "models" ? !selectedModel : !selectedPreset}
+            >
+              {commonT("actions.confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogHeightTransition>
       </DialogContent>
     </Dialog>
   );

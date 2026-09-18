@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { buildMediaImagePreviewMarkdown } from "@/features/chat/model/media-image-preview";
+import { mergeProcessTraceSnapshot } from "@/features/chat/model/message-submit";
 import { upsertLiveUpstreamThinkTrace } from "@/features/chat/model/upstream-think-store";
 import { cancelMessageGeneration, listMessagesPage, resumeMessageGenerationStream } from "@/shared/api/conversation";
 import type { MessageDTO } from "@/shared/api/conversation.types";
@@ -430,7 +431,7 @@ export function useChatData(
               ...prev,
               messages: prev.messages.map((message) =>
                 message.runID === pendingRunID && message.role === "assistant" && message.status === "pending"
-                  ? { ...message, processTrace: event.trace ?? message.processTrace }
+                  ? { ...message, processTrace: event.trace ? mergeProcessTraceSnapshot(message.processTrace, event.trace) : message.processTrace }
                   : message,
               ),
             }));

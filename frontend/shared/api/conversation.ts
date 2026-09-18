@@ -33,6 +33,7 @@ import type {
   MediaImageRequest,
   MediaVideoExtensionRequest,
   MediaVideoRequest,
+  MessageDeleteDTO,
   MessageDTO,
   MessageFeedbackResult,
   MessageProcessTraceDTO,
@@ -1104,6 +1105,21 @@ export async function forkConversationFromMessage(
     `/api/v1/conversations/${pathParam(conversationPublicID)}/messages/${pathParam(messagePublicID)}/fork`,
     {
       method: "POST",
+      accessToken,
+    },
+    true,
+  );
+}
+
+export async function deleteConversationMessage(
+  accessToken: string,
+  conversationPublicID: string,
+  messagePublicID: string,
+): Promise<MessageDeleteDTO> {
+  return authedRequest<MessageDeleteDTO>(
+    `/api/v1/conversations/${pathParam(conversationPublicID)}/messages/${pathParam(messagePublicID)}`,
+    {
+      method: "DELETE",
       accessToken,
     },
     true,

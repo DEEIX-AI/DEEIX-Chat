@@ -171,7 +171,7 @@ export function AdminFilesSettingsPage() {
     }
   }, [cancelEmbeddingStatusRefresh]);
 
-  const handleReindex = React.useCallback(async () => {
+  const handleReindex = React.useCallback(async (includeEmpty = false) => {
     const refreshVersion = embeddingStatusRequestVersionRef.current;
     setReindexing(true);
     try {
@@ -180,7 +180,7 @@ export function AdminFilesSettingsPage() {
         toast.error(t("toast.sessionExpired"));
         return;
       }
-      const result = await triggerAdminEmbeddingReindex(token);
+      const result = await triggerAdminEmbeddingReindex(token, { includeEmpty });
       toast.success(t("toast.reindexSubmitted"), {
         description: t("toast.reindexSubmittedDescription", { count: result.submitted }),
       });
@@ -747,23 +747,38 @@ export function AdminFilesSettingsPage() {
                           <p className="text-[10px] text-muted-foreground">{t("embeddingStatus.noSignature")}</p>
                         )}
                       </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-7 shrink-0 px-2 text-xs shadow-none"
-                        disabled={reindexing || embeddingStatusLoading || loading || saving}
-                        onClick={() => void handleReindex()}
-                      >
-                        {reindexing ? t("embeddingStatus.reindexing") : t("embeddingStatus.reindex")}
-                      </Button>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {embeddingStatus && embeddingStatus.emptyCount > 0 ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs shadow-none"
+                            disabled={reindexing || embeddingStatusLoading || loading || saving}
+                            onClick={() => void handleReindex(true)}
+                          >
+                            {t("embeddingStatus.reindexIncludingNoText")}
+                          </Button>
+                        ) : null}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs shadow-none"
+                          disabled={reindexing || embeddingStatusLoading || loading || saving}
+                          onClick={() => void handleReindex()}
+                        >
+                          {reindexing ? t("embeddingStatus.reindexing") : t("embeddingStatus.reindex")}
+                        </Button>
+                      </div>
                     </div>
                     {embeddingStatus ? (
-                      <div className="grid min-w-0 grid-cols-2 overflow-hidden rounded-md bg-muted/30 text-center sm:grid-cols-4">
+                      <div className="grid min-w-0 grid-cols-2 overflow-hidden rounded-md bg-muted/30 text-center sm:grid-cols-5">
                         {[
                           { label: t("embeddingStatus.ready"), value: embeddingStatus.readyCount, color: "text-green-600 dark:text-green-400" },
                           { label: t("embeddingStatus.stale"), value: embeddingStatus.staleCount, color: embeddingStatus.staleCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground" },
                           { label: t("embeddingStatus.pending"), value: embeddingStatus.pendingCount, color: "text-muted-foreground" },
+                          { label: t("embeddingStatus.noText"), value: embeddingStatus.emptyCount, color: "text-muted-foreground" },
                           { label: t("embeddingStatus.failed"), value: embeddingStatus.failedCount, color: embeddingStatus.failedCount > 0 ? "text-destructive" : "text-muted-foreground" },
                         ].map(({ label, value, color }) => (
                           <div key={label} className="px-3 py-2.5">
@@ -773,8 +788,8 @@ export function AdminFilesSettingsPage() {
                         ))}
                       </div>
                     ) : embeddingStatusLoading ? (
-                      <div className="grid min-w-0 grid-cols-2 overflow-hidden rounded-md bg-muted/30 sm:grid-cols-4" aria-hidden="true">
-                        {Array.from({ length: 4 }).map((_, index) => (
+                      <div className="grid min-w-0 grid-cols-2 overflow-hidden rounded-md bg-muted/30 sm:grid-cols-5" aria-hidden="true">
+                        {Array.from({ length: 5 }).map((_, index) => (
                           <div key={`embedding-status-skeleton-${index}`} className="px-3 py-2.5">
                             <div className="mx-auto h-4 w-8 animate-pulse rounded-sm bg-muted/70" />
                             <div className="mx-auto mt-1.5 h-2.5 w-10 animate-pulse rounded-sm bg-muted/60" />

@@ -20,6 +20,8 @@ server:
 security:
   # Required. Replace both values with strong random secrets before deployment.
   jwt_secret: "change-me-dev-jwt-secret"
+  # Required only when an MCP Server uses ${DEEIX_SIGNED_USER_CONTEXT}.
+  mcp_user_context_secret: ""
   data_encryption_key: "change-me-dev-data-encryption-key-32-bytes-min"
   # Optional. Enable in production to block outbound requests to private or metadata networks.
   ssrf_protection_enabled: false

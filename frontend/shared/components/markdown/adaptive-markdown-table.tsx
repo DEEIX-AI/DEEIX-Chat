@@ -20,6 +20,7 @@ const REANALYSIS_DEBOUNCE_MS = 420;
 
 export const MarkdownTableStreamingContext = React.createContext(false);
 export const MarkdownTableAnalyzerOptionsContext = React.createContext<ColumnAnalyzerOptions | undefined>(undefined);
+const MarkdownTableScopeContext = React.createContext(false);
 
 type MarkdownTableProps = React.TableHTMLAttributes<HTMLTableElement> & {
   children?: React.ReactNode;
@@ -95,19 +96,21 @@ export function AdaptiveMarkdownTable({ children, className, node: _node, ...pro
           role="region"
           tabIndex={hasHorizontalOverflow ? 0 : undefined}
         >
-          <table {...props} className={cn("markdown-table", className)} data-streamdown="table">
-            <colgroup>
-              {columnTypes.map((type, index) => (
-                <col
-                  // Column order is dynamic; this key only identifies the current rendered column.
-                  key={`${index}-${type}`}
-                  className={`markdown-table-col markdown-table-col--${type}`}
-                  data-markdown-column-type={type}
-                />
-              ))}
-            </colgroup>
-            {decoratedChildren}
-          </table>
+          <MarkdownTableScopeContext.Provider value>
+            <table {...props} className={cn("markdown-table", className)} data-streamdown="table">
+              <colgroup>
+                {columnTypes.map((type, index) => (
+                  <col
+                    // Column order is dynamic; this key only identifies the current rendered column.
+                    key={`${index}-${type}`}
+                    className={`markdown-table-col markdown-table-col--${type}`}
+                    data-markdown-column-type={type}
+                  />
+                ))}
+              </colgroup>
+              {decoratedChildren}
+            </table>
+          </MarkdownTableScopeContext.Provider>
         </div>
         <div className="mt-3 shrink-0" data-streamdown="table-download-actions">
           <TableDownloadDropdown
@@ -120,6 +123,28 @@ export function AdaptiveMarkdownTable({ children, className, node: _node, ...pro
         {t("scrollableTableHint")}
       </span>
     </div>
+  );
+}
+
+type MarkdownLineBreakProps = React.HTMLAttributes<HTMLBRElement> & {
+  node?: unknown;
+};
+
+/**
+ * Table cells use a tighter line-height for soft-wrapped text. An explicit
+ * `<br>` keeps the previous, looser rhythm by adding a block spacer after it.
+ * The spacer is empty so Streamdown's table export still sees `<br>` as "\n".
+ */
+export function MarkdownTableLineBreak({ node: _node, ...props }: MarkdownLineBreakProps) {
+  const insideTable = React.useContext(MarkdownTableScopeContext);
+  if (!insideTable) {
+    return <br {...props} />;
+  }
+  return (
+    <>
+      <br {...props} />
+      <span aria-hidden="true" className="markdown-table-linebreak-gap" />
+    </>
   );
 }
 

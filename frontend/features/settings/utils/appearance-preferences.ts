@@ -15,13 +15,11 @@ import {
 } from "@/features/settings/utils/font-size";
 import {
   THEME_PRESET_STORAGE_KEY,
-  THEME_STORAGE_KEY,
-  type Theme,
+  THEME_PRESETS,
   type ThemePreset,
-} from "@/shared/components/theme-provider";
+} from "@/shared/model/theme";
 
 export type AppearancePreferences = {
-  theme: Theme;
   preset: ThemePreset;
   chatFont: ChatFontOption;
   chatFontWeight: ChatFontWeightOption;
@@ -34,12 +32,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isTheme(value: unknown): value is Theme {
-  return value === "light" || value === "dark" || value === "system";
-}
-
 function isThemePreset(value: unknown): value is ThemePreset {
-  return value === "default" || value === "azure" || value === "cobalt" || value === "graphite" || value === "lagoon" || value === "ink" || value === "ochre" || value === "sepia";
+  return typeof value === "string" && (THEME_PRESETS as readonly string[]).includes(value);
 }
 
 export function parseAppearancePreferences(raw: string | null | undefined): AppearancePreferencePatch {
@@ -54,9 +48,6 @@ export function parseAppearancePreferences(raw: string | null | undefined): Appe
     }
 
     const result: AppearancePreferencePatch = {};
-    if (isTheme(parsed.theme)) {
-      result.theme = parsed.theme;
-    }
     if (isThemePreset(parsed.preset)) {
       result.preset = parsed.preset;
     }
@@ -78,7 +69,6 @@ export function parseAppearancePreferences(raw: string | null | undefined): Appe
 export function readLocalAppearancePreferences(): AppearancePreferences {
   if (typeof window === "undefined") {
     return {
-      theme: "system",
       preset: "default",
       chatFont: "default",
       chatFontWeight: "regular",
@@ -86,13 +76,11 @@ export function readLocalAppearancePreferences(): AppearancePreferences {
     };
   }
 
-  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
   const storedPreset = window.localStorage.getItem(THEME_PRESET_STORAGE_KEY);
   const storedChatFont = window.localStorage.getItem(CHAT_FONT_STORAGE_KEY);
   const storedChatFontWeight = window.localStorage.getItem(CHAT_FONT_WEIGHT_STORAGE_KEY);
   const storedFontSize = window.localStorage.getItem(FONT_SIZE_STORAGE_KEY);
   return {
-    theme: isTheme(storedTheme) ? storedTheme : "system",
     preset: isThemePreset(storedPreset) ? storedPreset : "default",
     chatFont: isChatFontOption(storedChatFont) ? storedChatFont : "default",
     chatFontWeight: isChatFontWeightOption(storedChatFontWeight) ? storedChatFontWeight : "regular",
@@ -111,7 +99,6 @@ export function resolveAppearancePreferences(
 
 export function serializeAppearancePreferences(preferences: AppearancePreferences): string {
   return JSON.stringify({
-    theme: preferences.theme,
     preset: preferences.preset,
     chatFont: preferences.chatFont,
     chatFontWeight: preferences.chatFontWeight,

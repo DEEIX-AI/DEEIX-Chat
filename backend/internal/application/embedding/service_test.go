@@ -207,7 +207,7 @@ func TestReindexStaleFilesDoesNotRequireRAGEnabled(t *testing.T) {
 		EmbeddingHost:    "http://127.0.0.1:8081",
 	}, repo, nil, infraembedding.New(security.OutboundPolicy{}), nil)
 
-	submitted, err := service.ReindexStaleFiles(context.Background())
+	submitted, err := service.ReindexStaleFiles(context.Background(), false)
 	if err != nil {
 		t.Fatalf("expected reindex to ignore chat RAG switch, got %v", err)
 	}
@@ -377,7 +377,7 @@ func TestReindexStaleFilesSkipsUnsupportedCandidates(t *testing.T) {
 		EmbeddingHost:    "http://127.0.0.1:8081",
 	}, repo, nil, infraembedding.New(security.OutboundPolicy{}), nil)
 
-	submitted, err := service.ReindexStaleFiles(context.Background())
+	submitted, err := service.ReindexStaleFiles(context.Background(), false)
 	if err != nil {
 		t.Fatalf("expected reindex to succeed, got %v", err)
 	}
@@ -406,7 +406,7 @@ func TestReindexStaleFilesAdvancesCursorForUnsupportedCandidates(t *testing.T) {
 		EmbeddingHost:    "http://127.0.0.1:8081",
 	}, repo, nil, infraembedding.New(security.OutboundPolicy{}), nil)
 
-	submitted, err := service.ReindexStaleFiles(context.Background())
+	submitted, err := service.ReindexStaleFiles(context.Background(), false)
 	if err != nil {
 		t.Fatalf("expected reindex to succeed, got %v", err)
 	}
@@ -445,7 +445,7 @@ func TestReindexStaleFilesDeduplicatesRunningBatch(t *testing.T) {
 	t.Cleanup(cancel)
 	service.StartBackgroundWorkers(workerCtx)
 
-	submitted, err := service.ReindexStaleFiles(context.Background())
+	submitted, err := service.ReindexStaleFiles(context.Background(), false)
 	if err != nil || submitted != 1 {
 		t.Fatalf("first reindex: submitted=%d err=%v", submitted, err)
 	}
@@ -454,7 +454,7 @@ func TestReindexStaleFilesDeduplicatesRunningBatch(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("background reindex did not start")
 	}
-	if duplicate, duplicateErr := service.ReindexStaleFiles(context.Background()); duplicateErr != nil || duplicate != 0 {
+	if duplicate, duplicateErr := service.ReindexStaleFiles(context.Background(), false); duplicateErr != nil || duplicate != 0 {
 		t.Fatalf("duplicate reindex must be ignored: submitted=%d err=%v", duplicate, duplicateErr)
 	}
 	close(repo.releaseBackground)
@@ -658,6 +658,8 @@ type reindexRepo struct {
 	markedSignature      string
 	claimedFileIDs       []string
 	onStatus             func(status string)
+	processing           *domainconversation.FileObjectProcessing
+	listIncludeEmpty     []bool
 }
 
 type blockingReindexRepo struct {
@@ -668,7 +670,7 @@ type blockingReindexRepo struct {
 	releaseBackground chan struct{}
 }
 
-func (r *blockingReindexRepo) ListFilesForReindex(ctx context.Context, limit int, afterID uint) ([]domainconversation.FileObject, error) {
+func (r *blockingReindexRepo) ListFilesForReindex(ctx context.Context, limit int, afterID uint, _ bool) ([]domainconversation.FileObject, error) {
 	r.mu.Lock()
 	r.listCalls++
 	call := r.listCalls
@@ -714,7 +716,7 @@ func (r *reindexRepo) GetActiveFileObjectsByIDs(_ context.Context, userID uint, 
 }
 
 func (r *reindexRepo) GetFileObjectProcessingByObjectID(context.Context, uint) (*domainconversation.FileObjectProcessing, error) {
-	return nil, nil
+	return r.processing, nil
 }
 
 func (r *reindexRepo) QueueFileEmbedding(_ context.Context, _ uint, fileID string, _ string) (bool, error) {
@@ -753,9 +755,10 @@ func (r *reindexRepo) CountFilesByEmbedStatus(context.Context, string) (int64, e
 	return 0, nil
 }
 
-func (r *reindexRepo) ListFilesForReindex(_ context.Context, limit int, afterID uint) ([]domainconversation.FileObject, error) {
+func (r *reindexRepo) ListFilesForReindex(_ context.Context, limit int, afterID uint, includeEmpty bool) ([]domainconversation.FileObject, error) {
 	r.listCalls++
 	r.afterIDs = append(r.afterIDs, afterID)
+	r.listIncludeEmpty = append(r.listIncludeEmpty, includeEmpty)
 	results := make([]domainconversation.FileObject, 0, limit)
 	for _, file := range r.files {
 		if file.ID <= afterID {

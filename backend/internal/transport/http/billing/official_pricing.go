@@ -12,7 +12,7 @@ import (
 
 // GetOpenRouterOfficialPricing godoc
 // @Summary 管理员获取 OpenRouter 官方模型目录
-// @Description 从 storage 缓存读取 OpenRouter 模型标识、定价和上下文限制；缓存不存在、过期或 refresh=true 时由后端刷新。
+// @Description 从 storage 缓存读取 OpenRouter 模型标识、基础定价、输入 token 阶梯覆盖和上下文限制；无法映射到当前 token 计费模型的附加字段会在 unsupportedFields 中标记，快速配置会忽略这些字段并继续导入可识别的 token 价格。由原生工具计费负责的按次字段（例如 web_search）会被忽略。
 // @Tags admin-billing
 // @Accept json
 // @Produce json
@@ -57,11 +57,31 @@ func toOpenRouterOfficialPricingResponses(items []appbilling.OfficialPricingItem
 			ContextLength:       item.ContextLength,
 			MaxCompletionTokens: item.MaxCompletionTokens,
 			Pricing: OpenRouterOfficialPricingUnitPricingResponse{
-				Prompt:          item.Pricing.Prompt,
-				Completion:      item.Pricing.Completion,
-				InputCacheRead:  item.Pricing.InputCacheRead,
-				InputCacheWrite: item.Pricing.InputCacheWrite,
+				Prompt:               item.Pricing.Prompt,
+				Completion:           item.Pricing.Completion,
+				InputCacheRead:       item.Pricing.InputCacheRead,
+				InputCacheWrite:      item.Pricing.InputCacheWrite,
+				CacheWritePriceBasis: item.Pricing.CacheWritePriceBasis,
+				Overrides:            toOpenRouterOfficialPricingOverrides(item.Pricing.Overrides),
+				UnsupportedFields:    append([]string(nil), item.Pricing.UnsupportedFields...),
 			},
+		})
+	}
+	return result
+}
+
+func toOpenRouterOfficialPricingOverrides(overrides []appbilling.OfficialPricingOverride) []OpenRouterOfficialPricingOverrideResponse {
+	if len(overrides) == 0 {
+		return nil
+	}
+	result := make([]OpenRouterOfficialPricingOverrideResponse, 0, len(overrides))
+	for _, override := range overrides {
+		result = append(result, OpenRouterOfficialPricingOverrideResponse{
+			MinPromptTokens: override.MinPromptTokens,
+			Prompt:          override.Prompt,
+			Completion:      override.Completion,
+			InputCacheRead:  override.InputCacheRead,
+			InputCacheWrite: override.InputCacheWrite,
 		})
 	}
 	return result

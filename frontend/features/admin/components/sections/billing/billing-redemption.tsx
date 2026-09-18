@@ -2,13 +2,12 @@
 
 import * as React from "react";
 import { Check, CircleAlert, Copy, Download, History, Pencil, Plus, Trash2, X } from "lucide-react";
-import { motion } from "motion/react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogHeightTransition, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SpinnerLabel } from "@/components/ui/spinner";
@@ -33,7 +32,6 @@ import type { AdminBillingMode, AdminBillingPlanDTO, AdminRedemptionCodeDTO } fr
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import {
   DEFAULT_PAGE_SIZE,
-  DIALOG_LAYOUT_TRANSITION,
   downloadJSONFile,
   formatCreditUSD,
   formatDateTime,
@@ -1019,186 +1017,188 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
         }}
       >
         {redemptionDialogForm ? (
-          <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0">
-            <DialogHeader className="shrink-0 px-4 py-4">
-              <DialogTitle>{redemptionDialogForm.id ? t("redemption.editTitle") : t("redemption.createTitle")}</DialogTitle>
-              <DialogDescription>
-                {redemptionDialogForm.id ? t("redemption.editDescription") : t("redemption.createDescription")}
-              </DialogDescription>
-            </DialogHeader>
+          <DialogContent className="gap-0 overflow-hidden p-0">
+            <DialogHeightTransition contentClassName="max-h-[min(86vh,760px)]">
+              <DialogHeader className="shrink-0 px-4 py-4">
+                <DialogTitle>{redemptionDialogForm.id ? t("redemption.editTitle") : t("redemption.createTitle")}</DialogTitle>
+                <DialogDescription>
+                  {redemptionDialogForm.id ? t("redemption.editDescription") : t("redemption.createDescription")}
+                </DialogDescription>
+              </DialogHeader>
 
-            <motion.form layout transition={DIALOG_LAYOUT_TRANSITION} onSubmit={(event) => void saveRedemptionCode(event)} className="flex min-h-0 flex-1 flex-col">
-              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
-                {!redemptionDialogForm.id ? (
-                  <div className="grid grid-cols-2 gap-5">
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t("redemption.code")}</p>
-                      <Input
-                        id="redemption-code"
-                        value={redemptionDialogForm.code}
-                        placeholder={t("redemption.codePlaceholder")}
-                        disabled={redemptionSaving}
-                        onChange={(event) => setRedemptionForm((current) => current ? { ...current, code: event.target.value } : current)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t("redemption.quantity")}</p>
-                      <Input
-                        id="redemption-quantity"
-                        type="number"
-                        min={1}
-                        max={100}
-                        value={redemptionDialogForm.quantity}
-                        disabled={redemptionSaving || Boolean(redemptionDialogForm.code.trim())}
-                        onChange={(event) => setRedemptionForm((current) => current ? { ...current, quantity: event.target.value } : current)}
-                      />
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className={cn("grid gap-5", redemptionDialogForm.id && "grid-cols-2")}>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">{t("redemption.mode")}</p>
-                    <Select
-                      value={redemptionDialogForm.mode}
-                      disabled={redemptionSaving || Boolean(redemptionDialogForm.id)}
-                      onValueChange={(value) => {
-                        const mode = value === "period" ? "period" : "usage";
-                        setRedemptionForm((current) => current ? {
-                          ...current,
-                          mode,
-                          planID: mode === "period" ? current.planID || defaultRedemptionPlanID : current.planID,
-                        } : current);
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent align="end">
-                        <SelectItem value="usage">{t("billingConfig.modes.usage")}</SelectItem>
-                        <SelectItem value="period">{t("billingConfig.modes.period")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {redemptionDialogForm.id ? (
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t("redemption.status")}</p>
-                      <div className="flex h-8 items-center px-1">
-                        <Switch
-                          size="sm"
-                          checked={redemptionDialogForm.status === "active"}
+              <form onSubmit={(event) => void saveRedemptionCode(event)} className="flex min-h-0 flex-1 flex-col">
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
+                  {!redemptionDialogForm.id ? (
+                    <div className="grid grid-cols-2 gap-5">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">{t("redemption.code")}</p>
+                        <Input
+                          id="redemption-code"
+                          value={redemptionDialogForm.code}
+                          placeholder={t("redemption.codePlaceholder")}
                           disabled={redemptionSaving}
-                          onCheckedChange={(checked) => setRedemptionForm((current) => current ? { ...current, status: checked ? "active" : "inactive" } : current)}
-                          aria-label={redemptionDialogForm.status === "active" ? t("redemption.disable") : t("redemption.enable")}
+                          onChange={(event) => setRedemptionForm((current) => current ? { ...current, code: event.target.value } : current)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">{t("redemption.quantity")}</p>
+                        <Input
+                          id="redemption-quantity"
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={redemptionDialogForm.quantity}
+                          disabled={redemptionSaving || Boolean(redemptionDialogForm.code.trim())}
+                          onChange={(event) => setRedemptionForm((current) => current ? { ...current, quantity: event.target.value } : current)}
                         />
                       </div>
                     </div>
                   ) : null}
-                </div>
 
-                {redemptionDialogForm.mode === "usage" ? (
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">{t("redemption.creditUSD")}</p>
-                    <Input
-                      id="redemption-credit"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={redemptionDialogForm.creditUSD}
-                      disabled={redemptionSaving || Boolean(redemptionDialogForm.id)}
-                      onChange={(event) => setRedemptionForm((current) => current ? { ...current, creditUSD: event.target.value } : current)}
-                    />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-5">
+                  <div className={cn("grid gap-5", redemptionDialogForm.id && "grid-cols-2")}>
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t("redemption.plan")}</p>
+                      <p className="text-xs text-muted-foreground">{t("redemption.mode")}</p>
                       <Select
-                        value={redemptionDialogForm.planID}
-                        disabled={redemptionSaving || Boolean(redemptionDialogForm.id) || activePlanOptions.length === 0}
-                        onValueChange={(value) => setRedemptionForm((current) => current ? { ...current, planID: value } : current)}
+                        value={redemptionDialogForm.mode}
+                        disabled={redemptionSaving || Boolean(redemptionDialogForm.id)}
+                        onValueChange={(value) => {
+                          const mode = value === "period" ? "period" : "usage";
+                          setRedemptionForm((current) => current ? {
+                            ...current,
+                            mode,
+                            planID: mode === "period" ? current.planID || defaultRedemptionPlanID : current.planID,
+                          } : current);
+                        }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder={t("redemption.planPlaceholder")} />
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent align="end">
-                          {activePlanOptions.map((plan) => (
-                            <SelectItem key={plan.id} value={String(plan.id)}>{plan.name || plan.code}</SelectItem>
-                          ))}
+                          <SelectItem value="usage">{t("billingConfig.modes.usage")}</SelectItem>
+                          <SelectItem value="period">{t("billingConfig.modes.period")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {redemptionDialogForm.id ? (
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">{t("redemption.status")}</p>
+                        <div className="flex h-8 items-center px-1">
+                          <Switch
+                            size="sm"
+                            checked={redemptionDialogForm.status === "active"}
+                            disabled={redemptionSaving}
+                            onCheckedChange={(checked) => setRedemptionForm((current) => current ? { ...current, status: checked ? "active" : "inactive" } : current)}
+                            aria-label={redemptionDialogForm.status === "active" ? t("redemption.disable") : t("redemption.enable")}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {redemptionDialogForm.mode === "usage" ? (
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t("redemption.durationDays")}</p>
+                      <p className="text-xs text-muted-foreground">{t("redemption.creditUSD")}</p>
                       <Input
-                        id="redemption-duration"
+                        id="redemption-credit"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={redemptionDialogForm.creditUSD}
+                        disabled={redemptionSaving || Boolean(redemptionDialogForm.id)}
+                        onChange={(event) => setRedemptionForm((current) => current ? { ...current, creditUSD: event.target.value } : current)}
+                      />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-5">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">{t("redemption.plan")}</p>
+                        <Select
+                          value={redemptionDialogForm.planID}
+                          disabled={redemptionSaving || Boolean(redemptionDialogForm.id) || activePlanOptions.length === 0}
+                          onValueChange={(value) => setRedemptionForm((current) => current ? { ...current, planID: value } : current)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={t("redemption.planPlaceholder")} />
+                          </SelectTrigger>
+                          <SelectContent align="end">
+                            {activePlanOptions.map((plan) => (
+                              <SelectItem key={plan.id} value={String(plan.id)}>{plan.name || plan.code}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">{t("redemption.durationDays")}</p>
+                        <Input
+                          id="redemption-duration"
+                          type="number"
+                          min={1}
+                          value={redemptionDialogForm.durationDays}
+                          disabled={redemptionSaving || Boolean(redemptionDialogForm.id)}
+                          onChange={(event) => setRedemptionForm((current) => current ? { ...current, durationDays: event.target.value } : current)}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">{t("redemption.maxRedemptions")}</p>
+                      <Input
+                        id="redemption-max"
                         type="number"
                         min={1}
-                        value={redemptionDialogForm.durationDays}
-                        disabled={redemptionSaving || Boolean(redemptionDialogForm.id)}
-                        onChange={(event) => setRedemptionForm((current) => current ? { ...current, durationDays: event.target.value } : current)}
+                        value={redemptionDialogForm.maxRedemptions}
+                        placeholder={t("redemption.unlimited")}
+                        disabled={redemptionSaving}
+                        onChange={(event) => setRedemptionForm((current) => current ? { ...current, maxRedemptions: event.target.value } : current)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">{t("redemption.perUserLimit")}</p>
+                      <Input
+                        id="redemption-per-user"
+                        type="number"
+                        min={1}
+                        max={redemptionDialogForm.maxRedemptions.trim() || undefined}
+                        value={redemptionDialogForm.perUserLimit}
+                        disabled={redemptionSaving}
+                        onChange={(event) => setRedemptionForm((current) => current ? { ...current, perUserLimit: event.target.value } : current)}
                       />
                     </div>
                   </div>
-                )}
 
-                <div className="grid grid-cols-2 gap-5">
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">{t("redemption.maxRedemptions")}</p>
-                    <Input
-                      id="redemption-max"
-                      type="number"
-                      min={1}
-                      value={redemptionDialogForm.maxRedemptions}
-                      placeholder={t("redemption.unlimited")}
-                      disabled={redemptionSaving}
-                      onChange={(event) => setRedemptionForm((current) => current ? { ...current, maxRedemptions: event.target.value } : current)}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">{t("redemption.perUserLimit")}</p>
-                    <Input
-                      id="redemption-per-user"
-                      type="number"
-                      min={1}
-                      max={redemptionDialogForm.maxRedemptions.trim() || undefined}
-                      value={redemptionDialogForm.perUserLimit}
-                      disabled={redemptionSaving}
-                      onChange={(event) => setRedemptionForm((current) => current ? { ...current, perUserLimit: event.target.value } : current)}
-                    />
-                  </div>
-                </div>
-
-                <AdminDateTimePicker
-                  value={redemptionDialogForm.expiresAt}
-                  disabled={redemptionSaving}
-                  label={t("redemption.expiresAt")}
-                  placeholder={t("redemption.never")}
-                  onChange={(value) => setRedemptionForm((current) => current ? { ...current, expiresAt: value } : current)}
-                />
-
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">{t("redemption.description")}</p>
-                  <Textarea
-                    id="redemption-description"
-                    value={redemptionDialogForm.description}
-                    className="h-20 resize-none"
+                  <AdminDateTimePicker
+                    value={redemptionDialogForm.expiresAt}
                     disabled={redemptionSaving}
-                    onChange={(event) => setRedemptionForm((current) => current ? { ...current, description: event.target.value } : current)}
+                    label={t("redemption.expiresAt")}
+                    placeholder={t("redemption.never")}
+                    onChange={(value) => setRedemptionForm((current) => current ? { ...current, expiresAt: value } : current)}
                   />
-                </div>
-              </div>
 
-              <DialogFooter className="shrink-0 px-4 py-3">
-                <Button type="button" variant="ghost" disabled={redemptionSaving} onClick={() => setRedemptionForm(null)}>
-                  {tActions("cancel")}
-                </Button>
-                <Button type="submit" disabled={redemptionSaving}>
-                  {redemptionSaving ? <SpinnerLabel>{tActions("saving")}</SpinnerLabel> : tActions("save")}
-                </Button>
-              </DialogFooter>
-            </motion.form>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">{t("redemption.description")}</p>
+                    <Textarea
+                      id="redemption-description"
+                      value={redemptionDialogForm.description}
+                      className="h-20 resize-none"
+                      disabled={redemptionSaving}
+                      onChange={(event) => setRedemptionForm((current) => current ? { ...current, description: event.target.value } : current)}
+                    />
+                  </div>
+                </div>
+
+                <DialogFooter className="shrink-0 px-4 py-3">
+                  <Button type="button" variant="ghost" disabled={redemptionSaving} onClick={() => setRedemptionForm(null)}>
+                    {tActions("cancel")}
+                  </Button>
+                  <Button type="submit" disabled={redemptionSaving}>
+                    {redemptionSaving ? <SpinnerLabel>{tActions("saving")}</SpinnerLabel> : tActions("save")}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogHeightTransition>
           </DialogContent>
         ) : null}
       </Dialog>
@@ -1211,50 +1211,52 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
           }
         }}
       >
-        <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0">
-          <DialogHeader className="shrink-0 px-4 py-4">
-            <DialogTitle>{t("redemption.createdCodesTitle")}</DialogTitle>
-            <DialogDescription>{t("redemption.createdCodesDescription")}</DialogDescription>
-          </DialogHeader>
+        <DialogContent className="gap-0 overflow-hidden p-0">
+          <DialogHeightTransition contentClassName="max-h-[min(86vh,760px)]">
+            <DialogHeader className="shrink-0 px-4 py-4">
+              <DialogTitle>{t("redemption.createdCodesTitle")}</DialogTitle>
+              <DialogDescription>{t("redemption.createdCodesDescription")}</DialogDescription>
+            </DialogHeader>
 
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-2">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-medium">{t("redemption.createdCodes")}</p>
-              <CopyActionButton
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1 px-2 text-xs shadow-none"
-                value={createdRedemptionCodes.join("\n")}
-                messages={{ copied: tActions("copied"), failed: tCommonErrors("copyFailed") }}
-                disabled={createdRedemptionCodes.length === 0}
-              >
-                {t("redemption.copyAll")}
-              </CopyActionButton>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-medium">{t("redemption.createdCodes")}</p>
+                <CopyActionButton
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs shadow-none"
+                  value={createdRedemptionCodes.join("\n")}
+                  messages={{ copied: tActions("copied"), failed: tCommonErrors("copyFailed") }}
+                  disabled={createdRedemptionCodes.length === 0}
+                >
+                  {t("redemption.copyAll")}
+                </CopyActionButton>
+              </div>
+              <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                {createdRedemptionCodes.map((code) => (
+                  <div key={code} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border/60 bg-muted/25 px-3 py-2">
+                    <span className="min-w-0 break-all font-mono text-xs">{code}</span>
+                    <CopyActionButton
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground"
+                      value={code}
+                      messages={{ copied: tActions("copied"), failed: tCommonErrors("copyFailed") }}
+                      aria-label={tActions("copy")}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-              {createdRedemptionCodes.map((code) => (
-                <div key={code} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border/60 bg-muted/25 px-3 py-2">
-                  <span className="min-w-0 break-all font-mono text-xs">{code}</span>
-                  <CopyActionButton
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-muted-foreground"
-                    value={code}
-                    messages={{ copied: tActions("copied"), failed: tCommonErrors("copyFailed") }}
-                    aria-label={tActions("copy")}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
 
-          <DialogFooter className="shrink-0 px-4 py-3">
-            <Button type="button" onClick={() => setCreatedRedemptionCodes([])}>
-              {tActions("close")}
-            </Button>
-          </DialogFooter>
+            <DialogFooter className="shrink-0 px-4 py-3">
+              <Button type="button" onClick={() => setCreatedRedemptionCodes([])}>
+                {tActions("close")}
+              </Button>
+            </DialogFooter>
+          </DialogHeightTransition>
         </DialogContent>
       </Dialog>
 

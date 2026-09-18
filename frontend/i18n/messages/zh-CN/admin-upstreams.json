@@ -249,6 +249,8 @@
     "allUpstreams": "全部",
     "upstreamActive": "上游启用",
     "upstreamInactive": "上游停用",
+    "upstreamModelInactive": "上游模型已停用",
+    "upstreamModelInactiveHint": "该模型已不在上游列表中，相关路由暂不可用；后续同步时若重新出现将自动恢复。",
     "allProtocols": "全部",
     "sort": {
       "upstreamAsc": "上游名 A-Z",

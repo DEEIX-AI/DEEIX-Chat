@@ -17,6 +17,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogHeightTransition,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -492,65 +493,67 @@ function CreateGroupDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(86vh,760px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
-        <DialogHeader className="shrink-0 px-4 py-4">
-          <DialogTitle>{t("createGroup")}</DialogTitle>
-          <DialogDescription>{t("createGroupDescription")}</DialogDescription>
-        </DialogHeader>
+      <DialogContent className="w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+        <DialogHeightTransition contentClassName="max-h-[min(86vh,760px)]">
+          <DialogHeader className="shrink-0 px-4 py-4">
+            <DialogTitle>{t("createGroup")}</DialogTitle>
+            <DialogDescription>{t("createGroupDescription")}</DialogDescription>
+          </DialogHeader>
 
-        <form onSubmit={handleCreate} className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
-            <div className="space-y-1">
-              <Label className="text-xs font-normal text-muted-foreground" htmlFor="group-name">
-                {t("name")}
-              </Label>
-              <Input
-                id="group-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                disabled={saving}
-                required
-              />
+          <form onSubmit={handleCreate} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
+              <div className="space-y-1">
+                <Label className="text-xs font-normal text-muted-foreground" htmlFor="group-name">
+                  {t("name")}
+                </Label>
+                <Input
+                  id="group-name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  disabled={saving}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-normal text-muted-foreground" htmlFor="group-desc">
+                  {t("descriptionField")}
+                </Label>
+                <Textarea
+                  id="group-desc"
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  disabled={saving}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-normal text-muted-foreground" htmlFor="group-rate">
+                  {t("rateMultiplier")}
+                </Label>
+                <Input
+                  id="group-rate"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={rateMultiplier}
+                  onChange={(event) => setRateMultiplier(event.target.value)}
+                  disabled={saving}
+                />
+                <p className="text-xs text-muted-foreground">{t("rateMultiplierHint")}</p>
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs font-normal text-muted-foreground" htmlFor="group-desc">
-                {t("descriptionField")}
-              </Label>
-              <Textarea
-                id="group-desc"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                disabled={saving}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-normal text-muted-foreground" htmlFor="group-rate">
-                {t("rateMultiplier")}
-              </Label>
-              <Input
-                id="group-rate"
-                type="number"
-                min="0"
-                step="0.01"
-                value={rateMultiplier}
-                onChange={(event) => setRateMultiplier(event.target.value)}
-                disabled={saving}
-              />
-              <p className="text-xs text-muted-foreground">{t("rateMultiplierHint")}</p>
-            </div>
-          </div>
-
-          <DialogFooter className="shrink-0 px-4 py-3">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
-              {t("cancel")}
-            </Button>
-            <Button type="submit" disabled={saving || !name.trim()}>
-              {saving ? <SpinnerLabel>{t("createGroup")}</SpinnerLabel> : t("createGroup")}
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter className="shrink-0 px-4 py-3">
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
+                {t("cancel")}
+              </Button>
+              <Button type="submit" disabled={saving || !name.trim()}>
+                {saving ? <SpinnerLabel>{t("createGroup")}</SpinnerLabel> : t("createGroup")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogHeightTransition>
       </DialogContent>
     </Dialog>
   );

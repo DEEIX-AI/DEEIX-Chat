@@ -54,56 +54,58 @@ export function KnowledgeBaseEditorDialog({
 
   return (
     <Dialog open={Boolean(draft)} onOpenChange={(open) => !open && !saving && onClose()}>
-      <DialogContent className="flex max-h-[min(86vh,760px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
-        <DialogHeader className="shrink-0 px-4 py-4">
-          <DialogTitle>{stableDraft?.publicID ? t("editTitle") : t("createTitle")}</DialogTitle>
-          <DialogDescription>{t("editorDescription")}</DialogDescription>
-        </DialogHeader>
-        <form
-          className="flex min-h-0 flex-1 flex-col"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSave();
-          }}
-        >
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
-            <div className="space-y-1">
-              <label className="text-xs font-normal text-muted-foreground" htmlFor="knowledge-base-name">
-                {t("name")}
-              </label>
-              <Input
-                id="knowledge-base-name"
-                autoFocus
-                maxLength={80}
-                value={stableDraft?.name ?? ""}
-                placeholder={t("namePlaceholder")}
-                disabled={saving}
-                required
-                onChange={(event) => draft && onDraftChange({ ...draft, name: event.target.value })}
-              />
+      <DialogContent className="w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+        <DialogHeightTransition contentClassName="max-h-[min(86vh,760px)]">
+          <DialogHeader className="shrink-0 px-4 py-4">
+            <DialogTitle>{stableDraft?.publicID ? t("editTitle") : t("createTitle")}</DialogTitle>
+            <DialogDescription>{t("editorDescription")}</DialogDescription>
+          </DialogHeader>
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSave();
+            }}
+          >
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
+              <div className="space-y-1">
+                <label className="text-xs font-normal text-muted-foreground" htmlFor="knowledge-base-name">
+                  {t("name")}
+                </label>
+                <Input
+                  id="knowledge-base-name"
+                  autoFocus
+                  maxLength={80}
+                  value={stableDraft?.name ?? ""}
+                  placeholder={t("namePlaceholder")}
+                  disabled={saving}
+                  required
+                  onChange={(event) => draft && onDraftChange({ ...draft, name: event.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-normal text-muted-foreground" htmlFor="knowledge-base-description">
+                  {t("descriptionLabel")}
+                </label>
+                <Textarea
+                  id="knowledge-base-description"
+                  maxLength={255}
+                  className="min-h-20 resize-none"
+                  value={stableDraft?.description ?? ""}
+                  placeholder={t("descriptionPlaceholder")}
+                  disabled={saving}
+                  onChange={(event) => draft && onDraftChange({ ...draft, description: event.target.value })}
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-normal text-muted-foreground" htmlFor="knowledge-base-description">
-                {t("descriptionLabel")}
-              </label>
-              <Textarea
-                id="knowledge-base-description"
-                maxLength={255}
-                className="min-h-20 resize-none"
-                value={stableDraft?.description ?? ""}
-                placeholder={t("descriptionPlaceholder")}
-                disabled={saving}
-                onChange={(event) => draft && onDraftChange({ ...draft, description: event.target.value })}
-              />
-            </div>
-          </div>
-          <DialogFooter className="shrink-0 px-4 py-3">
-            <Button type="button" variant="ghost" disabled={saving} onClick={onClose}>{t("cancel")}</Button>
-            <Button type="submit" disabled={!stableDraft?.name.trim() || saving}>
-              {saving ? <SpinnerLabel>{t("save")}</SpinnerLabel> : t("save")}
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter className="shrink-0 px-4 py-3">
+              <Button type="button" variant="ghost" disabled={saving} onClick={onClose}>{t("cancel")}</Button>
+              <Button type="submit" disabled={!stableDraft?.name.trim() || saving}>
+                {saving ? <SpinnerLabel>{t("save")}</SpinnerLabel> : t("save")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogHeightTransition>
       </DialogContent>
     </Dialog>
   );

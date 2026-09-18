@@ -77,7 +77,7 @@ func newValidateAccessSessionWithGeo(now time.Time) *domainuser.Session {
 
 func TestNormalizeAppearancePreferencesAllowsFontSize(t *testing.T) {
 	for _, fontSize := range []string{"small", "standard", "medium", "large"} {
-		payload := `{"theme":"system","preset":"default","chatFont":"default","chatFontWeight":"regular","fontSize":"` + fontSize + `"}`
+		payload := `{"preset":"default","chatFont":"default","chatFontWeight":"regular","fontSize":"` + fontSize + `"}`
 
 		if _, err := normalizeAppearancePreferences(payload); err != nil {
 			t.Fatalf("expected fontSize %q appearance preference to be valid, got %v", fontSize, err)

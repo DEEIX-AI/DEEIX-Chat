@@ -1,12 +1,43 @@
 package billing
 
 import (
+	"encoding/json"
 	"testing"
 
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	"github.com/gin-gonic/gin/binding"
 )
+
+func TestModelPricingCacheWriteBasisTransportRoundTrip(t *testing.T) {
+	for _, basis := range []string{"", "direct", "anthropic_5m", "invalid"} {
+		t.Run(basis, func(t *testing.T) {
+			var req UpsertModelPricingRequest
+			if err := json.Unmarshal([]byte(`{"platformModelName":"claude-test","isFree":false,"pricingMode":"token","inputUSDPerMTokens":3,"outputUSDPerMTokens":15,"cacheReadUSDPerMTokens":0,"cacheWriteUSDPerMTokens":3.75,"callUSDPerCall":0,"durationUSDPerSecond":0}`), &req); err != nil {
+				t.Fatal(err)
+			}
+			req.CacheWritePriceBasis = basis
+			err := binding.Validator.ValidateStruct(req)
+			if basis == "invalid" {
+				if err == nil {
+					t.Fatal("invalid price basis accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			input := modelPricingInputFromRequest(req)
+			response := toModelPricingResponse(appbilling.ModelPricingView{ModelPricing: domainbilling.ModelPricing{
+				CacheWriteNanousdPerMTokens: input.CacheWriteNanousdPerMTokens,
+				CacheWritePriceBasis:        input.CacheWritePriceBasis,
+			}})
+			if response.CacheWritePriceBasis != basis || response.CacheWriteUSDPerMTokens != 3.75 {
+				t.Fatalf("cache pricing changed in transport: %#v", response)
+			}
+		})
+	}
+}
 
 func TestRequiredZeroValueBillingFields(t *testing.T) {
 	zeroFloat := 0.0

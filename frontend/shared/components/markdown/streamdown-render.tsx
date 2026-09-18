@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { useAutoExpandDisclosure } from "@/shared/hooks/use-auto-expand-disclosure";
 import {
   AdaptiveMarkdownTable,
+  MarkdownTableLineBreak,
   MarkdownTableStreamingContext,
 } from "./adaptive-markdown-table";
 import { StreamdownAdapterStyles } from "./streamdown-adapter-styles";
@@ -53,6 +54,7 @@ import {
   normalizeLatexUnicodeSymbols,
   normalizeMathDelimiters,
   normalizeMermaidBlocks,
+  normalizeNestedCodeFences,
   parseStreamdownSegments,
   type RenderSegment,
 } from "./streamdown-content";
@@ -365,6 +367,7 @@ const DEFAULT_STREAMDOWN_COMPONENTS = {
   article: MarkdownHTMLArticle,
   aside: MarkdownHTMLAside,
   b: MarkdownStrong,
+  br: MarkdownTableLineBreak,
   details: MarkdownHTMLDetails,
   div: MarkdownHTMLDiv,
   img: MarkdownImage,
@@ -403,9 +406,12 @@ function normalizeStreamdownContent(
       preserveSourceLines ? escapedContent : normalizeMathDelimiters(escapedContent),
     ),
   );
-  return preserveSourceLines
+  const fenceNormalizedContent = preserveSourceLines
     ? normalizedContent
-    : normalizeHTMLBlockBlankLines(normalizeHTMLVisualMarkdownFences(normalizedContent), streaming);
+    : normalizeNestedCodeFences(normalizedContent);
+  return preserveSourceLines
+    ? fenceNormalizedContent
+    : normalizeHTMLBlockBlankLines(normalizeHTMLVisualMarkdownFences(fenceNormalizedContent), streaming);
 }
 
 function detectStreamdownFeatures(content: string): StreamdownFeatureFlags {

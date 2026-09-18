@@ -74,8 +74,8 @@ func TestProtocolDefaultsForOpenRouterUsesOpenRouterResponsesForConversationKind
 		t.Fatalf("expected OpenRouter audio default, got %q in %s", defaults[modelKindAudio], raw)
 	}
 	expectedMediaDefaults := map[string]string{
-		modelKindImageGen:  "openai_image_generations",
-		modelKindImageEdit: "openai_image_edits",
+		modelKindImageGen:  "openrouter_images",
+		modelKindImageEdit: "openrouter_images",
 		modelKindVideoGen:  "openai_video_generations",
 	}
 	for kind, expected := range expectedMediaDefaults {

@@ -1,6 +1,7 @@
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
 
+import { escapeStructuralMarkdown } from "@/features/chat/utils/markdown-escape";
 import { CODE_BLOCK_PLAIN_TEXT_MIME } from "@/shared/lib/clipboard";
 
 type ClipboardMarkdownPaste = {
@@ -55,6 +56,7 @@ const turndownService = new TurndownService({
 });
 turndownService.use(gfm);
 turndownService.remove(["script", "style", "noscript"]);
+turndownService.escape = escapeStructuralMarkdown;
 
 function formatFencedCode(code: string, language: string): string {
   const normalizedCode = code.replace(/\r\n?/g, "\n");

@@ -12,6 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogHeightTransition,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -167,196 +168,206 @@ function ModelOptionPolicyGuideButton({ t }: { t: (key: string) => string }) {
           {t("guide.button")}
         </Button>
       </DialogTrigger>
-      <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[720px]">
-        <DialogHeader className="shrink-0 px-4 py-4">
-          <DialogTitle>{t("guide.title")}</DialogTitle>
-          <DialogDescription>{t("guide.description")}</DialogDescription>
-        </DialogHeader>
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[720px]">
+        <DialogHeightTransition contentClassName="max-h-[min(86vh,760px)]">
+          <DialogHeader className="shrink-0 px-4 py-4">
+            <DialogTitle>{t("guide.title")}</DialogTitle>
+            <DialogDescription>{t("guide.description")}</DialogDescription>
+          </DialogHeader>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2 text-sm text-muted-foreground">
-          <section className="space-y-2">
-            <h4 className="text-sm font-medium text-foreground">{t("guide.pathTitle")}</h4>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1.5">
-                <p className="text-xs font-medium text-foreground">options</p>
-                <pre className="max-h-44 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
-{`{
-  "temperature": 0.7,
-  "thinking": {
-    "type": "enabled"
-  },
-  "generationConfig": {
-    "safetySettings": {
-      "threshold": "BLOCK_NONE"
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2 text-sm text-muted-foreground">
+            <section className="space-y-2">
+              <h4 className="text-sm font-medium text-foreground">{t("guide.pathTitle")}</h4>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-foreground">options</p>
+                  <pre className="max-h-44 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
+  {`{
+    "temperature": 0.7,
+    "thinking": {
+      "type": "enabled"
+    },
+    "generationConfig": {
+      "safetySettings": {
+        "threshold": "BLOCK_NONE"
+      }
     }
-  }
-}`}
-                </pre>
+  }`}
+                  </pre>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-foreground">{t("guide.pathLabel")}</p>
+                  <pre className="max-h-44 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
+  {`temperature
+  thinking.type
+  generationConfig.safetySettings.threshold`}
+                  </pre>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <p className="text-xs font-medium text-foreground">{t("guide.pathLabel")}</p>
-                <pre className="max-h-44 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
-{`temperature
-thinking.type
-generationConfig.safetySettings.threshold`}
-                </pre>
+              <p className="text-xs">{t("guide.pathDescription")}</p>
+            </section>
+
+            <section className="space-y-2">
+              <h4 className="text-sm font-medium text-foreground">{t("guide.strategyTitle")}</h4>
+              <Tabs defaultValue="allowlist" className="gap-3">
+                <TabsList>
+                  <TabsTrigger value="allowlist">{t("policy.allowlist")}</TabsTrigger>
+                  <TabsTrigger value="denylist">{t("policy.denylist")}</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="allowlist" className="space-y-2">
+                  <p className="text-xs">{t("guide.allowlistDescription")}</p>
+                  <pre className="max-h-48 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
+  {`{
+    "default": [
+      "temperature",
+      "top_p",
+      "stop"
+    ],
+    "openai_chat_completions": [
+      "service_tier",
+      "thinking.type"
+    ],
+    "openai_responses": [
+      "service_tier",
+      "reasoning.effort",
+      "text.verbosity"
+    ],
+    "openai_image_generations": [
+      "background",
+      "moderation",
+      "n",
+      "output_compression",
+      "output_format",
+      "partial_images",
+      "quality",
+      "size",
+      "response_format",
+      "style",
+      "user"
+    ],
+    "openai_image_edits": [
+      "background",
+      "input_fidelity",
+      "n",
+      "output_compression",
+      "output_format",
+      "partial_images",
+      "quality",
+      "response_format",
+      "size",
+      "user"
+    ],
+    "anthropic_messages": [
+      "speed",
+      "thinking.type",
+      "thinking.budget_tokens"
+    ],
+    "google_image_generation": [
+      "generationConfig.responseModalities",
+      "generationConfig.imageConfig.aspectRatio",
+      "generationConfig.imageConfig.imageSize"
+    ],
+    "gemini_interactions": [
+      "generation_config.temperature",
+      "generation_config.top_p",
+      "generation_config.max_output_tokens",
+      "generation_config.thinking_level",
+      "generation_config.thinking_summaries",
+      "response_format.type",
+      "response_format.aspect_ratio",
+      "response_format.image_size",
+      "response_format.mime_type",
+      "response_format.schema",
+      "generation_config.video_config.task"
+    ],
+    "xai_image": [
+      "aspect_ratio",
+      "n",
+      "resolution",
+      "response_format"
+    ],
+    "xai_image_edits": [
+      "aspect_ratio",
+      "n",
+      "resolution",
+      "response_format"
+    ],
+    "xai_video": [
+      "aspect_ratio",
+      "duration",
+      "resolution"
+    ],
+    "xai_video_extensions": [
+      "duration"
+    ],
+    "openrouter_chat_completions": [
+      "reasoning_effort",
+      "reasoning.effort",
+      "thinking.type"
+    ],
+    "openrouter_responses": [
+      "reasoning.effort",
+      "reasoning.summary"
+    ],
+    "openrouter_images": [
+      "aspect_ratio",
+      "n",
+      "quality",
+      "resolution",
+      "output_format",
+      "provider.only"
+    ]
+  }`}
+                  </pre>
+                  <p className="text-xs">{t("guide.openAIServiceTierNote")}</p>
+                </TabsContent>
+
+                <TabsContent value="denylist" className="space-y-2">
+                  <p className="text-xs">{t("guide.denylistDescription")}</p>
+                  <pre className="max-h-48 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
+  {`{
+    "default": [
+      "headers",
+      "api_key",
+      "previous_response_id"
+    ],
+    "anthropic_messages": [
+      "thinking.budget_tokens",
+      "metadata.user_id"
+    ]
+  }`}
+                  </pre>
+                </TabsContent>
+              </Tabs>
+            </section>
+
+            <section className="space-y-2">
+              <h4 className="text-sm font-medium text-foreground">{t("guide.protocolTitle")}</h4>
+              <p className="text-xs">{t("guide.protocolDescription")}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {MODEL_OPTION_POLICY_PROTOCOLS.map((item) => (
+                  <code key={item} className="rounded-md bg-muted/60 px-2 py-1 text-xs text-foreground">{item}</code>
+                ))}
               </div>
-            </div>
-            <p className="text-xs">{t("guide.pathDescription")}</p>
-          </section>
+            </section>
 
-          <section className="space-y-2">
-            <h4 className="text-sm font-medium text-foreground">{t("guide.strategyTitle")}</h4>
-            <Tabs defaultValue="allowlist" className="gap-3">
-              <TabsList>
-                <TabsTrigger value="allowlist">{t("policy.allowlist")}</TabsTrigger>
-                <TabsTrigger value="denylist">{t("policy.denylist")}</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="allowlist" className="space-y-2">
-                <p className="text-xs">{t("guide.allowlistDescription")}</p>
-                <pre className="max-h-48 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
-{`{
-  "default": [
-    "temperature",
-    "top_p",
-    "stop"
-  ],
-  "openai_responses": [
-    "service_tier",
-    "reasoning.effort",
-    "text.verbosity"
-  ],
-  "openai_image_generations": [
-    "background",
-    "moderation",
-    "n",
-    "output_compression",
-    "output_format",
-    "partial_images",
-    "quality",
-    "size",
-    "response_format",
-    "style",
-    "user"
-  ],
-  "openai_image_edits": [
-    "background",
-    "input_fidelity",
-    "n",
-    "output_compression",
-    "output_format",
-    "partial_images",
-    "quality",
-    "response_format",
-    "size",
-    "user"
-  ],
-  "google_image_generation": [
-    "generationConfig.responseModalities",
-    "generationConfig.imageConfig.aspectRatio",
-    "generationConfig.imageConfig.imageSize"
-  ],
-  "gemini_interactions": [
-    "generation_config.temperature",
-    "generation_config.top_p",
-    "generation_config.max_output_tokens",
-    "generation_config.thinking_level",
-    "generation_config.thinking_summaries",
-    "response_format.type",
-    "response_format.aspect_ratio",
-    "response_format.image_size",
-    "response_format.mime_type",
-    "response_format.schema",
-    "generation_config.video_config.task"
-  ],
-  "xai_image": [
-    "aspect_ratio",
-    "n",
-    "resolution",
-    "response_format"
-  ],
-  "xai_image_edits": [
-    "aspect_ratio",
-    "n",
-    "resolution",
-    "response_format"
-  ],
-  "xai_video": [
-    "aspect_ratio",
-    "duration",
-    "resolution"
-  ],
-  "xai_video_extensions": [
-    "duration"
-  ],
-  "openai_chat_completions": [
-    "service_tier",
-    "thinking.type"
-  ],
-  "openrouter_chat_completions": [
-    "reasoning_effort",
-    "reasoning.effort",
-    "thinking.type"
-  ],
-  "openrouter_responses": [
-    "reasoning.effort",
-    "reasoning.summary"
-  ],
-  "anthropic_messages": [
-    "speed",
-    "thinking.type",
-    "thinking.budget_tokens"
-  ]
-}`}
-                </pre>
-                <p className="text-xs">{t("guide.openAIServiceTierNote")}</p>
-              </TabsContent>
-
-              <TabsContent value="denylist" className="space-y-2">
-                <p className="text-xs">{t("guide.denylistDescription")}</p>
-                <pre className="max-h-48 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
-{`{
-  "default": [
-    "headers",
-    "api_key",
-    "previous_response_id"
-  ],
-  "anthropic_messages": [
-    "thinking.budget_tokens",
-    "metadata.user_id"
-  ]
-}`}
-                </pre>
-              </TabsContent>
-            </Tabs>
-          </section>
-
-          <section className="space-y-2">
-            <h4 className="text-sm font-medium text-foreground">{t("guide.protocolTitle")}</h4>
-            <p className="text-xs">{t("guide.protocolDescription")}</p>
-            <div className="flex flex-wrap gap-1.5">
-              {MODEL_OPTION_POLICY_PROTOCOLS.map((item) => (
-                <code key={item} className="rounded-md bg-muted/60 px-2 py-1 text-xs text-foreground">{item}</code>
-              ))}
-            </div>
-          </section>
-
-          <section className="space-y-2">
-            <h4 className="text-sm font-medium text-foreground">{t("guide.systemDeniedTitle")}</h4>
-            <p className="text-xs">{t("guide.systemDeniedDescription")}</p>
-            <div className="flex flex-wrap gap-1.5">
-              {HARD_DENIED_MODEL_OPTION_PATHS.map((item) => (
-                <code key={item} className="rounded-md bg-muted/60 px-2 py-1 text-xs text-foreground">{item}</code>
-              ))}
-            </div>
-          </section>
-        </div>
-        <DialogFooter className="shrink-0 px-4 py-3">
-          <DialogClose asChild>
-            <Button type="button">{t("guide.close")}</Button>
-          </DialogClose>
-        </DialogFooter>
+            <section className="space-y-2">
+              <h4 className="text-sm font-medium text-foreground">{t("guide.systemDeniedTitle")}</h4>
+              <p className="text-xs">{t("guide.systemDeniedDescription")}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {HARD_DENIED_MODEL_OPTION_PATHS.map((item) => (
+                  <code key={item} className="rounded-md bg-muted/60 px-2 py-1 text-xs text-foreground">{item}</code>
+                ))}
+              </div>
+            </section>
+          </div>
+          <DialogFooter className="shrink-0 px-4 py-3">
+            <DialogClose asChild>
+              <Button type="button">{t("guide.close")}</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogHeightTransition>
       </DialogContent>
     </Dialog>
   );

@@ -1,6 +1,29 @@
 package auth
 
-import "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
+import (
+	"time"
+
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
+)
+
+// AccountLockedError 携带账户解锁剩余时长，供传输层输出 Retry-After。
+type AccountLockedError struct {
+	// RetryAfter 为剩余锁定时长；账户被直接锁定而没有解锁时间时为零。
+	RetryAfter time.Duration
+}
+
+func (e *AccountLockedError) Error() string { return ErrAccountLocked.Error() }
+
+func (e *AccountLockedError) Unwrap() error { return ErrAccountLocked }
+
+// newAccountLockedError 构造带剩余解锁时长的锁定错误。
+func newAccountLockedError(lockedUntil *time.Time, now time.Time) error {
+	locked := &AccountLockedError{}
+	if lockedUntil != nil && lockedUntil.After(now) {
+		locked.RetryAfter = lockedUntil.Sub(now)
+	}
+	return locked
+}
 
 // ProviderEmailConflictActionSignInThenBind identifies the safe sign-in-then-bind recovery flow.
 const ProviderEmailConflictActionSignInThenBind = "sign_in_then_bind"
@@ -9,7 +32,7 @@ var (
 	// ErrInvalidCredentials 用户名或密码错误。
 	ErrInvalidCredentials = apperr.New("auth.invalid_credentials", "invalid username or password")
 	// ErrAccountLocked 账户已被锁定。
-	ErrAccountLocked = apperr.NewMasked("auth.invalid_credentials", "invalid username or password", "account locked")
+	ErrAccountLocked = apperr.NewMasked("auth.account_locked", "account is temporarily locked, try again later", "account locked")
 	// ErrInvalidTimeZone 用户时区格式非法。
 	ErrInvalidTimeZone = apperr.New("user.invalid_time_zone", "invalid time zone")
 	// ErrInvalidLocale 用户语言区域非法。

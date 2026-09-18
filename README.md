@@ -112,7 +112,50 @@ flowchart TB
 | Tool protocol | MCP tool integration and provider-native official tools | MCP Streamable HTTP JSON-RPC, provider-native tools |
 | Deployment runtime | Lightweight single-node deployment or multi-node production deployment | Docker, Docker Compose, SQLite/in-memory cache, PostgreSQL/Redis |
 
-The backend keeps clear internal boundaries: `cmd/internal/cli` handles entrypoints, `internal/app` assembles the application, `transport/http` owns the HTTP boundary, `application` coordinates use cases and transactions, `domain` expresses business semantics, and `infra` contains database, cache, storage, and external protocol implementations. The data layer uses domain-prefixed tables, while financial records, audit trails, system events, and high-growth vector data remain separate sources of truth.
+The backend keeps clear internal boundaries: `backend/cmd/server` is the executable entrypoint, `backend/internal/cli` owns process startup, `backend/internal/app` assembles and wires the application, and `backend/internal/transport/http` owns the HTTP boundary. Requests then flow through `application` use cases to consumer-owned `repository` or `ports` interfaces and their `infra` implementations. The data layer uses domain-prefixed tables, while financial records, audit trails, system events, and high-growth vector data remain separate sources of truth.
+
+## Repository Layout
+
+```text
+.
+├── backend/                  # Go API and single-runtime server
+│   ├── cmd/server/            # executable entrypoint
+│   ├── internal/
+│   │   ├── cli/               # process startup
+│   │   ├── app/               # dependency wiring and lifecycle
+│   │   ├── application/       # use cases and orchestration
+│   │   ├── domain/            # business concepts and rules
+│   │   ├── ports/              # outbound integration contracts
+│   │   ├── repository/         # persistence contracts
+│   │   ├── infra/              # persistence, cache, storage, providers
+│   │   ├── transport/http/     # handlers, DTOs, middleware, routes
+│   │   └── shared/             # cross-cutting response and security code
+│   └── docs/                  # generated Swagger artifacts
+├── frontend/                 # Next.js App Router and static export
+│   ├── app/                   # route entries and layouts
+│   ├── features/              # feature-owned UI and client workflows
+│   ├── entities/              # reusable business entities
+│   ├── shared/                # API, auth, UI, hooks, models, utilities
+│   ├── components/            # UI primitives and visual components
+│   └── public/                # static assets
+├── packages/api-contract/     # generated TypeScript API contract
+├── docker/                    # optional extraction and OCR services
+├── docs/                      # project guides and screenshots
+├── config*.example.yaml       # deployment profile templates
+├── docker-compose*.yml        # deployment profiles
+└── Dockerfile                 # frontend + backend production image
+```
+
+`frontend/` and `backend/` are independent workspaces managed by pnpm and Turborepo. `packages/api-contract/` connects them through generated Swagger types; update the Go transport contract first, then regenerate the shared package.
+
+## Prerequisites
+
+- Node.js 20.9 or newer (the repository Docker image and CI use Node.js 24).
+- pnpm 10.17.0, normally enabled through Corepack.
+- Go 1.26.8 for backend development.
+- Docker Engine with Docker Compose v2 for container deployments or local PostgreSQL/Redis services.
+
+The SQLite profile does not require a separately managed database or cache. The default development configuration uses PostgreSQL and Redis; the full Compose profile starts both services for you.
 
 ## Quick Start
 
@@ -151,19 +194,40 @@ The frontend uses `NEXT_PUBLIC_API_BASE_URL` for API requests. For local develop
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 ```
 
-URLs:
+Service URLs and probes:
 
 | Service | URL |
 | --- | --- |
 | Frontend | `http://localhost:3000` |
 | API | `http://localhost:8080` |
-| Swagger | `http://localhost:8080/swagger/index.html` |
+| Liveness | `http://localhost:8080/healthz` |
+| Readiness | `http://localhost:8080/readyz` |
+| Version | `http://localhost:8080/api/v1/version` |
+| Swagger (development only) | `http://localhost:8080/swagger/index.html` |
 
 If `NEXT_PUBLIC_API_BASE_URL` is omitted, local development defaults to `localhost:8080`; same-origin deployments use the current origin.
 
+### Workspace Commands
+
+Run workspace commands from the repository root:
+
+| Command | Purpose |
+| --- | --- |
+| `pnpm dev` | Start the frontend and backend in watch mode. |
+| `pnpm dev:web` | Start only the Next.js frontend. |
+| `pnpm dev:api` | Start only the Go API. |
+| `pnpm check` | Run workspace lint, type, backend version, and API contract checks. |
+| `pnpm test` | Run workspace tests. |
+| `pnpm build` | Build the static frontend and backend binary. |
+| `pnpm verify` | Run checks, tests, and builds together. |
+| `pnpm api:generate` | Regenerate Swagger artifacts and TypeScript API types. |
+| `pnpm api:check` | Check that generated API artifacts are up to date. |
+
+The frontend is exported as static files, so `pnpm build` writes the browser artifact to `frontend/out`. The Go service can serve that directory in the production image or through `server.frontend_dist_dir`.
+
 ### Docker Deployment
 
-Choose one installation profile first, then copy the matching config file. All root compose profiles expose the app at `http://localhost:8080` by default and mount the repository-level `config.yaml` to `/app/config.yaml` inside the container.
+Run the following Docker commands from the repository root. Choose one installation profile first, then copy the matching config file. All root compose profiles expose the app at `http://localhost:8080` by default and mount the repository-level `config.yaml` to `/app/config.yaml` inside the container.
 
 | Profile | Use case | Config file | Compose file | Built-in dependencies |
 | --- | --- | --- | --- | --- |
@@ -218,11 +282,14 @@ The default compose files persist application data:
 | PostgreSQL data | `/var/lib/postgresql/data`, full installation only |
 | Redis data | `/data`, full installation only |
 
-The default application image is `ghcr.io/deeix-ai/deeix-chat:latest`. Override it with `DEEIX_CHAT_IMAGE` when testing a custom build:
+The default application image is `ghcr.io/deeix-ai/deeix-chat:latest`. Compose files reference an image and do not define a build step. Build a local image first, then select it with `DEEIX_CHAT_IMAGE`:
 
 ```bash
-DEEIX_CHAT_IMAGE=deeix-chat:local docker compose up -d --build
+docker build -t deeix-chat:local .
+DEEIX_CHAT_IMAGE=deeix-chat:local docker compose up -d
 ```
+
+Use the matching `-f docker-compose.sqlite.yml` or `-f docker-compose.full.yml` option when starting another profile.
 
 `APP_ENV` accepts `dev`/`development` and `prod`/`production`, normalizes them to `dev` or `prod`, and defaults to `prod` when omitted. Use `dev` only for local development. Public production deployments should keep `APP_ENV=prod` or `APP_ENV=production` and use production secrets.
 
@@ -279,20 +346,23 @@ Use this mode when the frontend and backend are served from different public ori
    | --- | --- |
    | `/_next/static/*` | Cache for 1 year with immutable assets enabled. |
    | `/logo*.svg`, `/*.ico`, `/*.png`, `/*.jpg`, `/*.webp`, `/*.woff2` | Cache for 1 day to 30 days. |
-   | `/`, `/*.html`, `/chat*`, `/recent*`, `/files*`, `/knowledges*`, `/setting*`, `/admin*`, `/share*` | Do not long-cache. Use `no-cache` or a short TTL. |
+   | `/`, `/*.html`, `/login*`, `/auth*`, `/chat*`, `/recent*`, `/files*`, `/knowledges*`, `/skills-prompt*`, `/setting*`, `/admin*`, `/share*`, `/preview*` | Do not long-cache. Use `no-cache` or a short TTL. |
    | `/api/*`, `/healthz`, `/readyz`, `/swagger/*` | Bypass CDN cache and forward all request headers, methods, query strings, and request bodies. |
 
    If the CDN serves `frontend/out` from object storage, enable route fallback so clean URLs resolve to their exported `index.html` files, for example `/chat` -> `/chat/index.html`.
 
 ### Startup Check and First Login
 
-After the application starts, verify the health endpoint, config file, and startup logs. For Docker deployments:
+After the application starts, verify liveness, readiness, the mounted config file, and startup logs. For Docker deployments:
 
 ```bash
 curl http://localhost:8080/healthz
+curl http://localhost:8080/readyz
 docker compose exec app ls -l /app/config.yaml
 docker compose logs app
 ```
+
+Swagger is registered only when `APP_ENV=dev` or `APP_ENV=development`; production deployments intentionally do not expose the Swagger UI route.
 
 If the database does not contain a superadmin account, the backend creates the initial administrator on first startup and prints the initial password only once.
 
@@ -311,7 +381,7 @@ If a superadmin already exists, the service does not regenerate or print the ini
 
 Backend configuration is split into static runtime configuration and runtime business settings. Static runtime configuration describes branding and the infrastructure, security, and storage parameters required to start the service, and is provided through `config.yaml` and environment variables. Runtime business settings cover product capabilities such as authentication, conversations, models, files, and billing; they are stored in `system_settings` and maintained from the admin console. Environment variables override matching config-file values, which is useful for containerized deployments, separated deployments, and secret injection.
 
-At startup, the backend resolves the default config file from the working directory: starting from the repository root reads `config.yaml`, while starting from `backend/` reads `../config.yaml`. Docker deployments usually mount host `./config.yaml` as read-only `/app/config.yaml` inside the container. If the config file is stored elsewhere, set `CONFIG_FILE` to a path accessible from the running process or container.
+At startup, the backend resolves the default config file from the working directory: starting from the repository root reads `config.yaml`, while starting from `backend/` reads `../config.yaml`. Docker deployments usually mount host `./config.yaml` as read-only `/app/config.yaml` inside the container. If the config file is stored elsewhere, set `CONFIG_FILE` to a path accessible from the running process or container. The effective priority is `environment variables > config.yaml > built-in defaults`.
 
 Frontend branding is also runtime configuration. Set the `branding` section in `config.yaml`, then restart the application; rebuilding the frontend or Docker image is not required. See [Custom branding](docs/BRANDING.md).
 
@@ -423,9 +493,10 @@ Web, App, and Desktop clients then reuse that instance callback automatically. T
 - Backend guide: [backend/README.md](./backend/README.md)
 - Backend standards: [backend/docs/README.md](./backend/docs/README.md)
 - Frontend guide: [frontend/README.md](./frontend/README.md)
+- API contract package: [packages/api-contract/README.md](./packages/api-contract/README.md)
 - Contributing: [CONTRIBUTING.md](./.github/CONTRIBUTING.md)
 - Security policy: [SECURITY.md](./.github/SECURITY.md)
-- Swagger UI: `http://localhost:8080/swagger/index.html`
+- Swagger UI (development only): `http://localhost:8080/swagger/index.html`
 
 ## Acknowledgements
 

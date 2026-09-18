@@ -94,7 +94,7 @@ func (*targetedEmbeddingRepositoryStub) CountFilesByEmbedStatus(context.Context,
 	return 0, nil
 }
 
-func (*targetedEmbeddingRepositoryStub) ListFilesForReindex(context.Context, int, uint) ([]domainconversation.FileObject, error) {
+func (*targetedEmbeddingRepositoryStub) ListFilesForReindex(context.Context, int, uint, bool) ([]domainconversation.FileObject, error) {
 	return nil, nil
 }
 

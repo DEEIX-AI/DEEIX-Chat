@@ -321,6 +321,110 @@ export function normalizeHTMLVisualMarkdownFences(source: string): string {
   );
 }
 
+type CodeFenceEvent = {
+  fenceStart: number;
+  fenceEnd: number;
+  marker: string;
+  info: string;
+};
+
+type CodeFenceUpgrade = {
+  openIdx: number;
+  closeIdx: number;
+  markerLength: number;
+};
+
+const CODE_FENCE_EVENT_RE = /(^|\n)([ \t]{0,3})(`{3,}|~{3,})([^\n]*)/g;
+
+// A tagged fence (e.g. ```markdown) cannot contain another same-char tagged fence
+// (e.g. ```text): CommonMark closes the outer block at the first bare fence, so
+// the remainder of the document leaks out and renders as regular markdown. Models
+// frequently emit this "nested fence" shape when asked to output a full markdown
+// document containing example code blocks. When a tagged fence's intended body
+// contains a same-char tagged inner fence and closes LIFO, upgrade the outer
+// marker (and its closer) to a longer run so the nesting parses as authored.
+export function normalizeNestedCodeFences(source: string): string {
+  if (!source.includes("```") && !source.includes("~~~")) {
+    return source;
+  }
+
+  CODE_FENCE_EVENT_RE.lastIndex = 0;
+  const events: CodeFenceEvent[] = [];
+  for (let match = CODE_FENCE_EVENT_RE.exec(source); match; match = CODE_FENCE_EVENT_RE.exec(source)) {
+    events.push({
+      fenceStart: match.index + match[1].length + match[2].length,
+      fenceEnd: match.index + match[0].length,
+      marker: match[3],
+      info: match[4] ?? "",
+    });
+  }
+
+  const upgrades: CodeFenceUpgrade[] = [];
+  let index = 0;
+  while (index < events.length) {
+    const open = events[index];
+    const openInfo = open.info.trim();
+    if (openInfo === "" || openInfo.startsWith("`")) {
+      index += 1;
+      continue;
+    }
+
+    let depth = 0;
+    let closer = -1;
+    let innerTagged = false;
+    let hasLongerInnerMarker = false;
+    let maxInnerMarker = open.marker.length;
+    for (let cursor = index + 1; cursor < events.length; cursor += 1) {
+      const event = events[cursor];
+      if (event.marker[0] !== open.marker[0] || event.marker.length < open.marker.length) {
+        continue;
+      }
+      if (event.info.trim() === "") {
+        if (depth === 0) {
+          closer = cursor;
+          break;
+        }
+        depth -= 1;
+      } else {
+        innerTagged = true;
+        // A longer inner marker is already explicit syntax; leave this shape
+        // untouched instead of guessing that the outer fence should grow.
+        hasLongerInnerMarker ||= event.marker.length > open.marker.length;
+        depth += 1;
+        maxInnerMarker = Math.max(maxInnerMarker, event.marker.length);
+      }
+    }
+
+    if (closer > 0 && innerTagged && !hasLongerInnerMarker) {
+      upgrades.push({ openIdx: index, closeIdx: closer, markerLength: maxInnerMarker + 1 });
+      index = closer + 1;
+      continue;
+    }
+    index += 1;
+  }
+
+  if (upgrades.length === 0) {
+    return source;
+  }
+
+  const parts: string[] = [];
+  let cursor = 0;
+  for (const upgrade of upgrades) {
+    const open = events[upgrade.openIdx];
+    const close = events[upgrade.closeIdx];
+    const markerChar = open.marker[0];
+    const upgradedMarker = markerChar.repeat(upgrade.markerLength);
+    parts.push(source.slice(cursor, open.fenceStart));
+    parts.push(upgradedMarker + open.info);
+    cursor = open.fenceEnd;
+    parts.push(source.slice(cursor, close.fenceStart));
+    parts.push(upgradedMarker + close.info);
+    cursor = close.fenceEnd;
+  }
+  parts.push(source.slice(cursor));
+  return parts.join("");
+}
+
 function findHTMLBlockEnd(
   source: string,
   start: number,

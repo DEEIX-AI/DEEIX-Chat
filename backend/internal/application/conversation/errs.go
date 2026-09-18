@@ -99,7 +99,14 @@ var (
 	ErrMessageForkTargetInvalid = apperr.New("conversation.message_fork_target_invalid", "only assistant messages can be forked")
 	// ErrMessageForkHistoryIncomplete 消息祖先链超过安全上限或已损坏，无法完整 fork。
 	ErrMessageForkHistoryIncomplete = apperr.New("conversation.message_fork_history_incomplete", "message history is too deep or incomplete")
-	// ErrModelRouteNotConfigured 模型路由未配置。
+	// ErrMessageDeleteTargetInvalid 当前消息角色不允许删除。
+	ErrMessageDeleteTargetInvalid = apperr.New("conversation.message_delete_target_invalid", "only user or assistant messages can be deleted")
+	// ErrMessageDeleteStateInvalid 当前消息状态不允许删除。
+	ErrMessageDeleteStateInvalid = apperr.New("conversation.message_delete_state_invalid", "message is still generating")
+	// ErrMessageDeleteRootInvalid 会话第一条消息不允许删除，否则历史将以助手消息开头。
+	ErrMessageDeleteRootInvalid = apperr.New("conversation.message_delete_root_invalid", "cannot delete the first message")
+	// ErrMessageParentDeleted 父消息已被删除，无法再挂在其下创建新消息。
+	ErrMessageParentDeleted    = apperr.New("conversation.message_parent_deleted", "parent message was deleted")
 	ErrModelRouteNotConfigured = apperr.NewMasked("llm.model_route_not_configured", "model route is not configured", "model route not configured")
 	// ErrModelAccessDenied 当前用户无权使用此模型。
 	ErrModelAccessDenied = apperr.NewMasked("llm.model_access_denied", "you do not have access to this model", "model access denied by group policy")
@@ -139,3 +146,19 @@ var (
 	// ErrDuplicateMessageGenerationRun 表示客户端重复提交同一个生成 run。
 	ErrDuplicateMessageGenerationRun = apperr.NewMasked("message_generation_run.already_exists", "message generation run already exists", "duplicate message generation run")
 )
+
+// mapMessageWriteError 把仓储层在消息写入与删除路径上返回的哨兵转换为应用层契约哨兵。
+// 仓储层只表达存储语义，对外错误码与文案必须由应用边界收敛（约定见本文件顶部），
+// 否则并发删除父消息、生成中删除等分支会退化成无错误码的 500。
+func mapMessageWriteError(err error) error {
+	switch {
+	case errors.Is(err, repository.ErrMessageParentDeleted):
+		return ErrMessageParentDeleted
+	case errors.Is(err, repository.ErrMessageDeleteStateInvalid):
+		return ErrMessageDeleteStateInvalid
+	case errors.Is(err, repository.ErrMessageDeleteRootInvalid):
+		return ErrMessageDeleteRootInvalid
+	default:
+		return err
+	}
+}

@@ -557,6 +557,8 @@ func modelOptionPolicyProtocolKey(protocol string) string {
 		return "openai_chat_completions"
 	case llm.AdapterOpenRouterChat:
 		return "openrouter_chat_completions"
+	case llm.AdapterOpenRouterImages:
+		return "openrouter_images"
 	case llm.AdapterOpenRouterResponses:
 		return "openrouter_responses"
 	case llm.AdapterOpenAIImageGenerations:

@@ -1,5 +1,9 @@
 import type { AdminOfficialPricingCatalogItemDTO, UpsertAdminModelPricingRequest } from "@/features/admin/api/billing.types";
-import type { BillingModelPricingRow, PricingFormState } from "@/features/admin/model/billing-settings";
+import {
+  parseTieredPricingJSON,
+  type BillingModelPricingRow,
+  type PricingFormState,
+} from "@/features/admin/model/billing-settings";
 
 export type OfficialPricingCatalogItem = AdminOfficialPricingCatalogItemDTO;
 
@@ -7,7 +11,9 @@ export type OfficialModelPricingSuggestion = {
   item: OfficialPricingCatalogItem;
   score: number;
   reason: "exact" | "vendor" | "similar";
-  payload: UpsertAdminModelPricingRequest;
+  payload: UpsertAdminModelPricingRequest | null;
+  ignoredFields: string[];
+  unsupportedFields: string[];
 };
 
 const VENDOR_ALIASES: Record<string, string[]> = {
@@ -110,7 +116,10 @@ function searchCatalogItemScore(query: string, item: OfficialPricingCatalogItem)
   return Math.max(fieldScore, tokenScore);
 }
 
-function scoreCatalogItem(row: BillingModelPricingRow, item: OfficialPricingCatalogItem): Omit<OfficialModelPricingSuggestion, "payload"> | null {
+function scoreCatalogItem(
+  row: BillingModelPricingRow,
+  item: OfficialPricingCatalogItem,
+): Omit<OfficialModelPricingSuggestion, "payload" | "ignoredFields" | "unsupportedFields"> | null {
   const candidateIDs = candidateModelIDs(row);
   const itemIDs = [item.id, item.canonicalSlug].filter(Boolean);
   const normalizedItemIDs = itemIDs.map(normalizeKey);
@@ -136,11 +145,31 @@ function scoreCatalogItem(row: BillingModelPricingRow, item: OfficialPricingCata
   return score >= 64 ? { item, score, reason: "similar" } : null;
 }
 
-function pricePerMillion(raw: string): number | null {
-  if (raw === "") return 0;
-  const value = Number(raw);
+function pricePerMillion(raw: string | undefined): number | null {
+  if (raw === undefined || raw === null || raw.trim() === "") return 0;
+  const value = Number(raw.trim());
   if (!Number.isFinite(value) || value < 0) return null;
   return Number((value * 1_000_000).toFixed(6));
+}
+
+function requiredPricePerMillion(raw: string | undefined): number | null {
+  if (raw === undefined || raw === null || raw.trim() === "") return null;
+  return pricePerMillion(raw);
+}
+
+function requiredOfficialPricingFields(item: OfficialPricingCatalogItem): string[] {
+  const missing: string[] = [];
+  if (requiredPricePerMillion(item.pricing.prompt) == null) {
+    missing.push("prompt");
+  }
+  if (requiredPricePerMillion(item.pricing.completion) == null) {
+    missing.push("completion");
+  }
+  return missing;
+}
+
+function uniqueOfficialPricingFields(fields: string[]): string[] {
+  return Array.from(new Set(fields.filter((field) => field.trim())));
 }
 
 export function formatOfficialPricingValue(value: number): string {
@@ -153,27 +182,72 @@ export function formatOfficialPricingValue(value: number): string {
 export function officialPricingPayload(
   row: Pick<BillingModelPricingRow, "platformModelName">,
   item: OfficialPricingCatalogItem,
+  multiplier = 1,
 ): UpsertAdminModelPricingRequest | null {
-  const input = pricePerMillion(item.pricing.prompt);
-  const output = pricePerMillion(item.pricing.completion);
-  if (input == null || output == null) {
-    return null;
+  if (!Number.isFinite(multiplier) || multiplier <= 0) return null;
+  const tokenPrices = (pricing: Pick<OfficialPricingCatalogItem["pricing"], "prompt" | "completion" | "inputCacheRead" | "inputCacheWrite">) => {
+    const input = requiredPricePerMillion(pricing.prompt);
+    const output = requiredPricePerMillion(pricing.completion);
+    if (input == null || output == null) return null;
+    const scale = (value: number) => Number((value * multiplier).toFixed(6));
+    return {
+      inputUSDPerMTokens: scale(input),
+      outputUSDPerMTokens: scale(output),
+      cacheReadUSDPerMTokens: scale(pricePerMillion(pricing.inputCacheRead) ?? 0),
+      cacheWriteUSDPerMTokens: scale(pricePerMillion(pricing.inputCacheWrite) ?? 0),
+    };
+  };
+  const base = tokenPrices(item.pricing);
+  if (!base) return null;
+  const tiers: Array<typeof base & { upToTokens: number }> = [];
+  let current = base;
+  let previousThreshold = 0;
+  // The backend has already resolved source precedence and inherited prices.
+  for (const override of item.pricing.overrides ?? []) {
+    const next = tokenPrices(override);
+    if (!next || !Number.isSafeInteger(override.minPromptTokens) || override.minPromptTokens <= previousThreshold) continue;
+    tiers.push({ upToTokens: override.minPromptTokens, ...current });
+    current = next;
+    previousThreshold = override.minPromptTokens;
   }
-  const cacheRead = pricePerMillion(item.pricing.inputCacheRead) ?? 0;
-  const cacheWrite = pricePerMillion(item.pricing.inputCacheWrite) ?? 0;
-  const isFree = input === 0 && output === 0 && cacheRead === 0 && cacheWrite === 0;
+  const isTiered = tiers.length > 0;
+  if (isTiered) tiers.push({ upToTokens: 0, ...current });
+  const isFree = (isTiered ? tiers : [base]).every((price) =>
+    price.inputUSDPerMTokens === 0 && price.outputUSDPerMTokens === 0 &&
+    price.cacheReadUSDPerMTokens === 0 && price.cacheWriteUSDPerMTokens === 0,
+  );
   return {
+    ...base,
     platformModelName: row.platformModelName,
     currency: "USD",
     isFree,
-    pricingMode: "token",
-    inputUSDPerMTokens: input,
-    cacheReadUSDPerMTokens: cacheRead,
-    cacheWriteUSDPerMTokens: cacheWrite,
-    outputUSDPerMTokens: output,
+    pricingMode: isTiered ? "tiered" : "token",
+    cacheWritePriceBasis: item.pricing.cacheWritePriceBasis,
     callUSDPerCall: 0,
     durationUSDPerSecond: 0,
+    ...(isTiered ? { tieredPricingJSON: JSON.stringify({ tiers }) } : {}),
   };
+}
+
+function suggestionForItem(
+  row: BillingModelPricingRow,
+  item: OfficialPricingCatalogItem,
+  scored: Omit<OfficialModelPricingSuggestion, "payload" | "ignoredFields" | "unsupportedFields">,
+): OfficialModelPricingSuggestion {
+  const payload = officialPricingPayload(row, item);
+  const fields = item.pricing.unsupportedFields ?? [];
+  const unavailableFields = requiredOfficialPricingFields(item);
+  const ignoredFields = fields.filter((field) => !unavailableFields.includes(field));
+  const unavailableReasonFields = uniqueOfficialPricingFields([
+    ...unavailableFields,
+    ...fields.filter((field) => unavailableFields.includes(field)),
+  ]);
+  const unsupportedFields = payload
+    ? []
+    : unavailableReasonFields.length > 0
+      ? unavailableReasonFields
+      : ["pricing"];
+  return { ...scored, payload, ignoredFields, unsupportedFields };
 }
 
 export function findOfficialPricingSuggestions(
@@ -185,9 +259,7 @@ export function findOfficialPricingSuggestions(
   for (const item of catalog) {
     const scored = scoreCatalogItem(row, item);
     if (!scored) continue;
-    const payload = officialPricingPayload(row, item);
-    if (!payload) continue;
-    suggestions.push({ ...scored, payload });
+    suggestions.push(suggestionForItem(row, item, scored));
   }
   return suggestions
     .sort((left, right) => right.score - left.score || left.item.id.localeCompare(right.item.id))
@@ -208,9 +280,11 @@ export function searchOfficialPricingCatalog(
   for (const item of catalog) {
     const score = searchCatalogItemScore(query, item);
     if (score < 62) continue;
-    const payload = officialPricingPayload(row, item);
-    if (!payload) continue;
-    suggestions.push({ item, score, reason: score >= 96 ? "exact" : "similar", payload });
+    suggestions.push(suggestionForItem(row, item, {
+      item,
+      score,
+      reason: score >= 96 ? "exact" : "similar",
+    }));
   }
   return suggestions
     .sort((left, right) => right.score - left.score || left.item.id.localeCompare(right.item.id))
@@ -218,13 +292,16 @@ export function searchOfficialPricingCatalog(
 }
 
 export function applyOfficialPricingToForm(form: PricingFormState, payload: UpsertAdminModelPricingRequest): PricingFormState {
+  const tiered = payload.pricingMode === "tiered";
   return {
     ...form,
-    pricingMode: "token",
-    input: String(payload.inputUSDPerMTokens),
-    cacheRead: String(payload.cacheReadUSDPerMTokens),
-    cacheWrite: String(payload.cacheWriteUSDPerMTokens),
-    output: String(payload.outputUSDPerMTokens),
+    pricingMode: tiered ? "tiered" : "token",
+    cacheWritePriceBasis: payload.cacheWritePriceBasis,
+    input: tiered ? "0" : String(payload.inputUSDPerMTokens),
+    cacheRead: tiered ? "0" : String(payload.cacheReadUSDPerMTokens),
+    cacheWrite: tiered ? "0" : String(payload.cacheWriteUSDPerMTokens),
+    output: tiered ? "0" : String(payload.outputUSDPerMTokens),
+    tieredTiers: tiered ? parseTieredPricingJSON(payload.tieredPricingJSON) ?? form.tieredTiers : form.tieredTiers,
     call: "0",
     duration: "0",
     isFree: payload.isFree,

@@ -13,6 +13,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogHeightTransition,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AdminUpdateTooltipContent } from "@/features/admin/components/admin-update-tooltip-content";
@@ -139,56 +140,58 @@ function UpdateResultDialog({
 
   return (
     <Dialog open={state !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[420px]">
-        <DialogHeader className="shrink-0 px-4 py-4">
-          <DialogTitle>
-            {stableState?.type === "available"
-              ? t("updateDialog.availableTitle")
-              : stableState?.type === "failed"
-                ? t("updateDialog.failedTitle")
-                : t("updateDialog.currentTitle")}
-          </DialogTitle>
-          <DialogDescription>
-            {stableState?.type === "available"
-              ? t("updateDialog.availableDescription", { current: currentVersion, latest: latestVersion })
-              : stableState?.type === "failed"
-                ? t("updateDialog.failedDescription")
-                : t("updateDialog.currentDescription", { current: currentVersion })}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[420px]">
+        <DialogHeightTransition contentClassName="max-h-[min(86vh,760px)]">
+          <DialogHeader className="shrink-0 px-4 py-4">
+            <DialogTitle>
+              {stableState?.type === "available"
+                ? t("updateDialog.availableTitle")
+                : stableState?.type === "failed"
+                  ? t("updateDialog.failedTitle")
+                  : t("updateDialog.currentTitle")}
+            </DialogTitle>
+            <DialogDescription>
+              {stableState?.type === "available"
+                ? t("updateDialog.availableDescription", { current: currentVersion, latest: latestVersion })
+                : stableState?.type === "failed"
+                  ? t("updateDialog.failedDescription")
+                  : t("updateDialog.currentDescription", { current: currentVersion })}
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
-          {stableState?.type === "available" ? (
-            <div className="rounded-md bg-muted/50 px-3 py-2 text-xs">
-              <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
-                <span className="text-muted-foreground">{t("updateDialog.currentVersion")}</span>
-                <span className="font-medium">{currentVersion}</span>
-                <span className="text-muted-foreground">{t("updateDialog.latestVersion")}</span>
-                <span className="font-medium">{latestVersion}</span>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
+            {stableState?.type === "available" ? (
+              <div className="rounded-md bg-muted/50 px-3 py-2 text-xs">
+                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
+                  <span className="text-muted-foreground">{t("updateDialog.currentVersion")}</span>
+                  <span className="font-medium">{currentVersion}</span>
+                  <span className="text-muted-foreground">{t("updateDialog.latestVersion")}</span>
+                  <span className="font-medium">{latestVersion}</span>
+                </div>
               </div>
-            </div>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
 
-        <DialogFooter className="shrink-0 px-4 py-3">
-          <DialogClose asChild>
-            <Button type="button" variant="ghost">
-              {t("updateDialog.close")}
-            </Button>
-          </DialogClose>
-          {stableState?.type === "failed" ? (
-            <Button type="button" onClick={onRetry}>
-              {t("updateDialog.retry")}
-            </Button>
-          ) : null}
-          {stableState?.type === "available" ? (
-            <Button asChild type="button">
-              <a href={stableState.release.url} target="_blank" rel="noopener noreferrer">
-                {t("updateDialog.openRelease")}
-              </a>
-            </Button>
-          ) : null}
-        </DialogFooter>
+          <DialogFooter className="shrink-0 px-4 py-3">
+            <DialogClose asChild>
+              <Button type="button" variant="ghost">
+                {t("updateDialog.close")}
+              </Button>
+            </DialogClose>
+            {stableState?.type === "failed" ? (
+              <Button type="button" onClick={onRetry}>
+                {t("updateDialog.retry")}
+              </Button>
+            ) : null}
+            {stableState?.type === "available" ? (
+              <Button asChild type="button">
+                <a href={stableState.release.url} target="_blank" rel="noopener noreferrer">
+                  {t("updateDialog.openRelease")}
+                </a>
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogHeightTransition>
       </DialogContent>
     </Dialog>
   );

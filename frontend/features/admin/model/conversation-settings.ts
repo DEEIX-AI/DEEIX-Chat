@@ -80,16 +80,6 @@ export const DEFAULT_MODEL_OPTION_ALLOWED_PATHS = `{
     "thinking.type",
     "stream_options.include_usage"
   ],
-  "openrouter_chat_completions": [
-    "presence_penalty",
-    "frequency_penalty",
-    "reasoning_effort",
-    "reasoning.effort",
-    "reasoning.summary",
-    "verbosity",
-    "thinking.type",
-    "stream_options.include_usage"
-  ],
   "openai_responses": [
     "service_tier",
     "store",
@@ -181,6 +171,33 @@ export const DEFAULT_MODEL_OPTION_ALLOWED_PATHS = `{
   ],
   "xai_video_extensions": [
     "duration"
+  ],
+  "openrouter_chat_completions": [
+    "presence_penalty",
+    "frequency_penalty",
+    "reasoning_effort",
+    "reasoning.effort",
+    "reasoning.summary",
+    "verbosity",
+    "thinking.type",
+    "stream_options.include_usage"
+  ],
+  "openrouter_images": [
+    "aspect_ratio",
+    "background",
+    "n",
+    "output_compression",
+    "output_format",
+    "provider.allow_fallbacks",
+    "provider.ignore",
+    "provider.only",
+    "provider.order",
+    "provider.sort",
+    "quality",
+    "resolution",
+    "seed",
+    "size",
+    "user"
   ]
 }`;
 

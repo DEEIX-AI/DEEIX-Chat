@@ -15,17 +15,36 @@ export class ApiError extends Error {
   errorCode?: string;
   details?: unknown;
   requestId?: string;
+  retryAfterSeconds?: number;
   rawMessage: string;
 
-  constructor(message: string, status: number, details?: unknown, errorCode?: string, requestId?: string) {
+  constructor(
+    message: string,
+    status: number,
+    details?: unknown,
+    errorCode?: string,
+    requestId?: string,
+    retryAfterSeconds?: number,
+  ) {
     super(normalizeApiErrorMessage(message, status));
     this.name = "ApiError";
     this.status = status;
     this.details = details;
     this.errorCode = errorCode;
     this.requestId = requestId;
+    this.retryAfterSeconds = retryAfterSeconds;
     this.rawMessage = message;
   }
+}
+
+// parseRetryAfterSeconds 解析 Retry-After 秒数；缺失或非法时返回 undefined。
+export function parseRetryAfterSeconds(response: Response): number | undefined {
+  const raw = response.headers.get("retry-after")?.trim();
+  if (!raw) {
+    return undefined;
+  }
+  const seconds = Number.parseInt(raw, 10);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
 }
 
 export class ApiNetworkError extends Error {
@@ -137,17 +156,39 @@ export async function toApiError(response: Response): Promise<ApiError> {
         payload?.details,
         payload?.errorCode,
         payload?.requestId || requestId,
+        parseRetryAfterSeconds(response),
       );
     } catch {
-      return new ApiError(`request failed: ${response.status}`, response.status, undefined, undefined, requestId);
+      return new ApiError(
+        `request failed: ${response.status}`,
+        response.status,
+        undefined,
+        undefined,
+        requestId,
+        parseRetryAfterSeconds(response),
+      );
     }
   }
 
   try {
     const text = (await response.text()).trim();
-    return new ApiError(text || `request failed: ${response.status}`, response.status, undefined, undefined, requestId);
+    return new ApiError(
+      text || `request failed: ${response.status}`,
+      response.status,
+      undefined,
+      undefined,
+      requestId,
+      parseRetryAfterSeconds(response),
+    );
   } catch {
-    return new ApiError(`request failed: ${response.status}`, response.status, undefined, undefined, requestId);
+    return new ApiError(
+      `request failed: ${response.status}`,
+      response.status,
+      undefined,
+      undefined,
+      requestId,
+      parseRetryAfterSeconds(response),
+    );
   }
 }
 
@@ -195,10 +236,18 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
       payload.details,
       payload.errorCode,
       payload.requestId || responseRequestId,
+      parseRetryAfterSeconds(response),
     );
   }
   if (payload.errorMsg) {
-    throw new ApiError(payload.errorMsg, response.status, payload.details, payload.errorCode, payload.requestId || responseRequestId);
+    throw new ApiError(
+      payload.errorMsg,
+      response.status,
+      payload.details,
+      payload.errorCode,
+      payload.requestId || responseRequestId,
+      parseRetryAfterSeconds(response),
+    );
   }
   return payload.data;
 }

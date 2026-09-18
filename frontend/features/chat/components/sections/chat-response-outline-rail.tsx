@@ -11,9 +11,16 @@ import {
 import { cn } from "@/lib/utils";
 import { useScrollFadeFallbackRef } from "@/shared/hooks/use-scroll-fade-fallback-ref";
 
+const OUTLINE_GUIDE_OFFSET_PX = 48;
+
 type ResponseOutlineHeading = {
   label: string;
   level: number;
+};
+
+type OutlineNavigationTarget = {
+  element: HTMLElement;
+  settledScrollTop: number | null;
 };
 
 function rectIntersectsViewport(rect: DOMRect, viewportRect: DOMRect) {
@@ -83,6 +90,7 @@ function keepItemVisible(viewport: HTMLElement, item: HTMLElement) {
 function resolveActiveAssistantMessage(
   viewport: HTMLElement,
   visibleMessageIDs: Iterable<string>,
+  guideY: number,
 ): HTMLElement | null {
   const candidateIDs = Array.from(new Set(visibleMessageIDs));
   if (candidateIDs.length === 0) {
@@ -90,7 +98,6 @@ function resolveActiveAssistantMessage(
   }
 
   const viewportRect = viewport.getBoundingClientRect();
-  const guideY = viewportRect.top + viewportRect.height * 0.28;
   const selector = candidateIDs
     .map(
       (messageID) =>
@@ -141,7 +148,7 @@ function ChatResponseOutlineRailComponent({
   const outlineRefreshRequestedRef = React.useRef(true);
   const scanFrameRef = React.useRef<number | null>(null);
   const contentScanTimerRef = React.useRef<number | null>(null);
-  const navigationTargetRef = React.useRef<HTMLElement | null>(null);
+  const navigationTargetRef = React.useRef<OutlineNavigationTarget | null>(null);
   const navigationSettleTimerRef = React.useRef<number | null>(null);
   const railViewportRef = React.useRef<HTMLDivElement | null>(null);
   const railContentRef = React.useRef<HTMLDivElement | null>(null);
@@ -173,17 +180,16 @@ function ChatResponseOutlineRailComponent({
     setActiveHeadingIndex(0);
   }, [clearNavigationTarget]);
 
-  const updateActiveHeading = React.useCallback(() => {
-    const viewport = boundaryRef.current;
+  const updateActiveHeading = React.useCallback((guideY: number) => {
     const elements = headingElementsRef.current;
-    if (!viewport || elements.length === 0) {
+    if (elements.length === 0) {
       setActiveHeadingIndex(0);
       return;
     }
 
     const navigationTarget = navigationTargetRef.current;
     if (navigationTarget) {
-      const navigationTargetIndex = elements.indexOf(navigationTarget);
+      const navigationTargetIndex = elements.indexOf(navigationTarget.element);
       if (navigationTargetIndex >= 0) {
         setActiveHeadingIndex((current) =>
           current === navigationTargetIndex ? current : navigationTargetIndex,
@@ -193,18 +199,16 @@ function ChatResponseOutlineRailComponent({
       clearNavigationTarget();
     }
 
-    const viewportRect = viewport.getBoundingClientRect();
-    const guideY = viewportRect.top + viewportRect.height * 0.28;
     let nextIndex = 0;
     for (let index = 0; index < elements.length; index += 1) {
-      if (elements[index]?.getBoundingClientRect().top <= guideY) {
+      if (elements[index]?.getBoundingClientRect().top <= guideY + 1) {
         nextIndex = index;
         continue;
       }
       break;
     }
     setActiveHeadingIndex((current) => (current === nextIndex ? current : nextIndex));
-  }, [boundaryRef, clearNavigationTarget]);
+  }, [clearNavigationTarget]);
 
   const scanOutline = React.useCallback(() => {
     scanFrameRef.current = null;
@@ -214,25 +218,31 @@ function ChatResponseOutlineRailComponent({
       return;
     }
 
-    const navigationTarget = navigationTargetRef.current;
+    const viewportRect = viewport.getBoundingClientRect();
+    const scrollRange = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    const guideTravel = Math.max(0, viewport.clientHeight - OUTLINE_GUIDE_OFFSET_PX);
+    const endScrollRange = Math.min(scrollRange, guideTravel);
+    const remainingScroll = Math.max(0, scrollRange - viewport.scrollTop);
+    const endProgress = endScrollRange > 0 ? Math.max(0, 1 - remainingScroll / endScrollRange) : 0;
+    const guideY = viewportRect.top + OUTLINE_GUIDE_OFFSET_PX + guideTravel * endProgress;
+    const navigationTarget = navigationTargetRef.current?.element;
     const navigationMessage = navigationTarget?.isConnected
       ? navigationTarget.closest<HTMLElement>('[data-chat-message-role="assistant"]')
       : null;
     const message =
-      navigationMessage ?? resolveActiveAssistantMessage(viewport, visibleMessageIDsRef.current);
+      navigationMessage ?? resolveActiveAssistantMessage(viewport, visibleMessageIDsRef.current, guideY);
     if (!message) {
       clearOutline();
       return;
     }
 
     if (activeMessageRef.current === message && !outlineRefreshRequestedRef.current) {
-      updateActiveHeading();
+      updateActiveHeading(guideY);
       return;
     }
     activeMessageRef.current = message;
     outlineRefreshRequestedRef.current = false;
 
-    const viewportRect = viewport.getBoundingClientRect();
     const messageRect = message.getBoundingClientRect();
     const minimumResponseHeight = Math.max(
       360,
@@ -265,7 +275,7 @@ function ChatResponseOutlineRailComponent({
       setHoveredHeadingIndex(null);
       setHeadings(visibleHeadings);
     }
-    updateActiveHeading();
+    updateActiveHeading(guideY);
   }, [boundaryRef, clearOutline, disabled, updateActiveHeading]);
 
   const scheduleOutlineScan = React.useCallback(() => {
@@ -299,17 +309,32 @@ function ChatResponseOutlineRailComponent({
     }
     navigationSettleTimerRef.current = window.setTimeout(() => {
       navigationSettleTimerRef.current = null;
-      navigationTargetRef.current = null;
+      const viewport = boundaryRef.current;
+      const target = navigationTargetRef.current;
+      if (
+        viewport && target?.element.isConnected &&
+        rectIntersectsViewport(target.element.getBoundingClientRect(), viewport.getBoundingClientRect())
+      ) {
+        target.settledScrollTop = viewport.scrollTop;
+      } else {
+        clearNavigationTarget();
+      }
       scheduleOutlineScan();
     }, 120);
-  }, [scheduleOutlineScan]);
+  }, [boundaryRef, clearNavigationTarget, scheduleOutlineScan]);
 
   const handleViewportScroll = React.useCallback(() => {
-    if (navigationTargetRef.current) {
-      scheduleNavigationSettle();
+    const target = navigationTargetRef.current;
+    const viewport = boundaryRef.current;
+    if (target && viewport) {
+      if (target.settledScrollTop === null) {
+        scheduleNavigationSettle();
+      } else if (Math.abs(viewport.scrollTop - target.settledScrollTop) > 1) {
+        clearNavigationTarget();
+      }
     }
     scheduleOutlineScan();
-  }, [scheduleNavigationSettle, scheduleOutlineScan]);
+  }, [boundaryRef, clearNavigationTarget, scheduleNavigationSettle, scheduleOutlineScan]);
 
   const cancelNavigationTarget = React.useCallback(() => {
     if (!navigationTargetRef.current) {
@@ -331,9 +356,85 @@ function ChatResponseOutlineRailComponent({
     }
 
     viewport.addEventListener("scroll", handleViewportScroll, { passive: true });
-    viewport.addEventListener("wheel", cancelNavigationTarget, { passive: true });
-    viewport.addEventListener("touchstart", cancelNavigationTarget, { passive: true });
-    viewport.addEventListener("pointerdown", cancelNavigationTarget, { passive: true });
+    const cancelForViewportScroll = (event: Event, direction: number) => {
+      const navigationTarget = navigationTargetRef.current;
+      const path = event.composedPath();
+      if (!navigationTarget || event.defaultPrevented || !path.includes(viewport)) {
+        return;
+      }
+      for (const target of path) {
+        if (target === viewport) {
+          break;
+        }
+        if (!(target instanceof HTMLElement)) {
+          continue;
+        }
+        const { overflowY, overscrollBehaviorY } = window.getComputedStyle(target);
+        if (overflowY !== "auto" && overflowY !== "scroll") {
+          continue;
+        }
+        const canScroll = direction < 0
+          ? target.scrollTop > 0
+          : target.scrollTop + target.clientHeight < target.scrollHeight;
+        if (canScroll || overscrollBehaviorY !== "auto") {
+          return;
+        }
+      }
+      // React handlers run later in propagation and may consume the event.
+      window.setTimeout(() => {
+        if (!event.defaultPrevented && navigationTargetRef.current === navigationTarget) {
+          cancelNavigationTarget();
+        }
+      }, 0);
+    };
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.shiftKey || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+        return;
+      }
+      cancelForViewportScroll(event, event.deltaY);
+    };
+    let previousTouch: Touch | null = null;
+    const handleTouchStart = (event: TouchEvent) => {
+      previousTouch = event.touches.length === 1 ? event.touches[0] : null;
+    };
+    const handleTouchMove = (event: TouchEvent) => {
+      const previous = previousTouch;
+      const touch = event.touches.length === 1 ? event.touches[0] : null;
+      previousTouch = touch;
+      if (!previous || !touch || previous.identifier !== touch.identifier) {
+        return;
+      }
+      const deltaY = previous.clientY - touch.clientY;
+      const deltaX = previous.clientX - touch.clientX;
+      if (Math.abs(deltaY) > Math.abs(deltaX)) {
+        cancelForViewportScroll(event, deltaY);
+      }
+    };
+    viewport.addEventListener("wheel", handleWheel, { passive: true });
+    viewport.addEventListener("touchstart", handleTouchStart, { passive: true });
+    viewport.addEventListener("touchmove", handleTouchMove, { passive: true });
+    const root = viewport.closest<HTMLElement>('[data-slot="message-scroller"]');
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !viewport.contains(event.target)) {
+        cancelNavigationTarget();
+      }
+    };
+    root?.addEventListener("pointerdown", handlePointerDown, { passive: true });
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || target.closest("input, textarea, select, button, [role=button], [role=combobox]"))
+      ) {
+        return;
+      }
+      if (["ArrowUp", "PageUp", "Home"].includes(event.key) || (event.key === " " && event.shiftKey)) {
+        cancelForViewportScroll(event, -1);
+      } else if (["ArrowDown", "PageDown", "End", " "].includes(event.key)) {
+        cancelForViewportScroll(event, 1);
+      }
+    };
+    root?.addEventListener("keydown", handleKeyDown);
     const content = viewport.querySelector<HTMLElement>('[data-slot="message-scroller-content"]');
     const viewportResizeObserver =
       typeof ResizeObserver === "undefined"
@@ -364,9 +465,11 @@ function ChatResponseOutlineRailComponent({
 
     return () => {
       viewport.removeEventListener("scroll", handleViewportScroll);
-      viewport.removeEventListener("wheel", cancelNavigationTarget);
-      viewport.removeEventListener("touchstart", cancelNavigationTarget);
-      viewport.removeEventListener("pointerdown", cancelNavigationTarget);
+      viewport.removeEventListener("wheel", handleWheel);
+      viewport.removeEventListener("touchstart", handleTouchStart);
+      viewport.removeEventListener("touchmove", handleTouchMove);
+      root?.removeEventListener("pointerdown", handlePointerDown);
+      root?.removeEventListener("keydown", handleKeyDown);
       viewportResizeObserver?.disconnect();
       contentResizeObserver?.disconnect();
       contentMutationObserver?.disconnect();
@@ -427,22 +530,30 @@ function ChatResponseOutlineRailComponent({
 
   const scrollToHeading = React.useCallback(
     (index: number) => {
+      const viewport = boundaryRef.current;
       const heading = headingElementsRef.current[index];
       const message = heading?.closest<HTMLElement>('[data-chat-message-role="assistant"]');
+      const content = message?.parentElement;
       const messageID = message?.dataset.chatMessageId?.trim() ?? "";
-      if (!heading || !message || !messageID) {
+      if (!viewport || !heading || !message || !content || !messageID) {
         return;
       }
 
+      const messageElements = content.querySelectorAll<HTMLElement>(":scope > [data-chat-message-id]");
+      const lastMessage = messageElements.item(messageElements.length - 1);
       const headingRect = heading.getBoundingClientRect();
       const messageRect = message.getBoundingClientRect();
       const headingOffset = headingRect.top - messageRect.top;
+      const contentBottomY = lastMessage.getBoundingClientRect().bottom +
+        Number.parseFloat(window.getComputedStyle(content).paddingBottom);
+      const bottomScrollMargin = viewport.clientHeight - (contentBottomY - messageRect.top);
+      const scrollMargin = Math.max(OUTLINE_GUIDE_OFFSET_PX - headingOffset, bottomScrollMargin);
       const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      navigationTargetRef.current = heading;
+      navigationTargetRef.current = { element: heading, settledScrollTop: null };
       const scrolled = scrollToMessage(messageID, {
         align: "start",
         behavior: reducedMotion ? "auto" : "smooth",
-        scrollMargin: 24 - headingOffset,
+        scrollMargin,
       });
       if (scrolled) {
         setActiveHeadingIndex(index);
@@ -451,7 +562,7 @@ function ChatResponseOutlineRailComponent({
         clearNavigationTarget();
       }
     },
-    [clearNavigationTarget, scheduleNavigationSettle, scrollToMessage],
+    [boundaryRef, clearNavigationTarget, scheduleNavigationSettle, scrollToMessage],
   );
 
   if (disabled || headings.length < 2) {
@@ -482,7 +593,7 @@ function ChatResponseOutlineRailComponent({
           <div
             ref={railContentRef}
             className={cn(
-              "flex min-h-full flex-col items-center gap-1 px-1 py-1",
+              "flex min-h-full flex-col items-center gap-0.5 px-1 py-1",
               !railOverflowing && "justify-center",
             )}
           >
@@ -501,7 +612,7 @@ function ChatResponseOutlineRailComponent({
                     railItemRefs.current.delete(index);
                   }}
                   type="button"
-                  className="flex h-1.5 w-6 items-center justify-end rounded-sm focus-visible:outline-none"
+                  className="flex h-2 w-6 items-center justify-end rounded-sm focus-visible:outline-none"
                   aria-current={active ? "location" : undefined}
                   aria-label={t("jumpToResponseSection", { title: item.label })}
                   onMouseEnter={() => setHoveredHeadingIndex(index)}
@@ -510,7 +621,8 @@ function ChatResponseOutlineRailComponent({
                 >
                   <span
                     className={cn(
-                      "h-0.5 rounded-full bg-current opacity-35 transition-[color,opacity,width] duration-150 ease-out",
+                      "h-0.5 rounded-full bg-current opacity-35 transition-[color,height,opacity,width] duration-150 ease-out motion-reduce:transition-none",
+                      hovered && "h-1",
                       hovered && !active && "text-foreground/55 opacity-100",
                       active && "text-foreground opacity-100",
                     )}

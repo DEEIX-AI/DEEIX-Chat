@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDownToLine, ArrowUpFromLine, DatabaseSearch, DatabaseZap, Download, Pencil, RefreshCw, Upload } from "lucide-react";
+import { Download, Info, Pencil, RefreshCw, Upload } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogHeightTransition, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableEmptyRow, TableHead, TableHeader, TableLoadingRow, TableRow } from "@/components/ui/table";
@@ -31,6 +31,7 @@ import {
   normalizePricingMode,
   parseModelPricingImportJSON,
   parsePrice,
+  parseTieredPricingJSON,
   shortListDescription,
   stringifyTieredPricing,
   type BillingModelPricingRow,
@@ -41,6 +42,7 @@ import {
   applyOfficialPricingToForm,
   findOfficialPricingSuggestions,
   formatOfficialPricingValue,
+  officialPricingPayload,
   searchOfficialPricingCatalog,
   type OfficialModelPricingSuggestion,
   type OfficialPricingCatalogItem,
@@ -81,43 +83,44 @@ function officialPricingDisplayName(item: OfficialPricingCatalogItem): string {
   return displayName || modelID || rawName;
 }
 
-function OfficialPricingPriceMetric({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
+function formatOfficialPricingTierRange(
+  fromTokens: number,
+  upToTokens: number,
+  locale: string,
+): string {
+  const formatTokens = (value: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value);
+  if (fromTokens === 0 && upToTokens > 0) {
+    return `≤ ${formatTokens(upToTokens)}`;
+  }
+  if (upToTokens === 0) {
+    return `> ${formatTokens(fromTokens)}`;
+  }
+  return `${formatTokens(fromTokens)} – ${formatTokens(upToTokens)}`;
+}
+
+function formatOfficialPricingFields(fields: string[]): string {
+  return fields.join(", ");
+}
+
+function OfficialPricingStack({ values, className }: { values: string[]; className?: string }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          className="inline-grid h-6 w-[5.5rem] grid-cols-[1rem_auto] items-center gap-x-2 rounded-md bg-muted/35 px-2 text-[11px] leading-none"
-          aria-label={label}
-        >
-          <span className="inline-flex size-3.5 items-center justify-center text-muted-foreground">{icon}</span>
-          <span className="text-right font-mono tabular-nums text-foreground">{`$${formatOfficialPricingValue(value)}`}</span>
+    <div className={cn("flex flex-col", className)}>
+      {values.map((value, index) => (
+        <span key={index} className="leading-5 tabular-nums">
+          {value}
         </span>
-      </TooltipTrigger>
-      <TooltipContent side="bottom" sideOffset={6}>{label}</TooltipContent>
-    </Tooltip>
+      ))}
+    </div>
   );
+}
+
+function officialPricingUSD(value: string): string {
+  return `$${formatOfficialPricingValue(Number(value))}`;
 }
 
 function parseOfficialPricingMultiplier(value: string): number {
   const parsed = Number(value.trim());
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
-}
-
-function scaleOfficialPricingValue(value: number, multiplier: number): number {
-  return Number((value * multiplier).toFixed(6));
-}
-
-function scaleOfficialPricingPayload(
-  payload: OfficialModelPricingSuggestion["payload"],
-  multiplier: number,
-): OfficialModelPricingSuggestion["payload"] {
-  return {
-    ...payload,
-    inputUSDPerMTokens: scaleOfficialPricingValue(payload.inputUSDPerMTokens, multiplier),
-    outputUSDPerMTokens: scaleOfficialPricingValue(payload.outputUSDPerMTokens, multiplier),
-    cacheReadUSDPerMTokens: scaleOfficialPricingValue(payload.cacheReadUSDPerMTokens, multiplier),
-    cacheWriteUSDPerMTokens: scaleOfficialPricingValue(payload.cacheWriteUSDPerMTokens, multiplier),
-  };
 }
 
 function modelPricingExportFilename(): string {
@@ -297,15 +300,19 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
   }
 
   function openOfficialPricingImportDialog(suggestion: OfficialModelPricingSuggestion) {
+    if (!suggestion.payload) {
+      return;
+    }
     setOfficialPricingMultiplier("1");
     setOfficialPricingImportSuggestion(suggestion);
   }
 
   function confirmOfficialPricingImport() {
-    if (!officialPricingImportSuggestion || !officialPricingMultiplierValid) {
+    if (!officialPricingImportSuggestion?.payload || !officialPricingMultiplierValid) {
       return;
     }
-    const payload = scaleOfficialPricingPayload(officialPricingImportSuggestion.payload, officialPricingMultiplierValue);
+    const payload = officialPricingPayload(officialPricingImportSuggestion.payload, officialPricingImportSuggestion.item, officialPricingMultiplierValue);
+    if (!payload) return;
     setForm((current) => current ? applyOfficialPricingToForm(current, payload) : current);
     setOfficialPricingImportSuggestion(null);
     setOfficialPricingSingleDialogOpen(false);
@@ -334,7 +341,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
           ...current.tieredTiers,
           {
             id: `new-${Date.now()}-${current.tieredTiers.length}`,
-            upToKTokens: "0",
+            upToTokens: "0",
             input: "0",
             cacheRead: "0",
             cacheWrite: "0",
@@ -372,6 +379,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         inputUSDPerMTokens: form.pricingMode === "token" ? parsePrice(form.input) : 0,
         cacheReadUSDPerMTokens: form.pricingMode === "token" ? parsePrice(form.cacheRead) : 0,
         cacheWriteUSDPerMTokens: form.pricingMode === "token" ? parsePrice(form.cacheWrite) : 0,
+        cacheWritePriceBasis: form.cacheWritePriceBasis,
         outputUSDPerMTokens: form.pricingMode === "token" ? parsePrice(form.output) : 0,
         callUSDPerCall: form.pricingMode === "call" ? parsePrice(form.call) : 0,
         durationUSDPerSecond: form.pricingMode === "duration" ? parsePrice(form.duration) : 0,
@@ -485,6 +493,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         inputUSDPerMTokens: pricingMode === "token" ? row.pricing?.inputUSDPerMTokens ?? 0 : 0,
         cacheReadUSDPerMTokens: pricingMode === "token" ? row.pricing?.cacheReadUSDPerMTokens ?? 0 : 0,
         cacheWriteUSDPerMTokens: pricingMode === "token" ? row.pricing?.cacheWriteUSDPerMTokens ?? 0 : 0,
+        cacheWritePriceBasis: row.pricing?.cacheWritePriceBasis,
         outputUSDPerMTokens: pricingMode === "token" ? row.pricing?.outputUSDPerMTokens ?? 0 : 0,
         callUSDPerCall: pricingMode === "call" ? row.pricing?.callUSDPerCall ?? 0 : 0,
         durationUSDPerSecond: pricingMode === "duration" ? row.pricing?.durationUSDPerSecond ?? 0 : 0,
@@ -732,144 +741,196 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
           }
         }}
       >
-        <DialogContent className="flex max-h-[min(82vh,560px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[760px]">
-          <DialogHeader className="shrink-0 px-4 py-4">
-            <DialogTitle>{t("modelPricing.officialPricingSingleTitle")}</DialogTitle>
-            <DialogDescription>{t("modelPricing.officialPricingSingleDescription")}</DialogDescription>
-          </DialogHeader>
-
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-4 py-2">
-            {stableEditRow ? (
-              <>
-                <div className="shrink-0 space-y-2">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                    <Input
-                      value={officialPricingSearch}
-                      placeholder={t("modelPricing.officialPricingSearchPlaceholder")}
-                      disabled={saving}
-                      onChange={(event) => setOfficialPricingSearch(event.target.value)}
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="h-8 shrink-0 px-2.5 text-xs shadow-none"
-                      disabled={officialPricingCatalogLoading || saving}
-                      onClick={() => void refreshOfficialPricingCatalog({ refresh: true })}
-                      aria-label={t("modelPricing.officialPricingSync")}
-                      title={t("modelPricing.officialPricingSync")}
-                    >
-                      <RefreshCw className={cn("size-3.5 stroke-1", officialPricingCatalogLoading && "animate-spin")} />
-                      {t("modelPricing.officialPricingSync")}
-                    </Button>
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[900px]">
+          <DialogHeightTransition contentClassName="max-h-[min(88vh,720px)]">
+            <DialogHeader className="shrink-0 px-4 py-4">
+              <DialogTitle>{t("modelPricing.officialPricingSingleTitle")}</DialogTitle>
+              <DialogDescription>{t("modelPricing.officialPricingUnitHint")}</DialogDescription>
+            </DialogHeader>
+  
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-4 pb-4 pt-2">
+              {stableEditRow ? (
+                <>
+                  <div className="shrink-0 space-y-2">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                      <Input
+                        value={officialPricingSearch}
+                        placeholder={t("modelPricing.officialPricingSearchPlaceholder")}
+                        disabled={saving}
+                        onChange={(event) => setOfficialPricingSearch(event.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="h-8 shrink-0 px-2.5 text-xs shadow-none"
+                        disabled={officialPricingCatalogLoading || saving}
+                        onClick={() => void refreshOfficialPricingCatalog({ refresh: true })}
+                        aria-label={t("modelPricing.officialPricingSync")}
+                        title={t("modelPricing.officialPricingSync")}
+                      >
+                        <RefreshCw className={cn("size-3.5 stroke-1", officialPricingCatalogLoading && "animate-spin")} />
+                        {t("modelPricing.officialPricingSync")}
+                      </Button>
+                    </div>
+                    {officialPricingCatalogHasError ? (
+                      <p className="px-1 text-[11px] leading-5 text-muted-foreground">{t("modelPricing.officialPricingRemoteError")}</p>
+                    ) : null}
                   </div>
-                  {officialPricingCatalogHasError ? (
-                    <p className="px-1 text-[11px] leading-5 text-muted-foreground">{t("modelPricing.officialPricingRemoteError")}</p>
-                  ) : null}
-                </div>
-                <Table
-                  shellClassName="min-h-0"
-                  viewportClassName="max-h-[min(42vh,360px)]"
-                >
-                  <TableHeader className="sticky top-0 z-20">
-                    <TableRow>
-                      <TableHead>{t("modelPricing.modelInfo")}</TableHead>
-                      <TableHead className="w-[240px]">
-                        <span>{t("modelPricing.basePrice")}</span>
-                        <span className="ml-1 font-mono text-[10px] text-muted-foreground">USD / 1M</span>
-                      </TableHead>
-                      <TableHead className="w-[84px] text-right">{t("modelPricing.similarity")}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {officialPricingCatalogLoading && editOfficialPricingSuggestions.length === 0 ? (
-                      <TableLoadingRow colSpan={3} />
-                    ) : null}
-                    {!officialPricingCatalogLoading && editOfficialPricingSuggestions.length === 0 ? (
-                      <TableEmptyRow colSpan={3}>{t("modelPricing.officialPricingEmpty")}</TableEmptyRow>
-                    ) : null}
-                    {editOfficialPricingSuggestions.map((suggestion) => {
-                      const { vendor, modelID } = splitOfficialPricingID(suggestion.item.id);
-                      const identity = resolveModelIdentity({ code: suggestion.item.id, vendor });
-                      const iconURL = resolveModelIconURL(identity.modelIcon || identity.vendorIcon);
-                      const displayName = officialPricingDisplayName(suggestion.item);
-                      const fullName = suggestion.item.name || suggestion.item.id;
-
-                      return (
-                        <TableRow
-                          key={suggestion.item.id}
-                          role="button"
-                          tabIndex={0}
-                          aria-label={`${displayName} ${t("modelPricing.officialPricingImport")}`}
-                          className="cursor-pointer transition-colors hover:bg-muted/70 focus-visible:bg-muted/70 focus-visible:outline-none"
-                          onClick={() => openOfficialPricingImportDialog(suggestion)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              openOfficialPricingImportDialog(suggestion);
-                            }
-                          }}
-                        >
-                          <TableCell className="w-[240px]">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex min-w-0 items-center gap-4">
-                                  <ModelIcon
-                                    iconUrl={iconURL}
-                                    label={fullName}
-                                    size={18}
-                                  />
-                                  <div className="flex min-w-0 flex-1 flex-col">
-                                    <span className="truncate text-xs font-medium text-foreground">
-                                      {displayName}
-                                    </span>
-                                    <span className="truncate font-mono text-[11px] text-muted-foreground">{modelID}</span>
+                  <Table
+                    shellClassName="min-h-0"
+                    viewportClassName="max-h-[min(68vh,540px)]"
+                  >
+                    <TableHeader className="sticky top-0 z-20">
+                      <TableRow>
+                        <TableHead className="w-[200px]">{t("modelPricing.modelInfo")}</TableHead>
+                        <TableHead className="w-[104px]">{t("modelPricing.pricingMode")}</TableHead>
+                        <TableHead className="w-[112px]">{t("modelPricing.officialPricingTierRange")}</TableHead>
+                        <TableHead className="w-[84px] text-right">{t("modelPricing.priceInput")}</TableHead>
+                        <TableHead className="w-[84px] text-right">{t("modelPricing.priceOutput")}</TableHead>
+                        <TableHead className="w-[84px] text-right">{t("modelPricing.priceCacheRead")}</TableHead>
+                        <TableHead className="w-[84px] text-right">{t("modelPricing.priceCacheWrite")}</TableHead>
+                        <TableHead className="w-[64px] text-right">{t("modelPricing.similarity")}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {officialPricingCatalogLoading && editOfficialPricingSuggestions.length === 0 ? (
+                        <TableLoadingRow colSpan={8} />
+                      ) : null}
+                      {!officialPricingCatalogLoading && editOfficialPricingSuggestions.length === 0 ? (
+                        <TableEmptyRow colSpan={8}>{t("modelPricing.officialPricingEmpty")}</TableEmptyRow>
+                      ) : null}
+                      {editOfficialPricingSuggestions.map((suggestion) => {
+                        const { vendor, modelID } = splitOfficialPricingID(suggestion.item.id);
+                        const identity = resolveModelIdentity({ code: suggestion.item.id, vendor });
+                        const iconURL = resolveModelIconURL(identity.modelIcon || identity.vendorIcon);
+                        const displayName = officialPricingDisplayName(suggestion.item);
+                        const fullName = suggestion.item.name || suggestion.item.id;
+                        const importable = Boolean(suggestion.payload);
+                        const payload = suggestion.payload;
+                        const priceRows = payload?.pricingMode === "tiered"
+                          ? parseTieredPricingJSON(payload.tieredPricingJSON) ?? []
+                          : payload ? [{
+                            id: "token", upToTokens: "0",
+                            input: String(payload.inputUSDPerMTokens), output: String(payload.outputUSDPerMTokens),
+                            cacheRead: String(payload.cacheReadUSDPerMTokens), cacheWrite: String(payload.cacheWriteUSDPerMTokens),
+                          }] : [];
+                        const tierCount = priceRows.length > 1 ? priceRows.length : 0;
+  
+                        return (
+                          <TableRow
+                            key={suggestion.item.id}
+                            role={importable ? "button" : undefined}
+                            tabIndex={importable ? 0 : undefined}
+                            aria-label={importable
+                              ? `${displayName} ${t("modelPricing.officialPricingImport")}`
+                              : `${displayName} ${t("modelPricing.officialPricingUnavailable")}`}
+                            className={cn(
+                              "transition-colors focus-visible:outline-none",
+                              importable
+                                ? "cursor-pointer hover:bg-muted/70 focus-visible:bg-muted/70"
+                                : "cursor-not-allowed opacity-70",
+                            )}
+                            onClick={() => {
+                              if (importable) openOfficialPricingImportDialog(suggestion);
+                            }}
+                            onKeyDown={(event) => {
+                              if (importable && (event.key === "Enter" || event.key === " ")) {
+                                event.preventDefault();
+                                openOfficialPricingImportDialog(suggestion);
+                              }
+                            }}
+                          >
+                            <TableCell className="w-[200px] max-w-[200px] py-2">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex min-w-0 items-center gap-2.5">
+                                    <ModelIcon iconUrl={iconURL} label={fullName} size={18} />
+                                    <div className="flex min-w-0 flex-1 flex-col">
+                                      <span className="truncate text-xs font-medium leading-5 text-foreground">{displayName}</span>
+                                      <span className="truncate font-mono text-[11px] leading-4 text-muted-foreground">{modelID}</span>
+                                    </div>
                                   </div>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent align="center" className="max-w-[240px]" side="right" sideOffset={8}>
-                                <div className="flex min-w-0 flex-col gap-1">
-                                  <span className="truncate text-xs font-medium">{fullName}</span>
-                                  <span className="truncate font-mono text-[11px] text-muted-foreground">{suggestion.item.id}</span>
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TableCell>
-                          <TableCell className="w-[240px] py-1.5">
-                            <div className="grid grid-cols-[5.5rem_5.5rem] gap-x-4 gap-y-1 leading-5">
-                              <OfficialPricingPriceMetric
-                                icon={<ArrowUpFromLine className="size-3" strokeWidth={1.4} />}
-                                label={t("modelPricing.priceInput")}
-                                value={suggestion.payload.inputUSDPerMTokens}
-                              />
-                              <OfficialPricingPriceMetric
-                                icon={<ArrowDownToLine className="size-3" strokeWidth={1.4} />}
-                                label={t("modelPricing.priceOutput")}
-                                value={suggestion.payload.outputUSDPerMTokens}
-                              />
-                              <OfficialPricingPriceMetric
-                                icon={<DatabaseSearch className="size-3" strokeWidth={1.4} />}
-                                label={t("modelPricing.priceCacheRead")}
-                                value={suggestion.payload.cacheReadUSDPerMTokens}
-                              />
-                              <OfficialPricingPriceMetric
-                                icon={<DatabaseZap className="size-3" strokeWidth={1.4} />}
-                                label={t("modelPricing.priceCacheWrite")}
-                                value={suggestion.payload.cacheWriteUSDPerMTokens}
-                              />
-                            </div>
-                          </TableCell>
-                          <TableCell className="w-[84px] py-1.5 text-right">
-                            <span className="font-mono text-[11px] text-muted-foreground">{suggestion.score}%</span>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </>
-            ) : null}
-          </div>
+                                </TooltipTrigger>
+                                <TooltipContent align="center" className="max-w-[280px]" side="right" sideOffset={8}>
+                                  <div className="flex min-w-0 flex-col gap-1">
+                                    <span className="truncate text-xs font-medium">{fullName}</span>
+                                    <span className="truncate font-mono text-[11px] text-muted-foreground">{suggestion.item.id}</span>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TableCell>
+                            <TableCell className="w-[104px] py-2">
+                              {payload ? (
+                                <span className="inline-flex items-center gap-1.5 leading-5 text-foreground">
+                                  {tierCount ? t("pricingModes.tiered") : t("pricingModes.token")}
+                                  {suggestion.ignoredFields.length > 0 ? (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span
+                                          className="inline-flex text-amber-700 dark:text-amber-300"
+                                          aria-label={t("modelPricing.officialPricingIgnored")}
+                                        >
+                                          <Info className="size-3.5" strokeWidth={1.5} />
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="bottom" sideOffset={6} className="max-w-[360px]">
+                                        {t("modelPricing.officialPricingIgnoredDescription", {
+                                          fields: formatOfficialPricingFields(suggestion.ignoredFields),
+                                        })}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  ) : null}
+                                </span>
+                              ) : (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="leading-5 text-destructive">{t("modelPricing.officialPricingUnavailable")}</span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="bottom" sideOffset={6} className="max-w-[320px]">
+                                    {t("modelPricing.officialPricingUnavailableDescription", {
+                                      fields: suggestion.unsupportedFields.join(", "),
+                                    })}
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </TableCell>
+                            <TableCell className="w-[112px] py-2">
+                              {tierCount ? (
+                                <OfficialPricingStack
+                                  className="font-mono text-[11px] text-muted-foreground"
+                                  values={priceRows.map((tier, index) =>
+                                    formatOfficialPricingTierRange(Number(priceRows[index - 1]?.upToTokens ?? 0), Number(tier.upToTokens), locale),
+                                  )}
+                                />
+                              ) : (
+                                <span className="leading-5 text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            {(["input", "output", "cacheRead", "cacheWrite"] as const).map((field) => (
+                              <TableCell key={field} className="w-[84px] py-2 text-right">
+                                {payload ? (
+                                  <OfficialPricingStack
+                                    className="items-end text-foreground"
+                                    values={priceRows.map((tier) => officialPricingUSD(tier[field]))}
+                                  />
+                                ) : (
+                                  <span className="leading-5 text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            ))}
+                            <TableCell className="w-[64px] py-2 text-right">
+                              <span className="leading-5 tabular-nums text-muted-foreground">{suggestion.score}%</span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </>
+              ) : null}
+            </div>
+          </DialogHeightTransition>
         </DialogContent>
       </Dialog>
 
@@ -881,50 +942,59 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
           }
         }}
       >
-        <DialogContent className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[360px]">
-          <DialogHeader className="shrink-0 px-4 py-4">
-            <DialogTitle>{t("modelPricing.officialPricingImportTitle")}</DialogTitle>
-            <DialogDescription>{t("modelPricing.officialPricingImportDescription")}</DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-1 px-4 py-2">
-            <p className="text-xs text-muted-foreground">{t("modelPricing.officialPricingMultiplier")}</p>
-            <div className="relative">
-              <Input
-                value={officialPricingMultiplier}
-                autoFocus
-                inputMode="decimal"
-                className="h-7 pr-7 text-left font-mono"
-                placeholder="1"
-                aria-invalid={!officialPricingMultiplierValid}
-                onChange={(event) => setOfficialPricingMultiplier(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    confirmOfficialPricingImport();
-                  }
-                }}
-              />
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">X</span>
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[360px]">
+          <DialogHeightTransition>
+            <DialogHeader className="shrink-0 px-4 py-4">
+              <DialogTitle>{t("modelPricing.officialPricingImportTitle")}</DialogTitle>
+              <DialogDescription>{t("modelPricing.officialPricingImportDescription")}</DialogDescription>
+              {stableOfficialPricingImportSuggestion?.ignoredFields.length ? (
+                <p className="text-[11px] leading-5 text-amber-700 dark:text-amber-300">
+                  {t("modelPricing.officialPricingIgnoredDescription", {
+                    fields: formatOfficialPricingFields(stableOfficialPricingImportSuggestion.ignoredFields),
+                  })}
+                </p>
+              ) : null}
+            </DialogHeader>
+  
+            <div className="space-y-1 px-4 py-2">
+              <p className="text-xs text-muted-foreground">{t("modelPricing.officialPricingMultiplier")}</p>
+              <div className="relative">
+                <Input
+                  value={officialPricingMultiplier}
+                  autoFocus
+                  inputMode="decimal"
+                  className="h-7 pr-7 text-left font-mono"
+                  placeholder="1"
+                  aria-invalid={!officialPricingMultiplierValid}
+                  onChange={(event) => setOfficialPricingMultiplier(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      confirmOfficialPricingImport();
+                    }
+                  }}
+                />
+                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">X</span>
+              </div>
             </div>
-          </div>
-
-          <DialogFooter className="shrink-0 px-4 py-3">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setOfficialPricingImportSuggestion(null)}
-            >
-              {tActions("cancel")}
-            </Button>
-            <Button
-              type="button"
-              disabled={!officialPricingMultiplierValid || !stableOfficialPricingImportSuggestion}
-              onClick={confirmOfficialPricingImport}
-            >
-              {t("modelPricing.officialPricingImport")}
-            </Button>
-          </DialogFooter>
+  
+            <DialogFooter className="shrink-0 px-4 py-3">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setOfficialPricingImportSuggestion(null)}
+              >
+                {tActions("cancel")}
+              </Button>
+              <Button
+                type="button"
+                disabled={!officialPricingMultiplierValid || !stableOfficialPricingImportSuggestion}
+                onClick={confirmOfficialPricingImport}
+              >
+                {t("modelPricing.officialPricingImport")}
+              </Button>
+            </DialogFooter>
+          </DialogHeightTransition>
         </DialogContent>
       </Dialog>
     </section>

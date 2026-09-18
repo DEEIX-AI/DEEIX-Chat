@@ -18,7 +18,7 @@ import { useTheme } from "@/shared/components/theme-provider";
 
 export function AppearancePreferencesSync(): null {
   const { user, userStatus } = useAuthSession();
-  const { setPreset, setTheme } = useTheme();
+  const { setPreset } = useTheme();
   const syncedAppearanceRef = React.useRef<string>("");
 
   React.useEffect(() => {
@@ -35,7 +35,6 @@ export function AppearancePreferencesSync(): null {
     syncedAppearanceRef.current = syncKey;
 
     const next = resolveAppearancePreferences(raw);
-    setTheme(next.theme);
     setPreset(next.preset);
     if (next.chatFont !== readChatFontPreference()) {
       writeChatFontPreference(next.chatFont);
@@ -46,7 +45,7 @@ export function AppearancePreferencesSync(): null {
     if (next.fontSize !== readFontSizePreference()) {
       writeFontSizePreference(next.fontSize);
     }
-  }, [setPreset, setTheme, user, userStatus]);
+  }, [setPreset, user, userStatus]);
 
   return null;
 }

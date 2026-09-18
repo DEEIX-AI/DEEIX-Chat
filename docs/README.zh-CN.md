@@ -1,6 +1,6 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./frontend/public/logo-white.svg" />
+    <source media="(prefers-color-scheme: dark)" srcset="../frontend/public/logo-white.svg" />
     <img src="../frontend/public/logo-black.svg" alt="DEEIX Chat" width="160" />
   </picture>
 </p>
@@ -112,7 +112,50 @@ flowchart TB
 | 工具协议 | MCP 工具接入和厂商官方原生工具调用 | MCP Streamable HTTP JSON-RPC、Provider Native Tools |
 | 部署运行 | 单节点轻量部署或多节点生产部署 | Docker、Docker Compose、SQLite/内存缓存、PostgreSQL/Redis |
 
-后端内部保持清晰分层：`cmd/internal/cli` 负责启动入口，`internal/app` 负责应用装配，`transport/http` 负责 HTTP 边界，`application` 负责业务用例与事务编排，`domain` 表达领域语义，`infra` 承载数据库、缓存、存储和外部协议实现。数据层按领域前缀组织表结构，财务流水、审计日志、系统事件和高增长向量数据保持独立事实源。
+后端内部保持清晰分层：`backend/cmd/server` 是可执行入口，`backend/internal/cli` 负责进程启动，`backend/internal/app` 负责应用装配和依赖注入，`backend/internal/transport/http` 负责 HTTP 边界。请求随后经过 `application` 用例层，依赖消费方定义的 `repository` 或 `ports` 接口，再由 `infra` 提供具体实现。数据层按领域前缀组织表结构，财务流水、审计日志、系统事件和高增长向量数据保持独立事实源。
+
+## 仓库目录
+
+```text
+.
+├── backend/                  # Go API 与单运行时服务
+│   ├── cmd/server/            # 可执行入口
+│   ├── internal/
+│   │   ├── cli/               # 进程启动
+│   │   ├── app/               # 依赖注入与生命周期
+│   │   ├── application/       # 用例与业务编排
+│   │   ├── domain/            # 业务概念与规则
+│   │   ├── ports/              # 外部集成契约
+│   │   ├── repository/         # 持久化契约
+│   │   ├── infra/              # 持久化、缓存、存储和服务商适配
+│   │   ├── transport/http/     # Handler、DTO、中间件和路由
+│   │   └── shared/             # 响应、安全等横切代码
+│   └── docs/                  # 生成的 Swagger 文件
+├── frontend/                 # Next.js App Router 与静态导出
+│   ├── app/                   # 路由入口和布局
+│   ├── features/              # 按业务域组织的 UI 与客户端流程
+│   ├── entities/              # 可复用业务实体
+│   ├── shared/                # API、认证、UI、hooks、模型和工具
+│   ├── components/            # 基础 UI 与视觉组件
+│   └── public/                # 静态资源
+├── packages/api-contract/     # 生成的 TypeScript API 契约
+├── docker/                    # 可选文档提取与 OCR 服务
+├── docs/                      # 项目指南和截图
+├── config*.example.yaml       # 部署方案配置模板
+├── docker-compose*.yml        # 部署方案
+└── Dockerfile                 # 前后端生产镜像
+```
+
+`frontend/` 和 `backend/` 是由 pnpm 与 Turborepo 管理的独立工作区。`packages/api-contract/` 通过生成的 Swagger 类型连接两者；修改 HTTP 契约时先更新 Go 传输层，再重新生成共享包。
+
+## 开发前置条件
+
+- Node.js 20.9 或更高版本（仓库 Docker 镜像和 CI 使用 Node.js 24）。
+- pnpm 10.17.0，通常通过 Corepack 启用。
+- Go 1.26.8，用于后端开发。
+- Docker Engine 与 Docker Compose v2，用于容器部署或启动本地 PostgreSQL/Redis。
+
+SQLite 方案不要求单独管理数据库或缓存。默认开发配置使用 PostgreSQL 和 Redis；完整 Compose 方案会自动启动这两个服务。
 
 ## 快速开始
 
@@ -151,19 +194,40 @@ pnpm dev
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 ```
 
-访问地址：
+服务地址与探针：
 
 | 服务 | 地址 |
 | --- | --- |
 | 前端 | `http://localhost:3000` |
 | API | `http://localhost:8080` |
-| Swagger | `http://localhost:8080/swagger/index.html` |
+| 存活探针 | `http://localhost:8080/healthz` |
+| 就绪探针 | `http://localhost:8080/readyz` |
+| 版本接口 | `http://localhost:8080/api/v1/version` |
+| Swagger（仅开发环境） | `http://localhost:8080/swagger/index.html` |
 
 不配置 `NEXT_PUBLIC_API_BASE_URL` 时，本地默认指向 `localhost:8080`；同源部署默认请求当前 origin。
 
+### 工作区命令
+
+以下命令均从仓库根目录执行：
+
+| 命令 | 用途 |
+| --- | --- |
+| `pnpm dev` | 以监听模式同时启动前端和后端。 |
+| `pnpm dev:web` | 只启动 Next.js 前端。 |
+| `pnpm dev:api` | 只启动 Go API。 |
+| `pnpm check` | 执行工作区 lint、类型、后端版本和 API 契约检查。 |
+| `pnpm test` | 执行工作区测试。 |
+| `pnpm build` | 构建静态前端和后端二进制文件。 |
+| `pnpm verify` | 一次执行检查、测试和构建。 |
+| `pnpm api:generate` | 重新生成 Swagger 文件和 TypeScript API 类型。 |
+| `pnpm api:check` | 检查生成的 API 文件是否与源码同步。 |
+
+前端以静态资源形式导出，`pnpm build` 会把浏览器产物写入 `frontend/out`。生产镜像中的 Go 服务，或配置了 `server.frontend_dist_dir` 的 Go 服务，可以直接托管该目录。
+
 ### Docker 部署
 
-Docker 部署先选择安装方案，再复制对应的配置文件。三套根目录 compose 文件都默认将应用暴露在 `http://localhost:8080`，并把仓库根目录的 `config.yaml` 挂载到容器内 `/app/config.yaml`。
+以下 Docker 命令均从仓库根目录执行。Docker 部署先选择安装方案，再复制对应的配置文件。三套根目录 compose 文件都默认将应用暴露在 `http://localhost:8080`，并把仓库根目录的 `config.yaml` 挂载到容器内 `/app/config.yaml`。
 
 | 方案 | 适合场景 | 配置文件 | Compose 文件 | 内置依赖 |
 | --- | --- | --- | --- | --- |
@@ -218,11 +282,14 @@ docker compose -f docker-compose.full.yml up -d
 | PostgreSQL 数据 | `/var/lib/postgresql/data`，仅全量安装 |
 | Redis 数据 | `/data`，仅全量安装 |
 
-默认应用镜像为 `ghcr.io/deeix-ai/deeix-chat:latest`。测试自定义构建时可通过 `DEEIX_CHAT_IMAGE` 覆盖：
+默认应用镜像为 `ghcr.io/deeix-ai/deeix-chat:latest`。Compose 文件只引用镜像，不定义构建步骤。测试本地构建时先生成镜像，再通过 `DEEIX_CHAT_IMAGE` 选择它：
 
 ```bash
-DEEIX_CHAT_IMAGE=deeix-chat:local docker compose up -d --build
+docker build -t deeix-chat:local .
+DEEIX_CHAT_IMAGE=deeix-chat:local docker compose up -d
 ```
+
+使用其他方案时，在启动命令中加入对应的 `-f docker-compose.sqlite.yml` 或 `-f docker-compose.full.yml`。
 
 `APP_ENV` 支持 `dev`/`development` 和 `prod`/`production`，内部会规范化为 `dev` 或 `prod`；未配置时默认 `prod`。`dev` 只用于本地开发；公网生产部署应保持 `APP_ENV=prod` 或 `APP_ENV=production` 并使用生产密钥。
 
@@ -279,20 +346,23 @@ docker compose -f docker/docling/docker-compose.yml up -d --build
    | --- | --- |
    | `/_next/static/*` | 缓存 1 年，并启用 immutable 静态资源缓存。 |
    | `/logo*.svg`、`/*.ico`、`/*.png`、`/*.jpg`、`/*.webp`、`/*.woff2` | 缓存 1 天到 30 天。 |
-   | `/`、`/*.html`、`/chat*`、`/recent*`、`/files*`、`/knowledges*`、`/setting*`、`/admin*`、`/share*` | 不做长期缓存，建议使用 `no-cache` 或较短 TTL。 |
+   | `/`、`/*.html`、`/login*`、`/auth*`、`/chat*`、`/recent*`、`/files*`、`/knowledges*`、`/skills-prompt*`、`/setting*`、`/admin*`、`/share*`、`/preview*` | 不做长期缓存，建议使用 `no-cache` 或较短 TTL。 |
    | `/api/*`、`/healthz`、`/readyz`、`/swagger/*` | 绕过 CDN 缓存，并完整转发请求头、方法、查询参数和请求体。 |
 
    如果 CDN 从对象存储托管 `frontend/out`，需要开启路由回退，让无扩展名地址能命中导出的 `index.html`，例如 `/chat` -> `/chat/index.html`。
 
 ### 启动后检查与首次登录
 
-应用启动后，先确认健康检查、配置文件和启动日志。Docker 部署可用：
+应用启动后，先确认存活、就绪、挂载配置文件和启动日志。Docker 部署可用：
 
 ```bash
 curl http://localhost:8080/healthz
+curl http://localhost:8080/readyz
 docker compose exec app ls -l /app/config.yaml
 docker compose logs app
 ```
+
+只有 `APP_ENV=dev` 或 `APP_ENV=development` 时才会注册 Swagger；生产部署不会暴露 Swagger UI 路由。
 
 如果数据库中还不存在超级管理员，后端会在首次启动时自动创建初始管理员，并且只在创建当次输出一次初始密码。
 
@@ -311,7 +381,7 @@ docker compose logs app
 
 后端配置分为静态运行配置和运行时业务配置。静态运行配置用于描述品牌以及服务启动所需的基础设施、安全和存储参数，由 `config.yaml` 与环境变量提供；运行时业务配置用于认证、会话、模型、文件、计费等产品能力，写入 `system_settings` 并通过后台管理维护。环境变量会覆盖配置文件中的同名项，适合容器化、分离部署和密钥注入场景。
 
-后端启动时会按运行目录解析默认配置文件：从仓库根目录启动读取 `config.yaml`，从 `backend/` 目录启动读取 `../config.yaml`。Docker 部署通常将宿主机 `./config.yaml` 只读挂载到容器内 `/app/config.yaml`；如果配置文件放在其他位置，请使用 `CONFIG_FILE` 指向实际运行环境可访问的路径。
+后端启动时会按运行目录解析默认配置文件：从仓库根目录启动读取 `config.yaml`，从 `backend/` 目录启动读取 `../config.yaml`。Docker 部署通常将宿主机 `./config.yaml` 只读挂载到容器内 `/app/config.yaml`；如果配置文件放在其他位置，请使用 `CONFIG_FILE` 指向实际运行环境可访问的路径。最终生效优先级是 `环境变量 > config.yaml > 代码内置默认值`。
 
 前端品牌同样属于运行时配置。在 `config.yaml` 中设置 `branding` 后重启应用即可生效，无需重新构建前端或 Docker 镜像。详见[自定义品牌资源](./BRANDING.md)。
 
@@ -423,9 +493,10 @@ Web、App 与桌面端会自动复用当前实例的这个回调。外部身份�
 - 后端说明：[backend/README.md](../backend/README.md)
 - 后端规范：[backend/docs/README.md](../backend/docs/README.md)
 - 前端说明：[frontend/README.md](../frontend/README.md)
+- API 契约包：[packages/api-contract/README.md](../packages/api-contract/README.md)
 - 贡献指南：[CONTRIBUTING.md](../.github/CONTRIBUTING.md)
 - 安全策略：[SECURITY.md](../.github/SECURITY.md)
-- Swagger UI：`http://localhost:8080/swagger/index.html`
+- Swagger UI（仅开发环境）：`http://localhost:8080/swagger/index.html`
 
 ## 鸣谢
 

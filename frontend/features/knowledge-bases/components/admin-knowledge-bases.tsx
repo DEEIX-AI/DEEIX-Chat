@@ -14,6 +14,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogHeightTransition,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -283,35 +284,37 @@ export function AdminKnowledgeBases({ page }: { page: KnowledgeBasesPageModel })
       </SettingsSection>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="flex h-[min(78dvh,720px)] max-h-[min(78dvh,720px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[920px]">
-          <DialogHeader className="sr-only">
-            <DialogTitle>{detail.selected?.name ?? t("adminTitle")}</DialogTitle>
-            <DialogDescription>{t("manageDescription")}</DialogDescription>
-          </DialogHeader>
-          <KnowledgeBaseDetail
-            mode="admin"
-            mobileView="detail"
-            selected={detail.selected}
-            files={detail.files}
-            filesTotal={detail.filesTotal}
-            loading={detail.filesLoading}
-            loadingMore={detail.filesLoadingMore}
-            removingFileID={detail.removingFileID}
-            toggling={detail.toggling}
-            selectedFileIDs={detail.selectedFileIDs}
-            vectorizingFileIDs={detail.vectorizingFileIDs}
-            onBack={() => setDetailOpen(false)}
-            onAddFiles={detail.addFiles}
-            onLoadMore={detail.loadMoreFiles}
-            onRemoveFile={detail.removeFile}
-            onToggleEnabled={detail.toggleBuiltinEnabled}
-            onPreviewFile={detail.previewFile}
-            onToggleFileSelection={detail.toggleFileSelection}
-            onSelectVectorizableFiles={detail.selectVectorizableFiles}
-            onClearFileSelection={detail.clearFileSelection}
-            onVectorizeFile={detail.vectorizeFile}
-            onVectorizeSelectedFiles={detail.vectorizeSelectedFiles}
-          />
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[920px]">
+          <DialogHeightTransition contentClassName="h-[min(78dvh,720px)] max-h-[min(78dvh,720px)]">
+            <DialogHeader className="sr-only">
+              <DialogTitle>{detail.selected?.name ?? t("adminTitle")}</DialogTitle>
+              <DialogDescription>{t("manageDescription")}</DialogDescription>
+            </DialogHeader>
+            <KnowledgeBaseDetail
+              mode="admin"
+              mobileView="detail"
+              selected={detail.selected}
+              files={detail.files}
+              filesTotal={detail.filesTotal}
+              loading={detail.filesLoading}
+              loadingMore={detail.filesLoadingMore}
+              removingFileID={detail.removingFileID}
+              toggling={detail.toggling}
+              selectedFileIDs={detail.selectedFileIDs}
+              vectorizingFileIDs={detail.vectorizingFileIDs}
+              onBack={() => setDetailOpen(false)}
+              onAddFiles={detail.addFiles}
+              onLoadMore={detail.loadMoreFiles}
+              onRemoveFile={detail.removeFile}
+              onToggleEnabled={detail.toggleBuiltinEnabled}
+              onPreviewFile={detail.previewFile}
+              onToggleFileSelection={detail.toggleFileSelection}
+              onSelectVectorizableFiles={detail.selectVectorizableFiles}
+              onClearFileSelection={detail.clearFileSelection}
+              onVectorizeFile={detail.vectorizeFile}
+              onVectorizeSelectedFiles={detail.vectorizeSelectedFiles}
+            />
+          </DialogHeightTransition>
         </DialogContent>
       </Dialog>
       <AdminPlatformFilesDialog open={platformFilesOpen} onOpenChange={setPlatformFilesOpen} />

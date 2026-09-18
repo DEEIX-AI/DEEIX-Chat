@@ -14,7 +14,7 @@ package apperr
 import "errors"
 
 // Error 是携带稳定错误码的错误值。Code 与 Message 构成对外 API 契约；Error() 返回的内部文本
-// 只用于日志与错误链，可以与对外文案不同（例如出于安全原因不对外区分"账号已锁定"与"密码错误"）。
+// 只用于日志与错误链，可以与对外文案不同（例如对外只暴露通用文案，内部保留具体失败原因）。
 type Error struct {
 	code    string
 	message string

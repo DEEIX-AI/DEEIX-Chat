@@ -3196,6 +3196,62 @@ definitions:
     - data
     - errorMsg
     type: object
+  EmbeddingIndexStatusResponse:
+    properties:
+      emptyCount:
+        description: EmptyCount 是提取完成但无文本的文件数；这些文件不参与自动重建。
+        type: integer
+      failedCount:
+        type: integer
+      modelSignature:
+        type: string
+      needsReindex:
+        type: boolean
+      pendingCount:
+        type: integer
+      readyCount:
+        type: integer
+      staleCount:
+        type: integer
+    required:
+    - emptyCount
+    - failedCount
+    - modelSignature
+    - needsReindex
+    - pendingCount
+    - readyCount
+    - staleCount
+    type: object
+  EmbeddingIndexStatusResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/EmbeddingIndexStatusResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  EmbeddingReindexResponse:
+    properties:
+      message:
+        type: string
+      submitted:
+        type: integer
+    required:
+    - message
+    - submitted
+    type: object
+  EmbeddingReindexResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/EmbeddingReindexResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   Envelope:
     properties:
       data: {}
@@ -4353,6 +4409,26 @@ definitions:
     - billingMode
     - pricingSnapshotJSON
     type: object
+  MessageDeleteResponse:
+    properties:
+      deleted:
+        type: boolean
+      reparentedMessageCount:
+        type: integer
+    required:
+    - deleted
+    - reparentedMessageCount
+    type: object
+  MessageDeleteResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/MessageDeleteResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   MessageFeedbackResponse:
     properties:
       messageID:
@@ -5007,6 +5083,11 @@ definitions:
         type: number
       cacheWriteNanousdPerMTokens:
         type: integer
+      cacheWritePriceBasis:
+        enum:
+        - direct
+        - anthropic_5m
+        type: string
       cacheWriteUSDPerMTokens:
         type: number
       callNanousdPerCall:
@@ -5603,6 +5684,25 @@ definitions:
     - name
     - pricing
     type: object
+  OpenRouterOfficialPricingOverrideResponse:
+    properties:
+      completion:
+        type: string
+      inputCacheRead:
+        type: string
+      inputCacheWrite:
+        type: string
+      minPromptTokens:
+        type: integer
+      prompt:
+        type: string
+    required:
+    - completion
+    - inputCacheRead
+    - inputCacheWrite
+    - minPromptTokens
+    - prompt
+    type: object
   OpenRouterOfficialPricingResponseDoc:
     properties:
       data:
@@ -5615,15 +5715,29 @@ definitions:
     type: object
   OpenRouterOfficialPricingUnitPricingResponse:
     properties:
+      cacheWritePriceBasis:
+        enum:
+        - direct
+        - anthropic_5m
+        type: string
       completion:
         type: string
       inputCacheRead:
         type: string
       inputCacheWrite:
         type: string
+      overrides:
+        items:
+          $ref: '#/definitions/OpenRouterOfficialPricingOverrideResponse'
+        type: array
       prompt:
         type: string
+      unsupportedFields:
+        items:
+          type: string
+        type: array
     required:
+    - cacheWritePriceBasis
     - completion
     - inputCacheRead
     - inputCacheWrite
@@ -6359,6 +6473,10 @@ definitions:
     properties:
       cacheReadUSDPerMTokens:
         type: number
+      cacheWrite1hMultiplier:
+        type: number
+      cacheWrite5mMultiplier:
+        type: number
       cacheWriteUSDPerMTokens:
         type: number
       callUSDPerCall:
@@ -6381,6 +6499,8 @@ definitions:
         type: array
     required:
     - cacheReadUSDPerMTokens
+    - cacheWrite1hMultiplier
+    - cacheWrite5mMultiplier
     - cacheWriteUSDPerMTokens
     - callUSDPerCall
     - currency
@@ -8538,6 +8658,11 @@ definitions:
       cacheReadUSDPerMTokens:
         minimum: 0
         type: number
+      cacheWritePriceBasis:
+        enum:
+        - direct
+        - anthropic_5m
+        type: string
       cacheWriteUSDPerMTokens:
         minimum: 0
         type: number
@@ -9904,7 +10029,7 @@ info:
   contact: {}
   description: DEEIX Chat 后端 API 文档
   title: DEEIX Chat API
-  version: "0.4.1"
+  version: "0.4.2"
 paths:
   /admin/announcements:
     get:
@@ -10421,8 +10546,9 @@ paths:
     get:
       consumes:
       - application/json
-      description: 从 storage 缓存读取 OpenRouter 模型标识、定价和上下文限制；缓存不存在、过期或 refresh=true
-        时由后端刷新。
+      description: 从 storage 缓存读取 OpenRouter 模型标识、基础定价、输入 token 阶梯覆盖和上下文限制；无法映射到当前
+        token 计费模型的附加字段会在 unsupportedFields 中标记，快速配置会忽略这些字段并继续导入可识别的 token 价格。由原生工具计费负责的按次字段（例如
+        web_search）会被忽略。
       parameters:
       - description: 强制刷新缓存
         in: query
@@ -14370,13 +14496,19 @@ paths:
       - admin/settings
   /admin/settings/embedding/reindex:
     post:
+      description: include_empty=true 时同时重试提取无文本的 empty 文件，适用于更换 OCR 引擎后
+      parameters:
+      - description: 是否包含 empty 终态文件
+        in: query
+        name: include_empty
+        type: boolean
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/Envelope'
+            $ref: '#/definitions/EmbeddingReindexResponseDoc'
       security:
       - BearerAuth: []
       summary: 触发向量重建（重索引所有 stale/failed 文件）
@@ -14404,7 +14536,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/Envelope'
+            $ref: '#/definitions/EmbeddingIndexStatusResponseDoc'
       security:
       - BearerAuth: []
       summary: 查询向量索引健康状态
@@ -15328,6 +15460,10 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/AuthErrorDoc'
+        "423":
+          description: Locked
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
         "429":
           description: Too Many Requests
           schema:
@@ -15523,6 +15659,10 @@ paths:
             $ref: '#/definitions/AuthErrorDoc'
         "409":
           description: Conflict
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "423":
+          description: Locked
           schema:
             $ref: '#/definitions/AuthErrorDoc'
       summary: 兑换第三方登录一次性授权码
@@ -16747,6 +16887,10 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/ConversationErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
         "500":
           description: Internal Server Error
           schema:
@@ -16754,6 +16898,50 @@ paths:
       security:
       - BearerAuth: []
       summary: 发送消息
+      tags:
+      - chat
+  /conversations/{id}/messages/{message_id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除会话中任意位置的一条消息；其子消息将重接到被删消息的父消息上，后续消息保留并向前衔接。会话第一条消息与生成中的消息不允许删除
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 消息 public_id
+        in: path
+        name: message_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/MessageDeleteResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 删除指定消息
       tags:
       - chat
   /conversations/{id}/messages/{message_id}/fork:

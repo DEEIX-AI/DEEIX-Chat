@@ -249,6 +249,8 @@
     "allUpstreams": "All",
     "upstreamActive": "Upstream active",
     "upstreamInactive": "Upstream disabled",
+    "upstreamModelInactive": "Upstream model disabled",
+    "upstreamModelInactiveHint": "This model is no longer listed by the upstream, so its routes are unavailable. It will be restored automatically once it appears in a future sync.",
     "allProtocols": "All",
     "sort": {
       "upstreamAsc": "Upstream A-Z",

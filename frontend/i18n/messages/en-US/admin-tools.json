@@ -133,7 +133,10 @@
     "authToken": "Auth token",
     "authTokenCreatePlaceholder": "Optional",
     "authTokenEditPlaceholder": "Leave empty to keep unchanged",
-    "headers": "Headers"
+    "headers": "Headers",
+    "quickFillHeaders": "Quick fill",
+    "commonHeaderPresets": "Common headers",
+    "signedUserContextHeader": "Signed user context"
   },
   "toolDialog": {
     "title": "Edit MCP tool",
@@ -178,6 +181,8 @@
     "serverUpdated": "MCP server updated",
     "serverCreated": "MCP server created",
     "serverSaveFailed": "Failed to save MCP server",
+    "invalidHeaders": "Headers JSON is invalid",
+    "headerPresetConflict": "Header already exists with a different value; nothing was changed",
     "serverDeleted": "MCP server deleted",
     "serverDeleteFailed": "Failed to delete MCP server",
     "serverStatusUpdated": "MCP server {status}",

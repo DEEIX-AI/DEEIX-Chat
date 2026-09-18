@@ -1,6 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { Activity, Cable, Check, ChevronDownIcon, CloudDownload, Plus, RefreshCw, Search, Tags, ToggleLeft, Trash2 } from "lucide-react";
+import { Activity, Cable, Check, ChevronDownIcon, CircleOff, CloudDownload, Plus, RefreshCw, Search, Tags, ToggleLeft, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   AlertDialog,
@@ -21,6 +21,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogHeightTransition,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -343,12 +344,19 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, upstreamInactiv
   const modelT = useTranslations("adminModels");
   const platformModelName = row.platformModelNameDraft.trim();
   const hasBindingDraft = platformModelName.length > 0;
-  const routeChecked = !upstreamInactive && row.routeStatus === "active";
+  const upstreamModelInactive = row.upstreamModelStatus === "inactive";
+  const unavailable = upstreamInactive || upstreamModelInactive;
+  const routeChecked = !unavailable && row.routeStatus === "active";
   const routeIDs = routeIDsForRow(row);
   const persistedRouteCount = routeIDs.length;
   const testRouteID = row.routeID || routeIDs[0] || 0;
-  const testDisabled = testRouteID <= 0 || row.isDirty;
-  const testTooltip = testDisabled ? modelT("probe.saveBeforeTest") : modelT("actions.test");
+  const testDisabled = unavailable || testRouteID <= 0 || row.isDirty;
+  const unavailableReason = upstreamModelInactive
+    ? t("modelsDialog.upstreamModelInactiveHint")
+    : upstreamInactive
+      ? t("modelsDialog.upstreamInactive")
+      : null;
+  const testTooltip = unavailableReason ?? (testDisabled ? modelT("probe.saveBeforeTest") : modelT("actions.test"));
 
   const handlePlatformModelChange = (value: string) => {
     onUpdate(row.draftKey, { platformModelNameDraft: value });
@@ -377,24 +385,44 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, upstreamInactiv
                 <Switch
                   size="sm"
                   checked={routeChecked}
-                  disabled={upstreamInactive}
+                  disabled={unavailable}
                   onCheckedChange={(checked) => onUpdate(row.draftKey, { routeStatus: checked ? "active" : "inactive" })}
                   aria-label={t("modelsDialog.routeStatusFor", { name: row.upstreamModelName })}
                 />
               </span>
             </TooltipTrigger>
-            {upstreamInactive ? (
-              <TooltipContent side="top" className="text-xs">
-                {t("modelsDialog.upstreamInactive")}
+            {unavailable ? (
+              <TooltipContent side="top" className="max-w-[280px] text-xs">
+                {unavailableReason}
               </TooltipContent>
             ) : null}
           </Tooltip>
         </div>
       </TableCell>
       <TableCell className="max-w-[220px] py-1.5 font-mono text-xs text-muted-foreground">
-        <span className="flex h-7 items-center truncate" title={row.upstreamModelName}>
-          {row.upstreamModelName}
-        </span>
+        <div className="flex h-7 min-w-0 items-center gap-1">
+          {upstreamModelInactive ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className="inline-flex shrink-0 items-center text-muted-foreground/70"
+                  aria-label={t("modelsDialog.upstreamModelInactive")}
+                >
+                  <CircleOff className="size-3 stroke-[1.5]" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[280px] text-xs">
+                {t("modelsDialog.upstreamModelInactiveHint")}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
+          <span
+            className={cn("min-w-0 truncate", upstreamModelInactive && "line-through opacity-60")}
+            title={row.upstreamModelName}
+          >
+            {row.upstreamModelName}
+          </span>
+        </div>
       </TableCell>
       <TableCell className="min-w-[220px] py-1.5">
         <Input
@@ -716,221 +744,223 @@ function RemoteModelsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={setTooltipPortalContainer}
-        className="flex max-h-[min(92svh,840px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-visible p-0 sm:max-w-[680px]"
+        className="w-[calc(100vw-2rem)] gap-0 overflow-visible p-0 sm:max-w-[680px]"
       >
-        <DialogHeader className="shrink-0 px-5 pt-5 pb-3">
-          <DialogTitle>{t("modelsDialog.syncTitle", { name: upstream?.name ?? "" })}</DialogTitle>
-          <DialogDescription>
-            {t("modelsDialog.syncDescription")}
-          </DialogDescription>
-        </DialogHeader>
+        <DialogHeightTransition contentClassName="max-h-[min(92svh,840px)]">
+          <DialogHeader className="shrink-0 px-5 pt-5 pb-3">
+            <DialogTitle>{t("modelsDialog.syncTitle", { name: upstream?.name ?? "" })}</DialogTitle>
+            <DialogDescription>
+              {t("modelsDialog.syncDescription")}
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="shrink-0 px-5 pb-2">
-          <div className="border-y border-border/60">
-            <div className="flex min-h-10 items-center gap-3 py-1.5">
-              <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <span className="mr-1 shrink-0 text-xs font-medium">{t("modelsDialog.syncPlanTitle")}</span>
-                {loading && !syncPlan ? (
-                  <span className="shrink-0 text-[11px] text-muted-foreground">
-                    {t("modelsDialog.syncPlanLoading")}
-                  </span>
-                ) : (
-                  syncPlanStatuses.map((status) => {
-                    const destructive = status.key === "inactivated" && status.models.length > 0;
-                    return (
-                      <Tooltip key={status.key}>
-                        <TooltipTrigger
-                          type="button"
-                          aria-label={`${status.label} ${status.models.length}`}
-                          className={cn(
-                            "inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50",
-                            destructive && "text-destructive",
-                          )}
-                        >
-                          <span>{status.label}</span>
-                          <span className="font-mono tabular-nums text-foreground/75">{status.models.length}</span>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          portalContainer={tooltipPortalContainer}
-                          side="bottom"
-                          sideOffset={6}
-                          className="w-72 px-3 py-2.5"
-                        >
-                          <p className="mb-1.5 font-medium">
-                            {status.label} · {status.models.length}
-                          </p>
-                          {status.models.length > 0 ? (
-                            <div className="max-h-48 space-y-0.5 overflow-y-auto overscroll-contain pr-1">
-                              {status.models.map((modelName) => (
-                                <div key={modelName} className="break-all font-mono text-[11px] leading-5 text-background/80">
-                                  {modelName}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-background/70">{t("modelsDialog.syncPlanNoModels")}</p>
-                          )}
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  })
-                )}
+          <div className="shrink-0 px-5 pb-2">
+            <div className="border-y border-border/60">
+              <div className="flex min-h-10 items-center gap-3 py-1.5">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <span className="mr-1 shrink-0 text-xs font-medium">{t("modelsDialog.syncPlanTitle")}</span>
+                  {loading && !syncPlan ? (
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {t("modelsDialog.syncPlanLoading")}
+                    </span>
+                  ) : (
+                    syncPlanStatuses.map((status) => {
+                      const destructive = status.key === "inactivated" && status.models.length > 0;
+                      return (
+                        <Tooltip key={status.key}>
+                          <TooltipTrigger
+                            type="button"
+                            aria-label={`${status.label} ${status.models.length}`}
+                            className={cn(
+                              "inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50",
+                              destructive && "text-destructive",
+                            )}
+                          >
+                            <span>{status.label}</span>
+                            <span className="font-mono tabular-nums text-foreground/75">{status.models.length}</span>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            portalContainer={tooltipPortalContainer}
+                            side="bottom"
+                            sideOffset={6}
+                            className="w-72 px-3 py-2.5"
+                          >
+                            <p className="mb-1.5 font-medium">
+                              {status.label} · {status.models.length}
+                            </p>
+                            {status.models.length > 0 ? (
+                              <div className="max-h-48 space-y-0.5 overflow-y-auto overscroll-contain pr-1">
+                                {status.models.map((modelName) => (
+                                  <div key={modelName} className="break-all font-mono text-[11px] leading-5 text-background/80">
+                                    {modelName}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-background/70">{t("modelsDialog.syncPlanNoModels")}</p>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    })
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="size-7 shrink-0 text-muted-foreground shadow-none"
+                  onClick={() => void loadRemoteModels()}
+                  disabled={loading || importing}
+                  aria-label={t("modelsDialog.reloadRemote")}
+                  title={t("modelsDialog.reloadRemote")}
+                >
+                  <RefreshCw className={cn("size-3.5 stroke-1", loading && "animate-spin")} />
+                </Button>
               </div>
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                className="size-7 shrink-0 text-muted-foreground shadow-none"
-                onClick={() => void loadRemoteModels()}
-                disabled={loading || importing}
-                aria-label={t("modelsDialog.reloadRemote")}
-                title={t("modelsDialog.reloadRemote")}
-              >
-                <RefreshCw className={cn("size-3.5 stroke-1", loading && "animate-spin")} />
-              </Button>
             </div>
           </div>
-        </div>
 
-        <DialogCollapsible open={remoteItems.length > 0} className="shrink-0">
-          <div>
-            <div className="grid grid-cols-1 gap-2 px-5 pb-2 sm:grid-cols-2">
-              <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 stroke-1 text-muted-foreground" />
-                <Input
-                  value={query}
-                  placeholder={t("modelsDialog.syncSearchPlaceholder")}
-                  onChange={(event) => setQuery(event.target.value)}
-                  disabled={loading || importing}
-                  className="bg-background pl-8"
-                />
+          <DialogCollapsible open={remoteItems.length > 0} className="shrink-0">
+            <div>
+              <div className="grid grid-cols-1 gap-2 px-5 pb-2 sm:grid-cols-2">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 stroke-1 text-muted-foreground" />
+                  <Input
+                    value={query}
+                    placeholder={t("modelsDialog.syncSearchPlaceholder")}
+                    onChange={(event) => setQuery(event.target.value)}
+                    disabled={loading || importing}
+                    className="bg-background pl-8"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <PermissionGroupSelector
+                    groups={permissionGroups}
+                    selectedIDs={permissionGroupIDs}
+                    disabled={loading || importing}
+                    loading={permissionGroupsLoading}
+                    triggerPrefix={t("modelsDialog.importPermissionGroups")}
+                    placeholder={t("modelsDialog.permissionGroupsPlaceholder")}
+                    emptyLabel={t("modelsDialog.permissionGroupsEmpty")}
+                    autoBadgeLabel={t("modelsDialog.permissionGroupsAutoBadge")}
+                    onSelectedIDsChange={setPermissionGroupIDs}
+                  />
+                </div>
               </div>
-              <div className="min-w-0">
-                <PermissionGroupSelector
-                  groups={permissionGroups}
-                  selectedIDs={permissionGroupIDs}
-                  disabled={loading || importing}
-                  loading={permissionGroupsLoading}
-                  triggerPrefix={t("modelsDialog.importPermissionGroups")}
-                  placeholder={t("modelsDialog.permissionGroupsPlaceholder")}
-                  emptyLabel={t("modelsDialog.permissionGroupsEmpty")}
-                  autoBadgeLabel={t("modelsDialog.permissionGroupsAutoBadge")}
-                  onSelectedIDsChange={setPermissionGroupIDs}
-                />
-              </div>
-            </div>
-            <div className="min-h-0 overflow-hidden px-5 py-2">
-              <Table
-                className="min-w-full table-fixed"
-                shellClassName="w-full"
-                viewportClassName="[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-20"
-                viewportStyle={{ maxHeight: "min(27rem, calc(92svh - 15rem))" }}
-              >
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-12 px-2 py-1.5 text-center">
-                      <div className="flex h-7 items-center justify-center">
-                        <Checkbox
-                          checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                          onCheckedChange={(v) => toggleAll(v === true)}
-                          aria-label={t("table.selectAll")}
-                        />
-                      </div>
-                    </TableHead>
-                    <TableHead className="w-[36%] whitespace-nowrap">{t("modelsDialog.upstreamModelName")}</TableHead>
-                    <TableHead>{t("modelsDialog.platformModelName")}</TableHead>
-                    <TableHead className="w-20 text-center">{t("fields.status")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {!loading && filteredRemoteItems.length === 0 ? (
-                    <TableEmptyRow colSpan={4}>
-                      {hasQuery ? t("modelsDialog.noMatchedModels") : t("modelsDialog.noSyncableModels")}
-                    </TableEmptyRow>
-                  ) : null}
-                  {filteredRemoteItems.map((item) => (
-                    <TableRow
-                      key={item.upstreamModelName}
-                      selected={selected.has(item.upstreamModelName)}
-                    >
-                      <TableCell className="w-14 px-2 py-1.5 text-center">
+              <div className="min-h-0 overflow-hidden px-5 py-2">
+                <Table
+                  className="min-w-full table-fixed"
+                  shellClassName="w-full"
+                  viewportClassName="[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-20"
+                  viewportStyle={{ maxHeight: "min(27rem, calc(92svh - 15rem))" }}
+                >
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-12 px-2 py-1.5 text-center">
                         <div className="flex h-7 items-center justify-center">
                           <Checkbox
-                            checked={selected.has(item.upstreamModelName)}
-                            onCheckedChange={(v) => toggleOne(item.upstreamModelName, v === true)}
-                            aria-label={item.upstreamModelName}
+                            checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                            onCheckedChange={(v) => toggleAll(v === true)}
+                            aria-label={t("table.selectAll")}
                           />
                         </div>
-                      </TableCell>
-                      <TableCell className="py-1.5 font-mono text-xs text-muted-foreground">
-                        <span className="flex h-7 items-center truncate" title={item.upstreamModelName}>
-                          {item.upstreamModelName}
-                        </span>
-                      </TableCell>
-                      <TableCell className="min-w-0 py-1.5">
-                        <div className="flex h-7 items-center">
-                          <Input
-                            className="w-full min-w-0 font-mono text-xs"
-                            value={draftPlatformModelNames.get(item.upstreamModelName) ?? ""}
-                            onChange={(e) => setDraftPlatformModelName(item.upstreamModelName, e.target.value)}
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell className="w-20 py-1.5 text-center">
-                        <div className="flex h-7 items-center justify-center">
-                          <Badge variant="secondary" className={cn(!item.alreadyBound && "text-muted-foreground")}>
-                            {t(`modelsDialog.remoteStatus.${remoteModelStatusKey(item)}`)}
-                          </Badge>
-                        </div>
-                      </TableCell>
+                      </TableHead>
+                      <TableHead className="w-[36%] whitespace-nowrap">{t("modelsDialog.upstreamModelName")}</TableHead>
+                      <TableHead>{t("modelsDialog.platformModelName")}</TableHead>
+                      <TableHead className="w-20 text-center">{t("fields.status")}</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {!loading && filteredRemoteItems.length === 0 ? (
+                      <TableEmptyRow colSpan={4}>
+                        {hasQuery ? t("modelsDialog.noMatchedModels") : t("modelsDialog.noSyncableModels")}
+                      </TableEmptyRow>
+                    ) : null}
+                    {filteredRemoteItems.map((item) => (
+                      <TableRow
+                        key={item.upstreamModelName}
+                        selected={selected.has(item.upstreamModelName)}
+                      >
+                        <TableCell className="w-14 px-2 py-1.5 text-center">
+                          <div className="flex h-7 items-center justify-center">
+                            <Checkbox
+                              checked={selected.has(item.upstreamModelName)}
+                              onCheckedChange={(v) => toggleOne(item.upstreamModelName, v === true)}
+                              aria-label={item.upstreamModelName}
+                            />
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-1.5 font-mono text-xs text-muted-foreground">
+                          <span className="flex h-7 items-center truncate" title={item.upstreamModelName}>
+                            {item.upstreamModelName}
+                          </span>
+                        </TableCell>
+                        <TableCell className="min-w-0 py-1.5">
+                          <div className="flex h-7 items-center">
+                            <Input
+                              className="w-full min-w-0 font-mono text-xs"
+                              value={draftPlatformModelNames.get(item.upstreamModelName) ?? ""}
+                              onChange={(e) => setDraftPlatformModelName(item.upstreamModelName, e.target.value)}
+                            />
+                          </div>
+                        </TableCell>
+                        <TableCell className="w-20 py-1.5 text-center">
+                          <div className="flex h-7 items-center justify-center">
+                            <Badge variant="secondary" className={cn(!item.alreadyBound && "text-muted-foreground")}>
+                              {t(`modelsDialog.remoteStatus.${remoteModelStatusKey(item)}`)}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
-          </div>
-        </DialogCollapsible>
+          </DialogCollapsible>
 
-        <DialogCollapsible open={remoteItems.length === 0} className="shrink-0">
-          <div className="px-5 py-2">
-            <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
-              {loading || remoteItems.length > 0 ? (
-                <SpinnerLabel>{t("modelsDialog.loadingRemote")}</SpinnerLabel>
-              ) : (
-                t("modelsDialog.noSyncableModels")
-              )}
+          <DialogCollapsible open={remoteItems.length === 0} className="shrink-0">
+            <div className="px-5 py-2">
+              <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
+                {loading || remoteItems.length > 0 ? (
+                  <SpinnerLabel>{t("modelsDialog.loadingRemote")}</SpinnerLabel>
+                ) : (
+                  t("modelsDialog.noSyncableModels")
+                )}
+              </div>
             </div>
-          </div>
-        </DialogCollapsible>
+          </DialogCollapsible>
 
-        <DialogFooter className="shrink-0 items-center justify-between px-5 py-3">
-          <span className="text-xs text-muted-foreground">
-            {remoteItems.length > 0
-              ? t("modelsDialog.syncSummary", {
-                  total: remoteItems.length,
-                  shown: filteredRemoteItems.length,
-                  selected: selectedRemoteItems.length,
-                  hasQuery: hasQuery ? "true" : "false",
-                  hasSelected: selectedRemoteItems.length > 0 ? "true" : "false",
-                })
-              : t("modelsDialog.remoteCatalogSummary", { total: remoteTotal ?? 0 })}
-          </span>
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={importing}>
-              {commonT("actions.cancel")}
-            </Button>
-            <Button
-              onClick={handleSyncBindings}
-              disabled={loading || importing || remoteTotal === null || !remoteSnapshotID || !syncPlan || !hasSyncWork}
-            >
-              {importing
-                ? <SpinnerLabel>{t("modelsDialog.syncing")}</SpinnerLabel>
-                : hasSyncWork
-                  ? t("modelsDialog.applySync")
-                  : t("modelsDialog.syncPlanCurrent")}
-            </Button>
-          </div>
-        </DialogFooter>
+          <DialogFooter className="shrink-0 items-center justify-between px-5 py-3">
+            <span className="text-xs text-muted-foreground">
+              {remoteItems.length > 0
+                ? t("modelsDialog.syncSummary", {
+                    total: remoteItems.length,
+                    shown: filteredRemoteItems.length,
+                    selected: selectedRemoteItems.length,
+                    hasQuery: hasQuery ? "true" : "false",
+                    hasSelected: selectedRemoteItems.length > 0 ? "true" : "false",
+                  })
+                : t("modelsDialog.remoteCatalogSummary", { total: remoteTotal ?? 0 })}
+            </span>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={importing}>
+                {commonT("actions.cancel")}
+              </Button>
+              <Button
+                onClick={handleSyncBindings}
+                disabled={loading || importing || remoteTotal === null || !remoteSnapshotID || !syncPlan || !hasSyncWork}
+              >
+                {importing
+                  ? <SpinnerLabel>{t("modelsDialog.syncing")}</SpinnerLabel>
+                  : hasSyncWork
+                    ? t("modelsDialog.applySync")
+                    : t("modelsDialog.syncPlanCurrent")}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogHeightTransition>
       </DialogContent>
       <AlertDialog open={syncConfirmationOpen} onOpenChange={setSyncConfirmationOpen}>
         <AlertDialogContent>
@@ -1026,82 +1056,84 @@ function NewBindingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[520px]">
-        <DialogHeader className="shrink-0 px-4 py-4">
-          <DialogTitle>{t("modelsDialog.createBindingTitle")}</DialogTitle>
-          <DialogDescription>{t("modelsDialog.createBindingDescription")}</DialogDescription>
-        </DialogHeader>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
-          <div className="grid gap-4">
-            <div className="grid gap-1.5">
-              <Label>{t("modelsDialog.upstreamModelName")}</Label>
-              <Input
-                placeholder="gpt-5.5"
-                value={form.upstreamModelName}
-                onChange={(e) => setField("upstreamModelName", e.target.value)}
-              />
-            </div>
-
-            <div className="grid gap-1.5">
-              <Label>{t("modelsDialog.platformModelName")}</Label>
-              <Input
-                placeholder="claude-sonnet-4.5"
-                value={form.platformModelName}
-                onChange={(e) => setField("platformModelName", e.target.value)}
-              />
-            </div>
-
-            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-              <div className="grid min-w-0 gap-1.5">
-                <Label>{t("modelsDialog.protocol")}</Label>
-                <ProtocolsDropdown
-                  value={form.protocols}
-                  onChange={(protocols) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      protocols,
-                      kindsDisplay: resolveKindsDisplayForProtocols(protocols, prev.kindsDisplay),
-                    }))
-                  }
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[520px]">
+        <DialogHeightTransition contentClassName="max-h-[min(86vh,760px)]">
+          <DialogHeader className="shrink-0 px-4 py-4">
+            <DialogTitle>{t("modelsDialog.createBindingTitle")}</DialogTitle>
+            <DialogDescription>{t("modelsDialog.createBindingDescription")}</DialogDescription>
+          </DialogHeader>
+  
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
+            <div className="grid gap-4">
+              <div className="grid gap-1.5">
+                <Label>{t("modelsDialog.upstreamModelName")}</Label>
+                <Input
+                  placeholder="gpt-5.5"
+                  value={form.upstreamModelName}
+                  onChange={(e) => setField("upstreamModelName", e.target.value)}
                 />
               </div>
-
-              <div className="grid min-w-0 gap-1.5">
-                <Label>{t("modelsDialog.kind")}</Label>
-                <KindsDropdown
-                  value={form.kindsDisplay}
-                  onChange={(v) => setField("kindsDisplay", v)}
-                  className="w-full"
+  
+              <div className="grid gap-1.5">
+                <Label>{t("modelsDialog.platformModelName")}</Label>
+                <Input
+                  placeholder="claude-sonnet-4.5"
+                  value={form.platformModelName}
+                  onChange={(e) => setField("platformModelName", e.target.value)}
                 />
               </div>
-            </div>
-
-            <div className="grid gap-1.5">
-              <Label>{t("fields.status")}</Label>
-              <Switch
-                size="sm"
-                checked={form.status === "active"}
-                onCheckedChange={(checked) => setField("status", checked ? "active" : "inactive")}
-                aria-label={t("modelsDialog.routeStatus")}
-              />
+  
+              <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                <div className="grid min-w-0 gap-1.5">
+                  <Label>{t("modelsDialog.protocol")}</Label>
+                  <ProtocolsDropdown
+                    value={form.protocols}
+                    onChange={(protocols) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        protocols,
+                        kindsDisplay: resolveKindsDisplayForProtocols(protocols, prev.kindsDisplay),
+                      }))
+                    }
+                  />
+                </div>
+  
+                <div className="grid min-w-0 gap-1.5">
+                  <Label>{t("modelsDialog.kind")}</Label>
+                  <KindsDropdown
+                    value={form.kindsDisplay}
+                    onChange={(v) => setField("kindsDisplay", v)}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+  
+              <div className="grid gap-1.5">
+                <Label>{t("fields.status")}</Label>
+                <Switch
+                  size="sm"
+                  checked={form.status === "active"}
+                  onCheckedChange={(checked) => setField("status", checked ? "active" : "inactive")}
+                  aria-label={t("modelsDialog.routeStatus")}
+                />
+              </div>
             </div>
           </div>
-        </div>
-
-        <DialogFooter className="shrink-0 px-4 py-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-            disabled={saving}
-          >
-            {commonT("actions.cancel")}
-          </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving}>
-            {saving ? <SpinnerLabel>{t("sheet.saving")}</SpinnerLabel> : commonT("actions.save")}
-          </Button>
-        </DialogFooter>
+  
+          <DialogFooter className="shrink-0 px-4 py-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
+            >
+              {commonT("actions.cancel")}
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              {saving ? <SpinnerLabel>{t("sheet.saving")}</SpinnerLabel> : commonT("actions.save")}
+            </Button>
+          </DialogFooter>
+        </DialogHeightTransition>
       </DialogContent>
     </Dialog>
   );
@@ -1331,7 +1363,7 @@ export function UpstreamModelsDialog({
 
   const handleTestRoute = React.useCallback(
     async (row: RowDraft, routeID: number) => {
-      if (!upstreamID || routeID <= 0) return;
+      if (!upstreamID || routeID <= 0 || row.upstreamModelStatus === "inactive" || stableUpstream?.status === "inactive") return;
       setProbeTargetName(`${row.platformModelNameDraft || row.platformModelName} / ${row.upstreamModelName}`);
       setProbeResults([]);
       setProbeOpen(true);
@@ -1351,7 +1383,7 @@ export function UpstreamModelsDialog({
         setProbeLoading(false);
       }
     },
-    [modelT, resolveErrorMessage, t, upstreamID],
+    [modelT, resolveErrorMessage, stableUpstream?.status, t, upstreamID],
   );
 
   const handleDeleteProbeRoute = React.useCallback(
@@ -1409,16 +1441,19 @@ export function UpstreamModelsDialog({
   const applyBulkPatch = React.useCallback((patch: RowDraftPatch) => {
     if (selected.size === 0) return;
     setRows((prev) =>
-      prev.map((row) =>
-        routeIDsForRow(row).length > 0 && selected.has(row.draftKey)
-          ? {
-              ...row,
-              ...patch,
-              isDirty: true,
-              routeStatusOverridden: row.routeStatusOverridden || patch.routeStatus !== undefined,
-            }
-          : row,
-      ),
+      prev.map((row) => {
+        if (routeIDsForRow(row).length === 0 || !selected.has(row.draftKey)) return row;
+        // 上游已下架的模型路由开关不可操作，批量修改路由状态时同样跳过，避免暗中改写被禁用的开关。
+        const { routeStatus: _routeStatus, ...rest } = patch;
+        const rowPatch: RowDraftPatch = row.upstreamModelStatus === "inactive" ? rest : patch;
+        if (Object.keys(rowPatch).length === 0) return row;
+        return {
+          ...row,
+          ...rowPatch,
+          isDirty: true,
+          routeStatusOverridden: row.routeStatusOverridden || rowPatch.routeStatus !== undefined,
+        };
+      }),
     );
   }, [selected]);
 
@@ -1572,229 +1607,231 @@ export function UpstreamModelsDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className="flex max-h-[min(86vh,760px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 md:w-[calc(100vw-8rem)] sm:max-w-[860px]"
+          className="w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0 md:w-[calc(100vw-8rem)] sm:max-w-[860px]"
         >
-          <DialogHeader className="shrink-0 px-4 py-4">
-            <DialogTitle>{t("modelsDialog.manageTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("modelsDialog.manageDescription")}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="shrink-0 px-4 pb-3">
-            <TableToolbar
-              query={query}
-              onQueryChange={setQuery}
-              queryPlaceholder={t("modelsDialog.manageSearchPlaceholder")}
-              loading={loadingList}
-              selectedCount={selectedCount}
-              onRefresh={() => void loadBindings()}
-              refreshLoading={loadingList}
-              refreshDisabled={!stableUpstream || loadingList}
-              refreshLabel={t("modelsDialog.refreshBindings")}
-              filters={[
-                {
-                  key: "route-status",
-                  label: t("modelsDialog.routeStatus"),
-                  value: routeStatusFilter === "bound" ? "" : routeStatusFilter,
-                  onValueChange: (value) => updateListParams({ routeStatusFilter: (value || "bound") as RouteStatusFilter }),
+          <DialogHeightTransition contentClassName="max-h-[min(86vh,760px)]">
+            <DialogHeader className="shrink-0 px-4 py-4">
+              <DialogTitle>{t("modelsDialog.manageTitle")}</DialogTitle>
+              <DialogDescription>
+                {t("modelsDialog.manageDescription")}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="shrink-0 px-4 pb-3">
+              <TableToolbar
+                query={query}
+                onQueryChange={setQuery}
+                queryPlaceholder={t("modelsDialog.manageSearchPlaceholder")}
+                loading={loadingList}
+                selectedCount={selectedCount}
+                onRefresh={() => void loadBindings()}
+                refreshLoading={loadingList}
+                refreshDisabled={!stableUpstream || loadingList}
+                refreshLabel={t("modelsDialog.refreshBindings")}
+                filters={[
+                  {
+                    key: "route-status",
+                    label: t("modelsDialog.routeStatus"),
+                    value: routeStatusFilter === "bound" ? "" : routeStatusFilter,
+                    onValueChange: (value) => updateListParams({ routeStatusFilter: (value || "bound") as RouteStatusFilter }),
+                    options: [
+                      { label: t("modelsDialog.allRoutes"), value: "" },
+                      { label: t("status.active"), value: "active" },
+                      { label: t("status.inactive"), value: "inactive" },
+                    ],
+                  },
+                  {
+                    key: "upstream-status",
+                    label: t("modelsDialog.upstreamStatus"),
+                    value: upstreamStatusFilter === "all" ? "" : upstreamStatusFilter,
+                    onValueChange: (value) => updateListParams({ upstreamStatusFilter: (value || "all") as UpstreamStatusFilter }),
+                    options: [
+                      { label: t("modelsDialog.allUpstreams"), value: "" },
+                      { label: t("modelsDialog.upstreamActive"), value: "active" },
+                      { label: t("modelsDialog.upstreamInactive"), value: "inactive" },
+                    ],
+                  },
+                  {
+                    key: "protocol",
+                    label: t("modelsDialog.protocol"),
+                    value: protocolFilter,
+                    onValueChange: (value) => updateListParams({ protocolFilter: value }),
+                    options: [
+                      { label: t("modelsDialog.allProtocols"), value: "" },
+                      ...PROTOCOL_OPTIONS.map((item) => ({ label: item.label, value: item.value })),
+                    ],
+                  },
+                ]}
+                sort={{
+                  value: sortValue,
+                  onValueChange: (value) => updateListParams({ sortValue: value as RouteSortValue }),
                   options: [
-                    { label: t("modelsDialog.allRoutes"), value: "" },
-                    { label: t("status.active"), value: "active" },
-                    { label: t("status.inactive"), value: "inactive" },
+                    { label: t("modelsDialog.sort.upstreamAsc"), value: "upstream_asc" },
+                    { label: t("modelsDialog.sort.upstreamDesc"), value: "upstream_desc" },
+                    { label: t("modelsDialog.sort.platformAsc"), value: "platform_asc" },
+                    { label: t("modelsDialog.sort.platformDesc"), value: "platform_desc" },
+                    { label: t("modelsDialog.sort.statusAsc"), value: "status_asc" },
+                    { label: t("modelsDialog.sort.protocolAsc"), value: "protocol_asc" },
                   ],
-                },
-                {
-                  key: "upstream-status",
-                  label: t("modelsDialog.upstreamStatus"),
-                  value: upstreamStatusFilter === "all" ? "" : upstreamStatusFilter,
-                  onValueChange: (value) => updateListParams({ upstreamStatusFilter: (value || "all") as UpstreamStatusFilter }),
-                  options: [
-                    { label: t("modelsDialog.allUpstreams"), value: "" },
-                    { label: t("modelsDialog.upstreamActive"), value: "active" },
-                    { label: t("modelsDialog.upstreamInactive"), value: "inactive" },
-                  ],
-                },
-                {
-                  key: "protocol",
-                  label: t("modelsDialog.protocol"),
-                  value: protocolFilter,
-                  onValueChange: (value) => updateListParams({ protocolFilter: value }),
-                  options: [
-                    { label: t("modelsDialog.allProtocols"), value: "" },
-                    ...PROTOCOL_OPTIONS.map((item) => ({ label: item.label, value: item.value })),
-                  ],
-                },
-              ]}
-              sort={{
-                value: sortValue,
-                onValueChange: (value) => updateListParams({ sortValue: value as RouteSortValue }),
-                options: [
-                  { label: t("modelsDialog.sort.upstreamAsc"), value: "upstream_asc" },
-                  { label: t("modelsDialog.sort.upstreamDesc"), value: "upstream_desc" },
-                  { label: t("modelsDialog.sort.platformAsc"), value: "platform_asc" },
-                  { label: t("modelsDialog.sort.platformDesc"), value: "platform_desc" },
-                  { label: t("modelsDialog.sort.statusAsc"), value: "status_asc" },
-                  { label: t("modelsDialog.sort.protocolAsc"), value: "protocol_asc" },
-                ],
-              }}
-              bulkContent={
-                <div className="space-y-1">
-                  <BulkActionControlRow
-                    icon={<ToggleLeft className="size-3 stroke-1" />}
-                    label={t("actions.apply")}
-                    onApply={() => setBulkPatchConfirm({ patch: { routeStatus: bulkRouteStatus } })}
-                    disabled={selectedCount === 0}
-                  >
-                    <Select
-                      value={bulkRouteStatus}
-                      onValueChange={(value) => {
-                        setBulkRouteStatus(value as "active" | "inactive");
-                      }}
+                }}
+                bulkContent={
+                  <div className="space-y-1">
+                    <BulkActionControlRow
+                      icon={<ToggleLeft className="size-3 stroke-1" />}
+                      label={t("actions.apply")}
+                      onApply={() => setBulkPatchConfirm({ patch: { routeStatus: bulkRouteStatus } })}
                       disabled={selectedCount === 0}
                     >
-                      <SelectTrigger size="xs" className="h-7 px-2 text-[11px] text-muted-foreground">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent position="popper" align="start" className="z-[100]">
-                        <SelectItem value="active" className="text-[11px]">{t("status.active")}</SelectItem>
-                        <SelectItem value="inactive" className="text-[11px]">{t("status.inactive")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </BulkActionControlRow>
-
-                  <BulkActionControlRow
-                    icon={<Cable className="size-3 stroke-1" />}
-                    label={t("actions.apply")}
-                    onApply={() =>
-                      setBulkPatchConfirm({
-                        patch: {
-                          protocols: bulkProtocols,
-                          protocol: bulkProtocols[0] ?? "",
-                          kindsDisplay: resolveKindsDisplayForProtocols(bulkProtocols, bulkKindsDisplay),
-                        },
-                      })
-                    }
-                    disabled={selectedCount === 0}
-                  >
-                    <ProtocolsDropdown
-                      value={bulkProtocols}
-                      onChange={setBulkProtocols}
+                      <Select
+                        value={bulkRouteStatus}
+                        onValueChange={(value) => {
+                          setBulkRouteStatus(value as "active" | "inactive");
+                        }}
+                        disabled={selectedCount === 0}
+                      >
+                        <SelectTrigger size="xs" className="h-7 px-2 text-[11px] text-muted-foreground">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent position="popper" align="start" className="z-[100]">
+                          <SelectItem value="active" className="text-[11px]">{t("status.active")}</SelectItem>
+                          <SelectItem value="inactive" className="text-[11px]">{t("status.inactive")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </BulkActionControlRow>
+  
+                    <BulkActionControlRow
+                      icon={<Cable className="size-3 stroke-1" />}
+                      label={t("actions.apply")}
+                      onApply={() =>
+                        setBulkPatchConfirm({
+                          patch: {
+                            protocols: bulkProtocols,
+                            protocol: bulkProtocols[0] ?? "",
+                            kindsDisplay: resolveKindsDisplayForProtocols(bulkProtocols, bulkKindsDisplay),
+                          },
+                        })
+                      }
                       disabled={selectedCount === 0}
-                      className="h-7 w-full px-2 text-[11px]"
-                    />
-                  </BulkActionControlRow>
-
-                  <BulkActionControlRow
-                    icon={<Tags className="size-3 stroke-1" />}
-                    label={t("actions.apply")}
-                    onApply={() => setBulkPatchConfirm({ patch: { kindsDisplay: bulkKindsDisplay } })}
-                    disabled={selectedCount === 0 || !bulkKindsDisplay}
-                  >
-                    <KindsDropdown
-                      value={bulkKindsDisplay}
-                      onChange={setBulkKindsDisplay}
-                      disabled={selectedCount === 0}
-                      className="h-7 w-full px-2 text-[11px]"
-                    />
-                  </BulkActionControlRow>
-                </div>
-              }
-              bulkActions={[
-                {
-                  key: "delete-bindings",
-                  label: t("modelsDialog.deleteBindings"),
-                  icon: <Trash2 />,
-                  onClick: () => setDeleteConfirmOpen(true),
-                  disabled: deleting,
-                },
-              ]}
-            >
-              <Button size="sm" onClick={() => setRemoteModelsOpen(true)} disabled={!stableUpstream}>
-                <CloudDownload className="size-3" />{t("sync")}
+                    >
+                      <ProtocolsDropdown
+                        value={bulkProtocols}
+                        onChange={setBulkProtocols}
+                        disabled={selectedCount === 0}
+                        className="h-7 w-full px-2 text-[11px]"
+                      />
+                    </BulkActionControlRow>
+  
+                    <BulkActionControlRow
+                      icon={<Tags className="size-3 stroke-1" />}
+                      label={t("actions.apply")}
+                      onApply={() => setBulkPatchConfirm({ patch: { kindsDisplay: bulkKindsDisplay } })}
+                      disabled={selectedCount === 0 || !bulkKindsDisplay}
+                    >
+                      <KindsDropdown
+                        value={bulkKindsDisplay}
+                        onChange={setBulkKindsDisplay}
+                        disabled={selectedCount === 0}
+                        className="h-7 w-full px-2 text-[11px]"
+                      />
+                    </BulkActionControlRow>
+                  </div>
+                }
+                bulkActions={[
+                  {
+                    key: "delete-bindings",
+                    label: t("modelsDialog.deleteBindings"),
+                    icon: <Trash2 />,
+                    onClick: () => setDeleteConfirmOpen(true),
+                    disabled: deleting,
+                  },
+                ]}
+              >
+                <Button size="sm" onClick={() => setRemoteModelsOpen(true)} disabled={!stableUpstream}>
+                  <CloudDownload className="size-3" />{t("sync")}
+                </Button>
+                <Button size="sm" onClick={() => setNewBindingOpen(true)} disabled={!stableUpstream}>
+                  <Plus className="size-3" />{commonT("actions.create")}
+                </Button>
+              </TableToolbar>
+            </div>
+  
+            <div className="min-h-0 overflow-hidden px-4 py-2">
+              <Table
+                className="min-w-[800px]"
+                shellClassName="min-h-0"
+                viewportRef={virtualRows.viewportRef}
+                viewportClassName={cn(virtualRows.viewportClassName, "overscroll-contain")}
+                viewportStyle={{
+                  ...virtualRows.viewportStyle,
+                  maxHeight: "min(480px, calc(86vh - 260px))",
+                }}
+              >
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-[44px] py-1.5 text-center">
+                        <div className="flex h-7 items-center justify-center">
+                          <Checkbox
+                            checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                            onCheckedChange={(checked) => handleSelectAll(checked === true)}
+                            aria-label={t("table.selectAll")}
+                          />
+                        </div>
+                      </TableHead>
+                      <TableHead className="w-[56px]">{t("modelsDialog.routeStatus")}</TableHead>
+                      <TableHead>{t("modelsDialog.upstreamModelName")}</TableHead>
+                      <TableHead className="min-w-[220px]">{t("modelsDialog.platformModel")}</TableHead>
+                      <TableHead className="w-[220px]">{t("modelsDialog.protocol")}</TableHead>
+                      <TableHead className="w-[140px]">{t("modelsDialog.kind")}</TableHead>
+                      <TableHead className="w-[48px]" stickyEnd />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {initialTableLoading ? (
+                      <TableLoadingRow colSpan={7} />
+                    ) : null}
+                    {tableReady && !loadingList && rows.length === 0 ? (
+                      <TableEmptyRow colSpan={7}>
+                        {hasActiveListQuery ? t("modelsDialog.noMatchedBindings") : t("modelsDialog.noBindings")}
+                      </TableEmptyRow>
+                    ) : null}
+                    {showRows ? <VirtualTablePaddingRow colSpan={7} height={virtualRows.paddingTop} /> : null}
+                    {showRows
+                      ? virtualRows.rows.map(({ item: row }) => (
+                          <ModelRow
+                            key={row.draftKey}
+                            row={row}
+                            isSelected={selected.has(row.draftKey)}
+                            upstreamInactive={upstreamInactive}
+                            onSelect={handleSelectOne}
+                            onUpdate={updateRow}
+                            onTest={handleTestRoute}
+                          />
+                        ))
+                      : null}
+                    {showRows ? <VirtualTablePaddingRow colSpan={7} height={virtualRows.paddingBottom} /> : null}
+                  </TableBody>
+              </Table>
+            </div>
+  
+            <TablePagination
+              total={total}
+              page={page}
+              pageCount={pageCount}
+              pageSize={pageSize}
+              onPageChange={(nextPage) => updateListParams({ page: nextPage })}
+              onPageSizeChange={(nextPageSize) => updateListParams({ pageSize: nextPageSize })}
+              loading={loadingList}
+              className="shrink-0 px-4 py-3"
+            />
+  
+            <DialogFooter className="shrink-0 px-4 py-3">
+              <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
+                {commonT("actions.close")}
               </Button>
-              <Button size="sm" onClick={() => setNewBindingOpen(true)} disabled={!stableUpstream}>
-                <Plus className="size-3" />{commonT("actions.create")}
+              <Button onClick={handleSave} disabled={saving || dirtyCount === 0}>
+                {saving ? <SpinnerLabel>{t("sheet.saving")}</SpinnerLabel> : commonT("actions.save")}
               </Button>
-            </TableToolbar>
-          </div>
-
-          <div className="min-h-0 overflow-hidden px-4 py-2">
-            <Table
-              className="min-w-[800px]"
-              shellClassName="min-h-0"
-              viewportRef={virtualRows.viewportRef}
-              viewportClassName={cn(virtualRows.viewportClassName, "overscroll-contain")}
-              viewportStyle={{
-                ...virtualRows.viewportStyle,
-                maxHeight: "min(480px, calc(86vh - 260px))",
-              }}
-            >
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[44px] py-1.5 text-center">
-                      <div className="flex h-7 items-center justify-center">
-                        <Checkbox
-                          checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                          onCheckedChange={(checked) => handleSelectAll(checked === true)}
-                          aria-label={t("table.selectAll")}
-                        />
-                      </div>
-                    </TableHead>
-                    <TableHead className="w-[56px]">{t("modelsDialog.routeStatus")}</TableHead>
-                    <TableHead>{t("modelsDialog.upstreamModelName")}</TableHead>
-                    <TableHead className="min-w-[220px]">{t("modelsDialog.platformModel")}</TableHead>
-                    <TableHead className="w-[220px]">{t("modelsDialog.protocol")}</TableHead>
-                    <TableHead className="w-[140px]">{t("modelsDialog.kind")}</TableHead>
-                    <TableHead className="w-[48px]" stickyEnd />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {initialTableLoading ? (
-                    <TableLoadingRow colSpan={7} />
-                  ) : null}
-                  {tableReady && !loadingList && rows.length === 0 ? (
-                    <TableEmptyRow colSpan={7}>
-                      {hasActiveListQuery ? t("modelsDialog.noMatchedBindings") : t("modelsDialog.noBindings")}
-                    </TableEmptyRow>
-                  ) : null}
-                  {showRows ? <VirtualTablePaddingRow colSpan={7} height={virtualRows.paddingTop} /> : null}
-                  {showRows
-                    ? virtualRows.rows.map(({ item: row }) => (
-                        <ModelRow
-                          key={row.draftKey}
-                          row={row}
-                          isSelected={selected.has(row.draftKey)}
-                          upstreamInactive={upstreamInactive}
-                          onSelect={handleSelectOne}
-                          onUpdate={updateRow}
-                          onTest={handleTestRoute}
-                        />
-                      ))
-                    : null}
-                  {showRows ? <VirtualTablePaddingRow colSpan={7} height={virtualRows.paddingBottom} /> : null}
-                </TableBody>
-            </Table>
-          </div>
-
-          <TablePagination
-            total={total}
-            page={page}
-            pageCount={pageCount}
-            pageSize={pageSize}
-            onPageChange={(nextPage) => updateListParams({ page: nextPage })}
-            onPageSizeChange={(nextPageSize) => updateListParams({ pageSize: nextPageSize })}
-            loading={loadingList}
-            className="shrink-0 px-4 py-3"
-          />
-
-          <DialogFooter className="shrink-0 px-4 py-3">
-            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
-              {commonT("actions.close")}
-            </Button>
-            <Button onClick={handleSave} disabled={saving || dirtyCount === 0}>
-              {saving ? <SpinnerLabel>{t("sheet.saving")}</SpinnerLabel> : commonT("actions.save")}
-            </Button>
-          </DialogFooter>
+            </DialogFooter>
+          </DialogHeightTransition>
         </DialogContent>
       </Dialog>
 

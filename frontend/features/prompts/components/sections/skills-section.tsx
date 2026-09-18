@@ -18,7 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CenteredEmptyState } from "@/components/ui/empty-state";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogHeightTransition, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -332,86 +332,90 @@ export const SkillsSection = React.forwardRef<SkillsSectionHandle, { query: stri
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => !saving && setDialogOpen(open)}>
-        <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
-          <DialogHeader className="shrink-0 px-5 pb-3 pt-5">
-            <DialogTitle>{form.id ? t("editSkillTitle") : t("createSkillTitle")}</DialogTitle>
-            <DialogDescription>{t("skillDialogDescription")}</DialogDescription>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-2">
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t("name")}</p>
-              <InputGroup>
-                <InputGroupAddon>/</InputGroupAddon>
-                <InputGroupInput
-                  value={form.name}
-                  maxLength={SKILL_LIMITS.name}
-                  onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+          <DialogHeightTransition contentClassName="max-h-[min(86vh,760px)]">
+            <DialogHeader className="shrink-0 px-5 pb-3 pt-5">
+              <DialogTitle>{form.id ? t("editSkillTitle") : t("createSkillTitle")}</DialogTitle>
+              <DialogDescription>{t("skillDialogDescription")}</DialogDescription>
+            </DialogHeader>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-2">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t("name")}</p>
+                <InputGroup>
+                  <InputGroupAddon>/</InputGroupAddon>
+                  <InputGroupInput
+                    value={form.name}
+                    maxLength={SKILL_LIMITS.name}
+                    onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                  />
+                </InputGroup>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t("promptDescription")}</p>
+                <Input
+                  value={form.description}
+                  maxLength={SKILL_LIMITS.description}
+                  onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
                 />
-              </InputGroup>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t("skillMarkdown")}</p>
+                <Textarea
+                  value={form.markdown}
+                  className="h-64 resize-none overflow-y-auto [field-sizing:fixed]"
+                  maxLength={SKILL_LIMITS.markdown}
+                  onChange={(event) => setForm((current) => ({ ...current, markdown: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t("enabled")}</p>
+                <Switch
+                  size="sm"
+                  checked={form.enabled}
+                  disabled={saving}
+                  onCheckedChange={(enabled) => setForm((current) => ({ ...current, enabled }))}
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t("promptDescription")}</p>
-              <Input
-                value={form.description}
-                maxLength={SKILL_LIMITS.description}
-                onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-              />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t("skillMarkdown")}</p>
-              <Textarea
-                value={form.markdown}
-                className="h-64 resize-none overflow-y-auto [field-sizing:fixed]"
-                maxLength={SKILL_LIMITS.markdown}
-                onChange={(event) => setForm((current) => ({ ...current, markdown: event.target.value }))}
-              />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t("enabled")}</p>
-              <Switch
-                size="sm"
-                checked={form.enabled}
-                disabled={saving}
-                onCheckedChange={(enabled) => setForm((current) => ({ ...current, enabled }))}
-              />
-            </div>
-          </div>
-          <DialogFooter className="shrink-0 px-5 py-3">
-            <Button variant="ghost" disabled={saving} onClick={() => setDialogOpen(false)}>
-              {t("cancel")}
-            </Button>
-            <Button disabled={saving} onClick={() => void save()}>
-              {saving ? t("saving") : t("save")}
-            </Button>
-          </DialogFooter>
+            <DialogFooter className="shrink-0 px-5 py-3">
+              <Button variant="ghost" disabled={saving} onClick={() => setDialogOpen(false)}>
+                {t("cancel")}
+              </Button>
+              <Button disabled={saving} onClick={() => void save()}>
+                {saving ? t("saving") : t("save")}
+              </Button>
+            </DialogFooter>
+          </DialogHeightTransition>
         </DialogContent>
       </Dialog>
 
       <Dialog open={viewTarget !== null} onOpenChange={(open) => !open && setViewTarget(null)}>
-        <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
-          <DialogHeader className="shrink-0 px-5 pb-3 pt-5">
-            <DialogTitle>{stableViewTarget?.trigger || stableViewTarget?.title}</DialogTitle>
-            <DialogDescription>{t("skillViewDescription")}</DialogDescription>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-2">
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t("name")}</p>
-              <Input value={stableViewTarget?.trigger || stableViewTarget?.title || ""} readOnly />
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+          <DialogHeightTransition contentClassName="max-h-[min(86vh,760px)]">
+            <DialogHeader className="shrink-0 px-5 pb-3 pt-5">
+              <DialogTitle>{stableViewTarget?.trigger || stableViewTarget?.title}</DialogTitle>
+              <DialogDescription>{t("skillViewDescription")}</DialogDescription>
+            </DialogHeader>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-2">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t("name")}</p>
+                <Input value={stableViewTarget?.trigger || stableViewTarget?.title || ""} readOnly />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t("promptDescription")}</p>
+                <Input value={stableViewTarget?.description || ""} readOnly />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t("skillMarkdown")}</p>
+                <Textarea value={stableViewTarget?.markdown || ""} className="h-64 resize-none overflow-y-auto [field-sizing:fixed]" readOnly />
+              </div>
             </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t("promptDescription")}</p>
-              <Input value={stableViewTarget?.description || ""} readOnly />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t("skillMarkdown")}</p>
-              <Textarea value={stableViewTarget?.markdown || ""} className="h-64 resize-none overflow-y-auto [field-sizing:fixed]" readOnly />
-            </div>
-          </div>
-          <DialogFooter className="shrink-0 px-5 py-3">
-            <Button variant="ghost" onClick={() => setViewTarget(null)}>
-              {t("close")}
-            </Button>
-          </DialogFooter>
+            <DialogFooter className="shrink-0 px-5 py-3">
+              <Button variant="ghost" onClick={() => setViewTarget(null)}>
+                {t("close")}
+              </Button>
+            </DialogFooter>
+          </DialogHeightTransition>
         </DialogContent>
       </Dialog>
 

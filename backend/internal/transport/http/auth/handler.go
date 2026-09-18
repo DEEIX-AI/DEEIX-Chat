@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -40,6 +41,16 @@ func (h *Handler) recordAudit(c *gin.Context, userID uint, action string, resour
 		UserAgent:   c.Request.UserAgent(),
 		Detail:      detail,
 	})
+}
+
+// writeAccountLockedResponse 统一输出账户锁定响应：423 状态码、稳定错误码，并在已知解锁时间时附带 Retry-After。
+func writeAccountLockedResponse(c *gin.Context, err error) {
+	var lockedErr *appauth.AccountLockedError
+	if errors.As(err, &lockedErr) && lockedErr.RetryAfter > 0 {
+		seconds := int(math.Ceil(lockedErr.RetryAfter.Seconds()))
+		c.Header("Retry-After", strconv.Itoa(seconds))
+	}
+	response.ErrorFrom(c, http.StatusLocked, err)
 }
 
 func bindOptionalJSON(c *gin.Context, req any) error {
@@ -591,6 +602,10 @@ func (h *Handler) ProviderCallback(c *gin.Context) {
 		ProviderError: c.Query("error"),
 	})
 	if err != nil {
+		if errors.Is(err, appauth.ErrAccountLocked) {
+			writeAccountLockedResponse(c, err)
+			return
+		}
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 		return
 	}
@@ -608,6 +623,7 @@ func (h *Handler) ProviderCallback(c *gin.Context) {
 // @Success 200 {object} LoginResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 409 {object} ErrorDoc
+// @Failure 423 {object} ErrorDoc
 // @Router /auth/providers/{slug}/exchange [post]
 func (h *Handler) ExchangeProviderAuthBridgeGrant(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
@@ -640,6 +656,10 @@ func (h *Handler) ExchangeProviderAuthBridgeGrant(c *gin.Context) {
 					"action":       emailConflictErr.Action,
 				},
 			)
+			return
+		}
+		if errors.Is(err, appauth.ErrAccountLocked) {
+			writeAccountLockedResponse(c, err)
 			return
 		}
 		response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -683,6 +703,10 @@ func (h *Handler) CompleteProviderLogin(c *gin.Context) {
 			)
 			return
 		}
+		if errors.Is(err, appauth.ErrAccountLocked) {
+			writeAccountLockedResponse(c, err)
+			return
+		}
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 		return
 	}
@@ -700,6 +724,7 @@ func (h *Handler) CompleteProviderLogin(c *gin.Context) {
 // @Success 200 {object} LoginResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 401 {object} ErrorDoc
+// @Failure 423 {object} ErrorDoc
 // @Failure 429 {object} ErrorDoc
 // @Router /auth/login [post]
 // Login 登录。
@@ -724,7 +749,7 @@ func (h *Handler) Login(c *gin.Context) {
 			return
 		}
 		if errors.Is(err, appauth.ErrAccountLocked) {
-			response.ErrorFrom(c, http.StatusUnauthorized, err)
+			writeAccountLockedResponse(c, err)
 			return
 		}
 		response.InternalError(c)
@@ -764,6 +789,10 @@ func (h *Handler) VerifyTwoFactorLogin(c *gin.Context) {
 		auditCtx,
 	)
 	if err != nil {
+		if errors.Is(err, appauth.ErrAccountLocked) {
+			writeAccountLockedResponse(c, err)
+			return
+		}
 		if errors.Is(err, appauth.ErrTwoFactorChallengeExpired) {
 			response.ErrorFrom(c, http.StatusUnauthorized, err)
 			return

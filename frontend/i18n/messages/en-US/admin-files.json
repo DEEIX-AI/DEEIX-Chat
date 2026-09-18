@@ -34,9 +34,11 @@
     "noSignature": "No signature yet. It is computed automatically after the first save.",
     "reindex": "Rebuild index",
     "reindexing": "Rebuilding...",
+    "reindexIncludingNoText": "Reindex including no-text files",
     "ready": "Ready",
     "stale": "Stale",
     "pending": "Pending",
+    "noText": "No text",
     "failed": "Failed",
     "empty": "No index data yet. This appears after the embedding service is configured.",
     "needsReindex": "Stale vectors detected. Rebuild the index to restore retrieval quality."
@@ -162,6 +164,14 @@
         "label": "Vector dimensions",
         "description": "Vector dimensions used consistently for storage and retrieval.",
         "placeholder": "Vector dimensions"
+      },
+      "embedding_dimensions_policy": {
+        "label": "Dimensions request policy",
+        "description": "Whether to include the `dimensions` parameter in requests. Some services reject it.",
+        "options": {
+          "send": "Include",
+          "omit": "Omit"
+        }
       },
       "embedding_normalize": {
         "label": "Normalize vectors",

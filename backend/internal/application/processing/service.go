@@ -344,11 +344,14 @@ func (s *Service) processClaimedFile(
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		if extraction.IsEmptyContent(extractErr) {
+			return s.markClaimedFileProcessingEmpty(runCtx, fileObj, attemptID, extraction.ErrorCode(extractErr))
+		}
 		code, message := resolveProcessingFailure(fileObj, extractErr)
 		return s.markClaimedFileProcessingFailed(runCtx, fileObj, attemptID, code, message)
 	}
 	if strings.TrimSpace(extractResult.Text) == "" {
-		return s.markClaimedFileProcessingFailed(runCtx, fileObj, attemptID, "extract_failed", "无法提取文本")
+		return s.markClaimedFileProcessingEmpty(runCtx, fileObj, attemptID, domainconversation.FileErrorCodeNoExtractableText)
 	}
 
 	extractPath, err := s.extractSvc.WriteExtractedText(runCtx, fileObj.UserID, fileObj.FileID, extractResult.Text)
@@ -1079,6 +1082,39 @@ func (s *Service) markFileProcessingFailed(ctx context.Context, fileObj *domainc
 		writeCtx,
 		s.failedFileProcessingState(fileObj, code, message),
 	)
+}
+
+// markClaimedFileProcessingEmpty 记录提取正常完成但无文本的终态。流水线本身成功，因此
+// ProcessingStatus 为 ready；空结果由 ExtractStatus 与 RAGReason 表达，不写 ErrorCode。
+func (s *Service) markClaimedFileProcessingEmpty(
+	ctx context.Context,
+	fileObj *domainconversation.FileObject,
+	attemptID string,
+	reason string,
+) error {
+	if fileObj == nil {
+		return nil
+	}
+	writeCtx := ctx
+	if writeCtx == nil || writeCtx.Err() != nil {
+		var cancel context.CancelFunc
+		writeCtx, cancel = background.WithTimeout(ctx, failurePersistTimeout)
+		defer cancel()
+	}
+	now := time.Now()
+	return s.updateClaimedFileProcessingState(writeCtx, attemptID, &domainconversation.FileObjectProcessing{
+		FileObjectID:     fileObj.ID,
+		UserID:           fileObj.UserID,
+		DetectedMIME:     fileObj.DetectedMIME,
+		FileCategory:     fileObj.FileCategory,
+		ProcessingStatus: "ready",
+		ProcessingReady:  false,
+		ExtractStatus:    domainconversation.FileSubprocessStatusEmpty,
+		RAGReady:         false,
+		RAGReason:        reason,
+		ExtractorVersion: s.version(),
+		CompletedAt:      &now,
+	})
 }
 
 func (s *Service) markClaimedFileProcessingFailed(

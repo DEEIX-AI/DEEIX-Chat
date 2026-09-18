@@ -11,6 +11,7 @@ import (
 	systemeventapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/systemevent"
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/mcpauth"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	portmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -194,6 +195,7 @@ func (s *Service) SyncServerTools(ctx context.Context, input SyncServerToolsInpu
 	if err != nil {
 		return fail(err)
 	}
+	headers = removeSignedUserContextTemplates(headers)
 	tools, err := s.client.ListTools(ctx, portmcp.CallConfig{
 		BaseURL:   server.BaseURL,
 		AuthToken: token,
@@ -263,6 +265,20 @@ func (s *Service) SyncServerTools(ctx context.Context, input SyncServerToolsInpu
 		},
 	})
 	return result, nil
+}
+
+func removeSignedUserContextTemplates(headers map[string]string) map[string]string {
+	if len(headers) == 0 {
+		return headers
+	}
+	filtered := make(map[string]string, len(headers))
+	for key, value := range headers {
+		if strings.TrimSpace(value) == mcpauth.TemplateSignedUserContext {
+			continue
+		}
+		filtered[key] = value
+	}
+	return filtered
 }
 
 func mcpSyncErrorCode(err error) string {

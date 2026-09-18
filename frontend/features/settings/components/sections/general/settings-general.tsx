@@ -404,9 +404,8 @@ export function SettingsGeneral() {
   const handleThemeModeChange = React.useCallback(
     (mode: ThemeMode) => {
       setTheme(mode);
-      persistAppearancePreferences({ theme: mode });
     },
-    [persistAppearancePreferences, setTheme],
+    [setTheme],
   );
 
   const handleThemePresetChange = React.useCallback(

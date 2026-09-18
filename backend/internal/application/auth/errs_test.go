@@ -18,6 +18,13 @@ func TestPublicAuthErrorContracts(t *testing.T) {
 			wantMessage: "username change required",
 		},
 		{
+			name:        "account locked",
+			code:        ErrAccountLocked.Code(),
+			message:     ErrAccountLocked.Message(),
+			wantCode:    "auth.account_locked",
+			wantMessage: "account is temporarily locked, try again later",
+		},
+		{
 			name:        "authorization code required",
 			code:        ErrAuthorizationCodeRequired.Code(),
 			message:     ErrAuthorizationCodeRequired.Message(),

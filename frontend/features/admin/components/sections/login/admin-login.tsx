@@ -19,7 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogHeightTransition, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -653,231 +653,233 @@ export function AdminLoginSettingsPage() {
       </div>
 
       <Dialog open={providerDialogOpen} onOpenChange={setProviderDialogOpen}>
-        <DialogContent className="flex max-h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[680px]">
-          <DialogHeader className="shrink-0 px-4 py-4">
-            <DialogTitle>{editingProvider ? t("providerDialog.editTitle") : t("providerDialog.createTitle")}</DialogTitle>
-            <DialogDescription>{t("providerDialog.description")}</DialogDescription>
-          </DialogHeader>
-          <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 overflow-y-auto px-4 py-2">
-            <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
-              <div className="space-y-0.5">
-                <div className="text-xs font-medium">{t("providers.loginControl")}</div>
-                <div className="text-[11px] text-muted-foreground">{t("providerDialog.loginControlDescription")}</div>
-              </div>
-              <Switch
-                checked={providerForm.loginEnabled}
-                onCheckedChange={(checked) =>
-                  setProviderForm((prev) => ({
-                    ...prev,
-                    loginEnabled: checked,
-                    registrationEnabled: checked ? prev.registrationEnabled : false,
-                  }))
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
-              <div className="space-y-0.5">
-                <div className="text-xs font-medium">{t("providers.registrationControl")}</div>
-                <div className="text-[11px] text-muted-foreground">{t("providerDialog.registrationControlDescription")}</div>
-              </div>
-              <Switch
-                checked={providerForm.loginEnabled && providerForm.registrationEnabled}
-                disabled={!providerForm.loginEnabled}
-                onCheckedChange={(checked) => setProviderForm((prev) => ({ ...prev, registrationEnabled: checked }))}
-              />
-            </div>
-            <label className="space-y-1 text-sm">
-              <span className="text-xs text-muted-foreground">{t("providers.type")}<RequiredMark /></span>
-              <Select
-                value={providerForm.type}
-                onValueChange={(value) => {
-                  const type = value as "oidc" | "oauth2";
-                  setProviderForm((prev) => ({ ...prev, type }));
-                  if (type === "oidc") setOidcEndpointMode(providerForm.discoveryURL ? "discovery" : "issuer");
-                }}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="oidc">OIDC</SelectItem>
-                  <SelectItem value="oauth2">OAuth2</SelectItem>
-                </SelectContent>
-              </Select>
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="text-xs text-muted-foreground">{t("providers.name")}<RequiredMark /></span>
-              <Input value={providerForm.name} onChange={(event) => setProviderForm((prev) => ({ ...prev, name: event.target.value }))} />
-            </label>
-            <label className="col-span-2 space-y-1 text-sm">
-              <span className="text-xs text-muted-foreground">
-                {t(providerCallbackBaseURL ? "providerDialog.serverCallbackURL" : "providerDialog.callbackURL")}
-              </span>
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                <Input value={callbackURL} disabled readOnly />
-                <CopyActionButton
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground shadow-none"
-                  value={callbackURL}
-                  messages={{ copied: t("toast.callbackCopied"), failed: commonT("errors.copyFailed") }}
-                  aria-label={t("providerDialog.copyCallbackURL")}
-                  title={t("providerDialog.copyCallbackURL")}
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[680px]">
+          <DialogHeightTransition contentClassName="max-h-[min(86vh,760px)]">
+            <DialogHeader className="shrink-0 px-4 py-4">
+              <DialogTitle>{editingProvider ? t("providerDialog.editTitle") : t("providerDialog.createTitle")}</DialogTitle>
+              <DialogDescription>{t("providerDialog.description")}</DialogDescription>
+            </DialogHeader>
+            <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 overflow-y-auto px-4 py-2">
+              <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-medium">{t("providers.loginControl")}</div>
+                  <div className="text-[11px] text-muted-foreground">{t("providerDialog.loginControlDescription")}</div>
+                </div>
+                <Switch
+                  checked={providerForm.loginEnabled}
+                  onCheckedChange={(checked) =>
+                    setProviderForm((prev) => ({
+                      ...prev,
+                      loginEnabled: checked,
+                      registrationEnabled: checked ? prev.registrationEnabled : false,
+                    }))
+                  }
                 />
               </div>
-            </label>
-            {callbackURL !== legacyCallbackURL ? (
+              <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-medium">{t("providers.registrationControl")}</div>
+                  <div className="text-[11px] text-muted-foreground">{t("providerDialog.registrationControlDescription")}</div>
+                </div>
+                <Switch
+                  checked={providerForm.loginEnabled && providerForm.registrationEnabled}
+                  disabled={!providerForm.loginEnabled}
+                  onCheckedChange={(checked) => setProviderForm((prev) => ({ ...prev, registrationEnabled: checked }))}
+                />
+              </div>
+              <label className="space-y-1 text-sm">
+                <span className="text-xs text-muted-foreground">{t("providers.type")}<RequiredMark /></span>
+                <Select
+                  value={providerForm.type}
+                  onValueChange={(value) => {
+                    const type = value as "oidc" | "oauth2";
+                    setProviderForm((prev) => ({ ...prev, type }));
+                    if (type === "oidc") setOidcEndpointMode(providerForm.discoveryURL ? "discovery" : "issuer");
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="oidc">OIDC</SelectItem>
+                    <SelectItem value="oauth2">OAuth2</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-xs text-muted-foreground">{t("providers.name")}<RequiredMark /></span>
+                <Input value={providerForm.name} onChange={(event) => setProviderForm((prev) => ({ ...prev, name: event.target.value }))} />
+              </label>
               <label className="col-span-2 space-y-1 text-sm">
-                <span className="text-xs text-muted-foreground">{t("providerDialog.legacyWebCallbackURL")}</span>
+                <span className="text-xs text-muted-foreground">
+                  {t(providerCallbackBaseURL ? "providerDialog.serverCallbackURL" : "providerDialog.callbackURL")}
+                </span>
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                  <Input value={legacyCallbackURL} disabled readOnly />
+                  <Input value={callbackURL} disabled readOnly />
                   <CopyActionButton
                     type="button"
                     variant="ghost"
                     size="icon"
                     className="text-muted-foreground shadow-none"
-                    value={legacyCallbackURL}
+                    value={callbackURL}
                     messages={{ copied: t("toast.callbackCopied"), failed: commonT("errors.copyFailed") }}
                     aria-label={t("providerDialog.copyCallbackURL")}
                     title={t("providerDialog.copyCallbackURL")}
                   />
                 </div>
               </label>
-            ) : null}
-            <label className="col-span-2 space-y-1 text-sm">
-              <span className="text-xs text-muted-foreground">{t("providerDialog.logoURL")}</span>
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                <Input value={providerForm.logoURL ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, logoURL: event.target.value }))} placeholder="https://example.com/logo.svg" />
-                <div className="grid h-8 w-8 place-items-center rounded-md border border-input/40 bg-transparent">
-                  <IdentityProviderIcon
-                    name={providerForm.name || "Provider"}
-                    slug={providerForm.slug || normalizeProviderSlugPreview(providerForm.name)}
-                    logoURL={providerForm.logoURL}
-                    className="size-5"
-                    iconClassName="size-5"
-                    fallbackClassName="text-sm font-semibold uppercase"
-                  />
-                </div>
-              </div>
-            </label>
-            <label className="col-span-2 space-y-1 text-sm">
-              <span className="text-xs text-muted-foreground">{t("providerDialog.clientID")}<RequiredMark /></span>
-              <Input value={providerForm.clientID} onChange={(event) => setProviderForm((prev) => ({ ...prev, clientID: event.target.value }))} />
-            </label>
-            <label className="col-span-2 space-y-1 text-sm">
-              <span className="text-xs text-muted-foreground">{t("providerDialog.clientSecret")}{editingProvider ? null : <RequiredMark />}</span>
-              <Input type="password" value={providerForm.clientSecret ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, clientSecret: event.target.value }))} placeholder={editingProvider ? commonT("input.configuredPasswordPlaceholder") : ""} />
-            </label>
-            {providerForm.type === "oidc" ? (
+              {callbackURL !== legacyCallbackURL ? (
+                <label className="col-span-2 space-y-1 text-sm">
+                  <span className="text-xs text-muted-foreground">{t("providerDialog.legacyWebCallbackURL")}</span>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                    <Input value={legacyCallbackURL} disabled readOnly />
+                    <CopyActionButton
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground shadow-none"
+                      value={legacyCallbackURL}
+                      messages={{ copied: t("toast.callbackCopied"), failed: commonT("errors.copyFailed") }}
+                      aria-label={t("providerDialog.copyCallbackURL")}
+                      title={t("providerDialog.copyCallbackURL")}
+                    />
+                  </div>
+                </label>
+              ) : null}
               <label className="col-span-2 space-y-1 text-sm">
-                <span className="text-xs text-muted-foreground">{t("providerDialog.oidcEndpoint")}<RequiredMark /></span>
-                <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-2">
-                  <Select
-                    value={oidcEndpointMode}
-                    onValueChange={(value) => {
-                      const mode = value as "issuer" | "discovery";
-                      setOidcEndpointMode(mode);
-                      setProviderForm((prev) =>
-                        mode === "discovery"
-                          ? { ...prev, discoveryURL: prev.discoveryURL || prev.issuerURL || "", issuerURL: "" }
-                          : { ...prev, issuerURL: prev.issuerURL || prev.discoveryURL || "", discoveryURL: "" },
-                      );
-                    }}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="issuer">{t("providerDialog.issuerURL")}</SelectItem>
-                      <SelectItem value="discovery">{t("providerDialog.discoveryURL")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    value={oidcEndpointValue}
-                    onChange={(event) =>
-                      setProviderForm((prev) =>
-                        oidcEndpointMode === "discovery"
-                          ? { ...prev, discoveryURL: event.target.value, issuerURL: "" }
-                          : { ...prev, issuerURL: event.target.value, discoveryURL: "" },
-                      )
-                    }
-                    placeholder={oidcEndpointMode === "discovery" ? "https://example.com/.well-known/openid-configuration" : "https://example.com"}
-                  />
+                <span className="text-xs text-muted-foreground">{t("providerDialog.logoURL")}</span>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                  <Input value={providerForm.logoURL ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, logoURL: event.target.value }))} placeholder="https://example.com/logo.svg" />
+                  <div className="grid h-8 w-8 place-items-center rounded-md border border-input/40 bg-transparent">
+                    <IdentityProviderIcon
+                      name={providerForm.name || "Provider"}
+                      slug={providerForm.slug || normalizeProviderSlugPreview(providerForm.name)}
+                      logoURL={providerForm.logoURL}
+                      className="size-5"
+                      iconClassName="size-5"
+                      fallbackClassName="text-sm font-semibold uppercase"
+                    />
+                  </div>
                 </div>
               </label>
-            ) : (
-              <>
-                <label className="col-span-2 space-y-1 text-sm"><span className="text-xs text-muted-foreground">{t("providerDialog.authURL")}<RequiredMark /></span><Input value={providerForm.authURL ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, authURL: event.target.value }))} /></label>
-                <label className="col-span-2 space-y-1 text-sm"><span className="text-xs text-muted-foreground">{t("providerDialog.tokenURL")}<RequiredMark /></span><Input value={providerForm.tokenURL ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, tokenURL: event.target.value }))} /></label>
-                <label className="col-span-2 space-y-1 text-sm"><span className="text-xs text-muted-foreground">{t("providerDialog.userinfoURL")}<RequiredMark /></span><Input value={providerForm.userinfoURL ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, userinfoURL: event.target.value }))} /></label>
-              </>
-            )}
-            <label className="col-span-2 space-y-1 text-sm"><span className="text-xs text-muted-foreground">{t("providerDialog.scopes")}</span><Input value={providerForm.scopes ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, scopes: event.target.value }))} /></label>
-            <Separator className="col-span-2 my-2" />
-            <Accordion type="single" collapsible className="col-span-2 -mt-1">
-              <AccordionItem value="claim-mapping" className="border-b-0">
-                <AccordionTrigger className="py-1 text-xs hover:no-underline">{t("providerDialog.advancedSettings")}</AccordionTrigger>
-                <AccordionContent className="space-y-3 pb-0 pt-2">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
-                    <label className="space-y-1 text-sm">
-                      <span className="text-xs text-muted-foreground">{t("providerDialog.sourceField")}</span>
-                      <Input value={providerForm.subjectField ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, subjectField: event.target.value }))} placeholder="sub" />
-                    </label>
-                    <FieldMappingArrow />
-                    <label className="space-y-1 text-sm">
-                      <span className="text-xs text-muted-foreground">{t("providerDialog.systemField")}</span>
-                      <Input value={t("providerDialog.systemFields.userID")} disabled readOnly />
-                    </label>
+              <label className="col-span-2 space-y-1 text-sm">
+                <span className="text-xs text-muted-foreground">{t("providerDialog.clientID")}<RequiredMark /></span>
+                <Input value={providerForm.clientID} onChange={(event) => setProviderForm((prev) => ({ ...prev, clientID: event.target.value }))} />
+              </label>
+              <label className="col-span-2 space-y-1 text-sm">
+                <span className="text-xs text-muted-foreground">{t("providerDialog.clientSecret")}{editingProvider ? null : <RequiredMark />}</span>
+                <Input type="password" value={providerForm.clientSecret ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, clientSecret: event.target.value }))} placeholder={editingProvider ? commonT("input.configuredPasswordPlaceholder") : ""} />
+              </label>
+              {providerForm.type === "oidc" ? (
+                <label className="col-span-2 space-y-1 text-sm">
+                  <span className="text-xs text-muted-foreground">{t("providerDialog.oidcEndpoint")}<RequiredMark /></span>
+                  <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-2">
+                    <Select
+                      value={oidcEndpointMode}
+                      onValueChange={(value) => {
+                        const mode = value as "issuer" | "discovery";
+                        setOidcEndpointMode(mode);
+                        setProviderForm((prev) =>
+                          mode === "discovery"
+                            ? { ...prev, discoveryURL: prev.discoveryURL || prev.issuerURL || "", issuerURL: "" }
+                            : { ...prev, issuerURL: prev.issuerURL || prev.discoveryURL || "", discoveryURL: "" },
+                        );
+                      }}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="issuer">{t("providerDialog.issuerURL")}</SelectItem>
+                        <SelectItem value="discovery">{t("providerDialog.discoveryURL")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={oidcEndpointValue}
+                      onChange={(event) =>
+                        setProviderForm((prev) =>
+                          oidcEndpointMode === "discovery"
+                            ? { ...prev, discoveryURL: event.target.value, issuerURL: "" }
+                            : { ...prev, issuerURL: event.target.value, discoveryURL: "" },
+                        )
+                      }
+                      placeholder={oidcEndpointMode === "discovery" ? "https://example.com/.well-known/openid-configuration" : "https://example.com"}
+                    />
                   </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
-                    <label className="space-y-1 text-sm">
-                      <span className="text-xs text-muted-foreground">{t("providerDialog.sourceField")}</span>
-                      <Input value={providerForm.emailField ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, emailField: event.target.value }))} placeholder="email" />
-                    </label>
-                    <FieldMappingArrow />
-                    <label className="space-y-1 text-sm">
-                      <span className="text-xs text-muted-foreground">{t("providerDialog.systemField")}</span>
-                      <Input value={t("providerDialog.systemFields.email")} disabled readOnly />
-                    </label>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
-                    <label className="space-y-1 text-sm">
-                      <span className="text-xs text-muted-foreground">{t("providerDialog.sourceField")}</span>
-                      <Input value={providerForm.emailVerifiedField ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, emailVerifiedField: event.target.value }))} placeholder="email_verified" />
-                    </label>
-                    <FieldMappingArrow />
-                    <label className="space-y-1 text-sm">
-                      <span className="text-xs text-muted-foreground">{t("providerDialog.systemField")}</span>
-                      <Input value={t("providerDialog.systemFields.emailVerified")} disabled readOnly />
-                    </label>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
-                    <label className="space-y-1 text-sm">
-                      <span className="text-xs text-muted-foreground">{t("providerDialog.sourceField")}</span>
-                      <Input value={providerForm.nameField ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, nameField: event.target.value }))} placeholder="name" />
-                    </label>
-                    <FieldMappingArrow />
-                    <label className="space-y-1 text-sm">
-                      <span className="text-xs text-muted-foreground">{t("providerDialog.systemField")}</span>
-                      <Input value={t("providerDialog.systemFields.displayName")} disabled readOnly />
-                    </label>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
-                    <label className="space-y-1 text-sm">
-                      <span className="text-xs text-muted-foreground">{t("providerDialog.sourceField")}</span>
-                      <Input value={providerForm.avatarField ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, avatarField: event.target.value }))} placeholder="picture" />
-                    </label>
-                    <FieldMappingArrow />
-                    <label className="space-y-1 text-sm">
-                      <span className="text-xs text-muted-foreground">{t("providerDialog.systemField")}</span>
-                      <Input value={t("providerDialog.systemFields.avatar")} disabled readOnly />
-                    </label>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </div>
-          <DialogFooter className="shrink-0 px-4 py-3">
-            <Button variant="ghost" onClick={() => setProviderDialogOpen(false)}>{commonT("actions.cancel")}</Button>
-            <Button type="button" onClick={() => void saveProvider()} disabled={saving}>{commonT("actions.save")}</Button>
-          </DialogFooter>
+                </label>
+              ) : (
+                <>
+                  <label className="col-span-2 space-y-1 text-sm"><span className="text-xs text-muted-foreground">{t("providerDialog.authURL")}<RequiredMark /></span><Input value={providerForm.authURL ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, authURL: event.target.value }))} /></label>
+                  <label className="col-span-2 space-y-1 text-sm"><span className="text-xs text-muted-foreground">{t("providerDialog.tokenURL")}<RequiredMark /></span><Input value={providerForm.tokenURL ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, tokenURL: event.target.value }))} /></label>
+                  <label className="col-span-2 space-y-1 text-sm"><span className="text-xs text-muted-foreground">{t("providerDialog.userinfoURL")}<RequiredMark /></span><Input value={providerForm.userinfoURL ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, userinfoURL: event.target.value }))} /></label>
+                </>
+              )}
+              <label className="col-span-2 space-y-1 text-sm"><span className="text-xs text-muted-foreground">{t("providerDialog.scopes")}</span><Input value={providerForm.scopes ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, scopes: event.target.value }))} /></label>
+              <Separator className="col-span-2 my-2" />
+              <Accordion type="single" collapsible className="col-span-2 -mt-1">
+                <AccordionItem value="claim-mapping" className="border-b-0">
+                  <AccordionTrigger className="py-1 text-xs hover:no-underline">{t("providerDialog.advancedSettings")}</AccordionTrigger>
+                  <AccordionContent className="space-y-3 pb-0 pt-2">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
+                      <label className="space-y-1 text-sm">
+                        <span className="text-xs text-muted-foreground">{t("providerDialog.sourceField")}</span>
+                        <Input value={providerForm.subjectField ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, subjectField: event.target.value }))} placeholder="sub" />
+                      </label>
+                      <FieldMappingArrow />
+                      <label className="space-y-1 text-sm">
+                        <span className="text-xs text-muted-foreground">{t("providerDialog.systemField")}</span>
+                        <Input value={t("providerDialog.systemFields.userID")} disabled readOnly />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
+                      <label className="space-y-1 text-sm">
+                        <span className="text-xs text-muted-foreground">{t("providerDialog.sourceField")}</span>
+                        <Input value={providerForm.emailField ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, emailField: event.target.value }))} placeholder="email" />
+                      </label>
+                      <FieldMappingArrow />
+                      <label className="space-y-1 text-sm">
+                        <span className="text-xs text-muted-foreground">{t("providerDialog.systemField")}</span>
+                        <Input value={t("providerDialog.systemFields.email")} disabled readOnly />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
+                      <label className="space-y-1 text-sm">
+                        <span className="text-xs text-muted-foreground">{t("providerDialog.sourceField")}</span>
+                        <Input value={providerForm.emailVerifiedField ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, emailVerifiedField: event.target.value }))} placeholder="email_verified" />
+                      </label>
+                      <FieldMappingArrow />
+                      <label className="space-y-1 text-sm">
+                        <span className="text-xs text-muted-foreground">{t("providerDialog.systemField")}</span>
+                        <Input value={t("providerDialog.systemFields.emailVerified")} disabled readOnly />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
+                      <label className="space-y-1 text-sm">
+                        <span className="text-xs text-muted-foreground">{t("providerDialog.sourceField")}</span>
+                        <Input value={providerForm.nameField ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, nameField: event.target.value }))} placeholder="name" />
+                      </label>
+                      <FieldMappingArrow />
+                      <label className="space-y-1 text-sm">
+                        <span className="text-xs text-muted-foreground">{t("providerDialog.systemField")}</span>
+                        <Input value={t("providerDialog.systemFields.displayName")} disabled readOnly />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
+                      <label className="space-y-1 text-sm">
+                        <span className="text-xs text-muted-foreground">{t("providerDialog.sourceField")}</span>
+                        <Input value={providerForm.avatarField ?? ""} onChange={(event) => setProviderForm((prev) => ({ ...prev, avatarField: event.target.value }))} placeholder="picture" />
+                      </label>
+                      <FieldMappingArrow />
+                      <label className="space-y-1 text-sm">
+                        <span className="text-xs text-muted-foreground">{t("providerDialog.systemField")}</span>
+                        <Input value={t("providerDialog.systemFields.avatar")} disabled readOnly />
+                      </label>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </div>
+            <DialogFooter className="shrink-0 px-4 py-3">
+              <Button variant="ghost" onClick={() => setProviderDialogOpen(false)}>{commonT("actions.cancel")}</Button>
+              <Button type="button" onClick={() => void saveProvider()} disabled={saving}>{commonT("actions.save")}</Button>
+            </DialogFooter>
+          </DialogHeightTransition>
         </DialogContent>
       </Dialog>
 

@@ -57,6 +57,10 @@ function translateFileProcessing(
   }
 }
 
+export function isFileEmpty(file: Pick<FileProcessingView, "embedStatus" | "extractStatus">): boolean {
+  return file.embedStatus === "empty" || file.extractStatus === "empty";
+}
+
 export function resolveFileProcessingBadge(
   file: FileProcessingView,
   translate?: FileProcessingTranslator,
@@ -69,6 +73,14 @@ export function resolveFileProcessingBadge(
       detail: file.processingErrorMessage?.trim() || (code
         ? translateFileProcessing(translate, "errorCode", `Error code: ${code}`, { code })
         : translateFileProcessing(translate, "processingFailedDetail", "File processing failed. Upload again or adjust the policy and retry.")),
+    };
+  }
+
+  if (isFileEmpty(file)) {
+    return {
+      label: translateFileProcessing(translate, "noText", "No text"),
+      tone: "neutral",
+      detail: translateFileProcessing(translate, "noTextDetail", "No readable text was found in this file, so it is not indexed for retrieval."),
     };
   }
 
@@ -199,6 +211,10 @@ export function resolveFileRetrievalBadge(
     };
   }
 
+  if (isFileEmpty(file)) {
+    return resolveFileProcessingBadge(file, translate);
+  }
+
   if (file.processingReady && file.embedStatus === "ready" && (file.chunkCount ?? 0) > 0) {
     return {
       label: translateFileProcessing(translate, "searchable", "Searchable"),
@@ -238,6 +254,8 @@ export function resolveEmbedStatusLabel(embedStatus: string | null | undefined, 
       return translateFileProcessing(translate, "embedQueued", "Index queued");
     case "failed":
       return translateFileProcessing(translate, "embedFailed", "Index failed");
+    case "empty":
+      return translateFileProcessing(translate, "noText", "No text");
     case "none":
     case "":
     case undefined:
@@ -256,6 +274,8 @@ export function resolveExtractStatusLabel(extractStatus: string | null | undefin
       return translateFileProcessing(translate, "extractProcessing", "Extracting…");
     case "failed":
       return translateFileProcessing(translate, "extractFailed", "Extraction failed");
+    case "empty":
+      return translateFileProcessing(translate, "noText", "No text");
     case "none":
     case "":
     case undefined:

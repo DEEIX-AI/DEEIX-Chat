@@ -201,6 +201,8 @@
     "errorCode": "错误代码：{code}",
     "indexFailed": "索引失败",
     "indexFailedDetail": "文件已可用于全文对话，但智能检索索引生成失败。",
+    "noText": "无文本",
+    "noTextDetail": "文件中没有可读文本，不参与智能检索。",
     "indexOutdated": "索引待更新",
     "indexOutdatedDetail": "该文件使用旧的向量空间，需要重新向量化后才能用于当前检索配置。",
     "waiting": "等待处理",

@@ -14,6 +14,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogHeightTransition,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -407,6 +408,7 @@ const PROTOCOL_LABELS: Record<string, string> = {
   openai_image_generations: "Images Generations",
   openai_responses: "Responses",
   openrouter_responses: "OpenRouter Responses",
+  openrouter_images: "OpenRouter Images",
   openai_video_generations: "Video Generations",
   replicate_predictions: "Predictions",
   stability_ai_generate: "Image Generation",
@@ -1548,44 +1550,46 @@ export function ChatModelConfig({
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
-          className="flex max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] flex-col overflow-hidden p-4 sm:max-h-[min(92vh,760px)] sm:w-full sm:max-w-[800px] sm:p-6 md:max-w-[900px]"
+          className="w-[calc(100vw-1rem)] overflow-hidden p-4 sm:w-full sm:max-w-[800px] sm:p-6 md:max-w-[900px]"
         >
-          <DialogHeader className="shrink-0">
-            <div className="flex min-w-0 items-center justify-between gap-3">
-              <DialogTitle className="shrink-0">{tComposer("modelOptions")}</DialogTitle>
-              <div className="shrink-0 md:hidden">{renderOptionsViewToggle()}</div>
-            </div>
-            <DialogDescription className="hidden md:block">
-              {tComposer("dialogDescription", { model: selectedModelName || tComposer("currentModel") })}
-            </DialogDescription>
-          </DialogHeader>
+          <DialogHeightTransition contentClassName="max-h-[calc(100dvh-3rem)] gap-4 sm:max-h-[calc(min(92vh,760px)-3rem)]">
+            <DialogHeader className="shrink-0">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <DialogTitle className="shrink-0">{tComposer("modelOptions")}</DialogTitle>
+                <div className="shrink-0 md:hidden">{renderOptionsViewToggle()}</div>
+              </div>
+              <DialogDescription className="hidden md:block">
+                {tComposer("dialogDescription", { model: selectedModelName || tComposer("currentModel") })}
+              </DialogDescription>
+            </DialogHeader>
 
-          <form
-            className="flex min-h-0 flex-1 flex-col gap-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              saveOptionsDraft();
-            }}
-          >
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <div className="grid h-[min(58dvh,520px)] min-h-[320px] min-w-0 gap-4 md:grid-cols-[minmax(0,430px)_minmax(300px,1fr)] md:gap-5">
-                <div className={cn(mobileView === "json" ? "block" : "hidden", "h-full min-h-0 md:block")}>
-                  {renderOptionsEditor()}
-                </div>
-                <div className={cn(mobileView === "visual" ? "block" : "hidden", "h-full min-h-0 md:block")}>
-                  {renderOptionsVisualFields()}
+            <form
+              className="flex min-h-0 flex-1 flex-col gap-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                saveOptionsDraft();
+              }}
+            >
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <div className="grid h-[min(58dvh,520px)] min-h-[320px] min-w-0 gap-4 md:grid-cols-[minmax(0,430px)_minmax(300px,1fr)] md:gap-5">
+                  <div className={cn(mobileView === "json" ? "block" : "hidden", "h-full min-h-0 md:block")}>
+                    {renderOptionsEditor()}
+                  </div>
+                  <div className={cn(mobileView === "visual" ? "block" : "hidden", "h-full min-h-0 md:block")}>
+                    {renderOptionsVisualFields()}
+                  </div>
                 </div>
               </div>
-            </div>
-            <DialogFooter className="shrink-0">
-              <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)}>
-                {tCommon("cancel")}
-              </Button>
-              <Button type="submit">
-                {tCommon("save")}
-              </Button>
-            </DialogFooter>
-          </form>
+              <DialogFooter className="shrink-0">
+                <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)}>
+                  {tCommon("cancel")}
+                </Button>
+                <Button type="submit">
+                  {tCommon("save")}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogHeightTransition>
         </DialogContent>
       </Dialog>
     </>

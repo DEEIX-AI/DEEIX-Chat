@@ -133,7 +133,10 @@
     "authToken": "鉴权密钥",
     "authTokenCreatePlaceholder": "可留空",
     "authTokenEditPlaceholder": "留空则不变",
-    "headers": "请求头"
+    "headers": "请求头",
+    "quickFillHeaders": "快速填入",
+    "commonHeaderPresets": "常用请求头",
+    "signedUserContextHeader": "签名用户上下文"
   },
   "toolDialog": {
     "title": "编辑 MCP 工具",
@@ -178,6 +181,8 @@
     "serverUpdated": "MCP 服务已更新",
     "serverCreated": "MCP 服务已创建",
     "serverSaveFailed": "保存 MCP 服务失败",
+    "invalidHeaders": "请求头 JSON 格式不正确",
+    "headerPresetConflict": "请求头已存在且内容不同，未覆盖",
     "serverDeleted": "MCP 服务已删除",
     "serverDeleteFailed": "删除 MCP 服务失败",
     "serverStatusUpdated": "MCP 服务已{status}",

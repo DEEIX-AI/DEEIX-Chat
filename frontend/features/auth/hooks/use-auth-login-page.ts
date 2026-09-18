@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { completeEmailRegistration, completePasswordReset, getLoginOptions, getLoginPageSettings, login, startEmailRegistration, startPasswordReset, startProviderAuthBridge, startTwoFactorEmailVerification, verifyTwoFactorLogin } from "@/shared/api/auth";
+import { completeEmailRegistration, completePasswordReset, getLoginOptions, getLoginPageSettings, isAccountLockedError, login, startEmailRegistration, startPasswordReset, startProviderAuthBridge, startTwoFactorEmailVerification, verifyTwoFactorLogin } from "@/shared/api/auth";
 import type { LoginOptionsData, LoginPageSettings, SecurityVerificationMethod } from "@/shared/api/auth.types";
 import { resolveApiBaseURL } from "@/shared/api/http-client";
 import { isPasswordPolicyValid } from "@/shared/auth/account-policy";
@@ -222,6 +222,10 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
           setTwoFactorEmailDebugCode("");
           setTwoFactorEmailCodeResendAt(0);
           toast.error(t("toasts.challengeExpired"));
+          return;
+        }
+        if (isAccountLockedError(error) && error.retryAfterSeconds) {
+          toast.error(t("toasts.accountLocked", { minutes: Math.ceil(error.retryAfterSeconds / 60) }));
           return;
         }
         toast.error(resolveErrorMessage(error, t("toasts.loginRetry")));

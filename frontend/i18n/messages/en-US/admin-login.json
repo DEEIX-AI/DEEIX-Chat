@@ -104,11 +104,11 @@
     },
     "loginMaxFailures": {
       "label": "Failure lock threshold",
-      "description": "Lock an account after this many consecutive failed sign-in attempts."
+      "description": "Lock an account after this many consecutive failed sign-in attempts. Set 0 to disable account locking."
     },
     "loginLockMinutes": {
       "label": "Lock duration",
-      "description": "Lock duration in minutes after too many failed sign-in attempts."
+      "description": "Lock duration in minutes after too many failed sign-in attempts. Set 0 to disable account locking."
     },
     "rateLimitEnabled": {
       "label": "Platform rate limit",

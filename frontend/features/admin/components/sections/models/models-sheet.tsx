@@ -188,6 +188,7 @@ const IMAGE_MEDIA_PROTOCOLS = new Set([
   "openai_image_generations",
   "openai_image_edits",
   "google_image_generation",
+  "openrouter_images",
   "xai_image",
   "xai_image_edits",
 ]);

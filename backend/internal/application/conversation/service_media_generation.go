@@ -258,8 +258,8 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 		assistantMessage.ParentMessageID = &userMessage.ID
 		assistantMessage.SourceMessageID = branchState.SourceMessageID
 		if err = s.repo.CreateAssistantBranchMessage(ctx, assistantMessage); err != nil {
-			retErr = err
-			return nil, err
+			retErr = mapMessageWriteError(err)
+			return nil, retErr
 		}
 		assistantMessage.ParentPublicID = userMessage.PublicID
 		assistantMessage.SourcePublicID = branchState.SourcePublicID
@@ -303,8 +303,8 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 
 		// 媒体任务同样产生一个完整消息回合，初始本地写入必须原子提交。
 		if err = s.repo.CreateMessagePairWithUserAttachments(ctx, userMessage, assistantMessage, userAttachmentRows); err != nil {
-			retErr = err
-			return nil, err
+			retErr = mapMessageWriteError(err)
+			return nil, retErr
 		}
 		userMessage.ParentPublicID = branchState.ParentPublicID
 		userMessage.SourcePublicID = branchState.SourcePublicID

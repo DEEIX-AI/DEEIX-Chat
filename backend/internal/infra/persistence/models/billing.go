@@ -211,6 +211,7 @@ type ModelPricing struct {
 	InputNanousdPerMTokens      int64  `gorm:"not null;default:0;comment:输入token单价(每百万token,纳美元)"`
 	CacheReadNanousdPerMTokens  int64  `gorm:"not null;default:0;comment:缓存读取token单价(每百万token,纳美元)"`
 	CacheWriteNanousdPerMTokens int64  `gorm:"not null;default:0;comment:缓存写入token单价(每百万token,纳美元)"`
+	CacheWritePriceBasis        string `gorm:"size:32;not null;default:'';comment:缓存写入价格基准(空值为旧版协议倍率)"`
 	OutputNanousdPerMTokens     int64  `gorm:"not null;default:0;comment:输出token单价(每百万token,纳美元)"`
 	CallNanousdPerCall          int64  `gorm:"not null;default:0;comment:按次单价(每次,纳美元)"`
 	DurationNanousdPerSecond    int64  `gorm:"not null;default:0;comment:按秒单价(每秒,纳美元)"`

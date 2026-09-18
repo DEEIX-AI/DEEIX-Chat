@@ -302,6 +302,11 @@ const (
 	FileProcessingStatusEmbedding  = "embedding"
 	FileSubprocessStatusQueued     = "queued"
 	FileSubprocessStatusProcessing = "processing"
+	// FileSubprocessStatusEmpty 表示提取或 OCR 正常完成但未得到任何文本；是终态，自动重建不再处理。
+	FileSubprocessStatusEmpty = "empty"
+
+	// FileErrorCodeNoExtractableText 是空文本终态对应的错误码。
+	FileErrorCodeNoExtractableText = "no_extractable_text"
 )
 
 // IsFileProcessing 统一判断文件是否仍处于服务端处理阶段。

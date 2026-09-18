@@ -12,6 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogHeightTransition,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SpinnerLabel } from "@/components/ui/spinner";
@@ -152,32 +153,34 @@ export function GroupAccessPickerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          "flex max-h-[min(86vh,760px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0",
+          "w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0",
           contentClassName ?? "sm:max-w-[720px]",
         )}
       >
-        <DialogHeader className="shrink-0 px-4 py-4">
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="sr-only">{description}</DialogDescription>
-        </DialogHeader>
+        <DialogHeightTransition contentClassName="max-h-[min(86vh,760px)]">
+          <DialogHeader className="shrink-0 px-4 py-4">
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription className="sr-only">{description}</DialogDescription>
+          </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-hidden px-4 py-2">
-          {topContent ? <div className="pb-3">{topContent}</div> : null}
-          {manualTitle ? (
-            <div className="space-y-2 rounded-md bg-muted/30 px-3 py-2.5">
-              <p className="text-xs font-medium text-foreground">{manualTitle}</p>
-              {accessTable}
-            </div>
-          ) : (
-            accessTable
-          )}
-        </div>
+          <div className="min-h-0 flex-1 overflow-hidden px-4 py-2">
+            {topContent ? <div className="pb-3">{topContent}</div> : null}
+            {manualTitle ? (
+              <div className="space-y-2 rounded-md bg-muted/30 px-3 py-2.5">
+                <p className="text-xs font-medium text-foreground">{manualTitle}</p>
+                {accessTable}
+              </div>
+            ) : (
+              accessTable
+            )}
+          </div>
 
-        <DialogFooter className="shrink-0 px-4 py-3">
-          <Button type="button" onClick={() => onOpenChange(false)}>
-            {t("done")}
-          </Button>
-        </DialogFooter>
+          <DialogFooter className="shrink-0 px-4 py-3">
+            <Button type="button" onClick={() => onOpenChange(false)}>
+              {t("done")}
+            </Button>
+          </DialogFooter>
+        </DialogHeightTransition>
       </DialogContent>
     </Dialog>
   );

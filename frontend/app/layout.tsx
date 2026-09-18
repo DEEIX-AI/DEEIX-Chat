@@ -6,6 +6,7 @@ import { AppearancePreferencesProvider } from "@/features/settings";
 import { AppI18nProvider } from "@/i18n/app-i18n-provider";
 import { BrandingProvider } from "@/shared/config/branding-provider";
 import { DevtoolsBrandBanner } from "@/shared/components/devtools-brand-banner";
+import { ThemeBootstrapScript } from "@/shared/components/theme-bootstrap-script";
 import { ThemeProvider } from "@/shared/components/theme-provider";
 import { LegacyPWAServiceWorkerMigration } from "@/shared/pwa/migrations/legacy-service-worker-migration";
 import { Toaster } from "@/components/ui/sonner";
@@ -59,6 +60,9 @@ export default function RootLayout({
       data-branding-pending="true"
       suppressHydrationWarning
     >
+      <head>
+        <ThemeBootstrapScript />
+      </head>
       <body
         className="h-full min-h-svh overflow-hidden antialiased"
       >

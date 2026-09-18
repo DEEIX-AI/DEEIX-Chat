@@ -5,17 +5,37 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
 const (
 	openRouterPricingCacheTTL     = 24 * time.Hour
-	openRouterPricingCacheVersion = 2
+	openRouterPricingCacheVersion = 5
+	legacyOfficialPricingField    = "legacy_cache"
 )
+
+// openRouterPricingIgnoredFields are provider-side charges that are handled by
+// another DEEIX billing path instead of the model token price.
+var openRouterPricingIgnoredFields = map[string]struct{}{
+	"web_search": {},
+}
+
+// openRouterPricingConditionalFields change when a price applies. Dropping
+// these conditions and keeping their prices would turn a time-based schedule
+// into a token-only tier, so the affected override is skipped as a whole.
+var openRouterPricingConditionalFields = map[string]struct{}{
+	"utc_days":  {},
+	"utc_end":   {},
+	"utc_start": {},
+}
 
 var (
 	// ErrOfficialPricingProviderUnavailable 表示官方定价提供方未完成装配。
@@ -51,8 +71,22 @@ type OfficialPricingItem struct {
 	Pricing             OfficialUnitPricing
 }
 
-// OfficialUnitPricing 表示第三方官方价格字段。
+// OfficialUnitPricing 表示第三方官方价格字段。UnsupportedFields 仅记录当前
+// token 计费模型不会写入的字段；只要基础 prompt/completion 可用，快速配置仍可导入。
 type OfficialUnitPricing struct {
+	Prompt               string
+	Completion           string
+	InputCacheRead       string
+	InputCacheWrite      string
+	CacheWritePriceBasis string
+	Overrides            []OfficialPricingOverride
+	UnsupportedFields    []string
+}
+
+// OfficialPricingOverride 表示 OpenRouter 的一个输入 token 价格覆盖档位。
+// MinPromptTokens 与当前项目的阶梯上限语义配合使用：基础档包含该阈值，下一档从阈值之后开始。
+type OfficialPricingOverride struct {
+	MinPromptTokens int64
 	Prompt          string
 	Completion      string
 	InputCacheRead  string
@@ -86,10 +120,24 @@ type openRouterModelTopProvider struct {
 }
 
 type openRouterModelPricing struct {
-	Prompt          string `json:"prompt"`
-	Completion      string `json:"completion"`
-	InputCacheRead  string `json:"input_cache_read"`
-	InputCacheWrite string `json:"input_cache_write"`
+	Prompt            string
+	Completion        string
+	InputCacheRead    string
+	InputCacheWrite   string
+	Overrides         []openRouterPricingOverride
+	UnsupportedFields []string
+}
+
+type openRouterPricingOverride struct {
+	MinPromptTokens int64
+	Prompt          string
+	Completion      string
+	InputCacheRead  string
+	InputCacheWrite string
+	hasPrompt       bool
+	hasCompletion   bool
+	hasCacheRead    bool
+	hasCacheWrite   bool
 }
 
 type openRouterPricingCacheFile struct {
@@ -108,10 +156,274 @@ type openRouterPricingCacheItem struct {
 }
 
 type openRouterPricingCacheUnitPricing struct {
+	Prompt               string                           `json:"prompt"`
+	Completion           string                           `json:"completion"`
+	InputCacheRead       string                           `json:"inputCacheRead"`
+	InputCacheWrite      string                           `json:"inputCacheWrite"`
+	CacheWritePriceBasis string                           `json:"cacheWritePriceBasis"`
+	Overrides            []openRouterPricingCacheOverride `json:"overrides,omitempty"`
+	UnsupportedFields    []string                         `json:"unsupportedFields,omitempty"`
+}
+
+type openRouterPricingCacheOverride struct {
+	MinPromptTokens int64  `json:"minPromptTokens"`
 	Prompt          string `json:"prompt"`
 	Completion      string `json:"completion"`
 	InputCacheRead  string `json:"inputCacheRead"`
 	InputCacheWrite string `json:"inputCacheWrite"`
+}
+
+func (p *openRouterModelPricing) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	*p = openRouterModelPricing{}
+
+	knownFields := map[string]struct{}{
+		"prompt":            {},
+		"completion":        {},
+		"input_cache_read":  {},
+		"input_cache_write": {},
+		"overrides":         {},
+	}
+	for key := range fields {
+		if _, ok := knownFields[key]; !ok {
+			if _, ignored := openRouterPricingIgnoredFields[key]; ignored {
+				continue
+			}
+			p.UnsupportedFields = append(p.UnsupportedFields, key)
+		}
+	}
+	decodeOpenRouterPricingField(fields, "prompt", &p.Prompt, &p.UnsupportedFields, true)
+	decodeOpenRouterPricingField(fields, "completion", &p.Completion, &p.UnsupportedFields, true)
+	decodeOpenRouterPricingField(fields, "input_cache_read", &p.InputCacheRead, &p.UnsupportedFields, false)
+	decodeOpenRouterPricingField(fields, "input_cache_write", &p.InputCacheWrite, &p.UnsupportedFields, false)
+
+	if raw, ok := fields["overrides"]; ok {
+		var rawOverrides []json.RawMessage
+		if string(raw) != "null" {
+			if err := json.Unmarshal(raw, &rawOverrides); err != nil {
+				p.UnsupportedFields = append(p.UnsupportedFields, "overrides")
+			} else {
+				for index, rawOverride := range rawOverrides {
+					override, unsupported, usable := parseOpenRouterPricingOverride(rawOverride, index)
+					p.UnsupportedFields = append(p.UnsupportedFields, unsupported...)
+					if usable && override.MinPromptTokens > 0 {
+						p.Overrides = append(p.Overrides, override)
+					}
+				}
+			}
+		}
+	}
+
+	base := openRouterPricingOverride{
+		Prompt:          p.Prompt,
+		Completion:      p.Completion,
+		InputCacheRead:  p.InputCacheRead,
+		InputCacheWrite: p.InputCacheWrite,
+	}
+	thresholds := make([]int64, 0, len(p.Overrides))
+	seen := make(map[int64]bool, len(p.Overrides))
+	for _, override := range p.Overrides {
+		if !seen[override.MinPromptTokens] {
+			thresholds = append(thresholds, override.MinPromptTokens)
+			seen[override.MinPromptTokens] = true
+		}
+	}
+	sort.Slice(thresholds, func(i, j int) bool { return thresholds[i] < thresholds[j] })
+	effective := make([]openRouterPricingOverride, 0, len(thresholds))
+	// Evaluate every interval from base prices. Matching entries overwrite
+	// individual keys in source order, including entries sharing a threshold.
+	for _, threshold := range thresholds {
+		tier := base
+		tier.MinPromptTokens = threshold
+		for _, override := range p.Overrides {
+			if override.MinPromptTokens > threshold {
+				continue
+			}
+			if override.hasPrompt {
+				tier.Prompt = override.Prompt
+			}
+			if override.hasCompletion {
+				tier.Completion = override.Completion
+			}
+			if override.hasCacheRead {
+				tier.InputCacheRead = override.InputCacheRead
+			}
+			if override.hasCacheWrite {
+				tier.InputCacheWrite = override.InputCacheWrite
+			}
+		}
+		effective = append(effective, tier)
+	}
+	p.Overrides = effective
+	p.UnsupportedFields = uniqueSortedOfficialPricingFields(p.UnsupportedFields)
+	return nil
+}
+
+func decodeOpenRouterPricingField(fields map[string]json.RawMessage, key string, target *string, unsupported *[]string, required bool) {
+	raw, ok := fields[key]
+	if !ok {
+		if required {
+			*unsupported = append(*unsupported, key)
+		}
+		return
+	}
+	value, valid := parseOpenRouterPrice(raw)
+	if !valid {
+		*unsupported = append(*unsupported, key)
+		return
+	}
+	*target = value
+}
+
+func parseOpenRouterPricingOverride(raw json.RawMessage, index int) (openRouterPricingOverride, []string, bool) {
+	path := func(field string) string {
+		return fmt.Sprintf("overrides[%d].%s", index, field)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
+		return openRouterPricingOverride{}, []string{fmt.Sprintf("overrides[%d]", index)}, false
+	}
+	unsupported := make([]string, 0)
+	usable := true
+	knownFields := map[string]struct{}{
+		"min_prompt_tokens": {},
+		"prompt":            {},
+		"completion":        {},
+		"input_cache_read":  {},
+		"input_cache_write": {},
+	}
+	for key := range fields {
+		if _, ok := knownFields[key]; !ok {
+			if _, ignored := openRouterPricingIgnoredFields[key]; ignored {
+				continue
+			}
+			if _, conditional := openRouterPricingConditionalFields[key]; conditional {
+				// A known schedule cannot be represented by the token-only
+				// tier shape. Retain the base model price, but skip this
+				// conditional override rather than applying it unconditionally.
+				usable = false
+			}
+			// A tier can still be represented when OpenRouter adds a provider
+			// dimension or another field that this billing form does not store.
+			// Record the field for the UI and omit only that field from the
+			// normalized override. The minimum token threshold remains usable.
+			unsupported = append(unsupported, path(key))
+		}
+	}
+
+	override := openRouterPricingOverride{}
+	minRaw, ok := fields["min_prompt_tokens"]
+	if !ok {
+		unsupported = append(unsupported, path("min_prompt_tokens"))
+		usable = false
+	} else if minTokens, valid := parseOpenRouterMinPromptTokens(minRaw); valid {
+		override.MinPromptTokens = minTokens
+	} else {
+		unsupported = append(unsupported, path("min_prompt_tokens"))
+		usable = false
+	}
+
+	decodeOverridePrice := func(key string, target *string, present *bool) {
+		rawValue, exists := fields[key]
+		if !exists {
+			return
+		}
+		value, valid := parseOpenRouterPrice(rawValue)
+		if !valid {
+			unsupported = append(unsupported, path(key))
+			return
+		}
+		*target = value
+		*present = true
+	}
+	decodeOverridePrice("prompt", &override.Prompt, &override.hasPrompt)
+	decodeOverridePrice("completion", &override.Completion, &override.hasCompletion)
+	decodeOverridePrice("input_cache_read", &override.InputCacheRead, &override.hasCacheRead)
+	decodeOverridePrice("input_cache_write", &override.InputCacheWrite, &override.hasCacheWrite)
+	return override, uniqueSortedOfficialPricingFields(unsupported), usable
+}
+
+func parseOpenRouterPrice(raw json.RawMessage) (string, bool) {
+	value, err := decodeOpenRouterJSONScalar(raw)
+	if err != nil {
+		return "", false
+	}
+	var text string
+	switch typed := value.(type) {
+	case string:
+		text = strings.TrimSpace(typed)
+	case json.Number:
+		text = typed.String()
+	default:
+		return "", false
+	}
+	if text == "" {
+		return "", false
+	}
+	parsed, err := strconv.ParseFloat(text, 64)
+	if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) || parsed < 0 {
+		return "", false
+	}
+	return text, true
+}
+
+func parseOpenRouterMinPromptTokens(raw json.RawMessage) (int64, bool) {
+	value, err := decodeOpenRouterJSONScalar(raw)
+	if err != nil {
+		return 0, false
+	}
+	number, ok := value.(json.Number)
+	if !ok {
+		return 0, false
+	}
+	parsed, err := strconv.ParseInt(number.String(), 10, 64)
+	return parsed, err == nil && parsed > 0
+}
+
+func decodeOpenRouterJSONScalar(raw json.RawMessage) (any, error) {
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+func uniqueSortedOfficialPricingFields(fields []string) []string {
+	if len(fields) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(fields))
+	result := make([]string, 0, len(fields))
+	for _, field := range fields {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		if _, ok := seen[field]; ok {
+			continue
+		}
+		seen[field] = struct{}{}
+		result = append(result, field)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func isOpenRouterAnthropicModelID(modelID string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(modelID))
+	return strings.HasPrefix(normalized, "anthropic/") || strings.HasPrefix(normalized, "~anthropic/")
+}
+
+func openRouterCacheWritePriceBasis(modelID string) string {
+	if isOpenRouterAnthropicModelID(modelID) {
+		return domainbilling.CacheWritePriceBasisAnthropic5m
+	}
+	return domainbilling.CacheWritePriceBasisDirect
 }
 
 // NewOfficialPricingService 创建依赖完整的官方定价应用服务。
@@ -179,8 +491,26 @@ func (s *OfficialPricingService) loadOpenRouterPricingCache(ctx context.Context)
 }
 
 func officialPricingResultFromCache(cache openRouterPricingCacheFile, cached bool, stale bool) OfficialPricingResult {
+	legacyCache := cache.Version < openRouterPricingCacheVersion
 	items := make([]OfficialPricingItem, 0, len(cache.Items))
 	for _, item := range cache.Items {
+		unsupportedFields := filterIgnoredOfficialPricingFields(item.Pricing.UnsupportedFields)
+		if legacyCache {
+			unsupportedFields = append(unsupportedFields, legacyOfficialPricingField)
+			item.Pricing.CacheWritePriceBasis = openRouterCacheWritePriceBasis(item.ID)
+			// v3/v4 rewrote Anthropic cache prices and lost source precision.
+			// Old materialized tiers also lost override precedence. Neither
+			// can be recovered reliably without a successful upstream refresh.
+			if cache.Version >= 3 && isOpenRouterAnthropicModelID(item.ID) {
+				item.Pricing.InputCacheWrite = ""
+				unsupportedFields = append(unsupportedFields, "input_cache_write")
+			}
+			if len(item.Pricing.Overrides) > 0 {
+				item.Pricing.Overrides = nil
+				unsupportedFields = append(unsupportedFields, "overrides")
+			}
+			unsupportedFields = uniqueSortedOfficialPricingFields(unsupportedFields)
+		}
 		items = append(items, OfficialPricingItem{
 			ID:                  item.ID,
 			CanonicalSlug:       item.CanonicalSlug,
@@ -188,10 +518,13 @@ func officialPricingResultFromCache(cache openRouterPricingCacheFile, cached boo
 			ContextLength:       item.ContextLength,
 			MaxCompletionTokens: item.MaxCompletionTokens,
 			Pricing: OfficialUnitPricing{
-				Prompt:          item.Pricing.Prompt,
-				Completion:      item.Pricing.Completion,
-				InputCacheRead:  item.Pricing.InputCacheRead,
-				InputCacheWrite: item.Pricing.InputCacheWrite,
+				Prompt:               item.Pricing.Prompt,
+				Completion:           item.Pricing.Completion,
+				InputCacheRead:       item.Pricing.InputCacheRead,
+				InputCacheWrite:      item.Pricing.InputCacheWrite,
+				CacheWritePriceBasis: item.Pricing.CacheWritePriceBasis,
+				Overrides:            officialPricingOverridesFromCache(item.Pricing.Overrides),
+				UnsupportedFields:    unsupportedFields,
 			},
 		})
 	}
@@ -201,6 +534,20 @@ func officialPricingResultFromCache(cache openRouterPricingCacheFile, cached boo
 		Stale:     stale,
 		Items:     items,
 	}
+}
+
+func filterIgnoredOfficialPricingFields(fields []string) []string {
+	if len(fields) == 0 {
+		return nil
+	}
+	filtered := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if _, ignored := openRouterPricingIgnoredFields[field]; ignored {
+			continue
+		}
+		filtered = append(filtered, field)
+	}
+	return uniqueSortedOfficialPricingFields(filtered)
 }
 
 func officialPricingCacheItems(items []OfficialPricingItem) []openRouterPricingCacheItem {
@@ -213,10 +560,13 @@ func officialPricingCacheItems(items []OfficialPricingItem) []openRouterPricingC
 			ContextLength:       item.ContextLength,
 			MaxCompletionTokens: item.MaxCompletionTokens,
 			Pricing: openRouterPricingCacheUnitPricing{
-				Prompt:          item.Pricing.Prompt,
-				Completion:      item.Pricing.Completion,
-				InputCacheRead:  item.Pricing.InputCacheRead,
-				InputCacheWrite: item.Pricing.InputCacheWrite,
+				Prompt:               item.Pricing.Prompt,
+				Completion:           item.Pricing.Completion,
+				InputCacheRead:       item.Pricing.InputCacheRead,
+				InputCacheWrite:      item.Pricing.InputCacheWrite,
+				CacheWritePriceBasis: item.Pricing.CacheWritePriceBasis,
+				Overrides:            officialPricingCacheOverrides(item.Pricing.Overrides),
+				UnsupportedFields:    filterIgnoredOfficialPricingFields(item.Pricing.UnsupportedFields),
 			},
 		})
 	}
@@ -277,6 +627,13 @@ func normalizeOpenRouterOfficialPricingItem(item openRouterModelItem) OfficialPr
 	if maxCompletionTokens < 0 {
 		maxCompletionTokens = 0
 	}
+	unsupportedFields := filterIgnoredOfficialPricingFields(item.Pricing.UnsupportedFields)
+	if strings.TrimSpace(item.Pricing.Prompt) == "" {
+		unsupportedFields = append(unsupportedFields, "prompt")
+	}
+	if strings.TrimSpace(item.Pricing.Completion) == "" {
+		unsupportedFields = append(unsupportedFields, "completion")
+	}
 	return OfficialPricingItem{
 		ID:                  id,
 		CanonicalSlug:       canonicalSlug,
@@ -284,10 +641,55 @@ func normalizeOpenRouterOfficialPricingItem(item openRouterModelItem) OfficialPr
 		ContextLength:       contextLength,
 		MaxCompletionTokens: maxCompletionTokens,
 		Pricing: OfficialUnitPricing{
-			Prompt:          strings.TrimSpace(item.Pricing.Prompt),
-			Completion:      strings.TrimSpace(item.Pricing.Completion),
-			InputCacheRead:  strings.TrimSpace(item.Pricing.InputCacheRead),
-			InputCacheWrite: strings.TrimSpace(item.Pricing.InputCacheWrite),
+			Prompt:               strings.TrimSpace(item.Pricing.Prompt),
+			Completion:           strings.TrimSpace(item.Pricing.Completion),
+			InputCacheRead:       strings.TrimSpace(item.Pricing.InputCacheRead),
+			InputCacheWrite:      strings.TrimSpace(item.Pricing.InputCacheWrite),
+			CacheWritePriceBasis: openRouterCacheWritePriceBasis(id),
+			Overrides:            officialPricingOverrides(item.Pricing.Overrides),
+			UnsupportedFields:    uniqueSortedOfficialPricingFields(unsupportedFields),
 		},
 	}
+}
+
+func officialPricingOverrides(overrides []openRouterPricingOverride) []OfficialPricingOverride {
+	if len(overrides) == 0 {
+		return nil
+	}
+	result := make([]OfficialPricingOverride, 0, len(overrides))
+	for _, override := range overrides {
+		if override.MinPromptTokens <= 0 {
+			continue
+		}
+		result = append(result, OfficialPricingOverride{
+			MinPromptTokens: override.MinPromptTokens,
+			Prompt:          override.Prompt,
+			Completion:      override.Completion,
+			InputCacheRead:  override.InputCacheRead,
+			InputCacheWrite: override.InputCacheWrite,
+		})
+	}
+	return result
+}
+
+func officialPricingCacheOverrides(overrides []OfficialPricingOverride) []openRouterPricingCacheOverride {
+	if len(overrides) == 0 {
+		return nil
+	}
+	result := make([]openRouterPricingCacheOverride, 0, len(overrides))
+	for _, override := range overrides {
+		result = append(result, openRouterPricingCacheOverride(override))
+	}
+	return result
+}
+
+func officialPricingOverridesFromCache(overrides []openRouterPricingCacheOverride) []OfficialPricingOverride {
+	if len(overrides) == 0 {
+		return nil
+	}
+	result := make([]OfficialPricingOverride, 0, len(overrides))
+	for _, override := range overrides {
+		result = append(result, OfficialPricingOverride(override))
+	}
+	return result
 }

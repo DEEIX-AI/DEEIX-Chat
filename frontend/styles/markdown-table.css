@@ -1,0 +1,195 @@
+/* Markdown table (chat message rendering) component styles.
+ * Imported into app/globals.css inside `layer(components)`. Class names and
+ * `data-*` hooks pair with shared/components/markdown/adaptive-markdown-table.tsx
+ * (column analyzer, <col> decoration, MarkdownTableLineBreak).
+ */
+
+.markdown-table-shell {
+  width: 100%;
+  max-width: 100%;
+  margin-block: 1rem;
+}
+
+.markdown-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.markdown-table-scroll:focus-visible {
+  outline: none;
+  background-color: color-mix(in oklch, var(--muted) 55%, transparent);
+}
+
+.markdown-table {
+  /* Unitless so the line spacing follows the cell font size (~14px), instead
+   * of a fixed rem that ends up as a 2.0 ratio on small table text.
+   */
+  --markdown-table-line-height: 1.6;
+  --markdown-table-hard-break-distance: 2rem;
+  width: max-content !important;
+  min-width: 100% !important;
+  max-width: none !important;
+  margin: 0.5rem 0 !important;
+  table-layout: auto !important;
+  border-collapse: collapse;
+  background: transparent;
+}
+
+.markdown-table th,
+.markdown-table td {
+  padding: 0 !important;
+  border: 0 !important;
+  line-height: inherit !important;
+  text-align: start;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.markdown-table th,
+.markdown-table td {
+  border-block-end: 1px solid color-mix(in oklch, var(--border) 54%, transparent) !important;
+}
+
+.markdown-table thead,
+.markdown-table tbody,
+.markdown-table tfoot,
+.markdown-table tr {
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.markdown-table th {
+  padding: 0.5rem 2rem 0.5rem 0 !important;
+  vertical-align: bottom;
+  font-weight: 600;
+}
+
+/* Soft-wrapped lines inside a cell sit closer together than the paragraph
+ * rhythm; padding keeps a single-line row close to its previous 2.5rem
+ * height. Explicit `<br>` breaks keep the looser baseline distance through
+ * the spacer rendered by MarkdownTableLineBreak.
+ */
+.markdown-table td {
+  padding: 0.5rem 2rem 0.5rem 0 !important;
+  vertical-align: middle;
+  line-height: var(--markdown-table-line-height) !important;
+}
+
+.markdown-table td .markdown-table-linebreak-gap {
+  display: block;
+  height: max(0px, calc(var(--markdown-table-hard-break-distance) - 1em * var(--markdown-table-line-height)));
+}
+
+.markdown-table tbody tr:last-child td,
+.markdown-table tfoot tr:last-child td {
+  border-block-end: 0 !important;
+}
+
+/* Width hints on <col> are weak (per CSS spec only `width` applies to table
+ * columns). The real min/max constraints must live on the cells, otherwise
+ * Chromium ignores them in `width: max-content` tables and long text renders
+ * unwrapped on a single line.
+ */
+.markdown-table-col--compact,
+.markdown-table-col--numeric,
+.markdown-table-col--date {
+  width: 1%;
+}
+
+.markdown-table-col--compact,
+.markdown-table-cell--compact {
+  min-width: 3rem;
+}
+
+.markdown-table-col--numeric,
+.markdown-table-cell--numeric {
+  min-width: 4.5rem;
+}
+
+.markdown-table-col--date,
+.markdown-table-cell--date {
+  min-width: 6.75rem;
+}
+
+.markdown-table-col--normal,
+.markdown-table-cell--normal {
+  min-width: 6.25rem;
+  max-width: 13.75rem;
+}
+
+.markdown-table-col--content,
+.markdown-table-cell--content {
+  min-width: 17rem;
+  max-width: 30rem;
+}
+
+/* Wrapping rules must out-rank the `.markdown-table td` reset above
+ * (specificity 0,1,1); a bare `.markdown-table-cell--*` selector loses and
+ * long unbreakable tokens overflow into the neighbouring column.
+ */
+.markdown-table .markdown-table-cell--normal {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.markdown-table-shell[data-content-columns="2"] .markdown-table-col--content,
+.markdown-table-shell[data-content-columns="2"] .markdown-table-cell--content {
+  min-width: 14.5rem;
+}
+
+.markdown-table-shell[data-content-columns="many"] .markdown-table-col--content,
+.markdown-table-shell[data-content-columns="many"] .markdown-table-cell--content {
+  min-width: 12rem;
+}
+
+.markdown-table-col--code,
+.markdown-table-cell--code {
+  min-width: 12.5rem;
+  max-width: 26rem;
+}
+
+.markdown-table-cell--compact,
+.markdown-table-cell--numeric,
+.markdown-table-cell--date {
+  white-space: nowrap;
+}
+
+.markdown-table-cell--numeric {
+  text-align: end !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.markdown-table .markdown-table-cell--content {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.markdown-table .markdown-table-cell--code {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 30rem) {
+  .markdown-table-col--content,
+  .markdown-table-cell--content {
+    min-width: 16rem;
+  }
+
+  .markdown-table-shell[data-content-columns="2"] .markdown-table-col--content,
+  .markdown-table-shell[data-content-columns="2"] .markdown-table-cell--content {
+    min-width: 14rem;
+  }
+
+  .markdown-table-shell[data-content-columns="many"] .markdown-table-col--content,
+  .markdown-table-shell[data-content-columns="many"] .markdown-table-cell--content {
+    min-width: 11.5rem;
+  }
+}
+

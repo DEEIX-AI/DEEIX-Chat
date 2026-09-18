@@ -21,6 +21,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogHeightTransition,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
@@ -239,100 +240,102 @@ export function ModelProbeDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="flex max-h-[min(86vh,720px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]">
-          <DialogHeader className="shrink-0 px-5 pb-4 pt-5">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 space-y-1.5">
-                <DialogTitle>{t("title")}</DialogTitle>
-                <DialogDescription className="truncate">{description}</DialogDescription>
-              </div>
-              {canNavigate ? (
-                <div className="flex shrink-0 items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-muted-foreground"
-                    aria-label={t("previous")}
-                    onClick={() => setActiveIndex((current) => Math.max(current - 1, 0))}
-                    disabled={activeIndex === 0 || loading}
-                  >
-                    <ChevronLeft className="size-3.5 stroke-1" />
-                  </Button>
-                  <span className="min-w-10 text-center text-[11px] text-muted-foreground">
-                    {t("resultCount", { current: activeIndex + 1, total: normalizedResults.length })}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-muted-foreground"
-                    aria-label={t("next")}
-                    onClick={() => setActiveIndex((current) => Math.min(current + 1, normalizedResults.length - 1))}
-                    disabled={activeIndex >= normalizedResults.length - 1 || loading}
-                  >
-                    <ChevronRight className="size-3.5 stroke-1" />
-                  </Button>
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[600px]">
+          <DialogHeightTransition contentClassName="max-h-[min(86vh,720px)]">
+            <DialogHeader className="shrink-0 px-5 pb-4 pt-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 space-y-1.5">
+                  <DialogTitle>{t("title")}</DialogTitle>
+                  <DialogDescription className="truncate">{description}</DialogDescription>
                 </div>
-              ) : null}
+                {canNavigate ? (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground"
+                      aria-label={t("previous")}
+                      onClick={() => setActiveIndex((current) => Math.max(current - 1, 0))}
+                      disabled={activeIndex === 0 || loading}
+                    >
+                      <ChevronLeft className="size-3.5 stroke-1" />
+                    </Button>
+                    <span className="min-w-10 text-center text-[11px] text-muted-foreground">
+                      {t("resultCount", { current: activeIndex + 1, total: normalizedResults.length })}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground"
+                      aria-label={t("next")}
+                      onClick={() => setActiveIndex((current) => Math.min(current + 1, normalizedResults.length - 1))}
+                      disabled={activeIndex >= normalizedResults.length - 1 || loading}
+                    >
+                      <ChevronRight className="size-3.5 stroke-1" />
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            </DialogHeader>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
+              {loading ? (
+                <div className="flex h-36 items-center justify-center">
+                  <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                    <Spinner className="size-4" />
+                    {t("running")}
+                  </div>
+                </div>
+              ) : activeResult ? (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <DetailPair
+                      left={<DetailItem label={t("fields.upstream")} value={activeResult.upstreamName} />}
+                      right={<DetailItem label={t("fields.endpoint")} value={resolveProtocolLabel(activeResult.protocol)} />}
+                    />
+                    <DetailPair
+                      left={<DetailItem label={t("debug.method")} value={method} mono />}
+                      right={<DetailItem label={t("debug.path")} value={path} mono />}
+                    />
+                    <DetailPair
+                      left={<DetailItem label={t("fields.statusCode")} value={upstreamStatusCode} mono />}
+                      right={<DetailItem label={t("fields.latency")} value={t("latency", { value: activeResult.latencyMS || 0 })} mono />}
+                    />
+                  </div>
+
+                  <ResultDebugContent
+                    debug={activeResult.debug}
+                    state={resultState ?? "error"}
+                    errorCode={activeResult.errorCode}
+                    errorMessage={activeResult.errorMessage}
+                  />
+                </div>
+              ) : (
+                <div className="border-y border-border/60 py-3 text-xs text-muted-foreground">
+                  {t("empty")}
+                </div>
+              )}
             </div>
-          </DialogHeader>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
-            {loading ? (
-              <div className="flex h-36 items-center justify-center">
-                <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                  <Spinner className="size-4" />
-                  {t("running")}
-                </div>
-              </div>
-            ) : activeResult ? (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <DetailPair
-                    left={<DetailItem label={t("fields.upstream")} value={activeResult.upstreamName} />}
-                    right={<DetailItem label={t("fields.endpoint")} value={resolveProtocolLabel(activeResult.protocol)} />}
-                  />
-                  <DetailPair
-                    left={<DetailItem label={t("debug.method")} value={method} mono />}
-                    right={<DetailItem label={t("debug.path")} value={path} mono />}
-                  />
-                  <DetailPair
-                    left={<DetailItem label={t("fields.statusCode")} value={upstreamStatusCode} mono />}
-                    right={<DetailItem label={t("fields.latency")} value={t("latency", { value: activeResult.latencyMS || 0 })} mono />}
-                  />
-                </div>
-
-                <ResultDebugContent
-                  debug={activeResult.debug}
-                  state={resultState ?? "error"}
-                  errorCode={activeResult.errorCode}
-                  errorMessage={activeResult.errorMessage}
-                />
-              </div>
-            ) : (
-              <div className="border-y border-border/60 py-3 text-xs text-muted-foreground">
-                {t("empty")}
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="shrink-0 px-5 py-3">
-            {canDeleteRoute && (
-              <Button
-                type="button"
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                onClick={() => setDeleteOpen(true)}
-                disabled={loading || deleting}
-              >
-                {t("deleteSource")}
+            <DialogFooter className="shrink-0 px-5 py-3">
+              {canDeleteRoute && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setDeleteOpen(true)}
+                  disabled={loading || deleting}
+                >
+                  {t("deleteSource")}
+                </Button>
+              )}
+              <Button onClick={() => onOpenChange(false)} disabled={loading || deleting}>
+                {commonT("actions.close")}
               </Button>
-            )}
-            <Button onClick={() => onOpenChange(false)} disabled={loading || deleting}>
-              {commonT("actions.close")}
-            </Button>
-          </DialogFooter>
+            </DialogFooter>
+          </DialogHeightTransition>
         </DialogContent>
       </Dialog>
 

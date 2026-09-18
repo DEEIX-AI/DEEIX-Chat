@@ -36,6 +36,27 @@ func TestResolveTieredPricingTierSelectsTierByRawInputTokens(t *testing.T) {
 	}
 }
 
+func TestResolveTieredPricingTierMapsOpenRouterMinimumToClosedPreviousTier(t *testing.T) {
+	tiers, err := parseTieredPricingTiers(`{
+		"tiers": [
+			{"upToTokens": 200000, "inputUSDPerMTokens": 2.5, "outputUSDPerMTokens": 10},
+			{"upToTokens": 0, "inputUSDPerMTokens": 5, "outputUSDPerMTokens": 20}
+		]
+	}`)
+	if err != nil {
+		t.Fatalf("parse tiers: %v", err)
+	}
+
+	atThreshold := resolveTieredPricingTier(200000, tiers)
+	if atThreshold.tier.inputNanousdPerMTokens != 2_500_000_000 {
+		t.Fatalf("rate at threshold = %d, want base rate", atThreshold.tier.inputNanousdPerMTokens)
+	}
+	afterThreshold := resolveTieredPricingTier(200001, tiers)
+	if afterThreshold.tier.inputNanousdPerMTokens != 5_000_000_000 {
+		t.Fatalf("rate after threshold = %d, want override rate", afterThreshold.tier.inputNanousdPerMTokens)
+	}
+}
+
 func TestResolveTieredPricingTierUsesRawInputRangeForAllCategories(t *testing.T) {
 	tiers, err := parseTieredPricingTiers(`{
 		"tiers": [
@@ -73,10 +94,10 @@ func TestResolveTieredPricingTierUsesRawInputRangeForAllCategories(t *testing.T)
 func TestResolveCacheWriteNanousdPerMTokensAnthropicTTL(t *testing.T) {
 	configuredRate := int64(1_100_000_000)
 
-	if got := resolveCacheWriteNanousdPerMTokens(configuredRate, "anthropic_messages", "5m"); got != 1_375_000_000 {
+	if got := resolveCacheWriteNanousdPerMTokens(configuredRate, "", "anthropic_messages", "5m"); got != 1_375_000_000 {
 		t.Fatalf("5m cache write rate = %d, want 1375000000", got)
 	}
-	if got := resolveCacheWriteNanousdPerMTokens(configuredRate, "anthropic_messages", "1h"); got != 2_200_000_000 {
+	if got := resolveCacheWriteNanousdPerMTokens(configuredRate, "", "anthropic_messages", "1h"); got != 2_200_000_000 {
 		t.Fatalf("1h cache write rate = %d, want 2200000000", got)
 	}
 }
@@ -84,9 +105,20 @@ func TestResolveCacheWriteNanousdPerMTokensAnthropicTTL(t *testing.T) {
 func TestResolveCacheWriteNanousdPerMTokensKeepsConfiguredRateForOtherProtocols(t *testing.T) {
 	configuredRate := int64(900_000_000)
 
-	got := resolveCacheWriteNanousdPerMTokens(configuredRate, "openai_responses", "1h")
+	got := resolveCacheWriteNanousdPerMTokens(configuredRate, "", "openai_responses", "1h")
 
 	if got != configuredRate {
 		t.Fatalf("cache write rate = %d, want configured %d", got, configuredRate)
+	}
+}
+
+func TestResolveCacheWriteNanousdPerMTokensDirectAndZero(t *testing.T) {
+	for _, ttl := range []string{"5m", "1h"} {
+		if got := resolveCacheWriteNanousdPerMTokens(3_750_000_000, "direct", "anthropic_messages", ttl); got != 3_750_000_000 {
+			t.Fatalf("direct price received a %s multiplier: %d", ttl, got)
+		}
+		if got := resolveCacheWriteNanousdPerMTokens(0, "anthropic_5m", "anthropic_messages", ttl); got != 0 {
+			t.Fatalf("zero cache price became paid: %d", got)
+		}
 	}
 }

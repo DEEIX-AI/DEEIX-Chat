@@ -20,7 +20,7 @@ export type PricingMode = "token" | "call" | "duration" | "tiered";
 
 export type TieredPricingTierForm = {
   id: string;
-  upToKTokens: string;
+  upToTokens: string;
   input: string;
   cacheRead: string;
   cacheWrite: string;
@@ -33,6 +33,7 @@ export type PricingFormState = {
   input: string;
   cacheRead: string;
   cacheWrite: string;
+  cacheWritePriceBasis: UpsertAdminModelPricingRequest["cacheWritePriceBasis"];
   output: string;
   call: string;
   duration: string;
@@ -56,6 +57,7 @@ export type ModelPricingExportEntry = {
   inputUSDPerMTokens: number;
   cacheReadUSDPerMTokens: number;
   cacheWriteUSDPerMTokens: number;
+  cacheWritePriceBasis?: UpsertAdminModelPricingRequest["cacheWritePriceBasis"];
   outputUSDPerMTokens: number;
   callUSDPerCall: number;
   durationUSDPerSecond: number;
@@ -112,7 +114,7 @@ export const PAYMENT_DEFAULTS: PaymentSettings = {
 const DEFAULT_TIERED_TIERS: TieredPricingTierForm[] = [
   {
     id: "default-1",
-    upToKTokens: "200",
+    upToTokens: "200000",
     input: "0",
     cacheRead: "0",
     cacheWrite: "0",
@@ -120,20 +122,13 @@ const DEFAULT_TIERED_TIERS: TieredPricingTierForm[] = [
   },
   {
     id: "default-2",
-    upToKTokens: "0",
+    upToTokens: "0",
     input: "0",
     cacheRead: "0",
     cacheWrite: "0",
     output: "0",
   },
 ];
-
-export const DIALOG_LAYOUT_TRANSITION = {
-  layout: {
-    duration: 0.22,
-    ease: [0.16, 1, 0.3, 1] as const,
-  },
-};
 
 export function formatBillingAmountInput(value: number | null | undefined): string {
   if (!Number.isFinite(value ?? NaN) || (value ?? 0) <= 0) {
@@ -204,38 +199,34 @@ function cloneDefaultTieredTiers(): TieredPricingTierForm[] {
   return DEFAULT_TIERED_TIERS.map((tier) => ({ ...tier }));
 }
 
-function parseTieredPricingJSON(raw: string | undefined): TieredPricingTierForm[] {
-  if (!raw) return cloneDefaultTieredTiers();
+export function parseTieredPricingJSON(raw: unknown): TieredPricingTierForm[] | null {
   try {
-    const parsed = JSON.parse(raw) as {
-      tiers?: Array<{
-        upToTokens?: number;
-        inputUSDPerMTokens?: number;
-        cacheReadUSDPerMTokens?: number;
-        cacheWriteUSDPerMTokens?: number;
-        outputUSDPerMTokens?: number;
-      }>;
-    };
-    if (!Array.isArray(parsed.tiers) || parsed.tiers.length === 0) {
-      return cloneDefaultTieredTiers();
+    const parsed: unknown = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (!parsed || typeof parsed !== "object" || !("tiers" in parsed) || !Array.isArray(parsed.tiers) || parsed.tiers.length === 0) {
+      return null;
     }
-    return parsed.tiers.map((tier, index) => ({
-      id: `saved-${index}-${tier.upToTokens ?? 0}`,
-      upToKTokens: String(Math.ceil((tier.upToTokens ?? 0) / 1000)),
-      input: String(tier.inputUSDPerMTokens ?? 0),
-      cacheRead: String(tier.cacheReadUSDPerMTokens ?? 0),
-      cacheWrite: String(tier.cacheWriteUSDPerMTokens ?? 0),
-      output: String(tier.outputUSDPerMTokens ?? 0),
-    }));
+    return parsed.tiers.map((rawTier, index) => {
+      const tier = rawTier && typeof rawTier === "object" && !Array.isArray(rawTier) ? rawTier as Record<string, unknown> : {};
+      const price = (key: string) => String(parsePrice(String(tier[key] ?? "0")));
+      const upToTokens = String(Math.trunc(parsePrice(String(tier.upToTokens ?? "0"))));
+      return {
+        id: `saved-${index}-${upToTokens}`,
+        upToTokens,
+        input: price("inputUSDPerMTokens"),
+        cacheRead: price("cacheReadUSDPerMTokens"),
+        cacheWrite: price("cacheWriteUSDPerMTokens"),
+        output: price("outputUSDPerMTokens"),
+      };
+    });
   } catch {
-    return cloneDefaultTieredTiers();
+    return null;
   }
 }
 
 export function stringifyTieredPricing(tiers: TieredPricingTierForm[]): string {
   return JSON.stringify({
     tiers: tiers.map((tier) => ({
-      upToTokens: parseIntValue(tier.upToKTokens) * 1000,
+      upToTokens: parseIntValue(tier.upToTokens),
       inputUSDPerMTokens: parsePrice(tier.input),
       cacheReadUSDPerMTokens: parsePrice(tier.cacheRead),
       cacheWriteUSDPerMTokens: parsePrice(tier.cacheWrite),
@@ -252,10 +243,11 @@ export function createFormState(row: BillingModelPricingRow): PricingFormState {
     input: String(pricing?.inputUSDPerMTokens ?? 0),
     cacheRead: String(pricing?.cacheReadUSDPerMTokens ?? 0),
     cacheWrite: String(pricing?.cacheWriteUSDPerMTokens ?? 0),
+    cacheWritePriceBasis: pricing?.cacheWritePriceBasis,
     output: String(pricing?.outputUSDPerMTokens ?? 0),
     call: String(pricing?.callUSDPerCall ?? 0),
     duration: String(pricing?.durationUSDPerSecond ?? 0),
-    tieredTiers: parseTieredPricingJSON(pricing?.tieredPricingJSON),
+    tieredTiers: parseTieredPricingJSON(pricing?.tieredPricingJSON) ?? cloneDefaultTieredTiers(),
     isFree: pricing?.isFree ?? row.isFree,
   };
 }
@@ -398,6 +390,7 @@ export function buildModelPricingExportObject(pricingItems: AdminModelPricingDTO
       inputUSDPerMTokens: pricingMode === "token" ? item.inputUSDPerMTokens : 0,
       cacheReadUSDPerMTokens: pricingMode === "token" ? item.cacheReadUSDPerMTokens : 0,
       cacheWriteUSDPerMTokens: pricingMode === "token" ? item.cacheWriteUSDPerMTokens : 0,
+      cacheWritePriceBasis: item.cacheWritePriceBasis,
       outputUSDPerMTokens: pricingMode === "token" ? item.outputUSDPerMTokens : 0,
       callUSDPerCall: pricingMode === "call" ? item.callUSDPerCall : 0,
       durationUSDPerSecond: pricingMode === "duration" ? item.durationUSDPerSecond : 0,
@@ -444,6 +437,7 @@ export function createOptimisticModelPricing(row: BillingModelPricingRow, payloa
     inputUSDPerMTokens,
     cacheReadUSDPerMTokens,
     cacheWriteUSDPerMTokens,
+    cacheWritePriceBasis: payload.cacheWritePriceBasis,
     outputUSDPerMTokens,
     callUSDPerCall,
     durationUSDPerSecond,
@@ -514,6 +508,10 @@ export function parseModelPricingImportJSON(
       continue;
     }
     const entryErrors: string[] = [];
+    if (rawEntry.cacheWritePriceBasis !== undefined && rawEntry.cacheWritePriceBasis !== "direct" && rawEntry.cacheWritePriceBasis !== "anthropic_5m") {
+      errors.push(messages.pricingObject(platformModelName));
+      continue;
+    }
     const pricingMode = rawEntry.pricingMode;
     if (pricingMode === "duration" && !videoGenerationModelNames.has(platformModelName)) {
       errors.push(messages.durationVideoOnly(platformModelName));
@@ -526,6 +524,7 @@ export function parseModelPricingImportJSON(
       platformModelName,
       currency: typeof rawEntry.currency === "string" && rawEntry.currency.trim() ? rawEntry.currency.trim() : "USD",
       isFree: typeof rawEntry.isFree === "boolean" ? rawEntry.isFree : false,
+      cacheWritePriceBasis: rawEntry.cacheWritePriceBasis,
       pricingMode,
       inputUSDPerMTokens: pricingMode === "token" ? numberFromPricingField(rawEntry, "inputUSDPerMTokens", entryErrors, platformModelName, messages) : 0,
       cacheReadUSDPerMTokens: pricingMode === "token" ? numberFromPricingField(rawEntry, "cacheReadUSDPerMTokens", entryErrors, platformModelName, messages) : 0,

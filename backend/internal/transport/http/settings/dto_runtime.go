@@ -22,12 +22,24 @@ type EmbeddingIndexStatusResponse struct {
 	StaleCount     int64  `json:"staleCount"`
 	PendingCount   int64  `json:"pendingCount"`
 	FailedCount    int64  `json:"failedCount"`
-	NeedsReindex   bool   `json:"needsReindex"`
+	// EmptyCount 是提取完成但无文本的文件数；这些文件不参与自动重建。
+	EmptyCount   int64 `json:"emptyCount"`
+	NeedsReindex bool  `json:"needsReindex"`
+}
+
+type EmbeddingIndexStatusResponseDoc struct {
+	ErrorMsg string                       `json:"errorMsg"`
+	Data     EmbeddingIndexStatusResponse `json:"data"`
 }
 
 type EmbeddingReindexResponse struct {
 	Submitted int    `json:"submitted"`
 	Message   string `json:"message"`
+}
+
+type EmbeddingReindexResponseDoc struct {
+	ErrorMsg string                   `json:"errorMsg"`
+	Data     EmbeddingReindexResponse `json:"data"`
 }
 
 func toServiceRuntimeResponse(view appruntime.ServiceRuntimeView) ServiceRuntimeResponse {
@@ -50,6 +62,7 @@ func toEmbeddingIndexStatusResponse(status appembedding.EmbeddingIndexStatus) Em
 		StaleCount:     status.StaleCount,
 		PendingCount:   status.PendingCount,
 		FailedCount:    status.FailedCount,
+		EmptyCount:     status.EmptyCount,
 		NeedsReindex:   status.NeedsReindex,
 	}
 }

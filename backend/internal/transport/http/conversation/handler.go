@@ -140,9 +140,6 @@ var sendMessageErrorStatuses = []sendMessageErrorStatus{
 	{err: billing.ErrModelPricingRequired, status: http.StatusPaymentRequired},
 }
 
-// describeSendMessageError 把消息发送 / 生成 / 计费路径上的错误映射为对外错误描述。
-// 上游失败的错误码与文案取决于上游响应特征，单独判定；其余按哨兵表映射；无法归类的错误一律
-// 作为内部错误返回，不把内部文案送进推断。
 func describeSendMessageError(err error) response.Description {
 	switch {
 	case appconversation.IsUpstreamRateLimitError(err):

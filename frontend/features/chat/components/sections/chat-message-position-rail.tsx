@@ -332,7 +332,7 @@ function ChatMessagePositionRailComponent({
       <div
         ref={railContentRef}
         className={cn(
-          "flex min-h-full flex-col items-center gap-1 px-1 py-1",
+          "flex min-h-full flex-col items-center gap-0.5 px-1 py-1",
           !railOverflowing && "justify-center",
         )}
       >
@@ -340,7 +340,8 @@ function ChatMessagePositionRailComponent({
           const distance = Math.abs(index - activeIndex);
           const lineWidthRem = resolveRailLineWidthRem(distance, railLineDistributionActive);
           const lineClassName = cn(
-            "h-0.5 rounded-full bg-current opacity-35 transition-[opacity,width]",
+            "h-0.5 rounded-full bg-current opacity-35 transition-[height,opacity,width] duration-150 ease-out motion-reduce:transition-none",
+            hoveredID === item.id && "h-1",
             distance === 0 && "text-foreground opacity-100",
             distance === 1 && "opacity-70",
             distance === 2 && "opacity-50",
@@ -356,7 +357,7 @@ function ChatMessagePositionRailComponent({
                   itemRefs.current.delete(item.id);
                 }}
                 type="button"
-                className="flex h-1.5 w-6 items-center justify-start rounded-sm"
+                className="flex h-2 w-6 items-center justify-start rounded-sm"
                 onMouseEnter={(event) => activatePreview(item.id, event.currentTarget)}
                 onFocus={(event) => activatePreview(item.id, event.currentTarget)}
                 onClick={() => scrollToMessage(item.id, { align: "start", behavior: "smooth", scrollMargin: 16 })}

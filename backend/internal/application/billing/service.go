@@ -253,6 +253,7 @@ type ModelPricingInput struct {
 	InputNanousdPerMTokens      int64
 	CacheReadNanousdPerMTokens  int64
 	CacheWriteNanousdPerMTokens int64
+	CacheWritePriceBasis        string
 	OutputNanousdPerMTokens     int64
 	CallNanousdPerCall          int64
 	DurationNanousdPerSecond    int64
@@ -1405,14 +1406,14 @@ func (s *Service) EstimateUsageNanousd(ctx context.Context, userID uint, input U
 		return calcEstimatedTokenNanousd(input, usageEstimateTokenRates{
 			input:      tier.inputNanousdPerMTokens,
 			cacheRead:  tierCacheReadRate(tier),
-			cacheWrite: resolveCacheWriteNanousdPerMTokens(tierCacheWriteRate(tier), providerProtocol, input.CacheTimeout),
+			cacheWrite: resolveCacheWriteNanousdPerMTokens(tierCacheWriteRate(tier), pricing.CacheWritePriceBasis, providerProtocol, input.CacheTimeout),
 			output:     tier.outputNanousdPerMTokens,
 		}, rateMultiplier), nil
 	default:
 		return calcEstimatedTokenNanousd(input, usageEstimateTokenRates{
 			input:      pricing.InputNanousdPerMTokens,
 			cacheRead:  pricing.CacheReadNanousdPerMTokens,
-			cacheWrite: resolveCacheWriteNanousdPerMTokens(pricing.CacheWriteNanousdPerMTokens, providerProtocol, input.CacheTimeout),
+			cacheWrite: resolveCacheWriteNanousdPerMTokens(pricing.CacheWriteNanousdPerMTokens, pricing.CacheWritePriceBasis, providerProtocol, input.CacheTimeout),
 			output:     pricing.OutputNanousdPerMTokens,
 		}, rateMultiplier), nil
 	}
@@ -1781,11 +1782,13 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 	var cacheWrite5mNanousdPerMTokens int64
 	var cacheWrite1hNanousdPerMTokens int64
 	var tieredPricingJSON string
+	var cacheWritePriceBasis string
 	var tieredTiers []tieredPricingTier
 	pricingMode := domainbilling.PricingModeToken
 	isFreeModel := pricing != nil && pricing.IsFree
 	if pricing != nil {
 		currency = pricing.Currency
+		cacheWritePriceBasis = pricing.CacheWritePriceBasis
 		pricingMode = domainbilling.NormalizePricingMode(pricing.PricingMode)
 		tieredPricingJSON = strings.TrimSpace(pricing.TieredPricingJSON)
 	}
@@ -1807,16 +1810,19 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 			baseCacheReadNanousdPerMTokens = pricing.CacheReadNanousdPerMTokens
 			baseCacheWriteNanousdPerMTokens = resolveCacheWriteNanousdPerMTokens(
 				pricing.CacheWriteNanousdPerMTokens,
+				pricing.CacheWritePriceBasis,
 				providerProtocol,
 				input.CacheTimeout,
 			)
 			baseCacheWrite5mNanousdPerMTokens = resolveCacheWriteNanousdPerMTokens(
 				pricing.CacheWriteNanousdPerMTokens,
+				pricing.CacheWritePriceBasis,
 				providerProtocol,
 				"5m",
 			)
 			baseCacheWrite1hNanousdPerMTokens = resolveCacheWriteNanousdPerMTokens(
 				pricing.CacheWriteNanousdPerMTokens,
+				pricing.CacheWritePriceBasis,
 				providerProtocol,
 				"1h",
 			)
@@ -1869,16 +1875,19 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 			baseCacheReadNanousdPerMTokens = tierCacheReadRate(tier)
 			baseCacheWriteNanousdPerMTokens = resolveCacheWriteNanousdPerMTokens(
 				tierCacheWriteRate(tier),
+				pricing.CacheWritePriceBasis,
 				providerProtocol,
 				input.CacheTimeout,
 			)
 			baseCacheWrite5mNanousdPerMTokens = resolveCacheWriteNanousdPerMTokens(
 				tierCacheWriteRate(tier),
+				pricing.CacheWritePriceBasis,
 				providerProtocol,
 				"5m",
 			)
 			baseCacheWrite1hNanousdPerMTokens = resolveCacheWriteNanousdPerMTokens(
 				tierCacheWriteRate(tier),
+				pricing.CacheWritePriceBasis,
 				providerProtocol,
 				"1h",
 			)
@@ -1954,6 +1963,8 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		"upstream_name":                            strings.TrimSpace(input.UpstreamName),
 		"upstream_model_name":                      strings.TrimSpace(input.UpstreamModelName),
 		"cache_timeout":                            billingCacheTimeoutSnapshot(providerProtocol, input.CacheTimeout),
+		"cache_write_5m_multiplier":                cacheWritePriceMultiplier(cacheWritePriceBasis, providerProtocol, "5m"),
+		"cache_write_1h_multiplier":                cacheWritePriceMultiplier(cacheWritePriceBasis, providerProtocol, "1h"),
 		"request_speed":                            requestSpeed,
 		"usage_speed":                              usageSpeed,
 		"billing_speed":                            billingSpeed,
@@ -2165,6 +2176,8 @@ func toPublicModelPricing(item domainbilling.ModelPricing) PublicModelPricing {
 		InputUSDPerMTokens:      nanousdToUSD(item.InputNanousdPerMTokens),
 		CacheReadUSDPerMTokens:  nanousdToUSD(item.CacheReadNanousdPerMTokens),
 		CacheWriteUSDPerMTokens: nanousdToUSD(item.CacheWriteNanousdPerMTokens),
+		CacheWrite5mMultiplier:  cacheWritePriceMultiplier(item.CacheWritePriceBasis, "anthropic_messages", "5m"),
+		CacheWrite1hMultiplier:  cacheWritePriceMultiplier(item.CacheWritePriceBasis, "anthropic_messages", "1h"),
 		OutputUSDPerMTokens:     nanousdToUSD(item.OutputNanousdPerMTokens),
 		CallUSDPerCall:          nanousdToUSD(item.CallNanousdPerCall),
 		DurationUSDPerSecond:    nanousdToUSD(item.DurationNanousdPerSecond),
@@ -2211,6 +2224,11 @@ func nanousdToUSD(value int64) float64 {
 
 // UpsertModelPricing 保存模型单价。
 func (s *Service) UpsertModelPricing(ctx context.Context, input ModelPricingInput) (*ModelPricingView, error) {
+	switch input.CacheWritePriceBasis {
+	case "", domainbilling.CacheWritePriceBasisDirect, domainbilling.CacheWritePriceBasisAnthropic5m:
+	default:
+		return nil, ErrInvalidModelPricing
+	}
 	platformModelName := strings.TrimSpace(input.PlatformModelName)
 	if platformModelName == "" {
 		return nil, ErrInvalidModelPricing
@@ -2266,6 +2284,7 @@ func (s *Service) UpsertModelPricing(ctx context.Context, input ModelPricingInpu
 		InputNanousdPerMTokens:      inputNanousdPerMTokens,
 		CacheReadNanousdPerMTokens:  cacheReadNanousdPerMTokens,
 		CacheWriteNanousdPerMTokens: cacheWriteNanousdPerMTokens,
+		CacheWritePriceBasis:        input.CacheWritePriceBasis,
 		OutputNanousdPerMTokens:     outputNanousdPerMTokens,
 		CallNanousdPerCall:          callNanousdPerCall,
 		DurationNanousdPerSecond:    durationNanousdPerSecond,
@@ -2453,16 +2472,19 @@ func (s *Service) buildUsageServiceItem(ctx context.Context, input ServiceUsageI
 		baseCacheReadNanousdPerMTokens := tierCacheReadRate(tier)
 		baseCacheWriteNanousdPerMTokens := resolveCacheWriteNanousdPerMTokens(
 			tierCacheWriteRate(tier),
+			pricing.CacheWritePriceBasis,
 			input.ProviderProtocol,
 			input.CacheTimeout,
 		)
 		baseCacheWrite5mNanousdPerMTokens := resolveCacheWriteNanousdPerMTokens(
 			tierCacheWriteRate(tier),
+			pricing.CacheWritePriceBasis,
 			input.ProviderProtocol,
 			"5m",
 		)
 		baseCacheWrite1hNanousdPerMTokens := resolveCacheWriteNanousdPerMTokens(
 			tierCacheWriteRate(tier),
+			pricing.CacheWritePriceBasis,
 			input.ProviderProtocol,
 			"1h",
 		)
@@ -2485,16 +2507,19 @@ func (s *Service) buildUsageServiceItem(ctx context.Context, input ServiceUsageI
 		baseCacheReadNanousdPerMTokens := pricing.CacheReadNanousdPerMTokens
 		baseCacheWriteNanousdPerMTokens := resolveCacheWriteNanousdPerMTokens(
 			pricing.CacheWriteNanousdPerMTokens,
+			pricing.CacheWritePriceBasis,
 			input.ProviderProtocol,
 			input.CacheTimeout,
 		)
 		baseCacheWrite5mNanousdPerMTokens := resolveCacheWriteNanousdPerMTokens(
 			pricing.CacheWriteNanousdPerMTokens,
+			pricing.CacheWritePriceBasis,
 			input.ProviderProtocol,
 			"5m",
 		)
 		baseCacheWrite1hNanousdPerMTokens := resolveCacheWriteNanousdPerMTokens(
 			pricing.CacheWriteNanousdPerMTokens,
+			pricing.CacheWritePriceBasis,
 			input.ProviderProtocol,
 			"1h",
 		)
@@ -3004,12 +3029,22 @@ func resolveSnapshotRateFromBilled(tokens int64, billedNanousd int64, fallbackRa
 	return (billedNanousd*1000000 + tokens/2) / tokens
 }
 
-func resolveCacheWriteNanousdPerMTokens(configuredRate int64, providerProtocol string, cacheTimeout string) int64 {
-	if strings.TrimSpace(providerProtocol) != "anthropic_messages" {
+func cacheWritePriceMultiplier(priceBasis, providerProtocol, cacheTimeout string) float64 {
+	return nanousdToUSD(resolveCacheWriteNanousdPerMTokens(1_000_000_000, priceBasis, providerProtocol, cacheTimeout))
+}
+
+func resolveCacheWriteNanousdPerMTokens(configuredRate int64, priceBasis string, providerProtocol string, cacheTimeout string) int64 {
+	if priceBasis == domainbilling.CacheWritePriceBasisDirect || strings.TrimSpace(providerProtocol) != "anthropic_messages" {
 		return configuredRate
 	}
 	if configuredRate <= 0 {
 		return 0
+	}
+	if priceBasis == domainbilling.CacheWritePriceBasisAnthropic5m {
+		if normalizeAnthropicCacheTimeout(cacheTimeout) == "1h" {
+			return configuredRate * 8 / 5
+		}
+		return configuredRate
 	}
 	switch normalizeAnthropicCacheTimeout(cacheTimeout) {
 	case "1h":

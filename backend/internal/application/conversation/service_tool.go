@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/mcpauth"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
 )
 
@@ -32,6 +33,10 @@ func (s *Service) executeToolCall(ctx context.Context, input ExecuteToolInput) (
 		return "", fmt.Errorf("mcp client is not configured")
 	}
 	cfg := s.cfg.Snapshot()
+	mcpCfg, err := applySignedUserContext(cfg, *input.MCPConfig, input)
+	if err != nil {
+		return "", err
+	}
 
 	limit := cfg.MCPMaxConcurrentCalls
 	if limit <= 0 {
@@ -39,7 +44,7 @@ func (s *Service) executeToolCall(ctx context.Context, input ExecuteToolInput) (
 	}
 
 	return s.executeWithToolLimiter(ctx, limit, func() (string, error) {
-		return s.callMCPWithRetry(ctx, *input.MCPConfig, mcp.CallInput{
+		return s.callMCPWithRetry(ctx, mcpCfg, mcp.CallInput{
 			ToolName:       toolName,
 			ArgumentsJSON:  strings.TrimSpace(input.ArgumentsJSON),
 			UserID:         input.UserID,
@@ -47,6 +52,44 @@ func (s *Service) executeToolCall(ctx context.Context, input ExecuteToolInput) (
 			RequestID:      strings.TrimSpace(input.RequestID),
 		}, cfg.MCPToolRetryCount)
 	})
+}
+
+// applySignedUserContext 将请求头中值等于 ${DEEIX_SIGNED_USER_CONTEXT} 占位符的项
+// 替换为本次工具调用签名的用户上下文。未配置占位符时原样返回，不改变现有行为；
+// 签名失败时拒绝调用，避免 MCP 服务端收到没有用户上下文的请求。
+func applySignedUserContext(cfg config.Config, base mcp.CallConfig, input ExecuteToolInput) (mcp.CallConfig, error) {
+	if len(base.Headers) == 0 {
+		return base, nil
+	}
+	matched := false
+	for _, value := range base.Headers {
+		if strings.TrimSpace(value) == mcpauth.TemplateSignedUserContext {
+			matched = true
+			break
+		}
+	}
+	if !matched {
+		return base, nil
+	}
+	token, err := mcpauth.Sign(cfg.MCPUserContextSecret, mcpauth.Payload{
+		UserID:         input.UserID,
+		ConversationID: input.ConversationID,
+		RequestID:      strings.TrimSpace(input.RequestID),
+		ExpiresAt:      time.Now().Add(mcpauth.DefaultTTL).Unix(),
+	})
+	if err != nil || token == "" {
+		return mcp.CallConfig{}, fmt.Errorf("mcp user context signing failed")
+	}
+	expanded := make(map[string]string, len(base.Headers))
+	for key, value := range base.Headers {
+		if strings.TrimSpace(value) != mcpauth.TemplateSignedUserContext {
+			expanded[key] = value
+			continue
+		}
+		expanded[key] = token
+	}
+	base.Headers = expanded
+	return base, nil
 }
 
 func (s *Service) resolveMaxToolCallsPerRun() int {

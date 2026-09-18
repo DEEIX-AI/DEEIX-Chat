@@ -162,6 +162,37 @@ func TestUsageQueriesUseSQLitePortableExpressions(t *testing.T) {
 	}
 }
 
+func TestModelPricingCacheWriteBasisMigrationAndRoundTrip(t *testing.T) {
+	db := openBillingSQLiteTestDB(t)
+	// Simulate a price saved before the cache-write basis column existed.
+	if err := db.Exec(`CREATE TABLE billing_model_prices (id integer PRIMARY KEY AUTOINCREMENT, platform_model_name text NOT NULL)`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec(`INSERT INTO billing_model_prices (platform_model_name) VALUES ('claude-test')`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&model.ModelPricing{}); err != nil {
+		t.Fatal(err)
+	}
+	repo := NewRepo(db)
+	legacy, err := repo.GetModelPricing(t.Context(), "claude-test")
+	if err != nil || legacy.CacheWritePriceBasis != "" {
+		t.Fatalf("legacy price changed: %#v, %v", legacy, err)
+	}
+	for _, basis := range []string{domainbilling.CacheWritePriceBasisAnthropic5m, domainbilling.CacheWritePriceBasisDirect, ""} {
+		legacy.CacheWritePriceBasis = basis
+		legacy.CacheWriteNanousdPerMTokens = 3_750_000_000
+		saved, err := repo.UpsertModelPricing(t.Context(), legacy)
+		if err != nil || saved.CacheWritePriceBasis != basis {
+			t.Fatalf("save basis %q: %#v, %v", basis, saved, err)
+		}
+		loaded, err := repo.GetModelPricing(t.Context(), "claude-test")
+		if err != nil || loaded.CacheWritePriceBasis != basis || loaded.CacheWriteNanousdPerMTokens != 3_750_000_000 {
+			t.Fatalf("load basis %q: %#v, %v", basis, loaded, err)
+		}
+	}
+}
+
 func TestUsageStatisticsFiltersByCurrentPermissionGroupMembership(t *testing.T) {
 	db := openBillingSQLiteTestDB(t)
 	if err := db.AutoMigrate(
