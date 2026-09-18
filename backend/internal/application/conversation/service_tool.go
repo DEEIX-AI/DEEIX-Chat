@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/mcpauth"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
@@ -75,6 +77,8 @@ func applySignedUserContext(cfg config.Config, base mcp.CallConfig, input Execut
 		UserID:         input.UserID,
 		ConversationID: input.ConversationID,
 		RequestID:      strings.TrimSpace(input.RequestID),
+		Audience:       strings.TrimSpace(base.BaseURL),
+		JTI:            uuid.NewString(),
 		ExpiresAt:      time.Now().Add(mcpauth.DefaultTTL).Unix(),
 	})
 	if err != nil || token == "" {
