@@ -332,7 +332,7 @@ docker compose -f docker-compose.full.yml up -d
 | VoceChat third-party secret | `/run/secrets/vocechat`，全量安装或站内消息 overlay |
 | VoceChat 初始化凭据 | `/var/lib/deeix-vocechat-init`，全量安装或站内消息 overlay |
 
-默认应用镜像为 `ghcr.io/deeix-ai/deeix-chat:latest`。Compose 文件只引用镜像，不定义构建步骤。测试本地构建时先生成镜像，再通过 `DEEIX_CHAT_IMAGE` 选择它：
+Compose 方案将应用镜像固定为包含当前 UI 和 API 的发布版本 `ghcr.io/amaoworks/deeix-chat:v0.4.1-3`。启用站内消息时不要换回不含浮窗的旧版 `latest` 镜像；应用与 VoceChat bundle 必须使用兼容版本。Compose 文件只引用镜像，不定义构建步骤。测试本地构建时先生成镜像，再通过 `DEEIX_CHAT_IMAGE` 选择它：
 
 ```bash
 docker build -t deeix-chat:local .

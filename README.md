@@ -332,7 +332,7 @@ The default compose files persist application data:
 | VoceChat third-party secret | `/run/secrets/vocechat`, full profile or messaging overlay |
 | VoceChat init credentials | `/var/lib/deeix-vocechat-init`, full profile or messaging overlay |
 
-The default application image is `ghcr.io/deeix-ai/deeix-chat:latest`. Compose files reference an image and do not define a build step. Build a local image first, then select it with `DEEIX_CHAT_IMAGE`:
+Compose profiles pin the application image to the release that contains the current UI and API, `ghcr.io/amaoworks/deeix-chat:v0.4.1-3`. Do not replace it with an older `latest` image when enabling internal messaging; the app and VoceChat bundle must be from a compatible release. Compose files reference an image and do not define a build step. Build a local image first, then select it with `DEEIX_CHAT_IMAGE`:
 
 ```bash
 docker build -t deeix-chat:local .
