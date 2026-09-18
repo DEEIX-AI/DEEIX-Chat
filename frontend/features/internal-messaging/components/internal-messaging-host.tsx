@@ -67,6 +67,7 @@ import type {
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 
 import { useMessagingWindowLayout, RESIZE_HANDLES } from "./use-messaging-window-layout";
+import { InternalMessagingLauncherButton } from "./internal-messaging-launcher-button";
 import { useConversationList } from "./use-conversation-list";
 import { useMessageReadState } from "./use-message-read-state";
 import { useMessageComposer } from "./use-message-composer";
@@ -137,7 +138,7 @@ export function InternalMessagingWindowHost({
     initialStatus?.browserNotifications ?? true,
   );
   const [open, setOpen] = React.useState(initiallyOpen);
-  const { mobileLayout, expanded, setExpanded, buttonPoint, windowBounds, startButtonDrag, moveButton, stopButtonDrag, openFromButton, startWindowDrag, moveWindow, stopWindowDrag, startResize, resizeWindow, stopResize } = useMessagingWindowLayout(user?.publicID || "", () => setOpen(true));
+  const { mobileLayout, expanded, setExpanded, windowBounds, startWindowDrag, moveWindow, stopWindowDrag, startResize, resizeWindow, stopResize } = useMessagingWindowLayout(user?.publicID || "");
   const [users, setUsers] = React.useState<InternalMessagingUser[]>([]);
   const [conversations, setConversations] = React.useState<InternalMessagingConversation[]>([]);
   const [directoryView, setDirectoryView] = React.useState<"recent" | "users">("recent");
@@ -1560,39 +1561,15 @@ export function InternalMessagingWindowHost({
         />
       ) : null}
 
-      <Button
-        aria-label={t("aria.open")}
-        className={cn(
-          "fixed z-[69] size-11 rounded-full shadow-lg",
-          mobileLayout
-            ? "touch-manipulation cursor-pointer"
-            : "touch-none cursor-grab active:cursor-grabbing",
-          open && "hidden",
-        )}
-        style={
-          mobileLayout
-            ? {
-                right: "max(16px, env(safe-area-inset-right))",
-                bottom: "max(16px, env(safe-area-inset-bottom))",
-              }
-            : buttonPoint
-              ? { left: buttonPoint.x, top: buttonPoint.y }
-              : { right: 20, bottom: 20 }
-        }
-        size="icon"
-        onPointerDown={startButtonDrag}
-        onPointerMove={moveButton}
-        onPointerUp={stopButtonDrag}
-        onPointerCancel={stopButtonDrag}
-        onClick={openFromButton}
-      >
-        <MessageCircle className="size-5" />
-        {totalUnread > 0 ? (
-          <span className="absolute -right-1 -top-1 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] text-destructive-foreground">
-            {totalUnread > 99 ? "99+" : totalUnread}
-          </span>
-        ) : null}
-      </Button>
+      {!open ? (
+        <InternalMessagingLauncherButton
+          key={user.publicID}
+          accountID={user.publicID}
+          unreadCount={totalUnread}
+          label={t("aria.open")}
+          onOpen={() => setOpen(true)}
+        />
+      ) : null}
     </>
   );
 }

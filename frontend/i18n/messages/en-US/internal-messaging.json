@@ -17,6 +17,8 @@
     "emoji": "Choose emoji",
     "send": "Send",
     "open": "Open internal messages",
+    "expandLauncher": "Expand the messaging button",
+    "unread": "{count, plural, one {# unread message} other {# unread messages}}",
     "resize": "Resize chat window {direction}",
     "pin": "Pin conversation",
     "unpin": "Unpin conversation",

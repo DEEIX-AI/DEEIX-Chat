@@ -17,6 +17,8 @@
     "emoji": "选择表情",
     "send": "发送",
     "open": "打开站内消息",
+    "expandLauncher": "展开站内消息入口",
+    "unread": "{count} 条未读消息",
     "resize": "沿 {direction} 方向缩放聊天窗口",
     "pin": "置顶会话",
     "unpin": "取消置顶",

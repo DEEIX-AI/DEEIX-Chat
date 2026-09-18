@@ -2,6 +2,8 @@
 
 import * as React from "react";
 
+import { LAYOUT_STORAGE_PREFIX, parseMessagingLayout } from "../model/launcher-layout";
+
 type Point = { x: number; y: number };
 type WindowBounds = Point & { width: number; height: number };
 type DragSnapshot = {
@@ -20,10 +22,8 @@ type ResizeSnapshot = {
   bounds: WindowBounds;
 };
 const VIEWPORT_MARGIN = 8;
-const BUTTON_SIZE = 44;
 const MIN_WINDOW_WIDTH = 320;
 const MIN_WINDOW_HEIGHT = 360;
-const LAYOUT_STORAGE_PREFIX = "deeix.internal-messaging.layout.v1";
 export const RESIZE_HANDLES: Array<{ direction: ResizeDirection; className: string }> = [
   { direction: "n", className: "-top-1 left-3 right-3 h-2 cursor-n-resize" },
   { direction: "ne", className: "-right-1 -top-1 size-4 cursor-ne-resize" },
@@ -68,13 +68,6 @@ function clampWindowBounds(bounds: WindowBounds): WindowBounds {
   };
 }
 
-function clampButtonPoint(point: Point): Point {
-  return {
-    x: clamp(point.x, VIEWPORT_MARGIN, window.innerWidth - BUTTON_SIZE - VIEWPORT_MARGIN),
-    y: clamp(point.y, VIEWPORT_MARGIN, window.innerHeight - BUTTON_SIZE - VIEWPORT_MARGIN),
-  };
-}
-
 function isPoint(value: unknown): value is Point {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<Point>;
@@ -101,30 +94,18 @@ function useMobileMessagingLayout() {
   return mobile;
 }
 
-export function useMessagingWindowLayout(accountID: string, onOpen: () => void) {
+export function useMessagingWindowLayout(accountID: string) {
   const mobileLayout = useMobileMessagingLayout();
   const [expanded, setExpanded] = React.useState(false);
-  const [buttonPoint, setButtonPoint] = React.useState<Point | null>(null);
   const [windowBounds, setWindowBounds] = React.useState<WindowBounds>(initialWindowBounds);
-  const buttonDragRef = React.useRef<DragSnapshot | null>(null);
   const windowDragRef = React.useRef<DragSnapshot | null>(null);
   const resizeRef = React.useRef<ResizeSnapshot | null>(null);
-  const suppressButtonClickRef = React.useRef(false);
   const layoutHydratedRef = React.useRef(false);
 
   React.useEffect(() => {
-    setButtonPoint((current) =>
-      current
-        ? clampButtonPoint(current)
-        : {
-            x: window.innerWidth - BUTTON_SIZE - 20,
-            y: window.innerHeight - BUTTON_SIZE - 20,
-          },
-    );
     setWindowBounds((current) => clampWindowBounds(current));
 
     const handleResize = () => {
-      setButtonPoint((current) => (current ? clampButtonPoint(current) : current));
       setWindowBounds((current) => clampWindowBounds(current));
     };
     window.addEventListener("resize", handleResize);
@@ -137,8 +118,7 @@ export function useMessagingWindowLayout(accountID: string, onOpen: () => void) 
     try {
       const raw = window.localStorage.getItem(`${LAYOUT_STORAGE_PREFIX}:${accountID}`);
       if (raw) {
-        const stored = JSON.parse(raw) as { button?: unknown; window?: unknown };
-        if (isPoint(stored.button)) setButtonPoint(clampButtonPoint(stored.button));
+        const stored = parseMessagingLayout(raw);
         if (isWindowBounds(stored.window)) setWindowBounds(clampWindowBounds(stored.window));
       }
 
@@ -152,51 +132,14 @@ export function useMessagingWindowLayout(accountID: string, onOpen: () => void) 
     if (!accountID || !layoutHydratedRef.current) return;
     const timer = window.setTimeout(() => {
       try {
-        window.localStorage.setItem(`${LAYOUT_STORAGE_PREFIX}:${accountID}`, JSON.stringify({ button: buttonPoint, window: windowBounds }));
+        const key = `${LAYOUT_STORAGE_PREFIX}:${accountID}`;
+        const raw = window.localStorage.getItem(key);
+        const stored = parseMessagingLayout(raw);
+        window.localStorage.setItem(key, JSON.stringify({ ...stored, window: windowBounds }));
       } catch { /* Storage may be unavailable in a private browser session. */ }
     }, 200);
     return () => window.clearTimeout(timer);
-  }, [buttonPoint, accountID, windowBounds]);
-
-  const startButtonDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (mobileLayout || event.button !== 0) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    buttonDragRef.current = {
-      pointerID: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      origin: { x: rect.left, y: rect.top },
-      moved: false,
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const moveButton = (event: React.PointerEvent<HTMLButtonElement>) => {
-    const drag = buttonDragRef.current;
-    if (!drag || drag.pointerID !== event.pointerId) return;
-    const deltaX = event.clientX - drag.startX;
-    const deltaY = event.clientY - drag.startY;
-    if (Math.abs(deltaX) + Math.abs(deltaY) > 3) drag.moved = true;
-    setButtonPoint(clampButtonPoint({ x: drag.origin.x + deltaX, y: drag.origin.y + deltaY }));
-  };
-
-  const stopButtonDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
-    const drag = buttonDragRef.current;
-    if (!drag || drag.pointerID !== event.pointerId) return;
-    suppressButtonClickRef.current = drag.moved;
-    buttonDragRef.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  };
-
-  const openFromButton = () => {
-    if (suppressButtonClickRef.current) {
-      suppressButtonClickRef.current = false;
-      return;
-    }
-    onOpen();
-  };
+  }, [accountID, windowBounds]);
 
   const startWindowDrag = (event: React.PointerEvent<HTMLElement>) => {
     if (
@@ -302,5 +245,5 @@ export function useMessagingWindowLayout(accountID: string, onOpen: () => void) 
     }
   };
 
-  return { mobileLayout, expanded, setExpanded, buttonPoint, windowBounds, startButtonDrag, moveButton, stopButtonDrag, openFromButton, startWindowDrag, moveWindow, stopWindowDrag, startResize, resizeWindow, stopResize };
+  return { mobileLayout, expanded, setExpanded, windowBounds, startWindowDrag, moveWindow, stopWindowDrag, startResize, resizeWindow, stopResize };
 }
