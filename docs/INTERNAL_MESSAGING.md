@@ -8,7 +8,7 @@ DEEIX 使用自己的 UI 与 API；VoceChat 仅在 Docker 内网保存消息并�
 
 ## Docker Compose 自动初始化
 
-全量 Compose 已经内置 VoceChat，使用 GitHub Actions 发布的 `ghcr.io/amaoworks/deeix-chat-vocechat:v0.4.1-5` bundle 镜像。镜像包含 VoceChat 服务、`config.toml` 和 `init.py`，因此部署主机不需要拉取仓库或本地构建。轻量安装和默认安装则需要叠加 `docker-compose.vocechat.yml`。不要把发布版本改成浮动的 `latest`：
+全量 Compose 已经内置 VoceChat，使用 GitHub Actions 发布的 `ghcr.io/amaoworks/deeix-chat-vocechat:latest` bundle 镜像。镜像包含 VoceChat 服务、`config.toml` 和 `init.py`，VoceChat 服务版本由镜像内部的构建配置控制，部署时使用 `latest` 即可，无需手工匹配发布 tag。部署主机不需要拉取仓库或本地构建。轻量安装和默认安装则需要叠加 `docker-compose.vocechat.yml`：
 
 ```bash
 docker compose -f docker-compose.full.yml up -d
@@ -203,7 +203,7 @@ docker compose -f docker-compose.yml -f docker-compose.vocechat.yml \
 docker compose -f docker-compose.yml -f docker-compose.vocechat.yml restart app
 ```
 
-已用 VoceChat OpenAPI `0.5.32` 验证的接口包括：`/health`、第三方密钥与登录、用户资料同步、文本发送与历史、SSE 事件、回复、编辑、撤回、文件上传与鉴权下载。具体方法和路径由 `scripts/check-vocechat-upgrade.sh` 维护；升级镜像前还需重新验证第三方登录开关和消息时间格式。
+已用 VoceChat OpenAPI `0.5.32` 验证的接口包括：`/health`、第三方密钥与登录、用户资料同步、文本发送与历史、SSE 事件、回复、编辑、撤回、文件上传与鉴权下载。具体方法和路径由 `scripts/check-vocechat-upgrade.sh` 维护；维护 bundle 镜像、更换其内部 VoceChat 版本时，还需重新验证第三方登录开关和消息时间格式。
 
 ### 备份与恢复
 
@@ -224,15 +224,15 @@ docker compose -f docker-compose.yml -f docker-compose.vocechat.yml restart app
 
 生产环境需要在同一维护窗口备份 `vocechat_data`、`vocechat_secrets`、`vocechat_init_state` 三个卷以及 DEEIX 的 PostgreSQL/SQLite 数据库。VoceChat 保存消息正文，DEEIX 数据库保存身份绑定、未读、会话偏好和搜索索引；只恢复其中一侧会产生状态不一致。
 
-### 升级检查
+### 镜像维护：升级内部 VoceChat
 
-先在测试环境启动候选 VoceChat 镜像，然后检查 DEEIX 依赖的 OpenAPI 契约：
+以下检查供维护 bundle 镜像内部 VoceChat 版本时使用；使用 `latest` 部署时无需自行选择上游 VoceChat 版本。先在测试环境启动候选 VoceChat 镜像，然后检查 DEEIX 依赖的 OpenAPI 契约：
 
 ```bash
 ./scripts/check-vocechat-upgrade.sh http://127.0.0.1:3001
 ```
 
-契约通过后仍需用两个 DEEIX 测试用户验收文本、实时未读、回复、编辑、撤回、图片/文件和历史分页，再升级生产镜像。不要直接用生产服务做带写入的兼容性测试。
+契约通过后仍需用两个 DEEIX 测试用户验收文本、实时未读、回复、编辑、撤回、图片/文件和历史分页，再发布包含新版 VoceChat 的 bundle 镜像。不要直接用生产服务做带写入的兼容性测试。
 
 ## 数据保留边界
 
@@ -247,7 +247,7 @@ docker compose -f docker-compose.yml -f docker-compose.vocechat.yml restart app
 3. 上传图片和普通文件，确认预览/下载需要 DEEIX 登录，且浏览器网络请求中没有 VoceChat token 或文件路径。
 4. 验证置顶、静音、通知策略、窗口拖动缩放和布局持久化。
 5. 管理员禁用后入口消失；重新启用后历史与偏好仍在。检查运行状态和审计日志。
-6. 执行一次停机备份、恢复和候选镜像契约检查。
+6. 执行一次停机备份和恢复；维护 bundle 内部 VoceChat 版本时，再按上一节执行候选镜像契约检查。
 
 ## 运行边界
 

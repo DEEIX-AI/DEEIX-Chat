@@ -290,7 +290,7 @@ docker compose -f docker-compose.full.yml up -d
 
 The full profile already contains VoceChat and does not need an overlay. For the lightweight or default profile, stack `docker-compose.vocechat.yml`; VoceChat listens only on the compose network and browsers never connect to it.
 
-The Compose files use the release-pinned bundle image `ghcr.io/amaoworks/deeix-chat-vocechat:v0.4.1-5`. GitHub Actions builds it from the integration-tested VoceChat base image and publishes it for both amd64 and arm64. Do not replace this release tag with `latest` without running the upgrade checks in [Internal messaging](docs/INTERNAL_MESSAGING.md).
+The Compose files use the bundle image `ghcr.io/amaoworks/deeix-chat-vocechat:latest`. GitHub Actions publishes it for both amd64 and arm64. The VoceChat server version is controlled inside the bundle build, so deployments do not need to manually match application and VoceChat release tags.
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.vocechat.yml up -d
@@ -304,14 +304,14 @@ docker compose -f docker-compose.sqlite.yml -f docker-compose.vocechat.yml up -d
 
 The overlay writes `INTERNAL_MESSAGING_ENABLED`, `INTERNAL_MESSAGING_VOCECHAT_URL`, and `INTERNAL_MESSAGING_SECRET_FILE` into the app container. You do not need to put the third-party secret in `config.yaml`. Initialization, backup, secret rotation, and upgrade checks are in [Internal messaging](docs/INTERNAL_MESSAGING.md).
 
-The VoceChat services share the published bundle image `ghcr.io/amaoworks/deeix-chat-vocechat:v0.4.1-5`. GitHub Actions builds it from `docker/vocechat/Dockerfile` with only that directory as context and packages the integration-tested VoceChat server, `config.toml`, and `init.py`. Runtime containers do not mount these files, and the deployment host does not need the repository or a local Dockerfile.
+The VoceChat services share the published bundle image `ghcr.io/amaoworks/deeix-chat-vocechat:latest`. GitHub Actions builds it from `docker/vocechat/Dockerfile` with only that directory as context and packages the integration-tested VoceChat server, `config.toml`, and `init.py`. Runtime containers do not mount these files, and the deployment host does not need the repository or a local Dockerfile.
 
-For a no-repository full deployment, download only the Compose file and configuration template from the release:
+For a no-repository full deployment, download only the Compose file and configuration template from the `main` branch:
 
 ```bash
 mkdir deeix-chat && cd deeix-chat
-curl -fsSL https://raw.githubusercontent.com/amaoworks/DEEIX-Chat/v0.4.1-5/docker-compose.full.yml -o docker-compose.full.yml
-curl -fsSL https://raw.githubusercontent.com/amaoworks/DEEIX-Chat/v0.4.1-5/config.full.example.yaml -o config.full.example.yaml
+curl -fsSL https://raw.githubusercontent.com/amaoworks/DEEIX-Chat/main/docker-compose.full.yml -o docker-compose.full.yml
+curl -fsSL https://raw.githubusercontent.com/amaoworks/DEEIX-Chat/main/config.full.example.yaml -o config.full.example.yaml
 cp config.full.example.yaml config.yaml
 docker compose -f docker-compose.full.yml up -d
 ```
@@ -332,7 +332,7 @@ The default compose files persist application data:
 | VoceChat third-party secret | `/run/secrets/vocechat`, full profile or messaging overlay |
 | VoceChat init credentials | `/var/lib/deeix-vocechat-init`, full profile or messaging overlay |
 
-Compose profiles pin the application image to the release that contains the current UI and API, `ghcr.io/amaoworks/deeix-chat:v0.4.1-5`. Do not replace it with an older `latest` image when enabling internal messaging; the app and VoceChat bundle must be from a compatible release. Compose files reference an image and do not define a build step. Build a local image first, then select it with `DEEIX_CHAT_IMAGE`:
+Compose profiles use the application image `ghcr.io/amaoworks/deeix-chat:latest` by default. To update an existing deployment, run `docker compose pull` followed by `docker compose up -d`, using the same `-f` options as the installation. Compose files reference an image and do not define a build step. Build a local image first, then select it with `DEEIX_CHAT_IMAGE`:
 
 ```bash
 docker build -t deeix-chat:local .

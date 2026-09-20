@@ -21,7 +21,7 @@ services:
 
   vocechat:
     # The bundle contains the validated VoceChat server and DEEIX integration files.
-    image: ghcr.io/amaoworks/deeix-chat-vocechat:v0.4.1-5
+    image: ghcr.io/amaoworks/deeix-chat-vocechat:latest
     restart: unless-stopped
     expose:
       - "3000"
@@ -40,7 +40,7 @@ services:
       - deeix-chat
 
   vocechat-init:
-    image: ghcr.io/amaoworks/deeix-chat-vocechat:v0.4.1-5
+    image: ghcr.io/amaoworks/deeix-chat-vocechat:latest
     restart: "no"
     depends_on:
       vocechat:
