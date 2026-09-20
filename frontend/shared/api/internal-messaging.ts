@@ -14,10 +14,10 @@ export function getInternalMessagingStatus(accessToken: string) {
   return authedRequest<InternalMessagingStatus>(`${ROOT}/status`, { accessToken }, false);
 }
 
-export function listInternalMessagingUsers(accessToken: string, query = "", page = 1) {
+export function listInternalMessagingUsers(accessToken: string, query = "", page = 1, signal?: AbortSignal) {
   const params = new URLSearchParams({ page: String(page), page_size: "50" });
   if (query.trim()) params.set("query", query.trim());
-  return authedRequest<InternalMessagingUserPage>(`${ROOT}/users?${params}`, { accessToken });
+  return authedRequest<InternalMessagingUserPage>(`${ROOT}/users?${params}`, { accessToken, signal });
 }
 
 export function listInternalMessagingConversations(accessToken: string, page = 1, signal?: AbortSignal) {

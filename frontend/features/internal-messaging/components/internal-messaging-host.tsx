@@ -47,6 +47,7 @@ import {
 } from "@/features/internal-messaging/model/live-event-merge";
 import { safeInternalMessageMarkdown } from "@/features/internal-messaging/model/message-markdown";
 import { messageRowContainmentStyle } from "@/features/internal-messaging/model/message-row-visibility";
+import { loadUserPages } from "@/features/internal-messaging/model/user-pages";
 import { useInternalMessagingEvents } from "@/features/internal-messaging/components/use-internal-messaging-events";
 import { cn } from "@/lib/utils";
 import {
@@ -65,6 +66,7 @@ import type {
   InternalMessagingUser,
 } from "@/shared/api/internal-messaging.types";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
+import { resolveAvatarImageSrc } from "@/shared/lib/avatar";
 
 import { useMessagingWindowLayout, RESIZE_HANDLES } from "./use-messaging-window-layout";
 import { InternalMessagingLauncherButton } from "./internal-messaging-launcher-button";
@@ -120,6 +122,21 @@ function displayName(user: InternalMessagingUser) {
   return user.displayName || user.username;
 }
 
+const MessagingAvatar = React.memo(function MessagingAvatar({
+  user,
+  className,
+}: {
+  user: InternalMessagingUser;
+  className?: string;
+}) {
+  return (
+    <Avatar className={className}>
+      <AvatarImage src={resolveAvatarImageSrc(user.avatarURL, user) || undefined} alt={displayName(user)} className="object-cover" />
+      <AvatarFallback>{initials(displayName(user))}</AvatarFallback>
+    </Avatar>
+  );
+});
+
 export function InternalMessagingWindowHost({
   initiallyOpen = false,
   initialStatus,
@@ -143,9 +160,9 @@ export function InternalMessagingWindowHost({
   const [conversations, setConversations] = React.useState<InternalMessagingConversation[]>([]);
   const [directoryView, setDirectoryView] = React.useState<"recent" | "users">("recent");
   const [query, setQuery] = React.useState("");
-  const [directoryPage, setDirectoryPage] = React.useState(1);
   const [hasMoreUsers, setHasMoreUsers] = React.useState(false);
   const [selected, setSelected] = React.useState<InternalMessagingUser | null>(null);
+  const selectedPublicID = selected?.publicID || "";
   const [messages, setMessages] = React.useState<InternalMessagingMessage[]>([]);
   const [loadingUsers, setLoadingUsers] = React.useState(false);
   const [loadingMessages, setLoadingMessages] = React.useState(false);
@@ -176,6 +193,8 @@ export function InternalMessagingWindowHost({
   const [presenceReady, setPresenceReady] = React.useState(false);
   const [onlineByUser, setOnlineByUser] = React.useState<Record<string, boolean>>({});
   const selectedRef = React.useRef<InternalMessagingUser | null>(null);
+  const directoryPagesRef = React.useRef(1);
+  const directoryRequestRef = React.useRef<AbortController | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const composerRef = React.useRef<HTMLTextAreaElement | null>(null);
   const messageViewportRef = React.useRef<HTMLDivElement | null>(null);
@@ -214,13 +233,13 @@ export function InternalMessagingWindowHost({
   );
 
   React.useEffect(() => {
-    if (!selected) return;
+    if (!selectedPublicID) return;
     writeConversationCache(
       messageCacheRef.current,
-      selected.publicID,
+      selectedPublicID,
       createCachedConversation(messages, hasMoreMessages, nextBefore),
     );
-  }, [hasMoreMessages, messages, nextBefore, selected]);
+  }, [hasMoreMessages, messages, nextBefore, selectedPublicID]);
 
   React.useLayoutEffect(() => {
     const viewport = messageViewportRef.current;
@@ -322,6 +341,8 @@ export function InternalMessagingWindowHost({
 
   const conversationList = useConversationList(accessToken, enabled, (result) => {
     setConversations(result.results);
+    const profiles = new Map(result.results.map((item) => [item.user.publicID, item.user]));
+    setUsers((current) => current.map((item) => profiles.get(item.publicID) || item));
     setTotalUnread(result.totalUnread);
     setUnreadByUser(Object.fromEntries(result.results.map((item) => [item.user.publicID, item.unreadCount])));
   });
@@ -356,26 +377,38 @@ export function InternalMessagingWindowHost({
   });
 
   const loadUsers = React.useCallback(
-    async (page = 1, append = false) => {
+    async (reset = false, more = false) => {
       if (!enabled) return;
+      if (!reset && directoryRequestRef.current) return;
+      const controller = new AbortController();
+      directoryRequestRef.current?.abort();
+      directoryRequestRef.current = controller;
+      if (reset) directoryPagesRef.current = 1;
       setLoadingUsers(true);
       setDirectoryError("");
       try {
-        const result = await listInternalMessagingUsers(accessToken, query, page);
-        setUsers((items) => (append ? [...items, ...result.results] : result.results));
-        setDirectoryPage(page);
-        setHasMoreUsers(result.hasMore);
+        const { snapshot, loaded } = await loadUserPages(
+          (page, signal) => listInternalMessagingUsers(accessToken, query, page, signal),
+          directoryPagesRef.current + (more ? 1 : 0), controller.signal,
+        );
+        if (!snapshot || directoryRequestRef.current !== controller) return;
+        directoryPagesRef.current = loaded;
+        setUsers(snapshot.results);
+        setHasMoreUsers(snapshot.hasMore);
       } catch {
-        setDirectoryError(t("errors.directory"));
+        if (!controller.signal.aborted) setDirectoryError(t("errors.directory"));
       } finally {
-        setLoadingUsers(false);
+        if (directoryRequestRef.current === controller) {
+          directoryRequestRef.current = null;
+          setLoadingUsers(false);
+        }
       }
     },
     [accessToken, enabled, query, t],
   );
 
   const loadMessages = React.useCallback(
-    async (recipient: InternalMessagingUser, before = 0) => {
+    async (recipientPublicID: string, before = 0) => {
       messageRequestRef.current.controller?.abort();
       const controller = new AbortController();
       const sequence = messageRequestRef.current.sequence + 1;
@@ -387,13 +420,13 @@ export function InternalMessagingWindowHost({
       try {
         const page = await listInternalMessagingMessages(
           accessToken,
-          recipient.publicID,
+          recipientPublicID,
           before || undefined,
           controller.signal,
         );
         if (
           sequence !== messageRequestRef.current.sequence ||
-          selectedRef.current?.publicID !== recipient.publicID
+          selectedRef.current?.publicID !== recipientPublicID
         ) {
           return;
         }
@@ -425,7 +458,7 @@ export function InternalMessagingWindowHost({
         setNextBefore(page.nextBefore);
         writeConversationCache(
           messageCacheRef.current,
-          recipient.publicID,
+          recipientPublicID,
           createCachedConversation(merged, page.hasMore, page.nextBefore),
         );
       } catch {
@@ -480,11 +513,55 @@ export function InternalMessagingWindowHost({
     };
   }, [enabled, loadConversations]);
   React.useEffect(() => {
-    if (open && directoryView === "users") void loadUsers(1, false);
+    if (!open || directoryView !== "users") return;
+    void loadUsers(true);
+    const refresh = () => { if (document.visibilityState === "visible") void loadUsers(); };
+    const timer = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      directoryRequestRef.current?.abort();
+      directoryRequestRef.current = null;
+    };
   }, [directoryView, loadUsers, open]);
   React.useEffect(() => {
-    if (open && selected) void loadMessages(selected);
-  }, [loadMessages, open, selected]);
+    if (!enabled || !open || !selectedPublicID) return;
+    let request: AbortController | null = null;
+    let disposed = false;
+    const refresh = async () => {
+      if (document.visibilityState !== "visible" || request) return;
+      const controller = new AbortController();
+      request = controller;
+      try {
+        // Search by stable ID: the peer may be outside loaded pages or no longer match the directory query.
+        const result = await listInternalMessagingUsers(accessToken, selectedPublicID, 1, controller.signal);
+        if (disposed || controller.signal.aborted) return;
+        const profile = result.results.find((item) => item.publicID === selectedPublicID);
+        if (profile) {
+          setSelected((current) => current?.publicID === profile.publicID ? profile : current);
+        }
+      } catch {
+        // Retain the last known profile during transient failures.
+      } finally {
+        if (request === controller) request = null;
+      }
+    };
+    void refresh();
+    const onFocus = () => { void refresh(); };
+    const timer = window.setInterval(onFocus, 30_000);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+      request?.abort();
+    };
+  }, [accessToken, enabled, open, selectedPublicID]);
+  React.useEffect(() => {
+    // Profile refreshes must not replace loaded history or move the scroll position.
+    if (open && selectedPublicID) void loadMessages(selectedPublicID);
+  }, [loadMessages, open, selectedPublicID]);
   React.useEffect(
     () => () => {
       messageRequestRef.current.controller?.abort();
@@ -566,7 +643,7 @@ export function InternalMessagingWindowHost({
         messageRefreshTimerRef.current = window.setTimeout(() => {
           messageRefreshTimerRef.current = null;
           const currentRecipient = selectedRef.current;
-          if (currentRecipient) void loadMessages(currentRecipient);
+          if (currentRecipient) void loadMessages(currentRecipient.publicID);
         }, 150);
       }
       scheduleConversationRefresh();
@@ -610,7 +687,7 @@ export function InternalMessagingWindowHost({
       if (open && recipient) {
         reconnectHistoryRef.current = true;
         if (nearMessageBottomRef.current && document.visibilityState === "visible") {
-          void loadMessages(recipient);
+          void loadMessages(recipient.publicID);
         } else {
           setNewMessagesBelow(true);
         }
@@ -869,6 +946,7 @@ export function InternalMessagingWindowHost({
             ) : (
               <MessageCircle className="size-4 text-primary" />
             )}
+            {selected ? <MessagingAvatar user={selected} /> : null}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">
                 {selected ? displayName(selected) : t("title")}
@@ -1004,7 +1082,7 @@ export function InternalMessagingWindowHost({
                     size="sm"
                     className="w-full"
                     disabled={loadingOlderMessages}
-                    onClick={() => void loadMessages(selected, nextBefore)}
+                    onClick={() => void loadMessages(selected.publicID, nextBefore)}
                   >
                     {loadingOlderMessages ? t("messages.loading") : t("messages.loadOlder")}
                   </Button>
@@ -1034,15 +1112,16 @@ export function InternalMessagingWindowHost({
                     return (
                       <div
                         id={`internal-message-${message.id}`}
-                        className={cn("flex w-full", mine ? "justify-end" : "justify-start")}
+                        className={cn("flex w-full items-start gap-2", mine ? "justify-end" : "justify-start")}
                         style={messageRowContainmentStyle({
                           loadingOlderMessages,
                           preservingOlderScroll:
                             pendingMessageScrollRef.current?.mode === "preserve",
                         })}
                       >
+                        {!mine ? <MessagingAvatar user={selected} className="size-7 text-xs" /> : null}
                         <div
-                          className="group/message relative max-w-[min(85%,calc(100%-6.75rem))]"
+                          className="group/message relative max-w-[min(85%,calc(100%-9rem))]"
                           onPointerUp={(event) => {
                             if (event.pointerType === "mouse") return;
                             if ((event.target as HTMLElement).closest("button, a")) return;
@@ -1148,21 +1227,25 @@ export function InternalMessagingWindowHost({
                             </span>
                           ) : null}
                         </div>
+                        {mine ? <MessagingAvatar user={user} className="size-7 text-xs" /> : null}
                       </div>
                     );
                     }}
                   </MessageRows>
                 )}
                 {composer.outgoing.map((item) => (
-                  <div key={item.id} className="ml-auto max-w-[85%] rounded-2xl bg-primary/10 px-3 py-2 text-sm">
-                    <p className="whitespace-pre-wrap break-words">{item.content}</p>
-                    <div className="mt-1 flex items-center gap-2 text-xs" role="status">
-                      <span>{t(item.status === "sending" ? "messages.sending" : "messages.failed")}</span>
-                      {item.status === "failed" ? <>
-                        <Button size="sm" variant="ghost" onClick={() => void composer.retry(item.id)}>{t("messages.retry")}</Button>
-                        <Button size="sm" variant="ghost" onClick={() => composer.discard(item.id)}>{t("messages.discard")}</Button>
-                      </> : null}
+                  <div key={item.id} className="flex items-start justify-end gap-2">
+                    <div className="max-w-[min(85%,calc(100%-9rem))] rounded-2xl bg-primary/10 px-3 py-2 text-sm">
+                      <p className="whitespace-pre-wrap break-words">{item.content}</p>
+                      <div className="mt-1 flex items-center gap-2 text-xs" role="status">
+                        <span>{t(item.status === "sending" ? "messages.sending" : "messages.failed")}</span>
+                        {item.status === "failed" ? <>
+                          <Button size="sm" variant="ghost" onClick={() => void composer.retry(item.id)}>{t("messages.retry")}</Button>
+                          <Button size="sm" variant="ghost" onClick={() => composer.discard(item.id)}>{t("messages.discard")}</Button>
+                        </> : null}
+                      </div>
                     </div>
+                    <MessagingAvatar user={user} className="size-7 text-xs" />
                   </div>
                 ))}
               </div>
@@ -1175,7 +1258,7 @@ export function InternalMessagingWindowHost({
                   onClick={() => {
                     if (reconnectHistoryRef.current && selected) {
                       nearMessageBottomRef.current = true;
-                      void loadMessages(selected);
+                      void loadMessages(selected.publicID);
                     } else {
                       scrollToMessageBottom("smooth");
                       acknowledgeVisibleMessages();
@@ -1351,10 +1434,7 @@ export function InternalMessagingWindowHost({
                             onTouchStart={() => prefetchMessages(item)}
                           >
                             <span className="relative shrink-0">
-                              <Avatar>
-                                <AvatarImage src={item.avatarURL || undefined} />
-                                <AvatarFallback>{initials(displayName(item))}</AvatarFallback>
-                              </Avatar>
+                              <MessagingAvatar user={item} />
                               {presenceReady ? (
                                 <PresenceIndicator
                                   online={Boolean(onlineByUser[item.publicID])}
@@ -1482,10 +1562,7 @@ export function InternalMessagingWindowHost({
                           onTouchStart={() => prefetchMessages(item)}
                         >
                           <span className="relative shrink-0">
-                            <Avatar>
-                              <AvatarImage src={item.avatarURL || undefined} />
-                              <AvatarFallback>{initials(displayName(item))}</AvatarFallback>
-                            </Avatar>
+                            <MessagingAvatar user={item} />
                             {presenceReady ? (
                               <PresenceIndicator
                                 online={Boolean(onlineByUser[item.publicID])}
@@ -1518,7 +1595,7 @@ export function InternalMessagingWindowHost({
                         variant="ghost"
                         className="mt-1 w-full"
                         disabled={loadingUsers}
-                        onClick={() => void loadUsers(directoryPage + 1, true)}
+                        onClick={() => void loadUsers(false, true)}
                       >
                         {loadingUsers ? t("messages.loading") : t("directory.loadMore")}
                       </Button>
