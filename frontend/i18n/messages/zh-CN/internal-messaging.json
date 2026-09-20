@@ -11,6 +11,7 @@
     "notificationsDenied": "请在浏览器设置中允许通知",
     "notificationsUnsupported": "当前浏览器不支持桌面通知",
     "close": "关闭站内消息",
+    "minimize": "收起聊天窗口",
     "dismissError": "关闭错误提示",
     "cancelAction": "取消消息操作",
     "attach": "添加文件",

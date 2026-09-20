@@ -11,6 +11,7 @@
     "notificationsDenied": "Allow notifications in your browser settings",
     "notificationsUnsupported": "This browser does not support desktop notifications",
     "close": "Close messages",
+    "minimize": "Minimize messages",
     "dismissError": "Dismiss error",
     "cancelAction": "Cancel message action",
     "attach": "Attach file",

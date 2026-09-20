@@ -14,6 +14,7 @@ import {
   LoaderCircle,
   Maximize2,
   MessageCircle,
+  Minus,
   Paperclip,
   Pencil,
   Pin,
@@ -90,6 +91,7 @@ type PendingMessageScroll =
   | { mode: "bottom"; behavior: ScrollBehavior }
   | { mode: "preserve"; scrollHeight: number; scrollTop: number };
 type MessageFocusRequest = { id: number; sequence: number };
+type MessageScrollAnchor = { id: number; offset: number };
 class MessageRenderBoundary extends React.Component<
   { children: React.ReactNode; fallback: React.ReactNode },
   { failed: boolean }
@@ -192,6 +194,12 @@ export function InternalMessagingWindowHost({
   const [connected, setConnected] = React.useState(false);
   const [presenceReady, setPresenceReady] = React.useState(false);
   const [onlineByUser, setOnlineByUser] = React.useState<Record<string, boolean>>({});
+  const windowRef = React.useRef<HTMLElement | null>(null);
+  const emojiPopoverRef = React.useRef<HTMLDivElement | null>(null);
+  const windowOpenRef = React.useRef(open);
+  const resumingRef = React.useRef(false);
+  const minimizedScrollRef = React.useRef<{ scrollTop: number; nearBottom: boolean } | null>(null);
+  const restoringAnchorRef = React.useRef<MessageScrollAnchor | null>(null);
   const selectedRef = React.useRef<InternalMessagingUser | null>(null);
   const directoryPagesRef = React.useRef(1);
   const directoryRequestRef = React.useRef<AbortController | null>(null);
@@ -200,6 +208,7 @@ export function InternalMessagingWindowHost({
   const messageViewportRef = React.useRef<HTMLDivElement | null>(null);
   const messagesRef = React.useRef<InternalMessagingMessage[]>([]);
   const reconnectHistoryRef = React.useRef(false);
+  const historyRequiredRef = React.useRef(true);
   const hasConnectedRef = React.useRef(false);
   const nearMessageBottomRef = React.useRef(true);
   const pendingMessageScrollRef = React.useRef<PendingMessageScroll | null>(null);
@@ -213,10 +222,12 @@ export function InternalMessagingWindowHost({
   const messagePrefetchRef = React.useRef<Map<string, Promise<void>>>(new Map());
   selectedRef.current = selected;
   messagesRef.current = messages;
+  windowOpenRef.current = open;
 
   const scrollToMessageBottom = React.useCallback((behavior: ScrollBehavior = "smooth") => {
     const viewport = messageViewportRef.current;
-    if (!viewport) return;
+    if (!viewport || !windowOpenRef.current) return;
+    restoringAnchorRef.current = null;
     // Smooth targets drift while virtual rows are being measured.
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: messagesRef.current.length > 120 ? "auto" : behavior });
     nearMessageBottomRef.current = true;
@@ -224,7 +235,7 @@ export function InternalMessagingWindowHost({
   }, []);
 
   const maintainMessageBottom = React.useCallback(() => {
-    if (nearMessageBottomRef.current) scrollToMessageBottom("auto");
+    if (nearMessageBottomRef.current && !reconnectHistoryRef.current) scrollToMessageBottom("auto");
   }, [scrollToMessageBottom]);
 
   const messageByID = React.useMemo(
@@ -243,8 +254,18 @@ export function InternalMessagingWindowHost({
 
   React.useLayoutEffect(() => {
     const viewport = messageViewportRef.current;
+    if (!open || !viewport) return;
+    const minimized = minimizedScrollRef.current;
+    if (minimized) {
+      minimizedScrollRef.current = null;
+      pendingMessageScrollRef.current = null;
+      nearMessageBottomRef.current = minimized.nearBottom;
+      if (!restoringAnchorRef.current) viewport.scrollTop = minimized.scrollTop;
+      if (minimized.nearBottom && !reconnectHistoryRef.current) scrollToMessageBottom("auto");
+      return;
+    }
     const pending = pendingMessageScrollRef.current;
-    if (!viewport || !pending) return;
+    if (!pending) return;
     pendingMessageScrollRef.current = null;
     if (pending.mode === "preserve") {
       viewport.scrollTop =
@@ -252,14 +273,15 @@ export function InternalMessagingWindowHost({
       return;
     }
     scrollToMessageBottom(pending.behavior);
-  }, [messages, scrollToMessageBottom]);
+  }, [messages, open, scrollToMessageBottom]);
 
   const handleMessageScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    if (!windowOpenRef.current) return;
     const viewport = event.currentTarget;
     const distance = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
     const nearBottom = distance <= MESSAGE_BOTTOM_THRESHOLD;
     nearMessageBottomRef.current = nearBottom;
-    if (nearBottom) {
+    if (nearBottom && !reconnectHistoryRef.current) {
       setNewMessagesBelow(false);
       acknowledgeVisibleMessages();
     }
@@ -292,6 +314,10 @@ export function InternalMessagingWindowHost({
 
   React.useEffect(() => {
     if (enabled) return;
+    resumingRef.current = false;
+    minimizedScrollRef.current = null;
+    restoringAnchorRef.current = null;
+    historyRequiredRef.current = true;
     setOpen(false);
     setSelected(null);
     setMessages([]);
@@ -352,7 +378,11 @@ export function InternalMessagingWindowHost({
     (peerID, message) => {
       messageCacheRef.current.delete(peerID);
       if (selectedRef.current?.publicID === peerID) {
-        pendingMessageScrollRef.current = { mode: "bottom", behavior: "smooth" };
+        if (windowOpenRef.current) {
+          pendingMessageScrollRef.current = { mode: "bottom", behavior: "smooth" };
+        } else {
+          setNewMessagesBelow(true);
+        }
         setMessages((items) => mergeMessages(items, [message]));
       }
       void loadConversations();
@@ -370,7 +400,8 @@ export function InternalMessagingWindowHost({
   }, [loadConversations]);
 
   const acknowledgeVisibleMessages = useMessageReadState({
-    accessToken, open, enabled, peerID: selected?.publicID || "",
+    accessToken, open, enabled: enabled && !reconnectHistoryRef.current && !historyRequiredRef.current,
+    peerID: selected?.publicID || "",
     throughMID: messages.reduce((maximum, item) => Math.max(maximum, item.id), 0),
     unreadCount: unreadByUser[selected?.publicID || ""] || 0,
     nearBottom: nearMessageBottomRef, onRead: scheduleConversationRefresh,
@@ -409,6 +440,7 @@ export function InternalMessagingWindowHost({
 
   const loadMessages = React.useCallback(
     async (recipientPublicID: string, before = 0) => {
+      if (!before) historyRequiredRef.current = true;
       messageRequestRef.current.controller?.abort();
       const controller = new AbortController();
       const sequence = messageRequestRef.current.sequence + 1;
@@ -452,7 +484,10 @@ export function InternalMessagingWindowHost({
           }
         }
         const merged = before ? mergeMessages(next, previous) : next;
-        if (!before) reconnectHistoryRef.current = false;
+        if (!before) {
+          reconnectHistoryRef.current = false;
+          historyRequiredRef.current = false;
+        }
         setMessages(merged);
         setHasMoreMessages(page.hasMore);
         setNextBefore(page.nextBefore);
@@ -560,7 +595,15 @@ export function InternalMessagingWindowHost({
   }, [accessToken, enabled, open, selectedPublicID]);
   React.useEffect(() => {
     // Profile refreshes must not replace loaded history or move the scroll position.
-    if (open && selectedPublicID) void loadMessages(selectedPublicID);
+    if (!open || !selectedPublicID) return;
+    if (resumingRef.current) {
+      resumingRef.current = false;
+      // Live events keep this mounted conversation current while minimized.
+      // If the stream had a gap, keep the reading position and offer a history refresh.
+      // A canceled initial load still needs history, even if a live message arrived meanwhile.
+      if (!historyRequiredRef.current) return;
+    }
+    void loadMessages(selectedPublicID);
   }, [loadMessages, open, selectedPublicID]);
   React.useEffect(
     () => () => {
@@ -602,7 +645,7 @@ export function InternalMessagingWindowHost({
     const reaction = event.detail?.type === "reaction";
     const incoming = senderPublicID !== user?.publicID;
     const selectedConversation = Boolean(
-      open && recipient && peerPublicID && recipient.publicID === peerPublicID,
+      recipient && peerPublicID && recipient.publicID === peerPublicID,
     );
 
     if (canonical && peerPublicID) {
@@ -613,7 +656,7 @@ export function InternalMessagingWindowHost({
           reaction,
         });
         if (decision.mergedAsTail) {
-          if (nearMessageBottomRef.current) {
+          if (open && nearMessageBottomRef.current && !reconnectHistoryRef.current) {
             pendingMessageScrollRef.current = { mode: "bottom", behavior: "auto" };
           } else if (incoming) {
             setNewMessagesBelow(true);
@@ -628,7 +671,8 @@ export function InternalMessagingWindowHost({
             }).messages,
           );
         }
-      } else if (incoming && !reaction) {
+      }
+      if ((!open || !selectedConversation) && incoming && !reaction) {
         setUnreadByUser((current) => ({
           ...current,
           [peerPublicID]: Math.min(99, (current[peerPublicID] || 0) + 1),
@@ -639,18 +683,23 @@ export function InternalMessagingWindowHost({
     } else {
       // Older servers or a transient indexing failure may omit canonical data.
       // Merge an event storm into one bounded history/conversation refresh.
+      // Retain the gap even if minimization cancels the delayed fallback refresh.
+      if (recipient) {
+        reconnectHistoryRef.current = true;
+        setNewMessagesBelow(true);
+      }
       if (open && recipient && !messageRefreshTimerRef.current) {
         messageRefreshTimerRef.current = window.setTimeout(() => {
           messageRefreshTimerRef.current = null;
           const currentRecipient = selectedRef.current;
-          if (currentRecipient) void loadMessages(currentRecipient.publicID);
+          if (windowOpenRef.current && currentRecipient) void loadMessages(currentRecipient.publicID);
         }, 150);
       }
       scheduleConversationRefresh();
       return;
     }
 
-    const readingConversation = selectedConversation && document.visibilityState === "visible" && document.hasFocus() && nearMessageBottomRef.current;
+    const readingConversation = open && selectedConversation && document.visibilityState === "visible" && document.hasFocus() && nearMessageBottomRef.current;
     if (!incoming || reaction || readingConversation) return;
 
     const previousConversation = conversations.find(
@@ -684,9 +733,9 @@ export function InternalMessagingWindowHost({
     if (hasConnectedRef.current) {
       scheduleConversationRefresh();
       const recipient = selectedRef.current;
-      if (open && recipient) {
+      if (recipient) {
         reconnectHistoryRef.current = true;
-        if (nearMessageBottomRef.current && document.visibilityState === "visible") {
+        if (open && nearMessageBottomRef.current && document.visibilityState === "visible") {
           void loadMessages(recipient.publicID);
         } else {
           setNewMessagesBelow(true);
@@ -697,6 +746,11 @@ export function InternalMessagingWindowHost({
   });
 
   const selectUser = (next: InternalMessagingUser) => {
+    resumingRef.current = false;
+    minimizedScrollRef.current = null;
+    restoringAnchorRef.current = null;
+    reconnectHistoryRef.current = false;
+    historyRequiredRef.current = true;
     messageRequestRef.current.controller?.abort();
     messageRequestRef.current = {
       sequence: messageRequestRef.current.sequence + 1,
@@ -787,21 +841,72 @@ export function InternalMessagingWindowHost({
     }
   };
 
-  const close = () => {
+  const minimize = React.useCallback(() => {
+    if (!windowOpenRef.current) return;
+    const viewport = messageViewportRef.current;
+    minimizedScrollRef.current = viewport ? {
+      scrollTop: viewport.scrollTop,
+      nearBottom: nearMessageBottomRef.current,
+    } : null;
+    restoringAnchorRef.current = null;
+    if (viewport && !nearMessageBottomRef.current) {
+      const top = viewport.getBoundingClientRect().top;
+      const row = Array.from(viewport.querySelectorAll<HTMLElement>("[data-message-id]"))
+        .find((element) => element.getBoundingClientRect().bottom > top);
+      if (row) {
+        restoringAnchorRef.current = {
+          id: Number(row.dataset.messageId),
+          offset: row.getBoundingClientRect().top - top,
+        };
+      }
+    }
+    resumingRef.current = true;
+    windowOpenRef.current = false;
     messageRequestRef.current.controller?.abort();
     messageRequestRef.current = {
       sequence: messageRequestRef.current.sequence + 1,
       controller: null,
     };
+    if (messageRefreshTimerRef.current) {
+      window.clearTimeout(messageRefreshTimerRef.current);
+      messageRefreshTimerRef.current = null;
+    }
     setOpen(false);
-    setSelected(null);
-    setMessageSearchOpen(false);
-    setMessageError("");
-    setActionError("");
-    setNewMessagesBelow(false);
-    nearMessageBottomRef.current = true;
+    setLoadingMessages(false);
+    setLoadingOlderMessages(false);
+    setEmojiPickerOpen(false);
+    setPreviewMessage(null);
+    setDraggingFile(false);
     pendingMessageScrollRef.current = null;
-  };
+  }, []);
+
+  React.useEffect(() => {
+    if (!open || mobileLayout || previewMessage) return;
+    let startedOutside = false;
+    const onPointerDown = (event: PointerEvent) => {
+      startedOutside = false;
+      if (event.button !== 0 || !event.isPrimary) return;
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (windowRef.current?.contains(target) || emojiPopoverRef.current?.contains(target)) return;
+      startedOutside = true;
+    };
+    const onClick = () => {
+      // Wait for a complete outside click so the newly mounted launcher cannot intercept pointerup.
+      // An inside-origin drag/resize never qualifies; do not cancel the underlying page action.
+      if (startedOutside) minimize();
+      startedOutside = false;
+    };
+    const onPointerCancel = () => { startedOutside = false; };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("click", onClick, true);
+    document.addEventListener("pointercancel", onPointerCancel, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("click", onClick, true);
+      document.removeEventListener("pointercancel", onPointerCancel, true);
+    };
+  }, [minimize, mobileLayout, open, previewMessage]);
 
   const chooseEdit = (message: InternalMessagingMessage) => {
     setEditing(message);
@@ -882,7 +987,6 @@ export function InternalMessagingWindowHost({
 
   const focusSearchResult = async (result: InternalMessagingMessage) => {
     nearMessageBottomRef.current = false;
-    let merged = messages;
     if (!messages.some((item) => item.id === result.id) && selected) {
       const recipientPublicID = selected.publicID;
       setActionError("");
@@ -893,8 +997,7 @@ export function InternalMessagingWindowHost({
           result.id + 1,
         );
         if (selectedRef.current?.publicID !== recipientPublicID) return;
-        merged = mergeMessages(page.results, messages);
-        setMessages(merged);
+        setMessages((current) => mergeMessages(page.results, current));
       } catch {
         if (selectedRef.current?.publicID === recipientPublicID) {
           setActionError(t("errors.locate"));
@@ -910,11 +1013,15 @@ export function InternalMessagingWindowHost({
 
   return (
     <>
-      {open ? (
         <aside
+          ref={windowRef}
+          inert={!open}
+          aria-hidden={!open}
+          data-messaging-window
           className={cn(
             "fixed z-[70] flex min-h-0 flex-col overflow-hidden bg-background shadow-2xl overscroll-contain",
             mobileLayout ? "inset-0 rounded-none border-0" : "rounded-2xl border",
+            !open && "invisible pointer-events-none",
           )}
           style={
             mobileLayout
@@ -982,8 +1089,8 @@ export function InternalMessagingWindowHost({
             >
               {notificationState.active ? <Bell /> : <BellOff />}
             </HeaderIconButton>
-            <HeaderIconButton label={t("aria.close")} onClick={close}>
-              <X />
+            <HeaderIconButton label={t("aria.minimize")} onClick={minimize}>
+              <Minus />
             </HeaderIconButton>
           </header>
 
@@ -1067,14 +1174,26 @@ export function InternalMessagingWindowHost({
                 ref={messageViewportRef}
                 className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 overscroll-contain"
                 onScroll={handleMessageScroll}
+                onPointerDownCapture={() => { restoringAnchorRef.current = null; }}
+                onWheelCapture={() => { restoringAnchorRef.current = null; }}
+                onKeyDownCapture={() => { restoringAnchorRef.current = null; }}
               >
-                {messageError && messages.length > 0 ? (
-                  <p
+                {messageError ? (
+                  <div
                     role="alert"
-                    className="rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive"
+                    className="flex items-center justify-between gap-2 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive"
                   >
-                    {messageError}
-                  </p>
+                    <span>{messageError}</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={loadingMessages}
+                      onClick={() => void loadMessages(selected.publicID)}
+                    >
+                      {t("actions.retryLoad")}
+                    </Button>
+                  </div>
                 ) : null}
                 {hasMoreMessages ? (
                   <Button
@@ -1090,12 +1209,15 @@ export function InternalMessagingWindowHost({
                 {loadingMessages && messages.length === 0 ? (
                   <Loading />
                 ) : messages.length === 0 ? (
-                  composer.outgoing.length === 0 ? <Empty label={messageError || t("messages.empty")} /> : null
+                  composer.outgoing.length === 0 && !messageError ? <Empty label={t("messages.empty")} /> : null
                 ) : (
                   <MessageRows
+                    active={open}
+                    followBottom={open && !reconnectHistoryRef.current}
                     messages={messages}
                     viewportRef={messageViewportRef}
                     followBottomRef={nearMessageBottomRef}
+                    restoringAnchorRef={restoringAnchorRef}
                     focusRequest={messageFocusRequest}
                   >
                     {(message) => {
@@ -1112,6 +1234,7 @@ export function InternalMessagingWindowHost({
                     return (
                       <div
                         id={`internal-message-${message.id}`}
+                        data-message-id={message.id}
                         className={cn("flex w-full items-start gap-2", mine ? "justify-end" : "justify-start")}
                         style={messageRowContainmentStyle({
                           loadingOlderMessages,
@@ -1256,7 +1379,7 @@ export function InternalMessagingWindowHost({
                   variant="secondary"
                   className="absolute bottom-20 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-lg"
                   onClick={() => {
-                    if (reconnectHistoryRef.current && selected) {
+                    if ((reconnectHistoryRef.current || historyRequiredRef.current) && selected) {
                       nearMessageBottomRef.current = true;
                       void loadMessages(selected.publicID);
                     } else {
@@ -1315,7 +1438,7 @@ export function InternalMessagingWindowHost({
                   >
                     {uploading ? <LoaderCircle className="animate-spin" /> : <Paperclip />}
                   </Button>
-                  <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
+                  <Popover open={open && emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         aria-label={t("aria.emoji")}
@@ -1327,6 +1450,10 @@ export function InternalMessagingWindowHost({
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
+                      ref={emojiPopoverRef}
+                      onCloseAutoFocus={(event) => {
+                        if (!windowOpenRef.current) event.preventDefault();
+                      }}
                       side="top"
                       align="start"
                       className="z-[80] grid w-64 grid-cols-8 gap-1 p-2"
@@ -1627,9 +1754,8 @@ export function InternalMessagingWindowHost({
               ))
             : null}
         </aside>
-      ) : null}
 
-      {previewMessage ? (
+      {open && previewMessage ? (
         <ImageLightbox
           accessToken={accessToken}
           message={previewMessage}
@@ -1652,15 +1778,21 @@ export function InternalMessagingWindowHost({
 }
 
 function MessageRows({
+  active,
+  followBottom,
   messages,
   viewportRef,
   followBottomRef,
+  restoringAnchorRef,
   focusRequest,
   children,
 }: {
+  active: boolean;
+  followBottom: boolean;
   messages: InternalMessagingMessage[];
   viewportRef: React.RefObject<HTMLDivElement | null>;
   followBottomRef: React.RefObject<boolean>;
+  restoringAnchorRef: React.RefObject<MessageScrollAnchor | null>;
   focusRequest: MessageFocusRequest | null;
   children: (message: InternalMessagingMessage) => React.ReactNode;
 }) {
@@ -1675,19 +1807,41 @@ function MessageRows({
   });
 
   const totalSize = virtualizer.getTotalSize();
+  const virtualRows = virtualizer.getVirtualItems();
   React.useLayoutEffect(() => {
     // Estimated heights change again after rows mount. Follow those measurements
     // while at the tail, including the transition into virtual rendering.
-    if (enabled && followBottomRef.current && messages.length) {
+    if (followBottom && enabled && followBottomRef.current && messages.length) {
       virtualizer.scrollToIndex(messages.length - 1, { align: "end", behavior: "auto" });
     }
-  }, [enabled, followBottomRef, focusRequest, messages.length, totalSize, virtualizer]);
+  }, [enabled, followBottom, followBottomRef, focusRequest, messages.length, totalSize, virtualizer]);
+
+  React.useLayoutEffect(() => {
+    const anchor = restoringAnchorRef.current;
+    const viewport = viewportRef.current;
+    if (!active || !anchor || !viewport) return;
+    const row = viewport.querySelector<HTMLElement>(`[data-message-id="${anchor.id}"]`);
+    if (row) {
+      const delta = row.getBoundingClientRect().top - viewport.getBoundingClientRect().top - anchor.offset;
+      if (Math.abs(delta) > 1) {
+        if (enabled) virtualizer.scrollToOffset(viewport.scrollTop + delta);
+        else viewport.scrollTop += delta;
+      }
+    } else if (enabled) {
+      const index = messages.findIndex((message) => message.id === anchor.id);
+      if (index < 0) return;
+      const offset = virtualizer.getOffsetForIndex(index, "start");
+      if (offset) virtualizer.scrollToOffset(offset[0] - anchor.offset);
+    }
+    // Keep correcting while virtual rows are measured, until the reader interacts again.
+  }, [active, enabled, messages, restoringAnchorRef, totalSize, viewportRef, virtualizer, virtualRows]);
 
   const handledFocus = React.useRef<number | undefined>(undefined);
   React.useLayoutEffect(() => {
-    if (!focusRequest || handledFocus.current === focusRequest.sequence) return;
+    if (!active || !focusRequest || handledFocus.current === focusRequest.sequence) return;
     const index = messages.findIndex((message) => message.id === focusRequest.id);
     if (index < 0) return;
+    restoringAnchorRef.current = null;
     handledFocus.current = focusRequest.sequence;
     if (enabled) {
       virtualizer.scrollToIndex(index, { align: "center", behavior: "smooth" });
@@ -1697,7 +1851,7 @@ function MessageRows({
       behavior: "smooth",
       block: "center",
     });
-  }, [enabled, focusRequest, messages, virtualizer]);
+  }, [active, enabled, focusRequest, messages, restoringAnchorRef, virtualizer]);
 
   if (!enabled) {
     return <div className="space-y-3">{messages.map((message) => <React.Fragment key={message.id}>{children(message)}</React.Fragment>)}</div>;
@@ -1705,7 +1859,7 @@ function MessageRows({
 
   return (
     <div className="relative w-full" style={{ height: totalSize }}>
-      {virtualizer.getVirtualItems().map((virtualRow) => {
+      {virtualRows.map((virtualRow) => {
         const message = messages[virtualRow.index];
         if (!message) return null;
         return (
