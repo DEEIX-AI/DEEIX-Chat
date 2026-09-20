@@ -23,8 +23,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          notes_file=".github/release-notes/${GITHUB_REF_NAME}.md"
+          notes_args=(--generate-notes)
+          if [[ -f "$notes_file" ]]; then
+            notes_args=(--notes-file "$notes_file")
+          fi
           gh release create "$GITHUB_REF_NAME" \
             --verify-tag \
             --target "$GITHUB_SHA" \
             --title "$GITHUB_REF_NAME" \
-            --generate-notes
+            "${notes_args[@]}"

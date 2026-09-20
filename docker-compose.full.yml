@@ -4,7 +4,7 @@ services:
   app:
     # Keep the app on the same release as the bundled VoceChat integration.
     # Override with DEEIX_CHAT_IMAGE when using a registry mirror or local build.
-    image: ${DEEIX_CHAT_IMAGE:-ghcr.io/amaoworks/deeix-chat:v0.4.1-4}
+    image: ${DEEIX_CHAT_IMAGE:-ghcr.io/amaoworks/deeix-chat:v0.4.1-5}
     container_name: deeix-chat-app
     depends_on:
       postgres:
@@ -78,7 +78,7 @@ services:
 
   vocechat:
     # Published by GitHub Actions; the deployment host does not need the repository.
-    image: ghcr.io/amaoworks/deeix-chat-vocechat:v0.4.1-4
+    image: ghcr.io/amaoworks/deeix-chat-vocechat:v0.4.1-5
     restart: unless-stopped
     expose:
       - "3000"
@@ -97,7 +97,7 @@ services:
       - deeix-chat
 
   vocechat-init:
-    image: ghcr.io/amaoworks/deeix-chat-vocechat:v0.4.1-4
+    image: ghcr.io/amaoworks/deeix-chat-vocechat:v0.4.1-5
     restart: "no"
     depends_on:
       vocechat:

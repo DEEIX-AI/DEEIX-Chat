@@ -8,7 +8,7 @@ DEEIX 使用自己的 UI 与 API；VoceChat 仅在 Docker 内网保存消息并�
 
 ## Docker Compose 自动初始化
 
-全量 Compose 已经内置 VoceChat，使用 GitHub Actions 发布的 `ghcr.io/amaoworks/deeix-chat-vocechat:v0.4.1-4` bundle 镜像。镜像包含 VoceChat 服务、`config.toml` 和 `init.py`，因此部署主机不需要拉取仓库或本地构建。轻量安装和默认安装则需要叠加 `docker-compose.vocechat.yml`。不要把发布版本改成浮动的 `latest`：
+全量 Compose 已经内置 VoceChat，使用 GitHub Actions 发布的 `ghcr.io/amaoworks/deeix-chat-vocechat:v0.4.1-5` bundle 镜像。镜像包含 VoceChat 服务、`config.toml` 和 `init.py`，因此部署主机不需要拉取仓库或本地构建。轻量安装和默认安装则需要叠加 `docker-compose.vocechat.yml`。不要把发布版本改成浮动的 `latest`：
 
 ```bash
 docker compose -f docker-compose.full.yml up -d
