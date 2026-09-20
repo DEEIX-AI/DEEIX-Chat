@@ -4597,7 +4597,7 @@ func fileObjectProcessingStateUpdates(item *domainconversation.FileObjectProcess
 	if item == nil {
 		return map[string]any{}
 	}
-	return map[string]any{
+	updates := map[string]any{
 		"detected_mime":            item.DetectedMIME,
 		"file_category":            item.FileCategory,
 		"processing_status":        item.ProcessingStatus,
@@ -4621,6 +4621,13 @@ func fileObjectProcessingStateUpdates(item *domainconversation.FileObjectProcess
 		"extracted_at":             item.ExtractedAt,
 		"updated_at":               time.Now(),
 	}
+	// 无文本的文件不可能向量化，同一次写入就把 embed_status 收敛到终态，
+	// 避免它以 none 状态等待一次注定空跑的重建。
+	if item.ExtractStatus == domainconversation.FileSubprocessStatusEmpty {
+		updates["embed_status"] = domainconversation.FileSubprocessStatusEmpty
+		updates["embed_error"] = ""
+	}
+	return updates
 }
 
 // ── MessageEmbeddingRepository ─────────────────────────────────────────────
@@ -4981,13 +4988,18 @@ func (r *Repo) MarkTimedOutFileEmbeddingsFailed(ctx context.Context, userID uint
 }
 
 // ListFilesForReindex 分页返回需要重建向量的文件（embed_status 为 none、stale 或 failed）。
-func (r *Repo) ListFilesForReindex(ctx context.Context, limit int, afterID uint) ([]domainconversation.FileObject, error) {
+// includeEmpty 为 true 时同时纳入 empty 终态文件。
+func (r *Repo) ListFilesForReindex(ctx context.Context, limit int, afterID uint, includeEmpty bool) ([]domainconversation.FileObject, error) {
 	if limit <= 0 {
 		limit = 50
 	}
+	statuses := []string{"none", "stale", "failed"}
+	if includeEmpty {
+		statuses = append(statuses, domainconversation.FileSubprocessStatusEmpty)
+	}
 	var entities []models.FileObject
 	err := r.db.WithContext(ctx).
-		Where("id > ? AND embed_status IN ? AND status = ?", afterID, []string{"none", "stale", "failed"}, "active").
+		Where("id > ? AND embed_status IN ? AND status = ?", afterID, statuses, "active").
 		Order("id ASC").
 		Limit(limit).
 		Find(&entities).Error

@@ -813,6 +813,18 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       },
       {
         namespace: "file",
+        key: "embedding_dimensions_policy",
+        label: "Dimensions request policy",
+        description: "Choose whether requests include dimensions. The configured vector dimensions are always used to validate responses.",
+        type: "select",
+        options: [
+          { label: "Send dimensions", value: "send" },
+          { label: "Omit dimensions", value: "omit" },
+        ],
+        visibleWhen: { field: "file.embedding_enabled", equals: EMBEDDING_MODES.ON },
+      },
+      {
+        namespace: "file",
         key: "embedding_normalize",
         label: "Normalize vectors",
         description: "Normalize vectors before storage and retrieval.",

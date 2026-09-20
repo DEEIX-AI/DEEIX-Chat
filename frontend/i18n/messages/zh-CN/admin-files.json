@@ -34,9 +34,11 @@
     "noSignature": "尚未生成签名（首次保存配置后自动计算）",
     "reindex": "重建索引",
     "reindexing": "重建中...",
+    "reindexIncludingNoText": "重建含无文本文件",
     "ready": "就绪",
     "stale": "失效",
     "pending": "待处理",
+    "noText": "无文本",
     "failed": "失败",
     "empty": "暂无数据（配置 Embedding 服务后可用）",
     "needsReindex": "检测到失效向量，请点击「重建索引」以恢复检索能力。"
@@ -162,6 +164,14 @@
         "label": "向量维度",
         "description": "用于指定写库和检索统一使用的向量维度。",
         "placeholder": "向量维度"
+      },
+      "embedding_dimensions_policy": {
+        "label": "维度参数策略",
+        "description": "用于指定请求是否携带 `dimensions` 参数，部分服务不接受该参数。",
+        "options": {
+          "send": "携带",
+          "omit": "不携带"
+        }
       },
       "embedding_normalize": {
         "label": "归一化向量",

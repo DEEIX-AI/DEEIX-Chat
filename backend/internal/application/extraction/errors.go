@@ -83,3 +83,10 @@ func ErrorCode(err error) string {
 	}
 	return provider.ErrorCode()
 }
+
+// IsEmptyContent reports whether err means the extractor or OCR engine ran
+// successfully but found no text. Every engine mints such codes with the
+// `_empty_content` suffix, so callers treat the file as empty rather than failed.
+func IsEmptyContent(err error) bool {
+	return strings.HasSuffix(ErrorCode(err), "_empty_content")
+}

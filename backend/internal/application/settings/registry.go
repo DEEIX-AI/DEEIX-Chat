@@ -302,6 +302,8 @@ var settingSpecs = []settingSpec{
 		Validate: intRange(1, 600), Apply: applyField(func(c *config.Config) *int { return &c.EmbeddingTimeoutSeconds }, toInt)},
 	{Namespace: "file", Key: "embedding_output_dimensions", ValueType: "int", Default: "1536", Description: "写库和检索统一使用的向量维度",
 		Validate: intRange(64, 4096), Apply: applyField(func(c *config.Config) *int { return &c.EmbeddingOutputDimensions }, toInt)},
+	{Namespace: "file", Key: "embedding_dimensions_policy", ValueType: "string", Default: config.EmbeddingDimensionsPolicySend, Description: "Embedding 请求 dimensions 参数策略：send=携带，omit=不携带但仍校验返回维度",
+		Validate: oneOf(config.EmbeddingDimensionsPolicySend, config.EmbeddingDimensionsPolicyOmit), Apply: applyField(func(c *config.Config) *string { return &c.EmbeddingDimensionsPolicy }, rawText)},
 	{Namespace: "file", Key: "embedding_normalize", ValueType: "bool", Default: "true", Description: "是否归一化Embedding向量",
 		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.EmbeddingNormalize }, toBool)},
 	{Namespace: "file", Key: "embedding_model_signature", ValueType: "string", Default: "", Description: "当前生效的 Embedding 向量空间标识（系统自动维护，勿手动修改）",

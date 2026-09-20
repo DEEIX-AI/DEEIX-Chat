@@ -7009,6 +7009,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "include_empty=true 时同时重试提取无文本的 empty 文件，适用于更换 OCR 引擎后",
                 "produces": [
                     "application/json"
                 ],
@@ -7016,11 +7017,19 @@ const docTemplate = `{
                     "admin/settings"
                 ],
                 "summary": "触发向量重建（重索引所有 stale/failed 文件）",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "是否包含 empty 终态文件",
+                        "name": "include_empty",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/Envelope"
+                            "$ref": "#/definitions/EmbeddingReindexResponseDoc"
                         }
                     }
                 }
@@ -7068,7 +7077,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/Envelope"
+                            "$ref": "#/definitions/EmbeddingIndexStatusResponseDoc"
                         }
                     }
                 }
@@ -19206,6 +19215,87 @@ const docTemplate = `{
                 }
             }
         },
+        "EmbeddingIndexStatusResponse": {
+            "type": "object",
+            "required": [
+                "emptyCount",
+                "failedCount",
+                "modelSignature",
+                "needsReindex",
+                "pendingCount",
+                "readyCount",
+                "staleCount"
+            ],
+            "properties": {
+                "emptyCount": {
+                    "description": "EmptyCount 是提取完成但无文本的文件数；这些文件不参与自动重建。",
+                    "type": "integer"
+                },
+                "failedCount": {
+                    "type": "integer"
+                },
+                "modelSignature": {
+                    "type": "string"
+                },
+                "needsReindex": {
+                    "type": "boolean"
+                },
+                "pendingCount": {
+                    "type": "integer"
+                },
+                "readyCount": {
+                    "type": "integer"
+                },
+                "staleCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "EmbeddingIndexStatusResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/EmbeddingIndexStatusResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "EmbeddingReindexResponse": {
+            "type": "object",
+            "required": [
+                "message",
+                "submitted"
+            ],
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "submitted": {
+                    "type": "integer"
+                }
+            }
+        },
+        "EmbeddingReindexResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/EmbeddingReindexResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "Envelope": {
             "type": "object",
             "required": [
@@ -28825,7 +28915,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "0.4.1-5",
+	Version:          "0.4.2",
 	Host:             "",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},

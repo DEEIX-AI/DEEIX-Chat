@@ -201,6 +201,8 @@
     "errorCode": "Error code: {code}",
     "indexFailed": "Index failed",
     "indexFailedDetail": "The file is available for full-context chat, but smart retrieval indexing failed.",
+    "noText": "No text",
+    "noTextDetail": "No readable text was found in this file, so it is not indexed for retrieval.",
     "indexOutdated": "Index update required",
     "indexOutdatedDetail": "This file uses an older vector space and must be vectorized again for the current retrieval configuration.",
     "waiting": "Waiting",

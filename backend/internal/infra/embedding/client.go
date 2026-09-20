@@ -25,7 +25,7 @@ import (
 type requestPayload struct {
 	Model      string   `json:"model"`
 	Input      []string `json:"input"`
-	Dimensions int      `json:"dimensions,omitempty"`
+	Dimensions *int     `json:"dimensions,omitempty"`
 }
 
 type responsePayload struct {
@@ -69,7 +69,11 @@ func (c *Client) CallAPI(ctx context.Context, input portembedding.Request) ([][]
 		return nil, nil
 	}
 
-	body, err := json.Marshal(requestPayload{Model: input.Model, Input: input.Texts, Dimensions: input.Dimensions})
+	payload := requestPayload{Model: input.Model, Input: input.Texts}
+	if !input.OmitDimensions {
+		payload.Dimensions = &input.Dimensions
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("embedding: marshal request: %w", err)
 	}
@@ -101,14 +105,14 @@ func (c *Client) CallAPI(ctx context.Context, input portembedding.Request) ([][]
 		return nil, fmt.Errorf("embedding: API returned %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	var payload responsePayload
-	if err = json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	var response responsePayload
+	if err = json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, fmt.Errorf("embedding: decode response: %w", err)
 	}
 
 	result := make([][]float32, len(input.Texts))
 	seen := make([]bool, len(input.Texts))
-	for _, item := range payload.Data {
+	for _, item := range response.Data {
 		if item.Index < 0 || item.Index >= len(result) {
 			return nil, fmt.Errorf("embedding: response index %d out of range", item.Index)
 		}
