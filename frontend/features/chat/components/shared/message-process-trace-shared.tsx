@@ -24,7 +24,8 @@ import {
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { cn } from "@/lib/utils";
 
-export const TRACE_ROOT_CLASS = "chat-screenshot-omit mb-2 w-full pr-4 sm:pr-6";
+// Full width so the trace chevrons sit on the same right edge as the message body.
+export const TRACE_ROOT_CLASS = "chat-screenshot-omit mb-2 w-full";
 
 function FileContextBadgeList({ badges }: { badges: FileContextBadge[] }) {
   if (badges.length === 0) return null;

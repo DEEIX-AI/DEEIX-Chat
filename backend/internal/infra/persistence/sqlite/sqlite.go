@@ -37,6 +37,9 @@ func New(cfg config.Config) (*gorm.DB, error) {
 	if err = schema.SeedModelVendors(db); err != nil {
 		return nil, err
 	}
+	if err = schema.SeedUIComponents(db); err != nil {
+		return nil, err
+	}
 	if err = schema.CleanupRemovedColumns(db); err != nil {
 		return nil, err
 	}

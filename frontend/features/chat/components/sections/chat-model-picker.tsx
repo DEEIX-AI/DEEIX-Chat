@@ -25,6 +25,7 @@ import type { BillingDisplayCurrency, BillingDisplayLabels, BillingDisplayOption
 import { resolveModelIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
 import { resolveModelPresentationGroup } from "@/shared/lib/model-presentation";
 import { cn } from "@/lib/utils";
+import { formatRateMultiplier, resolveCurrentSchedulePeriod } from "@/shared/model/schedule-pricing";
 
 type ChatModelPickerProps = {
   modelOptions: ChatModelOption[];
@@ -190,13 +191,41 @@ function ModelMenuScrollContainer({
   );
 }
 
-function ModelPricingTooltipContent({
-  platformModelName,
-  protocols,
-  pricing,
-  billingDisplay,
-  labels,
-}: {
+function ModelPricingTooltipContent(props: ModelPricingTooltipContentProps) {
+  const { pricing, labels } = props;
+  const current = React.useMemo(
+    () => resolveCurrentSchedulePeriod(pricing.schedulePeriods ?? [], pricing.scheduleUTCOffsetMinutes ?? 0),
+    [pricing.schedulePeriods, pricing.scheduleUTCOffsetMinutes],
+  );
+  const periods = pricing.schedulePeriods ?? [];
+  return (
+    <>
+      <ModelPricingBase {...props} />
+      {!pricing.isFree && periods.length > 0 ? (
+        <div className="mt-2 flex flex-col gap-1 border-t border-background/20 pt-2">
+          <span className="font-sans text-xs font-medium leading-4 text-background">{labels.schedule.title}</span>
+          {periods.map((period) => {
+            const active = current === period;
+            return (
+              <div key={`${period.name}-${period.start}-${period.end}`} className={cn("grid grid-cols-[minmax(5.5rem,max-content)_1fr_auto] items-baseline gap-x-4 font-sans text-[11px] leading-4", active ? "text-background" : "text-background/70")}>
+                <span className="whitespace-nowrap">
+                  {period.name}
+                  {active ? <span className="ml-1 rounded-sm bg-background/20 px-1 text-[10px]">{labels.schedule.now}</span> : null}
+                </span>
+                <span className="whitespace-nowrap text-right tabular-nums">
+                  {formatScheduleWeekdays(period.weekdays, labels.schedule.weekdays)} {period.start}–{period.end}
+                </span>
+                <span className="w-12 whitespace-nowrap text-right tabular-nums">{formatRateMultiplier(period.ratePercent)}</span>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+type ModelPricingTooltipContentProps = {
   platformModelName: string;
   protocols: readonly string[];
   pricing: NonNullable<ChatModelOption["pricing"]>;
@@ -216,8 +245,36 @@ function ModelPricingTooltipContent({
     callUnit: string;
     secondUnit: string;
     billingDisplay: BillingDisplayLabels;
+    schedule: { title: string; now: string; weekdays: readonly string[] };
   };
-}) {
+};
+
+// Week-day list → "周一–周五", "周六、周日", "每天"; ranges only for runs of 3+ days.
+function formatScheduleWeekdays(weekdays: readonly number[], names: readonly string[]): string {
+  const ordered = [1, 2, 3, 4, 5, 6, 0].filter((day) => weekdays.includes(day));
+  if (ordered.length === 7) {
+    return names[7] ?? "";
+  }
+  const parts: string[] = [];
+  let index = 0;
+  while (index < ordered.length) {
+    let end = index;
+    while (end + 1 < ordered.length && ((ordered[end] ?? 0) + 1) % 7 === ordered[end + 1]) {
+      end += 1;
+    }
+    if (end - index >= 2) {
+      parts.push(`${names[ordered[index] ?? 0]}–${names[ordered[end] ?? 0]}`);
+    } else {
+      for (let cursor = index; cursor <= end; cursor += 1) {
+        parts.push(names[ordered[cursor] ?? 0] ?? "");
+      }
+    }
+    index = end + 1;
+  }
+  return parts.join("、");
+}
+
+function ModelPricingBase({ platformModelName, protocols, pricing, billingDisplay, labels }: ModelPricingTooltipContentProps) {
   const cacheWriteLabel = cacheWritePricingLabel(protocols, labels.billingDisplay);
   const cacheWriteNote = cacheWritePricingNote(protocols, pricing, labels.billingDisplay);
   if (pricing.isFree) {
@@ -517,6 +574,11 @@ export function ChatModelPicker({
       perSecond: t("perSecond"),
       callUnit: t("callUnit"),
       secondUnit: t("secondUnit"),
+      schedule: {
+        title: t("schedule.title"),
+        now: t("schedule.now"),
+        weekdays: [t("schedule.sun"), t("schedule.mon"), t("schedule.tue"), t("schedule.wed"), t("schedule.thu"), t("schedule.fri"), t("schedule.sat"), t("schedule.everyDay")],
+      },
       billingDisplay: {
         cacheWrite: t("cacheWrite"),
         cacheWrite5m: t("cacheWrite5m"),
@@ -526,6 +588,7 @@ export function ChatModelPicker({
         claudeCacheWriteNote: (timeout: "5m" | "1h", multiplier: string) => t("claudeCacheWriteNote", { timeout, multiplier }),
         claudeFastModeNote: (multiplier: string) => t("claudeFastModeNote", { multiplier }),
         openaiServiceTierNote: (tier: string, multiplier: string) => t("openaiServiceTierNote", { tier, multiplier }),
+        scheduleRateNote: (period: string, multiplier: string) => t("scheduleRateNote", { period, multiplier }),
         cacheWritePricingLabel: t("cacheWritePricingLabel"),
         cacheWritePricingNote: t("cacheWritePricingNote"),
       },

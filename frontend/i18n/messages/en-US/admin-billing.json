@@ -167,7 +167,6 @@
     "platformModel": "Platform model",
     "free": "Free",
     "pricingMode": "Pricing mode",
-    "basePrice": "Base price",
     "updatedAt": "Updated at",
     "empty": "No model pricing settings",
     "modelInfo": "Model info",
@@ -184,7 +183,8 @@
       "model": "Platform model name cannot be changed from JSON.",
       "mode": "pricingMode must be token, call, duration, or tiered.",
       "durationVideoOnly": "Per-second pricing is available only for video generation models.",
-      "tiered": "Tiered pricing requires a non-empty tieredPricing.tiers array."
+      "tiered": "Tiered pricing requires a non-empty tieredPricing.tiers array.",
+      "schedule": "schedulePricing.periods is invalid or contains overlapping periods."
     },
     "officialPricing": "Quick setup",
     "officialPricingSingleTitle": "Quick setup",
@@ -221,15 +221,45 @@
     "tokenLimit": "Token limit",
     "tierNote": "Enter the full token count. 0 means the last tier is unlimited.",
     "freeLabel": "Free",
-    "tieredLabel": "Raw input tiers",
     "units": {
       "call": "/ call",
-      "second": "/ second",
-      "input": "/ 1M input",
-      "output": "/ 1M output",
-      "cacheRead": "/ 1M cache read",
-      "cacheWrite": "/ 1M cache write"
-    }
+      "second": "/ second"
+    },
+    "schedule": {
+      "title": "Time-of-day multipliers",
+      "hint": "Applied on top of the base price by server local time; 100 = base. An end not after the start wraps past midnight.",
+      "add": "Add period",
+      "name": "Name",
+      "ratePercent": "Rate",
+      "remove": "Remove",
+      "invalid": "Time-of-day multipliers are invalid; check the highlighted periods.",
+      "issues": {
+        "name": "Name is required (max 32 characters)",
+        "weekdays": "Pick at least one day",
+        "time": "Invalid time or identical start and end",
+        "rate": "Rate must be an integer between 1 and 10000",
+        "overlap": "Overlaps another period",
+        "count": "At most 32 periods"
+      },
+      "weekdays": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      },
+      "weekdaysLabel": "Weekdays",
+      "start": "Start",
+      "end": "End",
+      "nextDay": "next day",
+      "timeLabel": "Time"
+    },
+    "notConfigured": "Not set",
+    "tierCount": "{count, plural, one {# tier} other {# tiers}}",
+    "tieredTitle": "Tier prices ($ / 1M tokens)",
+    "tierRange": "Range"
   },
   "toolPricing": {
     "title": "Tool pricing",
@@ -357,6 +387,7 @@
     "durationVideoOnly": "{model}.pricingMode=duration requires a video model capability",
     "invalidNumber": "{model}.{field} must be a number greater than or equal to 0",
     "invalidTieredPricing": "{model}.{field} must contain a non-empty tiers array",
-    "invalidTieredPricingJSON": "{model}.tieredPricingJSON is not valid JSON"
+    "invalidTieredPricingJSON": "{model}.tieredPricingJSON is not valid JSON",
+    "invalidSchedulePricing": "{model}.schedulePricing is invalid or has overlapping periods."
   }
 }

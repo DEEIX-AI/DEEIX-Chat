@@ -5122,6 +5122,8 @@ definitions:
         type: string
       pricingMode:
         type: string
+      schedulePricingJSON:
+        type: string
       tieredPricingJSON:
         type: string
       updatedAt:
@@ -5147,6 +5149,7 @@ definitions:
     - outputUSDPerMTokens
     - platformModelName
     - pricingMode
+    - schedulePricingJSON
     - tieredPricingJSON
     - updatedAt
     type: object
@@ -5963,6 +5966,31 @@ definitions:
         maxLength: 64
         type: string
     type: object
+  PatchUIComponentRequest:
+    properties:
+      description:
+        maxLength: 256
+        type: string
+      enabled:
+        type: boolean
+      name:
+        maxLength: 64
+        type: string
+      propsSchema:
+        maxLength: 16384
+        type: string
+      propsSummary:
+        maxLength: 1024
+        type: string
+      rendererSource:
+        maxLength: 262144
+        type: string
+      sortOrder:
+        type: integer
+      version:
+        minimum: 1
+        type: integer
+    type: object
   PatchUserRequest:
     properties:
       avatarURL:
@@ -6493,6 +6521,13 @@ definitions:
         type: string
       outputUSDPerMTokens:
         type: number
+      schedulePeriods:
+        description: 时段倍率按服务器本地时区定义；客户端用 scheduleUTCOffsetMinutes 判断当前命中的时段。
+        items:
+          $ref: '#/definitions/PublicSchedulePeriodResponse'
+        type: array
+      scheduleUTCOffsetMinutes:
+        type: integer
       tiers:
         items:
           $ref: '#/definitions/PublicModelPricingTierResponse'
@@ -6509,6 +6544,8 @@ definitions:
     - isFree
     - mode
     - outputUSDPerMTokens
+    - schedulePeriods
+    - scheduleUTCOffsetMinutes
     - tiers
     type: object
   PublicModelPricingTierResponse:
@@ -6586,6 +6623,27 @@ definitions:
     - vendorIcon
     - vendorName
     type: object
+  PublicSchedulePeriodResponse:
+    properties:
+      end:
+        type: string
+      name:
+        type: string
+      ratePercent:
+        type: integer
+      start:
+        type: string
+      weekdays:
+        items:
+          type: integer
+        type: array
+    required:
+    - end
+    - name
+    - ratePercent
+    - start
+    - weekdays
+    type: object
   PublicSharedConversationResponse:
     properties:
       createdAt:
@@ -6608,6 +6666,9 @@ definitions:
         type: string
       title:
         type: string
+      uiComponentsEnabled:
+        description: UIComponentsEnabled 为 false 时，分享页不渲染 deeix-ui 组件块。
+        type: boolean
     required:
     - createdAt
     - defaultMessagePublicIDs
@@ -6616,6 +6677,7 @@ definitions:
     - model
     - shareID
     - title
+    - uiComponentsEnabled
     type: object
   PublicSharedConversationResponseDoc:
     properties:
@@ -7334,6 +7396,12 @@ definitions:
       sourceMessagePublicID:
         maxLength: 32
         type: string
+      uiComponentIDs:
+        description: UIComponentIDs 是本次会话勾选的交互式组件；后端据此注入组件目录提示词，不可见的 ID 被忽略。
+        items:
+          type: integer
+        maxItems: 32
+        type: array
     required:
     - content
     - contentType
@@ -8060,6 +8128,12 @@ definitions:
           type: integer
         maxItems: 128
         type: array
+      uiComponentIDs:
+        description: UIComponentIDs 是本次会话勾选的交互式组件。
+        items:
+          type: integer
+        maxItems: 32
+        type: array
     required:
     - clientRunID
     - messages
@@ -8152,6 +8226,116 @@ definitions:
         type: string
     required:
     - data
+    - errorMsg
+    type: object
+  UIComponentDataResponse:
+    properties:
+      component:
+        $ref: '#/definitions/UIComponentResponse'
+    required:
+    - component
+    type: object
+  UIComponentDeleteDataResponse:
+    properties:
+      deleted:
+        type: boolean
+    required:
+    - deleted
+    type: object
+  UIComponentDeleteResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/UIComponentDeleteDataResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  UIComponentPageResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/UIComponentResponse'
+            type: array
+          total:
+            type: integer
+        required:
+        - results
+        - total
+        type: object
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  UIComponentResponse:
+    properties:
+      createdAt:
+        type: string
+      createdByUserID:
+        type: integer
+      description:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: integer
+      name:
+        type: string
+      propsSchema:
+        type: string
+      propsSummary:
+        type: string
+      rendererKind:
+        type: string
+      rendererSource:
+        type: string
+      scope:
+        type: string
+      sortOrder:
+        type: integer
+      updatedAt:
+        type: string
+      updatedByUserID:
+        type: integer
+      version:
+        type: integer
+    required:
+    - createdAt
+    - createdByUserID
+    - description
+    - enabled
+    - id
+    - name
+    - propsSchema
+    - propsSummary
+    - rendererKind
+    - rendererSource
+    - scope
+    - sortOrder
+    - updatedAt
+    - updatedByUserID
+    - version
+    type: object
+  UIComponentResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/UIComponentDataResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  UicomponentErrorDoc:
+    properties:
+      errorMsg:
+        type: string
+    required:
     - errorMsg
     type: object
   UpdateBillingAccountBalanceRequest:
@@ -8692,6 +8876,10 @@ definitions:
         - call
         - duration
         - tiered
+        type: string
+      schedulePricingJSON:
+        description: SchedulePricingJSON 是时段倍率配置 {"periods":[{"name","weekdays","start","end","ratePercent"}]}，空表示不启用。
+        maxLength: 20000
         type: string
       tieredPricingJSON:
         maxLength: 20000
@@ -10025,11 +10213,41 @@ definitions:
     - title
     - trigger
     type: object
+  WriteUIComponentRequest:
+    properties:
+      description:
+        maxLength: 256
+        type: string
+      enabled:
+        type: boolean
+      name:
+        maxLength: 64
+        type: string
+      propsSchema:
+        maxLength: 16384
+        type: string
+      propsSummary:
+        maxLength: 1024
+        type: string
+      rendererSource:
+        maxLength: 262144
+        type: string
+      sortOrder:
+        type: integer
+      version:
+        minimum: 1
+        type: integer
+    required:
+    - description
+    - name
+    - propsSummary
+    - rendererSource
+    type: object
 info:
   contact: {}
   description: DEEIX Chat 后端 API 文档
   title: DEEIX Chat API
-  version: "0.4.2"
+  version: "0.4.3"
 paths:
   /admin/announcements:
     get:
@@ -14892,6 +15110,164 @@ paths:
       summary: 管理员查询系统事件
       tags:
       - admin
+  /admin/ui-components:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 搜索关键词
+        in: query
+        name: q
+        type: string
+      - description: 作用域：builtin 或 platform，留空为全部
+        in: query
+        name: scope
+        type: string
+      - description: 是否启用
+        in: query
+        name: enabled
+        type: boolean
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UIComponentPageResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询内置与平台组件
+      tags:
+      - admin/ui-components
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 组件内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/WriteUIComponentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UIComponentResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 创建平台组件
+      tags:
+      - admin/ui-components
+  /admin/ui-components/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 内置组件受保护，不允许删除
+      parameters:
+      - description: 组件ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UIComponentDeleteResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 删除平台组件
+      tags:
+      - admin/ui-components
+    patch:
+      consumes:
+      - application/json
+      description: 内置组件只允许修改启用状态、描述与排序
+      parameters:
+      - description: 组件ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新字段
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PatchUIComponentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UIComponentResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 更新内置或平台组件
+      tags:
+      - admin/ui-components
   /admin/usage-statistics:
     get:
       consumes:
@@ -19267,6 +19643,188 @@ paths:
       summary: 流式发送临时对话消息
       tags:
       - chat
+  /ui-components:
+    get:
+      consumes:
+      - application/json
+      description: 返回已启用的内置、平台组件与当前用户自定义组件，含渲染源，用于会话勾选与消息渲染
+      parameters:
+      - description: 搜索关键词
+        in: query
+        name: q
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UIComponentPageResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询当前用户可用的交互式组件
+      tags:
+      - ui-components
+  /ui-components/mine:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 搜索关键词
+        in: query
+        name: q
+        type: string
+      - description: 是否启用
+        in: query
+        name: enabled
+        type: boolean
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UIComponentPageResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询我的自定义组件
+      tags:
+      - ui-components
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 组件内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/WriteUIComponentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UIComponentResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 创建我的自定义组件
+      tags:
+      - ui-components
+  /ui-components/mine/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 组件ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UIComponentDeleteResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 删除我的自定义组件
+      tags:
+      - ui-components
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: 组件ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新字段
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PatchUIComponentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UIComponentResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/UicomponentErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 更新我的自定义组件
+      tags:
+      - ui-components
   /user/settings:
     get:
       description: 返回当前用户全部个人偏好配置，缺失项以默认值填充

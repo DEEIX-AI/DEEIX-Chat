@@ -79,6 +79,7 @@ export function useChatMessageSubmit({
   selectedToolIDs,
   selectedSkills,
   selectedKnowledgeBaseIDs,
+  uiComponentIDs,
   htmlVisualPromptEnabled,
   options,
   draft,
@@ -131,6 +132,7 @@ export function useChatMessageSubmit({
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
   selectedKnowledgeBaseIDs: string[];
+  uiComponentIDs: number[];
   htmlVisualPromptEnabled: boolean;
   options: ConversationOptions;
   draft: string;
@@ -309,6 +311,7 @@ export function useChatMessageSubmit({
         selectedToolIDs,
         selectedSkills,
         selectedKnowledgeBaseIDs,
+        uiComponentIDs,
         htmlVisualPromptEnabled,
         visibleConversationScopeKey: conversationScopeKeyRef.current,
         visibleBranchScopePath: visibleBranchScopePathRef.current,
@@ -543,6 +546,7 @@ export function useChatMessageSubmit({
           selectedToolIDs: plan.selectedToolIDs,
           selectedSkills: plan.selectedSkills,
           selectedKnowledgeBaseIDs: plan.selectedKnowledgeBaseIDs,
+          uiComponentIDs: plan.uiComponentIDs,
           htmlVisualPromptEnabled: plan.htmlVisualPromptEnabled,
           parentMessagePublicID: resolvedParentPublicID,
           sourceMessagePublicID: plan.resolvedSourcePublicID,
@@ -782,6 +786,7 @@ export function useChatMessageSubmit({
       restoreDraftOnFailure,
       runStream,
       selectedKnowledgeBaseIDs,
+      uiComponentIDs,
       selectedPlatformModelName,
       selectedSkills,
       selectedToolIDs,
@@ -875,6 +880,7 @@ export function useChatMessageSubmit({
           selectedToolIDs: selectedToolIDs.slice(),
           selectedSkills: selectedSkills.slice(),
           selectedKnowledgeBaseIDs: selectedKnowledgeBaseIDs.slice(),
+          uiComponentIDs: uiComponentIDs.slice(),
           htmlVisualPromptEnabled,
         },
       ];
@@ -896,6 +902,7 @@ export function useChatMessageSubmit({
     selectedPlatformModelName,
     selectedSkills,
     selectedKnowledgeBaseIDs,
+    uiComponentIDs,
     selectedToolIDs,
     setAttachments,
     setDraft,

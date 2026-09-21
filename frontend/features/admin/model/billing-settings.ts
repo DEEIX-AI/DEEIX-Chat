@@ -6,6 +6,7 @@ import type {
 import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
 import type { PatchSettingItem, SettingItem } from "@/shared/api/settings.types";
 import { parseKindsJSON } from "@/shared/model/llm-schema";
+import { normalizeSchedulePeriods, parseSchedulePricing, type SchedulePeriodForm, schedulePeriodsToForm, stringifySchedulePricing } from "@/shared/model/schedule-pricing";
 
 export type BillingModelPricingRow = {
   platformModelName: string;
@@ -38,6 +39,7 @@ export type PricingFormState = {
   call: string;
   duration: string;
   tieredTiers: TieredPricingTierForm[];
+  schedulePeriods: SchedulePeriodForm[];
   isFree: boolean;
 };
 
@@ -62,6 +64,7 @@ export type ModelPricingExportEntry = {
   callUSDPerCall: number;
   durationUSDPerSecond: number;
   tieredPricing?: unknown;
+  schedulePricing?: unknown;
 };
 
 export type ModelPricingImportParseResult = {
@@ -81,6 +84,7 @@ export type ModelPricingImportMessages = {
   invalidNumber: (model: string, field: string) => string;
   invalidTieredPricing: (model: string, field: string) => string;
   invalidTieredPricingJSON: (model: string) => string;
+  invalidSchedulePricing: (model: string) => string;
 };
 
 export const DEFAULT_PAGE_SIZE = 25;
@@ -157,14 +161,10 @@ export function shortListDescription(items: string[], emptyText = "", moreLabel 
   return items.length > 5 ? `${visible} ${moreLabel} ${items.length}` : visible;
 }
 
+// Prices always show three decimals so columns of figures line up.
 export function formatUSD(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) {
-    return "$0";
-  }
-  return `$${value.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 6,
-  })}`;
+  const amount = Number.isFinite(value) && value > 0 ? value : 0;
+  return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`;
 }
 
 export function formatAmountCents(cents: number, currency: string): string {
@@ -248,6 +248,7 @@ export function createFormState(row: BillingModelPricingRow): PricingFormState {
     call: String(pricing?.callUSDPerCall ?? 0),
     duration: String(pricing?.durationUSDPerSecond ?? 0),
     tieredTiers: parseTieredPricingJSON(pricing?.tieredPricingJSON) ?? cloneDefaultTieredTiers(),
+    schedulePeriods: schedulePeriodsToForm(parseSchedulePricing(pricing?.schedulePricingJSON)),
     isFree: pricing?.isFree ?? row.isFree,
   };
 }
@@ -302,6 +303,7 @@ const DEFAULT_IMPORT_MESSAGES: ModelPricingImportMessages = {
   invalidNumber: (model, field) => `${model}.${field} must be a number greater than or equal to 0`,
   invalidTieredPricing: (model, field) => `${model}.${field} must contain a non-empty tiers array`,
   invalidTieredPricingJSON: (model) => `${model}.tieredPricingJSON is not valid JSON`,
+  invalidSchedulePricing: (model) => `${model}.schedulePricing must be a valid, non-overlapping periods list`,
 };
 
 function numberFromPricingField(
@@ -352,6 +354,30 @@ function parseTieredPricingImportValue(
   return JSON.stringify(raw);
 }
 
+// Accepts `schedulePricing` (object) or `schedulePricingJSON` (string); empty means no periods.
+function parseSchedulePricingImportValue(
+  entry: Record<string, unknown>,
+  platformModelName: string,
+  errors: string[],
+  messages: ModelPricingImportMessages,
+): string | undefined {
+  const raw = entry.schedulePricing ?? entry.schedulePricingJSON;
+  if (raw === undefined || raw === null || raw === "") {
+    return undefined;
+  }
+  const periods = parseSchedulePricing(raw);
+  if (!periods) {
+    errors.push(messages.invalidSchedulePricing(platformModelName));
+    return undefined;
+  }
+  const { periods: normalized, issues } = normalizeSchedulePeriods(schedulePeriodsToForm(periods));
+  if (issues.size > 0) {
+    errors.push(messages.invalidSchedulePricing(platformModelName));
+    return undefined;
+  }
+  return stringifySchedulePricing(normalized);
+}
+
 function isValidTieredPricingConfig(value: unknown): boolean {
   if (!isRecord(value) || !Array.isArray(value.tiers) || value.tiers.length === 0) {
     return false;
@@ -395,6 +421,7 @@ export function buildModelPricingExportObject(pricingItems: AdminModelPricingDTO
       callUSDPerCall: pricingMode === "call" ? item.callUSDPerCall : 0,
       durationUSDPerSecond: pricingMode === "duration" ? item.durationUSDPerSecond : 0,
       ...(pricingMode === "tiered" ? { tieredPricing: parseTieredPricingExportValue(item.tieredPricingJSON) } : {}),
+      ...(parseSchedulePricing(item.schedulePricingJSON) ? { schedulePricing: parseSchedulePricing(item.schedulePricingJSON) } : {}),
     };
   }
   return result;
@@ -442,6 +469,7 @@ export function createOptimisticModelPricing(row: BillingModelPricingRow, payloa
     callUSDPerCall,
     durationUSDPerSecond,
     tieredPricingJSON: pricingMode === "tiered" ? payload.tieredPricingJSON || "" : "",
+    schedulePricingJSON: payload.schedulePricingJSON || "",
     inputNanousdPerMTokens: modelPricingNanousd(inputUSDPerMTokens),
     cacheReadNanousdPerMTokens: modelPricingNanousd(cacheReadUSDPerMTokens),
     cacheWriteNanousdPerMTokens: modelPricingNanousd(cacheWriteUSDPerMTokens),
@@ -520,6 +548,7 @@ export function parseModelPricingImportJSON(
     const tieredPricingJSON = pricingMode === "tiered"
       ? parseTieredPricingImportValue(rawEntry, platformModelName, entryErrors, messages)
       : undefined;
+    const schedulePricingJSON = parseSchedulePricingImportValue(rawEntry, platformModelName, entryErrors, messages);
     const request: UpsertAdminModelPricingRequest = {
       platformModelName,
       currency: typeof rawEntry.currency === "string" && rawEntry.currency.trim() ? rawEntry.currency.trim() : "USD",
@@ -533,6 +562,7 @@ export function parseModelPricingImportJSON(
       callUSDPerCall: pricingMode === "call" ? numberFromPricingField(rawEntry, "callUSDPerCall", entryErrors, platformModelName, messages) : 0,
       durationUSDPerSecond: pricingMode === "duration" ? numberFromPricingField(rawEntry, "durationUSDPerSecond", entryErrors, platformModelName, messages) : 0,
       tieredPricingJSON,
+      schedulePricingJSON,
     };
     if (entryErrors.length > 0) {
       errors.push(...entryErrors);

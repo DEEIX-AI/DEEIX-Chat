@@ -35,6 +35,7 @@ type TemporaryChatInput struct {
 	SkillIDs                 []uint
 	KnowledgeBaseIDs         []string
 	HTMLVisualPromptEnabled  bool
+	UIComponentIDs           []uint
 	Messages                 []TemporaryChatMessage
 	Attachments              []TemporaryChatAttachment
 	ReleaseAttachmentSources func()
@@ -97,7 +98,11 @@ func (s *Service) StreamTemporaryChat(
 		return nil, err
 	}
 	messages = attachmentContext.messages
-	systemPrompt := resolveMessageSystemPromptInjection(cfg, route, "", input.HTMLVisualPromptEnabled)
+	uiComponents, err := s.resolveUIComponents(ctx, input.UserID, input.UIComponentIDs)
+	if err != nil {
+		return nil, err
+	}
+	systemPrompt := resolveMessageSystemPromptInjection(cfg, route, "", requestPromptOptions{HTMLVisual: input.HTMLVisualPromptEnabled, UIComponents: uiComponents})
 	if systemPrompt.Content != "" {
 		if systemPrompt.InlineToUser {
 			messages = inlineSystemPromptIntoLatestUserMessage(messages, systemPrompt.Content)

@@ -62,6 +62,7 @@ export function useUsageBillingLabels(): UsageBillingLabels {
         claudeCacheWriteNote: (timeout: "5m" | "1h", multiplier: string) => t("claudeCacheWriteNote", { timeout, multiplier }),
         claudeFastModeNote: (multiplier: string) => t("claudeFastModeNote", { multiplier }),
         openaiServiceTierNote: (tier: string, multiplier: string) => t("openaiServiceTierNote", { tier, multiplier }),
+        scheduleRateNote: (period: string, multiplier: string) => t("scheduleRateNote", { period, multiplier }),
       },
     }),
     [t],

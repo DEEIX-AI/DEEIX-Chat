@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { CircleAlert } from "lucide-react";
-import { motion } from "motion/react";
+
+import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
 import { ChevronDown } from "@/components/animate-ui/icons/chevron-down";
@@ -22,13 +23,8 @@ import { Textarea } from "@/components/ui/textarea";
 import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 
+// Long user messages collapse to this many lines (leading-6 → 24px each).
 const USER_MESSAGE_COLLAPSED_LINES = 6;
-const USER_MESSAGE_LINE_HEIGHT_REM = 2;
-const USER_MESSAGE_COLLAPSED_FALLBACK_HEIGHT = USER_MESSAGE_COLLAPSED_LINES * USER_MESSAGE_LINE_HEIGHT_REM * 16;
-const USER_MESSAGE_EXPAND_TRANSITION = {
-  duration: 0.36,
-  ease: [0.16, 1, 0.3, 1] as const,
-};
 const EDIT_MESSAGE_MENTION_KINDS: readonly ChatMentionMenuKind[] = ["model", "prompt"];
 const EDIT_MESSAGE_EMPTY_ATTACHMENTS: PendingAttachment[] = [];
 const EDIT_MESSAGE_EMPTY_TOOLS: MCPToolDTO[] = [];
@@ -78,7 +74,7 @@ export function ChatMessageUser({
   const [canCollapse, setCanCollapse] = React.useState(false);
   const [isToggleHovered, setIsToggleHovered] = React.useState(false);
   const [contentHeight, setContentHeight] = React.useState(0);
-  const [collapsedHeight, setCollapsedHeight] = React.useState(USER_MESSAGE_COLLAPSED_FALLBACK_HEIGHT);
+  const [collapsedHeight, setCollapsedHeight] = React.useState(USER_MESSAGE_COLLAPSED_LINES * 24);
   const [measuredContentKey, setMeasuredContentKey] = React.useState("");
   const contentRef = React.useRef<HTMLDivElement>(null);
   const editInputGroupRef = React.useRef<HTMLDivElement | null>(null);
@@ -117,7 +113,7 @@ export function ChatMessageUser({
       const collapsedHeight =
         Number.isFinite(lineHeight) && lineHeight > 0
           ? lineHeight * USER_MESSAGE_COLLAPSED_LINES
-          : USER_MESSAGE_COLLAPSED_FALLBACK_HEIGHT;
+          : USER_MESSAGE_COLLAPSED_LINES * 24;
       setContentHeight(element.scrollHeight);
       setCollapsedHeight(collapsedHeight);
       setCanCollapse(element.scrollHeight > collapsedHeight + 1);
@@ -131,7 +127,7 @@ export function ChatMessageUser({
     const resizeObserver = new ResizeObserver(measure);
     resizeObserver.observe(element);
     return () => resizeObserver.disconnect();
-  }, [item.content, measurementKey]);
+  }, [isEditing, item.content, measurementKey]);
 
   const onRetry = React.useCallback(() => {
     void onRetryUserMessage(item);
@@ -277,28 +273,38 @@ export function ChatMessageUser({
         />
       ) : null}
       <div
-        className="chat-font-content min-w-0 max-w-[70%] overflow-hidden rounded-xl bg-muted/60 p-3 text-[15px] leading-8 text-foreground [overflow-wrap:anywhere] max-sm:max-w-[88%]"
+        className="chat-font-content min-w-0 max-w-[70%] overflow-hidden rounded-xl bg-muted/60 p-3 text-[15px] leading-6 text-foreground [overflow-wrap:anywhere] max-sm:max-w-[88%]"
         style={{ fontFamily: "var(--font-chat)", fontWeight: "var(--font-chat-weight)" }}
       >
         {item.content.trim() ? (
           <>
             <div className="relative">
-              <motion.div
+              <div
                 ref={contentRef}
-                className="chat-user-message-collapsible overflow-hidden"
-                initial={false}
-                animate={measured && canCollapse ? { maxHeight: contentMaxHeight } : undefined}
-                transition={USER_MESSAGE_EXPAND_TRANSITION}
-                style={contentMaxHeight == null ? { maxHeight: "none" } : { maxHeight: contentMaxHeight }}
+                className={cn(
+                  "chat-user-message-collapsible overflow-hidden",
+                  measured && canCollapse && "transition-[height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+                )}
+                style={contentMaxHeight == null ? undefined : measured && canCollapse ? { height: contentMaxHeight } : { maxHeight: contentMaxHeight }}
               >
                 <StreamdownRender content={item.content} variant="user" />
-              </motion.div>
+              </div>
+              {measured && canCollapse ? (
+                <div
+                  aria-hidden="true"
+                  data-screenshot-exclude="true"
+                  className={cn(
+                    "pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-[linear-gradient(to_bottom,transparent,color-mix(in_oklab,var(--muted)_60%,var(--background)))] transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+                    expanded ? "opacity-0" : "opacity-100",
+                  )}
+                />
+              ) : null}
             </div>
             {measured && canCollapse ? (
               <button
                 type="button"
                 data-screenshot-exclude="true"
-                className="mt-1 inline-flex items-center gap-1 rounded-md p-0 text-[15px] font-medium leading-8 text-foreground/80 transition-colors hover:text-foreground"
+                className="mt-0.5 inline-flex items-center gap-1 p-0 text-sm font-medium leading-7 text-foreground/70 outline-none transition-colors hover:text-foreground focus-visible:text-foreground"
                 aria-expanded={expanded}
                 onClick={() =>
                   setExpandedContentKey((current) => (current === measurementKey ? "" : measurementKey))

@@ -32,6 +32,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/settings"
 	appskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/skill"
 	appsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/systemevent"
+	appuicomponent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/uicomponent"
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/usersettings"
@@ -67,6 +68,7 @@ import (
 	settingsrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/settings"
 	skillrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/skill"
 	systemeventrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/systemevent"
+	uicomponentrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/uicomponent"
 	userrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/user"
 	usersettingsrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/usersettings"
 	platformruntime "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/runtime"
@@ -85,6 +87,7 @@ import (
 	promptpresethttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/promptpreset"
 	settingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/settings"
 	skillhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/skill"
+	uicomponenthttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/uicomponent"
 	userhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/user"
 	usersettingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/usersettings"
 	"github.com/gin-gonic/gin"
@@ -434,6 +437,11 @@ func NewApp() (*App, error) {
 	conversationService.SetSkillResolver(skillService)
 	skillHandler := skillhttp.NewHandler(skillService)
 	skillModule := skillhttp.NewModule(skillHandler)
+	uiComponentService := appuicomponent.NewService(uicomponentrepo.NewRepo(db))
+	uiComponentService.SetFeatureEnabled(func() bool { return runtimeCfg.Snapshot().UIComponentsEnabled })
+	uiComponentService.SetAuditWriter(auditService)
+	conversationService.SetUIComponentResolver(uiComponentService)
+	uiComponentModule := uicomponenthttp.NewModule(uicomponenthttp.NewHandler(uiComponentService))
 	knowledgeBaseRepo := knowledgebaserepo.NewRepo(db)
 	knowledgeBaseService := appknowledgebase.NewService(knowledgeBaseRepo)
 	knowledgeBaseService.SetAuditWriter(auditService)
@@ -461,6 +469,7 @@ func NewApp() (*App, error) {
 		Announcement:      announcementModule,
 		PromptPreset:      promptPresetModule,
 		Skill:             skillModule,
+		UIComponent:       uiComponentModule,
 		KnowledgeBase:     knowledgeBaseModule,
 		Settings:          settingsModule,
 		UserSettings:      userSettingsModule,

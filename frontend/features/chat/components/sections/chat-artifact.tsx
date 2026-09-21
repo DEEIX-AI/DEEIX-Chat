@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { useTheme } from "@/shared/components/theme-provider";
 import { downloadBlob } from "@/shared/lib/export-download";
+import { SANDBOX_IFRAME_PERMISSIONS } from "@/shared/lib/sandbox-document";
 import {
   captureHTMLVisualThemeSnapshot,
   type HTMLVisualThemeSnapshot,
@@ -63,23 +64,6 @@ const workspaceTransition = {
   ease: [0.16, 1, 0.3, 1] as const,
 };
 const DESKTOP_SHELL_GUTTER_PX = 16;
-const ARTIFACT_IFRAME_PERMISSIONS = [
-  "accelerometer 'none'",
-  "autoplay 'none'",
-  "camera 'none'",
-  "clipboard-read 'none'",
-  "clipboard-write 'none'",
-  "encrypted-media 'none'",
-  "fullscreen 'none'",
-  "geolocation 'none'",
-  "gyroscope 'none'",
-  "microphone 'none'",
-  "midi 'none'",
-  "payment 'none'",
-  "serial 'none'",
-  "usb 'none'",
-  "bluetooth 'none'",
-].join("; ");
 
 function artifactLanguageLabel(artifact: ChatArtifact): string {
   if (artifact.kind === "javascript") return "JS";
@@ -136,7 +120,7 @@ function ArtifactPreviewFrame({ documentHTML, title }: ArtifactPreviewFrameProps
     <iframe
       ref={frameRef}
       title={title}
-      allow={ARTIFACT_IFRAME_PERMISSIONS}
+      allow={SANDBOX_IFRAME_PERMISSIONS}
       sandbox="allow-scripts"
       referrerPolicy="no-referrer"
       srcDoc={documentHTML}

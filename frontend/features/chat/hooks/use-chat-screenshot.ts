@@ -82,7 +82,7 @@ function prepareConversationScreenshotDom(
   const restoreDisplays: Array<{ element: HTMLElement; display: string }> = [];
   const restoreExcludeAttributes: Array<{ element: HTMLElement; value: string | null }> = [];
   const restorePaddings: Array<{ element: HTMLElement; paddingLeft: string }> = [];
-  const restoreMaxHeights: Array<{ element: HTMLElement; maxHeight: string }> = [];
+  const restoreMaxHeights: Array<{ element: HTMLElement; maxHeight: string; height: string }> = [];
   const restoreMetaDisplays: Array<{ element: HTMLElement; display: string }> = [];
   const restoreScreenshotOnlyDisplays: Array<{ element: HTMLElement; display: string }> = [];
   target.dataset.screenshotCapturing = "true";
@@ -114,8 +114,9 @@ function prepareConversationScreenshotDom(
     .join(",");
   forEachElementInRoots(screenshotRoots, mutableElementSelector, (element) => {
     if (element.matches(".chat-user-message-collapsible")) {
-      restoreMaxHeights.push({ element, maxHeight: element.style.maxHeight });
+      restoreMaxHeights.push({ element, maxHeight: element.style.maxHeight, height: element.style.height });
       element.style.maxHeight = "none";
+      element.style.height = "auto";
     }
     if (element.matches(".chat-message-meta")) {
       restoreMetaDisplays.push({ element, display: element.style.display });
@@ -156,8 +157,9 @@ function prepareConversationScreenshotDom(
       restorePaddings.forEach(({ element, paddingLeft }) => {
         element.style.paddingLeft = paddingLeft;
       });
-      restoreMaxHeights.forEach(({ element, maxHeight }) => {
+      restoreMaxHeights.forEach(({ element, maxHeight, height }) => {
         element.style.maxHeight = maxHeight;
+        element.style.height = height;
       });
       restoreMetaDisplays.forEach(({ element, display }) => {
         element.style.display = display;

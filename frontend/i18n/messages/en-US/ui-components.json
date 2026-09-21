@@ -1,0 +1,102 @@
+{
+  "types": {
+    "components": "Components"
+  },
+  "libraryTitle": "Component library",
+  "searchPlaceholder": "Search component name or description",
+  "create": "New component",
+  "empty": "No components yet",
+  "scope": {
+    "builtin": "Built-in",
+    "platform": "Platform",
+    "user": "Mine"
+  },
+  "enable": "Enable",
+  "disable": "Disable",
+  "delete": "Delete",
+  "cancel": "Cancel",
+  "deleteTitle": "Delete component",
+  "deleteDescription": "The model will stop emitting this component. Existing messages will show its raw data instead.",
+  "editor": {
+    "createTitle": "New component",
+    "editTitle": "Edit component",
+    "description": "The name and props summary go into the model prompt; the renderer runs only in the browser sandbox.",
+    "builtinDescription": "Built-in components are defined in code; only enable/disable is editable here.",
+    "readOnlyDescription": "This component is provided by the platform and is read-only.",
+    "fields": {
+      "name": "Name",
+      "nameHint": "Lowercase letters, digits, and hyphens, e.g. stock-glance",
+      "description": "Description",
+      "descriptionHint": "One sentence telling the model what this component is for",
+      "propsSummary": "Props summary",
+      "propsSummaryHint": "Compact props description for the model, e.g. '{'symbol, name?'}'",
+      "rendererSource": "Renderer",
+      "rendererSourceHint": "HTML and script run in a sandboxed iframe with no network access; receive data with deeix.onProps and theme variables with deeix.onTheme",
+      "propsSchema": "Props schema",
+      "propsSchemaHint": "Optional JSON Schema used to validate model output; leave empty to skip validation",
+      "enabled": "Enabled"
+    },
+    "preview": {
+      "title": "Preview",
+      "apply": "Apply current code",
+      "invalidProps": "Preview data must be a valid JSON object"
+    },
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving..."
+  },
+  "toast": {
+    "loadFailed": "Failed to load components",
+    "invalid": "Fill in the name, description, props summary, and renderer",
+    "invalidSchema": "Props schema must be a valid JSON object",
+    "tooLong": "Content exceeds the length limit",
+    "created": "Component created",
+    "updated": "Component updated",
+    "deleted": "Component deleted",
+    "createFailed": "Create failed",
+    "updateFailed": "Update failed",
+    "deleteFailed": "Delete failed"
+  },
+  "builtin": {
+    "card-grid": {
+      "title": "Card grid",
+      "summary": "Homogeneous items such as news or search results; filter by tag"
+    },
+    "chart": {
+      "title": "Chart",
+      "summary": "Line, bar, area, scatter, pie, radar, funnel and more; toggle series"
+    },
+    "function-plot": {
+      "title": "Function plot",
+      "summary": "Edit expressions live; zoom, pan, toggle curves"
+    },
+    "stat-grid": {
+      "title": "Stat cards",
+      "summary": "Side-by-side KPIs; sparkline with hover readout"
+    },
+    "gantt": {
+      "title": "Gantt",
+      "summary": "Schedule, milestones, dependencies; scale switch, chain highlight, group collapse"
+    },
+    "data-table": {
+      "title": "Data table",
+      "summary": "Sort, search, paginate, export CSV"
+    },
+    "calculator": {
+      "title": "Calculator",
+      "summary": "Drag inputs; outputs recompute from formulas"
+    },
+    "decision-tree": {
+      "title": "Decision tree",
+      "summary": "Step through choices; go back or reset"
+    },
+    "diff": {
+      "title": "Diff",
+      "summary": "Unified / split view, jump between changes, word highlights, copy result"
+    },
+    "quiz": {
+      "title": "Quiz",
+      "summary": "Instant grading with explanations; branch on answers"
+    }
+  }
+}

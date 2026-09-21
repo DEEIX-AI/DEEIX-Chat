@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	domainuicomponent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/uicomponent"
 	"strings"
 	"testing"
 
@@ -16,7 +17,7 @@ func TestResolveMessageSystemPromptInjectionUsesNativeSystemPrompt(t *testing.T)
 		ModelCapabilitiesJSON: `{"supportsSystemPrompt":true}`,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "project rule", false)
+	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "project rule", requestPromptOptions{})
 	if got.Content == "" {
 		t.Fatal("expected system prompt content")
 	}
@@ -41,7 +42,7 @@ func TestResolveMessageSystemPromptInjectionAddsHTMLVisualPrompt(t *testing.T) {
 		Protocol: llm.AdapterOpenAIResponses,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{}, route, "", true)
+	got := resolveMessageSystemPromptInjection(config.Config{}, route, "", requestPromptOptions{HTMLVisual: true})
 	if got.Content == "" {
 		t.Fatal("expected request-level system prompt content")
 	}
@@ -63,7 +64,7 @@ func TestResolveMessageSystemPromptInjectionRestrictsHTMLVisualThemeVariables(t 
 		Protocol: llm.AdapterOpenAIResponses,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{}, route, "", true)
+	got := resolveMessageSystemPromptInjection(config.Config{}, route, "", requestPromptOptions{HTMLVisual: true})
 	for _, want := range []string{"只能引用上述变量", "禁止在 style 中定义或覆盖 CSS 自定义属性", "--card 搭配 --card-foreground", "color-mix()"} {
 		if !strings.Contains(got.Content, want) {
 			t.Fatalf("expected HTML theme-variable constraint %q, got %q", want, got.Content)
@@ -79,7 +80,7 @@ func TestResolveMessageSystemPromptInjectionOrdersProjectBeforeResponseFormat(t 
 		Protocol: llm.AdapterOpenAIResponses,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{}, route, "project rule", true)
+	got := resolveMessageSystemPromptInjection(config.Config{}, route, "project rule", requestPromptOptions{HTMLVisual: true})
 	projectIndex := strings.Index(got.Content, `<project p="100" override="no">`)
 	responseIndex := strings.Index(got.Content, `<format p="80" scope="request">`)
 	if projectIndex < 0 || responseIndex < 0 {
@@ -95,7 +96,7 @@ func TestResolveMessageSystemPromptInjectionCompactsActiveLayerPriorities(t *tes
 		Protocol: llm.AdapterOpenAIResponses,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "project rule", true)
+	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "project rule", requestPromptOptions{HTMLVisual: true})
 	for _, want := range []string{`<platform p="100">`, `<project p="80" override="no">`, `<format p="60" scope="request">`} {
 		if !strings.Contains(got.Content, want) {
 			t.Fatalf("expected compacted active priority %q, got %q", want, got.Content)
@@ -111,7 +112,7 @@ func TestResolveMessageSystemPromptInjectionMarksProjectOverrideBoundary(t *test
 		Protocol: llm.AdapterOpenAIResponses,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{}, route, "project rule", false)
+	got := resolveMessageSystemPromptInjection(config.Config{}, route, "project rule", requestPromptOptions{})
 	for _, want := range []string{`<project p="100" override="no">`, "must not override platform or model instructions"} {
 		if !strings.Contains(got.Content, want) {
 			t.Fatalf("expected project boundary %q, got %q", want, got.Content)
@@ -124,7 +125,7 @@ func TestResolveMessageSystemPromptInjectionPreservesXMLLikeContent(t *testing.T
 		Protocol: llm.AdapterOpenAIResponses,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: `keep <tag> and ]]> safely`}, route, "", false)
+	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: `keep <tag> and ]]> safely`}, route, "", requestPromptOptions{})
 	for _, want := range []string{`<![CDATA[keep <tag> and ]]]]><![CDATA[> safely]]>`, `<platform p="100">`} {
 		if !strings.Contains(got.Content, want) {
 			t.Fatalf("expected XML-safe content %q, got %q", want, got.Content)
@@ -137,7 +138,7 @@ func TestResolveMessageSystemPromptInjectionSkipsHTMLVisualPromptWhenDisabled(t 
 		Protocol: llm.AdapterOpenAIResponses,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{}, route, "", false)
+	got := resolveMessageSystemPromptInjection(config.Config{}, route, "", requestPromptOptions{})
 	if got.Content != "" {
 		t.Fatalf("expected no system prompt content, got %q", got.Content)
 	}
@@ -149,7 +150,7 @@ func TestResolveMessageSystemPromptInjectionFallsBackWhenCapabilitiesDisableSyst
 		ModelCapabilitiesJSON: `{"supportsSystemPrompt":false}`,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", false)
+	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", requestPromptOptions{})
 	if !got.InlineToUser {
 		t.Fatal("expected user prompt fallback")
 	}
@@ -161,7 +162,7 @@ func TestResolveMessageSystemPromptInjectionFallsBackWithSnakeCaseCapabilities(t
 		ModelCapabilitiesJSON: `{"supports_system_prompt":false}`,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", false)
+	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", requestPromptOptions{})
 	if !got.InlineToUser {
 		t.Fatal("expected snake_case capability to use user prompt fallback")
 	}
@@ -173,7 +174,7 @@ func TestResolveMessageSystemPromptInjectionFallsBackWhenModeRequestsUserPrompt(
 		ModelCapabilitiesJSON: `{"systemPromptMode":"user"}`,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", false)
+	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", requestPromptOptions{})
 	if !got.InlineToUser {
 		t.Fatal("expected systemPromptMode=user to use user prompt fallback")
 	}
@@ -185,7 +186,7 @@ func TestResolveMessageSystemPromptInjectionFallsBackForGemma(t *testing.T) {
 		Protocol:          llm.AdapterGoogleGenerateContent,
 	}
 
-	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", false)
+	got := resolveMessageSystemPromptInjection(config.Config{DefaultSystemPrompt: "global rule"}, route, "", requestPromptOptions{})
 	if !got.InlineToUser {
 		t.Fatal("expected Gemma to inline system prompt into user prompt")
 	}
@@ -204,5 +205,42 @@ func TestInlineSystemPromptIntoLatestUserMessage(t *testing.T) {
 	}
 	if !strings.Contains(got[2].Content, "<system_instructions>") || !strings.Contains(got[2].Content, "system rule") || !strings.Contains(got[2].Content, "second") {
 		t.Fatalf("expected latest user message to include inline system prompt and original content, got %q", got[2].Content)
+	}
+}
+
+func TestResolveMessageSystemPromptInjectionAddsUIComponentsCatalog(t *testing.T) {
+	route := &channel.ResolvedRoute{Protocol: llm.AdapterOpenAIResponses}
+
+	got := resolveMessageSystemPromptInjection(config.Config{UIComponentsEnabled: true}, route, "", requestPromptOptions{UIComponents: domainuicomponent.Builtin()})
+
+	for _, want := range []string{`<ui-components p="100" scope="request">`, "`deeix-ui`", `<component name="card-grid">`, `<component name="data-table">`, `<component name="chart">`, "<props>"} {
+		if !strings.Contains(got.Content, want) {
+			t.Fatalf("expected content to contain %q, got %q", want, got.Content)
+		}
+	}
+	if strings.Contains(got.Content, "html-visual") {
+		t.Fatal("ui-components alone must not enable the html-visual layer")
+	}
+}
+
+func TestResolveMessageSystemPromptInjectionOrdersFormatBeforeUIComponents(t *testing.T) {
+	route := &channel.ResolvedRoute{Protocol: llm.AdapterOpenAIResponses}
+
+	got := resolveMessageSystemPromptInjection(config.Config{UIComponentsEnabled: true}, route, "", requestPromptOptions{HTMLVisual: true, UIComponents: domainuicomponent.Builtin()})
+
+	format := strings.Index(got.Content, "<format p=")
+	components := strings.Index(got.Content, "<ui-components p=")
+	if format < 0 || components < 0 || format > components {
+		t.Fatalf("expected format layer before ui-components layer, got %q", got.Content)
+	}
+}
+
+func TestResolveMessageSystemPromptInjectionHonorsUIComponentsSetting(t *testing.T) {
+	route := &channel.ResolvedRoute{Protocol: llm.AdapterOpenAIResponses}
+
+	got := resolveMessageSystemPromptInjection(config.Config{UIComponentsEnabled: false}, route, "", requestPromptOptions{UIComponents: domainuicomponent.Builtin()})
+
+	if strings.Contains(got.Content, "<ui-components") {
+		t.Fatal("admin setting off must suppress the catalog even when the client declares support")
 	}
 }

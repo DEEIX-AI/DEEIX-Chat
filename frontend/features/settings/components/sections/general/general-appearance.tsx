@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import type { FontSizeOption } from "@/features/settings/utils/font-size";
+import { TOAST_POSITIONS, type ToastPosition } from "@/features/settings/utils/toast-position";
 import type {
   FontSizePreview,
   ThemeMode,
@@ -419,22 +420,54 @@ function FontSizePreviewCard({
   );
 }
 
+// A miniature viewport with the toast drawn in the chosen corner, so the
+// option reads as a place rather than as a label.
+function ToastPositionCard({ value, label, active, onSelect }: { value: ToastPosition; label: string; active: boolean; onSelect: (value: ToastPosition) => void }) {
+  const [vertical, horizontal] = value.split("-") as ["top" | "bottom", "left" | "center" | "right"];
+  return (
+    <button type="button" onClick={() => onSelect(value)} className="group rounded-xl text-left" aria-pressed={active} aria-label={label}>
+      <div
+        className={cn(
+          "relative flex h-24 w-full items-center justify-center overflow-hidden rounded-xl border bg-background px-1 transition-all duration-200 hover:scale-102 hover:border-primary/60",
+          active ? "border-primary/60" : "border-border/50",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute h-2.5 w-9 rounded-sm transition-colors",
+            active ? "bg-primary/70" : "bg-foreground/25 group-hover:bg-foreground/40",
+            vertical === "top" ? "top-2.5" : "bottom-2.5",
+            horizontal === "left" && "left-2.5",
+            horizontal === "center" && "left-1/2 -translate-x-1/2",
+            horizontal === "right" && "right-2.5",
+          )}
+        />
+        <span className="truncate text-sm font-medium text-foreground/90">{label}</span>
+      </div>
+    </button>
+  );
+}
+
 export function GeneralAppearanceSection({
   resolvedTheme,
   activeThemeMode,
   activeThemePreset,
   fontSize,
+  toastPosition,
   onThemeModeChange,
   onThemePresetChange,
   onFontSizeChange,
+  onToastPositionChange,
 }: {
   resolvedTheme: "light" | "dark";
   activeThemeMode: ThemeMode;
   activeThemePreset: ThemePreset;
   fontSize: FontSizeOption;
+  toastPosition: ToastPosition;
   onThemeModeChange: (mode: ThemeMode) => void;
   onThemePresetChange: (preset: ThemePreset) => void;
   onFontSizeChange: (value: FontSizeOption) => void;
+  onToastPositionChange: (value: ToastPosition) => void;
 }) {
   const t = useTranslations("settings");
   const activeThemePresetPreview = React.useMemo(
@@ -499,6 +532,21 @@ export function GeneralAppearanceSection({
                 item={{ ...item, label: t(`generalPage.appearance.fontSizeOption.${item.value}`) }}
                 active={fontSize === item.value}
                 onSelect={onFontSizeChange}
+              />
+            ))}
+          </div>
+        </Field>
+
+        <Field>
+          <FieldLabel>{t("generalPage.appearance.toastPosition")}</FieldLabel>
+          <div className="grid grid-cols-3 gap-2 sm:max-w-[calc(75%-2px)] md:gap-3 md:max-w-[calc(75%-3px)] xl:gap-4 xl:max-w-[calc(75%-4px)]">
+            {TOAST_POSITIONS.map((value) => (
+              <ToastPositionCard
+                key={value}
+                value={value}
+                label={t(`generalPage.appearance.toastPositionOption.${value}`)}
+                active={toastPosition === value}
+                onSelect={onToastPositionChange}
               />
             ))}
           </div>

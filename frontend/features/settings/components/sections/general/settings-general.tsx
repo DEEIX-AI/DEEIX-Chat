@@ -11,6 +11,7 @@ import {
   useFontSizePreference,
   writeFontSizePreference,
 } from "@/features/settings/utils/font-size";
+import { type ToastPosition, useToastPosition, writeToastPosition } from "@/features/settings/utils/toast-position";
 import type { ProfileDraft, ThemeMode } from "@/features/settings/types/settings";
 import {
   createDraftFromUser,
@@ -82,6 +83,7 @@ export function SettingsGeneral() {
   const [avatarUploadPreview, setAvatarUploadPreview] = React.useState<AvatarUploadPreview | null>(null);
   const [themeRuntimeReady, setThemeRuntimeReady] = React.useState(false);
   const fontSize = useFontSizePreference();
+  const toastPosition = useToastPosition();
   const [notificationRuntimeReady, setNotificationRuntimeReady] = React.useState(false);
   const [notificationSupported, setNotificationSupported] = React.useState(false);
   const [responseCompletionNotificationsEnabled, setResponseCompletionNotificationsEnabled] = React.useState(false);
@@ -420,6 +422,13 @@ export function SettingsGeneral() {
     writeFontSizePreference(value);
     persistAppearancePreferences({ fontSize: value });
   }, [persistAppearancePreferences]);
+  // Device-local like the color mode: screen size and keyboard behavior, not
+  // the account, decide where a toast is out of the way.
+  const handleToastPositionChange = React.useCallback((value: ToastPosition) => {
+    writeToastPosition(value);
+    // Show the result where it now lives, so the choice is immediately legible.
+    toast.success(t("generalPage.appearance.toastPositionPreview"), { id: "toast-position-preview" });
+  }, [t]);
 
   return (
     <SettingsPage>
@@ -466,9 +475,11 @@ export function SettingsGeneral() {
         activeThemeMode={activeThemeMode}
         activeThemePreset={activeThemePreset}
         fontSize={fontSize}
+        toastPosition={toastPosition}
         onThemeModeChange={handleThemeModeChange}
         onThemePresetChange={handleThemePresetChange}
         onFontSizeChange={handleFontSizeChange}
+        onToastPositionChange={handleToastPositionChange}
       />
     </SettingsPage>
   );

@@ -18,7 +18,7 @@ import type { AdminModelPricingDTO } from "@/features/admin/api/billing.types";
 import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
 import { listAllAdminPages } from "@/features/admin/api/shared";
 import { PricingBillingDialog } from "@/features/admin/components/sections/billing/billing-dialogs";
-import { PricingUnitCell } from "@/features/admin/components/sections/billing/billing-tables";
+import { PRICE_COLUMN_COUNT, PricingColumns, PricingModeDetail, SchedulePricingBadge, formatTierRange } from "@/features/admin/components/sections/billing/billing-tables";
 import {
   buildModelPricingExportObject,
   buildPricingRows,
@@ -38,6 +38,7 @@ import {
   type PricingFormState,
   type TieredPricingTierForm,
 } from "@/features/admin/model/billing-settings";
+import { normalizeSchedulePeriods, stringifySchedulePricing } from "@/shared/model/schedule-pricing";
 import {
   applyOfficialPricingToForm,
   findOfficialPricingSuggestions,
@@ -81,21 +82,6 @@ function officialPricingDisplayName(item: OfficialPricingCatalogItem): string {
   }
   displayName = displayName.replace(/\s*\([^)]*\)\s*$/u, "").trim();
   return displayName || modelID || rawName;
-}
-
-function formatOfficialPricingTierRange(
-  fromTokens: number,
-  upToTokens: number,
-  locale: string,
-): string {
-  const formatTokens = (value: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value);
-  if (fromTokens === 0 && upToTokens > 0) {
-    return `≤ ${formatTokens(upToTokens)}`;
-  }
-  if (upToTokens === 0) {
-    return `> ${formatTokens(fromTokens)}`;
-  }
-  return `${formatTokens(fromTokens)} – ${formatTokens(upToTokens)}`;
 }
 
 function formatOfficialPricingFields(fields: string[]): string {
@@ -144,6 +130,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
   const [pageSize, setPageSize] = React.useState(DEFAULT_PAGE_SIZE);
   const [editRow, setEditRow] = React.useState<BillingModelPricingRow | null>(null);
   const [form, setForm] = React.useState<PricingFormState | null>(null);
+  const [showScheduleErrors, setShowScheduleErrors] = React.useState(false);
   const [officialPricingSearch, setOfficialPricingSearch] = React.useState("");
   const [officialPricingMultiplier, setOfficialPricingMultiplier] = React.useState("1");
   const [officialPricingImportSuggestion, setOfficialPricingImportSuggestion] = React.useState<OfficialModelPricingSuggestion | null>(null);
@@ -231,6 +218,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
   function openEdit(row: BillingModelPricingRow) {
     setEditRow(row);
     setForm(createFormState(row));
+    setShowScheduleErrors(false);
     setOfficialPricingSearch("");
   }
 
@@ -365,6 +353,12 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
   async function savePricing(event?: React.FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     if (!form) return;
+    const schedule = normalizeSchedulePeriods(form.schedulePeriods);
+    if (schedule.issues.size > 0) {
+      setShowScheduleErrors(true);
+      toast.error(t("modelPricing.schedule.invalid"));
+      return;
+    }
     setSaving(true);
     try {
       const token = await resolveAccessToken();
@@ -384,6 +378,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         callUSDPerCall: form.pricingMode === "call" ? parsePrice(form.call) : 0,
         durationUSDPerSecond: form.pricingMode === "duration" ? parsePrice(form.duration) : 0,
         tieredPricingJSON: form.pricingMode === "tiered" ? stringifyTieredPricing(form.tieredTiers) : undefined,
+        schedulePricingJSON: stringifySchedulePricing(schedule.periods),
         isFree: form.isFree,
       };
       const data = await upsertAdminModelPricing(token, payload);
@@ -392,6 +387,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
       toast.success(t("toast.pricingSaved"));
       setEditRow(null);
       setForm(null);
+      setShowScheduleErrors(false);
     } catch (error) {
       toast.error(t("toast.pricingSaveFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
@@ -435,6 +431,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         invalidNumber: (model, field) => t("importErrors.invalidNumber", { model, field }),
         invalidTieredPricing: (model, field) => t("importErrors.invalidTieredPricing", { model, field }),
         invalidTieredPricingJSON: (model) => t("importErrors.invalidTieredPricingJSON", { model }),
+        invalidSchedulePricing: (model) => t("importErrors.invalidSchedulePricing", { model }),
       });
       if (parsed.unknownModelNames.length > 0) {
         toast.error(t("toast.importUnknownModels"), {
@@ -498,6 +495,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         callUSDPerCall: pricingMode === "call" ? row.pricing?.callUSDPerCall ?? 0 : 0,
         durationUSDPerSecond: pricingMode === "duration" ? row.pricing?.durationUSDPerSecond ?? 0 : 0,
         tieredPricingJSON: pricingMode === "tiered" ? row.pricing?.tieredPricingJSON || stringifyTieredPricing(createFormState(row).tieredTiers) : undefined,
+        schedulePricingJSON: row.pricing?.schedulePricingJSON || undefined,
         isFree: checked,
       };
       setPricingItems((current) => mergeModelPricingItem(current, createOptimisticModelPricing(row, payload)));
@@ -609,24 +607,29 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         </TableToolbar>
 
         <Table
+          className="min-w-full table-fixed"
           viewportRef={modelPricingVirtualRows.viewportRef}
           viewportClassName={modelPricingVirtualRows.viewportClassName}
           viewportStyle={modelPricingVirtualRows.viewportStyle}
         >
           <TableHeader>
             <TableRow>
+              {/* Fixed layout: every column but the model name has an explicit width, so the numbers stay together and the name absorbs the rest. */}
               <TableHead className="min-w-[210px]">{t("modelPricing.platformModel")}</TableHead>
-              <TableHead>{t("modelPricing.free")}</TableHead>
-              <TableHead>{t("modelPricing.pricingMode")}</TableHead>
-              <TableHead className="min-w-[260px]">{t("modelPricing.basePrice")}</TableHead>
-              <TableHead>{t("modelPricing.updatedAt")}</TableHead>
+              <TableHead className="w-[56px] whitespace-nowrap">{t("modelPricing.free")}</TableHead>
+              <TableHead className="w-[128px] whitespace-nowrap">{t("modelPricing.pricingMode")}</TableHead>
+              <TableHead className="w-[72px] whitespace-nowrap text-right">{t("modelPricing.priceInput")}</TableHead>
+              <TableHead className="w-[72px] whitespace-nowrap text-right">{t("modelPricing.priceOutput")}</TableHead>
+              <TableHead className="w-[72px] whitespace-nowrap text-right">{t("modelPricing.priceCacheRead")}</TableHead>
+              <TableHead className="w-[72px] whitespace-nowrap text-right">{t("modelPricing.priceCacheWrite")}</TableHead>
+              <TableHead className="w-[140px] whitespace-nowrap">{t("modelPricing.updatedAt")}</TableHead>
               <TableHead stickyEnd className="w-[56px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {modelPricingInitialLoading ? <TableLoadingRow colSpan={6} /> : null}
-            {!loading && pageRows.length === 0 ? <TableEmptyRow colSpan={6}>{t("modelPricing.empty")}</TableEmptyRow> : null}
-            {showModelPricingRows ? <VirtualTablePaddingRow colSpan={6} height={modelPricingVirtualRows.paddingTop} /> : null}
+            {modelPricingInitialLoading ? <TableLoadingRow colSpan={5 + PRICE_COLUMN_COUNT} /> : null}
+            {!loading && pageRows.length === 0 ? <TableEmptyRow colSpan={5 + PRICE_COLUMN_COUNT}>{t("modelPricing.empty")}</TableEmptyRow> : null}
+            {showModelPricingRows ? <VirtualTablePaddingRow colSpan={5 + PRICE_COLUMN_COUNT} height={modelPricingVirtualRows.paddingTop} /> : null}
             {showModelPricingRows
               ? modelPricingVirtualRows.rows.map(({ item: row }) => {
                   const identity = resolveModelIdentity({
@@ -659,14 +662,22 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
                           />
                         </div>
                       </TableCell>
-                      <TableCell className="py-1.5">
-                        {row.pricing ? t(`pricingModes.${normalizePricingMode(row.pricing.pricingMode)}`) : <span className="text-muted-foreground">-</span>}
+                      <TableCell className="py-1.5 text-xs">
+                        {row.pricing ? (
+                          <span className="inline-flex items-start gap-2 leading-5">
+                            <span className="inline-flex items-center gap-1.5">
+                              {t(`pricingModes.${normalizePricingMode(row.pricing.pricingMode)}`)}
+                              <SchedulePricingBadge pricing={row.pricing} />
+                            </span>
+                            <PricingModeDetail pricing={row.pricing} />
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/60">{t("modelPricing.notConfigured")}</span>
+                        )}
                       </TableCell>
-                      <TableCell className="py-1.5">
-                        <PricingUnitCell pricing={row.pricing} />
-                      </TableCell>
-                      <TableCell className="py-1.5 text-muted-foreground">
-                        {formatDateTime(row.pricing?.updatedAt ?? "", locale)}
+                      <PricingColumns pricing={row.pricing} cellClassName="py-1.5" />
+                      <TableCell className="whitespace-nowrap py-1.5 text-xs text-muted-foreground/70 tabular-nums">
+                        {row.pricing ? formatDateTime(row.pricing.updatedAt, locale) : null}
                       </TableCell>
                       <TableCell stickyEnd className="w-[56px] py-1.5 text-right">
                         <div className="flex h-7 items-center justify-end">
@@ -686,7 +697,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
                   );
                 })
               : null}
-            {showModelPricingRows ? <VirtualTablePaddingRow colSpan={6} height={modelPricingVirtualRows.paddingBottom} /> : null}
+            {showModelPricingRows ? <VirtualTablePaddingRow colSpan={5 + PRICE_COLUMN_COUNT} height={modelPricingVirtualRows.paddingBottom} /> : null}
           </TableBody>
         </Table>
 
@@ -708,12 +719,14 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         open={!!editRow && !!form}
         saving={saving}
         form={stableForm}
+        showScheduleErrors={showScheduleErrors}
         durationPricingEnabled={Boolean(stableEditRow?.supportsVideoGeneration)}
         setForm={setForm}
         onOpenChange={(open) => {
           if (!open && !saving) {
             setEditRow(null);
             setForm(null);
+            setShowScheduleErrors(false);
             setOfficialPricingSearch("");
             setOfficialPricingSingleDialogOpen(false);
           }
@@ -721,6 +734,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         onCancel={() => {
           setEditRow(null);
           setForm(null);
+          setShowScheduleErrors(false);
           setOfficialPricingSearch("");
           setOfficialPricingSingleDialogOpen(false);
         }}
@@ -900,7 +914,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
                                 <OfficialPricingStack
                                   className="font-mono text-[11px] text-muted-foreground"
                                   values={priceRows.map((tier, index) =>
-                                    formatOfficialPricingTierRange(Number(priceRows[index - 1]?.upToTokens ?? 0), Number(tier.upToTokens), locale),
+                                    formatTierRange(Number(priceRows[index - 1]?.upToTokens ?? 0), Number(tier.upToTokens)),
                                   )}
                                 />
                               ) : (

@@ -13,25 +13,25 @@ import (
 // Pure function tests
 // ---------------------------------------------------------------------------
 
-func TestComposeGroupRatePercent(t *testing.T) {
-	discounted := composeGroupRatePercent(billingRateMultiplier{Numerator: 1, Denominator: 1}, 80)
+func TestComposeRatePercent(t *testing.T) {
+	discounted := composeRatePercent(billingRateMultiplier{Numerator: 1, Denominator: 1}, 80)
 	if got := applyRateMultiplier(1000, discounted); got != 800 {
 		t.Fatalf("expected 80%% multiplier to yield 800, got %d", got)
 	}
 
-	composed := composeGroupRatePercent(billingRateMultiplier{Numerator: 6, Denominator: 1}, 80)
+	composed := composeRatePercent(billingRateMultiplier{Numerator: 6, Denominator: 1}, 80)
 	if got := applyRateMultiplier(1000, composed); got != 4800 {
 		t.Fatalf("expected composed 6x * 80%% multiplier to yield 4800, got %d", got)
 	}
 }
 
-func TestComposeGroupRatePercentIdentity(t *testing.T) {
+func TestComposeRatePercentIdentity(t *testing.T) {
 	base := billingRateMultiplier{Numerator: 2, Denominator: 1}
-	result := composeGroupRatePercent(base, 100)
+	result := composeRatePercent(base, 100)
 	if result != base {
 		t.Fatalf("100%% should return base unchanged, got %+v", result)
 	}
-	result = composeGroupRatePercent(base, 0)
+	result = composeRatePercent(base, 0)
 	if result != base {
 		t.Fatalf("0%% should return base unchanged, got %+v", result)
 	}

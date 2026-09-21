@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -23,12 +24,20 @@ type capturingMCPClient struct {
 	input  mcp.CallInput
 	output string
 	called bool
+	// failures 是返回成功前先失败的次数，用于覆盖重试路径。
+	failures int
+	// attempts 记录每次尝试收到的请求头。
+	attempts []map[string]string
 }
 
 func (c *capturingMCPClient) CallTool(_ context.Context, cfg mcp.CallConfig, input mcp.CallInput) (string, error) {
 	c.called = true
 	c.cfg = cfg
 	c.input = input
+	c.attempts = append(c.attempts, maps.Clone(cfg.Headers))
+	if len(c.attempts) <= c.failures {
+		return "", fmt.Errorf("attempt %d failed", len(c.attempts))
+	}
 	return c.output, nil
 }
 
@@ -97,8 +106,91 @@ func TestExecuteToolCallExpandsSignedUserContextHeader(t *testing.T) {
 	if payload.UserID != 42 || payload.ConversationID != 7 || payload.RequestID != "req_1" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
+	if payload.Audience != "http://127.0.0.1/mcp" {
+		t.Fatalf("expected audience bound to the MCP base URL, got %q", payload.Audience)
+	}
+	if payload.JTI == "" {
+		t.Fatalf("expected a unique token id, got empty jti")
+	}
 	if client.cfg.Headers["X-Static"] != "keep" {
 		t.Fatalf("static header lost: %#v", client.cfg.Headers)
+	}
+}
+
+func TestExecuteToolCallKeepsJTIAcrossRetries(t *testing.T) {
+	client := &capturingMCPClient{output: "ok", failures: 2}
+	svc := &Service{
+		cfg: config.NewRuntime(config.Config{
+			JWTSecret:            "jwt-secret",
+			MCPUserContextSecret: "test-secret",
+			MCPToolRetryCount:    2,
+		}),
+		mcpClient: client,
+	}
+	_, err := svc.executeToolCall(context.Background(), ExecuteToolInput{
+		UserID:        42,
+		ToolName:      "demo.tool",
+		ArgumentsJSON: `{}`,
+		MCPConfig: &mcp.CallConfig{
+			BaseURL: "http://127.0.0.1/mcp",
+			Headers: map[string]string{mcpauth.HeaderName: mcpauth.TemplateSignedUserContext},
+		},
+	})
+	if err != nil {
+		t.Fatalf("execute failed: %v", err)
+	}
+	if len(client.attempts) != 3 {
+		t.Fatalf("expected 3 attempts, got %d", len(client.attempts))
+	}
+	first, err := verifyUserContextForTest("test-secret", client.attempts[0][mcpauth.HeaderName])
+	if err != nil {
+		t.Fatalf("verify first attempt failed: %v", err)
+	}
+	if first.JTI == "" {
+		t.Fatalf("expected non-empty jti on first attempt")
+	}
+	for index, headers := range client.attempts[1:] {
+		retry, err := verifyUserContextForTest("test-secret", headers[mcpauth.HeaderName])
+		if err != nil {
+			t.Fatalf("verify retry %d failed: %v", index+1, err)
+		}
+		if retry.JTI != first.JTI {
+			t.Fatalf("expected retry %d to reuse jti %q, got %q", index+1, first.JTI, retry.JTI)
+		}
+	}
+}
+
+func TestExecuteToolCallSignsFreshJTIPerCall(t *testing.T) {
+	client := &capturingMCPClient{output: "ok"}
+	svc := newToolService("test-secret", client)
+	input := ExecuteToolInput{
+		UserID:        42,
+		ToolName:      "demo.tool",
+		ArgumentsJSON: `{}`,
+		MCPConfig: &mcp.CallConfig{
+			BaseURL: "http://127.0.0.1/mcp",
+			Headers: map[string]string{mcpauth.HeaderName: mcpauth.TemplateSignedUserContext},
+		},
+	}
+	if _, err := svc.executeToolCall(context.Background(), input); err != nil {
+		t.Fatalf("first execute failed: %v", err)
+	}
+	first, err := verifyUserContextForTest("test-secret", client.cfg.Headers[mcpauth.HeaderName])
+	if err != nil {
+		t.Fatalf("first verify failed: %v", err)
+	}
+	if _, err := svc.executeToolCall(context.Background(), input); err != nil {
+		t.Fatalf("second execute failed: %v", err)
+	}
+	second, err := verifyUserContextForTest("test-secret", client.cfg.Headers[mcpauth.HeaderName])
+	if err != nil {
+		t.Fatalf("second verify failed: %v", err)
+	}
+	if first.JTI == "" || second.JTI == "" {
+		t.Fatalf("expected non-empty jti, got %q / %q", first.JTI, second.JTI)
+	}
+	if first.JTI == second.JTI {
+		t.Fatalf("expected fresh jti per call, got duplicate %q", first.JTI)
 	}
 }
 

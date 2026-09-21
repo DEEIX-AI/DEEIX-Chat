@@ -7687,6 +7687,254 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/ui-components": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin/ui-components"
+                ],
+                "summary": "查询内置与平台组件",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "搜索关键词",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "作用域：builtin 或 platform，留空为全部",
+                        "name": "scope",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "是否启用",
+                        "name": "enabled",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/UIComponentPageResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin/ui-components"
+                ],
+                "summary": "创建平台组件",
+                "parameters": [
+                    {
+                        "description": "组件内容",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/WriteUIComponentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/UIComponentResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/ui-components/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "内置组件受保护，不允许删除",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin/ui-components"
+                ],
+                "summary": "删除平台组件",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "组件ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/UIComponentDeleteResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "内置组件只允许修改启用状态、描述与排序",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin/ui-components"
+                ],
+                "summary": "更新内置或平台组件",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "组件ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新字段",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PatchUIComponentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/UIComponentResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/usage-statistics": {
             "get": {
                 "security": [
@@ -14560,6 +14808,294 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/ui-components": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "返回已启用的内置、平台组件与当前用户自定义组件，含渲染源，用于会话勾选与消息渲染",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ui-components"
+                ],
+                "summary": "查询当前用户可用的交互式组件",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "搜索关键词",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/UIComponentPageResponseDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/ui-components/mine": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ui-components"
+                ],
+                "summary": "查询我的自定义组件",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "搜索关键词",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "是否启用",
+                        "name": "enabled",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/UIComponentPageResponseDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ui-components"
+                ],
+                "summary": "创建我的自定义组件",
+                "parameters": [
+                    {
+                        "description": "组件内容",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/WriteUIComponentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/UIComponentResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/ui-components/mine/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ui-components"
+                ],
+                "summary": "删除我的自定义组件",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "组件ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/UIComponentDeleteResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ui-components"
+                ],
+                "summary": "更新我的自定义组件",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "组件ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新字段",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PatchUIComponentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/UIComponentResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/UicomponentErrorDoc"
                         }
                     }
                 }
@@ -21932,6 +22468,7 @@ const docTemplate = `{
                 "outputUSDPerMTokens",
                 "platformModelName",
                 "pricingMode",
+                "schedulePricingJSON",
                 "tieredPricingJSON",
                 "updatedAt"
             ],
@@ -22001,6 +22538,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "pricingMode": {
+                    "type": "string"
+                },
+                "schedulePricingJSON": {
                     "type": "string"
                 },
                 "tieredPricingJSON": {
@@ -23167,6 +23707,41 @@ const docTemplate = `{
                 }
             }
         },
+        "PatchUIComponentRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 256
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "propsSchema": {
+                    "type": "string",
+                    "maxLength": 16384
+                },
+                "propsSummary": {
+                    "type": "string",
+                    "maxLength": 1024
+                },
+                "rendererSource": {
+                    "type": "string",
+                    "maxLength": 262144
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "version": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
         "PatchUserRequest": {
             "type": "object",
             "properties": {
@@ -23902,6 +24477,8 @@ const docTemplate = `{
                 "isFree",
                 "mode",
                 "outputUSDPerMTokens",
+                "schedulePeriods",
+                "scheduleUTCOffsetMinutes",
                 "tiers"
             ],
             "properties": {
@@ -23937,6 +24514,16 @@ const docTemplate = `{
                 },
                 "outputUSDPerMTokens": {
                     "type": "number"
+                },
+                "schedulePeriods": {
+                    "description": "时段倍率按服务器本地时区定义；客户端用 scheduleUTCOffsetMinutes 判断当前命中的时段。",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PublicSchedulePeriodResponse"
+                    }
+                },
+                "scheduleUTCOffsetMinutes": {
+                    "type": "integer"
                 },
                 "tiers": {
                     "type": "array",
@@ -24050,6 +24637,36 @@ const docTemplate = `{
                 }
             }
         },
+        "PublicSchedulePeriodResponse": {
+            "type": "object",
+            "required": [
+                "end",
+                "name",
+                "ratePercent",
+                "start",
+                "weekdays"
+            ],
+            "properties": {
+                "end": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ratePercent": {
+                    "type": "integer"
+                },
+                "start": {
+                    "type": "string"
+                },
+                "weekdays": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
         "PublicSharedConversationResponse": {
             "type": "object",
             "required": [
@@ -24059,7 +24676,8 @@ const docTemplate = `{
                 "messages",
                 "model",
                 "shareID",
-                "title"
+                "title",
+                "uiComponentsEnabled"
             ],
             "properties": {
                 "createdAt": {
@@ -24090,6 +24708,10 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                },
+                "uiComponentsEnabled": {
+                    "description": "UIComponentsEnabled 为 false 时，分享页不渲染 deeix-ui 组件块。",
+                    "type": "boolean"
                 }
             }
         },
@@ -25109,6 +25731,14 @@ const docTemplate = `{
                 "sourceMessagePublicID": {
                     "type": "string",
                     "maxLength": 32
+                },
+                "uiComponentIDs": {
+                    "description": "UIComponentIDs 是本次会话勾选的交互式组件；后端据此注入组件目录提示词，不可见的 ID 被忽略。",
+                    "type": "array",
+                    "maxItems": 32,
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },
@@ -26153,6 +26783,14 @@ const docTemplate = `{
                     "items": {
                         "type": "integer"
                     }
+                },
+                "uiComponentIDs": {
+                    "description": "UIComponentIDs 是本次会话勾选的交互式组件。",
+                    "type": "array",
+                    "maxItems": 32,
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },
@@ -26275,6 +26913,166 @@ const docTemplate = `{
                 "data": {
                     "$ref": "#/definitions/ToolResponse"
                 },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "UIComponentDataResponse": {
+            "type": "object",
+            "required": [
+                "component"
+            ],
+            "properties": {
+                "component": {
+                    "$ref": "#/definitions/UIComponentResponse"
+                }
+            }
+        },
+        "UIComponentDeleteDataResponse": {
+            "type": "object",
+            "required": [
+                "deleted"
+            ],
+            "properties": {
+                "deleted": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "UIComponentDeleteResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/UIComponentDeleteDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "UIComponentPageResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
+                    "properties": {
+                        "results": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/UIComponentResponse"
+                            }
+                        },
+                        "total": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "UIComponentResponse": {
+            "type": "object",
+            "required": [
+                "createdAt",
+                "createdByUserID",
+                "description",
+                "enabled",
+                "id",
+                "name",
+                "propsSchema",
+                "propsSummary",
+                "rendererKind",
+                "rendererSource",
+                "scope",
+                "sortOrder",
+                "updatedAt",
+                "updatedByUserID",
+                "version"
+            ],
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdByUserID": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "propsSchema": {
+                    "type": "string"
+                },
+                "propsSummary": {
+                    "type": "string"
+                },
+                "rendererKind": {
+                    "type": "string"
+                },
+                "rendererSource": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "updatedByUserID": {
+                    "type": "integer"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "UIComponentResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/UIComponentDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "UicomponentErrorDoc": {
+            "type": "object",
+            "required": [
+                "errorMsg"
+            ],
+            "properties": {
                 "errorMsg": {
                     "type": "string"
                 }
@@ -27049,6 +27847,11 @@ const docTemplate = `{
                         "duration",
                         "tiered"
                     ]
+                },
+                "schedulePricingJSON": {
+                    "description": "SchedulePricingJSON 是时段倍率配置 {\"periods\":[{\"name\",\"weekdays\",\"start\",\"end\",\"ratePercent\"}]}，空表示不启用。",
+                    "type": "string",
+                    "maxLength": 20000
                 },
                 "tieredPricingJSON": {
                     "type": "string",
@@ -28902,6 +29705,47 @@ const docTemplate = `{
                     "maxLength": 64
                 }
             }
+        },
+        "WriteUIComponentRequest": {
+            "type": "object",
+            "required": [
+                "description",
+                "name",
+                "propsSummary",
+                "rendererSource"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 256
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "propsSchema": {
+                    "type": "string",
+                    "maxLength": 16384
+                },
+                "propsSummary": {
+                    "type": "string",
+                    "maxLength": 1024
+                },
+                "rendererSource": {
+                    "type": "string",
+                    "maxLength": 262144
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "version": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
         }
     },
     "securityDefinitions": {
@@ -28915,7 +29759,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "0.4.2",
+	Version:          "0.4.3",
 	Host:             "",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},

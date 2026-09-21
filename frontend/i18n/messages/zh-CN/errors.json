@@ -375,6 +375,7 @@
     "invalidPromptPreset": "提示词预设无效。",
     "invalidRunIds": "运行 ID 无效。",
     "invalidSkill": "技能无效。",
+    "invalidUiComponent": "组件参数无效。",
     "invalidSkillUse": "技能配置无效。",
     "invalidTemporaryChatMessages": "临时对话消息无效。",
     "invalidTwoFactorChallenge": "两步验证挑战无效。",
@@ -464,6 +465,12 @@
   },
   "skillTrigger": {
     "alreadyExists": "技能触发器已存在。"
+  },
+  "uiComponent": {
+    "invalidId": "组件 ID 无效。",
+    "notFound": "组件不存在。",
+    "alreadyExists": "组件名在当前作用域内已存在。",
+    "builtinProtected": "内置组件不允许删除或修改契约。"
   },
   "toolCall": {
     "invalidId": "工具调用 ID 无效。",

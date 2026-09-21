@@ -7,6 +7,7 @@ import {
   type BillingDisplayLabels,
   type BillingDisplayOptions,
   billingRateMultiplierNote,
+  billingScheduleNote,
   cacheWriteBillingLabel,
   cacheWriteBillingNote,
   formatBillingDisplayCompactAmountFromUSD,
@@ -239,6 +240,7 @@ export function buildUsageBillingTooltipLines(
   const cacheWriteLabel = cacheWriteBillingLabel(snapshot, labels.billingDisplay);
   const cacheWriteNote = cacheWriteBillingNote(snapshot, labels.billingDisplay);
   const rateMultiplierNote = billingRateMultiplierNote(snapshot, labels.billingDisplay);
+  const scheduleNote = billingScheduleNote(snapshot, labels.billingDisplay);
 
   if (pricingMode === "call") {
     const callRate = readUsageSnapshotNumber(snapshot, "call_nanousd_per_call");
@@ -262,9 +264,12 @@ export function buildUsageBillingTooltipLines(
 
   if (pricingMode === "tiered") {
     const lines: UsageBillingTooltipLine[] = [];
-    if (rateMultiplierNote || cacheWriteNote) {
+    if (rateMultiplierNote || scheduleNote || cacheWriteNote) {
       if (rateMultiplierNote) {
         lines.push({ type: "row", left: labels.rateNote, right: rateMultiplierNote });
+      }
+      if (scheduleNote) {
+        lines.push({ type: "row", left: labels.rateNote, right: scheduleNote });
       }
       if (cacheWriteNote) {
         lines.push({ type: "row", left: labels.cacheNote, right: cacheWriteNote });
@@ -303,6 +308,9 @@ export function buildUsageBillingTooltipLines(
   const noteLines: UsageBillingTooltipLine[] = [];
   if (rateMultiplierNote) {
     noteLines.push({ type: "row", left: labels.rateNote, right: rateMultiplierNote });
+  }
+  if (scheduleNote) {
+    noteLines.push({ type: "row", left: labels.rateNote, right: scheduleNote });
   }
   if (cacheWriteNote) {
     noteLines.push({ type: "row", left: labels.cacheNote, right: cacheWriteNote });

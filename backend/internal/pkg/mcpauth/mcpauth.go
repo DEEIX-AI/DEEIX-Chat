@@ -27,10 +27,21 @@ const (
 )
 
 // Payload 描述签名上下文中携带的用户信息。
+//
+// 签名密钥对所有 MCP 服务端共用，因此 token 本身要说明它签给谁、对应哪一次调用：
+//
+//   - Audience 是管理员在 DEEIX 中注册的服务端 BaseURL 原文。服务端应与自身
+//     配置的注册地址做精确字符串比较，不要从请求的 Host 或路径推导；
+//     不匹配即为被重放到其他服务端的 token。
+//   - JTI 在每次工具调用签发时生成一次。DEEIX 对同一次调用的自动重试沿用
+//     同一 token，因此服务端收到重复的 JTI 且 payload 相同时，应视为幂等重试
+//     （返回首次结果或直接去重），而不是拒绝；JTI 只需保留到 exp 为止。
 type Payload struct {
 	UserID         uint   `json:"user_id"`
 	ConversationID uint   `json:"conversation_id,omitempty"`
 	RequestID      string `json:"request_id,omitempty"`
+	Audience       string `json:"aud,omitempty"`
+	JTI            string `json:"jti,omitempty"`
 	ExpiresAt      int64  `json:"exp"`
 }
 

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/mcpauth"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
@@ -57,6 +59,9 @@ func (s *Service) executeToolCall(ctx context.Context, input ExecuteToolInput) (
 // applySignedUserContext 将请求头中值等于 ${DEEIX_SIGNED_USER_CONTEXT} 占位符的项
 // 替换为本次工具调用签名的用户上下文。未配置占位符时原样返回，不改变现有行为；
 // 签名失败时拒绝调用，避免 MCP 服务端收到没有用户上下文的请求。
+//
+// token 在一次工具调用中只签发一次，callMCPWithRetry 的各次重试携带同一个 jti：
+// 首次请求可能已被服务端执行而只是响应丢失，重试沿用 jti 才能让服务端去重。
 func applySignedUserContext(cfg config.Config, base mcp.CallConfig, input ExecuteToolInput) (mcp.CallConfig, error) {
 	if len(base.Headers) == 0 {
 		return base, nil
@@ -75,6 +80,8 @@ func applySignedUserContext(cfg config.Config, base mcp.CallConfig, input Execut
 		UserID:         input.UserID,
 		ConversationID: input.ConversationID,
 		RequestID:      strings.TrimSpace(input.RequestID),
+		Audience:       base.BaseURL,
+		JTI:            uuid.NewString(),
 		ExpiresAt:      time.Now().Add(mcpauth.DefaultTTL).Unix(),
 	})
 	if err != nil || token == "" {

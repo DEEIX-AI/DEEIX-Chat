@@ -1,0 +1,102 @@
+{
+  "types": {
+    "components": "交互式组件"
+  },
+  "libraryTitle": "组件库",
+  "searchPlaceholder": "搜索组件名称或说明",
+  "create": "新建组件",
+  "empty": "暂无组件",
+  "scope": {
+    "builtin": "内置",
+    "platform": "平台",
+    "user": "我的"
+  },
+  "enable": "启用",
+  "disable": "停用",
+  "delete": "删除",
+  "cancel": "取消",
+  "deleteTitle": "删除组件",
+  "deleteDescription": "删除后模型将不再输出该组件，历史消息中的该组件会以原始数据形式显示。",
+  "editor": {
+    "createTitle": "新建组件",
+    "editTitle": "编辑组件",
+    "description": "组件名与入参摘要会进入模型提示词；渲染代码只在前端沙箱中执行。",
+    "builtinDescription": "内置组件由代码定义，这里只能启用或停用。",
+    "readOnlyDescription": "该组件由平台提供，仅供查看。",
+    "fields": {
+      "name": "组件名",
+      "nameHint": "小写字母、数字与连字符，如 stock-glance",
+      "description": "说明",
+      "descriptionHint": "一句话告诉模型该组件适合展示什么内容",
+      "propsSummary": "入参摘要",
+      "propsSummaryHint": "给模型看的紧凑入参说明，如 '{'symbol, name?'}'",
+      "rendererSource": "渲染代码",
+      "rendererSourceHint": "HTML 与脚本在沙箱 iframe 中运行，无网络访问；通过 deeix.onProps 接收数据，deeix.onTheme 接收主题变量",
+      "propsSchema": "入参 Schema",
+      "propsSchemaHint": "可选的 JSON Schema，前端据此校验模型输出；留空则不校验",
+      "enabled": "启用"
+    },
+    "preview": {
+      "title": "预览",
+      "apply": "应用当前代码",
+      "invalidProps": "预览数据必须是合法的 JSON 对象"
+    },
+    "cancel": "取消",
+    "save": "保存",
+    "saving": "保存中..."
+  },
+  "toast": {
+    "loadFailed": "组件加载失败",
+    "invalid": "请填写组件名、说明、入参摘要与渲染代码",
+    "invalidSchema": "入参 Schema 必须是合法的 JSON 对象",
+    "tooLong": "内容超出长度限制",
+    "created": "组件已创建",
+    "updated": "组件已更新",
+    "deleted": "组件已删除",
+    "createFailed": "创建失败",
+    "updateFailed": "更新失败",
+    "deleteFailed": "删除失败"
+  },
+  "builtin": {
+    "card-grid": {
+      "title": "卡片网格",
+      "summary": "新闻、搜索结果、候选方案等同构条目；可按 tag 筛选"
+    },
+    "chart": {
+      "title": "数据图表",
+      "summary": "折线、柱状、面积、散点、饼图、雷达、漏斗等；图例切换序列显隐"
+    },
+    "function-plot": {
+      "title": "函数图像",
+      "summary": "编辑、增删表达式实时重绘；缩放、拖动、显隐曲线"
+    },
+    "stat-grid": {
+      "title": "指标卡片",
+      "summary": "并列的 KPI、涨跌幅；迷你走势线可悬停读数"
+    },
+    "gantt": {
+      "title": "甘特图",
+      "summary": "排期、里程碑、依赖；刻度切换、依赖链高亮、分组折叠"
+    },
+    "data-table": {
+      "title": "数据表格",
+      "summary": "排序、搜索、分页、导出 CSV"
+    },
+    "calculator": {
+      "title": "交互式计算器",
+      "summary": "拖动输入滑块，输出按公式实时重算"
+    },
+    "decision-tree": {
+      "title": "决策树",
+      "summary": "逐步点选进入下一节点，可返回或重置"
+    },
+    "diff": {
+      "title": "文本对比",
+      "summary": "合并 / 并排视图，逐处跳转，词级高亮，复制结果"
+    },
+    "quiz": {
+      "title": "测验 / 问答",
+      "summary": "即时判对错与解析，计分；支持按选择跳题"
+    }
+  }
+}

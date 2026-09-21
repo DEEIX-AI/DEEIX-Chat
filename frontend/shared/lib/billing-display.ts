@@ -7,6 +7,8 @@ export type BillingCacheWriteSnapshot = {
   billing_speed?: string;
   billing_service_tier?: string;
   rate_multiplier?: number;
+  schedule_period_name?: string;
+  schedule_rate_percent?: number;
   cache_write_5m_tokens?: number;
   cache_write_1h_tokens?: number;
   cache_write_5m_multiplier?: number;
@@ -22,6 +24,7 @@ export type BillingDisplayLabels = {
   claudeCacheWriteNote: (timeout: "5m" | "1h", multiplier: string) => string;
   claudeFastModeNote: (multiplier: string) => string;
   openaiServiceTierNote: (tier: string, multiplier: string) => string;
+  scheduleRateNote: (period: string, multiplier: string) => string;
   cacheWritePricingLabel: string;
   cacheWritePricingNote: string;
 };
@@ -42,6 +45,7 @@ const DEFAULT_BILLING_DISPLAY_LABELS: BillingDisplayLabels = {
   claudeCacheWriteNote: (timeout, multiplier) => `Claude ${timeout} cache write uses configured pricing at ${multiplier}`,
   claudeFastModeNote: (multiplier) => `Claude Fast Mode bills input, output, and cache usage at ${multiplier}`,
   openaiServiceTierNote: (tier, multiplier) => `OpenAI service_tier=${tier} bills at ${multiplier}`,
+  scheduleRateNote: (period, multiplier) => `Time-of-day rate "${period}" applies ${multiplier}`,
   cacheWritePricingLabel: "Cache write 5m",
   cacheWritePricingNote: "Claude cache read uses configured pricing; cache write 5m uses 1.25x, 1h uses 2x, and Fast Mode applies another 6x on top.",
 };
@@ -190,8 +194,19 @@ export function billingRateMultiplierNote(snapshot: BillingCacheWriteSnapshot, l
   return null;
 }
 
-function formatRateMultiplier(value: number): string {
-  return Number.isInteger(value) ? `${value}x` : `${value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}x`;
+// Rate multipliers always read as "1.20x" / "2.00x" so columns of them line up.
+export function formatRateMultiplier(value: number): string {
+  return `${(Number.isFinite(value) ? value : 1).toFixed(2)}x`;
+}
+
+// The time-of-day period recorded in the ledger snapshot, if one applied.
+export function billingScheduleNote(snapshot: BillingCacheWriteSnapshot, labels: BillingDisplayLabels = DEFAULT_BILLING_DISPLAY_LABELS): string | null {
+  const period = String(snapshot.schedule_period_name || "").trim();
+  const percent = Number(snapshot.schedule_rate_percent || 0);
+  if (!period || !Number.isFinite(percent) || percent <= 0) {
+    return null;
+  }
+  return labels.scheduleRateNote(period, formatRateMultiplier(percent / 100));
 }
 
 export function cacheWritePricingLabel(protocols: readonly string[] | null | undefined, labels: BillingDisplayLabels = DEFAULT_BILLING_DISPLAY_LABELS): string {

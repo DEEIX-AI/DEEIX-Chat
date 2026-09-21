@@ -14,18 +14,63 @@ import { ArrowDownIcon } from "lucide-react";
 
 const MESSAGE_SCROLLER_EDGE_THRESHOLD_PX = 48;
 
+// The primitive follows the bottom from a ResizeObserver, which fires after
+// paint: every burst of streamed text paints one frame with the new content
+// below the fold before the follow pulls it back, and the message footer
+// visibly twitches. Content mutations are observed here as well so the
+// viewport is pinned in the same frame, before that paint. The primitive's
+// own follow stays as the fallback for changes that are not DOM mutations.
+const FollowContext = React.createContext<{ autoScroll: boolean; threshold: number }>({
+  autoScroll: false,
+  threshold: MESSAGE_SCROLLER_EDGE_THRESHOLD_PX,
+});
+
 function MessageScrollerProvider({
   autoScroll = true,
   scrollEdgeThreshold = MESSAGE_SCROLLER_EDGE_THRESHOLD_PX,
   ...props
 }: React.ComponentProps<typeof MessageScrollerPrimitive.Provider>) {
+  const follow = React.useMemo(() => ({ autoScroll, threshold: scrollEdgeThreshold }), [autoScroll, scrollEdgeThreshold]);
   return (
-    <MessageScrollerPrimitive.Provider
-      autoScroll={autoScroll}
-      scrollEdgeThreshold={scrollEdgeThreshold}
-      {...props}
-    />
+    <FollowContext.Provider value={follow}>
+      <MessageScrollerPrimitive.Provider
+        autoScroll={autoScroll}
+        scrollEdgeThreshold={scrollEdgeThreshold}
+        {...props}
+      />
+    </FollowContext.Provider>
   );
+}
+
+function useSameFramePinToBottom(content: HTMLElement | null) {
+  const { autoScroll, threshold } = React.useContext(FollowContext);
+  React.useEffect(() => {
+    const viewport = content?.closest<HTMLElement>('[data-slot="message-scroller-viewport"]');
+    if (!autoScroll || !content || !viewport || typeof MutationObserver === "undefined") {
+      return;
+    }
+    const gap = () => viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    // Same "at the bottom" rule as the primitive, so both agree on when to follow.
+    let atBottom = gap() <= threshold;
+    const onScroll = () => {
+      atBottom = gap() <= threshold;
+    };
+    const observer = new MutationObserver(() => {
+      if (!atBottom) {
+        return;
+      }
+      const target = viewport.scrollHeight - viewport.clientHeight;
+      if (viewport.scrollTop < target) {
+        viewport.scrollTop = target;
+      }
+    });
+    observer.observe(content, { childList: true, characterData: true, subtree: true });
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      observer.disconnect();
+      viewport.removeEventListener("scroll", onScroll);
+    };
+  }, [autoScroll, content, threshold]);
 }
 
 function MessageScroller({
@@ -84,10 +129,25 @@ function MessageScrollerViewport({
 
 function MessageScrollerContent({
   className,
+  ref,
   ...props
 }: React.ComponentProps<typeof MessageScrollerPrimitive.Content>) {
+  const [element, setElement] = React.useState<HTMLElement | null>(null);
+  useSameFramePinToBottom(element);
+  const mergedRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      setElement(node);
+      if (typeof ref === "function") {
+        ref(node);
+      } else if (ref) {
+        ref.current = node;
+      }
+    },
+    [ref],
+  );
   return (
     <MessageScrollerPrimitive.Content
+      ref={mergedRef}
       data-slot="message-scroller-content"
       className={cn("flex h-max min-h-full flex-col gap-6", className)}
       {...props}

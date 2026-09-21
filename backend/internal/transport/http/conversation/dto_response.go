@@ -387,6 +387,9 @@ type PublicSharedConversationResponse struct {
 	LastAccessedAt          *time.Time                    `json:"lastAccessedAt" extensions:"x-nullable,!x-omitempty"`
 	DefaultMessagePublicIDs []string                      `json:"defaultMessagePublicIDs"`
 	Messages                []PublicSharedMessageResponse `json:"messages"`
+
+	// UIComponentsEnabled 为 false 时，分享页不渲染 deeix-ui 组件块。
+	UIComponentsEnabled bool `json:"uiComponentsEnabled"`
 }
 
 func toPublicSharedConversationResponse(item *appconversation.PublicSharedConversationResult) PublicSharedConversationResponse {
@@ -402,6 +405,8 @@ func toPublicSharedConversationResponse(item *appconversation.PublicSharedConver
 		LastAccessedAt:          item.LastAccessedAt,
 		DefaultMessagePublicIDs: item.DefaultMessageIDs,
 		Messages:                messages,
+
+		UIComponentsEnabled: item.UIComponentsEnabled,
 	}
 }
 

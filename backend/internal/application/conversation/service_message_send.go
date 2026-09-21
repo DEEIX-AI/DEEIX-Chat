@@ -661,11 +661,17 @@ func (s *Service) sendMessageInternal(
 		retErr = err
 		return nil, err
 	}
+	uiComponents, err := s.resolveUIComponents(ctx, input.UserID, input.UIComponentIDs)
+	if err != nil {
+		retErr = err
+		return nil, err
+	}
 	recordSkillPromptTrace(traceRecorder, skillPrompts)
 	routePromptInput := messageRoutePromptInput{
 		UserContent:             input.Content,
 		ProjectSystemPrompt:     conversation.ProjectSystemPrompt,
 		HTMLVisualPromptEnabled: input.HTMLVisualPromptEnabled,
+		UIComponents:            uiComponents,
 		DomainMessages:          promptScope.activeMessages(),
 		StableAttachments:       stableFullContextAttachments,
 		DynamicContext:          userCtx,

@@ -36,6 +36,7 @@ export type QueuedChatSubmission = BranchScope & {
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
   selectedKnowledgeBaseIDs: string[];
+  uiComponentIDs: number[];
   htmlVisualPromptEnabled: boolean;
 };
 

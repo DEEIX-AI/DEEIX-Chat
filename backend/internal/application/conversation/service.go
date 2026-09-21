@@ -24,6 +24,7 @@ import (
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	domainskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/skill"
+	domainuicomponent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/uicomponent"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
@@ -64,6 +65,11 @@ type memoryRecorder interface {
 type skillResolver interface {
 	ResolveAvailable(ctx context.Context, userID uint, id uint) (*domainskill.Skill, error)
 	ListVisible(ctx context.Context, userID uint, input appskill.ListInput) ([]domainskill.Skill, int64, error)
+}
+
+// uiComponentResolver 按会话勾选的 ID 解析当前用户可用的交互式组件。
+type uiComponentResolver interface {
+	ResolveVisible(ctx context.Context, userID uint, ids []uint) ([]domainuicomponent.Component, error)
 }
 
 type knowledgeBaseResolver interface {
@@ -135,6 +141,7 @@ type Service struct {
 	extractSvc            *extraction.Service
 	ragSvc                *apprag.Service
 	skillResolver         skillResolver
+	uiComponentResolver   uiComponentResolver
 	knowledgeBaseResolver knowledgeBaseResolver
 	billingSvc            *appbilling.Service
 	auditWriter           auditWriter
@@ -201,6 +208,7 @@ type SendMessageInput struct {
 	SkillIDs                []uint
 	KnowledgeBaseIDs        []string
 	HTMLVisualPromptEnabled bool
+	UIComponentIDs          []uint
 	ParentMessagePublicID   string
 	SourceMessagePublicID   string
 	BranchReason            string
@@ -214,6 +222,11 @@ type SendMessageInput struct {
 // SetSkillResolver 注入会话技能解析器。
 func (s *Service) SetSkillResolver(resolver skillResolver) {
 	s.skillResolver = resolver
+}
+
+// SetUIComponentResolver 注入交互式组件解析器。
+func (s *Service) SetUIComponentResolver(resolver uiComponentResolver) {
+	s.uiComponentResolver = resolver
 }
 
 // SetKnowledgeBaseResolver 注入会话知识库解析器。

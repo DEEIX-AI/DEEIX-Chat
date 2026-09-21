@@ -30,6 +30,10 @@
       "description": "Global behavior instructions for all chat models. Leave empty to inject nothing. Model-level prompts are appended after it.",
       "placeholder": "Example: keep answers accurate and clear, and follow platform safety requirements."
     },
+    "uiComponentsEnabled": {
+      "label": "Interactive components",
+      "description": "Let the model emit interactive components (charts, tables, calculators, Gantt charts, and more) in replies. When off, the catalog is not injected, the picker is hidden, and existing blocks show their raw content; the admin library stays editable."
+    },
     "contextCompactEnabled": {
       "label": "Context compression",
       "description": "Summarize older conversation turns into a rolling context. Users can still opt out in chat settings."

@@ -123,6 +123,9 @@ type SendMessageRequest struct {
 	ParentMessagePublicID   string         `json:"parentMessagePublicID,omitempty" binding:"omitempty,max=32"`
 	SourceMessagePublicID   string         `json:"sourceMessagePublicID,omitempty" binding:"omitempty,max=32"`
 	BranchReason            string         `json:"branchReason,omitempty" binding:"omitempty,oneof=default retry edit"`
+
+	// UIComponentIDs 是本次会话勾选的交互式组件；后端据此注入组件目录提示词，不可见的 ID 被忽略。
+	UIComponentIDs []uint `json:"uiComponentIDs,omitempty" binding:"max=32"`
 }
 
 // TemporaryChatMessageRequest 是仅在当前页面内维护的临时对话请求。
@@ -137,6 +140,9 @@ type TemporaryChatMessageRequest struct {
 	KnowledgeBaseIDs []string                      `json:"knowledgeBaseIDs,omitempty" binding:"omitempty,max=8,dive,max=32"`
 	HTMLVisualPrompt bool                          `json:"htmlVisualPrompt,omitempty"`
 	Messages         []TemporaryChatHistoryMessage `json:"messages" binding:"required,min=1,max=100,dive"`
+
+	// UIComponentIDs 是本次会话勾选的交互式组件。
+	UIComponentIDs []uint `json:"uiComponentIDs,omitempty" binding:"max=32"`
 }
 
 // TemporaryChatHistoryMessage 是临时对话可提交的消息。

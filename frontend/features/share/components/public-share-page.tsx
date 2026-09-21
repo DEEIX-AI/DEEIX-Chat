@@ -16,7 +16,13 @@ import {
   toBranchKey,
   type ChatAreaMessage,
 } from "@/features/chat";
+import { ChatArtifactWorkspace } from "@/features/chat/components/sections/chat-artifact";
+import { useChatArtifactResize } from "@/features/chat/hooks/use-chat-artifact-resize";
+import { useChatArtifacts } from "@/features/chat/hooks/use-chat-artifacts";
+import type { OpenCodeArtifactInput } from "@/features/chat/model/chat-artifacts";
+import { cn } from "@/lib/utils";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
+import { UIBlockRegistryProvider } from "@/shared/components/markdown/ui-blocks";
 import { cloneSharedConversation, getSharedConversation } from "@/shared/api/conversation";
 import type {
   MessageDTO,
@@ -166,11 +172,17 @@ function PublicSharedMessage({
   item,
   loadContent,
   onCycleBranch,
+  onOpenCodeArtifact,
 }: {
   item: ChatAreaMessage;
   loadContent: FileContentLoader;
   onCycleBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
+  onOpenCodeArtifact: (message: ChatAreaMessage, artifact: OpenCodeArtifactInput) => void;
 }) {
+  const artifactActions = React.useMemo(
+    () => ({ onOpenCodeArtifact: (artifact: OpenCodeArtifactInput) => onOpenCodeArtifact(item, artifact) }),
+    [item, onOpenCodeArtifact],
+  );
   if (item.role === "user") {
     return (
       <ChatMessageUser
@@ -203,6 +215,7 @@ function PublicSharedMessage({
         readOnly
         attachmentContentLoader={loadContent}
         showBranchNavigator
+        artifactActions={artifactActions}
       />
     );
   }
@@ -213,6 +226,8 @@ function PublicSharedMessage({
     </div>
   );
 }
+
+const EMPTY_UI_COMPONENTS: never[] = [];
 
 export function PublicSharePage() {
   const t = useTranslations("share");
@@ -317,6 +332,14 @@ export function PublicSharePage() {
     () => buildVisibleMessages(messages, branchSelections),
     [branchSelections, messages],
   );
+  // Same artifact workspace as the chat area, keyed by share so switching
+  // shares does not carry a stale panel over.
+  const artifactWorkspace = useChatArtifacts({ scopeKey: shareID, transient: true, messages: visibleMessages });
+  const { workspaceRef, artifactResizing, onArtifactResizeStart } = useChatArtifactResize(artifactWorkspace);
+  const hasInlineArtifact = Boolean(artifactWorkspace.activeArtifact && artifactWorkspace.isInlineViewport);
+  const workspaceGridColumns = hasInlineArtifact
+    ? `minmax(0, ${1 - artifactWorkspace.artifactRatio}fr) minmax(0, ${artifactWorkspace.artifactRatio}fr)`
+    : "minmax(0, 1fr) minmax(0, 0fr)";
   const onCycleBranch = React.useCallback(
     (parentPublicID: string | null, direction: "previous" | "next") => {
       setBranchSelections((previous) => {
@@ -394,7 +417,21 @@ export function PublicSharePage() {
 
   const createdAt = formatSharedAt(data.createdAt, locale);
 
+  // Public pages cannot load custom components; builtin ones render unless the
+  // platform switch is off, in which case blocks degrade to their raw content.
+  const shareUIComponents = data && !data.uiComponentsEnabled ? EMPTY_UI_COMPONENTS : null;
+
   return (
+    <UIBlockRegistryProvider components={shareUIComponents}>
+    <div
+      ref={workspaceRef}
+      className={cn(
+        "relative grid h-full min-h-0 overflow-hidden bg-background",
+        artifactResizing ? "transition-none" : "transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+        hasInlineArtifact && "md:overflow-visible",
+      )}
+      style={{ gridTemplateColumns: workspaceGridColumns }}
+    >
     <main className="h-full min-h-0 w-full overflow-y-auto bg-background text-foreground">
       <div className="mx-auto min-h-full w-full max-w-[820px] px-4 pb-24 pt-5 md:pt-6">
         <header className="flex items-center border-b border-border/50 pb-3">
@@ -426,6 +463,7 @@ export function PublicSharePage() {
                 item={message}
                 loadContent={loadSharedContent}
                 onCycleBranch={onCycleBranch}
+                onOpenCodeArtifact={artifactWorkspace.openArtifact}
               />
             </div>
           ))}
@@ -467,5 +505,16 @@ export function PublicSharePage() {
         <CustomBrandAttribution className="fixed bottom-4 right-4" />
       </div>
     </main>
+    <ChatArtifactWorkspace
+      artifact={artifactWorkspace.activeArtifact}
+      artifacts={artifactWorkspace.artifacts}
+      isInlineViewport={artifactWorkspace.isInlineViewport}
+      onArtifactChange={artifactWorkspace.selectArtifact}
+      onClose={artifactWorkspace.closeArtifact}
+      onResizeReset={artifactWorkspace.resetArtifactRatio}
+      onResizeStart={onArtifactResizeStart}
+    />
+    </div>
+    </UIBlockRegistryProvider>
   );
 }

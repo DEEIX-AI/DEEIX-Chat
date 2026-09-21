@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
+	domainuicomponent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/uicomponent"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/channelconfig"
 	"gorm.io/gorm"
@@ -61,6 +62,7 @@ func Models() []any {
 		&model.AnnouncementUserState{},
 		&model.PromptPreset{},
 		&model.Skill{},
+		&model.UIComponent{},
 		&model.KnowledgeBase{},
 		&model.KnowledgeBaseFile{},
 		&model.ConversationProjectMCPTool{},
@@ -110,6 +112,53 @@ func SeedModelVendors(db *gorm.DB) error {
 			entity := model.LLMModelVendor{Key: key, Name: key}
 			if err := tx.Where("key = ?", key).Attrs(entity).FirstOrCreate(&entity).Error; err != nil {
 				return err
+			}
+		}
+		return nil
+	})
+}
+
+// SeedUIComponents 按 Name 播种内置交互式组件。内置行的目录字段（描述、入参、版本、排序、渲染方式）
+// 永远以代码为准，每次启动同步，只保留管理员设置的 Enabled；目录中已移除的内置组件会被删除，
+// 避免提示词继续宣告前端不再渲染的组件。
+func SeedUIComponents(db *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		builtin := domainuicomponent.Builtin()
+		names := make([]string, 0, len(builtin))
+		for _, item := range builtin {
+			names = append(names, item.Name)
+		}
+		if err := tx.Where("scope = ? AND name NOT IN ?", domainuicomponent.ScopeBuiltin, names).Delete(&model.UIComponent{}).Error; err != nil {
+			return err
+		}
+		for _, item := range builtin {
+			entity := model.UIComponent{
+				Scope:          domainuicomponent.ScopeBuiltin,
+				OwnerUserID:    0,
+				Name:           item.Name,
+				Version:        item.Version,
+				Description:    item.Description,
+				PropsSummary:   item.PropsSummary,
+				RendererKind:   domainuicomponent.RendererBuiltin,
+				RendererSource: "",
+				Enabled:        item.Enabled,
+				SortOrder:      item.SortOrder,
+			}
+			if err := tx.Where("scope = ? AND owner_user_id = 0 AND name = ?", domainuicomponent.ScopeBuiltin, item.Name).
+				Attrs(entity).
+				FirstOrCreate(&entity).Error; err != nil {
+				return err
+			}
+			if entity.RendererKind != domainuicomponent.RendererBuiltin || entity.Description != item.Description || entity.PropsSummary != item.PropsSummary || entity.Version != item.Version || entity.SortOrder != item.SortOrder {
+				if err := tx.Model(&entity).Updates(map[string]any{
+					"renderer_kind": domainuicomponent.RendererBuiltin,
+					"description":   item.Description,
+					"props_summary": item.PropsSummary,
+					"version":       item.Version,
+					"sort_order":    item.SortOrder,
+				}).Error; err != nil {
+					return err
+				}
 			}
 		}
 		return nil

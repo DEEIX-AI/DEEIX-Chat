@@ -94,6 +94,7 @@ export function useChatRuntime({
   selectedToolIDs,
   selectedSkills,
   selectedKnowledgeBaseIDs,
+  uiComponentIDs,
   htmlVisualPromptEnabled,
   options,
   draft,
@@ -130,6 +131,7 @@ export function useChatRuntime({
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
   selectedKnowledgeBaseIDs: string[];
+  uiComponentIDs: number[];
   htmlVisualPromptEnabled: boolean;
   options: ConversationOptions;
   draft: string;
@@ -208,6 +210,7 @@ export function useChatRuntime({
     selectedToolIDs,
     selectedSkills,
     selectedKnowledgeBaseIDs,
+    uiComponentIDs,
     htmlVisualPromptEnabled,
     options,
     draft,

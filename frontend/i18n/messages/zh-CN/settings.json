@@ -90,7 +90,17 @@
         "standard": "标准",
         "medium": "中号",
         "large": "大号"
-      }
+      },
+      "toastPosition": "通知位置",
+      "toastPositionOption": {
+        "top-left": "左上",
+        "top-center": "顶部居中",
+        "top-right": "右上",
+        "bottom-left": "左下",
+        "bottom-center": "底部居中",
+        "bottom-right": "右下"
+      },
+      "toastPositionPreview": "通知会显示在这里"
     },
     "avatarDialog": {
       "title": "编辑头像",
@@ -582,6 +592,7 @@
       "claudeCacheWriteNote": "Claude {timeout} 缓存写按后台配置价 {multiplier} 计费。",
       "claudeFastModeNote": "Claude Fast Mode：输入、输出和缓存费用按 {multiplier} 计费。",
       "openaiServiceTierNote": "OpenAI service_tier={tier}：按 {multiplier} 计费。",
+      "scheduleRateNote": "时段「{period}」：按 {multiplier} 计费。",
       "baseService": "基础服务",
       "input": "输入",
       "output": "输出",
