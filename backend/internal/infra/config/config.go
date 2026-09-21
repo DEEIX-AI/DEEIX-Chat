@@ -468,6 +468,7 @@ type Config struct {
 	MaxContextMessages           int
 	ContextMaxTurns              int
 	ContextCompactEnabled        bool
+	UIComponentsEnabled          bool // 是否向模型注入交互式组件目录
 	ContextWindowFallbackTokens  int
 	ContextCompactTriggerPercent int
 	ContextCompactPreserve       int
@@ -724,6 +725,7 @@ func Load() Config {
 		MaxContextMessages:                20,
 		ContextMaxTurns:                   48,
 		ContextCompactEnabled:             false,
+		UIComponentsEnabled:               true,
 		ContextWindowFallbackTokens:       DefaultContextWindowFallbackTokens,
 		ContextCompactTriggerPercent:      DefaultContextCompactTriggerPercent,
 		ContextCompactPreserve:            8,

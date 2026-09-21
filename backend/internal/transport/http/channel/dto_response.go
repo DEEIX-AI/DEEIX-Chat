@@ -665,6 +665,18 @@ type PublicModelPricingResponse struct {
 	CallUSDPerCall          float64                          `json:"callUSDPerCall"`
 	DurationUSDPerSecond    float64                          `json:"durationUSDPerSecond"`
 	Tiers                   []PublicModelPricingTierResponse `json:"tiers"`
+	// 时段倍率按服务器本地时区定义；客户端用 scheduleUTCOffsetMinutes 判断当前命中的时段。
+	SchedulePeriods          []PublicSchedulePeriodResponse `json:"schedulePeriods"`
+	ScheduleUTCOffsetMinutes int                            `json:"scheduleUTCOffsetMinutes"`
+}
+
+// PublicSchedulePeriodResponse 面向前端的时段倍率 DTO。
+type PublicSchedulePeriodResponse struct {
+	Name        string `json:"name"`
+	Weekdays    []int  `json:"weekdays"`
+	Start       string `json:"start"`
+	End         string `json:"end"`
+	RatePercent int    `json:"ratePercent"`
 }
 
 // PublicModelPricingTierResponse 面向前端的模型阶梯价格 DTO。
@@ -861,6 +873,16 @@ func toPublicModelPricingResponse(v *appbilling.PublicModelPricing) *PublicModel
 			OutputUSDPerMTokens:     tier.OutputUSDPerMTokens,
 		})
 	}
+	periods := make([]PublicSchedulePeriodResponse, 0, len(v.SchedulePeriods))
+	for _, period := range v.SchedulePeriods {
+		periods = append(periods, PublicSchedulePeriodResponse{
+			Name:        period.Name,
+			Weekdays:    period.Weekdays,
+			Start:       period.Start,
+			End:         period.End,
+			RatePercent: period.RatePercent,
+		})
+	}
 	return &PublicModelPricingResponse{
 		Currency:                v.Currency,
 		IsFree:                  v.IsFree,
@@ -874,6 +896,9 @@ func toPublicModelPricingResponse(v *appbilling.PublicModelPricing) *PublicModel
 		CallUSDPerCall:          v.CallUSDPerCall,
 		DurationUSDPerSecond:    v.DurationUSDPerSecond,
 		Tiers:                   tiers,
+
+		SchedulePeriods:          periods,
+		ScheduleUTCOffsetMinutes: v.ScheduleUTCOffsetMinutes,
 	}
 }
 

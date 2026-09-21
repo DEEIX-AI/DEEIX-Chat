@@ -51,6 +51,7 @@ import { usePointerInteraction } from "@/shared/hooks/use-pointer-interaction";
 import type { BillingDisplayCurrency, BillingDisplayLabels, BillingDisplayOptions } from "@/shared/lib/billing-display";
 import {
   billingRateMultiplierNote,
+  billingScheduleNote,
   cacheWriteBillingLabel,
   cacheWriteBillingNote,
   formatBillingDisplayCompactAmountFromUSD,
@@ -644,6 +645,7 @@ function useBillingMetaLabels(): BillingMetaLabels {
         claudeCacheWriteNote: (timeout, multiplier) => t("claudeCacheWriteNote", { timeout, multiplier }),
         claudeFastModeNote: (multiplier) => t("claudeFastModeNote", { multiplier }),
         openaiServiceTierNote: (tier, multiplier) => t("openaiServiceTierNote", { tier, multiplier }),
+        scheduleRateNote: (period: string, multiplier: string) => t("scheduleRateNote", { period, multiplier }),
         cacheWritePricingLabel: t("cacheWritePricingLabel"),
         cacheWritePricingNote: t("cacheWritePricingNote"),
       },
@@ -786,6 +788,7 @@ function billingTooltipLines(item: ChatMetaMessage, labels: BillingMetaLabels, b
   const cacheWriteLabel = cacheWriteBillingLabel(snapshot, labels.display);
   const cacheWriteNote = cacheWriteBillingNote(snapshot, labels.display);
   const rateMultiplierNote = billingRateMultiplierNote(snapshot, labels.display);
+  const scheduleNote = billingScheduleNote(snapshot, labels.display);
 
   if (pricingMode === "tiered") {
     const tieredRows = [
@@ -796,9 +799,12 @@ function billingTooltipLines(item: ChatMetaMessage, labels: BillingMetaLabels, b
       ...billingServiceItemTableRows(serviceEntries, labels, billingDisplay),
     ];
     const lines: BillingTooltipLine[] = [];
-    if (rateMultiplierNote || cacheWriteNote) {
+    if (rateMultiplierNote || scheduleNote || cacheWriteNote) {
       if (rateMultiplierNote) {
         lines.push({ type: "row", left: labels.rateNote, right: rateMultiplierNote });
+      }
+      if (scheduleNote) {
+        lines.push({ type: "row", left: labels.rateNote, right: scheduleNote });
       }
       if (cacheWriteNote) {
         lines.push({ type: "row", left: labels.cacheNote, right: cacheWriteNote });
@@ -828,6 +834,9 @@ function billingTooltipLines(item: ChatMetaMessage, labels: BillingMetaLabels, b
   const noteLines: BillingTooltipLine[] = [];
   if (rateMultiplierNote) {
     noteLines.push({ type: "row", left: labels.rateNote, right: rateMultiplierNote });
+  }
+  if (scheduleNote) {
+    noteLines.push({ type: "row", left: labels.rateNote, right: scheduleNote });
   }
   if (cacheWriteNote) {
     noteLines.push({ type: "row", left: labels.cacheNote, right: cacheWriteNote });

@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
+	appuicomponent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/uicomponent"
+	domainuicomponent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/uicomponent"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
@@ -95,12 +97,22 @@ type systemPromptCapabilities struct {
 	SystemPromptModeSnake     string `json:"system_prompt_mode"`
 }
 
+// requestPromptOptions 是本次请求由客户端声明的输出格式能力。
+type requestPromptOptions struct {
+	HTMLVisual bool
+	// UIComponents 是本次会话可用的交互式组件，为空时不注入目录层。
+	UIComponents []domainuicomponent.Component
+}
+
 // resolveMessageSystemPromptInjection 合并平台、模型、项目和本次请求级系统提示词，并按路由能力决定注入方式。
-func resolveMessageSystemPromptInjection(cfg config.Config, route *channel.ResolvedRoute, projectPrompt string, htmlVisualPrompt bool) systemPromptInjection {
+func resolveMessageSystemPromptInjection(cfg config.Config, route *channel.ResolvedRoute, projectPrompt string, options requestPromptOptions) systemPromptInjection {
 	if route == nil {
 		return systemPromptInjection{}
 	}
-	content := buildResolvedMessageSystemPrompt(cfg.DefaultSystemPrompt, route.ModelSystemPrompt, projectPrompt, htmlVisualPrompt)
+	if !cfg.UIComponentsEnabled {
+		options.UIComponents = nil
+	}
+	content := buildResolvedMessageSystemPrompt(cfg.DefaultSystemPrompt, route.ModelSystemPrompt, projectPrompt, options)
 	if content == "" {
 		return systemPromptInjection{}
 	}
@@ -111,7 +123,7 @@ func resolveMessageSystemPromptInjection(cfg config.Config, route *channel.Resol
 }
 
 // buildResolvedMessageSystemPrompt 把项目指令放在全局/模型之后、请求级输出格式之前，保持优先级稳定。
-func buildResolvedMessageSystemPrompt(globalPrompt string, modelPrompt string, projectPrompt string, htmlVisualPrompt bool) string {
+func buildResolvedMessageSystemPrompt(globalPrompt string, modelPrompt string, projectPrompt string, options requestPromptOptions) string {
 	layers := []systemPromptLayer{
 		{tag: "platform", content: globalPrompt},
 		{tag: "model", content: modelPrompt},
@@ -122,11 +134,18 @@ func buildResolvedMessageSystemPrompt(globalPrompt string, modelPrompt string, p
 			content:  projectPrompt,
 		},
 	}
-	if htmlVisualPrompt {
+	if options.HTMLVisual {
 		layers = append(layers, systemPromptLayer{
 			tag:     "format",
 			scope:   "request",
 			content: buildHTMLVisualPromptInstruction(),
+		})
+	}
+	if len(options.UIComponents) > 0 {
+		layers = append(layers, systemPromptLayer{
+			tag:     "ui-components",
+			scope:   "request",
+			content: appuicomponent.CatalogPrompt(options.UIComponents),
 		})
 	}
 	return buildSystemPromptLayers(layers)

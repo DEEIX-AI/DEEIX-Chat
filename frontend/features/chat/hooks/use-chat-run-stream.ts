@@ -73,6 +73,7 @@ export function useChatRunStream({
       selectedToolIDs,
       selectedSkills,
       selectedKnowledgeBaseIDs,
+      uiComponentIDs,
       htmlVisualPromptEnabled,
       parentMessagePublicID,
       sourceMessagePublicID,
@@ -92,6 +93,7 @@ export function useChatRunStream({
       selectedToolIDs: number[];
       selectedSkills: SkillSummaryDTO[];
       selectedKnowledgeBaseIDs: string[];
+      uiComponentIDs: number[];
       htmlVisualPromptEnabled: boolean;
       parentMessagePublicID: string | null;
       sourceMessagePublicID: string | null;
@@ -251,6 +253,7 @@ export function useChatRunStream({
           skillIDs: selectedSkills.length > 0 ? selectedSkills.map((skill) => skill.id) : undefined,
           knowledgeBaseIDs: selectedKnowledgeBaseIDs,
           htmlVisualPrompt: htmlVisualPromptEnabled || undefined,
+          uiComponentIDs: uiComponentIDs.length > 0 ? uiComponentIDs : undefined,
         };
         completed = await streamConversationMessage(token, conversationID, chatPayload, streamOptions);
       } else if (submitTask === "video_generation") {

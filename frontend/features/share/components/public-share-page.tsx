@@ -17,6 +17,7 @@ import {
   type ChatAreaMessage,
 } from "@/features/chat";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
+import { UIBlockRegistryProvider } from "@/shared/components/markdown/ui-blocks";
 import { cloneSharedConversation, getSharedConversation } from "@/shared/api/conversation";
 import type {
   MessageDTO,
@@ -214,6 +215,8 @@ function PublicSharedMessage({
   );
 }
 
+const EMPTY_UI_COMPONENTS: never[] = [];
+
 export function PublicSharePage() {
   const t = useTranslations("share");
   const messageT = useTranslations("chat.messages");
@@ -394,7 +397,12 @@ export function PublicSharePage() {
 
   const createdAt = formatSharedAt(data.createdAt, locale);
 
+  // Public pages cannot load custom components; builtin ones render unless the
+  // platform switch is off, in which case blocks degrade to their raw content.
+  const shareUIComponents = data && !data.uiComponentsEnabled ? EMPTY_UI_COMPONENTS : null;
+
   return (
+    <UIBlockRegistryProvider components={shareUIComponents}>
     <main className="h-full min-h-0 w-full overflow-y-auto bg-background text-foreground">
       <div className="mx-auto min-h-full w-full max-w-[820px] px-4 pb-24 pt-5 md:pt-6">
         <header className="flex items-center border-b border-border/50 pb-3">
@@ -467,5 +475,6 @@ export function PublicSharePage() {
         <CustomBrandAttribution className="fixed bottom-4 right-4" />
       </div>
     </main>
+    </UIBlockRegistryProvider>
   );
 }

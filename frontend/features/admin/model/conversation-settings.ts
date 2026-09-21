@@ -15,6 +15,7 @@ export type ConversationSettingsField = {
     | "conversation_default_model"
     | "conversation_task_model"
     | "default_system_prompt"
+    | "ui_components_enabled"
     | "conversation_title_prompt"
     | "conversation_labels_prompt"
     | "context_compact_enabled"
@@ -299,6 +300,14 @@ export function buildConversationSettingsFields(t: ConversationSettingsTranslato
       description: t("fields.defaultSystemPrompt.description"),
       type: "textarea",
       placeholder: t("fields.defaultSystemPrompt.placeholder"),
+    },
+    {
+      section: "conversation",
+      namespace: "chat",
+      key: "ui_components_enabled",
+      label: t("fields.uiComponentsEnabled.label"),
+      description: t("fields.uiComponentsEnabled.description"),
+      type: "bool",
     },
     {
       section: "contextManagement",

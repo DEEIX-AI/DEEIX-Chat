@@ -22,9 +22,11 @@ import {
   resolveMarkdownImageSource,
   resolveProtectedMarkdownImageSource,
 } from "@/shared/lib/markdown-image-source";
+import { MarkdownTableStreamingContext } from "./adaptive-markdown-table";
 import { MarkdownFootnotesContext } from "./streamdown-html";
 import { StreamdownCheckIcon, StreamdownCopyIcon } from "./streamdown-icons";
 import { sanitizeHTMLStyle } from "./streamdown-style";
+import { UI_BLOCK_FENCE_LANGUAGE, UIBlockHost } from "./ui-blocks";
 
 // 未标注语言的围栏统一按纯文本处理:标签如实显示 text,避免内容被错误地按 Markdown 语法高亮。
 const DEFAULT_CODE_BLOCK_LANGUAGE = "text";
@@ -490,6 +492,7 @@ function isFootnoteBackrefElement(node: React.ReactNode): boolean {
 }
 
 export function MarkdownCodePre({ children, node: _node, "data-markdown-source-line": sourceLine }: MarkdownCodePreProps) {
+  const streaming = React.useContext(MarkdownTableStreamingContext);
   const childElement = React.isValidElement<StreamdownCodeChildProps>(children) ? ensureCodeBlockLanguage(children) : null;
   const codeContent = childElement ? getCodeTextFromChild(childElement) : "";
   const language = childElement ? getCodeLanguage(childElement.props.className) : "";
@@ -498,6 +501,14 @@ export function MarkdownCodePre({ children, node: _node, "data-markdown-source-l
 
   if (!childElement) {
     return children;
+  }
+
+  if (language === UI_BLOCK_FENCE_LANGUAGE) {
+    return (
+      <div className="w-full" data-markdown-source-line={sourceLine}>
+        <UIBlockHost raw={codeContent} streaming={streaming} />
+      </div>
+    );
   }
 
   const codeBlock = React.cloneElement(childElement, { "data-block": "true" });

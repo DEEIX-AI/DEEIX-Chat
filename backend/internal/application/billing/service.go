@@ -103,8 +103,8 @@ func (s *Service) resolveGroupRatePercent(ctx context.Context, userID uint, plat
 	return s.groupRateResolver.GetUserModelGroupRateMultiplierPercent(ctx, userID, platformModelID, extraGroupIDs)
 }
 
-// composeGroupRatePercent 将权限组倍率百分比叠加到基础倍率。
-func composeGroupRatePercent(base billingRateMultiplier, percent int) billingRateMultiplier {
+// composeRatePercent 按百分比叠加倍率（100 = 1.0x），权限组倍率与时段倍率共用。
+func composeRatePercent(base billingRateMultiplier, percent int) billingRateMultiplier {
 	if percent <= 0 || percent == 100 {
 		return base
 	}
@@ -258,6 +258,7 @@ type ModelPricingInput struct {
 	CallNanousdPerCall          int64
 	DurationNanousdPerSecond    int64
 	TieredPricingJSON           string
+	SchedulePricingJSON         string
 }
 
 // UsageListFilter 描述用户用量账本的筛选和排序条件。
@@ -1385,7 +1386,10 @@ func (s *Service) EstimateUsageNanousd(ctx context.Context, userID uint, input U
 	if err != nil {
 		return 0, err
 	}
-	rateMultiplier = composeGroupRatePercent(rateMultiplier, groupRatePercent)
+	rateMultiplier = composeRatePercent(rateMultiplier, groupRatePercent)
+	if schedule := resolveSchedulePeriodJSON(pricing.SchedulePricingJSON, time.Now()); schedule != nil {
+		rateMultiplier = composeRatePercent(rateMultiplier, schedule.RatePercent)
+	}
 
 	switch domainbilling.NormalizePricingMode(pricing.PricingMode) {
 	case domainbilling.PricingModeCall:
@@ -1747,11 +1751,23 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		if grpErr != nil {
 			return nil, grpErr
 		}
-		rateMultiplier = composeGroupRatePercent(rateMultiplier, groupRatePercent)
+		rateMultiplier = composeRatePercent(rateMultiplier, groupRatePercent)
 	}
 	pricing, err := s.repo.GetModelPricing(ctx, platformModelName)
 	if err != nil && !errors.Is(err, repository.ErrNotFound) {
 		return nil, err
+	}
+	// 时段按账本时间命中，预留与结算在同一时刻语义下保持一致。
+	ledgerAt := input.BillingAt
+	if ledgerAt.IsZero() {
+		ledgerAt = time.Now()
+	}
+	var schedulePeriod *ResolvedSchedulePeriod
+	if mode != "self" && pricing != nil && !pricing.IsFree {
+		schedulePeriod = resolveSchedulePeriodJSON(pricing.SchedulePricingJSON, ledgerAt)
+		if schedulePeriod != nil {
+			rateMultiplier = composeRatePercent(rateMultiplier, schedulePeriod.RatePercent)
+		}
 	}
 	if mode != "self" && !input.ServiceOnly && pricing == nil {
 		// 授权后价格被删除时必须进入待核对流程，不能把已发生的上游用量静默记为 0。
@@ -1782,6 +1798,7 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 	var cacheWrite5mNanousdPerMTokens int64
 	var cacheWrite1hNanousdPerMTokens int64
 	var tieredPricingJSON string
+	var schedulePricingJSON string
 	var cacheWritePriceBasis string
 	var tieredTiers []tieredPricingTier
 	pricingMode := domainbilling.PricingModeToken
@@ -1791,6 +1808,13 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		cacheWritePriceBasis = pricing.CacheWritePriceBasis
 		pricingMode = domainbilling.NormalizePricingMode(pricing.PricingMode)
 		tieredPricingJSON = strings.TrimSpace(pricing.TieredPricingJSON)
+		schedulePricingJSON = strings.TrimSpace(pricing.SchedulePricingJSON)
+	}
+	schedulePeriodName := ""
+	scheduleRatePercent := 0
+	if schedulePeriod != nil {
+		schedulePeriodName = schedulePeriod.Name
+		scheduleRatePercent = schedulePeriod.RatePercent
 	}
 	if !input.ServiceOnly && mode != "self" && pricing != nil && !pricing.IsFree {
 		switch pricingMode {
@@ -2000,6 +2024,9 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		"tiered_pricing_json":                      tieredPricingJSON,
 		"tiered_from_tokens":                       tieredFromTokens,
 		"tiered_up_to_tokens":                      tieredUpToTokens,
+		"schedule_pricing_json":                    schedulePricingJSON,
+		"schedule_period_name":                     schedulePeriodName,
+		"schedule_rate_percent":                    scheduleRatePercent,
 		"input_billed_nanousd":                     inputBilledNanousd,
 		"cache_read_billed_nanousd":                cacheReadBilledNanousd,
 		"cache_write_billed_nanousd":               cacheWriteBilledNanousd,
@@ -2037,10 +2064,7 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		snapshotJSON = string(raw)
 	}
 
-	billingAt := input.BillingAt
-	if billingAt.IsZero() {
-		billingAt = time.Now()
-	}
+	billingAt := ledgerAt
 	usageDateYear, usageDateMonth, usageDateDay := billingAt.Date()
 	usageDate := time.Date(usageDateYear, usageDateMonth, usageDateDay, 0, 0, 0, 0, billingAt.Location())
 
@@ -2162,6 +2186,9 @@ func clonePublicModelPricingMap(input map[string]PublicModelPricing) map[string]
 		if len(value.Tiers) > 0 {
 			value.Tiers = append([]PublicModelPricingTier(nil), value.Tiers...)
 		}
+		if len(value.SchedulePeriods) > 0 {
+			value.SchedulePeriods = append([]PublicSchedulePeriod(nil), value.SchedulePeriods...)
+		}
 		result[key] = value
 	}
 	return result
@@ -2187,6 +2214,20 @@ func toPublicModelPricing(item domainbilling.ModelPricing) PublicModelPricing {
 		if err == nil {
 			result.Tiers = toPublicModelPricingTiers(tiers)
 		}
+	}
+	if periods, err := parseSchedulePeriods(item.SchedulePricingJSON); err == nil && len(periods) > 0 {
+		result.SchedulePeriods = make([]PublicSchedulePeriod, 0, len(periods))
+		for _, period := range periods {
+			result.SchedulePeriods = append(result.SchedulePeriods, PublicSchedulePeriod{
+				Name:        period.Name,
+				Weekdays:    append([]int(nil), period.Weekdays...),
+				Start:       period.Start,
+				End:         period.End,
+				RatePercent: period.RatePercent,
+			})
+		}
+		_, offset := time.Now().Zone()
+		result.ScheduleUTCOffsetMinutes = offset / 60
 	}
 	return result
 }
@@ -2276,6 +2317,10 @@ func (s *Service) UpsertModelPricing(ctx context.Context, input ModelPricingInpu
 		cacheWriteNanousdPerMTokens = clampNonNegative(input.CacheWriteNanousdPerMTokens)
 		outputNanousdPerMTokens = clampNonNegative(input.OutputNanousdPerMTokens)
 	}
+	schedulePricingJSON, err := normalizeSchedulePricingJSON(input.SchedulePricingJSON)
+	if err != nil {
+		return nil, ErrInvalidModelPricing
+	}
 	item, err := s.repo.UpsertModelPricing(ctx, &domainbilling.ModelPricing{
 		PlatformModelName:           platformModelName,
 		Currency:                    "USD",
@@ -2289,6 +2334,7 @@ func (s *Service) UpsertModelPricing(ctx context.Context, input ModelPricingInpu
 		CallNanousdPerCall:          callNanousdPerCall,
 		DurationNanousdPerSecond:    durationNanousdPerSecond,
 		TieredPricingJSON:           tieredPricingJSON,
+		SchedulePricingJSON:         schedulePricingJSON,
 	})
 	if err != nil {
 		if errors.Is(err, repository.ErrInvalidInput) || errors.Is(err, repository.ErrModelNotFound) {
@@ -2338,6 +2384,8 @@ func usageServiceItemSnapshots(items []domainbilling.UsageServiceItem) []map[str
 			"billing_service_tier":                item.BillingServiceTier,
 			"fast_mode":                           item.FastMode,
 			"rate_multiplier":                     item.RateMultiplier,
+			"schedule_period_name":                item.SchedulePeriodName,
+			"schedule_rate_percent":               item.ScheduleRatePercent,
 			"pricing_mode":                        item.PricingMode,
 			"input_tokens":                        item.InputTokens,
 			"cache_read_tokens":                   item.CacheReadTokens,
@@ -2427,7 +2475,7 @@ func (s *Service) buildUsageServiceItem(ctx context.Context, input ServiceUsageI
 		if err != nil {
 			return item, err
 		}
-		rateMultiplier = composeGroupRatePercent(rateMultiplier, groupRatePercent)
+		rateMultiplier = composeRatePercent(rateMultiplier, groupRatePercent)
 		item.RateMultiplier = billingRateMultiplierValue(rateMultiplier)
 	}
 	var pricing *domainbilling.ModelPricing
@@ -2449,6 +2497,12 @@ func (s *Service) buildUsageServiceItem(ctx context.Context, input ServiceUsageI
 	}
 	if pricing.IsFree {
 		return item, nil
+	}
+	if schedule := resolveSchedulePeriodJSON(pricing.SchedulePricingJSON, time.Now()); schedule != nil {
+		rateMultiplier = composeRatePercent(rateMultiplier, schedule.RatePercent)
+		item.RateMultiplier = billingRateMultiplierValue(rateMultiplier)
+		item.SchedulePeriodName = schedule.Name
+		item.ScheduleRatePercent = schedule.RatePercent
 	}
 	item.PricingMode = domainbilling.NormalizePricingMode(pricing.PricingMode)
 	switch item.PricingMode {

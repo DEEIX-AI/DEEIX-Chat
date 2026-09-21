@@ -582,6 +582,7 @@
       "claudeCacheWriteNote": "Claude {timeout} 缓存写按后台配置价 {multiplier} 计费。",
       "claudeFastModeNote": "Claude Fast Mode：输入、输出和缓存费用按 {multiplier} 计费。",
       "openaiServiceTierNote": "OpenAI service_tier={tier}：按 {multiplier} 计费。",
+      "scheduleRateNote": "时段「{period}」：按 {multiplier} 计费。",
       "baseService": "基础服务",
       "input": "输入",
       "output": "输出",

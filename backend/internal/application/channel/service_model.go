@@ -242,6 +242,9 @@ func cloneModelViews(items []ModelView) []ModelView {
 			if len(pricing.Tiers) > 0 {
 				pricing.Tiers = append([]appbilling.PublicModelPricingTier(nil), pricing.Tiers...)
 			}
+			if len(pricing.SchedulePeriods) > 0 {
+				pricing.SchedulePeriods = append([]appbilling.PublicSchedulePeriod(nil), pricing.SchedulePeriods...)
+			}
 			item.Pricing = &pricing
 		}
 		results = append(results, item)

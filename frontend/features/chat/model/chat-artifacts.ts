@@ -5,6 +5,7 @@ import {
   resolveArtifactPreviewKind,
 } from "@/shared/lib/artifact-preview";
 import type { HTMLVisualThemeSnapshot } from "@/shared/lib/html-visual-theme";
+import { escapeHTML, escapeScriptContent, escapeStyleContent, sandboxDocumentHead } from "@/shared/lib/sandbox-document";
 
 export type { ArtifactPreviewKind } from "@/shared/lib/artifact-preview";
 
@@ -28,31 +29,12 @@ export type OpenCodeArtifactInput = {
   kind: ArtifactPreviewKind;
 };
 
-const SCRIPT_CLOSE_RE = /<\/script/gi;
-const STYLE_CLOSE_RE = /<\/style/gi;
 const FENCE_OPEN_RE = /^[ \t]*(`{3,}|~{3,})([^\n]*)$/;
 const DOCTYPE_RE = /<!doctype\s+html[^>]*>/i;
 const HTML_OPEN_RE = /<html\b[^>]*>/i;
 const HTML_CLOSE_RE = /<\/html\s*>/i;
 const HEAD_BLOCK_RE = /<head\b[^>]*>([\s\S]*?)<\/head\s*>/i;
 const BODY_BLOCK_RE = /<body\b[^>]*>([\s\S]*?)<\/body\s*>/i;
-const ARTIFACT_CSP = [
-  "default-src 'none'",
-  "base-uri 'none'",
-  "form-action 'none'",
-  "object-src 'none'",
-  "frame-src 'none'",
-  "child-src 'none'",
-  "worker-src 'none'",
-  "connect-src 'none'",
-  "manifest-src 'none'",
-  "prefetch-src 'none'",
-  "img-src data: blob:",
-  "media-src data: blob:",
-  "font-src data:",
-  "style-src 'unsafe-inline'",
-  "script-src 'unsafe-inline'",
-].join("; ");
 
 function parseFenceLanguage(info: string): string {
   const raw = info.trim().split(/\s+/)[0] ?? "";
@@ -71,87 +53,8 @@ function isFenceClose(line: string, marker: string): boolean {
   return re.test(line);
 }
 
-function escapeHTML(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-function escapeScriptContent(value: string): string {
-  return value.replace(SCRIPT_CLOSE_RE, "<\\/script");
-}
-
-function escapeStyleContent(value: string): string {
-  return value.replace(STYLE_CLOSE_RE, "<\\/style");
-}
-
-function artifactRuntimeScript(): string {
-  return `<script>
-(() => {
-  const formatError = (value) => {
-    if (!value) return "Unknown preview error";
-    if (value && value.stack) return String(value.stack);
-    if (value && value.message) return String(value.message);
-    return String(value);
-  };
-  const showError = (value) => {
-    const message = formatError(value);
-    const node = document.createElement("pre");
-    node.textContent = message;
-    node.style.cssText = "margin:16px;padding:12px;border:1px solid var(--destructive);border-radius:var(--radius);background:color-mix(in oklch,var(--destructive) 12%,var(--background));color:var(--destructive);font:12px/1.5 var(--font-mono);white-space:pre-wrap;";
-    document.body.appendChild(node);
-  };
-  window.addEventListener("error", (event) => showError(event.error || event.message));
-  window.addEventListener("unhandledrejection", (event) => showError(event.reason));
-})();
-</script>`;
-}
-
-function artifactPreviewResetStyle(): string {
-  return `<style data-deeix-artifact-reset>
-html,
-body {
-  min-height: 100%;
-  width: 100%;
-  margin: 0;
-}
-
-body {
-  overflow: auto;
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-</style>`;
-}
-
-function artifactThemeStyle(theme: HTMLVisualThemeSnapshot): string {
-  const declarations = theme.variables.map(([name, value]) => `${name}:${value}`).join(";");
-  return `<style data-deeix-artifact-theme>
-:root { color-scheme: ${theme.colorScheme}; ${escapeStyleContent(declarations)} }
-html, body { color: var(--foreground); background: var(--background); }
-</style>`;
-}
-
-function previewHead(title: string, theme: HTMLVisualThemeSnapshot): string {
-  return [
-    `<meta charset="utf-8">`,
-    `<meta name="viewport" content="width=device-width, initial-scale=1">`,
-    `<meta http-equiv="Content-Security-Policy" content="${ARTIFACT_CSP}">`,
-    `<title>${escapeHTML(title)}</title>`,
-    artifactThemeStyle(theme),
-    artifactPreviewResetStyle(),
-    artifactRuntimeScript(),
-  ].join("");
-}
-
 function htmlPreviewDocument(code: string, theme: HTMLVisualThemeSnapshot): string {
-  const safeHead = previewHead("Artifact Preview", theme);
+  const safeHead = sandboxDocumentHead("Artifact Preview", theme);
   const userHead = HEAD_BLOCK_RE.exec(code)?.[1]?.trim() ?? "";
   const bodyMatch = BODY_BLOCK_RE.exec(code);
   const body = bodyMatch
@@ -171,7 +74,7 @@ function cssPreviewDocument(code: string, theme: HTMLVisualThemeSnapshot): strin
   return `<!doctype html>
 <html>
 <head>
-${previewHead("CSS Preview", theme)}
+${sandboxDocumentHead("CSS Preview", theme)}
 <style>${escapeStyleContent(code)}</style>
 </head>
 <body>
@@ -198,7 +101,7 @@ function javascriptPreviewDocument(code: string, theme: HTMLVisualThemeSnapshot)
   return `<!doctype html>
 <html>
 <head>
-${previewHead("JavaScript Preview", theme)}
+${sandboxDocumentHead("JavaScript Preview", theme)}
 <style>
 body { margin: 0; font: 14px/1.5 var(--font-sans); color: var(--foreground); background: var(--background); }
 #root { min-height: 100vh; padding: 20px; box-sizing: border-box; }

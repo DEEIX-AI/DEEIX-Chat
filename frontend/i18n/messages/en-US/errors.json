@@ -375,6 +375,7 @@
     "invalidPromptPreset": "Invalid prompt preset.",
     "invalidRunIds": "Invalid run IDs.",
     "invalidSkill": "Invalid skill.",
+    "invalidUiComponent": "Invalid component.",
     "invalidSkillUse": "Invalid skill configuration.",
     "invalidTemporaryChatMessages": "Invalid temporary chat messages.",
     "invalidTwoFactorChallenge": "Invalid two-factor challenge.",
@@ -464,6 +465,12 @@
   },
   "skillTrigger": {
     "alreadyExists": "Skill trigger already exists."
+  },
+  "uiComponent": {
+    "invalidId": "Invalid component ID.",
+    "notFound": "Component not found.",
+    "alreadyExists": "A component with this name already exists in this scope.",
+    "builtinProtected": "Built-in components cannot be deleted or have their contract changed."
   },
   "toolCall": {
     "invalidId": "Invalid tool call ID.",

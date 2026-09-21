@@ -44,6 +44,8 @@ type PublicSharedConversationResult struct {
 	Messages          []model.Message
 	RunModels         map[string]PublicSharedRunModel
 	DefaultMessageIDs []string
+	// UIComponentsEnabled 是全局开关快照；关闭时分享页把组件块降级为原始内容，与站内一致。
+	UIComponentsEnabled bool
 }
 
 // PublicSharedRunModel 是公开分享页可展示的模型快照。
@@ -249,6 +251,8 @@ func (s *Service) GetPublicSharedConversation(ctx context.Context, shareID strin
 		Messages:          messages,
 		RunModels:         runModels,
 		DefaultMessageIDs: resolvePublicDefaultMessageIDs(share.DefaultMessageIDsJSON, messages),
+
+		UIComponentsEnabled: s.cfg.Snapshot().UIComponentsEnabled,
 	}, nil
 }
 

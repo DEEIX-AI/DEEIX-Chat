@@ -10,7 +10,7 @@ import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/vir
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
 import type { BillingUsageLedgerDTO } from "@/shared/api/billing.types";
-import { billingRateMultiplierNote, cacheWriteBillingLabel, cacheWriteBillingNote } from "@/shared/lib/billing-display";
+import { billingRateMultiplierNote, billingScheduleNote, cacheWriteBillingLabel, cacheWriteBillingNote } from "@/shared/lib/billing-display";
 import type { BillingDisplayLabels, BillingDisplayOptions } from "@/shared/lib/billing-display";
 import {
   formatAccountBalance,
@@ -59,6 +59,7 @@ function useBillingTooltipLabels(): BillingTooltipLabels {
         claudeCacheWriteNote: (timeout, multiplier) => t("claudeCacheWriteNote", { timeout, multiplier }),
         claudeFastModeNote: (multiplier) => t("claudeFastModeNote", { multiplier }),
         openaiServiceTierNote: (tier, multiplier) => t("openaiServiceTierNote", { tier, multiplier }),
+        scheduleRateNote: (period: string, multiplier: string) => t("scheduleRateNote", { period, multiplier }),
         cacheWritePricingLabel: t("cacheWritePricingLabel"),
         cacheWritePricingNote: t("cacheWritePricingNote"),
       },
@@ -375,6 +376,7 @@ function buildServiceBillingTooltipLines(item: BillingUsageLedgerDTO, labels: Bi
   const cacheWriteLabel = cacheWriteBillingLabel(snapshot, labels.display);
   const cacheWriteNote = cacheWriteBillingNote(snapshot, labels.display);
   const rateMultiplierNote = billingRateMultiplierNote(snapshot, labels.display);
+  const scheduleNote = billingScheduleNote(snapshot, labels.display);
   const appendCurrentServiceItems = (lines: BillingTooltipLine[]) => {
     const serviceLines = buildServiceItemsSummaryLines(currentServiceItems, labels, billingDisplay);
     if (serviceLines.length === 0) {
@@ -415,9 +417,12 @@ function buildServiceBillingTooltipLines(item: BillingUsageLedgerDTO, labels: Bi
     ];
     if (tieredRows.length > 0) {
       const lines: BillingTooltipLine[] = [];
-      if (rateMultiplierNote || cacheWriteNote) {
+      if (rateMultiplierNote || scheduleNote || cacheWriteNote) {
         if (rateMultiplierNote) {
           lines.push({ type: "row", left: labels.rateNote, right: rateMultiplierNote });
+        }
+        if (scheduleNote) {
+          lines.push({ type: "row", left: labels.rateNote, right: scheduleNote });
         }
         if (cacheWriteNote) {
           lines.push({ type: "row", left: labels.cacheNote, right: cacheWriteNote });
@@ -450,6 +455,9 @@ function buildServiceBillingTooltipLines(item: BillingUsageLedgerDTO, labels: Bi
   const noteLines: BillingTooltipLine[] = [];
   if (rateMultiplierNote) {
     noteLines.push({ type: "row", left: labels.rateNote, right: rateMultiplierNote });
+  }
+  if (scheduleNote) {
+    noteLines.push({ type: "row", left: labels.rateNote, right: scheduleNote });
   }
   if (cacheWriteNote) {
     noteLines.push({ type: "row", left: labels.cacheNote, right: cacheWriteNote });

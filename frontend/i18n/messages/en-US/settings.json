@@ -582,6 +582,7 @@
       "claudeCacheWriteNote": "Claude {timeout} cache write uses configured pricing at {multiplier}.",
       "claudeFastModeNote": "Claude Fast Mode bills input, output, and cache usage at {multiplier}.",
       "openaiServiceTierNote": "OpenAI service_tier={tier} bills at {multiplier}.",
+      "scheduleRateNote": "Time-of-day rate \"{period}\": billed at {multiplier}.",
       "baseService": "Base service",
       "input": "Input",
       "output": "Output",

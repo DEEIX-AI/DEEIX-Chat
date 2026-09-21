@@ -216,6 +216,7 @@ type ModelPricing struct {
 	CallNanousdPerCall          int64  `gorm:"not null;default:0;comment:按次单价(每次,纳美元)"`
 	DurationNanousdPerSecond    int64  `gorm:"not null;default:0;comment:按秒单价(每秒,纳美元)"`
 	TieredPricingJSON           string `gorm:"type:text;not null;default:'{}';comment:阶梯计费配置JSON"`
+	SchedulePricingJSON         string `gorm:"type:text;not null;default:'{}';comment:时段倍率配置JSON"`
 }
 
 // TableName 指定表名。

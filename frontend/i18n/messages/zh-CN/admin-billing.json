@@ -184,7 +184,8 @@
       "model": "不能通过 JSON 修改平台模型名。",
       "mode": "pricingMode 必须是 token、call、duration 或 tiered。",
       "durationVideoOnly": "仅视频生成模型可以使用按秒计费。",
-      "tiered": "阶梯计费需要包含非空 tieredPricing.tiers。"
+      "tiered": "阶梯计费需要包含非空 tieredPricing.tiers。",
+      "schedule": "schedulePricing.periods 无效或存在重叠时段。"
     },
     "officialPricing": "快速配置",
     "officialPricingSingleTitle": "快速配置",
@@ -229,6 +230,36 @@
       "output": "/ 1M 输出",
       "cacheRead": "/ 1M 缓存读",
       "cacheWrite": "/ 1M 缓存写"
+    },
+    "schedule": {
+      "title": "时段倍率",
+      "hint": "按服务器本地时间叠加到基础单价，100 = 原价；结束不晚于开始表示跨午夜。",
+      "add": "添加时段",
+      "name": "名称",
+      "ratePercent": "倍率",
+      "remove": "删除",
+      "invalid": "时段倍率配置有误，请检查标红的时段。",
+      "issues": {
+        "name": "名称不能为空且不超过 32 字",
+        "weekdays": "至少选择一天",
+        "time": "时间格式无效或起止相同",
+        "rate": "倍率需为 1–10000 的整数",
+        "overlap": "与其它时段重叠",
+        "count": "最多 32 个时段"
+      },
+      "weekdays": {
+        "mon": "周一",
+        "tue": "周二",
+        "wed": "周三",
+        "thu": "周四",
+        "fri": "周五",
+        "sat": "周六",
+        "sun": "周日"
+      },
+      "weekdaysLabel": "星期",
+      "start": "开始",
+      "end": "结束",
+      "nextDay": "次日"
     }
   },
   "toolPricing": {
@@ -357,6 +388,7 @@
     "durationVideoOnly": "{model}.pricingMode=duration 需要视频模型能力",
     "invalidNumber": "{model}.{field} 必须是大于等于 0 的数字",
     "invalidTieredPricing": "{model}.{field} 需要包含非空 tiers 数组",
-    "invalidTieredPricingJSON": "{model}.tieredPricingJSON 不是合法 JSON"
+    "invalidTieredPricingJSON": "{model}.tieredPricingJSON 不是合法 JSON",
+    "invalidSchedulePricing": "{model} 的 schedulePricing 无效或存在重叠时段。"
   }
 }

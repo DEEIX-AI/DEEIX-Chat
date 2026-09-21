@@ -316,8 +316,10 @@ type ModelPricing struct {
 	CallNanousdPerCall          int64
 	DurationNanousdPerSecond    int64
 	TieredPricingJSON           string
-	CreatedAt                   time.Time
-	UpdatedAt                   time.Time
+	// SchedulePricingJSON 是时段倍率配置（峰谷计费），与计费模式正交；空或 {} 表示不启用。
+	SchedulePricingJSON string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // UsageLedger 表示用量账本。
@@ -397,8 +399,11 @@ type UsageServiceItem struct {
 	CallBilledNanousd             int64
 	DurationBilledNanousd         int64
 	BilledNanousd                 int64
-	TieredFromTokens              int64
-	TieredUpToTokens              *int64
+	// SchedulePeriodName / ScheduleRatePercent 记录本次命中的时段倍率；未命中为空 / 0。
+	SchedulePeriodName  string
+	ScheduleRatePercent int
+	TieredFromTokens    int64
+	TieredUpToTokens    *int64
 }
 
 // UsageMonthlySummary 表示用户月度用量聚合。

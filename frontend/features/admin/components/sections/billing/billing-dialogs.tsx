@@ -36,6 +36,8 @@ import {
   type PricingFormState,
   type TieredPricingTierForm,
 } from "@/features/admin/model/billing-settings";
+import { normalizeSchedulePeriods, parseSchedulePricing, schedulePeriodsToForm } from "@/shared/model/schedule-pricing";
+import { BillingScheduleEditor } from "./billing-schedule-editor";
 import type { PermissionGroup } from "@/features/admin/api/permission-groups";
 
 type PricingJSONValue = Record<string, unknown>;
@@ -55,6 +57,7 @@ function pricingFormToJSON(form: PricingFormState): string {
     callUSDPerCall: pricingMode === "call" ? parsePrice(form.call) : 0,
     durationUSDPerSecond: pricingMode === "duration" ? parsePrice(form.duration) : 0,
     ...(pricingMode === "tiered" ? { tieredPricing: JSON.parse(stringifyTieredPricing(form.tieredTiers)) as unknown } : {}),
+    ...(form.schedulePeriods.length > 0 ? { schedulePricing: { periods: normalizeSchedulePeriods(form.schedulePeriods).periods } } : {}),
   };
   return JSON.stringify(payload, null, 2);
 }
@@ -76,7 +79,7 @@ function pricingFormFromJSON(
   current: PricingFormState,
   raw: string,
   durationPricingEnabled: boolean,
-  messages: { root: string; model: string; mode: string; durationVideoOnly: string; tiered: string },
+  messages: { root: string; model: string; mode: string; durationVideoOnly: string; tiered: string; schedule: string },
 ): PricingFormState {
   const parsed = JSON.parse(raw) as unknown;
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -116,6 +119,19 @@ function pricingFormFromJSON(
       throw new Error(messages.tiered);
     }
     next.tieredTiers = tiers;
+  }
+  const rawSchedule = payload.schedulePricing ?? payload.schedulePricingJSON;
+  if (rawSchedule === undefined || rawSchedule === null || rawSchedule === "") {
+    next.schedulePeriods = [];
+  } else {
+    const periods = parseSchedulePricing(rawSchedule);
+    if (!periods) {
+      throw new Error(messages.schedule);
+    }
+    next.schedulePeriods = schedulePeriodsToForm(periods);
+    if (normalizeSchedulePeriods(next.schedulePeriods).issues.size > 0) {
+      throw new Error(messages.schedule);
+    }
   }
   return next;
 }
@@ -242,6 +258,7 @@ type PricingBillingDialogProps = {
   onRemoveTier: (index: number) => void;
   onUpdateTier: (index: number, patch: Partial<TieredPricingTierForm>) => void;
   onOpenOfficialPricing: () => void;
+  showScheduleErrors: boolean;
 };
 
 export function PricingBillingDialog({
@@ -257,6 +274,7 @@ export function PricingBillingDialog({
   onRemoveTier,
   onUpdateTier,
   onOpenOfficialPricing,
+  showScheduleErrors,
 }: PricingBillingDialogProps) {
   const t = useTranslations("adminBilling");
   const tActions = useTranslations("common.actions");
@@ -290,6 +308,7 @@ export function PricingBillingDialog({
         mode: t("modelPricing.jsonErrors.mode"),
         durationVideoOnly: t("modelPricing.jsonErrors.durationVideoOnly"),
         tiered: t("modelPricing.jsonErrors.tiered"),
+        schedule: t("modelPricing.jsonErrors.schedule"),
       });
       setJSONError("");
       setForm(nextForm);
@@ -507,6 +526,10 @@ export function PricingBillingDialog({
                     <p className="text-[11px] text-muted-foreground">{t("modelPricing.tierNote")}</p>
                   </div>
                     ) : null}
+
+                    <div className="border-t pt-3">
+                      <BillingScheduleEditor periods={form.schedulePeriods} disabled={saving} showErrors={showScheduleErrors} onChange={(schedulePeriods) => setForm({ ...form, schedulePeriods })} />
+                    </div>
                   </>
                 ) : (
                   <div className="space-y-3">

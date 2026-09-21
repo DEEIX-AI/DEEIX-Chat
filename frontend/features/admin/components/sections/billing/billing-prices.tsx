@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Download, Info, Pencil, RefreshCw, Upload } from "lucide-react";
+import { Clock, Download, Info, Pencil, RefreshCw, Upload } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -38,6 +38,7 @@ import {
   type PricingFormState,
   type TieredPricingTierForm,
 } from "@/features/admin/model/billing-settings";
+import { normalizeSchedulePeriods, parseSchedulePricing, stringifySchedulePricing } from "@/shared/model/schedule-pricing";
 import {
   applyOfficialPricingToForm,
   findOfficialPricingSuggestions,
@@ -144,6 +145,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
   const [pageSize, setPageSize] = React.useState(DEFAULT_PAGE_SIZE);
   const [editRow, setEditRow] = React.useState<BillingModelPricingRow | null>(null);
   const [form, setForm] = React.useState<PricingFormState | null>(null);
+  const [showScheduleErrors, setShowScheduleErrors] = React.useState(false);
   const [officialPricingSearch, setOfficialPricingSearch] = React.useState("");
   const [officialPricingMultiplier, setOfficialPricingMultiplier] = React.useState("1");
   const [officialPricingImportSuggestion, setOfficialPricingImportSuggestion] = React.useState<OfficialModelPricingSuggestion | null>(null);
@@ -231,6 +233,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
   function openEdit(row: BillingModelPricingRow) {
     setEditRow(row);
     setForm(createFormState(row));
+    setShowScheduleErrors(false);
     setOfficialPricingSearch("");
   }
 
@@ -365,6 +368,12 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
   async function savePricing(event?: React.FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     if (!form) return;
+    const schedule = normalizeSchedulePeriods(form.schedulePeriods);
+    if (schedule.issues.size > 0) {
+      setShowScheduleErrors(true);
+      toast.error(t("modelPricing.schedule.invalid"));
+      return;
+    }
     setSaving(true);
     try {
       const token = await resolveAccessToken();
@@ -384,6 +393,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         callUSDPerCall: form.pricingMode === "call" ? parsePrice(form.call) : 0,
         durationUSDPerSecond: form.pricingMode === "duration" ? parsePrice(form.duration) : 0,
         tieredPricingJSON: form.pricingMode === "tiered" ? stringifyTieredPricing(form.tieredTiers) : undefined,
+        schedulePricingJSON: stringifySchedulePricing(schedule.periods),
         isFree: form.isFree,
       };
       const data = await upsertAdminModelPricing(token, payload);
@@ -392,6 +402,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
       toast.success(t("toast.pricingSaved"));
       setEditRow(null);
       setForm(null);
+      setShowScheduleErrors(false);
     } catch (error) {
       toast.error(t("toast.pricingSaveFailed"), { description: resolveAdminErrorMessage(error) });
     } finally {
@@ -435,6 +446,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         invalidNumber: (model, field) => t("importErrors.invalidNumber", { model, field }),
         invalidTieredPricing: (model, field) => t("importErrors.invalidTieredPricing", { model, field }),
         invalidTieredPricingJSON: (model) => t("importErrors.invalidTieredPricingJSON", { model }),
+        invalidSchedulePricing: (model) => t("importErrors.invalidSchedulePricing", { model }),
       });
       if (parsed.unknownModelNames.length > 0) {
         toast.error(t("toast.importUnknownModels"), {
@@ -498,6 +510,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         callUSDPerCall: pricingMode === "call" ? row.pricing?.callUSDPerCall ?? 0 : 0,
         durationUSDPerSecond: pricingMode === "duration" ? row.pricing?.durationUSDPerSecond ?? 0 : 0,
         tieredPricingJSON: pricingMode === "tiered" ? row.pricing?.tieredPricingJSON || stringifyTieredPricing(createFormState(row).tieredTiers) : undefined,
+        schedulePricingJSON: row.pricing?.schedulePricingJSON || undefined,
         isFree: checked,
       };
       setPricingItems((current) => mergeModelPricingItem(current, createOptimisticModelPricing(row, payload)));
@@ -660,7 +673,19 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
                         </div>
                       </TableCell>
                       <TableCell className="py-1.5">
-                        {row.pricing ? t(`pricingModes.${normalizePricingMode(row.pricing.pricingMode)}`) : <span className="text-muted-foreground">-</span>}
+                        {row.pricing ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            {t(`pricingModes.${normalizePricingMode(row.pricing.pricingMode)}`)}
+                            {parseSchedulePricing(row.pricing.schedulePricingJSON)?.length ? (
+                              <span className="inline-flex items-center gap-0.5 rounded-sm bg-muted px-1 text-[10px] text-muted-foreground" title={t("modelPricing.schedule.title")}>
+                                <Clock className="size-3" strokeWidth={1.8} />
+                                {parseSchedulePricing(row.pricing.schedulePricingJSON)?.length}
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell className="py-1.5">
                         <PricingUnitCell pricing={row.pricing} />
@@ -708,12 +733,14 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         open={!!editRow && !!form}
         saving={saving}
         form={stableForm}
+        showScheduleErrors={showScheduleErrors}
         durationPricingEnabled={Boolean(stableEditRow?.supportsVideoGeneration)}
         setForm={setForm}
         onOpenChange={(open) => {
           if (!open && !saving) {
             setEditRow(null);
             setForm(null);
+            setShowScheduleErrors(false);
             setOfficialPricingSearch("");
             setOfficialPricingSingleDialogOpen(false);
           }
@@ -721,6 +748,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         onCancel={() => {
           setEditRow(null);
           setForm(null);
+          setShowScheduleErrors(false);
           setOfficialPricingSearch("");
           setOfficialPricingSingleDialogOpen(false);
         }}
