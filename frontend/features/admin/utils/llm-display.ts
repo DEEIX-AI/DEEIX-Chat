@@ -17,6 +17,7 @@ export const COMPATIBLE_OPTIONS = [
   { label: "Google", value: "google" },
   { label: "xAI", value: "xai" },
   { label: "OpenRouter", value: "openrouter" },
+  { label: "Requesty", value: "requesty" },
   { label: "Custom", value: "custom" },
 ] as const;
 

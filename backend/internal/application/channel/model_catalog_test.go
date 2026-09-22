@@ -85,6 +85,27 @@ func TestProtocolDefaultsForOpenRouterUsesOpenRouterResponsesForConversationKind
 	}
 }
 
+func TestProtocolDefaultsForRequestyUsesOpenAIChatCompletionsForConversationKinds(t *testing.T) {
+	raw := protocolDefaultsForCompatible(compatibleRequesty)
+
+	var defaults map[string]string
+	if err := json.Unmarshal([]byte(raw), &defaults); err != nil {
+		t.Fatalf("unmarshal defaults: %v", err)
+	}
+
+	if defaults[modelKindChat] != "openai_chat_completions" {
+		t.Fatalf("expected Requesty chat default, got %q in %s", defaults[modelKindChat], raw)
+	}
+	if defaults[modelKindAudio] != "openai_chat_completions" {
+		t.Fatalf("expected Requesty audio default, got %q in %s", defaults[modelKindAudio], raw)
+	}
+	for _, kind := range []string{modelKindImageGen, modelKindImageEdit, modelKindVideoGen, modelKindVideoExtension} {
+		if _, ok := defaults[kind]; ok {
+			t.Fatalf("expected Requesty to have no %s default, got %q in %s", kind, defaults[kind], raw)
+		}
+	}
+}
+
 func TestProtocolDefaultsForGoogleUsesGoogleImageGeneration(t *testing.T) {
 	raw := protocolDefaultsForCompatible(compatibleGoogle)
 
@@ -124,7 +145,7 @@ func TestNormalizeProtocolDefaultsJSONAcceptsGeminiInteractionsForVideo(t *testi
 }
 
 func TestNormalizeCompatibleOnlyAllowsSupportedUpstreamProviders(t *testing.T) {
-	for _, raw := range []string{"openai", "anthropic", "google", "xai", "openrouter", "custom"} {
+	for _, raw := range []string{"openai", "anthropic", "google", "xai", "openrouter", "requesty", "custom"} {
 		if got := normalizeCompatible(raw); got != raw {
 			t.Fatalf("normalizeCompatible(%q) = %q", raw, got)
 		}

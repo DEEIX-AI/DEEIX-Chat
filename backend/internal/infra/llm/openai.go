@@ -164,6 +164,9 @@ func (c *Client) generateStreamOpenAICompatible(
 
 // listModelsOpenAICompatible 调用上游 models 目录接口。
 func (c *Client) listModelsOpenAICompatible(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
+	if isRequestyBaseURL(route.BaseURL) {
+		return c.listModelsRequesty(ctx, route)
+	}
 	return c.listModelsFromURL(ctx, route, buildOpenAIModelsURL(route.BaseURL))
 }
 

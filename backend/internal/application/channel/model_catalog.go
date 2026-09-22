@@ -31,6 +31,7 @@ const (
 	compatibleGoogle     = "google"
 	compatibleXAI        = "xai"
 	compatibleOpenRouter = "openrouter"
+	compatibleRequesty   = "requesty"
 	compatibleCustom     = "custom"
 
 	protocolOpenAIImageGenerations = llm.AdapterOpenAIImageGenerations
@@ -64,6 +65,8 @@ func normalizeCompatible(raw string) string {
 		return compatibleXAI
 	case compatibleOpenRouter:
 		return compatibleOpenRouter
+	case compatibleRequesty:
+		return compatibleRequesty
 	case compatibleCustom:
 		return compatibleCustom
 	case "", compatibleOpenAI:
@@ -154,6 +157,12 @@ func systemFallbackProtocols(compatible string) map[string]string {
 			modelKindImageGen:  protocolOpenRouterImages,
 			modelKindImageEdit: protocolOpenRouterImages,
 			modelKindVideoGen:  protocolOpenAIVideoGenerations,
+		}
+	case compatibleRequesty:
+		// Requesty 只发布聊天模型目录，统一走 OpenAI Chat Completions 形状。
+		return map[string]string{
+			modelKindChat:  llm.AdapterOpenAIChatCompletions,
+			modelKindAudio: llm.AdapterOpenAIChatCompletions,
 		}
 	case compatibleCustom:
 		return map[string]string{

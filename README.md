@@ -38,7 +38,7 @@ The system is designed around simple deployment, efficient static delivery, and 
 | --- | --- |
 | Conversations | A multimodal chat interface for daily use, with streaming, branches, retries, edits, feedback, sharing, rich rendering, and traceable model execution metadata. |
 | Models and routing | A platform-model layer for upstream channels, real models, route bindings, priority, weights, circuit breaking, vendor mapping, and capability configuration, reducing the cost of multi-provider operations. |
-| Protocols and adaptation | Unified support for OpenAI, Anthropic, Google/Gemini, xAI, OpenRouter, and OpenAI-compatible protocols across text, image, tools, and provider-native capability differences. |
+| Protocols and adaptation | Unified support for OpenAI, Anthropic, Google/Gemini, xAI, OpenRouter, Requesty, and OpenAI-compatible protocols across text, image, tools, and provider-native capability differences. |
 | Files and retrieval | File upload, preview, extraction, OCR, storage quota, full-context injection, chunking, embeddings, and semantic retrieval so file content can naturally enter the conversation context. |
 | Tool ecosystem | MCP servers and provider-native official tools with discovery, enablement, user selection, execution limits, result rendering, and tool-call traceability. |
 | Context and memory | Message windows, token budgets, summary compression, conversation memory, long-term memory, and RAG evidence records for controlled-cost continuity. |
@@ -78,7 +78,7 @@ flowchart TB
   end
 
   subgraph External["External Capabilities"]
-    Providers["Model Providers<br/>OpenAI / Anthropic / Google / xAI / OpenRouter"]
+    Providers["Model Providers<br/>OpenAI / Anthropic / Google / xAI / OpenRouter / Requesty"]
     Tools["Tool Services<br/>MCP / Provider Native Tools"]
     Extractors["Optional File Processing<br/>Tika / Docling / OCR"]
   end

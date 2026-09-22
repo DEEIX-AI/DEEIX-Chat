@@ -72,6 +72,7 @@ export type AdminLLMCompatible =
   | "google"
   | "xai"
   | "openrouter"
+  | "requesty"
   | "custom";
 export type AdminLLMCbLogic = "or" | "and";
 export type AdminLLMModelCbPolicyMode = "default" | "enforced";

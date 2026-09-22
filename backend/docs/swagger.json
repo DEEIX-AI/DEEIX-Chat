@@ -19354,6 +19354,7 @@
                         "google",
                         "xai",
                         "openrouter",
+                        "requesty",
                         "custom"
                     ]
                 },
@@ -27565,6 +27566,7 @@
                         "google",
                         "xai",
                         "openrouter",
+                        "requesty",
                         "custom"
                     ]
                 },

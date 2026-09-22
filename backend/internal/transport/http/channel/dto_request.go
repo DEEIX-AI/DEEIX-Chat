@@ -9,7 +9,7 @@ type BatchDeleteRequest struct {
 type CreateUpstreamRequest struct {
 	Name                 string `json:"name" binding:"required,min=2,max=128"`
 	BaseURL              string `json:"baseURL" binding:"required,url,max=512"`
-	Compatible           string `json:"compatible,omitempty" binding:"omitempty,oneof=openai anthropic google xai openrouter custom"`
+	Compatible           string `json:"compatible,omitempty" binding:"omitempty,oneof=openai anthropic google xai openrouter requesty custom"`
 	ProtocolDefaultsJSON string `json:"protocolDefaultsJSON,omitempty" binding:"max=10000"`
 	APIKeys              string `json:"apiKeys" binding:"required,min=2,max=10000"`
 	Status               string `json:"status,omitempty" binding:"omitempty,oneof=active inactive"`
@@ -28,7 +28,7 @@ type CreateUpstreamRequest struct {
 type UpdateUpstreamRequest struct {
 	Name                 *string  `json:"name,omitempty" binding:"omitempty,min=2,max=128"`
 	BaseURL              *string  `json:"baseURL,omitempty" binding:"omitempty,url,max=512"`
-	Compatible           *string  `json:"compatible,omitempty" binding:"omitempty,oneof=openai anthropic google xai openrouter custom"`
+	Compatible           *string  `json:"compatible,omitempty" binding:"omitempty,oneof=openai anthropic google xai openrouter requesty custom"`
 	ProtocolDefaultsJSON *string  `json:"protocolDefaultsJSON,omitempty" binding:"omitempty,max=10000"`
 	APIKeys              *string  `json:"apiKeys,omitempty" binding:"omitempty,min=2,max=10000"`
 	AddAPIKeys           *string  `json:"addAPIKeys,omitempty" binding:"omitempty,min=2,max=10000"`

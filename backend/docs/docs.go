@@ -19361,6 +19361,7 @@ const docTemplate = `{
                         "google",
                         "xai",
                         "openrouter",
+                        "requesty",
                         "custom"
                     ]
                 },
@@ -27572,6 +27573,7 @@ const docTemplate = `{
                         "google",
                         "xai",
                         "openrouter",
+                        "requesty",
                         "custom"
                     ]
                 },
