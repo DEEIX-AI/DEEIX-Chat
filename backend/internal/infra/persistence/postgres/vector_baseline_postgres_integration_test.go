@@ -30,6 +30,20 @@ func TestPostgresVectorColumnTypmodRemovalSQLPreservesNativeDimensions(t *testin
 	}
 }
 
+func TestPostgresFormatTypeQueryUsesRegclassOnNile(t *testing.T) {
+	nileQuery := postgresFormatTypeQuery(true)
+	if strings.Contains(nileQuery, "pg_class") || !strings.Contains(nileQuery, "to_regclass(format('%I.%I', current_schema(), ?::text))") {
+		t.Fatalf("Nile column type lookup = %s", nileQuery)
+	}
+	if strings.Contains(postgresFormatTypeQuery(false), "to_regclass") {
+		t.Fatal("ordinary Postgres column lookup changed")
+	}
+	existsQuery := NileEmbeddingColumnExistsSQL()
+	if !strings.Contains(existsQuery, "to_regclass") || !strings.Contains(existsQuery, "attribute.attname = 'embedding'") {
+		t.Fatalf("availability lookup = %s", existsQuery)
+	}
+}
+
 func TestPostgresVectorIndexSQLOmitsConcurrentlyOnNile(t *testing.T) {
 	statement := postgresVectorIndexSQL("public", "file_chunks", "embedding", "idx_file_chunks_embedding", true)
 	if strings.Contains(strings.ToUpper(statement), "CONCURRENTLY") || strings.Contains(statement, "vector_dims(") {
