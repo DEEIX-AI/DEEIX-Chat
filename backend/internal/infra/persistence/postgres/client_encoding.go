@@ -17,10 +17,11 @@ import (
 // postgresTimeZonePattern matches the timezone handling in gorm.io/driver/postgres.
 var postgresTimeZonePattern = regexp.MustCompile(`(time_zone|TimeZone|timezone)=(.*?)($|&| )`)
 
-// openPostgres matches gorm's pgx setup and only rewrites client_encoding when
-// the server reports a UTF-8 spelling other than the exact token "UTF8".
-// Ordinary Postgres already reports "UTF8", so the value is left untouched.
-func openPostgres(dsn string) (gorm.ConnPool, error) {
+// openPostgres matches gorm's pgx setup. Nile reports client_encoding as
+// "UTF-8", which makes pgx reject later simple-protocol queries. Only a Nile
+// host is rewritten, and only when that token is a UTF-8 spelling other than
+// "UTF8". Ordinary Postgres already reports "UTF8" and is left untouched.
+func openPostgres(dsn string, nile bool) (gorm.ConnPool, error) {
 	config, err := pgx.ParseConfig(dsn)
 	if err != nil {
 		return nil, err
@@ -36,7 +37,9 @@ func openPostgres(dsn string) (gorm.ConnPool, error) {
 	}
 
 	return stdlib.OpenDB(*config, stdlib.OptionAfterConnect(func(ctx context.Context, conn *pgx.Conn) error {
-		normalizeReportedClientEncoding(conn)
+		if nile {
+			normalizeReportedClientEncoding(conn)
+		}
 		if timestampLocation == nil {
 			return nil
 		}

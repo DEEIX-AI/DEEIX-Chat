@@ -48,8 +48,8 @@ branding:
 database:
   # Required. PostgreSQL is used for this profile.
   driver: postgres
-  # Optional. Set false when the Postgres gateway rejects COMMENT ON.
-  # Environment variable: SCHEMA_COMMENTS=false
+  # Optional. Set false when a non-Nile Postgres gateway rejects COMMENT ON.
+  # Hosts under thenile.dev skip COMMENT ON on their own.
   schema_comments: true
   postgres:
     # Required when database.driver is postgres.
