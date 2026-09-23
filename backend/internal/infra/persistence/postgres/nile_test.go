@@ -75,3 +75,41 @@ func TestRewriteNileConstraintQueryLeavesOtherCatalogSQL(t *testing.T) {
 		}
 	}
 }
+
+func TestRewriteNileSlowColumnQueries(t *testing.T) {
+	formatSQL := "SELECT a.attname as column_name, format_type(a.atttypid, a.atttypmod) AS data_type FROM pg_attribute a JOIN pg_class b ON a.attrelid = b.oid AND relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = CURRENT_SCHEMA()) WHERE a.attnum > 0 AND NOT a.attisdropped AND b.relname = $1"
+	got, vars, ok := rewriteNileConstraintQuery(formatSQL, []interface{}{"chat_messages"})
+	if !ok {
+		t.Fatal("expected format_type query to be rewritten")
+	}
+	if !strings.Contains(got, "format_type(a.atttypid, a.atttypmod)") || !strings.Contains(got, "format('%I.%I', current_schema(), $1::text)::regclass") || strings.Contains(got, "pg_class b") {
+		t.Fatalf("unexpected format_type query: %s", got)
+	}
+	if len(vars) != 1 || vars[0] != "chat_messages" {
+		t.Fatalf("vars = %#v", vars)
+	}
+
+	columnSQL := "SELECT c.column_name, c.is_nullable = 'YES', c.udt_name, c.character_maximum_length, c.numeric_precision, c.numeric_precision_radix, c.numeric_scale, c.datetime_precision, 8 * typlen, c.column_default, pd.description, c.identity_increment FROM information_schema.columns AS c JOIN pg_type AS pgt ON c.udt_name = pgt.typname where table_catalog = $1 AND table_schema = CURRENT_SCHEMA() AND table_name = $2"
+	got, vars, ok = rewriteNileConstraintQuery(columnSQL, []interface{}{"nile", "identity_users"})
+	if !ok {
+		t.Fatal("expected column metadata query to be rewritten")
+	}
+	for _, piece := range []string{
+		"NOT a.attnotnull",
+		"information_schema._pg_char_max_length(a.atttypid, a.atttypmod)",
+		"8 * t.typlen",
+		"pg_get_expr(ad.adbin, ad.adrelid)",
+		"col_description(a.attrelid, a.attnum)",
+		"NULL::text",
+	} {
+		if !strings.Contains(got, piece) {
+			t.Fatalf("column query missing %s: %s", piece, got)
+		}
+	}
+	if strings.Contains(got, "information_schema.columns") {
+		t.Fatalf("column query still reads the slow view: %s", got)
+	}
+	if len(vars) != 1 || vars[0] != "identity_users" {
+		t.Fatalf("vars = %#v", vars)
+	}
+}
