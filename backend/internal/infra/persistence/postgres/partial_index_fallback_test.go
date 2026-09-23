@@ -6,26 +6,49 @@ import (
 	"testing"
 )
 
-func TestFileObjectActiveContentIndexFallbackOnlyForNileWhereClause(t *testing.T) {
-	statement := `CREATE UNIQUE INDEX IF NOT EXISTS uk_file_objects_active_user_content
-		ON "file_objects" ("user_id", "sha256", "size_bytes")
-		WHERE status = 'active' AND deleted_at IS NULL AND sha256 <> ''`
-	fallback, ok := fileObjectActiveContentIndexFallback(statement, errors.New("ERROR: unsupported element in index WHERE clause (SQLSTATE 0A000)"))
-	if !ok {
-		t.Fatal("expected Nile partial-index rejection to use the expression index")
+func TestPartialUniqueIndexFallbackOnlyForRejectedAndPredicates(t *testing.T) {
+	nileErr := errors.New("ERROR: unsupported element in index WHERE clause (SQLSTATE 0A000)")
+	cases := []struct {
+		name      string
+		statement string
+		want      string
+	}{
+		{
+			name: "active file",
+			statement: `CREATE UNIQUE INDEX IF NOT EXISTS uk_file_objects_active_user_content
+				ON "file_objects" ("user_id", "sha256", "size_bytes")
+				WHERE status = 'active' AND deleted_at IS NULL AND sha256 <> ''`,
+			want: "uk_file_objects_active_user_content",
+		},
+		{
+			name: "billing usage ref",
+			statement: `CREATE UNIQUE INDEX IF NOT EXISTS idx_billing_balance_transactions_usage_ref
+				ON "billing_balance_transactions" ("user_id", "type", "ref_no")
+				WHERE ref_no <> '' AND type IN ('usage_reserve', 'usage_refund')`,
+			want: "idx_billing_balance_transactions_usage_ref",
+		},
 	}
-	if strings.Contains(fallback, " WHERE ") || strings.Contains(fallback, " AND ") {
-		t.Fatalf("fallback still has a partial predicate: %s", fallback)
-	}
-	if !strings.Contains(fallback, "NULLIF") || !strings.Contains(fallback, `"file_objects"`) {
-		t.Fatalf("unexpected fallback: %s", fallback)
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			fallback, indexName, ok := partialUniqueIndexFallback(tt.statement, nileErr)
+			if !ok || indexName != tt.want {
+				t.Fatalf("expected fallback for %s, ok=%v name=%s", tt.want, ok, indexName)
+			}
+			if strings.Contains(fallback, " WHERE ") || strings.Contains(fallback, " AND ") {
+				t.Fatalf("fallback still has a partial predicate: %s", fallback)
+			}
+			if !strings.Contains(fallback, "NULLIF") {
+				t.Fatalf("unexpected fallback: %s", fallback)
+			}
+		})
 	}
 
-	if _, ok = fileObjectActiveContentIndexFallback(statement, errors.New("duplicate key")); ok {
+	statement := cases[0].statement
+	if _, _, ok := partialUniqueIndexFallback(statement, errors.New("duplicate key")); ok {
 		t.Fatal("unrelated index errors must remain fatal")
 	}
 	other := `CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_conversation_projects_public_id ON "chat_conversation_projects" ("public_id") WHERE deleted_at IS NULL`
-	if _, ok = fileObjectActiveContentIndexFallback(other, errors.New("unsupported element in index WHERE clause")); ok {
-		t.Fatal("other indexes must keep their original statements")
+	if _, _, ok := partialUniqueIndexFallback(other, nileErr); ok {
+		t.Fatal("single-predicate indexes must keep their original statements")
 	}
 }
