@@ -421,6 +421,7 @@ Static configuration environment variables:
 | Security | `TURNSTILE_SITEVERIFY_URL` | Cloudflare Turnstile siteverify endpoint. |
 | Database | `DATABASE_DRIVER` | `postgres` or `sqlite`. |
 | PostgreSQL | `POSTGRES_DSN` | PostgreSQL DSN. |
+| PostgreSQL | `SCHEMA_COMMENTS` | Set `false` to skip `COMMENT ON` during migration. Default `true`. Use this for gateways that reject the `COMMENT` command tag. |
 | PostgreSQL | `POSTGRES_MAX_OPEN_CONNS` | Maximum open connections. |
 | PostgreSQL | `POSTGRES_MAX_IDLE_CONNS` | Maximum idle connections. |
 | PostgreSQL | `POSTGRES_CONN_MAX_LIFETIME_MINUTES` | Maximum connection lifetime. |
