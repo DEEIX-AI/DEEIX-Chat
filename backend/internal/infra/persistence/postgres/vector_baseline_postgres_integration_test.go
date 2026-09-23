@@ -32,11 +32,17 @@ func TestPostgresVectorColumnTypmodRemovalSQLPreservesNativeDimensions(t *testin
 
 func TestPostgresVectorIndexSQLOmitsConcurrentlyOnNile(t *testing.T) {
 	statement := postgresVectorIndexSQL("public", "file_chunks", "embedding", "idx_file_chunks_embedding", true)
-	if strings.Contains(strings.ToUpper(statement), "CONCURRENTLY") {
-		t.Fatalf("Nile rejects CONCURRENTLY: %s", statement)
+	if strings.Contains(strings.ToUpper(statement), "CONCURRENTLY") || strings.Contains(statement, "vector_dims(") {
+		t.Fatalf("Nile rejects functions and CONCURRENTLY in the index: %s", statement)
 	}
-	if !strings.HasPrefix(statement, `CREATE INDEX "idx_file_chunks_embedding"`) || !strings.Contains(statement, "USING hnsw") {
-		t.Fatalf("Nile index lost its definition: %s", statement)
+	for _, expected := range []string{
+		`CREATE INDEX "idx_file_chunks_embedding"`,
+		`USING hnsw ("embedding_hnsw" halfvec_cosine_ops)`,
+		`WHERE "embedding_hnsw" IS NOT NULL`,
+	} {
+		if !strings.Contains(statement, expected) {
+			t.Fatalf("Nile index missing %q: %s", expected, statement)
+		}
 	}
 	drop := postgresVectorIndexDropSQL("public", "idx_file_chunks_embedding", true)
 	if drop != `DROP INDEX "public"."idx_file_chunks_embedding"` {
@@ -207,7 +213,7 @@ func TestEnsurePostgresVectorColumnPreservesLegacyVectors(t *testing.T) {
 		WHERE schemaname = current_schema() AND indexname = 'idx_file_chunks_embedding'`).Scan(&indexDefinition).Error; err != nil {
 		t.Fatalf("check replacement index: %v", err)
 	}
-	if !postgresVectorIndexMatches(indexDefinition) {
+	if !postgresVectorIndexMatches(indexDefinition, false) {
 		t.Fatalf("expected legacy IVFFlat index to be replaced by halfvec HNSW, got %q", indexDefinition)
 	}
 }
