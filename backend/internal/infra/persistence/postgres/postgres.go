@@ -107,16 +107,12 @@ func configureConnectionPool(db *gorm.DB, cfg config.Config) error {
 }
 
 func migrate(db *gorm.DB, cfg config.Config, nile bool) error {
-	commentsEnabled := cfg.SchemaCommentsEnabled && !nile
-	if !commentsEnabled {
+	commentsEnabled := !nile
+	if nile {
 		if err := clearSchemaComments(db, schema.Models()); err != nil {
 			return err
 		}
-		if nile {
-			log.Printf("nile: skipping COMMENT ON; the gateway rejects that command tag")
-		} else {
-			log.Printf("schema comments disabled: COMMENT ON statements will be skipped")
-		}
+		log.Printf("nile: skipping COMMENT ON; the gateway rejects that command tag")
 	}
 	if err := applySchemaBaseline(db); err != nil {
 		return err
