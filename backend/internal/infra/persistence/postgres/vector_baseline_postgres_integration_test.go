@@ -30,6 +30,20 @@ func TestPostgresVectorColumnTypmodRemovalSQLPreservesNativeDimensions(t *testin
 	}
 }
 
+func TestPostgresVectorIndexSQLOmitsConcurrentlyOnNile(t *testing.T) {
+	statement := postgresVectorIndexSQL("public", "file_chunks", "embedding", "idx_file_chunks_embedding", true)
+	if strings.Contains(strings.ToUpper(statement), "CONCURRENTLY") {
+		t.Fatalf("Nile rejects CONCURRENTLY: %s", statement)
+	}
+	if !strings.HasPrefix(statement, `CREATE INDEX "idx_file_chunks_embedding"`) || !strings.Contains(statement, "USING hnsw") {
+		t.Fatalf("Nile index lost its definition: %s", statement)
+	}
+	drop := postgresVectorIndexDropSQL("public", "idx_file_chunks_embedding", true)
+	if drop != `DROP INDEX "public"."idx_file_chunks_embedding"` {
+		t.Fatalf("Nile drop = %s", drop)
+	}
+}
+
 func TestPostgresExtensionVersionAtLeast(t *testing.T) {
 	tests := []struct {
 		version string
@@ -56,7 +70,7 @@ func TestPostgresVectorColumnTypmodRemovalSQLDoesNotTruncateVectors(t *testing.T
 }
 
 func TestPostgresVectorIndexSQLUsesHalfVectorCandidates(t *testing.T) {
-	statement := postgresVectorIndexSQL("public", "file_chunks", "embedding", "idx_file_chunks_embedding")
+	statement := postgresVectorIndexSQL("public", "file_chunks", "embedding", "idx_file_chunks_embedding", false)
 	for _, expected := range []string{
 		`CREATE INDEX CONCURRENTLY "idx_file_chunks_embedding"`,
 		`USING hnsw`,
@@ -117,7 +131,7 @@ func TestEnsurePostgresVectorColumnPreservesLegacyVectors(t *testing.T) {
 
 	migrateVectorColumn := func() error {
 		return withPostgresVectorMigrationLock(database, func(connection *gorm.DB) error {
-			return ensurePostgresVectorColumnLocked(connection, "file_chunks", "embedding", "idx_file_chunks_embedding")
+			return ensurePostgresVectorColumnLocked(connection, "file_chunks", "embedding", "idx_file_chunks_embedding", false)
 		})
 	}
 	if err = migrateVectorColumn(); err != nil {
