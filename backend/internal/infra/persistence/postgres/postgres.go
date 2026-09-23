@@ -206,7 +206,7 @@ func migrate(db *gorm.DB, cfg config.Config, nile bool) error {
 	if err := schema.CleanupRemovedColumns(db); err != nil {
 		return err
 	}
-	if err := applyVectorBaseline(db, vectorBaselineRequired(cfg)); err != nil {
+	if err := applyVectorBaseline(db, vectorBaselineRequired(cfg), nile); err != nil {
 		return err
 	}
 	if err := schema.SeedLLMSettings(db); err != nil {
@@ -538,6 +538,26 @@ func applyConversationBaselineIndexes(db *gorm.DB, commentsEnabled bool, nile bo
 	return nil
 }
 
+func ensureVectorExtension(db *gorm.DB, nile bool) error {
+	if !nile {
+		return db.Exec(`CREATE EXTENSION IF NOT EXISTS vector`).Error
+	}
+	// Nile rejects the CREATE EXTENSION command tag. The extension is installed
+	// from the console, so use the catalog instead of sending that statement.
+	var version string
+	if err := db.Raw(`SELECT extversion FROM pg_extension WHERE extname = 'vector'`).Scan(&version).Error; err != nil {
+		return err
+	}
+	return installedVectorExtension(version)
+}
+
+func installedVectorExtension(version string) error {
+	if strings.TrimSpace(version) == "" {
+		return fmt.Errorf("pgvector extension is not installed")
+	}
+	return nil
+}
+
 func vectorBaselineRequired(cfg config.Config) bool {
 	return cfg.EmbeddingEnabled || cfg.RAGEnabled || cfg.MessageEmbeddingEnabled || cfg.SemanticContextEnabled
 }
@@ -545,8 +565,8 @@ func vectorBaselineRequired(cfg config.Config) bool {
 // applyVectorBaseline 确保 pgvector 扩展、原生维度向量列和候选索引存在。
 // PostgreSQL 保留模型输出的原始维度，查询时再补齐到统一比较维度；这既保留历史向量，
 // 也避免升级时重写整张向量表。候选索引使用 4000 维 halfvec，最终按完整向量精排。
-func applyVectorBaseline(db *gorm.DB, required bool) error {
-	if err := db.Exec(`CREATE EXTENSION IF NOT EXISTS vector`).Error; err != nil {
+func applyVectorBaseline(db *gorm.DB, required bool, nile bool) error {
+	if err := ensureVectorExtension(db, nile); err != nil {
 		return handleOptionalVectorBaselineError(required, "create pgvector extension", err)
 	}
 	if err := requirePostgresVectorCapabilities(db); err != nil {
