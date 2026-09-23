@@ -44,9 +44,13 @@ func rewriteNileConstraintQuery(sql string, vars []interface{}) (string, []inter
 	compact := strings.Join(strings.Fields(sql), " ")
 	switch {
 	case isGORMUniqueConstraintNameQuery(compact):
-		return buildNileConstraintQuery(compact, vars, nileUniqueConstraintNamesSQL, true)
+		return buildNileTableQuery(compact, vars, nileUniqueConstraintNamesSQL, true, true)
 	case isGORMConstraintColumnQuery(compact):
-		return buildNileConstraintQuery(compact, vars, nileConstraintColumnsSQL, false)
+		return buildNileTableQuery(compact, vars, nileConstraintColumnsSQL, false, true)
+	case isGORMColumnMetadataQuery(compact):
+		return buildNileTableQuery(compact, vars, nileColumnMetadataSQL, false, true)
+	case isGORMFormatTypeQuery(compact):
+		return buildNileTableQuery(compact, vars, nileFormatTypeSQL, false, false)
 	default:
 		return "", nil, false
 	}
@@ -61,6 +65,18 @@ func isGORMUniqueConstraintNameQuery(compact string) bool {
 func isGORMConstraintColumnQuery(compact string) bool {
 	return strings.Contains(compact, "SELECT c.column_name, constraint_name, constraint_type FROM information_schema.table_constraints") &&
 		strings.Contains(compact, "constraint_column_usage")
+}
+
+func isGORMColumnMetadataQuery(compact string) bool {
+	return strings.Contains(compact, "FROM information_schema.columns") &&
+		strings.Contains(compact, "8 * typlen") &&
+		strings.Contains(compact, "c.identity_increment")
+}
+
+func isGORMFormatTypeQuery(compact string) bool {
+	return strings.Contains(compact, "format_type(a.atttypid, a.atttypmod)") &&
+		strings.Contains(compact, "pg_attribute a JOIN pg_class b") &&
+		strings.Contains(compact, "b.relname")
 }
 
 const nileUniqueConstraintNamesSQL = `
@@ -78,7 +94,37 @@ JOIN pg_attribute AS a ON a.attrelid = con.conrelid AND a.attnum = ANY (con.conk
 WHERE con.conrelid = format('%I.%I', %s, %s)::regclass
   AND con.contype IN ('p', 'u')`
 
-func buildNileConstraintQuery(compact string, vars []interface{}, pattern string, uniqueOnly bool) (string, []interface{}, bool) {
+const nileFormatTypeSQL = `
+SELECT a.attname AS column_name, format_type(a.atttypid, a.atttypmod) AS data_type
+FROM pg_attribute AS a
+WHERE a.attrelid = format('%I.%I', %s, %s)::regclass
+  AND a.attnum > 0
+  AND NOT a.attisdropped`
+
+// nileColumnMetadataSQL returns the same twelve values GORM scans from
+// information_schema.columns. Serial columns keep their nextval() default;
+// identity_increment stays null, which is what that view returns for them.
+const nileColumnMetadataSQL = `
+SELECT a.attname,
+       NOT a.attnotnull,
+       t.typname,
+       information_schema._pg_char_max_length(a.atttypid, a.atttypmod),
+       information_schema._pg_numeric_precision(a.atttypid, a.atttypmod),
+       information_schema._pg_numeric_precision_radix(a.atttypid, a.atttypmod),
+       information_schema._pg_numeric_scale(a.atttypid, a.atttypmod),
+       information_schema._pg_datetime_precision(a.atttypid, a.atttypmod),
+       8 * t.typlen,
+       pg_get_expr(ad.adbin, ad.adrelid),
+       col_description(a.attrelid, a.attnum),
+       NULL::text
+FROM pg_attribute AS a
+JOIN pg_type AS t ON t.oid = a.atttypid
+LEFT JOIN pg_attrdef AS ad ON ad.adrelid = a.attrelid AND ad.adnum = a.attnum
+WHERE a.attrelid = format('%I.%I', %s, %s)::regclass
+  AND a.attnum > 0
+  AND NOT a.attisdropped`
+
+func buildNileTableQuery(compact string, vars []interface{}, pattern string, uniqueOnly bool, leadingCatalog bool) (string, []interface{}, bool) {
 	args := append([]interface{}(nil), vars...)
 	if uniqueOnly && len(args) > 0 {
 		if kind, ok := args[len(args)-1].(string); ok && strings.EqualFold(kind, "UNIQUE") {
@@ -86,15 +132,23 @@ func buildNileConstraintQuery(compact string, vars []interface{}, pattern string
 		}
 	}
 	if strings.Contains(strings.ToUpper(compact), "CURRENT_SCHEMA()") {
-		if len(args) < 2 {
+		index := 0
+		if leadingCatalog {
+			index = 1
+		}
+		if len(args) <= index {
 			return "", nil, false
 		}
-		return sprintfNileSQL(pattern, "current_schema()", "$1::text"), []interface{}{args[1]}, true
+		return sprintfNileSQL(pattern, "current_schema()", "$1::text"), []interface{}{args[index]}, true
 	}
-	if len(args) < 3 {
+	schemaIndex, tableIndex := 0, 1
+	if leadingCatalog {
+		schemaIndex, tableIndex = 1, 2
+	}
+	if len(args) <= tableIndex {
 		return "", nil, false
 	}
-	return sprintfNileSQL(pattern, "$1::text", "$2::text"), []interface{}{args[1], args[2]}, true
+	return sprintfNileSQL(pattern, "$1::text", "$2::text"), []interface{}{args[schemaIndex], args[tableIndex]}, true
 }
 
 func sprintfNileSQL(pattern string, schemaExpr string, tableExpr string) string {
