@@ -16,6 +16,8 @@ const (
 	// IndexDimensions fits pgvector's halfvec HNSW limit while retaining all but
 	// the final 96 components of a maximum-width vector for candidate recall.
 	IndexDimensions = 4000
+	// IndexColumn stores that candidate vector where an index expression is rejected.
+	IndexColumn = "embedding_hnsw"
 )
 
 // CandidateLimit returns a bounded ANN candidate set for exact full-vector reranking.
@@ -68,6 +70,27 @@ func PostgresPaddedLiteral(input []float32) (string, error) {
 		return "", err
 	}
 	return postgresLiteral(aligned), nil
+}
+
+// PostgresIndexLiteral serializes the first IndexDimensions values, padding with
+// zeros when the model vector is shorter. It is the stored form of
+// PostgresIndexExpression for databases that cannot index that expression.
+func PostgresIndexLiteral(input []float32) (string, error) {
+	if len(input) == 0 || len(input) > MaxDimensions {
+		if len(input) > MaxDimensions {
+			return "", fmt.Errorf("embedding dimensions %d exceed supported maximum %d", len(input), MaxDimensions)
+		}
+		return "", fmt.Errorf("embedding is empty")
+	}
+	if len(input) > IndexDimensions {
+		input = input[:IndexDimensions]
+	}
+	if len(input) < IndexDimensions {
+		padded := make([]float32, IndexDimensions)
+		copy(padded, input)
+		input = padded
+	}
+	return postgresLiteral(input), nil
 }
 
 func postgresLiteral(input []float32) string {

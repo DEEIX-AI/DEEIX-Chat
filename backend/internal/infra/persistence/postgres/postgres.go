@@ -671,18 +671,27 @@ func ensurePostgresVectorColumnLocked(db *gorm.DB, table string, column string, 
 		return fmt.Errorf("%s.%s has incompatible type %s", table, column, currentType)
 	}
 
-	indexState, err := inspectPostgresVectorIndex(db, indexName)
-	if err != nil {
-		return err
-	}
-	indexCurrent := indexState.Valid && postgresVectorIndexMatches(indexState.Definition)
-	if currentType == "vector" && indexCurrent {
-		return nil
-	}
 	if currentType != "" {
 		if err := ensurePostgresVectorDimensionsSupported(db, currentSchema, table, column, currentType); err != nil {
 			return err
 		}
+	}
+	indexColumnAdded := false
+	if nile {
+		added, err := ensureNileVectorIndexColumn(db, currentSchema, table)
+		if err != nil {
+			return err
+		}
+		indexColumnAdded = added
+	}
+
+	indexState, err := inspectPostgresVectorIndex(db, indexName)
+	if err != nil {
+		return err
+	}
+	indexCurrent := indexState.Valid && postgresVectorIndexMatches(indexState.Definition, nile)
+	if currentType == "vector" && indexCurrent && !indexColumnAdded {
+		return nil
 	}
 
 	if strings.TrimSpace(indexState.Definition) != "" {
@@ -700,6 +709,11 @@ func ensurePostgresVectorColumnLocked(db *gorm.DB, table string, column string, 
 		}
 	} else if currentType != "vector" {
 		if err := alterPostgresVectorColumnToVariableWidth(db, currentSchema, table, column); err != nil {
+			return err
+		}
+	}
+	if nile {
+		if err := backfillNileVectorIndexColumn(db, currentSchema, table, column); err != nil {
 			return err
 		}
 	}
@@ -759,26 +773,71 @@ func postgresVectorIndexDropSQL(schemaName string, indexName string, nile bool) 
 	return "DROP INDEX CONCURRENTLY " + postgresQualifiedIdentifier(schemaName, indexName)
 }
 
-func postgresVectorIndexMatches(definition string) bool {
+func ensureNileVectorIndexColumn(db *gorm.DB, schemaName string, table string) (bool, error) {
+	var currentType string
+	if err := db.Raw(`
+		SELECT format_type(attribute.atttypid, attribute.atttypmod)
+		FROM pg_attribute AS attribute
+		WHERE attribute.attrelid = format('%I.%I', ?::text, ?::text)::regclass
+		  AND attribute.attname = ?
+		  AND attribute.attnum > 0
+		  AND NOT attribute.attisdropped`, schemaName, table, vectorutil.IndexColumn).Scan(&currentType).Error; err != nil {
+		return false, err
+	}
+	if currentType == fmt.Sprintf("halfvec(%d)", vectorutil.IndexDimensions) {
+		return false, nil
+	}
+	if currentType != "" {
+		return false, fmt.Errorf("%s.%s has incompatible type %s", table, vectorutil.IndexColumn, currentType)
+	}
+	err := db.Exec(fmt.Sprintf(
+		`ALTER TABLE %s ADD COLUMN %s halfvec(%d)`,
+		postgresQualifiedIdentifier(schemaName, table),
+		postgresIdentifier(vectorutil.IndexColumn),
+		vectorutil.IndexDimensions,
+	)).Error
+	return err == nil, err
+}
+
+func backfillNileVectorIndexColumn(db *gorm.DB, schemaName string, table string, column string) error {
+	return db.Exec(fmt.Sprintf(
+		`UPDATE %s SET %s = %s WHERE %s IS NOT NULL AND %s IS NULL`,
+		postgresQualifiedIdentifier(schemaName, table),
+		postgresIdentifier(vectorutil.IndexColumn),
+		vectorutil.PostgresIndexExpression(postgresIdentifier(column)),
+		postgresIdentifier(column),
+		postgresIdentifier(vectorutil.IndexColumn),
+	)).Error
+}
+
+func postgresVectorIndexMatches(definition string, nile bool) bool {
 	normalized := strings.ToLower(strings.Join(strings.Fields(definition), " "))
-	return strings.Contains(normalized, " using hnsw ") &&
-		strings.Contains(normalized, "subvector(") &&
+	if !strings.Contains(normalized, " using hnsw ") || !strings.Contains(normalized, "halfvec_cosine_ops") {
+		return false
+	}
+	if nile {
+		return strings.Contains(normalized, vectorutil.IndexColumn) && !strings.Contains(normalized, "vector_dims(")
+	}
+	return strings.Contains(normalized, "subvector(") &&
 		strings.Contains(normalized, "vector_dims(") &&
-		strings.Contains(normalized, fmt.Sprintf("::halfvec(%d)", vectorutil.IndexDimensions)) &&
-		strings.Contains(normalized, "halfvec_cosine_ops")
+		strings.Contains(normalized, fmt.Sprintf("::halfvec(%d)", vectorutil.IndexDimensions))
 }
 
 func postgresVectorIndexSQL(schemaName string, table string, column string, indexName string, nile bool) string {
-	indexExpression := vectorutil.PostgresIndexExpression(postgresIdentifier(column))
-	concurrently := " CONCURRENTLY"
 	if nile {
-		// Nile rejects the CONCURRENTLY command tag. The index definition is
-		// unchanged; only the blocking form is accepted.
-		concurrently = ""
+		// The gateway rejects every function in an index expression. The same
+		// candidate vector is stored in a halfvec column and indexed directly.
+		return fmt.Sprintf(
+			`CREATE INDEX %s ON %s USING hnsw (%s halfvec_cosine_ops) WHERE %s IS NOT NULL`,
+			postgresIdentifier(indexName),
+			postgresQualifiedIdentifier(schemaName, table),
+			postgresIdentifier(vectorutil.IndexColumn),
+			postgresIdentifier(vectorutil.IndexColumn),
+		)
 	}
+	indexExpression := vectorutil.PostgresIndexExpression(postgresIdentifier(column))
 	return fmt.Sprintf(
-		`CREATE INDEX%s %s ON %s USING hnsw ((%s) halfvec_cosine_ops) WHERE %s IS NOT NULL`,
-		concurrently,
+		`CREATE INDEX CONCURRENTLY %s ON %s USING hnsw ((%s) halfvec_cosine_ops) WHERE %s IS NOT NULL`,
 		postgresIdentifier(indexName),
 		postgresQualifiedIdentifier(schemaName, table),
 		indexExpression,

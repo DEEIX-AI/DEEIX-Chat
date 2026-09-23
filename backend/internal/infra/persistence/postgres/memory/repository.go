@@ -8,6 +8,7 @@ import (
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	persistdb "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/sqlitevec"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/vectorutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -96,7 +97,11 @@ func (r *Repo) clearUserMemoryEmbedding(ctx context.Context, tx *gorm.DB, memory
 	if !r.postgresUserMemoryEmbeddingColumnAvailable(ctx, tx) {
 		return nil
 	}
-	return dberror.Translate(tx.Exec(`UPDATE "user_memories" SET embedding = NULL, embedding_signature = '' WHERE id = ?`, memoryID).Error)
+	query := `UPDATE "user_memories" SET embedding = NULL, embedding_signature = '' WHERE id = ?`
+	if persistdb.StoresVectorIndexColumn(r.db) {
+		query = fmt.Sprintf(`UPDATE "user_memories" SET embedding = NULL, %s = NULL, embedding_signature = '' WHERE id = ?`, vectorutil.IndexColumn)
+	}
+	return dberror.Translate(tx.Exec(query, memoryID).Error)
 }
 
 func (r *Repo) postgresUserMemoryEmbeddingColumnAvailable(ctx context.Context, tx *gorm.DB) bool {
@@ -183,16 +188,25 @@ func (r *Repo) SearchUserMemoriesByEmbedding(ctx context.Context, userID uint, q
 	if err != nil {
 		return nil, err
 	}
+	candidateVec := vec
+	candidateLeft := vectorutil.PostgresIndexExpression("embedding")
+	candidateRight := fmt.Sprintf("subvector(?::vector, 1, %d)::halfvec(%d)", vectorutil.IndexDimensions, vectorutil.IndexDimensions)
+	if persistdb.StoresVectorIndexColumn(r.db) {
+		candidateVec, err = vectorutil.PostgresIndexLiteral(queryEmbedding)
+		if err != nil {
+			return nil, err
+		}
+		candidateLeft = vectorutil.IndexColumn
+		candidateRight = fmt.Sprintf("?::halfvec(%d)", vectorutil.IndexDimensions)
+	}
 	candidateLimit := vectorutil.CandidateLimit(topK)
-	indexExpression := vectorutil.PostgresIndexExpression("embedding")
 	exactExpression := vectorutil.PostgresPaddedExpression("memories.embedding")
 	query := fmt.Sprintf(`
 		WITH vector_candidates AS MATERIALIZED (
 			SELECT id
 			FROM user_memories
 			WHERE user_id = ? AND embedding_signature = ? AND embedding IS NOT NULL
-			ORDER BY %s
-				<=> subvector(?::vector, 1, %d)::halfvec(%d)
+			ORDER BY %s <=> %s
 			LIMIT ?
 		)
 		SELECT memories.id, memories.user_id, memories.memory_key, memories.value, memories.scope, memories.updated_by,
@@ -201,9 +215,8 @@ func (r *Repo) SearchUserMemoriesByEmbedding(ctx context.Context, userID uint, q
 		JOIN vector_candidates AS candidates ON candidates.id = memories.id
 		ORDER BY similarity DESC
 		LIMIT ?`,
-		indexExpression,
-		vectorutil.IndexDimensions,
-		vectorutil.IndexDimensions,
+		candidateLeft,
+		candidateRight,
 		exactExpression,
 		vectorutil.MaxDimensions,
 	)
@@ -212,7 +225,7 @@ func (r *Repo) SearchUserMemoriesByEmbedding(ctx context.Context, userID uint, q
 		if err := vectorutil.ConfigurePostgresCandidateSearch(tx); err != nil {
 			return err
 		}
-		return tx.Raw(query, userID, embeddingSignature, vec, candidateLimit, vec, topK).Scan(&rows).Error
+		return tx.Raw(query, userID, embeddingSignature, candidateVec, candidateLimit, vec, topK).Scan(&rows).Error
 	}); err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -285,6 +298,14 @@ func (r *Repo) UpsertUserMemoryEmbedding(ctx context.Context, userID uint, memor
 	}
 	query := `UPDATE "user_memories" SET embedding = ?::vector, embedding_signature = ? WHERE user_id = ? AND memory_key = ?`
 	args := []any{vec, embeddingSignature, userID, memoryKey}
+	if persistdb.StoresVectorIndexColumn(r.db) {
+		indexVec, indexErr := vectorutil.PostgresIndexLiteral(embedding)
+		if indexErr != nil {
+			return indexErr
+		}
+		query = fmt.Sprintf(`UPDATE "user_memories" SET embedding = ?::vector, %s = ?::halfvec(%d), embedding_signature = ? WHERE user_id = ? AND memory_key = ?`, vectorutil.IndexColumn, vectorutil.IndexDimensions)
+		args = []any{vec, indexVec, embeddingSignature, userID, memoryKey}
+	}
 	if strings.TrimSpace(expectedValue) != "" {
 		query += ` AND value = ?`
 		args = append(args, strings.TrimSpace(expectedValue))
