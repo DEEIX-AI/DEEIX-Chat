@@ -241,10 +241,41 @@ func execStatements(db *gorm.DB, commentsEnabled bool, statements []string) erro
 			continue
 		}
 		if err := db.Exec(statement).Error; err != nil {
-			return err
+			fallback, ok := fileObjectActiveContentIndexFallback(statement, err)
+			if !ok {
+				return err
+			}
+			if err = db.Exec(fallback).Error; err != nil {
+				return err
+			}
+			log.Printf("partial unique index uk_file_objects_active_user_content was rejected; created the equivalent expression index")
 		}
 	}
 	return nil
+}
+
+const fileObjectActiveContentIndexName = "uk_file_objects_active_user_content"
+
+// fileObjectActiveContentIndexFallback keeps the original partial unique index
+// for ordinary Postgres. Nile rejects AND inside an index WHERE clause, so only
+// that error is replaced with an expression that is NULL unless status is
+// active, deleted_at is NULL, and sha256 is non-empty. Unique indexes allow
+// multiple NULLs, which matches the partial index.
+func fileObjectActiveContentIndexFallback(statement string, err error) (string, bool) {
+	if err == nil || !strings.Contains(statement, fileObjectActiveContentIndexName) {
+		return "", false
+	}
+	if !strings.Contains(err.Error(), "unsupported element in index WHERE clause") {
+		return "", false
+	}
+	return `CREATE UNIQUE INDEX IF NOT EXISTS uk_file_objects_active_user_content ON "file_objects" ((
+  NULLIF(
+    (("deleted_at" IS NULL)::int)
+    * NULLIF((("status" = 'active')::int) * (("sha256" <> '')::int), 0),
+    0
+  )::text
+  || '|' || "user_id"::text || '|' || "sha256" || '|' || "size_bytes"::text
+))`, true
 }
 
 func isSchemaCommentSQL(statement string) bool {
