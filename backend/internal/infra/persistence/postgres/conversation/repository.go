@@ -4691,6 +4691,9 @@ func (r *Repo) VectorStoreAvailable(ctx context.Context) (bool, error) {
 				AND NOT attribute.attisdropped
 				AND format_type(attribute.atttypid, attribute.atttypmod) = ?
 		)`
+	if persistdb.StoresVectorIndexColumn(r.db) {
+		columnQuery = persistdb.NileEmbeddingColumnExistsSQL()
+	}
 	indexQuery := `SELECT EXISTS (
 		SELECT 1
 		FROM pg_index AS index_status

@@ -655,16 +655,7 @@ func ensurePostgresVectorColumnLocked(db *gorm.DB, table string, column string, 
 	}
 
 	var currentType string
-	if err := db.Raw(`
-		SELECT format_type(attribute.atttypid, attribute.atttypmod)
-		FROM pg_attribute AS attribute
-		JOIN pg_class AS relation ON relation.oid = attribute.attrelid
-		JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
-		WHERE namespace.nspname = current_schema()
-		  AND relation.relname = ?
-		  AND attribute.attname = ?
-		  AND attribute.attnum > 0
-		  AND NOT attribute.attisdropped`, table, column).Scan(&currentType).Error; err != nil {
+	if err := db.Raw(postgresFormatTypeQuery(nile), table, column).Scan(&currentType).Error; err != nil {
 		return err
 	}
 	if currentType != "" && currentType != "vector" && !strings.HasPrefix(currentType, "vector(") {
@@ -718,6 +709,45 @@ func ensurePostgresVectorColumnLocked(db *gorm.DB, table string, column string, 
 		}
 	}
 	return db.Exec(postgresVectorIndexSQL(currentSchema, table, column, indexName, nile)).Error
+}
+
+func postgresFormatTypeQuery(nile bool) string {
+	if !nile {
+		return `
+		SELECT format_type(attribute.atttypid, attribute.atttypmod)
+		FROM pg_attribute AS attribute
+		JOIN pg_class AS relation ON relation.oid = attribute.attrelid
+		JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+		WHERE namespace.nspname = current_schema()
+		  AND relation.relname = ?
+		  AND attribute.attname = ?
+		  AND attribute.attnum > 0
+		  AND NOT attribute.attisdropped`
+	}
+	// The pg_class join above takes about 1.4s on Nile. to_regclass names the
+	// same column; a missing table yields NULL and scans as no row.
+	return `
+		SELECT format_type(attribute.atttypid, attribute.atttypmod)
+		FROM pg_attribute AS attribute
+		WHERE attribute.attrelid = to_regclass(format('%I.%I', current_schema(), ?::text))
+		  AND attribute.attname = ?
+		  AND attribute.attnum > 0
+		  AND NOT attribute.attisdropped`
+}
+
+// NileEmbeddingColumnExistsSQL is the runtime form of postgresFormatTypeQuery.
+// Arguments are the table name and the expected format_type result.
+func NileEmbeddingColumnExistsSQL() string {
+	return `
+		SELECT EXISTS (
+			SELECT 1
+			FROM pg_attribute AS attribute
+			WHERE attribute.attrelid = to_regclass(format('%I.%I', current_schema(), ?::text))
+			  AND attribute.attname = 'embedding'
+			  AND attribute.attnum > 0
+			  AND NOT attribute.attisdropped
+			  AND format_type(attribute.atttypid, attribute.atttypmod) = ?
+		)`
 }
 
 func inspectPostgresVectorIndex(db *gorm.DB, indexName string) (postgresVectorIndexState, error) {
