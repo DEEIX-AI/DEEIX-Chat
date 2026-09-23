@@ -10,7 +10,6 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/schema"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/vectorutil"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 	gormschema "gorm.io/gorm/schema"
@@ -18,7 +17,11 @@ import (
 
 // New 初始化 PostgreSQL 连接并执行迁移与种子数据。
 func New(cfg config.Config) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(cfg.PostgresDSN), newGORMConfig(cfg))
+	pool, err := openPostgres(cfg.PostgresDSN)
+	if err != nil {
+		return nil, err
+	}
+	db, err := gorm.Open(newPostgresDialector(pool), newGORMConfig(cfg))
 	if err != nil {
 		return nil, err
 	}
