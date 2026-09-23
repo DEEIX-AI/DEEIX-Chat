@@ -241,42 +241,60 @@ func execStatements(db *gorm.DB, commentsEnabled bool, statements []string) erro
 			continue
 		}
 		if err := db.Exec(statement).Error; err != nil {
-			fallback, ok := fileObjectActiveContentIndexFallback(statement, err)
+			fallback, indexName, ok := partialUniqueIndexFallback(statement, err)
 			if !ok {
 				return err
 			}
 			if err = db.Exec(fallback).Error; err != nil {
 				return err
 			}
-			log.Printf("partial unique index uk_file_objects_active_user_content was rejected; created the equivalent expression index")
+			log.Printf("partial unique index %s was rejected; created the equivalent expression index", indexName)
 		}
 	}
 	return nil
 }
 
 const fileObjectActiveContentIndexName = "uk_file_objects_active_user_content"
+const billingUsageRefIndexName = "idx_billing_balance_transactions_usage_ref"
 
-// fileObjectActiveContentIndexFallback keeps the original partial unique index
-// for ordinary Postgres. Nile rejects AND inside an index WHERE clause, so only
-// that error is replaced with an expression that is NULL unless status is
-// active, deleted_at is NULL, and sha256 is non-empty. Unique indexes allow
-// multiple NULLs, which matches the partial index.
-func fileObjectActiveContentIndexFallback(statement string, err error) (string, bool) {
-	if err == nil || !strings.Contains(statement, fileObjectActiveContentIndexName) {
-		return "", false
+// partialUniqueIndexFallback keeps the original partial unique indexes for
+// ordinary Postgres. Nile rejects AND inside an index WHERE clause. Only that
+// error is replaced, and only for indexes whose expression form was checked to
+// allow multiple NULLs outside the predicate and reject duplicates inside it.
+func partialUniqueIndexFallback(statement string, err error) (string, string, bool) {
+	if err == nil || !strings.Contains(err.Error(), "unsupported element in index WHERE clause") {
+		return "", "", false
 	}
-	if !strings.Contains(err.Error(), "unsupported element in index WHERE clause") {
-		return "", false
+	for _, item := range []struct {
+		name string
+		sql  string
+	}{
+		{name: fileObjectActiveContentIndexName, sql: fileObjectActiveContentExpressionIndex},
+		{name: billingUsageRefIndexName, sql: billingUsageRefExpressionIndex},
+	} {
+		if strings.Contains(statement, item.name) {
+			return item.sql, item.name, true
+		}
 	}
-	return `CREATE UNIQUE INDEX IF NOT EXISTS uk_file_objects_active_user_content ON "file_objects" ((
+	return "", "", false
+}
+
+const fileObjectActiveContentExpressionIndex = `CREATE UNIQUE INDEX IF NOT EXISTS uk_file_objects_active_user_content ON "file_objects" ((
   NULLIF(
     (("deleted_at" IS NULL)::int)
     * NULLIF((("status" = 'active')::int) * (("sha256" <> '')::int), 0),
     0
   )::text
   || '|' || "user_id"::text || '|' || "sha256" || '|' || "size_bytes"::text
-))`, true
-}
+))`
+
+const billingUsageRefExpressionIndex = `CREATE UNIQUE INDEX IF NOT EXISTS idx_billing_balance_transactions_usage_ref ON "billing_balance_transactions" ((
+  NULLIF(
+    (("ref_no" <> '')::int) * (("type" IN ('usage_reserve', 'usage_refund'))::int),
+    0
+  )::text
+  || '|' || "user_id"::text || '|' || "type" || '|' || "ref_no"
+))`
 
 func isSchemaCommentSQL(statement string) bool {
 	return strings.HasPrefix(strings.ToUpper(strings.TrimSpace(statement)), "COMMENT ")
