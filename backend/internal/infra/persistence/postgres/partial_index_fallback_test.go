@@ -1,13 +1,11 @@
 package db
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
 
-func TestPartialUniqueIndexFallbackOnlyForRejectedAndPredicates(t *testing.T) {
-	nileErr := errors.New("ERROR: unsupported element in index WHERE clause (SQLSTATE 0A000)")
+func TestNilePartialUniqueIndexOnlyForAndPredicates(t *testing.T) {
 	cases := []struct {
 		name      string
 		statement string
@@ -30,25 +28,25 @@ func TestPartialUniqueIndexFallbackOnlyForRejectedAndPredicates(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			fallback, indexName, ok := partialUniqueIndexFallback(tt.statement, nileErr)
+			fallback, indexName, ok := nilePartialUniqueIndex(tt.statement)
 			if !ok || indexName != tt.want {
-				t.Fatalf("expected fallback for %s, ok=%v name=%s", tt.want, ok, indexName)
+				t.Fatalf("expected Nile form for %s, ok=%v name=%s", tt.want, ok, indexName)
 			}
-			if strings.Contains(fallback, " WHERE ") || strings.Contains(fallback, " AND ") {
-				t.Fatalf("fallback still has a partial predicate: %s", fallback)
+			if strings.Contains(fallback, " WHERE ") || strings.Contains(strings.ToUpper(fallback), " AND ") {
+				t.Fatalf("Nile form still has a partial predicate: %s", fallback)
 			}
-			if !strings.Contains(fallback, "NULLIF") {
-				t.Fatalf("unexpected fallback: %s", fallback)
+			if !strings.Contains(fallback, "NULLIF") || !strings.Contains(fallback, tt.want) {
+				t.Fatalf("unexpected Nile form: %s", fallback)
 			}
 		})
 	}
 
-	statement := cases[0].statement
-	if _, _, ok := partialUniqueIndexFallback(statement, errors.New("duplicate key")); ok {
-		t.Fatal("unrelated index errors must remain fatal")
-	}
 	other := `CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_conversation_projects_public_id ON "chat_conversation_projects" ("public_id") WHERE deleted_at IS NULL`
-	if _, _, ok := partialUniqueIndexFallback(other, nileErr); ok {
+	if _, _, ok := nilePartialUniqueIndex(other); ok {
 		t.Fatal("single-predicate indexes must keep their original statements")
+	}
+	plain := `CREATE INDEX IF NOT EXISTS idx_identity_sessions_refresh_rotated_at ON "identity_sessions" ("refresh_rotated_at")`
+	if _, _, ok := nilePartialUniqueIndex(plain); ok {
+		t.Fatal("indexes without AND must keep their original statements")
 	}
 }
