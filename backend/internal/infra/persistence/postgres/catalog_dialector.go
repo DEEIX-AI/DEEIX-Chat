@@ -1,26 +1,22 @@
 package db
 
 import (
-	"sync"
-
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/migrator"
 )
 
-// catalogDialector keeps GORM's PostgreSQL migrator. CurrentDatabase stays on
-// current_database() unless that name disagrees with current_catalog and
-// information_schema is using the latter, which is what Nile does.
+// catalogDialector keeps GORM's PostgreSQL migrator. On Nile, information_schema
+// filters by the catalog name "nile", not current_database(). Ordinary Postgres
+// is unchanged.
 type catalogDialector struct {
 	*postgres.Dialector
-	once       sync.Once
-	catalog    string
-	useCatalog bool
+	nile bool
 }
 
-func newPostgresDialector(pool gorm.ConnPool) gorm.Dialector {
+func newPostgresDialector(pool gorm.ConnPool, nile bool) gorm.Dialector {
 	base := postgres.New(postgres.Config{Conn: pool}).(*postgres.Dialector)
-	return &catalogDialector{Dialector: base}
+	return &catalogDialector{Dialector: base, nile: nile}
 }
 
 func (d *catalogDialector) Migrator(db *gorm.DB) gorm.Migrator {
@@ -36,37 +32,8 @@ type catalogMigrator struct {
 }
 
 func (m catalogMigrator) CurrentDatabase() (name string) {
-	if d, ok := m.Dialector.(*catalogDialector); ok {
-		d.once.Do(func() {
-			d.catalog, d.useCatalog = divergentInformationSchemaCatalog(m.DB)
-		})
-		if d.useCatalog {
-			return d.catalog
-		}
+	if d, ok := m.Dialector.(*catalogDialector); ok && d.nile {
+		return nileInformationSchemaCatalog
 	}
 	return m.Migrator.CurrentDatabase()
-}
-
-func divergentInformationSchemaCatalog(db *gorm.DB) (string, bool) {
-	var databaseName, catalogName string
-	var informationSchemaUsesCatalog bool
-	err := db.Raw(`
-		SELECT current_database(), current_catalog,
-		       EXISTS (
-		           SELECT 1 FROM information_schema.tables
-		           WHERE table_catalog = current_catalog
-		             AND table_catalog <> current_database()
-		       )
-	`).Row().Scan(&databaseName, &catalogName, &informationSchemaUsesCatalog)
-	if err != nil {
-		return "", false
-	}
-	return informationSchemaCatalog(databaseName, catalogName, informationSchemaUsesCatalog)
-}
-
-func informationSchemaCatalog(databaseName string, catalogName string, informationSchemaUsesCatalog bool) (string, bool) {
-	if databaseName == "" || catalogName == "" || catalogName == databaseName || !informationSchemaUsesCatalog {
-		return "", false
-	}
-	return catalogName, true
 }
