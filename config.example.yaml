@@ -48,6 +48,9 @@ branding:
 database:
   # Required. PostgreSQL is used for this profile.
   driver: postgres
+  # Optional. Set false when the Postgres gateway rejects COMMENT ON.
+  # Environment variable: SCHEMA_COMMENTS=false
+  schema_comments: true
   postgres:
     # Required when database.driver is postgres.
     dsn: "postgres://deeix_chat:deeix_chat_dev_2026@127.0.0.1:5432/deeix_chat?sslmode=disable&TimeZone=Asia/Shanghai"
