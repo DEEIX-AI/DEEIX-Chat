@@ -411,7 +411,6 @@ docker compose logs app
 | 安全 | `TURNSTILE_SITEVERIFY_URL` | Cloudflare Turnstile siteverify 端点。 |
 | 数据库 | `DATABASE_DRIVER` | `postgres` 或 `sqlite`。 |
 | PostgreSQL | `POSTGRES_DSN` | PostgreSQL DSN。 |
-| PostgreSQL | `SCHEMA_COMMENTS` | 设为 `false` 时，迁移跳过 `COMMENT ON`。默认 `true`。Nile 地址（`*.thenile.dev`）会自动跳过。 |
 | PostgreSQL | `POSTGRES_MAX_OPEN_CONNS` | 最大打开连接数。 |
 | PostgreSQL | `POSTGRES_MAX_IDLE_CONNS` | 最大空闲连接数。 |
 | PostgreSQL | `POSTGRES_CONN_MAX_LIFETIME_MINUTES` | 连接最长生命周期。 |

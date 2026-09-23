@@ -274,9 +274,8 @@ type yamlConfig struct {
 		TurnstileSiteverifyURL string `yaml:"turnstile_siteverify_url"`
 	} `yaml:"security"`
 	Database struct {
-		Driver         string `yaml:"driver"`
-		SchemaComments *bool  `yaml:"schema_comments"`
-		Postgres       struct {
+		Driver   string `yaml:"driver"`
+		Postgres struct {
 			DSN                string `yaml:"dsn"`
 			MaxOpenConns       int    `yaml:"max_open_conns"`
 			MaxIdleConns       int    `yaml:"max_idle_conns"`
@@ -376,7 +375,6 @@ type Config struct {
 	SSRFAllowedCIDRs             string
 	DatabaseDriver               string
 	PostgresDSN                  string
-	SchemaCommentsEnabled        bool
 	PostgresMaxOpenConns         int
 	PostgresMaxIdleConns         int
 	PostgresConnMaxLifetimeMin   int
@@ -622,7 +620,6 @@ func Load() Config {
 		SSRFAllowedCIDRs:             envOr("SSRF_ALLOWED_CIDRS", yc.Security.SSRFAllowedCIDRs, ""),
 		DatabaseDriver:               normalizeDatabaseDriver(envOr("DATABASE_DRIVER", yc.Database.Driver, "postgres")),
 		PostgresDSN:                  normalizePostgresDSN(envOr("POSTGRES_DSN", yc.Database.Postgres.DSN, "host=127.0.0.1 user=deeix_chat password=deeix_chat_dev_2026 dbname=deeix_chat port=5432 sslmode=disable TimeZone=Asia/Shanghai")),
-		SchemaCommentsEnabled:        envOrBoolPtr("SCHEMA_COMMENTS", yc.Database.SchemaComments, true),
 		PostgresMaxOpenConns:         envOrInt("POSTGRES_MAX_OPEN_CONNS", yc.Database.Postgres.MaxOpenConns, 30),
 		PostgresMaxIdleConns:         envOrInt("POSTGRES_MAX_IDLE_CONNS", yc.Database.Postgres.MaxIdleConns, 10),
 		PostgresConnMaxLifetimeMin:   envOrInt("POSTGRES_CONN_MAX_LIFETIME_MINUTES", yc.Database.Postgres.ConnMaxLifetimeMin, 60),
