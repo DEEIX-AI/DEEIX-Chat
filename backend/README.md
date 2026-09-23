@@ -139,7 +139,6 @@ cp deploy/config.sqlite.example.yaml config.yaml
 - `JWT_SECRET`：JWT 签名密钥
 - `MCP_USER_CONTEXT_SECRET`：MCP 用户上下文签名密钥；启用 `${DEEIX_SIGNED_USER_CONTEXT}` 时必须配置，并应与外部 MCP 网关共享
 - `POSTGRES_DSN`：PostgreSQL DSN
-- `SCHEMA_COMMENTS`：是否在迁移时执行 `COMMENT ON`。默认开启；设为 `false` 后跳过表和字段注释。Nile 地址（`*.thenile.dev`）会自动跳过
 - `REDIS_ADDR` / `REDIS_USERNAME` / `REDIS_PASSWORD` / `REDIS_DB` / `REDIS_TLS_ENABLED` / `REDIS_TLS_INSECURE_SKIP_VERIFY`：Redis 连接配置；`REDIS_TLS_INSECURE_SKIP_VERIFY` 会跳过证书校验，除非非标准 TLS 端点要求，否则保持关闭
 - `STORAGE_BACKEND`：`local` 或 `s3`
 - `GEOIP_PROVIDER`：`ipwhois`、`ipinfo`、`mmdb` 或 `none`
