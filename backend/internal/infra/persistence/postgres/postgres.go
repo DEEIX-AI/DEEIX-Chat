@@ -590,7 +590,7 @@ func applyVectorBaseline(db *gorm.DB, required bool, nile bool) error {
 
 	err := withPostgresVectorMigrationLock(db, func(connection *gorm.DB) error {
 		for _, spec := range specs {
-			if err := ensurePostgresVectorColumnLocked(connection, spec.table, spec.column, spec.indexName); err != nil {
+			if err := ensurePostgresVectorColumnLocked(connection, spec.table, spec.column, spec.indexName, nile); err != nil {
 				return fmt.Errorf("migrate %s vector storage: %w", spec.table, err)
 			}
 		}
@@ -645,7 +645,7 @@ type postgresVectorIndexState struct {
 	Valid      bool   `gorm:"column:valid"`
 }
 
-func ensurePostgresVectorColumnLocked(db *gorm.DB, table string, column string, indexName string) error {
+func ensurePostgresVectorColumnLocked(db *gorm.DB, table string, column string, indexName string, nile bool) error {
 	var currentSchema string
 	if err := db.Raw(`SELECT current_schema()`).Scan(&currentSchema).Error; err != nil {
 		return err
@@ -686,7 +686,7 @@ func ensurePostgresVectorColumnLocked(db *gorm.DB, table string, column string, 
 	}
 
 	if strings.TrimSpace(indexState.Definition) != "" {
-		if err := db.Exec("DROP INDEX CONCURRENTLY " + postgresQualifiedIdentifier(currentSchema, indexName)).Error; err != nil {
+		if err := db.Exec(postgresVectorIndexDropSQL(currentSchema, indexName, nile)).Error; err != nil {
 			return err
 		}
 	}
@@ -703,7 +703,7 @@ func ensurePostgresVectorColumnLocked(db *gorm.DB, table string, column string, 
 			return err
 		}
 	}
-	return db.Exec(postgresVectorIndexSQL(currentSchema, table, column, indexName)).Error
+	return db.Exec(postgresVectorIndexSQL(currentSchema, table, column, indexName, nile)).Error
 }
 
 func inspectPostgresVectorIndex(db *gorm.DB, indexName string) (postgresVectorIndexState, error) {
@@ -752,6 +752,13 @@ func alterPostgresVectorColumnToVariableWidth(db *gorm.DB, schemaName string, ta
 	return resetErr
 }
 
+func postgresVectorIndexDropSQL(schemaName string, indexName string, nile bool) string {
+	if nile {
+		return "DROP INDEX " + postgresQualifiedIdentifier(schemaName, indexName)
+	}
+	return "DROP INDEX CONCURRENTLY " + postgresQualifiedIdentifier(schemaName, indexName)
+}
+
 func postgresVectorIndexMatches(definition string) bool {
 	normalized := strings.ToLower(strings.Join(strings.Fields(definition), " "))
 	return strings.Contains(normalized, " using hnsw ") &&
@@ -761,10 +768,17 @@ func postgresVectorIndexMatches(definition string) bool {
 		strings.Contains(normalized, "halfvec_cosine_ops")
 }
 
-func postgresVectorIndexSQL(schemaName string, table string, column string, indexName string) string {
+func postgresVectorIndexSQL(schemaName string, table string, column string, indexName string, nile bool) string {
 	indexExpression := vectorutil.PostgresIndexExpression(postgresIdentifier(column))
+	concurrently := " CONCURRENTLY"
+	if nile {
+		// Nile rejects the CONCURRENTLY command tag. The index definition is
+		// unchanged; only the blocking form is accepted.
+		concurrently = ""
+	}
 	return fmt.Sprintf(
-		`CREATE INDEX CONCURRENTLY %s ON %s USING hnsw ((%s) halfvec_cosine_ops) WHERE %s IS NOT NULL`,
+		`CREATE INDEX%s %s ON %s USING hnsw ((%s) halfvec_cosine_ops) WHERE %s IS NOT NULL`,
+		concurrently,
 		postgresIdentifier(indexName),
 		postgresQualifiedIdentifier(schemaName, table),
 		indexExpression,
