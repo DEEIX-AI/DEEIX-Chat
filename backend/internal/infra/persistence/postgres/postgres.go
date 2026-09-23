@@ -13,6 +13,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
+	gormschema "gorm.io/gorm/schema"
 )
 
 // New 初始化 PostgreSQL 连接并执行迁移与种子数据。
@@ -99,6 +100,12 @@ func configureConnectionPool(db *gorm.DB, cfg config.Config) error {
 }
 
 func migrate(db *gorm.DB, cfg config.Config) error {
+	if !cfg.SchemaCommentsEnabled {
+		if err := clearSchemaComments(db, schema.Models()); err != nil {
+			return err
+		}
+		log.Printf("schema comments disabled: COMMENT ON statements will be skipped")
+	}
 	if err := applySchemaBaseline(db); err != nil {
 		return err
 	}
@@ -158,32 +165,34 @@ func migrate(db *gorm.DB, cfg config.Config) error {
 	tableComments["chat_conversation_project_mcp_tools"] = "项目默认 MCP 工具关联表"
 	tableComments["chat_conversation_project_skills"] = "项目默认 Skill 关联表"
 
-	for table, comment := range tableComments {
-		statement := fmt.Sprintf(`COMMENT ON TABLE "%s" IS '%s'`, table, escapeSQLLiteral(comment))
-		if err := db.Exec(statement).Error; err != nil {
-			return err
+	if cfg.SchemaCommentsEnabled {
+		for table, comment := range tableComments {
+			statement := fmt.Sprintf(`COMMENT ON TABLE "%s" IS '%s'`, table, escapeSQLLiteral(comment))
+			if err := db.Exec(statement).Error; err != nil {
+				return err
+			}
 		}
 	}
 
-	if err := applyIdentityBaselineConstraints(db); err != nil {
+	if err := applyIdentityBaselineConstraints(db, cfg.SchemaCommentsEnabled); err != nil {
 		return err
 	}
-	if err := applyIdentitySessionBaseline(db); err != nil {
+	if err := applyIdentitySessionBaseline(db, cfg.SchemaCommentsEnabled); err != nil {
 		return err
 	}
-	if err := applyIdentityProviderBaseline(db); err != nil {
+	if err := applyIdentityProviderBaseline(db, cfg.SchemaCommentsEnabled); err != nil {
 		return err
 	}
-	if err := applyConversationBaselineIndexes(db); err != nil {
+	if err := applyConversationBaselineIndexes(db, cfg.SchemaCommentsEnabled); err != nil {
 		return err
 	}
-	if err := applyLLMBaselineIndexes(db); err != nil {
+	if err := applyLLMBaselineIndexes(db, cfg.SchemaCommentsEnabled); err != nil {
 		return err
 	}
-	if err := applyBillingBaselineIndexes(db); err != nil {
+	if err := applyBillingBaselineIndexes(db, cfg.SchemaCommentsEnabled); err != nil {
 		return err
 	}
-	if err := applyAnnouncementBaseline(db); err != nil {
+	if err := applyAnnouncementBaseline(db, cfg.SchemaCommentsEnabled); err != nil {
 		return err
 	}
 	if err := schema.CleanupRemovedColumns(db); err != nil {
@@ -203,11 +212,47 @@ func applySchemaBaseline(db *gorm.DB) error {
 	return schema.Migrate(db)
 }
 
+func clearSchemaComments(db *gorm.DB, models []any) error {
+	for _, model := range models {
+		stmt := &gorm.Statement{DB: db}
+		if err := stmt.Parse(model); err != nil {
+			return err
+		}
+		stripSchemaComments(stmt.Schema)
+	}
+	return nil
+}
+
+func stripSchemaComments(parsed *gormschema.Schema) {
+	if parsed == nil {
+		return
+	}
+	for _, field := range parsed.Fields {
+		field.Comment = ""
+	}
+}
+
+func execStatements(db *gorm.DB, commentsEnabled bool, statements []string) error {
+	for _, statement := range statements {
+		if !commentsEnabled && isSchemaCommentSQL(statement) {
+			continue
+		}
+		if err := db.Exec(statement).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func isSchemaCommentSQL(statement string) bool {
+	return strings.HasPrefix(strings.ToUpper(strings.TrimSpace(statement)), "COMMENT ")
+}
+
 func escapeSQLLiteral(input string) string {
 	return strings.ReplaceAll(input, "'", "''")
 }
 
-func applyLLMBaselineIndexes(db *gorm.DB) error {
+func applyLLMBaselineIndexes(db *gorm.DB, commentsEnabled bool) error {
 	statements := []string{
 		`ALTER TABLE "llm_upstreams"
 		ADD COLUMN IF NOT EXISTS "protocol_defaults_json" text NOT NULL DEFAULT '{}'`,
@@ -234,15 +279,13 @@ func applyLLMBaselineIndexes(db *gorm.DB) error {
 			WHERE status = 'active'`,
 	}
 
-	for _, statement := range statements {
-		if err := db.Exec(statement).Error; err != nil {
-			return err
-		}
+	if err := execStatements(db, commentsEnabled, statements); err != nil {
+		return err
 	}
 	return nil
 }
 
-func applyBillingBaselineIndexes(db *gorm.DB) error {
+func applyBillingBaselineIndexes(db *gorm.DB, commentsEnabled bool) error {
 	statements := []string{
 		`ALTER TABLE "billing_usage_ledgers"
 		ADD COLUMN IF NOT EXISTS "billing_at" timestamptz`,
@@ -275,15 +318,13 @@ func applyBillingBaselineIndexes(db *gorm.DB) error {
 		ON "billing_redemptions" ("code_id", "user_id", "created_at")`,
 	}
 
-	for _, statement := range statements {
-		if err := db.Exec(statement).Error; err != nil {
-			return err
-		}
+	if err := execStatements(db, commentsEnabled, statements); err != nil {
+		return err
 	}
 	return nil
 }
 
-func applyAnnouncementBaseline(db *gorm.DB) error {
+func applyAnnouncementBaseline(db *gorm.DB, commentsEnabled bool) error {
 	statements := []string{
 		`ALTER TABLE "system_announcements"
 		ADD COLUMN IF NOT EXISTS "type" varchar(32) NOT NULL DEFAULT 'general'`,
@@ -306,15 +347,13 @@ func applyAnnouncementBaseline(db *gorm.DB) error {
 		WHERE "closed_at" IS NOT NULL`,
 	}
 
-	for _, statement := range statements {
-		if err := db.Exec(statement).Error; err != nil {
-			return err
-		}
+	if err := execStatements(db, commentsEnabled, statements); err != nil {
+		return err
 	}
 	return nil
 }
 
-func applyIdentityBaselineConstraints(db *gorm.DB) error {
+func applyIdentityBaselineConstraints(db *gorm.DB, commentsEnabled bool) error {
 	statements := []string{
 		`ALTER TABLE "identity_users"
 		ADD COLUMN IF NOT EXISTS "appearance_preferences" text NOT NULL DEFAULT ''`,
@@ -324,15 +363,13 @@ func applyIdentityBaselineConstraints(db *gorm.DB) error {
 		WHERE "avatar_url" LIKE 'file:%'`,
 		`DROP INDEX IF EXISTS uk_identity_users_single_superadmin`,
 	}
-	for _, statement := range statements {
-		if err := db.Exec(statement).Error; err != nil {
-			return err
-		}
+	if err := execStatements(db, commentsEnabled, statements); err != nil {
+		return err
 	}
 	return nil
 }
 
-func applyIdentitySessionBaseline(db *gorm.DB) error {
+func applyIdentitySessionBaseline(db *gorm.DB, commentsEnabled bool) error {
 	statements := []string{
 		`ALTER TABLE "identity_sessions"
 		ADD COLUMN IF NOT EXISTS "previous_refresh_token_hash" varchar(255) NOT NULL DEFAULT ''`,
@@ -344,30 +381,26 @@ func applyIdentitySessionBaseline(db *gorm.DB) error {
 		ON "identity_sessions" ("refresh_rotated_at")`,
 	}
 
-	for _, statement := range statements {
-		if err := db.Exec(statement).Error; err != nil {
-			return err
-		}
+	if err := execStatements(db, commentsEnabled, statements); err != nil {
+		return err
 	}
 	return nil
 }
 
-func applyIdentityProviderBaseline(db *gorm.DB) error {
+func applyIdentityProviderBaseline(db *gorm.DB, commentsEnabled bool) error {
 	statements := []string{
 		`ALTER TABLE "identity_providers"
 		ADD COLUMN IF NOT EXISTS "email_verified_field" varchar(64) NOT NULL DEFAULT 'email_verified'`,
 		`COMMENT ON COLUMN "identity_providers"."email_verified_field" IS '邮箱验证状态字段'`,
 	}
 
-	for _, statement := range statements {
-		if err := db.Exec(statement).Error; err != nil {
-			return err
-		}
+	if err := execStatements(db, commentsEnabled, statements); err != nil {
+		return err
 	}
 	return nil
 }
 
-func applyConversationBaselineIndexes(db *gorm.DB) error {
+func applyConversationBaselineIndexes(db *gorm.DB, commentsEnabled bool) error {
 	statements := []string{
 		`ALTER TABLE "chat_conversations"
 		ADD COLUMN IF NOT EXISTS "project_id" bigint`,
@@ -438,10 +471,8 @@ func applyConversationBaselineIndexes(db *gorm.DB) error {
 		WHERE status = 'active' AND deleted_at IS NULL AND sha256 <> ''`,
 	}
 
-	for _, statement := range statements {
-		if err := db.Exec(statement).Error; err != nil {
-			return err
-		}
+	if err := execStatements(db, commentsEnabled, statements); err != nil {
+		return err
 	}
 
 	return nil
