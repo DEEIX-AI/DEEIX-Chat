@@ -1,6 +1,10 @@
 package db
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/jackc/pgx/v5"
+)
 
 func TestCanonicalClientEncoding(t *testing.T) {
 	tests := []struct {
@@ -17,5 +21,19 @@ func TestCanonicalClientEncoding(t *testing.T) {
 		if got := canonicalClientEncoding(tt.in); got != tt.want {
 			t.Fatalf("canonicalClientEncoding(%q) = %q, want %q", tt.in, got, tt.want)
 		}
+	}
+}
+
+func TestConfigureNileSessionUsesSimpleProtocol(t *testing.T) {
+	cfg, err := pgx.ParseConfig("postgres://user:secret@127.0.0.1:5432/deeix")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DefaultQueryExecMode == pgx.QueryExecModeSimpleProtocol {
+		t.Fatal("ordinary postgres must not start in the simple protocol")
+	}
+	configureNileSession(cfg)
+	if cfg.DefaultQueryExecMode != pgx.QueryExecModeSimpleProtocol {
+		t.Fatalf("Nile query mode = %v", cfg.DefaultQueryExecMode)
 	}
 }

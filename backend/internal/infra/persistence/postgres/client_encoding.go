@@ -27,6 +27,10 @@ func openPostgres(dsn string, nile bool) (gorm.ConnPool, error) {
 		return nil, err
 	}
 
+	if nile {
+		configureNileSession(config)
+	}
+
 	var timestampLocation *time.Location
 	if match := postgresTimeZonePattern.FindStringSubmatch(dsn); len(match) > 2 {
 		config.RuntimeParams["timezone"] = match[2]
@@ -50,6 +54,13 @@ func openPostgres(dsn string, nile bool) (gorm.ConnPool, error) {
 		})
 		return nil
 	})), nil
+}
+
+// configureNileSession makes parameterized queries use the simple protocol.
+// Nile's extended protocol delivers a bound empty string as NULL, so a NOT NULL
+// text column rejects it. Inlining the value keeps the empty string.
+func configureNileSession(config *pgx.ConnConfig) {
+	config.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 }
 
 func normalizeReportedClientEncoding(conn *pgx.Conn) {
