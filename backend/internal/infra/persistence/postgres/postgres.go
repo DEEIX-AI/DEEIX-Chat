@@ -17,13 +17,17 @@ import (
 
 // New 初始化 PostgreSQL 连接并执行迁移与种子数据。
 func New(cfg config.Config) (*gorm.DB, error) {
-	pool, err := openPostgres(cfg.PostgresDSN)
+	nile := postgresHostIsNile(cfg.PostgresDSN)
+	pool, err := openPostgres(cfg.PostgresDSN, nile)
 	if err != nil {
 		return nil, err
 	}
-	db, err := gorm.Open(newPostgresDialector(pool), newGORMConfig(cfg))
+	db, err := gorm.Open(newPostgresDialector(pool, nile), newGORMConfig(cfg))
 	if err != nil {
 		return nil, err
+	}
+	if nile {
+		registerNileConstraintRewrite(db)
 	}
 	if err = configureTracing(db, cfg); err != nil {
 		return nil, err
@@ -32,7 +36,7 @@ func New(cfg config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	if err = migrate(db, cfg); err != nil {
+	if err = migrate(db, cfg, nile); err != nil {
 		return nil, err
 	}
 	if err = schema.SeedModelVendors(db); err != nil {
@@ -102,12 +106,17 @@ func configureConnectionPool(db *gorm.DB, cfg config.Config) error {
 	return nil
 }
 
-func migrate(db *gorm.DB, cfg config.Config) error {
-	if !cfg.SchemaCommentsEnabled {
+func migrate(db *gorm.DB, cfg config.Config, nile bool) error {
+	commentsEnabled := cfg.SchemaCommentsEnabled && !nile
+	if !commentsEnabled {
 		if err := clearSchemaComments(db, schema.Models()); err != nil {
 			return err
 		}
-		log.Printf("schema comments disabled: COMMENT ON statements will be skipped")
+		if nile {
+			log.Printf("nile: skipping COMMENT ON; the gateway rejects that command tag")
+		} else {
+			log.Printf("schema comments disabled: COMMENT ON statements will be skipped")
+		}
 	}
 	if err := applySchemaBaseline(db); err != nil {
 		return err
@@ -168,7 +177,7 @@ func migrate(db *gorm.DB, cfg config.Config) error {
 	tableComments["chat_conversation_project_mcp_tools"] = "项目默认 MCP 工具关联表"
 	tableComments["chat_conversation_project_skills"] = "项目默认 Skill 关联表"
 
-	if cfg.SchemaCommentsEnabled {
+	if commentsEnabled {
 		for table, comment := range tableComments {
 			statement := fmt.Sprintf(`COMMENT ON TABLE "%s" IS '%s'`, table, escapeSQLLiteral(comment))
 			if err := db.Exec(statement).Error; err != nil {
@@ -177,25 +186,25 @@ func migrate(db *gorm.DB, cfg config.Config) error {
 		}
 	}
 
-	if err := applyIdentityBaselineConstraints(db, cfg.SchemaCommentsEnabled); err != nil {
+	if err := applyIdentityBaselineConstraints(db, commentsEnabled, nile); err != nil {
 		return err
 	}
-	if err := applyIdentitySessionBaseline(db, cfg.SchemaCommentsEnabled); err != nil {
+	if err := applyIdentitySessionBaseline(db, commentsEnabled, nile); err != nil {
 		return err
 	}
-	if err := applyIdentityProviderBaseline(db, cfg.SchemaCommentsEnabled); err != nil {
+	if err := applyIdentityProviderBaseline(db, commentsEnabled, nile); err != nil {
 		return err
 	}
-	if err := applyConversationBaselineIndexes(db, cfg.SchemaCommentsEnabled); err != nil {
+	if err := applyConversationBaselineIndexes(db, commentsEnabled, nile); err != nil {
 		return err
 	}
-	if err := applyLLMBaselineIndexes(db, cfg.SchemaCommentsEnabled); err != nil {
+	if err := applyLLMBaselineIndexes(db, commentsEnabled, nile); err != nil {
 		return err
 	}
-	if err := applyBillingBaselineIndexes(db, cfg.SchemaCommentsEnabled); err != nil {
+	if err := applyBillingBaselineIndexes(db, commentsEnabled, nile); err != nil {
 		return err
 	}
-	if err := applyAnnouncementBaseline(db, cfg.SchemaCommentsEnabled); err != nil {
+	if err := applyAnnouncementBaseline(db, commentsEnabled, nile); err != nil {
 		return err
 	}
 	if err := schema.CleanupRemovedColumns(db); err != nil {
@@ -235,20 +244,22 @@ func stripSchemaComments(parsed *gormschema.Schema) {
 	}
 }
 
-func execStatements(db *gorm.DB, commentsEnabled bool, statements []string) error {
+func execStatements(db *gorm.DB, commentsEnabled bool, nile bool, statements []string) error {
 	for _, statement := range statements {
 		if !commentsEnabled && isSchemaCommentSQL(statement) {
 			continue
 		}
+		if nile {
+			if fallback, indexName, ok := nilePartialUniqueIndex(statement); ok {
+				if err := db.Exec(fallback).Error; err != nil {
+					return err
+				}
+				log.Printf("nile: created expression unique index %s; the partial index WHERE clause is rejected", indexName)
+				continue
+			}
+		}
 		if err := db.Exec(statement).Error; err != nil {
-			fallback, indexName, ok := partialUniqueIndexFallback(statement, err)
-			if !ok {
-				return err
-			}
-			if err = db.Exec(fallback).Error; err != nil {
-				return err
-			}
-			log.Printf("partial unique index %s was rejected; created the equivalent expression index", indexName)
+			return err
 		}
 	}
 	return nil
@@ -257,12 +268,13 @@ func execStatements(db *gorm.DB, commentsEnabled bool, statements []string) erro
 const fileObjectActiveContentIndexName = "uk_file_objects_active_user_content"
 const billingUsageRefIndexName = "idx_billing_balance_transactions_usage_ref"
 
-// partialUniqueIndexFallback keeps the original partial unique indexes for
-// ordinary Postgres. Nile rejects AND inside an index WHERE clause. Only that
-// error is replaced, and only for indexes whose expression form was checked to
-// allow multiple NULLs outside the predicate and reject duplicates inside it.
-func partialUniqueIndexFallback(statement string, err error) (string, string, bool) {
-	if err == nil || !strings.Contains(err.Error(), "unsupported element in index WHERE clause") {
+// nilePartialUniqueIndex is the direct form of the two partial unique indexes
+// whose WHERE clause contains AND. Nile rejects that predicate. The expression
+// is NULL outside the predicate, so duplicates there are allowed, and it is a
+// real value inside the predicate, so duplicates there are rejected. Ordinary
+// Postgres keeps the original statement.
+func nilePartialUniqueIndex(statement string) (string, string, bool) {
+	if !strings.Contains(statement, " AND ") {
 		return "", "", false
 	}
 	for _, item := range []struct {
@@ -304,7 +316,7 @@ func escapeSQLLiteral(input string) string {
 	return strings.ReplaceAll(input, "'", "''")
 }
 
-func applyLLMBaselineIndexes(db *gorm.DB, commentsEnabled bool) error {
+func applyLLMBaselineIndexes(db *gorm.DB, commentsEnabled bool, nile bool) error {
 	statements := []string{
 		`ALTER TABLE "llm_upstreams"
 		ADD COLUMN IF NOT EXISTS "protocol_defaults_json" text NOT NULL DEFAULT '{}'`,
@@ -331,13 +343,13 @@ func applyLLMBaselineIndexes(db *gorm.DB, commentsEnabled bool) error {
 			WHERE status = 'active'`,
 	}
 
-	if err := execStatements(db, commentsEnabled, statements); err != nil {
+	if err := execStatements(db, commentsEnabled, nile, statements); err != nil {
 		return err
 	}
 	return nil
 }
 
-func applyBillingBaselineIndexes(db *gorm.DB, commentsEnabled bool) error {
+func applyBillingBaselineIndexes(db *gorm.DB, commentsEnabled bool, nile bool) error {
 	statements := []string{
 		`ALTER TABLE "billing_usage_ledgers"
 		ADD COLUMN IF NOT EXISTS "billing_at" timestamptz`,
@@ -370,13 +382,13 @@ func applyBillingBaselineIndexes(db *gorm.DB, commentsEnabled bool) error {
 		ON "billing_redemptions" ("code_id", "user_id", "created_at")`,
 	}
 
-	if err := execStatements(db, commentsEnabled, statements); err != nil {
+	if err := execStatements(db, commentsEnabled, nile, statements); err != nil {
 		return err
 	}
 	return nil
 }
 
-func applyAnnouncementBaseline(db *gorm.DB, commentsEnabled bool) error {
+func applyAnnouncementBaseline(db *gorm.DB, commentsEnabled bool, nile bool) error {
 	statements := []string{
 		`ALTER TABLE "system_announcements"
 		ADD COLUMN IF NOT EXISTS "type" varchar(32) NOT NULL DEFAULT 'general'`,
@@ -399,13 +411,13 @@ func applyAnnouncementBaseline(db *gorm.DB, commentsEnabled bool) error {
 		WHERE "closed_at" IS NOT NULL`,
 	}
 
-	if err := execStatements(db, commentsEnabled, statements); err != nil {
+	if err := execStatements(db, commentsEnabled, nile, statements); err != nil {
 		return err
 	}
 	return nil
 }
 
-func applyIdentityBaselineConstraints(db *gorm.DB, commentsEnabled bool) error {
+func applyIdentityBaselineConstraints(db *gorm.DB, commentsEnabled bool, nile bool) error {
 	statements := []string{
 		`ALTER TABLE "identity_users"
 		ADD COLUMN IF NOT EXISTS "appearance_preferences" text NOT NULL DEFAULT ''`,
@@ -415,13 +427,13 @@ func applyIdentityBaselineConstraints(db *gorm.DB, commentsEnabled bool) error {
 		WHERE "avatar_url" LIKE 'file:%'`,
 		`DROP INDEX IF EXISTS uk_identity_users_single_superadmin`,
 	}
-	if err := execStatements(db, commentsEnabled, statements); err != nil {
+	if err := execStatements(db, commentsEnabled, nile, statements); err != nil {
 		return err
 	}
 	return nil
 }
 
-func applyIdentitySessionBaseline(db *gorm.DB, commentsEnabled bool) error {
+func applyIdentitySessionBaseline(db *gorm.DB, commentsEnabled bool, nile bool) error {
 	statements := []string{
 		`ALTER TABLE "identity_sessions"
 		ADD COLUMN IF NOT EXISTS "previous_refresh_token_hash" varchar(255) NOT NULL DEFAULT ''`,
@@ -433,26 +445,26 @@ func applyIdentitySessionBaseline(db *gorm.DB, commentsEnabled bool) error {
 		ON "identity_sessions" ("refresh_rotated_at")`,
 	}
 
-	if err := execStatements(db, commentsEnabled, statements); err != nil {
+	if err := execStatements(db, commentsEnabled, nile, statements); err != nil {
 		return err
 	}
 	return nil
 }
 
-func applyIdentityProviderBaseline(db *gorm.DB, commentsEnabled bool) error {
+func applyIdentityProviderBaseline(db *gorm.DB, commentsEnabled bool, nile bool) error {
 	statements := []string{
 		`ALTER TABLE "identity_providers"
 		ADD COLUMN IF NOT EXISTS "email_verified_field" varchar(64) NOT NULL DEFAULT 'email_verified'`,
 		`COMMENT ON COLUMN "identity_providers"."email_verified_field" IS '邮箱验证状态字段'`,
 	}
 
-	if err := execStatements(db, commentsEnabled, statements); err != nil {
+	if err := execStatements(db, commentsEnabled, nile, statements); err != nil {
 		return err
 	}
 	return nil
 }
 
-func applyConversationBaselineIndexes(db *gorm.DB, commentsEnabled bool) error {
+func applyConversationBaselineIndexes(db *gorm.DB, commentsEnabled bool, nile bool) error {
 	statements := []string{
 		`ALTER TABLE "chat_conversations"
 		ADD COLUMN IF NOT EXISTS "project_id" bigint`,
@@ -523,7 +535,7 @@ func applyConversationBaselineIndexes(db *gorm.DB, commentsEnabled bool) error {
 		WHERE status = 'active' AND deleted_at IS NULL AND sha256 <> ''`,
 	}
 
-	if err := execStatements(db, commentsEnabled, statements); err != nil {
+	if err := execStatements(db, commentsEnabled, nile, statements); err != nil {
 		return err
 	}
 
