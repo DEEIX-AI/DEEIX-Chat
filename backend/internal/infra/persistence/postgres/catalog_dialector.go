@@ -37,3 +37,14 @@ func (m catalogMigrator) CurrentDatabase() (name string) {
 	}
 	return m.Migrator.CurrentDatabase()
 }
+
+// StoresVectorIndexColumn reports whether candidate vectors live in their own
+// column. Nile rejects functions inside an index expression, so the HNSW index
+// is a plain halfvec column written with the row.
+func StoresVectorIndexColumn(db *gorm.DB) bool {
+	if db == nil || db.Dialector == nil {
+		return false
+	}
+	dialector, ok := db.Dialector.(*catalogDialector)
+	return ok && dialector.nile
+}
