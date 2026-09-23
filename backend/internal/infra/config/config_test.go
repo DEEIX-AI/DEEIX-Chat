@@ -23,9 +23,6 @@ func TestLoadDefaultsUseBootstrapAdmin(t *testing.T) {
 	if cfg.AdminDisplayName != defaultAdminDisplayName {
 		t.Fatalf("expected default admin display name %q, got %q", defaultAdminDisplayName, cfg.AdminDisplayName)
 	}
-	if !cfg.SchemaCommentsEnabled {
-		t.Fatal("expected schema comments to stay enabled by default")
-	}
 	if cfg.FileFullContextMaxBytes != DefaultFileFullContextMaxBytes {
 		t.Fatalf("expected default full-context size %d, got %d", DefaultFileFullContextMaxBytes, cfg.FileFullContextMaxBytes)
 	}
@@ -67,17 +64,6 @@ func TestLoadNormalizesAPPEnvAliases(t *testing.T) {
 				t.Fatalf("expected APP_ENV %q to normalize to %q, got %q", tt.env, tt.want, cfg.Env)
 			}
 		})
-	}
-}
-
-func TestLoadDisablesSchemaCommentsFromEnv(t *testing.T) {
-	cleanupConfigEnv(t)
-	chdir(t, t.TempDir())
-	t.Setenv("SCHEMA_COMMENTS", "false")
-
-	cfg := Load()
-	if cfg.SchemaCommentsEnabled {
-		t.Fatal("expected SCHEMA_COMMENTS=false to disable schema comments")
 	}
 }
 
@@ -414,7 +400,6 @@ func cleanupConfigEnv(t *testing.T) {
 		"TURNSTILE_SITEVERIFY_URL",
 		"SSRF_ALLOWED_HOSTS",
 		"SSRF_ALLOWED_CIDRS",
-		"SCHEMA_COMMENTS",
 		"POSTGRES_DSN",
 	}
 	for _, key := range keys {
