@@ -17,10 +17,9 @@ import (
 // postgresTimeZonePattern matches the timezone handling in gorm.io/driver/postgres.
 var postgresTimeZonePattern = regexp.MustCompile(`(time_zone|TimeZone|timezone)=(.*?)($|&| )`)
 
-// openPostgres opens a pgx-backed pool and normalizes Nile's client_encoding.
-// Nile reports client_encoding as "UTF-8". pgx refuses simple-protocol queries
-// unless the reported value is exactly "UTF8", and GORM uses that protocol
-// while inspecting existing columns.
+// openPostgres matches gorm's pgx setup and only rewrites client_encoding when
+// the server reports a UTF-8 spelling other than the exact token "UTF8".
+// Ordinary Postgres already reports "UTF8", so the value is left untouched.
 func openPostgres(dsn string) (gorm.ConnPool, error) {
 	config, err := pgx.ParseConfig(dsn)
 	if err != nil {
