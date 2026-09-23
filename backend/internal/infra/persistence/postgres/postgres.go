@@ -114,7 +114,7 @@ func migrate(db *gorm.DB, cfg config.Config, nile bool) error {
 		}
 		log.Printf("nile: skipping COMMENT ON; the gateway rejects that command tag")
 	}
-	if err := applySchemaBaseline(db); err != nil {
+	if err := applySchemaBaseline(db, nile); err != nil {
 		return err
 	}
 
@@ -216,9 +216,14 @@ func migrate(db *gorm.DB, cfg config.Config, nile bool) error {
 	return nil
 }
 
-func applySchemaBaseline(db *gorm.DB) error {
-	return schema.Migrate(db)
+func applySchemaBaseline(db *gorm.DB, nile bool) error {
+	if !nile {
+		return schema.Migrate(db)
+	}
+	return schema.MigrateConcurrent(db, nileAutoMigrateWorkers)
 }
+
+const nileAutoMigrateWorkers = 8
 
 func clearSchemaComments(db *gorm.DB, models []any) error {
 	for _, model := range models {

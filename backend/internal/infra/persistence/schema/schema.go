@@ -2,6 +2,7 @@ package schema
 
 import (
 	"errors"
+	"sync"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	domainuicomponent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/uicomponent"
@@ -167,6 +168,18 @@ func SeedUIComponents(db *gorm.DB) error {
 
 // Migrate creates or updates the baseline schema with Gorm's portable migrator.
 func Migrate(db *gorm.DB) error {
+	return migrateModels(db, 1)
+}
+
+// MigrateConcurrent migrates each model on its own session. Callers use it when
+// per-table catalog queries dominate startup. Foreign keys are already disabled
+// during migration, and missing tables are created first, so the models do not
+// need to run in dependency order.
+func MigrateConcurrent(db *gorm.DB, workers int) error {
+	return migrateModels(db, workers)
+}
+
+func migrateModels(db *gorm.DB, workers int) error {
 	for _, item := range Models() {
 		if db.Migrator().HasTable(item) {
 			continue
@@ -175,7 +188,7 @@ func Migrate(db *gorm.DB) error {
 			return err
 		}
 	}
-	if err := db.AutoMigrate(Models()...); err != nil {
+	if err := autoMigrate(db, Models(), workers); err != nil {
 		return err
 	}
 	if err := invalidateUnsignedFileEmbeddings(db); err != nil {
@@ -185,6 +198,47 @@ func Migrate(db *gorm.DB) error {
 		return err
 	}
 	return backfillUsageLedgerBillingAt(db)
+}
+
+func autoMigrate(db *gorm.DB, models []any, workers int) error {
+	workers = autoMigrateWorkers(workers, len(models))
+	if workers == 1 {
+		return db.AutoMigrate(models...)
+	}
+
+	slots := make(chan struct{}, workers)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var migrateErr error
+	for _, item := range models {
+		slots <- struct{}{}
+		wg.Add(1)
+		go func(item any) {
+			defer wg.Done()
+			defer func() { <-slots }()
+			err := db.Session(&gorm.Session{}).AutoMigrate(item)
+			if err == nil {
+				return
+			}
+			mu.Lock()
+			if migrateErr == nil {
+				migrateErr = err
+			}
+			mu.Unlock()
+		}(item)
+	}
+	wg.Wait()
+	return migrateErr
+}
+
+func autoMigrateWorkers(workers int, models int) int {
+	if models < 1 || workers < 2 {
+		return 1
+	}
+	if workers > models {
+		return models
+	}
+	return workers
 }
 
 // invalidateUnsignedFileEmbeddings makes legacy vectors enter the existing reindex flow.
