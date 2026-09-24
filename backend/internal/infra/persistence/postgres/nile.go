@@ -40,7 +40,7 @@ func registerNileConstraintRewrite(db *gorm.DB) {
 // current_database(), return no rows. The replacement reads pg_constraint,
 // which is the same set: primary keys and unique constraints, one row per
 // key column, and not unique indexes that are not constraints.
-func rewriteNileConstraintQuery(sql string, vars []interface{}) (string, []interface{}, bool) {
+func rewriteNileConstraintQuery(sql string, vars []any) (string, []any, bool) {
 	compact := strings.Join(strings.Fields(sql), " ")
 	switch {
 	case isGORMUniqueConstraintNameQuery(compact):
@@ -124,8 +124,8 @@ WHERE a.attrelid = format('%I.%I', %s, %s)::regclass
   AND a.attnum > 0
   AND NOT a.attisdropped`
 
-func buildNileTableQuery(compact string, vars []interface{}, pattern string, uniqueOnly bool, leadingCatalog bool) (string, []interface{}, bool) {
-	args := append([]interface{}(nil), vars...)
+func buildNileTableQuery(compact string, vars []any, pattern string, uniqueOnly bool, leadingCatalog bool) (string, []any, bool) {
+	args := append([]any(nil), vars...)
 	if uniqueOnly && len(args) > 0 {
 		if kind, ok := args[len(args)-1].(string); ok && strings.EqualFold(kind, "UNIQUE") {
 			args = args[:len(args)-1]
@@ -139,7 +139,7 @@ func buildNileTableQuery(compact string, vars []interface{}, pattern string, uni
 		if len(args) <= index {
 			return "", nil, false
 		}
-		return sprintfNileSQL(pattern, "current_schema()", "$1::text"), []interface{}{args[index]}, true
+		return sprintfNileSQL(pattern, "current_schema()", "$1::text"), []any{args[index]}, true
 	}
 	schemaIndex, tableIndex := 0, 1
 	if leadingCatalog {
@@ -148,7 +148,7 @@ func buildNileTableQuery(compact string, vars []interface{}, pattern string, uni
 	if len(args) <= tableIndex {
 		return "", nil, false
 	}
-	return sprintfNileSQL(pattern, "$1::text", "$2::text"), []interface{}{args[schemaIndex], args[tableIndex]}, true
+	return sprintfNileSQL(pattern, "$1::text", "$2::text"), []any{args[schemaIndex], args[tableIndex]}, true
 }
 
 func sprintfNileSQL(pattern string, schemaExpr string, tableExpr string) string {
