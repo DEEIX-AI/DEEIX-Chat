@@ -4691,7 +4691,8 @@ func (r *Repo) VectorStoreAvailable(ctx context.Context) (bool, error) {
 				AND NOT attribute.attisdropped
 				AND format_type(attribute.atttypid, attribute.atttypmod) = ?
 		)`
-	if persistdb.StoresVectorIndexColumn(r.db) {
+	nile := persistdb.StoresVectorIndexColumn(r.db)
+	if nile {
 		columnQuery = persistdb.NileEmbeddingColumnExistsSQL()
 	}
 	indexQuery := `SELECT EXISTS (
@@ -4712,15 +4713,21 @@ func (r *Repo) VectorStoreAvailable(ctx context.Context) (bool, error) {
 				OR lower(pg_get_indexdef(index_status.indexrelid)) LIKE '%embedding_hnsw%'
 			)
 	)`
-	indexPattern := fmt.Sprintf("%%::halfvec(%d)%%", vectorutil.IndexDimensions)
+	indexArgs := func(name string) []any {
+		return []any{name, fmt.Sprintf("%%::halfvec(%d)%%", vectorutil.IndexDimensions)}
+	}
+	if nile {
+		indexQuery = persistdb.NileVectorIndexExistsSQL()
+		indexArgs = func(name string) []any { return []any{name} }
+	}
 	checks := []availabilityCheck{
 		{query: `SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')`},
 		{query: columnQuery, args: []any{"file_chunks", expectedType}},
 		{query: columnQuery, args: []any{"chat_message_chunks", expectedType}},
 		{query: columnQuery, args: []any{"user_memories", expectedType}},
-		{query: indexQuery, args: []any{"idx_file_chunks_embedding", indexPattern}},
-		{query: indexQuery, args: []any{"idx_chat_message_chunks_embedding", indexPattern}},
-		{query: indexQuery, args: []any{"idx_user_memories_embedding", indexPattern}},
+		{query: indexQuery, args: indexArgs("idx_file_chunks_embedding")},
+		{query: indexQuery, args: indexArgs("idx_chat_message_chunks_embedding")},
+		{query: indexQuery, args: indexArgs("idx_user_memories_embedding")},
 	}
 	for _, check := range checks {
 		available := false
