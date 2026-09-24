@@ -42,6 +42,15 @@ func TestPostgresFormatTypeQueryUsesRegclassOnNile(t *testing.T) {
 	if !strings.Contains(existsQuery, "to_regclass") || !strings.Contains(existsQuery, "attribute.attname = 'embedding'") {
 		t.Fatalf("availability lookup = %s", existsQuery)
 	}
+	indexQuery := NileVectorIndexExistsSQL()
+	if strings.Contains(indexQuery, "pg_get_indexdef") || strings.Contains(indexQuery, "pg_namespace") || !strings.Contains(indexQuery, "to_regclass") {
+		t.Fatalf("Nile index lookup still scans definitions: %s", indexQuery)
+	}
+	for _, piece := range []string{"amname = 'hnsw'", "opcname = 'halfvec_cosine_ops'", "attname = 'embedding_hnsw'", "indisvalid"} {
+		if !strings.Contains(indexQuery, piece) {
+			t.Fatalf("Nile index lookup missing %s: %s", piece, indexQuery)
+		}
+	}
 }
 
 func TestPostgresVectorIndexSQLOmitsConcurrentlyOnNile(t *testing.T) {
