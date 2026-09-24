@@ -43,7 +43,7 @@ func TestPostgresFormatTypeQueryUsesRegclassOnNile(t *testing.T) {
 		t.Fatalf("availability lookup = %s", existsQuery)
 	}
 	indexQuery := NileVectorIndexExistsSQL()
-	if strings.Contains(indexQuery, "pg_get_indexdef") || strings.Contains(indexQuery, "pg_namespace") || !strings.Contains(indexQuery, "to_regclass") {
+	if strings.Contains(indexQuery, "pg_get_indexdef") || strings.Contains(indexQuery, "pg_namespace") || !strings.Contains(indexQuery, "index_status.indexrelid = to_regclass") {
 		t.Fatalf("Nile index lookup still scans definitions: %s", indexQuery)
 	}
 	for _, piece := range []string{"amname = 'hnsw'", "opcname = 'halfvec_cosine_ops'", "attname = 'embedding_hnsw'", "indisvalid"} {
