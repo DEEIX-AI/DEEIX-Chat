@@ -750,6 +750,37 @@ func NileEmbeddingColumnExistsSQL() string {
 		)`
 }
 
+// NileVectorIndexExistsSQL reports a valid HNSW index on embedding_hnsw.
+// The argument is the index name. pg_get_indexdef is not used: on Nile that
+// call, joined through pg_class by name, does not return before the request
+// deadline.
+func NileVectorIndexExistsSQL() string {
+	return `
+		SELECT EXISTS (
+			SELECT 1
+			FROM pg_index AS index_status
+			JOIN pg_class AS index_relation ON index_relation.oid = index_status.indexrelid
+			JOIN pg_am AS access_method ON access_method.oid = index_relation.relam
+			WHERE index_relation.oid = to_regclass(format('%I.%I', current_schema(), ?::text))
+			  AND index_status.indisvalid
+			  AND access_method.amname = 'hnsw'
+			  AND EXISTS (
+				SELECT 1
+				FROM pg_opclass AS opclass
+				WHERE opclass.oid = ANY (index_status.indclass)
+				  AND opclass.opcname = 'halfvec_cosine_ops'
+			  )
+			  AND EXISTS (
+				SELECT 1
+				FROM pg_attribute AS attribute
+				WHERE attribute.attrelid = index_status.indrelid
+				  AND attribute.attnum = ANY (index_status.indkey)
+				  AND NOT attribute.attisdropped
+				  AND attribute.attname = 'embedding_hnsw'
+			  )
+		)`
+}
+
 func inspectPostgresVectorIndex(db *gorm.DB, indexName string) (postgresVectorIndexState, error) {
 	var state postgresVectorIndexState
 	err := db.Raw(`
