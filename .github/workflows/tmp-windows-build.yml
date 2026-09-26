@@ -1,0 +1,101 @@
+name: TMP Windows Build
+
+# Throwaway: the Windows leg of desktop-release.yml, step for step, runnable on
+# a branch without a tag. Delete once the release build passes on Windows.
+
+on:
+  push:
+    branches:
+      - workflow
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (Windows x64)
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check C compiler
+        shell: bash
+        run: gcc --version | head -1 || { echo "::error::no C compiler for cgo"; exit 1; }
+
+      - name: Build server sidecar
+        shell: bash
+        run: node apps/desktop/scripts/build-sidecar.mjs
+
+      - name: Verify version consistency
+        run: node scripts/sync-version.mjs --check
+
+      - name: Build desktop bundles
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: apps/desktop
+          tauriScript: pnpm tauri
+          includeUpdaterJson: true
+
+      # The real desktop handshake: start in local mode, wait for the ready line
+      # (SQLite open, migrations run, HTTP listening), then close stdin, which
+      # is how the app asks the sidecar to shut down.
+      - name: Sidecar smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          exe=apps/desktop/src-tauri/binaries/deeix-chat-server-x86_64-pc-windows-msvc.exe
+          dir="$(mktemp -d)"
+          {
+            for _ in $(seq 1 60); do
+              grep -q '"type":"ready"' "$dir/stdout.log" 2>/dev/null && break
+              sleep 1
+            done
+          } | "$exe" --local --data-dir "$dir" > "$dir/stdout.log" 2> "$dir/stderr.log" && status=0 || status=$?
+          sed -E 's/"grant":"[^"]+"/"grant":"<redacted>"/' "$dir/stdout.log"
+          tail -5 "$dir/stderr.log"
+          grep -q '"type":"ready"' "$dir/stdout.log" || { echo "::error::sidecar never became ready"; exit 1; }
+          [[ $status -eq 0 ]] || { echo "::error::sidecar exited with $status"; exit 1; }
+
+      - name: Upload bundles as workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-Windows x64
+          path: |
+            apps/desktop/src-tauri/target/**/release/bundle/**/*.msi
+            apps/desktop/src-tauri/target/**/release/bundle/**/*.exe
+            apps/desktop/src-tauri/target/**/release/bundle/**/*.sig
+          if-no-files-found: error

@@ -58,12 +58,16 @@ const mismatches = [];
 
 function writeIfChanged(filePath, nextContent) {
   const current = readFileSync(filePath, "utf8");
-  if (current === nextContent) {
+  // Git may check text files out with CRLF (Windows, `text=auto`); keep the
+  // file's own line endings so only the content is compared.
+  const eol = current.includes("\r\n") ? "\r\n" : "\n";
+  const next = nextContent.replace(/\r?\n/gu, eol);
+  if (current === next) {
     return;
   }
   mismatches.push(filePath);
   if (!checkOnly) {
-    writeFileSync(filePath, nextContent);
+    writeFileSync(filePath, next);
   }
 }
 
