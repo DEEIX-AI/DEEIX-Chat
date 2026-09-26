@@ -215,7 +215,7 @@ jobs:
             | macOS, Apple silicon | `DEEIX-Chat-<version>-macos-arm64.dmg` |
             | macOS, Intel | `DEEIX-Chat-<version>-macos-x64.dmg` |
             | Linux, x86_64 | `DEEIX-Chat-<version>-linux-x64.AppImage` or `.deb` |
-            | Windows, x86_64 | `DEEIX-Chat-<version>-windows-x64-setup.exe` or `.msi` |
+            | Windows, x86_64 | `DEEIX-Chat-<version>-windows-x64-setup.exe`, or the `.msi` for your language |
 
             Files ending in `-updater.tar.gz` or `.sig`, and `latest.json`, belong to the
             built-in updater — they are not downloads.

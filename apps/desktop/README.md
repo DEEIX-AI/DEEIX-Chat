@@ -200,10 +200,12 @@ offers the update in a toast; nothing downloads until the user accepts.
 Release assets are renamed by `scripts/rename-release-assets.mjs` to
 `DEEIX-Chat-<version>-<os>-<arch>[-setup|-updater].<ext>`, e.g.
 `DEEIX-Chat-0.4.4-beta.1-macos-arm64.dmg`, `-linux-x64.AppImage`,
-`-windows-x64-setup.exe`, `-macos-arm64-updater.tar.gz`. The updater manifest
-references assets by file name, so its URLs are rewritten in the same job; only
-the artifact bytes are signed, so verification is unaffected. `pnpm test` covers
-the mapping.
+`-windows-x64-setup.exe`, `-windows-x64-zh-CN.msi` (one MSI per
+`bundle.windows.wix.language`), `-macos-arm64-updater.tar.gz`. The plan is
+validated for collisions before anything is renamed, and the updater manifest,
+which references assets by file name, is reconciled from its own URLs, so the
+job can be re-run after an interruption. Only the artifact bytes are signed, so
+verification is unaffected. `pnpm test` covers the mapping.
 
 `scripts/sync-version.mjs` also derives `bundle.windows.wix.version` from
 `VERSION`: MSI product versions are numeric-only, so `0.4.4-beta.1` becomes

@@ -10,7 +10,7 @@
 // Usage: rename-release-assets.mjs <tag> [--dry-run]   (GH_TOKEN and GH_REPO required)
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -38,7 +38,7 @@ function archLabel(raw) {
  * Recognised shapes (Tauri 2), each optionally followed by ".sig":
  *   <product>_<version>_<arch>.dmg | .AppImage | .deb | .rpm
  *   <product>_<version>_<arch>-setup.exe
- *   <product>_<version>_<arch>_<locale>.msi
+ *   <product>_<version>_<arch>_<locale>.msi   (one per bundle.windows.wix.language)
  *   <product>_<arch>.app.tar.gz              (macOS updater payload)
  */
 export function renameAsset(name, version) {
@@ -67,20 +67,61 @@ export function renameAsset(name, version) {
     return null;
   }
   const [suffix, os, ext] = kind;
-  // "<...>_<arch>" or "<...>_<arch>_<locale>" precedes the suffix.
-  const head = base.slice(0, -suffix.length).replace(/_[A-Za-z]{2,3}(?:-[A-Za-z0-9]+)?$/, "");
+  // "<...>_<arch>" or "<...>_<arch>_<locale>" precedes the suffix. The locale
+  // stays in the name: each MSI language is a distinct installer.
+  let head = base.slice(0, -suffix.length);
+  let locale = "";
+  const localeMatch = /_([A-Za-z]{2,3}(?:-[A-Za-z0-9]+)?)$/.exec(head);
+  if (localeMatch) {
+    locale = `-${localeMatch[1]}`;
+    head = head.slice(0, -localeMatch[0].length);
+  }
   const arch = archLabel(head.slice(head.lastIndexOf("_") + 1));
-  return arch ? `${stem}-${os}-${arch}${ext}${sig}` : null;
+  return arch ? `${stem}-${os}-${arch}${locale}${ext}${sig}` : null;
 }
 
-/** Replace every renamed file name in the manifest text, raw and URL-encoded. */
-export function rewriteManifest(manifest, renames) {
-  let out = manifest;
-  for (const { from, to } of renames) {
-    out = out.split(encodeURIComponent(from)).join(encodeURIComponent(to));
-    out = out.split(from).join(to);
+/**
+ * Point every manifest URL whose file name still has Tauri's shape at the
+ * renamed asset. Derived from the manifest itself, so it does not matter which
+ * assets were renamed in this run or an earlier one.
+ */
+export function rewriteManifest(manifest, version) {
+  const data = JSON.parse(manifest);
+  for (const platform of Object.values(data.platforms ?? {})) {
+    if (typeof platform.url !== "string") {
+      continue;
+    }
+    const slash = platform.url.lastIndexOf("/") + 1;
+    const next = renameAsset(decodeURIComponent(platform.url.slice(slash)), version);
+    if (next) {
+      platform.url = platform.url.slice(0, slash) + next;
+    }
   }
-  return out;
+  return `${JSON.stringify(data, null, 2)}\n`;
+}
+
+/** Refuse a plan where two assets would end up with the same name, or would
+ * collide with an asset that is not being renamed. Checked before any PATCH so
+ * a bad plan changes nothing. */
+export function planRenames(assets, version) {
+  const renames = assets
+    .map((asset) => ({ apiUrl: asset.apiUrl, from: asset.name, to: renameAsset(asset.name, version) }))
+    .filter(({ from, to }) => to && to !== from);
+  const untouched = new Set(assets.map((asset) => asset.name));
+  for (const { from } of renames) {
+    untouched.delete(from);
+  }
+  const seen = new Map();
+  for (const { from, to } of renames) {
+    if (seen.has(to)) {
+      throw new Error(`${seen.get(to)} and ${from} would both become ${to}`);
+    }
+    if (untouched.has(to)) {
+      throw new Error(`${from} would become ${to}, which already exists`);
+    }
+    seen.set(to, from);
+  }
+  return renames;
 }
 
 function main() {
@@ -99,13 +140,10 @@ function main() {
   }
 
   const version = tag.replace(/^v/, "");
-  // `id` here is the GraphQL node id; the REST endpoint for an asset is `apiUrl`.
-  const renames = release.assets
-    .map((asset) => ({ apiUrl: asset.apiUrl, from: asset.name, to: renameAsset(asset.name, version) }))
-    .filter(({ from, to }) => to && to !== from);
+  // `id` in gh's output is the GraphQL node id; the REST endpoint is `apiUrl`.
+  const renames = planRenames(release.assets, version);
   if (renames.length === 0) {
     console.log("asset names already follow the convention");
-    return;
   }
   for (const { apiUrl, from, to } of renames) {
     console.log(`${from} -> ${to}`);
@@ -114,21 +152,28 @@ function main() {
     }
   }
 
+  // Always reconcile the manifest: an earlier, interrupted run may have renamed
+  // assets without reaching this step.
   if (!release.assets.some((asset) => asset.name === "latest.json")) {
     console.log("no latest.json in this release; nothing to rewrite");
     return;
   }
-  const manifest = gh("release", "download", tag, "--repo", repo, "--pattern", "latest.json", "--output", "-");
-  const rewritten = rewriteManifest(manifest, renames);
-  if (rewritten === manifest) {
-    console.log("latest.json does not reference any renamed asset");
+  const work = mkdtempSync(join(tmpdir(), "release-assets-"));
+  gh("release", "download", tag, "--repo", repo, "--pattern", "latest.json", "--dir", work);
+  const file = join(work, "latest.json");
+  const manifest = readFileSync(file, "utf8");
+  const rewritten = rewriteManifest(manifest, version);
+  const urls = (text) => Object.values(JSON.parse(text).platforms ?? {}).map((platform) => platform.url);
+  if (JSON.stringify(urls(rewritten)) === JSON.stringify(urls(manifest))) {
+    console.log("latest.json already points at the final asset names");
     return;
+  }
+  for (const url of urls(rewritten)) {
+    console.log(`latest.json -> ${url}`);
   }
   if (dryRun) {
-    console.log("latest.json would be rewritten");
     return;
   }
-  const file = join(mkdtempSync(join(tmpdir(), "release-assets-")), "latest.json");
   writeFileSync(file, rewritten);
   gh("release", "upload", tag, file, "--repo", repo, "--clobber");
   console.log("latest.json rewritten");
