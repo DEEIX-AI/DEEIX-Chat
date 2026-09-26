@@ -73,12 +73,16 @@ execFileSync("go", ["build", "-trimpath", "-tags", tags, "-ldflags", ldflags, "-
  * they match exactly.
  */
 function sqliteIncludeFlags() {
-  const moduleDir = execFileSync("go", ["list", "-m", "-f", "{{.Dir}}", "github.com/mattn/go-sqlite3"], {
+  const mod = "github.com/mattn/go-sqlite3";
+  // `go list -m` reports no directory for a module that is not in the module
+  // cache yet (a fresh runner); go build would download it, but only later.
+  execFileSync("go", ["mod", "download", mod], { cwd: backendDir, stdio: "inherit" });
+  const moduleDir = execFileSync("go", ["list", "-m", "-f", "{{.Dir}}", mod], {
     cwd: backendDir,
     encoding: "utf8",
   }).trim();
   if (!moduleDir) {
-    console.error("Cannot locate github.com/mattn/go-sqlite3; run go mod download first.");
+    console.error(`Cannot locate ${mod} in the module cache.`);
     process.exit(1);
   }
   // The module cache is read-only, so copies inherit mode 0444 and a second
@@ -88,7 +92,9 @@ function sqliteIncludeFlags() {
   mkdirSync(includeDir, { recursive: true });
   copyFileSync(join(moduleDir, "sqlite3-binding.h"), join(includeDir, "sqlite3.h"));
   copyFileSync(join(moduleDir, "sqlite3ext.h"), join(includeDir, "sqlite3ext.h"));
-  return `-I${includeDir}`;
+  // Forward slashes: gcc accepts them on Windows too, and they survive
+  // CGO_CFLAGS being split on whitespace without any escaping concerns.
+  return `-I${includeDir.replaceAll("\\", "/")}`;
 }
 
 function hostTriple() {

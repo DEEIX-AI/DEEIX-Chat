@@ -106,7 +106,14 @@ the process on demand if it exits, and kills it on app exit.
 Binary: `scripts/build-sidecar.mjs` builds `backend/cmd/server` for the current
 Rust target triple into `src-tauri/binaries/` (git-ignored). `pnpm dev` and
 `pnpm build` run it first; CI runs it once per matrix leg because SQLite links
-through cgo.
+through cgo. The script downloads `go-sqlite3` itself and takes the SQLite
+headers sqlite-vec needs from that module, so a fresh runner without a system
+SQLite works. To check the Windows build from macOS:
+
+```bash
+brew install mingw-w64
+CC=x86_64-w64-mingw32-gcc node scripts/build-sidecar.mjs --target x86_64-pc-windows-msvc
+```
 
 ## Credential model
 
