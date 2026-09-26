@@ -10,16 +10,24 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/schema"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/vectorutil"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
+	gormschema "gorm.io/gorm/schema"
 )
 
 // New 初始化 PostgreSQL 连接并执行迁移与种子数据。
 func New(cfg config.Config) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(cfg.PostgresDSN), newGORMConfig(cfg))
+	nile := postgresHostIsNile(cfg.PostgresDSN)
+	pool, err := openPostgres(cfg.PostgresDSN, nile)
 	if err != nil {
 		return nil, err
+	}
+	db, err := gorm.Open(newPostgresDialector(pool, nile), newGORMConfig(cfg))
+	if err != nil {
+		return nil, err
+	}
+	if nile {
+		registerNileConstraintRewrite(db)
 	}
 	if err = configureTracing(db, cfg); err != nil {
 		return nil, err
@@ -28,7 +36,7 @@ func New(cfg config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	if err = migrate(db, cfg); err != nil {
+	if err = migrate(db, cfg, nile); err != nil {
 		return nil, err
 	}
 	if err = schema.SeedModelVendors(db); err != nil {
@@ -98,8 +106,15 @@ func configureConnectionPool(db *gorm.DB, cfg config.Config) error {
 	return nil
 }
 
-func migrate(db *gorm.DB, cfg config.Config) error {
-	if err := applySchemaBaseline(db); err != nil {
+func migrate(db *gorm.DB, cfg config.Config, nile bool) error {
+	commentsEnabled := !nile
+	if nile {
+		if err := clearSchemaComments(db, schema.Models()); err != nil {
+			return err
+		}
+		log.Printf("nile: skipping COMMENT ON; the gateway rejects that command tag")
+	}
+	if err := applySchemaBaseline(db, nile); err != nil {
 		return err
 	}
 
@@ -158,38 +173,40 @@ func migrate(db *gorm.DB, cfg config.Config) error {
 	tableComments["chat_conversation_project_mcp_tools"] = "项目默认 MCP 工具关联表"
 	tableComments["chat_conversation_project_skills"] = "项目默认 Skill 关联表"
 
-	for table, comment := range tableComments {
-		statement := fmt.Sprintf(`COMMENT ON TABLE "%s" IS '%s'`, table, escapeSQLLiteral(comment))
-		if err := db.Exec(statement).Error; err != nil {
-			return err
+	if commentsEnabled {
+		for table, comment := range tableComments {
+			statement := fmt.Sprintf(`COMMENT ON TABLE "%s" IS '%s'`, table, escapeSQLLiteral(comment))
+			if err := db.Exec(statement).Error; err != nil {
+				return err
+			}
 		}
 	}
 
-	if err := applyIdentityBaselineConstraints(db); err != nil {
+	if err := applyIdentityBaselineConstraints(db, commentsEnabled, nile); err != nil {
 		return err
 	}
-	if err := applyIdentitySessionBaseline(db); err != nil {
+	if err := applyIdentitySessionBaseline(db, commentsEnabled, nile); err != nil {
 		return err
 	}
-	if err := applyIdentityProviderBaseline(db); err != nil {
+	if err := applyIdentityProviderBaseline(db, commentsEnabled, nile); err != nil {
 		return err
 	}
-	if err := applyConversationBaselineIndexes(db); err != nil {
+	if err := applyConversationBaselineIndexes(db, commentsEnabled, nile); err != nil {
 		return err
 	}
-	if err := applyLLMBaselineIndexes(db); err != nil {
+	if err := applyLLMBaselineIndexes(db, commentsEnabled, nile); err != nil {
 		return err
 	}
-	if err := applyBillingBaselineIndexes(db); err != nil {
+	if err := applyBillingBaselineIndexes(db, commentsEnabled, nile); err != nil {
 		return err
 	}
-	if err := applyAnnouncementBaseline(db); err != nil {
+	if err := applyAnnouncementBaseline(db, commentsEnabled, nile); err != nil {
 		return err
 	}
 	if err := schema.CleanupRemovedColumns(db); err != nil {
 		return err
 	}
-	if err := applyVectorBaseline(db, vectorBaselineRequired(cfg)); err != nil {
+	if err := applyVectorBaseline(db, vectorBaselineRequired(cfg), nile); err != nil {
 		return err
 	}
 	if err := schema.SeedLLMSettings(db); err != nil {
@@ -199,15 +216,108 @@ func migrate(db *gorm.DB, cfg config.Config) error {
 	return nil
 }
 
-func applySchemaBaseline(db *gorm.DB) error {
-	return schema.Migrate(db)
+func applySchemaBaseline(db *gorm.DB, nile bool) error {
+	if !nile {
+		return schema.Migrate(db)
+	}
+	return schema.MigrateConcurrent(db, nileAutoMigrateWorkers)
+}
+
+const nileAutoMigrateWorkers = 8
+
+func clearSchemaComments(db *gorm.DB, models []any) error {
+	for _, model := range models {
+		stmt := &gorm.Statement{DB: db}
+		if err := stmt.Parse(model); err != nil {
+			return err
+		}
+		stripSchemaComments(stmt.Schema)
+	}
+	return nil
+}
+
+func stripSchemaComments(parsed *gormschema.Schema) {
+	if parsed == nil {
+		return
+	}
+	for _, field := range parsed.Fields {
+		field.Comment = ""
+	}
+}
+
+func execStatements(db *gorm.DB, commentsEnabled bool, nile bool, statements []string) error {
+	for _, statement := range statements {
+		if !commentsEnabled && isSchemaCommentSQL(statement) {
+			continue
+		}
+		if nile {
+			if fallback, indexName, ok := nilePartialUniqueIndex(statement); ok {
+				if err := db.Exec(fallback).Error; err != nil {
+					return err
+				}
+				log.Printf("nile: created expression unique index %s; the partial index WHERE clause is rejected", indexName)
+				continue
+			}
+		}
+		if err := db.Exec(statement).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+const fileObjectActiveContentIndexName = "uk_file_objects_active_user_content"
+const billingUsageRefIndexName = "idx_billing_balance_transactions_usage_ref"
+
+// nilePartialUniqueIndex is the direct form of the two partial unique indexes
+// whose WHERE clause contains AND. Nile rejects that predicate. The expression
+// is NULL outside the predicate, so duplicates there are allowed, and it is a
+// real value inside the predicate, so duplicates there are rejected. Ordinary
+// Postgres keeps the original statement.
+func nilePartialUniqueIndex(statement string) (string, string, bool) {
+	if !strings.Contains(statement, " AND ") {
+		return "", "", false
+	}
+	for _, item := range []struct {
+		name string
+		sql  string
+	}{
+		{name: fileObjectActiveContentIndexName, sql: fileObjectActiveContentExpressionIndex},
+		{name: billingUsageRefIndexName, sql: billingUsageRefExpressionIndex},
+	} {
+		if strings.Contains(statement, item.name) {
+			return item.sql, item.name, true
+		}
+	}
+	return "", "", false
+}
+
+const fileObjectActiveContentExpressionIndex = `CREATE UNIQUE INDEX IF NOT EXISTS uk_file_objects_active_user_content ON "file_objects" ((
+  NULLIF(
+    (("deleted_at" IS NULL)::int)
+    * NULLIF((("status" = 'active')::int) * (("sha256" <> '')::int), 0),
+    0
+  )::text
+  || '|' || "user_id"::text || '|' || "sha256" || '|' || "size_bytes"::text
+))`
+
+const billingUsageRefExpressionIndex = `CREATE UNIQUE INDEX IF NOT EXISTS idx_billing_balance_transactions_usage_ref ON "billing_balance_transactions" ((
+  NULLIF(
+    (("ref_no" <> '')::int) * (("type" IN ('usage_reserve', 'usage_refund'))::int),
+    0
+  )::text
+  || '|' || "user_id"::text || '|' || "type" || '|' || "ref_no"
+))`
+
+func isSchemaCommentSQL(statement string) bool {
+	return strings.HasPrefix(strings.ToUpper(strings.TrimSpace(statement)), "COMMENT ")
 }
 
 func escapeSQLLiteral(input string) string {
 	return strings.ReplaceAll(input, "'", "''")
 }
 
-func applyLLMBaselineIndexes(db *gorm.DB) error {
+func applyLLMBaselineIndexes(db *gorm.DB, commentsEnabled bool, nile bool) error {
 	statements := []string{
 		`ALTER TABLE "llm_upstreams"
 		ADD COLUMN IF NOT EXISTS "protocol_defaults_json" text NOT NULL DEFAULT '{}'`,
@@ -234,15 +344,13 @@ func applyLLMBaselineIndexes(db *gorm.DB) error {
 			WHERE status = 'active'`,
 	}
 
-	for _, statement := range statements {
-		if err := db.Exec(statement).Error; err != nil {
-			return err
-		}
+	if err := execStatements(db, commentsEnabled, nile, statements); err != nil {
+		return err
 	}
 	return nil
 }
 
-func applyBillingBaselineIndexes(db *gorm.DB) error {
+func applyBillingBaselineIndexes(db *gorm.DB, commentsEnabled bool, nile bool) error {
 	statements := []string{
 		`ALTER TABLE "billing_usage_ledgers"
 		ADD COLUMN IF NOT EXISTS "billing_at" timestamptz`,
@@ -275,15 +383,13 @@ func applyBillingBaselineIndexes(db *gorm.DB) error {
 		ON "billing_redemptions" ("code_id", "user_id", "created_at")`,
 	}
 
-	for _, statement := range statements {
-		if err := db.Exec(statement).Error; err != nil {
-			return err
-		}
+	if err := execStatements(db, commentsEnabled, nile, statements); err != nil {
+		return err
 	}
 	return nil
 }
 
-func applyAnnouncementBaseline(db *gorm.DB) error {
+func applyAnnouncementBaseline(db *gorm.DB, commentsEnabled bool, nile bool) error {
 	statements := []string{
 		`ALTER TABLE "system_announcements"
 		ADD COLUMN IF NOT EXISTS "type" varchar(32) NOT NULL DEFAULT 'general'`,
@@ -306,15 +412,13 @@ func applyAnnouncementBaseline(db *gorm.DB) error {
 		WHERE "closed_at" IS NOT NULL`,
 	}
 
-	for _, statement := range statements {
-		if err := db.Exec(statement).Error; err != nil {
-			return err
-		}
+	if err := execStatements(db, commentsEnabled, nile, statements); err != nil {
+		return err
 	}
 	return nil
 }
 
-func applyIdentityBaselineConstraints(db *gorm.DB) error {
+func applyIdentityBaselineConstraints(db *gorm.DB, commentsEnabled bool, nile bool) error {
 	statements := []string{
 		`ALTER TABLE "identity_users"
 		ADD COLUMN IF NOT EXISTS "appearance_preferences" text NOT NULL DEFAULT ''`,
@@ -324,15 +428,13 @@ func applyIdentityBaselineConstraints(db *gorm.DB) error {
 		WHERE "avatar_url" LIKE 'file:%'`,
 		`DROP INDEX IF EXISTS uk_identity_users_single_superadmin`,
 	}
-	for _, statement := range statements {
-		if err := db.Exec(statement).Error; err != nil {
-			return err
-		}
+	if err := execStatements(db, commentsEnabled, nile, statements); err != nil {
+		return err
 	}
 	return nil
 }
 
-func applyIdentitySessionBaseline(db *gorm.DB) error {
+func applyIdentitySessionBaseline(db *gorm.DB, commentsEnabled bool, nile bool) error {
 	statements := []string{
 		`ALTER TABLE "identity_sessions"
 		ADD COLUMN IF NOT EXISTS "previous_refresh_token_hash" varchar(255) NOT NULL DEFAULT ''`,
@@ -344,30 +446,26 @@ func applyIdentitySessionBaseline(db *gorm.DB) error {
 		ON "identity_sessions" ("refresh_rotated_at")`,
 	}
 
-	for _, statement := range statements {
-		if err := db.Exec(statement).Error; err != nil {
-			return err
-		}
+	if err := execStatements(db, commentsEnabled, nile, statements); err != nil {
+		return err
 	}
 	return nil
 }
 
-func applyIdentityProviderBaseline(db *gorm.DB) error {
+func applyIdentityProviderBaseline(db *gorm.DB, commentsEnabled bool, nile bool) error {
 	statements := []string{
 		`ALTER TABLE "identity_providers"
 		ADD COLUMN IF NOT EXISTS "email_verified_field" varchar(64) NOT NULL DEFAULT 'email_verified'`,
 		`COMMENT ON COLUMN "identity_providers"."email_verified_field" IS '邮箱验证状态字段'`,
 	}
 
-	for _, statement := range statements {
-		if err := db.Exec(statement).Error; err != nil {
-			return err
-		}
+	if err := execStatements(db, commentsEnabled, nile, statements); err != nil {
+		return err
 	}
 	return nil
 }
 
-func applyConversationBaselineIndexes(db *gorm.DB) error {
+func applyConversationBaselineIndexes(db *gorm.DB, commentsEnabled bool, nile bool) error {
 	statements := []string{
 		`ALTER TABLE "chat_conversations"
 		ADD COLUMN IF NOT EXISTS "project_id" bigint`,
@@ -438,12 +536,30 @@ func applyConversationBaselineIndexes(db *gorm.DB) error {
 		WHERE status = 'active' AND deleted_at IS NULL AND sha256 <> ''`,
 	}
 
-	for _, statement := range statements {
-		if err := db.Exec(statement).Error; err != nil {
-			return err
-		}
+	if err := execStatements(db, commentsEnabled, nile, statements); err != nil {
+		return err
 	}
 
+	return nil
+}
+
+func ensureVectorExtension(db *gorm.DB, nile bool) error {
+	if !nile {
+		return db.Exec(`CREATE EXTENSION IF NOT EXISTS vector`).Error
+	}
+	// Nile rejects the CREATE EXTENSION command tag. The extension is installed
+	// from the console, so use the catalog instead of sending that statement.
+	var version string
+	if err := db.Raw(`SELECT extversion FROM pg_extension WHERE extname = 'vector'`).Scan(&version).Error; err != nil {
+		return err
+	}
+	return installedVectorExtension(version)
+}
+
+func installedVectorExtension(version string) error {
+	if strings.TrimSpace(version) == "" {
+		return fmt.Errorf("pgvector extension is not installed")
+	}
 	return nil
 }
 
@@ -454,8 +570,8 @@ func vectorBaselineRequired(cfg config.Config) bool {
 // applyVectorBaseline 确保 pgvector 扩展、原生维度向量列和候选索引存在。
 // PostgreSQL 保留模型输出的原始维度，查询时再补齐到统一比较维度；这既保留历史向量，
 // 也避免升级时重写整张向量表。候选索引使用 4000 维 halfvec，最终按完整向量精排。
-func applyVectorBaseline(db *gorm.DB, required bool) error {
-	if err := db.Exec(`CREATE EXTENSION IF NOT EXISTS vector`).Error; err != nil {
+func applyVectorBaseline(db *gorm.DB, required bool, nile bool) error {
+	if err := ensureVectorExtension(db, nile); err != nil {
 		return handleOptionalVectorBaselineError(required, "create pgvector extension", err)
 	}
 	if err := requirePostgresVectorCapabilities(db); err != nil {
@@ -474,7 +590,7 @@ func applyVectorBaseline(db *gorm.DB, required bool) error {
 
 	err := withPostgresVectorMigrationLock(db, func(connection *gorm.DB) error {
 		for _, spec := range specs {
-			if err := ensurePostgresVectorColumnLocked(connection, spec.table, spec.column, spec.indexName); err != nil {
+			if err := ensurePostgresVectorColumnLocked(connection, spec.table, spec.column, spec.indexName, nile); err != nil {
 				return fmt.Errorf("migrate %s vector storage: %w", spec.table, err)
 			}
 		}
@@ -529,7 +645,7 @@ type postgresVectorIndexState struct {
 	Valid      bool   `gorm:"column:valid"`
 }
 
-func ensurePostgresVectorColumnLocked(db *gorm.DB, table string, column string, indexName string) error {
+func ensurePostgresVectorColumnLocked(db *gorm.DB, table string, column string, indexName string, nile bool) error {
 	var currentSchema string
 	if err := db.Raw(`SELECT current_schema()`).Scan(&currentSchema).Error; err != nil {
 		return err
@@ -539,38 +655,38 @@ func ensurePostgresVectorColumnLocked(db *gorm.DB, table string, column string, 
 	}
 
 	var currentType string
-	if err := db.Raw(`
-		SELECT format_type(attribute.atttypid, attribute.atttypmod)
-		FROM pg_attribute AS attribute
-		JOIN pg_class AS relation ON relation.oid = attribute.attrelid
-		JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
-		WHERE namespace.nspname = current_schema()
-		  AND relation.relname = ?
-		  AND attribute.attname = ?
-		  AND attribute.attnum > 0
-		  AND NOT attribute.attisdropped`, table, column).Scan(&currentType).Error; err != nil {
+	if err := db.Raw(postgresFormatTypeQuery(nile), table, column).Scan(&currentType).Error; err != nil {
 		return err
 	}
 	if currentType != "" && currentType != "vector" && !strings.HasPrefix(currentType, "vector(") {
 		return fmt.Errorf("%s.%s has incompatible type %s", table, column, currentType)
 	}
 
-	indexState, err := inspectPostgresVectorIndex(db, indexName)
-	if err != nil {
-		return err
-	}
-	indexCurrent := indexState.Valid && postgresVectorIndexMatches(indexState.Definition)
-	if currentType == "vector" && indexCurrent {
-		return nil
-	}
 	if currentType != "" {
 		if err := ensurePostgresVectorDimensionsSupported(db, currentSchema, table, column, currentType); err != nil {
 			return err
 		}
 	}
+	indexColumnAdded := false
+	if nile {
+		added, err := ensureNileVectorIndexColumn(db, currentSchema, table)
+		if err != nil {
+			return err
+		}
+		indexColumnAdded = added
+	}
+
+	indexState, err := inspectPostgresVectorIndex(db, indexName, nile)
+	if err != nil {
+		return err
+	}
+	indexCurrent := indexState.Valid && postgresVectorIndexMatches(indexState.Definition, nile)
+	if currentType == "vector" && indexCurrent && !indexColumnAdded {
+		return nil
+	}
 
 	if strings.TrimSpace(indexState.Definition) != "" {
-		if err := db.Exec("DROP INDEX CONCURRENTLY " + postgresQualifiedIdentifier(currentSchema, indexName)).Error; err != nil {
+		if err := db.Exec(postgresVectorIndexDropSQL(currentSchema, indexName, nile)).Error; err != nil {
 			return err
 		}
 	}
@@ -587,19 +703,103 @@ func ensurePostgresVectorColumnLocked(db *gorm.DB, table string, column string, 
 			return err
 		}
 	}
-	return db.Exec(postgresVectorIndexSQL(currentSchema, table, column, indexName)).Error
+	if nile {
+		if err := backfillNileVectorIndexColumn(db, currentSchema, table, column); err != nil {
+			return err
+		}
+	}
+	return db.Exec(postgresVectorIndexSQL(currentSchema, table, column, indexName, nile)).Error
 }
 
-func inspectPostgresVectorIndex(db *gorm.DB, indexName string) (postgresVectorIndexState, error) {
+func postgresFormatTypeQuery(nile bool) string {
+	if !nile {
+		return `
+		SELECT format_type(attribute.atttypid, attribute.atttypmod)
+		FROM pg_attribute AS attribute
+		JOIN pg_class AS relation ON relation.oid = attribute.attrelid
+		JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+		WHERE namespace.nspname = current_schema()
+		  AND relation.relname = ?
+		  AND attribute.attname = ?
+		  AND attribute.attnum > 0
+		  AND NOT attribute.attisdropped`
+	}
+	// The pg_class join above takes about 1.4s on Nile. to_regclass names the
+	// same column; a missing table yields NULL and scans as no row.
+	return `
+		SELECT format_type(attribute.atttypid, attribute.atttypmod)
+		FROM pg_attribute AS attribute
+		WHERE attribute.attrelid = to_regclass(format('%I.%I', current_schema(), ?::text))
+		  AND attribute.attname = ?
+		  AND attribute.attnum > 0
+		  AND NOT attribute.attisdropped`
+}
+
+// NileEmbeddingColumnExistsSQL is the runtime form of postgresFormatTypeQuery.
+// Arguments are the table name and the expected format_type result.
+func NileEmbeddingColumnExistsSQL() string {
+	return `
+		SELECT EXISTS (
+			SELECT 1
+			FROM pg_attribute AS attribute
+			WHERE attribute.attrelid = to_regclass(format('%I.%I', current_schema(), ?::text))
+			  AND attribute.attname = 'embedding'
+			  AND attribute.attnum > 0
+			  AND NOT attribute.attisdropped
+			  AND format_type(attribute.atttypid, attribute.atttypmod) = ?
+		)`
+}
+
+// NileVectorIndexExistsSQL reports a valid HNSW index on embedding_hnsw.
+// The argument is the index name. Filter pg_index by that regclass directly.
+// Joining pg_class by name, or calling pg_get_indexdef in the filter, does not
+// return on Nile. A pg_class join inside EXISTS still took about 1.6s; this
+// form took about 0.23s and matched the live indexes.
+func NileVectorIndexExistsSQL() string {
+	return `
+		SELECT COALESCE((
+			SELECT index_status.indisvalid
+			  AND access_method.amname = 'hnsw'
+			  AND EXISTS (
+				SELECT 1
+				FROM pg_opclass AS opclass
+				WHERE opclass.oid = ANY (index_status.indclass)
+				  AND opclass.opcname = 'halfvec_cosine_ops'
+			  )
+			  AND EXISTS (
+				SELECT 1
+				FROM pg_attribute AS attribute
+				WHERE attribute.attrelid = index_status.indrelid
+				  AND attribute.attnum = ANY (index_status.indkey)
+				  AND NOT attribute.attisdropped
+				  AND attribute.attname = 'embedding_hnsw'
+			  )
+			FROM pg_index AS index_status
+			JOIN pg_am AS access_method ON access_method.oid = (
+				SELECT relation.relam FROM pg_class AS relation WHERE relation.oid = index_status.indexrelid
+			)
+			WHERE index_status.indexrelid = to_regclass(format('%I.%I', current_schema(), ?::text))
+		), false)`
+}
+
+func inspectPostgresVectorIndex(db *gorm.DB, indexName string, nile bool) (postgresVectorIndexState, error) {
 	var state postgresVectorIndexState
-	err := db.Raw(`
+	query := `
 		SELECT pg_get_indexdef(index_status.indexrelid) AS definition,
 		       index_status.indisvalid AS valid
 		FROM pg_index AS index_status
 		JOIN pg_class AS index_relation ON index_relation.oid = index_status.indexrelid
 		JOIN pg_namespace AS namespace ON namespace.oid = index_relation.relnamespace
 		WHERE namespace.nspname = current_schema()
-		  AND index_relation.relname = ?`, indexName).Scan(&state).Error
+		  AND index_relation.relname = ?`
+	if nile {
+		query = `
+		SELECT pg_get_indexdef(index_status.indexrelid) AS definition,
+		       index_status.indisvalid AS valid
+		FROM pg_index AS index_status
+		WHERE index_status.indexrelid = to_regclass(format('%I.%I', current_schema(), ?::text))`
+	}
+	err := db.Raw(query, indexName).Scan(&state).Error
 	return state, err
 }
 
@@ -636,16 +836,75 @@ func alterPostgresVectorColumnToVariableWidth(db *gorm.DB, schemaName string, ta
 	return resetErr
 }
 
-func postgresVectorIndexMatches(definition string) bool {
-	normalized := strings.ToLower(strings.Join(strings.Fields(definition), " "))
-	return strings.Contains(normalized, " using hnsw ") &&
-		strings.Contains(normalized, "subvector(") &&
-		strings.Contains(normalized, "vector_dims(") &&
-		strings.Contains(normalized, fmt.Sprintf("::halfvec(%d)", vectorutil.IndexDimensions)) &&
-		strings.Contains(normalized, "halfvec_cosine_ops")
+func postgresVectorIndexDropSQL(schemaName string, indexName string, nile bool) string {
+	if nile {
+		return "DROP INDEX " + postgresQualifiedIdentifier(schemaName, indexName)
+	}
+	return "DROP INDEX CONCURRENTLY " + postgresQualifiedIdentifier(schemaName, indexName)
 }
 
-func postgresVectorIndexSQL(schemaName string, table string, column string, indexName string) string {
+func ensureNileVectorIndexColumn(db *gorm.DB, schemaName string, table string) (bool, error) {
+	var currentType string
+	if err := db.Raw(`
+		SELECT format_type(attribute.atttypid, attribute.atttypmod)
+		FROM pg_attribute AS attribute
+		WHERE attribute.attrelid = format('%I.%I', ?::text, ?::text)::regclass
+		  AND attribute.attname = ?
+		  AND attribute.attnum > 0
+		  AND NOT attribute.attisdropped`, schemaName, table, vectorutil.IndexColumn).Scan(&currentType).Error; err != nil {
+		return false, err
+	}
+	if currentType == fmt.Sprintf("halfvec(%d)", vectorutil.IndexDimensions) {
+		return false, nil
+	}
+	if currentType != "" {
+		return false, fmt.Errorf("%s.%s has incompatible type %s", table, vectorutil.IndexColumn, currentType)
+	}
+	err := db.Exec(fmt.Sprintf(
+		`ALTER TABLE %s ADD COLUMN %s halfvec(%d)`,
+		postgresQualifiedIdentifier(schemaName, table),
+		postgresIdentifier(vectorutil.IndexColumn),
+		vectorutil.IndexDimensions,
+	)).Error
+	return err == nil, err
+}
+
+func backfillNileVectorIndexColumn(db *gorm.DB, schemaName string, table string, column string) error {
+	return db.Exec(fmt.Sprintf(
+		`UPDATE %s SET %s = %s WHERE %s IS NOT NULL AND %s IS NULL`,
+		postgresQualifiedIdentifier(schemaName, table),
+		postgresIdentifier(vectorutil.IndexColumn),
+		vectorutil.PostgresIndexExpression(postgresIdentifier(column)),
+		postgresIdentifier(column),
+		postgresIdentifier(vectorutil.IndexColumn),
+	)).Error
+}
+
+func postgresVectorIndexMatches(definition string, nile bool) bool {
+	normalized := strings.ToLower(strings.Join(strings.Fields(definition), " "))
+	if !strings.Contains(normalized, " using hnsw ") || !strings.Contains(normalized, "halfvec_cosine_ops") {
+		return false
+	}
+	if nile {
+		return strings.Contains(normalized, vectorutil.IndexColumn) && !strings.Contains(normalized, "vector_dims(")
+	}
+	return strings.Contains(normalized, "subvector(") &&
+		strings.Contains(normalized, "vector_dims(") &&
+		strings.Contains(normalized, fmt.Sprintf("::halfvec(%d)", vectorutil.IndexDimensions))
+}
+
+func postgresVectorIndexSQL(schemaName string, table string, column string, indexName string, nile bool) string {
+	if nile {
+		// The gateway rejects every function in an index expression. The same
+		// candidate vector is stored in a halfvec column and indexed directly.
+		return fmt.Sprintf(
+			`CREATE INDEX %s ON %s USING hnsw (%s halfvec_cosine_ops) WHERE %s IS NOT NULL`,
+			postgresIdentifier(indexName),
+			postgresQualifiedIdentifier(schemaName, table),
+			postgresIdentifier(vectorutil.IndexColumn),
+			postgresIdentifier(vectorutil.IndexColumn),
+		)
+	}
 	indexExpression := vectorutil.PostgresIndexExpression(postgresIdentifier(column))
 	return fmt.Sprintf(
 		`CREATE INDEX CONCURRENTLY %s ON %s USING hnsw ((%s) halfvec_cosine_ops) WHERE %s IS NOT NULL`,
