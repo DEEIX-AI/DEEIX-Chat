@@ -99,17 +99,18 @@ function main() {
   }
 
   const version = tag.replace(/^v/, "");
+  // `id` here is the GraphQL node id; the REST endpoint for an asset is `apiUrl`.
   const renames = release.assets
-    .map((asset) => ({ id: asset.id, from: asset.name, to: renameAsset(asset.name, version) }))
+    .map((asset) => ({ apiUrl: asset.apiUrl, from: asset.name, to: renameAsset(asset.name, version) }))
     .filter(({ from, to }) => to && to !== from);
   if (renames.length === 0) {
     console.log("asset names already follow the convention");
     return;
   }
-  for (const { id, from, to } of renames) {
+  for (const { apiUrl, from, to } of renames) {
     console.log(`${from} -> ${to}`);
     if (!dryRun) {
-      gh("api", "-X", "PATCH", `repos/${repo}/releases/assets/${id}`, "-f", `name=${to}`);
+      gh("api", "-X", "PATCH", apiUrl, "-f", `name=${to}`);
     }
   }
 
