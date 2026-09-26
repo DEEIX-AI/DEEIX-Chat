@@ -172,7 +172,7 @@ func TestDescribeSendMessageErrorClassifiesGeneratedMediaArtifactFailure(t *test
 }
 
 // TestDescribeSendMessageErrorContract 固定消息发送 / 生成 / 计费路径上每个哨兵的 HTTP 状态、错误码与对外文案。
-// 错误码是前端本地化依赖的 API 契约（frontend/i18n/messages/*/errors.json），改动任何一项都必须同步前端。
+// 错误码是前端本地化依赖的 API 契约（apps/web/i18n/messages/*/errors.json），改动任何一项都必须同步前端。
 func TestDescribeSendMessageErrorContract(t *testing.T) {
 	cases := []struct {
 		err     error

@@ -1,3 +1,5 @@
+//go:build !nos3
+
 package objectstore
 
 import "testing"

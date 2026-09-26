@@ -144,7 +144,6 @@ func (s *Service) loadMessageBranchContext(
 	conversationID uint,
 	branch *messageBranchState,
 	snapshot *model.ContextSnapshot,
-	branchReason string,
 ) error {
 	if branch == nil || branch.ParentMessageID == nil || *branch.ParentMessageID == 0 {
 		return nil
@@ -196,10 +195,6 @@ func (s *Service) loadMessageBranchContext(
 			zap.Uint("snapshot_boundary_message_id", snapshot.CoveredUntilMessageID),
 		)
 	}
-	path = recoverAssistantRetryUserStates(path)
-	if branchReason == "default" {
-		path, _ = normalizeDefaultBranchContext(path, nil)
-	}
 	branch.ExistingMessages = path
 	return nil
 }
@@ -213,43 +208,6 @@ func contextMessagesPayloadBytes(messages []model.Message) int {
 		total += len(message.ErrorMessage)
 	}
 	return total
-}
-
-func normalizeDefaultBranchContext(
-	ancestors []model.Message,
-	parent *model.Message,
-) ([]model.Message, *model.Message) {
-	if len(ancestors) == 0 {
-		if isContextMessage(parent) {
-			return ancestors, parent
-		}
-		return nil, nil
-	}
-
-	contextMessages := recoverAssistantRetryUserStates(ancestors)
-
-	end := len(contextMessages)
-	for end > 0 && !isContextMessage(&contextMessages[end-1]) {
-		end--
-	}
-	if end == 0 {
-		return nil, nil
-	}
-
-	start := 0
-	for index := end - 1; index >= 0; index-- {
-		if !isContextMessage(&contextMessages[index]) {
-			start = index + 1
-			break
-		}
-	}
-
-	normalized := append([]model.Message(nil), contextMessages[start:end]...)
-	if len(normalized) == 0 {
-		return nil, nil
-	}
-	nextParent := normalized[len(normalized)-1]
-	return normalized, &nextParent
 }
 
 // recoverAssistantRetryUserStates makes a reused user message valid context
@@ -331,6 +289,46 @@ func buildBranchMessagePath(branch *messageBranchState, userMessage *model.Messa
 	allMessages = append(allMessages, branch.ExistingMessages...)
 	allMessages = append(allMessages, *userMessage)
 	return buildMessagePath(allMessages, userMessage.ID)
+}
+
+// buildModelContextMessages resolves the complete active branch before removing
+// unusable rows. Keeping topology and prompt eligibility separate prevents a
+// canceled or failed ancestor from breaking the parent chain and silently
+// discarding otherwise valid history.
+func buildModelContextMessages(branch *messageBranchState, userMessage *model.Message, branchReason string) []model.Message {
+	messages := buildBranchMessagePath(branch, userMessage)
+	messages = recoverAssistantRetryUserStates(messages)
+	messages = filterBlockedMessages(messages)
+	if !strings.EqualFold(strings.TrimSpace(branchReason), "default") {
+		return messages
+	}
+	currentMessageID := uint(0)
+	if userMessage != nil {
+		currentMessageID = userMessage.ID
+	}
+	return filterDefaultBranchContextMessages(messages, currentMessageID)
+}
+
+// filterDefaultBranchContextMessages excludes failed, canceled, and pending
+// historical rows without treating them as a boundary. The newly persisted
+// user row is still pending while its model request is being assembled, so it
+// is retained explicitly unless moderation already removed it.
+func filterDefaultBranchContextMessages(messages []model.Message, currentMessageID uint) []model.Message {
+	if len(messages) == 0 {
+		return messages
+	}
+	filtered := make([]model.Message, 0, len(messages))
+	for index := range messages {
+		item := messages[index]
+		if currentMessageID != 0 && item.ID == currentMessageID {
+			filtered = append(filtered, item)
+			continue
+		}
+		if isContextMessage(&item) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
 }
 
 func conversationImageTokenReserveByMessage(messages []model.Message) map[int]int64 {

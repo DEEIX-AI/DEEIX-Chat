@@ -1,12 +1,14 @@
 {
   "name": "@deeix/api",
-  "version": "0.4.3",
+  "version": "0.4.4-beta.1",
   "private": true,
   "scripts": {
+    "dev": "make run",
     "build": "make build",
     "check": "make check-version && make lint",
-    "clean": "rm -rf ../.cache/deeix-chat",
-    "dev": "make run",
-    "test": "make test"
+    "test": "make test",
+    "lint": "make lint",
+    "lint:fix": "make fmt",
+    "clean": "rm -rf ../.cache/deeix-chat"
   }
 }

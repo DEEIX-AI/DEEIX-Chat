@@ -1,0 +1,10 @@
+# Python here is limited to the extraction service images (deploy/services) and
+# backend/tools. Rules: pyflakes/pycodestyle, import order, modern syntax, bugbear.
+target-version = "py311"
+line-length = 120
+extend-exclude = ["storage", "node_modules", ".cache"]
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+# B008: FastAPI's `File()` / `Query()` defaults are the framework's own idiom.
+ignore = ["B008"]

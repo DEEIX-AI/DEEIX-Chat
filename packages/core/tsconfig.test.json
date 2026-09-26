@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Tests run under node --test and may use node:test / node:assert.
+    // Source files are still checked with the strict base config first.
+    "types": ["node"]
+  },
+  "include": ["src/**/*.test.ts"],
+  "exclude": []
+}

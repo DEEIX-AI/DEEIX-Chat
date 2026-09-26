@@ -423,7 +423,6 @@ func (s *Service) sendMessageInternal(
 		input.ConversationID,
 		branchState,
 		prefetch.snapshot,
-		normalizedBranchReason,
 	); err != nil {
 		if s.logger != nil {
 			s.logger.Warn("conversation_context_load_failed",
@@ -439,8 +438,7 @@ func (s *Service) sendMessageInternal(
 
 	// 构建完整活跃分支路径。完整消息仅在模型路由与滚动快照已解析后按需加载，
 	// 避免默认分支定位和 Prompt 规划分别水合同一批附件与引用。
-	contextMessages := filterBlockedMessages(buildBranchMessagePath(branchState, userMessage))
-	contextMessages = recoverAssistantRetryUserStates(contextMessages)
+	contextMessages := buildModelContextMessages(branchState, userMessage, normalizedBranchReason)
 
 	// 软阈值压缩仍可按配置在响应后异步执行；只有当前请求已经越过所选模型的
 	// 有效输入预算时，才同步生成滚动快照，避免本轮先被静默截断、下一轮才补摘要。

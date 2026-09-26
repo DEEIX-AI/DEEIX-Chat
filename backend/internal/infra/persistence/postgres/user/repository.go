@@ -1135,7 +1135,10 @@ func (r *Repo) GetSessionByUserAndSessionID(ctx context.Context, userID uint, se
 
 // RotateSessionTokens 以会话行锁原子校验并轮换令牌信息。
 func (r *Repo) RotateSessionTokens(ctx context.Context, input repository.RotateSessionTokensInput) error {
-	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	// 重用检测的吊销必须被提交，因此不能通过"回调返回错误"来表达（那会回滚整个事务）。
+	// 用局部变量把裁决带出事务，提交后再向调用方报告。
+	reuseDetected := false
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var item model.UserSession
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND session_id = ?", input.UserID, input.SessionID).
@@ -1143,7 +1146,18 @@ func (r *Repo) RotateSessionTokens(ctx context.Context, input repository.RotateS
 			return translateError(err)
 		}
 
-		if !sessionAcceptsPresentedRefreshHash(item, input.PresentedRefreshHash, input.Now, input.PreviousTokenGrace) {
+		switch classifyPresentedRefreshHash(item, input.PresentedRefreshHash, input.Now, input.PreviousTokenGrace) {
+		case refreshHashCurrent, refreshHashPreviousInGrace:
+			// fall through to rotation
+		case refreshHashReused:
+			// 已轮换的令牌在宽限期外再次出现：要么是被盗令牌，要么是持有旧令牌的
+			// 客户端与持有新令牌的攻击者并存。无法区分，因此吊销整个会话（OAuth 2.1 §4.3.1）。
+			reuseDetected = true
+			return translateError(tx.Model(&model.UserSession{}).
+				Where("id = ?", item.ID).
+				Updates(map[string]any{"revoked_at": input.Now, "revoke_reason": "refresh_token_reuse"}).
+				Error)
+		default:
 			return repository.ErrInvalidInput
 		}
 
@@ -1162,29 +1176,53 @@ func (r *Repo) RotateSessionTokens(ctx context.Context, input repository.RotateS
 			Where("id = ?", item.ID).
 			Updates(updates).
 			Error)
-	}))
+	})
+	if err != nil {
+		return translateError(err)
+	}
+	if reuseDetected {
+		return repository.ErrRefreshTokenReuse
+	}
+	return nil
 }
 
-func sessionAcceptsPresentedRefreshHash(
+type refreshHashMatch int
+
+const (
+	// refreshHashUnknown 表示令牌与该会话无关（或会话已失效）。
+	refreshHashUnknown refreshHashMatch = iota
+	// refreshHashCurrent 表示当前有效令牌。
+	refreshHashCurrent
+	// refreshHashPreviousInGrace 表示上一枚令牌且仍在轮换宽限期内（容忍丢失的轮换响应）。
+	refreshHashPreviousInGrace
+	// refreshHashReused 表示上一枚令牌在宽限期外被使用：视为令牌重用。
+	refreshHashReused
+)
+
+func classifyPresentedRefreshHash(
 	item model.UserSession,
 	presentedHash string,
 	now time.Time,
 	previousTokenGrace time.Duration,
-) bool {
+) refreshHashMatch {
 	normalizedPresentedHash := strings.TrimSpace(presentedHash)
 	if normalizedPresentedHash == "" {
-		return false
+		return refreshHashUnknown
 	}
 	if item.RevokedAt != nil || !item.ExpiresAt.After(now) {
-		return false
+		return refreshHashUnknown
 	}
 	if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(item.RefreshTokenHash)), []byte(normalizedPresentedHash)) == 1 {
-		return true
+		return refreshHashCurrent
 	}
-	if previousTokenGrace <= 0 || item.RefreshRotatedAt == nil || now.Sub(*item.RefreshRotatedAt) > previousTokenGrace {
-		return false
+	previous := strings.TrimSpace(item.PreviousRefreshTokenHash)
+	if previous == "" || subtle.ConstantTimeCompare([]byte(previous), []byte(normalizedPresentedHash)) != 1 {
+		return refreshHashUnknown
 	}
-	return subtle.ConstantTimeCompare([]byte(strings.TrimSpace(item.PreviousRefreshTokenHash)), []byte(normalizedPresentedHash)) == 1
+	if previousTokenGrace > 0 && item.RefreshRotatedAt != nil && now.Sub(*item.RefreshRotatedAt) <= previousTokenGrace {
+		return refreshHashPreviousInGrace
+	}
+	return refreshHashReused
 }
 
 // TouchSessionActivity 更新会话最近活跃时间及审计元数据。

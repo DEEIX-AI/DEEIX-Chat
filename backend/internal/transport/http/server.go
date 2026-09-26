@@ -33,8 +33,6 @@ import (
 	userhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/user"
 	usersettingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/usersettings"
 	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
 )
@@ -82,6 +80,11 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	if snapshot.Env == "prod" {
 		gin.SetMode(gin.ReleaseMode)
 	}
+	if snapshot.LocalMode {
+		// stdout 是 sidecar 与父进程的握手通道，框架自身的输出一律走 stderr。
+		gin.DefaultWriter = os.Stderr
+		gin.DefaultErrorWriter = os.Stderr
+	}
 
 	engine := gin.New()
 	engine.MaxMultipartMemory = 8 << 20
@@ -114,7 +117,7 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	})
 	engine.GET("/readyz", readyzHandler(hc, modules.Shutdown))
 	if swaggerEnabled(snapshot.Env) {
-		engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+		mountSwagger(engine)
 	}
 
 	api := engine.Group("/api/v1")
@@ -128,6 +131,9 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 		publicAuth.Use(middleware.PublicAuthRateLimit(limiter, cfg))
 		if modules.Auth != nil {
 			modules.Auth.RegisterPublicRoutes(publicAuth)
+			if snapshot.LocalMode {
+				modules.Auth.RegisterLocalRoutes(publicAuth)
+			}
 		}
 		if modules.User != nil {
 			modules.User.RegisterPublicRoutes(publicAuth)

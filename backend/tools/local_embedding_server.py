@@ -40,7 +40,7 @@ class EmbeddingHandler(BaseHTTPRequestHandler):
             return
         dim = 0
         try:
-            dim = int(getattr(self.model, "get_sentence_embedding_dimension")())
+            dim = int(self.model.get_sentence_embedding_dimension())
         except Exception:
             dim = 0
         self._write_json(HTTPStatus.OK, {"ok": True, "model": self.model_name, "dimension": dim})

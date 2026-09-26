@@ -21,6 +21,12 @@ import (
 //	caller       - 调用源文件:行号
 //	stacktrace   - 仅 error/fatal 级别自动携带
 func New(env string, _ string) (*zap.Logger, error) {
+	return NewWithOutput(env, os.Stdout)
+}
+
+// NewWithOutput 与 New 相同，但把日志写到指定输出。
+// 本地 sidecar 模式用它把日志送到 stderr，让 stdout 只承载与父进程的握手协议。
+func NewWithOutput(env string, output *os.File) (*zap.Logger, error) {
 	encoderConfig := zapcore.EncoderConfig{
 		TimeKey:        "time",
 		LevelKey:       "level",
@@ -43,7 +49,7 @@ func New(env string, _ string) (*zap.Logger, error) {
 
 	baseCore := zapcore.NewCore(
 		zapcore.NewJSONEncoder(encoderConfig),
-		zapcore.Lock(os.Stdout),
+		zapcore.Lock(output),
 		level,
 	)
 	core := newMessageOnlyCore(baseCore)

@@ -1,0 +1,8 @@
+{
+  "available": "Version {version} is available",
+  "install": "Update",
+  "installing": "Downloading update…",
+  "installed": "Version {version} is installed",
+  "relaunch": "Relaunch",
+  "installFailed": "Update failed: {message}"
+}

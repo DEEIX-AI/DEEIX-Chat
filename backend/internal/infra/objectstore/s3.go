@@ -1,3 +1,5 @@
+//go:build !nos3
+
 package objectstore
 
 import (
@@ -20,20 +22,14 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-type S3Config struct {
-	Endpoint        string
-	Region          string
-	Bucket          string
-	Prefix          string
-	AccessKeyID     string
-	SecretAccessKey string
-	ForcePathStyle  bool
-}
-
 type S3Store struct {
 	client *s3.Client
 	bucket string
 	prefix string
+}
+
+func newS3(ctx context.Context, cfg S3Config) (Store, error) {
+	return NewS3(ctx, cfg)
 }
 
 func NewS3(ctx context.Context, cfg S3Config) (*S3Store, error) {

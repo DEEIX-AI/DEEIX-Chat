@@ -1,0 +1,8 @@
+{
+  "available": "新版本 {version} 可用",
+  "install": "更新",
+  "installing": "正在下载更新…",
+  "installed": "已安装 {version}",
+  "relaunch": "重新启动",
+  "installFailed": "更新失败：{message}"
+}

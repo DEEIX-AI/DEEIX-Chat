@@ -16,7 +16,7 @@ DEEIX Chat 后端是 Go API 服务，负责认证、用户、对话、模型渠�
 
 ## 运行时与目录结构
 
-后端是一个 Go 单运行时服务：开发时提供 API，生产镜像中还可以托管 `frontend/out` 静态资源。启动链路和请求链路如下：
+后端是一个 Go 单运行时服务：开发时提供 API，生产镜像中还可以托管 `apps/web/out` 静态资源。启动链路和请求链路如下：
 
 ```text
 backend/cmd/server/main.go
@@ -53,7 +53,7 @@ backend/
 ## 文档入口
 
 - [项目主 README](../README.md)
-- [前端 README](../frontend/README.md)
+- [前端 README](../apps/web/README.md)
 - `docs/README.md`：后端文档索引
 - `docs/swagger.json` / `docs/swagger.yaml`：Swagger API 文档
 
@@ -110,24 +110,24 @@ backend/
 
 ## 配置
 
-默认读取仓库根目录下的 `config.yaml`，常用配置也支持环境变量覆盖。从 `backend/` 目录启动时会读取 `../config.yaml`。也可以通过 `CONFIG_FILE` 指定配置文件路径。下面的配置复制命令从仓库根目录执行，并选择其中一个方案。
+默认读取仓库根目录下的 `config.yaml`，常用配置也支持环境变量覆盖。从 `backend/` 目录启动时会读取 `../config.yaml`。也可以通过 `CONFIG_FILE` 指定配置文件路径。配置模板在 `deploy/`，下面的复制命令从仓库根目录执行，并选择其中一个方案。
 
 默认开发配置（外部 PostgreSQL + Redis）：
 
 ```bash
-cp config.example.yaml config.yaml
+cp deploy/config.example.yaml config.yaml
 ```
 
 完整 Compose 配置（应用、PostgreSQL、Redis）：
 
 ```bash
-cp config.full.example.yaml config.yaml
+cp deploy/config.full.example.yaml config.yaml
 ```
 
 SQLite + 进程内缓存配置：
 
 ```bash
-cp config.sqlite.example.yaml config.yaml
+cp deploy/config.sqlite.example.yaml config.yaml
 ```
 
 关键配置：
@@ -221,18 +221,19 @@ https://pay.example.com/epay/submit.php
 
 ## 本地启动
 
-除 `make` 和 `go` 命令外，下面的 Docker 命令均从仓库根目录执行。根据使用场景选择一种依赖方案。
+除 `make` 和 `go` 命令外，下面的 Docker 命令均在 `deploy/` 目录内执行（compose 挂载的是 `deploy/config.yaml`）。根据使用场景选择一种依赖方案。
 
 使用本机或外部 PostgreSQL、Redis：
 
 ```bash
-cp config.example.yaml config.yaml
+cp deploy/config.example.yaml config.yaml
 # 按本机环境修改 database.postgres.dsn 和 database.redis.*
 ```
 
 使用完整本地依赖栈：
 
 ```bash
+cd deploy
 cp config.full.example.yaml config.yaml
 docker compose -f docker-compose.full.yml up -d
 ```
@@ -240,21 +241,15 @@ docker compose -f docker-compose.full.yml up -d
 使用 SQLite 和进程内缓存：
 
 ```bash
+cd deploy
 cp config.sqlite.example.yaml config.yaml
 docker compose -f docker-compose.sqlite.yml up -d
 ```
 
-启动后端：
+启动后端（仓库根目录）：
 
 ```bash
-cd backend
-make run
-```
-
-也可以从仓库根目录使用工作区脚本：
-
-```bash
-pnpm dev:api
+make api
 ```
 
 健康检查：
@@ -484,59 +479,52 @@ Trace 不记录 prompt、文件内容、工具参数、API Key 或鉴权密钥�
 
 ## 可选文件处理服务
 
-以下 Docker 命令从仓库根目录执行：
+以下 Docker 命令在 `deploy/` 目录内执行：
 
 Apache Tika：
 
 ```bash
-docker compose -f docker/tika/docker-compose.yml up -d
+docker compose -f services/tika/docker-compose.yml up -d
 ```
 
 Tesseract OCR：
 
 ```bash
-docker compose -f docker/tesseract/docker-compose.yml up -d --build
+docker compose -f services/tesseract/docker-compose.yml up -d --build
 ```
 
 Docling：
 
 ```bash
-docker compose -f docker/docling/docker-compose.yml up -d --build
+docker compose -f services/docling/docker-compose.yml up -d --build
 ```
 
 RapidOCR：
 
 ```bash
-docker build -t deeix-chat-rapidocr docker/rapidocr
+docker build -t deeix-chat-rapidocr services/rapidocr
 ```
 
 这些服务默认使用 `deeix-chat-network`。可先执行 `docker network create deeix-chat-network`，或先启动一次根目录 compose 创建基础网络。
 
 ## 常用命令
 
-在 `backend/` 目录执行：
+仓库根目录：
 
 ```bash
-make run
+make api        # 运行
+make lint       # Go + JS lint
 make fmt
-make lint
 make test
-make swagger
-go build ./cmd/server
-go mod tidy
+make api-docs   # 重新生成 Swagger 与 TS 契约
 ```
 
-在仓库根目录执行工作区命令：
-
-```bash
-pnpm dev:api
-pnpm api:check
-```
+`backend/Makefile` 保留 Go 专属目标（`build`、`run`、`swagger`、`tidy`），根目录的 `make` 会转发到它。
 
 接口或 DTO 变更后必须执行：
 
 ```bash
-make swagger
+make api-docs
 ```
 
 该命令会调用根工作区的 `pnpm api:generate`，使用 `backend/go.mod` 中锁定的 `swag` 版本，并同时更新：

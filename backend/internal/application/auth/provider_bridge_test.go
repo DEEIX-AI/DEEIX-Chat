@@ -139,6 +139,38 @@ func TestProviderAuthBridgeRejectsUnregisteredNativeRedirect(t *testing.T) {
 	}
 }
 
+// 桌面端 (RFC 8252) 只接受回环地址上的临时端口，其他一律拒绝。
+func TestProviderAuthBridgeDesktopRedirectMustBeLoopbackWithPort(t *testing.T) {
+	service, _ := newProviderAuthBridgeTestService()
+	start := func(redirect string) error {
+		_, err := service.StartProviderAuthBridge(context.Background(), "acme", ProviderAuthBridgeStartInput{
+			ClientID:      ProviderAuthDesktopClientID,
+			RedirectURI:   redirect,
+			CodeChallenge: providerCodeChallenge(strings.Repeat("c", 43)),
+			ClientState:   strings.Repeat("s", 43),
+		})
+		return err
+	}
+	for _, ok := range []string{"http://127.0.0.1:49152/oauth/callback", "http://localhost:8123/oauth/callback", "http://[::1]:5000/oauth/callback"} {
+		if err := start(ok); err != nil {
+			t.Fatalf("expected %q to be accepted, got %v", ok, err)
+		}
+	}
+	for _, bad := range []string{
+		"https://127.0.0.1:49152/oauth/callback", // must be plain http on loopback
+		"http://127.0.0.1/oauth/callback",        // ephemeral port is mandatory
+		"http://127.0.0.1:49152/other",           // fixed path
+		"http://127.0.0.1:49152/oauth/callback?x=1",
+		"http://evil.example.com:49152/oauth/callback",
+		"http://127.0.0.1.evil.com:49152/oauth/callback",
+		"deeix-chat://oauth/callback",
+	} {
+		if err := start(bad); err == nil || !strings.Contains(err.Error(), "desktop redirect") {
+			t.Fatalf("expected %q to be rejected as desktop redirect, got %v", bad, err)
+		}
+	}
+}
+
 func newProviderAuthBridgeTestService() (*Service, *memorycache.Cache) {
 	provider := &domainuser.IdentityProvider{
 		ID:                  10,

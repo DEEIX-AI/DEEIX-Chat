@@ -1,6 +1,6 @@
 packages:
   - backend
-  - frontend
+  - "apps/*"
   - "packages/*"
 
 onlyBuiltDependencies:

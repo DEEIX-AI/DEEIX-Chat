@@ -1,0 +1,40 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.11/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": false
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": ["**/*.{js,mjs,ts,mts}", "!node_modules"]
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "react": "@deeix/core must not depend on React.",
+              "react-dom": "@deeix/core must not depend on React.",
+              "react-native": "@deeix/core must not depend on React Native.",
+              "next": "@deeix/core must not depend on Next.js.",
+              "next/navigation": "@deeix/core must not depend on Next.js.",
+              "next/headers": "@deeix/core must not depend on Next.js.",
+              "expo": "@deeix/core must not depend on Expo.",
+              "expo-secure-store": "@deeix/core must not depend on Expo.",
+              "@tauri-apps/api": "@deeix/core must not depend on Tauri.",
+              "@tauri-apps/plugin-store": "@deeix/core must not depend on Tauri."
+            }
+          }
+        }
+      }
+    }
+  }
+}

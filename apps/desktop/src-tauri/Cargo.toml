@@ -1,0 +1,55 @@
+[package]
+name = "deeix-chat-desktop"
+version = "0.4.4-beta.1"
+description = "DEEIX Chat desktop shell"
+authors = ["DEEIX"]
+edition = "2021"
+rust-version = "1.77"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+name = "deeix_chat_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "unstable"] }
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+tauri-plugin-opener = "2"
+# OS credential store: macOS Keychain, Windows Credential Manager, Linux Secret Service.
+keyring = { version = "4.2.0", features = [
+  "apple-native-keyring-store",
+  "windows-native-keyring-store",
+  "zbus-secret-service-keyring-store",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Same major/TLS stack as tauri-plugin-updater, so no second HTTP client is linked.
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider"] }
+# Process-wide TLS provider, installed once at startup (the updater would otherwise
+# install it lazily on first use, which is too late for an early session refresh).
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+tauri-plugin-shell = "2"
+tokio = { version = "1", features = ["time", "macros", "rt-multi-thread"] }
+
+
+[features]
+# Used by `tauri dev`/`tauri build` to embed the frontend; see tauri.conf.json.
+custom-protocol = ["tauri/custom-protocol"]
+
+# Shipped profile, identical locally and in CI. `pnpm build:app` relaxes LTO
+# through CARGO_PROFILE_RELEASE_* for faster iteration.
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = "s"
+panic = "abort"
+strip = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["NSString"] }

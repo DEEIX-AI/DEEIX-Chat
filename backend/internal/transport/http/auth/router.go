@@ -61,3 +61,9 @@ func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup) {
 	adminGroup.PATCH("/auth/providers/:provider_id", m.Handler.UpdateIdentityProvider)
 	adminGroup.DELETE("/auth/providers/:provider_id", m.Handler.DeleteIdentityProvider)
 }
+
+// RegisterLocalRoutes 注册仅在本地 sidecar 模式下存在的路由。
+// 服务器部署永远不会挂载它们，因此不存在被误暴露到公网的可能。
+func (m *Module) RegisterLocalRoutes(api *gin.RouterGroup) {
+	api.POST("/auth/local/exchange", m.Handler.ExchangeLocalGrant)
+}

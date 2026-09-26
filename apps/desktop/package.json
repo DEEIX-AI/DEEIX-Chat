@@ -1,0 +1,21 @@
+{
+  "name": "@deeix/desktop",
+  "version": "0.4.4-beta.1",
+  "private": true,
+  "type": "module",
+  "description": "DEEIX Chat desktop shell (Tauri). Loads the apps/web static build and adds tray, deep links and OS keychain storage.",
+  "scripts": {
+    "sync:version": "node ../../scripts/sync-version.mjs desktop",
+    "check:version": "node ../../scripts/sync-version.mjs --check desktop",
+    "tauri": "tauri",
+    "dev": "pnpm build:sidecar && tauri dev --config src-tauri/tauri.dev.conf.json",
+    "build": "pnpm build:sidecar && tauri build",
+    "build:app": "pnpm build:sidecar && node scripts/build-app.mjs",
+    "check": "pnpm check:version && pnpm build:sidecar && cargo check --manifest-path src-tauri/Cargo.toml",
+    "build:sidecar": "node scripts/build-sidecar.mjs",
+    "build:signed": "bash scripts/build-signed.sh"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.5"
+  }
+}

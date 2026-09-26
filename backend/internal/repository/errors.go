@@ -15,6 +15,8 @@ var (
 	ErrConflict = errors.New("resource conflict")
 	// ErrInvalidInput 表示输入数据非法。
 	ErrInvalidInput = errors.New("invalid input")
+	// ErrRefreshTokenReuse 表示检测到已轮换的刷新令牌在宽限期外被再次使用；会话已被整体吊销。
+	ErrRefreshTokenReuse = errors.New("refresh token reuse detected")
 	// ErrInsufficientBalance 表示余额不足，无法完成扣费。
 	ErrInsufficientBalance = errors.New("insufficient balance")
 	// ErrUsageReservationLimitExceeded 表示用户活跃付费调用数量达到上限。

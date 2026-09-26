@@ -1183,6 +1183,11 @@ func (s *Service) Refresh(
 			PreviousTokenGrace:   refreshTokenPreviousHashGrace,
 		},
 	); err != nil {
+		if errors.Is(err, repository.ErrRefreshTokenReuse) {
+			// 令牌重用：会话已在仓储层吊销，持有新令牌的一方（可能是攻击者）同样失效。
+			s.RecordAuthEvent(ctx, repository.AuthEventInput{UserID: claims.UserID, RequestID: requestID, EventType: "token_refresh", Result: "failure", Reason: "refresh_token_reuse_detected", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent, DetailJSON: marshalSessionAuthEventDetail(claims.SessionID, buildSessionAuditSnapshotForSession(session, normalizedAuditCtx))})
+			return nil, ErrSessionRevoked
+		}
 		if errors.Is(err, repository.ErrInvalidInput) {
 			s.RecordAuthEvent(ctx, repository.AuthEventInput{UserID: claims.UserID, RequestID: requestID, EventType: "token_refresh", Result: "failure", Reason: "refresh_token_hash_mismatch", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 			return nil, ErrInvalidRefreshToken

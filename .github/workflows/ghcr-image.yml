@@ -1,4 +1,4 @@
-name: GHCR Image
+name: Image (GHCR)
 
 on:
   push:
@@ -7,10 +7,6 @@ on:
       - dev
     tags:
       - "v*.*.*"
-  pull_request:
-    branches:
-      - main
-      - dev
   workflow_dispatch:
 
 permissions:
@@ -19,7 +15,7 @@ permissions:
 
 jobs:
   build_ghcr_image:
-    name: Build image (${{ matrix.arch }})
+    name: Build (${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
@@ -57,7 +53,6 @@ jobs:
             type=raw,value=latest-${{ matrix.arch }},enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Login to GHCR
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -70,7 +65,7 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -79,11 +74,10 @@ jobs:
           cache-to: type=gha,scope=${{ matrix.arch }},mode=max
 
   merge:
-    name: Merge image
+    name: Merge
     runs-on: ubuntu-latest
     needs:
       - build_ghcr_image
-    if: github.event_name != 'pull_request'
 
     steps:
       - name: Set up Buildx

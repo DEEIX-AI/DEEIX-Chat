@@ -1,0 +1,70 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "DEEIX Chat",
+  "version": "0.4.4-beta.1",
+  "identifier": "com.deeix.chat.desktop",
+  "build": {
+    "frontendDist": "../../web/out",
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "pnpm --filter @deeix/web dev",
+    "beforeBuildCommand": "pnpm turbo run build --filter=@deeix/web"
+  },
+  "app": {
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: http: https:; media-src 'self' blob: data: http: https:; connect-src 'self' ipc: http://ipc.localhost http: https:; frame-src 'self'; object-src 'none'; base-uri 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "dmg",
+      "app",
+      "nsis",
+      "msi",
+      "deb",
+      "appimage"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Productivity",
+    "shortDescription": "DEEIX Chat desktop client",
+    "longDescription": "Desktop client for a self-hosted DEEIX Chat server.",
+    "copyright": "© DEEIX",
+    "createUpdaterArtifacts": true,
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "hardenedRuntime": true
+    },
+    "windows": {
+      "wix": {
+        "language": [
+          "en-US",
+          "zh-CN"
+        ]
+      },
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com"
+    },
+    "externalBin": [
+      "binaries/deeix-chat-server"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/DEEIX-AI/DEEIX-Chat/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk5MEM5OUQ5NDdDRkJEODgKUldTSXZjOUgyWmtNbVdMdmJMQisrMTV4R1liVGJxajU0RjUrOHhWakRjR0U3cmV5RS83TFNWMEgK"
+    }
+  }
+}

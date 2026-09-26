@@ -1,0 +1,32 @@
+{
+  "name": "@deeix/core",
+  "version": "0.4.4-beta.1",
+  "private": true,
+  "type": "module",
+  "description": "Platform-agnostic client logic shared by web, desktop and mobile. No React, no DOM, no React Native.",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "check": "pnpm lint && pnpm typecheck",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "typecheck": "tsc --noEmit --pretty false -p tsconfig.json && tsc --noEmit --pretty false -p tsconfig.test.json",
+    "test": "node --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@deeix/api-contract": "workspace:*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.11",
+    "@types/node": "^25.6.0",
+    "typescript": "7.0.2"
+  }
+}

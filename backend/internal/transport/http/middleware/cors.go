@@ -25,7 +25,9 @@ func CORS(allowOrigin string) gin.HandlerFunc {
 
 		c.Header("Vary", "Origin")
 		c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Authorization,Content-Type,X-Request-ID")
+		// X-Client-Platform 由桌面/移动端携带，用于选择 refresh token 的投递方式；
+		// 缺少它时预检会拒绝带该头的真实请求。
+		c.Header("Access-Control-Allow-Headers", "Authorization,Content-Type,X-Request-ID,X-Client-Platform")
 		c.Header("Access-Control-Expose-Headers", "X-Request-ID")
 		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header("Access-Control-Max-Age", "86400")

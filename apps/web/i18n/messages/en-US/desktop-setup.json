@@ -1,0 +1,21 @@
+{
+  "local": {
+    "action": "Use on this computer",
+    "starting": "Starting…"
+  },
+  "remote": {
+    "action": "Connect to a server",
+    "title": "Server address",
+    "connect": "Connect",
+    "connecting": "Checking…"
+  },
+  "back": "Back",
+  "toasts": {
+    "localStartFailed": "The local server could not start",
+    "invalidUrl": "Enter a full address including https:// or http://",
+    "unexpectedStatus": "The server answered with status {status}",
+    "networkError": "Could not reach the server",
+    "bootstrapFailed": "Could not connect to the configured server",
+    "alreadyOpen": "That server is already open in another tab"
+  }
+}

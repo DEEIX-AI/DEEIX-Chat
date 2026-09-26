@@ -25,10 +25,21 @@ type (
 	Store      = portobjectstore.Store
 )
 
+// S3Config lives outside s3.go so it exists in -tags nos3 builds.
+type S3Config struct {
+	Endpoint        string
+	Region          string
+	Bucket          string
+	Prefix          string
+	AccessKeyID     string
+	SecretAccessKey string
+	ForcePathStyle  bool
+}
+
 func New(ctx context.Context, cfg config.Config) (Store, error) {
 	switch normalizeBackend(cfg.StorageBackend) {
 	case BackendS3:
-		return NewS3(ctx, S3Config{
+		return newS3(ctx, S3Config{
 			Endpoint:        cfg.StorageS3Endpoint,
 			Region:          cfg.StorageS3Region,
 			Bucket:          cfg.StorageS3Bucket,

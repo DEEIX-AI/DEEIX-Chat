@@ -8781,6 +8781,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/local/exchange": {
+            "post": {
+                "description": "仅在服务器以本地 sidecar 模式运行时可用；grant 由启动握手交给桌面壳，只能使用一次",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "本地模式：一次性 grant 换取会话",
+                "parameters": [
+                    {
+                        "description": "本地登录 grant",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/LocalGrantExchangeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/LoginResponseDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "description": "登录后返回JWT访问令牌",
@@ -21200,6 +21240,17 @@ const docTemplate = `{
                 }
             }
         },
+        "LocalGrantExchangeRequest": {
+            "type": "object",
+            "required": [
+                "grant"
+            ],
+            "properties": {
+                "grant": {
+                    "type": "string"
+                }
+            }
+        },
         "LoginOptionsResponse": {
             "type": "object",
             "required": [
@@ -21298,6 +21349,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "refreshExpiresAt": {
+                    "type": "string"
+                },
+                "refreshToken": {
+                    "description": "RefreshToken 仅在原生客户端（X-Client-Platform: desktop|mobile）请求时填充，\n由客户端存入系统 keychain / SecureStore；浏览器响应中始终为空。",
                     "type": "string"
                 },
                 "sessionID": {
@@ -29759,7 +29814,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "0.4.3",
+	Version:          "0.4.4-beta.1",
 	Host:             "",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},

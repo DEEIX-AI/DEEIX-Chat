@@ -1,0 +1,35 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "Content tabs (one webview per server). Deliberately minimal: session commands (store once / refresh / clear — the refresh token is never readable), the updater and relaunch, and opening http(s) URLs in the system browser for OAuth. No shell, no filesystem, no HTTP plugin.",
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-focus",
+    "updater:default",
+    "process:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://*"
+        },
+        {
+          "url": "http://*"
+        }
+      ]
+    },
+    "allow-get-server",
+    "allow-set-remote-server",
+    "allow-set-local-server",
+    "allow-leave-server",
+    "allow-local-sign-in",
+    "allow-store-session",
+    "allow-clear-session",
+    "allow-refresh-session",
+    "allow-start-oauth-loopback",
+    "allow-stop-oauth-loopback"
+  ],
+  "webviews": [
+    "tab-*"
+  ]
+}

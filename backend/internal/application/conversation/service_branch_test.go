@@ -72,7 +72,7 @@ func TestLoadMessageBranchContextStopsAtVerifiedSnapshotBoundary(t *testing.T) {
 		CoveredMessageCount:   300,
 	}
 
-	if err := service.loadMessageBranchContext(t.Context(), 9, branch, snapshot, "default"); err != nil {
+	if err := service.loadMessageBranchContext(t.Context(), 9, branch, snapshot); err != nil {
 		t.Fatalf("loadMessageBranchContext() error = %v", err)
 	}
 	if repo.calls != 2 {
@@ -93,7 +93,7 @@ func TestLoadMessageBranchContextReadsRootWithoutSnapshot(t *testing.T) {
 	parentID := uint(600)
 	branch := &messageBranchState{ParentMessageID: &parentID}
 
-	if err := service.loadMessageBranchContext(t.Context(), 9, branch, nil, "default"); err != nil {
+	if err := service.loadMessageBranchContext(t.Context(), 9, branch, nil); err != nil {
 		t.Fatalf("loadMessageBranchContext() error = %v", err)
 	}
 	if repo.calls != 3 {
@@ -104,7 +104,7 @@ func TestLoadMessageBranchContextReadsRootWithoutSnapshot(t *testing.T) {
 	}
 }
 
-func TestNormalizeDefaultBranchContextKeepsHistoryAfterSuccessfulAssistantRetry(t *testing.T) {
+func TestFilterDefaultBranchContextKeepsHistoryAfterSuccessfulAssistantRetry(t *testing.T) {
 	rootUserID := uint(1)
 	rootAssistantID := uint(2)
 	failedUserID := uint(3)
@@ -125,11 +125,8 @@ func TestNormalizeDefaultBranchContextKeepsHistoryAfterSuccessfulAssistantRetry(
 		{ID: retryAssistantID, PublicID: "msg_retry_assistant", ParentMessageID: &failedUserID, SourceMessageID: &failedAssistantID, Role: "assistant", BranchReason: "retry", Status: "success"},
 	}
 
-	normalized, parent := normalizeDefaultBranchContext(ancestors, &ancestors[3])
+	normalized := filterDefaultBranchContextMessages(recoverAssistantRetryUserStates(ancestors), 0)
 
-	if parent == nil || parent.ID != retryAssistantID {
-		t.Fatalf("expected successful retry assistant as parent, got %#v", parent)
-	}
 	if len(normalized) != len(ancestors) {
 		t.Fatalf("expected complete history after successful retry, got %#v", normalized)
 	}
@@ -188,7 +185,7 @@ func TestRecoverAssistantRetryUserStatesRestoresExpandedContext(t *testing.T) {
 	}
 }
 
-func TestNormalizeDefaultBranchContextDoesNotRecoverFailedRetry(t *testing.T) {
+func TestFilterDefaultBranchContextDoesNotRecoverFailedRetry(t *testing.T) {
 	rootUserID := uint(1)
 	rootAssistantID := uint(2)
 	failedUserID := uint(3)
@@ -200,11 +197,8 @@ func TestNormalizeDefaultBranchContextDoesNotRecoverFailedRetry(t *testing.T) {
 		{ID: 4, PublicID: "msg_failed_retry", ParentMessageID: &failedUserID, SourceMessageID: &failedAssistantID, Role: "assistant", BranchReason: "retry", Status: "error"},
 	}
 
-	normalized, parent := normalizeDefaultBranchContext(ancestors, &ancestors[3])
+	normalized := filterDefaultBranchContextMessages(recoverAssistantRetryUserStates(ancestors), 0)
 
-	if parent == nil || parent.ID != rootAssistantID {
-		t.Fatalf("expected latest successful ancestor as parent, got %#v", parent)
-	}
 	if len(normalized) != 2 || normalized[0].ID != rootUserID || normalized[1].ID != rootAssistantID {
 		t.Fatalf("expected failed retry tail removed from context, got %#v", normalized)
 	}
@@ -269,7 +263,7 @@ func TestIsRecoveredAssistantRetryUserRequiresGenuineUsableRetry(t *testing.T) {
 	}
 }
 
-func TestNormalizeDefaultBranchContextSkipsFailedTail(t *testing.T) {
+func TestFilterDefaultBranchContextSkipsFailedTail(t *testing.T) {
 	rootID := uint(1)
 	assistantID := uint(2)
 	ancestors := []model.Message{
@@ -278,17 +272,14 @@ func TestNormalizeDefaultBranchContextSkipsFailedTail(t *testing.T) {
 		{ID: 3, PublicID: "msg_failed_assistant", ParentMessageID: &assistantID, Role: "assistant", Status: "error"},
 	}
 
-	normalized, parent := normalizeDefaultBranchContext(ancestors, &ancestors[2])
+	normalized := filterDefaultBranchContextMessages(ancestors, 0)
 
-	if parent == nil || parent.ID != assistantID {
-		t.Fatalf("expected latest successful ancestor as parent, got %#v", parent)
-	}
 	if len(normalized) != 2 || normalized[0].ID != rootID || normalized[1].ID != assistantID {
 		t.Fatalf("expected failed tail removed from context, got %#v", normalized)
 	}
 }
 
-func TestNormalizeDefaultBranchContextKeepsSuccessfulSegmentAfterFailedMiddle(t *testing.T) {
+func TestFilterDefaultBranchContextPreservesHistoryAcrossFailedMiddle(t *testing.T) {
 	firstUserID := uint(1)
 	failedAssistantID := uint(2)
 	recoveredUserID := uint(3)
@@ -300,27 +291,21 @@ func TestNormalizeDefaultBranchContextKeepsSuccessfulSegmentAfterFailedMiddle(t 
 		{ID: recoveredAssistantID, PublicID: "msg_recovered_assistant", ParentMessageID: &recoveredUserID, Role: "assistant", Status: "success"},
 	}
 
-	normalized, parent := normalizeDefaultBranchContext(ancestors, &ancestors[3])
+	normalized := filterDefaultBranchContextMessages(ancestors, 0)
 
-	if parent == nil || parent.ID != recoveredAssistantID {
-		t.Fatalf("expected recovered assistant as parent, got %#v", parent)
-	}
-	if len(normalized) != 2 || normalized[0].ID != recoveredUserID || normalized[1].ID != recoveredAssistantID {
-		t.Fatalf("expected successful segment after failed middle, got %#v", normalized)
+	if len(normalized) != 3 || normalized[0].ID != firstUserID || normalized[1].ID != recoveredUserID || normalized[2].ID != recoveredAssistantID {
+		t.Fatalf("expected valid history on both sides of failed middle, got %#v", normalized)
 	}
 }
 
-func TestNormalizeDefaultBranchContextReturnsEmptyForOnlyFailedMessages(t *testing.T) {
+func TestFilterDefaultBranchContextReturnsEmptyForOnlyFailedMessages(t *testing.T) {
 	ancestors := []model.Message{
 		{ID: 1, PublicID: "msg_failed_user", Role: "user", Status: "error"},
 		{ID: 2, PublicID: "msg_failed_assistant", Role: "assistant", Status: "error"},
 	}
 
-	normalized, parent := normalizeDefaultBranchContext(ancestors, &ancestors[1])
+	normalized := filterDefaultBranchContextMessages(ancestors, 0)
 
-	if parent != nil {
-		t.Fatalf("expected no parent, got %#v", parent)
-	}
 	if len(normalized) != 0 {
 		t.Fatalf("expected empty context, got %#v", normalized)
 	}
@@ -395,5 +380,61 @@ func TestBuildBranchMessagePathReusesExistingUserForAssistantRetry(t *testing.T)
 	}
 	if path[0].ID != rootID || path[1].ID != userID {
 		t.Fatalf("expected root -> reused user path, got %#v", path)
+	}
+}
+
+func TestCanceledAssistantDoesNotTruncatePriorDefaultContext(t *testing.T) {
+	rootUserID := uint(1)
+	rootAssistantID := uint(2)
+	canceledUserID := uint(3)
+	canceledAssistantID := uint(4)
+	currentUserID := uint(5)
+	messages := []model.Message{
+		{ID: rootUserID, PublicID: "msg_root_user", Role: "user", Status: "success", Content: "root question"},
+		{ID: rootAssistantID, PublicID: "msg_root_assistant", ParentMessageID: &rootUserID, Role: "assistant", Status: "success", Content: "root answer"},
+		{ID: canceledUserID, PublicID: "msg_canceled_user", ParentMessageID: &rootAssistantID, Role: "user", Status: "success", Content: "long request"},
+		{ID: canceledAssistantID, PublicID: "msg_canceled_assistant", ParentMessageID: &canceledUserID, Role: "assistant", Status: "canceled", Content: "partial answer"},
+	}
+	repo := &branchContextRepositoryStub{messages: messages}
+	service := &Service{repo: repo, logger: zap.NewNop()}
+	branch := &messageBranchState{ParentMessageID: &canceledAssistantID}
+
+	if err := service.loadMessageBranchContext(t.Context(), 9, branch, nil); err != nil {
+		t.Fatalf("loadMessageBranchContext() error = %v", err)
+	}
+	currentUser := &model.Message{
+		ID:              currentUserID,
+		PublicID:        "msg_current_user",
+		ParentMessageID: &canceledAssistantID,
+		Role:            "user",
+		Status:          "pending",
+		Content:         "continue with the original context",
+	}
+	path := buildModelContextMessages(branch, currentUser, "default")
+
+	if len(path) != 4 {
+		t.Fatalf("expected prior successful history and current user after filtering canceled assistant, got %#v", path)
+	}
+	wantIDs := []uint{rootUserID, rootAssistantID, canceledUserID, currentUserID}
+	for index, wantID := range wantIDs {
+		if path[index].ID != wantID {
+			t.Fatalf("path[%d].ID = %d, want %d; path=%#v", index, path[index].ID, wantID, path)
+		}
+	}
+	history := historyMessagesFromDomain(path, historyMessageOptions{})
+	history = mergeConsecutiveSameRoleMessages(history)
+	if len(history) != 3 {
+		t.Fatalf("expected three outbound transcript messages after merging adjacent users, got %#v", history)
+	}
+	if history[0].Role != "user" || history[1].Role != "assistant" || history[2].Role != "user" {
+		t.Fatalf("unexpected outbound roles after canceled response filtering: %#v", history)
+	}
+	if history[2].Content != "long request\n\ncontinue with the original context" {
+		t.Fatalf("expected canceled turn user and continuation to remain, got %q", history[2].Content)
+	}
+	for _, message := range history {
+		if message.Content == "partial answer" {
+			t.Fatalf("canceled assistant content leaked into outbound context: %#v", history)
+		}
 	}
 }

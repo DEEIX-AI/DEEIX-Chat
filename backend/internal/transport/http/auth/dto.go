@@ -422,6 +422,9 @@ type LoginResponse struct {
 	TwoFactorRequired       bool         `json:"twoFactorRequired"`
 	TwoFactorChallengeToken string       `json:"twoFactorChallengeToken,omitempty"`
 	VerificationMethods     []string     `json:"verificationMethods,omitempty"`
+	// RefreshToken 仅在原生客户端（X-Client-Platform: desktop|mobile）请求时填充，
+	// 由客户端存入系统 keychain / SecureStore；浏览器响应中始终为空。
+	RefreshToken string `json:"refreshToken,omitempty"`
 }
 
 // MeResponse 当前用户信息响应。

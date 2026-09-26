@@ -1,0 +1,252 @@
+name: CI
+
+# Pre-merge checks for dev and main. One job per area; each runs only when
+# its paths changed, so a docs-only PR is cheap and a Rust-only PR does not
+# rebuild the web app. Skipped jobs satisfy required status checks.
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: 10.17.0
+  NODE_VERSION: 24
+  # Incremental artefacts are useless across CI runs and bloat the Rust cache.
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  changes:
+    name: Changes
+    runs-on: ubuntu-24.04
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+      desktop: ${{ steps.filter.outputs.desktop }}
+      python: ${{ steps.filter.outputs.python }}
+      docker: ${{ steps.filter.outputs.docker }}
+      lockfiles: ${{ steps.filter.outputs.lockfiles }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            shared: &shared
+              - VERSION
+              - package.json
+              - pnpm-lock.yaml
+              - pnpm-workspace.yaml
+              - turbo.json
+              - scripts/**
+              - .github/workflows/ci.yml
+            api:
+              - *shared
+              - backend/**
+            web:
+              - *shared
+              - apps/web/**
+              - packages/**
+            desktop:
+              - *shared
+              - apps/desktop/**
+              - packages/**
+            python:
+              - deploy/services/**/*.py
+              - backend/tools/**/*.py
+              - ruff.toml
+            docker:
+              - Dockerfile
+              - .dockerignore
+              - deploy/**
+            lockfiles:
+              - pnpm-lock.yaml
+              - apps/desktop/src-tauri/Cargo.lock
+
+  commits:
+    name: Commits
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check commit subjects
+        shell: bash
+        run: |
+          set -euo pipefail
+          # LC_ALL=C makes [[:print:]] match printable ASCII only, keeping subjects English.
+          export LC_ALL=C
+          pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test): [[:print:]]+$'
+          range="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          invalid=0
+          while IFS= read -r line; do
+            sha="${line%% *}"; subject="${line#* }"
+            [[ "$subject" == Merge\ * ]] && continue
+            if [[ ! "$subject" =~ $pattern ]]; then
+              echo "::error title=Invalid commit subject::${sha} ${subject}"
+              invalid=1
+            fi
+          done < <(git log --format='%H %s' "$range")
+          if [[ "$invalid" -ne 0 ]]; then
+            echo "Use 'type: subject' with type in build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test and ASCII text."
+            exit 1
+          fi
+
+  api:
+    name: API
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Version consistency
+        run: node ../scripts/sync-version.mjs --check backend
+      - name: Lint
+        run: make lint
+      - name: Build (default and sidecar tag sets)
+        run: |
+          go build ./...
+          go build -tags nopostgres,noredis,nos3,noswagger,nomsgpack ./...
+      - name: Test
+        # Go's test cache (persisted by setup-go) skips packages whose inputs did not change.
+        run: go test ./...
+
+  web:
+    name: Web
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Check (lint, types, architecture, API contract)
+        run: pnpm turbo run check --filter=@deeix/web --filter=./packages/*
+      - name: Test
+        run: pnpm turbo run test --filter=./packages/*
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          # Source hash excludes installed and generated trees, which exist by the time this step runs.
+          key: next-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/**/*.[jt]s', 'apps/web/**/*.[jt]sx', 'packages/**/*.ts', '!**/node_modules/**', '!apps/web/.next/**', '!apps/web/out/**') }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+      - name: Build
+        run: pnpm turbo run build --filter=@deeix/web
+
+  desktop:
+    name: Desktop
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/desktop/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
+      - name: Version consistency
+        run: node ../../../scripts/sync-version.mjs --check desktop
+      # tauri-build copies bundle.externalBin eagerly, so a sidecar file must
+      # exist before any cargo command. Checks never run it, and the API job
+      # already compiles the real one, so a placeholder saves the cgo build here.
+      - name: Placeholder sidecar
+        run: |
+          mkdir -p binaries
+          touch "binaries/deeix-chat-server-$(rustc -vV | sed -n 's/^host: //p')"
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --lib
+
+  python:
+    name: Python
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/ruff-action@v3
+        with:
+          args: check deploy/services backend/tools
+      - uses: astral-sh/ruff-action@v3
+        with:
+          args: format --check deploy/services backend/tools
+
+  docker:
+    name: Docker
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  dependencies:
+    name: Dependencies
+    needs: changes
+    if: needs.changes.outputs.lockfiles == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Audit npm
+        run: pnpm audit --audit-level high
+      - name: Audit Cargo
+        run: cargo install cargo-audit --locked && cargo audit --file apps/desktop/src-tauri/Cargo.lock

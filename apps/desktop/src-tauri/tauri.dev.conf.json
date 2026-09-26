@@ -1,0 +1,5 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "com.deeix.chat.desktop.dev",
+  "productName": "DEEIX Chat Dev"
+}

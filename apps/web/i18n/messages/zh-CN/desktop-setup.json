@@ -1,0 +1,21 @@
+{
+  "local": {
+    "action": "在本机使用",
+    "starting": "启动中…"
+  },
+  "remote": {
+    "action": "连接服务器",
+    "title": "服务器地址",
+    "connect": "连接",
+    "connecting": "检测中…"
+  },
+  "back": "返回",
+  "toasts": {
+    "localStartFailed": "本地服务启动失败",
+    "invalidUrl": "请输入完整地址，需包含 https:// 或 http://",
+    "unexpectedStatus": "服务器返回状态码 {status}",
+    "networkError": "无法连接服务器",
+    "bootstrapFailed": "无法连接已配置的服务器",
+    "alreadyOpen": "该服务器已在其他标签页打开"
+  }
+}

@@ -12,11 +12,12 @@ ARG NEXT_PUBLIC_API_BASE_URL=""
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY frontend/package.json ./frontend/package.json
+COPY apps/web/package.json ./apps/web/package.json
 COPY backend/package.json ./backend/package.json
 COPY packages/api-contract/package.json ./packages/api-contract/package.json
-COPY frontend/scripts ./frontend/scripts
-COPY frontend/public/pwa ./frontend/public/pwa
+COPY packages/core/package.json ./packages/core/package.json
+COPY apps/web/scripts ./apps/web/scripts
+COPY apps/web/public/pwa ./apps/web/public/pwa
 
 RUN corepack enable
 
@@ -26,13 +27,14 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 
 COPY VERSION /src/VERSION
 COPY scripts /src/scripts
-COPY frontend ./frontend
+COPY apps/web ./apps/web
 COPY packages/api-contract ./packages/api-contract
+COPY packages/core ./packages/core
 
-WORKDIR /src/frontend
+WORKDIR /src/apps/web
 
 # 如果你的 Next 版本支持，可以在 next.config 里开启 turbopack build filesystem cache
-RUN --mount=type=cache,id=next-cache,target=/src/frontend/.next/cache \
+RUN --mount=type=cache,id=next-cache,target=/src/apps/web/.next/cache \
     pnpm build
 
 
@@ -80,7 +82,8 @@ COPY --from=runtime-deps /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=runtime-deps /etc/localtime /etc/localtime
 COPY --from=runtime-deps /etc/timezone /etc/timezone
 COPY --from=backend-builder /out/deeix-chat /app/deeix-chat
-COPY --from=frontend-builder /src/frontend/out /app/frontend/out
+# Runtime path stays /app/frontend/out so existing FRONTEND_DIST_DIR / config.yaml keep working.
+COPY --from=frontend-builder /src/apps/web/out /app/frontend/out
 COPY LICENSE NOTICE /app/licenses/DEEIX-Chat/
 
 ENV FRONTEND_DIST_DIR=/app/frontend/out

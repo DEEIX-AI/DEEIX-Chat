@@ -50,6 +50,9 @@ const (
 	MaxContextCompactTriggerPercent     = 95
 )
 
+// defaultCORSAllowOrigin 末尾两项是 Tauri 桌面端 webview 的 Origin（macOS/Linux 用 tauri://，Windows 用 http://tauri.localhost）。
+const defaultCORSAllowOrigin = "http://127.0.0.1:8080,http://localhost:8080,tauri://localhost,http://tauri.localhost"
+
 const (
 	// DefaultTurnstileSiteverifyURL 是 Cloudflare Turnstile 默认校验端点。
 	DefaultTurnstileSiteverifyURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
@@ -345,18 +348,23 @@ type yamlConfig struct {
 // 静态字段由 YAML/ENV 加载；动态字段由 settings.RuntimeSettings.ApplyTo 从数据库覆盖。
 type Config struct {
 	// ── 静态配置（YAML/ENV） ──
-	AppName                      string
-	Env                          string
-	BrandTitle                   string
-	BrandShortName               string
-	BrandDescription             string
-	BrandLogoURL                 string
-	BrandFaviconURL              string
-	BrandPWAIcon192URL           string
-	BrandPWAIcon512URL           string
-	BrandPWAMaskableIcon512URL   string
-	BrandAppleTouchIcon180URL    string
-	HTTPPort                     string
+	AppName                    string
+	Env                        string
+	BrandTitle                 string
+	BrandShortName             string
+	BrandDescription           string
+	BrandLogoURL               string
+	BrandFaviconURL            string
+	BrandPWAIcon192URL         string
+	BrandPWAIcon512URL         string
+	BrandPWAMaskableIcon512URL string
+	BrandAppleTouchIcon180URL  string
+	HTTPPort                   string
+	// HTTPListenAddr 非空时优先于 HTTPPort，形如 "127.0.0.1:0"（本地模式）。
+	HTTPListenAddr string
+	// LocalMode 表示作为桌面 sidecar 运行；LocalDataDir 是其数据目录。
+	LocalMode                    bool
+	LocalDataDir                 string
 	CORSAllowOrigin              string
 	TrustedProxies               string
 	PublicAPIBaseURL             string
@@ -602,11 +610,11 @@ func Load() Config {
 		BrandPWAMaskableIcon512URL:   valueOrDefault(yc.Branding.PWAMaskableIcon512URL, defaultBrandPWAMaskableIcon512URL),
 		BrandAppleTouchIcon180URL:    valueOrDefault(yc.Branding.AppleTouchIcon180URL, defaultBrandAppleTouchIcon180URL),
 		HTTPPort:                     envOr("HTTP_PORT", yc.Server.HTTPPort, "8080"),
-		CORSAllowOrigin:              envOr("CORS_ALLOW_ORIGIN", yc.Server.CORSAllowOrigin, "http://127.0.0.1:8080,http://localhost:8080"),
+		CORSAllowOrigin:              envOr("CORS_ALLOW_ORIGIN", yc.Server.CORSAllowOrigin, defaultCORSAllowOrigin),
 		TrustedProxies:               envOr("TRUSTED_PROXIES", yc.Server.TrustedProxies, ""),
 		PublicAPIBaseURL:             envOr("PUBLIC_API_BASE_URL", yc.Server.PublicAPIBaseURL, ""),
 		PublicWebBaseURL:             envOr("PUBLIC_WEB_BASE_URL", yc.Server.PublicWebBaseURL, ""),
-		FrontendDistDir:              envOrPath("FRONTEND_DIST_DIR", yc.Server.FrontendDistDir, "../frontend/out", yc.sourceDir),
+		FrontendDistDir:              envOrPath("FRONTEND_DIST_DIR", yc.Server.FrontendDistDir, "../apps/web/out", yc.sourceDir),
 		HTTPReadHeaderTimeoutSeconds: envOrInt("HTTP_READ_HEADER_TIMEOUT_SECONDS", yc.Server.ReadHeaderTimeoutSeconds, defaultHTTPReadHeaderTimeoutSeconds),
 		HTTPReadTimeoutSeconds:       envOrInt("HTTP_READ_TIMEOUT_SECONDS", yc.Server.ReadTimeoutSeconds, defaultHTTPReadTimeoutSeconds),
 		HTTPIdleTimeoutSeconds:       envOrInt("HTTP_IDLE_TIMEOUT_SECONDS", yc.Server.IdleTimeoutSeconds, defaultHTTPIdleTimeoutSeconds),
@@ -852,6 +860,11 @@ func (c Config) Validate() error {
 
 	if strings.TrimSpace(c.CORSAllowOrigin) == "" || strings.TrimSpace(c.CORSAllowOrigin) == "*" {
 		return errors.New("invalid production config: CORS_ALLOW_ORIGIN must be explicitly set (wildcard * is not allowed)")
+	}
+	if c.LocalMode {
+		// 本地 sidecar 只在回环地址上服务，公共 URL 在监听后由实际端口填入；
+		// 其余生产级校验（密钥强度、CORS 白名单）对本地模式同样生效。
+		return nil
 	}
 	if err := validatePublicURL(c.PublicAPIBaseURL, "PUBLIC_API_BASE_URL"); err != nil {
 		return err

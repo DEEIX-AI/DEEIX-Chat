@@ -3,6 +3,7 @@ package contentmoderation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
@@ -39,6 +40,15 @@ func (s *Service) cleanupLoop(ctx context.Context) {
 	}
 }
 
+// warnErr logs a failed maintenance step unless the failure is the shutdown
+// itself: lifecycle cancellation is expected and not a fault.
+func (s *Service) warnErr(ctx context.Context, msg string, err error, fields ...zap.Field) {
+	if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+		return
+	}
+	s.logWarn(msg, append(fields, zap.Error(err))...)
+}
+
 func (s *Service) runCleanup(ctx context.Context) {
 	if s.repo == nil {
 		return
@@ -49,7 +59,7 @@ func (s *Service) runCleanup(ctx context.Context) {
 	for pass := 0; pass < 50; pass++ {
 		events, err := s.repo.ListExpiredContentEvents(ctx, now, 200)
 		if err != nil {
-			s.logWarn("content_moderation_list_expired_content_failed", zap.Error(err))
+			s.warnErr(ctx, "content_moderation_list_expired_content_failed", err)
 			break
 		}
 		if len(events) == 0 {
@@ -65,7 +75,7 @@ func (s *Service) runCleanup(ctx context.Context) {
 		}
 		if len(clearedIDs) > 0 {
 			if n, err := s.repo.ClearExpiredContentByPublicIDs(ctx, clearedIDs); err != nil {
-				s.logWarn("content_moderation_clear_content_failed", zap.Error(err))
+				s.warnErr(ctx, "content_moderation_clear_content_failed", err)
 			} else if n > 0 {
 				s.logWarn("content_moderation_content_cleared", zap.Int64("count", n))
 			}
@@ -76,13 +86,13 @@ func (s *Service) runCleanup(ctx context.Context) {
 		}
 	}
 	if n, err := s.repo.DeleteExpiredMetadata(ctx, now); err != nil {
-		s.logWarn("content_moderation_delete_metadata_failed", zap.Error(err))
+		s.warnErr(ctx, "content_moderation_delete_metadata_failed", err)
 	} else if n > 0 {
 		s.logWarn("content_moderation_metadata_deleted", zap.Int64("count", n))
 	}
 	cutoff := now.Add(-metadataRetention)
 	if n, err := s.repo.DeleteDailyStatsBefore(ctx, cutoff); err != nil {
-		s.logWarn("content_moderation_delete_stats_failed", zap.Error(err))
+		s.warnErr(ctx, "content_moderation_delete_stats_failed", err)
 	} else if n > 0 {
 		s.logWarn("content_moderation_stats_deleted", zap.Int64("count", n))
 	}
@@ -94,7 +104,7 @@ func (s *Service) retryBlockedGeneratedFileDeletes(ctx context.Context, limit in
 		return
 	}
 	if n, err := s.fileAccess.RetryBlockedGeneratedFileDeletes(ctx, limit); err != nil {
-		s.logWarn("content_moderation_blocked_file_cleanup_failed", zap.Error(err))
+		s.warnErr(ctx, "content_moderation_blocked_file_cleanup_failed", err)
 	} else if n > 0 {
 		s.logWarn("content_moderation_blocked_files_deleted", zap.Int("count", n))
 	}
@@ -121,10 +131,9 @@ func (s *Service) deleteIsolatedImages(ctx context.Context, event domaincm.Event
 			continue
 		}
 		if err := s.objectStore.Delete(ctx, img.StoragePath); err != nil {
-			s.logWarn("content_moderation_delete_isolated_image_failed",
+			s.warnErr(ctx, "content_moderation_delete_isolated_image_failed", err,
 				zap.String("event_id", event.PublicID),
 				zap.String("path", img.StoragePath),
-				zap.Error(err),
 			)
 			return false
 		}
@@ -150,7 +159,7 @@ func (s *Service) recoverStaleRuns(ctx context.Context) {
 		}
 		s.recordFailedOpen(ctx, RunMeta{RunID: runID}, domaincm.DirectionOutput, domaincm.ModalityText, domaincm.ErrorCodeWorkerLost, 0)
 		if err := s.repo.UpdateRunModeration(ctx, runID, domaincm.ModerationStateFailedOpen, "", "[]"); err != nil {
-			s.logWarn("content_moderation_recover_mark_failed_open_failed", zap.String("run_id", runID), zap.Error(err))
+			s.warnErr(ctx, "content_moderation_recover_mark_failed_open_failed", err, zap.String("run_id", runID))
 		}
 	}
 }
@@ -160,7 +169,7 @@ func (s *Service) recoverKnownHit(ctx context.Context, runID string) bool {
 	event, err := s.repo.GetLatestHitEventByRunID(ctx, runID)
 	if err != nil {
 		// A repository read failure must not convert a potentially known hit into failed-open.
-		s.logWarn("content_moderation_recover_hit_lookup_failed", zap.String("run_id", runID), zap.Error(err))
+		s.warnErr(ctx, "content_moderation_recover_hit_lookup_failed", err, zap.String("run_id", runID))
 		return true
 	}
 	if event == nil {
@@ -172,7 +181,7 @@ func (s *Service) recoverKnownHit(ctx context.Context, runID string) bool {
 	fileIDs, err := s.repo.ApplyRunBlock(ctx, runID, event.Direction == domaincm.DirectionInput, event.PublicID, event.CategoriesJSON)
 	if err != nil {
 		s.registerPendingBlock(RunMeta{RunID: runID}, info)
-		s.logWarn("content_moderation_recover_hit_apply_failed", zap.String("run_id", runID), zap.Error(err))
+		s.warnErr(ctx, "content_moderation_recover_hit_apply_failed", err, zap.String("run_id", runID))
 		return true
 	}
 	s.removePendingBlock(runID)
@@ -193,7 +202,7 @@ func (s *Service) recoverPendingBlocks(ctx context.Context) {
 			mustJSON(item.info.Categories),
 		)
 		if err != nil {
-			s.logWarn("content_moderation_pending_block_retry_failed", zap.String("run_id", item.meta.RunID), zap.Error(err))
+			s.warnErr(ctx, "content_moderation_pending_block_retry_failed", err, zap.String("run_id", item.meta.RunID))
 			continue
 		}
 		s.removePendingBlock(item.meta.RunID)
@@ -216,9 +225,9 @@ func (s *Service) handleLateBlock(parent context.Context, meta RunMeta, info Blo
 	if err != nil {
 		s.registerPendingBlock(meta, info)
 		if stateErr := s.repo.UpdateRunModeration(ctx, meta.RunID, domaincm.ModerationStateModerating, info.EventID, mustJSON(info.Categories)); stateErr != nil {
-			s.logWarn("content_moderation_late_block_mark_pending_failed", zap.String("run_id", meta.RunID), zap.Error(stateErr))
+			s.warnErr(ctx, "content_moderation_late_block_mark_pending_failed", stateErr, zap.String("run_id", meta.RunID))
 		}
-		s.logWarn("content_moderation_late_block_apply_failed", zap.String("run_id", meta.RunID), zap.Error(err))
+		s.warnErr(ctx, "content_moderation_late_block_apply_failed", err, zap.String("run_id", meta.RunID))
 	} else {
 		s.removePendingBlock(meta.RunID)
 		s.deleteBlockedOutputFiles(ctx, fileIDs)
@@ -249,7 +258,7 @@ func (s *Service) deleteBlockedOutputFiles(parent context.Context, fileIDs []str
 	defer cancel()
 	for _, fileID := range fileIDs {
 		if err := s.fileAccess.DeleteGeneratedFileArtifacts(ctx, fileID); err != nil {
-			s.logWarn("content_moderation_delete_blocked_output_failed", zap.String("file_id", fileID), zap.Error(err))
+			s.warnErr(ctx, "content_moderation_delete_blocked_output_failed", err, zap.String("file_id", fileID))
 		}
 	}
 }

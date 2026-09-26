@@ -1,4 +1,4 @@
-name: Close inactive issues and PRs
+name: Stale
 
 on:
   schedule:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   stale:
-    name: Mark and close inactive issues and PRs
+    name: Close inactive issues and PRs
     runs-on: ubuntu-latest
 
     steps:

@@ -1,0 +1,157 @@
+{
+  "actions": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "saving": "Saving",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "copy": "Copy",
+    "copied": "Copied",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "search": "Search",
+    "reset": "Reset",
+    "create": "Create",
+    "update": "Update",
+    "open": "Open",
+    "back": "Back",
+    "continue": "Continue"
+  },
+  "states": {
+    "loading": "Loading",
+    "empty": "Nothing to show",
+    "unknown": "Unknown",
+    "active": "Active",
+    "inactive": "Inactive",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "unsaved": "Unsaved",
+    "success": "Success",
+    "failed": "Failed"
+  },
+  "locale": {
+    "label": "Language",
+    "english": "English",
+    "chinese": "简体中文"
+  },
+  "errors": {
+    "unknown": "Something went wrong. Please try again later.",
+    "sessionExpired": "Your session has expired. Please sign in again.",
+    "copyFailed": "Copy failed. Please select the content manually."
+  },
+  "navigation": {
+    "newChat": "New chat",
+    "search": "Search",
+    "recent": "Recent",
+    "files": "Files",
+    "knowledgeBases": "Knowledge bases",
+    "skillsPrompt": "Skills & Prompts",
+    "searchTitle": "Search",
+    "searchDescription": "Search conversation titles, labels, projects, and message content",
+    "searchPlaceholder": "Search conversations or message content",
+    "searchLoading": "Searching...",
+    "searchLoadingMore": "Loading more conversations...",
+    "searchLoadFailed": "Unable to load conversations",
+    "searchLoadMoreFailed": "Failed to load more conversations",
+    "searchEmpty": "No matching results",
+    "searchPreviewHint": "Hover over a conversation to preview its recent messages",
+    "searchPreviewLoading": "Loading recent messages...",
+    "searchPreviewLoadFailed": "Unable to load recent messages",
+    "searchPreviewEmpty": "This conversation has no messages to preview",
+    "searchRoleUser": "You",
+    "searchRoleAssistant": "Assistant",
+    "searchShortcutNavigate": "Navigate",
+    "searchShortcutOpen": "Open",
+    "searchCompactView": "Switch to compact list",
+    "searchPreviewView": "Show conversation preview",
+    "sidebarTitle": "Sidebar",
+    "mobileSidebarDescription": "Displays the mobile sidebar.",
+    "openSidebar": "Open sidebar",
+    "toggleSidebar": "Toggle sidebar",
+    "settings": "Settings",
+    "announcements": "Announcements",
+    "language": "Language",
+    "upgradePlan": "Upgrade plan",
+    "admin": "Admin",
+    "logout": "Sign out",
+    "loggingOut": "Signing out",
+    "fallbackUser": "User",
+    "today": "Today",
+    "archived": "Archived",
+    "yesterday": "Yesterday"
+  },
+  "time": {
+    "todayTime": "{time}",
+    "thisYearDateTime": "{month}/{day} {time}",
+    "fullDateTime": "{year}/{month}/{day} {time}"
+  },
+  "table": {
+    "search": "Search",
+    "searchPlaceholder": "Search keyword",
+    "clearSearch": "Clear search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "bulk": "Bulk",
+    "refresh": "Refresh",
+    "selectedItems": "{count} selected",
+    "pagination": "{total} total, page {page} / {pageCount}",
+    "pageSize": "{size} / page",
+    "previousPage": "Previous page",
+    "nextPage": "Next page"
+  },
+  "select": {
+    "placeholder": "Select",
+    "searchPlaceholder": "Search",
+    "empty": "No matching options"
+  },
+  "input": {
+    "configuredPasswordPlaceholder": "Configured. Leave empty to keep unchanged."
+  },
+  "runtime": {
+    "status": {
+      "available": "Available",
+      "running": "Running",
+      "restarting": "Restarting",
+      "created": "Created",
+      "paused": "Paused",
+      "unhealthy": "Unhealthy",
+      "failed": "Failed",
+      "unavailable": "Unavailable",
+      "unconfigured": "Not configured",
+      "stopped": "Stopped"
+    },
+    "detail": {
+      "status": "Status",
+      "connection": "Connection",
+      "reachable": "Reachable",
+      "unreachable": "Unreachable",
+      "detail": "Detail"
+    }
+  },
+  "modelSelect": {
+    "searchPlaceholder": "Search models",
+    "empty": "No matching models"
+  },
+  "timeZoneSelect": {
+    "placeholder": "Select timezone",
+    "searchPlaceholder": "Search timezones",
+    "empty": "No matching timezones"
+  },
+  "dateRange": {
+    "placeholder": "Select date range",
+    "clear": "Clear"
+  },
+  "jsonEditor": {
+    "errors": "{count} errors",
+    "format": "Format",
+    "loading": "Loading editor..."
+  },
+  "appVersion": {
+    "title": "New version available",
+    "description": "Refresh the page to use the latest version.",
+    "prerelease": "Beta",
+    "stable": "Stable"
+  }
+}

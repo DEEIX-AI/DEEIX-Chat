@@ -84,6 +84,10 @@ func (h *Handler) writeRefreshTokenCookie(c *gin.Context, result *appauth.LoginR
 }
 
 func (h *Handler) clearRefreshTokenCookie(c *gin.Context) {
+	// 原生客户端从不使用 cookie，无需（也不应）下发清除头。
+	if isNativeClient(c) {
+		return
+	}
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     refreshTokenCookieName,
 		Value:    "",
@@ -187,8 +191,7 @@ func (h *Handler) CompleteEmailRegistration(c *gin.Context) {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 		return
 	}
-	h.writeRefreshTokenCookie(c, result)
-	response.Success(c, toLoginResponse(result))
+	h.respondWithSession(c, result)
 }
 
 // StartPasswordReset godoc
@@ -665,8 +668,7 @@ func (h *Handler) ExchangeProviderAuthBridgeGrant(c *gin.Context) {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 		return
 	}
-	h.writeRefreshTokenCookie(c, result)
-	response.Success(c, toLoginResponse(result))
+	h.respondWithSession(c, result)
 }
 
 func (h *Handler) CompleteProviderLogin(c *gin.Context) {
@@ -710,8 +712,7 @@ func (h *Handler) CompleteProviderLogin(c *gin.Context) {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 		return
 	}
-	h.writeRefreshTokenCookie(c, result)
-	response.Success(c, toLoginResponse(result))
+	h.respondWithSession(c, result)
 }
 
 // Login godoc
@@ -769,8 +770,7 @@ func (h *Handler) Login(c *gin.Context) {
 		})
 	}
 
-	h.writeRefreshTokenCookie(c, result)
-	response.Success(c, toLoginResponse(result))
+	h.respondWithSession(c, result)
 }
 
 func (h *Handler) VerifyTwoFactorLogin(c *gin.Context) {
@@ -804,8 +804,7 @@ func (h *Handler) VerifyTwoFactorLogin(c *gin.Context) {
 		response.InternalError(c)
 		return
 	}
-	h.writeRefreshTokenCookie(c, result)
-	response.Success(c, toLoginResponse(result))
+	h.respondWithSession(c, result)
 }
 
 func (h *Handler) StartTwoFactorEmailVerification(c *gin.Context) {
@@ -1087,8 +1086,8 @@ func (h *Handler) DeleteIdentityProvider(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /auth/refresh [post]
 func (h *Handler) RefreshToken(c *gin.Context) {
-	refreshToken, err := c.Cookie(refreshTokenCookieName)
-	if err != nil || refreshToken == "" {
+	refreshToken := readRefreshToken(c)
+	if refreshToken == "" {
 		h.clearRefreshTokenCookie(c)
 		response.ErrorFrom(c, http.StatusUnauthorized, errInvalidRefreshToken)
 		return
@@ -1111,8 +1110,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	h.writeRefreshTokenCookie(c, result)
-	response.Success(c, toLoginResponse(result))
+	h.respondWithSession(c, result)
 }
 
 // Me godoc

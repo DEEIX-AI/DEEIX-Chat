@@ -4208,6 +4208,13 @@ definitions:
     required:
     - errorMsg
     type: object
+  LocalGrantExchangeRequest:
+    properties:
+      grant:
+        type: string
+    required:
+    - grant
+    type: object
   LoginOptionsResponse:
     properties:
       emailEnabled:
@@ -4272,6 +4279,11 @@ definitions:
       expiresAt:
         type: string
       refreshExpiresAt:
+        type: string
+      refreshToken:
+        description: |-
+          RefreshToken 仅在原生客户端（X-Client-Platform: desktop|mobile）请求时填充，
+          由客户端存入系统 keychain / SecureStore；浏览器响应中始终为空。
         type: string
       sessionID:
         type: string
@@ -10247,7 +10259,7 @@ info:
   contact: {}
   description: DEEIX Chat 后端 API 文档
   title: DEEIX Chat API
-  version: "0.4.3"
+  version: "0.4.4-beta.1"
 paths:
   /admin/announcements:
     get:
@@ -15809,6 +15821,32 @@ paths:
       summary: 今日不再显示公告
       tags:
       - announcements
+  /auth/local/exchange:
+    post:
+      consumes:
+      - application/json
+      description: 仅在服务器以本地 sidecar 模式运行时可用；grant 由启动握手交给桌面壳，只能使用一次
+      parameters:
+      - description: 本地登录 grant
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/LocalGrantExchangeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/LoginResponseDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      summary: 本地模式：一次性 grant 换取会话
+      tags:
+      - auth
   /auth/login:
     post:
       consumes:

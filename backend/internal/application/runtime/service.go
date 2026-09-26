@@ -24,6 +24,9 @@ const (
 	serviceNetwork         = "deeix-chat-network"
 	dockerDefaultTimeout   = 3 * time.Minute
 	dockerBuildTimeout     = 3 * time.Minute
+	// rapidOCRBuildContext 是 RapidOCR 镜像的构建目录（自包含，含 Dockerfile 与 app.py）。
+	// 托管构建仅用于从 backend/ 启动的开发环境；路径相对于进程工作目录。
+	rapidOCRBuildContext = "../deploy/services/rapidocr"
 
 	tikaContainerStatusFailedMessage     = "无法读取 Tika 容器状态。"
 	rapidOCRContainerStatusFailedMessage = "无法读取 RapidOCR 容器状态。"
@@ -458,7 +461,7 @@ func (s *Service) StartRapidOCR(ctx context.Context) (ServiceRuntimeView, error)
 		return s.GetRapidOCRStatus(ctx), err
 	}
 	if _, err := s.runDocker(ctx, "image", "inspect", rapidOCRImage); err != nil {
-		if _, buildErr := s.runDockerWithTimeout(ctx, dockerBuildTimeout, "build", "-t", rapidOCRImage, "-f", "../docker/rapidocr/Dockerfile", ".."); buildErr != nil {
+		if _, buildErr := s.runDockerWithTimeout(ctx, dockerBuildTimeout, "build", "-t", rapidOCRImage, rapidOCRBuildContext); buildErr != nil {
 			return s.GetRapidOCRStatus(ctx), buildErr
 		}
 	}

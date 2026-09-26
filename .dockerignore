@@ -10,9 +10,11 @@
 **/*.log
 config.yaml
 config.yml
+# Deployment assets are never part of the image build context (may hold real config).
+deploy
 backend/config.yaml
 backend/config.yml
-frontend/package-lock.json
+apps/web/package-lock.json
 backend/storage
 storage
 tmp

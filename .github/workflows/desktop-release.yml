@@ -1,0 +1,237 @@
+name: Desktop Release
+
+# Builds and publishes the Tauri desktop app for macOS, Windows and Linux.
+#
+# Repository secrets:
+#
+#   Updater (required — the build fails without them)
+#     TAURI_SIGNING_PRIVATE_KEY           output of `tauri signer generate`
+#     TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password ("" if none)
+#
+#   macOS signing + notarization (optional; unsigned builds when absent)
+#     APPLE_CERTIFICATE                   base64 of the Developer ID Application .p12
+#     APPLE_CERTIFICATE_PASSWORD          .p12 password
+#     APPLE_ID                            Apple ID used for notarization
+#     APPLE_PASSWORD                      app-specific password for that Apple ID
+#   (signing identity and team id are read from the certificate)
+#
+#   Windows code signing (optional; unsigned builds when absent)
+#     WINDOWS_CERTIFICATE                 base64 of the code-signing .pfx
+#     WINDOWS_CERTIFICATE_PASSWORD        .pfx password
+#
+# Signing switches on by itself once the secrets exist. Without them the
+# installers are unsigned: macOS users must allow the app under
+# System Settings → Privacy & Security, Windows shows a SmartScreen prompt.
+
+# Release channels are decided by the tag:
+#   v1.2.3          stable  → normal release; the app polls releases/latest/download/latest.json
+#   v1.2.3-beta.1   beta    → prerelease; the app polls releases/download/desktop-beta/latest.json,
+#                             which desktop-channel.yml refreshes when a prerelease is published.
+# Both channels are signed with the same updater key: a channel is a distribution
+# lane, not a trust boundary. A beta build only differs in the endpoint it polls.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+      - "v*.*.*-*"
+  # Manual runs build every target and upload the installers as workflow
+  # artifacts; only tag pushes create a GitHub Release.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.label }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS arm64
+            platform: macOS
+            runner: macos-14
+            args: "--target aarch64-apple-darwin"
+          - label: macOS x64
+            platform: macOS
+            runner: macos-14
+            args: "--target x86_64-apple-darwin"
+          - label: Linux x64
+            platform: Linux
+            runner: ubuntu-24.04
+            args: ""
+          - label: Windows x64
+            platform: Windows
+            runner: windows-2022
+            args: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The Go server ships inside the app as a sidecar (local mode). It links
+      # SQLite through cgo, so it is built natively on each matrix leg; macOS
+      # x86_64 is cross-built from the arm64 runner with Apple's toolchain.
+      - name: Build server sidecar
+        shell: bash
+        run: |
+          target="${{ matrix.args }}"
+          target="${target#--target }"
+          if [[ -n "$target" ]]; then
+            node apps/desktop/scripts/build-sidecar.mjs --target "$target"
+          else
+            node apps/desktop/scripts/build-sidecar.mjs
+          fi
+
+      # Version drift between VERSION, package.json, tauri.conf.json and
+      # Cargo.toml must fail the release rather than ship a mislabelled build.
+      - name: Verify version consistency
+        run: node scripts/sync-version.mjs --check
+
+      - name: Resolve release channel
+        id: channel
+        shell: bash
+        run: |
+          tag="${{ github.ref_type == 'tag' && github.ref_name || '' }}"
+          if [[ "$tag" == *-* ]]; then
+            echo "name=beta" >> "$GITHUB_OUTPUT"
+            # No spaces inside the JSON: tauri-action splits `args` on whitespace.
+            echo 'tauri_args=--config {"plugins":{"updater":{"endpoints":["https://github.com/${{ github.repository }}/releases/download/desktop-beta/latest.json"]}}}' >> "$GITHUB_OUTPUT"
+          else
+            echo "name=stable" >> "$GITHUB_OUTPUT"
+            echo 'tauri_args=' >> "$GITHUB_OUTPUT"
+          fi
+
+      # Tauri treats a signing variable that merely exists as configured, so
+      # the Apple credentials are exported only when the secrets are set;
+      # identity and team id are then read from the certificate.
+      - name: Configure Apple signing
+        if: matrix.platform == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: |
+          if [[ -z "$APPLE_CERTIFICATE" || -z "$APPLE_ID" || -z "$APPLE_PASSWORD" ]]; then
+            echo "::warning::APPLE_* secrets not set; building an unsigned, un-notarized macOS app"
+            exit 0
+          fi
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD; do
+            printf '%s<<__EOF__\n%s\n__EOF__\n' "$name" "${!name}" >> "$GITHUB_ENV"
+          done
+          bash apps/desktop/scripts/apple-signing-env.sh >> "$GITHUB_ENV"
+
+      # Tauri signs Windows binaries with a certificate from the machine store,
+      # selected by thumbprint (bundle.windows.certificateThumbprint). Import the
+      # .pfx and pass the thumbprint through TAURI_BUNDLE_WINDOWS_CERTIFICATE_THUMBPRINT.
+      - name: Import Windows code-signing certificate
+        if: matrix.platform == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE) {
+            Write-Host "::warning::WINDOWS_CERTIFICATE not set; building an unsigned Windows installer"
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $secure = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $secure
+          Remove-Item $pfx
+          "TAURI_BUNDLE_WINDOWS_CERTIFICATE_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build desktop bundles
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # APPLE_* and the Windows certificate thumbprint arrive through
+          # GITHUB_ENV from the steps above, only when configured.
+        with:
+          projectPath: apps/desktop
+          tauriScript: pnpm tauri
+          # Beta builds override the updater endpoint at build time; stable uses tauri.conf.json as is.
+          args: ${{ matrix.args }} ${{ steps.channel.outputs.tauri_args }}
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseName: "DEEIX Chat Desktop __VERSION__"
+          releaseBody: "See the assets below to download and install this version."
+          # Draft until a human publishes it. Stable installs poll GitHub's
+          # releases/latest URL (newest published non-prerelease); beta installs
+          # poll the desktop-beta rolling manifest, refreshed on publish by
+          # desktop-channel.yml. Publishing the draft is the act that ships.
+          releaseDraft: true
+          prerelease: ${{ steps.channel.outputs.name == 'beta' }}
+          includeUpdaterJson: true
+
+      # Same post-processing as a local build (scripts/package-dmg.sh); the
+      # re-encoded image replaces the asset tauri-action uploaded.
+      - name: Package DMG
+        if: matrix.platform == 'macOS'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for dmg in apps/desktop/src-tauri/target/*/release/bundle/dmg/*.dmg apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg; do
+            bash apps/desktop/scripts/package-dmg.sh "$dmg"
+            if [[ "${{ github.ref_type }}" == "tag" ]]; then
+              gh release upload "${{ github.ref_name }}" "$dmg" --clobber --repo "${{ github.repository }}"
+            fi
+          done
+
+      - name: Upload bundles as workflow artifacts
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.label }}
+          path: |
+            apps/desktop/src-tauri/target/**/release/bundle/**/*.dmg
+            apps/desktop/src-tauri/target/**/release/bundle/**/*.AppImage
+            apps/desktop/src-tauri/target/**/release/bundle/**/*.deb
+            apps/desktop/src-tauri/target/**/release/bundle/**/*.msi
+            apps/desktop/src-tauri/target/**/release/bundle/**/*.exe
+          if-no-files-found: warn

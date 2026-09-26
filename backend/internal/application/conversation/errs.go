@@ -7,7 +7,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 )
 
-// 错误码与对外文案是前端本地化依赖的 API 契约（frontend/i18n/messages/*/errors.json 按错误码取文案），
+// 错误码与对外文案是前端本地化依赖的 API 契约（apps/web/i18n/messages/*/errors.json 按错误码取文案），
 // 因此用 apperr 随哨兵一起声明，传输层用 response.ErrorFrom / response.Describe 直接读取。
 // apperr.NewMasked 的第三个参数保留原有内部文本，供日志与错误链使用。
 // 仓储层哨兵暂时保留原始身份；transport 必须在边界显式映射为稳定的 apperr 契约。
