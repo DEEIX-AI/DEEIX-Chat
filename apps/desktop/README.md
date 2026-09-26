@@ -190,9 +190,11 @@ The updater is configured in `tauri.conf.json` (`plugins.updater`). The app
 checks on launch and every four hours (`desktop-update-notifier.tsx`) and
 offers the update in a toast; nothing downloads until the user accepts.
 
-Release flow: pushing a version tag builds every target and creates a **draft**
-GitHub Release with the installers and a signed `latest.json`. Publishing the
-draft is the step that ships the update; until then existing installs see nothing.
+Release flow: merging a `VERSION` bump into `main` creates the tag
+`v<VERSION>` (`release-tag.yml`), which builds every target and opens a
+**draft** GitHub Release with the installers and a signed `latest.json`.
+Publishing the draft is the step that ships the update; until then existing
+installs see nothing. Pushing the tag by hand does the same.
 
 ### Channels
 

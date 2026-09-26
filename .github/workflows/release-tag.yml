@@ -1,0 +1,59 @@
+name: Release Tag
+
+# Turns a version bump on main into a release: when VERSION changes and no
+# tag `v<VERSION>` exists yet, create it and start Desktop Release (which
+# opens a draft release) and the image builds for that tag. Publishing the
+# draft is still a human step.
+#
+# The tag is pushed with GITHUB_TOKEN, and events raised that way do not start
+# other workflows, so they are started explicitly via workflow_dispatch (the
+# documented exception).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - VERSION
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  tag:
+    name: Tag and dispatch
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create the version tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          tag="v${version}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "${tag} already exists; nothing to do"
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${tag}" -m "Release ${tag}"
+          git push origin "refs/tags/${tag}"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Start release builds for the tag
+        if: steps.tag.outputs.created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for workflow in desktop-release.yml ghcr-image.yml dockerhub-image.yml; do
+            gh workflow run "$workflow" --ref "${{ steps.tag.outputs.tag }}" --repo "${{ github.repository }}"
+          done

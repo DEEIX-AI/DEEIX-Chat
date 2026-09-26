@@ -235,3 +235,19 @@ jobs:
             apps/desktop/src-tauri/target/**/release/bundle/**/*.msi
             apps/desktop/src-tauri/target/**/release/bundle/**/*.exe
           if-no-files-found: warn
+
+  channel:
+    name: Refresh beta manifest
+    # A release created from the Releases page is already published when the
+    # tag arrives, so Desktop Channel ran before latest.json existed. Now that
+    # every leg has uploaded, point the beta channel at it if applicable.
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refresh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: bash apps/desktop/scripts/refresh-beta-manifest.sh "${{ github.ref_name }}"

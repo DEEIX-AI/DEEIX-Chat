@@ -1,13 +1,14 @@
 name: Desktop Channel
 
-# Keeps the beta updater manifest current.
+# Keeps the rolling `desktop-beta` updater manifest current.
 #
 # Stable installs poll GitHub's `releases/latest/download/latest.json`, which the
 # platform resolves to the newest published non-prerelease release — nothing to
 # do. Beta installs poll `releases/download/desktop-beta/latest.json`, a rolling
-# tag GitHub cannot resolve on its own, so on every publish (beta or stable)
-# this workflow copies the newest signed `latest.json` there. The manifest is signed by the
-# build that produced it; this job only moves the file.
+# tag GitHub cannot resolve on its own, so when a release is published this
+# workflow copies its signed `latest.json` there. Desktop Release runs the same
+# script after building, which covers releases that were published before
+# their assets existed (tag created from the Releases page).
 
 on:
   release:
@@ -19,54 +20,13 @@ permissions:
 jobs:
   refresh-beta-manifest:
     name: Refresh beta manifest
-    # Beta installs must also receive stable releases, so every published
-    # release is a candidate; the manifest is replaced only when the version
-    # is newer than what desktop-beta currently serves.
+    # The rolling tag is itself a prerelease; do not recurse when it gets (re)published.
     if: github.event.release.tag_name != 'desktop-beta'
     runs-on: ubuntu-24.04
     steps:
-      - name: Download the manifest from the published release
+      - uses: actions/checkout@v4
+      - name: Refresh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release download "${{ github.event.release.tag_name }}" --repo "${{ github.repository }}" --pattern latest.json --dir manifest
-
-      - name: Ensure the rolling desktop-beta release exists
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release view desktop-beta --repo "${{ github.repository }}" >/dev/null 2>&1 || \
-            gh release create desktop-beta --repo "${{ github.repository }}" --prerelease \
-              --title "Desktop beta channel" \
-              --notes "Rolling updater manifest for beta installs. Do not delete; the beta app polls this tag."
-
-      - name: Skip unless newer than the current beta manifest
-        id: compare
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p current
-          gh release download desktop-beta --repo "${{ github.repository }}" --pattern latest.json --dir current 2>/dev/null || true
-          node - <<'JS' >> "$GITHUB_OUTPUT"
-          const fs = require("fs");
-          const next = JSON.parse(fs.readFileSync("manifest/latest.json", "utf8")).version;
-          const cur = fs.existsSync("current/latest.json") ? JSON.parse(fs.readFileSync("current/latest.json", "utf8")).version : "0.0.0";
-          // Semver precedence: numeric core, then a release outranks any prerelease of the same core.
-          const parse = (v) => { const [core, pre = ""] = v.replace(/^v/, "").split("-"); return { core: core.split(".").map(Number), pre: pre ? pre.split(".") : null }; };
-          const cmp = (a, b) => {
-            for (let i = 0; i < 3; i++) if (a.core[i] !== b.core[i]) return a.core[i] - b.core[i];
-            if (!a.pre && !b.pre) return 0; if (!a.pre) return 1; if (!b.pre) return -1;
-            for (let i = 0; i < Math.max(a.pre.length, b.pre.length); i++) {
-              const x = a.pre[i], y = b.pre[i]; if (x === undefined) return -1; if (y === undefined) return 1;
-              const nx = Number(x), ny = Number(y); const bothNum = !Number.isNaN(nx) && !Number.isNaN(ny);
-              if (bothNum ? nx !== ny : x !== y) return bothNum ? nx - ny : (x < y ? -1 : 1);
-            }
-            return 0;
-          };
-          console.log(`newer=${cmp(parse(next), parse(cur)) > 0}`);
-          JS
-
-      - name: Publish the manifest to desktop-beta
-        if: steps.compare.outputs.newer == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload desktop-beta manifest/latest.json --repo "${{ github.repository }}" --clobber
+          GH_REPO: ${{ github.repository }}
+        run: bash apps/desktop/scripts/refresh-beta-manifest.sh "${{ github.event.release.tag_name }}"
