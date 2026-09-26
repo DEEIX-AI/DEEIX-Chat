@@ -50,7 +50,8 @@
         "language": [
           "en-US",
           "zh-CN"
-        ]
+        ],
+        "version": "0.4.4.1"
       },
       "digestAlgorithm": "sha256",
       "timestampUrl": "http://timestamp.digicert.com"
