@@ -22,7 +22,7 @@ const targets = {
     syncPackageVersion("apps", "desktop");
 
     // The Tauri manifest and the Rust crate carry their own version fields.
-    syncJsonVersion("apps", "desktop", "src-tauri", "tauri.conf.json");
+    syncTauriConfig("apps", "desktop", "src-tauri", "tauri.conf.json");
     syncCargoVersion("apps", "desktop", "src-tauri", "Cargo.toml");
   },
   backend: () => {
@@ -58,12 +58,16 @@ const mismatches = [];
 
 function writeIfChanged(filePath, nextContent) {
   const current = readFileSync(filePath, "utf8");
-  if (current === nextContent) {
+  // Git may check text files out with CRLF (Windows, `text=auto`); keep the
+  // file's own line endings so only the content is compared.
+  const eol = current.includes("\r\n") ? "\r\n" : "\n";
+  const next = nextContent.replace(/\r?\n/gu, eol);
+  if (current === next) {
     return;
   }
   mismatches.push(filePath);
   if (!checkOnly) {
-    writeFileSync(filePath, nextContent);
+    writeFileSync(filePath, next);
   }
 }
 
@@ -81,12 +85,29 @@ function syncPackageVersion(...pathSegments) {
   writeIfChanged(packageFile, `${JSON.stringify(packageJson, null, 2)}\n`);
 }
 
-/// 同步任意 JSON 清单里的顶层 version 字段（如 tauri.conf.json）。
-function syncJsonVersion(...pathSegments) {
+/// tauri.conf.json carries the app version and the MSI ProductVersion. The
+/// latter is numeric-only (major.minor.patch.build), so the pre-release number
+/// becomes the fourth field. Windows Installer ignores that field when comparing
+/// versions and Tauri's WiX template allows same-version upgrades, so a beta
+/// still upgrades to its stable; the in-app updater compares semver anyway.
+function syncTauriConfig(...pathSegments) {
   const manifestFile = join(repoRoot, ...pathSegments);
   const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
   manifest.version = version;
+  ((manifest.bundle.windows ??= {}).wix ??= {}).version = msiVersion(version);
   writeIfChanged(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+function msiVersion(semver) {
+  const [, core, pre] = /^(\d+\.\d+\.\d+)(?:-([0-9A-Za-z.-]+))?/u.exec(semver);
+  if (!pre) {
+    return core;
+  }
+  const build = pre.split(".").at(-1);
+  if (!/^\d+$/u.test(build) || Number(build) > 65535) {
+    throw new Error(`Pre-release "${pre}" must end in a number (0-65535) so the MSI version can carry it`);
+  }
+  return `${core}.${build}`;
 }
 
 /// 同步 Cargo.toml 的 [package] version 行；只替换该节内的第一处。

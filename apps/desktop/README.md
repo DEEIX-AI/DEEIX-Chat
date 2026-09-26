@@ -205,6 +205,12 @@ references assets by file name, so its URLs are rewritten in the same job; only
 the artifact bytes are signed, so verification is unaffected. `pnpm test` covers
 the mapping.
 
+`scripts/sync-version.mjs` also derives `bundle.windows.wix.version` from
+`VERSION`: MSI product versions are numeric-only, so `0.4.4-beta.1` becomes
+`0.4.4.1` (a pre-release must therefore end in a number). Windows Installer
+ignores the fourth field when comparing versions, so a beta still upgrades to
+its stable; the in-app updater compares semver.
+
 Release flow: merging a `VERSION` bump into `main` creates the tag
 `v<VERSION>` (`release-tag.yml`), which builds every target and opens a
 **draft** GitHub Release with the installers and a signed `latest.json`.
