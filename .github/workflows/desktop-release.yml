@@ -107,6 +107,12 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
+      # Windows needs a C compiler for cgo; fail early with a clear message
+      # rather than inside the Go build.
+      - name: Check C compiler
+        shell: bash
+        run: gcc --version | head -1 || { echo "::error::no C compiler for cgo"; exit 1; }
+
       # The Go server ships inside the app as a sidecar (local mode). It links
       # SQLite through cgo, so it is built natively on each matrix leg; macOS
       # x86_64 is cross-built from the arm64 runner with Apple's toolchain.
@@ -153,7 +159,10 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
         run: |
           if [[ -z "$APPLE_CERTIFICATE" || -z "$APPLE_ID" || -z "$APPLE_PASSWORD" ]]; then
-            echo "::warning::APPLE_* secrets not set; building an unsigned, un-notarized macOS app"
+            # Ad-hoc: Tauri skips codesign without an identity, and the linker's
+            # own signature is not a valid bundle signature ("damaged" on macOS).
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "::warning::APPLE_* secrets not set; the macOS app is ad-hoc signed and not notarized"
             exit 0
           fi
           for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD; do
@@ -197,7 +206,19 @@ jobs:
           args: ${{ matrix.args }} ${{ steps.channel.outputs.tauri_args }}
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: "DEEIX Chat Desktop __VERSION__"
-          releaseBody: "See the assets below to download and install this version."
+          # Names as produced by the assets job below.
+          releaseBody: |
+            ### Which file do I need?
+
+            | System | Download |
+            | --- | --- |
+            | macOS, Apple silicon | `DEEIX-Chat-<version>-macos-arm64.dmg` |
+            | macOS, Intel | `DEEIX-Chat-<version>-macos-x64.dmg` |
+            | Linux, x86_64 | `DEEIX-Chat-<version>-linux-x64.AppImage` or `.deb` |
+            | Windows, x86_64 | `DEEIX-Chat-<version>-windows-x64-setup.exe` or `.msi` |
+
+            Files ending in `-updater.tar.gz` or `.sig`, and `latest.json`, belong to the
+            built-in updater — they are not downloads.
           # Draft until a human publishes it. Stable installs poll GitHub's
           # releases/latest URL (newest published non-prerelease); beta installs
           # poll the desktop-beta rolling manifest, refreshed on publish by
@@ -223,6 +244,15 @@ jobs:
             fi
           done
 
+      - name: Verify bundle signature
+        if: matrix.platform == 'macOS'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          for app in apps/desktop/src-tauri/target/*/release/bundle/macos/*.app apps/desktop/src-tauri/target/release/bundle/macos/*.app; do
+            codesign --verify --deep --strict --verbose=2 "$app"
+          done
+
       - name: Upload bundles as workflow artifacts
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v4
@@ -236,12 +266,29 @@ jobs:
             apps/desktop/src-tauri/target/**/release/bundle/**/*.exe
           if-no-files-found: warn
 
+  assets:
+    name: Rename release assets
+    # Tauri's asset names do not say which platform a file belongs to. Runs
+    # once every leg has uploaded; the updater manifest references assets by
+    # file name and is rewritten to match.
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rename
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: node apps/desktop/scripts/rename-release-assets.mjs "${{ github.ref_name }}"
+
   channel:
     name: Refresh beta manifest
     # A release created from the Releases page is already published when the
     # tag arrives, so Desktop Channel ran before latest.json existed. Now that
-    # every leg has uploaded, point the beta channel at it if applicable.
-    needs: build
+    # every leg has uploaded and the assets carry their final names, point the
+    # beta channel at it if applicable.
+    needs: [build, assets]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     steps:

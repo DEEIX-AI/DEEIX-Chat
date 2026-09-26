@@ -185,6 +185,8 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
       - name: Version consistency
         run: node ../../../scripts/sync-version.mjs --check desktop
+      - name: Release scripts
+        run: node --test '../scripts/*.test.mjs'
       # tauri-build copies bundle.externalBin eagerly, so a sidecar file must
       # exist before any cargo command. Checks never run it, and the API job
       # already compiles the real one, so a placeholder saves the cgo build here.

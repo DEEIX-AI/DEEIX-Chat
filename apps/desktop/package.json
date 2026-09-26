@@ -13,7 +13,8 @@
     "build:app": "pnpm build:sidecar && node scripts/build-app.mjs",
     "check": "pnpm check:version && pnpm build:sidecar && cargo check --manifest-path src-tauri/Cargo.toml",
     "build:sidecar": "node scripts/build-sidecar.mjs",
-    "build:signed": "bash scripts/build-signed.sh"
+    "build:signed": "bash scripts/build-signed.sh",
+    "test": "node --test 'scripts/*.test.mjs'"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.11.5"

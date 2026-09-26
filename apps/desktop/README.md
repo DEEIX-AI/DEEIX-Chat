@@ -190,6 +190,14 @@ The updater is configured in `tauri.conf.json` (`plugins.updater`). The app
 checks on launch and every four hours (`desktop-update-notifier.tsx`) and
 offers the update in a toast; nothing downloads until the user accepts.
 
+Release assets are renamed by `scripts/rename-release-assets.mjs` to
+`DEEIX-Chat-<version>-<os>-<arch>[-setup|-updater].<ext>`, e.g.
+`DEEIX-Chat-0.4.4-beta.1-macos-arm64.dmg`, `-linux-x64.AppImage`,
+`-windows-x64-setup.exe`, `-macos-arm64-updater.tar.gz`. The updater manifest
+references assets by file name, so its URLs are rewritten in the same job; only
+the artifact bytes are signed, so verification is unaffected. `pnpm test` covers
+the mapping.
+
 Release flow: merging a `VERSION` bump into `main` creates the tag
 `v<VERSION>` (`release-tag.yml`), which builds every target and opens a
 **draft** GitHub Release with the installers and a signed `latest.json`.
@@ -215,7 +223,7 @@ What a local `pnpm build` costs once caches are warm, and where it goes:
 
 | Step | Unchanged | Changed | Notes |
 | --- | --- | --- | --- |
-| Go sidecar | ~3 s | ~20 s | Go build cache; `-tags nopostgres,noredis,nos3,noswagger,nomsgpack` compiles out drivers local mode does not use |
+| Go sidecar | ~3 s | ~20 s | Go build cache; `-tags nopostgres,noredis,nos3,noswagger,nomsgpack` compiles out drivers local mode does not use. cgo needs a C compiler and SQLite headers; `build-sidecar.mjs` takes the headers from the `go-sqlite3` module so Windows works without a system SQLite |
 | Web (`next build`) | **0.3 s** | ~35 s | runs through `turbo`, so an untouched frontend is a cache hit |
 | Rust app crate | ~1 s | ~60 s | recompiles whenever `out/` changed (assets are embedded); fat LTO, the shipped profile |
 | `.app` | ~1 s | | |
@@ -251,10 +259,12 @@ RFC 3161 timestamping on Windows; CI imports the Windows certificate into the
 runner's store and passes its thumbprint to the bundler.
 
 Only the updater key is mandatory. Platform signing switches on by itself once
-its secrets exist; until then the installers are unsigned, which macOS users
-must allow under System Settings → Privacy & Security and Windows users past a
-SmartScreen prompt — fine for internal testing, not for public releases.
-Signing keys never enter the repository.
+its secrets exist. Without a Developer ID the macOS app is signed **ad-hoc**
+(`APPLE_SIGNING_IDENTITY=-`); Tauri would otherwise skip `codesign` and leave
+only the linker's signature, which macOS reports as *damaged* on Apple silicon.
+Ad-hoc builds still need the user to allow the app under System Settings →
+Privacy & Security and are for internal testing, not public releases. Signing
+keys never enter the repository.
 
 To obtain the .p12 on macOS: Keychain Access → My Certificates → right-click the
 "Developer ID Application" cert → Export → base64 it (`base64 -i cert.p12 | pbcopy`).

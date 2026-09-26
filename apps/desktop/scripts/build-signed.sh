@@ -34,6 +34,11 @@ if [[ -n "${APPLE_CERTIFICATE:-}" ]]; then
   while IFS='=' read -r key value; do
     export "$key=$value"
   done < <(bash "$root/apps/desktop/scripts/apple-signing-env.sh")
+elif [[ "$(uname)" == "Darwin" && -z "${APPLE_SIGNING_IDENTITY:-}" ]]; then
+  # Tauri skips codesign without an identity, and the linker's own signature
+  # is not a valid bundle signature: macOS reports the app as damaged.
+  export APPLE_SIGNING_IDENTITY="-"
+  echo "note: no Developer ID configured; the app will be ad-hoc signed and not notarized" >&2
 fi
 
 cd "$root"
@@ -46,10 +51,12 @@ if [[ "$(uname)" == "Darwin" ]]; then
   done
 fi
 
-if [[ "$(uname)" == "Darwin" && -n "${APPLE_SIGNING_IDENTITY:-}" ]]; then
+if [[ "$(uname)" == "Darwin" ]]; then
   app="$root/apps/desktop/src-tauri/target/release/bundle/macos/DEEIX Chat.app"
   echo "--- codesign"
   codesign --verify --deep --strict --verbose=2 "$app"
-  echo "--- Gatekeeper (expect: source=Notarized Developer ID)"
-  spctl --assess --type execute --verbose=2 "$app"
+  if [[ -n "${APPLE_TEAM_ID:-}" ]]; then
+    echo "--- Gatekeeper (expect: source=Notarized Developer ID)"
+    spctl --assess --type execute --verbose=2 "$app"
+  fi
 fi

@@ -10,7 +10,7 @@
 // Usage: node scripts/build-sidecar.mjs [--target <rust-triple>]
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -55,8 +55,41 @@ const tags = "nopostgres,noredis,nos3,noswagger,nomsgpack";
 execFileSync("go", ["build", "-trimpath", "-tags", tags, "-ldflags", ldflags, "-o", output, "./cmd/server"], {
   cwd: backendDir,
   stdio: "inherit",
-  env: { ...process.env, GOOS: goos, GOARCH: goarch, CGO_ENABLED: "1" },
+  env: {
+    ...process.env,
+    GOOS: goos,
+    GOARCH: goarch,
+    CGO_ENABLED: "1",
+    // Setting CGO_CFLAGS replaces cgo's defaults rather than adding to them,
+    // so -O2 -g has to be repeated here.
+    CGO_CFLAGS: ["-O2 -g", sqliteIncludeFlags(), process.env.CGO_CFLAGS].filter(Boolean).join(" "),
+  },
 });
+
+/**
+ * sqlite-vec's cgo bindings include <sqlite3.h> and <sqlite3ext.h>. Those
+ * headers are not available on Windows and differ by distribution elsewhere,
+ * so they are taken from the driver's own module, whose bundled amalgamation
+ * they match exactly.
+ */
+function sqliteIncludeFlags() {
+  const moduleDir = execFileSync("go", ["list", "-m", "-f", "{{.Dir}}", "github.com/mattn/go-sqlite3"], {
+    cwd: backendDir,
+    encoding: "utf8",
+  }).trim();
+  if (!moduleDir) {
+    console.error("Cannot locate github.com/mattn/go-sqlite3; run go mod download first.");
+    process.exit(1);
+  }
+  // The module cache is read-only, so copies inherit mode 0444 and a second
+  // build could not overwrite them.
+  const includeDir = join(outDir, ".sqlite-include");
+  rmSync(includeDir, { recursive: true, force: true });
+  mkdirSync(includeDir, { recursive: true });
+  copyFileSync(join(moduleDir, "sqlite3-binding.h"), join(includeDir, "sqlite3.h"));
+  copyFileSync(join(moduleDir, "sqlite3ext.h"), join(includeDir, "sqlite3ext.h"));
+  return `-I${includeDir}`;
+}
 
 function hostTriple() {
   try {
