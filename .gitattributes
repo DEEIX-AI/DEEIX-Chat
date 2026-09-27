@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Content-hashed by apps/web/scripts/sync-*.mjs, and the generated manifests
+# those scripts write with "\n". A CRLF checkout (core.autocrlf=true on
+# Windows) changes the hash and dirties the tree on every start.
+*.svg text eol=lf
+apps/web/shared/generated/** text eol=lf

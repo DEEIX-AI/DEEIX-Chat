@@ -1,8 +1,5 @@
-// Local-mode sidecar: the Go server as a child process on the loopback
-// interface, with SQLite and local storage under the app data directory.
-// Handshake: one JSON line on stdout with the origin and a one-time login
-// grant (see backend/internal/cli); the grant is redeemed by
-// `session::local_sign_in` and never reaches the webview.
+// Local-mode sidecar: the Go server on loopback. It prints one JSON line with
+// its origin and a one-time login grant, which never reaches the webview.
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -13,8 +10,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
-/// File name of the bundled Go binary, resolved next to the app executable.
-/// Tauri strips the `binaries/` directory of `bundle.externalBin` when copying.
+/// `bundle.externalBin` without the `binaries/` prefix and target triple.
 const SIDECAR_PROGRAM: &str = "deeix-chat-server";
 const READY_TIMEOUT: Duration = Duration::from_secs(30);
 const LOCAL_DATA_DIR: &str = "local";
@@ -69,9 +65,7 @@ pub async fn ensure_running<R: Runtime>(app: &AppHandle<R>) -> Result<String, Si
     Ok(origin)
 }
 
-/// Take the one-time login grant. Restarts the sidecar if the current grant
-/// was already consumed: a fresh process is the only way to get a fresh grant,
-/// and that is deliberate — grants must not be mintable over the network.
+/// Take the one-time grant; restarts the sidecar if it was already consumed.
 pub async fn take_grant<R: Runtime>(app: &AppHandle<R>) -> Result<(String, String), SidecarError> {
     let state = app.state::<SidecarState>();
     let mut guard = state.inner.lock().await;
@@ -131,9 +125,7 @@ async fn spawn<R: Runtime>(app: &AppHandle<R>) -> Result<Running, SidecarError> 
         }
     };
 
-    // Keep draining stderr so the child never blocks on a full pipe, and drop
-    // our record of it when it exits so the next call restarts it. Match on
-    // pid: a replaced process exiting must not erase the record of its successor.
+    // Drain stderr and forget the child on exit; match on pid, not on identity.
     let app_handle = app.clone();
     let pid = child.pid();
     tauri::async_runtime::spawn(async move {

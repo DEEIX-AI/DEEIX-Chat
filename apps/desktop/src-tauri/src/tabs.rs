@@ -22,14 +22,13 @@ use crate::sidecar;
 pub const WINDOW_LABEL: &str = "main";
 pub const CHROME_LABEL: &str = "chrome";
 const CHROME_URL: &str = "desktop/tabs";
+/// Not `/`: the static export renders it as a redirect payload only.
+const CONTENT_URL: &str = "/chat";
 const TABS_FILE: &str = "tabs.json";
 const CHANGED_EVENT: &str = "tabs:changed";
-/// Height of the tab strip in logical pixels; must match the strip's CSS.
-/// On macOS this equals the compact unified title bar, so the window buttons
-/// AppKit centres in it line up with the tab labels.
+/// Must match the strip's CSS; on macOS also the compact title bar height.
 const STRIP_HEIGHT: f64 = 38.0;
-/// A tab hidden this long has its webview discarded (like a browser's memory
-/// saver); it reloads on the next activation. State lives on the server.
+/// A tab hidden this long has its webview discarded; it reloads on activation.
 const DISCARD_AFTER: Duration = Duration::from_secs(30 * 60);
 const DISCARD_SWEEP: Duration = Duration::from_secs(60);
 
@@ -133,8 +132,7 @@ impl Inner {
         Ok(())
     }
 
-    /// Remove tab `id`; returns it and the tab that should become active
-    /// (the left neighbour, like a browser), or None when no tabs remain.
+    /// Remove tab `id`; returns it and the next active tab (left neighbour).
     fn remove(&mut self, id: &str) -> Result<(Tab, Option<String>)> {
         let index = self
             .tabs
@@ -183,6 +181,8 @@ impl Inner {
 #[derive(Default)]
 pub struct TabsState {
     inner: Mutex<Inner>,
+    /// Serializes webview create/show/hide. Never lock from the main thread.
+    webviews: Mutex<()>,
 }
 
 #[derive(Debug)]
@@ -208,6 +208,8 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
         min_width: Some(960.0),
         min_height: Some(640.0),
         center: true,
+        // Windows draws its own caption buttons in the strip (README "Tabs").
+        decorations: !cfg!(target_os = "windows"),
         title_bar_style: if cfg!(target_os = "macos") {
             tauri::TitleBarStyle::Overlay
         } else {
@@ -233,11 +235,18 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
         LogicalSize::new(width, STRIP_HEIGHT),
     )?;
 
-    let relayout_window = window.clone();
-    window.on_window_event(move |event| {
-        if let WindowEvent::Resized(_) = event {
-            let _ = relayout(&relayout_window);
+    let event_window = window.clone();
+    window.on_window_event(move |event| match event {
+        WindowEvent::Resized(_) => {
+            let _ = relayout(&event_window);
         }
+        // Close hides; the tray quits. Not on Linux, where a tray is not guaranteed.
+        #[cfg(not(target_os = "linux"))]
+        WindowEvent::CloseRequested { api, .. } => {
+            api.prevent_close();
+            let _ = event_window.hide();
+        }
+        _ => {}
     });
 
     let saved = read_file(app)?;
@@ -291,8 +300,11 @@ fn materialize<R: Runtime>(app: &AppHandle<R>, window: &Window<R>, id: &str) -> 
     let title_app = app.clone();
     let title_id = id.to_string();
     let webview = window.add_child(
-        content_webview(app, WebviewBuilder::new(id, WebviewUrl::App("/".into())))
-            .on_document_title_changed(move |_, title| set_title(&title_app, &title_id, title)),
+        content_webview(
+            app,
+            WebviewBuilder::new(id, WebviewUrl::App(CONTENT_URL.into())),
+        )
+        .on_document_title_changed(move |_, title| set_title(&title_app, &title_id, title)),
         LogicalPosition::new(0.0, STRIP_HEIGHT),
         LogicalSize::new(width, (height - STRIP_HEIGHT).max(0.0)),
     )?;
@@ -331,9 +343,7 @@ fn discard_stale<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-/// Navigation policy shared by every webview: the document may only move
-/// within the app itself. Links and `window.open` to anything else go to the
-/// system browser, so a page can never be replaced by remote content.
+/// Webviews may only navigate within the app; anything else opens in the browser.
 fn content_webview<R: Runtime>(
     app: &AppHandle<R>,
     builder: WebviewBuilder<R>,
@@ -379,9 +389,7 @@ fn set_title<R: Runtime>(app: &AppHandle<R>, id: &str, title: String) {
     );
 }
 
-/// Under the overlay title bar AppKit would move the window on press-and-drag
-/// in the top band and starve the page of pointer events. Explicit dragging
-/// via `data-tauri-drag-region` still works (`performWindowDragWithEvent`).
+/// Stops AppKit's title-band drag from stealing pointer events from the strip.
 #[cfg(target_os = "macos")]
 fn disable_titlebar_drag<R: Runtime>(window: &Window<R>) -> Result<()> {
     use objc2::msg_send;
@@ -393,8 +401,7 @@ fn disable_titlebar_drag<R: Runtime>(window: &Window<R>) -> Result<()> {
     Ok(())
 }
 
-/// Centre the window buttons on the tab row: an empty compact unified toolbar
-/// makes AppKit lay out a 38pt title bar itself, so nothing needs repositioning.
+/// An empty compact toolbar makes AppKit centre the traffic lights on the strip.
 #[cfg(target_os = "macos")]
 fn lower_traffic_lights<R: Runtime>(window: &Window<R>) -> Result<()> {
     use objc2::msg_send;
@@ -552,9 +559,7 @@ pub fn open<R: Runtime>(app: &AppHandle<R>, server: Option<Server>) -> Result<Ta
         .expect("tab exists"))
 }
 
-/// Show tab `id`. `focus` moves keyboard focus into it; the strip passes
-/// false while the pointer is held down — pulling focus out of the strip
-/// mid-press makes WebKit drop the press, which kills drag-to-reorder.
+/// Show tab `id`. `focus` is false mid-press: moving focus then kills the drag.
 pub fn activate<R: Runtime>(app: &AppHandle<R>, id: &str, focus: bool) -> Result<()> {
     let window = app
         .get_window(WINDOW_LABEL)
@@ -575,19 +580,23 @@ pub fn activate<R: Runtime>(app: &AppHandle<R>, id: &str, focus: bool) -> Result
             };
         }
     }
-    materialize(app, &window, id)?;
-    for webview in window.webviews() {
-        let label = webview.label();
-        if label == CHROME_LABEL {
-            continue;
-        }
-        if label == id {
-            webview.show()?;
-            if focus {
-                let _ = webview.set_focus();
+    {
+        let state = app.state::<TabsState>();
+        let _guard = state.webviews.lock().unwrap_or_else(|e| e.into_inner());
+        materialize(app, &window, id)?;
+        for webview in window.webviews() {
+            let label = webview.label();
+            if label == CHROME_LABEL {
+                continue;
             }
-        } else {
-            webview.hide()?;
+            if label == id {
+                webview.show()?;
+                if focus {
+                    let _ = webview.set_focus();
+                }
+            } else {
+                webview.hide()?;
+            }
         }
     }
     changed(app)
@@ -603,8 +612,7 @@ pub fn bind<R: Runtime>(app: &AppHandle<R>, id: &str, server: Server) -> Result<
     changed(app)
 }
 
-/// Detach a tab from its server without closing it: the tab returns to the
-/// setup screen. Forgets the server the same way `close` does.
+/// Detach a tab from its server; it returns to the setup screen.
 pub async fn unbind<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<()> {
     let removed = {
         let state = app.state::<TabsState>();
@@ -634,9 +642,7 @@ async fn forget_server<R: Runtime>(app: &AppHandle<R>, server: &Server) -> Resul
     Ok(())
 }
 
-/// Close a tab. Forgets the server: its refresh token is deleted and the
-/// sidecar stops when the last local tab goes. The last tab is replaced by an
-/// empty one so the window always has content.
+/// Close a tab and forget its server; the last tab is replaced by an empty one.
 pub async fn close<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<()> {
     let window = app
         .get_window(WINDOW_LABEL)
@@ -677,13 +683,14 @@ pub fn tabs_list<R: Runtime>(app: AppHandle<R>) -> TabsSnapshot {
     snapshot(&app)
 }
 
+// Async: `add_child` from a sync command re-enters WebView2 and freezes.
 #[tauri::command]
-pub fn tabs_open<R: Runtime>(app: AppHandle<R>) -> std::result::Result<Tab, String> {
+pub async fn tabs_open<R: Runtime>(app: AppHandle<R>) -> std::result::Result<Tab, String> {
     open(&app, None).map_err(|e| e.0)
 }
 
 #[tauri::command]
-pub fn tabs_activate<R: Runtime>(
+pub async fn tabs_activate<R: Runtime>(
     app: AppHandle<R>,
     id: String,
     focus: bool,

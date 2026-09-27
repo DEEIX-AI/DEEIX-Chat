@@ -1,13 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "chrome-capability",
-  "description": "The tab strip. Only needs the core event/IPC defaults plus window dragging so the strip doubles as a title bar.",
+  "description": "The tab strip: core event/IPC defaults, window dragging, and the caption buttons it draws itself on Windows.",
   "webviews": [
     "chrome"
   ],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
     "allow-tabs-list",
     "allow-tabs-open",
     "allow-tabs-activate",

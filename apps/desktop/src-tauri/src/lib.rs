@@ -1,8 +1,5 @@
-// DEEIX Chat desktop shell.
-//
-// Scope is intentionally narrow: window/tray lifecycle, OAuth loopback receiver,
-// auto-update and session persistence (refresh token never leaves Rust after login). No business logic lives here — everything
-// the user interacts with is the apps/web build, so a feature is written once.
+// DEEIX Chat desktop shell: window/tray lifecycle, OAuth loopback, updater and
+// session storage. No business logic — everything else is the apps/web build.
 
 mod oauth_loopback;
 mod session;
@@ -16,6 +13,9 @@ pub fn run() {
     session::ensure_tls_provider();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::show_main_window(app);
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
@@ -49,9 +49,10 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building DEEIX Chat desktop")
-        .run(|app, event| {
-            if let tauri::RunEvent::Exit = event {
-                sidecar::stop_blocking(app);
-            }
+        .run(|app, event| match event {
+            tauri::RunEvent::Exit => sidecar::stop_blocking(app),
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen { .. } => tray::show_main_window(app),
+            _ => {}
         });
 }

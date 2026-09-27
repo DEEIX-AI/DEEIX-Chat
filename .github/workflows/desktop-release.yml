@@ -205,20 +205,21 @@ jobs:
           # Beta builds override the updater endpoint at build time; stable uses tauri.conf.json as is.
           args: ${{ matrix.args }} ${{ steps.channel.outputs.tauri_args }}
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: "DEEIX Chat Desktop __VERSION__"
-          # Names as produced by the assets job below.
+          releaseName: "v__VERSION__"
+          # Asset suffixes as produced by the assets job below. The Verified and
+          # Available columns are edited by hand on the draft when a platform
+          # needs a caveat.
           releaseBody: |
-            ### Which file do I need?
+            ### ⏬ Download
 
-            | System | Download |
-            | --- | --- |
-            | macOS, Apple silicon | `DEEIX-Chat-<version>-macos-arm64.dmg` |
-            | macOS, Intel | `DEEIX-Chat-<version>-macos-x64.dmg` |
-            | Linux, x86_64 | `DEEIX-Chat-<version>-linux-x64.AppImage` or `.deb` |
-            | Windows, x86_64 | `DEEIX-Chat-<version>-windows-x64-setup.exe`, or the `.msi` for your language |
+            | Platform | Download | Verified | Available |
+            | --- | --- | --- | --- |
+            | macOS · Apple silicon | `macos-arm64.dmg` | ✅ Verified | ✅ Available |
+            | macOS · Intel | `macos-x64.dmg` | ✅ Verified | ✅ Available |
+            | Linux · x86_64 | `linux-x64.AppImage` or `.deb` | ✅ Verified | ✅ Available |
+            | Windows · x86_64 | `windows-x64-setup.exe` | ✅ Verified | ✅ Available |
 
-            Files ending in `-updater.tar.gz` or `.sig`, and `latest.json`, belong to the
-            built-in updater — they are not downloads.
+            `-updater.tar.gz`, `.sig` and `latest.json` belong to the built-in updater.
           # Draft until a human publishes it. Stable installs poll GitHub's
           # releases/latest URL (newest published non-prerelease); beta installs
           # poll the desktop-beta rolling manifest, refreshed on publish by
@@ -262,7 +263,6 @@ jobs:
             apps/desktop/src-tauri/target/**/release/bundle/**/*.dmg
             apps/desktop/src-tauri/target/**/release/bundle/**/*.AppImage
             apps/desktop/src-tauri/target/**/release/bundle/**/*.deb
-            apps/desktop/src-tauri/target/**/release/bundle/**/*.msi
             apps/desktop/src-tauri/target/**/release/bundle/**/*.exe
           if-no-files-found: warn
 

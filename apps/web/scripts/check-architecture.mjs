@@ -4,9 +4,11 @@
 // platform concern leaked into shared code, not a style problem.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = new URL("..", import.meta.url).pathname;
+// fileURLToPath, not URL.pathname: the latter yields "/E:/..." on Windows.
+const root = fileURLToPath(new URL("..", import.meta.url));
 
 const rules = [
   {
@@ -41,7 +43,11 @@ function walk(dir, out = []) {
   return out;
 }
 
-const files = walk(root).map((full) => ({ path: relative(root, full), source: readFileSync(full, "utf8") }));
+const files = walk(root).map((full) => ({
+  path: relative(root, full).split(sep).join("/"),
+  source: readFileSync(full, "utf8"),
+}));
+
 const violations = [];
 for (const rule of rules) {
   for (const file of files) {

@@ -1,6 +1,6 @@
 [package]
 name = "deeix-chat-desktop"
-version = "0.4.4-beta.1"
+version = "0.4.4-beta.2"
 description = "DEEIX Chat desktop shell"
 authors = ["DEEIX"]
 edition = "2021"
@@ -34,6 +34,7 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "rus
 # install it lazily on first use, which is too late for an early session refresh).
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 tauri-plugin-shell = "2"
+tauri-plugin-single-instance = "2"
 tokio = { version = "1", features = ["time", "macros", "rt-multi-thread"] }
 
 

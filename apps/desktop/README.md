@@ -33,11 +33,23 @@ webview would never receive.
 The window is a plain `Window` with child webviews (Tauri `unstable`):
 
 ```
-┌─ chrome (40px) ── /desktop/tabs ── tab strip, drag region ───────────┐
-├─ tab-1 ── /  ── bound to local ──────────────────────────────────────┤
-├─ tab-2 ── /  ── bound to https://chat.example.com  (hidden)          │
-└─ tab-3 ── /  ── unbound → setup screen             (hidden)          ┘
+┌─ chrome (38px) ── /desktop/tabs ── tab strip, drag region ───────────┐
+├─ tab-1 ── /chat ── bound to local ───────────────────────────────────┤
+├─ tab-2 ── /chat ── bound to https://chat.example.com  (hidden)       │
+└─ tab-3 ── /chat ── unbound → setup screen             (hidden)       ┘
 ```
+
+Tabs enter at `/chat`: under the static export the root route is only a
+`redirect("/chat")` payload, which a webview cannot render.
+
+The strip is the title bar. macOS overlays the native bar so the traffic lights
+sit on the strip; Windows is undecorated and the strip draws the caption buttons
+(tao keeps edge resizing, the shadow and the maximized inset); Linux keeps the
+system bar, since undecorated GTK varies by window manager. On Windows and macOS
+close hides the window and the app stays behind the tray — a second launch
+focuses the running copy (`tauri-plugin-single-instance`) rather than starting
+another sidecar on the same database. On Linux close quits: a tray icon is not
+guaranteed there, so a hidden window could be unreachable.
 
 Every tab is a full instance of the web app with its own DOM, caches, SSE
 connections and in-memory session, so the app never has to model "several
@@ -200,18 +212,15 @@ offers the update in a toast; nothing downloads until the user accepts.
 Release assets are renamed by `scripts/rename-release-assets.mjs` to
 `DEEIX-Chat-<version>-<os>-<arch>[-setup|-updater].<ext>`, e.g.
 `DEEIX-Chat-0.4.4-beta.1-macos-arm64.dmg`, `-linux-x64.AppImage`,
-`-windows-x64-setup.exe`, `-windows-x64-zh-CN.msi` (one MSI per
-`bundle.windows.wix.language`), `-macos-arm64-updater.tar.gz`. The plan is
+`-windows-x64-setup.exe`, `-macos-arm64-updater.tar.gz`. The plan is
 validated for collisions before anything is renamed, and the updater manifest,
 which references assets by file name, is reconciled from its own URLs, so the
 job can be re-run after an interruption. Only the artifact bytes are signed, so
 verification is unaffected. `pnpm test` covers the mapping.
 
-`scripts/sync-version.mjs` also derives `bundle.windows.wix.version` from
-`VERSION`: MSI product versions are numeric-only, so `0.4.4-beta.1` becomes
-`0.4.4.1` (a pre-release must therefore end in a number). Windows Installer
-ignores the fourth field when comparing versions, so a beta still upgrades to
-its stable; the in-app updater compares semver.
+Windows ships the NSIS installer only. An MSI would need a numeric-only
+product version (no `-beta.1`) and one file per installer language, for a
+deployment path (Group Policy) nobody uses yet.
 
 Release flow: merging a `VERSION` bump into `main` creates the tag
 `v<VERSION>` (`release-tag.yml`), which builds every target and opens a

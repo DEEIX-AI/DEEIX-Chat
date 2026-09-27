@@ -2,11 +2,10 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
-// Typed bindings for the Tauri shell's session commands (apps/desktop/src-tauri/src/session.rs).
-// This is the whole surface the webview has for the long-lived credential:
-// it can hand a refresh token over once, ask for an access token, or sign out.
-// It can never read the token back or point it at a different server.
+// Typed bindings for the Tauri shell (apps/desktop/src-tauri). The webview hands
+// the refresh token over once and can never read it back.
 
 export type ShellSessionError = {
   kind: "network" | "http" | "storage" | "no_session" | "invalid_origin" | "sidecar" | "no_server" | "tabs";
@@ -65,8 +64,7 @@ export function refreshSession(): Promise<ShellCredentials> {
   return invoke<ShellCredentials>("refresh_session");
 }
 
-// ---------- tabs (apps/desktop/src-tauri/src/tabs.rs) ----------
-// Only the tab strip webview is granted these; content tabs never see them.
+// ---------- tabs (tab strip only) ----------
 
 export type ShellTab = { id: string; server: ServerInfo | null; title: string };
 export type ShellTabs = { tabs: ShellTab[]; active: string | null; platform: "macos" | "windows" | "linux" | string };
@@ -100,4 +98,30 @@ export function closeTab(id: string): Promise<void> {
 
 export function moveTab(id: string, index: number): Promise<void> {
   return invoke("tabs_move", { id, index });
+}
+
+// ---------- window controls (tab strip) ----------
+
+export function minimizeWindow(): Promise<void> {
+  return getCurrentWindow().minimize();
+}
+
+export function toggleMaximizeWindow(): Promise<void> {
+  return getCurrentWindow().toggleMaximize();
+}
+
+export function closeWindow(): Promise<void> {
+  return getCurrentWindow().close();
+}
+
+export function isWindowMaximized(): Promise<boolean> {
+  return getCurrentWindow().isMaximized();
+}
+
+/** Subscribe to size changes (also fires on maximize/restore); returns an unsubscribe function. */
+export function onWindowResized(handler: () => void): () => void {
+  const unlisten = getCurrentWindow().onResized(() => handler());
+  return () => {
+    void unlisten.then((fn) => fn());
+  };
 }

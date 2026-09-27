@@ -1,13 +1,7 @@
-// Session persistence and refresh.
-//
-// The refresh token lives in the OS keychain and is only ever sent to the
-// server it was issued for, by this module. The webview hands it over once
-// after login and can afterwards only request an access token or sign out —
-// the HttpOnly-cookie property of the browser build.
-//
-// Commands resolve their server from the calling webview's tab (tabs.rs); the
-// keychain is keyed per server. Local mode uses the constant key "local" and
-// resolves the sidecar's origin at call time, since its port changes per launch.
+// Session persistence and refresh. The refresh token lives in the OS keychain,
+// keyed per server, and only this module ever sends it — the webview hands it
+// over once and can never read it back. Commands resolve their server from the
+// calling tab (tabs.rs).
 
 use std::time::Duration;
 
@@ -104,8 +98,7 @@ struct RefreshData {
     refresh_token: Option<String>,
 }
 
-/// reqwest is built with `rustls-no-provider`, so a process-wide crypto provider
-/// must exist before the first client is constructed. Idempotent.
+/// reqwest is built with `rustls-no-provider`; install one before any client. Idempotent.
 pub(crate) fn ensure_tls_provider() {
     if rustls::crypto::CryptoProvider::get_default().is_none() {
         let _ = rustls::crypto::ring::default_provider().install_default();
@@ -172,8 +165,7 @@ pub(crate) fn normalize_origin(raw: &str) -> Option<String> {
 
 // ---------- keychain ----------
 
-/// Keychain service = bundle identifier, so dev and installed builds
-/// (different identifiers) never share credentials.
+/// Keychain service = bundle identifier, so dev and installed builds never share.
 fn entry<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Entry, SessionError> {
     Entry::new(&app.config().identifier, &format!("refresh-token:{key}"))
         .map_err(SessionError::storage)
@@ -202,8 +194,7 @@ fn delete_token<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<(), Session
 
 // ---------- commands ----------
 
-/// The calling tab's server, or null when the tab has not chosen one yet. In
-/// local mode the origin is the live sidecar address (started if necessary).
+/// The calling tab's server, or null; local mode starts the sidecar if needed.
 #[tauri::command]
 pub async fn get_server<R: Runtime>(
     app: AppHandle<R>,
@@ -253,8 +244,7 @@ pub async fn set_local_server<R: Runtime>(
     })
 }
 
-/// Drop this tab's credential and return it to the setup screen. Sign-out in
-/// local mode maps to this: the local owner has no login form.
+/// Drop this tab's credential and return it to the setup screen.
 #[tauri::command]
 pub async fn leave_server<R: Runtime>(
     app: AppHandle<R>,
@@ -264,8 +254,7 @@ pub async fn leave_server<R: Runtime>(
     Ok(())
 }
 
-/// Persist the refresh token issued at login. This is the only moment the
-/// webview holds the token; there is no read command.
+/// Persist the refresh token issued at login. There is no read command.
 #[tauri::command]
 pub fn store_session<R: Runtime>(
     app: AppHandle<R>,
@@ -292,8 +281,7 @@ pub fn clear_session<R: Runtime>(
     }
 }
 
-/// Exchange the stored refresh token for a new access token. Rotates the
-/// stored token on success; clears it when the server says the session is gone.
+/// Refresh: rotates the stored token, or clears it when the session is gone.
 #[tauri::command]
 pub async fn refresh_session<R: Runtime>(
     app: AppHandle<R>,
@@ -324,8 +312,7 @@ pub async fn refresh_session<R: Runtime>(
     }
 }
 
-/// Local mode sign-in: refresh the stored token, or redeem the sidecar's
-/// one-time grant. The grant never reaches the webview.
+/// Local mode sign-in: refresh the stored token, else redeem the sidecar's grant.
 #[tauri::command]
 pub async fn local_sign_in<R: Runtime>(
     app: AppHandle<R>,
@@ -339,8 +326,7 @@ pub async fn local_sign_in<R: Runtime>(
         ));
     }
     let key = server.keychain_key();
-    // Serialise sign-ins: a concurrent caller would otherwise find the grant
-    // consumed and restart the sidecar underneath the exchange in flight.
+    // Serialise: a concurrent caller would restart the sidecar mid-exchange.
     let _guard = LOCAL_SIGN_IN.lock().await;
     if let Some(token) = read_token(&app, &key)? {
         match perform_refresh(&sidecar::ensure_running(&app).await?, &token).await {
@@ -505,10 +491,7 @@ mod live {
             .expect("native refresh returns a rotated token in the body");
         assert_ne!(rotated, token, "server must rotate the refresh token");
 
-        // The server keeps the previous token valid for a short grace window
-        // (refreshTokenPreviousHashGrace, 15s) so a lost rotation response does
-        // not strand the client. Reuse *outside* the window revokes the session;
-        // that path is covered by the backend's own tests.
+        // The previous token stays valid for a 15s grace window (refreshTokenPreviousHashGrace).
         let replay = perform_refresh(&origin, &token)
             .await
             .expect("replay inside the grace window is tolerated");

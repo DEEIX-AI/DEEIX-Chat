@@ -1,4 +1,8 @@
 {
   "newTab": "New tab",
-  "local": "This computer"
+  "local": "This computer",
+  "minimize": "Minimize",
+  "maximize": "Maximize",
+  "restore": "Restore",
+  "close": "Close"
 }

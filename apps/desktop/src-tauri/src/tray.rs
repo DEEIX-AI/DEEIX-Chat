@@ -1,6 +1,4 @@
-// Tray icon. Keeps the app resident so notifications and the updater can reach
-// the user while the window is closed — a desktop-only affordance that has no
-// web equivalent.
+// Tray icon: keeps the app resident while the window is hidden.
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -18,6 +16,7 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&show, &quit])?;
 
     let mut builder = TrayIconBuilder::with_id("main")
+        .tooltip("DEEIX Chat")
         .menu(&menu)
         // Left click opens the window; the menu stays on right click.
         .show_menu_on_left_click(false)
@@ -37,9 +36,7 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             }
         });
 
-    // macOS menu bar: a monochrome template glyph, recoloured by the system for
-    // light/dark bars and selection (the filled app icon would be a black blob).
-    // Windows/Linux trays expect the full-colour app icon.
+    // macOS wants a monochrome template glyph; other trays the full-colour icon.
     #[cfg(target_os = "macos")]
     {
         let glyph = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
@@ -54,9 +51,11 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
-fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
+/// Unminimize first: `set_focus` is a no-op on a minimized window.
+pub fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_window(crate::tabs::WINDOW_LABEL) {
         let _ = window.show();
+        let _ = window.unminimize();
         let _ = window.set_focus();
     }
 }

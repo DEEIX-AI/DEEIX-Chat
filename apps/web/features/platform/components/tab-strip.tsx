@@ -4,25 +4,30 @@ import * as React from "react";
 import { closestCenter, DndContext, type DragEndEvent, type Modifier, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, horizontalListSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Globe, Laptop, Plus, X } from "lucide-react";
+import { Copy, Globe, Laptop, Minus, Plus, Square, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import {
   activateTab,
   closeTab,
+  closeWindow,
+  isWindowMaximized,
   listTabs,
+  minimizeWindow,
   moveTab,
   onTabsChanged,
+  onWindowResized,
   openTab,
   type ShellTab,
   type ShellTabs,
+  toggleMaximizeWindow,
 } from "@/shared/platform/desktop-shell";
 
-// Browser-style tab strip for the desktop shell. Runs in its own 40px webview
-// above the content tabs (38px; must match STRIP_HEIGHT in tabs.rs). State is
-// owned by Rust; this is a view over `tabs_list` + the `tabs:changed` event.
-// Reordering uses the workspace's sortable stack (@dnd-kit, as in the sidebar).
+// Tab strip for the desktop shell, in its own 38px webview (STRIP_HEIGHT in
+// tabs.rs). State is owned by Rust; this is a view over `tabs_list` + `tabs:changed`.
+
+const CONTROL_WIDTH = 46;
 
 // Tabs only ever move along the strip.
 const horizontalOnly: Modifier = ({ transform }) => ({ ...transform, y: 0 });
@@ -30,8 +35,7 @@ const horizontalOnly: Modifier = ({ transform }) => ({ ...transform, y: 0 });
 export function TabStrip() {
   const t = useTranslations("desktopTabs");
   const [state, setState] = React.useState<ShellTabs>({ tabs: [], active: null, platform: "" });
-  // Optimistic order between drop and Rust's confirming snapshot, so the tab
-  // does not flash back to its old slot.
+  // Optimistic order until Rust confirms, so the tab does not flash back.
   const [pending, setPending] = React.useState<string[] | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -72,10 +76,11 @@ export function TabStrip() {
     <div
       data-tauri-drag-region
       className={cn(
-        "flex h-[38px] w-screen select-none items-end overflow-hidden bg-muted px-2 pt-1 text-foreground",
+        "relative flex h-[38px] w-screen select-none items-end overflow-hidden bg-muted px-2 pt-1 text-foreground",
         // Room for the traffic lights under the overlay title bar.
         state.platform === "macos" && "pl-[84px]",
       )}
+      style={state.platform === "windows" ? { paddingRight: CONTROL_WIDTH * 3 + 8 } : undefined}
     >
       {/* Next.js dev badge: one per webview; the strip is shell chrome, not a page. */}
       <style>{"nextjs-portal{display:none}"}</style>
@@ -103,6 +108,62 @@ export function TabStrip() {
         onClick={() => void openTab()}
       >
         <Plus className="size-4" />
+      </button>
+      {state.platform === "windows" ? <WindowControls /> : null}
+    </div>
+  );
+}
+
+function WindowControls() {
+  const t = useTranslations("desktopTabs");
+  const [maximized, setMaximized] = React.useState(false);
+  React.useEffect(() => {
+    let disposed = false;
+    const sync = () => {
+      void isWindowMaximized().then((next) => {
+        if (!disposed) setMaximized(next);
+      });
+    };
+    sync();
+    const unsubscribe = onWindowResized(sync);
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, []);
+  const buttonClass =
+    "flex h-[38px] items-center justify-center text-foreground/80 transition-colors hover:bg-foreground/10 hover:text-foreground";
+  return (
+    <div className="absolute right-0 top-0 flex h-[38px]" data-tauri-drag-region="false">
+      <button
+        type="button"
+        aria-label={t("minimize")}
+        title={t("minimize")}
+        className={buttonClass}
+        style={{ width: CONTROL_WIDTH }}
+        onClick={() => void minimizeWindow()}
+      >
+        <Minus className="size-3.5" strokeWidth={1.5} />
+      </button>
+      <button
+        type="button"
+        aria-label={maximized ? t("restore") : t("maximize")}
+        title={maximized ? t("restore") : t("maximize")}
+        className={buttonClass}
+        style={{ width: CONTROL_WIDTH }}
+        onClick={() => void toggleMaximizeWindow()}
+      >
+        {maximized ? <Copy className="size-3" strokeWidth={1.5} /> : <Square className="size-3" strokeWidth={1.5} />}
+      </button>
+      <button
+        type="button"
+        aria-label={t("close")}
+        title={t("close")}
+        className={cn(buttonClass, "hover:bg-[#e81123] hover:text-white")}
+        style={{ width: CONTROL_WIDTH }}
+        onClick={() => void closeWindow()}
+      >
+        <X className="size-4" strokeWidth={1.5} />
       </button>
     </div>
   );
@@ -136,8 +197,7 @@ function TabItem({
       title={tab.title ? `${tab.title} — ${label}` : label}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        // Every tab has identical geometry; only the active one is painted in the
-        // content colour and flows into the page below through the rounded "feet".
+        // Only the active tab is painted in the content colour, with rounded "feet".
         "group relative flex h-[34px] min-w-0 max-w-[200px] flex-1 animate-in items-center gap-2 rounded-t-lg px-3 text-xs transition-colors fade-in-0 duration-200",
         active
           ? cn(
@@ -150,8 +210,7 @@ function TabItem({
         isDragging && "z-10 shadow-md",
       )}
       onPointerDown={(event) => {
-        // Show the tab on press without moving focus: focus leaving the strip
-        // mid-press makes WebKit end the press, which would kill the drag.
+        // No focus on press: moving focus mid-press would kill the drag.
         if (event.button === 0) void activateTab(tab.id, false);
         listeners?.onPointerDown?.(event);
       }}

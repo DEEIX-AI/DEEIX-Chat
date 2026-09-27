@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "DEEIX Chat",
-  "version": "0.4.4-beta.1",
+  "version": "0.4.4-beta.2",
   "identifier": "com.deeix.chat.desktop",
   "build": {
     "frontendDist": "../../web/out",
@@ -20,7 +20,6 @@
       "dmg",
       "app",
       "nsis",
-      "msi",
       "deb",
       "appimage"
     ],
@@ -46,13 +45,6 @@
       "hardenedRuntime": true
     },
     "windows": {
-      "wix": {
-        "language": [
-          "en-US",
-          "zh-CN"
-        ],
-        "version": "0.4.4.1"
-      },
       "digestAlgorithm": "sha256",
       "timestampUrl": "http://timestamp.digicert.com"
     },

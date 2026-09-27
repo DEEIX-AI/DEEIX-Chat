@@ -1,4 +1,8 @@
 {
   "newTab": "新标签页",
-  "local": "本机"
+  "local": "本机",
+  "minimize": "最小化",
+  "maximize": "最大化",
+  "restore": "还原",
+  "close": "关闭"
 }

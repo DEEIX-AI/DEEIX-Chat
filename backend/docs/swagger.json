@@ -4,7 +4,7 @@
         "description": "DEEIX Chat 后端 API 文档",
         "title": "DEEIX Chat API",
         "contact": {},
-        "version": "0.4.4-beta.1"
+        "version": "0.4.4-beta.2"
     },
     "basePath": "/api/v1",
     "paths": {

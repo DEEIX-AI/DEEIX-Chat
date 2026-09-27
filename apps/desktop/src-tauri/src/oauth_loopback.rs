@@ -1,10 +1,5 @@
-// OAuth loopback redirect receiver (RFC 8252 §7.3).
-//
-// The server's provider-auth bridge only accepts `http://127.0.0.1:<port>/oauth/callback`
-// as the redirect for the desktop client id. We bind an ephemeral port on the
-// loopback interface for the duration of one sign-in, hand the full callback
-// URL to the webview, and shut the listener down. Nothing is parsed here: the
-// web app owns state verification and the grant exchange.
+// OAuth loopback redirect receiver (RFC 8252 §7.3): an ephemeral loopback port
+// for one sign-in, whose callback URL is handed to the webview unparsed.
 
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, TcpListener, TcpStream};
@@ -40,9 +35,7 @@ impl<E: std::fmt::Display> From<E> for LoopbackError {
     }
 }
 
-/// Start listening and return the redirect URI the web app must register with
-/// the server. Only one listener runs at a time; starting a new one while a
-/// previous sign-in is pending replaces it.
+/// Start listening and return the redirect URI; a new listener replaces a pending one.
 #[tauri::command]
 pub fn start_oauth_loopback<R: Runtime>(
     app: AppHandle<R>,
