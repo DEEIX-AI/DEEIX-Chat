@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, CornerDownRight, Eye, EyeOff, Film, HatGlasses, Image, ImageOff, ImagePlus, LoaderCircle, PencilLine, Trash2 } from "lucide-react";
+import { Box, CornerDownRight, Eye, EyeOff, Film, HatGlasses, Image, ImageOff, ImagePlus, LoaderCircle, PencilLine, TextQuote, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
@@ -227,6 +227,8 @@ function resolveComposerModeIndicator(
   return null;
 }
 
+const PASTED_TEXT_TO_FILE_THRESHOLD = 2000;
+
 function clipboardFilesFromPaste(event: React.ClipboardEvent<HTMLTextAreaElement>): File[] {
   const itemFiles = Array.from(event.clipboardData.items ?? [])
     .filter((item) => item.kind === "file")
@@ -355,6 +357,7 @@ function ChatInputComponent({
   const markdownPreviewRef = React.useRef<HTMLDivElement | null>(null);
   const attachmentScrollFadeRef = useScrollFadeFallbackRef<HTMLDivElement>();
   const composingRef = React.useRef(false);
+  const pastedTextContentRef = React.useRef(new Map<string, string>());
   const [inputGroupHeight, setInputGroupHeight] = React.useState<number | null>(null);
   const hasDraftText = draft.trim().length > 0;
   const hasSubmitContent = hasDraftText || attachments.length > 0;
@@ -543,6 +546,36 @@ function ChatInputComponent({
       });
     },
   });
+  const removeAttachmentAndForgetPastedText = React.useCallback(
+    (fileID: string, fileName: string) => {
+      pastedTextContentRef.current.delete(fileName);
+      onRemoveAttachment(fileID);
+    },
+    [onRemoveAttachment],
+  );
+
+  const insertPastedTextContent = React.useCallback(
+    (item: PendingAttachment) => {
+      const text = pastedTextContentRef.current.get(item.fileName);
+      if (!text) {
+        return;
+      }
+      const textarea = textareaRef.current;
+      const currentValue = textarea?.value ?? "";
+      const start = textarea?.selectionStart ?? currentValue.length;
+      const end = textarea?.selectionEnd ?? currentValue.length;
+      handleMentionChange(`${currentValue.slice(0, start)}${text}${currentValue.slice(end)}`);
+      const caretIndex = start + text.length;
+      window.requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+        textareaRef.current?.setSelectionRange(caretIndex, caretIndex);
+      });
+      pastedTextContentRef.current.delete(item.fileName);
+      onRemoveAttachment(item.fileID);
+    },
+    [handleMentionChange, onRemoveAttachment],
+  );
+
   const onSelectUploadTool = React.useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -823,10 +856,20 @@ function ChatInputComponent({
                         aria-label={tComposer("previewAttachment", { name: item.fileName })}
                       />
                       <AttachmentActions>
+                        {pastedTextContentRef.current.has(item.fileName) ? (
+                          <AttachmentAction
+                            type="button"
+                            className="size-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground sm:size-7"
+                            onClick={() => insertPastedTextContent(item)}
+                            aria-label={tComposer("insertPastedText", { name: item.fileName })}
+                          >
+                            <TextQuote size={15} strokeWidth={1.8} />
+                          </AttachmentAction>
+                        ) : null}
                         <AttachmentAction
                           type="button"
                           className="size-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground sm:size-7"
-                          onClick={() => onRemoveAttachment(item.fileID)}
+                          onClick={() => removeAttachmentAndForgetPastedText(item.fileID, item.fileName)}
                           aria-label={tComposer("removeAttachment", { name: item.fileName })}
                         >
                           <XIcon size={15} strokeWidth={1.8} animateOnHover="default" />
@@ -936,6 +979,20 @@ function ChatInputComponent({
                 window.requestAnimationFrame(() => {
                   textareaRef.current?.setSelectionRange(formatted.caretIndex, formatted.caretIndex);
                 });
+              }
+
+              if (files.length === 0 && !markdownPaste) {
+                const plainText = event.clipboardData.getData("text/plain");
+                if (plainText.length >= PASTED_TEXT_TO_FILE_THRESHOLD) {
+                  event.preventDefault();
+                  const pastedAt = Date.now();
+                  const fileName = `pasted-text-${pastedAt}.txt`;
+                  pastedTextContentRef.current.set(fileName, plainText);
+                  void onUploadFiles([
+                    new File([plainText], fileName, { type: "text/plain", lastModified: pastedAt }),
+                  ]);
+                  return;
+                }
               }
 
               if (files.length > 0) {

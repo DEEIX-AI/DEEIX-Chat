@@ -521,6 +521,7 @@
     "closeHint": "关闭提示",
     "previewAttachment": "预览附件 {name}",
     "removeAttachment": "移除附件 {name}",
+    "insertPastedText": "将粘贴的全文插入输入框 {name}",
     "uploading": "上传中",
     "uploadingAttachment": "上传中 {name}",
     "ragDisabledTitle": "该文件已关闭 RAG，将以全文注入（消耗更多 Token）",

@@ -521,6 +521,7 @@
     "closeHint": "Close hint",
     "previewAttachment": "Preview attachment {name}",
     "removeAttachment": "Remove attachment {name}",
+    "insertPastedText": "Insert pasted full text into input {name}",
     "uploading": "Uploading",
     "uploadingAttachment": "Uploading {name}",
     "ragDisabledTitle": "This file has RAG disabled and will be injected as full context. It may use more tokens.",
