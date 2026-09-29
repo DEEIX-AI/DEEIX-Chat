@@ -55,7 +55,21 @@
     "blog": "Blog",
     "contact": "Contact & support",
     "copyright": "© 2026 DEEIX. DEEIX Chat.",
-    "license": "Code licensed under the Apache License 2.0."
+    "license": "Code licensed under the Apache License 2.0.",
+    "desktopDownload": {
+      "title": "Desktop download",
+      "enabledLabel": "Download link",
+      "enabledDescription": "Show “Download desktop app” in the user menu.",
+      "urlLabel": "Download URL",
+      "urlDescription": "The page opened from the menu.",
+      "toast": {
+        "loadFailed": "Failed to load download settings",
+        "saveFailed": "Could not save download settings",
+        "updated": "Download settings updated",
+        "sessionExpired": "Session expired",
+        "signInAgain": "Please sign in again before continuing."
+      }
+    }
   },
   "accessDeniedTitle": "Service unavailable",
   "accessDeniedDescription": "You are not allowed to access this page",

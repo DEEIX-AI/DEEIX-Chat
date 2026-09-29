@@ -55,7 +55,21 @@
     "blog": "博客",
     "contact": "联系与支持",
     "copyright": "© 2026 DEEIX. DEEIX Chat.",
-    "license": "代码遵循 Apache License 2.0 授权。"
+    "license": "代码遵循 Apache License 2.0 授权。",
+    "desktopDownload": {
+      "title": "桌面端下载",
+      "enabledLabel": "下载入口",
+      "enabledDescription": "在用户菜单中显示「下载桌面端」。",
+      "urlLabel": "下载地址",
+      "urlDescription": "点击入口后打开的页面。",
+      "toast": {
+        "loadFailed": "加载下载设置失败",
+        "saveFailed": "保存失败",
+        "updated": "下载设置已更新",
+        "sessionExpired": "登录已过期",
+        "signInAgain": "请重新登录后继续。"
+      }
+    }
   },
   "accessDeniedTitle": "服务加载失败",
   "accessDeniedDescription": "您无权访问此页面",

@@ -28,6 +28,12 @@ carrying `X-Client-Platform: desktop` from a non-web Origin get the refresh
 token in the response body instead of a `SameSite` cookie, which a cross-origin
 webview would never receive.
 
+No request leaves a tab before its server is known: the webview origin
+(`tauri.localhost`) answers every unknown path with `index.html`, so a request
+addressed to it would never reach an API. Branding is therefore loaded from the
+tab's server once it is bound, and again when that origin changes (the local
+sidecar restarted on another port); an unbound tab keeps the built-in branding.
+
 ## Tabs: one webview per server
 
 The window is a plain `Window` with child webviews (Tauri `unstable`):

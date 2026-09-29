@@ -1547,6 +1547,20 @@ export interface Envelope {
   requestId?: string;
 }
 
+export interface FeaturePolicyResponse {
+  /** DesktopDownloadEnabled 为 true 时网页端用户菜单展示「下载桌面端」入口；桌面端内由前端自行隐藏。 */
+  desktopDownloadEnabled: boolean;
+  /** DesktopDownloadURL 为桌面端下载页地址；入口关闭时为空串。 */
+  desktopDownloadURL: string;
+  knowledgeBaseEnabled: boolean;
+  processTraceEnabled: boolean;
+}
+
+export interface FeaturePolicyResponseDoc {
+  data: FeaturePolicyResponse;
+  errorMsg: string;
+}
+
 export interface FileEmbeddingSkipResponse {
   fileID: string;
   reason: string;
@@ -10607,7 +10621,7 @@ export namespace Settings {
   }
 
   /**
-   * No description
+   * @description 返回管理员配置的用户侧功能开关，包括知识库、处理轨迹与网页端「下载桌面端」入口
    * @tags settings
    * @name FeaturePolicyList
    * @summary 查询用户侧功能开关策略
@@ -10619,7 +10633,7 @@ export namespace Settings {
     export type RequestQuery = {};
     export type RequestBody = never;
     export type RequestHeaders = {};
-    export type ResponseBody = Envelope;
+    export type ResponseBody = FeaturePolicyResponseDoc;
   }
 
   /**

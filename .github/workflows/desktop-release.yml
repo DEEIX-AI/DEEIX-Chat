@@ -238,15 +238,11 @@ jobs:
             | macOS · Apple silicon | `macos-arm64.dmg` | ✅ Verified | ✅ Available |
             | macOS · Intel | `macos-x64.dmg` | ✅ Verified | ✅ Available |
             | Linux · x86_64 | `linux-x64.AppImage` or `.deb` | ✅ Verified | ✅ Available |
-            | Windows · x86_64 · installer (per user, no admin, auto-updates) | `windows-x64-setup.exe` | ✅ Verified | ✅ Available |
-            | Windows · x86_64 · MSI (per machine, for IT: Intune / SCCM / GPO, `msiexec /i … /qn`; updates managed by IT) | `windows-x64.msi` | ✅ Verified | ✅ Available |
-            | Windows · x86_64 · portable (unzip and run; notifies about updates) | `windows-x64-portable.zip` | ✅ Verified | ✅ Available |
+            | Windows · x86_64 | `windows-x64-setup.exe` | ✅ Verified | ✅ Available |
+            | Windows · x86_64 · MSI | `windows-x64.msi` | ✅ Verified | ✅ Available |
+            | Windows · x86_64 · Portable | `windows-x64-portable.zip` | ✅ Verified | ✅ Available |
 
-            A `-portable-offline.zip`, when present, also contains the Microsoft WebView2 runtime for PCs without it or without internet access.
-
-            **Verify downloads:** `SHA256SUMS` lists the SHA-256 of every file (`sha256sum -c SHA256SUMS --ignore-missing`; on Windows `Get-FileHash <file>`). Windows files carry GitHub build provenance: `gh attestation verify <file> --repo ${{ github.repository }}`.
-
-            `-updater.tar.gz`, `.sig` and `latest.json` belong to the built-in updater.
+            Checksums are in `SHA256SUMS`. `-updater.tar.gz`, `.sig` and `latest.json` belong to the built-in updater.
           # Draft until a human publishes it. Stable installs poll GitHub's
           # releases/latest URL (newest published non-prerelease); beta installs
           # poll the desktop-beta rolling manifest, refreshed on publish by

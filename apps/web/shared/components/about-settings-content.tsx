@@ -39,6 +39,8 @@ type AboutSettingsContentProps = {
   // Extra lines under the version (e.g. how the desktop app was distributed).
   // Supplied by the caller so this panel stays free of platform concerns.
   versionDetails?: ReactNode;
+  // Extra sections appended after the product details (e.g. admin-only settings).
+  extraSections?: ReactNode;
   // Renders third-party brand marks (GitHub, X) of the official links. Injected by the
   // caller so this product panel stays free of the identity-provider entity.
   brandIcon?: AboutBrandIcon;
@@ -114,6 +116,7 @@ export function AboutSettingsContent({
   versionBadgeTooltip,
   versionActions,
   versionDetails,
+  extraSections,
   brandIcon,
 }: AboutSettingsContentProps) {
   const tCommon = useTranslations("common.appVersion");
@@ -216,6 +219,7 @@ export function AboutSettingsContent({
           </a>
         </div>
       </SettingsSection>
+      {extraSections}
     </SettingsPage>
   );
 }

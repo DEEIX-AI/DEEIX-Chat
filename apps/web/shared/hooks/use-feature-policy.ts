@@ -2,10 +2,15 @@
 
 import * as React from "react";
 
-import { type FeaturePolicy, getFeaturePolicy } from "@/shared/api/settings";
+import { DEFAULT_DESKTOP_DOWNLOAD_URL, type FeaturePolicy, getFeaturePolicy } from "@/shared/api/settings";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
-const DEFAULT_FEATURE_POLICY: FeaturePolicy = { knowledgeBaseEnabled: true, processTraceEnabled: true };
+const DEFAULT_FEATURE_POLICY: FeaturePolicy = {
+  knowledgeBaseEnabled: true,
+  processTraceEnabled: true,
+  desktopDownloadEnabled: true,
+  desktopDownloadURL: DEFAULT_DESKTOP_DOWNLOAD_URL,
+};
 
 let cachedFeaturePolicy: FeaturePolicy | null = null;
 let inflightFeaturePolicy: Promise<void> | null = null;

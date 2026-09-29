@@ -125,7 +125,7 @@ func changedConfigFields(cfg config.Config) []string {
 }
 
 func TestSettingRegistryDerivedViews(t *testing.T) {
-	for _, namespace := range []string{"auth", "billing", "chat", "storage", "file", "extract", "mcp", "circuit", "knowledgebase"} {
+	for _, namespace := range []string{"auth", "billing", "chat", "storage", "file", "extract", "mcp", "circuit", "knowledgebase", "desktop"} {
 		if !IsValidNamespace(namespace) {
 			t.Fatalf("expected namespace %q to be valid", namespace)
 		}
@@ -178,6 +178,13 @@ func TestValidatePatchItemUsesRegistry(t *testing.T) {
 		{name: "optional int64 below min", item: PatchItem{Namespace: "file", Key: "image_max_bytes", Value: "0"}, wantCode: settingCodeInvalidValue, wantRule: "optional_integer_min"},
 		{name: "epay gateway", item: PatchItem{Namespace: "billing", Key: "epay_gateway_url", Value: "ftp://pay.example.com"}, wantCode: settingCodeBillingPaymentInvalid, wantRule: "epay_url"},
 		{name: "login path", item: PatchItem{Namespace: "auth", Key: "login_default_next_path", Value: "//evil"}, wantCode: settingCodeInvalidValue, wantRule: "local_path"},
+		{name: "desktop download url", item: PatchItem{Namespace: "desktop", Key: "download_url", Value: " https://example.com/download?ref=web "}},
+		{name: "desktop download url empty", item: PatchItem{Namespace: "desktop", Key: "download_url", Value: " "}, wantCode: settingCodeInvalidValue, wantRule: "required"},
+		{name: "desktop download url relative", item: PatchItem{Namespace: "desktop", Key: "download_url", Value: "/download"}, wantCode: settingCodeInvalidValue, wantRule: "download_url"},
+		{name: "desktop download url scheme", item: PatchItem{Namespace: "desktop", Key: "download_url", Value: "javascript:alert(1)"}, wantCode: settingCodeInvalidValue, wantRule: "download_url"},
+		{name: "desktop download url credentials", item: PatchItem{Namespace: "desktop", Key: "download_url", Value: "https://user:pass@example.com/download"}, wantCode: settingCodeInvalidValue, wantRule: "download_url"},
+		{name: "desktop download url too long", item: PatchItem{Namespace: "desktop", Key: "download_url", Value: "https://example.com/" + strings.Repeat("a", 200)}, wantCode: settingCodeInvalidValue, wantRule: "max_length"},
+		{name: "desktop download enabled garbage", item: PatchItem{Namespace: "desktop", Key: "download_enabled", Value: "on"}, wantCode: settingCodeInvalidValue, wantRule: "bool"},
 		{name: "unvalidated text", item: PatchItem{Namespace: "chat", Key: "compact_system_prompt", Value: strings.Repeat("x", 50000)}},
 	}
 	for _, tc := range cases {
@@ -200,5 +207,41 @@ func TestValidatePatchItemUsesRegistry(t *testing.T) {
 				t.Fatalf("unexpected validation error: code=%q details=%+v", validationErr.Code(), validationErr.Details())
 			}
 		})
+	}
+}
+
+func TestIsValidDesktopDownloadURL(t *testing.T) {
+	cases := map[string]bool{
+		"https://deeix.com/download":                    true,
+		"http://intranet.example.com:8080/app":          true,
+		"":                                              false,
+		"deeix.com/download":                            false,
+		"//deeix.com/download":                          false,
+		"ftp://deeix.com/download":                      false,
+		"javascript:alert(1)":                           false,
+		"https://user@deeix.com/download":               false,
+		"https://:secret@deeix.com/download":            false,
+		"https:///download":                             false,
+		"https://deeix.com/" + strings.Repeat("a", 200): false,
+	}
+	for value, want := range cases {
+		if got := IsValidDesktopDownloadURL(value); got != want {
+			t.Fatalf("IsValidDesktopDownloadURL(%q) = %v, want %v", value, got, want)
+		}
+	}
+}
+
+// 下载页地址被绕过校验写成非法值时，运行时配置回退到默认地址。
+func TestNormalizeConfigFallsBackToDefaultDesktopDownloadURL(t *testing.T) {
+	var runtimeSettings RuntimeSettings
+	cfg := config.Config{DesktopDownloadURL: "javascript:alert(1)"}
+	runtimeSettings.normalizeConfig(&cfg)
+	if cfg.DesktopDownloadURL != config.DefaultDesktopDownloadURL {
+		t.Fatalf("expected fallback to default download url, got %q", cfg.DesktopDownloadURL)
+	}
+	cfg.DesktopDownloadURL = "https://example.com/download"
+	runtimeSettings.normalizeConfig(&cfg)
+	if cfg.DesktopDownloadURL != "https://example.com/download" {
+		t.Fatalf("valid download url must be kept, got %q", cfg.DesktopDownloadURL)
 	}
 }

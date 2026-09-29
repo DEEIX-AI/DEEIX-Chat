@@ -2,7 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
-import { CircleArrowUp, RefreshCw } from "lucide-react";
+import { CircleArrowUp, RefreshCw, Save } from "lucide-react";
+import * as React from "react";
 
 import packageMeta from "@/package.json";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,14 @@ import {
   DialogHeightTransition,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { SettingsFieldEditor } from "@/features/admin/components/shared/settings-runtime-panel";
 import { AdminUpdateTooltipContent } from "@/features/admin/components/shared/update-tooltip-content";
+import { useAdminAboutDesktopDownload } from "@/features/admin/hooks/use-admin-about-desktop-download";
+import {
+  buildDesktopDownloadSettingsFields,
+  desktopDownloadFieldID,
+  toDesktopDownloadEditorField,
+} from "@/features/admin/model/desktop-download-settings";
 import {
   formatReleaseVersion,
   getCachedLatestReleaseSnapshot,
@@ -28,6 +36,7 @@ import {
 import { type AdminUpdateDialogState, useAdminAboutUpdateCheck } from "@/features/admin/hooks/use-admin-about-update-check";
 import { IdentityProviderIcon } from "@/entities/identity-provider";
 import { AboutSettingsContent } from "@/shared/components/about-settings-content";
+import { SettingsFieldItem, SettingsFieldList, SettingsSection } from "@/shared/components/settings-layout";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { cn } from "@/lib/utils";
 
@@ -144,6 +153,45 @@ function UpdateResultDialog({
   );
 }
 
+function AdminAboutDesktopDownload() {
+  const t = useTranslations("adminUsers.aboutPage");
+  const commonT = useTranslations("common");
+  const fields = React.useMemo(() => buildDesktopDownloadSettingsFields(t), [t]);
+  const { loading, saving, settingsMap, savedMap, dirtyFieldIDs, updateValue, handleSave } = useAdminAboutDesktopDownload(fields);
+  const enabled = settingsMap["desktop.download_enabled"] === "true";
+  // The URL only matters while the entry is shown; keep it visible when it has unsaved edits.
+  const visibleFields = fields.filter((field) => field.key !== "download_url" || enabled || dirtyFieldIDs.has(desktopDownloadFieldID(field)));
+
+  return (
+    <SettingsSection
+      title={t("desktopDownload.title")}
+      actions={dirtyFieldIDs.size > 0 ? (
+        <Button type="button" size="sm" disabled={loading || saving} onClick={() => void handleSave()}>
+          <Save className="size-3.5" />
+          {commonT("actions.save")}
+        </Button>
+      ) : null}
+    >
+      <SettingsFieldList>
+        {visibleFields.map((field, index) => {
+          const id = desktopDownloadFieldID(field);
+          return (
+            <SettingsFieldItem key={id} index={index}>
+              <SettingsFieldEditor
+                field={toDesktopDownloadEditorField(field)}
+                value={settingsMap[id] ?? ""}
+                dirty={(settingsMap[id] ?? "") !== (savedMap[id] ?? "")}
+                disabled={loading || saving}
+                onChange={(value) => updateValue(field, value)}
+              />
+            </SettingsFieldItem>
+          );
+        })}
+      </SettingsFieldList>
+    </SettingsSection>
+  );
+}
+
 export function AdminAboutPage() {
   const t = useTranslations("adminUsers.aboutPage");
   const cachedLatestRelease = useSyncExternalStore(
@@ -162,6 +210,7 @@ export function AdminAboutPage() {
       versionBadgeContent={<AdminAboutVersionBadge updateRelease={updateRelease} />}
       versionBadgeTooltip={<AdminUpdateTooltipContent updateRelease={updateRelease} />}
       versionActions={<AdminUpdateCheck />}
+      extraSections={<AdminAboutDesktopDownload />}
       labels={{
         details: t("details"),
         official: t("official"),

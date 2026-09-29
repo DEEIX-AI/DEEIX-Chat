@@ -267,7 +267,8 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
   const contentType = response.headers.get("content-type") || "";
   const responseRequestId = response.headers.get("x-request-id") || undefined;
-  const payload: UntypedEnvelope = contentType.includes("application/json")
+  const isJSON = contentType.includes("application/json");
+  const payload: UntypedEnvelope = isJSON
     ? readEnvelope(await response.json())
     : { errorMsg: response.ok ? "" : await response.text(), requestId: responseRequestId, data: undefined };
 
@@ -292,6 +293,18 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
       payload.errorCode,
       payload.requestId || responseRequestId,
       parseRetryAfterSeconds(response),
+    );
+  }
+  // Every endpoint answers with the JSON envelope. A 2xx without one did not come from the API
+  // (typically a static host or SPA fallback serving index.html for the path), so resolving it
+  // would hand callers `undefined` as `T`.
+  if (!isJSON) {
+    throw new ApiError(
+      `request failed: unexpected non-JSON response (${response.status})`,
+      response.status,
+      undefined,
+      undefined,
+      responseRequestId,
     );
   }
   // Type assertion: the envelope shape is validated above, but `data` is typed by the endpoint's

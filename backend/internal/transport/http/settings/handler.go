@@ -273,14 +273,28 @@ func (h *Handler) GetChatContextPolicy(c *gin.Context) {
 
 // GetFeaturePolicy godoc
 // @Summary 查询用户侧功能开关策略
+// @Description 返回管理员配置的用户侧功能开关，包括知识库、处理轨迹与网页端「下载桌面端」入口
 // @Tags settings
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} response.Envelope
+// @Success 200 {object} FeaturePolicyResponseDoc
 // @Router /settings/feature-policy [get]
 func (h *Handler) GetFeaturePolicy(c *gin.Context) {
-	cfg := h.runtime.Snapshot()
-	response.Success(c, FeaturePolicyResponse{KnowledgeBaseEnabled: cfg.KnowledgeBaseEnabled, ProcessTraceEnabled: cfg.ProcessTraceEnabled})
+	response.Success(c, featurePolicyResponse(h.runtime.Snapshot()))
+}
+
+// featurePolicyResponse 把运行时配置映射为用户侧功能开关；下载地址不合法时一并关闭下载入口。
+func featurePolicyResponse(cfg config.Config) FeaturePolicyResponse {
+	resp := FeaturePolicyResponse{
+		KnowledgeBaseEnabled: cfg.KnowledgeBaseEnabled,
+		ProcessTraceEnabled:  cfg.ProcessTraceEnabled,
+	}
+	downloadURL := strings.TrimSpace(cfg.DesktopDownloadURL)
+	if cfg.DesktopDownloadEnabled && appsettings.IsValidDesktopDownloadURL(downloadURL) {
+		resp.DesktopDownloadEnabled = true
+		resp.DesktopDownloadURL = downloadURL
+	}
+	return resp
 }
 
 // Patch godoc

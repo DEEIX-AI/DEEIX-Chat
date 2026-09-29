@@ -74,6 +74,9 @@
     "announcements": "公告",
     "language": "语言",
     "upgradePlan": "升级计划",
+    "desktopDownload": {
+      "label": "下载桌面端"
+    },
     "admin": "管理后台",
     "logout": "登出",
     "loggingOut": "登出中",

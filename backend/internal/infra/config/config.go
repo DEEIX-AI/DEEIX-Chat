@@ -36,6 +36,8 @@ const (
 	// defaultHTTPShutdownTimeoutSeconds 是优雅关停排空 in-flight 请求的默认窗口。
 	// 容器编排下应小于 terminationGracePeriodSeconds，为强断兜底与资源释放留余量。
 	defaultHTTPShutdownTimeoutSeconds = 10
+	// DefaultDesktopDownloadURL 是桌面端下载页的默认地址。
+	DefaultDesktopDownloadURL = "https://deeix.com/download"
 	// DefaultFileFullContextMaxBytes 是全文注入的默认提取文本大小上限（2 MiB）。
 	DefaultFileFullContextMaxBytes int64 = 2 * 1024 * 1024
 
@@ -483,6 +485,9 @@ type Config struct {
 	ModelOptionDeniedPaths       string
 	// 知识库配置
 	KnowledgeBaseEnabled bool
+	// 桌面端下载入口配置
+	DesktopDownloadEnabled bool   // 是否在网页端用户菜单展示「下载桌面端」入口
+	DesktopDownloadURL     string // 桌面端下载页地址
 	// 存储配置
 	UserStorageQuotaBytes int64
 	MaxUploadFileBytes    int64
@@ -724,6 +729,8 @@ func Load() Config {
 		ModelOptionAllowedPaths:           DefaultModelOptionAllowedPathsJSON(),
 		ModelOptionDeniedPaths:            DefaultModelOptionDeniedPathsJSON(),
 		KnowledgeBaseEnabled:              true,
+		DesktopDownloadEnabled:            true,
+		DesktopDownloadURL:                DefaultDesktopDownloadURL,
 		UserStorageQuotaBytes:             104857600,
 		MaxUploadFileBytes:                20971520,
 		MaxMessageFiles:                   10,

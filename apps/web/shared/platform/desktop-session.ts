@@ -38,6 +38,18 @@ export function initializeDesktopSession(): Promise<ServerInfo | null> {
 }
 
 /**
+ * Resolve once requests can be addressed: true right away in browsers; on
+ * desktop true once this tab is bound to a server, false while it shows the
+ * setup screen. Rejects when the bound server cannot be resolved.
+ */
+export async function waitForApiServer(): Promise<boolean> {
+  if (!isDesktopApp()) {
+    return true;
+  }
+  return (await initializeDesktopSession()) !== null;
+}
+
+/**
  * Record an authenticated session. Every sign-in path goes through here; on
  * desktop the refresh token is handed to the shell and never read back.
  */

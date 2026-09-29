@@ -163,6 +163,12 @@ var settingSpecs = []settingSpec{
 	{Namespace: "knowledgebase", Key: "enabled", ValueType: "bool", Default: "true", Description: "是否启用知识库功能；关闭后隐藏用户侧入口并拒绝知识库请求",
 		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.KnowledgeBaseEnabled }, toBool)},
 
+	// 桌面端下载入口配置：仅影响网页端用户菜单入口，桌面端内始终不展示。
+	{Namespace: "desktop", Key: "download_enabled", ValueType: "bool", Default: "true", Description: "是否在网页端用户菜单展示「下载桌面端」入口",
+		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.DesktopDownloadEnabled }, toBool)},
+	{Namespace: "desktop", Key: "download_url", ValueType: "string", Default: config.DefaultDesktopDownloadURL, Description: "桌面端下载页地址，须为不含凭据的 http(s) 绝对地址",
+		Validate: validateDesktopDownloadURL, Apply: applyField(func(c *config.Config) *string { return &c.DesktopDownloadURL }, trimmedText)},
+
 	// 存储配置
 	{Namespace: "storage", Key: "user_storage_quota_bytes", ValueType: "int", Default: "104857600", Description: "用户总存储配额（管理页面按 MB 输入，内部以字节保存），0表示不限制",
 		Validate: int64Min(0), Apply: applyField(func(c *config.Config) *int64 { return &c.UserStorageQuotaBytes }, toInt64)},

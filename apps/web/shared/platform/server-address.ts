@@ -9,6 +9,30 @@ import { normalizeApiBaseUrl } from "@deeix/core";
 import { getServer, type ServerInfo, setLocalServer, setRemoteServer } from "./desktop-shell";
 
 let current: ServerInfo | null = null;
+const originHandlers = new Set<(origin: string) => void>();
+
+function setCurrent(next: ServerInfo | null): void {
+  const origin = next?.origin ?? "";
+  const changed = origin !== readServerOrigin();
+  current = next;
+  if (changed) {
+    for (const handler of originHandlers) {
+      handler(origin);
+    }
+  }
+}
+
+/**
+ * Subscribe to origin changes (a server was bound, the local sidecar moved to a
+ * new port). The handler receives the new origin, "" when the tab has none;
+ * returns an unsubscribe function.
+ */
+export function onServerOriginChanged(handler: (origin: string) => void): () => void {
+  originHandlers.add(handler);
+  return () => {
+    originHandlers.delete(handler);
+  };
+}
 
 /** Synchronous read for the API client; empty until `loadServer` ran. */
 export function readServerOrigin(): string {
@@ -20,8 +44,9 @@ export function readServerMode(): ServerInfo["mode"] | null {
 }
 
 export async function loadServer(): Promise<ServerInfo | null> {
-  current = await getServer();
-  return current;
+  const server = await getServer();
+  setCurrent(server);
+  return server;
 }
 
 /** Normalise user input; "" when it is not an absolute http(s) URL. */
@@ -30,11 +55,13 @@ export function validateApiBaseUrl(raw: string): string {
 }
 
 export async function commitRemoteServer(origin: string): Promise<ServerInfo> {
-  current = await setRemoteServer(origin);
-  return current;
+  const server = await setRemoteServer(origin);
+  setCurrent(server);
+  return server;
 }
 
 export async function commitLocalServer(): Promise<ServerInfo> {
-  current = await setLocalServer();
-  return current;
+  const server = await setLocalServer();
+  setCurrent(server);
+  return server;
 }

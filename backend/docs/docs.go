@@ -16033,6 +16033,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "返回管理员配置的用户侧功能开关，包括知识库、处理轨迹与网页端「下载桌面端」入口",
                 "produces": [
                     "application/json"
                 ],
@@ -16044,7 +16045,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/Envelope"
+                            "$ref": "#/definitions/FeaturePolicyResponseDoc"
                         }
                     }
                 }
@@ -22060,6 +22061,46 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "requestId": {
+                    "type": "string"
+                }
+            }
+        },
+        "FeaturePolicyResponse": {
+            "type": "object",
+            "required": [
+                "desktopDownloadEnabled",
+                "desktopDownloadURL",
+                "knowledgeBaseEnabled",
+                "processTraceEnabled"
+            ],
+            "properties": {
+                "desktopDownloadEnabled": {
+                    "description": "DesktopDownloadEnabled 为 true 时网页端用户菜单展示「下载桌面端」入口；桌面端内由前端自行隐藏。",
+                    "type": "boolean"
+                },
+                "desktopDownloadURL": {
+                    "description": "DesktopDownloadURL 为桌面端下载页地址；入口关闭时为空串。",
+                    "type": "string"
+                },
+                "knowledgeBaseEnabled": {
+                    "type": "boolean"
+                },
+                "processTraceEnabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "FeaturePolicyResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/FeaturePolicyResponse"
+                },
+                "errorMsg": {
                     "type": "string"
                 }
             }

@@ -132,6 +132,16 @@ type ChatContextPolicyResponse struct {
 type FeaturePolicyResponse struct {
 	KnowledgeBaseEnabled bool `json:"knowledgeBaseEnabled"`
 	ProcessTraceEnabled  bool `json:"processTraceEnabled"`
+	// DesktopDownloadEnabled 为 true 时网页端用户菜单展示「下载桌面端」入口；桌面端内由前端自行隐藏。
+	DesktopDownloadEnabled bool `json:"desktopDownloadEnabled"`
+	// DesktopDownloadURL 为桌面端下载页地址；入口关闭时为空串。
+	DesktopDownloadURL string `json:"desktopDownloadURL"`
+}
+
+// FeaturePolicyResponseDoc 是用户侧功能开关策略的响应包裹，仅用于 Swagger。
+type FeaturePolicyResponseDoc struct {
+	ErrorMsg string                `json:"errorMsg"`
+	Data     FeaturePolicyResponse `json:"data"`
 }
 
 // ── mapping 函数 ─────────────────────────────────────────────────────────────

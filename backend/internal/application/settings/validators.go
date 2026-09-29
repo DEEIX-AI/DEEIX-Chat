@@ -3,6 +3,7 @@ package settings
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -153,6 +154,38 @@ func validateLoginDefaultNextPath(value string, key string) error {
 		return settingRule("local_path", "")
 	}
 	return maxLength(120)(value, key)
+}
+
+// maxDesktopDownloadURLLength 限制下载页地址长度（按字节计）。
+const maxDesktopDownloadURLLength = 200
+
+// validateDesktopDownloadURL 要求下载页地址为不含凭据的 http(s) 绝对地址。
+// 空值直接拒绝而不是回退默认值：与 login_default_next_path 一致，避免管理员误清空后入口静默指向别处；
+// 关闭入口应使用 desktop:download_enabled。
+func validateDesktopDownloadURL(value string, key string) error {
+	if value == "" {
+		return settingRule("required", "")
+	}
+	if len(value) > maxDesktopDownloadURLLength {
+		return settingRule("max_length", strconv.Itoa(maxDesktopDownloadURLLength))
+	}
+	if !IsValidDesktopDownloadURL(value) {
+		return settingRule("download_url", "")
+	}
+	return nil
+}
+
+// IsValidDesktopDownloadURL 判断地址是否为可对用户展示的下载页地址：http(s) 绝对地址、有主机名且不含用户信息。
+func IsValidDesktopDownloadURL(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > maxDesktopDownloadURLLength {
+		return false
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.User != nil || parsed.Hostname() == "" {
+		return false
+	}
+	return parsed.Scheme == "http" || parsed.Scheme == "https"
 }
 
 func validateEmailDomainList(value string, key string) error {

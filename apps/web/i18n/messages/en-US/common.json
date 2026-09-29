@@ -74,6 +74,9 @@
     "announcements": "Announcements",
     "language": "Language",
     "upgradePlan": "Upgrade plan",
+    "desktopDownload": {
+      "label": "Download desktop app"
+    },
     "admin": "Admin",
     "logout": "Sign out",
     "loggingOut": "Signing out",

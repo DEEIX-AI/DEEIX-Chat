@@ -34,6 +34,7 @@ import {
   useSidebarHoverExpansionLock,
 } from "@/components/ui/sidebar";
 import { SpinnerLabel } from "@/components/ui/spinner";
+import { NavDesktopDownload } from "@/features/shell/components/navigation/nav-desktop-download";
 import { useShellUserMenuActions } from "@/features/shell/hooks/use-shell-user-menu-actions";
 import { APP_LOCALE_LABELS, APP_LOCALES } from "@/i18n/config";
 import { dispatchOpenAnnouncements, getAnnouncementUnread, subscribeAnnouncementUnreadChanged } from "@/entities/announcement";
@@ -70,6 +71,11 @@ export function NavUser({
     },
     [router],
   );
+
+  const closeAfterExternalOpen = React.useCallback(() => {
+    skipTriggerFocusRef.current = true;
+    setOpen(false);
+  }, []);
 
   const openAnnouncementsFromMenu = React.useCallback((event: Event) => {
     event.preventDefault();
@@ -165,6 +171,8 @@ export function NavUser({
                 </DropdownMenuItem>
               </DropdownMenuGroup>
             </FeatureGate>
+            {/* Outside the billing gate: servers without billing still offer the download. */}
+            <NavDesktopDownload onOpenPage={closeAfterExternalOpen} />
             <DropdownMenuSeparator />
             {isAdmin ? (
               <DropdownMenuItem onSelect={navigateFromMenu("/admin")}>

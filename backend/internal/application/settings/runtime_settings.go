@@ -158,6 +158,10 @@ func (r *RuntimeSettings) normalizeConfig(cfg *config.Config) {
 	if cfg.MCPToolTimeoutSeconds > maxMCPToolTimeoutSeconds {
 		cfg.MCPToolTimeoutSeconds = maxMCPToolTimeoutSeconds
 	}
+	// 下载页地址异常（如绕过校验直接改库）时回退默认地址，保证用户侧拿到的地址始终可安全展示。
+	if !IsValidDesktopDownloadURL(cfg.DesktopDownloadURL) {
+		cfg.DesktopDownloadURL = config.DefaultDesktopDownloadURL
+	}
 	if !cfg.FileFullContextLimitEnabled {
 		cfg.FileFullContextMaxBytes = 0
 		cfg.FileFullContextMaxTokens = 0
